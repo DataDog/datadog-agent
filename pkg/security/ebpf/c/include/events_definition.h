@@ -303,10 +303,8 @@ struct syscall_monitor_event_t {
     struct span_context_t span;
     struct container_context_t container;
 
-    union {
-        struct syscall_monitor_entry_t syscalls;
-        long syscall_id;
-    } syscall_data;
+    u64 event_reason;
+    char syscalls[SYSCALL_ENCODING_TABLE_SIZE];
 };
 
 struct rename_event_t {
