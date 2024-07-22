@@ -8,6 +8,7 @@ package listener
 import (
 	_ "embed"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -100,6 +101,7 @@ func assertLogsReceived(
 
 	ipAddress, _, err := docker.Client.ExecuteCommandStdoutStdErr("logger-app", ipCmd...)
 	require.NoError(t, err)
+	ipAddress = strings.TrimSpace(ipAddress)
 	t.Logf("Logger-app IP address: %s", ipAddress)
 	sourceHostTag := fmt.Sprintf("source_host:%s", ipAddress)
 	// Command to execute inside the container
