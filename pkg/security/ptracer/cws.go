@@ -138,11 +138,11 @@ func sendMsgData(client net.Conn, data []byte) error {
 	var size [4]byte
 	native.Endian.PutUint32(size[:], uint32(len(data)))
 	if _, err := client.Write(size[:]); err != nil {
-		return fmt.Errorf("unabled to send size: %v", err)
+		return fmt.Errorf("unable to send size: %v", err)
 	}
 
 	if _, err := client.Write(data); err != nil {
-		return fmt.Errorf("unabled to send message: %v", err)
+		return fmt.Errorf("unable to send message: %v", err)
 	}
 	return nil
 }
