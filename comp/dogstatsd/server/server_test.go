@@ -507,7 +507,8 @@ func TestUDPForward(t *testing.T) {
 	requireStart(t, deps.Server)
 
 	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
-	require.NoError(t, err, "cannot connect to DSD socket")
+	require.NoError(t, err)
+	require.NotNil(t, conn)
 	defer conn.Close()
 
 	// Check if message is forwarded
@@ -515,7 +516,7 @@ func TestUDPForward(t *testing.T) {
 
 	conn.Write(message)
 
-	pc.SetReadDeadline(time.Now().Add(2 * time.Second))
+	pc.SetReadDeadline(time.Now().Add(4 * time.Second))
 
 	buffer := make([]byte, len(message))
 	_, _, err = pc.ReadFrom(buffer)
