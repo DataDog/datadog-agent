@@ -20,6 +20,7 @@ import (
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 )
@@ -28,8 +29,9 @@ import (
 //
 // [docker.Deamon]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent/docker#Deamon
 type Docker struct {
-	t      *testing.T
-	client *client.Client
+	t        *testing.T
+	client   *client.Client
+	scrubber *scrubber.Scrubber
 }
 
 // NewDocker creates a new instance of Docker
@@ -63,8 +65,9 @@ func NewDocker(t *testing.T, dockerOutput docker.ManagerOutput) (*Docker, error)
 	}
 
 	return &Docker{
-		t:      t,
-		client: client,
+		t:        t,
+		client:   client,
+		scrubber: scrubber.NewWithDefaults(),
 	}, nil
 }
 
@@ -86,8 +89,11 @@ func (docker *Docker) ExecuteCommandWithErr(containerName string, commands ...st
 
 // ExecuteCommandStdoutStdErr executes a command on containerName and returns the output, the error output and an error.
 func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands ...string) (stdout string, stderr string, err error) {
-	context := context.Background()
+	cmd := strings.Join(commands, " ")
+	scrubbedCommand := docker.scrubber.ScrubLine(cmd) // scrub the command in case it contains secrets
+	docker.t.Logf("Executing command `%s`", scrubbedCommand)
 
+	context := context.Background()
 	execConfig := types.ExecConfig{Cmd: commands, AttachStderr: true, AttachStdout: true}
 	execCreateResp, err := docker.client.ContainerExecCreate(context, containerName, execConfig)
 	require.NoError(docker.t, err)
