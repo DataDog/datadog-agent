@@ -209,6 +209,10 @@ func TestStatusProvider(t *testing.T) {
 					}
 				}),
 			))
+
+			// reset agent module global variable "Once" to ensure Enabled() function runs for each unit test
+			agent.Once = sync.Once{}
+
 			provides, err := newProcessAgent(deps)
 			assert.IsType(t, tc.expected, provides.StatusProvider.Provider)
 			assert.NoError(t, err)
@@ -249,6 +253,10 @@ func TestTelemetryCoreAgent(t *testing.T) {
 			}
 		}),
 	))
+
+	// reset agent module global variable "Once" to ensure Enabled() function runs for this unit test
+	agent.Once = sync.Once{}
+
 	_, err := newProcessAgent(deps)
 	assert.NoError(t, err)
 
