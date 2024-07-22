@@ -284,10 +284,6 @@ notify_ebpf_complexity_changes:
       optional: true
     - job: "kmt_run_sysprobe_tests_arm64"
       optional: true
-    - job: "kmt_run_secagent_tests_x64"
-      optional: true
-    - job: "kmt_run_secagent_tests_arm64"
-      optional: true
   allow_failure: true
   script:
     - inv -e ebpf.generate-complexity-summary-for-pr
