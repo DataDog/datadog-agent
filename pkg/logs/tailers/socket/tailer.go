@@ -12,13 +12,13 @@ import (
 	"net"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Tailer reads data from a net.Conn.  It uses a `read` callback to be generic
@@ -73,7 +73,7 @@ func (t *Tailer) forwardMessages() {
 			remoteAddress := t.Conn.RemoteAddr()
 			copiedTags := make([]string, len(t.source.Config.Tags))
 			copy(copiedTags, t.source.Config.Tags)
-			if remoteAddress != nil {
+			if remoteAddress != nil && coreConfig.Datadog().GetBool("logs_config.use_sourcehost_tag") {
 				addressWithPort := t.Conn.RemoteAddr().String()
 				lastColonIndex := strings.LastIndex(addressWithPort, ":")
 				var ipAddress string
