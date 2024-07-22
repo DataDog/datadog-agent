@@ -641,7 +641,7 @@ def generate_gitlab_full_configuration(
 
     # Override some variables with a dedicated context
     if context:
-        full_configuration['variables'] = full_configuration.get('variables', {}).update(context)
+        full_configuration["variables"].update(context)
     if compare_to:
         for value in full_configuration.values():
             if (
