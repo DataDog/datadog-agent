@@ -405,6 +405,8 @@ func (ua *UprobeAttacher) getRulesForExecutable(path string, procInfo *ProcInfo)
 	return matchedRules
 }
 
+var errIterationStart = errors.New("iteration start")
+
 // getExecutablePath resolves the executable of the given PID looking in procfs. Automatically
 // handles delays in procfs updates. Will return an error if the path cannot be resolved
 func (ua *UprobeAttacher) getExecutablePath(pid uint32) (string, error) {
@@ -412,7 +414,7 @@ func (ua *UprobeAttacher) getExecutablePath(pid uint32) (string, error) {
 	exePath := filepath.Join(ua.config.ProcRoot, pidAsStr, "exe")
 
 	var binPath string
-	err := errors.New("iteration start")
+	err := errIterationStart
 	end := time.Now().Add(procFSUpdateTimeout)
 
 	for err != nil && end.After(time.Now()) {
