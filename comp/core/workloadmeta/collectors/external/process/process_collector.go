@@ -90,6 +90,8 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 
 	c.store = store
 
+	// If process collection is disabled, the collector will gather the basic process and container data
+	// necessary for language detection.
 	if !config.Datadog().GetBool("process_config.process_collection.enabled") {
 		collectionTicker := c.collectionClock.Ticker(10 * time.Second)
 		if c.containerProvider == nil {
