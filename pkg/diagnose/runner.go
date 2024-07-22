@@ -59,6 +59,8 @@ func (c *counters) summary(w io.Writer, toJSON bool) {
 		}
 		jsonResponse, err := json.MarshalIndent(counts, "", "  ")
 		if err != nil {
+			body, _ := json.Marshal(map[string]string{"error": fmt.Sprintf("marshalling diagnose results to JSON: %s", err)})
+			fmt.Fprintln(w, string(body))
 			return
 		}
 		_, _ = w.Write(jsonResponse)
