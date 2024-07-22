@@ -17,7 +17,7 @@ import (
 type testCase struct {
 	input  string
 	output string
-	flags  uint64
+	flags  CGroupManager
 }
 
 func TestFindContainerID(t *testing.T) {

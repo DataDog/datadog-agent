@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"syscall"
@@ -20,7 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCGroupID(t *testing.T) {
+func TestCGroup(t *testing.T) {
 	if testEnvironment == DockerEnvironment {
 		t.Skip("skipping cgroup ID test in docker")
 	}
@@ -29,8 +30,12 @@ func TestCGroupID(t *testing.T) {
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
-			ID:         "test_container_flags",
+			ID:         "test_cgroup_id",
 			Expression: `open.file.path == "{{.Root}}/test-open" && cgroup.id == "cg1"`,
+		},
+		{
+			ID:         "test_cgroup_systemd",
+			Expression: `open.file.path == "{{.Root}}/test-open" && cgroup.manager == "systemd"`,
 		},
 	}
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -50,7 +55,7 @@ func TestCGroupID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.Run(t, "cgroup-id", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	t.Run("cgroup-id", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT, 0711, 0, 0)
 			if errno != 0 {
@@ -59,12 +64,45 @@ func TestCGroupID(t *testing.T) {
 			return syscall.Close(int(fd))
 
 		}, func(event *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_container_flags")
+			assertTriggeredRule(t, rule, "test_cgroup_id")
 			assertFieldEqual(t, event, "open.file.path", testFile)
 			assertFieldEqual(t, event, "container.id", "")
 			assertFieldEqual(t, event, "container.runtime", "")
 			assert.Equal(t, containerutils.CGroupFlags(0), event.CGroupContext.CGroupFlags)
 			assertFieldEqual(t, event, "cgroup.id", "cg1")
+
+			test.validateOpenSchema(t, event)
+		})
+	})
+
+	t.Run("systemd", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			serviceUnit := fmt.Sprintf(`[Service]
+Type=oneshot
+ExecStart=/usr/bin/touch %s`, testFile)
+			if err := os.WriteFile("/etc/systemd/system/cws-test.service", []byte(serviceUnit), 0700); err != nil {
+				return err
+			}
+			if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
+				return err
+			}
+			if err := exec.Command("systemctl", "start", "cws-test").Run(); err != nil {
+				return err
+			}
+			if err := exec.Command("systemctl", "stop", "cws-test").Run(); err != nil {
+				return err
+			}
+			if err := os.Remove("/etc/systemd/system/cws-test.service"); err != nil {
+			}
+			if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
+				return err
+			}
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_cgroup_systemd")
+			assertFieldEqual(t, event, "open.file.path", testFile)
+			assertFieldEqual(t, event, "cgroup.manager", "systemd")
+			assertFieldNotEqual(t, event, "cgroup.id", "")
 
 			test.validateOpenSchema(t, event)
 		})
