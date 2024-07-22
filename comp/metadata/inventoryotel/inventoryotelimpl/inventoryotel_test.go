@@ -22,6 +22,7 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -32,7 +33,7 @@ func getProvides(t *testing.T, confOverrides map[string]any) (provides, error) {
 			logimpl.MockModule(),
 			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: confOverrides}),
-			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
+			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			authtokenimpl.Module(),
 		),
 	)

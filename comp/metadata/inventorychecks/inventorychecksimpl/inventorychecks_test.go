@@ -27,6 +27,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -38,7 +39,7 @@ func getTestInventoryChecks(t *testing.T, coll optional.Option[collector.Compone
 			logimpl.MockModule(),
 			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: overrides}),
-			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
+			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			fx.Provide(func() optional.Option[collector.Component] {
 				return coll
 			}),
