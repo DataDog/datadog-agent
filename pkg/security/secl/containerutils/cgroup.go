@@ -19,7 +19,7 @@ type CGroupManager uint64
 const (
 	CGroupManagerDocker  CGroupManager = iota + 1 // docker
 	CGroupManagerCRIO                             // cri-o
-	CGroupManagerPodman                           // podan
+	CGroupManagerPodman                           // podman
 	CGroupManagerCRI                              // containerd
 	CGroupManagerSystemd                          // systemd
 )

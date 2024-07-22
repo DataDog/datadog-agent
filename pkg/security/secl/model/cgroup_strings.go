@@ -15,9 +15,9 @@ func _() {
 	_ = x[CGroupManagerSystemd-5]
 }
 
-const _CGroupManager_name = "dockercri-opodancontainerdsystemd"
+const _CGroupManager_name = "dockercri-opodmancontainerdsystemd"
 
-var _CGroupManager_index = [...]uint8{0, 6, 11, 16, 26, 33}
+var _CGroupManager_index = [...]uint8{0, 6, 11, 17, 27, 34}
 
 func (i CGroupManager) String() string {
 	i -= 1
