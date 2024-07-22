@@ -10,7 +10,6 @@ package uprobes
 import (
 	"debug/elf"
 	"fmt"
-	"os"
 	"runtime"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -148,16 +147,11 @@ var _ BinaryInspector = &GoBinaryInspector{}
 // Inspect extracts the metadata required to attach to a Go binary from the ELF file at the given path.
 func (p *GoBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, bool, error) {
 	path := fpath.HostPath
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, false, fmt.Errorf("could not open file %s, %w", path, err)
-	}
-	defer f.Close()
-
-	elfFile, err := elf.NewFile(f)
+	elfFile, err := elf.Open(path)
 	if err != nil {
 		return nil, false, fmt.Errorf("file %s could not be parsed as an ELF file: %w", path, err)
 	}
+	defer elfFile.Close()
 
 	functionsConfig := make(map[string]bininspect.FunctionConfiguration, len(requests))
 	for _, req := range requests {
