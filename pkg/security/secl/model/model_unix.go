@@ -88,8 +88,9 @@ type Event struct {
 
 // CGroupContext holds the cgroup context of an event
 type CGroupContext struct {
-	CGroupID    containerutils.CGroupID    `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
-	CGroupFlags containerutils.CGroupFlags `field:"-"`
+	CGroupID      containerutils.CGroupID    `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
+	CGroupFlags   containerutils.CGroupFlags `field:"-"`
+	CGroupManager string                     `field:"manager,handler:ResolveCGroupManager"` // SECLDoc[manager] Definition:`Lifecycle manager of the cgroup`
 }
 
 // SyscallEvent contains common fields for all the event

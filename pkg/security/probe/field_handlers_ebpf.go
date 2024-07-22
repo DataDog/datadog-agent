@@ -517,6 +517,17 @@ func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, e *model.CGroupCon
 	return string(e.CGroupID)
 }
 
+// ResolveCGroupManager resolves the manager of the cgroup
+func (fh *EBPFFieldHandlers) ResolveCGroupManager(ev *model.Event, e *model.CGroupContext) string {
+	if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil {
+		if manager := model.CGroupManager(entry.CGroup.CGroupFlags); manager != 0 {
+			return manager.String()
+		}
+	}
+
+	return ""
+}
+
 // ResolveContainerID resolves the container ID of the event
 func (fh *EBPFFieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
 	if len(e.ContainerID) == 0 {
