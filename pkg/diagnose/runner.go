@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -344,7 +345,7 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 func RunInCLIProcess(diagCfg diagnosis.Config, deps SuitesDepsInCLIProcess) ([]diagnosis.Diagnoses, error) {
 	return run(diagCfg, func() []diagnosis.Suite {
 		return buildSuites(diagCfg, func() []diagnosis.Diagnosis {
-			return diagnoseChecksInCLIProcess(diagCfg, deps.senderManager, deps.secretResolver, deps.wmeta, deps.AC)
+			return diagnoseChecksInCLIProcess(diagCfg, deps.senderManager, deps.logReceiver, deps.secretResolver, deps.wmeta, deps.AC)
 		})
 	})
 }
@@ -464,6 +465,7 @@ type SuitesDepsInCLIProcess struct {
 	secretResolver secrets.Component
 	wmeta          optional.Option[workloadmeta.Component]
 	AC             autodiscovery.Component
+	logReceiver    integrations.Component
 }
 
 // NewSuitesDepsInCLIProcess returns a new instance of SuitesDepsInCLIProcess.

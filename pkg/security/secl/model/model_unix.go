@@ -5,7 +5,7 @@
 
 //go:build unix
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl_linux.json -field-accessors-output field_accessors_unix.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl_linux.json -field-accessors-output field_accessors_unix.go -verbose
 
 // Package model holds model related files
 package model
@@ -26,7 +26,8 @@ type Event struct {
 
 	// context
 	SpanContext    SpanContext    `field:"-"`
-	NetworkContext NetworkContext `field:"network" event:"dns"`
+	NetworkContext NetworkContext `field:"network"` // [7.36] [Network] Network context
+	CGroupContext  CGroupContext  `field:"cgroup" event:"*"`
 
 	// fim events
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
@@ -52,9 +53,6 @@ type Event struct {
 	Signal   SignalEvent   `field:"signal" event:"signal"` // [7.35] [Process] A signal was sent
 	Exit     ExitEvent     `field:"exit" event:"exit"`     // [7.38] [Process] A process was terminated
 	Syscalls SyscallsEvent `field:"-"`
-
-	// anomaly detection related events
-	AnomalyDetectionSyscallEvent AnomalyDetectionSyscallEvent `field:"-"`
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
@@ -84,6 +82,12 @@ type Event struct {
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
 	// used for ebpfless
 	NSID uint64 `field:"-"`
+}
+
+// CGroupContext holds the cgroup context of an event
+type CGroupContext struct {
+	CGroupID    CGroupID    `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
+	CGroupFlags CGroupFlags `field:"-"`
 }
 
 // SyscallEvent contains common fields for all the event
@@ -192,7 +196,8 @@ type Process struct {
 
 	FileEvent FileEvent `field:"file,check:IsNotKworker"`
 
-	ContainerID string `field:"container.id"` // SECLDoc[container.id] Definition:`Container ID`
+	CGroup      CGroupContext `field:"cgroup"`                                         // SECLDoc[cgroup] Definition:`CGroup`
+	ContainerID ContainerID   `field:"container.id,handler:ResolveProcessContainerID"` // SECLDoc[container.id] Definition:`Container ID`
 
 	SpanID  uint64 `field:"-"`
 	TraceID uint64 `field:"-"`
@@ -581,6 +586,7 @@ type SpliceEvent struct {
 
 // CgroupTracingEvent is used to signal that a new cgroup should be traced by the activity dump manager
 type CgroupTracingEvent struct {
+	CGroupFlags      uint64
 	ContainerContext ContainerContext
 	Config           ActivityDumpLoadConfig
 	ConfigCookie     uint64
@@ -600,8 +606,8 @@ type ActivityDumpLoadConfig struct {
 // NetworkDeviceContext represents the network device context of a network event
 type NetworkDeviceContext struct {
 	NetNS   uint32 `field:"-"`
-	IfIndex uint32 `field:"ifindex"`                                   // SECLDoc[ifindex] Definition:`interface ifindex`
-	IfName  string `field:"ifname,handler:ResolveNetworkDeviceIfName"` // SECLDoc[ifname] Definition:`interface ifname`
+	IfIndex uint32 `field:"ifindex"`                                   // SECLDoc[ifindex] Definition:`Interface ifindex`
+	IfName  string `field:"ifname,handler:ResolveNetworkDeviceIfName"` // SECLDoc[ifname] Definition:`Interface ifname`
 }
 
 // BindEvent represents a bind event
@@ -638,12 +644,8 @@ type VethPairEvent struct {
 
 // SyscallsEvent represents a syscalls event
 type SyscallsEvent struct {
-	Syscalls []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
-}
-
-// AnomalyDetectionSyscallEvent represents an anomaly detection for a syscall event
-type AnomalyDetectionSyscallEvent struct {
-	SyscallID Syscall
+	EventReason SyscallDriftEventReason
+	Syscalls    []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
 }
 
 // PathKey identifies an entry in the dentry cache

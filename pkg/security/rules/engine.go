@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -187,10 +188,25 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 					constants.CardinalityTagPrefix + "none",
 				}
 
+				var (
+					runtimeMetric = metrics.MetricSecurityAgentRuntimeRunning
+					fimMetric     = metrics.MetricSecurityAgentFIMRunning
+				)
+
 				if os.Getenv("ECS_FARGATE") == "true" || os.Getenv("DD_ECS_FARGATE") == "true" {
-					tags = append(tags, "mode:fargate_ecs")
+					tags = append(tags, []string{
+						"uuid:" + uuid.GetUUID(),
+						"mode:fargate_ecs",
+					}...)
+					runtimeMetric = metrics.MetricSecurityAgentFargateRuntimeRunning
+					fimMetric = metrics.MetricSecurityAgentFargateFIMRunning
 				} else if os.Getenv("DD_EKS_FARGATE") == "true" {
-					tags = append(tags, "mode:fargate_eks")
+					tags = append(tags, []string{
+						"uuid:" + uuid.GetUUID(),
+						"mode:fargate_eks",
+					}...)
+					runtimeMetric = metrics.MetricSecurityAgentFargateRuntimeRunning
+					fimMetric = metrics.MetricSecurityAgentFargateFIMRunning
 				} else {
 					tags = append(tags, "mode:default")
 				}
@@ -202,9 +218,9 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 				e.RUnlock()
 
 				if e.config.RuntimeEnabled {
-					_ = e.statsdClient.Gauge(metrics.MetricSecurityAgentRuntimeRunning, 1, tags, 1)
+					_ = e.statsdClient.Gauge(runtimeMetric, 1, tags, 1)
 				} else if e.config.FIMEnabled {
-					_ = e.statsdClient.Gauge(metrics.MetricSecurityAgentFIMRunning, 1, tags, 1)
+					_ = e.statsdClient.Gauge(fimMetric, 1, tags, 1)
 				}
 			}
 		}
@@ -375,7 +391,7 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	ev := event.(*model.Event)
 
 	// add matched rules before any auto suppression check to ensure that this information is available in activity dumps
-	if ev.ContainerContext.ID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
+	if ev.ContainerContext.ContainerID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
 		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Tags, rule.Definition.Policy.Name, rule.Definition.Policy.Version))
 	}
 
@@ -405,14 +421,14 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 
 	var extTagsCb func() []string
 
-	if ev.ContainerContext.ID != "" {
+	if ev.ContainerContext.ContainerID != "" {
 		// copy the container ID here to avoid later data race
-		containerID := ev.ContainerContext.ID
+		containerID := ev.ContainerContext.ContainerID
 
 		// the container tags might not be resolved yet
 		if time.Unix(0, int64(ev.ContainerContext.CreatedAt)).Add(TagMaxResolutionDelay).After(time.Now()) {
 			extTagsCb = func() []string {
-				return e.probe.GetEventTags(containerID)
+				return e.probe.GetEventTags(string(containerID))
 			}
 		}
 	}

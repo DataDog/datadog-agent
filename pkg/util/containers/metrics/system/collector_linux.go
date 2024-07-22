@@ -51,7 +51,7 @@ type systemCollector struct {
 	hostCgroupNamespace bool
 }
 
-func newSystemCollector(cache *provider.Cache, wlm optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
+func newSystemCollector(cache *provider.Cache, _ optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
 	var err error
 	var hostPrefix string
 	var collectorMetadata provider.CollectorMetadata
@@ -61,18 +61,11 @@ func newSystemCollector(cache *provider.Cache, wlm optional.Option[workloadmeta.
 		hostPrefix = "/host"
 	}
 
-	var w workloadmeta.Component
-	unwrapped, ok := wlm.Get()
-	if ok {
-		w = unwrapped
-	}
-	cf := newContainerFilter(w)
-	go cf.start()
 	reader, err := cgroups.NewReader(
 		cgroups.WithCgroupV1BaseController(cgroupV1BaseController),
 		cgroups.WithProcPath(procPath),
 		cgroups.WithHostPrefix(hostPrefix),
-		cgroups.WithReaderFilter(cf.ContainerFilter),
+		cgroups.WithReaderFilter(cgroups.ContainerFilter),
 		cgroups.WithPIDMapper(config.Datadog().GetString("container_pid_mapper")),
 	)
 	if err != nil {

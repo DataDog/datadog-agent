@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -90,7 +91,7 @@ func TestRCClientCreate(t *testing.T) {
 
 func TestAgentConfigCallback(t *testing.T) {
 	pkglog.SetupLogger(seelog.Default, "info")
-	config := pkgconfig.Mock(t)
+	config := configmock.New(t)
 
 	rc := fxutil.Test[rcclient.Component](t,
 		fx.Options(

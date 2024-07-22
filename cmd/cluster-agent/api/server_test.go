@@ -16,10 +16,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestValidateTokenMiddleware(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("cluster_agent.auth_token", "abc123")
 	util.InitDCAAuthToken(config.Datadog())
 

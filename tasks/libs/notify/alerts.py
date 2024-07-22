@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from invoke.context import Context
 from invoke.exceptions import UnexpectedExit
 
-from tasks.libs.ciproviders.gitlab_api import BASE_URL
+from tasks.libs.ciproviders.gitlab_api import BASE_URL, get_pipeline
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.notify.utils import (
     AWS_S3_CP_CMD,
@@ -188,7 +188,7 @@ def update_statistics(job_executions: PipelineRuns):
     cumulative_alerts = {}
 
     # Update statistics and collect consecutive failed jobs
-    failed_jobs = get_failed_jobs(PROJECT_NAME, os.environ["CI_PIPELINE_ID"])
+    failed_jobs = get_failed_jobs(get_pipeline(PROJECT_NAME, os.environ["CI_PIPELINE_ID"]))
     commit_sha = os.getenv("CI_COMMIT_SHA")
     failed_dict = {job.name: ExecutionsJobInfo(job.id, True, commit_sha) for job in failed_jobs.all_failures()}
 

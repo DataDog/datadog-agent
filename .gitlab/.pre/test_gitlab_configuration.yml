@@ -8,3 +8,4 @@ test_gitlab_configuration:
     - source /root/.bashrc
     - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME)
     - inv linter.gitlab-ci
+    - inv linter.gitlab-change-paths

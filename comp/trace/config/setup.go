@@ -82,6 +82,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 	cfg.DDAgentBin = defaultDDAgentBin
 	cfg.AgentVersion = version.AgentVersion
 	cfg.GitCommit = version.Commit
+	cfg.ReceiverSocket = defaultReceiverSocket
 
 	// the core config can be assumed to already be set-up as it has been
 	// injected as a component dependency
@@ -206,6 +207,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.DefaultEnv = traceutil.NormalizeTag(c.DefaultEnv)
 	if c.DefaultEnv != prevEnv {
 		log.Debugf("Normalized DefaultEnv from %q to %q", prevEnv, c.DefaultEnv)
+	}
+	if core.IsSet("apm_config.receiver_enabled") {
+		c.ReceiverEnabled = core.GetBool("apm_config.receiver_enabled")
 	}
 	if core.IsSet("apm_config.receiver_port") {
 		c.ReceiverPort = core.GetInt("apm_config.receiver_port")

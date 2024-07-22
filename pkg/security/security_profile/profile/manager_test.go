@@ -48,7 +48,7 @@ func craftFakeEvent(t0 time.Time, ti *testIteration, defaultContainerID string) 
 
 	// setting process
 	event.ProcessCacheEntry = model.NewPlaceholderProcessCacheEntry(42, 42, false)
-	event.ProcessCacheEntry.ContainerID = defaultContainerID
+	event.ProcessCacheEntry.ContainerID = model.ContainerID(defaultContainerID)
 	event.ProcessCacheEntry.FileEvent.PathnameStr = ti.eventProcessPath
 	event.ProcessCacheEntry.FileEvent.Inode = 42
 	event.ProcessCacheEntry.Args = "foo"
@@ -842,7 +842,10 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 				profile.ActivityTree = activity_tree.NewActivityTree(profile, nil, "security_profile")
 				profile.Instances = append(profile.Instances, &cgroupModel.CacheEntry{
 					ContainerContext: model.ContainerContext{
-						ID: defaultContainerID,
+						ContainerID: model.ContainerID(defaultContainerID),
+					},
+					CGroupContext: model.CGroupContext{
+						CGroupID: model.CGroupID(defaultContainerID),
 					},
 					WorkloadSelector: cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
 				})

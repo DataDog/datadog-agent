@@ -7,7 +7,8 @@
 package fx
 
 import (
-	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/impl"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
+	replayimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -17,7 +18,8 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			replay.NewTrafficCapture,
+			replayimpl.NewTrafficCapture,
 		),
+		fxutil.ProvideOptional[replay.Component](),
 	)
 }
