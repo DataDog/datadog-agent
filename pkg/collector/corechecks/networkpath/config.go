@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"gopkg.in/yaml.v2"
 )
 
@@ -49,7 +50,7 @@ type CheckConfig struct {
 	SourceService         string
 	DestinationService    string
 	MaxTTL                uint8
-	Protocol              string
+	Protocol              payload.Protocol
 	TimeoutMs             uint
 	MinCollectionInterval time.Duration
 	Tags                  []string
@@ -79,7 +80,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.DestinationService = instance.DestinationService
 	c.MaxTTL = instance.MaxTTL
 	c.TimeoutMs = instance.TimeoutMs
-	c.Protocol = instance.Protocol
+	c.Protocol = payload.Protocol(instance.Protocol)
 
 	c.MinCollectionInterval = firstNonZero(
 		time.Duration(instance.MinCollectionInterval)*time.Second,
