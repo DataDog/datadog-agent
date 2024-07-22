@@ -398,8 +398,8 @@ new-e2e-windows-installer:
     - !reference [.on_windows_installer_or_e2e_changes]
     - !reference [.manual]
   needs:
+    - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
-    - deploy_datadog_installer_packages_windows-x64
     - qa_installer_oci
     - qa_agent_oci
   variables:
