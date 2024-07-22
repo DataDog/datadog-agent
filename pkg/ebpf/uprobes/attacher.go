@@ -357,9 +357,7 @@ func (ua *UprobeAttacher) handleLibraryOpen(event *ebpf.DataEvent) error {
 	libpath := sharedlibraries.ToLibPath(event.Data)
 	path := sharedlibraries.ToBytes(&libpath)
 
-	err := ua.AttachLibrary(string(path), libpath.Pid)
-
-	return err
+	return ua.AttachLibrary(string(path), libpath.Pid)
 }
 
 // AttachLibrary attaches the probes to the given library, opened by a given PID
