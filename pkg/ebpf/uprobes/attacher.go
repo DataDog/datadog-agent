@@ -79,6 +79,7 @@ type AttachRule struct {
 	ProbesSelector []manager.ProbesSelector
 }
 
+// canTarget returns true if the rule matches the given AttachTarget
 func (r *AttachRule) canTarget(target AttachTarget) bool {
 	return r.Targets&target != 0
 }
@@ -119,7 +120,7 @@ type AttacherConfig struct {
 // defaults are not enough
 func (ac *AttacherConfig) SetDefaults() {
 	if ac.ScanTerminatedProcessesInterval == 0 {
-		ac.ScanTerminatedProcessesInterval = 30 * time.Minute
+		ac.ScanTerminatedProcessesInterval = 30 * time.Second
 	}
 
 	if ac.ProcRoot == "" {
