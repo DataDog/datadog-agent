@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/command"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 	"os"
-	"path"
 	"testing"
 )
 
@@ -57,7 +56,7 @@ func (suite *testInstallerSuite) TestUpgradeInstaller() {
 	suite.Require().NoError(suite.installer.Install(WithInstallerUrlFromInstallersJson(pipeline.AgentS3BucketTesting, pipeline.StableChannel, stableInstallerVersionPackageFormat)))
 
 	suite.Require().Host(suite.Env().RemoteHost).
-		HasBinary(path.Join(InstallerPath, InstallerBinaryName)).
+		HasBinary(DatadogInstallerBinaryPath).
 		WithSignature(command.DatadogCodeSignatureThumbprint).
 		WithVersionEqual(DatadogInstallerVersion)
 
@@ -65,7 +64,7 @@ func (suite *testInstallerSuite) TestUpgradeInstaller() {
 	suite.Require().NoError(suite.installer.Install())
 
 	suite.Require().Host(suite.Env().RemoteHost).
-		HasBinary(path.Join(InstallerPath, InstallerBinaryName)).
+		HasBinary(DatadogInstallerBinaryPath).
 		WithSignature(command.DatadogCodeSignatureThumbprint).
 		WithVersionMatchPredicate(func(version string) {
 			pipelineVersion := os.Getenv("WINDOWS_AGENT_VERSION")
