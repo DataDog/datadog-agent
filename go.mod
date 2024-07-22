@@ -282,7 +282,7 @@ require (
 	go.opentelemetry.io/collector/exporter v0.104.0
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.104.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.104.0
-	go.opentelemetry.io/collector/pdata v1.11.0
+	go.opentelemetry.io/collector/pdata v1.12.0
 	go.opentelemetry.io/collector/processor/batchprocessor v0.104.0
 	go.opentelemetry.io/collector/receiver v0.104.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.104.0
@@ -304,7 +304,7 @@ require (
 	golang.org/x/tools v0.23.0
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028
 	google.golang.org/genproto v0.0.0-20240617180043-68d350f18fd4 // indirect
-	google.golang.org/grpc v1.64.1
+	google.golang.org/grpc v1.65.0
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.34.2
 	gopkg.in/DataDog/dd-trace-go.v1 v1.65.1
@@ -416,7 +416,7 @@ require (
 	github.com/go-openapi/validate v0.23.0 // indirect
 	github.com/go-redis/redis/v8 v8.11.5 // indirect
 	github.com/godbus/dbus/v5 v5.1.0
-	github.com/golang/glog v1.2.0 // indirect
+	github.com/golang/glog v1.2.1 // indirect
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb // indirect
 	github.com/google/licenseclassifier/v2 v2.0.0 // indirect
 	github.com/google/uuid v1.6.0
@@ -546,7 +546,7 @@ require (
 	go.etcd.io/etcd/client/v3 v3.6.0-alpha.0 // indirect
 	go.etcd.io/etcd/server/v3 v3.6.0-alpha.0.0.20220522111935-c3bc4116dcd1 // indirect
 	go.opencensus.io v0.24.0 // indirect
-	go.opentelemetry.io/collector/consumer v0.104.0
+	go.opentelemetry.io/collector/consumer v0.105.0
 	go.opentelemetry.io/collector/featuregate v1.11.0
 	go.opentelemetry.io/collector/semconv v0.104.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.52.0 // indirect
@@ -785,7 +785,7 @@ require (
 	github.com/cheggaaa/pb/v3 v3.1.4 // indirect
 	github.com/chrusty/protoc-gen-jsonschema v0.0.0-20240212064413-73d5723042b8 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
-	github.com/cncf/xds/go v0.0.0-20240318125728-8a4994d93e50 // indirect
+	github.com/cncf/xds/go v0.0.0-20240423153145-555b57ec207b // indirect
 	github.com/containerd/errdefs v0.1.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/csaf-poc/csaf_distribution/v3 v3.0.0 // indirect
@@ -969,8 +969,8 @@ require (
 	go.opentelemetry.io/collector/extension/auth v0.104.0 // indirect
 	go.opentelemetry.io/collector/extension/zpagesextension v0.104.0 // indirect
 	go.opentelemetry.io/collector/filter v0.104.0 // indirect
-	go.opentelemetry.io/collector/pdata/pprofile v0.104.0 // indirect
-	go.opentelemetry.io/collector/pdata/testdata v0.104.0 // indirect
+	go.opentelemetry.io/collector/pdata/pprofile v0.105.0 // indirect
+	go.opentelemetry.io/collector/pdata/testdata v0.105.0 // indirect
 	go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.104.0 // indirect
 	go.opentelemetry.io/collector/receiver/nopreceiver v0.104.0 // indirect
 	go.opentelemetry.io/contrib/config v0.7.0 // indirect
