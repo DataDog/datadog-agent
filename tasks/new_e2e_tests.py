@@ -10,7 +10,6 @@ import os.path
 import shutil
 import tempfile
 from pathlib import Path
-from time import sleep
 
 import yaml
 from invoke.context import Context
@@ -20,7 +19,7 @@ from invoke.tasks import task
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
 from tasks.libs.common.git import get_commit_sha
-from tasks.libs.common.utils import REPO_PATH, color_message, running_in_ci, timed
+from tasks.libs.common.utils import REPO_PATH, color_message, running_in_ci
 from tasks.modules import DEFAULT_MODULES
 
 
@@ -181,27 +180,6 @@ def clean(ctx, locks=True, stacks=False, output=False):
 
     if output:
         _clean_output()
-
-
-@task
-def deps(ctx, verbose=False):
-    """
-    Setup Go dependencies
-    """
-    max_retry = 3
-    print("downloading dependencies")
-    with timed("go mod download"):
-        verbosity = ' -x' if verbose else ''
-
-        with ctx.cd("test/new-e2e"):
-            for retry in range(max_retry):
-                result = ctx.run(f"go mod download{verbosity}")
-                if result.exited is None or result.exited > 0:
-                    wait = 10 ** (retry + 1)
-                    print(f"[{(retry + 1) / max_retry}] Failed downloading, retrying in {wait} seconds")
-                    sleep(wait)
-                    continue
-                break
 
 
 def _get_default_env():
