@@ -12,13 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
-const (
-	// UDP represents the UDP protocol
-	UDP = "UDP"
-	// TCP represents the TCP protocol
-	TCP = "TCP"
-)
-
 type (
 	// Config specifies the configuration of an instance
 	// of Traceroute
