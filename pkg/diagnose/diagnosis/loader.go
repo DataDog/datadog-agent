@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/fatih/color"
+	"encoding/json"
 )
 
 // --------------------------------
@@ -152,4 +153,16 @@ func (c *Catalog) Register(suiteName string, diagnose Diagnose) {
 // GetSuites returns the list of registered Diagnose functions
 func (c *Catalog) GetSuites() []Suite {
 	return c.suites
+}
+
+// MarshalJSON marshals the Diagnose struct to JSON
+func (d Diagnosis) MarshalJSON() ([]byte, error) {
+	type Alias Diagnosis
+	return json.Marshal(&struct {
+		Alias
+		ResultString string `json:"connectivity_result"`
+	}{
+		Alias:        (Alias)(d),
+		ResultString: d.Result.ToString(false),
+	})
 }

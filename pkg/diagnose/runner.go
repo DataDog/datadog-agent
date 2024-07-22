@@ -392,13 +392,22 @@ func RunDiagnoseStdOut(w io.Writer, diagCfg diagnosis.Config, diagnoses []diagno
 }
 
 func runStdOutJSON(w io.Writer, diagnoses []diagnosis.Diagnoses) error {
-	diagJSON, err := json.MarshalIndent(diagnoses, "", "  ")
-	if err != nil {
-		fmt.Fprintf(w, (fmt.Sprintf("{error: marshalling diagnose results to JSON: %s}\n", err)))
-		return err
+
+	var count counters
+
+	for _, diag := range diagnoses {
+		diagJSON, err := json.MarshalIndent(diag, "", "  ")
+		if err != nil {
+			fmt.Fprintf(w, (fmt.Sprintf("{error: marshalling diagnose results to JSON: %s}\n", err)))
+			return err
+		}
+		fmt.Fprintln(w, string(diagJSON))
+		for _, d := range diag.SuiteDiagnoses {
+			count.increment(d.Result)
+		}
 	}
 
-	fmt.Fprintln(w, string(diagJSON))
+	count.summary(w, true)
 
 	return nil
 }
