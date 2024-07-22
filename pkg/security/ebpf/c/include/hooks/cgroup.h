@@ -16,7 +16,7 @@
 static __attribute__((always_inline)) int is_docker_cgroup(ctx_t *ctx, struct dentry *container_d) {
     struct dentry *parent_d;
     struct qstr parent_qstr;
-    char prefix[15];
+    char prefix[6];
 
     // We may not have a prefix for the cgroup so we look at the parent folder
     // (for instance Amazon Linux 2 + Docker)
