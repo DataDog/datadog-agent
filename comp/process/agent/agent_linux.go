@@ -22,7 +22,6 @@ import (
 
 var (
 	// enabled variable to ensure value returned by Enabled() persists when Enabled() is called multiple times
-	// during agent start up, instead of resorting to default value
 	enabled bool
 	// Once module variable, exported for testing
 	Once              sync.Once
