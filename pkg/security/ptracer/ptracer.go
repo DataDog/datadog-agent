@@ -349,7 +349,7 @@ func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 				default:
 					state := tracker.NextStop(pid)
 
-					if tracker.IsSyscallEntry(pid) {
+					if state.Entry {
 						cb(CallbackPreType, nr, pid, 0, regs, nil)
 					} else {
 						// we already captured the exit of the exec syscall with PTRACE_EVENT_EXEC if success
