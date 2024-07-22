@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -82,7 +82,7 @@ func TestFailingInjectionConfig(t *testing.T) {
 
 			wmeta := common.FakeStoreWithDeployment(t, nil)
 
-			c := config.Mock(t)
+			c := mockconfig.New(t)
 			c.SetWithoutSource("apm_config.instrumentation.enabled", tt.instrumentationEnabled)
 			c.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", tt.enabledNamespaces)
 			c.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", tt.disabledNamespaces)
