@@ -344,7 +344,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
-				{Hostname: "10.0.0.4", Port: uint16(80), Protocol: "TCP", SourceContainerID: "testId1"},
+				{Hostname: "10.0.0.4", Port: uint16(80), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1"},
 			},
 		},
 		{
@@ -359,7 +359,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
-				{Hostname: "10.0.0.6", Port: uint16(161), Protocol: "UDP", SourceContainerID: "testId1"},
+				{Hostname: "10.0.0.6", Port: uint16(161), Protocol: payload.ProtocolUDP, SourceContainerID: "testId1"},
 			},
 		},
 		{
@@ -399,7 +399,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
-				{Hostname: "10.0.0.4", Port: uint16(80), Protocol: "TCP", SourceContainerID: "testId2"},
+				{Hostname: "10.0.0.4", Port: uint16(80), Protocol: payload.ProtocolTCP, SourceContainerID: "testId2"},
 			},
 		},
 		{
@@ -457,7 +457,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
-				{Hostname: "10.0.0.4", Port: uint16(80), Protocol: "TCP", SourceContainerID: "testId3"},
+				{Hostname: "10.0.0.4", Port: uint16(80), Protocol: payload.ProtocolTCP, SourceContainerID: "testId3"},
 			},
 			expectedLogs: []logCount{},
 		},
