@@ -3,6 +3,7 @@ from __future__ import annotations
 import itertools
 import shutil
 
+from tasks.github_tasks import pr_commenter
 from tasks.kmt import download_complexity_data
 from tasks.libs.common.git import get_commit_sha, get_current_branch
 from tasks.libs.types.arch import Arch
@@ -675,12 +676,20 @@ def generate_html_report(ctx: Context, dest_folder: str | Path):
 
 
 @task
-def generate_complexity_summary_for_pr(ctx: Context):
+def generate_complexity_summary_for_pr(ctx: Context, skip_github_comment=False):
     """Task meant to run in CI. Generates a summary of the complexity data for the current PR"""
     if tabulate is None:
         raise Exit("tabulate is required to print the complexity summary")
 
+    pr_comment_head = 'eBPF complexity changes'
     branch_name = get_current_branch(ctx)
+
+    def _exit_or_delete_github_comment(msg: str):
+        if skip_github_comment:
+            raise Exit(msg)
+        else:
+            print(f"{msg}: removing GitHub comment in PR")
+            pr_commenter(ctx, pr_comment_head, delete=True, force_delete=True)
 
     # First, ensure we have the complexity data for our current branch
     current_branch_artifacts_path: Path | str | None = os.getenv("DD_AGENT_TESTING_DIR")
@@ -690,7 +699,10 @@ def generate_complexity_summary_for_pr(ctx: Context):
     current_branch_artifacts_path = Path(current_branch_artifacts_path)
     complexity_files = list(current_branch_artifacts_path.glob("verifier-complexity-*.tar.gz"))
     if len(complexity_files) == 0:
-        raise Exit(f"No complexity data found for the current branch at {current_branch_artifacts_path}")
+        _exit_or_delete_github_comment(
+            f"No complexity data found for the current branch at {current_branch_artifacts_path}"
+        )
+        return
 
     # We have files, now get files for the main branch
     common_ancestor = cast(Result, ctx.run("git merge-base HEAD origin/main", hide=True)).stdout.strip()
@@ -700,7 +712,8 @@ def generate_complexity_summary_for_pr(ctx: Context):
 
     main_complexity_files = list(main_branch_complexity_path.glob("verifier-complexity-*"))
     if len(main_complexity_files) == 0:
-        raise Exit(f"No complexity data found for the main branch at {main_branch_complexity_path}")
+        _exit_or_delete_github_comment(f"No complexity data found for the main branch at {main_branch_complexity_path}")
+        return
 
     # Uncompress all local complexity files, and store the results
     program_complexity = collections.defaultdict(list)  # Map each program to a list of
@@ -757,7 +770,7 @@ def generate_complexity_summary_for_pr(ctx: Context):
             )
 
     if len(program_complexity) == 0:
-        print("No complexity data found, skipping report generation")
+        _exit_or_delete_github_comment("No complexity data found, skipping report generation")
         return
 
     summarized_complexity_changes = []
@@ -841,6 +854,12 @@ def generate_complexity_summary_for_pr(ctx: Context):
     msg += "\nTable complexity legend: 🔵 - new; ⚪ - unchanged; 🟢 - reduced; 🔴 - increased"
 
     print(msg)
+
+    if skip_github_comment:
+        return
+
+    pr_commenter(ctx, pr_comment_head, msg)
+    print("Commented on PR with complexity summary")
 
 
 def _format_change(new: float, old: float):
