@@ -27,7 +27,6 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
@@ -838,7 +837,7 @@ func SetHandler() http.Handler {
 				if lvl == "warning" {
 					lvl = "warn"
 				}
-				if err := pkgconfigutils.SetLogLevel(lvl, coreconfig.Datadog(), model.SourceAgentRuntime); err != nil {
+				if err := utils.SetLogLevel(lvl, coreconfig.Datadog(), model.SourceAgentRuntime); err != nil {
 					httpError(w, http.StatusInternalServerError, err)
 					return
 				}

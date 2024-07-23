@@ -397,7 +397,7 @@ func setupLogger() {
 	}
 
 	if logLevel := os.Getenv(logLevelEnvVar); len(logLevel) > 0 {
-		if err := config.SetLogLevel(logLevel, model.SourceAgentRuntime); err != nil {
+		if err := configUtils.SetLogLevel(logLevel, config.Datadog(), model.SourceAgentRuntime); err != nil {
 			log.Errorf("While changing the loglevel: %s", err)
 		}
 	}
