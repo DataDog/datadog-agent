@@ -603,6 +603,7 @@
 /test/workload-checks/                        @DataDog/single-machine-performance
 
 /tools/                                 @DataDog/agent-devx-loops
+/tools/ci                               @DataDog/agent-devx-infra
 /tools/ebpf/                            @DataDog/ebpf-platform
 /tools/gdb/                             @DataDog/agent-shared-components
 /tools/go-update/                       @DataDog/agent-shared-components

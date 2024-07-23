@@ -50,6 +50,7 @@ var (
 type Opts struct {
 	Creds            Creds
 	Verbose          bool
+	Debug            bool
 	Async            bool
 	StatsDisabled    bool
 	ProcScanDisabled bool
@@ -73,7 +74,7 @@ type syscallID struct {
 }
 
 type syscallHandler struct {
-	IDs        []syscallID        // IDs defines the list of syscall IDs related to this handler
+	ID         syscallID          // ID identifies the syscall related to this handler
 	Func       syscallHandlerFunc // Func defines the entrance handler for those syscalls, can be nil
 	ShouldSend shouldSendFunc     // ShouldSend checks if we should send the event regarding the syscall return value. If nil, acts as false
 	RetFunc    syscallHandlerFunc // RetFunc defines the return handler for those syscalls, can be nil
@@ -138,11 +139,11 @@ func sendMsgData(client net.Conn, data []byte) error {
 	var size [4]byte
 	native.Endian.PutUint32(size[:], uint32(len(data)))
 	if _, err := client.Write(size[:]); err != nil {
-		return fmt.Errorf("unabled to send size: %v", err)
+		return fmt.Errorf("unable to send size: %v", err)
 	}
 
 	if _, err := client.Write(data); err != nil {
-		return fmt.Errorf("unabled to send message: %v", err)
+		return fmt.Errorf("unable to send message: %v", err)
 	}
 	return nil
 }
@@ -159,9 +160,9 @@ func registerSyscallHandlers() (map[int]syscallHandler, []string) {
 
 // Attach attach the ptracer
 func Attach(pids []int, probeAddr string, opts Opts) error {
-	logger := Logger{opts.Verbose}
+	logger := Logger{opts.Verbose, opts.Debug}
 
-	logger.Debugf("Attach to pid %+v [%s] using `standard` mode", pids, os.Getenv("DD_CONTAINER_ID"))
+	logger.Logf("Attach to pid %+v [%s] using `standard` mode", pids, os.Getenv("DD_CONTAINER_ID"))
 
 	if path := os.Getenv(EnvPasswdPathOverride); path != "" {
 		passwdPath = path
@@ -191,7 +192,7 @@ func Attach(pids []int, probeAddr string, opts Opts) error {
 
 // Wrap the executable
 func Wrap(args []string, envs []string, probeAddr string, opts Opts) error {
-	logger := Logger{opts.Verbose}
+	logger := Logger{opts.Verbose, opts.Debug}
 
 	if len(args) == 0 {
 		return fmt.Errorf("an executable is required")
@@ -206,7 +207,7 @@ func Wrap(args []string, envs []string, probeAddr string, opts Opts) error {
 		mode = "standard"
 	}
 
-	logger.Debugf("Run %s %v [%s] using `%s` mode", entry, args, os.Getenv("DD_CONTAINER_ID"), mode)
+	logger.Logf("Run %s %v [%s] using `%s` mode", entry, args, os.Getenv("DD_CONTAINER_ID"), mode)
 
 	if path := os.Getenv(EnvPasswdPathOverride); path != "" {
 		passwdPath = path
@@ -260,12 +261,12 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 			return err
 		}
 		clientReady <- true
-		logger.Debugf("connection to system-probe initiated!")
+		logger.Logf("connection to system-probe initiated!")
 		return nil
 	}
 
 	if probeAddr != "" {
-		logger.Debugf("connection to system-probe...")
+		logger.Logf("connection to system-probe...")
 		if opts.Async {
 			go func() {
 				_ = connectClient()
@@ -300,7 +301,7 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 	msgDataChan := make(chan []byte, 100000)
 
 	send := func(msg *ebpfless.Message) {
-		logger.Debugf("sending message: %s", msg)
+		logger.Logf("sending message: %s", msg)
 
 		if probeAddr == "" {
 			return
@@ -368,7 +369,7 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 						if !ready {
 							time.Sleep(time.Second)
 							// re-init connection
-							logger.Debugf("try to reconnect to system-probe...")
+							logger.Logf("try to reconnect to system-probe...")
 							go func() {
 								_ = connectClient()
 							}()
@@ -387,14 +388,14 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 								EntrypointArgs:   opts.entryPointArgs,
 							},
 						}
-						logger.Debugf("sending message: %s", helloMsg)
+						logger.Logf("sending message: %s", helloMsg)
 						data, err := msgpack.Marshal(helloMsg)
 						if err != nil {
 							logger.Errorf("unable to marshal message: %v", err)
 							return
 						}
 						if err = sendMsgData(client, data); err != nil {
-							logger.Debugf("error sending hallo msg: %v", err)
+							logger.Logf("error sending hello msg: %v", err)
 							go func() {
 								_ = connectClient()
 							}()
@@ -419,7 +420,7 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 				}
 
 				// re-init connection
-				logger.Debugf("try to reconnect to system-probe...")
+				logger.Logf("try to reconnect to system-probe...")
 				go func() {
 					_ = connectClient()
 				}()
@@ -483,6 +484,7 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 			if handler.Func != nil {
 				err := handler.Func(tracer, process, syscallMsg, regs, opts.StatsDisabled)
 				if err != nil {
+					logger.Debugf("error handling syscall `%s`: %v", handler.ID.Name, err)
 					return
 				}
 			}
@@ -548,6 +550,7 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 				if handler.RetFunc != nil {
 					err := handler.RetFunc(tracer, process, syscallMsg, regs, opts.StatsDisabled)
 					if err != nil {
+						logger.Debugf("error handling return from syscall `%s`: %v", handler.ID.Name, err)
 						return
 					}
 				}
@@ -580,6 +583,7 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 			case Clone3Nr:
 				data, err := tracer.ReadArgData(process.Pid, regs, 0, 8 /*sizeof flags only*/)
 				if err != nil {
+					logger.Debugf("error reading clone3 flags: %v", err)
 					return
 				}
 				if flags := binary.NativeEndian.Uint64(data); flags&uint64(unix.SIGCHLD) == 0 {

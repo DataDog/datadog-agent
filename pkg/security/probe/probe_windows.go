@@ -207,6 +207,11 @@ func (p *WindowsProbe) Init() error {
 	return p.initEtwFIM()
 }
 
+// GetProfileManager returns the Profile Managers
+func (p *WindowsProbe) GetProfileManager() interface{} {
+	return nil
+}
+
 func (p *WindowsProbe) initEtwFIM() error {
 
 	if !p.config.RuntimeSecurity.FIMEnabled {

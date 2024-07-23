@@ -34,7 +34,7 @@ def load_and_validate(
     return result
 
 
-DATADOG_AGENT_GITHUB_ORG_URL = "https://github.com/DataDog"
+GITHUB_BASE_URL = "https://github.com"
 DEFAULT_SLACK_CHANNEL = "#agent-devx-ops"
 DEFAULT_JIRA_PROJECT = "AGNTR"
 # Map keys in lowercase
@@ -118,7 +118,7 @@ def get_pr_from_commit(commit_title, project_title) -> tuple[str, str] | None:
 
     parsed_pr_id = parsed_pr_id_found.group(1)
 
-    return parsed_pr_id, f"{DATADOG_AGENT_GITHUB_ORG_URL}/{project_title}/pull/{parsed_pr_id}"
+    return parsed_pr_id, f"{GITHUB_BASE_URL}/{project_title}/pull/{parsed_pr_id}"
 
 
 def base_message(project_name: str, pipeline: ProjectPipeline, commit: ProjectCommit, header: str, state: str):
@@ -127,7 +127,7 @@ def base_message(project_name: str, pipeline: ProjectPipeline, commit: ProjectCo
     pipeline_id = pipeline.id
     commit_ref_name = pipeline.ref
     commit_url_gitlab = commit.web_url
-    commit_url_github = f"{DATADOG_AGENT_GITHUB_ORG_URL}/{project_name}/commit/{commit.id}"
+    commit_url_github = f"{GITHUB_BASE_URL}/{project_name}/commit/{commit.id}"
     commit_short_sha = commit.id[-8:]
     author = commit.author_name
 
