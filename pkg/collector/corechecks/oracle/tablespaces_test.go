@@ -29,11 +29,6 @@ func TestTablespaces(t *testing.T) {
 	c, s := newDefaultCheck(t, "", "")
 	defer c.Teardown()
 	err := c.Run()
-	if c.hostingType == rds {
-		// It takes a while for the tablespace to reappear in usage metrics after getting back online in RDS.
-		// Possibly an issue with Oracle managed files.
-		return
-	}
 	require.NoError(t, err)
 	s.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	expectedPdb := getExpectedPdb(&c)
@@ -50,13 +45,15 @@ func TestTablespacesOffline(t *testing.T) {
 	conn, err2 := sql.Open("oracle", databaseUrl)
 	require.NoError(t, err2)
 
+	const tablespaceName = "TBS_TEST_OFFLINE"
+
 	defer func() {
-		_, err := conn.Exec("ALTER TABLESPACE TBS_TEST ONLINE")
+		_, err := conn.Exec(fmt.Sprintf("ALTER TABLESPACE %s ONLINE", tablespaceName))
 		require.NoError(t, err)
 		conn.Close()
 	}()
 
-	_, err3 := conn.Exec("ALTER TABLESPACE TBS_TEST OFFLINE")
+	_, err3 := conn.Exec(fmt.Sprintf("ALTER TABLESPACE %s OFFLINE", tablespaceName))
 	require.NoError(t, err3)
 
 	time.Sleep(10 * time.Second)
@@ -65,7 +62,7 @@ func TestTablespacesOffline(t *testing.T) {
 	require.NoError(t, err)
 	s.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	expectedPdb := getExpectedPdb(&c)
-	tags := []string{fmt.Sprintf("pdb:%s", expectedPdb), "tablespace:TBS_TEST"}
+	tags := []string{fmt.Sprintf("pdb:%s", expectedPdb), fmt.Sprintf("tablespace:%s", tablespaceName)}
 	s.AssertMetricOnce(t, "Gauge", "oracle.tablespace.offline", 1, c.dbHostname, tags)
 }
 
