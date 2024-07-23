@@ -10,15 +10,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	dto "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestNewHTTPTransaction(t *testing.T) {
@@ -45,9 +50,13 @@ func TestProcess(t *testing.T) {
 	}))
 	defer ts.Close()
 
+	payloadType := "test-payload"
+	telemetryPayloadTypeCount := findTelemetryPayloadTypeValue(t, payloadType, false)
+
 	transaction := NewHTTPTransaction()
 	transaction.Domain = ts.URL
 	transaction.Endpoint.Route = "/endpoint/test"
+	transaction.Headers.Set(PayloadTypeHTTPHeaderKey, payloadType)
 	payload := []byte("test payload")
 	transaction.Payload = NewBytesPayloadWithoutMetaData(payload)
 
@@ -57,6 +66,9 @@ func TestProcess(t *testing.T) {
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	err := transaction.Process(context.Background(), mockConfig, log, client)
 	assert.NoError(t, err)
+
+	newTelemetryPayloadTypeCount := findTelemetryPayloadTypeValue(t, payloadType, true)
+	require.Equal(t, telemetryPayloadTypeCount+1, newTelemetryPayloadTypeCount)
 }
 
 func TestProcessInvalidDomain(t *testing.T) {
@@ -97,9 +109,13 @@ func TestProcessHTTPError(t *testing.T) {
 	}))
 	defer ts.Close()
 
+	payloadType := "test-payload"
+	telemetryPayloadTypeCount := findTelemetryPayloadTypeValue(t, payloadType, false)
+
 	transaction := NewHTTPTransaction()
 	transaction.Domain = ts.URL
 	transaction.Endpoint.Route = "/endpoint/test"
+	transaction.Headers.Set(PayloadTypeHTTPHeaderKey, payloadType)
 	payload := []byte("test payload")
 	transaction.Payload = NewBytesPayloadWithoutMetaData(payload)
 
@@ -124,6 +140,9 @@ func TestProcessHTTPError(t *testing.T) {
 	err = transaction.Process(context.Background(), mockConfig, log, client)
 	assert.NoError(t, err)
 	assert.Equal(t, transaction.ErrorCount, 1)
+
+	newTelemetryPayloadTypeCount := findTelemetryPayloadTypeValue(t, payloadType, false)
+	require.Equal(t, telemetryPayloadTypeCount, newTelemetryPayloadTypeCount)
 }
 
 func TestProcessCancel(t *testing.T) {
@@ -182,4 +201,30 @@ func Test_truncateBodyForLog(t *testing.T) {
 			}
 		})
 	}
+}
+
+func findTelemetryPayloadTypeValue(t *testing.T, payloadType string, shouldExist bool) float64 {
+	t.Helper()
+
+	telemetry := telemetry.GetCompatComponent()
+	metrics, err := telemetry.Gather(false)
+	require.NoError(t, err)
+	idx := slices.IndexFunc(metrics, func(metric *dto.MetricFamily) bool {
+		return metric.GetName() == "payloads__success_sent_count"
+	})
+
+	if idx == -1 {
+		require.False(t, shouldExist, "metric payloads__success_sent_count not found")
+		return 0.0
+	}
+	values := metrics[idx].GetMetric()
+
+	idx = slices.IndexFunc(values, func(value *dto.Metric) bool {
+		return value.GetLabel()[0].GetValue() == payloadType
+	})
+	if idx == -1 {
+		require.False(t, shouldExist, "metric payloads__success_sent_count not found")
+		return 0.0
+	}
+	return values[idx].GetCounter().GetValue()
 }

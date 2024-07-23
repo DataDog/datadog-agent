@@ -91,7 +91,7 @@ func NewComponent(deps Requires) Provides {
 		conf:     deps.Config,
 		hostname: hname,
 	}
-	sa.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, sa.getPayload, "security-agent.json")
+	sa.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, sa.getPayload, "security-agent")
 
 	return Provides{
 		Comp:             sa,

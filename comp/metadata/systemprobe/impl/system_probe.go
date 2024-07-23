@@ -96,7 +96,7 @@ func NewComponent(deps Requires) Provides {
 		hostname:     hname,
 		sysprobeConf: deps.SysProbeConfig,
 	}
-	sb.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, sb.getPayload, "system-probe.json")
+	sb.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, sb.getPayload, "system-probe")
 
 	return Provides{
 		Comp:             sb,
