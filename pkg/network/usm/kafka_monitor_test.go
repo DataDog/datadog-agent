@@ -141,24 +141,18 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 		return fmt.Sprintf("produce%d_fetch%d", produce, fetch)
 	}
 
-	t.Run("without TLS", func(t *testing.T) {
-		for _, version := range versions {
-			t.Run(versionName(version), func(t *testing.T) {
-				s.testKafkaProtocolParsing(t, false, version)
-			})
-		}
-	})
-
-	t.Run("with TLS", func(t *testing.T) {
-		if !gotlsutils.GoTLSSupported(t, config.New()) {
-			t.Skip("GoTLS not supported for this setup")
-		}
-		for _, version := range versions {
-			t.Run(versionName(version), func(t *testing.T) {
-				s.testKafkaProtocolParsing(t, true, version)
-			})
-		}
-	})
+	for mode, name := range map[bool]string{false: "without TLS", true: "with TLS"} {
+		t.Run(name, func(t *testing.T) {
+			if mode && !gotlsutils.GoTLSSupported(t, config.New()) {
+				t.Skip("GoTLS not supported for this setup")
+			}
+			for _, version := range versions {
+				t.Run(versionName(version), func(t *testing.T) {
+					s.testKafkaProtocolParsing(t, mode, version)
+				})
+			}
+		})
+	}
 }
 
 func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls bool, version *kversion.Versions) {
