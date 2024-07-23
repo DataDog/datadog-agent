@@ -71,6 +71,7 @@ func (t *Tailer) forwardMessages() {
 		if len(output.GetContent()) > 0 {
 			origin := message.NewOrigin(t.source)
 			_, ip, err := t.read(t)
+			log.Debug("huh", err)
 			if err != nil {
 				return
 			}
