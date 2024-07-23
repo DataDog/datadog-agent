@@ -148,7 +148,7 @@ func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 
 	if filename == "" { // in this case, dirfd defines directly the file's FD
 		var exists bool
-		if filename, exists = process.Res.Fd[fd]; !exists || filename == "" {
+		if filename, exists = process.FdRes.Fd[fd]; !exists || filename == "" {
 			return errors.New("can't find related file path")
 		}
 	} else {
@@ -235,7 +235,7 @@ func handleChdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, reg
 
 	dirname, err = getFullPathFromFilename(process, dirname)
 	if err != nil {
-		process.Res.Cwd = ""
+		process.FsRes.Cwd = ""
 		return err
 	}
 
@@ -250,9 +250,9 @@ func handleChdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, reg
 
 func handleFchdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	fd := tracer.ReadArgInt32(regs, 0)
-	dirname, ok := process.Res.Fd[fd]
+	dirname, ok := process.FdRes.Fd[fd]
 	if !ok {
-		process.Res.Cwd = ""
+		process.FsRes.Cwd = ""
 		return nil
 	}
 
@@ -392,7 +392,7 @@ func handleInitModule(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg
 func handleFInitModule(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	fd := tracer.ReadArgInt32(regs, 0)
 
-	filename, exists := process.Res.Fd[fd]
+	filename, exists := process.FdRes.Fd[fd]
 	if !exists {
 		return errors.New("FD cache incomplete")
 	}
@@ -444,7 +444,7 @@ func handleDeleteModule(tracer *Tracer, process *Process, msg *ebpfless.SyscallM
 
 func handleChdirRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
 	if ret := tracer.ReadRet(regs); msg.Chdir != nil && ret >= 0 {
-		process.Res.Cwd = msg.Chdir.Dir.Filename
+		process.FsRes.Cwd = msg.Chdir.Dir.Filename
 	}
 	return nil
 }
