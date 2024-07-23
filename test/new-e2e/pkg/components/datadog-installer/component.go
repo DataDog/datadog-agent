@@ -43,16 +43,16 @@ func (h *Component) Export(ctx *pulumi.Context, out *Output) error {
 
 // Configuration represents the Windows NewDefender configuration
 type Configuration struct {
-	Url string
+	URL string
 }
 
 // Option is an optional function parameter type for Configuration options
 type Option = func(*Configuration) error
 
-// WithInstallUrl specifies the URL to use to retrieve the Datadog Installer
-func WithInstallUrl(url string) func(*Configuration) error {
+// WithInstallURL specifies the URL to use to retrieve the Datadog Installer
+func WithInstallURL(url string) func(*Configuration) error {
 	return func(p *Configuration) error {
-		p.Url = url
+		p.URL = url
 		return nil
 	}
 }
@@ -60,13 +60,13 @@ func WithInstallUrl(url string) func(*Configuration) error {
 // NewConfig creates a default config
 func NewConfig(env aws.Environment, options ...Option) (*Configuration, error) {
 	if env.PipelineID() != "" {
-		artifactUrl, err := pipeline.GetPipelineArtifact(env.PipelineID(), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
+		artifactURL, err := pipeline.GetPipelineArtifact(env.PipelineID(), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
 			return strings.Contains(artifact, "datadog-installer")
 		})
 		if err != nil {
 			return nil, err
 		}
-		options = append([]Option{WithInstallUrl(artifactUrl)}, options...)
+		options = append([]Option{WithInstallURL(artifactURL)}, options...)
 	}
 	return common.ApplyOption(&Configuration{}, options)
 }
@@ -86,7 +86,7 @@ func NewInstaller(e aws.Environment, host *remoteComp.Host, options ...Option) (
 		_, err = host.OS.Runner().Command(comp.namer.ResourceName("install"), &command.Args{
 			Create: pulumi.Sprintf(`
 Exit (Start-Process -Wait msiexec -PassThru -ArgumentList '/qn /i %s').ExitCode
-`, params.Url),
+`, params.URL),
 			Delete: pulumi.Sprintf(`
 $installerList = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object {$_.DisplayName -like 'Datadog Installer'}
 if (($installerList | measure).Count -ne 1) {
