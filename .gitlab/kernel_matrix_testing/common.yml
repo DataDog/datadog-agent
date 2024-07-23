@@ -309,5 +309,8 @@ notify_ebpf_complexity_changes:
               - fedora_38
             TEST_SET: no_usm
   allow_failure: true
+  before_script:
+    - python3 -m pip install tabulate  # Required for printing the tables
   script:
+
     - inv -e ebpf.generate-complexity-summary-for-pr
