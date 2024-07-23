@@ -287,6 +287,7 @@ type AgentConfig struct {
 	// Concentrator
 	BucketInterval         time.Duration // the size of our pre-aggregation per bucket
 	ExtraAggregators       []string      // DEPRECATED
+	PeerTagsAggregation    bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
 	ComputeStatsBySpanKind bool          // enables/disables the computing of stats based on a span's `span.kind` field
 	PeerTags               []string      // additional tags to use for peer entity stats aggregation. If this field is not empty, the concentrator will aggregate on all of these keys.
 
@@ -595,6 +596,15 @@ func (c *AgentConfig) AllFeatures() []string {
 		feats = append(feats, feat)
 	}
 	return feats
+}
+
+// ConfiguredPeerTags returns the set of peer tags that should be used
+// for aggregation based on the various config values and the base set of tags.
+func (c *AgentConfig) ConfiguredPeerTags() []string {
+	if !c.PeerTagsAggregation {
+		return nil
+	}
+	return preparePeerTags(append(basePeerTags, c.PeerTags...))
 }
 
 func inAzureAppServices() bool {

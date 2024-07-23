@@ -96,7 +96,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 			AnalyzedSpansByService: r.conf.AnalyzedSpansByService,
 			Obfuscation:            oconf,
 		},
-		PeerTags: r.conf.PeerTags,
+		PeerTags: r.conf.ConfiguredPeerTags(),
 	}, "", "\t")
 	if err != nil {
 		panic(fmt.Errorf("Error making /info handler: %v", err))

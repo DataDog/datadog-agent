@@ -219,20 +219,15 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 
 	// NOTE: maintain backwards-compatibility with old peer service flag that will eventually be deprecated.
-	peerTagsAggregation := core.GetBool("apm_config.peer_service_aggregation")
-	if peerTagsAggregation {
+	c.PeerTagsAggregation = core.GetBool("apm_config.peer_service_aggregation")
+	if c.PeerTagsAggregation {
 		log.Warn("`apm_config.peer_service_aggregation` is deprecated, please use `apm_config.peer_tags_aggregation` instead")
 	}
-	peerTagsAggregation = peerTagsAggregation || core.GetBool("apm_config.peer_tags_aggregation")
-	if peerTagsAggregation {
-		c.PeerTags = basePeerTags
-		if core.IsSet("apm_config.peer_tags") {
-			c.PeerTags = append(c.PeerTags, core.GetStringSlice("apm_config.peer_tags")...)
-		}
-		c.PeerTags = preparePeerTags(c.PeerTags)
-	}
-
+	c.PeerTagsAggregation = c.PeerTagsAggregation || core.GetBool("apm_config.peer_tags_aggregation")
 	c.ComputeStatsBySpanKind = core.GetBool("apm_config.compute_stats_by_span_kind")
+	if core.IsSet("apm_config.peer_tags") {
+		c.PeerTags = core.GetStringSlice("apm_config.peer_tags")
+	}
 
 	if core.IsSet("apm_config.extra_sample_rate") {
 		c.ExtraSampleRate = core.GetFloat64("apm_config.extra_sample_rate")

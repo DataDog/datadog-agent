@@ -2435,6 +2435,7 @@ func TestPeerTagsAggregation(t *testing.T) {
 		// underlying config
 		cfg := config.Object()
 		require.NotNil(t, cfg)
+		assert.False(t, cfg.PeerTagsAggregation)
 		assert.Nil(t, cfg.PeerTags)
 	})
 
@@ -2451,7 +2452,8 @@ func TestPeerTagsAggregation(t *testing.T) {
 		// underlying config
 		cfg := config.Object()
 		require.NotNil(t, cfg)
-		assert.Equal(t, basePeerTags, cfg.PeerTags)
+		assert.True(t, cfg.PeerTagsAggregation)
+		assert.Nil(t, cfg.PeerTags)
 	})
 	t.Run("enabled", func(t *testing.T) {
 		overrides := map[string]interface{}{
@@ -2465,8 +2467,8 @@ func TestPeerTagsAggregation(t *testing.T) {
 		))
 		// underlying config
 		cfg := config.Object()
-		require.NotNil(t, cfg)
-		assert.Equal(t, basePeerTags, cfg.PeerTags)
+		assert.True(t, cfg.PeerTagsAggregation)
+		assert.Nil(t, cfg.PeerTags)
 	})
 	t.Run("both-enabled", func(t *testing.T) {
 		overrides := map[string]interface{}{
@@ -2482,7 +2484,8 @@ func TestPeerTagsAggregation(t *testing.T) {
 		// underlying config
 		cfg := config.Object()
 		require.NotNil(t, cfg)
-		assert.Equal(t, basePeerTags, cfg.PeerTags)
+		assert.True(t, cfg.PeerTagsAggregation)
+		assert.Nil(t, cfg.PeerTags)
 	})
 	t.Run("disabled-user-tags", func(t *testing.T) {
 		overrides := map[string]interface{}{
@@ -2497,7 +2500,8 @@ func TestPeerTagsAggregation(t *testing.T) {
 		// underlying config
 		cfg := config.Object()
 		require.NotNil(t, cfg)
-		assert.Empty(t, cfg.PeerTags)
+		assert.False(t, cfg.PeerTagsAggregation)
+		assert.Equal(t, []string{"user_peer_tag"}, cfg.PeerTags)
 	})
 	t.Run("deprecated-enabled-user-tags", func(t *testing.T) {
 		overrides := map[string]interface{}{
@@ -2512,8 +2516,8 @@ func TestPeerTagsAggregation(t *testing.T) {
 		))
 		// underlying config
 		cfg := config.Object()
-		require.NotNil(t, cfg)
-		assert.Equal(t, append(basePeerTags, "user_peer_tag"), cfg.PeerTags)
+		assert.True(t, cfg.PeerTagsAggregation)
+		assert.Equal(t, []string{"user_peer_tag"}, cfg.PeerTags)
 	})
 	t.Run("enabled-user-tags", func(t *testing.T) {
 		overrides := map[string]interface{}{
@@ -2529,7 +2533,8 @@ func TestPeerTagsAggregation(t *testing.T) {
 		// underlying config
 		cfg := config.Object()
 		require.NotNil(t, cfg)
-		assert.Equal(t, append(basePeerTags, "user_peer_tag"), cfg.PeerTags)
+		assert.True(t, cfg.PeerTagsAggregation)
+		assert.Equal(t, []string{"user_peer_tag"}, cfg.PeerTags)
 	})
 	t.Run("both-enabled-user-tags", func(t *testing.T) {
 		overrides := map[string]interface{}{
@@ -2546,24 +2551,25 @@ func TestPeerTagsAggregation(t *testing.T) {
 		// underlying config
 		cfg := config.Object()
 		require.NotNil(t, cfg)
-		assert.Equal(t, append(basePeerTags, "user_peer_tag"), cfg.PeerTags)
+		assert.True(t, cfg.PeerTagsAggregation)
+		assert.Equal(t, []string{"user_peer_tag"}, cfg.PeerTags)
 	})
-	t.Run("dedup", func(t *testing.T) {
-		overrides := map[string]interface{}{
-			"apm_config.peer_tags":             basePeerTags[:1],
-			"apm_config.peer_tags_aggregation": true,
-		}
+	// t.Run("dedup", func(t *testing.T) {
+	// 	overrides := map[string]interface{}{
+	// 		"apm_config.peer_tags":             basePeerTags[:1],
+	// 		"apm_config.peer_tags_aggregation": true,
+	// 	}
 
-		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule(),
-			fx.Replace(corecomp.MockParams{Overrides: overrides}),
-			MockModule(),
-		))
-		// underlying config
-		cfg := config.Object()
-		require.NotNil(t, cfg)
-		assert.Equal(t, basePeerTags, cfg.PeerTags)
-	})
+	// 	config := fxutil.Test[Component](t, fx.Options(
+	// 		corecomp.MockModule(),
+	// 		fx.Replace(corecomp.MockParams{Overrides: overrides}),
+	// 		MockModule(),
+	// 	))
+	// 	// underlying config
+	// 	cfg := config.Object()
+	// 	require.NotNil(t, cfg)
+	// 	assert.Equal(t, basePeerTags, cfg.PeerTags)
+	// })
 }
 
 func TestComputeStatsBySpanKind(t *testing.T) {

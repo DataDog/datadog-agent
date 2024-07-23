@@ -75,7 +75,7 @@ func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, sta
 		agentEnv:               conf.DefaultEnv,
 		agentHostname:          conf.Hostname,
 		agentVersion:           conf.AgentVersion,
-		peerTagKeys:            conf.PeerTags,
+		peerTagKeys:            conf.ConfiguredPeerTags(),
 		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
 		statsd:                 statsd,
 	}
