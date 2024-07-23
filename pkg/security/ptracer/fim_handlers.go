@@ -1173,7 +1173,7 @@ func handleNameToHandleAtRet(tracer *Tracer, process *Process, msg *ebpfless.Sys
 }
 
 func handleOpensRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
-	if ret := tracer.ReadRet(regs); msg.Open != nil && ret > 0 {
+	if ret := tracer.ReadRet(regs); msg.Open != nil && ret >= 0 {
 		process.Res.Fd[int32(ret)] = msg.Open.Filename
 	}
 	return nil
