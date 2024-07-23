@@ -9,7 +9,7 @@ import (
 	"flag"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	suite_assertions "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/suite-assertions"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/suite-assertions"
 )
 
 type baseSuite struct {
@@ -40,6 +40,6 @@ func (s *baseSuite) BeforeTest(suiteName, testName string) {
 // Ideally this suite assertion would exist at a higher level of abstraction
 // so that it could be shared by multiple suites, but for now it exists only
 // on the Windows Datadog Installer `baseSuite` object.
-func (s *baseSuite) Require() *suite_assertions.SuiteAssertions {
-	return suite_assertions.New(s.BaseSuite.Require(), s)
+func (s *baseSuite) Require() *suiteasserts.SuiteAssertions {
+	return suiteasserts.New(s.BaseSuite.Require(), s)
 }
