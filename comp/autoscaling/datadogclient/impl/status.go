@@ -67,9 +67,14 @@ func getStatusInfo(dc datadogclient.Component) map[string]interface{} {
 	return stats
 }
 
-func getStatus(dc datadogclient.Component) map[string]interface{} {
+func getStatus(dcComp datadogclient.Component) map[string]interface{} {
+	dc := (datadogclient.Component)(nil)
 	status := make(map[string]interface{})
-
+	if client, ok := dcComp.(*datadogClientWrapper); ok {
+		dc = client.client
+	} else {
+		dc = dcComp
+	}
 	switch ddCl := dc.(type) {
 	case *datadog.Client:
 		// Can be nil if there's an error in NewDatadogClient()
