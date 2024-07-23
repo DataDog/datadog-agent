@@ -27,14 +27,14 @@ type Tailer struct {
 	source     *sources.LogSource
 	Conn       net.Conn
 	outputChan chan *message.Message
-	read       func(*Tailer) ([]byte, net.UDPAddr, error)
+	read       func(*Tailer) ([]byte, *net.UDPAddr, error)
 	decoder    *decoder.Decoder
 	stop       chan struct{}
 	done       chan struct{}
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(source *sources.LogSource, conn net.Conn, outputChan chan *message.Message, read func(*Tailer) ([]byte, net.UDPAddr, error)) *Tailer {
+func NewTailer(source *sources.LogSource, conn net.Conn, outputChan chan *message.Message, read func(*Tailer) ([]byte, *net.UDPAddr, error)) *Tailer {
 	return &Tailer{
 		source:     source,
 		Conn:       conn,
