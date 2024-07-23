@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	logComp "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -24,9 +24,10 @@ import (
 
 func TestNewSingleClient(t *testing.T) {
 	cfg := fxutil.Test[config.Component](t, config.MockModule())
+	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
 	cfg.Set("api_key", "apikey123", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.Set("app_key", "appkey456", pkgconfigmodel.SourceLocalConfigProcess)
-	datadogClient, err := createDatadogClient(cfg)
+	datadogClient, err := createDatadogClient(cfg, logger)
 	assert.NoError(t, err)
 	dogCl, ok := datadogClient.(*datadog.Client)
 	assert.True(t, ok)
@@ -35,6 +36,7 @@ func TestNewSingleClient(t *testing.T) {
 
 func TestNewFallbackClient(t *testing.T) {
 	cfg := fxutil.Test[config.Component](t, config.MockModule())
+	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
 	cfg.Set("api_key", "apikey123", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.Set("app_key", "appkey456", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.SetWithoutSource(metricsRedundantEndpointConfig,
@@ -47,7 +49,7 @@ func TestNewFallbackClient(t *testing.T) {
 			},
 		})
 	assert.True(t, cfg.IsSet(metricsRedundantEndpointConfig))
-	datadogClient, err := createDatadogClient(cfg)
+	datadogClient, err := createDatadogClient(cfg, logger)
 	assert.NoError(t, err)
 	fallbackCl, ok := datadogClient.(*datadogFallbackClient)
 	assert.True(t, ok)
@@ -66,7 +68,7 @@ func TestExternalMetricsProviderEndpointAndRefresh(t *testing.T) {
 	}))
 	defer ts.Close()
 	cfg := fxutil.Test[config.Component](t, config.MockModule())
-	log := fxutil.Test[logComp.Component](t, logimpl.MockModule())
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	cfg.Set("api_key", "apikey123", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.Set("app_key", "appkey456", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.SetWithoutSource(metricsEndpointConfig, ts.URL)

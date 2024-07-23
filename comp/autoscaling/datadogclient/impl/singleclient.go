@@ -13,14 +13,14 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	logComp "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewDatadogSingleClient generates a new client to query metrics from Datadog
 // datadog.Client struct is defined in gopkg.in/zorkian/go-datadog-api.v2, provides apis of QueryMetrics and GetRateLimitStats
-func newDatadogSingleClient(cfg configComponent.Component) (*datadog.Client, error) {
+func newDatadogSingleClient(cfg configComponent.Component, logger logComp.Component) (*datadog.Client, error) {
 	apiKey := utils.SanitizeAPIKey(cfg.GetString("external_metrics_provider.api_key"))
 	if apiKey == "" {
 		apiKey = utils.SanitizeAPIKey(cfg.GetString("api_key"))
@@ -46,8 +46,8 @@ func newDatadogSingleClient(cfg configComponent.Component) (*datadog.Client, err
 		return nil, errors.New("missing the api/app key pair to query Datadog")
 	}
 
-	log.Infof("Initialized the Datadog Client for HPA with endpoint %q", ddEndpoint)
-	log.Infof("API_KEY= %s", apiKey)
+	logger.Infof("Initialized the Datadog Client for HPA with endpoint %q", ddEndpoint)
+	logger.Infof("API_KEY= %s", apiKey)
 
 	client := datadog.NewClient(apiKey, appKey)
 	client.HttpClient.Transport = httputils.CreateHTTPTransport(cfg)

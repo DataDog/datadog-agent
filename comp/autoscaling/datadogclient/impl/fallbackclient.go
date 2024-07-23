@@ -13,8 +13,8 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	logComp "github.com/DataDog/datadog-agent/comp/core/log"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type datadogIndividualClient struct {
@@ -34,15 +34,16 @@ const (
 type datadogFallbackClient struct {
 	clients        []*datadogIndividualClient
 	lastUsedClient int
+	log            logComp.Component
 }
 
 // NewDatadogFallbackClient generates a new client able to query metrics to a second Datadog endpoint if the first one fails
-func newDatadogFallbackClient(config configComponent.Component, endpoints []endpoint) (*datadogFallbackClient, error) {
+func newDatadogFallbackClient(config configComponent.Component, logger logComp.Component, endpoints []endpoint) (*datadogFallbackClient, error) {
 	if len(endpoints) == 0 {
-		return nil, log.Errorf("%s must be non-empty", metricsRedundantEndpointConfig)
+		return nil, logger.Errorf("%s must be non-empty", metricsRedundantEndpointConfig)
 	}
 
-	defaultClient, err := newDatadogSingleClient(config)
+	defaultClient, err := newDatadogSingleClient(config, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -55,6 +56,7 @@ func newDatadogFallbackClient(config configComponent.Component, endpoints []endp
 				retryInterval:      minRetryInterval,
 			},
 		},
+		log: logger,
 	}
 	for _, e := range endpoints {
 		client := datadog.NewClient(e.APIKey, e.APPKey)
@@ -118,7 +120,7 @@ func (cl *datadogFallbackClient) QueryMetrics(from, to int64, query string) ([]d
 		series, err := c.queryMetrics(from, to, query)
 		if err == nil {
 			if i != cl.lastUsedClient {
-				log.Warnf("Switching external metrics source provider from %s to %s",
+				cl.log.Warnf("Switching external metrics source provider from %s to %s",
 					cl.clients[cl.lastUsedClient].client.GetBaseUrl(),
 					c.client.GetBaseUrl())
 			}
@@ -126,12 +128,12 @@ func (cl *datadogFallbackClient) QueryMetrics(from, to int64, query string) ([]d
 			return series, nil
 		}
 
-		log.Infof("Failed to query metrics on %s: %s", c.client.GetBaseUrl(), err.Error())
+		cl.log.Infof("Failed to query metrics on %s: %s", c.client.GetBaseUrl(), err.Error())
 		errs = fmt.Errorf("%w, Failed to query metrics on %s: %s", errs, c.client.GetBaseUrl(), err.Error())
 	}
 
 	for _, c := range skippedClients {
-		log.Infof("Although we shouldn’t query %s because of the backoff policy, we’re going to do so because no other valid endpoint succeeded so far.", c.client.GetBaseUrl())
+		cl.log.Infof("Although we shouldn’t query %s because of the backoff policy, we’re going to do so because no other valid endpoint succeeded so far.", c.client.GetBaseUrl())
 		series, err := c.queryMetrics(from, to, query)
 		if err == nil {
 			return series, nil

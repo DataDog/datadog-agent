@@ -46,7 +46,7 @@ type endpoint struct {
 // NewComponent creates a new datadogclient component
 func NewComponent(reqs Requires) (Provides, error) {
 	provides := Provides{}
-	client, err := createDatadogClient(reqs.Config)
+	client, err := createDatadogClient(reqs.Config, reqs.Log)
 	if err != nil {
 		return provides, err
 	}
@@ -98,7 +98,7 @@ func (d *datadogClientWrapper) GetRateLimitStats() map[string]datadog.RateLimit 
 }
 
 func (d *datadogClientWrapper) refreshClient() {
-	newClient, err := createDatadogClient(d.datadogConfig)
+	newClient, err := createDatadogClient(d.datadogConfig, d.log)
 	if err != nil {
 		d.log.Errorf("error refreshing datadog client: %v", err)
 		return
@@ -110,14 +110,14 @@ func (d *datadogClientWrapper) refreshClient() {
 	d.log.Infof("refreshed datadog client, number of refreshes: %d", d.numberOfRefreshes)
 }
 
-func createDatadogClient(cfg configComponent.Component) (datadogclient.Component, error) {
+func createDatadogClient(cfg configComponent.Component, logger logComp.Component) (datadogclient.Component, error) {
 	if cfg.IsSet(metricsRedundantEndpointConfig) {
 		var endpoints []endpoint
 		if err := cfg.UnmarshalKey(metricsRedundantEndpointConfig, &endpoints); err != nil {
 			return nil, fmt.Errorf("could not parse %s: %v", metricsRedundantEndpointConfig, err)
 		}
 
-		return newDatadogFallbackClient(cfg, endpoints)
+		return newDatadogFallbackClient(cfg, logger, endpoints)
 	}
-	return newDatadogSingleClient(cfg)
+	return newDatadogSingleClient(cfg, logger)
 }
