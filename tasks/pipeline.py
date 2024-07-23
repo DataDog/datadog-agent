@@ -1019,6 +1019,7 @@ def compare_to_itself(ctx):
     ctx.run("git config --global user.email 'github-app[bot]@users.noreply.github.com'")
     # The branch must exist in gitlab to be able to "compare_to"
     ctx.run(f"git push origin {new_branch}", hide=True)
+    time.sleep(15)  #  Wait for the branch to be created
     for file in ['.gitlab-ci.yml', '.gitlab/notify/notify.yml']:
         with open(file) as f:
             content = f.read()
@@ -1026,7 +1027,7 @@ def compare_to_itself(ctx):
             f.write(content.replace('compare_to: main', f'compare_to: {new_branch}'))
     ctx.run("git commit -am 'Compare to itself'", hide=True)
     ctx.run(f"git push origin {new_branch}", hide=True)
-    max_attempts = 8
+    max_attempts = 6
     for attempt in range(max_attempts):
         print(f"[{datetime.now()}] Waiting 30s for the pipelines to be created")
         time.sleep(30)
@@ -1038,7 +1039,10 @@ def compare_to_itself(ctx):
             break
         else:
             if attempt == max_attempts - 1:
-                # Clean up the branch at least
+                # Clean up the branch and possible pipelines
+                if test_pipelines:
+                    for pipeline in test_pipelines:
+                        pipeline.cancel()
                 ctx.run(f"git checkout {current_branch}", hide=True)
                 ctx.run(f"git branch -D {new_branch}", hide=True)
                 ctx.run(f"git push origin :{new_branch}", hide=True)
