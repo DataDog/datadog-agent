@@ -6,11 +6,14 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import tempfile
 
+import yaml
 from invoke import task
+from invoke.exceptions import Exit
 
-from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+from tasks.libs.ciproviders.gitlab_api import get_full_gitlab_ci_configuration, get_gitlab_repo
 from tasks.libs.civisibility import (
     get_pipeline_link_to_job_id,
     get_pipeline_link_to_job_on_main,
@@ -129,3 +132,72 @@ def print_job(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_
         return repo.jobs.get(id)
 
     print_gitlab_object(get_job, ctx, ids, repo, jq, jq_colors)
+
+
+@task
+def gen_config_subset(ctx, jobs, dry_run=False, force=False):
+    """
+    Will generate a full .gitlab-ci.yml containing only the jobs necessary to run the target jobs
+    """
+
+    print(
+        color_message(
+            'Warning: This task takes into account only explicit dependencies (job `needs` / `dependencies`), implicit dependencies (stages order) are ignored',
+            Color.ORANGE,
+        ),
+        file=sys.stderr,
+    )
+
+    jobs_to_keep = ['cancel-prev-pipelines', 'github_rate_limit_info', 'setup_agent_version']
+    attributes_to_keep = 'stages', 'variables', 'default', 'workflow'
+
+    # .gitlab-ci.yml should not be modified
+    if not force and not dry_run and ctx.run('git status -s .gitlab-ci.yml', hide='stdout').stdout.strip():
+        raise Exit(color_message('The .gitlab-ci.yml file should not be modified as it will be overwritten', Color.RED))
+
+    config = get_full_gitlab_ci_configuration(ctx, '.gitlab-ci.yml')
+
+    jobs = [j for j in jobs.split(',') if j] + jobs_to_keep
+    required = set()
+
+    def add_dependencies(job):
+        nonlocal required, config
+
+        if job in required:
+            return
+        required.add(job)
+
+        dependencies = []
+        if 'needs' in config[job]:
+            dependencies = config[job]['needs']
+        if 'dependencies' in config[job]:
+            dependencies = config[job]['dependencies']
+
+        for dep in dependencies:
+            if isinstance(dep, dict):
+                dep = dep['job']
+            add_dependencies(dep)
+
+    # Make a DFS to find all the jobs that are needed to run the target jobs
+    for job in jobs:
+        add_dependencies(job)
+
+    new_config = {job: config[job] for job in required}
+
+    # Remove extends
+    for job in new_config.values():
+        job.pop('extends', None)
+
+    # Keep gitlab config
+    for attr in attributes_to_keep:
+        new_config[attr] = config[attr]
+
+    content = yaml.safe_dump(new_config)
+
+    if dry_run:
+        print(content)
+    else:
+        with open('.gitlab-ci.yml', 'w') as f:
+            f.write(content)
+
+        print(color_message('The .gitlab-ci.yml file has been updated', Color.GREEN))
