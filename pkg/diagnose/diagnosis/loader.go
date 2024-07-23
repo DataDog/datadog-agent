@@ -131,6 +131,40 @@ type Diagnosis struct {
 type Diagnoses struct {
 	SuiteName      string      `json:"suite_name"`
 	SuiteDiagnoses []Diagnosis `json:"diagnoses"`
+	Counters       Counters    `json:"summary"`
+}
+
+// Counters contains the count of the diagnosis results
+type Counters struct {
+	Total         int `json:"total,omitempty"`
+	Success       int `json:"success,omitempty"`
+	Fail          int `json:"fail,omitempty"`
+	Warnings      int `json:"warnings,omitempty"`
+	UnexpectedErr int `json:"unexpected_error,omitempty"`
+}
+
+// Increment increments the count of the diagnosis results
+func (c *Counters) Increment(r Result) {
+	c.Total++
+
+	if r == DiagnosisSuccess {
+		c.Success++
+	} else if r == DiagnosisFail {
+		c.Fail++
+	} else if r == DiagnosisWarning {
+		c.Warnings++
+	} else {
+		c.UnexpectedErr++
+	}
+}
+
+// Merge merges the count of the diagnoses results
+func (c *Counters) Merge(other Counters) {
+	c.Total += other.Total
+	c.Success += other.Success
+	c.Fail += other.Fail
+	c.Warnings += other.Warnings
+	c.UnexpectedErr += other.UnexpectedErr
 }
 
 // Catalog stores the list of registered Diagnose functions

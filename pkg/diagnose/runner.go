@@ -32,15 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose/ports"
 )
 
-// Overall running statistics
-type counters struct {
-	total         int
-	success       int
-	fail          int
-	warnings      int
-	unexpectedErr int
-}
-
 // diagnose suite filter
 type diagSuiteFilter struct {
 	include []*regexp.Regexp
@@ -48,53 +39,21 @@ type diagSuiteFilter struct {
 }
 
 // Output summary
-func (c *counters) summary(w io.Writer, toJSON bool) {
-	if toJSON {
-		counts := map[string]int{
-			"total":   c.total,
-			"success": c.success,
-			"fail":    c.fail,
-			"warning": c.warnings,
-			"error":   c.unexpectedErr,
-		}
-		jsonResponse, err := json.MarshalIndent(counts, "", "  ")
-		if err != nil {
-			body, _ := json.Marshal(map[string]string{"error": fmt.Sprintf("marshalling diagnose results to JSON: %s", err)})
-			fmt.Fprintln(w, string(body))
-			return
-		}
-		_, _ = w.Write(jsonResponse)
-		return
+func summary(w io.Writer, c diagnosis.Counters) {
+	fmt.Fprintf(w, "-------------------------\n  Total:%d", c.Total)
+	if c.Success > 0 {
+		fmt.Fprintf(w, ", Success:%d", c.Success)
 	}
-
-	fmt.Fprintf(w, "-------------------------\n  Total:%d", c.total)
-	if c.success > 0 {
-		fmt.Fprintf(w, ", Success:%d", c.success)
+	if c.Fail > 0 {
+		fmt.Fprintf(w, ", Fail:%d", c.Fail)
 	}
-	if c.fail > 0 {
-		fmt.Fprintf(w, ", Fail:%d", c.fail)
+	if c.Warnings > 0 {
+		fmt.Fprintf(w, ", Warning:%d", c.Warnings)
 	}
-	if c.warnings > 0 {
-		fmt.Fprintf(w, ", Warning:%d", c.warnings)
-	}
-	if c.unexpectedErr > 0 {
-		fmt.Fprintf(w, ", Error:%d", c.unexpectedErr)
+	if c.UnexpectedErr > 0 {
+		fmt.Fprintf(w, ", Error:%d", c.UnexpectedErr)
 	}
 	fmt.Fprint(w, "\n")
-}
-
-func (c *counters) increment(r diagnosis.Result) {
-	c.total++
-
-	if r == diagnosis.DiagnosisSuccess {
-		c.success++
-	} else if r == diagnosis.DiagnosisFail {
-		c.fail++
-	} else if r == diagnosis.DiagnosisWarning {
-		c.warnings++
-	} else if r == diagnosis.DiagnosisUnexpectedError {
-		c.unexpectedErr++
-	}
 }
 
 func outputDiagnosis(w io.Writer, cfg diagnosis.Config, result string, diagnosisIdx int, d diagnosis.Diagnosis) {
@@ -291,9 +250,14 @@ func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config, suites []diagnosis
 		// Run particular diagnose
 		diagnoses := getSuiteDiagnoses(ds)
 		if len(diagnoses) > 0 {
+			var count diagnosis.Counters
+			for _, d := range diagnoses {
+				count.Increment(d.Result)
+			}
 			suitesDiagnoses = append(suitesDiagnoses, diagnosis.Diagnoses{
 				SuiteName:      ds.SuitName,
 				SuiteDiagnoses: diagnoses,
+				Counters:       count,
 			})
 		}
 	}
@@ -394,10 +358,10 @@ func RunDiagnoseStdOut(w io.Writer, diagCfg diagnosis.Config, diagnoses []diagno
 }
 
 func runStdOutJSON(w io.Writer, diagnoses []diagnosis.Diagnoses) error {
-
-	var count counters
+	var count diagnosis.Counters
 
 	for _, diag := range diagnoses {
+		count.Merge(diag.Counters)
 		diagJSON, err := json.MarshalIndent(diag, "", "  ")
 		if err != nil {
 			body, _ := json.Marshal(map[string]string{"error": fmt.Sprintf("marshalling diagnose results to JSON: %s", err)})
@@ -405,12 +369,9 @@ func runStdOutJSON(w io.Writer, diagnoses []diagnosis.Diagnoses) error {
 			return err
 		}
 		fmt.Fprintln(w, string(diagJSON))
-		for _, d := range diag.SuiteDiagnoses {
-			count.increment(d.Result)
-		}
 	}
-
-	count.summary(w, true)
+	body, _ := json.MarshalIndent(count, "", "  ")
+	fmt.Fprintln(w, string(body))
 
 	return nil
 }
@@ -421,13 +382,13 @@ func runStdOut(w io.Writer, diagCfg diagnosis.Config, diagnoses []diagnosis.Diag
 	}
 
 	fmt.Fprintf(w, "=== Starting diagnose ===\n")
-	var c counters
+	var count diagnosis.Counters
 
 	lastDot := false
 	for _, ds := range diagnoses {
+		count.Merge(ds.Counters)
 		suiteAlreadyReported := false
 		for _, d := range ds.SuiteDiagnoses {
-			c.increment(d.Result)
 
 			if d.Result == diagnosis.DiagnosisSuccess && !diagCfg.Verbose {
 				outputDot(w, &lastDot)
@@ -437,12 +398,12 @@ func runStdOut(w io.Writer, diagCfg diagnosis.Config, diagnoses []diagnosis.Diag
 			outputSuiteIfNeeded(w, ds.SuiteName, &suiteAlreadyReported)
 
 			outputNewLineIfNeeded(w, &lastDot)
-			outputDiagnosis(w, diagCfg, d.Result.ToString(true), c.total, d)
+			outputDiagnosis(w, diagCfg, d.Result.ToString(true), count.Total, d)
 		}
 	}
 
 	outputNewLineIfNeeded(w, &lastDot)
-	c.summary(w, false)
+	summary(w, count)
 
 	return nil
 }
