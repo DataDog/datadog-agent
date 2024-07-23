@@ -133,6 +133,12 @@ def gen_config(
     """
     Generate a vmconfig.json file with the given VMs.
     """
+    if not ci and arch != "":
+        raise Exit(
+            "Error: Architecture (--arch argument) can only be specified when generating from a CI pipeline (--ci argument). "
+            "To specify the architecture of the VMs, use the VM specifier (e.g., x64-ubuntu_22-distro or local-ubuntu_22-distro for local VMs)"
+        )
+
     if from_ci_pipeline is not None:
         return gen_config_from_ci_pipeline(
             ctx,
