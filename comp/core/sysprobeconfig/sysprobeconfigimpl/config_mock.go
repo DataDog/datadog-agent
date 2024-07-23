@@ -37,6 +37,18 @@ func MockModule() fxutil.Module {
 		fx.Supply(MockParams{}))
 }
 
+// NewMock returns a mock for the SystemProbe config from a *testing.T.
+//
+// This is a temporary function until the sysprobeconfig component is migrated to the new layout (see
+// https://datadoghq.dev/datadog-agent/components/overview/). Until then, we need a fx-free way to create a mock so new
+// components aren't force to use FX directly in their tests.
+//
+// While this method use FX internally it abstract if from the caller making the migration of sysprobeconfig mock transparent
+// for its users.
+func NewMock(t *testing.T) sysprobeconfig.Component {
+	return fxutil.Test[sysprobeconfig.Component](t, MockModule())
+}
+
 func newMock(deps mockDependencies, t testing.TB) sysprobeconfig.Component {
 	old := config.SystemProbe
 	config.SystemProbe = config.NewConfig("mock", "XXXX", strings.NewReplacer())

@@ -45,12 +45,13 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect; v2.6
-	github.com/stretchr/testify v1.9.0 // indirect
+	github.com/stretchr/testify v1.9.0
 	go.uber.org/fx v1.18.2 // indirect
 )
 
 require (
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.0.0-00010101000000-000000000000
 )
 
