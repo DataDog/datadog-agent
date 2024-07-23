@@ -685,8 +685,8 @@ github.com/CycloneDX/cyclonedx-go v0.8.0 h1:FyWVj6x6hoJrui5uRQdYZcSievw3Z32Z88uY
 github.com/CycloneDX/cyclonedx-go v0.8.0/go.mod h1:K2bA+324+Og0X84fA8HhN2X066K7Bxz4rpMQ4ZhjtSk=
 github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7OputlJIzU=
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
-github.com/DataDog/agent-payload/v5 v5.0.124 h1:m7MLSy8oyLQDT59oesWhZiSFDzV/Q9CWzhue7s2SFaw=
-github.com/DataDog/agent-payload/v5 v5.0.124/go.mod h1:FgVQKmVdqdmZTbxIptqJC/l+xEzdiXsaAOs/vGAvWzs=
+github.com/DataDog/agent-payload/v5 v5.0.125 h1:ZMlATwFarkDkr3aKyDI5UKPtZxXd9/Jsk5v28ncGx4c=
+github.com/DataDog/agent-payload/v5 v5.0.125/go.mod h1:FgVQKmVdqdmZTbxIptqJC/l+xEzdiXsaAOs/vGAvWzs=
 github.com/DataDog/appsec-internal-go v1.6.0 h1:QHvPOv/O0s2fSI/BraZJNpRDAtdlrRm5APJFZNBxjAw=
 github.com/DataDog/appsec-internal-go v1.6.0/go.mod h1:pEp8gjfNLtEOmz+iZqC8bXhu0h4k7NUsW/qiQb34k1U=
 github.com/DataDog/aptly v1.5.3 h1:oLsRvjuXSVM4ia0N83dU3KiQeiJ6BaszYbTZOkSfDlw=
@@ -1997,8 +1997,8 @@ github.com/moby/patternmatcher v0.6.0 h1:GmP9lR19aU5GqSSFko+5pRqHi+Ohk1O69aFiKkV
 github.com/moby/patternmatcher v0.6.0/go.mod h1:hDPoyOpDY7OrrMDLaYoY3hf52gNCR/YOUYxkhApJIxc=
 github.com/moby/spdystream v0.2.0 h1:cjW1zVyyoiM0T7b6UoySUFqzXMoqRckQtXwGPiBhOM8=
 github.com/moby/spdystream v0.2.0/go.mod h1:f7i0iNDQJ059oMTcWxx8MA/zKFIuD/lY+0GqbN2Wy8c=
-github.com/moby/sys/mountinfo v0.7.1 h1:/tTvQaSJRr2FshkhXiIpux6fQ2Zvc4j7tAhMTStAG2g=
-github.com/moby/sys/mountinfo v0.7.1/go.mod h1:IJb6JQeOklcdMU9F5xQ8ZALD+CUr5VlGpwtX+VE0rpI=
+github.com/moby/sys/mountinfo v0.7.2 h1:1shs6aH5s4o5H2zQLn796ADW1wMrIwHsyJ2v9KouLrg=
+github.com/moby/sys/mountinfo v0.7.2/go.mod h1:1YOa8w8Ih7uW0wALDUgT1dTTSBrZ+HiBLGws92L2RU4=
 github.com/moby/sys/sequential v0.5.0 h1:OPvI35Lzn9K04PBbCLW0g4LcFAJgHsvXsRyewg5lXtc=
 github.com/moby/sys/sequential v0.5.0/go.mod h1:tH2cOOs5V9MlPiXcQzRC+eEyab644PWKGRYaaV5ZZlo=
 github.com/moby/sys/signal v0.7.0 h1:25RW3d5TnQEoKvRbEKUGay6DCQ46IxAVTT9CUMgmsSI=
@@ -2100,8 +2100,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconne
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.103.0/go.mod h1:ymbGC/jEXTq8mgHsxzV1PjVGHmV5hSQXmkYkFfGfuLw=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.104.0 h1:6dvpPt8pCcV+TfMnnanFk2NQYf9HN1voSS9iIHdW+L8=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.104.0/go.mod h1:MfSM6mt9qH3vHCaj2rlX6IY/7fN+zCLzNJC25XG9rNU=
-github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.104.0 h1:kE4BhuAJWWDtFo0hl8TOcdBM7E6cf2DR3hdHmTZrt48=
-github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.104.0/go.mod h1:cJk5wsbR7KPMn3yl0OPxSq2ORoGIAxgHXv9RPJJjohY=
+github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.103.0 h1:2XWbSIoIKQyFvn97pS4uc0Pxwe7EWCmZEg2r/+kiL58=
+github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.103.0/go.mod h1:WrnJQRKaivYllAC2B1KeCI5uYiYsZv3Hcbd6iQfr9Jg=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusremotewriteexporter v0.104.0 h1:lkf7Bof0rbPy2/0+tu+FAgEzwVKmJKcMlx8xsR26TdA=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusremotewriteexporter v0.104.0/go.mod h1:B6dQmrNwW1q7rOadf57fwIaZHYzwrovTSSEEaiFyf0w=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter v0.104.0 h1:vYEXEsS7T3a4XUgVbHG1dS351hqTKC3NtD+5Ef3FpVE=

@@ -222,7 +222,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 		"collector:network_path_collector",
 		"destination_hostname:abc",
 		"destination_port:80",
-		"protocol:udp",
+		"protocol:UDP",
 	}
 	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.path.monitored", Value: 1, Tags: tags, Rate: 1})
 
@@ -344,7 +344,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
-				{Hostname: "10.0.0.4", Port: uint16(80), Protocol: "tcp", SourceContainerID: "testId1"},
+				{Hostname: "10.0.0.4", Port: uint16(80), Protocol: payload.ProtocolTCP, SourceContainerID: "testId1"},
 			},
 		},
 		{
@@ -359,7 +359,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
-				{Hostname: "10.0.0.6", Port: uint16(161), Protocol: "udp", SourceContainerID: "testId1"},
+				{Hostname: "10.0.0.6", Port: uint16(161), Protocol: payload.ProtocolUDP, SourceContainerID: "testId1"},
 			},
 		},
 		{
@@ -399,7 +399,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
-				{Hostname: "10.0.0.4", Port: uint16(80), Protocol: "tcp", SourceContainerID: "testId2"},
+				{Hostname: "10.0.0.4", Port: uint16(80), Protocol: payload.ProtocolTCP, SourceContainerID: "testId2"},
 			},
 		},
 		{
@@ -457,7 +457,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
-				{Hostname: "10.0.0.4", Port: uint16(80), Protocol: "tcp", SourceContainerID: "testId3"},
+				{Hostname: "10.0.0.4", Port: uint16(80), Protocol: payload.ProtocolTCP, SourceContainerID: "testId3"},
 			},
 			expectedLogs: []logCount{},
 		},
@@ -648,13 +648,14 @@ func Test_npCollectorImpl_sendTelemetry(t *testing.T) {
 	path := payload.NetworkPath{
 		Source:      payload.NetworkPathSource{Hostname: "abc"},
 		Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "10.0.0.2", Port: 80},
+		Protocol:    payload.ProtocolUDP,
 		Hops: []payload.NetworkPathHop{
 			{Hostname: "hop_1", IPAddress: "1.1.1.1"},
 			{Hostname: "hop_2", IPAddress: "1.1.1.2"},
 		},
 	}
 	ptestCtx := &pathteststore.PathtestContext{
-		Pathtest: &common.Pathtest{Hostname: "10.0.0.2", Port: 80},
+		Pathtest: &common.Pathtest{Hostname: "10.0.0.2", Port: 80, Protocol: payload.ProtocolUDP},
 	}
 	ptestCtx.SetLastFlushInterval(2 * time.Minute)
 	npCollector.TimeNowFn = MockTimeNow
@@ -669,7 +670,7 @@ func Test_npCollectorImpl_sendTelemetry(t *testing.T) {
 		"collector:network_path_collector",
 		"destination_hostname:abc",
 		"destination_port:80",
-		"protocol:udp",
+		"protocol:UDP",
 	}
 	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.check_duration", Value: 3, Tags: tags, Rate: 1})
 	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.check_interval", Value: (2 * time.Minute).Seconds(), Tags: tags, Rate: 1})

@@ -229,7 +229,7 @@ require (
 	github.com/mdlayher/netlink v1.7.2
 	github.com/miekg/dns v1.1.61
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
-	github.com/moby/sys/mountinfo v0.7.1
+	github.com/moby/sys/mountinfo v0.7.2
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/netsampler/goflow2 v1.3.3
 	github.com/olekukonko/tablewriter v0.0.5
@@ -593,7 +593,7 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.124
+	github.com/DataDog/agent-payload/v5 v5.0.125
 	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/config v0.56.0-rc.3
@@ -704,6 +704,8 @@ require (
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/judwhite/go-svc v1.2.1
 	github.com/kr/pretty v0.3.1
+	// todo: update datadog connector with breaking changes from https://github.com/DataDog/datadog-agent/pull/26347.
+	github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.103.0
 	github.com/planetscale/vtprotobuf v0.6.0
 	github.com/prometheus-community/pro-bing v0.3.0
 	github.com/rickar/props v1.0.0
@@ -748,7 +750,7 @@ require (
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
 	github.com/Code-Hex/go-generics-cache v1.3.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.0.0-20240525065430-d0b647bcb646 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.56.0-rc.3 // indirect
@@ -863,9 +865,7 @@ require (
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/nxadm/tail v1.4.11 // indirect
 	github.com/onsi/ginkgo/v2 v2.19.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.104.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.104.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.104.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter v0.104.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.104.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer v0.104.0 // indirect
@@ -1045,9 +1045,6 @@ exclude (
 	github.com/knadh/koanf/maps v0.1.1
 	github.com/knadh/koanf/providers/confmap v0.1.0
 )
-
-// todo: update datadog connector with breaking changes from https://github.com/DataDog/datadog-agent/pull/26347.
-replace github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector => github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.103.0
 
 replace (
 	// Stick to v0.28.6 even if trivy want v0.29.x, the way we use trivy shouldn't require any k8s.io packages
