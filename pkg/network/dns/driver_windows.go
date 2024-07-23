@@ -125,7 +125,7 @@ func (d *dnsDriver) ReadDNSPacket(visit func([]byte, uint8, time.Time) error) (d
 
 	start := driver.FilterPacketHeaderSize
 
-	if err := visit(buf.data[start:], captureTime); err != nil {
+	if err := visit(buf.data[start:], 0, captureTime); err != nil {
 		return false, err
 	}
 
