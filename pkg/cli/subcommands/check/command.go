@@ -62,6 +62,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
@@ -212,6 +213,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(optional.NewNoneOption[rcservice.Component]()),
 				fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
 				fx.Supply(optional.NewNoneOption[logagent.Component]()),
+				fx.Supply(optional.NewNoneOption[integrations.Component]()),
 				fx.Provide(func() server.Component { return nil }),
 				fx.Provide(func() replay.Component { return nil }),
 				fx.Provide(func() pidmap.Component { return nil }),
@@ -273,6 +275,7 @@ func run(
 	collector optional.Option[collector.Component],
 	jmxLogger jmxlogger.Component,
 	telemetry telemetry.Component,
+	logReceiver optional.Option[integrations.Component],
 ) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
@@ -305,7 +308,7 @@ func run(
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
-	pkgcollector.InitCheckScheduler(collector, demultiplexer)
+	pkgcollector.InitCheckScheduler(collector, demultiplexer, logReceiver)
 
 	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)

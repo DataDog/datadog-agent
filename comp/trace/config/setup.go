@@ -208,6 +208,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if c.DefaultEnv != prevEnv {
 		log.Debugf("Normalized DefaultEnv from %q to %q", prevEnv, c.DefaultEnv)
 	}
+	if core.IsSet("apm_config.receiver_enabled") {
+		c.ReceiverEnabled = core.GetBool("apm_config.receiver_enabled")
+	}
 	if core.IsSet("apm_config.receiver_port") {
 		c.ReceiverPort = core.GetInt("apm_config.receiver_port")
 	}

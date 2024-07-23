@@ -28,7 +28,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	model "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -305,29 +306,31 @@ func assertLibReq(t *testing.T, pod *corev1.Pod, lang language, image, envKey, e
 }
 
 func TestExtractLibInfo(t *testing.T) {
-	allLatestLibs := []libInfo{ // TODO: Add new entry when a new language is supported
+	// TODO: Add new entry when a new language is supported
+	allLatestLibs := []libInfo{
 		{
 			lang:  "java",
-			image: "registry/dd-lib-java-init:latest",
+			image: "registry/dd-lib-java-init:v1",
 		},
 		{
 			lang:  "js",
-			image: "registry/dd-lib-js-init:latest",
+			image: "registry/dd-lib-js-init:v5",
 		},
 		{
 			lang:  "python",
-			image: "registry/dd-lib-python-init:latest",
+			image: "registry/dd-lib-python-init:v2",
 		},
 		{
 			lang:  "dotnet",
-			image: "registry/dd-lib-dotnet-init:latest",
+			image: "registry/dd-lib-dotnet-init:v2",
 		},
 		{
 			lang:  "ruby",
-			image: "registry/dd-lib-ruby-init:latest",
+			image: "registry/dd-lib-ruby-init:v2",
 		},
 	}
-	var mockConfig *config.MockConfig
+
+	var mockConfig model.Config
 	tests := []struct {
 		name                 string
 		pod                  *corev1.Pod
@@ -641,7 +644,7 @@ func TestExtractLibInfo(t *testing.T) {
 				workloadmetafxmock.MockModule(),
 				fx.Supply(workloadmeta.NewParams()),
 			)
-			mockConfig = config.Mock(t)
+			mockConfig = configmock.New(t)
 			for k, v := range overrides {
 				mockConfig.SetWithoutSource(k, v)
 			}
@@ -802,7 +805,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			conf := config.Mock(t)
+			conf := configmock.New(t)
 			if tt.cpu != "" {
 				conf.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.cpu", tt.cpu)
 			}
@@ -854,15 +857,6 @@ func expBasicConfig() []corev1.EnvVar {
 	}
 }
 
-func appends(evs ...[]corev1.EnvVar) []corev1.EnvVar {
-	var out []corev1.EnvVar
-	for _, ev := range evs {
-		out = append(out, ev...)
-	}
-
-	return out
-}
-
 func injectAllEnvs() []corev1.EnvVar {
 	return []corev1.EnvVar{
 		{
@@ -906,7 +900,7 @@ func injectAllEnvs() []corev1.EnvVar {
 
 func TestInjectAutoInstrumentation(t *testing.T) {
 	var (
-		mockConfig *config.MockConfig
+		mockConfig model.Config
 		wConfig    = func(k string, v any) func() {
 			return func() {
 				mockConfig.SetWithoutSource(k, v)
@@ -930,6 +924,22 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 
 	uuid := uuid.New().String()
 	installTime := strconv.FormatInt(time.Now().Unix(), 10)
+
+	defaultLibraries := map[string]string{
+		"java":   "v1",
+		"python": "v2",
+		"ruby":   "v2",
+		"dotnet": "v2",
+		"js":     "v5",
+	}
+
+	defaultLibrariesFor := func(languages ...string) map[string]string {
+		out := map[string]string{}
+		for _, l := range languages {
+			out[l] = defaultLibraries[l]
+		}
+		return out
+	}
 
 	tests := []struct {
 		name                      string
@@ -1017,14 +1027,8 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: "/datadog-lib/logs",
 				},
 			},
-			expectedInjectedLibraries: map[string]string{
-				"java":   "latest",
-				"python": "latest",
-				"ruby":   "latest",
-				"dotnet": "latest",
-				"js":     "latest",
-			},
-			wantErr: false,
+			expectedInjectedLibraries: defaultLibraries,
+			wantErr:                   false,
 		},
 		{
 			name: "inject all",
@@ -1103,14 +1107,9 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: "/datadog-lib/logs",
 				},
 			},
-			expectedInjectedLibraries: map[string]string{
-				"java":   "latest",
-				"python": "latest",
-				"ruby":   "latest",
-				"dotnet": "latest",
-				"js":     "latest",
-			},
-			wantErr: false,
+			expectedInjectedLibraries: defaultLibraries,
+			wantErr:                   false,
+			setupConfig:               funcs{},
 		},
 		{
 			name: "inject library and all",
@@ -1240,14 +1239,8 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: "0.40",
 				},
 			},
-			expectedInjectedLibraries: map[string]string{
-				"java":   "latest",
-				"python": "latest",
-				"ruby":   "latest",
-				"dotnet": "latest",
-				"js":     "latest",
-			},
-			wantErr: false,
+			expectedInjectedLibraries: defaultLibraries,
+			wantErr:                   false,
 		},
 		{
 			name: "inject all error - bad json",
@@ -1315,14 +1308,8 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: "/datadog-lib/logs",
 				},
 			},
-			expectedInjectedLibraries: map[string]string{
-				"java":   "latest",
-				"python": "latest",
-				"ruby":   "latest",
-				"dotnet": "latest",
-				"js":     "latest",
-			},
-			wantErr: true,
+			expectedInjectedLibraries: defaultLibraries,
+			wantErr:                   true,
 		},
 		{
 			name: "inject java",
@@ -1516,7 +1503,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: "false",
 				},
 			}, "replicaset", "test-deployment-123"),
-			expectedEnvs: appends(injectAllEnvs(), []corev1.EnvVar{
+			expectedEnvs: append(injectAllEnvs(), []corev1.EnvVar{
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_single_step",
@@ -1557,8 +1544,8 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Name:  "DD_LOGS_INJECTION",
 					Value: "false",
 				},
-			}),
-			expectedInjectedLibraries: map[string]string{"java": "latest", "python": "latest", "js": "latest", "ruby": "latest", "dotnet": "latest"},
+			}...),
+			expectedInjectedLibraries: defaultLibraries,
 			wantErr:                   false,
 			setupConfig:               funcs{enableAPMInstrumentation},
 		},
@@ -1610,7 +1597,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: uuid,
 				},
 			),
-			expectedInjectedLibraries: map[string]string{"java": "latest", "python": "latest", "js": "latest", "ruby": "latest", "dotnet": "latest"},
+			expectedInjectedLibraries: defaultLibraries,
 			wantErr:                   false,
 			setupConfig:               funcs{enableAPMInstrumentation},
 		},
@@ -1641,7 +1628,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: uuid,
 				},
 			),
-			expectedInjectedLibraries: map[string]string{"java": "latest", "python": "latest", "js": "latest", "ruby": "latest", "dotnet": "latest"},
+			expectedInjectedLibraries: defaultLibraries,
 			wantErr:                   false,
 			setupConfig:               funcs{enableAPMInstrumentation},
 		},
@@ -1706,7 +1693,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: uuid,
 				},
 			),
-			expectedInjectedLibraries: map[string]string{"java": "latest", "python": "latest", "js": "latest", "ruby": "latest", "dotnet": "latest"},
+			expectedInjectedLibraries: defaultLibraries,
 			wantErr:                   false,
 			setupConfig:               funcs{enableAPMInstrumentation, enabledNamespaces("ns")},
 		},
@@ -1925,13 +1912,13 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: uuid,
 				},
 			},
-			expectedInjectedLibraries: map[string]string{"python": "latest", "java": "latest"},
+			expectedInjectedLibraries: defaultLibrariesFor("python", "java"),
 			langDetectionDeployments: []common.MockDeployment{
 				{
 					ContainerName:  "pod",
 					DeploymentName: "test-app",
 					Namespace:      "ns",
-					Languages:      util.LanguageSet{util.Language("python"): struct{}{}, util.Language("java"): struct{}{}},
+					Languages:      languageSetOf("python", "java"),
 				},
 			},
 			wantErr: false,
@@ -1994,7 +1981,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					ContainerName:  "pod",
 					DeploymentName: "test-app",
 					Namespace:      "ns",
-					Languages:      util.LanguageSet{util.Language("python"): struct{}{}, util.Language("java"): struct{}{}},
+					Languages:      languageSetOf("python", "java"),
 				},
 			},
 			wantErr: false,
@@ -2035,7 +2022,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: "true",
 				},
 			),
-			expectedInjectedLibraries: map[string]string{"java": "latest", "python": "latest", "js": "latest", "ruby": "latest", "dotnet": "latest"},
+			expectedInjectedLibraries: defaultLibraries,
 			wantErr:                   false,
 			setupConfig: funcs{
 				enableAPMInstrumentation,
@@ -2073,7 +2060,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: "true",
 				},
 			),
-			expectedInjectedLibraries: map[string]string{"java": "latest", "python": "latest", "js": "latest", "ruby": "latest", "dotnet": "latest"},
+			expectedInjectedLibraries: defaultLibraries,
 			wantErr:                   false,
 			setupConfig: funcs{
 				enableAPMInstrumentation,
@@ -2111,7 +2098,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: "false",
 				},
 			),
-			expectedInjectedLibraries: map[string]string{"java": "latest", "python": "latest", "js": "latest", "ruby": "latest", "dotnet": "latest"},
+			expectedInjectedLibraries: defaultLibraries,
 			wantErr:                   false,
 			setupConfig: funcs{
 				enableAPMInstrumentation,
@@ -2149,7 +2136,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: "auto",
 				},
 			),
-			expectedInjectedLibraries: map[string]string{"java": "latest", "python": "latest", "js": "latest", "ruby": "latest", "dotnet": "latest"},
+			expectedInjectedLibraries: defaultLibraries,
 			wantErr:                   false,
 			setupConfig: funcs{
 				enableAPMInstrumentation,
@@ -2165,7 +2152,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 
 			wmeta := common.FakeStoreWithDeployment(t, tt.langDetectionDeployments)
 
-			mockConfig = config.Mock(t)
+			mockConfig = configmock.New(t)
 			if tt.setupConfig != nil {
 				for _, f := range tt.setupConfig {
 					f()
@@ -2221,14 +2208,16 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			require.Equal(t, len(tt.expectedEnvs), envCount)
 
 			initContainers := tt.pod.Spec.InitContainers
-			require.Equal(t, len(tt.expectedInjectedLibraries), len(initContainers), "expected an init container per language")
+
+			require.Equal(t, len(tt.expectedInjectedLibraries), len(initContainers))
 			for _, c := range initContainers {
 				language := getLanguageFromInitContainerName(c.Name)
-				require.Contains(t, tt.expectedInjectedLibraries, language,
-					"expected init container for lang=%s", language)
+				require.Contains(t,
+					tt.expectedInjectedLibraries, language,
+					"unexpected injected language %s", language)
 				require.Equal(t,
-					tt.expectedInjectedLibraries[language],
-					strings.Split(c.Image, ":")[1])
+					tt.expectedInjectedLibraries[language], strings.Split(c.Image, ":")[1],
+					"unexpected language version %s", language)
 			}
 		})
 	}
@@ -2240,7 +2229,7 @@ func getLanguageFromInitContainerName(initContainerName string) string {
 }
 
 func TestShouldInject(t *testing.T) {
-	var mockConfig *config.MockConfig
+	var mockConfig model.Config
 	tests := []struct {
 		name        string
 		pod         *corev1.Pod
@@ -2415,7 +2404,7 @@ func TestShouldInject(t *testing.T) {
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig = config.Mock(nil)
+			mockConfig = configmock.New(t)
 			tt.setupConfig()
 
 			// Need to create a new instance of the webhook to take into account
@@ -2428,4 +2417,12 @@ func TestShouldInject(t *testing.T) {
 			require.Equal(t, tt.want, webhook.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
 		})
 	}
+}
+
+func languageSetOf(languages ...string) util.LanguageSet {
+	set := util.LanguageSet{}
+	for _, l := range languages {
+		_ = set.Add(util.Language(l))
+	}
+	return set
 }

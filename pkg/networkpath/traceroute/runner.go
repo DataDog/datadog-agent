@@ -13,7 +13,6 @@ import (
 	"net"
 	"os"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/probes/probev4"
@@ -131,22 +130,22 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (payload.Network
 	}
 
 	var pathResult payload.NetworkPath
-	protocol := strings.ToUpper(cfg.Protocol)
+	var protocol = cfg.Protocol
 
 	// default to UDP if protocol
 	// is not set
 	if protocol == "" {
-		protocol = UDP
+		protocol = payload.ProtocolUDP
 	}
 	switch protocol {
-	case TCP:
+	case payload.ProtocolTCP:
 		log.Debugf("Running TCP traceroute for: %+v", cfg)
 		pathResult, err = r.runTCP(cfg, hname, dest, maxTTL, timeout)
 		if err != nil {
 			tracerouteRunnerTelemetry.failedRuns.Inc()
 			return payload.NetworkPath{}, err
 		}
-	case UDP:
+	case payload.ProtocolUDP:
 		log.Debugf("Running UDP traceroute for: %+v", cfg)
 		pathResult, err = r.runUDP(cfg, hname, dest, maxTTL, timeout)
 		if err != nil {

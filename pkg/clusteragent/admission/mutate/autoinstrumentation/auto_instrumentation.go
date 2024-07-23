@@ -87,6 +87,7 @@ const (
 	python language = "python"
 	dotnet language = "dotnet"
 	ruby   language = "ruby"
+	php    language = "php"
 
 	libVersionAnnotationKeyFormat    = "admission.datadoghq.com/%s-lib.version"
 	customLibAnnotationKeyFormat     = "admission.datadoghq.com/%s-lib.custom-image"
@@ -111,7 +112,26 @@ const (
 )
 
 var (
-	supportedLanguages = []language{java, js, python, dotnet, ruby}
+	supportedLanguages = []language{
+		java,
+		js,
+		python,
+		dotnet,
+		ruby,
+	}
+
+	// languageVersions defines the major library versions we consider "default" for each
+	// supported language. If not set, we will default to "latest", see defaultLibVersion.
+	//
+	// If this language does not appear in supportedLanguages, it will not be injected.
+	languageVersions = map[language]string{
+		java:   "v1", // https://datadoghq.atlassian.net/browse/APMON-1064
+		dotnet: "v2", // https://datadoghq.atlassian.net/browse/APMON-1067
+		python: "v2", // https://datadoghq.atlassian.net/browse/APMON-1068
+		ruby:   "v2", // https://datadoghq.atlassian.net/browse/APMON-1066
+		js:     "v5", // https://datadoghq.atlassian.net/browse/APMON-1065
+		php:    "v2", // https://datadoghq.atlassian.net/browse/APMON-1128
+	}
 
 	singleStepInstrumentationInstallTypeEnvVar = corev1.EnvVar{
 		Name:  instrumentationInstallTypeEnvVarName,
@@ -133,6 +153,22 @@ var (
 	errInitAPMInstrumentation error
 	initOnce                  sync.Once
 )
+
+func (l language) defaultLibInfo(registry, ctrName string) libInfo {
+	return libInfo{
+		lang:    l,
+		ctrName: ctrName,
+		image:   libImageName(registry, l, l.defaultLibVersion()),
+	}
+}
+
+func (l language) defaultLibVersion() string {
+	langVersion, ok := languageVersions[l]
+	if !ok {
+		return "latest"
+	}
+	return langVersion
+}
 
 // Webhook is the auto instrumentation webhook
 type Webhook struct {
@@ -305,9 +341,12 @@ func (w *Webhook) isPodEligible(pod *corev1.Pod) bool {
 	return true
 }
 
-func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+func (w *Webhook) inject(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
 	if pod == nil {
 		return false, errors.New(metrics.InvalidInput)
+	}
+	if pod.Namespace == "" {
+		pod.Namespace = ns
 	}
 	injectApmTelemetryConfig(pod)
 
@@ -443,10 +482,9 @@ func (w *Webhook) getLibrariesLanguageDetection(pod *corev1.Pod) []libInfo {
 
 // getAllLatestLibraries returns all supported by APM Instrumentation tracing libraries
 func (w *Webhook) getAllLatestLibraries() []libInfo {
-	libsToInject := []libInfo{}
-
+	var libsToInject []libInfo
 	for _, lang := range supportedLanguages {
-		libsToInject = append(libsToInject, libInfo{lang: language(lang), image: libImageName(w.containerRegistry, lang, "latest")})
+		libsToInject = append(libsToInject, lang.defaultLibInfo(w.containerRegistry, ""))
 	}
 
 	return libsToInject

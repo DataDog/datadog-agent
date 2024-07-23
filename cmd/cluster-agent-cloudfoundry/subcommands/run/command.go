@@ -51,6 +51,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
@@ -105,6 +106,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func() optional.Option[serializer.MetricSerializer] {
 					return optional.NewNoneOption[serializer.MetricSerializer]()
 				}),
+				fx.Provide(func() optional.Option[integrations.Component] {
+					return optional.NewNoneOption[integrations.Component]()
+				}),
 				// The cluster-agent-cloudfoundry agent do not have a status command
 				// so there is no need to initialize the status component
 				fx.Provide(func() status.Component { return nil }),
@@ -139,6 +143,7 @@ func run(
 	statusComponent status.Component,
 	_ healthprobe.Component,
 	settings settings.Component,
+	logReceiver optional.Option[integrations.Component],
 ) error {
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	defer mainCtxCancel() // Calling cancel twice is safe
@@ -176,7 +181,7 @@ func run(
 	common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog().GetString("confd_path"))
 
 	// Set up check collector
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
+	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver), true)
 
 	// start the autoconfig, this will immediately run any configured check
 	ac.LoadAndRun(mainCtx)
