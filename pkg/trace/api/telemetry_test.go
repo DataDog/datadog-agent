@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
+
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
 
@@ -410,6 +412,9 @@ func TestActualServer(t *testing.T) {
 
 	cfg := getTestConfig(intakeMockServer.URL)
 	r := newTestReceiverFromConfig(cfg)
+	logs := bytes.Buffer{}
+	prevLogger := log.SetLogger(log.NewBufferLogger(&logs))
+	defer log.SetLogger(prevLogger)
 	server := httptest.NewServer(http.StripPrefix("/telemetry/proxy", r.telemetryForwarderHandler()))
 	var client http.Client
 
@@ -426,6 +431,7 @@ func TestActualServer(t *testing.T) {
 	close(done)
 	r.telemetryForwarder.Stop()
 	assert.Equal(uint64(1), endpointCalled.Load())
+	assert.NotContains(string(logs.Bytes()), "ERROR")
 }
 
 func TestTelemetryConfig(t *testing.T) {
