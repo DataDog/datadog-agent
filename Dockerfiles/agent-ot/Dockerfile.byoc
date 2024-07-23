@@ -4,7 +4,7 @@ FROM ubuntu:24.04 AS builder
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 ENV GO_VERSION=1.22.0
-ENV AGENT_VERSION=7.56.0-rc.6
+ENV AGENT_VERSION=7.56.0-rc.7
 
 # Set the working directory
 WORKDIR /workspace
@@ -52,7 +52,7 @@ RUN go version && \
 #    rm datadog-agent-${AGENT_VERSION}.tar.gz
 
 # TEMP: Use github source code
-RUN git clone https://github.com/DataDog/datadog-agent.git datadog-agent-${AGENT_VERSION}
+RUN git clone --branch dinesh.gurumurthy/remove-generate-license  https://github.com/DataDog/datadog-agent.git datadog-agent-${AGENT_VERSION}
 
 
 # Set the working directory to the source code
@@ -74,9 +74,9 @@ RUN . venv/bin/activate && invoke collector.generate || true
 RUN . venv/bin/activate && invoke otel-agent.build
 
 # Use the final Datadog agent image
-FROM datadog/agent:7-ot-beta
+FROM datadog/agent-dev:nightly-ot-beta-main-jmx
 
-ENV AGENT_VERSION=7.56.0-rc.6
+ENV AGENT_VERSION=7.56.0-rc.7
 # Copy the built OTel agent from the builder stage
 COPY --from=builder /workspace/datadog-agent-${AGENT_VERSION}/bin/otel-agent/otel-agent /opt/datadog-agent/embedded/bin/otel-agent
 
