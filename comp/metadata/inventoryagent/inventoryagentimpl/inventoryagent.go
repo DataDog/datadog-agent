@@ -292,6 +292,7 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	ia.data["feature_usm_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enabled")
 	ia.data["feature_usm_kafka_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_kafka_monitoring")
 	ia.data["feature_usm_postgres_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_postgres_monitoring")
+	ia.data["feature_usm_redis_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_redis_monitoring")
 	ia.data["feature_usm_java_tls_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.java.enabled")
 	ia.data["feature_usm_http2_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_http2_monitoring")
 	ia.data["feature_usm_istio_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.istio.enabled")
