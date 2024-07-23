@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
@@ -265,6 +266,72 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 }
 
 func TestMaxInflightBytes(t *testing.T) {
+	type testReq struct {
+		res  int
+		size int
+	}
+	type testCase struct {
+		reqs                    []testReq
+		expectedEndpointsCalled int
+	}
+	testCases := []testCase{
+		{[]testReq{
+			{http.StatusOK, 51},
+			{http.StatusOK, 49},
+			{http.StatusTooManyRequests, 1},
+		}, 2},
+		{[]testReq{
+			{http.StatusTooManyRequests, 101},
+			{http.StatusOK, 100},
+			{http.StatusTooManyRequests, 1},
+		}, 1},
+	}
+	for _, testCase := range testCases {
+		t.Run("", func(t *testing.T) {
+			endpointCalled := atomic.NewUint64(0)
+			assert := assert.New(t)
+
+			done := make(chan struct{})
+
+			srv := assertingServer(t, func(req *http.Request, body []byte) error {
+				assert.Equal("test_apikey", req.Header.Get("DD-API-KEY"))
+				assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
+				assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
+				assert.Equal("/path", req.URL.Path)
+				assert.Equal("", req.Header.Get("User-Agent"))
+				assert.Regexp(regexp.MustCompile("trace-agent.*"), req.Header.Get("Via"))
+
+				<-done
+				endpointCalled.Add(1)
+				return nil
+			})
+
+			cfg := getTestConfig(srv.URL)
+			recv := newTestReceiverFromConfig(cfg)
+			recv.telemetryForwarder.maxInflightBytes = 100
+			mux := recv.buildMux()
+
+			for _, testReq := range testCase.reqs {
+				req, rec := newRequestRecorder(t)
+				req.Body = io.NopCloser(bytes.NewBuffer(make([]byte, testReq.size)))
+				req.ContentLength = int64(testReq.size)
+				mux.ServeHTTP(rec, req)
+
+				assert.Equal(testReq.res, recordedStatusCode(rec))
+			}
+
+			close(done)
+			recv.telemetryForwarder.Stop()
+			assert.Equal(uint64(testCase.expectedEndpointsCalled), endpointCalled.Load())
+		})
+	}
+}
+
+func TestInflightBytesReset(t *testing.T) {
+	type testReq struct {
+		res  int
+		size int
+	}
 	endpointCalled := atomic.NewUint64(0)
 	assert := assert.New(t)
 
@@ -283,19 +350,30 @@ func TestMaxInflightBytes(t *testing.T) {
 		return nil
 	})
 
-	reqs := []struct {
-		res  int
-		size int
-	}{
-		{http.StatusOK, 51},
-		{http.StatusOK, 49},
-		{http.StatusTooManyRequests, 1},
-	}
-
 	cfg := getTestConfig(srv.URL)
 	recv := newTestReceiverFromConfig(cfg)
 	recv.telemetryForwarder.maxInflightBytes = 100
 	mux := recv.buildMux()
+
+	reqs := []testReq{
+		{http.StatusOK, 100},
+		{http.StatusTooManyRequests, 1},
+	}
+	for _, testReq := range reqs {
+		req, rec := newRequestRecorder(t)
+		req.Body = io.NopCloser(bytes.NewBuffer(make([]byte, testReq.size)))
+		req.ContentLength = int64(testReq.size)
+		mux.ServeHTTP(rec, req)
+
+		assert.Equal(testReq.res, recordedStatusCode(rec))
+	}
+	// Unblock
+	done <- struct{}{}
+
+	// Wait for the inflight bytes to be freed
+	for recv.telemetryForwarder.inflightCount.Load() != 0 {
+		time.Sleep(time.Millisecond)
+	}
 
 	for _, testReq := range reqs {
 		req, rec := newRequestRecorder(t)
@@ -309,6 +387,45 @@ func TestMaxInflightBytes(t *testing.T) {
 	close(done)
 	recv.telemetryForwarder.Stop()
 	assert.Equal(uint64(2), endpointCalled.Load())
+}
+
+func TestActualServer(t *testing.T) {
+	endpointCalled := atomic.NewUint64(0)
+	assert := assert.New(t)
+
+	done := make(chan struct{})
+
+	intakeMockServer := assertingServer(t, func(req *http.Request, body []byte) error {
+		assert.Equal("test_apikey", req.Header.Get("DD-API-KEY"))
+		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
+		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
+		assert.Equal("/path", req.URL.Path)
+		assert.Equal("", req.Header.Get("User-Agent"))
+		assert.Regexp(regexp.MustCompile("trace-agent.*"), req.Header.Get("Via"))
+
+		<-done
+		endpointCalled.Add(1)
+		return nil
+	})
+
+	cfg := getTestConfig(intakeMockServer.URL)
+	r := newTestReceiverFromConfig(cfg)
+	server := httptest.NewServer(http.StripPrefix("/telemetry/proxy", r.telemetryForwarderHandler()))
+	var client http.Client
+
+	req, err := http.NewRequest("POST", server.URL+"/telemetry/proxy/path", bytes.NewBuffer([]byte{0, 1, 2}))
+	assert.NoError(err)
+	req.Header.Set("User-Agent", "")
+
+	resp, err := client.Do(req)
+	assert.NoError(err)
+
+	resp.Body.Close()
+	assert.Equal(200, resp.StatusCode)
+
+	close(done)
+	r.telemetryForwarder.Stop()
+	assert.Equal(uint64(1), endpointCalled.Load())
 }
 
 func TestTelemetryConfig(t *testing.T) {
