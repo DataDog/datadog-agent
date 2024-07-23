@@ -202,7 +202,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			conf.Hostname = agentHost
 			conf.DefaultEnv = agentEnv
 			conf.Features["enable_cid_stats"] = struct{}{}
-			conf.PeerTags = []string{"rpc.service"}
+			conf.PeerTagsAggregation = tt.peerTagsAggr
 			conf.OTLPReceiver.AttributesTranslator = attributesTranslator
 			conf.OTLPReceiver.SpanNameAsResourceName = tt.spanNameAsResourceName
 			conf.OTLPReceiver.SpanNameRemappings = tt.spanNameRemappings

@@ -131,7 +131,6 @@ func otelSpanToDDSpan(
 	if isTopLevel {
 		traceutil.SetTopLevel(ddspan, true)
 	}
-
 	if isMeasured := traceutil.GetOTelAttrVal(otelspan.Attributes(), false, "_dd.measured"); isMeasured == "1" {
 		traceutil.SetMeasured(ddspan, true)
 	} else if topLevelByKind && (spanKind == ptrace.SpanKindClient || spanKind == ptrace.SpanKindProducer) {
