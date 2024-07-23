@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package installerwindows implements E2E tests for the Datadog Installer on Windows
 package installerwindows
 
 import (
-	"fmt"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/command"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 	"os"
 	"testing"
@@ -30,12 +31,12 @@ func (suite *testInstallerSuite) TestInstallingTheInstaller() {
 		suite.Require().NoError(suite.installer.Install())
 
 		suite.Require().Host(suite.Env().RemoteHost).
-			HasBinary(DatadogInstallerBinaryPath).
-			WithSignature(command.DatadogCodeSignatureThumbprint).
+			HasBinary(InstallerBinaryPath).
+			WithSignature(agent.GetCodeSignatureThumbprints()).
 			WithVersionMatchPredicate(func(version string) {
 				suite.Require().NotEmpty(version)
 			}).
-			HasAService(DatadogInstallerServiceName).
+			HasAService(InstallerServiceName).
 			WithStatus("Running").
 			WithUserSid("S-1-5-18")
 	})
@@ -44,32 +45,30 @@ func (suite *testInstallerSuite) TestInstallingTheInstaller() {
 		suite.Require().NoError(suite.installer.Uninstall())
 
 		suite.Require().Host(suite.Env().RemoteHost).
-			NoFileExists(DatadogInstallerBinaryPath).
-			HasNoService(DatadogInstallerServiceName)
+			NoFileExists(InstallerBinaryPath).
+			HasNoService(InstallerServiceName)
 	})
 }
 
 // TestUpgradeInstaller tests upgrading the stable version of the Datadog Installer to the latest from the pipeline.
 func (suite *testInstallerSuite) TestUpgradeInstaller() {
-	stableInstallerVersionPackageFormat := fmt.Sprintf("%s-1", DatadogInstallerVersion)
-
-	suite.Require().NoError(suite.installer.Install(WithInstallerUrlFromInstallersJson(pipeline.AgentS3BucketTesting, pipeline.StableChannel, stableInstallerVersionPackageFormat)))
+	suite.Require().NoError(suite.installer.Install(WithInstallerURLFromInstallersJSON(pipeline.AgentS3BucketTesting, pipeline.StableChannel, installer.StableVersionPackage)))
 
 	suite.Require().Host(suite.Env().RemoteHost).
-		HasBinary(DatadogInstallerBinaryPath).
-		WithSignature(command.DatadogCodeSignatureThumbprint).
-		WithVersionEqual(DatadogInstallerVersion)
+		HasBinary(InstallerBinaryPath).
+		WithSignature(agent.GetCodeSignatureThumbprints()).
+		WithVersionEqual(installer.StableVersion)
 
 	// Install "latest" from the pipeline
 	suite.Require().NoError(suite.installer.Install())
 
 	suite.Require().Host(suite.Env().RemoteHost).
-		HasBinary(DatadogInstallerBinaryPath).
-		WithSignature(command.DatadogCodeSignatureThumbprint).
+		HasBinary(InstallerBinaryPath).
+		WithSignature(agent.GetCodeSignatureThumbprints()).
 		WithVersionMatchPredicate(func(version string) {
 			pipelineVersion := os.Getenv("WINDOWS_AGENT_VERSION")
 			if version == "" {
-				suite.Require().NotEqual(DatadogInstallerVersion, version, "upgraded version should be different than stable version")
+				suite.Require().NotEqual(installer.StableVersion, version, "upgraded version should be different than stable version")
 			} else {
 				suite.Require().Equal(pipelineVersion, version, "upgraded version should be equal to pipeline version")
 			}

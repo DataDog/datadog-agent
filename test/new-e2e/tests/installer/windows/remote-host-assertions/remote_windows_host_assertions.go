@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package remote_host_assertions
+package assertions
 
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
@@ -15,7 +15,7 @@ import (
 // RemoteWindowsHostAssertions is a type that extends the SuiteAssertions to add assertions
 // executing on a RemoteHost.
 type RemoteWindowsHostAssertions struct {
-	// Don't embed the SuiteAssertions type because that could confuse the caller as to which code executes
+	// Don't embed the "require.Assertions" type because that could confuse the caller as to which code executes
 	// on the remoteHost vs locally.
 	// With a "private" SuiteAssertions, when the caller uses suite.Require().Host() they will
 	// only get access to the assertions that can effectively run on the remote server, preventing

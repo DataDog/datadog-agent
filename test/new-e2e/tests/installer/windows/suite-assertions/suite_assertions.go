@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package suite_assertions
+// Package suiteasserts extends require.Assertions with custom assertions
+package suiteasserts
 
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
@@ -29,6 +30,6 @@ func New(r *require.Assertions, suite suite.TestingSuite) *SuiteAssertions {
 
 // Host returns a RemoteWindowsHostAssertions to differentiates assertions running on the host vs assertions
 // running remotely.
-func (s *SuiteAssertions) Host(remoteHost *components.RemoteHost) *remote_host_assertions.RemoteWindowsHostAssertions {
-	return remote_host_assertions.New(s.Assertions, s.suite, remoteHost)
+func (s *SuiteAssertions) Host(remoteHost *components.RemoteHost) *assertions.RemoteWindowsHostAssertions {
+	return assertions.New(s.Assertions, s.suite, remoteHost)
 }

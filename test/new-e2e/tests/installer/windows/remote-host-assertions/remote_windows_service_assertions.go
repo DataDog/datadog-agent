@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package remote_host_assertions
+package assertions
 
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -17,11 +17,11 @@ type RemoteWindowsServiceAssertions struct {
 }
 
 // WithStatus asserts that the service has the given status.
-func (r *RemoteWindowsServiceAssertions) WithStatus(status string) *RemoteWindowsServiceAssertions {
+func (r *RemoteWindowsServiceAssertions) WithStatus(expectedStatus string) *RemoteWindowsServiceAssertions {
 	r.suite.T().Helper()
-	status, err := common.GetServiceStatus(r.remoteHost, r.serviceConfig.ServiceName)
+	actualStatus, err := common.GetServiceStatus(r.remoteHost, r.serviceConfig.ServiceName)
 	r.require.NoError(err)
-	r.require.Equal(status, status)
+	r.require.Equal(expectedStatus, actualStatus)
 	return r
 }
 

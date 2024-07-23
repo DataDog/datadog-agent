@@ -14,7 +14,7 @@ import (
 
 type baseSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
-	installer *datadogInstaller
+	installer *DatadogInstaller
 }
 
 var (

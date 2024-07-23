@@ -15,15 +15,26 @@ import (
 )
 
 const (
-	DefaultMajorVersion           = "7"
-	DefaultArch                   = "x86_64"
-	AgentInstallerListProductName = "datadog-agent"
-	AgentS3BucketRelease          = "ddagent-windows-stable"
-	AgentS3BucketTesting          = "dd-agent-mstesting"
-	BetaChannel                   = "beta"
-	BetaURL                       = "https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/installers_v2.json"
-	StableChannel                 = "stable"
-	StableURL                     = "https://ddagent-windows-stable.s3.amazonaws.com/installers_v2.json"
+	// DefaultMajorVersion the default major version to use
+	DefaultMajorVersion = "7"
+
+	// AgentS3BucketRelease the production S3 bucket
+	AgentS3BucketRelease = "ddagent-windows-stable"
+
+	// AgentS3BucketTesting the testing S3 bucket
+	AgentS3BucketTesting = "dd-agent-mstesting"
+
+	// BetaChannel the "folder" where beta artifacts are uploaded to
+	BetaChannel = "beta"
+
+	// BetaURL the location of the "beta" installers_v2 JSON
+	BetaURL = "https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/installers_v2.json"
+
+	// StableChannel the "folder" where stable artifacts are uploaded to
+	StableChannel = "stable"
+
+	// StableURL the location of the "stable" installers_v2 JSON
+	StableURL = "https://ddagent-windows-stable.s3.amazonaws.com/installers_v2.json"
 )
 
 // GetPipelineArtifact searches a public S3 bucket for a given artifact from a Gitlab pipeline

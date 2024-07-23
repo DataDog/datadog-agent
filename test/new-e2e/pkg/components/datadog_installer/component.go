@@ -34,6 +34,7 @@ type Component struct {
 	Host  *remoteComp.Host `pulumi:"host"`
 }
 
+// Export exports the output of this component
 func (h *Component) Export(ctx *pulumi.Context, out *Output) error {
 	return components.Export(ctx, h, out)
 }

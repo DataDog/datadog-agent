@@ -24,18 +24,23 @@ import (
 )
 
 const (
-	AgentPackage                string = "agent-package"
-	InstallerPath               string = "C:\\Program Files\\Datadog\\Datadog Installer"
-	InstallerBinaryName         string = "datadog-installer.exe"
-	DatadogInstallerServiceName string = "Datadog Installer"
-	DatadogInstallerVersion     string = "7.56.0-installer-0.4.5"
+	// AgentPackage is the name of the Datadog Agent package in the AWS OCI registry (/!\ but not in the ddbuild.io registry  /!\)
+	AgentPackage string = "agent-package"
+	// InstallerPath is the path where the Datadog Installer is installed on disk
+	InstallerPath string = "C:\\Program Files\\Datadog\\Datadog Installer"
+	// InstallerBinaryName is the name of the Datadog Installer binary on disk
+	InstallerBinaryName string = "datadog-installer.exe"
+	// InstallerServiceName the installer service name
+	InstallerServiceName string = "Datadog Installer"
 )
 
 var (
-	DatadogInstallerBinaryPath = path.Join(InstallerPath, InstallerBinaryName)
+	// InstallerBinaryPath is the path of the Datadog Installer binary on disk
+	InstallerBinaryPath = path.Join(InstallerPath, InstallerBinaryName)
 )
 
-type datadogInstaller struct {
+// DatadogInstaller represents an interface to the Datadog Installer on the remote host.
+type DatadogInstaller struct {
 	binaryPath string
 	env        *environments.WindowsHost
 	logPath    string
@@ -43,15 +48,15 @@ type datadogInstaller struct {
 
 // NewDatadogInstaller instantiates a new instance of the Datadog Installer running
 // on a remote Windows host.
-func NewDatadogInstaller(env *environments.WindowsHost, logPath string) *datadogInstaller {
-	return &datadogInstaller{
+func NewDatadogInstaller(env *environments.WindowsHost, logPath string) *DatadogInstaller {
+	return &DatadogInstaller{
 		binaryPath: path.Join(InstallerPath, InstallerBinaryName),
 		env:        env,
 		logPath:    logPath,
 	}
 }
 
-func (d *datadogInstaller) execute(cmd string, options ...client.ExecuteOption) (string, error) {
+func (d *DatadogInstaller) execute(cmd string, options ...client.ExecuteOption) (string, error) {
 	output, err := d.env.RemoteHost.Execute(fmt.Sprintf("& \"%s\" %s", d.binaryPath, cmd), options...)
 	if err != nil {
 		return output, err
@@ -60,20 +65,20 @@ func (d *datadogInstaller) execute(cmd string, options ...client.ExecuteOption) 
 }
 
 // Version returns the version of the Datadog Installer on the host.
-func (d *datadogInstaller) Version() (string, error) {
+func (d *DatadogInstaller) Version() (string, error) {
 	return d.execute("version")
 }
 
 // InstallPackage will attempt to use the Datadog Installer to install the package given in parameter.
 // Note that this command is a direct command and won't go through the Daemon.
-func (d *datadogInstaller) InstallPackage(packageName string) (string, error) {
-	var packageUrl string
+func (d *DatadogInstaller) InstallPackage(packageName string) (string, error) {
+	var packageURL string
 	switch packageName {
 	case AgentPackage:
 		// Note: the URL doesn't matter here, only the "image" name and the version:
 		// `agent-package:pipeline-123456`
 		// The rest is going to be overridden by the environment variables.
-		packageUrl = fmt.Sprintf("oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/agent-package:pipeline-%s", d.env.AwsEnvironment.PipelineID())
+		packageURL = fmt.Sprintf("oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/agent-package:pipeline-%s", d.env.AwsEnvironment.PipelineID())
 	default:
 		return "", fmt.Errorf("installing package %s is not yet implemented", packageName)
 	}
@@ -89,74 +94,76 @@ func (d *datadogInstaller) InstallPackage(packageName string) (string, error) {
 	if err == nil {
 		envVars["DD_API_KEY"] = apikey
 	}
-	return d.execute(fmt.Sprintf("install %s", packageUrl), client.WithEnvVariables(envVars))
+	return d.execute(fmt.Sprintf("install %s", packageURL), client.WithEnvVariables(envVars))
 }
 
 // RemovePackage requests that the Datadog Installer removes a package on the remote host.
-func (d *datadogInstaller) RemovePackage(packageName string) (string, error) {
+func (d *DatadogInstaller) RemovePackage(packageName string) (string, error) {
 	return d.execute(fmt.Sprintf("remove %s", packageName))
 }
 
-type installerParams struct {
-	installerUrl string
+// InstallerParams contains the optional parameters for the Datadog Installer
+type InstallerParams struct {
+	installerURL string
 }
 
-type installerOption func(*installerParams) error
+// InstallerOption is an optional function parameter type for the Datadog Installer
+type InstallerOption func(*InstallerParams) error
 
-// WithInstallerUrl uses a specific URL for the Datadog Installer instead of using the pipeline URL.
-func WithInstallerUrl(installerUrl string) installerOption {
-	return func(params *installerParams) error {
-		params.installerUrl = installerUrl
+// WithInstallerURL uses a specific URL for the Datadog Installer instead of using the pipeline URL.
+func WithInstallerURL(installerURL string) InstallerOption {
+	return func(params *InstallerParams) error {
+		params.installerURL = installerURL
 		return nil
 	}
 }
 
-// WithInstallerUrlFromInstallersJson uses a specific URL for the Datadog Installer from an installers_v2.json
+// WithInstallerURLFromInstallersJSON uses a specific URL for the Datadog I nstaller from an installers_v2.json
 // file.
 // bucket: The S3 bucket to look for the installers_v2.json file, i.e. "dd-agent-mstesting"
 // channel: The channel in the bucket, i.e. "stable"
 // version: The artifact version to retrieve, i.e. "7.56.0-installer-0.4.5-1"
 //
-// Example: WithInstallerUrlFromInstallersJson("dd-agent-mstesting", "stable", "7.56.0-installer-0.4.5-1")
+// Example: WithInstallerURLFromInstallersJSON("dd-agent-mstesting", "stable", "7.56.0-installer-0.4.5-1")
 // will look into "https://s3.amazonaws.com/dd-agent-mstesting/builds/stable/installers_v2.json" for the Datadog Installer
 // version "7.56.0-installer-0.4.5-1"
-func WithInstallerUrlFromInstallersJson(bucket, channel, version string) installerOption {
-	return func(params *installerParams) error {
+func WithInstallerURLFromInstallersJSON(bucket, channel, version string) InstallerOption {
+	return func(params *InstallerParams) error {
 		url, err := installers.GetProductURL(fmt.Sprintf("https://s3.amazonaws.com/%s/builds/%s/installers_v2.json", bucket, channel), "datadog-installer", version, "x86_64")
 		if err != nil {
 			return err
 		}
-		params.installerUrl = url
+		params.installerURL = url
 		return nil
 	}
 }
 
 // Install will attempt to install the Datadog Installer on the remote host.
 // By default, it will use the installer from the current pipeline.
-func (d *datadogInstaller) Install(opts ...installerOption) error {
-	params := installerParams{}
+func (d *DatadogInstaller) Install(opts ...InstallerOption) error {
+	params := InstallerParams{}
 	err := optional.ApplyOptions(&params, opts)
 	if err != nil {
 		return nil
 	}
-	if params.installerUrl == "" {
-		artifactUrl, err := pipeline.GetPipelineArtifact(d.env.AwsEnvironment.PipelineID(), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
+	if params.installerURL == "" {
+		artifactURL, err := pipeline.GetPipelineArtifact(d.env.AwsEnvironment.PipelineID(), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
 			return strings.Contains(artifact, "datadog-installer")
 		})
 		if err != nil {
 			return err
 		}
-		params.installerUrl = artifactUrl
+		params.installerURL = artifactURL
 	}
 	logPath := d.logPath
 	if logPath == "" {
 		logPath = filepath.Join(os.TempDir(), "install.log")
 	}
-	return windowsCommon.InstallMSI(d.env.RemoteHost, params.installerUrl, "", logPath)
+	return windowsCommon.InstallMSI(d.env.RemoteHost, params.installerURL, "", logPath)
 }
 
 // Uninstall will attempt to uninstall the Datadog Installer on the remote host.
-func (d *datadogInstaller) Uninstall() error {
+func (d *DatadogInstaller) Uninstall() error {
 	productCode, err := windowsCommon.GetProductCodeByName(d.env.RemoteHost, "Datadog Installer")
 	if err != nil {
 		return err

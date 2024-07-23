@@ -13,6 +13,16 @@ import (
 	"strings"
 )
 
+const (
+	// StableVersion the latest stable version of the Datadog Installer
+	StableVersion string = "7.56.0-installer-0.4.5"
+)
+
+var (
+	// StableVersionPackage the latest stable version of the Datadog Installer in package format
+	StableVersionPackage = fmt.Sprintf("%s-1", StableVersion)
+)
+
 type testPackageConfig struct {
 	name           string
 	defaultVersion string
@@ -45,7 +55,6 @@ func installScriptPackageManagerEnv(env map[string]string, arch e2eos.Architectu
 	env["TESTING_APT_REPO_VERSION"] = fmt.Sprintf("pipeline-%s-a7-%s 7", os.Getenv("E2E_PIPELINE_ID"), arch)
 	env["TESTING_YUM_URL"] = "yumtesting.datad0g.com"
 	env["TESTING_YUM_VERSION_PATH"] = fmt.Sprintf("testing/pipeline-%s-a7/7", os.Getenv("E2E_PIPELINE_ID"))
-
 }
 
 func installScriptInstallerEnv(env map[string]string) {
@@ -64,6 +73,7 @@ func installScriptInstallerEnv(env map[string]string) {
 	}
 }
 
+// InstallScriptEnv returns the environment variables for the install script
 func InstallScriptEnv(arch e2eos.Architecture) map[string]string {
 	env := map[string]string{}
 	installScriptPackageManagerEnv(env, arch)

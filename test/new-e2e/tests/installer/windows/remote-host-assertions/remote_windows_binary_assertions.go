@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package remote_host_assertions
+// Package assertions provide custom assertions for Windows tests
+package assertions
 
 import (
 	"fmt"
@@ -24,7 +25,7 @@ type RemoteWindowsBinaryAssertions struct {
 
 // WithSignature verifies the authenticode signature of the binary. This test does not call `FailNow` in case
 // the signature does not match.
-func (r *RemoteWindowsBinaryAssertions) WithSignature(expectedSignature string) *RemoteWindowsBinaryAssertions {
+func (r *RemoteWindowsBinaryAssertions) WithSignature(expectedSignatures map[string]struct{}) *RemoteWindowsBinaryAssertions {
 	r.suite.T().Helper()
 	verify, _ := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.VerifyCodeSignature, true)
 
@@ -34,7 +35,9 @@ func (r *RemoteWindowsBinaryAssertions) WithSignature(expectedSignature string) 
 		// other assertions (i.e. this failure is non-terminal).
 		assert.NoError(r.suite.T(), err, "could not get authenticode signature for binary")
 		assert.True(r.suite.T(), sig.Valid(), "binary signature was not valid")
-		assert.True(r.suite.T(), strings.EqualFold(sig.SignerCertificate.Thumbprint, expectedSignature), "the binary signature did not match the expected signature")
+		if _, ok := expectedSignatures[strings.ToUpper(sig.SignerCertificate.Thumbprint)]; !ok {
+			assert.Error(r.suite.T(), fmt.Errorf("signature thumbprint is not valid: %s", sig.SignerCertificate.Thumbprint))
+		}
 	}
 
 	return r
