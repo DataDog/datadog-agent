@@ -183,7 +183,7 @@ func getFullPathFromFd(process *Process, filename string, fd int32) (string, err
 			if path, exists := process.FdRes.Fd[fd]; exists {
 				filename = filepath.Join(path, filename)
 			} else {
-				return "", errors.New("process FD cache incomplete during path resolution")
+				return "", errors.New("process FD cache incomplete during full path resolution")
 			}
 		}
 	}
