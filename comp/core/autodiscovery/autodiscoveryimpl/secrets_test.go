@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 type mockSecretScenario struct {
@@ -132,7 +132,7 @@ func TestSecretResolve(t *testing.T) {
 func TestSkipSecretResolve(t *testing.T) {
 	mockResolve := &MockSecretResolver{t, makeSharedScenarios()}
 
-	cfg := config.Mock(t)
+	cfg := configmock.New(t)
 	cfg.SetWithoutSource("secret_backend_skip_checks", true)
 	defer cfg.SetWithoutSource("secret_backend_skip_checks", false)
 

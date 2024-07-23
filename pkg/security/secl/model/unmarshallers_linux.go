@@ -35,12 +35,24 @@ type BinaryUnmarshaler interface {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
+func (e *CGroupContext) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.CGroupFlags = CGroupFlags(binary.NativeEndian.Uint64(data[:8]))
+
+	return 8, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
 	id, err := UnmarshalString(data, ContainerIDLen)
 	if err != nil {
 		return 0, err
 	}
-	e.ID = id
+
+	e.ContainerID = ContainerID(id)
 
 	return ContainerIDLen, nil
 }
@@ -935,6 +947,9 @@ func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 	cursor := read
 
+	e.CGroupFlags = binary.NativeEndian.Uint64(data[cursor : cursor+8])
+	cursor += 8
+
 	read, err = e.Config.EventUnmarshalBinary(data[cursor:])
 	if err != nil {
 		return 0, err
@@ -1034,7 +1049,7 @@ func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 	var err error
 	e.Name, err = decodeDNSName(data[10:])
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to decode %s (id: %d, count: %d, type:%d, size:%d)", data[10:], e.ID, e.Count, e.Type, e.Size)
 	}
 	if err = validateDNSName(e.Name); err != nil {
 		return 0, err
@@ -1215,11 +1230,13 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 64 {
+	if len(data) < 72 {
 		return 0, ErrNotEnoughData
 	}
 
-	for i, b := range data[:64] {
+	e.EventReason = SyscallDriftEventReason(binary.NativeEndian.Uint64(data[0:8]))
+
+	for i, b := range data[8:72] {
 		// compute the ID of the syscall
 		for j := 0; j < 8; j++ {
 			if b&(1<<j) > 0 {
@@ -1227,17 +1244,7 @@ func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
 			}
 		}
 	}
-	return 64, nil
-}
-
-// UnmarshalBinary unmarshalls a binary representation of itself
-func (e *AnomalyDetectionSyscallEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 8 {
-		return 0, ErrNotEnoughData
-	}
-
-	e.SyscallID = Syscall(binary.NativeEndian.Uint64(data[0:8]))
-	return 8, nil
+	return 72, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

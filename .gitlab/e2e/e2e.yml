@@ -157,11 +157,8 @@ new-e2e-containers:
     TEAM: container-integrations
   parallel:
     matrix:
-      # Temporarily disable old version of Kubernetes
-      # On those versions, the SSI admission controller injects a lib
-      # that breaks alpine images.
-      # - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.19"
-      # - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.22"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.19"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.22"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.27"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.29"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:20.04"
@@ -199,25 +196,16 @@ new-e2e-agent-subcommands:
     TEAM: agent-shared-components
   parallel:
     matrix:
-      - EXTRA_PARAMS: --run TestLinuxStatusSuite
-      - EXTRA_PARAMS: --run TestWindowsStatusSuite
-      - EXTRA_PARAMS: --run TestLinuxHealthSuite
-      - EXTRA_PARAMS: --run TestWindowsHealthSuite
-      - EXTRA_PARAMS: --run TestLinuxConfigSuite
-      - EXTRA_PARAMS: --run TestWindowsConfigSuite
-      - EXTRA_PARAMS: --run TestLinuxHostnameSuite
-      - EXTRA_PARAMS: --run TestWindowsHostnameSuite
-      - EXTRA_PARAMS: --run TestLinuxDiagnoseSuite
-      - EXTRA_PARAMS: --run TestWindowsDiagnoseSuite
-      - EXTRA_PARAMS: --run TestLinuxConfigCheckSuite
-      - EXTRA_PARAMS: --run TestWindowsConfigCheckSuite
-      - EXTRA_PARAMS: --run TestLinuxFlareSuite
-      - EXTRA_PARAMS: --run TestWindowsFlareSuite
-      - EXTRA_PARAMS: --run TestLinuxSecretSuite
-      - EXTRA_PARAMS: --run TestWindowsSecretSuite
-      - EXTRA_PARAMS: --run TestLinuxCheckSuite
-      - EXTRA_PARAMS: --run TestLinuxRunSuite
-      - EXTRA_PARAMS: --run TestWindowsRunSuite
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)StatusSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)HealthSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)ConfigSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)HostnameSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)DiagnoseSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)ConfigCheckSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)FlareSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)SecretSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)CheckSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)RunSuite"
 
 new-e2e-windows-service-test:
   extends: .new_e2e_template
@@ -260,6 +248,7 @@ new-e2e-npm-docker:
     - !reference [.on_npm_or_e2e_changes]
     - !reference [.manual]
   needs:
+    - qa_dca
     - qa_agent
   variables:
     TARGETS: ./tests/npm

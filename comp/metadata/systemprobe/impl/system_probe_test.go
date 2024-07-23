@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
+	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -62,7 +62,7 @@ func getSystemProbeComp(t *testing.T, enableConfig bool) *systemprobe {
 	r := Requires{
 		Log:        l,
 		Config:     cfg,
-		Serializer: &serializer.MockSerializer{},
+		Serializer: serializermock.NewMetricSerializer(t),
 		AuthToken: fxutil.Test[authtoken.Component](t,
 			authtokenimpl.Module(),
 			fx.Provide(func() log.Component { return l }),

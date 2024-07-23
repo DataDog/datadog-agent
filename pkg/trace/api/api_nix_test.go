@@ -26,7 +26,7 @@ import (
 )
 
 func TestUDS(t *testing.T) {
-	sockPath := "/tmp/test-trace.sock"
+	sockPath := filepath.Join(t.TempDir(), "apm.sock")
 	payload := msgpTraces(t, pb.Traces{testutil.RandomTrace(10, 20)})
 	client := http.Client{
 		Transport: &http.Transport{
@@ -48,6 +48,7 @@ func TestUDS(t *testing.T) {
 		conf := config.New()
 		conf.Endpoints[0].APIKey = "apikey_2"
 		conf.ReceiverPort = port
+		conf.ReceiverSocket = ""
 
 		r := newTestReceiverFromConfig(conf)
 		r.Start()
@@ -89,25 +90,28 @@ func TestHTTPReceiverStart(t *testing.T) {
 	old := log.SetLogger(log.NewBufferLogger(&logs))
 	defer log.SetLogger(old)
 
-	for name, setup := range map[string]func() (int, string, []string){
-		"off": func() (int, string, []string) {
-			return 0, "", []string{"HTTP Server is off: all listeners are disabled"}
+	for name, setup := range map[string]func() (enabled bool, port int, socket string, logs []string){
+		"disabled": func() (bool, int, string, []string) {
+			return false, 0, "", []string{"HTTP Server is off: HTTPReceiver is disabled."}
 		},
-		"tcp": func() (int, string, []string) {
+		"off": func() (bool, int, string, []string) {
+			return true, 0, "", []string{"HTTP Server is off: all listeners are disabled"}
+		},
+		"tcp": func() (bool, int, string, []string) {
 			port := freeTCPPort()
-			return port, "", []string{fmt.Sprintf("Listening for traces at http://localhost:%d", port)}
+			return true, port, "", []string{fmt.Sprintf("Listening for traces at http://localhost:%d", port)}
 		},
-		"uds": func() (int, string, []string) {
+		"uds": func() (bool, int, string, []string) {
 			socket := filepath.Join(t.TempDir(), "agent.sock")
-			return 0, socket, []string{
+			return true, 0, socket, []string{
 				"HTTP receiver disabled by config (apm_config.receiver_port: 0)",
 				fmt.Sprintf("Listening for traces at unix://%s", socket),
 			}
 		},
-		"both": func() (int, string, []string) {
+		"both": func() (bool, int, string, []string) {
 			port := freeTCPPort()
 			socket := filepath.Join(t.TempDir(), "agent.sock")
-			return port, socket, []string{
+			return true, port, socket, []string{
 				fmt.Sprintf("Listening for traces at http://localhost:%d", port),
 				fmt.Sprintf("Listening for traces at unix://%s", socket),
 			}
@@ -116,7 +120,8 @@ func TestHTTPReceiverStart(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			logs.Reset()
 			cfg := config.New()
-			port, socket, out := setup()
+			enabled, port, socket, out := setup()
+			cfg.ReceiverEnabled = enabled
 			cfg.ReceiverPort = port
 			cfg.ReceiverSocket = socket
 			r := newTestReceiverFromConfig(cfg)

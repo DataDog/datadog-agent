@@ -8,6 +8,11 @@
       "experimental": false,
       "properties": [
         {
+          "name": "cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
+        },
+        {
           "name": "container.created_at",
           "definition": "Timestamp of the creation of the container",
           "property_doc_link": "container-created_at-doc"
@@ -16,6 +21,11 @@
           "name": "container.id",
           "definition": "ID of the container",
           "property_doc_link": "container-id-doc"
+        },
+        {
+          "name": "container.runtime",
+          "definition": "Runtime managing the container",
+          "property_doc_link": "container-runtime-doc"
         },
         {
           "name": "container.tags",
@@ -51,6 +61,51 @@
           "name": "event.timestamp",
           "definition": "Timestamp of the event",
           "property_doc_link": "event-timestamp-doc"
+        },
+        {
+          "name": "network.destination.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.destination.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "network.device.ifindex",
+          "definition": "Interface ifindex",
+          "property_doc_link": "network-device-ifindex-doc"
+        },
+        {
+          "name": "network.device.ifname",
+          "definition": "Interface ifname",
+          "property_doc_link": "network-device-ifname-doc"
+        },
+        {
+          "name": "network.l3_protocol",
+          "definition": "L3 protocol of the network packet",
+          "property_doc_link": "network-l3_protocol-doc"
+        },
+        {
+          "name": "network.l4_protocol",
+          "definition": "L4 protocol of the network packet",
+          "property_doc_link": "network-l4_protocol-doc"
+        },
+        {
+          "name": "network.size",
+          "definition": "Size in bytes of the network packet",
+          "property_doc_link": "network-size-doc"
+        },
+        {
+          "name": "network.source.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.source.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
         },
         {
           "name": "process.ancestors.args",
@@ -91,6 +146,11 @@
           "name": "process.ancestors.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "process.ancestors.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
           "name": "process.ancestors.comm",
@@ -468,6 +528,11 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "process.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
+        },
+        {
           "name": "process.comm",
           "definition": "Comm attribute of the process",
           "property_doc_link": "common-process-comm-doc"
@@ -796,6 +861,11 @@
           "name": "process.parent.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "process.parent.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
           "name": "process.parent.comm",
@@ -1724,51 +1794,6 @@
           "name": "dns.question.type",
           "definition": "a two octet code which specifies the DNS question type",
           "property_doc_link": "dns-question-type-doc"
-        },
-        {
-          "name": "network.destination.ip",
-          "definition": "IP address",
-          "property_doc_link": "common-ipportcontext-ip-doc"
-        },
-        {
-          "name": "network.destination.port",
-          "definition": "Port number",
-          "property_doc_link": "common-ipportcontext-port-doc"
-        },
-        {
-          "name": "network.device.ifindex",
-          "definition": "interface ifindex",
-          "property_doc_link": "network-device-ifindex-doc"
-        },
-        {
-          "name": "network.device.ifname",
-          "definition": "interface ifname",
-          "property_doc_link": "network-device-ifname-doc"
-        },
-        {
-          "name": "network.l3_protocol",
-          "definition": "l3 protocol of the network packet",
-          "property_doc_link": "network-l3_protocol-doc"
-        },
-        {
-          "name": "network.l4_protocol",
-          "definition": "l4 protocol of the network packet",
-          "property_doc_link": "network-l4_protocol-doc"
-        },
-        {
-          "name": "network.size",
-          "definition": "size in bytes of the network packet",
-          "property_doc_link": "network-size-doc"
-        },
-        {
-          "name": "network.source.ip",
-          "definition": "IP address",
-          "property_doc_link": "common-ipportcontext-ip-doc"
-        },
-        {
-          "name": "network.source.port",
-          "definition": "Port number",
-          "property_doc_link": "common-ipportcontext-port-doc"
         }
       ]
     },
@@ -1818,6 +1843,11 @@
           "name": "exec.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "exec.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
           "name": "exec.comm",
@@ -2212,6 +2242,11 @@
           "name": "exit.cause",
           "definition": "Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)",
           "property_doc_link": "exit-cause-doc"
+        },
+        {
+          "name": "exit.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
           "name": "exit.code",
@@ -3485,6 +3520,11 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.comm",
           "definition": "Comm attribute of the process",
           "property_doc_link": "common-process-comm-doc"
@@ -3860,6 +3900,11 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "ptrace.tracee.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
+        },
+        {
           "name": "ptrace.tracee.comm",
           "definition": "Comm attribute of the process",
           "property_doc_link": "common-process-comm-doc"
@@ -4188,6 +4233,11 @@
           "name": "ptrace.tracee.parent.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
           "name": "ptrace.tracee.parent.comm",
@@ -5322,6 +5372,11 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "signal.target.ancestors.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
+        },
+        {
           "name": "signal.target.ancestors.comm",
           "definition": "Comm attribute of the process",
           "property_doc_link": "common-process-comm-doc"
@@ -5697,6 +5752,11 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "signal.target.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
+        },
+        {
           "name": "signal.target.comm",
           "definition": "Comm attribute of the process",
           "property_doc_link": "common-process-comm-doc"
@@ -6025,6 +6085,11 @@
           "name": "signal.target.parent.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "signal.target.parent.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
           "name": "signal.target.parent.comm",
@@ -7640,6 +7705,29 @@
       "examples": []
     },
     {
+      "name": "*.id",
+      "link": "common-cgroupcontext-id-doc",
+      "type": "string",
+      "definition": "ID of the cgroup",
+      "prefixes": [
+        "cgroup",
+        "exec.cgroup",
+        "exit.cgroup",
+        "process.ancestors.cgroup",
+        "process.cgroup",
+        "process.parent.cgroup",
+        "ptrace.tracee.ancestors.cgroup",
+        "ptrace.tracee.cgroup",
+        "ptrace.tracee.parent.cgroup",
+        "signal.target.ancestors.cgroup",
+        "signal.target.cgroup",
+        "signal.target.parent.cgroup"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.in_upper_layer",
       "link": "common-filefields-in_upper_layer-doc",
       "type": "bool",
@@ -9002,6 +9090,18 @@
       "examples": []
     },
     {
+      "name": "container.runtime",
+      "link": "container-runtime-doc",
+      "type": "string",
+      "definition": "Runtime managing the container",
+      "prefixes": [
+        "container"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "container.tags",
       "link": "container-tags-doc",
       "type": "string",
@@ -9533,7 +9633,7 @@
       "name": "network.device.ifindex",
       "link": "network-device-ifindex-doc",
       "type": "int",
-      "definition": "interface ifindex",
+      "definition": "Interface ifindex",
       "prefixes": [
         "network.device"
       ],
@@ -9545,7 +9645,7 @@
       "name": "network.device.ifname",
       "link": "network-device-ifname-doc",
       "type": "string",
-      "definition": "interface ifname",
+      "definition": "Interface ifname",
       "prefixes": [
         "network.device"
       ],
@@ -9557,7 +9657,7 @@
       "name": "network.l3_protocol",
       "link": "network-l3_protocol-doc",
       "type": "int",
-      "definition": "l3 protocol of the network packet",
+      "definition": "L3 protocol of the network packet",
       "prefixes": [
         "network"
       ],
@@ -9569,7 +9669,7 @@
       "name": "network.l4_protocol",
       "link": "network-l4_protocol-doc",
       "type": "int",
-      "definition": "l4 protocol of the network packet",
+      "definition": "L4 protocol of the network packet",
       "prefixes": [
         "network"
       ],
@@ -9581,7 +9681,7 @@
       "name": "network.size",
       "link": "network-size-doc",
       "type": "int",
-      "definition": "size in bytes of the network packet",
+      "definition": "Size in bytes of the network packet",
       "prefixes": [
         "network"
       ],
