@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 // use a randomly assigned port
@@ -25,11 +26,15 @@ var tcpTestPort = 0
 func TestTCPShouldReceivesMessages(t *testing.T) {
 	pp := mock.NewMockProvider()
 	msgChan := pp.NextPipelineChan()
+	log.Debug("wack1")
 	listener := NewTCPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: tcpTestPort}), 9000)
+	log.Debug("wack2")
 	listener.Start()
-
+	log.Debug("wack3")
 	conn, err := net.Dial("tcp", listener.listener.Addr().String())
+	log.Debug("wack4")
 	assert.Nil(t, err)
+	log.Debug("wack5")
 	defer conn.Close()
 
 	var msg *message.Message
