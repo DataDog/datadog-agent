@@ -83,7 +83,7 @@ func enabledHelper(config config.Component, checkComponents []types.CheckCompone
 // enabled.
 // If 'run_in_core_agent' flag is enabled and the connections/NPM check is not enabled, the process-agent will run in
 // the core agent.
-func Enabled(config config.Component, checkComponents []types.CheckComponent, l logComponent.Component) bool {
+func Enabled(config config.Component, checkComponents []types.CheckComponent, l log.Component) bool {
 	Once.Do(func() {
 		enabled = enabledHelper(config, checkComponents, l)
 	})

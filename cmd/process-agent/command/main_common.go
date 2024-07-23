@@ -196,6 +196,9 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
 		fxutil.FxLoggingOption(),
 
+		// Inject the Lifecycle adapter for non fx-aware components.
+		fxutil.FxLifecycleAdapter(),
+
 		// Set the pid file path
 		fx.Supply(pidimpl.NewParams(globalParams.PidFilePath)),
 
