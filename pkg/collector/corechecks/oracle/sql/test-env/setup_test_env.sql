@@ -60,3 +60,8 @@ begin
 end;
 /
 
+-- to avoid size getting to 0 with RDS or Oracle managed files
+create table t_tbs_test(n number) tablespace tbs_test;
+insert into t_tbs_test values(1);
+commit;
+
