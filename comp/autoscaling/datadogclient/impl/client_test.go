@@ -74,9 +74,9 @@ func TestExternalMetricsProviderEndpointAndRefresh(t *testing.T) {
 	// test component creation
 	datadogClientComp := datadogClientProvids.Comp
 	assert.NoError(t, err)
-	datadogClientWithRefresh, ok := datadogClientComp.(*datadogClient)
+	datadogClientWithRefresh, ok := datadogClientComp.(*datadogClientWrapper)
 	assert.True(t, ok)
-	assert.False(t, datadogClientWithRefresh == (*datadogClient)(nil))
+	assert.False(t, datadogClientWithRefresh == (*datadogClientWrapper)(nil))
 	dogCl, ok := datadogClientWithRefresh.client.(*datadog.Client)
 	assert.True(t, ok)
 	assert.False(t, dogCl == (*datadog.Client)(nil))
