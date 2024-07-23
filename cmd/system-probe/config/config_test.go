@@ -9,6 +9,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
@@ -96,11 +97,11 @@ func TestEventStreamEnabledForSupportedKernelsWindowsUnsupported(t *testing.T) {
 	})
 }
 
-func TestEnableServiceDiscovery(t *testing.T) {
+func TestEnableDiscovery(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		config.ResetSystemProbeConfig(t)
 		cfg := configurationFromYAML(t, `
-service_discovery:
+discovery:
   enabled: true
 `)
 		assert.True(t, cfg.GetBool(discoveryNS("enabled")))
@@ -108,7 +109,7 @@ service_discovery:
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		config.ResetSystemProbeConfig(t)
-		t.Setenv("DD_SERVICE_DISCOVERY_ENABLED", "true")
+		t.Setenv("DD_DISCOVERY_ENABLED", "true")
 		cfg := config.SystemProbe
 
 		assert.True(t, cfg.GetBool(discoveryNS("enabled")))
