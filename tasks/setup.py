@@ -215,7 +215,7 @@ def setup_vscode(ctx) -> SetupResult:
     print(color_message("Setting up VS Code...", Color.BLUE))
 
     try:
-        vscode.setup(ctx)
+        vscode.setup(ctx, force=True)
         message = "VS Code setup completed."
         status = Status.OK
     except Exception:

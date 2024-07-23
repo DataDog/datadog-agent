@@ -19,7 +19,6 @@ from invoke.exceptions import Exit
 from tasks.build_tags import build_tags, compute_config_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.json import JSONWithCommentsDecoder
 
 VSCODE_DIR = ".vscode"
@@ -31,16 +30,18 @@ VSCODE_EXTENSIONS_FILE = "extensions.json"
 
 
 @task
-def setup(ctx):
+def setup(ctx, force=False):
     """
     Set up vscode for this project
+
+    - force: If True, will override the existing settings
     """
     print(color_message("* Setting up extensions", Color.BOLD))
     setup_extensions(ctx)
     print(color_message("* Setting up tasks", Color.BOLD))
-    setup_tasks(ctx)
+    setup_tasks(ctx, force)
     print(color_message("* Setting up settings", Color.BOLD))
-    setup_settings(ctx)
+    setup_settings(ctx, force)
     # TODO: setup_launch (see #27508)
 
 
@@ -134,18 +135,20 @@ def setup_extensions(ctx: Context):
 
 
 @task
-def setup_tasks(_):
+def setup_tasks(_, force=False):
     """
     Creates the initial .vscode/tasks.json file based on the template
+
+    - force: If True, will override the existing tasks file
     """
     tasks = Path(VSCODE_DIR) / VSCODE_TASKS_FILE
     template = Path(VSCODE_DIR) / VSCODE_TASKS_TEMPLATE
 
     print(color_message("Creating initial VSCode tasks file...", Color.BLUE))
     if tasks.exists():
-        print(color_message("VSCode tasks file already exists.", Color.ORANGE))
-        if not yes_no_question("Do you want to overwrite it?", default=False):
-            print('Skipping...')
+        message = 'overriding current file' if force else 'skipping...'
+        print(color_message("warning:", Color.ORANGE), 'VSCode tasks file already exists,', message)
+        if not force:
             return
 
     shutil.copy(template, tasks)
@@ -153,18 +156,20 @@ def setup_tasks(_):
 
 
 @task
-def setup_settings(_):
+def setup_settings(_, force=False):
     """
     Creates the initial .vscode/settings.json file
+
+    - force: If True, will override the existing settings file
     """
     settings = Path(VSCODE_DIR) / VSCODE_SETTINGS_FILE
     template = Path(VSCODE_DIR) / VSCODE_SETTINGS_TEMPLATE
 
     print(color_message("Creating initial VSCode setting file...", Color.BLUE))
     if settings.exists():
-        print(color_message("VSCode settings file already exists.", Color.ORANGE))
-        if not yes_no_question("Do you want to overwrite it?", default=False):
-            print("Skipping...")
+        message = 'overriding current file' if force else 'skipping...'
+        print(color_message("warning:", Color.ORANGE), 'VSCode settings file already exists,', message)
+        if not force:
             return
 
     build_tags = sorted(compute_config_build_tags())
