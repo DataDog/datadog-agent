@@ -12,7 +12,6 @@ import (
 	"net"
 	"strings"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -71,9 +70,11 @@ func (t *Tailer) forwardMessages() {
 		if len(output.GetContent()) > 0 {
 			origin := message.NewOrigin(t.source)
 			remoteAddress := t.Conn.RemoteAddr()
+			log.Debug("andrewqian", remoteAddress)
 			copiedTags := make([]string, len(t.source.Config.Tags))
 			copy(copiedTags, t.source.Config.Tags)
-			if remoteAddress != nil && coreConfig.Datadog().GetBool("logs_config.use_sourcehost_tag") {
+			if remoteAddress != nil {
+				// if remoteAddress != nil && coreConfig.Datadog().GetBool("logs_config.use_sourcehost_tag") {
 				addressWithPort := t.Conn.RemoteAddr().String()
 				lastColonIndex := strings.LastIndex(addressWithPort, ":")
 				var ipAddress string
