@@ -1009,7 +1009,7 @@ def compare_to_itself(ctx):
     agent = get_gitlab_repo()
     gh = GithubAPI()
     current_branch = os.getenv("CI_COMMIT_REF_NAME")
-    new_branch = f"compare/{current_branch}"
+    new_branch = f"compare/{current_branch}/{int(datetime.now().timestamp())}"
     ctx.run(f"git checkout -b {new_branch}", hide=True)
     ctx.run(
         f"git remote set-url origin https://x-access-token:{gh._auth.token}@github.com/DataDog/datadog-agent.git",
