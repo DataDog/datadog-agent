@@ -198,7 +198,7 @@ def deps(ctx, verbose=False):
                 result = ctx.run(f"go mod download{verbosity}")
                 if result.exited is None or result.exited > 0:
                     wait = 10 ** (retry + 1)
-                    print(f"[{(retry + 1) / max_retry}] Failed downloading, retrying in {wait} seconds")
+                    print(f"[{retry + 1} / {max_retry}] Failed downloading, retrying in {wait} seconds")
                     sleep(wait)
                     continue
                 break
