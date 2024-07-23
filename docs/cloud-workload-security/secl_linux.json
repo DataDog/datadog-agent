@@ -8,6 +8,16 @@
       "experimental": false,
       "properties": [
         {
+          "name": "cgroup.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "cgroup.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
           "name": "cgroup.id",
           "definition": "ID of the cgroup",
           "property_doc_link": "common-cgroupcontext-id-doc"
@@ -156,6 +166,16 @@
           "name": "process.ancestors.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "process.ancestors.cgroup.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "process.ancestors.cgroup.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "process.ancestors.cgroup.id",
@@ -548,6 +568,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "process.cgroup.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "process.cgroup.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
           "name": "process.cgroup.id",
           "definition": "ID of the cgroup",
           "property_doc_link": "common-cgroupcontext-id-doc"
@@ -891,6 +921,16 @@
           "name": "process.parent.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "process.parent.cgroup.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "process.parent.cgroup.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "process.parent.cgroup.id",
@@ -1885,6 +1925,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "exec.cgroup.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "exec.cgroup.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
           "name": "exec.cgroup.id",
           "definition": "ID of the cgroup",
           "property_doc_link": "common-cgroupcontext-id-doc"
@@ -2292,6 +2342,16 @@
           "name": "exit.cause",
           "definition": "Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)",
           "property_doc_link": "exit-cause-doc"
+        },
+        {
+          "name": "exit.cgroup.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "exit.cgroup.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "exit.cgroup.id",
@@ -3580,6 +3640,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.cgroup.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.cgroup.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.cgroup.id",
           "definition": "ID of the cgroup",
           "property_doc_link": "common-cgroupcontext-id-doc"
@@ -3970,6 +4040,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "ptrace.tracee.cgroup.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "ptrace.tracee.cgroup.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
           "name": "ptrace.tracee.cgroup.id",
           "definition": "ID of the cgroup",
           "property_doc_link": "common-cgroupcontext-id-doc"
@@ -4313,6 +4393,16 @@
           "name": "ptrace.tracee.parent.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.cgroup.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.cgroup.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "ptrace.tracee.parent.cgroup.id",
@@ -5462,6 +5552,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "signal.target.ancestors.cgroup.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "signal.target.ancestors.cgroup.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
           "name": "signal.target.ancestors.cgroup.id",
           "definition": "ID of the cgroup",
           "property_doc_link": "common-cgroupcontext-id-doc"
@@ -5852,6 +5952,16 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "signal.target.cgroup.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "signal.target.cgroup.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
           "name": "signal.target.cgroup.id",
           "definition": "ID of the cgroup",
           "property_doc_link": "common-cgroupcontext-id-doc"
@@ -6195,6 +6305,16 @@
           "name": "signal.target.parent.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "signal.target.parent.cgroup.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "signal.target.parent.cgroup.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
         },
         {
           "name": "signal.target.parent.cgroup.id",
@@ -7920,11 +8040,14 @@
       "type": "int",
       "definition": "Inode of the file",
       "prefixes": [
+        "cgroup.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
+        "exec.cgroup.file",
         "exec.file",
         "exec.interpreter.file",
+        "exit.cgroup.file",
         "exit.file",
         "exit.interpreter.file",
         "link.file",
@@ -7933,16 +8056,22 @@
         "mkdir.file",
         "mmap.file",
         "open.file",
+        "process.ancestors.cgroup.file",
         "process.ancestors.file",
         "process.ancestors.interpreter.file",
+        "process.cgroup.file",
         "process.file",
         "process.interpreter.file",
+        "process.parent.cgroup.file",
         "process.parent.file",
         "process.parent.interpreter.file",
+        "ptrace.tracee.ancestors.cgroup.file",
         "ptrace.tracee.ancestors.file",
         "ptrace.tracee.ancestors.interpreter.file",
+        "ptrace.tracee.cgroup.file",
         "ptrace.tracee.file",
         "ptrace.tracee.interpreter.file",
+        "ptrace.tracee.parent.cgroup.file",
         "ptrace.tracee.parent.file",
         "ptrace.tracee.parent.interpreter.file",
         "removexattr.file",
@@ -7950,10 +8079,13 @@
         "rename.file.destination",
         "rmdir.file",
         "setxattr.file",
+        "signal.target.ancestors.cgroup.file",
         "signal.target.ancestors.file",
         "signal.target.ancestors.interpreter.file",
+        "signal.target.cgroup.file",
         "signal.target.file",
         "signal.target.interpreter.file",
+        "signal.target.parent.cgroup.file",
         "signal.target.parent.file",
         "signal.target.parent.interpreter.file",
         "splice.file",
@@ -8307,11 +8439,14 @@
       "type": "int",
       "definition": "Mount ID of the file",
       "prefixes": [
+        "cgroup.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
+        "exec.cgroup.file",
         "exec.file",
         "exec.interpreter.file",
+        "exit.cgroup.file",
         "exit.file",
         "exit.interpreter.file",
         "link.file",
@@ -8320,16 +8455,22 @@
         "mkdir.file",
         "mmap.file",
         "open.file",
+        "process.ancestors.cgroup.file",
         "process.ancestors.file",
         "process.ancestors.interpreter.file",
+        "process.cgroup.file",
         "process.file",
         "process.interpreter.file",
+        "process.parent.cgroup.file",
         "process.parent.file",
         "process.parent.interpreter.file",
+        "ptrace.tracee.ancestors.cgroup.file",
         "ptrace.tracee.ancestors.file",
         "ptrace.tracee.ancestors.interpreter.file",
+        "ptrace.tracee.cgroup.file",
         "ptrace.tracee.file",
         "ptrace.tracee.interpreter.file",
+        "ptrace.tracee.parent.cgroup.file",
         "ptrace.tracee.parent.file",
         "ptrace.tracee.parent.interpreter.file",
         "removexattr.file",
@@ -8337,10 +8478,13 @@
         "rename.file.destination",
         "rmdir.file",
         "setxattr.file",
+        "signal.target.ancestors.cgroup.file",
         "signal.target.ancestors.file",
         "signal.target.ancestors.interpreter.file",
+        "signal.target.cgroup.file",
         "signal.target.file",
         "signal.target.interpreter.file",
+        "signal.target.parent.cgroup.file",
         "signal.target.parent.file",
         "signal.target.parent.interpreter.file",
         "splice.file",

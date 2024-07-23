@@ -61,7 +61,7 @@ func GetContainerFromCgroup(cgroup string) (string, CGroupFlags) {
 			return cgroup[len(runtimePrefix):], CGroupFlags(runtimeFlag)
 		}
 	}
-	return cgroup, 0
+	return "", 0
 }
 
 // GetCgroupFromContainer infers the container runtime from a cgroup name
@@ -71,5 +71,5 @@ func GetCgroupFromContainer(id ContainerID, flags CGroupFlags) CGroupID {
 			return CGroupID(runtimePrefix + string(id))
 		}
 	}
-	return CGroupID(id)
+	return CGroupID("")
 }

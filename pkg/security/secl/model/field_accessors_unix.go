@@ -134,6 +134,16 @@ func (ev *Event) GetCapsetCapPermitted() uint64 {
 	return ev.Capset.CapPermitted
 }
 
+// GetCgroupFileInode returns the value of the field, resolving if necessary
+func (ev *Event) GetCgroupFileInode() uint64 {
+	return ev.CGroupContext.CGroupFile.Inode
+}
+
+// GetCgroupFileMountId returns the value of the field, resolving if necessary
+func (ev *Event) GetCgroupFileMountId() uint32 {
+	return ev.CGroupContext.CGroupFile.MountID
+}
+
 // GetCgroupId returns the value of the field, resolving if necessary
 func (ev *Event) GetCgroupId() string {
 	return ev.FieldHandlers.ResolveCGroupID(ev, &ev.CGroupContext)
@@ -1125,6 +1135,28 @@ func (ev *Event) GetExecCapPermitted() uint64 {
 		return uint64(0)
 	}
 	return ev.Exec.Process.Credentials.CapPermitted
+}
+
+// GetExecCgroupFileInode returns the value of the field, resolving if necessary
+func (ev *Event) GetExecCgroupFileInode() uint64 {
+	if ev.GetEventType().String() != "exec" {
+		return uint64(0)
+	}
+	if ev.Exec.Process == nil {
+		return uint64(0)
+	}
+	return ev.Exec.Process.CGroup.CGroupFile.Inode
+}
+
+// GetExecCgroupFileMountId returns the value of the field, resolving if necessary
+func (ev *Event) GetExecCgroupFileMountId() uint32 {
+	if ev.GetEventType().String() != "exec" {
+		return uint32(0)
+	}
+	if ev.Exec.Process == nil {
+		return uint32(0)
+	}
+	return ev.Exec.Process.CGroup.CGroupFile.MountID
 }
 
 // GetExecCgroupId returns the value of the field, resolving if necessary
@@ -2221,6 +2253,28 @@ func (ev *Event) GetExitCause() uint32 {
 		return uint32(0)
 	}
 	return ev.Exit.Cause
+}
+
+// GetExitCgroupFileInode returns the value of the field, resolving if necessary
+func (ev *Event) GetExitCgroupFileInode() uint64 {
+	if ev.GetEventType().String() != "exit" {
+		return uint64(0)
+	}
+	if ev.Exit.Process == nil {
+		return uint64(0)
+	}
+	return ev.Exit.Process.CGroup.CGroupFile.Inode
+}
+
+// GetExitCgroupFileMountId returns the value of the field, resolving if necessary
+func (ev *Event) GetExitCgroupFileMountId() uint32 {
+	if ev.GetEventType().String() != "exit" {
+		return uint32(0)
+	}
+	if ev.Exit.Process == nil {
+		return uint32(0)
+	}
+	return ev.Exit.Process.CGroup.CGroupFile.MountID
 }
 
 // GetExitCgroupId returns the value of the field, resolving if necessary
@@ -4914,6 +4968,48 @@ func (ev *Event) GetProcessAncestorsCapPermitted() []uint64 {
 	return values
 }
 
+// GetProcessAncestorsCgroupFileInode returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessAncestorsCgroupFileInode() []uint64 {
+	if ev.BaseEvent.ProcessContext == nil {
+		return []uint64{}
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		return []uint64{}
+	}
+	var values []uint64
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := element.ProcessContext.Process.CGroup.CGroupFile.Inode
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
+// GetProcessAncestorsCgroupFileMountId returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessAncestorsCgroupFileMountId() []uint32 {
+	if ev.BaseEvent.ProcessContext == nil {
+		return []uint32{}
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		return []uint32{}
+	}
+	var values []uint32
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := element.ProcessContext.Process.CGroup.CGroupFile.MountID
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
 // GetProcessAncestorsCgroupId returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsCgroupId() []string {
 	if ev.BaseEvent.ProcessContext == nil {
@@ -6472,6 +6568,22 @@ func (ev *Event) GetProcessCapPermitted() uint64 {
 	return ev.BaseEvent.ProcessContext.Process.Credentials.CapPermitted
 }
 
+// GetProcessCgroupFileInode returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessCgroupFileInode() uint64 {
+	if ev.BaseEvent.ProcessContext == nil {
+		return uint64(0)
+	}
+	return ev.BaseEvent.ProcessContext.Process.CGroup.CGroupFile.Inode
+}
+
+// GetProcessCgroupFileMountId returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessCgroupFileMountId() uint32 {
+	if ev.BaseEvent.ProcessContext == nil {
+		return uint32(0)
+	}
+	return ev.BaseEvent.ProcessContext.Process.CGroup.CGroupFile.MountID
+}
+
 // GetProcessCgroupId returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessCgroupId() string {
 	if ev.BaseEvent.ProcessContext == nil {
@@ -7244,6 +7356,34 @@ func (ev *Event) GetProcessParentCapPermitted() uint64 {
 		return uint64(0)
 	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.CapPermitted
+}
+
+// GetProcessParentCgroupFileInode returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessParentCgroupFileInode() uint64 {
+	if ev.BaseEvent.ProcessContext == nil {
+		return uint64(0)
+	}
+	if ev.BaseEvent.ProcessContext.Parent == nil {
+		return uint64(0)
+	}
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return uint64(0)
+	}
+	return ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupFile.Inode
+}
+
+// GetProcessParentCgroupFileMountId returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessParentCgroupFileMountId() uint32 {
+	if ev.BaseEvent.ProcessContext == nil {
+		return uint32(0)
+	}
+	if ev.BaseEvent.ProcessContext.Parent == nil {
+		return uint32(0)
+	}
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return uint32(0)
+	}
+	return ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupFile.MountID
 }
 
 // GetProcessParentCgroupId returns the value of the field, resolving if necessary
@@ -8668,6 +8808,54 @@ func (ev *Event) GetPtraceTraceeAncestorsCapPermitted() []uint64 {
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.Credentials.CapPermitted
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
+// GetPtraceTraceeAncestorsCgroupFileInode returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeAncestorsCgroupFileInode() []uint64 {
+	if ev.GetEventType().String() != "ptrace" {
+		return []uint64{}
+	}
+	if ev.PTrace.Tracee == nil {
+		return []uint64{}
+	}
+	if ev.PTrace.Tracee.Ancestor == nil {
+		return []uint64{}
+	}
+	var values []uint64
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := element.ProcessContext.Process.CGroup.CGroupFile.Inode
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
+// GetPtraceTraceeAncestorsCgroupFileMountId returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeAncestorsCgroupFileMountId() []uint32 {
+	if ev.GetEventType().String() != "ptrace" {
+		return []uint32{}
+	}
+	if ev.PTrace.Tracee == nil {
+		return []uint32{}
+	}
+	if ev.PTrace.Tracee.Ancestor == nil {
+		return []uint32{}
+	}
+	var values []uint32
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := element.ProcessContext.Process.CGroup.CGroupFile.MountID
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -10475,6 +10663,28 @@ func (ev *Event) GetPtraceTraceeCapPermitted() uint64 {
 	return ev.PTrace.Tracee.Process.Credentials.CapPermitted
 }
 
+// GetPtraceTraceeCgroupFileInode returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeCgroupFileInode() uint64 {
+	if ev.GetEventType().String() != "ptrace" {
+		return uint64(0)
+	}
+	if ev.PTrace.Tracee == nil {
+		return uint64(0)
+	}
+	return ev.PTrace.Tracee.Process.CGroup.CGroupFile.Inode
+}
+
+// GetPtraceTraceeCgroupFileMountId returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeCgroupFileMountId() uint32 {
+	if ev.GetEventType().String() != "ptrace" {
+		return uint32(0)
+	}
+	if ev.PTrace.Tracee == nil {
+		return uint32(0)
+	}
+	return ev.PTrace.Tracee.Process.CGroup.CGroupFile.MountID
+}
+
 // GetPtraceTraceeCgroupId returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeCgroupId() string {
 	if ev.GetEventType().String() != "ptrace" {
@@ -11472,6 +11682,40 @@ func (ev *Event) GetPtraceTraceeParentCapPermitted() uint64 {
 		return uint64(0)
 	}
 	return ev.PTrace.Tracee.Parent.Credentials.CapPermitted
+}
+
+// GetPtraceTraceeParentCgroupFileInode returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeParentCgroupFileInode() uint64 {
+	if ev.GetEventType().String() != "ptrace" {
+		return uint64(0)
+	}
+	if ev.PTrace.Tracee == nil {
+		return uint64(0)
+	}
+	if ev.PTrace.Tracee.Parent == nil {
+		return uint64(0)
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return uint64(0)
+	}
+	return ev.PTrace.Tracee.Parent.CGroup.CGroupFile.Inode
+}
+
+// GetPtraceTraceeParentCgroupFileMountId returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeParentCgroupFileMountId() uint32 {
+	if ev.GetEventType().String() != "ptrace" {
+		return uint32(0)
+	}
+	if ev.PTrace.Tracee == nil {
+		return uint32(0)
+	}
+	if ev.PTrace.Tracee.Parent == nil {
+		return uint32(0)
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return uint32(0)
+	}
+	return ev.PTrace.Tracee.Parent.CGroup.CGroupFile.MountID
 }
 
 // GetPtraceTraceeParentCgroupId returns the value of the field, resolving if necessary
@@ -14195,6 +14439,54 @@ func (ev *Event) GetSignalTargetAncestorsCapPermitted() []uint64 {
 	return values
 }
 
+// GetSignalTargetAncestorsCgroupFileInode returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetAncestorsCgroupFileInode() []uint64 {
+	if ev.GetEventType().String() != "signal" {
+		return []uint64{}
+	}
+	if ev.Signal.Target == nil {
+		return []uint64{}
+	}
+	if ev.Signal.Target.Ancestor == nil {
+		return []uint64{}
+	}
+	var values []uint64
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := element.ProcessContext.Process.CGroup.CGroupFile.Inode
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
+// GetSignalTargetAncestorsCgroupFileMountId returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetAncestorsCgroupFileMountId() []uint32 {
+	if ev.GetEventType().String() != "signal" {
+		return []uint32{}
+	}
+	if ev.Signal.Target == nil {
+		return []uint32{}
+	}
+	if ev.Signal.Target.Ancestor == nil {
+		return []uint32{}
+	}
+	var values []uint32
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := element.ProcessContext.Process.CGroup.CGroupFile.MountID
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
 // GetSignalTargetAncestorsCgroupId returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsCgroupId() []string {
 	if ev.GetEventType().String() != "signal" {
@@ -15996,6 +16288,28 @@ func (ev *Event) GetSignalTargetCapPermitted() uint64 {
 	return ev.Signal.Target.Process.Credentials.CapPermitted
 }
 
+// GetSignalTargetCgroupFileInode returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetCgroupFileInode() uint64 {
+	if ev.GetEventType().String() != "signal" {
+		return uint64(0)
+	}
+	if ev.Signal.Target == nil {
+		return uint64(0)
+	}
+	return ev.Signal.Target.Process.CGroup.CGroupFile.Inode
+}
+
+// GetSignalTargetCgroupFileMountId returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetCgroupFileMountId() uint32 {
+	if ev.GetEventType().String() != "signal" {
+		return uint32(0)
+	}
+	if ev.Signal.Target == nil {
+		return uint32(0)
+	}
+	return ev.Signal.Target.Process.CGroup.CGroupFile.MountID
+}
+
 // GetSignalTargetCgroupId returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetCgroupId() string {
 	if ev.GetEventType().String() != "signal" {
@@ -16993,6 +17307,40 @@ func (ev *Event) GetSignalTargetParentCapPermitted() uint64 {
 		return uint64(0)
 	}
 	return ev.Signal.Target.Parent.Credentials.CapPermitted
+}
+
+// GetSignalTargetParentCgroupFileInode returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetParentCgroupFileInode() uint64 {
+	if ev.GetEventType().String() != "signal" {
+		return uint64(0)
+	}
+	if ev.Signal.Target == nil {
+		return uint64(0)
+	}
+	if ev.Signal.Target.Parent == nil {
+		return uint64(0)
+	}
+	if !ev.Signal.Target.HasParent() {
+		return uint64(0)
+	}
+	return ev.Signal.Target.Parent.CGroup.CGroupFile.Inode
+}
+
+// GetSignalTargetParentCgroupFileMountId returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetParentCgroupFileMountId() uint32 {
+	if ev.GetEventType().String() != "signal" {
+		return uint32(0)
+	}
+	if ev.Signal.Target == nil {
+		return uint32(0)
+	}
+	if ev.Signal.Target.Parent == nil {
+		return uint32(0)
+	}
+	if !ev.Signal.Target.HasParent() {
+		return uint32(0)
+	}
+	return ev.Signal.Target.Parent.CGroup.CGroupFile.MountID
 }
 
 // GetSignalTargetParentCgroupId returns the value of the field, resolving if necessary

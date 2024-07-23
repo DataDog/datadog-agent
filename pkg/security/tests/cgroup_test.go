@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"syscall"
 	"testing"
 
@@ -20,6 +21,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/stretchr/testify/assert"
 )
+
+func createCGroup(name string) (string, error) {
+	cgroupPath := "/sys/fs/cgroup/memory/" + name
+	if err := os.MkdirAll(cgroupPath, 0700); err != nil {
+		return "", err
+	}
+
+	if err := os.WriteFile(cgroupPath+"/cgroup.procs", []byte(strconv.Itoa(os.Getpid())), 0700); err != nil {
+		return "", err
+	}
+
+	return cgroupPath, nil
+}
 
 func TestCGroup(t *testing.T) {
 	if testEnvironment == DockerEnvironment {
@@ -31,11 +45,11 @@ func TestCGroup(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_cgroup_id",
-			Expression: `open.file.path == "{{.Root}}/test-open" && cgroup.id == "cg1"`,
+			Expression: `open.file.path == "{{.Root}}/test-open" && cgroup.id == "/memory/cg1"`,
 		},
 		{
 			ID:         "test_cgroup_systemd",
-			Expression: `open.file.path == "{{.Root}}/test-open" && cgroup.manager == "systemd"`,
+			Expression: `open.file.path == "{{.Root}}/test-open" && cgroup.id == "/system.slice/cws-test.service" && cgroup.manager == "systemd"`,
 		},
 	}
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -69,7 +83,7 @@ func TestCGroup(t *testing.T) {
 			assertFieldEqual(t, event, "container.id", "")
 			assertFieldEqual(t, event, "container.runtime", "")
 			assert.Equal(t, containerutils.CGroupFlags(0), event.CGroupContext.CGroupFlags)
-			assertFieldEqual(t, event, "cgroup.id", "cg1")
+			assertFieldEqual(t, event, "cgroup.id", "/memory/cg1")
 
 			test.validateOpenSchema(t, event)
 		})

@@ -11,6 +11,7 @@ package probe
 import (
 	"encoding/binary"
 	"path"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -508,9 +509,22 @@ func (fh *EBPFFieldHandlers) ResolveHashes(eventType model.EventType, process *m
 // ResolveCGroupID resolves the cgroup ID of the event
 func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, e *model.CGroupContext) string {
 	if len(e.CGroupID) == 0 {
-		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil {
-			e.CGroupID = containerutils.GetCgroupFromContainer(entry.ContainerID, entry.CGroup.CGroupFlags)
-			return string(e.CGroupID)
+		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil && e.CGroupFile.Inode != 0 {
+			if entry.CGroup.CGroupID != "" {
+				return string(entry.CGroup.CGroupID)
+			}
+
+			path, err := fh.resolvers.DentryResolver.Resolve(e.CGroupFile, true)
+			if err == nil && path != "" {
+				path = filepath.Dir(string(path))
+				entry.CGroup.CGroupID = model.CGroupID(path)
+				containerID, _ := model.GetContainerFromCgroup(string(entry.CGroup.CGroupID))
+				entry.ContainerID = model.ContainerID(containerID)
+			} else {
+				entry.CGroup.CGroupID = containerutils.GetCgroupFromContainer(entry.ContainerID, entry.CGroup.CGroupFlags)
+			}
+
+			e.CGroupID = entry.CGroup.CGroupID
 		}
 	}
 
@@ -518,8 +532,10 @@ func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, e *model.CGroupCon
 }
 
 // ResolveCGroupManager resolves the manager of the cgroup
-func (fh *EBPFFieldHandlers) ResolveCGroupManager(ev *model.Event, _ *model.CGroupContext) string {
+func (fh *EBPFFieldHandlers) ResolveCGroupManager(ev *model.Event, e *model.CGroupContext) string {
 	if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil {
+		cgroupID := fh.ResolveCGroupID(ev, e)
+		_ = cgroupID
 		if manager := model.CGroupManager(entry.CGroup.CGroupFlags); manager != 0 {
 			return manager.String()
 		}

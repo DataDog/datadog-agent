@@ -10,9 +10,7 @@ package tests
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
-	"strconv"
 	"testing"
 	"time"
 
@@ -211,17 +209,4 @@ func TestContainerScopedVariable(t *testing.T) {
 			assert.Equal(t, "test_container_check_scoped_variable", rule.ID, "wrong rule triggered")
 		})
 	})
-}
-
-func createCGroup(name string) (string, error) {
-	cgroupPath := "/sys/fs/cgroup/memory/" + name
-	if err := os.MkdirAll(cgroupPath, 0700); err != nil {
-		return "", err
-	}
-
-	if err := os.WriteFile(cgroupPath+"/cgroup.procs", []byte(strconv.Itoa(os.Getpid())), 0700); err != nil {
-		return "", err
-	}
-
-	return cgroupPath, nil
 }

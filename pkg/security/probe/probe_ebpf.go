@@ -490,6 +490,7 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 		return 0, err
 	}
 
+	// TODO(lebauce): fix this
 	event.CGroupContext.CGroupID, event.ContainerContext.ContainerID = containerutils.GetCGroupContext(event.ContainerContext.ContainerID, event.CGroupContext.CGroupFlags)
 
 	return read, nil
@@ -522,6 +523,7 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 
 	entry.Process.CGroup.CGroupID, entry.Process.ContainerID = containerutils.GetCGroupContext(ev.ContainerContext.ContainerID, ev.CGroupContext.CGroupFlags)
 	entry.Process.CGroup.CGroupFlags = ev.CGroupContext.CGroupFlags
+	entry.Process.CGroup.CGroupFile = ev.CGroupContext.CGroupFile
 	entry.Source = model.ProcessCacheEntryFromEvent
 
 	return n, nil
@@ -712,6 +714,20 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	}
 
 	switch eventType {
+	case model.CgroupWriteEventType:
+		if _, err = event.CgroupWrite.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
+			return
+		}
+		path, err := p.Resolvers.DentryResolver.Resolve(event.CgroupWrite.File.PathKey, true)
+		if err == nil && path != "" {
+			path = filepath.Dir(string(path))
+			event.ProcessCacheEntry.CGroup.CGroupID = model.CGroupID(path)
+			containerID, cgroupFlags := model.GetContainerFromCgroup(string(event.ProcessCacheEntry.CGroup.CGroupID))
+			event.ProcessCacheEntry.ContainerID = model.ContainerID(containerID)
+			event.ProcessCacheEntry.CGroup.CGroupFlags = cgroupFlags
+		}
+
 	case model.FileMountEventType:
 		if _, err = event.Mount.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)

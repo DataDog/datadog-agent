@@ -14,6 +14,7 @@ static void __attribute__((always_inline)) fill_container_context(struct proc_ca
     if (entry) {
         copy_container_id(entry->container.container_id, context->container_id);
         context->cgroup_context.cgroup_flags = entry->container.cgroup_context.cgroup_flags;
+        context->cgroup_context.cgroup_file = entry->container.cgroup_context.cgroup_file;
     }
 }
 

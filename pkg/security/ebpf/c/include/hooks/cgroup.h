@@ -5,6 +5,8 @@
 #include "constants/offsets/filesystem.h"
 #include "helpers/process.h"
 #include "helpers/utils.h"
+#include "hooks/dentry_resolver.h"
+#include "structs/dentry_resolver.h"
 #include "maps.h"
 
 #define CGROUP_MANAGER_DOCKER 1
@@ -12,6 +14,11 @@
 #define CGROUP_MANAGER_PODMAN 3
 #define CGROUP_MANAGER_CRI 4
 #define CGROUP_MANAGER_SYSTEMD 5
+
+__attribute__((always_inline)) struct dentry_resolver_input_t *get_cgroup_dentry_resolver_inputs() {
+    u32 key = 0;
+    return bpf_map_lookup_elem(&cgroup_dentry_resolver_inputs, &key);
+}
 
 static __attribute__((always_inline)) int is_docker_cgroup(ctx_t *ctx, struct dentry *container_d) {
     struct dentry *parent_d;
@@ -51,7 +58,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         return 0;
     }
 
-#ifdef DEBUG
+#ifdef DEBUG_CGROUP
     bpf_printk("trace__cgroup_write %d\n", pid);
 #endif
 
@@ -81,7 +88,17 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
 
     int check_validity = 0;
     u32 container_flags = 0;
-    char prefix[63];
+    char prefix[31];
+
+    struct dentry_resolver_input_t *resolver;
+    resolver = get_cgroup_dentry_resolver_inputs();
+    if (resolver == NULL)
+        return 0;
+
+    resolver->key.ino = 0;
+    resolver->key.mount_id = 0;
+    resolver->key.path_id = 0;
+    resolver->dentry = NULL;
 
     switch (cgroup_write_type) {
     case CGROUP_DEFAULT: {
@@ -90,6 +107,10 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         struct file *f;
         bpf_probe_read(&f, sizeof(f), &kern_f->file);
         struct dentry *dentry = get_file_dentry(f);
+
+        resolver->key.ino = get_dentry_ino(dentry);
+        resolver->key.mount_id = get_file_mount_id(f);
+        resolver->dentry = dentry;
 
         // The last dentry in the cgroup path should be `cgroup.procs`, thus the container ID should be its parent.
         bpf_probe_read(&container_d, sizeof(container_d), &dentry->d_parent);
@@ -121,6 +142,9 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         return 0;
     }
 
+
+    // resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
+
     bpf_probe_read(&prefix, sizeof(prefix), container_id);
 
     if (prefix[0] == 'd' && prefix[1] == 'o' && prefix[2] == 'c' && prefix[3] == 'k' && prefix[4] == 'e'
@@ -148,13 +172,13 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         check_validity = 1;
     }
 
-#ifdef DEBUG
+#ifdef DEBUG_CGROUP
     bpf_printk("container id: %s\n", container_qstr.name);
 #endif
 
     bpf_probe_read(&new_entry.container.container_id, sizeof(new_entry.container.container_id), container_id);
 
-    int length = bpf_probe_read_str(&prefix, sizeof(prefix), container_id) & 0x3f;
+    int length = bpf_probe_read_str(&prefix, sizeof(prefix), container_id) & 0x1f;
     if (length >= 9 && prefix[length-9] == '.' &&
         ((prefix[length-8] == 's' && prefix[length-7] == 'e' && prefix[length-6] == 'r' && prefix[length-5] == 'v' && prefix[length-4] == 'i' && prefix[length-3] == 'c' && prefix[length-2] == 'e') ||
          (prefix[length-6] == 's' && prefix[length-5] == 'c' && prefix[length-4] == 'o' && prefix[length-3] == 'p' && prefix[length-2] == 'e'))) {
@@ -164,13 +188,14 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     }
 
     new_entry.container.cgroup_context.cgroup_flags = container_flags;
+    new_entry.container.cgroup_context.cgroup_file = resolver->key;
 
     if (check_validity && !is_container_id_valid(new_entry.container.container_id)) {
         return 0;
     }
 
-#ifdef DEBUG
-    bpf_printk("container flags: %d: %s\n", container_flags, prefix);
+#ifdef DEBUG_CGROUP
+    bpf_printk("container flags=%d, inode=%d: prefix=%s\n", container_flags, new_entry.container.cgroup_context.cgroup_file.ino, prefix);
 #endif
 
     bpf_map_update_elem(&proc_cache, &cookie, &new_entry, BPF_ANY);
@@ -182,7 +207,43 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         bpf_map_update_elem(&pid_cache, &pid, &new_pid_entry, BPF_ANY);
     }
 
+    resolver->type = EVENT_CGROUP_WRITE;
+    resolver->discarder_type = NO_FILTER;
+    resolver->callback = DR_CGROUP_WRITE_CALLBACK_KPROBE_KEY; // select_dr_key(DR_KPROBE_OR_FENTRY, DR_CGROUP_WRITE_CALLBACK_KPROBE_KEY, DR_CGROUP_WRITE_CALLBACK_TRACEPOINT_KEY);
+    resolver->iteration = 0;
+    resolver->ret = 0;
+    resolver->flags = 0;
+    resolver->sysretval = 0;
+    resolver->original_key = resolver->key;
+
+    cache_dentry_resolver_input(resolver);
+
+    resolve_dentry_no_syscall(ctx, DR_KPROBE_OR_FENTRY);
+
     return 0;
+}
+
+int __attribute__((always_inline)) dr_cgroup_write_callback(void *ctx) {
+    struct dentry_resolver_input_t *inputs = peek_resolver_inputs(EVENT_ANY);
+    if (!inputs)
+        return 1;
+
+    struct cgroup_write_event_t event = {
+        .file.path_key = inputs->original_key,
+    };
+
+    struct proc_cache_t *entry = fill_process_context(&event.process);
+    fill_container_context(entry, &event.container);
+    fill_span_context(&event.span);
+
+    send_event(ctx, EVENT_CGROUP_WRITE, event);
+
+    return 0;
+}
+
+TAIL_CALL_TARGET("dr_cgroup_write_callback")
+int tail_call_target_dr_cgroup_write_callback(ctx_t *ctx) {
+    return dr_cgroup_write_callback(ctx);
 }
 
 HOOK_ENTRY("cgroup_procs_write")

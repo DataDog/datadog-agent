@@ -202,6 +202,24 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "cgroup.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.CGroupContext.CGroupFile.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "cgroup.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.CGroupContext.CGroupFile.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "cgroup.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -1143,6 +1161,24 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "exec.cgroup.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Exec.Process.CGroup.CGroupFile.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exec.cgroup.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Exec.Process.CGroup.CGroupFile.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "exec.cgroup.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -1975,6 +2011,24 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
 				return int(ev.Exit.Cause)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.cgroup.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Exit.Process.CGroup.CGroupFile.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.cgroup.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Exit.Process.CGroup.CGroupFile.MountID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -4537,6 +4591,46 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
+	case "process.ancestors.cgroup.file.inode":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.CGroup.CGroupFile.Inode)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.cgroup.file.mount_id":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.CGroup.CGroupFile.MountID)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
 	case "process.ancestors.cgroup.id":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -6222,6 +6316,24 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "process.cgroup.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.BaseEvent.ProcessContext.Process.CGroup.CGroupFile.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "process.cgroup.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.BaseEvent.ProcessContext.Process.CGroup.CGroupFile.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "process.cgroup.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -6982,6 +7094,30 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					return 0
 				}
 				return int(ev.BaseEvent.ProcessContext.Parent.Credentials.CapPermitted)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "process.parent.cgroup.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				return int(ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupFile.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "process.parent.cgroup.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				return int(ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupFile.MountID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -8195,6 +8331,46 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*ProcessCacheEntry)(value)
 					result := int(element.ProcessContext.Process.Credentials.CapPermitted)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "ptrace.tracee.ancestors.cgroup.file.inode":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.CGroup.CGroupFile.Inode)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "ptrace.tracee.ancestors.cgroup.file.mount_id":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.CGroup.CGroupFile.MountID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -9888,6 +10064,24 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "ptrace.tracee.cgroup.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.PTrace.Tracee.Process.CGroup.CGroupFile.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "ptrace.tracee.cgroup.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.PTrace.Tracee.Process.CGroup.CGroupFile.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "ptrace.tracee.cgroup.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -10648,6 +10842,30 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					return 0
 				}
 				return int(ev.PTrace.Tracee.Parent.Credentials.CapPermitted)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "ptrace.tracee.parent.cgroup.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				return int(ev.PTrace.Tracee.Parent.CGroup.CGroupFile.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "ptrace.tracee.parent.cgroup.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				return int(ev.PTrace.Tracee.Parent.CGroup.CGroupFile.MountID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -13023,6 +13241,46 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
+	case "signal.target.ancestors.cgroup.file.inode":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.CGroup.CGroupFile.Inode)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "signal.target.ancestors.cgroup.file.mount_id":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.CGroup.CGroupFile.MountID)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
 	case "signal.target.ancestors.cgroup.id":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -14708,6 +14966,24 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "signal.target.cgroup.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Signal.Target.Process.CGroup.CGroupFile.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "signal.target.cgroup.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Signal.Target.Process.CGroup.CGroupFile.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "signal.target.cgroup.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -15468,6 +15744,30 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					return 0
 				}
 				return int(ev.Signal.Target.Parent.Credentials.CapPermitted)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "signal.target.parent.cgroup.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Signal.Target.Parent.CGroup.CGroupFile.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "signal.target.parent.cgroup.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Signal.Target.Parent.CGroup.CGroupFile.MountID)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -17174,6 +17474,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"bpf.retval",
 		"capset.cap_effective",
 		"capset.cap_permitted",
+		"cgroup.file.inode",
+		"cgroup.file.mount_id",
 		"cgroup.id",
 		"cgroup.manager",
 		"chdir.file.change_time",
@@ -17277,6 +17579,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.auid",
 		"exec.cap_effective",
 		"exec.cap_permitted",
+		"exec.cgroup.file.inode",
+		"exec.cgroup.file.mount_id",
 		"exec.cgroup.id",
 		"exec.cgroup.manager",
 		"exec.comm",
@@ -17357,6 +17661,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.cap_effective",
 		"exit.cap_permitted",
 		"exit.cause",
+		"exit.cgroup.file.inode",
+		"exit.cgroup.file.mount_id",
 		"exit.cgroup.id",
 		"exit.cgroup.manager",
 		"exit.code",
@@ -17614,6 +17920,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.auid",
 		"process.ancestors.cap_effective",
 		"process.ancestors.cap_permitted",
+		"process.ancestors.cgroup.file.inode",
+		"process.ancestors.cgroup.file.mount_id",
 		"process.ancestors.cgroup.id",
 		"process.ancestors.cgroup.manager",
 		"process.ancestors.comm",
@@ -17692,6 +18000,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.auid",
 		"process.cap_effective",
 		"process.cap_permitted",
+		"process.cgroup.file.inode",
+		"process.cgroup.file.mount_id",
 		"process.cgroup.id",
 		"process.cgroup.manager",
 		"process.comm",
@@ -17761,6 +18071,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.auid",
 		"process.parent.cap_effective",
 		"process.parent.cap_permitted",
+		"process.parent.cgroup.file.inode",
+		"process.parent.cgroup.file.mount_id",
 		"process.parent.cgroup.id",
 		"process.parent.cgroup.manager",
 		"process.parent.comm",
@@ -17850,6 +18162,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.auid",
 		"ptrace.tracee.ancestors.cap_effective",
 		"ptrace.tracee.ancestors.cap_permitted",
+		"ptrace.tracee.ancestors.cgroup.file.inode",
+		"ptrace.tracee.ancestors.cgroup.file.mount_id",
 		"ptrace.tracee.ancestors.cgroup.id",
 		"ptrace.tracee.ancestors.cgroup.manager",
 		"ptrace.tracee.ancestors.comm",
@@ -17928,6 +18242,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.auid",
 		"ptrace.tracee.cap_effective",
 		"ptrace.tracee.cap_permitted",
+		"ptrace.tracee.cgroup.file.inode",
+		"ptrace.tracee.cgroup.file.mount_id",
 		"ptrace.tracee.cgroup.id",
 		"ptrace.tracee.cgroup.manager",
 		"ptrace.tracee.comm",
@@ -17997,6 +18313,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.auid",
 		"ptrace.tracee.parent.cap_effective",
 		"ptrace.tracee.parent.cap_permitted",
+		"ptrace.tracee.parent.cgroup.file.inode",
+		"ptrace.tracee.parent.cgroup.file.mount_id",
 		"ptrace.tracee.parent.cgroup.id",
 		"ptrace.tracee.parent.cgroup.manager",
 		"ptrace.tracee.parent.comm",
@@ -18212,6 +18530,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.auid",
 		"signal.target.ancestors.cap_effective",
 		"signal.target.ancestors.cap_permitted",
+		"signal.target.ancestors.cgroup.file.inode",
+		"signal.target.ancestors.cgroup.file.mount_id",
 		"signal.target.ancestors.cgroup.id",
 		"signal.target.ancestors.cgroup.manager",
 		"signal.target.ancestors.comm",
@@ -18290,6 +18610,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.auid",
 		"signal.target.cap_effective",
 		"signal.target.cap_permitted",
+		"signal.target.cgroup.file.inode",
+		"signal.target.cgroup.file.mount_id",
 		"signal.target.cgroup.id",
 		"signal.target.cgroup.manager",
 		"signal.target.comm",
@@ -18359,6 +18681,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.auid",
 		"signal.target.parent.cap_effective",
 		"signal.target.parent.cap_permitted",
+		"signal.target.parent.cgroup.file.inode",
+		"signal.target.parent.cgroup.file.mount_id",
 		"signal.target.parent.cgroup.id",
 		"signal.target.parent.cgroup.manager",
 		"signal.target.parent.comm",
@@ -18548,6 +18872,10 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Capset.CapEffective), nil
 	case "capset.cap_permitted":
 		return int(ev.Capset.CapPermitted), nil
+	case "cgroup.file.inode":
+		return int(ev.CGroupContext.CGroupFile.Inode), nil
+	case "cgroup.file.mount_id":
+		return int(ev.CGroupContext.CGroupFile.MountID), nil
 	case "cgroup.id":
 		return ev.FieldHandlers.ResolveCGroupID(ev, &ev.CGroupContext), nil
 	case "cgroup.manager":
@@ -18754,6 +19082,10 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Exec.Process.Credentials.CapEffective), nil
 	case "exec.cap_permitted":
 		return int(ev.Exec.Process.Credentials.CapPermitted), nil
+	case "exec.cgroup.file.inode":
+		return int(ev.Exec.Process.CGroup.CGroupFile.Inode), nil
+	case "exec.cgroup.file.mount_id":
+		return int(ev.Exec.Process.CGroup.CGroupFile.MountID), nil
 	case "exec.cgroup.id":
 		return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Exec.Process.CGroup), nil
 	case "exec.cgroup.manager":
@@ -19022,6 +19354,10 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Exit.Process.Credentials.CapPermitted), nil
 	case "exit.cause":
 		return int(ev.Exit.Cause), nil
+	case "exit.cgroup.file.inode":
+		return int(ev.Exit.Process.CGroup.CGroupFile.Inode), nil
+	case "exit.cgroup.file.mount_id":
+		return int(ev.Exit.Process.CGroup.CGroupFile.MountID), nil
 	case "exit.cgroup.id":
 		return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Exit.Process.CGroup), nil
 	case "exit.cgroup.manager":
@@ -19730,6 +20066,30 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
 			result := int(element.ProcessContext.Process.Credentials.CapPermitted)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.cgroup.file.inode":
+		var values []int
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.CGroup.CGroupFile.Inode)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.cgroup.file.mount_id":
+		var values []int
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.CGroup.CGroupFile.MountID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -20580,6 +20940,10 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.BaseEvent.ProcessContext.Process.Credentials.CapEffective), nil
 	case "process.cap_permitted":
 		return int(ev.BaseEvent.ProcessContext.Process.Credentials.CapPermitted), nil
+	case "process.cgroup.file.inode":
+		return int(ev.BaseEvent.ProcessContext.Process.CGroup.CGroupFile.Inode), nil
+	case "process.cgroup.file.mount_id":
+		return int(ev.BaseEvent.ProcessContext.Process.CGroup.CGroupFile.MountID), nil
 	case "process.cgroup.id":
 		return ev.FieldHandlers.ResolveCGroupID(ev, &ev.BaseEvent.ProcessContext.Process.CGroup), nil
 	case "process.cgroup.manager":
@@ -20853,6 +21217,16 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return 0, &eval.ErrNotSupported{Field: field}
 		}
 		return int(ev.BaseEvent.ProcessContext.Parent.Credentials.CapPermitted), nil
+	case "process.parent.cgroup.file.inode":
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return 0, &eval.ErrNotSupported{Field: field}
+		}
+		return int(ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupFile.Inode), nil
+	case "process.parent.cgroup.file.mount_id":
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return 0, &eval.ErrNotSupported{Field: field}
+		}
+		return int(ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupFile.MountID), nil
 	case "process.parent.cgroup.id":
 		if !ev.BaseEvent.ProcessContext.HasParent() {
 			return "", &eval.ErrNotSupported{Field: field}
@@ -21420,6 +21794,30 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
 			result := int(element.ProcessContext.Process.Credentials.CapPermitted)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "ptrace.tracee.ancestors.cgroup.file.inode":
+		var values []int
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.CGroup.CGroupFile.Inode)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "ptrace.tracee.ancestors.cgroup.file.mount_id":
+		var values []int
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.CGroup.CGroupFile.MountID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -22270,6 +22668,10 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.PTrace.Tracee.Process.Credentials.CapEffective), nil
 	case "ptrace.tracee.cap_permitted":
 		return int(ev.PTrace.Tracee.Process.Credentials.CapPermitted), nil
+	case "ptrace.tracee.cgroup.file.inode":
+		return int(ev.PTrace.Tracee.Process.CGroup.CGroupFile.Inode), nil
+	case "ptrace.tracee.cgroup.file.mount_id":
+		return int(ev.PTrace.Tracee.Process.CGroup.CGroupFile.MountID), nil
 	case "ptrace.tracee.cgroup.id":
 		return ev.FieldHandlers.ResolveCGroupID(ev, &ev.PTrace.Tracee.Process.CGroup), nil
 	case "ptrace.tracee.cgroup.manager":
@@ -22543,6 +22945,16 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return 0, &eval.ErrNotSupported{Field: field}
 		}
 		return int(ev.PTrace.Tracee.Parent.Credentials.CapPermitted), nil
+	case "ptrace.tracee.parent.cgroup.file.inode":
+		if !ev.PTrace.Tracee.HasParent() {
+			return 0, &eval.ErrNotSupported{Field: field}
+		}
+		return int(ev.PTrace.Tracee.Parent.CGroup.CGroupFile.Inode), nil
+	case "ptrace.tracee.parent.cgroup.file.mount_id":
+		if !ev.PTrace.Tracee.HasParent() {
+			return 0, &eval.ErrNotSupported{Field: field}
+		}
+		return int(ev.PTrace.Tracee.Parent.CGroup.CGroupFile.MountID), nil
 	case "ptrace.tracee.parent.cgroup.id":
 		if !ev.PTrace.Tracee.HasParent() {
 			return "", &eval.ErrNotSupported{Field: field}
@@ -23362,6 +23774,30 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
 			result := int(element.ProcessContext.Process.Credentials.CapPermitted)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "signal.target.ancestors.cgroup.file.inode":
+		var values []int
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.CGroup.CGroupFile.Inode)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "signal.target.ancestors.cgroup.file.mount_id":
+		var values []int
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.CGroup.CGroupFile.MountID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -24212,6 +24648,10 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Signal.Target.Process.Credentials.CapEffective), nil
 	case "signal.target.cap_permitted":
 		return int(ev.Signal.Target.Process.Credentials.CapPermitted), nil
+	case "signal.target.cgroup.file.inode":
+		return int(ev.Signal.Target.Process.CGroup.CGroupFile.Inode), nil
+	case "signal.target.cgroup.file.mount_id":
+		return int(ev.Signal.Target.Process.CGroup.CGroupFile.MountID), nil
 	case "signal.target.cgroup.id":
 		return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Signal.Target.Process.CGroup), nil
 	case "signal.target.cgroup.manager":
@@ -24485,6 +24925,16 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return 0, &eval.ErrNotSupported{Field: field}
 		}
 		return int(ev.Signal.Target.Parent.Credentials.CapPermitted), nil
+	case "signal.target.parent.cgroup.file.inode":
+		if !ev.Signal.Target.HasParent() {
+			return 0, &eval.ErrNotSupported{Field: field}
+		}
+		return int(ev.Signal.Target.Parent.CGroup.CGroupFile.Inode), nil
+	case "signal.target.parent.cgroup.file.mount_id":
+		if !ev.Signal.Target.HasParent() {
+			return 0, &eval.ErrNotSupported{Field: field}
+		}
+		return int(ev.Signal.Target.Parent.CGroup.CGroupFile.MountID), nil
 	case "signal.target.parent.cgroup.id":
 		if !ev.Signal.Target.HasParent() {
 			return "", &eval.ErrNotSupported{Field: field}
@@ -25125,6 +25575,10 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "capset", nil
 	case "capset.cap_permitted":
 		return "capset", nil
+	case "cgroup.file.inode":
+		return "*", nil
+	case "cgroup.file.mount_id":
+		return "*", nil
 	case "cgroup.id":
 		return "*", nil
 	case "cgroup.manager":
@@ -25331,6 +25785,10 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 	case "exec.cap_permitted":
 		return "exec", nil
+	case "exec.cgroup.file.inode":
+		return "exec", nil
+	case "exec.cgroup.file.mount_id":
+		return "exec", nil
 	case "exec.cgroup.id":
 		return "exec", nil
 	case "exec.cgroup.manager":
@@ -25490,6 +25948,10 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exit.cap_permitted":
 		return "exit", nil
 	case "exit.cause":
+		return "exit", nil
+	case "exit.cgroup.file.inode":
+		return "exit", nil
+	case "exit.cgroup.file.mount_id":
 		return "exit", nil
 	case "exit.cgroup.id":
 		return "exit", nil
@@ -26005,6 +26467,10 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.ancestors.cap_permitted":
 		return "*", nil
+	case "process.ancestors.cgroup.file.inode":
+		return "*", nil
+	case "process.ancestors.cgroup.file.mount_id":
+		return "*", nil
 	case "process.ancestors.cgroup.id":
 		return "*", nil
 	case "process.ancestors.cgroup.manager":
@@ -26161,6 +26627,10 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.cap_permitted":
 		return "*", nil
+	case "process.cgroup.file.inode":
+		return "*", nil
+	case "process.cgroup.file.mount_id":
+		return "*", nil
 	case "process.cgroup.id":
 		return "*", nil
 	case "process.cgroup.manager":
@@ -26298,6 +26768,10 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.parent.cap_effective":
 		return "*", nil
 	case "process.parent.cap_permitted":
+		return "*", nil
+	case "process.parent.cgroup.file.inode":
+		return "*", nil
+	case "process.parent.cgroup.file.mount_id":
 		return "*", nil
 	case "process.parent.cgroup.id":
 		return "*", nil
@@ -26477,6 +26951,10 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.cap_permitted":
 		return "ptrace", nil
+	case "ptrace.tracee.ancestors.cgroup.file.inode":
+		return "ptrace", nil
+	case "ptrace.tracee.ancestors.cgroup.file.mount_id":
+		return "ptrace", nil
 	case "ptrace.tracee.ancestors.cgroup.id":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.cgroup.manager":
@@ -26633,6 +27111,10 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.cap_permitted":
 		return "ptrace", nil
+	case "ptrace.tracee.cgroup.file.inode":
+		return "ptrace", nil
+	case "ptrace.tracee.cgroup.file.mount_id":
+		return "ptrace", nil
 	case "ptrace.tracee.cgroup.id":
 		return "ptrace", nil
 	case "ptrace.tracee.cgroup.manager":
@@ -26770,6 +27252,10 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "ptrace.tracee.parent.cap_effective":
 		return "ptrace", nil
 	case "ptrace.tracee.parent.cap_permitted":
+		return "ptrace", nil
+	case "ptrace.tracee.parent.cgroup.file.inode":
+		return "ptrace", nil
+	case "ptrace.tracee.parent.cgroup.file.mount_id":
 		return "ptrace", nil
 	case "ptrace.tracee.parent.cgroup.id":
 		return "ptrace", nil
@@ -27201,6 +27687,10 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.ancestors.cap_permitted":
 		return "signal", nil
+	case "signal.target.ancestors.cgroup.file.inode":
+		return "signal", nil
+	case "signal.target.ancestors.cgroup.file.mount_id":
+		return "signal", nil
 	case "signal.target.ancestors.cgroup.id":
 		return "signal", nil
 	case "signal.target.ancestors.cgroup.manager":
@@ -27357,6 +27847,10 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.cap_permitted":
 		return "signal", nil
+	case "signal.target.cgroup.file.inode":
+		return "signal", nil
+	case "signal.target.cgroup.file.mount_id":
+		return "signal", nil
 	case "signal.target.cgroup.id":
 		return "signal", nil
 	case "signal.target.cgroup.manager":
@@ -27494,6 +27988,10 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "signal.target.parent.cap_effective":
 		return "signal", nil
 	case "signal.target.parent.cap_permitted":
+		return "signal", nil
+	case "signal.target.parent.cgroup.file.inode":
+		return "signal", nil
+	case "signal.target.parent.cgroup.file.mount_id":
 		return "signal", nil
 	case "signal.target.parent.cgroup.id":
 		return "signal", nil
@@ -27832,6 +28330,10 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "capset.cap_permitted":
 		return reflect.Int, nil
+	case "cgroup.file.inode":
+		return reflect.Int, nil
+	case "cgroup.file.mount_id":
+		return reflect.Int, nil
 	case "cgroup.id":
 		return reflect.String, nil
 	case "cgroup.manager":
@@ -28038,6 +28540,10 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exec.cap_permitted":
 		return reflect.Int, nil
+	case "exec.cgroup.file.inode":
+		return reflect.Int, nil
+	case "exec.cgroup.file.mount_id":
+		return reflect.Int, nil
 	case "exec.cgroup.id":
 		return reflect.String, nil
 	case "exec.cgroup.manager":
@@ -28197,6 +28703,10 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "exit.cap_permitted":
 		return reflect.Int, nil
 	case "exit.cause":
+		return reflect.Int, nil
+	case "exit.cgroup.file.inode":
+		return reflect.Int, nil
+	case "exit.cgroup.file.mount_id":
 		return reflect.Int, nil
 	case "exit.cgroup.id":
 		return reflect.String, nil
@@ -28712,6 +29222,10 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.ancestors.cap_permitted":
 		return reflect.Int, nil
+	case "process.ancestors.cgroup.file.inode":
+		return reflect.Int, nil
+	case "process.ancestors.cgroup.file.mount_id":
+		return reflect.Int, nil
 	case "process.ancestors.cgroup.id":
 		return reflect.String, nil
 	case "process.ancestors.cgroup.manager":
@@ -28868,6 +29382,10 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.cap_permitted":
 		return reflect.Int, nil
+	case "process.cgroup.file.inode":
+		return reflect.Int, nil
+	case "process.cgroup.file.mount_id":
+		return reflect.Int, nil
 	case "process.cgroup.id":
 		return reflect.String, nil
 	case "process.cgroup.manager":
@@ -29005,6 +29523,10 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "process.parent.cap_effective":
 		return reflect.Int, nil
 	case "process.parent.cap_permitted":
+		return reflect.Int, nil
+	case "process.parent.cgroup.file.inode":
+		return reflect.Int, nil
+	case "process.parent.cgroup.file.mount_id":
 		return reflect.Int, nil
 	case "process.parent.cgroup.id":
 		return reflect.String, nil
@@ -29184,6 +29706,10 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.cap_permitted":
 		return reflect.Int, nil
+	case "ptrace.tracee.ancestors.cgroup.file.inode":
+		return reflect.Int, nil
+	case "ptrace.tracee.ancestors.cgroup.file.mount_id":
+		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.cgroup.id":
 		return reflect.String, nil
 	case "ptrace.tracee.ancestors.cgroup.manager":
@@ -29340,6 +29866,10 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.cap_permitted":
 		return reflect.Int, nil
+	case "ptrace.tracee.cgroup.file.inode":
+		return reflect.Int, nil
+	case "ptrace.tracee.cgroup.file.mount_id":
+		return reflect.Int, nil
 	case "ptrace.tracee.cgroup.id":
 		return reflect.String, nil
 	case "ptrace.tracee.cgroup.manager":
@@ -29477,6 +30007,10 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "ptrace.tracee.parent.cap_effective":
 		return reflect.Int, nil
 	case "ptrace.tracee.parent.cap_permitted":
+		return reflect.Int, nil
+	case "ptrace.tracee.parent.cgroup.file.inode":
+		return reflect.Int, nil
+	case "ptrace.tracee.parent.cgroup.file.mount_id":
 		return reflect.Int, nil
 	case "ptrace.tracee.parent.cgroup.id":
 		return reflect.String, nil
@@ -29908,6 +30442,10 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.ancestors.cap_permitted":
 		return reflect.Int, nil
+	case "signal.target.ancestors.cgroup.file.inode":
+		return reflect.Int, nil
+	case "signal.target.ancestors.cgroup.file.mount_id":
+		return reflect.Int, nil
 	case "signal.target.ancestors.cgroup.id":
 		return reflect.String, nil
 	case "signal.target.ancestors.cgroup.manager":
@@ -30064,6 +30602,10 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.cap_permitted":
 		return reflect.Int, nil
+	case "signal.target.cgroup.file.inode":
+		return reflect.Int, nil
+	case "signal.target.cgroup.file.mount_id":
+		return reflect.Int, nil
 	case "signal.target.cgroup.id":
 		return reflect.String, nil
 	case "signal.target.cgroup.manager":
@@ -30201,6 +30743,10 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "signal.target.parent.cap_effective":
 		return reflect.Int, nil
 	case "signal.target.parent.cap_permitted":
+		return reflect.Int, nil
+	case "signal.target.parent.cgroup.file.inode":
+		return reflect.Int, nil
+	case "signal.target.parent.cgroup.file.mount_id":
 		return reflect.Int, nil
 	case "signal.target.parent.cgroup.id":
 		return reflect.String, nil
@@ -30618,6 +31164,20 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Capset.CapPermitted"}
 		}
 		ev.Capset.CapPermitted = uint64(rv)
+		return nil
+	case "cgroup.file.inode":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "CGroupContext.CGroupFile.Inode"}
+		}
+		ev.CGroupContext.CGroupFile.Inode = uint64(rv)
+		return nil
+	case "cgroup.file.mount_id":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "CGroupContext.CGroupFile.MountID"}
+		}
+		ev.CGroupContext.CGroupFile.MountID = uint32(rv)
 		return nil
 	case "cgroup.id":
 		rv, ok := value.(string)
@@ -31364,6 +31924,26 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.CapPermitted"}
 		}
 		ev.Exec.Process.Credentials.CapPermitted = uint64(rv)
+		return nil
+	case "exec.cgroup.file.inode":
+		if ev.Exec.Process == nil {
+			ev.Exec.Process = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.CGroup.CGroupFile.Inode"}
+		}
+		ev.Exec.Process.CGroup.CGroupFile.Inode = uint64(rv)
+		return nil
+	case "exec.cgroup.file.mount_id":
+		if ev.Exec.Process == nil {
+			ev.Exec.Process = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.CGroup.CGroupFile.MountID"}
+		}
+		ev.Exec.Process.CGroup.CGroupFile.MountID = uint32(rv)
 		return nil
 	case "exec.cgroup.id":
 		if ev.Exec.Process == nil {
@@ -32162,6 +32742,26 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Cause"}
 		}
 		ev.Exit.Cause = uint32(rv)
+		return nil
+	case "exit.cgroup.file.inode":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.CGroup.CGroupFile.Inode"}
+		}
+		ev.Exit.Process.CGroup.CGroupFile.Inode = uint64(rv)
+		return nil
+	case "exit.cgroup.file.mount_id":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.CGroup.CGroupFile.MountID"}
+		}
+		ev.Exit.Process.CGroup.CGroupFile.MountID = uint32(rv)
 		return nil
 	case "exit.cgroup.id":
 		if ev.Exit.Process == nil {
@@ -34188,6 +34788,32 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.CapPermitted = uint64(rv)
 		return nil
+	case "process.ancestors.cgroup.file.inode":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.CGroupFile.Inode"}
+		}
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.CGroupFile.Inode = uint64(rv)
+		return nil
+	case "process.ancestors.cgroup.file.mount_id":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.CGroupFile.MountID"}
+		}
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.CGroupFile.MountID = uint32(rv)
+		return nil
 	case "process.ancestors.cgroup.id":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -35179,6 +35805,26 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Process.Credentials.CapPermitted = uint64(rv)
 		return nil
+	case "process.cgroup.file.inode":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.CGroup.CGroupFile.Inode"}
+		}
+		ev.BaseEvent.ProcessContext.Process.CGroup.CGroupFile.Inode = uint64(rv)
+		return nil
+	case "process.cgroup.file.mount_id":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.CGroup.CGroupFile.MountID"}
+		}
+		ev.BaseEvent.ProcessContext.Process.CGroup.CGroupFile.MountID = uint32(rv)
+		return nil
 	case "process.cgroup.id":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -35896,6 +36542,32 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.CapPermitted"}
 		}
 		ev.BaseEvent.ProcessContext.Parent.Credentials.CapPermitted = uint64(rv)
+		return nil
+	case "process.parent.cgroup.file.inode":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.CGroup.CGroupFile.Inode"}
+		}
+		ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupFile.Inode = uint64(rv)
+		return nil
+	case "process.parent.cgroup.file.mount_id":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.CGroup.CGroupFile.MountID"}
+		}
+		ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupFile.MountID = uint32(rv)
 		return nil
 	case "process.parent.cgroup.id":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -37022,6 +37694,32 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.CapPermitted = uint64(rv)
 		return nil
+	case "ptrace.tracee.ancestors.cgroup.file.inode":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.CGroup.CGroupFile.Inode"}
+		}
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.CGroup.CGroupFile.Inode = uint64(rv)
+		return nil
+	case "ptrace.tracee.ancestors.cgroup.file.mount_id":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.CGroup.CGroupFile.MountID"}
+		}
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.CGroup.CGroupFile.MountID = uint32(rv)
+		return nil
 	case "ptrace.tracee.ancestors.cgroup.id":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -38013,6 +38711,26 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.PTrace.Tracee.Process.Credentials.CapPermitted = uint64(rv)
 		return nil
+	case "ptrace.tracee.cgroup.file.inode":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.CGroup.CGroupFile.Inode"}
+		}
+		ev.PTrace.Tracee.Process.CGroup.CGroupFile.Inode = uint64(rv)
+		return nil
+	case "ptrace.tracee.cgroup.file.mount_id":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.CGroup.CGroupFile.MountID"}
+		}
+		ev.PTrace.Tracee.Process.CGroup.CGroupFile.MountID = uint32(rv)
+		return nil
 	case "ptrace.tracee.cgroup.id":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -38730,6 +39448,32 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.CapPermitted"}
 		}
 		ev.PTrace.Tracee.Parent.Credentials.CapPermitted = uint64(rv)
+		return nil
+	case "ptrace.tracee.parent.cgroup.file.inode":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.CGroup.CGroupFile.Inode"}
+		}
+		ev.PTrace.Tracee.Parent.CGroup.CGroupFile.Inode = uint64(rv)
+		return nil
+	case "ptrace.tracee.parent.cgroup.file.mount_id":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.CGroup.CGroupFile.MountID"}
+		}
+		ev.PTrace.Tracee.Parent.CGroup.CGroupFile.MountID = uint32(rv)
 		return nil
 	case "ptrace.tracee.parent.cgroup.id":
 		if ev.PTrace.Tracee == nil {
@@ -40703,6 +41447,32 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Signal.Target.Ancestor.ProcessContext.Process.Credentials.CapPermitted = uint64(rv)
 		return nil
+	case "signal.target.ancestors.cgroup.file.inode":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.CGroup.CGroupFile.Inode"}
+		}
+		ev.Signal.Target.Ancestor.ProcessContext.Process.CGroup.CGroupFile.Inode = uint64(rv)
+		return nil
+	case "signal.target.ancestors.cgroup.file.mount_id":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.CGroup.CGroupFile.MountID"}
+		}
+		ev.Signal.Target.Ancestor.ProcessContext.Process.CGroup.CGroupFile.MountID = uint32(rv)
+		return nil
 	case "signal.target.ancestors.cgroup.id":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -41694,6 +42464,26 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Signal.Target.Process.Credentials.CapPermitted = uint64(rv)
 		return nil
+	case "signal.target.cgroup.file.inode":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.CGroup.CGroupFile.Inode"}
+		}
+		ev.Signal.Target.Process.CGroup.CGroupFile.Inode = uint64(rv)
+		return nil
+	case "signal.target.cgroup.file.mount_id":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.CGroup.CGroupFile.MountID"}
+		}
+		ev.Signal.Target.Process.CGroup.CGroupFile.MountID = uint32(rv)
+		return nil
 	case "signal.target.cgroup.id":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -42411,6 +43201,32 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.CapPermitted"}
 		}
 		ev.Signal.Target.Parent.Credentials.CapPermitted = uint64(rv)
+		return nil
+	case "signal.target.parent.cgroup.file.inode":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.CGroup.CGroupFile.Inode"}
+		}
+		ev.Signal.Target.Parent.CGroup.CGroupFile.Inode = uint64(rv)
+		return nil
+	case "signal.target.parent.cgroup.file.mount_id":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.CGroup.CGroupFile.MountID"}
+		}
+		ev.Signal.Target.Parent.CGroup.CGroupFile.MountID = uint32(rv)
 		return nil
 	case "signal.target.parent.cgroup.id":
 		if ev.Signal.Target == nil {

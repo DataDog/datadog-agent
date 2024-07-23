@@ -28,6 +28,7 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/shirou/gopsutil/v3/process"
 	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -355,6 +356,13 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	id, entry.Process.ContainerID = containerutils.GetCGroupContext(containerID, containerFlags)
 	entry.Process.CGroup.CGroupID = id
 	entry.Process.CGroup.CGroupFlags = containerFlags
+	var fileStats unix.Statx_t
+
+	taskPath := utils.CgroupTaskPath(pid, pid)
+	if err := unix.Statx(unix.AT_FDCWD, taskPath, 0, unix.STATX_ALL, &fileStats); err == nil {
+		entry.Process.CGroup.CGroupFile.MountID = uint32(fileStats.Mnt_id)
+		entry.Process.CGroup.CGroupFile.Inode = fileStats.Ino
+	}
 
 	if entry.FileEvent.IsFileless() {
 		entry.FileEvent.Filesystem = model.TmpFS
@@ -634,6 +642,30 @@ func (p *EBPFResolver) resolve(pid, tid uint32, inode uint64, useProcFS bool) *m
 
 	p.missStats.Inc()
 	return nil
+}
+
+func (p *EBPFResolver) resolveFilePath(e *model.FileFields, pce *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) (string, error) {
+	var (
+		pathnameStr   string
+		err           error
+		maxDepthRetry = 3
+	)
+
+	for maxDepthRetry > 0 {
+		pathnameStr, err = p.pathResolver.ResolveFilePath(e, &pce.PIDContext, ctrCtx)
+		if err == nil {
+			return pathnameStr, nil
+		}
+		parent, exists := p.entryCache[pce.PPid]
+		if !exists {
+			break
+		}
+
+		pce = parent
+		maxDepthRetry--
+	}
+
+	return pathnameStr, err
 }
 
 func (p *EBPFResolver) resolveFileFieldsPath(e *model.FileFields, pce *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) (string, string, model.MountSource, model.MountOrigin, error) {
@@ -1252,7 +1284,7 @@ func (p *EBPFResolver) syncCache(proc *process.Process, filledProc *utils.Filled
 	bootTime := p.timeResolver.GetBootTime()
 
 	// insert new entry in kernel maps
-	procCacheEntryB := make([]byte, 232)
+	procCacheEntryB := make([]byte, 248)
 	_, err := entry.Process.MarshalProcCache(procCacheEntryB, bootTime)
 	if err != nil {
 		seclog.Errorf("couldn't marshal proc_cache entry: %s", err)

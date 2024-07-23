@@ -31,6 +31,11 @@ func init() {
 
 // FindContainerID extracts the first sub string that matches the pattern of a container ID along with the container flags induced from the container runtime prefix
 func FindContainerID(s string) (string, uint64) {
+	// Is it a systemd cgroup ?
+	if strings.HasSuffix(s, ".service") || strings.HasSuffix(s, ".scope") {
+		return "", uint64(model.CGroupManagerSystemd)
+	}
+
 	match := containerIDPattern.FindIndex([]byte(s))
 	if match == nil {
 		return "", 0

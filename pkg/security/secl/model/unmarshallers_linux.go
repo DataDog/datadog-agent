@@ -37,13 +37,18 @@ type BinaryUnmarshaler interface {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *CGroupContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 8 {
+	if len(data) < 8+16 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.CGroupFlags = containerutils.CGroupFlags(binary.NativeEndian.Uint64(data[:8]))
 
-	return 8, nil
+	n, err := e.CGroupFile.UnmarshalBinary(data[8:])
+	if err != nil {
+		return 0, err
+	}
+
+	return 8 + n, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -977,6 +982,16 @@ func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	e.ConfigCookie = binary.NativeEndian.Uint64(data[cursor : cursor+8])
 	return cursor + 8, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *CgroupWriteEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.File)
+	if err != nil {
+		return 0, err
+	}
+
+	return read, nil
 }
 
 // EventUnmarshalBinary unmarshals a binary representation of itself

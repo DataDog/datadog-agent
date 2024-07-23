@@ -35,13 +35,23 @@ func (r *Resolver) ResolveBasename(e *model.FileFields) string {
 }
 
 // ResolveFileFieldsPath resolves an inode/mount ID pair to a full path
-func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, string, model.MountSource, model.MountOrigin, error) {
+func (r *Resolver) ResolveFilePath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error) {
 	pathStr, err := r.dentryResolver.Resolve(e.PathKey, !e.HasHardLinks())
 	if err != nil {
 		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, mount.ErrMountKernelID) {
-			return pathStr, "", model.MountSourceUnknown, model.MountOriginUnknown, &ErrPathResolutionNotCritical{Err: err}
+			return pathStr, &ErrPathResolutionNotCritical{Err: err}
 		}
-		return pathStr, "", model.MountSourceUnknown, model.MountOriginUnknown, &ErrPathResolution{Err: err}
+		return pathStr, &ErrPathResolution{Err: err}
+	}
+
+	return pathStr, nil
+}
+
+// ResolveFileFieldsPath resolves an inode/mount ID pair to a full path along with its mount path
+func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, string, model.MountSource, model.MountOrigin, error) {
+	pathStr, err := r.ResolveFilePath(e, pidCtx, ctrCtx)
+	if err != nil {
+		return pathStr, "", model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
 	if e.IsFileless() {
