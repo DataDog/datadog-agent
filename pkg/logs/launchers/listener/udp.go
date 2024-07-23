@@ -86,16 +86,16 @@ func (l *UDPListener) newUDPConnection() (net.Conn, error) {
 }
 
 // read reads data from the tailer connection, returns an error if it failed and reset the tailer.
-func (l *UDPListener) read(tailer *tailer.Tailer) ([]byte, *net.UDPAddr, error) {
+func (l *UDPListener) read(tailer *tailer.Tailer) ([]byte, string, error) {
 	frame := make([]byte, l.frameSize+1)
 	// Add casting to UDPConn
-	n, ip, err := tailer.Conn.(*net.UDPConn).ReadFromUDP(frame)
+	n, udpAddr, err := tailer.Conn.(*net.UDPConn).ReadFromUDP(frame)
 	switch {
 	case err != nil && isClosedConnError(err):
-		return nil, ip, err
+		return nil, udpAddr.IP.String(), err
 	case err != nil:
 		go l.resetTailer()
-		return nil, ip, err
+		return nil, udpAddr.IP.String(), err
 	default:
 		// make sure all logs are separated by line feeds, otherwise they don't get properly split downstream
 		if n > l.frameSize {
@@ -106,7 +106,7 @@ func (l *UDPListener) read(tailer *tailer.Tailer) ([]byte, *net.UDPAddr, error) 
 			frame[n] = '\n'
 			n++
 		}
-		return frame[:n], ip, nil
+		return frame[:n], udpAddr.IP.String(), nil
 	}
 }
 

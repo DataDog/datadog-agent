@@ -27,14 +27,14 @@ type Tailer struct {
 	source     *sources.LogSource
 	Conn       net.Conn
 	outputChan chan *message.Message
-	read       func(*Tailer) ([]byte, *net.UDPAddr, error)
+	read       func(*Tailer) ([]byte, string, error)
 	decoder    *decoder.Decoder
 	stop       chan struct{}
 	done       chan struct{}
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(source *sources.LogSource, conn net.Conn, outputChan chan *message.Message, read func(*Tailer) ([]byte, *net.UDPAddr, error)) *Tailer {
+func NewTailer(source *sources.LogSource, conn net.Conn, outputChan chan *message.Message, read func(*Tailer) ([]byte, string, error)) *Tailer {
 	return &Tailer{
 		source:     source,
 		Conn:       conn,
@@ -70,23 +70,20 @@ func (t *Tailer) forwardMessages() {
 	for output := range t.decoder.OutputChan {
 		if len(output.GetContent()) > 0 {
 			origin := message.NewOrigin(t.source)
-			remoteAddress := t.Conn.RemoteAddr()
-			_, addr, err := t.read(t)
+			_, ip, err := t.read(t)
 			if err != nil {
 				return
 			}
-			log.Debug("andrewqian", remoteAddress)
-			log.Debug("andrewqian2", addr.IP)
+			log.Debug("andrewqian", ip)
 			copiedTags := make([]string, len(t.source.Config.Tags))
 			copy(copiedTags, t.source.Config.Tags)
-			if remoteAddress != nil && coreConfig.Datadog().GetBool("logs_config.use_sourcehost_tag") {
-				addressWithPort := t.Conn.RemoteAddr().String()
-				lastColonIndex := strings.LastIndex(addressWithPort, ":")
+			if ip != "" && coreConfig.Datadog().GetBool("logs_config.use_sourcehost_tag") {
+				lastColonIndex := strings.LastIndex(ip, ":")
 				var ipAddress string
 				if lastColonIndex != -1 {
-					ipAddress = addressWithPort[:lastColonIndex]
+					ipAddress = ip[:lastColonIndex]
 				} else {
-					ipAddress = addressWithPort
+					ipAddress = ip
 				}
 				sourceHostTag := fmt.Sprintf("source_host:%s", ipAddress)
 				copiedTags = append(copiedTags, sourceHostTag)

@@ -127,7 +127,7 @@ func (l *TCPListener) startListener() error {
 }
 
 // read reads data from connection, returns an error if it failed and stop the tailer.
-func (l *TCPListener) read(tailer *tailer.Tailer) ([]byte, *net.UDPAddr, error) {
+func (l *TCPListener) read(tailer *tailer.Tailer) ([]byte, string, error) {
 	if l.idleTimeout > 0 {
 		tailer.Conn.SetReadDeadline(time.Now().Add(l.idleTimeout)) //nolint:errcheck
 	}
@@ -136,9 +136,9 @@ func (l *TCPListener) read(tailer *tailer.Tailer) ([]byte, *net.UDPAddr, error) 
 	if err != nil {
 		l.source.Status.Error(err)
 		go l.stopTailer(tailer)
-		return nil, nil, err
+		return nil, tailer.Conn.RemoteAddr().String(), err
 	}
-	return frame[:n], nil, nil
+	return frame[:n], "", nil
 }
 
 // startTailer creates and starts a new tailer that reads from the connection.
