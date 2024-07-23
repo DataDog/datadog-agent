@@ -28,6 +28,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
@@ -44,7 +45,7 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 			fx.Replace(config.MockParams{Overrides: confOverrides}),
 			sysprobeconfigimpl.MockModule(),
 			fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeConfOverrides}),
-			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
+			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			authtokenimpl.Module(),
 		),
 	)
@@ -518,7 +519,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 			logimpl.MockModule(),
 			config.MockModule(),
 			sysprobeconfig.NoneModule(),
-			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
+			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			authtokenimpl.Module(),
 		),
 	)

@@ -54,9 +54,6 @@ type Event struct {
 	Exit     ExitEvent     `field:"exit" event:"exit"`     // [7.38] [Process] A process was terminated
 	Syscalls SyscallsEvent `field:"-"`
 
-	// anomaly detection related events
-	AnomalyDetectionSyscallEvent AnomalyDetectionSyscallEvent `field:"-"`
-
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
 	BPF          BPFEvent          `field:"bpf" event:"bpf"`                     // [7.33] [Kernel] A BPF command was executed
@@ -647,12 +644,8 @@ type VethPairEvent struct {
 
 // SyscallsEvent represents a syscalls event
 type SyscallsEvent struct {
-	Syscalls []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
-}
-
-// AnomalyDetectionSyscallEvent represents an anomaly detection for a syscall event
-type AnomalyDetectionSyscallEvent struct {
-	SyscallID Syscall
+	EventReason SyscallDriftEventReason
+	Syscalls    []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
 }
 
 // PathKey identifies an entry in the dentry cache

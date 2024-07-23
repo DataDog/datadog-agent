@@ -513,16 +513,7 @@ func (c *RuntimeSecurityConfig) sanitizeRuntimeSecurityConfigActivityDump() erro
 		c.ActivityDumpTracedCgroupsCount = model.MaxTracedCgroupsCount
 	}
 
-	hasProfileStorageFormat := false
-	for _, format := range c.ActivityDumpLocalStorageFormats {
-		hasProfileStorageFormat = hasProfileStorageFormat || format == Profile
-	}
-
-	if c.SecurityProfileEnabled && !hasProfileStorageFormat {
-		return fmt.Errorf("'profile' storage format has to be enabled when using security profiles, got only formats: %v", c.ActivityDumpLocalStorageFormats)
-	}
-
-	if c.SecurityProfileEnabled && c.ActivityDumpLocalStorageDirectory != c.SecurityProfileDir {
+	if c.SecurityProfileEnabled && c.ActivityDumpEnabled && c.ActivityDumpLocalStorageDirectory != c.SecurityProfileDir {
 		return fmt.Errorf("activity dumps storage directory '%s' has to be the same than security profile storage directory '%s'", c.ActivityDumpLocalStorageDirectory, c.SecurityProfileDir)
 	}
 

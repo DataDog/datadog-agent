@@ -655,3 +655,17 @@ def load_context(context):
             return [list(j.items())]
         except json.JSONDecodeError as e:
             raise Exit(f"Invalid context: {context}, must be a valid json, or a path to a yaml file", 1) from e
+
+
+def retrieve_all_paths(yaml):
+    if isinstance(yaml, dict):
+        for key, value in yaml.items():
+            if key == "changes":
+                if isinstance(value, list):
+                    yield from value
+                elif "paths" in value:
+                    yield from value["paths"]
+            yield from retrieve_all_paths(value)
+    elif isinstance(yaml, list):
+        for item in yaml:
+            yield from retrieve_all_paths(item)

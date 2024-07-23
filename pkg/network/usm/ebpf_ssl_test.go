@@ -42,7 +42,7 @@ func testArch(t *testing.T, arch string) {
 	require.NoError(t, err)
 
 	if arch == runtime.GOARCH {
-		utils.WaitForProgramsToBeTraced(t, "shared_libraries", cmd.Process.Pid)
+		utils.WaitForProgramsToBeTraced(t, "shared_libraries", cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 	} else {
 		utils.WaitForPathToBeBlocked(t, "shared_libraries", lib)
 	}

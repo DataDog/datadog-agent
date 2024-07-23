@@ -81,11 +81,12 @@ func runDockerServer(t testing.TB, serverName, dockerPath string, env []string, 
 	t.Cleanup(func() {
 		cancel()
 		_ = cmd.Wait()
+		timedContext, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
 
-		c := exec.Command("docker-compose", "-f", dockerPath, "down", "--remove-orphans", "--volumes")
+		c := exec.CommandContext(timedContext, "docker-compose", "-f", dockerPath, "down", "--remove-orphans", "--volumes")
 		c.Env = append(c.Env, env...)
-		// Not waiting for its finish.
-		_ = c.Start()
+		_ = c.Run() // We need to wait for the command to finish so that the docker containers get cleaned up properly before another docker-compose up call
 	})
 
 	for {
