@@ -719,7 +719,8 @@ def generate_complexity_summary_for_pr(ctx: Context):
             print(f"Error: Branch data not found for {branch_data_path}, skipping")
             continue
 
-        name_parts = folder_name.split('-')
+        # Don't care about the splits at the last part of the name (security-agent, system-probe, etc)
+        name_parts = folder_name.split('-', 4)
         if len(name_parts) != 5:
             print(f"Error: Invalid folder name {folder_name}, skipping")
             continue
@@ -792,7 +793,7 @@ def generate_complexity_summary_for_pr(ctx: Context):
                 programs_now_above_limit += 1
 
             abs_change = new_complexity - old_complexity
-            max_complexity_rel_change = max(abs_change / old_complexity)
+            max_complexity_rel_change = max(max_complexity_rel_change, abs_change / old_complexity)
             max_complexity_abs_change = max(max_complexity_abs_change, abs_change)
 
         avg_new_complexity /= len(entries)
@@ -839,6 +840,11 @@ def generate_complexity_summary_for_pr(ctx: Context):
 
 def _format_change(new: float, old: float):
     change_abs = new - old
-    change_rel = change_abs / old
 
-    return f"{new} ({change_abs:+}, {change_rel * 100:+.2%}%)"
+    if old == 0:
+        change_rel_str = "[NEW]"
+    else:
+        change_rel = change_abs / old
+        change_rel_str = f"{change_rel * 100:+.2%}%"
+
+    return f"{new} ({change_abs:+}, {change_rel_str})"
