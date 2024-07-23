@@ -10,7 +10,11 @@ import tempfile
 
 from invoke import task
 
-from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+from tasks.libs.ciproviders.gitlab_api import (
+    get_gitlab_ci_configuration,
+    get_gitlab_repo,
+    print_gitlab_ci_configuration,
+)
 from tasks.libs.civisibility import (
     get_pipeline_link_to_job_id,
     get_pipeline_link_to_job_on_main,
@@ -129,3 +133,32 @@ def print_job(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_
         return repo.jobs.get(id)
 
     print_gitlab_object(get_job, ctx, ids, repo, jq, jq_colors)
+
+
+@task
+def print_ci(
+    ctx,
+    input_file: str = '.gitlab-ci.yml',
+    job: str | None = None,
+    sort: bool = False,
+    clean: bool = True,
+    expand_matrix: bool = False,
+    git_ref: str | None = None,
+    ignore_errors: bool = False,
+):
+    """
+    Prints the full gitlab ci configuration.
+
+    - job: If provided, print only one job
+    - clean: Apply post processing to make output more readable (remove extends, flatten lists of lists...)
+    - expand_matrix: Will expand matrix jobs into multiple jobs
+    - ignore_errors: If True, ignore errors in the gitlab configuration (only process yaml)
+    - git_ref: If provided, use this git reference to fetch the configuration
+    - NOTE: This requires a full api token access level to the repository
+    """
+    yml = get_gitlab_ci_configuration(
+        ctx, input_file, job=job, clean=clean, expand_matrix=expand_matrix, git_ref=git_ref, ignore_errors=ignore_errors
+    )
+
+    # Print
+    print_gitlab_ci_configuration(yml, sort_jobs=sort)

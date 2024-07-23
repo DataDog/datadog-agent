@@ -7,7 +7,9 @@ import re
 import subprocess
 import sys
 from collections import UserList
+from copy import deepcopy
 from difflib import Differ
+from itertools import product
 
 import gitlab
 import yaml
@@ -392,6 +394,60 @@ def filter_gitlab_ci_configuration(yml: dict, job: str | None = None) -> dict:
     return {node[0]: node[1] for node in (filter_yaml(k, v) for k, v in yml.items()) if node is not None}
 
 
+def expand_matrix_jobs(yml: dict) -> dict:
+    """
+    Will expand matrix jobs into multiple jobs
+    """
+    new_jobs = {}
+    to_remove = set()
+    for job in yml:
+        if 'parallel' in yml[job] and 'matrix' in yml[job]['parallel']:
+            to_remove.add(job)
+            for arg in yml[job]['parallel']['matrix']:
+                # arg: dict[str, (str | list[str])]
+
+                # Convert single values to list singletons
+                arg_strict: dict[str, list[str]] = {
+                    key: [value] if not isinstance(value, list) else value for key, value in arg.items()
+                }
+
+                # {key1: [val1, val2], key2: [val3]} -> [[(key, val1), (key, val2)], [(key2, val3)]]
+                job_vars = [[(key, val) for val in value] for key, value in arg_strict.items()]
+
+                # Make all possible matrix combinations of variables (the product order is deterministic)
+                job_values = [[value for (_, value) in spec] for spec in job_vars]
+                job_keys = [[key for (key, _) in spec] for spec in job_vars]
+                job_values = list(product(*job_values))
+                job_keys = list(product(*job_keys))
+
+                # List of (key, value) for each new job
+                job_vars = [list(zip(k, v, strict=True)) for (k, v) in zip(job_keys, job_values, strict=True)]
+
+                # Create names
+                job_names = [', '.join(str(value) for value in spec) for spec in job_values]
+                job_names = [f'{job}: [{specs}]' for specs in job_names]
+
+                for variables, name in zip(job_vars, job_names, strict=True):
+                    new_job = deepcopy(yml[job])
+
+                    # Update variables
+                    new_job['variables'] = {**new_job.get('variables', {}), **dict(variables)}
+
+                    # Remove matrix config for the new jobs
+                    del new_job['parallel']['matrix']
+                    if not new_job['parallel']:
+                        del new_job['parallel']
+
+                    new_jobs[name] = new_job
+
+    for job in to_remove:
+        del yml[job]
+
+    yml.update(new_jobs)
+
+    return yml
+
+
 def print_gitlab_ci_configuration(yml: dict, sort_jobs: bool):
     """
     Prints a gitlab ci as yaml.
@@ -448,10 +504,13 @@ def get_gitlab_ci_configuration(
     ignore_errors: bool = False,
     job: str | None = None,
     clean: bool = True,
+    expand_matrix: bool = False,
     git_ref: str | None = None,
 ) -> dict:
     """
     Creates, filters and processes the gitlab-ci configuration
+
+    - expand_matrix: Will expand matrix jobs into multiple jobs
     """
 
     # Make full configuration
@@ -463,6 +522,10 @@ def get_gitlab_ci_configuration(
     # Clean
     if clean:
         yml = clean_gitlab_ci_configuration(yml)
+
+    # Expand matrix
+    if expand_matrix:
+        yml = expand_matrix_jobs(yml)
 
     return yml
 
