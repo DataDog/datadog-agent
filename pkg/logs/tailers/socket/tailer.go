@@ -12,6 +12,7 @@ import (
 	"net"
 	"strings"
 
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -26,14 +27,14 @@ type Tailer struct {
 	source     *sources.LogSource
 	Conn       net.Conn
 	outputChan chan *message.Message
-	read       func(*Tailer) ([]byte, error)
+	read       func(*Tailer) ([]byte, net.UDPAddr, error)
 	decoder    *decoder.Decoder
 	stop       chan struct{}
 	done       chan struct{}
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(source *sources.LogSource, conn net.Conn, outputChan chan *message.Message, read func(*Tailer) ([]byte, error)) *Tailer {
+func NewTailer(source *sources.LogSource, conn net.Conn, outputChan chan *message.Message, read func(*Tailer) ([]byte, net.UDPAddr, error)) *Tailer {
 	return &Tailer{
 		source:     source,
 		Conn:       conn,
@@ -70,11 +71,15 @@ func (t *Tailer) forwardMessages() {
 		if len(output.GetContent()) > 0 {
 			origin := message.NewOrigin(t.source)
 			remoteAddress := t.Conn.RemoteAddr()
+			_, addr, err := t.read(t)
+			if err != nil {
+				return
+			}
 			log.Debug("andrewqian", remoteAddress)
+			log.Debug("andrewqian2", addr.IP)
 			copiedTags := make([]string, len(t.source.Config.Tags))
 			copy(copiedTags, t.source.Config.Tags)
-			if remoteAddress != nil {
-				// if remoteAddress != nil && coreConfig.Datadog().GetBool("logs_config.use_sourcehost_tag") {
+			if remoteAddress != nil && coreConfig.Datadog().GetBool("logs_config.use_sourcehost_tag") {
 				addressWithPort := t.Conn.RemoteAddr().String()
 				lastColonIndex := strings.LastIndex(addressWithPort, ":")
 				var ipAddress string
@@ -104,7 +109,7 @@ func (t *Tailer) readForever() {
 			// stop reading data from the connection
 			return
 		default:
-			data, err := t.read(t)
+			data, _, err := t.read(t)
 			if err != nil && err == io.EOF {
 				// connection has been closed client-side, stop from reading new data
 				return
