@@ -847,8 +847,16 @@ def _format_change(new: float, old: float):
 
     if old == 0:
         change_rel_str = "[NEW]"
+        emoji = "🔵"
     else:
         change_rel = change_abs / old
-        change_rel_str = f"{change_rel * 100:+.2%}%"
+        change_rel_str = f"{change_rel * 100:+.2%}"
 
-    return f"{new} ({change_abs:+}, {change_rel_str})"
+        if change_rel == 0:
+            emoji = "⚪"
+        elif change_rel < 0:
+            emoji = "🟢"
+        else:
+            emoji = "🔴"
+
+    return f"{emoji} {new} ({change_abs:+}, {change_rel_str})"
