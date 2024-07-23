@@ -49,9 +49,9 @@ func (d *DetectedPattern) Get() *regexp.Regexp {
 	return d.pattern
 }
 
-// AutoMultilineHandler can attempts to detect a known/commob pattern (a timestamp) in the logs
+// LegacyAutoMultilineHandler can attempts to detect a known/commob pattern (a timestamp) in the logs
 // and will switch to a MultiLine handler if one is detected and the thresholds are met.
-type AutoMultilineHandler struct {
+type LegacyAutoMultilineHandler struct {
 	multiLineHandler    *MultiLineHandler
 	singleLineHandler   *SingleLineHandler
 	outputFn            func(*message.Message)
@@ -72,8 +72,8 @@ type AutoMultilineHandler struct {
 	tailerInfo          *status.InfoRegistry
 }
 
-// NewAutoMultilineHandler returns a new AutoMultilineHandler.
-func NewAutoMultilineHandler(
+// NewLegacyAutoMultilineHandler returns a new LegacyAutoMultilineHandler.
+func NewLegacyAutoMultilineHandler(
 	outputFn func(*message.Message),
 	lineLimit, linesToAssess int,
 	matchThreshold float64,
@@ -83,7 +83,7 @@ func NewAutoMultilineHandler(
 	additionalPatterns []*regexp.Regexp,
 	detectedPattern *DetectedPattern,
 	tailerInfo *status.InfoRegistry,
-) *AutoMultilineHandler {
+) *LegacyAutoMultilineHandler {
 
 	// Put the user patterns at the beginning of the list so we prioritize them if there is a conflicting match.
 	patterns := append(additionalPatterns, formatsToTry...)
@@ -95,7 +95,7 @@ func NewAutoMultilineHandler(
 			regexp: v,
 		}
 	}
-	h := &AutoMultilineHandler{
+	h := &LegacyAutoMultilineHandler{
 		outputFn:            outputFn,
 		isRunning:           true,
 		lineLimit:           lineLimit,
@@ -120,18 +120,18 @@ func NewAutoMultilineHandler(
 	return h
 }
 
-func (h *AutoMultilineHandler) process(message *message.Message) {
+func (h *LegacyAutoMultilineHandler) process(message *message.Message) {
 	h.processFunc(message)
 }
 
-func (h *AutoMultilineHandler) flushChan() <-chan time.Time {
+func (h *LegacyAutoMultilineHandler) flushChan() <-chan time.Time {
 	if h.singleLineHandler != nil {
 		return h.singleLineHandler.flushChan()
 	}
 	return h.multiLineHandler.flushChan()
 }
 
-func (h *AutoMultilineHandler) flush() {
+func (h *LegacyAutoMultilineHandler) flush() {
 	if h.singleLineHandler != nil {
 		h.singleLineHandler.flush()
 	} else {
@@ -139,7 +139,7 @@ func (h *AutoMultilineHandler) flush() {
 	}
 }
 
-func (h *AutoMultilineHandler) processAndTry(message *message.Message) {
+func (h *LegacyAutoMultilineHandler) processAndTry(message *message.Message) {
 	// Process message before anything else
 	h.singleLineHandler.process(message)
 
@@ -202,7 +202,7 @@ func (h *AutoMultilineHandler) processAndTry(message *message.Message) {
 	}
 }
 
-func (h *AutoMultilineHandler) switchToMultilineHandler(r *regexp.Regexp) {
+func (h *LegacyAutoMultilineHandler) switchToMultilineHandler(r *regexp.Regexp) {
 	h.isRunning = false
 	h.singleLineHandler = nil
 
