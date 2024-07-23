@@ -60,7 +60,7 @@ fi
 # have *NOT* been installed by the package (eg: installed using the `integration` command).
 
 if [ -f "$INSTALL_DIR/embedded/.installed_by_pkg.txt" ]; then
-    echo "Removing integrations installed with the 'agent integration' command"
+    echo "Removing integrations installed with the 'agent integration' commandbbb"
 
     # List all files in the embedded dir of the datadog-agent install dir
     PREV_DIR=$(pwd)
