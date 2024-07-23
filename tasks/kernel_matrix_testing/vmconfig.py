@@ -716,6 +716,7 @@ def gen_config(
     memory: str,
     new: bool,
     ci: bool,
+    arch: str,
     output_file: PathOrStr,
     template: Component,
     yes: bool = False,
@@ -733,7 +734,11 @@ def gen_config(
             ctx, stack, vms, set_ls, init_stack, ls_to_int(vcpu_ls), ls_to_int(memory_ls), new, ci, template, yes=yes
         )
 
-    vms_to_generate = list_all_distro_normalized_vms(KMT_SUPPORTED_ARCHS, template)
+    arch_ls: list[KMTArchName] = KMT_SUPPORTED_ARCHS
+    if arch != "":
+        arch_ls = [Arch.from_str(arch).kmt_arch]
+
+    vms_to_generate = list_all_distro_normalized_vms(arch_ls, template)
     vm_config = generate_vmconfig(
         {"vmsets": []}, vms_to_generate, ls_to_int(vcpu_ls), ls_to_int(memory_ls), set_ls, ci, template
     )
