@@ -167,8 +167,6 @@ def setup_settings(_):
             print("Skipping...")
             return
 
-    assert template.exists(), f"Template file {template} does not exist"
-
     build_tags = sorted(compute_config_build_tags())
     with open(template) as template_f, open(settings, "w") as settings_f:
         vscode_config_template = template_f.read()

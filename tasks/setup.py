@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 import re
 import sys
+import traceback
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -17,7 +18,6 @@ from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.status import Status
-from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import running_in_pyapp
 
 if TYPE_CHECKING:
@@ -34,7 +34,7 @@ class SetupResult:
 
 
 @task(default=True)
-def setup(ctx):
+def setup(ctx, vscode=False):
     """
     Set up your environment
     """
@@ -46,8 +46,14 @@ def setup(ctx):
         download_go_tools,
         install_go_tools,
         enable_pre_commit,
-        setup_vscode,
     ]
+
+    if vscode:
+        setup_functions.append(setup_vscode)
+    else:
+        print(
+            f'{color_message("warning:", Color.ORANGE)} Skipping vscode setup, run `inv setup --vscode` to setup vscode as well'
+        )
 
     results = []
 
@@ -208,14 +214,14 @@ def enable_pre_commit(ctx) -> SetupResult:
 def setup_vscode(ctx) -> SetupResult:
     print(color_message("Setting up VS Code...", Color.BLUE))
 
-    status = Status.OK
-    message = ""
-
-    if yes_no_question("Do you want to set up VS Code?", default=True):
+    try:
         vscode.setup(ctx)
         message = "VS Code setup completed."
-    else:
-        message = "Skipping VS Code setup."
+        status = Status.OK
+    except Exception:
+        trace = traceback.format_exc()
+        message = f'VS Code setup failed:\n{trace}'
+        status = Status.FAIL
 
     return SetupResult("Setup vscode", status, message)
 
