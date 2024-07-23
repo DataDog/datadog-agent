@@ -311,6 +311,6 @@ notify_ebpf_complexity_changes:
   allow_failure: true
   before_script:
     - python3 -m pip install tabulate  # Required for printing the tables
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN_SSM_NAME)
   script:
-
     - inv -e ebpf.generate-complexity-summary-for-pr
