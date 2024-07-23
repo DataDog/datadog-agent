@@ -222,6 +222,24 @@ func NewRawMessage(content []byte, status string, rawDataLen int, readTimestamp 
 		IsMultiLine: false,
 	}
 }
+
+// NewRawMultiLineMessage returns a new encoded message.
+func NewRawMultiLineMessage(content []byte, status string, rawDataLen int, readTimestamp string) *Message {
+	return &Message{
+		MessageContent: MessageContent{
+			content: content,
+			State:   StateUnstructured,
+		},
+		Status:             status,
+		RawDataLen:         rawDataLen,
+		IngestionTimestamp: time.Now().UnixNano(),
+		ParsingExtra: ParsingExtra{
+			Timestamp: readTimestamp,
+		},
+		IsMultiLine: true,
+	}
+}
+
 // NewStructuredMessage creates a new message that had some structure the moment
 // it has been captured through a tailer.
 // e.g. a journald message which is a JSON object containing extra information, including
