@@ -832,10 +832,10 @@ def generate_complexity_summary_for_pr(ctx: Context):
     msg += "\n\n"
 
     for group, rows in itertools.groupby(summarized_complexity_changes, key=lambda x: x[0].split("/")[0]):
-        msg += f"<details><summary>{group} details</summary>\n\n"
+        msg += f"\n<details><summary>{group} details</summary>\n\n"
         msg += f"## {group}\n\n"
         msg += tabulate(rows, headers=headers, tablefmt="github")
-        msg += "\n</details>\n"
+        msg += "\n\n</details>\n"
 
     msg += f"This report was generated based on the complexity data for the current branch {branch_name} (pipeline {pipeline_id}) and the main branch (commit {common_ancestor}). Contact [#ebpf-platform](https://dd.enterprise.slack.com/archives/C0424HA1SJK) if you have any questions/feedback."
 
