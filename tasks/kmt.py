@@ -123,7 +123,6 @@ def gen_config(
     memory: str | None = None,
     new=False,
     ci=False,
-    arch: str = "",
     output_file: str = "vmconfig.json",
     from_ci_pipeline: str | None = None,
     use_local_if_possible=False,
@@ -143,7 +142,6 @@ def gen_config(
             memory=memory,
             new=new,
             ci=ci,
-            arch=arch,
             output_file=output_file,
             use_local_if_possible=use_local_if_possible,
             vmconfig_template=vmconfig_template,
@@ -153,7 +151,7 @@ def gen_config(
         vcpu = DEFAULT_VCPU if vcpu is None else vcpu
         memory = DEFAULT_MEMORY if memory is None else memory
         vmconfig.gen_config(
-            ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template, yes=yes
+            ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, output_file, vmconfig_template, yes=yes
         )
 
 
@@ -167,7 +165,6 @@ def gen_config_from_ci_pipeline(
     new=False,
     ci=False,
     use_local_if_possible=False,
-    arch: str = "",
     output_file="vmconfig.json",
     vmconfig_template: Component = "system-probe",
     yes=False,
@@ -213,7 +210,7 @@ def gen_config_from_ci_pipeline(
     vcpu = DEFAULT_VCPU if vcpu is None else vcpu
     memory = DEFAULT_MEMORY if memory is None else memory
     vmconfig.gen_config(
-        ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template, yes=yes
+        ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, output_file, vmconfig_template, yes=yes
     )
     info("[+] You can run the following command to execute only packages with failed tests")
     print(f"inv kmt.test --packages=\"{' '.join(failed_packages)}\"")
