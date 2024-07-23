@@ -2100,8 +2100,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconne
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.103.0/go.mod h1:ymbGC/jEXTq8mgHsxzV1PjVGHmV5hSQXmkYkFfGfuLw=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.104.0 h1:6dvpPt8pCcV+TfMnnanFk2NQYf9HN1voSS9iIHdW+L8=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.104.0/go.mod h1:MfSM6mt9qH3vHCaj2rlX6IY/7fN+zCLzNJC25XG9rNU=
-github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.104.0 h1:kE4BhuAJWWDtFo0hl8TOcdBM7E6cf2DR3hdHmTZrt48=
-github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.104.0/go.mod h1:cJk5wsbR7KPMn3yl0OPxSq2ORoGIAxgHXv9RPJJjohY=
+github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.103.0 h1:2XWbSIoIKQyFvn97pS4uc0Pxwe7EWCmZEg2r/+kiL58=
+github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.103.0/go.mod h1:WrnJQRKaivYllAC2B1KeCI5uYiYsZv3Hcbd6iQfr9Jg=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusremotewriteexporter v0.104.0 h1:lkf7Bof0rbPy2/0+tu+FAgEzwVKmJKcMlx8xsR26TdA=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusremotewriteexporter v0.104.0/go.mod h1:B6dQmrNwW1q7rOadf57fwIaZHYzwrovTSSEEaiFyf0w=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter v0.104.0 h1:vYEXEsS7T3a4XUgVbHG1dS351hqTKC3NtD+5Ef3FpVE=
