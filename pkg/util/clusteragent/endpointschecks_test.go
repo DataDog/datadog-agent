@@ -27,7 +27,7 @@ var dummyEndpointsConfigs = `{
 
 func (suite *clusterAgentSuite) TestEndpointsChecksNominal() {
 	ctx := context.Background()
-	dca, err := newDummyClusterAgent()
+	dca, err := newDummyClusterAgent(suite.config)
 	require.NoError(suite.T(), err)
 
 	dca.rawResponses["/api/v1/endpointschecks/configs/mynode"] = dummyEndpointsConfigs
@@ -35,7 +35,7 @@ func (suite *clusterAgentSuite) TestEndpointsChecksNominal() {
 	ts, p, err := dca.StartTLS()
 	require.NoError(suite.T(), err)
 	defer ts.Close()
-	mockConfig.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
+	suite.config.SetWithoutSource("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", p))
 
 	ca, err := GetClusterAgentClient()
 	require.NoError(suite.T(), err)

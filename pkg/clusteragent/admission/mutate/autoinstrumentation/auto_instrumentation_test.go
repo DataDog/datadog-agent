@@ -28,7 +28,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	model "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -329,7 +330,7 @@ func TestExtractLibInfo(t *testing.T) {
 		},
 	}
 
-	var mockConfig *config.MockConfig
+	var mockConfig model.Config
 	tests := []struct {
 		name                 string
 		pod                  *corev1.Pod
@@ -643,7 +644,7 @@ func TestExtractLibInfo(t *testing.T) {
 				workloadmetafxmock.MockModule(),
 				fx.Supply(workloadmeta.NewParams()),
 			)
-			mockConfig = config.Mock(t)
+			mockConfig = configmock.New(t)
 			for k, v := range overrides {
 				mockConfig.SetWithoutSource(k, v)
 			}
@@ -804,7 +805,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			conf := config.Mock(t)
+			conf := configmock.New(t)
 			if tt.cpu != "" {
 				conf.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.cpu", tt.cpu)
 			}
@@ -899,7 +900,7 @@ func injectAllEnvs() []corev1.EnvVar {
 
 func TestInjectAutoInstrumentation(t *testing.T) {
 	var (
-		mockConfig *config.MockConfig
+		mockConfig model.Config
 		wConfig    = func(k string, v any) func() {
 			return func() {
 				mockConfig.SetWithoutSource(k, v)
@@ -2151,7 +2152,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 
 			wmeta := common.FakeStoreWithDeployment(t, tt.langDetectionDeployments)
 
-			mockConfig = config.Mock(t)
+			mockConfig = configmock.New(t)
 			if tt.setupConfig != nil {
 				for _, f := range tt.setupConfig {
 					f()
@@ -2228,7 +2229,7 @@ func getLanguageFromInitContainerName(initContainerName string) string {
 }
 
 func TestShouldInject(t *testing.T) {
-	var mockConfig *config.MockConfig
+	var mockConfig model.Config
 	tests := []struct {
 		name        string
 		pod         *corev1.Pod
@@ -2403,7 +2404,7 @@ func TestShouldInject(t *testing.T) {
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig = config.Mock(nil)
+			mockConfig = configmock.New(t)
 			tt.setupConfig()
 
 			// Need to create a new instance of the webhook to take into account

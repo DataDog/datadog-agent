@@ -539,6 +539,21 @@ def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths,
         variables={"mode": "-m744"},
     )
 
+    verifier_files = glob("pkg/ebpf/verifier/**/*.go")
+    nw.build(
+        rule="gobin",
+        pool="gobuild",
+        inputs=["./pkg/ebpf/verifier/calculator/main.go"],
+        outputs=[os.fspath(kmt_paths.dependencies / "verifier-calculator")],
+        implicit=verifier_files,
+        variables={
+            "go": go_path,
+            "chdir": "true",
+            "env": env_str,
+            "tags": f"-tags=\"{','.join(get_sysprobe_buildtags(False, False))}\"",
+        },
+    )
+
 
 def ninja_copy_ebpf_files(
     nw: NinjaWriter,
@@ -1867,6 +1882,7 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
 def tag_ci_job(ctx: Context):
     """Add extra tags to the CI job"""
     tags: dict[str, str] = {}
+    metrics: dict[str, str] = {}
 
     # Retrieve tags from environment variables, with a renaming for convenience
     environment_vars_to_tags = {
@@ -1921,6 +1937,17 @@ def tag_ci_job(ctx: Context):
             tags["failure_reason"] = "infra_ssh-config"
         else:
             tags["failure_reason"] = "infra-unknown"
+
+        # Tag complexity results
+        should_collect_complexity = os.getenv("COLLECT_COMPLEXITY") == "yes"
+        collected_complexity = any(agent_testing_dir.glob("verifier-complexity-*.tar.gz"))
+
+        if not should_collect_complexity:
+            tags["complexity_collection"] = "skipped"
+        elif collected_complexity:
+            tags["complexity_collection"] = "success"
+        else:
+            tags["complexity_collection"] = "failure"
     elif job_type == "setup":
         if "kmt_setup_env" in job_name:
             tags["setup_stage"] = "infra-provision"
@@ -1944,12 +1971,16 @@ def tag_ci_job(ctx: Context):
 
         e2e_retry_count = ci_project_dir / "e2e-retry-count"
         if e2e_retry_count.is_file():
-            tags["e2e_retry_count"] = e2e_retry_count.read_text().strip()
+            metrics["pulumi_retry_count"] = e2e_retry_count.read_text().strip()
 
     tag_prefix = "kmt."
     tags_str = " ".join(f"--tags '{tag_prefix}{k}:{v}'" for k, v in tags.items())
 
     ctx.run(f"datadog-ci tag --level job {tags_str}")
+
+    if len(metrics) > 0:
+        metrics_str = " ".join(f"--metrics '{tag_prefix}{k}:{v}'" for k, v in metrics.items())
+        ctx.run(f"datadog-ci metric --level job {metrics_str}")
 
 
 @task

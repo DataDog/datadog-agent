@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -184,7 +185,7 @@ func (suite *KubeletTestSuite) SetupTest() {
 }
 
 func (suite *KubeletTestSuite) TestLocateKubeletHTTP() {
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
@@ -219,7 +220,7 @@ func (suite *KubeletTestSuite) TestLocateKubeletHTTP() {
 
 func (suite *KubeletTestSuite) TestGetLocalPodList() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
@@ -252,7 +253,7 @@ func (suite *KubeletTestSuite) TestGetLocalPodList() {
 
 func (suite *KubeletTestSuite) TestGetLocalPodListWithBrokenKubelet() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	kubelet, err := newDummyKubelet("./testdata/invalid.json")
 	require.Nil(suite.T(), err)
@@ -277,7 +278,7 @@ func (suite *KubeletTestSuite) TestGetLocalPodListWithBrokenKubelet() {
 
 func (suite *KubeletTestSuite) TestGetNodeInfo() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
@@ -310,7 +311,7 @@ func (suite *KubeletTestSuite) TestGetNodeInfo() {
 
 func (suite *KubeletTestSuite) TestGetNodename() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
@@ -342,7 +343,7 @@ func (suite *KubeletTestSuite) TestGetNodename() {
 
 func (suite *KubeletTestSuite) TestPodlistCache() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
@@ -382,7 +383,7 @@ func (suite *KubeletTestSuite) TestPodlistCache() {
 
 func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
@@ -421,7 +422,7 @@ func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 
 func (suite *KubeletTestSuite) TestGetPodWaitForContainer() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_empty.json")
 	require.NoError(suite.T(), err)
@@ -470,7 +471,7 @@ func (suite *KubeletTestSuite) TestGetPodWaitForContainer() {
 
 func (suite *KubeletTestSuite) TestGetPodDontWaitForContainer() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_empty.json")
 	require.NoError(suite.T(), err)
@@ -511,7 +512,7 @@ func (suite *KubeletTestSuite) TestGetPodDontWaitForContainer() {
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitFailOnToken() {
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	// without token, with certs on HTTPS insecure
 	k, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
@@ -542,7 +543,7 @@ func (suite *KubeletTestSuite) TestKubeletInitFailOnToken() {
 
 func (suite *KubeletTestSuite) TestKubeletInitTokenHttps() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	// with a token, without certs on HTTPS insecure
 	k, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
@@ -585,7 +586,7 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttps() {
 
 func (suite *KubeletTestSuite) TestKubeletInitHttpsCerts() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	// with a token, without certs on HTTPS insecure
 	k, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
@@ -640,7 +641,7 @@ func (suite *KubeletTestSuite) TestKubeletInitHttpsCerts() {
 
 func (suite *KubeletTestSuite) TestKubeletInitTokenHttp() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	// with an unused token, without certs on HTTP
 	k, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
@@ -676,7 +677,7 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttp() {
 
 func (suite *KubeletTestSuite) TestKubeletInitHttp() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	// without token, without certs on HTTP
 	k, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
@@ -710,7 +711,7 @@ func (suite *KubeletTestSuite) TestKubeletInitHttp() {
 }
 
 func (suite *KubeletTestSuite) TestGetKubeletHostFromConfig() {
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	// without token, without certs on HTTP
 	k, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
@@ -751,7 +752,7 @@ func (suite *KubeletTestSuite) TestGetKubeletHostFromConfig() {
 
 func (suite *KubeletTestSuite) TestPodListNoExpire() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 	mockConfig.SetWithoutSource("kubernetes_pod_expiration_duration", 0)
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_expired.json")
@@ -787,7 +788,7 @@ func (suite *KubeletTestSuite) TestPodListExpire() {
 	//   - hello8-1550505780-kdnjx has one old container and a recent container, don't expire
 
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 	mockConfig.SetWithoutSource("kubernetes_pod_expiration_duration", 15*60)
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_expired.json")
@@ -842,7 +843,7 @@ func TestKubeletTestSuite(t *testing.T) {
 
 func (suite *KubeletTestSuite) TestPodListWithNullPod() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_null_pod.json")
 	require.Nil(suite.T(), err)
@@ -871,7 +872,7 @@ func (suite *KubeletTestSuite) TestPodListWithNullPod() {
 
 func (suite *KubeletTestSuite) TestPodListOnKubeletInit() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_startup.json")
 	require.Nil(suite.T(), err)
@@ -895,7 +896,7 @@ func (suite *KubeletTestSuite) TestPodListOnKubeletInit() {
 
 func (suite *KubeletTestSuite) TestPodListWithPersistentVolumeClaim() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_persistent_volume_claim.json")
 	require.Nil(suite.T(), err)

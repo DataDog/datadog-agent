@@ -291,11 +291,11 @@ func (f *domainForwarder) sendHTTPTransactions(t transaction.Transaction) {
 	}
 
 	// Check for primary/secondary only transactions and compare with our own MRF state.
-	if t.GetKind() == transaction.Series && t.GetDestination() == transaction.PrimaryOnly && f.isMRF {
+	if (t.GetKind() == transaction.Series || t.GetKind() == transaction.Sketches) && t.GetDestination() == transaction.PrimaryOnly && f.isMRF {
 		f.log.Debugf("Transaction for domain %v is marked as primary only, but the forwarder is in MRF mode; dropping transaction.", t.GetTarget())
 		return
 	}
-	if t.GetKind() == transaction.Series && t.GetDestination() == transaction.SecondaryOnly && !f.isMRF {
+	if (t.GetKind() == transaction.Series || t.GetKind() == transaction.Sketches) && t.GetDestination() == transaction.SecondaryOnly && !f.isMRF {
 		f.log.Debugf("Transaction for domain %v is marked as secondary only, but the forwarder is not in MRF mode; dropping transaction.", t.GetTarget())
 		return
 	}
