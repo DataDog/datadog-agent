@@ -204,7 +204,12 @@ def gen_config_from_ci_pipeline(
 
             failed_tests = test_job.get_test_results()
             failed_packages.update({test.split(':')[0] for test in failed_tests.keys()})
-            vms.add(f"{vm_arch}-{test_job.distro}-distro")
+            vm_name = f"{vm_arch}-{test_job.distro}-distro"
+            info(f"[+] Adding {vm_name} from failed job {test_job.name}")
+            vms.add(vm_name)
+
+    if len(vms) == 0:
+        raise Exit(f"No failed jobs found in pipeline {pipeline}")
 
     info(f"[+] generating {output_file} file for VMs {vms}")
     vcpu = DEFAULT_VCPU if vcpu is None else vcpu
