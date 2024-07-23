@@ -97,6 +97,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("log_format_json", false)
 	cfg.BindEnvAndSetDefault("log_file_max_size", "10Mb")
 	cfg.BindEnvAndSetDefault("log_file_max_rolls", 1)
+	cfg.BindEnvAndSetDefault("disable_file_logging", false)
+	cfg.BindEnvAndSetDefault("log_format_rfc3339", false)
 
 	// secrets backend
 	cfg.BindEnvAndSetDefault("secret_backend_command", "")

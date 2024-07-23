@@ -7,10 +7,12 @@ from __future__ import annotations
 import os
 import re
 import sys
+import traceback
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+import vscode
 from invoke import task
 from invoke.exceptions import Exit
 
@@ -32,7 +34,7 @@ class SetupResult:
 
 
 @task(default=True)
-def setup(ctx):
+def setup(ctx, vscode=False):
     """
     Set up your environment
     """
@@ -45,6 +47,13 @@ def setup(ctx):
         install_go_tools,
         enable_pre_commit,
     ]
+
+    if vscode:
+        setup_functions.append(setup_vscode)
+    else:
+        print(
+            f'{color_message("warning:", Color.ORANGE)} Skipping vscode setup, run `inv setup --vscode` to setup vscode as well'
+        )
 
     results = []
 
@@ -200,6 +209,21 @@ def enable_pre_commit(ctx) -> SetupResult:
         ctx.run(f"git config --global core.hooksPath {hooks_path}", hide=True)
 
     return SetupResult("Enable pre-commit", status, message)
+
+
+def setup_vscode(ctx) -> SetupResult:
+    print(color_message("Setting up VS Code...", Color.BLUE))
+
+    try:
+        vscode.setup(ctx, force=True)
+        message = "VS Code setup completed."
+        status = Status.OK
+    except Exception:
+        trace = traceback.format_exc()
+        message = f'VS Code setup failed:\n{trace}'
+        status = Status.FAIL
+
+    return SetupResult("Setup vscode", status, message)
 
 
 def install_go_tools(ctx) -> SetupResult:

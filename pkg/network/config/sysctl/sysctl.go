@@ -9,6 +9,7 @@
 package sysctl
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -29,7 +30,7 @@ type String struct {
 // `cacheFor` caches the sysctl's value for the given time duration;
 // `0` disables caching
 func NewString(procRoot, sysctl string, cacheFor time.Duration) *String {
-	return &String{sctl: newSCtl(procRoot, sysctl, cacheFor)}
+	return &String{sctl: newSCtl(procRoot, sysctl, cacheFor, os.ReadFile)}
 }
 
 // Get gets the current value of the sysctl
@@ -59,7 +60,7 @@ type Int struct {
 // `cacheFor` caches the sysctl's value for the given time duration;
 // `0` disables caching
 func NewInt(procRoot, sysctl string, cacheFor time.Duration) *Int {
-	return &Int{sctl: newSCtl(procRoot, sysctl, cacheFor)}
+	return &Int{sctl: newSCtl(procRoot, sysctl, cacheFor, os.ReadFile)}
 }
 
 // Get gets the current value of the sysctl
@@ -77,25 +78,33 @@ func (i *Int) get(now time.Time) (int, error) {
 }
 
 type sctl struct {
-	ttl      time.Duration
-	lastRead time.Time
-	path     string
+	ttl        time.Duration
+	lastRead   time.Time
+	path       string
+	err        error
+	fileReader func(path string) ([]byte, error)
 }
 
-func newSCtl(procRoot, sysctl string, cacheFor time.Duration) *sctl {
+func newSCtl(procRoot, sysctl string, cacheFor time.Duration, fileReader func(path string) ([]byte, error)) *sctl {
 	return &sctl{
-		ttl:  cacheFor,
-		path: filepath.Join(procRoot, "sys", sysctl),
+		ttl:        cacheFor,
+		path:       filepath.Join(procRoot, "sys", sysctl),
+		fileReader: fileReader,
 	}
 }
 
 func (s *sctl) get(now time.Time) (string, bool, error) {
-	if !s.lastRead.IsZero() && s.lastRead.Add(s.ttl).After(now) {
-		return "", false, nil
+	if s.err != nil || (!s.lastRead.IsZero() && s.lastRead.Add(s.ttl).After(now)) {
+		return "", false, s.err
 	}
 
-	content, err := os.ReadFile(s.path)
+	content, err := s.fileReader(s.path)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, os.ErrPermission) {
+			// sticky error, we won't try again
+			s.err = err
+		}
+
 		return "", false, err
 	}
 
@@ -119,7 +128,7 @@ type IntPair struct {
 // `cacheFor` caches the sysctl's value for the given time duration;
 // `0` disables caching
 func NewIntPair(procRoot, sysctl string, cacheFor time.Duration) *IntPair {
-	return &IntPair{sctl: newSCtl(procRoot, sysctl, cacheFor)}
+	return &IntPair{sctl: newSCtl(procRoot, sysctl, cacheFor, os.ReadFile)}
 }
 
 // Get gets the current value of the sysctl

@@ -69,12 +69,15 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
 
         with gitlab_section("Bundle install omnibus", collapsed=True):
             for trial in range(max_try):
-                res = ctx.run(cmd, env=env, warn=True, err_stream=sys.stdout)
-                if res.ok:
+                try:
+                    ctx.run(cmd, env=env, err_stream=sys.stdout)
                     return
-                if not should_retry_bundle_install(res):
-                    return
-                print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
+                except UnexpectedExit as e:
+                    if not should_retry_bundle_install(e.result):
+                        print(f'Fatal error while installing omnibus: {e.result.stdout}. Cannot continue.')
+                        raise
+                    print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
+        raise Exit('Too many failures while installing omnibus, giving up')
 
 
 def get_omnibus_env(

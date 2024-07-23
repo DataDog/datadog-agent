@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 )
@@ -137,7 +138,7 @@ func TestUpdateOutdatedWebhookV1beta1(t *testing.T) {
 }
 
 func TestAdmissionControllerFailureModeIgnoreV1beta1(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	f := newFixtureV1beta1(t)
 	c, _ := f.createController()
 	c.config = NewConfig(true, false)
@@ -168,7 +169,7 @@ func TestAdmissionControllerFailureModeIgnoreV1beta1(t *testing.T) {
 }
 
 func TestAdmissionControllerFailureModeFailV1beta1(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	f := newFixtureV1beta1(t)
 	c, _ := f.createController()
 
@@ -186,7 +187,7 @@ func TestAdmissionControllerFailureModeFailV1beta1(t *testing.T) {
 }
 
 func TestAdmissionControllerReinvocationPolicyV1beta1(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	f := newFixtureV1beta1(t)
 	c, _ := f.createController()
 	c.config = NewConfig(true, false)
@@ -949,7 +950,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 	)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig := config.Mock(t)
+			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("kube_resources_namespace", "nsfoo")
 
 			tt.setupConfig(mockConfig)
@@ -967,7 +968,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 }
 
 func TestGetWebhookSkeletonV1beta1(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	failurePolicy := admiv1beta1.Ignore
 	matchPolicy := admiv1beta1.Exact
 	sideEffects := admiv1beta1.SideEffectClassNone

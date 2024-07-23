@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	processStatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -65,7 +66,7 @@ func TestNewCollectorQueueSize(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock(t)
+			mockConfig := configmock.New(t)
 			if tc.override {
 				mockConfig.SetWithoutSource("process_config.queue_size", tc.queueSize)
 			}
@@ -112,7 +113,7 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock(t)
+			mockConfig := configmock.New(t)
 			if tc.override {
 				mockConfig.SetWithoutSource("process_config.rt_queue_size", tc.queueSize)
 			}
@@ -159,7 +160,7 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock(t)
+			mockConfig := configmock.New(t)
 			if tc.override {
 				mockConfig.SetWithoutSource("process_config.process_queue_bytes", tc.queueBytes)
 			}
