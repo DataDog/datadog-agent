@@ -44,6 +44,7 @@ func (c *bundledTransformer) Transform(events []*v1.Event) ([]event.Event, []err
 			event.Source.Component,
 			event.Type,
 			event.Reason,
+			getEventSource(event.ReportingController, event.Source.Component),
 		)
 
 		id := buildBundleID(event)
@@ -70,7 +71,11 @@ func (c *bundledTransformer) Transform(events []*v1.Event) ([]event.Event, []err
 			continue
 		}
 
-		emittedEvents.Inc(id.kind, id.evType)
+		emittedEvents.Inc(
+			id.kind,
+			id.evType,
+			getEventSource(bundle.reportingController, bundle.component),
+		)
 
 		datadogEvs = append(datadogEvs, datadogEv)
 	}

@@ -15,6 +15,7 @@ import (
 	"os"
 	"runtime"
 	"slices"
+	"sync"
 	"syscall"
 	"time"
 
@@ -55,9 +56,10 @@ const (
 // Tracer represents a tracer
 type Tracer struct {
 	// PID represents a PID
-	PIDs []int
-	Args []string
-	Envs []string
+	pidLock sync.RWMutex
+	PIDs    []int
+	Args    []string
+	Envs    []string
 
 	// internals
 	info *arch.Info
@@ -258,6 +260,9 @@ func isExited(waitStatus syscall.WaitStatus) bool {
 }
 
 func (t *Tracer) pidExited(pid int) int {
+	t.pidLock.Lock()
+	defer t.pidLock.Unlock()
+
 	t.PIDs = slices.DeleteFunc(t.PIDs, func(p int) bool {
 		return p == pid
 	})
@@ -267,11 +272,14 @@ func (t *Tracer) pidExited(pid int) int {
 func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus)) error {
 	var waitStatus syscall.WaitStatus
 
+	t.pidLock.RLock()
 	for _, pid := range t.PIDs {
 		if err := syscall.PtraceSyscall(pid, 0); err != nil {
+			t.pidLock.RUnlock()
 			return err
 		}
 	}
+	t.pidLock.RUnlock()
 
 	var (
 		tracker = NewSyscallStateTracker()
@@ -281,7 +289,7 @@ func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 	for {
 		pid, err := syscall.Wait4(-1, &waitStatus, 0, nil)
 		if err != nil {
-			t.opts.Logger.Debugf("unable to wait for pid %d: %v", pid, err)
+			t.opts.Logger.Errorf("unable to wait for pid %d: %v", pid, err)
 			break
 		}
 
@@ -341,7 +349,7 @@ func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 				default:
 					state := tracker.NextStop(pid)
 
-					if tracker.IsSyscallEntry(pid) {
+					if state.Entry {
 						cb(CallbackPreType, nr, pid, 0, regs, nil)
 					} else {
 						// we already captured the exit of the exec syscall with PTRACE_EVENT_EXEC if success
@@ -354,7 +362,7 @@ func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 			}
 
 			if err := syscall.PtraceSyscall(pid, 0); err != nil {
-				t.opts.Logger.Debugf("unable to call ptrace continue for pid %d: %v", pid, err)
+				t.opts.Logger.Errorf("unable to call ptrace continue for pid %d: %v", pid, err)
 			}
 		}
 	}
@@ -365,11 +373,14 @@ func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 func (t *Tracer) traceWithSeccomp(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus)) error {
 	var waitStatus syscall.WaitStatus
 
+	t.pidLock.RLock()
 	for _, pid := range t.PIDs {
 		if err := syscall.PtraceCont(pid, 0); err != nil {
+			t.pidLock.RUnlock()
 			return err
 		}
 	}
+	t.pidLock.RUnlock()
 
 	var (
 		regs syscall.PtraceRegs
@@ -378,7 +389,7 @@ func (t *Tracer) traceWithSeccomp(cb func(cbType CallbackType, nr int, pid int, 
 	for {
 		pid, err := syscall.Wait4(-1, &waitStatus, 0, nil)
 		if err != nil {
-			t.opts.Logger.Debugf("unable to wait for pid %d: %v", pid, err)
+			t.opts.Logger.Errorf("unable to wait for pid %d: %v", pid, err)
 			break
 		}
 
@@ -434,7 +445,7 @@ func (t *Tracer) traceWithSeccomp(cb func(cbType CallbackType, nr int, pid int, 
 
 					// force a ptrace syscall in order to get to return value
 					if err := syscall.PtraceSyscall(pid, 0); err != nil {
-						t.opts.Logger.Debugf("unable to call ptrace syscall for pid %d: %v", pid, err)
+						t.opts.Logger.Errorf("unable to call ptrace syscall for pid %d: %v", pid, err)
 					}
 					continue
 				}
@@ -453,7 +464,7 @@ func (t *Tracer) traceWithSeccomp(cb func(cbType CallbackType, nr int, pid int, 
 			}
 
 			if err := syscall.PtraceCont(pid, 0); err != nil {
-				t.opts.Logger.Debugf("unable to call ptrace continue for pid %d: %v", pid, err)
+				t.opts.Logger.Errorf("unable to call ptrace continue for pid %d: %v", pid, err)
 			}
 		}
 	}

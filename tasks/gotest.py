@@ -443,10 +443,9 @@ def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow=
 
 @task
 def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
-    modified_files = get_modified_files(ctx)
-    modified_go_files = [
-        f"./{file}" for file in modified_files if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
-    ]
+    modified_files = get_go_modified_files(ctx)
+
+    modified_go_files = [f"./{file}" for file in modified_files]
 
     if build_tags is None:
         build_tags = []
@@ -654,7 +653,7 @@ def get_impacted_packages(ctx, build_tags=None):
     if build_tags is None:
         build_tags = []
     dependencies = create_dependencies(ctx, build_tags)
-    files = get_modified_files(ctx)
+    files = get_go_modified_files(ctx)
 
     # Safeguard to be sure that the files that should trigger all test are not renamed without being updated
     for file in TRIGGER_ALL_TESTS_PATHS:
@@ -668,11 +667,7 @@ def get_impacted_packages(ctx, build_tags=None):
     if should_run_all_tests(files, TRIGGER_ALL_TESTS_PATHS):
         return DEFAULT_MODULES.values()
 
-    modified_packages = {
-        f"github.com/DataDog/datadog-agent/{os.path.dirname(file)}"
-        for file in files
-        if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
-    }
+    modified_packages = {f"github.com/DataDog/datadog-agent/{os.path.dirname(file)}" for file in files}
 
     # Modification to go.mod and go.sum should force the tests of the whole module to run
     for file in files:
@@ -836,6 +831,16 @@ def should_run_all_tests(files, trigger_files):
             print(f"Triggering all tests because a file matching {trigger_file} was modified")
             return True
     return False
+
+
+def get_go_modified_files(ctx):
+    files = get_modified_files(ctx)
+    return [
+        file
+        for file in files
+        if file.find("unit_tests/testdata/components_src") == -1
+        and (file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum"))
+    ]
 
 
 @task

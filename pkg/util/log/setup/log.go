@@ -15,7 +15,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -25,7 +24,6 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	seelogCfg "github.com/DataDog/datadog-agent/pkg/util/log/setup/internal/seelog"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 // LoggerName specifies the name of an instantiated logger.
@@ -109,13 +107,6 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	}
 	_ = seelog.ReplaceLogger(loggerInterface)
 	log.SetupLogger(loggerInterface, seelogLogLevel)
-	flareStrippedKeys := cfg.GetStringSlice("flare_stripped_keys")
-	if len(flareStrippedKeys) > 0 {
-		log.Warn("flare_stripped_keys is deprecated, please use scrubber.additional_keys instead.")
-	}
-	scrubber.AddStrippedKeys(mergeAdditionalKeysToScrubber(
-		flareStrippedKeys,
-		cfg.GetStringSlice("scrubber.additional_keys")))
 
 	// Registering a callback in case of "log_level" update
 	cfg.OnUpdate(func(setting string, oldValue, newValue any) {
@@ -145,15 +136,6 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 		log.ChangeLogLevel(logger, seelogLogLevel)
 	})
 	return nil
-}
-
-// mergeAdditionalKeysToScrubber merges multiple slices of keys into a single slice
-func mergeAdditionalKeysToScrubber(elems ...[]string) []string {
-	set := []string{}
-	for _, elem := range elems {
-		set = append(set, elem...)
-	}
-	return slices.Compact(set)
 }
 
 // SetupJMXLogger sets up a logger with JMX logger name and log level

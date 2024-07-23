@@ -21,6 +21,7 @@ import (
 
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -75,7 +76,7 @@ func TestGetStatus(t *testing.T) {
 
 	// Feature detection needs to run before host methods are called. During runtime, feature detection happens
 	// when the datadog.yaml file is loaded
-	cfg := ddconfig.Mock(t)
+	cfg := configmock.New(t)
 	ddconfig.SetFeatures(t)
 	cfg.SetWithoutSource("hostname", "test") // Prevents panic since feature detection has not run
 	cfg.SetWithoutSource("language_detection.enabled", true)

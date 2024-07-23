@@ -24,7 +24,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	workloadmetaExtractor "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -222,7 +222,7 @@ func TestEnabled(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			setFlavor(t, tc.flavor)
 
-			cfg := pkgconfig.Mock(t)
+			cfg := configmock.New(t)
 			cfg.SetWithoutSource("process_config.process_collection.enabled", tc.processCollectionEnabled)
 			cfg.SetWithoutSource("language_detection.enabled", tc.remoteProcessCollectorEnabled)
 

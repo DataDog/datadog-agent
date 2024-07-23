@@ -11,6 +11,7 @@ import (
 	"database/sql"
 	"fmt"
 	"testing"
+	"time"
 
 	//"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 
@@ -31,7 +32,9 @@ func TestTablespaces(t *testing.T) {
 	require.NoError(t, err)
 	s.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	var expectedPdb string
-	if c.connectedToPdb {
+	if c.hostingType == rds {
+		expectedPdb = "orcl"
+	} else if c.connectedToPdb {
 		expectedPdb = c.cdbName
 	} else {
 		expectedPdb = "cdb$root"
@@ -59,11 +62,15 @@ func TestTablespacesOffline(t *testing.T) {
 	_, err3 := conn.Exec("ALTER TABLESPACE TBS_TEST OFFLINE")
 	require.NoError(t, err3)
 
+	time.Sleep(10 * time.Second)
+
 	err := c.Run()
 	require.NoError(t, err)
 	s.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	var expectedPdb string
-	if c.connectedToPdb {
+	if c.hostingType == rds {
+		expectedPdb = "orcl"
+	} else if c.connectedToPdb {
 		expectedPdb = c.cdbName
 	} else {
 		expectedPdb = "cdb$root"

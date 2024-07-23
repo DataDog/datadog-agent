@@ -80,12 +80,12 @@ def get_gitlab_repo(repo='DataDog/datadog-agent', token=None) -> Project:
     return repo
 
 
-def get_commit(project_name: str, git_ref: str) -> ProjectCommit:
+def get_commit(project_name: str, git_sha: str) -> ProjectCommit:
     """
-    Retrieves the commit for a given git ref a given project.
+    Retrieves the commit for a given git sha a given project.
     """
     repo = get_gitlab_repo(project_name)
-    return repo.commits.get(git_ref)
+    return repo.commits.get(git_sha)
 
 
 def get_pipeline(project_name: str, pipeline_id: str) -> ProjectPipeline:
@@ -655,3 +655,17 @@ def load_context(context):
             return [list(j.items())]
         except json.JSONDecodeError as e:
             raise Exit(f"Invalid context: {context}, must be a valid json, or a path to a yaml file", 1) from e
+
+
+def retrieve_all_paths(yaml):
+    if isinstance(yaml, dict):
+        for key, value in yaml.items():
+            if key == "changes":
+                if isinstance(value, list):
+                    yield from value
+                elif "paths" in value:
+                    yield from value["paths"]
+            yield from retrieve_all_paths(value)
+    elif isinstance(yaml, list):
+        for item in yaml:
+            yield from retrieve_all_paths(item)
