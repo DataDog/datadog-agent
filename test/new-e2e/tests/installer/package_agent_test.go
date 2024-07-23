@@ -104,6 +104,7 @@ func (s *packageAgentSuite) TestUpgrade_AgentDebRPM_to_OCI() {
 
 // TestUpgrade_Agent_OCI_then_DebRpm agent deb/rpm install while OCI one is installed
 func (s *packageAgentSuite) TestUpgrade_Agent_OCI_then_DebRpm() {
+	s.T().Skip("Old CentOS version with expired mirrors")
 	// install OCI agent
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
