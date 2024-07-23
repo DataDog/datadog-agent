@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import shutil
 
 from tasks.kmt import download_complexity_data
@@ -766,8 +767,8 @@ def generate_complexity_summary_for_pr(ctx: Context):
     programs_now_below_limit, programs_now_above_limit = 0, 0
     for program, entries in sorted(program_complexity.items(), key=lambda x: max(e[2] for e in x[1])):
         avg_new_complexity, avg_old_complexity = 0, 0
-        highest_new_complexity, highest_old_complexity = 1e9, 1e9  # instruction limit is always < 1e9
-        lowest_new_complexity, lowest_old_complexity = 0, 0
+        highest_new_complexity, highest_old_complexity = 0, 0
+        lowest_new_complexity, lowest_old_complexity = 1e9, 1e9  # instruction limit is always < 1e9
         highest_complexity_platform, lowest_complexity_platform = "", ""
 
         for arch, distro, new_complexity, old_complexity, limit in entries:
@@ -808,8 +809,7 @@ def generate_complexity_summary_for_pr(ctx: Context):
         summarized_complexity_changes.append(row)
 
     headers = ["Program", "Avg. complexity", "Distro with highest complexity", "Distro with lowest complexity"]
-
-    table_summary = tabulate(summarized_complexity_changes, headers=headers, tablefmt="github")
+    summarized_complexity_changes = sorted(summarized_complexity_changes, key=lambda x: x[0])
 
     if max_complexity_rel_change < 0 and max_complexity_abs_change < 0 and programs_now_above_limit == 0:
         state = "🎉 - improved"
@@ -830,9 +830,13 @@ def generate_complexity_summary_for_pr(ctx: Context):
     msg += f"* Programs that were above the {threshold_for_max_limit * 100}% limit of instructions and are now below: {programs_now_below_limit}\n"
     msg += f"* Programs that were below the {threshold_for_max_limit * 100}% limit of instructions and are now above: {programs_now_above_limit}\n"
     msg += "\n\n"
-    msg += "<details><summary>Table of complexity changes</summary>\n\n"
-    msg += table_summary
-    msg += "</details>\n"
+
+    for group, rows in itertools.groupby(summarized_complexity_changes, key=lambda x: x[0].split("/")[0]):
+        msg += f"<details><summary>{group} details</summary>\n\n"
+        msg += f"## {group}\n\n"
+        msg += tabulate(rows, headers=headers, tablefmt="github")
+        msg += "\n</details>\n"
+
     msg += f"This report was generated based on the complexity data for the current branch {branch_name} (pipeline {pipeline_id}) and the main branch (commit {common_ancestor}). Contact [#ebpf-platform](https://dd.enterprise.slack.com/archives/C0424HA1SJK) if you have any questions/feedback."
 
     print(msg)
