@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package datadog_installer
+// Package installer defines a Pulumi component for installing the Datadog Installer on a remote host in the
+// provisioning step.
+package installer
 
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"

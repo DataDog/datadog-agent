@@ -8,7 +8,7 @@ package winawshost
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components/datadog_installer"
+	installer "github.com/DataDog/datadog-agent/test/new-e2e/pkg/components/datadog-installer"
 	"github.com/DataDog/test-infra-definitions/components/activedirectory"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
@@ -40,7 +40,7 @@ type ProvisionerParams struct {
 	fakeintakeOptions      []fakeintake.Option
 	activeDirectoryOptions []activedirectory.Option
 	defenderoptions        []defender.Option
-	installerOptions       []datadog_installer.Option
+	installerOptions       []installer.Option
 }
 
 // ProvisionerOption is a provisioner option.
@@ -119,9 +119,9 @@ func WithDefenderOptions(opts ...defender.Option) ProvisionerOption {
 }
 
 // WithInstaller configures Datadog Installer on an EC2 VM.
-func WithInstaller(opts ...datadog_installer.Option) ProvisionerOption {
+func WithInstaller(opts ...installer.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
-		params.installerOptions = []datadog_installer.Option{}
+		params.installerOptions = []installer.Option{}
 		params.installerOptions = append(params.installerOptions, opts...)
 		return nil
 	}
@@ -216,7 +216,7 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 	}
 
 	if params.installerOptions != nil {
-		installer, err := datadog_installer.NewInstaller(awsEnv, host, params.installerOptions...)
+		installer, err := installer.NewInstaller(awsEnv, host, params.installerOptions...)
 		if err != nil {
 			return err
 		}

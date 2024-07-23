@@ -5,9 +5,9 @@
 
 package components
 
-import "github.com/DataDog/datadog-agent/test/new-e2e/pkg/components/datadog_installer"
+import installer "github.com/DataDog/datadog-agent/test/new-e2e/pkg/components/datadog-installer"
 
 // RemoteDatadogInstaller represents a Datadog Installer on a remote machine
 type RemoteDatadogInstaller struct {
-	datadog_installer.Output
+	installer.Output
 }
