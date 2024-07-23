@@ -7,6 +7,7 @@ package socket
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"testing"
 
@@ -15,27 +16,28 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 func TestReadAndForwardShouldSucceedWithSuccessfulRead(t *testing.T) {
+	fmt.Println("wack")
 	msgChan := make(chan *message.Message)
 	r, w := net.Pipe()
-	log.Debug("wack1")
+	fmt.Println("wack1")
 	tailer := NewTailer(sources.NewLogSource("", &config.LogsConfig{}), r, msgChan, read)
-	log.Debug("wack2")
+	fmt.Println("wack2")
 	tailer.Start()
-	log.Debug("wack3")
+	fmt.Println("wack3")
 
 	var msg *message.Message
 
 	// should receive and decode one message
 
 	w.Write([]byte("foo\n"))
-	log.Debug("wack4")
+	fmt.Println("wack4")
 	msg = <-msgChan
+	fmt.Println("wack4.5")
 	assert.Equal(t, "foo", string(msg.GetContent()))
-	log.Debug("wack5")
+	fmt.Println("wack5")
 
 	// should receive and decode two messages
 	w.Write([]byte("bar\nboo\n"))

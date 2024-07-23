@@ -69,12 +69,16 @@ func (t *Tailer) forwardMessages() {
 	}()
 	for output := range t.decoder.OutputChan {
 		if len(output.GetContent()) > 0 {
+			fmt.Println("wacktest")
 			origin := message.NewOrigin(t.source)
+			fmt.Println("wacktest2")
 			_, ip, err := t.read(t)
 			log.Debug("huh", err)
+			fmt.Println("wacktest3")
 			if err != nil {
 				return
 			}
+			fmt.Println("wacktest4")
 			log.Debug("andrewqian", ip)
 			copiedTags := make([]string, len(t.source.Config.Tags))
 			copy(copiedTags, t.source.Config.Tags)
