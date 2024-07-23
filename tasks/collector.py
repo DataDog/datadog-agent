@@ -96,16 +96,18 @@ def generate(ctx):
         ) from e
 
     if output_path != impl_path:
-        components_source = os.path.join(output_path, "components.go")
-        components_dest = os.path.join(impl_path, "components.go")
-        print(f"Copying {components_source} to {components_dest}")
-        try:
-            shutil.copy(components_source, components_dest)
-        except Exception as e:
-            raise Exit(
-                color_message(f"Failed to copy components.go file: {e}", Color.RED),
-                code=1,
-            ) from e
+        files_to_copy = ["components.go", "go.mod"]
+        for file_name in files_to_copy:
+            source = os.path.join(output_path, file_name)
+            dest = os.path.join(impl_path, file_name)
+            print(f"Copying {source} to {dest}")
+            try:
+                shutil.copy(source, dest)
+            except Exception as e:
+                raise Exit(
+                    color_message(f"Failed to copy components.go file: {e}", Color.RED),
+                    code=1,
+                ) from e
 
     # Clean the files with main* in comp/otelcol/collector-contrib/impl
     for filename in os.listdir(impl_path):
