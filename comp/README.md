@@ -587,6 +587,12 @@ Package telemetry provides the installer telemetry component.
 
 Package updater is the updater component.
 
+### [comp/serializer/compression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/serializer/compression)
+
+*Datadog Team*: agent-metrics-logs
+
+Package compression provides a compression implementation based on the configuration or available build tags.
+
 ### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
 
 *Datadog Team*: windows-agent
@@ -598,9 +604,3 @@ Package etw provides an ETW tracing interface
 *Datadog Team*: network-device-monitoring
 
 Package rdnsquerier provides the reverse DNS querier component.
-
-### [comp/serializer/compression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/serializer/compression)
-
-*Datadog Team*: agent-metrics-logs
-
-Package compression provides a compression implementation based on the configuration or available build tags.
