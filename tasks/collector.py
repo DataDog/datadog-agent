@@ -9,7 +9,7 @@ import yaml
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-from tasks.go import generate_licenses, tidy
+from tasks.go import tidy
 from tasks.libs.common.color import Color, color_message
 
 LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repository are licensed
@@ -36,7 +36,7 @@ BINARY_NAMES_BY_SYSTEM_AND_ARCH = {
 }
 
 
-@task(post=[tidy, generate_licenses])
+@task(post=[tidy])
 def generate(ctx):
     arch = platform.machine()
     system = platform.system()
