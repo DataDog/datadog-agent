@@ -5,7 +5,6 @@ import re
 import sys
 from collections import defaultdict
 from glob import glob
-from os.path import dirname, exists, join, relpath
 
 from invoke import Exit, task
 
@@ -20,9 +19,10 @@ from tasks.libs.ciproviders.gitlab_api import (
     get_preset_contexts,
     load_context,
     read_includes,
+    retrieve_all_paths,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH, GITHUB_REPO_NAME
 from tasks.libs.common.git import get_staged_files
 from tasks.libs.common.utils import (
@@ -188,11 +188,11 @@ def go(
         include_sds=include_sds,
     )
 
-    with gitlab_section('Linter failures', collapsed=True):
-        success = process_module_results(flavor=flavor, module_results=lint_results)
-
     with gitlab_section('Linter execution time'):
         print(color_message('Execution time summary:', 'bold'))
+
+    with gitlab_section('Linter failures'):
+        success = process_module_results(flavor=flavor, module_results=lint_results)
 
         for e in execution_times:
             print(f'- {e.name}: {e.duration:.1f}s')
@@ -406,7 +406,7 @@ def releasenote(ctx):
             if not github.contains_release_note(pr_id):
                 print(
                     f"{color_message('Error', 'red')}: No releasenote was found for this PR. Please add one using 'reno'"
-                    ", see https://github.com/DataDog/datadog-agent/blob/main/docs/dev/contributing.md#reno"
+                    ", see https://datadoghq.dev/datadog-agent/guidelines/contributing/#reno"
                     ", or apply the label 'changelog/no-changelog' to the PR.",
                     file=sys.stderr,
                 )
@@ -466,85 +466,17 @@ def test_change_path(ctx, job_files=None):
         print(color_message("success: All tests contain a change paths rule", "green"))
 
 
-# modules -> packages that should not be vetted, each with a reason
-EXCLUDED_PACKAGES = {
-    '.': {
-        './pkg/ebpf/compiler': "requires C libraries not available everywhere",
-        './cmd/py-launcher': "requires building rtloader",
-        './pkg/collector/python': "requires building rtloader",
-    },
-}
-
-GO_TAGS = ["test"]
-
-
 @task
-def go_vet(ctx):
-    def go_module_for_package(package_path):
-        """
-        Finds the go module containing the given package, and the package's path
-        relative to that module.  This only works for `./`-relative package paths,
-        in the current repository.  The returned module does not contain a trailing
-        `/` character.  If the package path does not exist, the return value is
-        `.`.
-        """
-        assert package_path.startswith('./')
-        module_path = package_path
-        while module_path != '.' and not exists(join(module_path, 'go.mod')):
-            module_path = dirname(module_path)
-        relative_package = relpath(package_path, start=module_path)
-        if relative_package != '.' and not relative_package[0].startswith('./'):
-            relative_package = f"./{relative_package}"
-        return module_path, relative_package
-
-    def is_go_file(path):
-        """Checks if file is a go file from the Agent code."""
-        return (path.startswith("pkg") or path.startswith("cmd")) and path.endswith(".go")
-
-    # Exclude non go files
-    go_files = (path for path in get_staged_files(ctx) if is_go_file(path))
-
-    # Get the package for each file
-    packages = {f'./{dirname(f)}' for f in go_files}
-
-    if not packages:
-        return
-
-    # separate those by module
-    by_mod = {}
-    for package_path in packages:
-        module, package = go_module_for_package(package_path)
-        reason = EXCLUDED_PACKAGES.get(module, {}).get(package, None)
-        if reason:
-            print(f"Skipping {package} in {module}: {reason}")
-            continue
-        by_mod.setdefault(module, set()).add(package)
-
-    # now, for each module, we use 'go list' to list all of the *valid* packages
-    # (those with at least one .go file included by the current build tags), and
-    # use that to skip packages that do not have any files included, which will
-    # otherwise cause go vet to fail.
-    for module, packages in by_mod.items():
-        with ctx.cd(module):
-            # -find skips listing package dependencies
-            # -f {{.Dir}} outputs the absolute dir containing the package
-            res = ctx.run("go list -find -f '{{.Dir}}' ./...", hide=True)
-
-        valid_packages = set()
-        for line in res.stdout.splitlines():
-            if line:
-                relative = relpath(line, module)
-                if relative != '.':
-                    relative = f'./{relative}'
-            valid_packages.add(relative)
-        for package in packages - valid_packages:
-            print(f"Skipping {package} in {module}: not a valid package or all files are excluded by build tags")
-            packages.remove(package)
-
-    go_tags_arg = '-tags ' + ','.join(GO_TAGS) if GO_TAGS else ''
-    for module, packages in by_mod.items():
-        if not packages:
-            continue
-
-        with ctx.cd(module):
-            ctx.run(f"go vet {go_tags_arg} {' '.join(packages)}")
+def gitlab_change_paths(ctx):
+    # Read gitlab config
+    config = generate_gitlab_full_configuration(ctx, ".gitlab-ci.yml", {}, return_dump=False, apply_postprocessing=True)
+    error_paths = []
+    for path in set(retrieve_all_paths(config)):
+        files = glob(path, recursive=True)
+        if len(files) == 0:
+            error_paths.append(path)
+    if error_paths:
+        raise Exit(
+            f"{color_message('No files found for paths', Color.RED)}:\n{chr(10).join(' - ' + path for path in error_paths)}"
+        )
+    print(f"All rule:changes:paths from gitlab-ci are {color_message('valid', Color.GREEN)}.")

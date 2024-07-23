@@ -111,6 +111,7 @@ def setup(
         f"git config --global --add safe.directory {AGENT_REPOSITORY_PATH} && invoke install-tools && invoke deps"
     )
 
+    devcontainer["remoteEnv"] = {"GITLAB_TOKEN": "${localEnv:GITLAB_TOKEN}"}
     with open(fullpath, "w") as sf:
         json.dump(devcontainer, sf, indent=4, sort_keys=False, separators=(',', ': '))
 

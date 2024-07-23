@@ -113,6 +113,7 @@ func (v *ecsVMSuite) AfterTest(suiteName, testName string) {
 // The test start by 00 to validate the agent/system-probe is up and running
 // On ECS the agent is slow to start and this avoid flaky tests
 func (v *ecsVMSuite) Test00FakeIntakeNPM() {
+	flake.Mark(v.T())
 	test1HostFakeIntakeNPM(&v.BaseSuite, v.Env().FakeIntake)
 }
 

@@ -7,6 +7,7 @@
 package configstorefx
 
 import (
+	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/def"
 	configstoreimpl "github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -14,6 +15,9 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(configstoreimpl.NewConfigStore),
+		fxutil.ProvideComponentConstructor(
+			configstoreimpl.NewConfigStore,
+		),
+		fxutil.ProvideOptional[configstore.Component](),
 	)
 }

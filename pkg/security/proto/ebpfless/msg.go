@@ -12,6 +12,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// Mode defines ptrace mode
+type Mode string
+
+const (
+	// UnknownMode unknown mode
+	UnknownMode Mode = "unknown"
+	// WrappedMode ptrace wrapping the binary
+	WrappedMode Mode = "wrapped"
+	// AttachedMode ptrace attached to a pid
+	AttachedMode = "attached"
+)
+
 // MessageType defines the type of a message
 type MessageType int32
 
@@ -328,6 +340,7 @@ type HelloMsg struct {
 	NSID             uint64
 	ContainerContext *ContainerContext
 	EntrypointArgs   []string
+	Mode             Mode
 }
 
 // Message defines a message

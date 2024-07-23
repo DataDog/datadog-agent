@@ -43,6 +43,8 @@ const (
 	DefaultOTelAgentLogFile = "/var/log/datadog/otel-agent.log"
 	// defaultSystemProbeLogFilePath is the default system-probe log file
 	defaultSystemProbeLogFilePath = "/var/log/datadog/system-probe.log"
+	// defaultStatsdSocket is the default Unix Domain Socket path on which statsd will listen
+	defaultStatsdSocket = "/var/run/datadog/dsd.socket"
 )
 
 // called by init in config.go, to ensure any os-specific config is done
