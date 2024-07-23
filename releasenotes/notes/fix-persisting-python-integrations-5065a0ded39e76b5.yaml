@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix removing 'non-core' integrations during agent upgrades
