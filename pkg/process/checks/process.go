@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 	"time"
@@ -371,6 +372,12 @@ func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
 func (p *ProcessCheck) Run(nextGroupID func() int32, options *RunOptions) (RunResult, error) {
 	if options == nil {
 		return p.run(nextGroupID(), false)
+	}
+
+	// No chunking for manual checks - set max batch size to max value to ensure one chunk
+	if options.NoChunking {
+		p.maxBatchSize = math.MaxInt32
+		p.maxBatchBytes = math.MaxInt32
 	}
 
 	if options.RunStandard {

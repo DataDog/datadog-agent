@@ -88,7 +88,7 @@ func (d *ProcessDiscoveryCheck) ShouldSaveLastRun() bool { return true }
 
 // Run collects process metadata, and packages it into a CollectorProcessDiscovery payload to be sent.
 // It is a runtime error to call Run without first having called Init.
-func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
+func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, options *RunOptions) (RunResult, error) {
 	if !d.initCalled {
 		return nil, fmt.Errorf("ProcessDiscoveryCheck.Run called before Init")
 	}
@@ -104,7 +104,15 @@ func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, _ *RunOptions) (Ru
 		NumCpus:     calculateNumCores(d.info.SystemInfo),
 		TotalMemory: d.info.SystemInfo.TotalMemory,
 	}
-	procDiscoveryChunks := chunkProcessDiscoveries(pidMapToProcDiscoveries(procs, d.userProbe, d.scrubber), d.maxBatchSize)
+
+	procDiscoveries := pidMapToProcDiscoveries(procs, d.userProbe, d.scrubber)
+
+	// For no chunking manual checks, set max batch size as number of proccess discoveries to ensure one chunk
+	if options!=nil && options.NoChunking {
+		d.maxBatchSize = len(procDiscoveries)
+	}
+
+	procDiscoveryChunks := chunkProcessDiscoveries(procDiscoveries, d.maxBatchSize)
 	payload := make([]model.MessageBody, len(procDiscoveryChunks))
 
 	groupID := nextGroupID()

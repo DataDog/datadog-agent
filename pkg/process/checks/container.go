@@ -119,6 +119,12 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 	if len(containers)%c.maxBatchSize != 0 {
 		groupSize++
 	}
+
+	// For no chunking manual checks, set groupsize as 1 to ensure one chunk
+	if options!=nil && options.NoChunking {
+		groupSize = 1
+	}
+
 	chunked := chunkContainers(containers, groupSize)
 	messages := make([]model.MessageBody, 0, groupSize)
 	groupID := nextGroupID()
