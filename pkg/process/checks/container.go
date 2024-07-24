@@ -121,7 +121,7 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 	}
 
 	// For no chunking manual checks, set groupsize as 1 to ensure one chunk
-	if options!=nil && options.NoChunking {
+	if options != nil && options.NoChunking {
 		groupSize = 1
 	}
 

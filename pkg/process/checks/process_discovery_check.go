@@ -107,8 +107,8 @@ func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, options *RunOption
 
 	procDiscoveries := pidMapToProcDiscoveries(procs, d.userProbe, d.scrubber)
 
-	// For no chunking manual checks, set max batch size as number of proccess discoveries to ensure one chunk
-	if options!=nil && options.NoChunking {
+	// For no chunking manual checks, set max batch size as number of process discoveries to ensure one chunk
+	if options != nil && options.NoChunking {
 		d.maxBatchSize = len(procDiscoveries)
 	}
 
