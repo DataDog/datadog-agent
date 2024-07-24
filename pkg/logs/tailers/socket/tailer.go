@@ -109,7 +109,7 @@ func (t *Tailer) readForever() {
 				log.Warnf("Couldn't read message from connection: %v", err)
 				return
 			}
-			fmt.Println("wacktest4")
+			fmt.Println("ip address is ", ipAddress)
 			origin := message.NewOrigin(t.source)
 			copiedTags := make([]string, len(t.source.Config.Tags))
 			copy(copiedTags, t.source.Config.Tags)
@@ -125,6 +125,7 @@ func (t *Tailer) readForever() {
 				fmt.Println("new tag is ?", sourceHostTag)
 				copiedTags = append(copiedTags, sourceHostTag)
 			}
+			fmt.Println("WAMFGEOWAGEWAOG", copiedTags)
 			origin.SetTags(copiedTags)
 			fmt.Println("ANDREW 1 Origin is?", origin)
 			t.decoder.InputChan <- message.NewMessage(data, origin, "", 0)
