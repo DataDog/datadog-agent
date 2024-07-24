@@ -352,7 +352,6 @@ __attribute__((always_inline)) u32 is_activity_dump_running(void *ctx, u32 pid, 
 
     struct proc_cache_t *pc = get_proc_cache(pid);
     if (pc) {
-        // cookie = should_trace_new_process(ctx, now, pid, &pc->container);
         cookie = should_trace_new_process(ctx, now, pid, &pc->container);
     }
 

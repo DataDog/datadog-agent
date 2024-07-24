@@ -37,7 +37,6 @@ func isSystemdCgroup(cgroup string) bool {
 func FindContainerID(s string) (string, uint64) {
 	match := containerIDPattern.FindIndex([]byte(s))
 	if match == nil {
-		// Is it a systemd cgroup ?
 		if isSystemdCgroup(s) {
 			return "", uint64(model.CGroupManagerSystemd)
 		}

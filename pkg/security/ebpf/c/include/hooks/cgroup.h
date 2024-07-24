@@ -143,8 +143,6 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     }
 
 
-    // resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
-
     bpf_probe_read(&prefix, sizeof(prefix), container_id);
 
     if (prefix[0] == 'd' && prefix[1] == 'o' && prefix[2] == 'c' && prefix[3] == 'k' && prefix[4] == 'e'
@@ -209,7 +207,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
 
     resolver->type = EVENT_CGROUP_WRITE;
     resolver->discarder_type = NO_FILTER;
-    resolver->callback = DR_CGROUP_WRITE_CALLBACK_KPROBE_KEY; // select_dr_key(DR_KPROBE_OR_FENTRY, DR_CGROUP_WRITE_CALLBACK_KPROBE_KEY, DR_CGROUP_WRITE_CALLBACK_TRACEPOINT_KEY);
+    resolver->callback = DR_CGROUP_WRITE_CALLBACK_KPROBE_KEY;
     resolver->iteration = 0;
     resolver->ret = 0;
     resolver->flags = 0;
