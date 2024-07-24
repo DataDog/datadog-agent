@@ -1014,7 +1014,7 @@ def compare_to_itself(ctx):
     if current_branch.startswith("compare/"):
         print("Branch already in compare_to_itself mode, ignoring this test to prevent infinite loop")
         return
-    new_branch = f"compare/{current_branch}/{int(datetime.now().timestamp())}"
+    new_branch = f"compare/{current_branch}/{int(datetime.now(timezone.utc).timestamp())}"
     ctx.run(f"git checkout -b {new_branch}", hide=True)
     ctx.run(
         f"git remote set-url origin https://x-access-token:{gh._auth.token}@github.com/DataDog/datadog-agent.git",

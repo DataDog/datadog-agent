@@ -1,6 +1,6 @@
 import subprocess
 import unittest
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import yaml
@@ -102,18 +102,18 @@ class TestUpdateCircleCI(unittest.TestCase):
 class TestCompareToItself(unittest.TestCase):
     context = MockContext(
         run={
-            "git checkout -b compare/Football/900194400": Result(),
+            "git checkout -b compare/Football/900284400": Result(),
             "git remote set-url origin https://x-access-token:zidane@github.com/DataDog/datadog-agent.git": Result(),
             "git config --global user.name 'github-actions[bot]'": Result(),
             "git config --global user.email 'github-app[bot]@users.noreply.github.com'": Result(),
-            "git push origin compare/Football/900194400": Result(),
+            "git push origin compare/Football/900284400": Result(),
             "git commit -am 'Compare to itself'": Result(),
             "git checkout Football": Result(),
-            "git branch -D compare/Football/900194400": Result(),
-            "git push origin :compare/Football/900194400": Result(),
+            "git branch -D compare/Football/900284400": Result(),
+            "git push origin :compare/Football/900284400": Result(),
         }
     )
-    now = datetime(1998, 7, 12)
+    now = datetime(1998, 7, 12, 23, 0, 0, tzinfo=timezone.utc)
 
     @staticmethod
     def side(x):
