@@ -290,7 +290,7 @@ func Test_shouldCollect(t *testing.T) {
 			shouldCollect: true,
 		},
 		{
-			name: "kubernetes event collection filters based on kind",
+			name: "kubernetes event collection matches based on source",
 			ev: &v1.Event{
 				InvolvedObject: v1.ObjectReference{
 					Name: "my-pod-1",
@@ -303,29 +303,10 @@ func Test_shouldCollect(t *testing.T) {
 			},
 			collectedTypes: []collectedEventType{
 				{
-					Kind: "Node",
+					Source: "kubelet",
 				},
 			},
-			shouldCollect: false,
-		},
-		{
-			name: "kubernetes event collection filters based on source",
-			ev: &v1.Event{
-				InvolvedObject: v1.ObjectReference{
-					Name: "my-pod-1",
-					Kind: podKind,
-				},
-				Source: v1.EventSource{
-					Component: "kubelet",
-					Host:      "my-node-1",
-				},
-			},
-			collectedTypes: []collectedEventType{
-				{
-					Source: "kubernetes",
-				},
-			},
-			shouldCollect: false,
+			shouldCollect: true,
 		},
 		{
 			name: "kubernetes event collection matches based on reason",
@@ -346,26 +327,6 @@ func Test_shouldCollect(t *testing.T) {
 				},
 			},
 			shouldCollect: true,
-		},
-		{
-			name: "kubernetes event collection filters based on reason",
-			ev: &v1.Event{
-				InvolvedObject: v1.ObjectReference{
-					Name: "my-pod-1",
-					Kind: podKind,
-				},
-				Source: v1.EventSource{
-					Component: "kubelet",
-					Host:      "my-node-1",
-				},
-				Reason: "CrashLoopBackOff",
-			},
-			collectedTypes: []collectedEventType{
-				{
-					Reasons: []string{"Failed"},
-				},
-			},
-			shouldCollect: false,
 		},
 		{
 			name: "kubernetes event collection matches by kind and reason",
@@ -400,7 +361,7 @@ func Test_shouldCollect(t *testing.T) {
 			shouldCollect: true,
 		},
 		{
-			name: "kubernetes event collection filters by kind and reason",
+			name: "kubernetes event collection matches by source and reason",
 			ev: &v1.Event{
 				InvolvedObject: v1.ObjectReference{
 					Name: "my-pod-1",
@@ -414,16 +375,28 @@ func Test_shouldCollect(t *testing.T) {
 			},
 			collectedTypes: []collectedEventType{
 				{
-					Kind:    "Pod",
-					Reasons: []string{"Failed", "BackOff", "Unhealthy", "FailedScheduling", "FailedMount", "FailedAttachVolume"},
+					Source:  "kubelet",
+					Reasons: []string{"CrashLoopBackOff"},
 				},
-				{
-					Kind:    "Node",
-					Reasons: []string{"TerminatingEvictedPod", "NodeNotReady", "Rebooted", "HostPortConflict"},
+			},
+			shouldCollect: true,
+		},
+		{
+			name: "kubernetes event collection matches none",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
 				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+				},
+				Reason: "something",
+			},
+			collectedTypes: []collectedEventType{
 				{
-					Kind:    "CronJob",
-					Reasons: []string{"SawCompletedJob"},
+					Source:  "kubelet",
+					Reasons: []string{"CrashLoopBackOff"},
 				},
 			},
 			shouldCollect: false,
