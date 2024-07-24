@@ -35,8 +35,10 @@ const (
 const (
 	// probeAddrOpt defines the system-probe addr
 	probeAddrOpt = "probe-addr"
-	// verboseOpt defines the log level
+	// verboseOpt makes the tracer verbose during operation
 	verboseOpt = "verbose"
+	// debugOpt makes the tracer log debugging information
+	debugOpt = "debug"
 	// uidOpt used to start the tracee
 	uidOpt = "uid"
 	// gidOpt used to start the tracee
@@ -58,6 +60,7 @@ const (
 type traceCliParams struct {
 	ProbeAddr        string
 	Verbose          bool
+	Debug            bool
 	UID              int32
 	GID              int32
 	Async            bool
@@ -93,6 +96,7 @@ func Command() []*cobra.Command {
 			opts := ptracer.Opts{
 				Creds:            creds,
 				Verbose:          params.Verbose,
+				Debug:            params.Debug,
 				Async:            params.Async,
 				StatsDisabled:    params.StatsDisabled,
 				ProcScanDisabled: params.ProcScanDisabled,
@@ -116,6 +120,7 @@ func Command() []*cobra.Command {
 
 	traceCmd.Flags().StringVar(&params.ProbeAddr, probeAddrOpt, constants.DefaultEBPFLessProbeAddr, "system-probe eBPF less GRPC address")
 	traceCmd.Flags().BoolVar(&params.Verbose, verboseOpt, false, "enable verbose output")
+	traceCmd.Flags().BoolVar(&params.Debug, debugOpt, false, "enable debug output")
 	traceCmd.Flags().Int32Var(&params.UID, uidOpt, -1, "uid used to start the tracee")
 	traceCmd.Flags().Int32Var(&params.GID, gidOpt, -1, "gid used to start the tracee")
 	traceCmd.Flags().BoolVar(&params.Async, asyncOpt, false, "enable async GRPC connection")

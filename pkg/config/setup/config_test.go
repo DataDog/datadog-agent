@@ -25,6 +25,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 func unsetEnvForTest(t *testing.T, env string) {
@@ -1501,4 +1502,36 @@ func TestAgentConfigInit(t *testing.T) {
 	assert.True(t, conf.IsKnown("forwarder_timeout"))
 	assert.True(t, conf.IsKnown("sbom.enabled"))
 	assert.True(t, conf.IsKnown("inventories_enabled"))
+}
+
+func TestENVAdditionalKeysToScrubber(t *testing.T) {
+	// Test that the scrubber is correctly configured with the expected keys
+	cfg := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	data := `scrubber.additional_keys:
+- yet_another_key
+flare_stripped_keys:
+- some_other_key`
+
+	path := t.TempDir()
+	configPath := filepath.Join(path, "empty_conf.yaml")
+	err := os.WriteFile(configPath, []byte(data), 0o600)
+	require.NoError(t, err)
+	cfg.SetConfigFile(configPath)
+
+	_, err = LoadDatadogCustom(cfg, "test", optional.NewNoneOption[secrets.Component](), []string{})
+	require.NoError(t, err)
+
+	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+some_other_key: 'bbbb'
+app_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccc'
+yet_another_key: 'dddd'`
+
+	scrubbed, err := scrubber.ScrubYamlString(stringToScrub)
+	assert.Nil(t, err)
+	expected := `api_key: '***************************aaaaa'
+some_other_key: "********"
+app_key: '***********************************acccc'
+yet_another_key: "********"`
+	assert.YAMLEq(t, expected, scrubbed)
 }

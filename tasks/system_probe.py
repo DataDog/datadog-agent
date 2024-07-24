@@ -463,6 +463,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/network/protocols/postgres/types.go": [
                 "pkg/network/ebpf/c/protocols/postgres/types.h",
             ],
+            "pkg/network/protocols/redis/types.go": [
+                "pkg/network/ebpf/c/protocols/redis/types.h",
+            ],
             "pkg/ebpf/telemetry/types.go": [
                 "pkg/ebpf/c/telemetry_types.h",
             ],

@@ -356,20 +356,25 @@ func buildConnectionString(connectionConfig config.ConnectionConfig) string {
 }
 
 func TestLargeUint64Binding(t *testing.T) {
+	var err error
+	c, _ := newDefaultCheck(t, "", "")
+	require.NoError(t, err)
+	err = c.Run()
+	require.NoError(t, err)
+
 	largeUint64 := uint64(18446744073709551615)
 	var result uint64
+	var owner string
+	if c.hostingType == rds {
+		owner = "admin"
+	} else {
+		owner = "sys"
+	}
+	err = getWrapper(&c, &result, fmt.Sprintf("SELECT n FROM %s.T WHERE n = :1", owner), largeUint64)
+	require.NoError(t, err, "running test statement")
+	assert.Equal(t, result, largeUint64, "simple uint64 binded correctly")
 
-	var err error
-	driver := common.GoOra
-	db, err := connectToDB(driver)
-	require.NoErrorf(t, err, "connecting to db with %s driver", driver)
-
-	err = db.Get(&result, "SELECT n FROM sys.T WHERE n = :1", largeUint64)
-	assert.NoError(t, err, "running test statement with %s driver", driver)
-	assert.Equal(t, result, largeUint64, "simple uint64 binding with %s driver", driver)
-
-	err = db.Get(&result, "SELECT 18446744073709551615 FROM dual")
-	assert.NoError(t, err, "running test statement with %s driver", driver)
-	assert.Equal(t, result, largeUint64, "result set truncated with %s driver", driver)
-	db.Close()
+	err = getWrapper(&c, &result, "SELECT 18446744073709551615 FROM dual")
+	require.NoError(t, err, "running test statement")
+	assert.Equal(t, result, largeUint64, "result set not truncated")
 }
