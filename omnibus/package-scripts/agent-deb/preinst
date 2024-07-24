@@ -49,7 +49,9 @@ $INSTALL_DIR/embedded/bin/pip freeze | grep -v '==' | while IFS= read -r line; d
     # Use sed to extract package name and version
     package_name=$(echo "$line" | sed -n 's/^\(.*\) @.*/\1/p')
     version=$(echo "$line" | sed -n 's/^.*-\([0-9]\+\(\.[0-9]\+\)*\)\.whl#.*/\1/p')
-
+    echo "line='${line}'"
+    echo "package_name='${package_name}'"
+    echo "version='${version}'"
     if [ -n "$package_name" ] && [ -n "$version" ]; then
         echo "${package_name}==${version}" >> "$INSTALL_DIR/embedded/.pkg-dependencies.txt"
     fi
