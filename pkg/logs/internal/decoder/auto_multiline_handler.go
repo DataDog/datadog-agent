@@ -14,7 +14,7 @@ import (
 
 // AutoMultilineHandler aggreagates multiline logs.
 type AutoMultilineHandler struct {
-	labler     *automultilinedetection.Labeler
+	labeler    *automultilinedetection.Labeler
 	aggregator *automultilinedetection.Aggregator
 }
 
@@ -27,13 +27,13 @@ func NewAutoMultilineHandler(outputFn func(m *message.Message), maxContentSize i
 	}
 
 	return &AutoMultilineHandler{
-		labler:     automultilinedetection.NewLabler(heuristics),
+		labeler:    automultilinedetection.NewLabeler(heuristics),
 		aggregator: automultilinedetection.NewAggregator(outputFn, maxContentSize, flushTimeout),
 	}
 }
 
 func (a *AutoMultilineHandler) process(msg *message.Message) {
-	label := a.labler.Label(msg.GetContent())
+	label := a.labeler.Label(msg.GetContent())
 	a.aggregator.Aggregate(msg, label)
 }
 

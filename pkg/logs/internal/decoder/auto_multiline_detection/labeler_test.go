@@ -22,7 +22,7 @@ func (m *mockHeuristic) Process(context *messageContext) bool {
 
 func TestLabelerProceedNextHeuristic(t *testing.T) {
 
-	labeler := NewLabler([]Heuristic{
+	labeler := NewLabeler([]Heuristic{
 		&mockHeuristic{
 			processFunc: func(context *messageContext) bool {
 				context.label = startGroup
@@ -42,7 +42,7 @@ func TestLabelerProceedNextHeuristic(t *testing.T) {
 
 func TestLabelerProceedFirstHeuristicWins(t *testing.T) {
 
-	labeler := NewLabler([]Heuristic{
+	labeler := NewLabeler([]Heuristic{
 		&mockHeuristic{
 			processFunc: func(context *messageContext) bool {
 				context.label = startGroup
@@ -62,7 +62,7 @@ func TestLabelerProceedFirstHeuristicWins(t *testing.T) {
 
 func TestLabelerDefaultLabel(t *testing.T) {
 
-	labeler := NewLabler([]Heuristic{
+	labeler := NewLabeler([]Heuristic{
 		&mockHeuristic{
 			processFunc: func(context *messageContext) bool {
 				return false
@@ -75,7 +75,7 @@ func TestLabelerDefaultLabel(t *testing.T) {
 
 func TestLabelerPassesAlongMessageContext(t *testing.T) {
 
-	labeler := NewLabler([]Heuristic{
+	labeler := NewLabeler([]Heuristic{
 		&mockHeuristic{
 			processFunc: func(context *messageContext) bool {
 				assert.Equal(t, "test 123", string(context.rawMessage))

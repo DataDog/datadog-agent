@@ -15,21 +15,26 @@ import (
 func TestJsonDetector(t *testing.T) {
 	jsonDetector := NewJSONDetector()
 	testCases := []struct {
-		rawMessage    string
-		expectedLabel Label
+		rawMessage     string
+		expectedLabel  Label
+		expectedResult bool
 	}{
-		{`{"key": "value"}`, noAggregate},
-		{`    {"key": "value"}`, noAggregate},
-		{`    { "key": "value"}`, noAggregate},
-		{`    {."key": "value"}`, aggregate},
-		{`.{"key": "value"}`, aggregate},
-		{`{"another_key": "another_value"}`, noAggregate},
-		{`{"key": 12345}`, noAggregate},
-		{`{"array": [1,2,3]}`, noAggregate},
-		{`not json`, aggregate},
-		{`{foo}`, aggregate},
-		{`{bar"}`, aggregate},
-		{`"FOO"}`, aggregate},
+		{`{"key": "value"}`, noAggregate, false},
+		{`    {"key": "value"}`, noAggregate, false},
+		{`    { "key": "value"}`, noAggregate, false},
+		{`    {."key": "value"}`, aggregate, true},
+		{`.{"key": "value"}`, aggregate, true},
+		{`{"another_key": "another_value"}`, noAggregate, false},
+		{`{"key": 12345}`, noAggregate, false},
+		{`{"array": [1,2,3]}`, noAggregate, false},
+		{`not json`, aggregate, true},
+		{`{foo}`, aggregate, true},
+		{`{bar"}`, aggregate, true},
+		{`"FOO"}`, aggregate, true},
+		{`{}`, noAggregate, false},
+		{` {}`, noAggregate, false},
+		{` {    }`, noAggregate, false},
+		{`{    }`, noAggregate, false},
 	}
 
 	for _, tc := range testCases {
@@ -38,7 +43,7 @@ func TestJsonDetector(t *testing.T) {
 				rawMessage: []byte(tc.rawMessage),
 				label:      aggregate,
 			}
-			jsonDetector.Process(messageContext)
+			assert.Equal(t, tc.expectedResult, jsonDetector.Process(messageContext))
 			assert.Equal(t, tc.expectedLabel, messageContext.label)
 		})
 	}

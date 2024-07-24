@@ -35,13 +35,13 @@ type Heuristic interface {
 
 // Labeler labels log messages based on a set of heuristics.
 // Each Heuristic operates on the output of the previous heuristic - mutating the message context.
-// A label is chosen when a herusitc signals the labler to stop or when all herustics have been processed.
+// A label is chosen when a herusitc signals the labeler to stop or when all herustics have been processed.
 type Labeler struct {
 	heuristics []Heuristic
 }
 
-// NewLabler creates a new labeler with the given heuristics.
-func NewLabler(heuristics []Heuristic) *Labeler {
+// NewLabeler creates a new labeler with the given heuristics.
+func NewLabeler(heuristics []Heuristic) *Labeler {
 	return &Labeler{
 		heuristics: heuristics,
 	}
