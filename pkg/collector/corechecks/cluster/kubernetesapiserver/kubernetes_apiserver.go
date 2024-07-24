@@ -139,7 +139,17 @@ var integrationCollectedEventTypes = []collectedEventType{
 	// Integrations
 	{
 		Source: "karpenter",
-		// Reasons: []string{},
+		Reasons: []string{
+			"DisruptionBlocked",
+			"DisruptionLaunching",
+			"DisruptionTerminating",
+			"DisruptionWaitingReadiness",
+			"FailedDraining",
+			"InstanceTerminating",
+			"SpotInterrupted",
+			"SpotRebalanceRecommendation",
+			"TerminatingOnInterruption",
+		},
 	},
 	{
 		Source: "datadog-operator",

@@ -262,3 +262,176 @@ func Test_getEventSource(t *testing.T) {
 		})
 	}
 }
+
+func Test_shouldCollect(t *testing.T) {
+	tests := []struct {
+		name           string
+		ev             *v1.Event
+		collectedTypes []collectedEventType
+		shouldCollect  bool
+	}{
+		{
+			name: "kubernetes event collection matches based on kind",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+					Host:      "my-node-1",
+				},
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Kind: "Pod",
+				},
+			},
+			shouldCollect: true,
+		},
+		{
+			name: "kubernetes event collection filters based on kind",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+					Host:      "my-node-1",
+				},
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Kind: "Node",
+				},
+			},
+			shouldCollect: false,
+		},
+		{
+			name: "kubernetes event collection filters based on source",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+					Host:      "my-node-1",
+				},
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Source: "kubernetes",
+				},
+			},
+			shouldCollect: false,
+		},
+		{
+			name: "kubernetes event collection matches based on reason",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+					Host:      "my-node-1",
+				},
+				Reason: "CrashLoopBackOff",
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Reasons: []string{"CrashLoopBackOff"},
+				},
+			},
+			shouldCollect: true,
+		},
+		{
+			name: "kubernetes event collection filters based on reason",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+					Host:      "my-node-1",
+				},
+				Reason: "CrashLoopBackOff",
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Reasons: []string{"Failed"},
+				},
+			},
+			shouldCollect: false,
+		},
+		{
+			name: "kubernetes event collection matches by kind and reason",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+					Host:      "my-node-1",
+				},
+				Reason: "CrashLoopBackOff",
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Kind:    "Pod",
+					Reasons: []string{"Failed", "BackOff", "Unhealthy", "FailedScheduling", "FailedMount", "FailedAttachVolume"},
+				},
+				{
+					Kind:    "Node",
+					Reasons: []string{"TerminatingEvictedPod", "NodeNotReady", "Rebooted", "HostPortConflict"},
+				},
+				{
+					Kind:    "CronJob",
+					Reasons: []string{"SawCompletedJob"},
+				},
+				{
+					Reasons: []string{"CrashLoopBackOff"},
+				},
+			},
+			shouldCollect: true,
+		},
+		{
+			name: "kubernetes event collection filters by kind and reason",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+					Host:      "my-node-1",
+				},
+				Reason: "CrashLoopBackOff",
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Kind:    "Pod",
+					Reasons: []string{"Failed", "BackOff", "Unhealthy", "FailedScheduling", "FailedMount", "FailedAttachVolume"},
+				},
+				{
+					Kind:    "Node",
+					Reasons: []string{"TerminatingEvictedPod", "NodeNotReady", "Rebooted", "HostPortConflict"},
+				},
+				{
+					Kind:    "CronJob",
+					Reasons: []string{"SawCompletedJob"},
+				},
+			},
+			shouldCollect: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.shouldCollect, shouldCollect(tt.ev, tt.collectedTypes))
+		})
+	}
+}
