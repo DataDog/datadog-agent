@@ -96,11 +96,7 @@ int __attribute__((always_inline)) handle_open_event(struct syscall_cache_t *sys
     return 0;
 }
 
-int __attribute__((always_inline)) handle_truncate_path(struct path *path) {
-    if (path == NULL) {
-        return 0;
-    }
-
+int __attribute__((always_inline)) handle_truncate_path_dentry(struct path *path, struct dentry *dentry) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall) {
         return 0;
@@ -109,8 +105,6 @@ int __attribute__((always_inline)) handle_truncate_path(struct path *path) {
     if (syscall->open.dentry) {
         return 0;
     }
-
-    struct dentry *dentry = get_path_dentry(path);
 
     if (is_non_mountable_dentry(dentry)) {
         pop_syscall(EVENT_OPEN);
@@ -127,6 +121,26 @@ int __attribute__((always_inline)) handle_truncate_path(struct path *path) {
     }
 
     return 0;
+}
+
+int __attribute__((always_inline)) handle_truncate_path(struct path *path) {
+    if (path == NULL) {
+        return 0;
+    }
+
+    struct dentry *dentry = get_path_dentry(path);
+    return handle_truncate_path_dentry(path, dentry);
+}
+
+HOOK_ENTRY("do_truncate")
+int hook_do_truncate(ctx_t *ctx) {
+    struct dentry *dentry = (struct dentry *)CTX_PARM1(ctx);
+    struct file *f = (struct file *)CTX_PARM4(ctx);
+    if (f == NULL) {
+        return 0;
+    }
+    struct path *path = get_file_f_path_addr(f);
+    return handle_truncate_path_dentry(path, dentry);
 }
 
 HOOK_ENTRY("vfs_truncate")

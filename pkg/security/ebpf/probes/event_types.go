@@ -151,6 +151,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				kprobeOrFentry("security_path_truncate"),
 				kprobeOrFentry("security_file_truncate"),
 				kprobeOrFentry("vfs_truncate"),
+				kprobeOrFentry("do_truncate"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "open", fentry, EntryAndExit, true)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "creat", fentry, EntryAndExit)},
