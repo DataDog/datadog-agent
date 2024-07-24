@@ -9,8 +9,8 @@
 //
 // ---------------------------------------------------
 
-// Package agenttelemetryimpl provides the implementation of the agenttelemetry component.
-package agenttelemetryimpl
+// Package impl provides the implementation of the agenttelemetry component.
+package impl
 
 import (
 	"bytes"
@@ -21,16 +21,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/agenttelemetry"
+	"golang.org/x/exp/maps"
+
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"golang.org/x/exp/maps"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	dto "github.com/prometheus/client_model/go"
-	"go.uber.org/fx"
 )
 
 // Embed one or more rendering templated into this binary as a resource
@@ -38,12 +38,6 @@ import (
 
 //go:embed status_templates
 var templatesFS embed.FS
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newAtel))
-}
 
 type atel struct {
 	cfgComp    config.Component
@@ -60,16 +54,16 @@ type atel struct {
 	cancel    context.CancelFunc
 }
 
-// FX-in compatibility
-type dependencies struct {
-	fx.In
+// Requires defines the dependencies for the agenttelemtry component
+type Requires struct {
+	compdef.In
 
 	Log       log.Component
 	Config    config.Component
 	Telemetry telemetry.Component
 	Status    status.Component
 
-	Lifecycle fx.Lifecycle
+	Lifecycle compdef.Lifecycle
 }
 
 // Interfacing with runner.
@@ -132,8 +126,9 @@ func createAtel(
 	}
 }
 
-func newAtel(deps dependencies) agenttelemetry.Component {
-	sender, err := createSender(deps.Config, deps.Log)
+// NewComponent creates a new agent telemetry component.
+func NewComponent(req Requires) agenttelemetry.Component {
+	sender, err := createSender(req.Config, req.Log)
 	if err != nil {
 		return &atel{}
 	}
@@ -142,10 +137,10 @@ func newAtel(deps dependencies) agenttelemetry.Component {
 
 	// Wire up the agent telemetry provider (TODO: use FX for sender, client and runner?)
 	a := createAtel(
-		deps.Config,
-		deps.Log,
-		deps.Telemetry,
-		deps.Status,
+		req.Config,
+		req.Log,
+		req.Telemetry,
+		req.Status,
 		sender,
 		runner,
 	)
@@ -153,7 +148,7 @@ func newAtel(deps dependencies) agenttelemetry.Component {
 	// If agent telemetry is enabled, add the start and stop hooks
 	if a.enabled {
 		// Instruct FX to start and stop the agent telemetry
-		deps.Lifecycle.Append(fx.Hook{
+		req.Lifecycle.Append(compdef.Hook{
 			OnStart: func(ctx context.Context) error {
 				return a.start()
 			},
