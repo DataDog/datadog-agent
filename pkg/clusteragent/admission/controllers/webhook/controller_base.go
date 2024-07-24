@@ -27,7 +27,6 @@ import (
 	agentsidecar "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoscaling"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
@@ -80,23 +79,18 @@ type MutatingWebhook interface {
 	MutateFunc() admission.WebhookFunc
 }
 
-func getInjectionFilter() common.InjectionFilter {
-	return common.InjectionFilter{
-		NSFilter: autoinstrumentation.GetInjectionFilter(),
-	}
-}
-
 // mutatingWebhooks returns the list of mutating webhooks. Notice that the order
 // of the webhooks returned is the order in which they will be executed. For
 // now, the only restriction is that the agent sidecar webhook needs to go after
 // the config one. The reason is that the volume mount for the APM socket added
 // by the config webhook doesn't always work on Fargate (one of the envs where
 // we use an agent sidecar), and the agent sidecar webhook needs to remove it.
-//
-// Note: the auto_instrumentation pod injection filter is used across
-// multiple mutating webhooks, so we add it as a hard dependency to each
-// of the components that use it via the injectionFilter parameter.
-func mutatingWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher, injectionFilter common.InjectionFilter) []MutatingWebhook {
+func mutatingWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher) []MutatingWebhook {
+	// Note: the auto_instrumentation pod injection filter is used across
+	// multiple mutating webhooks, so we add it as a hard dependency to each
+	// of the components that use it via the injectionFilter parameter.
+	injectionFilter := autoinstrumentation.GetInjectionFilter()
+
 	webhooks := []MutatingWebhook{
 		config.NewWebhook(wmeta, injectionFilter),
 		tagsfromlabels.NewWebhook(wmeta, injectionFilter),

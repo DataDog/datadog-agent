@@ -9,7 +9,6 @@ package autoinstrumentation
 
 import (
 	"fmt"
-	"sync"
 
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -18,23 +17,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	// We need a global variable to store the filter instance
-	// because other webhooks depend on it.
-	//
-	// The "config" and the "tags" webhooks depend on the "auto_instrumentation"
-	// configuration to decide if a pod should be injected.
-	//
-	// They first check if the pod has the label to enable mutations.
-	// If it doesn't, they mutate the pod if the option to "mutate_unlabeled" is
-	// set to true or if APM SSI is enabled in the namespace.
-	autoInstrumentationFilter = &injectionFilter{}
-)
+// GetNamespaceInjectionFilter is an accessor for the NamespaceInjectionFilter
+func GetNamespaceInjectionFilter() mutatecommon.NamespaceInjectionFilter {
+	filter, err := makeAPMSSINamespaceFilter()
+	return &injectionFilter{filter: filter, err: err}
+}
 
-var _ mutatecommon.NamespaceInjectionFilter = &injectionFilter{}
+// GetInjectionFilter constructs an injection filter using the autoinstrumentation
+// GetNamespaceInjectionFilter.
+func GetInjectionFilter() mutatecommon.InjectionFilter {
+	return mutatecommon.InjectionFilter{
+		NSFilter: GetNamespaceInjectionFilter(),
+	}
+}
 
 type injectionFilter struct {
-	once   sync.Once
 	filter *containers.Filter
 	err    error
 }
@@ -55,30 +52,22 @@ func (f *injectionFilter) IsNamespaceEligible(ns string) bool {
 		return false
 	}
 
-	filter, err := f.get()
-	if err != nil {
+	if f.err != nil {
 		return false
 	}
 
-	return !filter.IsExcluded(nil, "", "", ns)
+	if f.filter == nil {
+		return false
+	}
+
+	return !f.filter.IsExcluded(nil, "", "", ns)
 }
 
 // Err returns an error if the namespace filter failed to initialize.
 //
 // This is safe to ignore for most uses, except for in auto_instrumentation itself.
 func (f *injectionFilter) Err() error {
-	_, err := f.get()
-	return err
-}
-
-func (f *injectionFilter) get() (*containers.Filter, error) {
-	f.once.Do(func() {
-		if f.filter == nil {
-			f.filter, f.err = makeAPMSSINamespaceFilter()
-		}
-	})
-
-	return f.filter, f.err
+	return f.err
 }
 
 // makeAPMSSINamespaceFilter returns the filter used by APM SSI to filter namespaces.
@@ -131,9 +120,4 @@ func makeAPMSSINamespaceFilter() (*containers.Filter, error) {
 	}
 
 	return containers.NewFilter(containers.GlobalFilter, apmEnabledNamespacesWithPrefix, filterExcludeList)
-}
-
-// GetInjectionFilter is an accessor for the autoInstrumentationFilter
-func GetInjectionFilter() mutatecommon.NamespaceInjectionFilter {
-	return autoInstrumentationFilter
 }

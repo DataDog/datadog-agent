@@ -29,7 +29,7 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	model "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -246,7 +246,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			webhook := WithResetInjectionFilter1(wmeta, mustWebhook(t))
+			webhook := mustWebhook(t, wmeta)
 			err := webhook.injectAutoInstruConfig(tt.pod, tt.libsToInject, false, "")
 			if tt.wantErr {
 				require.Error(t, err, "expected injectAutoInstruConfig to error")
@@ -681,8 +681,7 @@ func TestExtractLibInfo(t *testing.T) {
 				tt.setupConfig()
 			}
 
-			// Need to create a new instance of the webhook account of config changes.
-			webhook := WithResetInjectionFilter1(wmeta, mustWebhook(t))
+			webhook := mustWebhook(t, wmeta)
 
 			if tt.expectedPodEligible != nil {
 				require.Equal(t, *tt.expectedPodEligible, webhook.isPodEligible(tt.pod))
@@ -2184,7 +2183,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				}
 			}
 
-			webhook := WithResetInjectionFilter1(wmeta, mustWebhook(t))
+			webhook := mustWebhook(t, wmeta)
 
 			_, err := webhook.inject(tt.pod, "", fake.NewSimpleDynamicClient(scheme.Scheme))
 			require.False(t, (err != nil) != tt.wantErr)
@@ -2428,19 +2427,16 @@ func TestShouldInject(t *testing.T) {
 			mockConfig = configmock.New(t)
 			tt.setupConfig()
 
-			webhook := WithResetInjectionFilter1(wmeta, mustWebhook(t))
+			webhook := mustWebhook(t, wmeta)
 			require.Equal(t, tt.want, webhook.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
 		})
 	}
 }
 
-func mustWebhook(t *testing.T) func(workloadmeta.Component, common.InjectionFilter) *Webhook {
-	t.Helper()
-	return func(wmeta workloadmeta.Component, f common.InjectionFilter) *Webhook {
-		webhook, err := NewWebhook(wmeta, f)
-		require.NoError(t, err)
-		return webhook
-	}
+func mustWebhook(t *testing.T, wmeta workloadmeta.Component) *Webhook {
+	webhook, err := NewWebhook(wmeta, GetInjectionFilter())
+	require.NoError(t, err)
+	return webhook
 }
 
 func languageSetOf(languages ...string) util.LanguageSet {

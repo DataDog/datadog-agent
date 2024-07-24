@@ -29,7 +29,6 @@ import (
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -956,7 +955,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 
 			c := &ControllerV1beta1{}
 			c.config = tt.configFunc()
-			c.mutatingWebhooks = autoinstrumentation.WithResetInjectionFilter2(wmeta, nil, mutatingWebhooks)
+			c.mutatingWebhooks = mutatingWebhooks(wmeta, nil)
 			c.generateTemplates()
 
 			assert.EqualValues(t, tt.want(), c.webhookTemplates)

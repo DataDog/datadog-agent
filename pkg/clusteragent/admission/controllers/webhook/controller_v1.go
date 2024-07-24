@@ -60,7 +60,7 @@ func NewControllerV1(
 	controller.queue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "webhooks")
 	controller.isLeaderFunc = isLeaderFunc
 	controller.isLeaderNotif = isLeaderNotif
-	controller.mutatingWebhooks = mutatingWebhooks(wmeta, pa, getInjectionFilter())
+	controller.mutatingWebhooks = mutatingWebhooks(wmeta, pa)
 	controller.generateTemplates()
 
 	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{

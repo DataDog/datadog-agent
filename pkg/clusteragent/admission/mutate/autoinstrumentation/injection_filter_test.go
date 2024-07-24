@@ -87,30 +87,19 @@ func TestFailingInjectionConfig(t *testing.T) {
 			c.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", tt.enabledNamespaces)
 			c.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", tt.disabledNamespaces)
 
-			resetInjectionFilter()
-			_, err := autoInstrumentationFilter.get()
-			if tt.expectedFilterError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+			nsFilter := GetNamespaceInjectionFilter()
+			require.NotNil(t, nsFilter, "we should always get a filter")
 
-			_, err = NewWebhook(wmeta, common.InjectionFilter{
-				NSFilter: GetInjectionFilter(),
-			})
+			_, err := NewWebhook(wmeta, common.InjectionFilter{NSFilter: nsFilter})
 			if tt.expectedWebhookError {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 			}
 
-			filter := GetInjectionFilter()
-			require.NotNil(t, filter, "we should always get a filter")
-
 			checkedNamespaces := map[string]bool{}
-
 			for ns := range tt.expectedNamespaces {
-				checkedNamespaces[ns] = filter.IsNamespaceEligible(ns)
+				checkedNamespaces[ns] = nsFilter.IsNamespaceEligible(ns)
 			}
 
 			require.Equal(t, tt.expectedNamespaces, checkedNamespaces)
