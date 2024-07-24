@@ -644,30 +644,6 @@ func (p *EBPFResolver) resolve(pid, tid uint32, inode uint64, useProcFS bool) *m
 	return nil
 }
 
-func (p *EBPFResolver) resolveFilePath(e *model.FileFields, pce *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) (string, error) {
-	var (
-		pathnameStr   string
-		err           error
-		maxDepthRetry = 3
-	)
-
-	for maxDepthRetry > 0 {
-		pathnameStr, err = p.pathResolver.ResolveFilePath(e, &pce.PIDContext, ctrCtx)
-		if err == nil {
-			return pathnameStr, nil
-		}
-		parent, exists := p.entryCache[pce.PPid]
-		if !exists {
-			break
-		}
-
-		pce = parent
-		maxDepthRetry--
-	}
-
-	return pathnameStr, err
-}
-
 func (p *EBPFResolver) resolveFileFieldsPath(e *model.FileFields, pce *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) (string, string, model.MountSource, model.MountOrigin, error) {
 	var (
 		pathnameStr, mountPath string

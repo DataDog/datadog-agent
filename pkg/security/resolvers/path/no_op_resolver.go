@@ -21,7 +21,7 @@ func (n *NoOpResolver) ResolveBasename(_ *model.FileFields) string {
 	return ""
 }
 
-// ResolveFileFieldsPath resolves an inode/mount ID pair to a full path
+// ResolveFilePath resolves an inode/mount ID pair to a full path
 func (n *NoOpResolver) ResolveFilePath(_ *model.FileFields, _ *model.PIDContext, _ *model.ContainerContext) (string, error) {
 	return "", nil
 }
