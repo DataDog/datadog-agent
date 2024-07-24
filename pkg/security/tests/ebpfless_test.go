@@ -83,6 +83,7 @@ func TestEBPFLessAttach(t *testing.T) {
 			opts := ptracer.Opts{
 				ProcScanDisabled: true,
 				Verbose:          true,
+				Debug:            true,
 				AttachedCb: func() {
 					syscall.Kill(pid, syscall.SIGUSR2)
 				},

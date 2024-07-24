@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -73,4 +74,9 @@ func Test_shouldScheduleNetworkPathForConn(t *testing.T) {
 			assert.Equal(t, tt.shouldSchedule, shouldScheduleNetworkPathForConn(tt.conn))
 		})
 	}
+}
+
+func Test_convertProtocol(t *testing.T) {
+	assert.Equal(t, convertProtocol(model.ConnectionType_udp), payload.ProtocolUDP)
+	assert.Equal(t, convertProtocol(model.ConnectionType_tcp), payload.ProtocolTCP)
 }
