@@ -42,4 +42,13 @@ if [ -d $TUF_REPO_DIR ]; then
     rm -rf $TUF_REPO_DIR
 fi
 
+PACKAGE_NAME="datadog-agent" # Replace with your actual package name
+
+# Retrieve the package version
+PACKAGE_VERSION=$(dpkg-query -W -f='${Version}\n' $PACKAGE_NAME)
+
+# Print or use the package name and version
+echo "Package Name: $PACKAGE_NAME"
+echo "Package Version: $PACKAGE_VERSION"
+
 exit 0
