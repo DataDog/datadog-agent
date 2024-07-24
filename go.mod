@@ -589,7 +589,10 @@ require (
 	sigs.k8s.io/yaml v1.4.0
 )
 
-require github.com/lorenzosaino/go-sysctl v0.3.1
+require (
+	github.com/DataDog/datadog-agent/comp/otelcol/provider/impl v0.55.0
+	github.com/lorenzosaino/go-sysctl v0.3.1
+)
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
@@ -751,6 +754,7 @@ require (
 	github.com/Code-Hex/go-generics-cache v1.3.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.0.0-20240525065430-d0b647bcb646 // indirect
+	github.com/DataDog/datadog-agent/comp/otelcol/provider/def v0.55.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.56.0-rc.3 // indirect
