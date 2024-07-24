@@ -519,10 +519,8 @@ def job_change_path(ctx, job_files=None):
     job_files = job_files or (['.gitlab/e2e/e2e.yml'] + list(glob('.gitlab/kitchen_testing/new-e2e_testing/*.yml')))
 
     # Read and parse gitlab config
-    config = get_gitlab_ci_configuration(ctx, ".gitlab-ci.yml")
-
     # The config is filtered to only include jobs
-    all_jobs = set(config.keys())
+    config = get_gitlab_ci_configuration(ctx, ".gitlab-ci.yml")
 
     # Fetch all test jobs
     test_config = read_includes(ctx, job_files, return_config=True, add_file_path=True)
@@ -544,10 +542,6 @@ def job_change_path(ctx, job_files=None):
     tests_without_change_path = defaultdict(list)
     tests_without_change_path_allowed = defaultdict(list)
     for test, filepath in tests:
-        # Not a job
-        if test not in all_jobs:
-            continue
-
         if not any(contains_valid_change_rule(rule) for rule in config[test]['rules'] if isinstance(rule, dict)):
             if test in tests_without_change_path_allow_list:
                 tests_without_change_path_allowed[filepath].append(test)
