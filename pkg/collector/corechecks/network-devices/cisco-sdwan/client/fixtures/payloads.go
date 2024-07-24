@@ -400,3 +400,39 @@ const GetHardwareStates = `
     }
 ]
 `
+
+// CloudXStatistics /dataservice/data/device/statistics/cloudxstatistics
+const GetCloudExpressMetrics = `
+[
+	{
+		"remote_color": "mpls",
+		"device_model": "vedge-C8000V",
+		"latency": 404,
+		"interface": "-",
+		"local_color": "mpls",
+		"loss": 0,
+		"gateway_system_ip": "10.10.1.11",
+		"source_public_ip": "-",
+		"statcycletime": 1721820600114,
+		"local_system_ip": "10.10.1.13",
+		"tenant": "default",
+		"entry_time": 1721819993833,
+		"vqe_status": "averageSites",
+		"exit_type": "Remote",
+		"vip_time": 1721819993833,
+		"vmanage_system_ip": "10.10.1.13",
+		"nbar_app_group_name": "amazon-group",
+		"application": "amazon_aws",
+		"vdevice_name": "10.10.1.13",
+		"best_path": "FALSE",
+		"vip_idx": 9789,
+		"site_id": 1001,
+		"vqe_score": "5.0",
+		"service_area": "-",
+		"host_name": "Site1-cEdge01",
+		"vpn_id": 1,
+		"app_url_host_ip": "-",
+		"id": "1DKB5JAB5928XahrV_c7"
+	}
+]
+`
