@@ -46,7 +46,7 @@ fi
 > $INSTALL_DIR/embedded/.pkg-dependencies.txt
 $INSTALL_DIR/embedded/bin/pip freeze | grep -v '==' | while IFS= read -r line; do
     regex='^(.*) @\ (.+\/)*([^\/-]+)-([0-9]+(\.([0-9])+)*)(.*[^-])-(.*\.whl)#(.*)$'
-    if [[ $line =~ $regex ]]; then
+    if [ $line =~ $regex ]; then
         local package_name=${BASH_REMATCH[1]}
         local version=${BASH_REMATCH[4]}
         echo "${package_name}==$version" >> $INSTALL_DIR/embedded/.pkg-dependencies.txt
