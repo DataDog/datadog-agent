@@ -121,6 +121,7 @@ func TestInitData(t *testing.T) {
 		"service_monitoring_config.enable_http2_monitoring":          true,
 		"service_monitoring_config.enable_kafka_monitoring":          true,
 		"service_monitoring_config.enable_postgres_monitoring":       true,
+		"service_monitoring_config.enable_redis_monitoring":          true,
 		"service_monitoring_config.tls.istio.enabled":                true,
 		"service_monitoring_config.enable_http_stats_by_status_code": true,
 		"service_monitoring_config.tls.go.enabled":                   true,
@@ -212,6 +213,7 @@ func TestInitData(t *testing.T) {
 		"feature_usm_enabled":                          true,
 		"feature_usm_kafka_enabled":                    true,
 		"feature_usm_postgres_enabled":                 true,
+		"feature_usm_redis_enabled":                    true,
 		"feature_usm_java_tls_enabled":                 true,
 		"feature_usm_http2_enabled":                    true,
 		"feature_usm_istio_enabled":                    true,
@@ -484,6 +486,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_usm_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_kafka_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_postgres_enabled"].(bool))
+	assert.False(t, ia.data["feature_usm_redis_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_java_tls_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_http2_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_istio_enabled"].(bool))
@@ -597,6 +600,7 @@ service_monitoring_config:
   enabled: true
   enable_kafka_monitoring: true
   enable_postgres_monitoring: true
+  enable_redis_monitoring: true
   enable_http2_monitoring: true
   enable_http_stats_by_status_code: true
 
@@ -631,6 +635,7 @@ dynamic_instrumentation:
 	assert.True(t, ia.data["feature_usm_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_kafka_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_postgres_enabled"].(bool))
+	assert.True(t, ia.data["feature_usm_redis_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_java_tls_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_http2_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_istio_enabled"].(bool))

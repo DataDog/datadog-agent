@@ -9,14 +9,15 @@
 //
 // ---------------------------------------------------
 
-package agenttelemetryimpl
+package impl
 
 import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
 )
 
 const (
