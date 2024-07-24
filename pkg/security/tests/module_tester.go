@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
-	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -110,7 +110,7 @@ func (tm *testModule) Run(t *testing.T, name string, fnc func(t *testing.T, kind
 func (tm *testModule) reloadPolicies() error {
 	log.Debugf("reload policies with cfgDir: %s", commonCfgDir)
 
-	bundledPolicyProvider := rulesmodule.NewBundledPolicyProvider(tm.eventMonitor.Probe.Config.RuntimeSecurity)
+	bundledPolicyProvider := bundled.NewPolicyProvider(tm.eventMonitor.Probe.Config.RuntimeSecurity)
 	policyDirProvider, err := rules.NewPoliciesDirProvider(commonCfgDir, false)
 	if err != nil {
 		return err
