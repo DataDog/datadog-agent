@@ -11,6 +11,7 @@ import tempfile
 from invoke import task
 
 from tasks.libs.ciproviders.gitlab_api import (
+    get_all_gitlab_ci_configurations,
     get_gitlab_ci_configuration,
     get_gitlab_repo,
     print_gitlab_ci_configuration,
@@ -162,3 +163,16 @@ def print_ci(
 
     # Print
     print_gitlab_ci_configuration(yml, sort_jobs=sort)
+
+
+@task
+def print_entry_points(ctx):
+    """
+    Print gitlab ci configuration entry points.
+    """
+    print(color_message('info:', Color.BLUE), 'Fetching entry points...')
+    entry_points = get_all_gitlab_ci_configurations(ctx, filter_configs=True, clean_configs=True)
+
+    print(len(entry_points), 'entry points:')
+    for entry_point, config in entry_points.items():
+        print(f'- {color_message(entry_point, Color.BOLD)} ({len(config)} components)')

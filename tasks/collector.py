@@ -1,9 +1,11 @@
 import os
 import platform
+import shutil
 import subprocess
 import tempfile
 import urllib.request
 
+import yaml
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
@@ -49,6 +51,7 @@ def generate(ctx):
 
     binary_url = f"{BASE_URL}{binary_name}"
 
+    config_path = "./comp/otelcol/collector-contrib/impl/manifest.yaml"
     with tempfile.TemporaryDirectory() as tmpdirname:
         binary_path = os.path.join(tmpdirname, binary_name)
         print(f"Downloading {binary_url} to {binary_path}...")
@@ -64,7 +67,6 @@ def generate(ctx):
             ) from e
 
         # Run the binary with specified options
-        config_path = "./comp/otelcol/collector-contrib/impl/manifest.yaml"
         run_command = f"{binary_path} --config {config_path} --skip-compilation"
         print(f"Running command: {run_command}")
 
@@ -80,8 +82,32 @@ def generate(ctx):
                 code=1,
             ) from e
 
-    # Clean the files with main* in comp/otelcol/collector-contrib/impl
+    # Read the output path from the manifest file
     impl_path = "./comp/otelcol/collector-contrib/impl"
+    output_path = None
+    try:
+        with open(config_path) as file:
+            manifest = yaml.safe_load(file)
+            output_path = manifest["dist"]["output_path"]
+    except Exception as e:
+        raise Exit(
+            color_message(f"Failed to read manifest file: {e}", Color.RED),
+            code=1,
+        ) from e
+
+    if output_path != impl_path:
+        components_source = os.path.join(output_path, "components.go")
+        components_dest = os.path.join(impl_path, "components.go")
+        print(f"Copying {components_source} to {components_dest}")
+        try:
+            shutil.copy(components_source, components_dest)
+        except Exception as e:
+            raise Exit(
+                color_message(f"Failed to copy components.go file: {e}", Color.RED),
+                code=1,
+            ) from e
+
+    # Clean the files with main* in comp/otelcol/collector-contrib/impl
     for filename in os.listdir(impl_path):
         if filename.startswith("main"):
             file_path = os.path.join(impl_path, filename)
