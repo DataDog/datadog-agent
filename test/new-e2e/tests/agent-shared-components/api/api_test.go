@@ -94,7 +94,6 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				var have Version
 
 				body, err := io.ReadAll(resp.Body)
-				resp.Body.Close()
 				assert.NoError(ct, err, "failed to read body from request")
 
 				err = json.Unmarshal(body, &have)
@@ -117,7 +116,6 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				want := v.Env().Agent.Client.Hostname()
 
 				body, err := io.ReadAll(resp.Body)
-				resp.Body.Close()
 				assert.NoError(ct, err, "failed to read body from request")
 
 				assert.Contains(ct, string(body), want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, string(body), want)
@@ -140,7 +138,6 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				var have HealthCheck
 
 				body, err := io.ReadAll(resp.Body)
-				resp.Body.Close()
 				assert.NoError(ct, err, "failed to read body from request")
 
 				err = json.Unmarshal(body, &have)
@@ -163,7 +160,6 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				want := `api_key: '*******`
 
 				body, err := io.ReadAll(resp.Body)
-				resp.Body.Close()
 				assert.NoError(ct, err, "failed to read body from request")
 
 				assert.Contains(ct, string(body), want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, string(body), want)
@@ -186,7 +182,6 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				var have Config
 
 				body, err := io.ReadAll(resp.Body)
-				resp.Body.Close()
 				assert.NoError(ct, err, "failed to read body from request")
 
 				err = json.Unmarshal(body, &have)
@@ -212,7 +207,6 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				var have Config
 
 				body, err := io.ReadAll(resp.Body)
-				resp.Body.Close()
 				assert.NoError(ct, err, "failed to read body from request")
 
 				err = json.Unmarshal(body, &have)
@@ -237,7 +231,6 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				var have Config
 
 				body, err := io.ReadAll(resp.Body)
-				resp.Body.Close()
 				assert.NoError(ct, err, "failed to read body from request")
 
 				err = json.Unmarshal(body, &have)
@@ -259,7 +252,6 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				want := `/tmp/datadog-agent-`
 
 				body, err := io.ReadAll(resp.Body)
-				resp.Body.Close()
 				assert.NoError(ct, err, "failed to read body from request")
 
 				assert.Contains(ct, string(body), want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, string(body), want)
@@ -279,7 +271,6 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				want := `secrets feature is not enabled`
 
 				body, err := io.ReadAll(resp.Body)
-				resp.Body.Close()
 				assert.NoError(ct, err, "failed to read body from request")
 
 				assert.Contains(ct, string(body), want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, string(body), want)
@@ -303,7 +294,6 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				var have Tagger
 
 				body, err := io.ReadAll(resp.Body)
-				resp.Body.Close()
 				assert.NoError(ct, err, "failed to read body from request")
 
 				err = json.Unmarshal(body, &have)
@@ -328,7 +318,6 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				var have Workload
 
 				body, err := io.ReadAll(resp.Body)
-				resp.Body.Close()
 				assert.NoError(ct, err, "failed to read body from request")
 
 				err = json.Unmarshal(body, &have)
@@ -353,7 +342,6 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				var have Metadata
 
 				body, err := io.ReadAll(resp.Body)
-				resp.Body.Close()
 				assert.NoError(ct, err, "failed to read body from request")
 
 				err = json.Unmarshal(body, &have)
@@ -378,7 +366,6 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				var have Metadata
 
 				body, err := io.ReadAll(resp.Body)
-				resp.Body.Close()
 				assert.NoError(ct, err, "failed to read body from request")
 
 				err = json.Unmarshal(body, &have)
@@ -403,7 +390,6 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				var have Metadata
 
 				body, err := io.ReadAll(resp.Body)
-				resp.Body.Close()
 				assert.NoError(ct, err, "failed to read body from request")
 
 				err = json.Unmarshal(body, &have)
@@ -428,7 +414,6 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				var have Metadata
 
 				body, err := io.ReadAll(resp.Body)
-				resp.Body.Close()
 				assert.NoError(ct, err, "failed to read body from request")
 
 				err = json.Unmarshal(body, &have)
@@ -453,7 +438,6 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				var have Metadata
 
 				body, err := io.ReadAll(resp.Body)
-				resp.Body.Close()
 				assert.NoError(ct, err, "failed to read body from request")
 
 				err = json.Unmarshal(body, &have)
@@ -490,7 +474,6 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				var have []Diagnose
 
 				body, err := io.ReadAll(resp.Body)
-				resp.Body.Close()
 				assert.NoError(ct, err, "failed to read body from request")
 
 				err = json.Unmarshal(body, &have)
@@ -513,6 +496,7 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 			require.EventuallyWithT(t, func(ct *assert.CollectT) {
 				resp, err := hostHTTPClient.Do(req)
 				assert.NoError(ct, err, "failed to send request")
+				defer resp.Body.Close()
 
 				endpoint := testcase.agentEndpointInfo
 				assert.Equal(ct, testcase.expectedCode, resp.StatusCode, "%s %s returned: %s, expected %s", endpoint.method, endpoint.endpoint, resp.StatusCode, testcase.expectedCode)
