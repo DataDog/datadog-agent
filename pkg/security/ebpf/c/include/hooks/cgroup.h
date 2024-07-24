@@ -88,7 +88,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
 
     int check_validity = 0;
     u32 container_flags = 0;
-    char prefix[31];
+    char prefix[95];
 
     struct dentry_resolver_input_t *resolver;
     resolver = get_cgroup_dentry_resolver_inputs();
@@ -176,7 +176,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
 
     bpf_probe_read(&new_entry.container.container_id, sizeof(new_entry.container.container_id), container_id);
 
-    int length = bpf_probe_read_str(&prefix, sizeof(prefix), container_id) & 0x1f;
+    int length = bpf_probe_read_str(&prefix, sizeof(prefix), container_id) & 0x5f;
     if (length >= 9 && prefix[length-9] == '.' &&
         ((prefix[length-8] == 's' && prefix[length-7] == 'e' && prefix[length-6] == 'r' && prefix[length-5] == 'v' && prefix[length-4] == 'i' && prefix[length-3] == 'c' && prefix[length-2] == 'e') ||
          (prefix[length-6] == 's' && prefix[length-5] == 'c' && prefix[length-4] == 'o' && prefix[length-3] == 'p' && prefix[length-2] == 'e'))) {
