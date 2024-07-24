@@ -315,7 +315,7 @@ func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 			}
 
 			if err := syscall.PtraceGetRegs(pid, &regs); err != nil {
-				t.opts.Logger.Debugf("unable to get registers for pid %d: %v", pid, err)
+				t.opts.Logger.Logf("unable to get registers for pid %d: %v", pid, err)
 
 				// it got probably killed
 				cb(CallbackExitType, ExitNr, pid, 0, regs, &waitStatus)
@@ -413,7 +413,7 @@ func (t *Tracer) traceWithSeccomp(cb func(cbType CallbackType, nr int, pid int, 
 			}
 
 			if err := syscall.PtraceGetRegs(pid, &regs); err != nil {
-				t.opts.Logger.Debugf("unable to get registers for pid %d: %v", pid, err)
+				t.opts.Logger.Logf("unable to get registers for pid %d: %v", pid, err)
 
 				// it got probably killed
 				cb(CallbackExitType, ExitNr, pid, 0, regs, &waitStatus)
