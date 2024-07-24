@@ -127,11 +127,16 @@ type Diagnosis struct {
 	RawError string `json:"rawerror,omitempty"`
 }
 
+// DiagnoseResult contains the results of the diagnose command
+type DiagnoseResult struct {
+	Diagnoses []Diagnoses `json:"diagnoses"`
+	Summary   Counters    `json:"summary"`
+}
+
 // Diagnoses is a collection of Diagnosis
 type Diagnoses struct {
 	SuiteName      string      `json:"suite_name"`
 	SuiteDiagnoses []Diagnosis `json:"diagnoses"`
-	Counters       Counters    `json:"summary"`
 }
 
 // Counters contains the count of the diagnosis results

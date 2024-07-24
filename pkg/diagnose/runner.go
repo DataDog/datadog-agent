@@ -239,33 +239,36 @@ func ListStdOut(w io.Writer, diagCfg diagnosis.Config) {
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for structural output
-func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config, suites []diagnosis.Suite) ([]diagnosis.Diagnoses, error) {
+func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config, suites []diagnosis.Suite) (*diagnosis.DiagnoseResult, error) {
 	suites, err := getSortedAndFilteredDiagnoseSuites(diagCfg, suites, func(suite diagnosis.Suite) string { return suite.SuitName })
 	if err != nil {
 		return nil, err
 	}
 
 	var suitesDiagnoses []diagnosis.Diagnoses
+	var count diagnosis.Counters
 	for _, ds := range suites {
 		// Run particular diagnose
 		diagnoses := getSuiteDiagnoses(ds)
 		if len(diagnoses) > 0 {
-			var count diagnosis.Counters
 			for _, d := range diagnoses {
 				count.Increment(d.Result)
 			}
 			suitesDiagnoses = append(suitesDiagnoses, diagnosis.Diagnoses{
 				SuiteName:      ds.SuitName,
 				SuiteDiagnoses: diagnoses,
-				Counters:       count,
 			})
 		}
 	}
+	diagnoseResult := &diagnosis.DiagnoseResult{
+		Diagnoses: suitesDiagnoses,
+		Summary:   count,
+	}
 
-	return suitesDiagnoses, nil
+	return diagnoseResult, nil
 }
 
-func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
+func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) (*diagnosis.DiagnoseResult, error) {
 	// Get client to Agent's RPC call
 	c := util.GetClient(false)
 	ipcAddress, err := pkgconfig.GetIPCAddress()
@@ -299,7 +302,7 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 	}
 
 	// Deserialize results
-	var diagnoses []diagnosis.Diagnoses
+	var diagnoses *diagnosis.DiagnoseResult
 	err = json.Unmarshal(response, &diagnoses)
 	if err != nil {
 		return nil, fmt.Errorf("error while decoding diagnose results returned from Agent: %w", err)
@@ -309,7 +312,7 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 }
 
 // RunInCLIProcess run diagnoses in the CLI process.
-func RunInCLIProcess(diagCfg diagnosis.Config, deps SuitesDepsInCLIProcess) ([]diagnosis.Diagnoses, error) {
+func RunInCLIProcess(diagCfg diagnosis.Config, deps SuitesDepsInCLIProcess) (*diagnosis.DiagnoseResult, error) {
 	return RunDiagnose(diagCfg, func() []diagnosis.Suite {
 		return buildSuites(diagCfg, func() []diagnosis.Diagnosis {
 			return diagnoseChecksInCLIProcess(diagCfg, deps.senderManager, deps.secretResolver, deps.wmeta, deps.AC)
@@ -318,23 +321,23 @@ func RunInCLIProcess(diagCfg diagnosis.Config, deps SuitesDepsInCLIProcess) ([]d
 }
 
 // RunDiagnose runs diagnoses.
-func RunDiagnose(diagCfg diagnosis.Config, getSuites func() []diagnosis.Suite) ([]diagnosis.Diagnoses, error) {
+func RunDiagnose(diagCfg diagnosis.Config, getSuites func() []diagnosis.Suite) (*diagnosis.DiagnoseResult, error) {
 	// Make remote call to get diagnoses
 	if !diagCfg.RunLocal {
 		return requestDiagnosesFromAgentProcess(diagCfg)
 	}
 
 	// Collect local diagnoses
-	diagnoses, err := getDiagnosesFromCurrentProcess(diagCfg, getSuites())
+	diagnoseResult, err := getDiagnosesFromCurrentProcess(diagCfg, getSuites())
 	if err != nil {
 		return nil, err
 	}
 
-	return diagnoses, nil
+	return diagnoseResult, nil
 }
 
 // RunInAgentProcess runs diagnoses in the Agent process.
-func RunInAgentProcess(diagCfg diagnosis.Config, deps SuitesDepsInAgentProcess) ([]diagnosis.Diagnoses, error) {
+func RunInAgentProcess(diagCfg diagnosis.Config, deps SuitesDepsInAgentProcess) (*diagnosis.DiagnoseResult, error) {
 	// Collect local diagnoses
 	suites := buildSuites(diagCfg, func() []diagnosis.Diagnosis {
 		return diagnoseChecksInAgentProcess(deps.collector)
@@ -344,49 +347,40 @@ func RunInAgentProcess(diagCfg diagnosis.Config, deps SuitesDepsInAgentProcess) 
 }
 
 // RunLocalCheck runs locally the checks created by the registries.
-func RunLocalCheck(diagCfg diagnosis.Config, registries ...func(*diagnosis.Catalog)) ([]diagnosis.Diagnoses, error) {
+func RunLocalCheck(diagCfg diagnosis.Config, registries ...func(*diagnosis.Catalog)) (*diagnosis.DiagnoseResult, error) {
 	suites := buildCustomSuites(registries...)
 	return getDiagnosesFromCurrentProcess(diagCfg, suites)
 }
 
 // RunDiagnoseStdOut runs the diagnose and outputs the results to the writer.
-func RunDiagnoseStdOut(w io.Writer, diagCfg diagnosis.Config, diagnoses []diagnosis.Diagnoses) error {
+func RunDiagnoseStdOut(w io.Writer, diagCfg diagnosis.Config, diagnoses *diagnosis.DiagnoseResult) error {
 	if diagCfg.JSONOutput {
 		return runStdOutJSON(w, diagnoses)
 	}
 	return runStdOut(w, diagCfg, diagnoses)
 }
 
-func runStdOutJSON(w io.Writer, diagnoses []diagnosis.Diagnoses) error {
-	var count diagnosis.Counters
-
-	for _, diag := range diagnoses {
-		count.Merge(diag.Counters)
-		diagJSON, err := json.MarshalIndent(diag, "", "  ")
-		if err != nil {
-			body, _ := json.Marshal(map[string]string{"error": fmt.Sprintf("marshalling diagnose results to JSON: %s", err)})
-			fmt.Fprintln(w, string(body))
-			return err
-		}
-		fmt.Fprintln(w, string(diagJSON))
+func runStdOutJSON(w io.Writer, diagnoseResult *diagnosis.DiagnoseResult) error {
+	diagJSON, err := json.MarshalIndent(diagnoseResult, "", "  ")
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{"error": fmt.Sprintf("marshalling diagnose results to JSON: %s", err)})
+		fmt.Fprintln(w, string(body))
+		return err
 	}
-	body, _ := json.MarshalIndent(count, "", "  ")
-	fmt.Fprintln(w, string(body))
+	fmt.Fprintln(w, string(diagJSON))
 
 	return nil
 }
 
-func runStdOut(w io.Writer, diagCfg diagnosis.Config, diagnoses []diagnosis.Diagnoses) error {
+func runStdOut(w io.Writer, diagCfg diagnosis.Config, diagnoseResult *diagnosis.DiagnoseResult) error {
 	if w != color.Output {
 		color.NoColor = true
 	}
 
 	fmt.Fprintf(w, "=== Starting diagnose ===\n")
-	var count diagnosis.Counters
 
 	lastDot := false
-	for _, ds := range diagnoses {
-		count.Merge(ds.Counters)
+	for _, ds := range diagnoseResult.Diagnoses {
 		suiteAlreadyReported := false
 		for _, d := range ds.SuiteDiagnoses {
 
@@ -398,12 +392,12 @@ func runStdOut(w io.Writer, diagCfg diagnosis.Config, diagnoses []diagnosis.Diag
 			outputSuiteIfNeeded(w, ds.SuiteName, &suiteAlreadyReported)
 
 			outputNewLineIfNeeded(w, &lastDot)
-			outputDiagnosis(w, diagCfg, d.Result.ToString(true), count.Total, d)
+			outputDiagnosis(w, diagCfg, d.Result.ToString(true), diagnoseResult.Summary.Total, d)
 		}
 	}
 
 	outputNewLineIfNeeded(w, &lastDot)
-	summary(w, count)
+	summary(w, diagnoseResult.Summary)
 
 	return nil
 }
