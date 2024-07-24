@@ -43,18 +43,18 @@ if [ -d $TUF_REPO_DIR ]; then
 fi
 
 # Ensure the dependencies file is created fresh
-> $INSTALL_DIR/embedded/.pkg-dependencies.txt
+$INSTALL_DIR/embedded/bin/pip freeze > $INSTALL_DIR/embedded/.pkg-dependencies.txt
 # Run pip freeze and iterate over each line
-$INSTALL_DIR/embedded/bin/pip freeze | grep -v '==' | while IFS= read -r line; do
+# $INSTALL_DIR/embedded/bin/pip freeze | grep -v '==' | while IFS= read -r line; do
     # Use sed to extract package name and version
-    package_name=$(echo "$line" | sed -n 's/^\(.*\) @.*/\1/p')
-    version=$(echo "$line" | sed -n 's/^.*-\([0-9]\+\(\.[0-9]\+\)*\)\.whl#.*/\1/p')
-    echo "line='${line}'"
-    echo "package_name='${package_name}'"
-    echo "version='${version}'"
-    if [ -n "$package_name" ] && [ -n "$version" ]; then
-        echo "${package_name}==${version}" >> "$INSTALL_DIR/embedded/.pkg-dependencies.txt"
-    fi
+    # package_name=$(echo "$line" | sed -n 's/^\(.*\) @.*/\1/p')
+    # version=$(echo "$line" | sed -n 's/^.*-\([0-9]\+\(\.[0-9]\+\)*\)\.whl#.*/\1/p')
+    # echo "line='${line}'"
+    # echo "package_name='${package_name}'"
+    # echo "version='${version}'"
+    # if [ -n "$package_name" ] && [ -n "$version" ]; then
+    #     echo "${package_name}==${version}" >> "$INSTALL_DIR/embedded/.pkg-dependencies.txt"
+    # fi
 done
 
 exit 0
