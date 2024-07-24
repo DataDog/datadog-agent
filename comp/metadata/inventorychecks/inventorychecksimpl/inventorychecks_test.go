@@ -6,6 +6,8 @@
 package inventorychecksimpl
 
 import (
+	"encoding/json"
+	"expvar"
 	"fmt"
 	"testing"
 
@@ -48,6 +50,58 @@ func getTestInventoryChecks(t *testing.T, coll optional.Option[collector.Compone
 		),
 	)
 	return p.Comp.(*inventorychecksImpl)
+}
+
+// This test must be the first one executed because it is testing the expvar functionality of the inventoryChecks component
+// The ic expvar is only initialized if no other instance have published it before.
+func TestExpvar(t *testing.T) {
+	cInfo := []check.Info{
+		check.MockInfo{
+			Name:         "check1",
+			CheckID:      checkid.ID("check1_instance1"),
+			Source:       "provider1",
+			InitConf:     "",
+			InstanceConf: "{\"test\":21}",
+		},
+	}
+
+	mockColl := fxutil.Test[collector.Component](t,
+		fx.Replace(collectorimpl.MockParams{
+			ChecksInfo: cInfo,
+		}),
+		collectorimpl.MockModule(),
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+	)
+
+	ic := getTestInventoryChecks(t,
+		optional.NewOption[collector.Component](mockColl),
+		optional.NewNoneOption[logagent.Component](),
+		nil,
+	)
+
+	ic.Set("check1_instance1", "check_provided_key1", 123.4)
+	ic.Set("check1_instance1", "check_provided_key2", "Hi")
+	ic.Set("non_running_checkid", "check_provided_key1", "this_should_not_be_kept")
+
+	// Retrieving the current inventorycheck metadata payload from expvar
+	inventories := expvar.Get("inventories")
+	assert.NotNil(t, inventories)
+	var inventoriesStats Payload
+	inventoriesStatsJSON := []byte(inventories.String())
+	err := json.Unmarshal(inventoriesStatsJSON, &inventoriesStats) //nolint:errcheck
+	assert.NoError(t, err)
+
+	// Retrieving the current inventorycheck metadata payload from ic component
+	var expectedPayload Payload = *ic.getPayload().(*Payload)
+
+	// We set both timestamp to 0 to avoid timing issues
+	inventoriesStats.Timestamp = 0
+	expectedPayload.Timestamp = 0
+
+	// We check that payloads are equals
+	assert.Equal(t, expectedPayload, inventoriesStats)
 }
 
 func TestSet(t *testing.T) {
