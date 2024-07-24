@@ -132,16 +132,12 @@ func TestChkRun(t *testing.T) {
 
 	tempLobsBefore, _ := getTemporaryLobs(&c)
 
-	/* Requires:
-	 * create table sys.t(n number);
-	 * grant insert on sys.t to c##datadog
-	 */
-	_, err = c.db.Exec(`begin
+	_, err = c.db.Exec(fmt.Sprintf(`begin
 				for i in 1..1000
 				loop
-					execute immediate 'insert into sys.t values (' || i || ')';
+					execute immediate 'insert into %s.t values (' || i || ')';
 				end loop;
-				end ;`)
+				end ;`, getOwner(&c)))
 	assert.NoError(t, err, "error generating statements")
 
 	c.Run()
@@ -364,12 +360,7 @@ func TestLargeUint64Binding(t *testing.T) {
 
 	largeUint64 := uint64(18446744073709551615)
 	var result uint64
-	var owner string
-	if c.hostingType == rds {
-		owner = "admin"
-	} else {
-		owner = "sys"
-	}
+	owner := getOwner(&c)
 	err = getWrapper(&c, &result, fmt.Sprintf("SELECT n FROM %s.T WHERE n = :1", owner), largeUint64)
 	require.NoError(t, err, "running test statement")
 	assert.Equal(t, result, largeUint64, "simple uint64 binded correctly")
@@ -377,4 +368,11 @@ func TestLargeUint64Binding(t *testing.T) {
 	err = getWrapper(&c, &result, "SELECT 18446744073709551615 FROM dual")
 	require.NoError(t, err, "running test statement")
 	assert.Equal(t, result, largeUint64, "result set not truncated")
+}
+
+func getOwner(c *Check) string {
+	if c.hostingType == rds {
+		return "admin"
+	}
+	return "sys"
 }
