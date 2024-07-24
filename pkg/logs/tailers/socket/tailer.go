@@ -71,32 +71,17 @@ func (t *Tailer) forwardMessages() {
 	for output := range t.decoder.OutputChan {
 		if len(output.GetContent()) > 0 {
 			fmt.Println("wacktest1")
-			origin := message.NewOrigin(t.source)
+
+			fmt.Println("ANDREW 2 Origin is?", output.Origin)
 			fmt.Println("wacktest2")
 			fmt.Println("xd?")
-			_, ip, err := t.read(t)
-			fmt.Println("huh?")
-			fmt.Println("wacktest3")
-			if err != nil {
-				return
-			}
-			fmt.Println("wacktest4")
-			log.Debug("andrewqian", ip)
-			copiedTags := make([]string, len(t.source.Config.Tags))
-			copy(copiedTags, t.source.Config.Tags)
-			if ip != "" && coreConfig.Datadog().GetBool("logs_config.use_sourcehost_tag") {
-				lastColonIndex := strings.LastIndex(ip, ":")
-				var ipAddress string
-				if lastColonIndex != -1 {
-					ipAddress = ip[:lastColonIndex]
-				} else {
-					ipAddress = ip
-				}
-				sourceHostTag := fmt.Sprintf("source_host:%s", ipAddress)
-				copiedTags = append(copiedTags, sourceHostTag)
-			}
-			origin.SetTags(copiedTags)
-			t.outputChan <- message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp)
+			// _, ip, err := t.read(t)
+			// fmt.Println(ip)
+			// fmt.Println(err)
+			// if err != nil {
+			// 	return
+			// }
+			t.outputChan <- message.NewMessage(output.GetContent(), output.Origin, output.Status, output.IngestionTimestamp)
 		}
 	}
 }
@@ -113,7 +98,8 @@ func (t *Tailer) readForever() {
 			// stop reading data from the connection
 			return
 		default:
-			data, _, err := t.read(t)
+			data, ipAddress, err := t.read(t)
+			fmt.Println("readforver wack", ipAddress)
 			if err != nil && err == io.EOF {
 				// connection has been closed client-side, stop from reading new data
 				return
@@ -123,8 +109,25 @@ func (t *Tailer) readForever() {
 				log.Warnf("Couldn't read message from connection: %v", err)
 				return
 			}
-			t.source.RecordBytes(int64(len(data)))
-			t.decoder.InputChan <- decoder.NewInput(data)
+			fmt.Println("wacktest4")
+			origin := message.NewOrigin(t.source)
+			copiedTags := make([]string, len(t.source.Config.Tags))
+			copy(copiedTags, t.source.Config.Tags)
+			if ipAddress != "" && coreConfig.Datadog().GetBool("logs_config.use_sourcehost_tag") {
+				lastColonIndex := strings.LastIndex(ipAddress, ":")
+				var ipAddressWithoutPort string
+				if lastColonIndex != -1 {
+					ipAddressWithoutPort = ipAddress[:lastColonIndex]
+				} else {
+					ipAddressWithoutPort = ipAddress
+				}
+				sourceHostTag := fmt.Sprintf("source_host:%s", ipAddressWithoutPort)
+				fmt.Println("new tag is ?", sourceHostTag)
+				copiedTags = append(copiedTags, sourceHostTag)
+			}
+			origin.SetTags(copiedTags)
+			fmt.Println("ANDREW 1 Origin is?", origin)
+			t.decoder.InputChan <- message.NewMessage(data, origin, "", 0)
 		}
 	}
 }
