@@ -14,9 +14,14 @@ struct syscall_t {
     s64 retval;
 };
 
+struct syscall_context_t {
+    u32 id;
+    u32 padding;
+};
+
 struct span_context_t {
-   u64 span_id;
-   u64 trace_id;
+    u64 span_id;
+    u64 trace_id;
 };
 
 struct process_context_t {
@@ -27,8 +32,15 @@ struct process_context_t {
     u64 inode;
 };
 
+typedef char container_id_t[CONTAINER_ID_LEN];
+
+struct cgroup_context_t {
+    u64 cgroup_flags;
+};
+
 struct container_context_t {
-    char container_id[CONTAINER_ID_LEN];
+    container_id_t container_id;
+    struct cgroup_context_t cgroup_context;
 };
 
 struct ktimeval {

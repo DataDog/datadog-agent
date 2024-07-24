@@ -9,3 +9,5 @@ PyJWT==2.4.0
 PyGithub==1.59.1
 toml~=0.10.2
 slack-sdk~=3.27.1
+beautifulsoup4~=4.12.3
+lxml~=5.2.2

@@ -37,7 +37,7 @@ jobs:
       - name: Install python requirements.txt
         run: python3 -m pip install -r requirements.txt
       - name: Go mod tidy
-        run: inv -e tidy-all
+        run: inv -e tidy
       - name: Update LICENSE-3rdparty.csv
         if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.pull_request.labels.*.name, 'dependencies-go-tools') }}
         run: |

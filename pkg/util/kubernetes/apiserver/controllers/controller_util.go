@@ -40,8 +40,8 @@ func newAutoscalersController(client kubernetes.Interface, eventRecorder record.
 
 	h.toStore.data = make(map[string]custommetrics.ExternalMetricValue)
 
-	gcPeriodSeconds := config.Datadog.GetInt("hpa_watcher_gc_period")
-	refreshPeriod := config.Datadog.GetInt("external_metrics_provider.refresh_period")
+	gcPeriodSeconds := config.Datadog().GetInt("hpa_watcher_gc_period")
+	refreshPeriod := config.Datadog().GetInt("external_metrics_provider.refresh_period")
 
 	if gcPeriodSeconds <= 0 || refreshPeriod <= 0 {
 		return nil, fmt.Errorf("tickers must be strictly positive in the autoscalersController"+

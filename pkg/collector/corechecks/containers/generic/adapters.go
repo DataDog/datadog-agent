@@ -5,7 +5,7 @@
 
 package generic
 
-import "github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+import workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 
 // MetricsAdapter provides a way to change metrics and tags before sending them out
 type MetricsAdapter interface {

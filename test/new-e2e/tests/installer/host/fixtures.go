@@ -10,8 +10,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,6 +47,7 @@ func (h *Host) uploadFixtures() {
 
 // StartExamplePythonApp starts an example Python app
 func (h *Host) StartExamplePythonApp() {
+	h.WaitForTraceAgentSocketReady()
 	env := map[string]string{
 		"DD_SERVICE": "example-python-app",
 		"DD_ENV":     "e2e-installer",
@@ -69,6 +72,7 @@ func (h *Host) CallExamplePythonApp(traceID string) {
 
 // StartExamplePythonAppInDocker starts the example Python app in Docker
 func (h *Host) StartExamplePythonAppInDocker() {
+	h.WaitForTraceAgentSocketReady()
 	h.remote.MustExecute(`sudo docker run --name python-app -d -p 8081:8080 -v /opt/fixtures/http_server.py:/usr/src/app/http_server.py public.ecr.aws/docker/library/python:3.8-slim python /usr/src/app/http_server.py`)
 }
 
@@ -79,11 +83,17 @@ func (h *Host) StopExamplePythonAppInDocker() {
 
 // CallExamplePythonAppInDocker calls the example Python app in Docker
 func (h *Host) CallExamplePythonAppInDocker(traceID string) {
-	h.remote.MustExecute(fmt.Sprintf(`curl -X GET "http://localhost:8081/" \
+	success := assert.Eventually(h.t, func() bool {
+		_, err := h.remote.Execute(fmt.Sprintf(`curl -X GET "http://localhost:8081/" \
 		-H "X-Datadog-Trace-Id: %s" \
 		-H "X-Datadog-Parent-Id: %s" \
 		-H "X-Datadog-Sampling-Priority: 2"`,
-		traceID, traceID))
+			traceID, traceID))
+		return err == nil
+	}, time.Second*10, time.Second*1)
+	if !success {
+		h.t.Log("Error calling example Python app in Docker")
+	}
 }
 
 // SetBrokenDockerConfig injects a broken JSON in the Docker daemon configuration
@@ -165,5 +175,11 @@ func (f FakeAgent) SetStopWithSigkill(agent string) FakeAgent {
 // SetStopWithSigterm sets the fake Agent to stop with SIGTERM.
 func (f FakeAgent) SetStopWithSigterm(agent string) FakeAgent {
 	f.setBinary("stop_with_sigterm.sh", agent)
+	return f
+}
+
+// SetStopWithSigtermExit0 sets the fake Agent to stop with SIGTERM and exit with code 0.
+func (f FakeAgent) SetStopWithSigtermExit0(agent string) FakeAgent {
+	f.setBinary("stop_with_sigterm_exit0.sh", agent)
 	return f
 }

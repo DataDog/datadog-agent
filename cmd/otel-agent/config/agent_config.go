@@ -58,18 +58,46 @@ func NewConfigComponent(ctx context.Context, uris []string) (config.Component, e
 	}
 	site := ddc.API.Site
 	apiKey := string(ddc.API.Key)
-	// Create a new config
-	pkgconfig := pkgconfigmodel.NewConfig("OTel", "DD", strings.NewReplacer(".", "_"))
+	// Set the global agent config
+	pkgconfig := pkgconfigsetup.Datadog()
+	pkgconfig.SetConfigName("OTel")
+	pkgconfig.SetEnvPrefix("DD")
+	pkgconfig.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
 	// Set Default values
 	pkgconfigsetup.InitConfig(pkgconfig)
 	pkgconfig.Set("api_key", apiKey, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("site", site, pkgconfigmodel.SourceLocalConfigProcess)
 
+	pkgconfig.Set("dd_url", ddc.Metrics.Endpoint, pkgconfigmodel.SourceLocalConfigProcess)
+
+	// Log configs
 	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceLocalConfigProcess)
-	pkgconfig.Set("logs_config.use_compression", true, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("logs_config.force_use_http", true, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("logs_config.logs_dd_url", ddc.Logs.Endpoint, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("logs_config.batch_wait", ddc.Logs.BatchWait, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("logs_config.use_compression", ddc.Logs.UseCompression, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("logs_config.compression_level", ddc.Logs.CompressionLevel, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("log_level", sc.Telemetry.Logs.Level, pkgconfigmodel.SourceLocalConfigProcess)
+
+	// APM & OTel trace configs
 	pkgconfig.Set("apm_config.enabled", true, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("apm_config.apm_non_local_traffic", true, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("otlp_config.traces.span_name_as_resource_name", ddc.Traces.SpanNameAsResourceName, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("otlp_config.traces.span_name_remappings", ddc.Traces.SpanNameRemappings, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("apm_config.receiver_enabled", false, pkgconfigmodel.SourceLocalConfigProcess) // disable HTTP receiver
+	pkgconfig.Set("apm_config.ignore_resources", ddc.Traces.IgnoreResources, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("apm_config.skip_ssl_validation", ddc.ClientConfig.TLSSetting.InsecureSkipVerify, pkgconfigmodel.SourceLocalConfigProcess)
+	if v := ddc.Traces.TraceBuffer; v > 0 {
+		pkgconfig.Set("apm_config.trace_buffer", v, pkgconfigmodel.SourceLocalConfigProcess)
+	}
+	if addr := ddc.Traces.Endpoint; addr != "" {
+		pkgconfig.Set("apm_config.apm_dd_url", addr, pkgconfigmodel.SourceLocalConfigProcess)
+	}
+	if ddc.Traces.ComputeTopLevelBySpanKind {
+		pkgconfig.Set("apm_config.features", []string{"enable_otlp_compute_top_level_by_span_kind"}, pkgconfigmodel.SourceLocalConfigProcess)
+	}
+
 	return pkgconfig, nil
 }
 
@@ -103,7 +131,7 @@ func getDDExporterConfig(cfg *confmap.Conf) (*datadogexporter.Config, error) {
 		}
 		for k, v := range exporters {
 			if strings.HasPrefix(k, "datadog") {
-				var datadogConfig *datadogexporter.Config
+				datadogConfig := datadogexporter.CreateDefaultConfig().(*datadogexporter.Config)
 				m, ok := v.(map[string]any)
 				if !ok {
 					return nil, fmt.Errorf("invalid datadog exporter config")

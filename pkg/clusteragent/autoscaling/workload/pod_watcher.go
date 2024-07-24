@@ -11,9 +11,13 @@ import (
 	"context"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	patcherQueueSize = 100
 )
 
 // NamespacedPodOwner represents a pod owner in a namespace
@@ -27,30 +31,34 @@ type NamespacedPodOwner struct {
 	Name string
 }
 
-type podWatcher struct {
-	mutex           sync.RWMutex
-	wlm             workloadmeta.Component
-	podsPerPodOwner map[NamespacedPodOwner]map[string]*workloadmeta.KubernetesPod
-}
-
-// PodWatcher indexes pods by their owner
-type PodWatcher interface {
+// podWatcher indexes pods by their owner
+type podWatcher interface {
 	// Start starts the PodWatcher.
-	Start(ctx context.Context)
+	Run(ctx context.Context)
 	// GetPodsForOwner returns the pods for the given owner.
 	GetPodsForOwner(NamespacedPodOwner) []*workloadmeta.KubernetesPod
 }
 
+type podWatcherImpl struct {
+	mutex sync.RWMutex
+
+	wlm             workloadmeta.Component
+	patcher         PodPatcher
+	patcherChan     chan *workloadmeta.KubernetesPod
+	podsPerPodOwner map[NamespacedPodOwner]map[string]*workloadmeta.KubernetesPod
+}
+
 // newPodWatcher creates a new PodWatcher
-func newPodWatcher(wlm workloadmeta.Component) PodWatcher {
-	return &podWatcher{
+func newPodWatcher(wlm workloadmeta.Component, patcher PodPatcher) *podWatcherImpl {
+	return &podWatcherImpl{
 		wlm:             wlm,
+		patcher:         patcher,
 		podsPerPodOwner: make(map[NamespacedPodOwner]map[string]*workloadmeta.KubernetesPod),
 	}
 }
 
 // GetPodsForOwner returns the pods for the given owner.
-func (pw *podWatcher) GetPodsForOwner(owner NamespacedPodOwner) []*workloadmeta.KubernetesPod {
+func (pw *podWatcherImpl) GetPodsForOwner(owner NamespacedPodOwner) []*workloadmeta.KubernetesPod {
 	pw.mutex.RLock()
 	defer pw.mutex.RUnlock()
 	pods, ok := pw.podsPerPodOwner[owner]
@@ -65,19 +73,21 @@ func (pw *podWatcher) GetPodsForOwner(owner NamespacedPodOwner) []*workloadmeta.
 }
 
 // Start subscribes to workloadmeta events and indexes pods by their owner.
-func (pw *podWatcher) Start(ctx context.Context) {
+func (pw *podWatcherImpl) Run(ctx context.Context) {
 	log.Debug("Starting PodWatcher")
-	filterParams := workloadmeta.FilterParams{
-		Kinds:     []workloadmeta.Kind{workloadmeta.KindKubernetesPod},
-		Source:    workloadmeta.SourceAll,
-		EventType: workloadmeta.EventTypeAll,
-	}
+
+	filter := workloadmeta.NewFilterBuilder().AddKind(workloadmeta.KindKubernetesPod).Build()
 	ch := pw.wlm.Subscribe(
 		"app-autoscaler-pod-watcher",
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(&filterParams),
+		filter,
 	)
 	defer pw.wlm.Unsubscribe(ch)
+
+	// Start the goroutine to call the POD patcher
+	pw.patcherChan = make(chan *workloadmeta.KubernetesPod, patcherQueueSize)
+	defer close(pw.patcherChan)
+	go pw.runPatcher(ctx)
 
 	for {
 		select {
@@ -97,7 +107,7 @@ func (pw *podWatcher) Start(ctx context.Context) {
 	}
 }
 
-func (pw *podWatcher) handleEvent(event workloadmeta.Event) {
+func (pw *podWatcherImpl) handleEvent(event workloadmeta.Event) {
 	pw.mutex.Lock()
 	defer pw.mutex.Unlock()
 	pod, ok := event.Entity.(*workloadmeta.KubernetesPod)
@@ -119,16 +129,26 @@ func (pw *podWatcher) handleEvent(event workloadmeta.Event) {
 	}
 }
 
-func (pw *podWatcher) handleSetEvent(pod *workloadmeta.KubernetesPod) {
+func (pw *podWatcherImpl) handleSetEvent(pod *workloadmeta.KubernetesPod) {
 	podOwner := getNamespacedPodOwner(pod.Namespace, &pod.Owners[0])
 	log.Debugf("Adding pod %s to owner %s", pod.ID, podOwner)
 	if _, ok := pw.podsPerPodOwner[podOwner]; !ok {
 		pw.podsPerPodOwner[podOwner] = make(map[string]*workloadmeta.KubernetesPod)
 	}
 	pw.podsPerPodOwner[podOwner][pod.ID] = pod
+
+	// Write to patcher channel if POD is managed by an autoscaler, just to not pollute queue with non-autoscaler PODs.
+	// We don't patcher inline to avoid lagging behind on the workloadmeta events, which would result in inaccurate POD counts.
+	if pw.patcher != nil && pw.patcher.shouldObservePod(pod) {
+		select {
+		case pw.patcherChan <- pod:
+		default:
+			log.Debugf("Patcher queue is full, skipping pod %s", pod.ID)
+		}
+	}
 }
 
-func (pw *podWatcher) handleUnsetEvent(pod *workloadmeta.KubernetesPod) {
+func (pw *podWatcherImpl) handleUnsetEvent(pod *workloadmeta.KubernetesPod) {
 	podOwner := getNamespacedPodOwner(pod.Namespace, &pod.Owners[0])
 	if podOwner.Name == "" {
 		log.Debugf("Ignoring pod %s without owner name", pod.Name)
@@ -141,6 +161,17 @@ func (pw *podWatcher) handleUnsetEvent(pod *workloadmeta.KubernetesPod) {
 	delete(pw.podsPerPodOwner[podOwner], pod.ID)
 	if len(pw.podsPerPodOwner[podOwner]) == 0 {
 		delete(pw.podsPerPodOwner, podOwner)
+	}
+}
+
+func (pw *podWatcherImpl) runPatcher(ctx context.Context) {
+	for {
+		pod, more := <-pw.patcherChan
+		if !more {
+			return
+		}
+
+		pw.patcher.observedPodCallback(ctx, pod)
 	}
 }
 

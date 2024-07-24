@@ -18,8 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -87,7 +88,7 @@ func getDiagnosisResultForOutput(r diagnosis.Result) string {
 		result = color.RedString("FAIL")
 	} else if r == diagnosis.DiagnosisWarning {
 		result = color.YellowString("WARNING")
-	} else { //if d.Result == diagnosis.DiagnosisUnexpectedError
+	} else { // if d.Result == diagnosis.DiagnosisUnexpectedError
 		result = color.HiRedString("UNEXPECTED ERROR")
 	}
 
@@ -188,7 +189,6 @@ func matchConfigFilters(filter diagSuiteFilter, s string) bool {
 }
 
 func getSortedAndFilteredDiagnoseSuites[T any](diagCfg diagnosis.Config, values []T, getName func(T) string) ([]T, error) {
-
 	var filter diagSuiteFilter
 	var err error
 
@@ -308,13 +308,13 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 	}
 
 	// Make sure we have a session token (for privileged information)
-	if err = util.SetAuthToken(pkgconfig.Datadog); err != nil {
+	if err = util.SetAuthToken(pkgconfig.Datadog()); err != nil {
 		return nil, fmt.Errorf("auth error: %w", err)
 	}
 
 	// Form call end-point
 	//nolint:revive // TODO(CINT) Fix revive linter
-	diagnoseURL := fmt.Sprintf("https://%v:%v/agent/diagnose", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
+	diagnoseURL := fmt.Sprintf("https://%v:%v/agent/diagnose", ipcAddress, pkgconfig.Datadog().GetInt("cmd_port"))
 
 	// Serialized diag config to pass it to Agent execution context
 	var cfgSer []byte
@@ -346,7 +346,7 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 func RunInCLIProcess(diagCfg diagnosis.Config, deps SuitesDepsInCLIProcess) ([]diagnosis.Diagnoses, error) {
 	return run(diagCfg, func() []diagnosis.Suite {
 		return buildSuites(diagCfg, func() []diagnosis.Diagnosis {
-			return diagnoseChecksInCLIProcess(diagCfg, deps.senderManager, deps.secretResolver, deps.wmeta, deps.AC)
+			return diagnoseChecksInCLIProcess(diagCfg, deps.senderManager, deps.logReceiver, deps.secretResolver, deps.wmeta, deps.AC)
 		})
 	})
 }
@@ -466,6 +466,7 @@ type SuitesDepsInCLIProcess struct {
 	secretResolver secrets.Component
 	wmeta          optional.Option[workloadmeta.Component]
 	AC             autodiscovery.Component
+	logReceiver    integrations.Component
 }
 
 // NewSuitesDepsInCLIProcess returns a new instance of SuitesDepsInCLIProcess.
@@ -473,7 +474,8 @@ func NewSuitesDepsInCLIProcess(
 	senderManager sender.DiagnoseSenderManager,
 	secretResolver secrets.Component,
 	wmeta optional.Option[workloadmeta.Component],
-	ac autodiscovery.Component) SuitesDepsInCLIProcess {
+	ac autodiscovery.Component,
+) SuitesDepsInCLIProcess {
 	return SuitesDepsInCLIProcess{
 		senderManager:  senderManager,
 		secretResolver: secretResolver,
@@ -504,7 +506,8 @@ func NewSuitesDeps(
 	senderManager sender.DiagnoseSenderManager,
 	collector optional.Option[collector.Component],
 	secretResolver secrets.Component,
-	wmeta optional.Option[workloadmeta.Component], ac optional.Option[autodiscovery.Component]) SuitesDeps {
+	wmeta optional.Option[workloadmeta.Component], ac optional.Option[autodiscovery.Component],
+) SuitesDeps {
 	return SuitesDeps{
 		SenderManager:  senderManager,
 		Collector:      collector,
@@ -567,8 +570,8 @@ func RegisterConnectivityDatadogEventPlatform(catalog *diagnosis.Catalog) {
 
 // RegisterPortConflict registers the port-conflict diagnose suite.
 func RegisterPortConflict(catalog *diagnosis.Catalog) {
-	// port-conflict suite available in darwin only for now
-	if runtime.GOOS == "darwin" {
+	// port-conflict suite available in darwin and linux only for now
+	if runtime.GOOS == "darwin" || runtime.GOOS == "linux" {
 		catalog.Register("port-conflict", func() []diagnosis.Diagnosis { return ports.DiagnosePortSuite() })
 	}
 }

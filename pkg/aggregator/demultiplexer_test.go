@@ -64,7 +64,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	_, found := deps.EventPlatformFwd.Get()
 	require.True(found)
 	_, found = deps.OrchestratorFwd.Get()
-	require.False(found)
+	require.Equal(orchestratorForwarderSupport, found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
@@ -77,7 +77,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	_, found = deps.EventPlatformFwd.Get()
 	require.False(found)
 	_, found = deps.OrchestratorFwd.Get()
-	require.False(found)
+	require.Equal(orchestratorForwarderSupport, found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
@@ -90,23 +90,23 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	_, found = deps.EventPlatformFwd.Get()
 	require.True(found)
 	_, found = deps.OrchestratorFwd.Get()
-	require.False(found)
+	require.Equal(orchestratorForwarderSupport, found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
 	// now, simulate a cluster-agent environment and enabled the orchestrator feature
 
-	oee := pkgconfig.Datadog.Get("orchestrator_explorer.enabled")
-	cre := pkgconfig.Datadog.Get("clc_runner_enabled")
-	ecp := pkgconfig.Datadog.Get("extra_config_providers")
+	oee := pkgconfig.Datadog().Get("orchestrator_explorer.enabled")
+	cre := pkgconfig.Datadog().Get("clc_runner_enabled")
+	ecp := pkgconfig.Datadog().Get("extra_config_providers")
 	defer func() {
-		pkgconfig.Datadog.SetWithoutSource("orchestrator_explorer.enabled", oee)
-		pkgconfig.Datadog.SetWithoutSource("clc_runner_enabled", cre)
-		pkgconfig.Datadog.SetWithoutSource("extra_config_providers", ecp)
+		pkgconfig.Datadog().SetWithoutSource("orchestrator_explorer.enabled", oee)
+		pkgconfig.Datadog().SetWithoutSource("clc_runner_enabled", cre)
+		pkgconfig.Datadog().SetWithoutSource("extra_config_providers", ecp)
 	}()
-	pkgconfig.Datadog.SetWithoutSource("orchestrator_explorer.enabled", true)
-	pkgconfig.Datadog.SetWithoutSource("clc_runner_enabled", true)
-	pkgconfig.Datadog.SetWithoutSource("extra_config_providers", []string{"clusterchecks"})
+	pkgconfig.Datadog().SetWithoutSource("orchestrator_explorer.enabled", true)
+	pkgconfig.Datadog().SetWithoutSource("clc_runner_enabled", true)
+	pkgconfig.Datadog().SetWithoutSource("extra_config_providers", []string{"clusterchecks"})
 
 	// since we're running the tests with -tags orchestrator and we've enabled the
 	// needed feature above, we should have an orchestrator forwarder instantiated now
@@ -147,28 +147,12 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	require.True(found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
-
-	// no options to disable it, but the feature is not enabled
-
-	pkgconfig.Datadog.SetWithoutSource("orchestrator_explorer.enabled", false)
-
-	opts = demuxTestOptions()
-	deps = createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
-	demux = deps.Demultiplexer
-	require.NotNil(demux)
-	_, found = deps.EventPlatformFwd.Get()
-	require.True(found)
-	_, found = deps.OrchestratorFwd.Get()
-	require.False(found)
-	require.NotNil(deps.SharedForwarder)
-	demux.Stop(false)
 }
 
 func TestDemuxSerializerCreated(t *testing.T) {
 	require := require.New(t)
 
-	// default options should have created all forwarders except for the orchestrator
-	// forwarders since we're not in a cluster-agent environment
+	// default options should have created all forwarders
 
 	opts := demuxTestOptions()
 	deps := createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
@@ -183,8 +167,7 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	require := require.New(t)
 	var defaultCheckID checkid.ID // empty checkid.ID is the default sender ID
 
-	// default options should have created all forwarders except for the orchestrator
-	// forwarders since we're not in a cluster-agent environment
+	// default options should have created all forwarders
 
 	opts := demuxTestOptions()
 	opts.FlushInterval = time.Hour
@@ -220,18 +203,18 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 }
 
 func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {
-	pc := pkgconfig.Datadog.GetInt("dogstatsd_pipeline_count")
-	aa := pkgconfig.Datadog.GetInt("dogstatsd_pipeline_autoadjust")
+	pc := pkgconfig.Datadog().GetInt("dogstatsd_pipeline_count")
+	aa := pkgconfig.Datadog().GetInt("dogstatsd_pipeline_autoadjust")
 	defer func() {
-		pkgconfig.Datadog.SetWithoutSource("dogstatsd_pipeline_count", pc)
-		pkgconfig.Datadog.SetWithoutSource("dogstatsd_pipeline_autoadjust", aa)
+		pkgconfig.Datadog().SetWithoutSource("dogstatsd_pipeline_count", pc)
+		pkgconfig.Datadog().SetWithoutSource("dogstatsd_pipeline_autoadjust", aa)
 	}()
 
 	assert := assert.New(t)
 
 	// auto-adjust
 
-	pkgconfig.Datadog.SetWithoutSource("dogstatsd_pipeline_autoadjust", true)
+	pkgconfig.Datadog().SetWithoutSource("dogstatsd_pipeline_autoadjust", true)
 
 	dsdWorkers, pipelines := getDogStatsDWorkerAndPipelineCount(16)
 	assert.Equal(8, dsdWorkers)
@@ -251,8 +234,8 @@ func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {
 
 	// no auto-adjust
 
-	pkgconfig.Datadog.SetWithoutSource("dogstatsd_pipeline_autoadjust", false)
-	pkgconfig.Datadog.SetWithoutSource("dogstatsd_pipeline_count", pc) // default value
+	pkgconfig.Datadog().SetWithoutSource("dogstatsd_pipeline_autoadjust", false)
+	pkgconfig.Datadog().SetWithoutSource("dogstatsd_pipeline_count", pc) // default value
 
 	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(16)
 	assert.Equal(14, dsdWorkers)
@@ -272,8 +255,8 @@ func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {
 
 	// no auto-adjust + pipeline count
 
-	pkgconfig.Datadog.SetWithoutSource("dogstatsd_pipeline_autoadjust", false)
-	pkgconfig.Datadog.SetWithoutSource("dogstatsd_pipeline_count", 4)
+	pkgconfig.Datadog().SetWithoutSource("dogstatsd_pipeline_autoadjust", false)
+	pkgconfig.Datadog().SetWithoutSource("dogstatsd_pipeline_count", 4)
 
 	dsdWorkers, pipelines = getDogStatsDWorkerAndPipelineCount(16)
 	assert.Equal(11, dsdWorkers)

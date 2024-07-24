@@ -26,7 +26,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -35,9 +35,10 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/failure"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -59,7 +60,7 @@ const (
 const (
 	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
 	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the `accept` syscall).
-	maxActive = 128
+	maxActive = 512
 )
 
 // Tracer is the common interface implemented by all connection tracers.
@@ -73,6 +74,8 @@ type Tracer interface {
 	GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error
 	// FlushPending forces any closed connections waiting for batching to be processed immediately.
 	FlushPending()
+	// GetFailedConnections returns the underlying map used to store failed connections
+	GetFailedConnections() *failure.FailedConns
 	// Remove deletes the connection from tracking state.
 	// It does not prevent the connection from re-appearing later, if additional traffic occurs.
 	Remove(conn *network.ConnectionStats) error
@@ -95,6 +98,7 @@ type Tracer interface {
 
 const (
 	defaultClosedChannelSize = 500
+	defaultFailedChannelSize = 500
 	connTracerModuleName     = "network_tracer__ebpf"
 )
 
@@ -114,9 +118,17 @@ var ConnTracerTelemetry = struct {
 	UdpSendsMissed *prometheus.Desc
 	//nolint:revive // TODO(NET) Fix revive linter
 	UdpDroppedConns *prometheus.Desc
-	PidCollisions   *telemetry.StatCounterWrapper
-	iterationDups   telemetry.Counter
-	iterationAborts telemetry.Counter
+	// doubleFlushAttemptsClose is a counter measuring the number of attempts to flush a closed connection twice from tcp_close
+	doubleFlushAttemptsClose *prometheus.Desc
+	// doubleFlushAttemptsDone is a counter measuring the number of attempts to flush a closed connection twice from tcp_done
+	doubleFlushAttemptsDone *prometheus.Desc
+	// unsupportedTcpFailures is a counter measuring the number of attempts to flush a TCP failure that is not supported
+	unsupportedTcpFailures *prometheus.Desc
+	// tcpDonePidMismatch is a counter measuring the number of TCP connections with a PID mismatch between tcp_connect and tcp_done
+	tcpDonePidMismatch *prometheus.Desc
+	PidCollisions      *telemetry.StatCounterWrapper
+	iterationDups      telemetry.Counter
+	iterationAborts    telemetry.Counter
 
 	//nolint:revive // TODO(NET) Fix revive linter
 	lastTcpFailedConnects *atomic.Int64
@@ -132,6 +144,14 @@ var ConnTracerTelemetry = struct {
 	lastUdpSendsMissed *atomic.Int64
 	//nolint:revive // TODO(NET) Fix revive linter
 	lastUdpDroppedConns *atomic.Int64
+	// lastDoubleFlushAttemptsClose is a counter measuring the diff between the last two values of doubleFlushAttemptsClose
+	lastDoubleFlushAttemptsClose *atomic.Int64
+	// lastDoubleFlushAttemptsDone is a counter measuring the diff between the last two values of doubleFlushAttemptsDone
+	lastDoubleFlushAttemptsDone *atomic.Int64
+	// lastUnsupportedTcpFailures is a counter measuring the diff between the last two values of unsupportedTcpFailures
+	lastUnsupportedTcpFailures *atomic.Int64
+	// lastTcpDonePidMismatch is a counter measuring the diff between the last two values of tcpDonePidMismatch
+	lastTcpDonePidMismatch *atomic.Int64
 }{
 	telemetry.NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_failed_connects", "Counter measuring the number of failed TCP connections in the EBPF map", nil, nil),
@@ -141,9 +161,17 @@ var ConnTracerTelemetry = struct {
 	prometheus.NewDesc(connTracerModuleName+"__udp_sends_processed", "Counter measuring the number of processed UDP sends in EBPF", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__udp_sends_missed", "Counter measuring failures to process UDP sends in EBPF", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__udp_dropped_conns", "Counter measuring the number of dropped UDP connections in the EBPF map", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__double_flush_attempts_close", "Counter measuring the number of attempts to flush a closed connection twice from tcp_close", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__double_flush_attempts_done", "Counter measuring the number of attempts to flush a closed connection twice from tcp_done", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__unsupported_tcp_failures", "Counter measuring the number of attempts to flush a TCP failure that is not supported", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__tcp_done_pid_mismatch", "Counter measuring the number of TCP connections with a PID mismatch between tcp_connect and tcp_done", nil, nil),
 	telemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
+	atomic.NewInt64(0),
+	atomic.NewInt64(0),
+	atomic.NewInt64(0),
+	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
@@ -163,6 +191,8 @@ type tracer struct {
 
 	// tcp_close events
 	closeConsumer *tcpCloseConsumer
+	// tcp failure events
+	failedConnConsumer *failure.TCPFailedConnConsumer
 
 	removeTuple *netebpf.ConnTuple
 
@@ -177,7 +207,7 @@ type tracer struct {
 }
 
 // NewTracer creates a new tracer
-func NewTracer(config *config.Config) (Tracer, error) {
+func NewTracer(config *config.Config, _ telemetryComponent.Component) (Tracer, error) {
 	mgrOptions := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
@@ -202,12 +232,8 @@ func NewTracer(config *config.Config) (Tracer, error) {
 			boolConst("tcpv6_enabled", config.CollectTCPv6Conns),
 			boolConst("udpv6_enabled", config.CollectUDPv6Conns),
 		},
-		VerifierOptions: ebpf.CollectionOptions{
-			Programs: ebpf.ProgramOptions{
-				LogSize: 10 * 1024 * 1024,
-			},
-		},
 		DefaultKProbeMaxActive: maxActive,
+		BypassEnabled:          config.BypassEnabled,
 	}
 
 	begin, end := network.EphemeralRange()
@@ -220,11 +246,15 @@ func NewTracer(config *config.Config) (Tracer, error) {
 		closedChannelSize = config.ClosedChannelSize
 	}
 	var connCloseEventHandler ddebpf.EventHandler
+	var failedConnsHandler ddebpf.EventHandler
 	if config.RingBufferSupportedNPM() {
 		connCloseEventHandler = ddebpf.NewRingBufferHandler(closedChannelSize)
+		failedConnsHandler = ddebpf.NewRingBufferHandler(defaultFailedChannelSize)
 	} else {
 		connCloseEventHandler = ddebpf.NewPerfHandler(closedChannelSize)
+		failedConnsHandler = ddebpf.NewPerfHandler(defaultFailedChannelSize)
 	}
+
 	var m *manager.Manager
 	//nolint:revive // TODO(NET) Fix revive linter
 	var tracerType TracerType = TracerTypeFentry
@@ -239,14 +269,14 @@ func NewTracer(config *config.Config) (Tracer, error) {
 		// load the kprobe tracer
 		log.Info("fentry tracer not supported, falling back to kprobe tracer")
 		var kprobeTracerType kprobe.TracerType
-		m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, connCloseEventHandler)
+		m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, connCloseEventHandler, failedConnsHandler)
 		if err != nil {
 			return nil, err
 		}
 		tracerType = TracerType(kprobeTracerType)
 	}
 	m.DumpHandler = dumpMapsHandler
-	ebpfcheck.AddNameMappings(m, "npm_tracer")
+	ddebpf.AddNameMappings(m, "npm_tracer")
 
 	batchMgr, err := newConnBatchManager(m)
 	if err != nil {
@@ -255,15 +285,25 @@ func NewTracer(config *config.Config) (Tracer, error) {
 
 	closeConsumer := newTCPCloseConsumer(connCloseEventHandler, batchMgr)
 
+	var failedConnConsumer *failure.TCPFailedConnConsumer
+	// Failed connections are not supported on prebuilt
+	if tracerType == TracerTypeKProbePrebuilt {
+		config.TCPFailedConnectionsEnabled = false
+	}
+	if config.FailedConnectionsSupported() {
+		failedConnConsumer = failure.NewFailedConnConsumer(failedConnsHandler, m)
+	}
+
 	tr := &tracer{
-		m:              m,
-		config:         config,
-		closeConsumer:  closeConsumer,
-		removeTuple:    &netebpf.ConnTuple{},
-		closeTracer:    closeTracerFn,
-		ebpfTracerType: tracerType,
-		exitTelemetry:  make(chan struct{}),
-		ch:             newCookieHasher(),
+		m:                  m,
+		config:             config,
+		closeConsumer:      closeConsumer,
+		failedConnConsumer: failedConnConsumer,
+		removeTuple:        &netebpf.ConnTuple{},
+		closeTracer:        closeTracerFn,
+		ebpfTracerType:     tracerType,
+		exitTelemetry:      make(chan struct{}),
+		ch:                 newCookieHasher(),
 	}
 
 	tr.conns, err = maps.GetMap[netebpf.ConnTuple, netebpf.ConnStats](m, probes.ConnMap)
@@ -315,6 +355,7 @@ func (t *tracer) Start(callback func([]network.ConnectionStats)) (err error) {
 	}
 
 	t.closeConsumer.Start(callback)
+	t.failedConnConsumer.Start()
 	return nil
 }
 
@@ -335,13 +376,21 @@ func (t *tracer) FlushPending() {
 	t.closeConsumer.FlushPending()
 }
 
+func (t *tracer) GetFailedConnections() *failure.FailedConns {
+	if t.failedConnConsumer == nil {
+		return nil
+	}
+	return t.failedConnConsumer.FailedConns
+}
+
 func (t *tracer) Stop() {
 	t.stopOnce.Do(func() {
 		close(t.exitTelemetry)
-		ebpfcheck.RemoveNameMappings(t.m)
+		ddebpf.RemoveNameMappings(t.m)
 		ebpftelemetry.UnregisterTelemetry(t.m)
 		_ = t.m.Stop(manager.CleanAll)
 		t.closeConsumer.Stop()
+		t.failedConnConsumer.Stop()
 		if t.closeTracer != nil {
 			t.closeTracer()
 		}
@@ -351,8 +400,6 @@ func (t *tracer) Stop() {
 func (t *tracer) GetMap(name string) *ebpf.Map {
 	switch name {
 	case probes.ConnectionProtocolMap:
-	case probes.MapErrTelemetryMap:
-	case probes.HelperErrTelemetryMap:
 	default:
 		return nil
 	}
@@ -369,7 +416,7 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 	// ebpf maps are being iterated over and deleted at the same time.
 	// The iteration can reset when that happens.
 	// See https://justin.azoff.dev/blog/bpf_map_get_next_key-pitfalls/
-	connsByTuple := make(map[netebpf.ConnTuple]struct{})
+	connsByTuple := make(map[netebpf.ConnTuple]uint32)
 
 	// Cached objects
 	conn := new(network.ConnectionStats)
@@ -378,7 +425,7 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 	var tcp4, tcp6, udp4, udp6 float64
 	entries := t.conns.Iterate()
 	for entries.Next(key, stats) {
-		if _, exists := connsByTuple[*key]; exists {
+		if cookie, exists := connsByTuple[*key]; exists && cookie == stats.Cookie {
 			// already seen the connection in current batch processing,
 			// due to race between the iterator and bpf_map_delete
 			ConnTracerTelemetry.iterationDups.Inc()
@@ -386,7 +433,7 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 		}
 
 		populateConnStats(conn, key, stats, t.ch)
-		connsByTuple[*key] = struct{}{}
+		connsByTuple[*key] = stats.Cookie
 
 		isTCP := conn.Type == network.TCP
 		switch conn.Family {
@@ -439,7 +486,7 @@ func updateTelemetry(tcp4 float64, tcp6 float64, udp4 float64, udp6 float64) {
 	ConnTracerTelemetry.connections.Set(udp6, "udp", "v6")
 }
 
-func removeConnection(conn *network.ConnectionStats) {
+func removeConnectionFromTelemetry(conn *network.ConnectionStats) {
 	isTCP := conn.Type == network.TCP
 	switch conn.Family {
 	case network.AFINET6:
@@ -458,23 +505,7 @@ func removeConnection(conn *network.ConnectionStats) {
 }
 
 func (t *tracer) Remove(conn *network.ConnectionStats) error {
-	t.removeTuple.Sport = conn.SPort
-	t.removeTuple.Dport = conn.DPort
-	t.removeTuple.Netns = conn.NetNS
-	t.removeTuple.Pid = conn.Pid
-	t.removeTuple.Saddr_l, t.removeTuple.Saddr_h = util.ToLowHigh(conn.Source)
-	t.removeTuple.Daddr_l, t.removeTuple.Daddr_h = util.ToLowHigh(conn.Dest)
-
-	if conn.Family == network.AFINET6 {
-		t.removeTuple.Metadata = uint32(netebpf.IPv6)
-	} else {
-		t.removeTuple.Metadata = uint32(netebpf.IPv4)
-	}
-	if conn.Type == network.TCP {
-		t.removeTuple.Metadata |= uint32(netebpf.TCP)
-	} else {
-		t.removeTuple.Metadata |= uint32(netebpf.UDP)
-	}
+	util.ConnStatsToTuple(conn, t.removeTuple)
 
 	err := t.conns.Delete(t.removeTuple)
 	if err != nil {
@@ -486,13 +517,16 @@ func (t *tracer) Remove(conn *network.ConnectionStats) error {
 		return err
 	}
 
-	removeConnection(conn)
+	removeConnectionFromTelemetry(conn)
 
-	// We have to remove the PID to remove the element from the TCP Map since we don't use the pid there
-	t.removeTuple.Pid = 0
 	if conn.Type == network.TCP {
 		// We can ignore the error for this map since it will not always contain the entry
 		_ = t.tcpStats.Delete(t.removeTuple)
+		// We remove the PID from the tuple as it is not used in the retransmits map
+		pid := t.removeTuple.Pid
+		t.removeTuple.Pid = 0
+		_ = t.tcpRetransmits.Delete(t.removeTuple)
+		t.removeTuple.Pid = pid
 	}
 	return nil
 }
@@ -526,6 +560,10 @@ func (t *tracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- ConnTracerTelemetry.UdpSendsProcessed
 	ch <- ConnTracerTelemetry.UdpSendsMissed
 	ch <- ConnTracerTelemetry.UdpDroppedConns
+	ch <- ConnTracerTelemetry.doubleFlushAttemptsClose
+	ch <- ConnTracerTelemetry.doubleFlushAttemptsDone
+	ch <- ConnTracerTelemetry.unsupportedTcpFailures
+	ch <- ConnTracerTelemetry.tcpDonePidMismatch
 }
 
 // Collect returns the current state of all metrics of the collector
@@ -561,6 +599,23 @@ func (t *tracer) Collect(ch chan<- prometheus.Metric) {
 	delta = int64(ebpfTelemetry.Udp_dropped_conns) - ConnTracerTelemetry.lastUdpDroppedConns.Load()
 	ConnTracerTelemetry.lastUdpDroppedConns.Store(int64(ebpfTelemetry.Udp_dropped_conns))
 	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.UdpDroppedConns, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Double_flush_attempts_close) - ConnTracerTelemetry.lastDoubleFlushAttemptsClose.Load()
+	ConnTracerTelemetry.lastDoubleFlushAttemptsClose.Store(int64(ebpfTelemetry.Double_flush_attempts_close))
+	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.doubleFlushAttemptsClose, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Double_flush_attempts_done) - ConnTracerTelemetry.lastDoubleFlushAttemptsDone.Load()
+	ConnTracerTelemetry.lastDoubleFlushAttemptsDone.Store(int64(ebpfTelemetry.Double_flush_attempts_done))
+	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.doubleFlushAttemptsDone, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Unsupported_tcp_failures) - ConnTracerTelemetry.lastUnsupportedTcpFailures.Load()
+	ConnTracerTelemetry.lastUnsupportedTcpFailures.Store(int64(ebpfTelemetry.Unsupported_tcp_failures))
+	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.unsupportedTcpFailures, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Tcp_done_pid_mismatch) - ConnTracerTelemetry.lastTcpDonePidMismatch.Load()
+	ConnTracerTelemetry.lastTcpDonePidMismatch.Store(int64(ebpfTelemetry.Tcp_done_pid_mismatch))
+	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.tcpDonePidMismatch, prometheus.CounterValue, float64(delta))
+
 }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.

@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/comp/netflow/portrollup"
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	"go.uber.org/atomic"
 )
 
@@ -40,7 +41,8 @@ type flowAccumulator struct {
 
 	hashCollisionFlowCount *atomic.Uint64
 
-	logger log.Component
+	logger      log.Component
+	rdnsQuerier rdnsquerier.Component
 }
 
 func newFlowContext(flow *common.Flow) flowContext {
@@ -51,7 +53,7 @@ func newFlowContext(flow *common.Flow) flowContext {
 	}
 }
 
-func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, logger log.Component) *flowAccumulator {
+func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
 	return &flowAccumulator{
 		flows:                  make(map[uint64]flowContext),
 		flowFlushInterval:      aggregatorFlushInterval,
@@ -61,6 +63,7 @@ func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowCon
 		portRollupDisabled:     portRollupDisabled,
 		hashCollisionFlowCount: atomic.NewUint64(0),
 		logger:                 logger,
+		rdnsQuerier:            rdnsQuerier,
 	}
 }
 
@@ -123,12 +126,15 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	aggFlow, ok := f.flows[aggHash]
 	if !ok {
 		f.flows[aggHash] = newFlowContext(flowToAdd)
+		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
 		return
 	}
 	if aggFlow.flow == nil {
+		// flowToAdd is for the same hash as an aggregated flow that has been flushed
 		aggFlow.flow = flowToAdd
+		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
 	} else {
-		// use go routine for has collision detection to avoid blocking critical path
+		// use go routine for hash collision detection to avoid blocking critical path
 		go f.detectHashCollision(aggHash, *aggFlow.flow, *flowToAdd)
 
 		// accumulate flowToAdd with existing flow(s) with same hash
@@ -153,6 +159,40 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		}
 	}
 	f.flows[aggHash] = aggFlow
+}
+
+func (f *flowAccumulator) addRDNSEnrichment(aggHash uint64, srcAddr []byte, dstAddr []byte) {
+	err := f.rdnsQuerier.GetHostnameAsync(
+		srcAddr,
+		func(hostname string) {
+			f.flowsMutex.Lock()
+			defer f.flowsMutex.Unlock()
+
+			aggFlow, ok := f.flows[aggHash]
+			if ok && aggFlow.flow != nil {
+				aggFlow.flow.SrcReverseDNSHostname = hostname
+			}
+		},
+	)
+	if err != nil {
+		f.logger.Debugf("Error requesting reverse DNS enrichment for source IP address: %v error: %v", srcAddr, err)
+	}
+
+	err = f.rdnsQuerier.GetHostnameAsync(
+		dstAddr,
+		func(hostname string) {
+			f.flowsMutex.Lock()
+			defer f.flowsMutex.Unlock()
+
+			aggFlow, ok := f.flows[aggHash]
+			if ok && aggFlow.flow != nil {
+				aggFlow.flow.DstReverseDNSHostname = hostname
+			}
+		},
+	)
+	if err != nil {
+		f.logger.Debugf("Error requesting reverse DNS enrichment for destination IP address: %v error: %v", dstAddr, err)
+	}
 }
 
 func (f *flowAccumulator) getFlowContextCount() int {

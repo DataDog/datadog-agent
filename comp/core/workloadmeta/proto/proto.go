@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
@@ -72,7 +72,11 @@ func ProtobufEventFromWorkloadmetaEvent(event workloadmeta.Event) (*pb.Workloadm
 		}, nil
 	}
 
-	return nil, fmt.Errorf("unknown kind: %s", entityID.Kind)
+	// We have not defined a conversion for the workloadmeta type included in
+	// the given event.
+	// This is not considered to be an error because we only support some
+	// types. The list is defined in the remote workloadmeta collector.
+	return nil, nil
 }
 
 // ProtobufFilterFromWorkloadmetaFilter converts the given workloadmeta.Filter into protobuf
@@ -142,6 +146,7 @@ func protoContainerFromWorkloadmetaContainer(container *workloadmeta.Container) 
 		Runtime:       protoRuntime,
 		State:         protoContainerState,
 		CollectorTags: container.CollectorTags,
+		CgroupPath:    container.CgroupPath,
 	}, nil
 }
 
@@ -450,22 +455,17 @@ func toProtoLaunchType(launchType workloadmeta.ECSLaunchType) (pb.ECSLaunchType,
 func WorkloadmetaFilterFromProtoFilter(protoFilter *pb.WorkloadmetaFilter) (*workloadmeta.Filter, error) {
 	if protoFilter == nil {
 		// Return filter that subscribes to everything
-		filterParams := workloadmeta.FilterParams{
-			Source:    workloadmeta.SourceAll,
-			EventType: workloadmeta.EventTypeAll,
-		}
-		return workloadmeta.NewFilter(&filterParams), nil
+		return workloadmeta.NewFilterBuilder().Build(), nil
 	}
 
-	var kinds []workloadmeta.Kind
+	filterBuilder := workloadmeta.NewFilterBuilder()
 
 	for _, protoKind := range protoFilter.Kinds {
 		kind, err := toWorkloadmetaKind(protoKind)
 		if err != nil {
 			return nil, err
 		}
-
-		kinds = append(kinds, kind)
+		filterBuilder = filterBuilder.AddKind(kind)
 	}
 
 	source, err := toWorkloadmetaSource(protoFilter.Source)
@@ -478,12 +478,11 @@ func WorkloadmetaFilterFromProtoFilter(protoFilter *pb.WorkloadmetaFilter) (*wor
 		return nil, err
 	}
 
-	filterParams := workloadmeta.FilterParams{
-		Kinds:     kinds,
-		Source:    source,
-		EventType: eventType,
-	}
-	return workloadmeta.NewFilter(&filterParams), nil
+	filter := filterBuilder.
+		SetEventType(eventType).
+		SetSource(source).Build()
+
+	return filter, nil
 }
 
 // WorkloadmetaEventFromProtoEvent converts the given protobuf workloadmeta event into a workloadmeta.Event
@@ -607,6 +606,7 @@ func toWorkloadmetaContainer(protoContainer *pb.Container) (*workloadmeta.Contai
 		Runtime:       runtime,
 		State:         state,
 		CollectorTags: protoContainer.CollectorTags,
+		CgroupPath:    protoContainer.CgroupPath,
 	}, nil
 }
 

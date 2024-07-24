@@ -27,7 +27,7 @@ func GetEventsAPIEndpoints(config ddconfig.Reader) (eps []apicfg.Endpoint, err e
 
 func getAPIEndpointsWithKeys(config ddconfig.Reader, prefix, defaultEpKey, additionalEpsKey string) (eps []apicfg.Endpoint, err error) {
 	// Setup main endpoint
-	mainEndpointURL, err := url.Parse(utils.GetMainEndpoint(ddconfig.Datadog, prefix, defaultEpKey))
+	mainEndpointURL, err := url.Parse(utils.GetMainEndpoint(ddconfig.Datadog(), prefix, defaultEpKey))
 	if err != nil {
 		return nil, fmt.Errorf("error parsing %s: %s", defaultEpKey, err)
 	}

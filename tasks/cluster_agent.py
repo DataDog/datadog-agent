@@ -16,7 +16,7 @@ from tasks.build_tags import get_build_tags, get_default_build_tags
 from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from tasks.cws_instrumentation import BIN_PATH as CWS_INSTRUMENTATION_BIN_PATH
 from tasks.go import deps
-from tasks.libs.common.utils import load_release_versions
+from tasks.libs.releasing.version import load_release_versions
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")

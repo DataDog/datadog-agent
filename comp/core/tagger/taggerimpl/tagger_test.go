@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -52,17 +52,17 @@ func Test_taggerCardinality(t *testing.T) {
 		{
 			name:        "empty",
 			cardinality: "",
-			want:        tagger.DogstatsdCardinality,
+			want:        tagger.DogstatsdCardinality(),
 		},
 		{
 			name:        "unknown",
 			cardinality: "foo",
-			want:        tagger.DogstatsdCardinality,
+			want:        tagger.DogstatsdCardinality(),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, taggerCardinality(tt.cardinality))
+			assert.Equal(t, tt.want, taggerCardinality(tt.cardinality, tagger.DogstatsdCardinality()))
 		})
 	}
 }
@@ -79,7 +79,7 @@ func TestEnrichTagsOrchestrator(t *testing.T) {
 func TestEnrichTagsOptOut(t *testing.T) {
 	fakeTagger := fxutil.Test[tagger.Mock](t, MockModule())
 	defer fakeTagger.ResetTagger()
-	cfg := config.Mock(t)
+	cfg := configmock.New(t)
 	cfg.SetWithoutSource("dogstatsd_origin_optout_enabled", true)
 	fakeTagger.SetTags("foo", "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
 	tb := tagset.NewHashingTagsAccumulator()

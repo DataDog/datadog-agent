@@ -12,8 +12,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -56,7 +56,7 @@ func (c *collector) parseTasksFromV4Endpoint(ctx context.Context) ([]workloadmet
 	return c.setLastSeenEntitiesAndUnsetEvents(events, seen), nil
 }
 
-// getTaskWithTagsFromV4Endpoint fetches task and tasks from the metadata v4 API
+// getTaskWithTagsFromV4Endpoint fetches task and tags from the metadata v4 API
 func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.Task) (v3or4.Task, error) {
 	var metaURI string
 	for _, taskContainer := range task.Containers {

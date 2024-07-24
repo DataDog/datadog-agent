@@ -58,7 +58,7 @@ Package api implements the "api" bundle,
 
 ### [comp/api/api](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api/api)
 
-Package api implements the internal Agent API which exposes endpoints such as config, flare or status
+Package def implements the internal Agent API component definitions which exposes endpoints such as config, flare or status
 
 ### [comp/api/authtoken](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api/authtoken)
 
@@ -272,6 +272,10 @@ Package adscheduler is glue code to connect autodiscovery to the logs agent. It 
 
 Package agent contains logs agent component.
 
+### [comp/logs/integrations](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/integrations)
+
+Package integrations adds a go interface for integrations to send logs.
+
 ## [comp/metadata](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
@@ -295,9 +299,13 @@ Package inventorychecks implements a component to generate the 'check_metadata' 
 
 Package inventoryhost exposes the interface for the component to generate the 'host_metadata' metadata payload for inventory.
 
+### [comp/metadata/inventoryotel](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/inventoryotel)
+
+Package inventoryotel implements a component to generate the 'datadog_agent' metadata payload for inventory.
+
 ### [comp/metadata/packagesigning](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/packagesigning)
 
-*Datadog Team*: agent-build-and-releases
+*Datadog Team*: agent-delivery
 
 Package packagesigning implements a component to generate the 'signing' metadata payload for DD inventory (REDAPL).
 
@@ -308,6 +316,14 @@ Package resources implements a component to generate the 'resources' metadata pa
 ### [comp/metadata/runner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/runner)
 
 Package runner implements a component to generate metadata payload at the right interval.
+
+### [comp/metadata/securityagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/securityagent)
+
+Package def is the metadata provider for security-agent process
+
+### [comp/metadata/systemprobe](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/systemprobe)
+
+Package def is the metadata provider for system-probe process
 
 ## [comp/ndmtmp](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/ndmtmp) (Component Bundle)
 
@@ -363,6 +379,18 @@ Package collector defines the OpenTelemetry Collector component.
 ### [comp/otelcol/collector-contrib](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib)
 
 Package collectorcontrib defines the OTel collector-contrib component
+
+### [comp/otelcol/configstore](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/configstore)
+
+Package configstore defines the otel agent configstore component.
+
+### [comp/otelcol/converter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/converter)
+
+Package converter defines the otel agent converter component.
+
+### [comp/otelcol/extension](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/extension)
+
+Package extension defines the OpenTelemetry Extension component.
 
 ### [comp/otelcol/logsagentpipeline](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline)
 
@@ -520,7 +548,11 @@ Package trace implements the "trace" bundle, providing components for the Trace 
 
 ### [comp/trace/agent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/agent)
 
+Package traceagent provides the agent component type.
 
+### [comp/trace/compression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/compression)
+
+Package compression provides compression for trace payloads
 
 ### [comp/trace/config](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/config)
 
@@ -564,6 +596,12 @@ Package updater is the updater component.
 *Datadog Team*: windows-agent
 
 Package etw provides an ETW tracing interface
+
+### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
+
+*Datadog Team*: network-device-monitoring
+
+Package rdnsquerier provides the reverse DNS querier component.
 
 ### [comp/serializer/compression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/serializer/compression)
 

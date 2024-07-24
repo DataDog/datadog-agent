@@ -45,7 +45,7 @@ func newApiServer(deps dependencies) Component {
 		return err
 	}
 	deps.Log.Infof("API server listening on %s", addr)
-	timeout := time.Duration(ddconfig.Datadog.GetInt("server_timeout")) * time.Second
+	timeout := time.Duration(ddconfig.Datadog().GetInt("server_timeout")) * time.Second
 
 	apiserver := &apiserver{
 		server: &http.Server{

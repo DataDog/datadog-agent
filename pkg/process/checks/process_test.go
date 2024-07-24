@@ -21,8 +21,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -78,11 +80,11 @@ func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
 	metricsProvider.RegisterConcreteCollector(provider.NewRuntimeMetadata(string(provider.RuntimeNameGarden), ""), metricsCollector)
 
 	// Workload meta + tagger
-	metadataProvider := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	metadataProvider := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
@@ -237,7 +239,7 @@ func TestProcessCheckWithRealtime(t *testing.T) {
 }
 
 func TestOnlyEnvConfigArgsScrubbingEnabled(t *testing.T) {
-	cfg := ddconfig.Mock(t)
+	cfg := configmock.New(t)
 
 	t.Setenv("DD_CUSTOM_SENSITIVE_WORDS", "*password*,consul_token,*api_key")
 
@@ -263,7 +265,7 @@ func TestOnlyEnvConfigArgsScrubbingEnabled(t *testing.T) {
 }
 
 func TestOnlyEnvConfigArgsScrubbingDisabled(t *testing.T) {
-	cfg := ddconfig.Mock(t)
+	cfg := configmock.New(t)
 
 	t.Setenv("DD_SCRUB_ARGS", "false")
 	t.Setenv("DD_CUSTOM_SENSITIVE_WORDS", "*password*,consul_token,*api_key")
@@ -461,7 +463,7 @@ func BenchmarkProcessCheck(b *testing.B) {
 
 func TestProcessCheckZombieToggleFalse(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
-	cfg := ddconfig.Mock(t)
+	cfg := configmock.New(t)
 	processCheck.config = cfg
 	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
 
@@ -512,7 +514,7 @@ func TestProcessCheckZombieToggleFalse(t *testing.T) {
 
 func TestProcessCheckZombieToggleTrue(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
-	cfg := ddconfig.Mock(t)
+	cfg := configmock.New(t)
 	processCheck.config = cfg
 	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
 

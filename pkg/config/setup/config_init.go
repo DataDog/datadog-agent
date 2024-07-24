@@ -8,6 +8,6 @@
 package setup
 
 func initConfig() {
-	InitConfig(Datadog)
+	InitConfig(Datadog())
 	InitSystemProbeConfig(SystemProbe)
 }

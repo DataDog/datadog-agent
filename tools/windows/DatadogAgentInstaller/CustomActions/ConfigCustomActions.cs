@@ -391,6 +391,10 @@ namespace Datadog.CustomActions
                             session.Log($"{configPath} exists, not modifying it.");
                         }
                     }
+                    else
+                    {
+                        session.Log($"{configPath}.example doesn't exists.");
+                    }
 
                 }
             }

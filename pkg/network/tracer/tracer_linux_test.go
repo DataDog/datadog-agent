@@ -47,17 +47,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
-	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
+	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var kv470 = kernel.VersionCode(4, 7, 0)
@@ -73,13 +72,13 @@ func (s *TracerSuite) TestTCPRemoveEntries() {
 	config.TCPConnTimeout = 100 * time.Millisecond
 	tr := setupTracer(t, config)
 	// Create a dummy TCP Server
-	server := NewTCPServer(func(c net.Conn) {
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 	})
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
 	// Connect to server
-	c, err := net.DialTimeout("tcp", server.address, 2*time.Second)
+	c, err := net.DialTimeout("tcp", server.Address(), 2*time.Second)
 	require.NoError(t, err)
 	defer c.Close()
 
@@ -99,7 +98,7 @@ func (s *TracerSuite) TestTCPRemoveEntries() {
 	c.Close()
 
 	// Create a new client
-	c2, err := net.DialTimeout("tcp", server.address, 1*time.Second)
+	c2, err := net.DialTimeout("tcp", server.Address(), 1*time.Second)
 	require.NoError(t, err)
 
 	// Send a messages
@@ -113,7 +112,7 @@ func (s *TracerSuite) TestTCPRemoveEntries() {
 	assert.Equal(t, 0, int(conn.Monotonic.RecvBytes))
 	assert.Equal(t, 0, int(conn.Monotonic.Retransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
-	assert.Equal(t, addrPort(server.address), int(conn.DPort))
+	assert.Equal(t, addrPort(server.Address()), int(conn.DPort))
 
 	// Make sure the first connection got cleaned up
 	assert.Eventually(t, func() bool {
@@ -129,7 +128,7 @@ func (s *TracerSuite) TestTCPRetransmit() {
 	tr := setupTracer(t, testConfig())
 
 	// Create TCP Server which sends back serverMessageSize bytes
-	server := NewTCPServer(func(c net.Conn) {
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
 		c.Write(genPayload(serverMessageSize))
@@ -139,7 +138,7 @@ func (s *TracerSuite) TestTCPRetransmit() {
 	require.NoError(t, server.Run())
 
 	// Connect to server
-	c, err := net.DialTimeout("tcp", server.address, time.Second)
+	c, err := net.DialTimeout("tcp", server.Address(), time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,13 +168,13 @@ func (s *TracerSuite) TestTCPRetransmit() {
 	assert.Equal(t, 100*clientMessageSize, int(conn.Monotonic.SentBytes))
 	assert.True(t, int(conn.Monotonic.Retransmits) > 0)
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
-	assert.Equal(t, addrPort(server.address), int(conn.DPort))
+	assert.Equal(t, addrPort(server.Address()), int(conn.DPort))
 }
 
 func (s *TracerSuite) TestTCPRetransmitSharedSocket() {
 	t := s.T()
 	// Create TCP Server that simply "drains" connection until receiving an EOF
-	server := NewTCPServer(func(c net.Conn) {
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		io.Copy(io.Discard, c)
 		c.Close()
 	})
@@ -183,7 +182,7 @@ func (s *TracerSuite) TestTCPRetransmitSharedSocket() {
 	require.NoError(t, server.Run())
 
 	// Connect to server
-	c, err := net.DialTimeout("tcp", server.address, time.Second)
+	c, err := net.DialTimeout("tcp", server.Address(), time.Second)
 	require.NoError(t, err)
 	defer c.Close()
 
@@ -250,14 +249,14 @@ func (s *TracerSuite) TestTCPRTT() {
 	// Enable BPF-based system probe
 	tr := setupTracer(t, testConfig())
 	// Create TCP Server that simply "drains" connection until receiving an EOF
-	server := NewTCPServer(func(c net.Conn) {
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		io.Copy(io.Discard, c)
 		c.Close()
 	})
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
-	c, err := net.DialTimeout("tcp", server.address, time.Second)
+	c, err := net.DialTimeout("tcp", server.Address(), time.Second)
 	require.NoError(t, err)
 	defer c.Close()
 
@@ -288,7 +287,7 @@ func (s *TracerSuite) TestTCPMiscount() {
 	t.Skip("skipping because this test will pass/fail depending on host performance")
 	tr := setupTracer(t, testConfig())
 	// Create a dummy TCP Server
-	server := NewTCPServer(func(c net.Conn) {
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
 		for {
 			if _, err := r.ReadBytes(byte('\n')); err != nil { // indicates that EOF has been reached,
@@ -300,7 +299,7 @@ func (s *TracerSuite) TestTCPMiscount() {
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
-	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
+	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -343,7 +342,7 @@ func (s *TracerSuite) TestConnectionExpirationRegression() {
 	tr := setupTracer(t, testConfig())
 	// Create TCP Server that simply "drains" connection until receiving an EOF
 	connClosed := make(chan struct{})
-	server := NewTCPServer(func(c net.Conn) {
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		io.Copy(io.Discard, c)
 		c.Close()
 		connClosed <- struct{}{}
@@ -351,7 +350,7 @@ func (s *TracerSuite) TestConnectionExpirationRegression() {
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
-	c, err := net.DialTimeout("tcp", server.address, time.Second)
+	c, err := net.DialTimeout("tcp", server.Address(), time.Second)
 	require.NoError(t, err)
 
 	// Write 5 bytes to TCP socket
@@ -392,7 +391,7 @@ func (s *TracerSuite) TestConntrackExpiration() {
 
 	tr := setupTracer(t, testConfig())
 
-	server := NewTCPServerOnAddress("1.1.1.1:0", func(c net.Conn) {
+	server := tracertestutil.NewTCPServerOnAddress("1.1.1.1:0", func(c net.Conn) {
 		defer c.Close()
 
 		r := bufio.NewReader(c)
@@ -412,8 +411,8 @@ func (s *TracerSuite) TestConntrackExpiration() {
 	require.NoError(t, server.Run())
 	t.Cleanup(server.Shutdown)
 
-	_, port, err := net.SplitHostPort(server.address)
-	require.NoError(t, err, "could not split server address %s", server.address)
+	_, port, err := net.SplitHostPort(server.Address())
+	require.NoError(t, err, "could not split server address %s", server.Address())
 
 	c, err := net.Dial("tcp", "2.2.2.2:"+port)
 	require.NoError(t, err)
@@ -468,11 +467,11 @@ func (s *TracerSuite) TestConntrackDelays() {
 
 	tr := setupTracer(t, testConfig())
 	// This will ensure that the first lookup for every connection fails, while the following ones succeed
-	tr.conntracker = tracertest.NewDelayedConntracker(tr.conntracker, 1)
+	tr.conntracker = tracertestutil.NewDelayedConntracker(tr.conntracker, 1)
 
 	// Letting the OS pick an open port is necessary to avoid flakiness in the test. Running the the test multiple
 	// times can fail if binding to the same port since Conntrack might not emit NEW events for the same tuple
-	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", 0), func(c net.Conn) {
+	server := tracertestutil.NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", 0), func(c net.Conn) {
 		wg.Add(1)
 		defer wg.Done()
 		defer c.Close()
@@ -483,7 +482,9 @@ func (s *TracerSuite) TestConntrackDelays() {
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
-	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%d", server.ln.Addr().(*net.TCPAddr).Port))
+	_, port, err := net.SplitHostPort(server.Address())
+	require.NoError(t, err)
+	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%s", port))
 	require.NoError(t, err)
 	defer c.Close()
 	_, err = c.Write([]byte("ping"))
@@ -509,7 +510,7 @@ func (s *TracerSuite) TestTranslationBindingRegression() {
 	tr := setupTracer(t, testConfig())
 
 	// Setup TCP server
-	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", 0), func(c net.Conn) {
+	server := tracertestutil.NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", 0), func(c net.Conn) {
 		wg.Add(1)
 		defer wg.Done()
 		defer c.Close()
@@ -521,7 +522,9 @@ func (s *TracerSuite) TestTranslationBindingRegression() {
 	require.NoError(t, server.Run())
 
 	// Send data to 2.2.2.2 (which should be translated to 1.1.1.1)
-	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%d", server.ln.Addr().(*net.TCPAddr).Port))
+	_, port, err := net.SplitHostPort(server.Address())
+	require.NoError(t, err)
+	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%s", port))
 	require.NoError(t, err)
 	defer c.Close()
 	_, err = c.Write([]byte("ping"))
@@ -575,7 +578,7 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv6() {
 	require.NoError(t, err)
 
 	connections := getConnections(t, tr)
-	outgoing := searchConnections(connections, func(cs network.ConnectionStats) bool {
+	outgoing := network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
 		return cs.DPort == uint16(remotePort)
 	})
 
@@ -613,9 +616,9 @@ func (s *TracerSuite) TestGatewayLookupNotEnabled() {
 		m.EXPECT().IsAWS().Return(true)
 		network.Cloud = m
 
-		clouds := ddconfig.Datadog.Get("cloud_provider_metadata")
-		ddconfig.Datadog.SetWithoutSource("cloud_provider_metadata", []string{})
-		defer ddconfig.Datadog.SetWithoutSource("cloud_provider_metadata", clouds)
+		clouds := ddconfig.Datadog().Get("cloud_provider_metadata")
+		ddconfig.Datadog().SetWithoutSource("cloud_provider_metadata", []string{})
+		defer ddconfig.Datadog().SetWithoutSource("cloud_provider_metadata", clouds)
 
 		tr := setupTracer(t, cfg)
 		require.Nil(t, tr.gwLookup)
@@ -641,7 +644,7 @@ func (s *TracerSuite) TestGatewayLookupEnabled() {
 
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
-	tr, err := newTracer(cfg)
+	tr, err := newTracer(cfg, nil)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 	t.Cleanup(tr.Stop)
@@ -700,7 +703,7 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
 	// create the tracer without starting it
-	tr, err := newTracer(cfg)
+	tr, err := newTracer(cfg, nil)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 	t.Cleanup(tr.Stop)
@@ -766,7 +769,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
-	tr, err := newTracer(cfg)
+	tr, err := newTracer(cfg, nil)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 	t.Cleanup(tr.Stop)
@@ -828,9 +831,9 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 	defer test1Ns.Close()
 
 	// run tcp server in test1 net namespace
-	var server *TCPServer
+	var server *tracertestutil.TCPServer
 	err = kernel.WithNS(test1Ns, func() error {
-		server = NewTCPServerOnAddress("2.2.2.2:0", func(c net.Conn) {})
+		server = tracertestutil.NewTCPServerOnAddress("2.2.2.2:0", func(c net.Conn) {})
 		return server.Run()
 	})
 	require.NoError(t, err)
@@ -838,7 +841,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 
 	var conn *network.ConnectionStats
 	t.Run("client in root namespace", func(t *testing.T) {
-		c, err := net.DialTimeout("tcp", server.address, 2*time.Second)
+		c, err := net.DialTimeout("tcp", server.Address(), 2*time.Second)
 		require.NoError(t, err)
 
 		// write some data
@@ -866,7 +869,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 		var c net.Conn
 		err = kernel.WithNS(test2Ns, func() error {
 			var err error
-			c, err = net.DialTimeout("tcp", server.address, 2*time.Second)
+			c, err = net.DialTimeout("tcp", server.Address(), 2*time.Second)
 			return err
 		})
 		require.NoError(t, err)
@@ -1016,28 +1019,25 @@ func (s *TracerSuite) TestDNATIntraHostIntegration() {
 	var serverAddr struct {
 		local, remote net.Addr
 	}
-	server := &TCPServer{
-		address: "1.1.1.1:0",
-		onMessage: func(c net.Conn) {
-			serverAddr.local = c.LocalAddr()
-			serverAddr.remote = c.RemoteAddr()
-			for {
-				bs := make([]byte, 4)
-				_, err := c.Read(bs)
-				if err == io.EOF {
-					return
-				}
-				require.NoError(t, err, "error reading in server")
-
-				_, err = c.Write([]byte("pong"))
-				require.NoError(t, err, "error writing back in server")
+	server := tracertestutil.NewTCPServerOnAddress("1.1.1.1:0", func(c net.Conn) {
+		serverAddr.local = c.LocalAddr()
+		serverAddr.remote = c.RemoteAddr()
+		for {
+			bs := make([]byte, 4)
+			_, err := c.Read(bs)
+			if err == io.EOF {
+				return
 			}
-		},
-	}
+			require.NoError(t, err, "error reading in server")
+
+			_, err = c.Write([]byte("pong"))
+			require.NoError(t, err, "error writing back in server")
+		}
+	})
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
-	_, port, err := net.SplitHostPort(server.address)
+	_, port, err := net.SplitHostPort(server.Address())
 	require.NoError(t, err)
 
 	var conn net.Conn
@@ -1109,7 +1109,7 @@ func (s *TracerSuite) TestSelfConnect() {
 	t.Logf("port is %d", port)
 
 	require.Eventually(t, func() bool {
-		conns := searchConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
+		conns := network.FilterConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
 			return cs.SPort == uint16(port) && cs.DPort == uint16(port) && cs.Source.IsLoopback() && cs.Dest.IsLoopback()
 		})
 
@@ -1242,7 +1242,7 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 	conns := map[string]network.ConnectionStats{}
 	buf := make([]byte, network.ConnectionByteKeyMaxLen)
 	require.Eventually(t, func() bool {
-		_conns := searchConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
+		_conns := network.FilterConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
 			return cs.Type == network.UDP &&
 				cs.Source.IsLoopback() &&
 				cs.Dest.IsLoopback() &&
@@ -1509,18 +1509,16 @@ func (s *TracerSuite) TestSendfileRegression() {
 			t.Run("TCP", func(t *testing.T) {
 				// Start TCP server
 				var rcvd int64
-				server := TCPServer{
-					network: "tcp" + strings.TrimPrefix(family.String(), "v"),
-					onMessage: func(c net.Conn) {
-						rcvd, _ = io.Copy(io.Discard, c)
-						c.Close()
-					},
-				}
+				server := tracertestutil.NewTCPServerOnAddress("", func(c net.Conn) {
+					rcvd, _ = io.Copy(io.Discard, c)
+					c.Close()
+				})
+				server.Network = "tcp" + strings.TrimPrefix(family.String(), "v")
 				t.Cleanup(server.Shutdown)
 				require.NoError(t, server.Run())
 
 				// Connect to TCP server
-				c, err := net.DialTimeout("tcp", server.address, time.Second)
+				c, err := net.DialTimeout("tcp", server.Address(), time.Second)
 				require.NoError(t, err)
 
 				testSendfileServer(t, c.(*net.TCPConn), network.TCP, family, func() int64 { return rcvd })
@@ -1556,6 +1554,13 @@ func (s *TracerSuite) TestSendfileRegression() {
 
 }
 
+func httpSupported() bool {
+	if ebpftest.GetBuildMode() == ebpftest.Fentry {
+		return false
+	}
+	return kv >= usmconfig.MinimumKernelVersion
+}
+
 func isPrebuilt(cfg *config.Config) bool {
 	if cfg.EnableRuntimeCompiler || cfg.EnableCORE {
 		return false
@@ -1577,14 +1582,14 @@ func (s *TracerSuite) TestSendfileError() {
 	_, err = tmpfile.Seek(0, 0)
 	require.NoError(t, err)
 
-	server := NewTCPServer(func(c net.Conn) {
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		_, _ = io.Copy(io.Discard, c)
 		c.Close()
 	})
 	require.NoError(t, server.Run())
 	t.Cleanup(server.Shutdown)
 
-	c, err := net.DialTimeout("tcp", server.address, time.Second)
+	c, err := net.DialTimeout("tcp", server.Address(), time.Second)
 	require.NoError(t, err)
 
 	// Send file contents via SENDFILE(2)
@@ -1625,7 +1630,7 @@ func (s *TracerSuite) TestShortWrite() {
 	tr := setupTracer(t, testConfig())
 
 	read := make(chan struct{})
-	server := NewTCPServer(func(c net.Conn) {
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		// set recv buffer to 0 and don't read
 		// to fill up tcp window
 		err := c.(*net.TCPConn).SetReadBuffer(0)
@@ -1651,7 +1656,7 @@ func (s *TracerSuite) TestShortWrite() {
 	require.GreaterOrEqual(t, sndBufSize, 5000)
 
 	var sa unix.SockaddrInet4
-	host, portStr, err := net.SplitHostPort(server.address)
+	host, portStr, err := net.SplitHostPort(server.Address())
 	require.NoError(t, err)
 	copy(sa.Addr[:], net.ParseIP(host).To4())
 	port, err := strconv.ParseInt(portStr, 10, 32)
@@ -1733,7 +1738,7 @@ func (s *TracerSuite) TestBlockingReadCounts() {
 	t := s.T()
 	tr := setupTracer(t, testConfig())
 	ch := make(chan struct{})
-	server := NewTCPServer(func(c net.Conn) {
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		_, err := c.Write([]byte("foo"))
 		require.NoError(t, err, "error writing to client")
 		time.Sleep(time.Second)
@@ -1746,7 +1751,7 @@ func (s *TracerSuite) TestBlockingReadCounts() {
 	t.Cleanup(server.Shutdown)
 	t.Cleanup(func() { close(ch) })
 
-	c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
+	c, err := net.DialTimeout("tcp", server.Address(), 5*time.Second)
 	require.NoError(t, err)
 	defer c.Close()
 
@@ -1799,7 +1804,7 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	// Start the client and server before we enable the system probe to test that the tracer picks
 	// up the pre-existing connection
 
-	server := NewTCPServer(func(c net.Conn) {
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
 		for {
 			if _, err := r.ReadBytes(byte('\n')); err != nil {
@@ -1812,7 +1817,7 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
-	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
+	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
 	require.NoError(t, err)
 	t.Cleanup(func() { c.Close() })
 
@@ -1847,7 +1852,7 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	assert.Equal(t, clientMessageSize, int(m.SentBytes))
 	assert.Equal(t, serverMessageSize, int(m.RecvBytes))
 	assert.Equal(t, os.Getpid(), int(outgoing.Pid))
-	assert.Equal(t, addrPort(server.address), int(outgoing.DPort))
+	assert.Equal(t, addrPort(server.Address()), int(outgoing.DPort))
 	assert.Equal(t, c.LocalAddr().(*net.TCPAddr).Port, int(outgoing.SPort))
 	assert.Equal(t, network.OUTGOING, outgoing.Direction)
 
@@ -1855,7 +1860,7 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	assert.Equal(t, clientMessageSize, int(m.RecvBytes))
 	assert.Equal(t, serverMessageSize, int(m.SentBytes))
 	assert.Equal(t, os.Getpid(), int(incoming.Pid))
-	assert.Equal(t, addrPort(server.address), int(incoming.SPort))
+	assert.Equal(t, addrPort(server.Address()), int(incoming.SPort))
 	assert.Equal(t, c.LocalAddr().(*net.TCPAddr).Port, int(incoming.DPort))
 	assert.Equal(t, network.INCOMING, incoming.Direction)
 }
@@ -1882,14 +1887,14 @@ func testPreexistingEmptyIncomingConnectionDirection(t *testing.T, config *confi
 	// up the pre-existing connection
 
 	ch := make(chan struct{})
-	server := NewTCPServer(func(c net.Conn) {
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		<-ch
 		c.Close()
 	})
 	require.NoError(t, server.Run())
 	t.Cleanup(server.Shutdown)
 
-	c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
+	c, err := net.DialTimeout("tcp", server.Address(), 5*time.Second)
 	require.NoError(t, err)
 
 	// Enable BPF-based system probe
@@ -1960,93 +1965,6 @@ func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 	}, 3*time.Second, 100*time.Millisecond)
 
 	assert.Equal(t, network.OUTGOING, conn.Direction)
-}
-
-func (s *TracerSuite) TestGetMapsTelemetry() {
-	t := s.T()
-	if !httpsSupported() {
-		t.Skip("HTTPS feature not available/supported for this setup")
-	}
-
-	t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
-	cfg := testConfig()
-	tr := setupTracer(t, cfg)
-
-	cmd := []string{"curl", "-k", "-o/dev/null", "example.com/[1-10]"}
-	err := exec.Command(cmd[0], cmd[1:]...).Run()
-	require.NoError(t, err)
-
-	ebpfTelemetryCollector, ok := tr.bpfErrorsCollector.(*ebpftelemetry.EBPFErrorsCollector)
-	require.True(t, ok)
-
-	mapsTelemetry := ebpfTelemetryCollector.T.GetMapsTelemetry()
-	t.Logf("EBPF Maps telemetry: %v\n", mapsTelemetry)
-
-	tcpStatsErrors, ok := mapsTelemetry[probes.TCPStatsMap].(map[string]uint64)
-	require.True(t, ok)
-	assert.NotZero(t, tcpStatsErrors["EEXIST"])
-}
-
-func sysOpenAt2Supported() bool {
-	missing, err := ddebpf.VerifyKernelFuncs("do_sys_openat2")
-	if err == nil && len(missing) == 0 {
-		return true
-	}
-	kversion, err := kernel.HostVersion()
-	if err != nil {
-		log.Error("could not determine the current kernel version. fallback to do_sys_open")
-		return false
-	}
-
-	return kversion >= kernel.VersionCode(5, 6, 0)
-}
-
-func (s *TracerSuite) TestGetHelpersTelemetry() {
-	t := s.T()
-
-	// We need the tracepoints on open syscall in order
-	// to test.
-	if !httpsSupported() {
-		t.Skip("HTTPS feature not available/supported for this setup")
-	}
-
-	t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
-	cfg := testConfig()
-	cfg.EnableNativeTLSMonitoring = true
-	cfg.EnableHTTPMonitoring = true
-	tr := setupTracer(t, cfg)
-
-	expectedErrorTP := "tracepoint__syscalls__sys_enter_openat"
-	syscallNumber := syscall.SYS_OPENAT
-	if sysOpenAt2Supported() {
-		expectedErrorTP = "tracepoint__syscalls__sys_enter_openat2"
-		// In linux kernel source dir run:
-		// printf SYS_openat2 | gcc -include sys/syscall.h -E -
-		syscallNumber = 437
-	}
-
-	// Ensure `bpf_probe_read_user` fails by passing an address guaranteed to pagefault to open syscall.
-	addr, _, sysErr := syscall.Syscall6(syscall.SYS_MMAP, uintptr(0), uintptr(syscall.Getpagesize()), syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_ANON|syscall.MAP_PRIVATE, 0, 0)
-	require.Zero(t, sysErr)
-	syscall.Syscall(uintptr(syscallNumber), uintptr(0), uintptr(addr), uintptr(0))
-	t.Cleanup(func() {
-		syscall.Syscall(syscall.SYS_MUNMAP, uintptr(addr), uintptr(syscall.Getpagesize()), 0)
-	})
-	ebpfTelemetryCollector, ok := tr.bpfErrorsCollector.(*ebpftelemetry.EBPFErrorsCollector)
-	require.True(t, ok)
-
-	helperTelemetry := ebpfTelemetryCollector.T.GetHelpersTelemetry()
-	t.Logf("EBPF helper telemetry: %v\n", helperTelemetry)
-
-	openAtErrors, ok := helperTelemetry[expectedErrorTP].(map[string]interface{})
-	require.True(t, ok)
-
-	probeReadUserError, ok := openAtErrors["bpf_probe_read_user"].(map[string]uint64)
-	require.True(t, ok)
-
-	badAddressCnt, ok := probeReadUserError["EFAULT"]
-	require.True(t, ok)
-	assert.NotZero(t, badAddressCnt)
 }
 
 func TestEbpfConntrackerFallback(t *testing.T) {
@@ -2170,7 +2088,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 				}
 			}
 
-			conntracker, err := NewEBPFConntracker(cfg)
+			conntracker, err := NewEBPFConntracker(cfg, nil)
 			// ensure we always clean up the conntracker, regardless of behavior
 			if conntracker != nil {
 				t.Cleanup(conntracker.Close)
@@ -2191,7 +2109,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 func TestConntrackerFallback(t *testing.T) {
 	cfg := testConfig()
 	cfg.EnableEbpfConntracker = false
-	conntracker, err := newConntracker(cfg)
+	conntracker, err := newConntracker(cfg, nil)
 	// ensure we always clean up the conntracker, regardless of behavior
 	if conntracker != nil {
 		t.Cleanup(conntracker.Close)
@@ -2268,7 +2186,7 @@ func (s *TracerSuite) TestConnectionDuration() {
 	cfg := testConfig()
 	tr := setupTracer(t, cfg)
 
-	srv := NewTCPServer(func(c net.Conn) {
+	srv := tracertestutil.NewTCPServer(func(c net.Conn) {
 		var b [4]byte
 		for {
 			_, err := c.Read(b[:])
@@ -2287,7 +2205,7 @@ func (s *TracerSuite) TestConnectionDuration() {
 	require.NoError(t, srv.Run(), "error running server")
 	t.Cleanup(srv.Shutdown)
 
-	srvAddr := srv.address
+	srvAddr := srv.Address()
 	c, err := net.DialTimeout("tcp", srvAddr, time.Second)
 	require.NoError(t, err, "could not connect to server at %s", srvAddr)
 
@@ -2318,7 +2236,7 @@ LOOP:
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		conns := getConnections(t, tr)
 		var found bool
-		conn, found = findConnection(c.LocalAddr(), srv.ln.Addr(), conns)
+		conn, found = findConnection(c.LocalAddr(), srv.Addr(), conns)
 		assert.True(collect, found, "could not find connection")
 
 	}, 3*time.Second, 100*time.Millisecond, "could not find connection")
@@ -2328,7 +2246,7 @@ LOOP:
 	require.NoError(t, c.Close(), "error closing client connection")
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		var found bool
-		conn, found = findConnection(c.LocalAddr(), srv.ln.Addr(), getConnections(t, tr))
+		conn, found = findConnection(c.LocalAddr(), srv.Addr(), getConnections(t, tr))
 		assert.True(collect, found, "could not find closed connection")
 	}, 3*time.Second, 100*time.Millisecond, "could not find closed connection")
 
@@ -2336,4 +2254,86 @@ LOOP:
 	// updated to a value between 1s and 2s
 	assert.Greater(t, conn.Duration, time.Second, "connection duration should be between 1 and 2 seconds")
 	assert.Less(t, conn.Duration, 2*time.Second, "connection duration should be between 1 and 2 seconds")
+}
+
+var failedConnectionsBuildModes = map[ebpftest.BuildMode]struct{}{
+	ebpftest.CORE:            {},
+	ebpftest.RuntimeCompiled: {},
+}
+
+func checkSkipFailureConnectionsTests(t *testing.T) {
+	if _, ok := failedConnectionsBuildModes[ebpftest.GetBuildMode()]; !ok {
+		t.Skip("Skipping test on unsupported build mode: ", ebpftest.GetBuildMode())
+	}
+
+}
+func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
+	t := s.T()
+
+	checkSkipFailureConnectionsTests(t)
+	// TODO: remove this check when we fix this test on kernels < 4.19
+	if kv < kernel.VersionCode(4, 19, 0) {
+		t.Skip("Skipping test on kernels < 4.19")
+	}
+
+	setupDropTrafficRule(t)
+	cfg := testConfig()
+	cfg.TCPFailedConnectionsEnabled = true
+	tr := setupTracer(t, cfg)
+
+	srvAddr := "127.0.0.1:10000"
+	ipString, portString, err := net.SplitHostPort(srvAddr)
+	require.NoError(t, err)
+	ip := netip.MustParseAddr(ipString)
+	port, err := strconv.Atoi(portString)
+	require.NoError(t, err)
+
+	addr := syscall.SockaddrInet4{
+		Port: port,
+		Addr: ip.As4(),
+	}
+	sfd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
+	require.NoError(t, err)
+	t.Cleanup(func() { syscall.Close(sfd) })
+
+	//syscall.TCP_USER_TIMEOUT is 18 but not defined in our linter. Set it to 500ms
+	err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, 18, 500)
+	require.NoError(t, err)
+
+	err = syscall.Connect(sfd, &addr)
+	if err != nil {
+		var errno syscall.Errno
+		if errors.As(err, &errno) && errors.Is(err, syscall.ETIMEDOUT) {
+			t.Log("Connection timed out as expected")
+		} else {
+			require.NoError(t, err, "could not connect to server: ", err)
+		}
+	}
+
+	f := os.NewFile(uintptr(sfd), "")
+	defer f.Close()
+	c, err := net.FileConn(f)
+	require.NoError(t, err)
+	port = c.LocalAddr().(*net.TCPAddr).Port
+	// the addr here is 0.0.0.0, but the tracer sees it as 127.0.0.1
+	localAddr := fmt.Sprintf("127.0.0.1:%d", port)
+
+	// Check if the connection was recorded as failed due to timeout
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		// 110 is the errno for ETIMEDOUT
+		return findFailedConnection(t, localAddr, srvAddr, conns, 110)
+	}, 3*time.Second, 1000*time.Millisecond, "Failed connection not recorded properly")
+}
+
+func setupDropTrafficRule(tb testing.TB) (ns string) {
+	state := testutil.IptablesSave(tb)
+	tb.Cleanup(func() {
+		testutil.IptablesRestore(tb, state)
+	})
+	cmds := []string{
+		"iptables -A OUTPUT -p tcp -d 127.0.0.1 --dport 10000 -j DROP",
+	}
+	testutil.RunCommands(tb, cmds, false)
+	return
 }

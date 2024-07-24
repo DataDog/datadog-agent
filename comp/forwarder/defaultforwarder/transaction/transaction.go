@@ -194,6 +194,31 @@ const (
 	Process
 )
 
+// Destination indicates which regions the transaction should be sent to
+type Destination int
+
+const (
+	// AllRegions indicates the transaction should be sent to all regions (default behavior)
+	AllRegions = iota
+	// PrimaryOnly indicates the transaction should be sent to the primary region during MRF
+	PrimaryOnly
+	// SecondaryOnly indicates the transaction should be sent to the secondary region during MRF
+	SecondaryOnly
+)
+
+func (d Destination) String() string {
+	switch d {
+	case AllRegions:
+		return "AllRegions"
+	case PrimaryOnly:
+		return "PrimaryOnly"
+	case SecondaryOnly:
+		return "SecondaryOnly"
+	default:
+		return "Unknown"
+	}
+}
+
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
 type HTTPTransaction struct {
 	// Domain represents the domain target by the HTTPTransaction.
@@ -224,6 +249,8 @@ type HTTPTransaction struct {
 	Priority Priority
 
 	Kind Kind
+
+	Destination Destination
 }
 
 // TransactionsSerializer serializes Transaction instances.
@@ -241,6 +268,7 @@ type Transaction interface {
 	GetEndpointName() string
 	GetPayloadSize() int
 	GetPointCount() int
+	GetDestination() Destination
 
 	// This method serializes the transaction to `TransactionsSerializer`.
 	// It forces a new implementation of `Transaction` to define how to
@@ -309,6 +337,11 @@ func (t *HTTPTransaction) GetPointCount() int {
 		return t.Payload.GetPointCount()
 	}
 	return 0
+}
+
+// GetDestination returns the region(s) this transaction should be sent to.
+func (t *HTTPTransaction) GetDestination() Destination {
+	return t.Destination
 }
 
 // Process sends the Payload of the transaction to the right Endpoint and Domain.

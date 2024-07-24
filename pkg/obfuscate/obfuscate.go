@@ -25,6 +25,7 @@ import (
 type Obfuscator struct {
 	opts                 *Config
 	es                   *jsonObfuscator // nil if disabled
+	openSearch           *jsonObfuscator // nil if disabled
 	mongo                *jsonObfuscator // nil if disabled
 	sqlExecPlan          *jsonObfuscator // nil if disabled
 	sqlExecPlanNormalize *jsonObfuscator // nil if disabled
@@ -70,6 +71,9 @@ type Config struct {
 
 	// ES holds the obfuscation configuration for ElasticSearch bodies.
 	ES JSONConfig
+
+	// OpenSearch holds the obfuscation configuration for OpenSearch bodies.
+	OpenSearch JSONConfig
 
 	// Mongo holds the obfuscation configuration for MongoDB queries.
 	Mongo JSONConfig
@@ -270,6 +274,9 @@ func NewObfuscator(cfg Config) *Obfuscator {
 	}
 	if cfg.ES.Enabled {
 		o.es = newJSONObfuscator(&cfg.ES, &o)
+	}
+	if cfg.OpenSearch.Enabled {
+		o.openSearch = newJSONObfuscator(&cfg.OpenSearch, &o)
 	}
 	if cfg.Mongo.Enabled {
 		o.mongo = newJSONObfuscator(&cfg.Mongo, &o)

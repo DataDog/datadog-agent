@@ -216,6 +216,8 @@ func convertContainerStatus(cs corev1.ContainerStatus) model.ContainerStatus {
 		ContainerID:  cs.ContainerID,
 		Ready:        cs.Ready,
 		RestartCount: cs.RestartCount,
+		Image:        cs.Image,
+		ImageID:      cs.ImageID,
 	}
 	// detecting the current state
 	if cs.State.Waiting != nil {

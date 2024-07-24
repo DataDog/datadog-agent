@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 )
 
@@ -33,7 +33,7 @@ func TestRingStoreWithoutLoop(t *testing.T) {
 	ctx := context.Background()
 	timeout := time.Second
 
-	cfg := config.Mock(t)
+	cfg := configmock.New(t)
 	cfg.SetWithoutSource("process_config.event_collection.store.max_items", 4)
 	store, err := NewRingStore(cfg, &statsd.NoOpClient{})
 	require.NoError(t, err)
@@ -85,7 +85,7 @@ func TestRingStoreWithLoop(t *testing.T) {
 	ctx := context.Background()
 	timeout := time.Second
 
-	cfg := config.Mock(t)
+	cfg := configmock.New(t)
 	cfg.SetWithoutSource("process_config.event_collection.store.max_items", 3)
 	store, err := NewRingStore(cfg, &statsd.NoOpClient{})
 	require.NoError(t, err)
@@ -138,7 +138,7 @@ func TestRingStoreWithDroppedData(t *testing.T) {
 	expectedDrops := make([]*model.ProcessEvent, 0)
 	droppedEvents := make([]*model.ProcessEvent, 0)
 
-	cfg := config.Mock(t)
+	cfg := configmock.New(t)
 	cfg.SetWithoutSource("process_config.event_collection.store.max_items", 3)
 	store, err := NewRingStore(cfg, &statsd.NoOpClient{})
 	require.NoError(t, err)
@@ -197,7 +197,7 @@ func TestRingStoreAsynchronousPush(t *testing.T) {
 	ctx := context.Background()
 	timeout := time.Second
 
-	cfg := config.Mock(t)
+	cfg := configmock.New(t)
 	cfg.SetWithoutSource("process_config.event_collection.store.max_items", 3)
 	store, err := NewRingStore(cfg, &statsd.NoOpClient{})
 	require.NoError(t, err)
@@ -236,7 +236,7 @@ func TestRingStorePullErrors(t *testing.T) {
 	ctx := context.Background()
 	timeout := 10 * time.Millisecond // simulate timeout for all pending requests
 
-	cfg := config.Mock(t)
+	cfg := configmock.New(t)
 	maxPulls := 2
 	cfg.SetWithoutSource("process_config.event_collection.store.max_pending_pulls", maxPulls)
 	store, err := NewRingStore(cfg, &statsd.NoOpClient{})
@@ -264,7 +264,7 @@ func TestRingStorePullErrors(t *testing.T) {
 }
 
 func TestRingStorePushErrors(t *testing.T) {
-	cfg := config.Mock(t)
+	cfg := configmock.New(t)
 	maxPushes := 2
 	cfg.SetWithoutSource("process_config.event_collection.store.max_pending_pushes", 2)
 	store, err := NewRingStore(cfg, &statsd.NoOpClient{})

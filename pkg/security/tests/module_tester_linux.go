@@ -34,7 +34,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -54,6 +56,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/statsdclient"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -104,11 +107,19 @@ runtime_security_config:
     enabled: true
   remote_configuration:
     enabled: false
+  on_demand:
+    enabled: true
+    rate_limiter:
+      enabled: {{ .OnDemandRateLimiterEnabled}}
   socket: /tmp/test-runtime-security.sock
   sbom:
     enabled: {{ .SBOMEnabled }}
+    host:
+      enabled: {{ .HostSBOMEnabled }}
   activity_dump:
     enabled: {{ .EnableActivityDump }}
+    syscall_monitor:
+      period: {{ .ActivityDumpSyscallMonitorPeriod }}
 {{if .EnableActivityDump}}
     rate_limiter: {{ .ActivityDumpRateLimiter }}
     tag_rules:
@@ -182,6 +193,17 @@ runtime_security_config:
 const testPolicy = `---
 version: 1.2.3
 
+hooks:
+{{range $OnDemandProbe := .OnDemandProbes}}
+  - name: {{$OnDemandProbe.Name}}
+    syscall: {{$OnDemandProbe.IsSyscall}}
+    args:
+{{range $Arg := $OnDemandProbe.Args}}
+      - n: {{$Arg.N}}
+        kind: {{$Arg.Kind}}
+{{end}}
+{{end}}
+
 macros:
 {{range $Macro := .Macros}}
   - id: {{$Macro.ID}}
@@ -195,6 +217,7 @@ rules:
     version: {{$Rule.Version}}
     expression: >-
       {{$Rule.Expression}}
+    disabled: {{$Rule.Disabled}}
     tags:
 {{- range $Tag, $Val := .Tags}}
       {{$Tag}}: {{$Val}}
@@ -544,6 +567,32 @@ func checkProcessContextFieldsForBlankValues(tb testing.TB, event *model.Event, 
 }
 
 //nolint:deadcode,unused
+func validateSyscallContext(tb testing.TB, event *model.Event, jsonPath string) {
+	if ebpfLessEnabled {
+		return
+	}
+
+	eventJSON, err := serializers.MarshalEvent(event, nil)
+	if err != nil {
+		tb.Errorf("failed to marshal event: %v", err)
+		return
+	}
+
+	var data interface{}
+	if err := json.Unmarshal(eventJSON, &data); err != nil {
+		tb.Error(err)
+		tb.Error(string(eventJSON))
+		return
+	}
+
+	json, err := jsonpath.JsonPathLookup(data, jsonPath)
+	if err != nil {
+		tb.Errorf("should have a syscall context, got %+v (%s)", json, spew.Sdump(data))
+		tb.Error(string(eventJSON))
+	}
+}
+
+//nolint:deadcode,unused
 func validateProcessContext(tb testing.TB, event *model.Event) {
 	if event.ProcessContext.IsKworker {
 		return
@@ -578,10 +627,20 @@ func (tm *testModule) validateExecEvent(tb *testing.T, kind wrapperType, validat
 }
 
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (*testModule, error) {
+	return newTestModuleWithOnDemandProbes(t, nil, macroDefs, ruleDefs, fopts...)
+}
+
+func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDemandHookPoint, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (*testModule, error) {
 	var opts tmOpts
 	for _, opt := range fopts {
 		opt(&opts)
 	}
+
+	prevEbpfLessEnabled := ebpfLessEnabled
+	defer func() {
+		ebpfLessEnabled = prevEbpfLessEnabled
+	}()
+	ebpfLessEnabled = ebpfLessEnabled || opts.staticOpts.ebpfLessEnabled
 
 	if commonCfgDir == "" {
 		cd, err := os.MkdirTemp("", "test-cfgdir")
@@ -615,12 +674,20 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
+	if opts.dynamicOpts.disableBundledRules {
+		ruleDefs = append(ruleDefs, &rules.RuleDefinition{
+			ID:       events.NeedRefreshSBOMRuleID,
+			Disabled: true,
+			Combine:  rules.OverridePolicy,
+		})
+	}
+
 	st, err := newSimpleTest(t, macroDefs, ruleDefs, opts.dynamicOpts.testDir)
 	if err != nil {
 		return nil, err
 	}
 
-	if _, err = setTestPolicy(commonCfgDir, macroDefs, ruleDefs); err != nil {
+	if _, err = setTestPolicy(commonCfgDir, onDemandHooks, macroDefs, ruleDefs); err != nil {
 		return nil, err
 	}
 
@@ -721,7 +788,8 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	} else {
 		emopts.ProbeOpts.TagsResolver = NewFakeResolverDifferentImageNames()
 	}
-	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, optional.NewNoneOption[workloadmeta.Component]())
+	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, optional.NewNoneOption[workloadmeta.Component](), telemetry)
 	if err != nil {
 		return nil, err
 	}
@@ -741,12 +809,10 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 		testMod.eventMonitor.RegisterEventConsumer(cws)
 
-		testMod.ruleEngine.SetRulesetLoadedCallback(func(es *rules.EvaluationSet, err *multierror.Error) {
+		testMod.ruleEngine.SetRulesetLoadedCallback(func(rs *rules.RuleSet, err *multierror.Error) {
 			ruleSetloadedErr = err
 			log.Infof("Adding test module as listener")
-			for _, ruleSet := range es.RuleSets {
-				ruleSet.AddListener(testMod)
-			}
+			rs.AddListener(testMod)
 		})
 	}
 
@@ -802,7 +868,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		t.Logf("%s entry stats: %s", t.Name(), GetEBPFStatusMetrics(testMod.probe))
 	}
 
-	if ebpfLessEnabled {
+	if ebpfLessEnabled && !opts.staticOpts.dontWaitEBPFLessClient {
 		t.Logf("EBPFLess mode, waiting for a client to connect")
 		err := retry.Do(func() error {
 			if testMod.probe.PlatformProbe.(*sprobe.EBPFLessProbe).GetClientsCount() > 0 {
@@ -1106,41 +1172,7 @@ func checkKernelCompatibility(tb testing.TB, why string, skipCheck func(kv *kern
 	}
 }
 
-func (tm *testModule) StartActivityDumpComm(comm string, outputDir string, formats []string) ([]string, error) {
-	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
-	if !ok {
-		return nil, errors.New("not supported")
-	}
-
-	managers := p.GetProfileManagers()
-	if managers == nil {
-		return nil, errors.New("no manager")
-	}
-	params := &api.ActivityDumpParams{
-		Comm:              comm,
-		Timeout:           "1m",
-		DifferentiateArgs: true,
-		Storage: &api.StorageRequestParams{
-			LocalStorageDirectory:    outputDir,
-			LocalStorageFormats:      formats,
-			LocalStorageCompression:  false,
-			RemoteStorageFormats:     []string{},
-			RemoteStorageCompression: false,
-		},
-	}
-	mess, err := managers.DumpActivity(params)
-	if err != nil || mess == nil || len(mess.Storage) < 1 {
-		return nil, fmt.Errorf("failed to start activity dump: err:%v message:%v len:%v", err, mess, len(mess.Storage))
-	}
-
-	var files []string
-	for _, s := range mess.Storage {
-		files = append(files, s.File)
-	}
-	return files, nil
-}
-
-func (tm *testModule) StopActivityDump(name, containerID, comm string) error {
+func (tm *testModule) StopActivityDump(name, containerID string) error {
 	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
 		return errors.New("not supported")
@@ -1153,7 +1185,6 @@ func (tm *testModule) StopActivityDump(name, containerID, comm string) error {
 	params := &api.ActivityDumpStopParams{
 		Name:        name,
 		ContainerID: containerID,
-		Comm:        comm,
 	}
 	_, err := managers.StopActivityDump(params)
 	if err != nil {
@@ -1275,12 +1306,10 @@ func (tm *testModule) StartADocker() (*dockerCmdWrapper, error) {
 func (tm *testModule) GetDumpFromDocker(dockerInstance *dockerCmdWrapper) (*activityDumpIdentifier, error) {
 	dumps, err := tm.ListActivityDumps()
 	if err != nil {
-		_, _ = dockerInstance.stop()
 		return nil, err
 	}
 	dump := findLearningContainerID(dumps, dockerInstance.containerID)
 	if dump == nil {
-		_, _ = dockerInstance.stop()
 		return nil, errors.New("ContainerID not found on activity dump list")
 	}
 	return dump, nil
@@ -1293,6 +1322,7 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 	}
 	dump, err := tm.GetDumpFromDocker(dockerInstance)
 	if err != nil {
+		_, _ = dockerInstance.stop()
 		return nil, nil, err
 	}
 	return dockerInstance, dump, nil
@@ -1556,7 +1586,7 @@ func (tm *testModule) StopAllActivityDumps() error {
 		return nil
 	}
 	for _, dump := range dumps {
-		_ = tm.StopActivityDump(dump.Name, "", "")
+		_ = tm.StopActivityDump(dump.Name, "")
 	}
 	dumps, err = tm.ListActivityDumps()
 	if err != nil {
@@ -1725,7 +1755,7 @@ func (tm *testModule) ListAllProfiles() {
 	spm.ListAllProfileStates()
 }
 
-func (tm *testModule) SetProfileVersionState(selector *cgroupModel.WorkloadSelector, imageTag string, state profile.EventFilteringProfileState) error {
+func (tm *testModule) SetProfileVersionState(selector *cgroupModel.WorkloadSelector, imageTag string, state model.EventFilteringProfileState) error {
 	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
 		return errors.New("no ebpf probe")

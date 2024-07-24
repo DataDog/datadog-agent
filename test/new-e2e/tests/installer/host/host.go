@@ -31,6 +31,7 @@ type Host struct {
 	os             e2eos.Descriptor
 	arch           e2eos.Architecture
 	systemdVersion int
+	pkgManager     string
 }
 
 // Option is an option to configure a Host.
@@ -49,14 +50,27 @@ func New(t *testing.T, remote *components.RemoteHost, os e2eos.Descriptor, arch 
 	}
 	host.uploadFixtures()
 	host.setSystemdVersion()
+	if _, err := host.remote.Execute("command -v dpkg-query"); err == nil {
+		host.pkgManager = "apt"
+	} else if _, err := host.remote.Execute("command -v zypper"); err == nil {
+		host.pkgManager = "zypper"
+	} else if _, err := host.remote.Execute("command -v yum"); err == nil {
+		host.pkgManager = "yum"
+	} else {
+		t.Fatal("no package manager found")
+	}
 	return host
+}
+
+// GetPkgManager returns the package manager of the host.
+func (h *Host) GetPkgManager() string {
+	return h.pkgManager
 }
 
 func (h *Host) setSystemdVersion() {
 	strVersion := strings.TrimSpace(h.remote.MustExecute("systemctl --version | head -n1 | awk '{print $2}'"))
 	version, err := strconv.Atoi(strVersion)
 	require.NoError(h.t, err)
-	h.t.Log("Systemd version:", version)
 	h.systemdVersion = version
 }
 
@@ -76,6 +90,10 @@ func (h *Host) InstallDocker() {
 
 // GetDockerRuntimePath returns the runtime path of a docker runtime
 func (h *Host) GetDockerRuntimePath(runtime string) string {
+	if _, err := h.remote.Execute("command -v docker"); err != nil {
+		return ""
+	}
+
 	var cmd string
 	switch h.os.Flavor {
 	case e2eos.AmazonLinux:
@@ -106,6 +124,12 @@ func (h *Host) ReadFile(path string) ([]byte, error) {
 	return h.remote.ReadFile(path)
 }
 
+// WriteFile writes a file to the host.
+func (h *Host) WriteFile(path string, content []byte) error {
+	_, err := h.remote.WriteFile(path, content)
+	return err
+}
+
 // DeletePath deletes a path on the host.
 func (h *Host) DeletePath(path string) {
 	h.remote.MustExecute(fmt.Sprintf("sudo ls %s", path))
@@ -118,6 +142,35 @@ func (h *Host) WaitForUnitActive(units ...string) {
 		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; unit=%s; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
 		require.NoError(h.t, err, "unit %s did not become active", unit)
 	}
+}
+
+// WaitForUnitActivating waits for a systemd unit to be activating
+func (h *Host) WaitForUnitActivating(units ...string) {
+	for _, unit := range units {
+		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; unit=%s; while ! grep -q \"Active: activating\" <(sudo systemctl status $unit) && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
+		require.NoError(h.t, err, "unit %s did not become active", unit)
+	}
+}
+
+// WaitForFileExists waits for a file to exist on the host
+func (h *Host) WaitForFileExists(useSudo bool, filePaths ...string) {
+	sudo := ""
+	if useSudo {
+		sudo = "sudo"
+	}
+
+	for _, path := range filePaths {
+		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; file=%s; while [ ! %s -f $file ] && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", path, sudo))
+		require.NoError(h.t, err, "file %s did not exist", path)
+	}
+}
+
+// WaitForTraceAgentSocketReady waits for the trace agent to be ready to receive traces
+// This is because of a race condition where the trace agent is not ready to receive traces and we send them
+// meaning that the traces are lost
+func (h *Host) WaitForTraceAgentSocketReady() {
+	_, err := h.remote.Execute("timeout=30; while ! grep -q 'Listening for traces at unix://' <(journalctl _PID=`systemctl show -p MainPID datadog-agent-trace | cut -d\"=\" -f2`); do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]")
+	require.NoError(h.t, err, "trace agent did not become ready")
 }
 
 // BootstraperVersion returns the version of the bootstraper on the host.
@@ -137,15 +190,41 @@ func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
 	}
 }
 
+// AgentRuntimeConfig returns the runtime agent config on the host.
+func (h *Host) AgentRuntimeConfig() (string, error) {
+	return h.remote.Execute("sudo -u dd-agent datadog-agent config")
+}
+
+// AssertPackageVersion checks if a package is installed with the correct version
+func (h *Host) AssertPackageVersion(pkg string, version string) {
+	state := h.State()
+	state.AssertDirExists(filepath.Join("/opt/datadog-packages/", pkg, version), 0755, "root", "root")
+}
+
+// AssertPackagePrefix checks if a package is installed with a version with the prefix
+func (h *Host) AssertPackagePrefix(pkg string, semver string) {
+	state := h.State()
+	packageDir := filepath.Join("/opt/datadog-packages/", pkg, "")
+	list := state.ListDirectory(packageDir)
+	for _, entry := range list {
+		version, _ := strings.CutPrefix(entry.Name, packageDir)
+		if strings.HasPrefix(version, semver) {
+			return
+		}
+	}
+	h.t.Errorf("Semver compatible version %v not found among list of installed package %v", semver, list)
+}
+
 // AssertPackageInstalledByPackageManager checks if a package is installed by the package manager on the host.
 func (h *Host) AssertPackageInstalledByPackageManager(pkgs ...string) {
 	for _, pkg := range pkgs {
-		if _, err := h.remote.Execute("command -v dpkg-query"); err == nil {
+		switch h.pkgManager {
+		case "apt":
 			h.remote.MustExecute("dpkg-query -l " + pkg)
-		} else if _, err := h.remote.Execute("command -v rpm"); err == nil {
+		case "yum", "zypper":
 			h.remote.MustExecute("rpm -q " + pkg)
-		} else {
-			h.t.Fatal("no package manager found")
+		default:
+			h.t.Fatal("unsupported package manager")
 		}
 	}
 }
@@ -153,12 +232,13 @@ func (h *Host) AssertPackageInstalledByPackageManager(pkgs ...string) {
 // AssertPackageNotInstalledByPackageManager checks if a package is not installed by the package manager on the host.
 func (h *Host) AssertPackageNotInstalledByPackageManager(pkgs ...string) {
 	for _, pkg := range pkgs {
-		if _, err := h.remote.Execute("command -v dpkg-query"); err == nil {
+		switch h.pkgManager {
+		case "apt":
 			h.remote.MustExecute("! dpkg-query -l " + pkg)
-		} else if _, err := h.remote.Execute("command -v rpm"); err == nil {
+		case "yum", "zypper":
 			h.remote.MustExecute("! rpm -q " + pkg)
-		} else {
-			h.t.Fatal("no package manager found")
+		default:
+			h.t.Fatal("unsupported package manager")
 		}
 	}
 }
@@ -256,15 +336,15 @@ func (h *Host) fs() map[string]FileInfo {
 		link := parts[8]
 
 		fileInfos[path] = FileInfo{
-			name:      name,
-			size:      size,
-			perms:     fs.FileMode(mode).Perm(),
-			modTime:   modTime,
-			isDir:     isDir,
-			isSymlink: isSymlink,
-			link:      link,
-			user:      user,
-			group:     group,
+			Name:      name,
+			Size:      size,
+			Perms:     fs.FileMode(mode).Perm(),
+			ModTime:   modTime,
+			IsDir:     isDir,
+			IsSymlink: isSymlink,
+			Link:      link,
+			User:      user,
+			Group:     group,
 		}
 	}
 	return fileInfos
@@ -352,15 +432,15 @@ type SystemdUnitInfo struct {
 
 // FileInfo struct mimics os.FileInfo
 type FileInfo struct {
-	name      string
-	size      int64
-	perms     fs.FileMode
-	modTime   time.Time
-	isDir     bool
-	isSymlink bool
-	link      string
-	user      string
-	group     string
+	Name      string
+	Size      int64
+	Perms     fs.FileMode
+	ModTime   time.Time
+	IsDir     bool
+	IsSymlink bool
+	Link      string
+	User      string
+	Group     string
 }
 
 // State is the state of a remote host.
@@ -370,6 +450,13 @@ type State struct {
 	Groups []user.Group
 	FS     map[string]FileInfo
 	Units  map[string]SystemdUnitInfo
+}
+
+// Stat returns the FileInfo of a path on the host.
+func (s *State) Stat(path string) (FileInfo, bool) {
+	path = evalSymlinkPath(path, s.FS)
+	fileInfo, ok := s.FS[path]
+	return fileInfo, ok
 }
 
 // AssertUserExists asserts that a user exists on the host.
@@ -428,9 +515,9 @@ func evalSymlinkPath(path string, fs map[string]FileInfo) string {
 		nextPath = filepath.Clean(nextPath) // Clean to ensure no trailing slashes
 
 		// Check if the current path component is a symlink
-		if fileInfo, exists := fs[nextPath]; exists && fileInfo.isSymlink {
+		if fileInfo, exists := fs[nextPath]; exists && fileInfo.IsSymlink {
 			// Resolve the symlink
-			symlinkTarget := fileInfo.link
+			symlinkTarget := fileInfo.Link
 			// Handle recursive symlink resolution
 			symlinkTarget = evalSymlinkPath(symlinkTarget, fs)
 			// Update the resolvedPath to be the target of the symlink
@@ -449,15 +536,36 @@ func evalSymlinkPath(path string, fs map[string]FileInfo) string {
 	return filepath.Clean(resolvedPath)
 }
 
+// ListDirectory returns a list of entries in the directory and fails the test
+// if it doesn't exist
+func (s *State) ListDirectory(path string) []FileInfo {
+	path = evalSymlinkPath(path, s.FS)
+	fileInfo, ok := s.FS[path]
+	assert.True(s.t, ok, "dir %v does not exist", path)
+	assert.True(s.t, fileInfo.IsDir, "%v is not a directory", path)
+
+	directoryPrefix := path
+	if directoryPrefix[len(directoryPrefix)-1] != '/' {
+		directoryPrefix += "/"
+	}
+	entryList := []FileInfo{}
+	for p, e := range s.FS {
+		if strings.HasPrefix(p, directoryPrefix) {
+			entryList = append(entryList, e)
+		}
+	}
+	return entryList
+}
+
 // AssertDirExists asserts that a directory exists on the host with the given perms, user, and group.
 func (s *State) AssertDirExists(path string, perms fs.FileMode, user string, group string) {
 	path = evalSymlinkPath(path, s.FS)
 	fileInfo, ok := s.FS[path]
 	assert.True(s.t, ok, "dir %v does not exist", path)
-	assert.True(s.t, fileInfo.isDir, "%v is not a directory", path)
-	assert.Equal(s.t, perms, fileInfo.perms, "%v has unexpected perms", path)
-	assert.Equal(s.t, user, fileInfo.user, "%v has unexpected user", path)
-	assert.Equal(s.t, group, fileInfo.group, "%v has unexpected group", path)
+	assert.True(s.t, fileInfo.IsDir, "%v is not a directory", path)
+	assert.Equal(s.t, perms, fileInfo.Perms, "%v has unexpected perms", path)
+	assert.Equal(s.t, user, fileInfo.User, "%v has unexpected user", path)
+	assert.Equal(s.t, group, fileInfo.Group, "%v has unexpected group", path)
 }
 
 // AssertPathDoesNotExist asserts that a path does not exist on the host.
@@ -472,20 +580,20 @@ func (s *State) AssertFileExists(path string, perms fs.FileMode, user string, gr
 	path = evalSymlinkPath(path, s.FS)
 	fileInfo, ok := s.FS[path]
 	assert.True(s.t, ok, "file %v does not exist", path)
-	assert.False(s.t, fileInfo.isDir, "%v is not a file", path)
-	assert.Equal(s.t, perms, fileInfo.perms, "%v has unexpected perms", path)
-	assert.Equal(s.t, user, fileInfo.user, "%v has unexpected user", path)
-	assert.Equal(s.t, group, fileInfo.group, "%v has unexpected group", path)
+	assert.False(s.t, fileInfo.IsDir, "%v is not a file", path)
+	assert.Equal(s.t, perms, fileInfo.Perms, "%v has unexpected perms", path)
+	assert.Equal(s.t, user, fileInfo.User, "%v has unexpected user", path)
+	assert.Equal(s.t, group, fileInfo.Group, "%v has unexpected group", path)
 }
 
 // AssertSymlinkExists asserts that a symlink exists on the host with the given target, user, and group.
 func (s *State) AssertSymlinkExists(path string, target string, user string, group string) {
 	fileInfo, ok := s.FS[path]
 	assert.True(s.t, ok, "syminlk %v does not exist", path)
-	assert.True(s.t, fileInfo.isSymlink, "%v is not a symlink", path)
-	assert.Equal(s.t, target, fileInfo.link, "%v has unexpected target", path)
-	assert.Equal(s.t, user, fileInfo.user, "%v has unexpected user", path)
-	assert.Equal(s.t, group, fileInfo.group, "%v has unexpected group", path)
+	assert.True(s.t, fileInfo.IsSymlink, "%v is not a symlink", path)
+	assert.Equal(s.t, target, fileInfo.Link, "%v has unexpected target", path)
+	assert.Equal(s.t, user, fileInfo.User, "%v has unexpected user", path)
+	assert.Equal(s.t, group, fileInfo.Group, "%v has unexpected group", path)
 }
 
 // AssertUnitsLoaded asserts that units are enabled on the host.

@@ -7,27 +7,26 @@
 package apiimpl
 
 import (
+	"context"
 	"net"
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -43,8 +42,6 @@ type apiServer struct {
 	capture           replay.Component
 	pidMap            pidmap.Component
 	secretResolver    secrets.Component
-	pkgSigning        packagesigning.Component
-	statusComponent   status.Component
 	rcService         optional.Option[rcservice.Component]
 	rcServiceMRF      optional.Option[rcservicemrf.Component]
 	authToken         authtoken.Component
@@ -53,41 +50,43 @@ type apiServer struct {
 	logsAgentComp     optional.Option[logsAgent.Component]
 	wmeta             workloadmeta.Component
 	collector         optional.Option[collector.Component]
-	gui               optional.Option[gui.Component]
+	senderManager     diagnosesendermanager.Component
+	cmdListener       net.Listener
+	ipcListener       net.Listener
+	telemetry         telemetry.Component
 	endpointProviders []api.EndpointProvider
 }
 
 type dependencies struct {
 	fx.In
 
-	DogstatsdServer   dogstatsdServer.Component
-	Capture           replay.Component
-	PidMap            pidmap.Component
-	SecretResolver    secrets.Component
-	PkgSigning        packagesigning.Component
-	StatusComponent   status.Component
-	RcService         optional.Option[rcservice.Component]
-	RcServiceMRF      optional.Option[rcservicemrf.Component]
-	AuthToken         authtoken.Component
-	Tagger            tagger.Component
-	AutoConfig        autodiscovery.Component
-	LogsAgentComp     optional.Option[logsAgent.Component]
-	WorkloadMeta      workloadmeta.Component
-	Collector         optional.Option[collector.Component]
-	Gui               optional.Option[gui.Component]
-	EndpointProviders []api.EndpointProvider `group:"agent_endpoint"`
+	Lc                    fx.Lifecycle
+	DogstatsdServer       dogstatsdServer.Component
+	Capture               replay.Component
+	PidMap                pidmap.Component
+	SecretResolver        secrets.Component
+	RcService             optional.Option[rcservice.Component]
+	RcServiceMRF          optional.Option[rcservicemrf.Component]
+	AuthToken             authtoken.Component
+	Tagger                tagger.Component
+	AutoConfig            autodiscovery.Component
+	LogsAgentComp         optional.Option[logsAgent.Component]
+	WorkloadMeta          workloadmeta.Component
+	Collector             optional.Option[collector.Component]
+	DiagnoseSenderManager diagnosesendermanager.Component
+	Telemetry             telemetry.Component
+	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
 var _ api.Component = (*apiServer)(nil)
 
 func newAPIServer(deps dependencies) api.Component {
-	return &apiServer{
+
+	server := apiServer{
 		dogstatsdServer:   deps.DogstatsdServer,
 		capture:           deps.Capture,
 		pidMap:            deps.PidMap,
 		secretResolver:    deps.SecretResolver,
-		pkgSigning:        deps.PkgSigning,
-		statusComponent:   deps.StatusComponent,
 		rcService:         deps.RcService,
 		rcServiceMRF:      deps.RcServiceMRF,
 		authToken:         deps.AuthToken,
@@ -96,40 +95,28 @@ func newAPIServer(deps dependencies) api.Component {
 		logsAgentComp:     deps.LogsAgentComp,
 		wmeta:             deps.WorkloadMeta,
 		collector:         deps.Collector,
-		gui:               deps.Gui,
+		senderManager:     deps.DiagnoseSenderManager,
+		telemetry:         deps.Telemetry,
 		endpointProviders: fxutil.GetAndFilterGroup(deps.EndpointProviders),
 	}
-}
 
-// StartServer creates the router and starts the HTTP server
-func (server *apiServer) StartServer(
-	senderManager sender.DiagnoseSenderManager,
-) error {
-	return StartServers(server.rcService,
-		server.rcServiceMRF,
-		server.dogstatsdServer,
-		server.capture,
-		server.pidMap,
-		server.wmeta,
-		server.taggerComp,
-		server.logsAgentComp,
-		senderManager,
-		server.secretResolver,
-		server.statusComponent,
-		server.collector,
-		server.autoConfig,
-		server.gui,
-		server.endpointProviders,
-	)
-}
+	deps.Lc.Append(fx.Hook{
+		OnStart: func(_ context.Context) error { return server.startServers() },
+		OnStop: func(_ context.Context) error {
+			server.stopServers()
+			return nil
+		},
+	})
 
-// StopServer closes the connection and the server
-// stops listening to new commands.
-func (server *apiServer) StopServer() {
-	StopServers()
+	return &server
 }
 
 // ServerAddress returns the server address.
-func (server *apiServer) ServerAddress() *net.TCPAddr {
-	return ServerAddress()
+func (server *apiServer) CMDServerAddress() *net.TCPAddr {
+	return server.cmdListener.Addr().(*net.TCPAddr)
+}
+
+// ServerAddress returns the server address.
+func (server *apiServer) IPCServerAddress() *net.TCPAddr {
+	return server.ipcListener.Addr().(*net.TCPAddr)
 }

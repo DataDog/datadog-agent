@@ -80,7 +80,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 				s.mgr.AddSource(source)
 			}
 		default:
-			// invalid integration config
+			log.Debugf("Invalid integration config: %s, ignoring it", s.configName(config))
 			continue
 		}
 	}
@@ -153,7 +153,7 @@ func (s *Scheduler) createSources(config integration.Config) ([]*sourcesPkg.LogS
 		// config attached to a container label or a pod annotation
 		configs, err = logsConfig.ParseJSON(config.LogsConfig)
 	case names.RemoteConfig:
-		if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations.allow_log_config_scheduling") {
+		if pkgconfig.Datadog().GetBool("remote_configuration.agent_integrations.allow_log_config_scheduling") {
 			// config supplied by remote config
 			configs, err = logsConfig.ParseJSON(config.LogsConfig)
 		} else {
@@ -199,7 +199,7 @@ func (s *Scheduler) createSources(config integration.Config) ([]*sourcesPkg.LogS
 		if service != nil {
 			// a config defined in a container label or a pod annotation does not always contain a type,
 			// override it here to ensure that the config won't be dropped at validation.
-			if cfg.Type == logsConfig.FileType && (config.Provider == names.Kubernetes || config.Provider == names.Container || config.Provider == names.KubeContainer || config.Provider == logsConfig.FileType) {
+			if (cfg.Type == logsConfig.FileType || cfg.Type == logsConfig.TCPType || cfg.Type == logsConfig.UDPType) && (config.Provider == names.Kubernetes || config.Provider == names.Container || config.Provider == names.KubeContainer || config.Provider == logsConfig.FileType) {
 				// cfg.Type is not overwritten as tailing a file from a Docker or Kubernetes AD configuration
 				// is explicitly supported (other combinations may be supported later)
 				cfg.Identifier = service.Identifier
@@ -210,6 +210,13 @@ func (s *Scheduler) createSources(config integration.Config) ([]*sourcesPkg.LogS
 		}
 
 		source := sourcesPkg.NewLogSource(configName, cfg)
+		if source.Config.IntegrationName == "" {
+			// If the log integration comes from a config file, we try to match it with the config name
+			// that is most likely the integration name.
+			// If it comes from a container environment, the name was computed based on the `check_names`
+			// labels attached to the same container.
+			source.Config.IntegrationName = configName
+		}
 		sources = append(sources, source)
 		if err := cfg.Validate(); err != nil {
 			log.Warnf("Invalid logs configuration: %v", err)

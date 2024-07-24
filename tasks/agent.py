@@ -21,13 +21,14 @@ from tasks.go import deps
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
-    cache_version,
     get_build_flags,
     get_embedded_path,
     get_goenv,
     get_version,
+    gitlab_section,
     has_both_python,
 )
+from tasks.libs.releasing.version import create_version_json
 from tasks.rtloader import clean as rtloader_clean
 from tasks.rtloader import install as rtloader_install
 from tasks.rtloader import make as rtloader_make
@@ -74,11 +75,11 @@ AGENT_CORECHECKS = [
     "orchestrator_pod",
     "orchestrator_ecs",
     "cisco_sdwan",
-    "service_discovery",
 ]
 
 WINDOWS_CORECHECKS = [
     "agentcrashdetect",
+    "sbom",
     "windows_registry",
     "winkmem",
     "wincrashdetect",
@@ -141,11 +142,18 @@ def build(
     """
     flavor = AgentFlavor[flavor]
 
+    if flavor.is_ot():
+        # for agent build purposes the UA agent is just like base
+        flavor = AgentFlavor.base
+
     if not exclude_rtloader and not flavor.is_iot():
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
         # in the embedded path folder because that's what is used in get_build_flags()
-        rtloader_make(ctx, python_runtimes=python_runtimes, install_prefix=embedded_path, cmake_options=cmake_options)
-        rtloader_install(ctx)
+        with gitlab_section("Install embedded rtloader", collapsed=True):
+            rtloader_make(
+                ctx, python_runtimes=python_runtimes, install_prefix=embedded_path, cmake_options=cmake_options
+            )
+            rtloader_install(ctx)
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -216,10 +224,12 @@ def build(
         "REPO_PATH": REPO_PATH,
         "flavor": "iot-agent" if flavor.is_iot() else "agent",
     }
-    ctx.run(cmd.format(**args), env=env)
+    with gitlab_section("Build agent", collapsed=True):
+        ctx.run(cmd.format(**args), env=env)
 
     if embedded_path is None:
         embedded_path = get_embedded_path(ctx)
+        assert embedded_path, "Failed to find embedded path"
 
     for build in bundled_agents:
         if build == "agent":
@@ -234,16 +244,17 @@ def build(
 
         create_launcher(ctx, build, agent_fullpath, bundled_agent_bin)
 
-    render_config(
-        ctx,
-        env=env,
-        flavor=flavor,
-        python_runtimes=python_runtimes,
-        skip_assets=skip_assets,
-        build_tags=build_tags,
-        development=development,
-        windows_sysprobe=windows_sysprobe,
-    )
+    with gitlab_section("Generate configuration files", collapsed=True):
+        render_config(
+            ctx,
+            env=env,
+            flavor=flavor,
+            python_runtimes=python_runtimes,
+            skip_assets=skip_assets,
+            build_tags=build_tags,
+            development=development,
+            windows_sysprobe=windows_sysprobe,
+        )
 
 
 def create_launcher(ctx, agent, src, dst):
@@ -404,7 +415,7 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
         raise ParseError("provided python_version is invalid")
 
     build_context = "Dockerfiles/agent"
-    base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
+    base_dir = base_dir or os.environ["OMNIBUS_BASE_DIR"]
     pkg_dir = os.path.join(base_dir, 'pkg')
     deb_glob = f'datadog-agent*_{arch}.deb'
     dockerfile_path = f"{build_context}/Dockerfile"
@@ -730,10 +741,11 @@ def version(
     omnibus_format=False,
     git_sha_length=7,
     major_version='7',
-    version_cached=False,
+    cache_version=False,
     pipeline_id=None,
     include_git=True,
     include_pre=True,
+    release=False,
 ):
     """
     Get the agent version.
@@ -746,8 +758,8 @@ def version(
     version_cached: save the version inside a "agent-version.cache" that will be reused
                     by each next call of version.
     """
-    if version_cached:
-        cache_version(ctx, git_sha_length=git_sha_length)
+    if cache_version:
+        create_version_json(ctx, git_sha_length=git_sha_length)
 
     version = get_version(
         ctx,
@@ -758,6 +770,7 @@ def version(
         include_pipeline_id=True,
         pipeline_id=pipeline_id,
         include_pre=include_pre,
+        release=release,
     )
     if omnibus_format:
         # See: https://github.com/DataDog/omnibus-ruby/blob/datadog-5.5.0/lib/omnibus/packagers/deb.rb#L599

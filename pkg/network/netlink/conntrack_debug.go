@@ -12,6 +12,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
@@ -85,8 +86,8 @@ func (ctr *realConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]D
 }
 
 // DumpHostTable dumps the host conntrack NAT entries grouped by network namespace
-func DumpHostTable(ctx context.Context, cfg *config.Config) (map[uint32][]DebugConntrackEntry, error) {
-	consumer, err := NewConsumer(cfg)
+func DumpHostTable(ctx context.Context, cfg *config.Config, telemetryComp telemetry.Component) (map[uint32][]DebugConntrackEntry, error) {
+	consumer, err := NewConsumer(cfg, telemetryComp)
 	if err != nil {
 		return nil, err
 	}

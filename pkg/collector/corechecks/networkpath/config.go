@@ -7,10 +7,12 @@ package networkpath
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"gopkg.in/yaml.v2"
 )
 
@@ -26,6 +28,8 @@ type InstanceConfig struct {
 	DestHostname string `yaml:"hostname"`
 
 	DestPort uint16 `yaml:"port"`
+
+	Protocol string `yaml:"protocol"`
 
 	SourceService      string `yaml:"source_service"`
 	DestinationService string `yaml:"destination_service"`
@@ -47,6 +51,7 @@ type CheckConfig struct {
 	SourceService         string
 	DestinationService    string
 	MaxTTL                uint8
+	Protocol              payload.Protocol
 	TimeoutMs             uint
 	MinCollectionInterval time.Duration
 	Tags                  []string
@@ -76,6 +81,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.DestinationService = instance.DestinationService
 	c.MaxTTL = instance.MaxTTL
 	c.TimeoutMs = instance.TimeoutMs
+	c.Protocol = payload.Protocol(strings.ToUpper(instance.Protocol))
 
 	c.MinCollectionInterval = firstNonZero(
 		time.Duration(instance.MinCollectionInterval)*time.Second,
@@ -87,7 +93,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	}
 
 	c.Tags = instance.Tags
-	c.Namespace = coreconfig.Datadog.GetString("network_devices.namespace")
+	c.Namespace = coreconfig.Datadog().GetString("network_devices.namespace")
 
 	return c, nil
 }

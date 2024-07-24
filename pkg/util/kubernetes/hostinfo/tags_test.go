@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestExtractTags(t *testing.T) {
@@ -150,7 +150,7 @@ func TestGetLabelsToTags(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			config := config.Mock(t)
+			config := configmock.New(t)
 			config.SetWithoutSource("kubernetes_node_labels_as_tags", test.configLabelsAsTags)
 
 			actuaLabelsAsTags := getLabelsToTags()

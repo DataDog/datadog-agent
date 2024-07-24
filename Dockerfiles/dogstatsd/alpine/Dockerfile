@@ -1,14 +1,19 @@
 ARG BASE_IMAGE_ALPINE_VERSION=3.18
 FROM alpine:$BASE_IMAGE_ALPINE_VERSION
 ARG TARGETARCH
+ARG BASE_IMAGE_ALPINE_VERSION
+ARG DD_GIT_REPOSITORY_URL
+ARG DD_GIT_COMMIT_SHA
 
 LABEL baseimage.os "alpine"
 LABEL baseimage.name "alpine:${BASE_IMAGE_ALPINE_VERSION}"
 LABEL maintainer "Datadog <package@datadoghq.com>"
-# Can be used by Dependabot
-LABEL org.opencontainers.image.source "https://github.com/DataDog/datadog-agent"
+LABEL org.opencontainers.image.base.name "alpine:${BASE_IMAGE_ALPINE_VERSION}"
+LABEL org.opencontainers.image.title "Datadog Dogstatsd Agent"
 
-ENV DOCKER_DD_AGENT=true
+ENV DOCKER_DD_AGENT=true \
+    DD_GIT_REPOSITORY_URL=${DD_GIT_REPOSITORY_URL} \
+    DD_GIT_COMMIT_SHA=${DD_GIT_COMMIT_SHA}
 
 # We add mirror.clarkson.edu as a secondary mirror, as it's closest to us-east-1
 # where we build the agent

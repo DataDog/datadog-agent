@@ -96,6 +96,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestLoadModule/load_module_with_truncated_params",
 			"~TestChown32",
 			"TestMountEvent/mount-in-container-root",
+			"TestChdir/syscall-context",
 		}
 
 		if disableSeccomp {
@@ -138,7 +139,7 @@ func preTestsHook() {
 			SeccompDisabled: disableSeccomp,
 		}
 
-		err := ptracer.StartCWSPtracer(args, envs, constants.DefaultEBPFLessProbeAddr, opts)
+		err := ptracer.Wrap(args, envs, constants.DefaultEBPFLessProbeAddr, opts)
 		if err != nil {
 			fmt.Printf("unable to trace [%v]: %s", args, err)
 			os.Exit(-1)

@@ -131,8 +131,8 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				DnsStatsByDomain:            dnsByDomain,
 				DnsStatsByDomainByQueryType: dnsByDomainByQuerytype,
 				DnsSuccessfulResponses:      1, // TODO: verify why this was needed
-
-				RouteIdx: -1,
+				TcpFailuresByErrCode:        map[uint32]uint32{110: 1},
+				RouteIdx:                    -1,
 				Protocol: &model.ProtocolStack{
 					Stack: []model.ProtocolType{model.ProtocolType_protocolTLS, model.ProtocolType_protocolHTTP2},
 				},
@@ -265,6 +265,9 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 								CountByRcode:      map[uint32]uint32{0: 1},
 							},
 						},
+					},
+					TCPFailures: map[uint32]uint32{
+						110: 1,
 					},
 				},
 			},
@@ -979,9 +982,9 @@ func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
-		Kafka: map[kafka.Key]*kafka.RequestStat{
+		Kafka: map[kafka.Key]*kafka.RequestStats{
 			kafkaKey: {
-				Count: 10,
+				ErrorCodeToStat: map[int32]*kafka.RequestStat{0: {Count: 10}},
 			},
 		},
 	}
@@ -994,7 +997,9 @@ func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
 					RequestVersion: apiVersion2,
 				},
 				Topic: topicName,
-				Count: 10,
+				StatsByErrorCode: map[int32]*model.KafkaStats{
+					0: {Count: 10},
+				},
 			},
 		},
 	}

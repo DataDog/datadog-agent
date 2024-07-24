@@ -50,47 +50,43 @@ func (m *Model) NewDefaultEventWithType(kind EventType) eval.Event {
 
 // Releasable represents an object than can be released
 type Releasable struct {
-	onReleaseCallback func() `field:"-"`
+	onReleaseCallbacks []func() `field:"-"`
 }
 
 // CallReleaseCallback calls the on-release callback
 func (r *Releasable) CallReleaseCallback() {
-	if r.onReleaseCallback != nil {
-		r.onReleaseCallback()
+	for _, cb := range r.onReleaseCallbacks {
+		cb()
 	}
 }
 
-// SetReleaseCallback sets a callback to be called when the cache entry is released
-func (r *Releasable) SetReleaseCallback(callback func()) {
-	previousCallback := r.onReleaseCallback
-	r.onReleaseCallback = func() {
-		callback()
-		if previousCallback != nil {
-			previousCallback()
-		}
+// AppendReleaseCallback sets a callback to be called when the cache entry is released
+func (r *Releasable) AppendReleaseCallback(callback func()) {
+	if callback != nil {
+		r.onReleaseCallbacks = append(r.onReleaseCallbacks, callback)
 	}
 }
 
-// OnRelease triggers the callback
-func (r *Releasable) OnRelease() {
-	r.onReleaseCallback()
-}
+// ContainerID represents a container ID
+type ContainerID string
 
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
 	Releasable
-	ID        string   `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
-	CreatedAt uint64   `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
-	Tags      []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
-	Resolved  bool     `field:"-"`
+	ContainerID ContainerID `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
+	CreatedAt   uint64      `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
+	Tags        []string    `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
+	Resolved    bool        `field:"-"`
+	Runtime     string      `field:"runtime,handler:ResolveContainerRuntime"` // SECLDoc[runtime] Definition:`Runtime managing the container`
 }
 
 // SecurityProfileContext holds the security context of the profile
 type SecurityProfileContext struct {
-	Name       string      `field:"name"`        // SECLDoc[name] Definition:`Name of the security profile`
-	Version    string      `field:"version"`     // SECLDoc[version] Definition:`Version of the security profile`
-	Tags       []string    `field:"tags"`        // SECLDoc[tags] Definition:`Tags of the security profile`
-	EventTypes []EventType `field:"event_types"` // SECLDoc[event_types] Definition:`Event types enabled for the security profile`
+	Name           string                     `field:"name"`        // SECLDoc[name] Definition:`Name of the security profile`
+	Version        string                     `field:"version"`     // SECLDoc[version] Definition:`Version of the security profile`
+	Tags           []string                   `field:"tags"`        // SECLDoc[tags] Definition:`Tags of the security profile`
+	EventTypes     []EventType                `field:"event_types"` // SECLDoc[event_types] Definition:`Event types enabled for the security profile`
+	EventTypeState EventFilteringProfileState `field:"-"`           // State of the event type in this profile
 }
 
 // IPPortContext is used to hold an IP and Port
@@ -103,11 +99,11 @@ type IPPortContext struct {
 type NetworkContext struct {
 	Device NetworkDeviceContext `field:"device"` // network device on which the network packet was captured
 
-	L3Protocol  uint16        `field:"l3_protocol"` // SECLDoc[l3_protocol] Definition:`l3 protocol of the network packet` Constants:`L3 protocols`
-	L4Protocol  uint16        `field:"l4_protocol"` // SECLDoc[l4_protocol] Definition:`l4 protocol of the network packet` Constants:`L4 protocols`
+	L3Protocol  uint16        `field:"l3_protocol"` // SECLDoc[l3_protocol] Definition:`L3 protocol of the network packet` Constants:`L3 protocols`
+	L4Protocol  uint16        `field:"l4_protocol"` // SECLDoc[l4_protocol] Definition:`L4 protocol of the network packet` Constants:`L4 protocols`
 	Source      IPPortContext `field:"source"`      // source of the network packet
 	Destination IPPortContext `field:"destination"` // destination of the network packet
-	Size        uint32        `field:"size"`        // SECLDoc[size] Definition:`size in bytes of the network packet`
+	Size        uint32        `field:"size"`        // SECLDoc[size] Definition:`Size in bytes of the network packet`
 }
 
 // SpanContext describes a span context
@@ -125,9 +121,10 @@ type BaseEvent struct {
 	Timestamp     time.Time      `field:"timestamp,opts:getters_only,handler:ResolveEventTime" event:"*"`
 	Rules         []*MatchedRule `field:"-"`
 	ActionReports []ActionReport `field:"-"`
-	Os            string         `field:"event.os" event:"*"`                             // SECLDoc[event.os] Definition:`Operating system of the event`
-	Origin        string         `field:"event.origin" event:"*"`                         // SECLDoc[event.origin] Definition:`Origin of the event`
-	Service       string         `field:"event.service,handler:ResolveService" event:"*"` // SECLDoc[event.service] Definition:`Service associated with the event`
+	Os            string         `field:"event.os" event:"*"`                               // SECLDoc[event.os] Definition:`Operating system of the event`
+	Origin        string         `field:"event.origin" event:"*"`                           // SECLDoc[event.origin] Definition:`Origin of the event`
+	Service       string         `field:"event.service,handler:ResolveService" event:"*"`   // SECLDoc[event.service] Definition:`Service associated with the event`
+	Hostname      string         `field:"event.hostname,handler:ResolveHostname" event:"*"` // SECLDoc[event.hostname] Definition:`Hostname associated with the event`
 
 	// context shared with all events
 	ProcessContext         *ProcessContext        `field:"process" event:"*"`
@@ -144,6 +141,12 @@ type BaseEvent struct {
 	// field resolution
 	FieldHandlers FieldHandlers `field:"-"`
 }
+
+// CGroupID represents a cgroup ID
+type CGroupID string
+
+// CGroupFlags represents the flags of a cgroup
+type CGroupFlags uint64
 
 func initMember(member reflect.Value, deja map[string]bool) {
 	for i := 0; i < member.NumField(); i++ {
@@ -425,9 +428,8 @@ var zeroProcessContext ProcessContext
 type ProcessCacheEntry struct {
 	ProcessContext
 
-	refCount  uint64                     `field:"-"`
-	onRelease func(_ *ProcessCacheEntry) `field:"-"`
-	releaseCb func()                     `field:"-"`
+	refCount  uint64                       `field:"-"`
+	onRelease []func(_ *ProcessCacheEntry) `field:"-"`
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
@@ -439,7 +441,6 @@ func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 func (pc *ProcessCacheEntry) Reset() {
 	pc.ProcessContext = zeroProcessContext
 	pc.refCount = 0
-	pc.releaseCb = nil
 }
 
 // Retain increment ref counter
@@ -447,14 +448,18 @@ func (pc *ProcessCacheEntry) Retain() {
 	pc.refCount++
 }
 
-// SetReleaseCallback set the callback called when the entry is released
-func (pc *ProcessCacheEntry) SetReleaseCallback(callback func()) {
-	previousCallback := pc.releaseCb
-	pc.releaseCb = func() {
-		callback()
-		if previousCallback != nil {
-			previousCallback()
-		}
+// AppendReleaseCallback set the callback called when the entry is released
+func (pc *ProcessCacheEntry) AppendReleaseCallback(callback func()) {
+	if callback != nil {
+		pc.onRelease = append(pc.onRelease, func(_ *ProcessCacheEntry) {
+			callback()
+		})
+	}
+}
+
+func (pc *ProcessCacheEntry) callReleaseCallbacks() {
+	for _, cb := range pc.onRelease {
+		cb(pc)
 	}
 }
 
@@ -465,18 +470,16 @@ func (pc *ProcessCacheEntry) Release() {
 		return
 	}
 
-	if pc.onRelease != nil {
-		pc.onRelease(pc)
-	}
-
-	if pc.releaseCb != nil {
-		pc.releaseCb()
-	}
+	pc.callReleaseCallbacks()
 }
 
 // NewProcessCacheEntry returns a new process cache entry
 func NewProcessCacheEntry(onRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
-	return &ProcessCacheEntry{onRelease: onRelease}
+	var cbs []func(_ *ProcessCacheEntry)
+	if onRelease != nil {
+		cbs = append(cbs, onRelease)
+	}
+	return &ProcessCacheEntry{onRelease: cbs}
 }
 
 // ProcessAncestorsIterator defines an iterator of ancestors

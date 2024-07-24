@@ -20,6 +20,8 @@ typedef unsigned long long ctx_t;
 #define HOOK_SYSCALL_COMPAT_ENTRY3(name, ...) SYSCALL_FENTRY3(name, __VA_ARGS__)
 #define HOOK_SYSCALL_COMPAT_ENTRY4(name, ...) SYSCALL_FENTRY4(name, __VA_ARGS__)
 #define HOOK_SYSCALL_COMPAT_TIME_ENTRY0(name, ...) SYSCALL_TIME_FENTRY0(name, __VA_ARGS__)
+#define HOOK_SYSCALL_COMPAT_TIME_ENTRY1(name, ...) SYSCALL_TIME_FENTRY1(name, __VA_ARGS__)
+#define HOOK_SYSCALL_COMPAT_TIME_ENTRY2(name, ...) SYSCALL_TIME_FENTRY2(name, __VA_ARGS__)
 #define HOOK_SYSCALL_EXIT(name) SYSCALL_FEXIT(name)
 #define HOOK_SYSCALL_COMPAT_EXIT(name) SYSCALL_FEXIT(name)
 #define HOOK_SYSCALL_COMPAT_TIME_EXIT(name) SYSCALL_TIME_FEXIT(name)
@@ -29,6 +31,7 @@ typedef unsigned long long ctx_t;
 #define CTX_PARM2(ctx) (u64)(ctx[1])
 #define CTX_PARM3(ctx) (u64)(ctx[2])
 #define CTX_PARM4(ctx) (u64)(ctx[3])
+#define CTX_PARM5(ctx) (u64)(ctx[4])
 
 #define CTX_PARMRET(ctx, argc) (u64)(ctx[argc])
 #define SYSCALL_PARMRET(ctx) CTX_PARMRET(ctx, 1)
@@ -52,6 +55,8 @@ typedef struct pt_regs ctx_t;
 #define HOOK_SYSCALL_COMPAT_ENTRY3(name, ...) SYSCALL_COMPAT_KPROBE3(name, __VA_ARGS__)
 #define HOOK_SYSCALL_COMPAT_ENTRY4(name, ...) SYSCALL_COMPAT_KPROBE4(name, __VA_ARGS__)
 #define HOOK_SYSCALL_COMPAT_TIME_ENTRY0(name, ...) SYSCALL_COMPAT_TIME_KPROBE0(name, __VA_ARGS__)
+#define HOOK_SYSCALL_COMPAT_TIME_ENTRY1(name, ...) SYSCALL_COMPAT_TIME_KPROBE1(name, __VA_ARGS__)
+#define HOOK_SYSCALL_COMPAT_TIME_ENTRY2(name, ...) SYSCALL_COMPAT_TIME_KPROBE2(name, __VA_ARGS__)
 #define HOOK_SYSCALL_EXIT(name) SYSCALL_KRETPROBE(name)
 #define HOOK_SYSCALL_COMPAT_EXIT(name) SYSCALL_COMPAT_KRETPROBE(name)
 #define HOOK_SYSCALL_COMPAT_TIME_EXIT(name) SYSCALL_COMPAT_TIME_KRETPROBE(name)
@@ -61,6 +66,7 @@ typedef struct pt_regs ctx_t;
 #define CTX_PARM2(ctx) PT_REGS_PARM2(ctx)
 #define CTX_PARM3(ctx) PT_REGS_PARM3(ctx)
 #define CTX_PARM4(ctx) PT_REGS_PARM4(ctx)
+#define CTX_PARM5(ctx) PT_REGS_PARM5(ctx)
 
 #define CTX_PARMRET(ctx, _argc) PT_REGS_RC(ctx)
 #define SYSCALL_PARMRET(ctx) CTX_PARMRET(ctx, _)

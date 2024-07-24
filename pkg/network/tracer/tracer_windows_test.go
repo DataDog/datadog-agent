@@ -8,6 +8,10 @@
 package tracer
 
 import (
+	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/network/testutil"
+
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
@@ -21,12 +25,28 @@ func httpSupported() bool {
 	return false
 }
 
-//nolint:revive // TODO(WKIT) Fix revive linter
-func classificationSupported(config *config.Config) bool {
-	return true
-}
-
 func testConfig() *config.Config {
 	cfg := config.New()
 	return cfg
+}
+
+// nolint:unused   // this function currently unused but will be.
+func setupDropTrafficRule(tb testing.TB) (ns string) {
+	//
+	// note.  This does not seem to function as advertised; localhost traffic is not being
+	// blocked.  More testing is necessary.
+	tb.Cleanup(func() {
+		cmds := []string{
+			"powershell -c \"Remove-NetFirewallRule -DisplayName 'Datadog Test Rule'\"",
+		}
+		testutil.RunCommands(tb, cmds, false)
+	})
+	cmds := []string{
+		"powershell -c \"New-NetFirewallRule -DisplayName 'Datadog Test Rule' -Direction Outbound -Action Block -Profile Any -RemotePort 10000 -Protocol TCP\"",
+	}
+	testutil.RunCommands(tb, cmds, false)
+	return
+}
+
+func checkSkipFailureConnectionsTests(_ *testing.T) {
 }

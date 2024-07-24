@@ -12,6 +12,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// Mode defines ptrace mode
+type Mode string
+
+const (
+	// UnknownMode unknown mode
+	UnknownMode Mode = "unknown"
+	// WrappedMode ptrace wrapping the binary
+	WrappedMode Mode = "wrapped"
+	// AttachedMode ptrace attached to a pid
+	AttachedMode = "attached"
+)
+
 // MessageType defines the type of a message
 type MessageType int32
 
@@ -328,11 +340,11 @@ type HelloMsg struct {
 	NSID             uint64
 	ContainerContext *ContainerContext
 	EntrypointArgs   []string
+	Mode             Mode
 }
 
 // Message defines a message
 type Message struct {
-	SeqNum  uint64
 	Type    MessageType
 	Hello   *HelloMsg   `json:",omitempty"`
 	Syscall *SyscallMsg `json:",omitempty"`
@@ -346,7 +358,6 @@ func (m Message) String() string {
 
 // Reset resets a message
 func (m *Message) Reset() {
-	m.SeqNum = 0
 	m.Type = MessageTypeUnknown
 	m.Hello = nil
 	m.Syscall = nil

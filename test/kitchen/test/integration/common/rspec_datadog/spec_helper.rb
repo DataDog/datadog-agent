@@ -6,6 +6,7 @@ require 'yaml'
 require 'find'
 require 'tempfile'
 require 'fileutils'
+require 'set'
 
 #
 # this enables RSpec output so that individual tests ("it behaves like...") are
@@ -448,14 +449,21 @@ end
 def is_file_signed(fullpath)
   puts "checking file #{fullpath}"
   expect(File).to exist(fullpath)
+  
   output = `powershell -command "(get-authenticodesignature -FilePath '#{fullpath}').SignerCertificate.Thumbprint"`
-  ## signature below is for new cert acquired May 2023 using new hsm-backed signing method
-  signature_hash = "B03F29CC07566505A718583E9270A6EE17678742"
-  if output.upcase.strip == signature_hash.upcase.strip
-    return true
-  end
+  signature_hashes = Set[
+    ## signature below is for new cert acquired using new hsm-backed signing method
+    ## Non-EV Valid From: May 2023; To: May 2025
+    "B03F29CC07566505A718583E9270A6EE17678742".upcase.strip,
+		## EV Valid From: Dec 2023; To: Dec 2025
+		"ECAA21456723CB0911183255A683DC01A99392DB".upcase.strip,
+		## EV Valid From: Jun 2024; To: Jun 2026
+		"59063C826DAA5B628B5CE8A2B32015019F164BF0".upcase.strip,
+  ]
 
-  puts("expected hash = #{signature_hash}, actual hash = #{output}")
+  return true if signature_hashes.include?(output.upcase.strip)
+  
+  puts("Acceptable hashes: #{signature_hashes.keys}, actual hash = #{output.upcase.strip}")
   return false
 end
 

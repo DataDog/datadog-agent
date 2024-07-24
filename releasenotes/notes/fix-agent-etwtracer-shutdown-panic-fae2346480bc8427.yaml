@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix an issue introduced in Agent 7.51 for Windows that would cause a panic during Agent shutdown
+    if the etwtracer component failed to initialize.

@@ -2,8 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-
-//go:build kubeapiserver
+// Skip mac os test as cluster agent doesn't run on mac os
+//go:build kubeapiserver && !darwin
 
 package webhook
 
@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"runtime"
 	"testing"
 	"time"
 
@@ -25,11 +26,14 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	configComp "github.com/DataDog/datadog-agent/comp/core/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 )
@@ -85,6 +89,9 @@ func TestCreateWebhookV1beta1(t *testing.T) {
 }
 
 func TestUpdateOutdatedWebhookV1beta1(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("Skipping flaky test on macOS")
+	}
 	f := newFixtureV1beta1(t)
 
 	data, err := certificate.GenerateSecretData(time.Now(), time.Now().Add(365*24*time.Hour), []string{"my.svc.dns"})
@@ -131,7 +138,7 @@ func TestUpdateOutdatedWebhookV1beta1(t *testing.T) {
 }
 
 func TestAdmissionControllerFailureModeIgnoreV1beta1(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	f := newFixtureV1beta1(t)
 	c, _ := f.createController()
 	c.config = NewConfig(true, false)
@@ -162,7 +169,7 @@ func TestAdmissionControllerFailureModeIgnoreV1beta1(t *testing.T) {
 }
 
 func TestAdmissionControllerFailureModeFailV1beta1(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	f := newFixtureV1beta1(t)
 	c, _ := f.createController()
 
@@ -180,7 +187,7 @@ func TestAdmissionControllerFailureModeFailV1beta1(t *testing.T) {
 }
 
 func TestAdmissionControllerReinvocationPolicyV1beta1(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	f := newFixtureV1beta1(t)
 	c, _ := f.createController()
 	c.config = NewConfig(true, false)
@@ -217,13 +224,12 @@ func TestAdmissionControllerReinvocationPolicyV1beta1(t *testing.T) {
 }
 
 func TestGenerateTemplatesV1beta1(t *testing.T) {
-	mockConfig := config.Mock(t)
 	defaultReinvocationPolicy := admiv1beta1.IfNeededReinvocationPolicy
 	failurePolicy := admiv1beta1.Ignore
 	matchPolicy := admiv1beta1.Exact
 	sideEffects := admiv1beta1.SideEffectClassNone
 	port := int32(443)
-	timeout := config.Datadog.GetInt32("admission_controller.timeout_seconds")
+	timeout := config.Datadog().GetInt32("admission_controller.timeout_seconds")
 	webhook := func(name, path string, objSelector, nsSelector *metav1.LabelSelector, operations []admiv1beta1.OperationType, resources []string) admiv1beta1.MutatingWebhook {
 		return admiv1beta1.MutatingWebhook{
 			Name: name,
@@ -257,13 +263,13 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 	}
 	tests := []struct {
 		name        string
-		setupConfig func()
+		setupConfig func(config.Config)
 		configFunc  func() Config
 		want        func() []admiv1beta1.MutatingWebhook
 	}{
 		{
 			name: "config injection, mutate all",
-			setupConfig: func() {
+			setupConfig: func(mockConfig config.Config) {
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", true)
 				mockConfig.SetWithoutSource("admission_controller.inject_tags.enabled", false)
@@ -286,7 +292,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 		},
 		{
 			name: "config injection, mutate labelled",
-			setupConfig: func() {
+			setupConfig: func(mockConfig config.Config) {
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.inject_tags.enabled", false)
@@ -305,7 +311,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 		},
 		{
 			name: "tags injection, mutate all",
-			setupConfig: func() {
+			setupConfig: func(mockConfig config.Config) {
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", true)
 				mockConfig.SetWithoutSource("admission_controller.inject_tags.enabled", true)
@@ -328,7 +334,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 		},
 		{
 			name: "tags injection, mutate labelled",
-			setupConfig: func() {
+			setupConfig: func(mockConfig config.Config) {
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.inject_tags.enabled", true)
@@ -347,7 +353,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 		},
 		{
 			name: "lib injection, mutate all",
-			setupConfig: func() {
+			setupConfig: func(mockConfig config.Config) {
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", true)
 				mockConfig.SetWithoutSource("admission_controller.inject_tags.enabled", false)
@@ -370,7 +376,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 		},
 		{
 			name: "lib injection, mutate labelled",
-			setupConfig: func() {
+			setupConfig: func(mockConfig config.Config) {
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.inject_tags.enabled", false)
@@ -389,7 +395,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 		},
 		{
 			name: "config and tags injection, mutate labelled",
-			setupConfig: func() {
+			setupConfig: func(mockConfig config.Config) {
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.inject_tags.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
@@ -412,7 +418,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 		},
 		{
 			name: "config and tags injection, mutate all",
-			setupConfig: func() {
+			setupConfig: func(mockConfig config.Config) {
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", true)
 				mockConfig.SetWithoutSource("admission_controller.inject_tags.enabled", true)
@@ -444,7 +450,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 		},
 		{
 			name: "namespace selector enabled",
-			setupConfig: func() {
+			setupConfig: func(mockConfig config.Config) {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.inject_tags.enabled", true)
@@ -469,7 +475,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 		},
 		{
 			name: "AKS-specific label selector without namespace selector enabled",
-			setupConfig: func() {
+			setupConfig: func(mockConfig config.Config) {
 				mockConfig.SetWithoutSource("admission_controller.add_aks_selectors", true)
 				mockConfig.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", true)
@@ -517,7 +523,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 		},
 		{
 			name: "AKS-specific label selector with namespace selector enabled",
-			setupConfig: func() {
+			setupConfig: func(mockConfig config.Config) {
 				mockConfig.SetWithoutSource("admission_controller.add_aks_selectors", true)
 				mockConfig.SetWithoutSource("admission_controller.namespace_selector_fallback", true)
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", true)
@@ -562,7 +568,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 		},
 		{
 			name: "cws instrumentation",
-			setupConfig: func() {
+			setupConfig: func(mockConfig config.Config) {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
@@ -603,7 +609,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 		},
 		{
 			name: "cws instrumentation, mutate unlabelled",
-			setupConfig: func() {
+			setupConfig: func(mockConfig config.Config) {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
@@ -640,7 +646,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 		},
 		{
 			name: "cws instrumentation, namespace selector",
-			setupConfig: func() {
+			setupConfig: func(mockConfig config.Config) {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.namespace_selector_fallback", true)
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
@@ -681,7 +687,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 		},
 		{
 			name: "cws instrumentation, namespace selector, mutate unlabelled",
-			setupConfig: func() {
+			setupConfig: func(mockConfig config.Config) {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.namespace_selector_fallback", true)
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
@@ -718,7 +724,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 		},
 		{
 			name: "agent sidecar injection, misconfigured profiles, supported provider specified",
-			setupConfig: func() {
+			setupConfig: func(mockConfig config.Config) {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
@@ -738,7 +744,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 		},
 		{
 			name: "agent sidecar injection, no selectors specified, supported provider specified",
-			setupConfig: func() {
+			setupConfig: func(mockConfig config.Config) {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
@@ -770,7 +776,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 		},
 		{
 			name: "agent sidecar injection, no selectors specified, unsupported provider specified",
-			setupConfig: func() {
+			setupConfig: func(mockConfig config.Config) {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
@@ -790,7 +796,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 		},
 		{
 			name: "agent sidecar injection, no selectors specified, no provider specified",
-			setupConfig: func() {
+			setupConfig: func(mockConfig config.Config) {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
@@ -810,7 +816,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 		},
 		{
 			name: "agent sidecar injection, only single namespace selector, no provider specified",
-			setupConfig: func() {
+			setupConfig: func(mockConfig config.Config) {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
@@ -840,7 +846,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 		},
 		{
 			name: "agent sidecar injection, valid selector specified, unsupported provider specified",
-			setupConfig: func() {
+			setupConfig: func(mockConfig config.Config) {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
@@ -860,7 +866,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 		},
 		{
 			name: "agent sidecar injection, only single object selector, no provider specified",
-			setupConfig: func() {
+			setupConfig: func(mockConfig config.Config) {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
@@ -888,7 +894,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 		},
 		{
 			name: "agent sidecar injection, one object selector and one namespace selector, no provider specified",
-			setupConfig: func() {
+			setupConfig: func(mockConfig config.Config) {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
@@ -916,7 +922,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 		},
 		{
 			name: "agent sidecar injection, multiple selectors (should refuse to create webhook), provider specified",
-			setupConfig: func() {
+			setupConfig: func(mockConfig config.Config) {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 				mockConfig.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", false)
@@ -936,13 +942,19 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 		},
 	}
 
-	mockConfig.SetWithoutSource("kube_resources_namespace", "nsfoo")
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t,
+		core.MockBundle(),
+		fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{"kube_resources_namespace": "nsfoo"}}),
+		workloadmetafxmock.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+	)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.setupConfig()
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("kube_resources_namespace", "nsfoo")
+
+			tt.setupConfig(mockConfig)
 			autoinstrumentation.UnsetWebhook()       // Ensure that the webhook uses the config set above
-			defer resetMockConfig(mockConfig)        // Reset to default
 			defer autoinstrumentation.UnsetWebhook() // So other tests are not impacted
 
 			c := &ControllerV1beta1{}
@@ -956,14 +968,14 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 }
 
 func TestGetWebhookSkeletonV1beta1(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	failurePolicy := admiv1beta1.Ignore
 	matchPolicy := admiv1beta1.Exact
 	sideEffects := admiv1beta1.SideEffectClassNone
 	defaultReinvocationPolicy := admiv1beta1.IfNeededReinvocationPolicy
 	port := int32(443)
 	path := "/bar"
-	defaultTimeout := config.Datadog.GetInt32("admission_controller.timeout_seconds")
+	defaultTimeout := config.Datadog().GetInt32("admission_controller.timeout_seconds")
 	customTimeout := int32(2)
 	namespaceSelector, _ := common.DefaultLabelSelectors(true)
 	_, objectSelector := common.DefaultLabelSelectors(false)
@@ -1073,7 +1085,7 @@ func newFixtureV1beta1(t *testing.T) *fixtureV1beta1 {
 
 func (f *fixtureV1beta1) createController() (*ControllerV1beta1, informers.SharedInformerFactory) {
 	factory := informers.NewSharedInformerFactory(f.client, time.Duration(0))
-	wmeta := fxutil.Test[workloadmeta.Component](f.t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](f.t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	return NewControllerV1beta1(
 		f.client,
 		factory.Core().V1().Secrets(),

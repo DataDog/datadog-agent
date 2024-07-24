@@ -41,7 +41,6 @@ type linuxImpl struct {
 	bootTime   uint64
 
 	serviceDetector *serviceDetector
-	sender          *telemetrySender
 	ignoreCfg       map[string]bool
 
 	ignoreProcs       map[int]bool
@@ -49,7 +48,7 @@ type linuxImpl struct {
 	potentialServices map[int]*serviceInfo
 }
 
-func newLinuxImpl(sender *telemetrySender, ignoreCfg map[string]bool) (osImpl, error) {
+func newLinuxImpl(ignoreCfg map[string]bool) (osImpl, error) {
 	for _, i := range ignoreCfgLinux {
 		ignoreCfg[i] = true
 	}
@@ -70,7 +69,6 @@ func newLinuxImpl(sender *telemetrySender, ignoreCfg map[string]bool) (osImpl, e
 		bootTime:          stat.BootTime,
 		portPoller:        poller,
 		time:              realTime{},
-		sender:            sender,
 		serviceDetector:   newServiceDetector(),
 		ignoreCfg:         ignoreCfg,
 		ignoreProcs:       make(map[int]bool),
@@ -79,54 +77,30 @@ func newLinuxImpl(sender *telemetrySender, ignoreCfg map[string]bool) (osImpl, e
 	}, nil
 }
 
-type processEvents struct {
-	started []serviceInfo
-	stopped []serviceInfo
-}
-
-type eventsByName map[string]*processEvents
-
-func (e eventsByName) addStarted(svc serviceInfo) {
-	events, ok := e[svc.meta.Name]
-	if !ok {
-		events = &processEvents{}
-	}
-	events.started = append(events.started, svc)
-	e[svc.meta.Name] = events
-}
-
-func (e eventsByName) addStopped(svc serviceInfo) {
-	events, ok := e[svc.meta.Name]
-	if !ok {
-		events = &processEvents{}
-	}
-	events.stopped = append(events.stopped, svc)
-	e[svc.meta.Name] = events
-}
-
-func (li *linuxImpl) DiscoverServices() error {
+func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 	procs, err := li.aliveProcs()
 	if err != nil {
-		return fmt.Errorf("failed to get alive processes: %w", err)
+		return nil, errWithCode{
+			err:  err,
+			code: errorCodeProcfs,
+			svc:  nil,
+		}
 	}
 
-	ports, err := li.openPorts()
+	ports, err := li.portPoller.OpenPorts()
 	if err != nil {
-		return fmt.Errorf("failed to get open ports: %w", err)
+		return nil, errWithCode{
+			err:  err,
+			code: errorCodePortPoller,
+			svc:  nil,
+		}
+	}
+	portsByPID := map[int]portlist.List{}
+	for _, p := range ports {
+		portsByPID[p.Pid] = append(portsByPID[p.Pid], p)
 	}
 
-	log.Debugf("aliveProcs: %d | ignoreProcs: %d | runningServices: %d | potentials: %d | openPorts: %+v",
-		len(procs),
-		len(li.ignoreProcs),
-		len(li.aliveServices),
-		len(li.potentialServices),
-		ports,
-	)
-
-	var (
-		started []serviceInfo
-		stopped []serviceInfo
-	)
+	events := serviceEvents{}
 
 	now := li.time.Now()
 
@@ -136,13 +110,13 @@ func (li *linuxImpl) DiscoverServices() error {
 		if _, ok := procs[pid]; ok {
 			svc.LastHeartbeat = now
 			li.aliveServices[pid] = svc
-			started = append(started, *svc)
+			events.start = append(events.start, *svc)
 		}
 	}
 	clear(li.potentialServices)
 
 	// check open ports - these will be potential new services if they are still alive in the next iteration.
-	for pid := range ports {
+	for pid := range portsByPID {
 		if li.ignoreProcs[pid] {
 			continue
 		}
@@ -155,8 +129,13 @@ func (li *linuxImpl) DiscoverServices() error {
 				continue
 			}
 
-			svc, err := li.getServiceInfo(p, ports)
+			svc, err := li.getServiceInfo(p, portsByPID)
 			if err != nil {
+				telemetryFromError(errWithCode{
+					err:  err,
+					code: errorCodeProcfs,
+					svc:  nil,
+				})
 				log.Errorf("[pid: %d] failed to get process info: %v", pid, err)
 				li.ignoreProcs[pid] = true
 				continue
@@ -175,10 +154,10 @@ func (li *linuxImpl) DiscoverServices() error {
 	for pid, svc := range li.aliveServices {
 		if _, ok := procs[pid]; !ok {
 			delete(li.aliveServices, pid)
-			stopped = append(stopped, *svc)
+			events.stop = append(events.stop, *svc)
 		} else if now.Sub(svc.LastHeartbeat).Truncate(time.Minute) >= heartbeatTime {
 			svc.LastHeartbeat = now
-			li.sender.sendHeartbeatServiceEvent(*svc)
+			events.heartbeat = append(events.heartbeat, *svc)
 		}
 	}
 
@@ -189,38 +168,14 @@ func (li *linuxImpl) DiscoverServices() error {
 		}
 	}
 
-	// group started and stopped processes by name
-	events := make(eventsByName)
-	for _, p := range started {
-		events.addStarted(p)
-	}
-	for _, p := range stopped {
-		events.addStopped(p)
-	}
-
-	potentialNames := map[string]bool{}
-	for _, p := range li.potentialServices {
-		potentialNames[p.meta.Name] = true
-	}
-
-	for name, ev := range events {
-		if len(ev.started) > 0 && len(ev.stopped) > 0 {
-			log.Warnf("found multiple started/stopped processes with the same name, ignoring end-service events (name: %q)", name)
-			clear(ev.stopped)
-		}
-		for _, svc := range ev.started {
-			li.sender.sendStartServiceEvent(svc)
-		}
-		for _, svc := range ev.stopped {
-			if potentialNames[name] {
-				log.Debugf("there is a potential service with the same name as a stopped one, skipping end-service event (name: %q)", name)
-				break
-			}
-			li.sender.sendEndServiceEvent(svc)
-		}
-	}
-
-	return nil
+	return &discoveredServices{
+		aliveProcsCount: len(procs),
+		openPorts:       ports,
+		ignoreProcs:     li.ignoreProcs,
+		potentials:      li.potentialServices,
+		runningServices: li.aliveServices,
+		events:          events,
+	}, nil
 }
 
 func (li *linuxImpl) aliveProcs() (map[int]proc, error) {
@@ -233,18 +188,6 @@ func (li *linuxImpl) aliveProcs() (map[int]proc, error) {
 		procMap[v.PID()] = v
 	}
 	return procMap, nil
-}
-
-func (li *linuxImpl) openPorts() (map[int]portlist.List, error) {
-	ports, err := li.portPoller.OpenPorts()
-	if err != nil {
-		return nil, err
-	}
-	portMap := map[int]portlist.List{}
-	for _, p := range ports {
-		portMap[p.Pid] = append(portMap[p.Pid], p)
-	}
-	return portMap, nil
 }
 
 func (li *linuxImpl) getServiceInfo(p proc, openPorts map[int]portlist.List) (*serviceInfo, error) {

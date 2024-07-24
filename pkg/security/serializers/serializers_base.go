@@ -16,6 +16,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
+// CGroupContextSerializer serializes a cgroup context to JSON
+// easyjson:json
+type CGroupContextSerializer struct {
+	// CGroup ID
+	ID string `json:"id,omitempty"`
+}
+
 // ContainerContextSerializer serializes a container context to JSON
 // easyjson:json
 type ContainerContextSerializer struct {
@@ -211,6 +218,7 @@ type BaseEventSerializer struct {
 	*ExitEventSerializer        `json:"exit,omitempty"`
 	*ProcessContextSerializer   `json:"process,omitempty"`
 	*ContainerContextSerializer `json:"container,omitempty"`
+	*CGroupContextSerializer    `json:"cgroup,omitempty"`
 }
 
 func newMatchedRulesSerializer(r *model.MatchedRule) MatchedRuleSerializer {
@@ -335,11 +343,6 @@ func NewBaseEventSerializer(event *model.Event, opts *eval.Opts) *BaseEventSeria
 		}
 		s.ExitEventSerializer = newExitEventSerializer(event)
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
-	case model.ExecEventType:
-		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.ProcessContext.Process.FileEvent, event),
-		}
-		s.EventContextSerializer.Outcome = serializeOutcome(0)
 	}
 
 	return s
@@ -365,19 +368,22 @@ func newVariablesContext(e *model.Event, opts *eval.Opts, prefix string) (variab
 					variables = Variables{}
 				}
 				if value != nil {
+					trimmedName := strings.TrimPrefix(name, prefix)
 					switch value := value.(type) {
 					case []string:
-						for _, value := range value {
-							if scrubbed, err := scrubber.ScrubString(value); err == nil {
-								variables[strings.TrimPrefix(name, prefix)] = scrubbed
+						scrubbedValues := make([]string, 0, len(value))
+						for _, elem := range value {
+							if scrubbed, err := scrubber.ScrubString(elem); err == nil {
+								scrubbedValues = append(scrubbedValues, scrubbed)
 							}
 						}
+						variables[trimmedName] = scrubbedValues
 					case string:
 						if scrubbed, err := scrubber.ScrubString(value); err == nil {
-							variables[strings.TrimPrefix(name, prefix)] = scrubbed
+							variables[trimmedName] = scrubbed
 						}
 					default:
-						variables[strings.TrimPrefix(name, prefix)] = value
+						variables[trimmedName] = value
 					}
 				}
 			}

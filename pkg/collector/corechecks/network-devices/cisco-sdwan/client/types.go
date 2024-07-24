@@ -58,7 +58,8 @@ type Content interface {
 		AppRouteStatistics |
 		ControlConnections |
 		OMPPeer |
-		BFDSession
+		BFDSession |
+		HardwareEnvironment
 }
 
 // Response is a generic struct for API responses
@@ -387,4 +388,21 @@ type BFDSession struct {
 	TxInterval       float64 `json:"tx-interval"`
 	State            string  `json:"state"`
 	UptimeDate       float64 `json:"uptime-date"`
+}
+
+// HardwareEnvironment /dataservice/data/device/state/HardwareEnvironment
+type HardwareEnvironment struct {
+	RecordID        string `json:"recordId"`
+	VdeviceName     string `json:"vdevice-name"`
+	HwDevIndex      int    `json:"hw-dev-index"`
+	CreateTimeStamp int64  `json:"createTimeStamp"`
+	VdeviceHostName string `json:"vdevice-host-name"`
+	Measurement     string `json:"measurement"`
+	VdeviceDataKey  string `json:"vdevice-dataKey"`
+	Rid             int    `json:"@rid"`
+	VmanageSystemIP string `json:"vmanage-system-ip"`
+	HwItem          string `json:"hw-item"`
+	HwClass         string `json:"hw-class"`
+	Lastupdated     int64  `json:"lastupdated"`
+	Status          string `json:"status"`
 }

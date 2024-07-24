@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -282,6 +283,35 @@ service_monitoring_config:
 		cfg := New()
 
 		assert.False(t, cfg.EnablePostgresMonitoring)
+	})
+}
+
+func TestEnableRedisMonitoring(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  enable_redis_monitoring: true
+`)
+
+		assert.True(t, cfg.EnableRedisMonitoring)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_REDIS_MONITORING", "true")
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableRedisMonitoring)
+	})
+
+	t.Run("default", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+
+		assert.False(t, cfg.EnableRedisMonitoring)
 	})
 }
 
@@ -1273,6 +1303,33 @@ service_monitoring_config:
 	})
 }
 
+func TestMaxRedisStatsBuffered(t *testing.T) {
+	t.Run("value set through env var", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_REDIS_STATS_BUFFERED", "50000")
+
+		cfg := New()
+		assert.Equal(t, 50000, cfg.MaxRedisStatsBuffered)
+	})
+
+	t.Run("value set through yaml", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  max_redis_stats_buffered: 30000
+`)
+
+		assert.Equal(t, 30000, cfg.MaxRedisStatsBuffered)
+	})
+
+	t.Run("default", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+
+		cfg := New()
+		assert.Equal(t, 100000, cfg.MaxRedisStatsBuffered)
+	})
+}
+
 func TestNetworkConfigEnabled(t *testing.T) {
 	ys := true
 
@@ -1366,6 +1423,31 @@ service_monitoring_config:
 
 		cfg := New()
 		assert.True(t, cfg.EnableNodeJSMonitoring)
+	})
+}
+
+func TestUSMEventStream(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		assert.False(t, cfg.EnableUSMEventStream)
+	})
+
+	t.Run("via yaml", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  enable_event_stream: true
+`)
+		assert.True(t, cfg.EnableUSMEventStream)
+	})
+
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_EVENT_STREAM", "true")
+
+		cfg := New()
+		assert.True(t, cfg.EnableUSMEventStream)
 	})
 }
 
@@ -1672,6 +1754,24 @@ system_probe_config:
   process_service_inference:
     enabled: true`)
 		require.False(t, cfg.GetBool("system_probe_config.process_service_inference.enabled"))
+	})
+
+	t.Run("test platform specific defaults", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		// usm or npm must be enabled for the process_service_inference to be enabled
+		cfg := modelCfgFromYAML(t, `
+service_monitoring_config:
+  enabled: true`)
+		sysconfig.Adjust(cfg)
+
+		var expected bool
+		if runtime.GOOS == "windows" {
+			expected = true
+		} else {
+			expected = false
+		}
+
+		require.Equal(t, expected, cfg.GetBool("system_probe_config.process_service_inference.enabled"))
 	})
 }
 

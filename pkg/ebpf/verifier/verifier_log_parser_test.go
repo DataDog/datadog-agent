@@ -7,6 +7,7 @@ package verifier
 
 import (
 	"math"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -49,6 +50,17 @@ func TestParseRegisterState(t *testing.T) {
 				Type:     "scalar",
 				Value:    "?",
 				Precise:  false,
+			},
+		},
+		{
+			name:  "PreciseScalarWithValue",
+			input: "R1_w=Pscalar(umax=60,var_off=(0x0;0x3c))",
+			expected: &RegisterState{
+				Register: 1,
+				Live:     "written",
+				Type:     "scalar",
+				Value:    "[0, 60 (0x3C)]",
+				Precise:  true,
 			},
 		},
 	}
@@ -230,6 +242,14 @@ func TestLogParsingWith(t *testing.T) {
 			vlp := newVerifierLogParser(tt.progSourceMap)
 			_, err := vlp.parseVerifierLog(tt.input)
 			require.NoError(t, err)
+
+			// Fix to avoid flakiness, sort the assembly instructions
+			// as they might be in a different order, due to dict iteration
+			// order being random.
+			for _, lineData := range vlp.complexity.SourceMap {
+				sort.Ints(lineData.AssemblyInsns)
+			}
+
 			require.Equal(t, tt.expected, vlp.complexity)
 		})
 	}

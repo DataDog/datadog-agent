@@ -13,7 +13,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -52,15 +51,10 @@ func (i *testPackageManager) ConfigFS(f fixtures.Fixture) fs.FS {
 }
 
 func TestInstallStable(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("FIXME: Failing test on macOS - #incident-26965")
-	}
-
 	s := fixtures.NewServer(t)
-	defer s.Close()
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
 
-	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1))
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
 	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
 	state, err := r.GetState()
@@ -72,15 +66,10 @@ func TestInstallStable(t *testing.T) {
 }
 
 func TestInstallExperiment(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("FIXME: Failing test on macOS - #incident-26965")
-	}
-
 	s := fixtures.NewServer(t)
-	defer s.Close()
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
 
-	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1))
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
 	err = installer.InstallExperiment(testCtx, s.PackageURL(fixtures.FixtureSimpleV2))
 	assert.NoError(t, err)
@@ -95,15 +84,10 @@ func TestInstallExperiment(t *testing.T) {
 }
 
 func TestInstallPromoteExperiment(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("FIXME: Failing test on macOS - #incident-26965")
-	}
-
 	s := fixtures.NewServer(t)
-	defer s.Close()
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
 
-	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1))
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
 	err = installer.InstallExperiment(testCtx, s.PackageURL(fixtures.FixtureSimpleV2))
 	assert.NoError(t, err)
@@ -119,15 +103,10 @@ func TestInstallPromoteExperiment(t *testing.T) {
 }
 
 func TestUninstallExperiment(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("FIXME: Failing test on macOS - #incident-26965")
-	}
-
 	s := fixtures.NewServer(t)
-	defer s.Close()
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
 
-	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1))
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
 	err = installer.InstallExperiment(testCtx, s.PackageURL(fixtures.FixtureSimpleV2))
 	assert.NoError(t, err)

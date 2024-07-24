@@ -14,8 +14,8 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/stretchr/testify/require"
@@ -25,7 +25,7 @@ func testArch(t *testing.T, arch string) {
 	cfg := config.New()
 	cfg.EnableNativeTLSMonitoring = true
 
-	if !http.TLSSupported(cfg) {
+	if !usmconfig.TLSSupported(cfg) {
 		t.Skip("shared library tracing not supported for this platform")
 	}
 
@@ -42,7 +42,7 @@ func testArch(t *testing.T, arch string) {
 	require.NoError(t, err)
 
 	if arch == runtime.GOARCH {
-		utils.WaitForProgramsToBeTraced(t, "shared_libraries", cmd.Process.Pid)
+		utils.WaitForProgramsToBeTraced(t, "shared_libraries", cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 	} else {
 		utils.WaitForPathToBeBlocked(t, "shared_libraries", lib)
 	}

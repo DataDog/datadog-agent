@@ -11,6 +11,12 @@ import (
 	"context"
 	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes/scheme"
+	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/tools/record"
+
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -18,7 +24,7 @@ import (
 )
 
 // StartWorkloadAutoscaling starts the workload autoscaling controller
-func StartWorkloadAutoscaling(ctx context.Context, apiCl *apiserver.APIClient, rcClient rcClient) (PatcherAdapter, error) {
+func StartWorkloadAutoscaling(ctx context.Context, apiCl *apiserver.APIClient, rcClient rcClient, wlm workloadmeta.Component) (PodPatcher, error) {
 	if apiCl == nil {
 		return nil, fmt.Errorf("Impossible to start workload autoscaling without valid APIClient")
 	}
@@ -28,14 +34,20 @@ func StartWorkloadAutoscaling(ctx context.Context, apiCl *apiserver.APIClient, r
 		return nil, fmt.Errorf("Unable to start workload autoscaling as LeaderElection failed with: %v", err)
 	}
 
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
+	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "datadog-workload-autoscaler"})
+
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
+	podPatcher := newPODPatcher(store, le.IsLeader, apiCl.DynamicCl, eventRecorder)
+	podWatcher := newPodWatcher(wlm, podPatcher)
 
 	_, err = newConfigRetriever(store, le.IsLeader, rcClient)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start workload autoscaling config retriever: %w", err)
 	}
 
-	controller, err := newController(apiCl.RESTMapper, apiCl.ScaleCl, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, le.IsLeader, store)
+	controller, err := newController(eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, le.IsLeader, store, podWatcher)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start workload autoscaling controller: %w", err)
 	}
@@ -44,7 +56,9 @@ func StartWorkloadAutoscaling(ctx context.Context, apiCl *apiserver.APIClient, r
 	apiCl.DynamicInformerFactory.Start(ctx.Done())
 	apiCl.InformerFactory.Start(ctx.Done())
 
+	// TODO: Wait POD Watcher sync before running the controller
+	go podWatcher.Run(ctx)
 	go controller.Run(ctx)
 
-	return newPatcherAdapter(store), nil
+	return podPatcher, nil
 }

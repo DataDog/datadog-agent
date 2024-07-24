@@ -11,12 +11,13 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/tagstore"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -31,17 +32,19 @@ type Tagger struct {
 	workloadStore workloadmeta.Component
 	collector     *collectors.WorkloadMetaCollector
 
-	ctx    context.Context
-	cancel context.CancelFunc
+	ctx            context.Context
+	cancel         context.CancelFunc
+	telemetryStore *telemetry.Store
 	empty.Tagger
 }
 
 // NewTagger returns an allocated tagger. You are probably looking for
 // tagger.Tag() using the global instance instead of creating your own.
-func NewTagger(workloadStore workloadmeta.Component) *Tagger {
+func NewTagger(workloadStore workloadmeta.Component, telemetryStore *telemetry.Store) *Tagger {
 	return &Tagger{
-		tagStore:      tagstore.NewTagStore(),
-		workloadStore: workloadStore,
+		tagStore:       tagstore.NewTagStore(telemetryStore),
+		workloadStore:  workloadStore,
+		telemetryStore: telemetryStore,
 	}
 }
 
@@ -70,13 +73,13 @@ func (t *Tagger) Stop() error {
 // getTags returns a read only list of tags for a given entity.
 func (t *Tagger) getTags(entity string, cardinality types.TagCardinality) (tagset.HashedTags, error) {
 	if entity == "" {
-		telemetry.QueriesByCardinality(cardinality).EmptyEntityID.Inc()
+		t.telemetryStore.QueriesByCardinality(cardinality).EmptyEntityID.Inc()
 		return tagset.HashedTags{}, fmt.Errorf("empty entity ID")
 	}
 
 	cachedTags := t.tagStore.LookupHashed(entity, cardinality)
 
-	telemetry.QueriesByCardinality(cardinality).Success.Inc()
+	t.telemetryStore.QueriesByCardinality(cardinality).Success.Inc()
 	return cachedTags, nil
 }
 
@@ -126,4 +129,15 @@ func (t *Tagger) Subscribe(cardinality types.TagCardinality) chan []types.Entity
 // Unsubscribe ends a subscription to entity events and closes its channel.
 func (t *Tagger) Unsubscribe(ch chan []types.EntityEvent) {
 	t.tagStore.Unsubscribe(ch)
+}
+
+// ReplayTagger returns the replay tagger instance
+// This is a no-op for the local tagger
+func (t *Tagger) ReplayTagger() tagger.ReplayTagger {
+	return nil
+}
+
+// GetTaggerTelemetryStore returns tagger telemetry store
+func (t *Tagger) GetTaggerTelemetryStore() *telemetry.Store {
+	return t.telemetryStore
 }

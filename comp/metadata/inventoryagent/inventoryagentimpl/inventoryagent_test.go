@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 	"runtime"
+	"sort"
 	"testing"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
@@ -43,7 +45,7 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 			fx.Replace(config.MockParams{Overrides: confOverrides}),
 			sysprobeconfigimpl.MockModule(),
 			fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeConfOverrides}),
-			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
+			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			authtokenimpl.Module(),
 		),
 	)
@@ -119,6 +121,7 @@ func TestInitData(t *testing.T) {
 		"service_monitoring_config.enable_http2_monitoring":          true,
 		"service_monitoring_config.enable_kafka_monitoring":          true,
 		"service_monitoring_config.enable_postgres_monitoring":       true,
+		"service_monitoring_config.enable_redis_monitoring":          true,
 		"service_monitoring_config.tls.istio.enabled":                true,
 		"service_monitoring_config.enable_http_stats_by_status_code": true,
 		"service_monitoring_config.tls.go.enabled":                   true,
@@ -210,6 +213,7 @@ func TestInitData(t *testing.T) {
 		"feature_usm_enabled":                          true,
 		"feature_usm_kafka_enabled":                    true,
 		"feature_usm_postgres_enabled":                 true,
+		"feature_usm_redis_enabled":                    true,
 		"feature_usm_java_tls_enabled":                 true,
 		"feature_usm_http2_enabled":                    true,
 		"feature_usm_istio_enabled":                    true,
@@ -267,7 +271,7 @@ func TestConfigRefresh(t *testing.T) {
 	ia := getTestInventoryPayload(t, nil, nil)
 
 	assert.False(t, ia.RefreshTriggered())
-	pkgconfig.Datadog.Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
+	pkgconfig.Datadog().Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
 	assert.True(t, ia.RefreshTriggered())
 }
 
@@ -482,6 +486,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_usm_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_kafka_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_postgres_enabled"].(bool))
+	assert.False(t, ia.data["feature_usm_redis_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_java_tls_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_http2_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_istio_enabled"].(bool))
@@ -517,7 +522,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 			logimpl.MockModule(),
 			config.MockModule(),
 			sysprobeconfig.NoneModule(),
-			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
+			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			authtokenimpl.Module(),
 		),
 	)
@@ -595,6 +600,7 @@ service_monitoring_config:
   enabled: true
   enable_kafka_monitoring: true
   enable_postgres_monitoring: true
+  enable_redis_monitoring: true
   enable_http2_monitoring: true
   enable_http_stats_by_status_code: true
 
@@ -629,6 +635,7 @@ dynamic_instrumentation:
 	assert.True(t, ia.data["feature_usm_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_kafka_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_postgres_enabled"].(bool))
+	assert.True(t, ia.data["feature_usm_redis_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_java_tls_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_http2_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_istio_enabled"].(bool))
@@ -687,4 +694,24 @@ func TestGetProvidedConfiguration(t *testing.T) {
 	assert.Contains(t, payload.Metadata, "remote_configuration")
 	assert.Contains(t, payload.Metadata, "cli_configuration")
 	assert.Contains(t, payload.Metadata, "source_local_configuration")
+}
+
+func TestGetProvidedConfigurationOnly(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": true,
+	}, nil)
+
+	data := make(agentMetadata)
+	ia.getConfigs(data)
+
+	keys := []string{}
+	for k := range data {
+		keys = append(keys, k)
+	}
+
+	sort.Strings(keys)
+	expected := []string{"provided_configuration", "full_configuration", "file_configuration", "environment_variable_configuration", "agent_runtime_configuration", "remote_configuration", "cli_configuration", "source_local_configuration"}
+	sort.Strings(expected)
+
+	assert.Equal(t, expected, keys)
 }

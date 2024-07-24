@@ -15,14 +15,23 @@ from tasks.go import run_golangci_lint
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
     generate_gitlab_full_configuration,
+    get_all_gitlab_ci_configurations,
     get_gitlab_repo,
     get_preset_contexts,
     load_context,
     read_includes,
+    retrieve_all_paths,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
-from tasks.libs.common.utils import DEFAULT_BRANCH, GITHUB_REPO_NAME, color_message, is_pr_context, running_in_ci
-from tasks.libs.types.copyright import CopyrightLinter
+from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.constants import DEFAULT_BRANCH, GITHUB_REPO_NAME
+from tasks.libs.common.git import get_staged_files
+from tasks.libs.common.utils import (
+    gitlab_section,
+    is_pr_context,
+    running_in_ci,
+)
+from tasks.libs.types.copyright import CopyrightLinter, LintFailure
 from tasks.modules import GoModule
 from tasks.test_core import ModuleLintResult, process_input_args, process_module_results, test_core
 from tasks.update_go import _update_go_mods, _update_references
@@ -50,18 +59,28 @@ def python(ctx):
         ctx.run("ruff format .")
         ctx.run("ruff check --fix .")
 
-    ctx.run("vulture --ignore-decorators @task --ignore-names 'test_*,Test*' tasks")
+    ctx.run("vulture")
+    ctx.run("mypy")
 
 
 @task
-def copyrights(_, fix=False, dry_run=False, debug=False):
+def copyrights(ctx, fix=False, dry_run=False, debug=False, only_staged_files=False):
     """
     Checks that all Go files contain the appropriate copyright header. If '--fix'
     is provided as an option, it will try to fix problems as it finds them. If
     '--dry_run' is provided when fixing, no changes to the files will be applied.
     """
+    files = None
 
-    CopyrightLinter(debug=debug).assert_compliance(fix=fix, dry_run=dry_run)
+    if only_staged_files:
+        staged_files = get_staged_files(ctx)
+        files = [path for path in staged_files if path.endswith(".go")]
+
+    try:
+        CopyrightLinter(debug=debug).assert_compliance(fix=fix, dry_run=dry_run, files=files)
+    except LintFailure:
+        # the linter prints useful messages on its own, so no need to print the exception
+        sys.exit(1)
 
 
 @task
@@ -116,7 +135,7 @@ def go(
     build_exclude=None,
     rtloader_root=None,
     cpus=None,
-    timeout: int = None,
+    timeout: int | None = None,
     golangci_lint_kwargs="",
     headless_mode=False,
     include_sds=False,
@@ -154,7 +173,7 @@ def go(
         lint=True,
     )
 
-    lint_results = run_lint_go(
+    lint_results, execution_times = run_lint_go(
         ctx=ctx,
         modules=modules,
         flavor=flavor,
@@ -170,7 +189,14 @@ def go(
         include_sds=include_sds,
     )
 
-    success = process_module_results(flavor=flavor, module_results=lint_results)
+    with gitlab_section('Linter execution time'):
+        print(color_message('Execution time summary:', 'bold'))
+
+    with gitlab_section('Linter failures'):
+        success = process_module_results(flavor=flavor, module_results=lint_results)
+
+        for e in execution_times:
+            print(f'- {e.name}: {e.duration:.1f}s')
 
     if success:
         if not headless_mode:
@@ -203,7 +229,7 @@ def run_lint_go(
         include_sds=include_sds,
     )
 
-    lint_results = lint_flavor(
+    lint_results, execution_times = lint_flavor(
         ctx,
         modules=modules,
         flavor=flavor,
@@ -215,7 +241,7 @@ def run_lint_go(
         headless_mode=headless_mode,
     )
 
-    return lint_results
+    return lint_results, execution_times
 
 
 def lint_flavor(
@@ -233,9 +259,13 @@ def lint_flavor(
     Runs linters for given flavor, build tags, and modules.
     """
 
+    execution_times = []
+
     def command(module_results, module: GoModule, module_result):
+        nonlocal execution_times
+
         with ctx.cd(module.full_path()):
-            lint_results = run_golangci_lint(
+            lint_results, time_results = run_golangci_lint(
                 ctx,
                 module_path=module.path,
                 targets=module.lint_targets,
@@ -246,13 +276,16 @@ def lint_flavor(
                 golangci_lint_kwargs=golangci_lint_kwargs,
                 headless_mode=headless_mode,
             )
+            execution_times.extend(time_results)
             for lint_result in lint_results:
                 module_result.lint_outputs.append(lint_result)
                 if lint_result.exited != 0:
                     module_result.failed = True
         module_results.append(module_result)
 
-    return test_core(modules, flavor, ModuleLintResult, "golangci_lint", command, headless_mode=headless_mode)
+    return test_core(
+        modules, flavor, ModuleLintResult, "golangci_lint", command, headless_mode=headless_mode
+    ), execution_times
 
 
 @task
@@ -307,7 +340,7 @@ class SSMParameterCall:
             message += "Please use the dedicated `aws_ssm_get_wrapper.(sh|ps1)`."
         if not self.with_env_var:
             message += " Save your parameter name as environment variable in .gitlab-ci.yml file."
-        return f"{self.file}:{self.line_nb+1}. {message}"
+        return f"{self.file}:{self.line_nb + 1}. {message}"
 
     def __repr__(self):
         return str(self)
@@ -335,28 +368,60 @@ def is_get_parameter_call(file):
 
 
 @task
-def gitlab_ci(_, test="all", custom_context=None):
+def gitlab_ci(ctx, test="all", custom_context=None):
     """
     Lint Gitlab CI files in the datadog-agent repository.
+
+    This will lint the main gitlab ci file with different
+    variable contexts and lint other triggered gitlab ci configs.
     """
-    all_contexts = []
-    if custom_context:
-        all_contexts = load_context(custom_context)
-    else:
-        all_contexts = get_preset_contexts(test)
-    print(f"We will tests {len(all_contexts)} contexts.")
+
     agent = get_gitlab_repo()
-    for context in all_contexts:
-        print("Test gitlab configuration with context: ", context)
-        config = generate_gitlab_full_configuration(".gitlab-ci.yml", dict(context))
-        res = agent.ci_lint.create({"content": config})
+    has_errors = False
+
+    print(f'{color_message("info", Color.BLUE)}: Fetching Gitlab CI configurations...')
+    configs = get_all_gitlab_ci_configurations(ctx)
+
+    def test_gitlab_configuration(entry_point, input_config, context=None):
+        nonlocal has_errors
+
+        # Update config and lint it
+        config = generate_gitlab_full_configuration(ctx, entry_point, context=context, input_config=input_config)
+        res = agent.ci_lint.create({"content": config, "dry_run": True, "include_jobs": True})
         status = color_message("valid", "green") if res.valid else color_message("invalid", "red")
-        print(f"Config is {status}")
+
+        print(f"{color_message(entry_point, Color.BOLD)} config is {status}")
         if len(res.warnings) > 0:
-            print(color_message(f"Warnings: {res.warnings}", "orange"), file=sys.stderr)
+            print(
+                f'{color_message("warning", Color.ORANGE)}: {color_message(entry_point, Color.BOLD)}: {res.warnings})',
+                file=sys.stderr,
+            )
         if not res.valid:
-            print(color_message(f"Errors: {res.errors}", "red"), file=sys.stderr)
-            raise Exit(code=1)
+            print(
+                f'{color_message("error", Color.RED)}: {color_message(entry_point, Color.BOLD)}: {res.errors})',
+                file=sys.stderr,
+            )
+            has_errors = True
+
+    for entry_point, input_config in configs.items():
+        with gitlab_section(f"Testing {entry_point}", echo=True):
+            # Only the main config should be tested with all contexts
+            if entry_point == ".gitlab-ci.yml":
+                all_contexts = []
+                if custom_context:
+                    all_contexts = load_context(custom_context)
+                else:
+                    all_contexts = get_preset_contexts(test)
+
+                print(f'{color_message("info", Color.BLUE)}: We will test {len(all_contexts)} contexts')
+                for context in all_contexts:
+                    print("Test gitlab configuration with context: ", context)
+                    test_gitlab_configuration(entry_point, input_config, dict(context))
+            else:
+                test_gitlab_configuration(entry_point, input_config)
+
+    if has_errors:
+        raise Exit(code=1)
 
 
 @task
@@ -374,7 +439,7 @@ def releasenote(ctx):
             if not github.contains_release_note(pr_id):
                 print(
                     f"{color_message('Error', 'red')}: No releasenote was found for this PR. Please add one using 'reno'"
-                    ", see https://github.com/DataDog/datadog-agent/blob/main/docs/dev/contributing.md#reno"
+                    ", see https://datadoghq.dev/datadog-agent/guidelines/contributing/#reno"
                     ", or apply the label 'changelog/no-changelog' to the PR.",
                     file=sys.stderr,
                 )
@@ -391,17 +456,17 @@ def update_go(_):
 
 
 @task(iterable=['job_files'])
-def test_change_path(_, job_files=None):
+def test_change_path(ctx, job_files=None):
     """
     Verify that the jobs defined within job_files contain a change path rule.
     """
     job_files = job_files or (['.gitlab/e2e/e2e.yml'] + list(glob('.gitlab/kitchen_testing/new-e2e_testing/*.yml')))
 
     # Read gitlab config
-    config = generate_gitlab_full_configuration(".gitlab-ci.yml", {}, return_dump=False, apply_postprocessing=True)
+    config = generate_gitlab_full_configuration(ctx, ".gitlab-ci.yml", {}, return_dump=False, apply_postprocessing=True)
 
     # Fetch all test jobs
-    test_config = read_includes(job_files, return_config=True, add_file_path=True)
+    test_config = read_includes(ctx, job_files, return_config=True, add_file_path=True)
     tests = [(test, data['_file_path']) for test, data in test_config.items() if test[0] != '.']
 
     def contains_valid_change_rule(rule):
@@ -432,3 +497,19 @@ def test_change_path(_, job_files=None):
         )
     else:
         print(color_message("success: All tests contain a change paths rule", "green"))
+
+
+@task
+def gitlab_change_paths(ctx):
+    # Read gitlab config
+    config = generate_gitlab_full_configuration(ctx, ".gitlab-ci.yml", {}, return_dump=False, apply_postprocessing=True)
+    error_paths = []
+    for path in set(retrieve_all_paths(config)):
+        files = glob(path, recursive=True)
+        if len(files) == 0:
+            error_paths.append(path)
+    if error_paths:
+        raise Exit(
+            f"{color_message('No files found for paths', Color.RED)}:\n{chr(10).join(' - ' + path for path in error_paths)}"
+        )
+    print(f"All rule:changes:paths from gitlab-ci are {color_message('valid', Color.GREEN)}.")

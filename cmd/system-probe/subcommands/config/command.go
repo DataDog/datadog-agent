@@ -66,6 +66,15 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	cmd.AddCommand(
 		&cobra.Command{
+			Use:   "by-source",
+			Short: "Show the runtime configuration by source (ie: default, config file, env vars, ...)",
+			Long:  ``,
+			RunE:  oneShotRunE(showRuntimeConfigurationBySource),
+		},
+	)
+
+	cmd.AddCommand(
+		&cobra.Command{
 			Use:   "list-runtime",
 			Short: "List settings that can be changed at runtime",
 			Long:  ``,
@@ -108,6 +117,22 @@ func showRuntimeConfiguration(sysprobeconfig sysprobeconfig.Component, _ *cliPar
 	}
 
 	fmt.Println(runtimeConfig)
+
+	return nil
+}
+
+func showRuntimeConfigurationBySource(sysprobeconfig sysprobeconfig.Component, _ *cliParams) error {
+	c, err := getClient(sysprobeconfig)
+	if err != nil {
+		return err
+	}
+
+	config, err := c.FullConfigBySource()
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(config)
 
 	return nil
 }

@@ -8,10 +8,12 @@ package secretsimpl
 import (
 	"bytes"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"runtime"
 	"runtime/pprof"
+	"slices"
 	"testing"
 	"time"
 
@@ -19,13 +21,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 var (
 	binExtension = ""
 )
 
-func build(m *testing.M, outBin, pkg string) { //nolint:revive // TODO fix revive unused-parameter
+func build(_ *testing.M, outBin, pkg string) {
 	_, err := exec.Command("go", "build", "-o", outBin+binExtension, pkg).Output()
 	if err != nil {
 		fmt.Printf("Could not compile test secretBackendCommand: %s", err)
@@ -114,15 +120,16 @@ func TestLimitBuffer(t *testing.T) {
 
 func TestExecCommandError(t *testing.T) {
 	inputPayload := "{\"version\": \"" + secrets.PayloadVersion + "\" , \"secrets\": [\"sec1\", \"sec2\"]}"
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
 
 	t.Run("Empty secretBackendCommand", func(t *testing.T) {
-		resolver := newEnabledSecretResolver()
+		resolver := newEnabledSecretResolver(tel)
 		_, err := resolver.execCommand(inputPayload)
 		require.NotNil(t, err)
 	})
 
 	t.Run("timeout", func(t *testing.T) {
-		resolver := newEnabledSecretResolver()
+		resolver := newEnabledSecretResolver(tel)
 		resolver.backendCommand = "./test/timeout/timeout" + binExtension
 		setCorrectRight(resolver.backendCommand)
 		resolver.backendTimeout = 1
@@ -132,7 +139,7 @@ func TestExecCommandError(t *testing.T) {
 	})
 
 	t.Run("No Error", func(t *testing.T) {
-		resolver := newEnabledSecretResolver()
+		resolver := newEnabledSecretResolver(tel)
 		resolver.Configure(secrets.ConfigParams{Command: "./test/simple/simple" + binExtension})
 		setCorrectRight(resolver.backendCommand)
 		resp, err := resolver.execCommand(inputPayload)
@@ -141,7 +148,7 @@ func TestExecCommandError(t *testing.T) {
 	})
 
 	t.Run("Error returned", func(t *testing.T) {
-		resolver := newEnabledSecretResolver()
+		resolver := newEnabledSecretResolver(tel)
 		resolver.backendCommand = "./test/error/error" + binExtension
 		setCorrectRight(resolver.backendCommand)
 		_, err := resolver.execCommand(inputPayload)
@@ -149,7 +156,7 @@ func TestExecCommandError(t *testing.T) {
 	})
 
 	t.Run("argument", func(t *testing.T) {
-		resolver := newEnabledSecretResolver()
+		resolver := newEnabledSecretResolver(tel)
 		resolver.Configure(secrets.ConfigParams{Command: "./test/argument/argument" + binExtension})
 		setCorrectRight(resolver.backendCommand)
 		resolver.backendArguments = []string{"arg1"}
@@ -162,7 +169,7 @@ func TestExecCommandError(t *testing.T) {
 	})
 
 	t.Run("input", func(t *testing.T) {
-		resolver := newEnabledSecretResolver()
+		resolver := newEnabledSecretResolver(tel)
 		resolver.Configure(secrets.ConfigParams{Command: "./test/input/input" + binExtension})
 		setCorrectRight(resolver.backendCommand)
 		resp, err := resolver.execCommand(inputPayload)
@@ -171,7 +178,7 @@ func TestExecCommandError(t *testing.T) {
 	})
 
 	t.Run("buffer limit", func(t *testing.T) {
-		resolver := newEnabledSecretResolver()
+		resolver := newEnabledSecretResolver(tel)
 		resolver.Configure(secrets.ConfigParams{Command: "./test/response_too_long/response_too_long" + binExtension})
 		setCorrectRight(resolver.backendCommand)
 		resolver.responseMaxSize = 20
@@ -181,47 +188,61 @@ func TestExecCommandError(t *testing.T) {
 	})
 }
 
-func TestFetchSecretExeceError(t *testing.T) {
-	resolver := newEnabledSecretResolver()
+func TestFetchSecretExecError(t *testing.T) {
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) { return nil, fmt.Errorf("some error") }
 	_, err := resolver.fetchSecret([]string{"handle1", "handle2"})
 	assert.NotNil(t, err)
 }
 
 func TestFetchSecretUnmarshalError(t *testing.T) {
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) { return []byte("{"), nil }
 	_, err := resolver.fetchSecret([]string{"handle1", "handle2"})
 	assert.NotNil(t, err)
+
+	metrics, err := tel.GetCountMetric("secret_backend", "unmarshal_errors_count")
+	require.NoError(t, err)
+	require.Len(t, metrics, 1)
+	assert.Equal(t, map[string]string{}, metrics[0].Tags())
+	assert.EqualValues(t, 1, metrics[0].Value())
 }
 
 func TestFetchSecretMissingSecret(t *testing.T) {
+	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
 	secrets := []string{"handle1", "handle2"}
-	resolver := newEnabledSecretResolver()
+	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) { return []byte("{}"), nil }
 	_, err := resolver.fetchSecret(secrets)
 	assert.NotNil(t, err)
 	assert.Equal(t, "secret handle 'handle1' was not resolved by the secret_backend_command", err.Error())
+	checkErrorCountMetric(t, tel, 1, "missing", "handle1")
 }
 
 func TestFetchSecretErrorForHandle(t *testing.T) {
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\": null, \"error\": \"some error\"}}"), nil
 	}
 	_, err := resolver.fetchSecret([]string{"handle1"})
 	assert.NotNil(t, err)
 	assert.Equal(t, "an error occurred while resolving 'handle1': some error", err.Error())
+	checkErrorCountMetric(t, tel, 1, "error", "handle1")
 }
 
 func TestFetchSecretEmptyValue(t *testing.T) {
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\": null}}"), nil
 	}
 	_, err := resolver.fetchSecret([]string{"handle1"})
 	assert.NotNil(t, err)
 	assert.Equal(t, "resolved secret for 'handle1' is empty", err.Error())
+	checkErrorCountMetric(t, tel, 1, "empty", "handle1")
 
 	resolver.commandHookFunc = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\": \"\"}}"), nil
@@ -229,11 +250,27 @@ func TestFetchSecretEmptyValue(t *testing.T) {
 	_, err = resolver.fetchSecret([]string{"handle1"})
 	assert.NotNil(t, err)
 	assert.Equal(t, "resolved secret for 'handle1' is empty", err.Error())
+	checkErrorCountMetric(t, tel, 2, "empty", "handle1")
+}
+
+func checkErrorCountMetric(t *testing.T, tel telemetry.Mock, expected int, errorKind, handle string) {
+	metrics, err := tel.GetCountMetric("secret_backend", "resolve_errors_count")
+	require.NoError(t, err)
+	require.NotEmpty(t, metrics)
+	assert.EqualValues(t, expected, metrics[0].Value())
+	expectedTags := map[string]string{
+		"error_kind": errorKind,
+		"handle":     handle,
+	}
+	assert.NotEqual(t, -1, slices.IndexFunc(metrics, func(m telemetry.Metric) bool {
+		return int(m.Value()) == expected && maps.Equal(m.Tags(), expectedTags)
+	}))
 }
 
 func TestFetchSecret(t *testing.T) {
 	secrets := []string{"handle1", "handle2"}
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	// some dummy value to check the cache is not purge
 	resolver.cache["test"] = "yes"
 	resolver.commandHookFunc = func(string) ([]byte, error) {
@@ -254,7 +291,8 @@ func TestFetchSecret(t *testing.T) {
 }
 
 func TestFetchSecretRemoveTrailingLineBreak(t *testing.T) {
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.commandHookFunc = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\":\"some data\\r\\n\"}}"), nil
 	}

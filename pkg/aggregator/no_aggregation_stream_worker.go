@@ -93,7 +93,7 @@ func newNoAggregationStreamWorker(maxMetricsPerPayload int, metricSamplePool *me
 		metricBuffer: tagset.NewHashlessTagsAccumulator(),
 
 		stopChan:    make(chan trigger),
-		samplesChan: make(chan metrics.MetricSampleBatch, config.Datadog.GetInt("dogstatsd_queue_size")),
+		samplesChan: make(chan metrics.MetricSampleBatch, config.Datadog().GetInt("dogstatsd_queue_size")),
 
 		// warning for the unsupported metric types should appear maximum 200 times
 		// every 5 minutes.
@@ -144,7 +144,7 @@ func (w *noAggregationStreamWorker) run() {
 
 	ticker := time.NewTicker(noAggWorkerStreamCheckFrequency)
 	defer ticker.Stop()
-	logPayloads := config.Datadog.GetBool("log_payloads")
+	logPayloads := config.Datadog().GetBool("log_payloads")
 	w.seriesSink, w.sketchesSink = createIterableMetrics(w.flushConfig, w.serializer, logPayloads, false)
 
 	stopped := false

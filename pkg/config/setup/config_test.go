@@ -16,12 +16,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 func unsetEnvForTest(t *testing.T, env string) {
@@ -426,15 +430,18 @@ func TestProxy(t *testing.T) {
 
 			path := t.TempDir()
 			configPath := filepath.Join(path, "empty_conf.yaml")
-			os.WriteFile(configPath, nil, 0600)
+			os.WriteFile(configPath, nil, 0o600)
 			config.SetConfigFile(configPath)
 
-			resolver := secretsimpl.NewMock()
+			resolver := fxutil.Test[secrets.Component](t, fx.Options(
+				secretsimpl.MockModule(),
+				nooptelemetry.Module(),
+			))
 			if c.setup != nil {
 				c.setup(t, config)
 			}
 
-			_, err := LoadCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+			_, err := LoadDatadogCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -531,21 +538,23 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 
 			path := t.TempDir()
 			configPath := filepath.Join(path, "empty_conf.yaml")
-			os.WriteFile(configPath, nil, 0600)
+			os.WriteFile(configPath, nil, 0o600)
 			config.SetConfigFile(configPath)
 
-			resolver := secretsimpl.NewMock()
+			resolver := fxutil.Test[secrets.Component](t, fx.Options(
+				secretsimpl.MockModule(),
+				nooptelemetry.Module(),
+			))
 			if c.setup != nil {
 				c.setup(t, config)
 			}
 
-			_, err := LoadCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+			_, err := LoadDatadogCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
 		})
 	}
-
 }
 
 func TestSanitizeAPIKeyConfig(t *testing.T) {
@@ -1180,7 +1189,7 @@ func TestProxyLoadedFromConfigFile(t *testing.T) {
 
 	tempDir := t.TempDir()
 	configTest := path.Join(tempDir, "datadog.yaml")
-	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:1234\"\n  https: \"https://localhost:1234\""), 0644)
+	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:1234\"\n  https: \"https://localhost:1234\""), 0o644)
 
 	conf.AddConfigPath(tempDir)
 	LoadWithoutSecret(conf, []string{})
@@ -1203,7 +1212,7 @@ func TestProxyLoadedFromConfigFileAndEnvVars(t *testing.T) {
 
 	tempDir := t.TempDir()
 	configTest := path.Join(tempDir, "datadog.yaml")
-	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:5678\"\n  https: \"http://localhost:5678\""), 0644)
+	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:5678\"\n  https: \"http://localhost:5678\""), 0o644)
 
 	conf.AddConfigPath(tempDir)
 	LoadWithoutSecret(conf, []string{})
@@ -1233,18 +1242,16 @@ process_config:
 `)
 
 func TestConfigAssignAtPath(t *testing.T) {
-	t.Skip("This test is flaky due to configAssignAtPath not playing well with config.AllSettings, see ASCII-1421")
-
 	// CircleCI sets NO_PROXY, so unset it for this test
 	unsetEnvForTest(t, "NO_PROXY")
 
 	config := Conf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
-	os.WriteFile(configPath, testExampleConf, 0600)
+	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
+	err := LoadCustom(config, nil)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
@@ -1286,6 +1293,41 @@ use_proxy_for_cloud_metadata: true
 	assert.Equal(t, err.Error(), "index out of range 5 >= 2")
 }
 
+func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
+	// CircleCI sets NO_PROXY, so unset it for this test
+	unsetEnvForTest(t, "NO_PROXY")
+
+	config := Conf()
+	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+	os.WriteFile(configPath, testExampleConf, 0o600)
+	config.SetConfigFile(configPath)
+
+	err := LoadCustom(config, nil)
+	assert.NoError(t, err)
+
+	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
+	assert.NoError(t, err)
+
+	err = configAssignAtPath(config, []string{"additional_endpoints", "https://url1.com", "1"}, "changed")
+	assert.NoError(t, err)
+
+	err = configAssignAtPath(config, []string{"process_config", "additional_endpoints", "https://url2.eu", "0"}, "modified")
+	assert.NoError(t, err)
+
+	var expected interface{} = `different`
+	res := config.Get("secret_backend_command")
+	require.Equal(t, expected, res)
+
+	expected = []interface{}([]interface{}{"first", "changed"})
+	res = config.Get("additional_endpoints.https://url1.com")
+	require.Equal(t, expected, res)
+
+	expected = []interface{}([]interface{}{"modified"})
+	res = config.Get("process_config.additional_endpoints.https://url2.eu")
+	require.Equal(t, expected, res)
+}
+
 var testSimpleConf = []byte(`secret_backend_command: some command
 secret_backend_arguments:
 - ENC[pass1]
@@ -1298,10 +1340,10 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	config := Conf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
-	os.WriteFile(configPath, testSimpleConf, 0600)
+	os.WriteFile(configPath, testSimpleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
+	err := LoadCustom(config, nil)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_arguments", "0"}, "password1")
@@ -1347,44 +1389,52 @@ use_proxy_for_cloud_metadata: true
 
 	config := Conf()
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
-	os.WriteFile(configPath, testMinimalConf, 0600)
+	os.WriteFile(configPath, testMinimalConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	resolver := secretsimpl.NewMock()
-	resolver.SetBackendCommand("command")
-	resolver.SetFetchHookFunc(func(handles []string) (map[string]string, error) {
+	resolver := fxutil.Test[secrets.Component](t, fx.Options(
+		secretsimpl.MockModule(),
+		nooptelemetry.Module(),
+	))
+
+	mockresolver := resolver.(secrets.Mock)
+	mockresolver.SetBackendCommand("command")
+	mockresolver.SetFetchHookFunc(func(handles []string) (map[string]string, error) {
 		return map[string]string{
 			"some_url": "first_value",
 			"diff_url": "second_value",
 		}, nil
 	})
 
-	_, err := LoadCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+	err := LoadCustom(config, nil)
 	assert.NoError(t, err)
+
+	err = ResolveSecrets(config, resolver, "unit_test")
+	require.NoError(t, err)
 
 	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())
 	assert.NoError(t, err)
-	assert.Equal(t, expectedYaml, string(yamlConf))
+	assert.YAMLEq(t, expectedYaml, string(yamlConf))
 
 	// use resolver to modify a 2nd config with a different origin
 	diffYaml, err := resolver.Resolve(testMinimalDiffConf, "diff_test")
 	assert.NoError(t, err)
-	assert.Equal(t, expectedDiffYaml, string(diffYaml))
+	assert.YAMLEq(t, expectedDiffYaml, string(diffYaml))
 
 	// verify that the original config was not changed because origin is different
 	yamlConf, err = yaml.Marshal(config.AllSettingsWithoutDefault())
 	assert.NoError(t, err)
-	assert.Equal(t, expectedYaml, string(yamlConf))
+	assert.YAMLEq(t, expectedYaml, string(yamlConf))
 
 	// use resolver again, but with the original origin now
 	diffYaml, err = resolver.Resolve(testMinimalDiffConf, "unit_test")
 	assert.NoError(t, err)
-	assert.Equal(t, expectedDiffYaml, string(diffYaml))
+	assert.YAMLEq(t, expectedDiffYaml, string(diffYaml))
 
 	// now the original config was modified because of the origin match
 	yamlConf, err = yaml.Marshal(config.AllSettingsWithoutDefault())
 	assert.NoError(t, err)
-	assert.Equal(t, expectedDiffYaml, string(yamlConf))
+	assert.YAMLEq(t, expectedDiffYaml, string(yamlConf))
 }
 
 func TestConfigAssignAtPathForIntMapKeys(t *testing.T) {
@@ -1393,7 +1443,7 @@ func TestConfigAssignAtPathForIntMapKeys(t *testing.T) {
 
 	// Even if a map is using keys that looks like stringified ints, calling
 	// configAssignAtPath will still work correctly
-	var testIntKeysConf = []byte(`
+	testIntKeysConf := []byte(`
 additional_endpoints:
   0: apple
   1: banana
@@ -1402,10 +1452,10 @@ additional_endpoints:
 	config := Conf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
-	os.WriteFile(configPath, testIntKeysConf, 0600)
+	os.WriteFile(configPath, testIntKeysConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
+	err := LoadCustom(config, nil)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"additional_endpoints", "2"}, "cherry")
@@ -1452,4 +1502,36 @@ func TestAgentConfigInit(t *testing.T) {
 	assert.True(t, conf.IsKnown("forwarder_timeout"))
 	assert.True(t, conf.IsKnown("sbom.enabled"))
 	assert.True(t, conf.IsKnown("inventories_enabled"))
+}
+
+func TestENVAdditionalKeysToScrubber(t *testing.T) {
+	// Test that the scrubber is correctly configured with the expected keys
+	cfg := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	data := `scrubber.additional_keys:
+- yet_another_key
+flare_stripped_keys:
+- some_other_key`
+
+	path := t.TempDir()
+	configPath := filepath.Join(path, "empty_conf.yaml")
+	err := os.WriteFile(configPath, []byte(data), 0o600)
+	require.NoError(t, err)
+	cfg.SetConfigFile(configPath)
+
+	_, err = LoadDatadogCustom(cfg, "test", optional.NewNoneOption[secrets.Component](), []string{})
+	require.NoError(t, err)
+
+	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+some_other_key: 'bbbb'
+app_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccc'
+yet_another_key: 'dddd'`
+
+	scrubbed, err := scrubber.ScrubYamlString(stringToScrub)
+	assert.Nil(t, err)
+	expected := `api_key: '***************************aaaaa'
+some_other_key: "********"
+app_key: '***********************************acccc'
+yet_another_key: "********"`
+	assert.YAMLEq(t, expected, scrubbed)
 }

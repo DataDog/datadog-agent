@@ -8,26 +8,30 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"net"
+	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
-	"github.com/DataDog/test-infra-definitions/components/remote"
-
 	oscomp "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/components/remote"
 	"github.com/cenkalti/backoff"
 	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 )
 
 const (
@@ -51,6 +55,10 @@ type Host struct {
 	privateKeyPassphrase []byte
 	buildCommand         buildCommandFn
 	convertPathSeparator convertPathSeparatorFn
+	osFamily             oscomp.Family
+	// as per the documentation of http.Transport: "Transports should be reused instead of created as needed."
+	httpTransport *http.Transport
+	scrubber      *scrubber.Scrubber
 }
 
 // NewHost creates a new ssh client to connect to a remote host with
@@ -82,13 +90,19 @@ func NewHost(context e2e.Context, hostOutput remote.HostOutput) (*Host, error) {
 		privateKeyPassphrase: []byte(privateKeyPassword),
 		buildCommand:         buildCommandFactory(hostOutput.OSFamily),
 		convertPathSeparator: convertPathSeparatorFactory(hostOutput.OSFamily),
+		osFamily:             hostOutput.OSFamily,
+		scrubber:             scrubber.NewWithDefaults(),
 	}
+
+	host.httpTransport = host.newHTTPTransport()
+
 	err = host.Reconnect()
 	return host, err
 }
 
 // Reconnect closes the current ssh client and creates a new one, with retries.
 func (h *Host) Reconnect() error {
+	h.context.T().Log("Reconnecting to host")
 	if h.client != nil {
 		_ = h.client.Close()
 	}
@@ -113,6 +127,8 @@ func (h *Host) Execute(command string, options ...ExecuteOption) (string, error)
 }
 
 func (h *Host) executeAndReconnectOnError(command string) (string, error) {
+	scrubbedCommand := h.scrubber.ScrubLine(command) // scrub the command in case it contains secrets
+	h.context.T().Logf("Executing command `%s`", scrubbedCommand)
 	stdout, err := execute(h.client, command)
 	if err != nil && strings.Contains(err.Error(), "failed to create session:") {
 		err = h.Reconnect()
@@ -122,7 +138,7 @@ func (h *Host) executeAndReconnectOnError(command string) (string, error) {
 		stdout, err = execute(h.client, command)
 	}
 	if err != nil {
-		return "", fmt.Errorf("%v: %v", stdout, err)
+		return "", fmt.Errorf("%v: %w", stdout, err)
 	}
 	return stdout, err
 }
@@ -136,6 +152,7 @@ func (h *Host) MustExecute(command string, options ...ExecuteOption) string {
 
 // CopyFile create a sftp session and copy a single file to the remote host through SSH
 func (h *Host) CopyFile(src string, dst string) {
+	h.context.T().Logf("Copying file from local %s to remote %s", src, dst)
 	dst = h.convertPathSeparator(dst)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
@@ -145,6 +162,7 @@ func (h *Host) CopyFile(src string, dst string) {
 
 // CopyFolder create a sftp session and copy a folder to remote host through SSH
 func (h *Host) CopyFolder(srcFolder string, dstFolder string) error {
+	h.context.T().Logf("Copying folder from local %s to remote %s", srcFolder, dstFolder)
 	dstFolder = h.convertPathSeparator(dstFolder)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
@@ -153,6 +171,7 @@ func (h *Host) CopyFolder(srcFolder string, dstFolder string) error {
 
 // FileExists create a sftp session to and returns true if the file exists and is a regular file
 func (h *Host) FileExists(path string) (bool, error) {
+	h.context.T().Logf("Checking if file exists: %s", path)
 	path = h.convertPathSeparator(path)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
@@ -170,6 +189,7 @@ func (h *Host) FileExists(path string) (bool, error) {
 
 // GetFile create a sftp session and copy a single file from the remote host through SSH
 func (h *Host) GetFile(src string, dst string) error {
+	h.context.T().Logf("Copying file from remote %s to local %s", src, dst)
 	dst = h.convertPathSeparator(dst)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
@@ -194,6 +214,7 @@ func (h *Host) GetFile(src string, dst string) error {
 
 // ReadFile reads the content of the file, return bytes read and error if any
 func (h *Host) ReadFile(path string) ([]byte, error) {
+	h.context.T().Logf("Reading file at %s", path)
 	path = h.convertPathSeparator(path)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
@@ -214,6 +235,7 @@ func (h *Host) ReadFile(path string) ([]byte, error) {
 
 // WriteFile write content to the file and returns the number of bytes written and error if any
 func (h *Host) WriteFile(path string, content []byte) (int64, error) {
+	h.context.T().Logf("Writing to file at %s", path)
 	path = h.convertPathSeparator(path)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
@@ -230,6 +252,7 @@ func (h *Host) WriteFile(path string, content []byte) (int64, error) {
 
 // AppendFile append content to the file and returns the number of bytes appened and error if any
 func (h *Host) AppendFile(os, path string, content []byte) (int64, error) {
+	h.context.T().Logf("Appending to file at %s", path)
 	path = h.convertPathSeparator(path)
 	if os == "linux" {
 		return h.appendWithSudo(path, content)
@@ -239,6 +262,7 @@ func (h *Host) AppendFile(os, path string, content []byte) (int64, error) {
 
 // ReadDir returns list of directory entries in path
 func (h *Host) ReadDir(path string) ([]fs.DirEntry, error) {
+	h.context.T().Logf("Reading filesystem at %s", path)
 	path = h.convertPathSeparator(path)
 	sftpClient := h.getSFTPClient()
 
@@ -261,6 +285,7 @@ func (h *Host) ReadDir(path string) ([]fs.DirEntry, error) {
 // Lstat returns a FileInfo structure describing path.
 // if path is a symbolic link, the FileInfo structure describes the symbolic link.
 func (h *Host) Lstat(path string) (fs.FileInfo, error) {
+	h.context.T().Logf("Reading file info of %s", path)
 	path = h.convertPathSeparator(path)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
@@ -272,6 +297,7 @@ func (h *Host) Lstat(path string) (fs.FileInfo, error) {
 // If the path is already a directory, does nothing and returns nil.
 // Otherwise returns an error if any.
 func (h *Host) MkdirAll(path string) error {
+	h.context.T().Logf("Creating directory %s", path)
 	path = h.convertPathSeparator(path)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
@@ -282,6 +308,7 @@ func (h *Host) MkdirAll(path string) error {
 // Remove removes the specified file or directory.
 // Returns an error if file or directory does not exist, or if the directory is not empty.
 func (h *Host) Remove(path string) error {
+	h.context.T().Logf("Removing %s", path)
 	path = h.convertPathSeparator(path)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
@@ -292,6 +319,7 @@ func (h *Host) Remove(path string) error {
 // RemoveAll recursively removes all files/folders in the specified directory.
 // Returns an error if the directory does not exist.
 func (h *Host) RemoveAll(path string) error {
+	h.context.T().Logf("Removing all under %s", path)
 	path = h.convertPathSeparator(path)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
@@ -301,6 +329,7 @@ func (h *Host) RemoveAll(path string) error {
 
 // DialPort creates a connection from the remote host to its `port`.
 func (h *Host) DialPort(port uint16) (net.Conn, error) {
+	h.context.T().Logf("Creating connection to host port %d", port)
 	address := fmt.Sprintf("127.0.0.1:%d", port)
 	protocol := "tcp"
 	// TODO add context to host
@@ -314,6 +343,32 @@ func (h *Host) DialPort(port uint16) (net.Conn, error) {
 		connection, err = h.client.DialContext(context, protocol, address)
 	}
 	return connection, err
+}
+
+// GetTmpFolder returns the temporary folder path for the host
+func (h *Host) GetTmpFolder() (string, error) {
+	switch osFamily := h.osFamily; osFamily {
+	case oscomp.WindowsFamily:
+		return h.Execute("echo %TEMP%")
+	case oscomp.LinuxFamily:
+		return "/tmp", nil
+	default:
+		return "", errors.ErrUnsupported
+	}
+}
+
+// GetLogsFolder returns the logs folder path for the host
+func (h *Host) GetLogsFolder() (string, error) {
+	switch osFamily := h.osFamily; osFamily {
+	case oscomp.WindowsFamily:
+		return `C:\ProgramData\Datadog\logs`, nil
+	case oscomp.LinuxFamily:
+		return "/var/log/datadog/", nil
+	case oscomp.MacOSFamily:
+		return "/opt/datadog-agent/logs", nil
+	default:
+		return "", errors.ErrUnsupported
+	}
 }
 
 // appendWithSudo appends content to the file using sudo tee for Linux environment
@@ -348,14 +403,68 @@ func (h *Host) appendWithSftp(path string, content []byte) (int64, error) {
 }
 
 func (h *Host) getSFTPClient() *sftp.Client {
-	sftpClient, err := sftp.NewClient(h.client)
+	sftpClient, err := sftp.NewClient(h.client, sftp.UseConcurrentWrites(true))
 	if err != nil {
 		err = h.Reconnect()
 		require.NoError(h.context.T(), err)
-		sftpClient, err = sftp.NewClient(h.client)
+		sftpClient, err = sftp.NewClient(h.client, sftp.UseConcurrentWrites(true))
 		require.NoError(h.context.T(), err)
 	}
 	return sftpClient
+}
+
+// HTTPTransport returns an http.RoundTripper which dials the remote host.
+// This transport can only reach the host.
+func (h *Host) HTTPTransport() http.RoundTripper {
+	return h.httpTransport
+}
+
+// NewHTTPClient returns an *http.Client which dials the remote host.
+// This client can only reach the host.
+func (h *Host) NewHTTPClient() *http.Client {
+	return &http.Client{
+		Transport: h.httpTransport,
+	}
+}
+
+func (h *Host) newHTTPTransport() *http.Transport {
+	return &http.Transport{
+		DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
+			hostname, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, err
+			}
+
+			// best effort to detect logic errors around the hostname
+			// if the hostname provided to dial is not one of those, return an error as
+			// it's likely an incorrect use of this transport
+			validHostnames := map[string]struct{}{
+				"":                             {},
+				"localhost":                    {},
+				"127.0.0.1":                    {},
+				h.client.RemoteAddr().String(): {},
+			}
+
+			if _, ok := validHostnames[hostname]; !ok {
+				return nil, fmt.Errorf("request hostname %s does not match any valid host name", hostname)
+			}
+
+			portInt, err := strconv.Atoi(port)
+			if err != nil {
+				return nil, err
+			}
+			return h.DialPort(uint16(portInt))
+		},
+		// skip verify like we do when reaching out to the agent
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		// from http.DefaultTransport
+		Proxy:                 http.ProxyFromEnvironment,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
 }
 
 func buildCommandFactory(osFamily oscomp.Family) buildCommandFn {

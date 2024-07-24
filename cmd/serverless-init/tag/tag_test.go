@@ -13,11 +13,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
+	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 )
 
 func TestGetBaseTagsArrayNoEnvNoMetadata(t *testing.T) {
-	assert.Equal(t, 2, len(GetBaseTagsArrayWithMetadataTags(make(map[string]string, 0))))
+	assert.Equal(t, 2, len(GetBaseTagsMapWithMetadata(make(map[string]string, 0), "")))
 }
 
 func TestGetBaseTagsArrayWithMetadataTagsNoMetadata(t *testing.T) {
@@ -26,7 +26,7 @@ func TestGetBaseTagsArrayWithMetadataTagsNoMetadata(t *testing.T) {
 	t.Setenv("DD_ENV", "myEnv")
 	t.Setenv("DD_SERVICE", "superService")
 	t.Setenv("DD_VERSION", "123.4")
-	tags := GetBaseTagsArrayWithMetadataTags(make(map[string]string, 0))
+	tags := serverlessTag.MapToArray(GetBaseTagsMapWithMetadata(make(map[string]string, 0), "init"))
 	sort.Strings(tags)
 	assert.Equal(t, 5, len(tags))
 	assert.Contains(t, tags[0], "_dd.compute_stats:1")
@@ -38,19 +38,19 @@ func TestGetBaseTagsArrayWithMetadataTagsNoMetadata(t *testing.T) {
 
 func TestGetTagFound(t *testing.T) {
 	t.Setenv("TOTO", "coucou")
-	value, found := getTag("TOTO")
+	value, found := getTagFromEnv("TOTO")
 	assert.Equal(t, true, found)
 	assert.Equal(t, "coucou", value)
 }
 
 func TestGetTagNotFound(t *testing.T) {
-	value, found := getTag("XXX")
+	value, found := getTagFromEnv("XXX")
 	assert.Equal(t, false, found)
 	assert.Equal(t, "", value)
 }
 
 func TestGetBaseTagsMapNoEnvNoMetadata(t *testing.T) {
-	assert.Equal(t, 2, len(GetBaseTagsMapWithMetadata(make(map[string]string, 0))))
+	assert.Equal(t, 2, len(GetBaseTagsMapWithMetadata(make(map[string]string, 0), "")))
 }
 
 func TestGetBaseTagsMapNoMetadata(t *testing.T) {
@@ -59,7 +59,7 @@ func TestGetBaseTagsMapNoMetadata(t *testing.T) {
 	t.Setenv("DD_ENV", "myEnv")
 	t.Setenv("DD_SERVICE", "superService")
 	t.Setenv("DD_VERSION", "123.4")
-	tags := GetBaseTagsMapWithMetadata(make(map[string]string, 0))
+	tags := GetBaseTagsMapWithMetadata(make(map[string]string, 0), "")
 	assert.Equal(t, 5, len(tags))
 	assert.Equal(t, "myenv", tags["env"])
 	assert.Equal(t, "superservice", tags["service"])
@@ -71,7 +71,7 @@ func TestGetBaseTagsMapWithMetadata(t *testing.T) {
 	tags := GetBaseTagsMapWithMetadata(map[string]string{
 		"location":      "mysuperlocation",
 		"othermetadata": "mysuperothermetadatavalue",
-	})
+	}, "")
 	assert.Equal(t, 4, len(tags))
 	assert.Equal(t, "mysuperlocation", tags["location"])
 	assert.Equal(t, "mysuperothermetadatavalue", tags["othermetadata"])
@@ -79,10 +79,10 @@ func TestGetBaseTagsMapWithMetadata(t *testing.T) {
 
 func TestGetBaseTagsArrayWithMetadataTags(t *testing.T) {
 	t.Setenv("K_REVISION", "FDGF34")
-	tags := GetBaseTagsArrayWithMetadataTags(map[string]string{
+	tags := serverlessTag.MapToArray(GetBaseTagsMapWithMetadata(map[string]string{
 		"location":      "mysuperlocation",
 		"othermetadata": "mysuperothermetadatavalue",
-	})
+	}, "init"))
 	sort.Strings(tags)
 	assert.Equal(t, 4, len(tags))
 	assert.Contains(t, tags[0], "_dd.compute_stats:1")
@@ -97,7 +97,7 @@ func TestDdTags(t *testing.T) {
 	overwritingTags := map[string]string{
 		"originalKey": "overWrittenValue",
 	}
-	mergedTags := tags.MergeWithOverwrite(tags.ArrayToMap(configUtils.GetConfiguredTags(config.Datadog, false)), overwritingTags)
+	mergedTags := serverlessTag.MergeWithOverwrite(serverlessTag.ArrayToMap(configUtils.GetConfiguredTags(config.Datadog(), false)), overwritingTags)
 	assert.Equal(t, "overWrittenValue", mergedTags["originalKey"])
 	assert.Equal(t, "value2", mergedTags["key2"])
 	assert.Equal(t, "value3", mergedTags["key3"])

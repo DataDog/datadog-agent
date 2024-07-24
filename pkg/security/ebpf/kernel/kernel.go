@@ -139,8 +139,10 @@ func NewKernelVersion() (*Version, error) {
 	return kernelVersionCache.Version, err
 }
 
+const lsbRelease = "/etc/lsb-release"
+
 func newKernelVersion() (*Version, error) {
-	osReleasePaths := make([]string, 0, 2*3)
+	osReleasePaths := make([]string, 0, 2*3+1)
 
 	// First look at os-release files based on the `HOST_ROOT` env variable
 	if hostRoot := os.Getenv("HOST_ROOT"); hostRoot != "" {
@@ -170,6 +172,9 @@ func newKernelVersion() (*Version, error) {
 		osrelease.UsrLibOsRelease,
 		osrelease.EtcOsRelease,
 	)
+
+	// as a final fallback, we try to read /etc/lsb-release, useful for very old systems
+	osReleasePaths = append(osReleasePaths, lsbRelease)
 
 	kv, err := kernel.HostVersion()
 	if err != nil {
@@ -258,6 +263,16 @@ func (k *Version) IsSuse15Kernel() bool {
 // IsSLESKernel returns whether the kernel is a sles kernel
 func (k *Version) IsSLESKernel() bool {
 	return k.OsRelease["ID"] == "sles"
+}
+
+// IsOpenSUSELeapKernel returns whether the kernel is an opensuse kernel
+func (k *Version) IsOpenSUSELeapKernel() bool {
+	return k.OsRelease["ID"] == "opensuse-leap"
+}
+
+// IsOpenSUSELeap15_3Kernel returns whether the kernel is an opensuse 15.3 kernel
+func (k *Version) IsOpenSUSELeap15_3Kernel() bool {
+	return k.IsOpenSUSELeapKernel() && strings.HasPrefix(k.OsRelease["VERSION_ID"], "15.3")
 }
 
 // IsOracleUEKKernel returns whether the kernel is an oracle uek kernel

@@ -10,12 +10,13 @@ package tests
 
 import (
 	"fmt"
-	imdsutils "github.com/DataDog/datadog-agent/pkg/security/tests/imds_utils"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	imdsutils "github.com/DataDog/datadog-agent/pkg/security/tests/imds_utils"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -92,7 +93,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -133,7 +134,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -212,7 +213,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -257,7 +258,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -296,7 +297,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -339,7 +340,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -395,7 +396,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -570,7 +571,7 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(rule *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.ContainerID == dump.ContainerID {
+			if event.ProcessContext.ContainerID == model.ContainerID(dump.ContainerID) {
 				t.Fatal("Got a signal that should have been suppressed")
 			}
 			return false
@@ -589,7 +590,116 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(rule *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.ContainerID == dump.ContainerID {
+			if event.ProcessContext.ContainerID == model.ContainerID(dump.ContainerID) {
+				t.Fatal("Got a signal that should have been suppressed")
+			}
+			return false
+		}, time.Second*3, "test_autosuppression_dns")
+		if err != nil {
+			if otherErr, ok := err.(ErrTimeout); !ok {
+				t.Fatal(otherErr)
+			}
+		}
+	})
+}
+
+func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+	if !IsDedicatedNodeForAD() {
+		t.Skip("Skip test when not run in dedicated env")
+	}
+
+	var expectedFormats = []string{"profile", "protobuf"}
+	var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls", "dns", "bind"}
+
+	outputDir := t.TempDir()
+	os.MkdirAll(outputDir, 0755)
+	defer os.RemoveAll(outputDir)
+
+	rulesDef := []*rules.RuleDefinition{
+		{
+			ID:         "test_autosuppression_exec",
+			Expression: `exec.file.name == "getconf"`,
+			Tags:       map[string]string{"allow_autosuppression": "true"},
+		},
+		{
+			ID:         "test_autosuppression_dns",
+			Expression: `dns.question.type == A && dns.question.name == "foo.bar"`,
+			Tags:       map[string]string{"allow_autosuppression": "true"},
+		},
+	}
+
+	test, err := newTestModule(t, nil, rulesDef, withStaticOpts(testOpts{
+		enableActivityDump:                  true,
+		activityDumpRateLimiter:             testActivityDumpRateLimiter,
+		activityDumpTracedCgroupsCount:      1,
+		activityDumpDuration:                testActivityDumpDuration,
+		activityDumpLocalStorageDirectory:   outputDir,
+		activityDumpLocalStorageCompression: false,
+		activityDumpLocalStorageFormats:     expectedFormats,
+		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
+		activityDumpAutoSuppressionEnabled:  true,
+		autoSuppressionEventTypes:           []string{"exec", "dns"},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	dockerInstance1, err := test.StartADocker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dockerInstance1.stop()
+
+	dockerInstance2, err := test.StartADocker()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dockerInstance2.stop()
+
+	// dockerInstance2 should not be traced
+	_, err = test.GetDumpFromDocker(dockerInstance2)
+	if err == nil {
+		t.Fatal("second docker instance should not have an active dump")
+	}
+
+	time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
+	t.Run("auto-suppression-process-suppression", func(t *testing.T) {
+		// check we autosuppress signals during the activity dump duration
+		err = test.GetEventSent(t, func() error {
+			cmd := dockerInstance2.Command("getconf", []string{"-a"}, []string{})
+			_, err := cmd.CombinedOutput()
+			return err
+		}, func(rule *rules.Rule, event *model.Event) bool {
+			if event.ProcessContext.ContainerID == model.ContainerID(dockerInstance2.containerID) {
+				t.Fatal("Got a signal that should have been suppressed")
+			}
+			return false
+		}, time.Second*3, "test_autosuppression_exec")
+		if err != nil {
+			if otherErr, ok := err.(ErrTimeout); !ok {
+				t.Fatal(otherErr)
+			}
+		}
+	})
+
+	t.Run("auto-suppression-dns-suppression", func(t *testing.T) {
+		// check we autosuppress signals during the activity dump duration
+		err = test.GetEventSent(t, func() error {
+			cmd := dockerInstance2.Command("nslookup", []string{"foo.bar"}, []string{})
+			_, err = cmd.CombinedOutput()
+			return err
+		}, func(rule *rules.Rule, event *model.Event) bool {
+			if event.ProcessContext.ContainerID == model.ContainerID(dockerInstance2.containerID) {
 				t.Fatal("Got a signal that should have been suppressed")
 			}
 			return false
@@ -601,38 +711,4 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 		}
 	})
 
-	err = test.StopActivityDump(dump.Name, "", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Run("auto-suppression-process-signal", func(t *testing.T) {
-		// check that we generate an event during profile learning phase
-		err = test.GetEventSent(t, func() error {
-			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
-			_, err = cmd.CombinedOutput()
-			return err
-		}, func(rule *rules.Rule, event *model.Event) bool {
-			return assertTriggeredRule(t, rule, "test_autosuppression_exec") &&
-				assert.Equal(t, "getconf", event.ProcessContext.FileEvent.BasenameStr, "wrong exec file")
-		}, time.Second*3, "test_autosuppression_exec")
-		if err != nil {
-			t.Fatal(err)
-		}
-	})
-
-	t.Run("auto-suppression-dns-signal", func(t *testing.T) {
-		// check that we generate an event during profile learning phase
-		err = test.GetEventSent(t, func() error {
-			cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
-			_, err = cmd.CombinedOutput()
-			return err
-		}, func(rule *rules.Rule, event *model.Event) bool {
-			return assertTriggeredRule(t, rule, "test_autosuppression_dns") &&
-				assert.Equal(t, "nslookup", event.ProcessContext.Argv0, "wrong exec file")
-		}, time.Second*3, "test_autosuppression_dns")
-		if err != nil {
-			t.Fatal(err)
-		}
-	})
 }

@@ -7,16 +7,17 @@
 package settingsimpl
 
 import (
-	"encoding/json"
 	"html"
 	"net/http"
 	"sync"
 
 	"github.com/gorilla/mux"
+	json "github.com/json-iterator/go"
+	"github.com/mohae/deepcopy"
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -139,6 +140,31 @@ func (s *settingsRegistry) GetFullConfig(namespaces ...string) http.HandlerFunc 
 		}
 
 		_, _ = w.Write(scrubbed)
+	}
+}
+
+func (s *settingsRegistry) GetFullConfigBySource() http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		settings := s.config.AllSettingsBySource()
+		// scrub each config layer separately to avoid hitting scrubber size limits
+		for source, setting := range settings {
+			// deepcopy the config layer to avoid accidentally updating the original config object
+			setting = deepcopy.Copy(setting)
+			scrubber.ScrubDataObj(&setting)
+			settings[source] = setting
+		}
+
+		jsonData, err := json.Marshal(settings)
+		if err != nil {
+			s.log.Errorf("Unable to marshal config by layer: %s", err)
+			body, _ := json.Marshal(map[string]string{"error": err.Error()})
+			http.Error(w, string(body), http.StatusInternalServerError)
+			return
+		}
+
+		_, _ = w.Write(jsonData)
 	}
 }
 

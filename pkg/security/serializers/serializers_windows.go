@@ -1,3 +1,5 @@
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/generators/backend_doc -output ../../../docs/cloud-workload-security/backend_windows.schema.json
+
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -19,6 +21,8 @@ import (
 type FileSerializer struct {
 	// File path
 	Path string `json:"path,omitempty"`
+	// File device path
+	DevicePath string `json:"device_path,omitempty"`
 	// File basename
 	Name string `json:"name,omitempty"`
 }
@@ -40,6 +44,22 @@ type RegistrySerializer struct {
 	KeyPath string `json:"key_path,omitempty"`
 	// Value name of the key value
 	ValueName string `json:"value_name,omitempty"`
+}
+
+// ChangePermissionSerializer serializes a permission change to JSON
+type ChangePermissionSerializer struct {
+	// User name
+	UserName string `json:"username,omitempty"`
+	// User domain
+	UserDomain string `json:"user_domain,omitempty"`
+	// Object name
+	ObjectName string `json:"path,omitempty"`
+	// Object type
+	ObjectType string `json:"type,omitempty"`
+	// Original Security Descriptor
+	OldSd string `json:"old_sd,omitempty"`
+	// New Security Descriptor
+	NewSd string `json:"new_sd,omitempty"`
 }
 
 // ProcessSerializer serializes a process to JSON
@@ -74,14 +94,20 @@ type RegistryEventSerializer struct {
 	RegistrySerializer
 }
 
+// ChangePermissionEventSerializer serializes a permission change event to JSON
+type ChangePermissionEventSerializer struct {
+	ChangePermissionSerializer
+}
+
 // NetworkDeviceSerializer serializes the network device context to JSON
 type NetworkDeviceSerializer struct{}
 
 // EventSerializer serializes an event to JSON
 type EventSerializer struct {
 	*BaseEventSerializer
-	*RegistryEventSerializer `json:"registry,omitempty"`
-	*UserContextSerializer   `json:"usr,omitempty"`
+	*RegistryEventSerializer         `json:"registry,omitempty"`
+	*UserContextSerializer           `json:"usr,omitempty"`
+	*ChangePermissionEventSerializer `json:"permission_change,omitempty"`
 }
 
 func newFileSerializer(fe *model.FileEvent, e *model.Event, _ ...uint64) *FileSerializer {
@@ -93,8 +119,9 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, _ ...uint64) *FileSe
 
 func newFimFileSerializer(fe *model.FimFileEvent, e *model.Event, _ ...uint64) *FileSerializer {
 	return &FileSerializer{
-		Path: e.FieldHandlers.ResolveFimFilePath(e, fe),
-		Name: e.FieldHandlers.ResolveFimFileBasename(e, fe),
+		Path:       e.FieldHandlers.ResolveFileUserPath(e, fe),
+		DevicePath: e.FieldHandlers.ResolveFimFilePath(e, fe),
+		Name:       e.FieldHandlers.ResolveFimFileBasename(e, fe),
 	}
 }
 
@@ -118,6 +145,7 @@ func newRegistrySerializer(re *model.RegistryEvent, e *model.Event, _ ...uint64)
 	}
 	return rs
 }
+
 func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer {
 	psSerializer := &ProcessSerializer{
 		ExecTime: utils.NewEasyjsonTimeIfNotZero(ps.ExecTime),
@@ -233,6 +261,22 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 		s.RegistryEventSerializer = &RegistryEventSerializer{
 			RegistrySerializer: *newRegistrySerializer(&event.DeleteRegistryKey.Registry, event),
 		}
+	case model.ChangePermissionEventType:
+		s.ChangePermissionEventSerializer = &ChangePermissionEventSerializer{
+			ChangePermissionSerializer: ChangePermissionSerializer{
+				UserName:   event.ChangePermission.UserName,
+				UserDomain: event.ChangePermission.UserDomain,
+				ObjectName: event.ChangePermission.ObjectName,
+				ObjectType: event.ChangePermission.ObjectType,
+				OldSd:      event.FieldHandlers.ResolveOldSecurityDescriptor(event, &event.ChangePermission),
+				NewSd:      event.FieldHandlers.ResolveNewSecurityDescriptor(event, &event.ChangePermission),
+			},
+		}
+	case model.ExecEventType:
+		s.FileEventSerializer = &FileEventSerializer{
+			FileSerializer: *newFileSerializer(&event.ProcessContext.Process.FileEvent, event),
+		}
+		s.EventContextSerializer.Outcome = serializeOutcome(0)
 	}
 
 	return s

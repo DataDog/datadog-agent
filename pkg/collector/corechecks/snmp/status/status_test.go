@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -58,7 +58,7 @@ func TestStatus(t *testing.T) {
 }
 
 func TestStatusWithError(t *testing.T) {
-	cfg := config.Mock(t)
+	cfg := configmock.New(t)
 	cfg.SetWithoutSource("snmp_profile_errors", "error")
 	profileExpVar := expvar.NewMap("snmpProfileErrors")
 	errors := []string{"error1", "error2"}

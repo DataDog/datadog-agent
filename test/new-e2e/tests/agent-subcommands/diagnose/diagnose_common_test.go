@@ -22,9 +22,11 @@ import (
 
 type baseDiagnoseSuite struct {
 	e2e.BaseSuite[environments.Host]
+
+	suites []string
 }
 
-var allSuites = []string{
+var commonSuites = []string{
 	"check-datadog",
 	"connectivity-datadog-autodiscovery",
 	"connectivity-datadog-core-endpoints",
@@ -45,7 +47,8 @@ func getDiagnoseOutput(v *baseDiagnoseSuite, commandArgs ...agentclient.AgentArg
 		assert.NoError(c, v.Env().FakeIntake.Client().GetServerHealth())
 	}, 5*time.Minute, 20*time.Second, "timedout waiting for fakeintake to be healthy")
 
-	return v.Env().Agent.Client.Diagnose(commandArgs...)
+	diagnose := v.Env().Agent.Client.Diagnose(commandArgs...)
+	return diagnose
 }
 
 func (v *baseDiagnoseSuite) TestDiagnoseDefaultConfig() {
@@ -60,16 +63,15 @@ func (v *baseDiagnoseSuite) TestDiagnoseLocal() {
 
 func (v *baseDiagnoseSuite) TestDiagnoseList() {
 	diagnose := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--list"}))
-	for _, suite := range allSuites {
+	for _, suite := range v.suites {
 		assert.Contains(v.T(), diagnose, suite)
 	}
 }
 
-func (v *baseDiagnoseSuite) TestDiagnoseInclude() {
+func (v *baseDiagnoseSuite) AssertDiagnoseInclude() {
 	diagnose := getDiagnoseOutput(v)
 	diagnoseSummary := getDiagnoseSummary(diagnose)
-
-	for _, suite := range allSuites {
+	for _, suite := range v.suites {
 		diagnoseInclude := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--include", suite}))
 		resultInclude := getDiagnoseSummary(diagnoseInclude)
 
@@ -79,7 +81,7 @@ func (v *baseDiagnoseSuite) TestDiagnoseInclude() {
 	}
 
 	// Create an args array to include all suites
-	includeArgs := strings.Split("--include "+strings.Join(allSuites, " --include "), " ")
+	includeArgs := strings.Split("--include "+strings.Join(v.suites, " --include "), " ")
 
 	// Diagnose with all suites included should be equal to diagnose without args
 	diagnoseIncludeEverySuite := getDiagnoseOutput(v, agentclient.WithArgs(includeArgs))
@@ -87,8 +89,8 @@ func (v *baseDiagnoseSuite) TestDiagnoseInclude() {
 	assert.Equal(v.T(), diagnoseIncludeEverySuiteSummary, diagnoseSummary)
 }
 
-func (v *baseDiagnoseSuite) TestDiagnoseExclude() {
-	for _, suite := range allSuites {
+func (v *baseDiagnoseSuite) AssertDiagnoseExclude() {
+	for _, suite := range v.suites {
 		diagnoseExclude := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--exclude", suite}))
 		resultExclude := getDiagnoseSummary(diagnoseExclude)
 
@@ -97,7 +99,7 @@ func (v *baseDiagnoseSuite) TestDiagnoseExclude() {
 	}
 
 	// Create an args array to exclude all suites
-	excludeArgs := strings.Split("--exclude "+strings.Join(allSuites, " --exclude "), " ")
+	excludeArgs := strings.Split("--exclude "+strings.Join(v.suites, " --exclude "), " ")
 
 	// Diagnose with all suites excluded should do nothing
 	diagnoseExcludeEverySuite := getDiagnoseOutput(v, agentclient.WithArgs(excludeArgs))

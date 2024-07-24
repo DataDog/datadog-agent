@@ -9,7 +9,6 @@ from invoke.context import Context
 from invoke.runners import Result
 
 from tasks.kernel_matrix_testing.infra import (
-    ask_for_ssh,
     build_infrastructure,
     ensure_key_in_agent,
     ensure_key_in_ec2,
@@ -117,7 +116,7 @@ def get_all_vms_in_stack(stack: PathOrStr):
     from tasks.kernel_matrix_testing.vmconfig import get_vmconfig
 
     data = get_vmconfig(f"{get_kmt_os().stacks_dir}/{stack}/{VMCONFIG}")
-    vms: list[str] = list()
+    vms: list[str] = []
 
     for vmset in data["vmsets"]:
         for kernel in vmset.get("kernels", []):
@@ -199,12 +198,11 @@ def launch_stack(
     ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
 
     if remote_vms_in_config(vm_config):
-        if ssh_key_obj is None and ask_for_ssh():
+        if ssh_key_obj is None:
             raise Exit("No ssh key provided. Pass with '--ssh-key=<key-name>' or configure it with kmt.config-ssh-key")
 
-        if ssh_key_obj is not None:
-            ensure_key_in_agent(ctx, ssh_key_obj)
-            ensure_key_in_ec2(ctx, ssh_key_obj)
+        ensure_key_in_agent(ctx, ssh_key_obj)
+        ensure_key_in_ec2(ctx, ssh_key_obj)
 
     env = [
         "TEAM=ebpf-platform",
@@ -287,7 +285,7 @@ def destroy_ec2_instances(ctx: Context, stack: str):
         return
 
     infra = build_infrastructure(stack)
-    ips: list[str] = list()
+    ips: list[str] = []
     for arch, instance in infra.items():
         if arch != "local":
             ips.append(instance.ip)
@@ -330,7 +328,7 @@ def destroy_stack_force(ctx: Context, stack: str):
     stack_dir = os.path.join(get_kmt_os().stacks_dir, stack)
     vm_config = os.path.join(stack_dir, VMCONFIG)
 
-    if local_vms_in_config(vm_config):
+    if os.path.exists(vm_config) and local_vms_in_config(vm_config):
         if libvirt is None:
             raise NoLibvirt()
 

@@ -19,19 +19,21 @@ import (
 
 // PolicyDef represents a policy file definition
 type PolicyDef struct {
-	Version string             `yaml:"version"`
-	Rules   []*RuleDefinition  `yaml:"rules"`
-	Macros  []*MacroDefinition `yaml:"macros"`
+	Version            string              `yaml:"version"`
+	Rules              []*RuleDefinition   `yaml:"rules"`
+	Macros             []*MacroDefinition  `yaml:"macros"`
+	OnDemandHookPoints []OnDemandHookPoint `yaml:"hooks"`
 }
 
 // Policy represents a policy file which is composed of a list of rules and macros
 type Policy struct {
-	Name       string
-	Source     string
-	Version    string
-	Rules      []*RuleDefinition
-	Macros     []*MacroDefinition
-	IsInternal bool
+	Name               string
+	Source             string
+	Version            string
+	Rules              []*RuleDefinition
+	Macros             []*MacroDefinition
+	OnDemandHookPoints []OnDemandHookPoint
+	IsInternal         bool
 }
 
 // AddMacro add a macro to the policy
@@ -148,6 +150,8 @@ LOOP:
 			errs = multierror.Append(errs, &ErrRuleLoad{Definition: s.ruleDefinition, Err: s.err})
 		}
 	}
+
+	policy.OnDemandHookPoints = def.OnDemandHookPoints
 
 	return policy, errs.ErrorOrNil()
 }
