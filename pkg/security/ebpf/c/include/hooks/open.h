@@ -129,6 +129,12 @@ int __attribute__((always_inline)) handle_truncate_path(struct path *path) {
     return 0;
 }
 
+HOOK_ENTRY("vfs_truncate")
+int hook_vfs_truncate(ctx_t *ctx) {
+    struct path *path = (struct path *)CTX_PARM1(ctx);
+    return handle_truncate_path(path);
+}
+
 HOOK_ENTRY("security_file_truncate")
 int hook_security_file_truncate(ctx_t *ctx) {
     struct file *f = (struct file *)CTX_PARM1(ctx);
