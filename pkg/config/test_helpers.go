@@ -30,10 +30,10 @@ var (
 
 // ResetSystemProbeConfig resets the configuration.
 func ResetSystemProbeConfig(t *testing.T) {
-	originalConfig := SystemProbe
+	originalConfig := pkgconfigsetup.SystemProbe()
 	t.Cleanup(func() {
-		SystemProbe = originalConfig
+		pkgconfigsetup.SetSystemProbe(originalConfig)
 	})
-	SystemProbe = NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
-	pkgconfigsetup.InitSystemProbeConfig(SystemProbe)
+	pkgconfigsetup.SetSystemProbe(NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")))
+	pkgconfigsetup.InitSystemProbeConfig(pkgconfigsetup.SystemProbe())
 }

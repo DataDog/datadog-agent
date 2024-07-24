@@ -135,5 +135,5 @@ func configurationFromYAML(t *testing.T, yaml string) config.Config {
 	f.Sync()
 
 	_, _ = New(f.Name(), "")
-	return config.SystemProbe
+	return config.SystemProbe()
 }
