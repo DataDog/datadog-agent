@@ -29,8 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
-	"github.com/DataDog/datadog-agent/comp/core/agenttelemetry"
-	"github.com/DataDog/datadog-agent/comp/core/agenttelemetry/agenttelemetryimpl"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 
 	// checks implemented as components
 
@@ -97,6 +97,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs"
 	"github.com/DataDog/datadog-agent/comp/logs/adscheduler/adschedulerimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -235,6 +236,7 @@ func run(log log.Component,
 	_ inventoryotel.Component,
 	_ secrets.Component,
 	invChecks inventorychecks.Component,
+	logReceiver optional.Option[integrations.Component],
 	_ netflowServer.Component,
 	_ snmptrapsServer.Component,
 	_ langDetectionCl.Component,
@@ -310,6 +312,7 @@ func run(log log.Component,
 		demultiplexer,
 		agentAPI,
 		invChecks,
+		logReceiver,
 		statusComponent,
 		collector,
 		cfg,
@@ -444,6 +447,9 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(ms serializer.MetricSerializer) optional.Option[serializer.MetricSerializer] {
 			return optional.NewOption[serializer.MetricSerializer](ms)
 		}),
+		fx.Provide(func(logReceiver integrations.Component) optional.Option[integrations.Component] {
+			return optional.NewOption[integrations.Component](logReceiver)
+		}),
 		ndmtmp.Bundle(),
 		netflow.Bundle(),
 		rdnsquerierfx.Module(),
@@ -480,7 +486,7 @@ func getSharedFxOption() fx.Option {
 			}
 		}),
 		settingsimpl.Module(),
-		agenttelemetryimpl.Module(),
+		agenttelemetryfx.Module(),
 		networkpath.Bundle(),
 	)
 }
@@ -504,6 +510,7 @@ func startAgent(
 	demultiplexer demultiplexer.Component,
 	_ internalAPI.Component,
 	invChecks inventorychecks.Component,
+	logReceiver optional.Option[integrations.Component],
 	_ status.Component,
 	collector collector.Component,
 	cfg config.Component,
@@ -594,7 +601,7 @@ func startAgent(
 
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta, cfg, telemetry)
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
+	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 

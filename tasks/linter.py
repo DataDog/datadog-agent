@@ -15,13 +15,15 @@ from tasks.go import run_golangci_lint
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
     generate_gitlab_full_configuration,
+    get_all_gitlab_ci_configurations,
     get_gitlab_repo,
     get_preset_contexts,
     load_context,
     read_includes,
+    retrieve_all_paths,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH, GITHUB_REPO_NAME
 from tasks.libs.common.git import get_staged_files
 from tasks.libs.common.utils import (
@@ -369,25 +371,57 @@ def is_get_parameter_call(file):
 def gitlab_ci(ctx, test="all", custom_context=None):
     """
     Lint Gitlab CI files in the datadog-agent repository.
+
+    This will lint the main gitlab ci file with different
+    variable contexts and lint other triggered gitlab ci configs.
     """
-    all_contexts = []
-    if custom_context:
-        all_contexts = load_context(custom_context)
-    else:
-        all_contexts = get_preset_contexts(test)
-    print(f"We will tests {len(all_contexts)} contexts.")
+
     agent = get_gitlab_repo()
-    for context in all_contexts:
-        print("Test gitlab configuration with context: ", context)
-        config = generate_gitlab_full_configuration(ctx, ".gitlab-ci.yml", dict(context))
+    has_errors = False
+
+    print(f'{color_message("info", Color.BLUE)}: Fetching Gitlab CI configurations...')
+    configs = get_all_gitlab_ci_configurations(ctx)
+
+    def test_gitlab_configuration(entry_point, input_config, context=None):
+        nonlocal has_errors
+
+        # Update config and lint it
+        config = generate_gitlab_full_configuration(ctx, entry_point, context=context, input_config=input_config)
         res = agent.ci_lint.create({"content": config, "dry_run": True, "include_jobs": True})
         status = color_message("valid", "green") if res.valid else color_message("invalid", "red")
-        print(f"Config is {status}")
+
+        print(f"{color_message(entry_point, Color.BOLD)} config is {status}")
         if len(res.warnings) > 0:
-            print(color_message(f"Warnings: {res.warnings}", "orange"), file=sys.stderr)
+            print(
+                f'{color_message("warning", Color.ORANGE)}: {color_message(entry_point, Color.BOLD)}: {res.warnings})',
+                file=sys.stderr,
+            )
         if not res.valid:
-            print(color_message(f"Errors: {res.errors}", "red"), file=sys.stderr)
-            raise Exit(code=1)
+            print(
+                f'{color_message("error", Color.RED)}: {color_message(entry_point, Color.BOLD)}: {res.errors})',
+                file=sys.stderr,
+            )
+            has_errors = True
+
+    for entry_point, input_config in configs.items():
+        with gitlab_section(f"Testing {entry_point}", echo=True):
+            # Only the main config should be tested with all contexts
+            if entry_point == ".gitlab-ci.yml":
+                all_contexts = []
+                if custom_context:
+                    all_contexts = load_context(custom_context)
+                else:
+                    all_contexts = get_preset_contexts(test)
+
+                print(f'{color_message("info", Color.BLUE)}: We will test {len(all_contexts)} contexts')
+                for context in all_contexts:
+                    print("Test gitlab configuration with context: ", context)
+                    test_gitlab_configuration(entry_point, input_config, dict(context))
+            else:
+                test_gitlab_configuration(entry_point, input_config)
+
+    if has_errors:
+        raise Exit(code=1)
 
 
 @task
@@ -463,3 +497,19 @@ def test_change_path(ctx, job_files=None):
         )
     else:
         print(color_message("success: All tests contain a change paths rule", "green"))
+
+
+@task
+def gitlab_change_paths(ctx):
+    # Read gitlab config
+    config = generate_gitlab_full_configuration(ctx, ".gitlab-ci.yml", {}, return_dump=False, apply_postprocessing=True)
+    error_paths = []
+    for path in set(retrieve_all_paths(config)):
+        files = glob(path, recursive=True)
+        if len(files) == 0:
+            error_paths.append(path)
+    if error_paths:
+        raise Exit(
+            f"{color_message('No files found for paths', Color.RED)}:\n{chr(10).join(' - ' + path for path in error_paths)}"
+        )
+    print(f"All rule:changes:paths from gitlab-ci are {color_message('valid', Color.GREEN)}.")

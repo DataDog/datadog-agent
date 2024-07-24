@@ -80,6 +80,11 @@ type EBPFLessProbe struct {
 	wg            sync.WaitGroup
 }
 
+// GetProfileManager returns the Profile Managers
+func (p *EBPFLessProbe) GetProfileManager() interface{} {
+	return nil
+}
+
 func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
 	switch msg.Type {
 	case ebpfless.MessageTypeHello:
@@ -98,6 +103,8 @@ func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
 		}
 	case ebpfless.MessageTypeSyscall:
 		p.handleSyscallMsg(cl, msg.Syscall)
+	default:
+		seclog.Errorf("unknown message type: %d", msg.Type)
 	}
 }
 
@@ -582,7 +589,7 @@ func (p *EBPFLessProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				return
 			}
 
-			p.processKiller.KillAndReport(action.Kill.Scope, action.Kill.Signal, ev, func(pid uint32, sig uint32) error {
+			p.processKiller.KillAndReport(action.Kill.Scope, action.Kill.Signal, rule, ev, func(pid uint32, sig uint32) error {
 				return p.processKiller.KillFromUserspace(pid, sig, ev)
 			})
 		case action.Hash != nil:

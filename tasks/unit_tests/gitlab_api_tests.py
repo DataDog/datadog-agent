@@ -7,6 +7,7 @@ from tasks.libs.ciproviders.gitlab_api import (
     clean_gitlab_ci_configuration,
     filter_gitlab_ci_configuration,
     read_includes,
+    retrieve_all_paths,
 )
 
 
@@ -171,3 +172,26 @@ class TestGitlabCiDiff(unittest.TestCase):
         self.assertSetEqual(diff.removed, {'job4'})
         self.assertSetEqual(diff.added, {'job5'})
         self.assertSetEqual(diff.renamed, {('job2', 'job2_renamed')})
+
+
+class TestRetrieveAllPaths(unittest.TestCase):
+    def test_all_configs(self):
+        yml = {
+            'stark': {'changes': ['eddard', 'catelyn', 'robb']},
+            'lannister': [
+                ['tywin', {'cersei': ['joffrey', 'myrcella', {'tommen': {'changes': ['casterly_rock']}}]}],
+                'jaime',
+                {'tyrion': {'changes': {'paths': ['hand_of_the_king']}}},
+            ],
+            'targaeryen': [{'daenerys': {'changes': {'compare_to': 'dragons'}}}],
+        }
+        paths = list(retrieve_all_paths(yml))
+
+        expected_paths = [
+            'eddard',
+            'catelyn',
+            'robb',
+            'casterly_rock',
+            'hand_of_the_king',
+        ]
+        self.assertListEqual(paths, expected_paths)

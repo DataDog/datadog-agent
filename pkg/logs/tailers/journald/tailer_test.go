@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -587,7 +587,7 @@ func TestTailerCompareUnstructuredAndStructured(t *testing.T) {
 
 func TestExpectedTagDuration(t *testing.T) {
 
-	mockConfig := coreConfig.Mock(t)
+	mockConfig := configmock.New(t)
 
 	tags := []string{"tag1:value1"}
 

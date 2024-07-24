@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
 	gohaiutils "github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -122,7 +123,7 @@ func getTestInventoryHost(t *testing.T) *invHost {
 			t,
 			logimpl.MockModule(),
 			config.MockModule(),
-			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
+			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 		),
 	)
 	return p.Comp.(*invHost)
