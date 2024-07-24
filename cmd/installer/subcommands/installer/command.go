@@ -78,6 +78,10 @@ func newCmd(operation string) *cmd {
 	env := env.FromEnv()
 	t := newTelemetry(env)
 	span, ctx := newSpan(operation)
+
+	// Set the inherited umask
+	setInstallerUmask(span)
+
 	return &cmd{
 		t:    t,
 		ctx:  ctx,
