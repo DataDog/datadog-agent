@@ -371,11 +371,12 @@ def clean_gitlab_ci_configuration(yml):
     return flatten(yml)
 
 
-def filter_gitlab_ci_configuration(yml: dict, job: str | None = None) -> dict:
+def filter_gitlab_ci_configuration(yml: dict, job: str | None = None, keep_special_objects: bool = False) -> dict:
     """
     Filters gitlab-ci configuration jobs
 
     - job: If provided, retrieve only this job
+    - keep_special_objects: Will keep special objects (not jobs) in the configuration (variables, stages, etc.)
     """
 
     def filter_yaml(key, value):
@@ -503,6 +504,7 @@ def get_gitlab_ci_configuration(
     input_file: str = '.gitlab-ci.yml',
     ignore_errors: bool = False,
     job: str | None = None,
+    filter: str = 'all',
     clean: bool = True,
     expand_matrix: bool = False,
     git_ref: str | None = None,
