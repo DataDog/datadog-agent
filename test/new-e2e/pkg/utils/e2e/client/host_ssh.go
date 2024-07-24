@@ -7,6 +7,7 @@ package client
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path"
@@ -77,13 +78,7 @@ func getSSHClient(user, host string, privateKey, privateKeyPassphrase []byte) (*
 	return client, nil
 }
 
-func copyFile(sftpClient *sftp.Client, src string, dst string) error {
-	srcFile, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer srcFile.Close()
-
+func copyFileFromIoReader(sftpClient *sftp.Client, srcFile io.Reader, dst string) error {
 	dstFile, err := sftpClient.Create(dst)
 	if err != nil {
 		return err
@@ -94,6 +89,15 @@ func copyFile(sftpClient *sftp.Client, src string, dst string) error {
 		return err
 	}
 	return nil
+}
+
+func copyFile(sftpClient *sftp.Client, src string, dst string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+	return copyFileFromIoReader(sftpClient, srcFile, dst)
 }
 
 func copyFolder(sftpClient *sftp.Client, srcFolder string, dstFolder string) error {

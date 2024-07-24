@@ -27,14 +27,24 @@ func TestAgentInstalls(t *testing.T) {
 
 // TestInstallAgentPackage tests installing and uninstalling the Datadog Agent using the Datadog Installer.
 func (suite *testAgentInstallSuite) TestInstallAgentPackage() {
-	suite.Run("install the Agent package", func() {
+	suite.Run("Install", func() {
+		// Arrange
+
+		// Act
 		output, err := suite.installer.InstallPackage(AgentPackage)
+
+		// Assert
 		suite.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
 		suite.Require().Host(suite.Env().RemoteHost).HasARunningDatadogAgentService()
 	})
 
-	suite.Run("uninstall the Agent package", func() {
+	suite.Run("Uninstall", func() {
+		// Arrange
+
+		// Act
 		output, err := suite.installer.RemovePackage(AgentPackage)
+
+		// Assert
 		suite.Require().NoErrorf(err, "failed to purge the Datadog Agent package: %s", output)
 		suite.Require().Host(suite.Env().RemoteHost).HasNoDatadogAgentService()
 	})
