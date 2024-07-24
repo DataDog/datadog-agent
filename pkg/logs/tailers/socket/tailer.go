@@ -49,9 +49,13 @@ func NewTailer(source *sources.LogSource, conn net.Conn, outputChan chan *messag
 
 // Start prepares the tailer to read and decode data from the connection
 func (t *Tailer) Start() {
+	fmt.Println("SURVIVOR ZERO")
 	go t.forwardMessages()
+	fmt.Println("SURVIVOR ONE")
 	t.decoder.Start()
+	fmt.Println("SURVIVOR TWO")
 	go t.readForever()
+	fmt.Println("SURVIVOR THREE")
 }
 
 // Stop stops the tailer and waits for the decoder to be flushed
@@ -75,13 +79,12 @@ func (t *Tailer) forwardMessages() {
 			fmt.Println("ANDREW 2 Origin is?", output.Origin)
 			fmt.Println("wacktest2")
 			fmt.Println("xd?")
-			// _, ip, err := t.read(t)
-			// fmt.Println(ip)
-			// fmt.Println(err)
-			// if err != nil {
-			// 	return
-			// }
+			fmt.Println("zero", output)
+			fmt.Println("one", output.Origin)
+			fmt.Println("two", output.Status)
+			fmt.Println("three", output.IngestionTimestamp)
 			t.outputChan <- message.NewMessage(output.GetContent(), output.Origin, output.Status, output.IngestionTimestamp)
+			fmt.Println("Four?????")
 		}
 	}
 }
@@ -116,6 +119,7 @@ func (t *Tailer) readForever() {
 			if ipAddress != "" && coreConfig.Datadog().GetBool("logs_config.use_sourcehost_tag") {
 				lastColonIndex := strings.LastIndex(ipAddress, ":")
 				var ipAddressWithoutPort string
+				fmt.Println("HAHAHAHAHAH", lastColonIndex)
 				if lastColonIndex != -1 {
 					ipAddressWithoutPort = ipAddress[:lastColonIndex]
 				} else {
@@ -128,7 +132,7 @@ func (t *Tailer) readForever() {
 			fmt.Println("WAMFGEOWAGEWAOG", copiedTags)
 			origin.SetTags(copiedTags)
 			fmt.Println("ANDREW 1 Origin is?", origin)
-			t.decoder.InputChan <- message.NewMessage(data, origin, "", 0)
+			t.decoder.InputChan <- message.NewMessage(data, origin, "test_status", 0)
 		}
 	}
 }

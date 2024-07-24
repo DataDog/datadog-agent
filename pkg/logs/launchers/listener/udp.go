@@ -96,10 +96,11 @@ func (l *UDPListener) read(tailer *tailer.Tailer) ([]byte, string, error) {
 	n, udpAddr, err := tailer.Conn.(*net.UDPConn).ReadFromUDP(frame)
 	switch {
 	case err != nil && isClosedConnError(err):
-		return nil, udpAddr.IP.String(), err
+		fmt.Println("ISSUE?", udpAddr)
+		return nil, "", err
 	case err != nil:
 		go l.resetTailer()
-		return nil, udpAddr.IP.String(), err
+		return nil, "", err
 	default:
 		// make sure all logs are separated by line feeds, otherwise they don't get properly split downstream
 		if n > l.frameSize {
