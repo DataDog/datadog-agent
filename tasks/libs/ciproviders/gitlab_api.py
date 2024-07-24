@@ -7,7 +7,10 @@ import re
 import subprocess
 import sys
 from collections import UserList
+from copy import deepcopy
+from dataclasses import dataclass
 from difflib import Differ
+from functools import lru_cache
 
 import gitlab
 import yaml
@@ -141,7 +144,7 @@ class GitlabCIDiff:
 
         # Added jobs contents
         for job in self.added:
-            self.added_contents[job] = yaml.safe_dump({job: self.after[job]})
+            self.added_contents[job] = yaml.safe_dump({job: self.after[job]}, sort_keys=True)
 
         # Find modified jobs
         self.modified = set()
@@ -165,7 +168,12 @@ class GitlabCIDiff:
                 diff = [line.rstrip('\n') for line in differcli.compare(before_content, after_content)]
                 self.modified_diffs[job] = diff
 
-    def display(self, cli: bool = True, max_detailed_jobs=6, job_url=None, only_summary=False) -> str:
+    def footnote(self, job_url: str) -> str:
+        return f':information_source: *Diff available in the [job log]({job_url}).*'
+
+    def display(
+        self, cli: bool = True, max_detailed_jobs=6, job_url=None, only_summary=False, no_footnote=False
+    ) -> str:
         """
         Display in cli or markdown
         """
@@ -259,7 +267,7 @@ class GitlabCIDiff:
             if not job_url or cli:
                 return []
 
-            return ['', f':information_source: *Diff available in the [job log]({job_url}).*']
+            return ['', self.footnote(job_url)]
 
         res = []
 
@@ -302,7 +310,100 @@ class GitlabCIDiff:
                 res.append('')
             res.extend(str_section('Changes Summary'))
             res.append(str_summary())
-            res.extend(str_note())
+            if not no_footnote:
+                res.extend(str_note())
+
+        return '\n'.join(res)
+
+
+class MultiGitlabCIDiff:
+    @dataclass
+    class MultiDiff:
+        entry_point: str
+        diff: GitlabCIDiff
+        # Whether the entry point has been added or removed
+        is_added: bool
+        is_removed: bool
+
+    def __init__(self, before: dict[str, dict], after: dict[str, dict]) -> None:
+        """
+        Used to display job diffs between two full gitlab ci configurations (multiple entry points)
+
+        - before/after: Dict of [entry point] -> ([job name] -> job content)
+        """
+        self.before = dict(before)
+        self.after = dict(after)
+
+        self.diffs: list[MultiGitlabCIDiff.MultiDiff] = []
+
+        self.make_diff()
+
+    def __bool__(self) -> bool:
+        return bool(self.diffs)
+
+    def make_diff(self):
+        for entry_point in set(list(self.before) + list(self.after)):
+            diff = GitlabCIDiff(self.before.get(entry_point, {}), self.after.get(entry_point, {}))
+
+            # Diff for this entry point, add it to the list
+            if diff:
+                self.diffs.append(
+                    MultiGitlabCIDiff.MultiDiff(
+                        entry_point, diff, entry_point not in self.before, entry_point not in self.after
+                    )
+                )
+
+    def display(self, cli: bool = True, job_url: str = None, **kwargs) -> str:
+        """
+        Display in cli or markdown
+        """
+        if not self:
+            return ''
+
+        if len(self.diffs) == 1:
+            return self.diffs[0].diff.display(cli, **kwargs)
+
+        def str_entry(diff: MultiGitlabCIDiff.MultiDiff) -> str:
+            if cli:
+                status = ''
+                if diff.is_added:
+                    status = f'{color_message("Added:", Color.GREEN)} '
+                elif diff.is_removed:
+                    status = f'{color_message("Removed:", Color.RED)} '
+                else:
+                    status = f'{color_message("Modified:", Color.ORANGE)} '
+
+                return [f'>>> {status}{color_message(diff.entry_point, Color.BOLD)}', '']
+            else:
+                status = ''
+                if diff.is_added:
+                    status = 'Added: '
+                elif diff.is_removed:
+                    status = 'Removed: '
+                else:
+                    status = 'Updated: '
+
+                return [f'<details><summary><h2>{status}{diff.entry_point}</h2></summary>', '']
+
+        def str_entry_end() -> list[str]:
+            if cli:
+                return ['']
+            else:
+                return ['', '</details>']
+
+        res = []
+
+        # .gitlab-ci.yml will be always first and other entries sorted alphabetically
+        diffs = sorted(self.diffs, key=lambda diff: '' if diff.entry_point == '.gitlab-ci.yml' else diff.entry_point)
+
+        for diff in diffs:
+            res.extend(str_entry(diff))
+            res.append(diff.diff.display(cli, job_url=job_url, no_footnote=True, **kwargs))
+            res.extend(str_entry_end())
+
+        if not cli:
+            res.append('')
+            res.append(self.diffs[-1].diff.footnote(job_url))
 
         return '\n'.join(res)
 
@@ -408,6 +509,73 @@ def print_gitlab_ci_configuration(yml: dict, sort_jobs: bool):
         yaml.safe_dump({job: content}, sys.stdout, default_flow_style=False, sort_keys=True, indent=2)
 
 
+def get_all_gitlab_ci_configurations(
+    ctx,
+    input_file: str = '.gitlab-ci.yml',
+    filter_configs: bool = False,
+    clean_configs: bool = False,
+    ignore_errors: bool = False,
+    git_ref: str | None = None,
+) -> dict[str, dict]:
+    """
+    Returns all gitlab-ci configurations from each entry points (.gitlab-ci.yml and files that are triggered)
+
+    - filter_configs: Whether to apply post process filtering to the configurations (get only jobs...)
+    - clean_configs: Whether to apply post process cleaning to the configurations (remove extends, flatten lists of lists...)
+    - ignore_errors: Ignore gitlab lint errors
+    - git_ref: If provided, use this git reference to fetch the configuration
+    """
+    # entry_points[input_file] -> parsed config
+    entry_points: dict[str, dict] = {}
+
+    def get_triggers(node):
+        """
+        Get all trigger local files
+        """
+        if isinstance(node, str):
+            return [node]
+        elif isinstance(node, dict):
+            return [node['local']] if 'local' in node else []
+        elif isinstance(node, list):
+            res = []
+            for n in node:
+                res.extend(get_triggers(n))
+
+            return res
+
+    def get_entry_points(input_file):
+        """
+        DFS to get all entry points from the input file
+        """
+        if input_file in entry_points:
+            return
+
+        # Read and parse the configuration from this entry point
+        config = get_full_gitlab_ci_configuration(ctx, input_file, ignore_errors=ignore_errors, git_ref=git_ref)
+        entry_points[input_file] = config
+
+        # Add entry points from triggers
+        for job in config.values():
+            if 'trigger' in job and 'include' in job['trigger']:
+                for trigger in get_triggers(job['trigger']['include']):
+                    get_entry_points(trigger)
+
+    # Find all entry points
+    get_entry_points(input_file)
+
+    # Post process
+    for entry_point, config in entry_points.items():
+        if filter_configs:
+            config = filter_gitlab_ci_configuration(config)
+
+        if clean_configs:
+            config = clean_gitlab_ci_configuration(config)
+
+        entry_points[entry_point] = config
+
+    return entry_points
+
+
 def get_full_gitlab_ci_configuration(
     ctx,
     input_file: str = '.gitlab-ci.yml',
@@ -468,7 +636,7 @@ def get_gitlab_ci_configuration(
 
 
 def generate_gitlab_full_configuration(
-    ctx, input_file, context=None, compare_to=None, return_dump=True, apply_postprocessing=False
+    ctx, input_file, context=None, compare_to=None, return_dump=True, apply_postprocessing=False, input_config=None
 ):
     """
     Generate a full gitlab-ci configuration by resolving all includes
@@ -478,9 +646,12 @@ def generate_gitlab_full_configuration(
     - compare_to: Override compare_to on change rules
     - return_dump: Whether to return the string dump or the dict object representing the configuration
     - apply_postprocessing: Whether or not to solve `extends` and `!reference` tags
+    - input_config: If not None, will use this config instead of parsing existing yaml file at `input_file`
     """
     if apply_postprocessing:
-        full_configuration = get_full_gitlab_ci_configuration(ctx, input_file)
+        full_configuration = get_full_gitlab_ci_configuration(ctx, input_file, input_config=input_config)
+    elif input_config:
+        full_configuration = deepcopy(input_config)
     else:
         full_configuration = read_includes(None, input_file, return_config=True)
 
@@ -548,19 +719,27 @@ def read_content(ctx, file_path, git_ref: str | None = None):
     """
     Read the content of a file, either from a local file or from an http endpoint
     """
-    if file_path.startswith('http'):
-        import requests
 
-        response = requests.get(file_path)
-        response.raise_for_status()
-        content = response.text
-    elif git_ref:
-        content = ctx.run(f"git show '{git_ref}:{file_path}'", hide=True).stdout
-    else:
-        with open(file_path) as f:
-            content = f.read()
+    # Do not use ctx for cache
+    @lru_cache(maxsize=512)
+    def read_content_cached(file_path, git_ref: str | None = None):
+        nonlocal ctx
 
-    return yaml.safe_load(content)
+        if file_path.startswith('http'):
+            import requests
+
+            response = requests.get(file_path)
+            response.raise_for_status()
+            content = response.text
+        elif git_ref:
+            content = ctx.run(f"git show '{git_ref}:{file_path}'", hide=True).stdout
+        else:
+            with open(file_path) as f:
+                content = f.read()
+
+        return yaml.safe_load(content)
+
+    return read_content_cached(file_path, git_ref)
 
 
 def get_preset_contexts(required_tests):
