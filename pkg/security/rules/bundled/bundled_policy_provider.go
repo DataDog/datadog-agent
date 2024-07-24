@@ -14,20 +14,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-// BundledPolicyProvider specify the policy provider for bundled policies
-type BundledPolicyProvider struct {
+// PolicyProvider specify the policy provider for bundled policies
+type PolicyProvider struct {
 	cfg *config.RuntimeSecurityConfig
 }
 
-// NewBundledPolicyProvider returns a new bundled policy provider
-func NewBundledPolicyProvider(cfg *config.RuntimeSecurityConfig) *BundledPolicyProvider {
-	return &BundledPolicyProvider{
+// NewPolicyProvider returns a new bundled policy provider
+func NewPolicyProvider(cfg *config.RuntimeSecurityConfig) *PolicyProvider {
+	return &PolicyProvider{
 		cfg: cfg,
 	}
 }
 
 // LoadPolicies implements the PolicyProvider interface
-func (p *BundledPolicyProvider) LoadPolicies([]rules.MacroFilter, []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
+func (p *PolicyProvider) LoadPolicies([]rules.MacroFilter, []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
 	bundledPolicyRules := newBundledPolicyRules(p.cfg)
 
 	policy := &rules.Policy{}
@@ -46,13 +46,13 @@ func (p *BundledPolicyProvider) LoadPolicies([]rules.MacroFilter, []rules.RuleFi
 }
 
 // SetOnNewPoliciesReadyCb implements the PolicyProvider interface
-func (p *BundledPolicyProvider) SetOnNewPoliciesReadyCb(func()) {}
+func (p *PolicyProvider) SetOnNewPoliciesReadyCb(func()) {}
 
 // Start implements the PolicyProvider interface
-func (p *BundledPolicyProvider) Start() {}
+func (p *PolicyProvider) Start() {}
 
 // Close implements the PolicyProvider interface
-func (p *BundledPolicyProvider) Close() error { return nil }
+func (p *PolicyProvider) Close() error { return nil }
 
 // Type implements the PolicyProvider interface
-func (p *BundledPolicyProvider) Type() string { return rules.PolicyProviderTypeBundled }
+func (p *PolicyProvider) Type() string { return rules.PolicyProviderTypeBundled }
