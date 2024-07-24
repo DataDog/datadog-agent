@@ -36,7 +36,7 @@ func TestTCPShouldReceivesMessages(t *testing.T) {
 	assert.Nil(t, err)
 	fmt.Println("wack5")
 	defer conn.Close()
-
+	fmt.Println("wack")
 	var msg *message.Message
 
 	fmt.Fprintf(conn, "hello world\n")

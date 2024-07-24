@@ -73,8 +73,9 @@ func (t *Tailer) forwardMessages() {
 			fmt.Println("wacktest1")
 			origin := message.NewOrigin(t.source)
 			fmt.Println("wacktest2")
+			fmt.Println("xd?")
 			_, ip, err := t.read(t)
-			log.Debug("huh", err)
+			fmt.Println("huh?")
 			fmt.Println("wacktest3")
 			if err != nil {
 				return
