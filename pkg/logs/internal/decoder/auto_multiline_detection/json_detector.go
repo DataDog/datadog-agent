@@ -8,7 +8,7 @@ package automultilinedetection
 
 import "regexp"
 
-var jsonRegexp = regexp.MustCompile(`^^\s*\{\s*(\"|})`)
+var jsonRegexp = regexp.MustCompile(`^\s*\{\s*["}]`)
 
 // JSONDetector is a heuristic to detect JSON messages.
 type JSONDetector struct{}
