@@ -37,6 +37,7 @@ type UDPListener struct {
 
 // NewUDPListener returns an initialized UDPListener
 func NewUDPListener(pipelineProvider pipeline.Provider, source *sources.LogSource, frameSize int) *UDPListener {
+	fmt.Println("UDP Called 4?????")
 	return &UDPListener{
 		pipelineProvider: pipelineProvider,
 		source:           source,
@@ -46,6 +47,7 @@ func NewUDPListener(pipelineProvider pipeline.Provider, source *sources.LogSourc
 
 // Start opens a new UDP connection and starts a tailer.
 func (l *UDPListener) Start() {
+	fmt.Println("UDP Called 3?????")
 	log.Infof("Starting UDP forwarder on port: %d, with read buffer size: %d", l.source.Config.Port, l.frameSize)
 	err := l.startNewTailer()
 	if err != nil {
@@ -66,6 +68,7 @@ func (l *UDPListener) Stop() {
 
 // startNewTailer starts a new Tailer
 func (l *UDPListener) startNewTailer() error {
+	fmt.Println("UDP Called 2?????")
 	conn, err := l.newUDPConnection()
 	if err != nil {
 		return err
@@ -87,6 +90,7 @@ func (l *UDPListener) newUDPConnection() (net.Conn, error) {
 
 // read reads data from the tailer connection, returns an error if it failed and reset the tailer.
 func (l *UDPListener) read(tailer *tailer.Tailer) ([]byte, string, error) {
+	fmt.Println("UDP Called?????")
 	frame := make([]byte, l.frameSize+1)
 	// Add casting to UDPConn
 	n, udpAddr, err := tailer.Conn.(*net.UDPConn).ReadFromUDP(frame)

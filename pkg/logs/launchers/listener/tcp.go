@@ -134,7 +134,9 @@ func (l *TCPListener) read(tailer *tailer.Tailer) ([]byte, string, error) {
 	}
 	fmt.Println("huh2")
 	frame := make([]byte, l.frameSize)
-	fmt.Println("huh3")
+	fmt.Println("huh3", frame)
+	fmt.Println("huh3.1", tailer)
+	fmt.Println("huh3.2", tailer.Conn)
 	n, err := tailer.Conn.Read(frame)
 	fmt.Println("huh4")
 	if err != nil {
