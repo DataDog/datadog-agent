@@ -134,12 +134,10 @@ func (l *TCPListener) read(tailer *tailer.Tailer) ([]byte, string, error) {
 	frame := make([]byte, l.frameSize)
 	n, err := tailer.Conn.Read(frame)
 	if err != nil {
-		fmt.Println("HUH ERROR?", err)
 		l.source.Status.Error(err)
 		go l.stopTailer(tailer)
 		return nil, "", err
 	}
-	fmt.Println("we are good to go", tailer.Conn.RemoteAddr().String())
 	return frame[:n], tailer.Conn.RemoteAddr().String(), nil
 }
 

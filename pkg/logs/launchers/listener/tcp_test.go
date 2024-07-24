@@ -23,20 +23,13 @@ import (
 var tcpTestPort = 0
 
 func TestTCPShouldReceivesMessages(t *testing.T) {
-	fmt.Println("wack0")
 	pp := mock.NewMockProvider()
 	msgChan := pp.NextPipelineChan()
-	fmt.Println("wack1")
 	listener := NewTCPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: tcpTestPort}), 9000)
-	fmt.Println("wack2")
 	listener.Start()
-	fmt.Println("wack3")
 	conn, err := net.Dial("tcp", listener.listener.Addr().String())
-	fmt.Println("wack4")
 	assert.Nil(t, err)
-	fmt.Println("wack5")
 	defer conn.Close()
-	fmt.Println("wack")
 	var msg *message.Message
 
 	fmt.Fprintf(conn, "hello world\n")
