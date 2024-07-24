@@ -8,7 +8,6 @@
 package collectorcontrib
 
 import (
-	datadogconnector "github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
 	spanmetricsconnector "github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
 	sapmexporter "github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter"
 	healthcheckextension "github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
@@ -119,7 +118,6 @@ func components() (otelcol.Factories, error) {
 	}
 
 	factories.Connectors, err = connector.MakeFactoryMap(
-		datadogconnector.NewFactory(),
 		spanmetricsconnector.NewFactory(),
 	)
 	if err != nil {

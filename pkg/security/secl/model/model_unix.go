@@ -26,7 +26,7 @@ type Event struct {
 
 	// context
 	SpanContext    SpanContext    `field:"-"`
-	NetworkContext NetworkContext `field:"network" event:"dns"`
+	NetworkContext NetworkContext `field:"network"` // [7.36] [Network] Network context
 	CGroupContext  CGroupContext  `field:"cgroup" event:"*"`
 
 	// fim events
@@ -53,9 +53,6 @@ type Event struct {
 	Signal   SignalEvent   `field:"signal" event:"signal"` // [7.35] [Process] A signal was sent
 	Exit     ExitEvent     `field:"exit" event:"exit"`     // [7.38] [Process] A process was terminated
 	Syscalls SyscallsEvent `field:"-"`
-
-	// anomaly detection related events
-	AnomalyDetectionSyscallEvent AnomalyDetectionSyscallEvent `field:"-"`
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
@@ -609,8 +606,8 @@ type ActivityDumpLoadConfig struct {
 // NetworkDeviceContext represents the network device context of a network event
 type NetworkDeviceContext struct {
 	NetNS   uint32 `field:"-"`
-	IfIndex uint32 `field:"ifindex"`                                   // SECLDoc[ifindex] Definition:`interface ifindex`
-	IfName  string `field:"ifname,handler:ResolveNetworkDeviceIfName"` // SECLDoc[ifname] Definition:`interface ifname`
+	IfIndex uint32 `field:"ifindex"`                                   // SECLDoc[ifindex] Definition:`Interface ifindex`
+	IfName  string `field:"ifname,handler:ResolveNetworkDeviceIfName"` // SECLDoc[ifname] Definition:`Interface ifname`
 }
 
 // BindEvent represents a bind event
@@ -647,12 +644,8 @@ type VethPairEvent struct {
 
 // SyscallsEvent represents a syscalls event
 type SyscallsEvent struct {
-	Syscalls []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
-}
-
-// AnomalyDetectionSyscallEvent represents an anomaly detection for a syscall event
-type AnomalyDetectionSyscallEvent struct {
-	SyscallID Syscall
+	EventReason SyscallDriftEventReason
+	Syscalls    []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
 }
 
 // PathKey identifies an entry in the dentry cache

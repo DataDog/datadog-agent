@@ -281,6 +281,7 @@ const (
 	MetricSourceVarnish
 	MetricSourceVault
 	MetricSourceVertica
+	MetricSourceVllm
 	MetricSourceVoltdb
 	MetricSourceVsphere
 	MetricSourceWin32EventLog
@@ -650,6 +651,8 @@ func (ms MetricSource) String() string {
 		return "vault"
 	case MetricSourceVertica:
 		return "vertica"
+	case MetricSourceVllm:
+		return "vllm"
 	case MetricSourceVoltdb:
 		return "voltdb"
 	case MetricSourceVsphere:
@@ -1168,6 +1171,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceVault
 	case "vertica":
 		return MetricSourceVertica
+	case "vllm":
+		return MetricSourceVllm
 	case "voltdb":
 		return MetricSourceVoltdb
 	case "vsphere":

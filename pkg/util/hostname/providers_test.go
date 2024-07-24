@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
@@ -58,7 +59,7 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 		// erase cache
 		cache.Cache.Delete(cache.BuildAgentKey("hostname"))
 	})
-	config.Mock(t)
+	configmock.New(t)
 
 	if tc.configHostname {
 		config.Datadog().SetWithoutSource("hostname", "hostname-from-configuration")

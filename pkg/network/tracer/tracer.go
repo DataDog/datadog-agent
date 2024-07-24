@@ -211,6 +211,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 		cfg.MaxHTTPStatsBuffered,
 		cfg.MaxKafkaStatsBuffered,
 		cfg.MaxPostgresStatsBuffered,
+		cfg.MaxRedisStatsBuffered,
 		cfg.EnableNPMConnectionRollup,
 		cfg.EnableProcessEventMonitoring,
 	)
@@ -302,7 +303,7 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 		if t.shouldSkipConnection(cs) {
 			connections[rejected], connections[i] = connections[i], connections[rejected]
 			rejected++
-			tracerTelemetry.skippedConns.Inc(cs.Type.String())
+			tracerTelemetry.skippedConns.IncWithTags(cs.Type.Tags())
 			continue
 		}
 
@@ -314,7 +315,7 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 
 		t.addProcessInfo(cs)
 
-		tracerTelemetry.closedConns.Inc(cs.Type.String())
+		tracerTelemetry.closedConns.IncWithTags(cs.Type.Tags())
 		t.ebpfTracer.GetFailedConnections().MatchFailedConn(cs)
 	}
 
@@ -440,6 +441,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	conns.HTTP2 = delta.HTTP2
 	conns.Kafka = delta.Kafka
 	conns.Postgres = delta.Postgres
+	conns.Redis = delta.Redis
 	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	conns.CompilationTelemetryByAsset = t.getRuntimeCompilationTelemetry()
 	conns.KernelHeaderFetchResult = int32(kernel.HeaderProvider.GetResult())
@@ -526,12 +528,12 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 			if c.Type == network.TCP {
 				tracerTelemetry.expiredTCPConns.Inc()
 			}
-			tracerTelemetry.closedConns.Inc(c.Type.String())
+			tracerTelemetry.closedConns.IncWithTags(c.Type.Tags())
 			return false
 		}
 
 		if t.shouldSkipConnection(c) {
-			tracerTelemetry.skippedConns.Inc(c.Type.String())
+			tracerTelemetry.skippedConns.IncWithTags(c.Type.Tags())
 			return false
 		}
 		return true

@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -117,7 +118,7 @@ func (suite *PodTestSuite) SetupSuite() {
 	require.NoError(suite.T(), err)
 	suite.testServer = ts
 
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "127.0.0.1")
 	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
 	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", kubeletPort)

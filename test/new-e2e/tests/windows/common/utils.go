@@ -7,7 +7,10 @@ package common
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -67,4 +70,54 @@ func MeasureCommand(host *components.RemoteHost, command string) (time.Duration,
 		return 0, "", fmt.Errorf("failed to unmarshal Measure-Command output: %w\n%s", err, out)
 	}
 	return time.Duration(m.TotalMilliseconds) * time.Millisecond, m.Output, nil
+}
+
+// FileNameFromPath returns the last part of a path, which is the file name. Trailing slashes are removed before extracting the last element.
+// Supports both backslashes and forward slashes, by returning the last part after the last backslash or forward slash.
+func FileNameFromPath(path string) string {
+	// remove trailing slash, if any
+	path = strings.TrimSuffix(path, `\`)
+	path = strings.TrimSuffix(path, `/`)
+	// get index of last backslash and last forward slash
+	lastBackslash := strings.LastIndex(path, `\`)
+	lastForwardSlash := strings.LastIndex(path, `/`)
+	// if no backslash or forward slash is found, return the path as is
+	if lastBackslash == -1 && lastForwardSlash == -1 {
+		return path
+	}
+	// get the last part of the path after the last backslash or forward slash
+	if lastBackslash > lastForwardSlash {
+		return path[lastBackslash+1:]
+	}
+	return path[lastForwardSlash+1:]
+}
+
+// CleanDirectory removes all children of a directory, but leaves the directory itself.
+//
+// returns nil if the directory does not exist
+func CleanDirectory(host *components.RemoteHost, dir string) error {
+	// check if the directory exists
+	_, err := host.Lstat(dir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+
+	// get children
+	entries, err := host.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("error reading dir %s: %w", dir, err)
+	}
+
+	// delete children
+	for _, entry := range entries {
+		err = host.RemoveAll(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			return fmt.Errorf("error removing path %s: %w", entry.Name(), err)
+		}
+	}
+
+	return nil
 }

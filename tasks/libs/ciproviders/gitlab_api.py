@@ -14,7 +14,7 @@ from functools import lru_cache
 
 import gitlab
 import yaml
-from gitlab.v4.objects import Project, ProjectPipeline
+from gitlab.v4.objects import Project, ProjectCommit, ProjectPipeline
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
@@ -88,6 +88,22 @@ def get_gitlab_repo(repo='DataDog/datadog-agent', token=None) -> Project:
     repo = api.projects.get(repo)
 
     return repo
+
+
+def get_commit(project_name: str, git_sha: str) -> ProjectCommit:
+    """
+    Retrieves the commit for a given git sha a given project.
+    """
+    repo = get_gitlab_repo(project_name)
+    return repo.commits.get(git_sha)
+
+
+def get_pipeline(project_name: str, pipeline_id: str) -> ProjectPipeline:
+    """
+    Retrieves the pipeline for a given pipeline id in a given project.
+    """
+    repo = get_gitlab_repo(project_name)
+    return repo.pipelines.get(pipeline_id)
 
 
 @retry_function('refresh pipeline #{0.id}')
@@ -398,7 +414,7 @@ class MultiGitlabCIDiff:
         res = []
 
         # .gitlab-ci.yml will be always first and other entries sorted alphabetically
-        diffs = sorted(self.diffs, key=lambda diff: '' if diff == '.gitlab-ci.yml' else diff)
+        diffs = sorted(self.diffs, key=lambda diff: '' if diff.entry_point == '.gitlab-ci.yml' else diff.entry_point)
 
         for diff in diffs:
             res.extend(str_entry(diff))
@@ -838,3 +854,17 @@ def load_context(context):
             return [list(j.items())]
         except json.JSONDecodeError as e:
             raise Exit(f"Invalid context: {context}, must be a valid json, or a path to a yaml file", 1) from e
+
+
+def retrieve_all_paths(yaml):
+    if isinstance(yaml, dict):
+        for key, value in yaml.items():
+            if key == "changes":
+                if isinstance(value, list):
+                    yield from value
+                elif "paths" in value:
+                    yield from value["paths"]
+            yield from retrieve_all_paths(value)
+    elif isinstance(yaml, list):
+        for item in yaml:
+            yield from retrieve_all_paths(item)

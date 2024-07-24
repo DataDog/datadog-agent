@@ -54,18 +54,101 @@ components_to_migrate = [
     "comp/aggregator/demultiplexer/component.go",
     "comp/core/config/component.go",
     "comp/core/flare/component.go",
-    "comp/dogstatsd/replay/component.go",
     "comp/dogstatsd/server/component.go",
     "comp/forwarder/defaultforwarder/component.go",
     "comp/metadata/inventoryagent/component.go",
     "comp/netflow/config/component.go",
     "comp/netflow/server/component.go",
     "comp/remote-config/rcclient/component.go",
-    "comp/trace/agent/component.go",
     "comp/trace/config/component.go",
     "comp/process/apiserver/component.go",
-    "comp/core/workloadmeta/component.go",
 ]
+
+
+# List of components that use the classic style, where `comp/<component>/<component>impl` exists
+# New components should use the new style of `def`, `impl`, `fx` folders
+components_classic_style = [
+    'comp/agent/autoexit/autoexitimpl',
+    'comp/agent/cloudfoundrycontainer/cloudfoundrycontainerimpl',
+    'comp/agent/expvarserver/expvarserverimpl',
+    'comp/agent/jmxlogger/jmxloggerimpl',
+    'comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl',
+    'comp/api/api/apiimpl',
+    'comp/api/api/def',
+    'comp/api/authtoken/fetchonlyimpl',
+    'comp/api/authtoken/createandfetchimpl',
+    'comp/checks/agentcrashdetect/agentcrashdetectimpl',
+    'comp/checks/windowseventlog/windowseventlogimpl',
+    "comp/checks/winregistry/impl",
+    'comp/collector/collector/collectorimpl',
+    'comp/core/autodiscovery/autodiscoveryimpl',
+    'comp/core/configsync/configsyncimpl',
+    'comp/core/gui/guiimpl',
+    'comp/core/hostname/hostnameimpl',
+    'comp/core/log/logimpl',
+    'comp/core/log/tracelogimpl',
+    'comp/core/pid/pidimpl',
+    'comp/core/secrets/secretsimpl',
+    'comp/core/settings/settingsimpl',
+    'comp/core/status/statusimpl',
+    'comp/core/sysprobeconfig/sysprobeconfigimpl',
+    'comp/core/telemetry/telemetryimpl',
+    'comp/core/telemetry/noopsimpl',
+    'comp/dogstatsd/pidmap/pidmapimpl',
+    'comp/dogstatsd/serverDebug/serverdebugimpl',
+    'comp/dogstatsd/status/statusimpl',
+    'comp/etw/impl',
+    'comp/forwarder/eventplatform/eventplatformimpl',
+    'comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl',
+    'comp/forwarder/orchestrator/orchestratorimpl',
+    'comp/languagedetection/client/clientimpl',
+    'comp/logs/adscheduler/adschedulerimpl',
+    'comp/logs/agent/agentimpl',
+    'comp/metadata/host/hostimpl',
+    'comp/metadata/inventorychecks/inventorychecksimpl',
+    'comp/metadata/inventoryhost/inventoryhostimpl',
+    'comp/metadata/inventoryotel/inventoryotelimpl',
+    'comp/metadata/packagesigning/packagesigningimpl',
+    'comp/metadata/resources/resourcesimpl',
+    'comp/metadata/runner/runnerimpl',
+    'comp/ndmtmp/forwarder/forwarderimpl',
+    'comp/networkpath/npcollector/npcollectorimpl',
+    'comp/otelcol/logsagentpipeline/logsagentpipelineimpl',
+    'comp/process/agent/agentimpl',
+    'comp/process/connectionscheck/connectionscheckimpl',
+    'comp/process/containercheck/containercheckimpl',
+    'comp/process/expvars/expvarsimpl',
+    'comp/process/forwarders/forwardersimpl',
+    'comp/process/hostinfo/hostinfoimpl',
+    'comp/process/processcheck/processcheckimpl',
+    'comp/process/processdiscoverycheck/processdiscoverycheckimpl',
+    'comp/process/processeventscheck/processeventscheckimpl',
+    'comp/process/profiler/profilerimpl',
+    'comp/process/rtcontainercheck/rtcontainercheckimpl',
+    'comp/process/runner/runnerimpl',
+    'comp/process/status/statusimpl',
+    'comp/process/submitter/submitterimpl',
+    'comp/remote-config/rcservice/rcserviceimpl',
+    'comp/remote-config/rcservicemrf/rcservicemrfimpl',
+    'comp/remote-config/rcstatus/rcstatusimpl',
+    'comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl',
+    'comp/serializer/compression/compressionimpl',
+    'comp/snmptraps/config/configimpl',
+    'comp/snmptraps/formatter/formatterimpl',
+    'comp/snmptraps/forwarder/forwarderimpl',
+    'comp/snmptraps/listener/listenerimpl',
+    'comp/snmptraps/oidresolver/oidresolverimpl',
+    'comp/snmptraps/server/serverimpl',
+    'comp/snmptraps/status/statusimpl',
+    'comp/systray/systray/systrayimpl',
+    'comp/trace/etwtracer/etwtracerimpl',
+    'comp/trace/status/statusimpl',
+    'comp/updater/localapi/localapiimpl',
+    'comp/updater/localapiclient/localapiclientimpl',
+    'comp/updater/telemetry/telemetryimpl',
+    'comp/updater/updater/updaterimpl',
+]
+
 
 # // TODO: (components)
 # The migration of these components is in progresss.
@@ -75,6 +158,7 @@ components_missing_implementation_folder = [
     "comp/core/tagger",
     "comp/forwarder/orchestrator/orchestratorinterface",
     "comp/core/hostname/hostnameinterface",
+    "comp/core/hostname/remotehostnameimpl",
 ]
 
 implementation_definitions = [
@@ -85,6 +169,10 @@ implementation_definitions = [
 
 
 def check_component_contents_and_file_hiearchy(entry_point):
+    # TODO: validate that def/component.go exists and defines `package <component>`
+    # TODO: validate that each of impl[-suffix]/[any].go defines `package <component>impl`
+    # TODO: validate that fx/fx.go, if it exists, defines `package <component>fx` or `package fx`
+    # TODO: validate that `def` is fx-free, and that `impl` is fx-free *except* for tests
     content = entry_point.content
     file = entry_point.file
     directory = entry_point.dir
@@ -101,16 +189,31 @@ def check_component_contents_and_file_hiearchy(entry_point):
 
     component_name = directory.stem
     missing_implementation_folder = True
-
     if str(directory) in components_missing_implementation_folder:
         return ""
 
     for folder in directory.iterdir():
-        # Allow implementation to be old style <component>impl or new style <component>/impl or <component>/impl-<suffix>
-        if folder.match('*impl') or folder.match('impl-*'):
-            missing_implementation_folder = False
-            # TODO: check that the implementation_definitions are present in any of the files of the impl folder
-            break
+        if folder.is_file():
+            continue
+
+        if str(folder) in components_missing_implementation_folder:
+            return ""
+
+        if entry_point.version == 2:
+            # Check for component implementation using the new-style folder structure: comp/<component>/impl[-suffix]
+            if folder.match('impl-*') or folder.match('impl'):
+                missing_implementation_folder = False
+                break
+        if entry_point.version == 1:
+            # Check for component implementation using the classic style: comp/<component>/<component>impl
+            if str(folder) in components_classic_style:
+                missing_implementation_folder = False
+            else:
+                # check if folder is a subcomponent
+                # if it is a subcomponent we fail if not we do not report any error
+                component_file = folder / 'component.go'
+                if component_file.is_file():
+                    return f"** {component_name} is missing the implemenation folder in {directory}. See docs/components/defining-components.md; skipping"
 
     if missing_implementation_folder:
         return f"** {component_name} is missing the implemenation folder in {directory}. See docs/components/defining-components.md; skipping"
@@ -191,7 +294,9 @@ class ComponentRoot:
         self.file = file
         self.dir = dir
         self.version = version
-        self.content = list(self.file.open())
+        fp = self.file.open()
+        self.content = list(fp)
+        fp.close()
 
 
 def locate_root(dir):
@@ -201,9 +306,15 @@ def locate_root(dir):
     # v2 component: this folder is a component root if it contains 'def/component.go'
     component_file = dir / 'def/component.go'
     if component_file.is_file():
-        return ComponentRoot(component_file, dir, 2)
+        # comp/api/api/def/component.go is a special case, it's not a component using version 2
+        # PLEASE DO NOT ADD MORE EXCEPTIONS
+        if str(component_file) == "comp/api/api/def/component.go":
+            return ComponentRoot(component_file, dir, 1)
+        else:
+            return ComponentRoot(component_file, dir, 2)
+
     # v1 component: this folder is a component root if it contains '/component.go' but the path is not '/def/component.go'
-    #    in particular, the directory named 'def' should not be treated as a component root
+    # in particular, the directory named 'def' should not be treated as a component root
     component_file = dir / 'component.go'
     if component_file.is_file() and '/def/component.go' not in str(component_file):
         return ComponentRoot(component_file, dir, 1)

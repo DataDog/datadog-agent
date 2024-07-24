@@ -595,6 +595,8 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(t, true, cfg.Enabled)
 
 	assert.False(t, cfg.InstallSignature.Found)
+
+	assert.True(t, cfg.ReceiverEnabled)
 }
 
 func TestNoAPMConfig(t *testing.T) {
@@ -2230,7 +2232,7 @@ func TestLoadEnv(t *testing.T) {
 
 	env = "DD_APM_FEATURES"
 	t.Run(env, func(t *testing.T) {
-		assert := func(in string, expected []string) {
+		assert := func(in string, _ []string) {
 			t.Setenv(env, in)
 			c := fxutil.Test[Component](t, fx.Options(
 				corecomp.MockModule(),
@@ -2598,4 +2600,20 @@ func TestGetCoreConfigHandler(t *testing.T) {
 	err := yaml.Unmarshal(resp.Body.Bytes(), &conf)
 	assert.NoError(t, err, "Error loading YAML configuration from the API")
 	assert.Contains(t, conf, "apm_config")
+}
+
+func TestDisableReceiverConfig(t *testing.T) {
+	config := fxutil.Test[Component](t, fx.Options(
+		corecomp.MockModule(),
+		fx.Replace(corecomp.MockParams{
+			Params:      corecomp.Params{ConfFilePath: "./testdata/disable_receiver.yaml"},
+			SetupConfig: true,
+		}),
+		MockModule(),
+	))
+	cfg := config.Object()
+
+	require.NotNil(t, cfg)
+
+	assert.False(t, cfg.ReceiverEnabled)
 }

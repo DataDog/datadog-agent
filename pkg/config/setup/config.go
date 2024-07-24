@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
@@ -751,8 +752,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.SetKnown("cluster_name")
 	config.SetKnown("listeners")
 
-	// Orchestrator Explorer DCA and process-agent
-	config.BindEnvAndSetDefault("orchestrator_explorer.enabled", false)
+	// Orchestrator Explorer DCA and core agent
+	config.BindEnvAndSetDefault("orchestrator_explorer.enabled", true)
 	// enabling/disabling the environment variables & command scrubbing from the container specs
 	// this option will potentially impact the CPU usage of the agent
 	config.BindEnvAndSetDefault("orchestrator_explorer.container_scrubbing.enabled", true)
@@ -1884,6 +1885,17 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
 	setNumWorkers(config)
+
+	flareStrippedKeys := config.GetStringSlice("flare_stripped_keys")
+	if len(flareStrippedKeys) > 0 {
+		log.Warn("flare_stripped_keys is deprecated, please use scrubber.additional_keys instead.")
+		scrubber.AddStrippedKeys(flareStrippedKeys)
+	}
+	scrubberAdditionalKeys := config.GetStringSlice("scrubber.additional_keys")
+	if len(scrubberAdditionalKeys) > 0 {
+		scrubber.AddStrippedKeys(scrubberAdditionalKeys)
+	}
+
 	return warnings, setupFipsEndpoints(config)
 }
 

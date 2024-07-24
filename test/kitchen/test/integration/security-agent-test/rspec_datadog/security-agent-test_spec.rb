@@ -80,7 +80,7 @@ shared_examples "passes" do |bundle, env|
           "docker-testsuite"])
         output_line_tag = "d"
       elsif bundle == "ad"
-        testsuite_args.concat(["-test.run", "TestActivityDump"])
+        testsuite_args.concat(["-test.run", "(TestActivityDump|TestSecurityProfile)"])
         output_line_tag = "ad"
       elsif bundle == "ebpfless"
         testsuite_args.concat(["-trace"])

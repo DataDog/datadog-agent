@@ -20,6 +20,7 @@ from tasks.libs.ciproviders.gitlab_api import (
     get_preset_contexts,
     load_context,
     read_includes,
+    retrieve_all_paths,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.common.color import Color, color_message
@@ -381,11 +382,11 @@ def gitlab_ci(ctx, test="all", custom_context=None):
     print(f'{color_message("info", Color.BLUE)}: Fetching Gitlab CI configurations...')
     configs = get_all_gitlab_ci_configurations(ctx)
 
-    def test_gitlab_configuration(entry_point, init_config, context=None):
+    def test_gitlab_configuration(entry_point, input_config, context=None):
         nonlocal has_errors
 
         # Update config and lint it
-        config = generate_gitlab_full_configuration(ctx, entry_point, context=context, input_config=init_config)
+        config = generate_gitlab_full_configuration(ctx, entry_point, context=context, input_config=input_config)
         res = agent.ci_lint.create({"content": config, "dry_run": True, "include_jobs": True})
         status = color_message("valid", "green") if res.valid else color_message("invalid", "red")
 
@@ -402,7 +403,7 @@ def gitlab_ci(ctx, test="all", custom_context=None):
             )
             has_errors = True
 
-    for entry_point, init_config in configs.items():
+    for entry_point, input_config in configs.items():
         with gitlab_section(f"Testing {entry_point}", echo=True):
             # Only the main config should be tested with all contexts
             if entry_point == ".gitlab-ci.yml":
@@ -415,9 +416,9 @@ def gitlab_ci(ctx, test="all", custom_context=None):
                 print(f'{color_message("info", Color.BLUE)}: We will test {len(all_contexts)} contexts')
                 for context in all_contexts:
                     print("Test gitlab configuration with context: ", context)
-                    test_gitlab_configuration(entry_point, init_config, dict(context))
+                    test_gitlab_configuration(entry_point, input_config, dict(context))
             else:
-                test_gitlab_configuration(entry_point, init_config)
+                test_gitlab_configuration(entry_point, input_config)
 
     if has_errors:
         raise Exit(code=1)
@@ -496,3 +497,19 @@ def test_change_path(ctx, job_files=None):
         )
     else:
         print(color_message("success: All tests contain a change paths rule", "green"))
+
+
+@task
+def gitlab_change_paths(ctx):
+    # Read gitlab config
+    config = generate_gitlab_full_configuration(ctx, ".gitlab-ci.yml", {}, return_dump=False, apply_postprocessing=True)
+    error_paths = []
+    for path in set(retrieve_all_paths(config)):
+        files = glob(path, recursive=True)
+        if len(files) == 0:
+            error_paths.append(path)
+    if error_paths:
+        raise Exit(
+            f"{color_message('No files found for paths', Color.RED)}:\n{chr(10).join(' - ' + path for path in error_paths)}"
+        )
+    print(f"All rule:changes:paths from gitlab-ci are {color_message('valid', Color.GREEN)}.")
