@@ -163,6 +163,9 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 				linuxNodeRole,
 			},
 			ServiceRole: clusterRole,
+			ProviderCredentialOpts: &eks.KubeconfigOptionsArgs{
+				ProfileName: pulumi.String(awsEnv.Profile()),
+			},
 		}, pulumi.Timeouts(&pulumi.CustomTimeouts{
 			Create: "30m",
 			Update: "30m",
