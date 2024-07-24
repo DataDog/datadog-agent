@@ -436,6 +436,6 @@ type CloudXStatistics struct {
 	ServiceArea      string  `json:"service_area"`
 	HostName         string  `json:"host_name"`
 	VpnID            float64 `json:"vpn_id"`
-	AppUrlHostIp     string  `json:"app_url_host_ip"`
-	Id               string  `json:"id"`
+	AppURLHostIP     string  `json:"app_url_host_ip"`
+	ID               string  `json:"id"`
 }

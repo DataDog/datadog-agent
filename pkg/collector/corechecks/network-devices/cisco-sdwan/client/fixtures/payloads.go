@@ -401,7 +401,7 @@ const GetHardwareStates = `
 ]
 `
 
-// CloudXStatistics /dataservice/data/device/statistics/cloudxstatistics
+// GetCloudExpressMetrics /dataservice/data/device/statistics/cloudxstatistics
 const GetCloudExpressMetrics = `
 [
 	{
