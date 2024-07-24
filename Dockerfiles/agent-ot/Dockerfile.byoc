@@ -1,10 +1,11 @@
+ARG AGENT_VERSION=nightly-ot-beta-main-jmx
 # Use the Ubuntu Slim AMD64 base image
 FROM ubuntu:24.04 AS builder
 
 # Set environment variables
+ARG AGENT_VERSION
 ENV DEBIAN_FRONTEND=noninteractive
-ENV GO_VERSION=1.22.0
-ENV AGENT_VERSION=7.56.0-rc.7
+ARG GO_VERSION=1.22.0
 
 # Set the working directory
 WORKDIR /workspace
@@ -74,9 +75,8 @@ RUN . venv/bin/activate && invoke collector.generate
 RUN . venv/bin/activate && invoke otel-agent.build
 
 # Use the final Datadog agent image
-FROM datadog/agent-dev:nightly-ot-beta-main-jmx
-
-ENV AGENT_VERSION=7.56.0-rc.7
+FROM datadog/agent-dev:${AGENT_VERSION}
+ARG AGENT_VERSION
 # Copy the built OTel agent from the builder stage
 COPY --from=builder /workspace/datadog-agent-${AGENT_VERSION}/bin/otel-agent/otel-agent /opt/datadog-agent/embedded/bin/otel-agent
 
