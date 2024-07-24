@@ -42,14 +42,16 @@ if [ -d $TUF_REPO_DIR ]; then
     rm -rf $TUF_REPO_DIR
 fi
 
-# Run pip freeze and iterate over each line
+# Ensure the dependencies file is created fresh
 > $INSTALL_DIR/embedded/.pkg-dependencies.txt
+# Run pip freeze and iterate over each line
 $INSTALL_DIR/embedded/bin/pip freeze | grep -v '==' | while IFS= read -r line; do
-    regex='^(.*) @\ (.+\/)*([^\/-]+)-([0-9]+(\.([0-9])+)*)(.*[^-])-(.*\.whl)#(.*)$'
-    if [ $line =~ $regex ]; then
-        local package_name=${BASH_REMATCH[1]}
-        local version=${BASH_REMATCH[4]}
-        echo "${package_name}==$version" >> $INSTALL_DIR/embedded/.pkg-dependencies.txt
+    # Use sed to extract package name and version
+    package_name=$(echo "$line" | sed -n 's/^\(.*\) @.*/\1/p')
+    version=$(echo "$line" | sed -n 's/^.*-\([0-9]\+\(\.[0-9]\+\)*\)\.whl#.*/\1/p')
+
+    if [ -n "$package_name" ] && [ -n "$version" ]; then
+        echo "${package_name}==${version}" >> "$INSTALL_DIR/embedded/.pkg-dependencies.txt"
     fi
 done
 
