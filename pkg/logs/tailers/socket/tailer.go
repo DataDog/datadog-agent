@@ -67,9 +67,10 @@ func (t *Tailer) forwardMessages() {
 		// the decoder has successfully been flushed
 		t.done <- struct{}{}
 	}()
+	fmt.Println("wacktest0")
 	for output := range t.decoder.OutputChan {
 		if len(output.GetContent()) > 0 {
-			fmt.Println("wacktest")
+			fmt.Println("wacktest1")
 			origin := message.NewOrigin(t.source)
 			fmt.Println("wacktest2")
 			_, ip, err := t.read(t)
