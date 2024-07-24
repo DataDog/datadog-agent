@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -115,6 +116,7 @@ func addFactories(reqs Requires, factories otelcol.Factories) {
 	}
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger)
 	factories.Extensions[ddextension.Type] = ddextension.NewFactory(reqs.ConfigStore)
+	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
 }
 
 // NewComponent returns a new instance of the collector component.

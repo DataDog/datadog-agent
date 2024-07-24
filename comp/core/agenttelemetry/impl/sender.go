@@ -9,7 +9,7 @@
 //
 // ---------------------------------------------------
 
-package agenttelemetryimpl
+package impl
 
 import (
 	"bytes"
@@ -21,13 +21,14 @@ import (
 	"strconv"
 	"time"
 
+	dto "github.com/prometheus/client_model/go"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	metadatautils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	dto "github.com/prometheus/client_model/go"
 )
 
 const (
