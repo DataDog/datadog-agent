@@ -143,6 +143,7 @@ def print_ci(
     job: str | None = None,
     sort: bool = False,
     clean: bool = True,
+    keep_special_objects: bool = False,
     expand_matrix: bool = False,
     git_ref: str | None = None,
     ignore_errors: bool = False,
@@ -152,13 +153,21 @@ def print_ci(
 
     - job: If provided, print only one job
     - clean: Apply post processing to make output more readable (remove extends, flatten lists of lists...)
+    - keep_special_objects: If True, do not filter out special objects (variables, stages etc.)
     - expand_matrix: Will expand matrix jobs into multiple jobs
     - ignore_errors: If True, ignore errors in the gitlab configuration (only process yaml)
     - git_ref: If provided, use this git reference to fetch the configuration
     - NOTE: This requires a full api token access level to the repository
     """
     yml = get_gitlab_ci_configuration(
-        ctx, input_file, job=job, clean=clean, expand_matrix=expand_matrix, git_ref=git_ref, ignore_errors=ignore_errors
+        ctx,
+        input_file,
+        job=job,
+        clean=clean,
+        expand_matrix=expand_matrix,
+        git_ref=git_ref,
+        ignore_errors=ignore_errors,
+        keep_special_objects=keep_special_objects,
     )
 
     # Print

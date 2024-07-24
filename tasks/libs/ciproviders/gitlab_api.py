@@ -502,7 +502,9 @@ def filter_gitlab_ci_configuration(yml: dict, job: str | None = None, keep_speci
     def filter_yaml(key, value):
         # Not a job
         if key.startswith('.') or 'script' not in value and 'trigger' not in value:
-            return None
+            # Exception for special objects if this option is enabled
+            if not (keep_special_objects and key in CONFIG_SPECIAL_OBJECTS):
+                return None
 
         if job is not None:
             return (key, value) if key == job else None
@@ -691,7 +693,7 @@ def get_gitlab_ci_configuration(
     input_file: str = '.gitlab-ci.yml',
     ignore_errors: bool = False,
     job: str | None = None,
-    filter: str = 'all',
+    keep_special_objects: bool = False,
     clean: bool = True,
     expand_matrix: bool = False,
     git_ref: str | None = None,
@@ -699,6 +701,7 @@ def get_gitlab_ci_configuration(
     """
     Creates, filters and processes the gitlab-ci configuration
 
+    - keep_special_objects: Will keep special objects (not jobs) in the configuration (variables, stages, etc.)
     - expand_matrix: Will expand matrix jobs into multiple jobs
     """
 
@@ -706,7 +709,7 @@ def get_gitlab_ci_configuration(
     yml = get_full_gitlab_ci_configuration(ctx, input_file, ignore_errors=ignore_errors, git_ref=git_ref)
 
     # Filter
-    yml = filter_gitlab_ci_configuration(yml, job)
+    yml = filter_gitlab_ci_configuration(yml, job, keep_special_objects=keep_special_objects)
 
     # Clean
     if clean:
