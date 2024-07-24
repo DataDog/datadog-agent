@@ -224,7 +224,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
 int __attribute__((always_inline)) dr_cgroup_write_callback(void *ctx) {
     struct dentry_resolver_input_t *inputs = peek_resolver_inputs(EVENT_ANY);
     if (!inputs)
-        return 1;
+        return 0;
 
     struct cgroup_write_event_t event = {
         .file.path_key = inputs->original_key,
