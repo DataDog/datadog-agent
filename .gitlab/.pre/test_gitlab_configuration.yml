@@ -19,7 +19,7 @@ test_gitlab_compare_to:
     - !reference [.on_gitlab_changes]
   script:
     - source /root/.bashrc
-    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME)
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME)
     - !reference [.setup_agent_github_app]
     - pip install -r tasks/requirements.txt
     - inv pipeline.compare-to-itself
