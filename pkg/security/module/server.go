@@ -508,7 +508,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 	}
 
 	if as.msgSender == nil {
-		if pkgconfig.SystemProbe.GetBool("runtime_security_config.direct_send_from_system_probe") {
+		if pkgconfig.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe") {
 			msgSender, err := NewDirectMsgSender(stopper)
 			if err != nil {
 				log.Errorf("failed to setup direct reporter: %v", err)

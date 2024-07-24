@@ -61,7 +61,7 @@ func TestWinCrashReporting(t *testing.T) {
 	listener, closefunc := createSystemProbeListener()
 	defer closefunc()
 
-	config.InitSystemProbeConfig(config.SystemProbe)
+	config.InitSystemProbeConfig(config.SystemProbe())
 
 	mux := http.NewServeMux()
 	server := http.Server{
@@ -70,7 +70,7 @@ func TestWinCrashReporting(t *testing.T) {
 	defer server.Close()
 
 	sock := fmt.Sprintf("localhost:%d", listener.Addr().(*net.TCPAddr).Port)
-	config.SystemProbe.SetWithoutSource("system_probe_config.sysprobe_socket", sock)
+	config.SystemProbe().SetWithoutSource("system_probe_config.sysprobe_socket", sock)
 
 	/*
 	 * the underlying system probe connector is a singleton.  Therefore, we can't set up different

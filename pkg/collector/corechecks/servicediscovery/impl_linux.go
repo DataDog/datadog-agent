@@ -269,6 +269,6 @@ type systemProbeClient interface {
 
 func getSysProbeClient() (systemProbeClient, error) {
 	return processnet.GetRemoteSystemProbeUtil(
-		ddconfig.SystemProbe.GetString("system_probe_config.sysprobe_socket"),
+		ddconfig.SystemProbe().GetString("system_probe_config.sysprobe_socket"),
 	)
 }

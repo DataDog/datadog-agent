@@ -26,7 +26,6 @@ import (
 )
 
 func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
-	newSystemProbeConfig(t)
 	t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
 	cfg := aconfig.MockSystemProbe(t)
 	sysconfig.Adjust(cfg)
