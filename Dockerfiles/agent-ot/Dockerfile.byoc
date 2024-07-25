@@ -51,6 +51,7 @@ RUN go version && \
 RUN git clone https://github.com/DataDog/datadog-agent.git datadog-agent-${AGENT_VERSION}
 
 # Once we have stable releases, we can use the following code to download the source code
+# TODO: use released agent version once we have an agent release with the otel binary
 # Download and unpack source code
 #RUN curl -L https://github.com/DataDog/datadog-agent/archive/refs/tags/${AGENT_VERSION}.tar.gz -o datadog-agent-${AGENT_VERSION}.tar.gz && \
 #    tar -xzvf datadog-agent-${AGENT_VERSION}.tar.gz && \
