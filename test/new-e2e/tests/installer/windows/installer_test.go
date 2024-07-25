@@ -111,6 +111,8 @@ func (suite *testInstallerSuite) TestSystemIntegrity() {
 	// Arrange
 	systemFiles, err := common.NewFileSystemSnapshot(suite.Env().RemoteHost, installtest.SystemPaths())
 	suite.Require().NoError(err)
+	systemPathsPermissions, err := installtest.SnapshotPermissionsForPaths(suite.Env().RemoteHost, installtest.SystemPathsForPermissionsValidation())
+	suite.Require().NoError(err)
 
 	// Act
 	suite.Require().NoError(suite.installer.Install())
@@ -119,6 +121,10 @@ func (suite *testInstallerSuite) TestSystemIntegrity() {
 	// Assert
 	systemFilesAfterUninstall, err := common.NewFileSystemSnapshot(suite.Env().RemoteHost, installtest.SystemPaths())
 	suite.Require().NoError(err)
+
+	systemPathsPermissionsAfterUninstall, err := installtest.SnapshotPermissionsForPaths(suite.Env().RemoteHost, installtest.SystemPathsForPermissionsValidation())
+	suite.Require().NoError(err)
+	suite.Require().Equal(systemPathsPermissions, systemPathsPermissionsAfterUninstall)
 
 	diff, err := systemFiles.CompareSnapshots(systemFilesAfterUninstall)
 	suite.Require().NoError(err)
