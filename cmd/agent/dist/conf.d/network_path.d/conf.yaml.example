@@ -1,22 +1,39 @@
 init_config:
 
 instances:
-  -
+  - ## @param hostname - string - required
+    ## Hostname or IP of the target endpoint to monitor via Network Path.
+    #
+    # hostname: <HOSTNAME>
 
-#
-#	DestHostname string `yaml:"hostname"`
-#
-#	DestPort uint16 `yaml:"port"`
-#
-#	Protocol string `yaml:"protocol"`
-#
-#	SourceService      string `yaml:"source_service"`
-#	DestinationService string `yaml:"destination_service"`
-#
-#	MaxTTL uint8 `yaml:"max_ttl"`
-#
-#	TimeoutMs uint `yaml:"timeout"` // millisecond
-#
-#	MinCollectionInterval int `yaml:"min_collection_interval"`
-#
-#	Tags []string `yaml:"tags"`
+    ## @param port - integer - optional
+    ## Port of the target endpoint to monitor via Network Path.
+    ## If port is not set, a random port will be used.
+    #
+    # port: <PORT>
+
+    ## @param protocol - string - optional - default: UDP
+    ## Protocol used to monitor an endpoint via Network Path.
+    ## Available protocols: UDP, TCP
+    #
+    # protocol: <PROTOCOL>
+
+    ## @param max_ttl - integer - optional - default: 30
+    ## Specifies the maximum number of hops (max time-to-live value) traceroute will probe.
+    #
+    # max_ttl: <PORT>
+
+    ## @param min_collection_interval - number - optional - default: 60
+    ## Specifies how frequently we should probe the endpoint.
+    ## Min collection interval is defined in seconds.
+    #
+    # min_collection_interval: 60
+
+    ## @param tags - list of strings - optional
+    ## A list of tags to attach to every metric and service check emitted by this instance.
+    ##
+    ## Learn more about tagging at https://docs.datadoghq.com/tagging
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>
