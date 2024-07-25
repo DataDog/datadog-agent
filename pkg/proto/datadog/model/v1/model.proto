@@ -73,6 +73,21 @@ message Entity {
     repeated string standardTags = 6;
 }
 
+message GenerateContainerIDFromOriginInfoRequest {
+    // Local Data
+    string localDataContainerIDFromSocket = 1;
+    string localDataPodUID = 2;
+    string localDataContainerID = 3;
+    // External Data
+    bool externalDataInit = 4;
+    string externalDataContainerName = 5;
+    string externalDataPodUID = 6;
+}
+
+message GenerateContainerIDFromOriginInfoResponse {
+    string containerID = 1;
+}
+
 message FetchEntityRequest {
     EntityId id = 1;
     TagCardinality cardinality = 2;
