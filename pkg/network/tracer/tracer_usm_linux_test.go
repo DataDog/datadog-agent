@@ -328,15 +328,17 @@ func (s *USMSuite) TestTLSClassification() {
 
 	type tlsTest struct {
 		name            string
-		postTracerSetup func(t *testing.T)
-		validation      func(t *testing.T, tr *Tracer)
+		context         map[string]interface{}
+		preTracerSetup  func(t *testing.T, ctx map[string]interface{})
+		postTracerSetup func(t *testing.T, ctx map[string]interface{})
+		validation      func(t *testing.T, ctx map[string]interface{}, tr *Tracer)
 	}
 	tests := make([]tlsTest, 0, len(scenarios))
 	for _, scenario := range scenarios {
 		scenario := scenario
 		tests = append(tests, tlsTest{
 			name: strings.Replace(tls.VersionName(scenario.version), " ", "-", 1) + "_docker",
-			postTracerSetup: func(t *testing.T) {
+			postTracerSetup: func(t *testing.T, _ map[string]interface{}) {
 				srv := testutil.NewTLSServerWithSpecificVersion("localhost:"+portAsString, func(conn net.Conn) {
 					defer conn.Close()
 					// Echo back whatever is received
@@ -364,7 +366,7 @@ func (s *USMSuite) TestTLSClassification() {
 				// Perform the TLS handshake
 				require.NoError(t, tlsConn.Handshake())
 			},
-			validation: func(t *testing.T, tr *Tracer) {
+			validation: func(t *testing.T, _ map[string]interface{}, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
 				require.Eventuallyf(t, func() bool {
 					payload := getConnections(t, tr)
@@ -387,12 +389,15 @@ func (s *USMSuite) TestTLSClassification() {
 			t.Cleanup(func() { tr.removeClient(clientID) })
 			t.Cleanup(func() { _ = tr.Pause() })
 
+			if tt.preTracerSetup != nil {
+				tt.preTracerSetup(t, tt.context)
+			}
 			tr.removeClient(clientID)
 			initTracerState(t, tr)
 			require.NoError(t, tr.Resume(), "enable probes - before post tracer")
-			tt.postTracerSetup(t)
+			tt.postTracerSetup(t, tt.context)
 			require.NoError(t, tr.Pause(), "disable probes - after post tracer")
-			tt.validation(t, tr)
+			tt.validation(t, tt.context, tr)
 		})
 	}
 }
