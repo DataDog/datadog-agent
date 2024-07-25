@@ -26,7 +26,6 @@ func TestReadAndForwardShouldSucceedWithSuccessfulRead(t *testing.T) {
 	var msg *message.Message
 
 	// should receive and decode one message
-
 	w.Write([]byte("foo\n"))
 	msg = <-msgChan
 	assert.Equal(t, "foo", string(msg.GetContent()))
