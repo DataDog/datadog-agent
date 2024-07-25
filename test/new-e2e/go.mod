@@ -190,7 +190,7 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pgavlin/fx v0.1.6 // indirect
-	github.com/philhofer/fwd v1.1.2 // indirect
+	github.com/philhofer/fwd v1.1.3-0.20240612014219-fbbf4953d986 // indirect
 	github.com/pjbgf/sha1cd v0.3.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/term v1.1.0 // indirect
@@ -216,7 +216,7 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/texttheater/golang-levenshtein v1.0.1 // indirect
-	github.com/tinylib/msgp v1.1.8 // indirect
+	github.com/tinylib/msgp v1.2.0 // indirect
 	github.com/tweekmonster/luser v0.0.0-20161003172636-3fa38070dbd7 // indirect
 	github.com/uber/jaeger-client-go v2.30.0+incompatible // indirect
 	github.com/uber/jaeger-lib v2.4.1+incompatible // indirect
