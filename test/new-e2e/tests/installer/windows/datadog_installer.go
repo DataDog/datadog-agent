@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent/installers/v2"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -72,21 +73,58 @@ func (d *DatadogInstaller) Version() (string, error) {
 	return d.execute("version")
 }
 
+func setVersion(pkg, version string) map[string]string {
+	return map[string]string{
+		"DD_INSTALLER_DEFAULT_PKG_VERSION_" + strings.ToUpper(strings.ReplaceAll(pkg, "-", "_")): version,
+	}
+}
+
+// InstallPackageParams contains the optional parameters for the Datadog Installer InstallPackage command
+type InstallPackageParams struct {
+	version string
+}
+
+// InstallPackageOption is an optional function parameter type for the Datadog Installer
+type InstallPackageOption func(*InstallPackageParams) error
+
+// WithVersion uses a specific URL for the Datadog Installer instead of using the pipeline URL.
+func WithVersion(version string) InstallPackageOption {
+	return func(params *InstallPackageParams) error {
+		params.version = version
+		return nil
+	}
+}
+
 // InstallPackage will attempt to use the Datadog Installer to install the package given in parameter.
+// version: A function that returns the version of the package to install. By default, it will install
+// the package matching the current pipeline. This is a function so that it can be combined with
 // Note that this command is a direct command and won't go through the Daemon.
-func (d *DatadogInstaller) InstallPackage(packageName string) (string, error) {
-	var packageURL string
+func (d *DatadogInstaller) InstallPackage(packageName string, opts ...InstallPackageOption) (string, error) {
+	params := InstallPackageParams{
+		version: fmt.Sprintf("pipeline-%s", d.env.AwsEnvironment.PipelineID()),
+	}
+	err := optional.ApplyOptions(&params, opts)
+	if err != nil {
+		return "", nil
+	}
+
+	envVars := installer.InstallScriptEnv(e2eos.AMD64Arch)
+	// Note: the URL doesn't matter here, only the "image" name and the version, e.g.:
+	// `agent-package:pipeline-123456`
+	// The rest is going to be overridden by the environment variables.
+	packageURL := "oci://a.b.c/"
 	switch packageName {
 	case AgentPackage:
-		// Note: the URL doesn't matter here, only the "image" name and the version:
-		// `agent-package:pipeline-123456`
-		// The rest is going to be overridden by the environment variables.
-		packageURL = fmt.Sprintf("oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/agent-package:pipeline-%s", d.env.AwsEnvironment.PipelineID())
+		const packageName = "agent-package"
+		packageURL += packageName
+		if params.version != "" {
+			maps.Copy(envVars, setVersion(packageName, params.version))
+			packageURL += fmt.Sprintf(":%s", params.version)
+		}
 	default:
 		return "", fmt.Errorf("installing package %s is not yet implemented", packageName)
 	}
 
-	envVars := installer.InstallScriptEnv(e2eos.AMD64Arch)
 	return d.execute(fmt.Sprintf("install %s", packageURL), client.WithEnvVariables(envVars))
 }
 
@@ -100,15 +138,15 @@ func (d *DatadogInstaller) RemovePackage(packageName string) (string, error) {
 	}
 }
 
-// InstallerParams contains the optional parameters for the Datadog Installer
+// InstallerParams contains the optional parameters for the Datadog Installer Install command
 type InstallerParams struct {
 	installerURL string
 }
 
-// InstallerOption is an optional function parameter type for the Datadog Installer
+// InstallerOption is an optional function parameter type for the Datadog Installer Install command
 type InstallerOption func(*InstallerParams) error
 
-// WithInstallerURL uses a specific URL for the Datadog Installer instead of using the pipeline URL.
+// WithInstallerURL uses a specific URL for the Datadog Installer Install command instead of using the pipeline URL.
 func WithInstallerURL(installerURL string) InstallerOption {
 	return func(params *InstallerParams) error {
 		params.installerURL = installerURL
