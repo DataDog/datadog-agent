@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 from invoke import task
+from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
 from tasks.vscode import VSCODE_DIR, VSCODE_LAUNCH_FILE
@@ -17,7 +18,12 @@ def debug(_, wait=True, host='localhost', port=5678):
     > # In vscode, launch the debugger with the configuration "Remote Debug Tasks"
     > # The debugger is attached !
     """
-    import debugpy
+    try:
+        import debugpy
+    except ImportError as e:
+        raise Exit(
+            'debugpy is not installed, you should update your requirements within tasks/requirements.txt', code=1
+        ) from e
 
     os.environ['TASKS_DEBUG'] = '1'
 
