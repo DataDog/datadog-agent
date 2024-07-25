@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
-	"github.com/stretchr/testify/assert"
 	"strings"
 )
 
@@ -31,12 +30,10 @@ func (r *RemoteWindowsBinaryAssertions) WithSignature(expectedSignatures map[str
 
 	if verify {
 		sig, err := common.GetAuthenticodeSignature(r.remoteHost, r.binaryPath)
-		// Use assert instead of require since we don't want to stop the test right here but continue executing
-		// other assertions (i.e. this failure is non-terminal).
-		assert.NoError(r.suite.T(), err, "could not get authenticode signature for binary")
-		assert.True(r.suite.T(), sig.Valid(), "binary signature was not valid")
+		r.require.NoError(err, "could not get authenticode signature for binary")
+		r.require.True(sig.Valid(), "binary signature was not valid")
 		if _, ok := expectedSignatures[strings.ToUpper(sig.SignerCertificate.Thumbprint)]; !ok {
-			assert.Error(r.suite.T(), fmt.Errorf("signature thumbprint is not valid: %s", sig.SignerCertificate.Thumbprint))
+			r.require.FailNowf("signature thumbprint is not valid: %s", sig.SignerCertificate.Thumbprint)
 		}
 	}
 
