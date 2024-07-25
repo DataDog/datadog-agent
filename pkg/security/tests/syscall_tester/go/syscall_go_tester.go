@@ -14,7 +14,10 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"os"
+	"syscall"
 	"time"
+	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/syndtr/gocapability/capability"
@@ -37,6 +40,7 @@ var (
 	runIMDSTest           bool
 	userSessionExecutable string
 	userSessionOpenPath   string
+	syscallDriftTest      bool
 )
 
 //go:embed ebpf_probe.o
@@ -183,6 +187,29 @@ func CleanupIMDSTest(dummy *netlink.Dummy) error {
 	return imdsutils.RemoveDummyInterface(dummy)
 }
 
+func RunSyscallDriftTest() error {
+	// wait for the syscall monitor period to expire
+	time.Sleep(4 * time.Second)
+
+	f, err := os.CreateTemp("/tmp", "syscall-drift-test")
+	if err != nil {
+		return err
+	}
+	if _, err = f.Write([]byte("Generating drift syscalls ...")); err != nil {
+		return err
+	}
+	if err = f.Close(); err != nil {
+		return err
+	}
+
+	tmpFilePtr, err := syscall.BytePtrFromString(f.Name())
+	if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(unsafe.Pointer(tmpFilePtr)), 0); err != 0 {
+		return error(err)
+	}
+
+	return nil
+}
+
 func main() {
 	flag.BoolVar(&bpfLoad, "load-bpf", false, "load the eBPF progams")
 	flag.BoolVar(&bpfClone, "clone-bpf", false, "clone maps")
@@ -194,6 +221,7 @@ func main() {
 	flag.BoolVar(&setupIMDSTest, "setup-imds-test", false, "when set, creates a dummy interface and attach the IMDS IP to it")
 	flag.BoolVar(&cleanupIMDSTest, "cleanup-imds-test", false, "when set, removes the dummy interface of the IMDS test")
 	flag.BoolVar(&runIMDSTest, "run-imds-test", false, "when set, binds an IMDS server locally and sends a query to it")
+	flag.BoolVar(&syscallDriftTest, "syscall-drift-test", false, "when set, runs the syscall drift test")
 
 	flag.Parse()
 
@@ -239,6 +267,12 @@ func main() {
 
 	if runIMDSTest {
 		if err := RunIMDSTest(); err != nil {
+			panic(err)
+		}
+	}
+
+	if syscallDriftTest {
+		if err := RunSyscallDriftTest(); err != nil {
 			panic(err)
 		}
 	}

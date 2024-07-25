@@ -106,7 +106,7 @@ class FailedJobs:
 class SlackMessage:
     JOBS_SECTION_HEADER = "Failed jobs:"
     INFRA_SECTION_HEADER = "Infrastructure failures:"
-    TEST_SECTION_HEADER = "Failed unit tests:"
+    TEST_SECTION_HEADER = "Failed tests:"
     MAX_JOBS_PER_TEST = 2
 
     def __init__(self, base: str = "", jobs: FailedJobs = None):
@@ -171,8 +171,3 @@ class SlackMessage:
         if self.coda:
             print(self.coda, file=buffer)
         return buffer.getvalue()
-
-
-class TeamMessage(SlackMessage):
-    JOBS_SECTION_HEADER = "Failed jobs you own:"
-    TEST_SECTION_HEADER = "Failed unit tests you own:"

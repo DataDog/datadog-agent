@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
@@ -81,7 +82,7 @@ func (suite *EtcdTestSuite) TearDownSuite() {
 
 // put configuration back in a known state before each test
 func (suite *EtcdTestSuite) SetupTest() {
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 	mockConfig.SetWithoutSource("autoconf_template_dir", "/foo/")
 
 	suite.populateEtcd()

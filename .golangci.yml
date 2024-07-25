@@ -5,7 +5,7 @@ run:
     - pkg/serverless/trace/inferredspan/constants.go # TODO: fox revive exported const error
   skip-dirs:
     - pkg/proto/patches
-
+    - tasks/unit_tests/testdata/components_src
 
 issues:
   exclude-use-default: false
@@ -38,8 +38,6 @@ issues:
         - errcheck
     # disable typecheck in folder where it breaks because of build tags
     - path: "pkg/security/"
-      linters: [typecheck]
-    - path: "pkg/process/"
       linters: [typecheck]
     # Ignore name repetition for checks (docker.Docker*, jmx.JMX*, etc.)
     - path: pkg/collector/corechecks/

@@ -537,7 +537,9 @@
 /tasks/updater.py                       @DataDog/fleet
 /tasks/libs/common/omnibus.py           @DataDog/agent-delivery
 /tasks/omnibus.py                       @DataDog/agent-delivery
+/tasks/unit_tests/components_tests.py   @DataDog/agent-shared-components
 /tasks/unit_tests/omnibus_tests.py      @DataDog/agent-delivery
+/tasks/unit_tests/testdata/components_src/ @DataDog/agent-shared-components
 /tasks/installer.py                     @DataDog/fleet
 /test/                                  @DataDog/agent-devx-loops
 /test/benchmarks/                       @DataDog/agent-metrics-logs
@@ -601,6 +603,7 @@
 /test/workload-checks/                        @DataDog/single-machine-performance
 
 /tools/                                 @DataDog/agent-devx-loops
+/tools/ci                               @DataDog/agent-devx-infra
 /tools/ebpf/                            @DataDog/ebpf-platform
 /tools/gdb/                             @DataDog/agent-shared-components
 /tools/go-update/                       @DataDog/agent-shared-components

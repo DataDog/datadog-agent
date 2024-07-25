@@ -241,6 +241,7 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string)
 			if err != nil {
 				return fmt.Errorf("could not uncompress layer: %w", err)
 			}
+			defer uncompressedLayer.Close()
 			err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
 			if err != nil {
 				return fmt.Errorf("could not extract layer: %w", err)

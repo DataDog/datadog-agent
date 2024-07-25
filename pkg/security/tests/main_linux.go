@@ -137,6 +137,7 @@ func preTestsHook() {
 		opts := ptracer.Opts{
 			Async:           true,
 			SeccompDisabled: disableSeccomp,
+			Debug:           true,
 		}
 
 		err := ptracer.Wrap(args, envs, constants.DefaultEBPFLessProbeAddr, opts)

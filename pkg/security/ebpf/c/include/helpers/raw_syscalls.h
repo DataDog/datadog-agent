@@ -82,7 +82,8 @@ __attribute__((always_inline)) void send_or_skip_syscall_monitor_event(struct _t
 shoud_send_event:
     if (should_send > 0) {
         // send an event now
-        event->syscall_data.syscalls = *entry;
+        event->event_reason = should_send;
+        bpf_probe_read(event->syscalls, sizeof(event->syscalls), entry->syscalls);
 
         // reset the syscalls mask for the drift monitor type
         if (syscall_monitor_type == SYSCALL_MONITOR_TYPE_DRIFT) {
@@ -97,14 +98,14 @@ shoud_send_event:
         fill_span_context(&event->span);
 
         // remove last_sent and dirty from the event size, we don't care about these fields
-        send_event_with_size_ptr(args, EVENT_SYSCALLS, event, offsetof(struct syscall_monitor_event_t, syscall_data) + SYSCALL_ENCODING_TABLE_SIZE);
+        send_event_ptr(args, EVENT_SYSCALLS, event);
     }
 
     key.syscall_key = EXECVE_SYSCALL_KEY;
     if (is_syscall(&key)) {
         // reset syscalls map for the new process
         bpf_probe_read(&entry->syscalls[0], sizeof(entry->syscalls), &zero->syscalls[0]);
-        entry->dirty = 1;
+        entry->dirty = 0;
         entry->last_sent = now;
     }
     key.syscall_key = EXIT_SYSCALL_KEY;

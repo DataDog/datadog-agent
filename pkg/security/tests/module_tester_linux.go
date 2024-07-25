@@ -114,8 +114,12 @@ runtime_security_config:
   socket: /tmp/test-runtime-security.sock
   sbom:
     enabled: {{ .SBOMEnabled }}
+    host:
+      enabled: {{ .HostSBOMEnabled }}
   activity_dump:
     enabled: {{ .EnableActivityDump }}
+    syscall_monitor:
+      period: {{ .ActivityDumpSyscallMonitorPeriod }}
 {{if .EnableActivityDump}}
     rate_limiter: {{ .ActivityDumpRateLimiter }}
     tag_rules:
