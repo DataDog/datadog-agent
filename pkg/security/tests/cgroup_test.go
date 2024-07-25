@@ -45,7 +45,7 @@ func TestCGroup(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_cgroup_id",
-			Expression: `open.file.path == "{{.Root}}/test-open" && cgroup.id == "/memory/cg1"`,
+			Expression: `open.file.path == "{{.Root}}/test-open" && cgroup.id =~ "*/cg1"`, // "/memory/cg1" or "/cg1"
 		},
 		{
 			ID:         "test_cgroup_systemd",
@@ -83,7 +83,7 @@ func TestCGroup(t *testing.T) {
 			assertFieldEqual(t, event, "container.id", "")
 			assertFieldEqual(t, event, "container.runtime", "")
 			assert.Equal(t, containerutils.CGroupFlags(0), event.CGroupContext.CGroupFlags)
-			assertFieldEqual(t, event, "cgroup.id", "/memory/cg1")
+			assertFieldIsOneOf(t, event, "cgroup.id", "/memory/cg1")
 
 			test.validateOpenSchema(t, event)
 		})

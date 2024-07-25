@@ -108,7 +108,7 @@ func TestContainerFlags(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_container_flags",
-			Expression: `container.runtime == "docker" && container.id != "" && open.file.path == "{{.Root}}/test-open" && cgroup.id =~ "docker*"`,
+			Expression: `container.runtime == "docker" && container.id != "" && open.file.path == "{{.Root}}/test-open" && cgroup.id =~ "*docker*"`,
 		},
 	}
 	test, err := newTestModule(t, nil, ruleDefs)
