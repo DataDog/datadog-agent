@@ -81,7 +81,6 @@ components_classic_style = [
     'comp/checks/windowseventlog/windowseventlogimpl',
     "comp/checks/winregistry/impl",
     'comp/collector/collector/collectorimpl',
-    'comp/core/agenttelemetry/agenttelemetryimpl',
     'comp/core/autodiscovery/autodiscoveryimpl',
     'comp/core/configsync/configsyncimpl',
     'comp/core/gui/guiimpl',

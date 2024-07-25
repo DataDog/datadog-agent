@@ -29,8 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
-	"github.com/DataDog/datadog-agent/comp/core/agenttelemetry"
-	"github.com/DataDog/datadog-agent/comp/core/agenttelemetry/agenttelemetryimpl"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 
 	// checks implemented as components
 
@@ -486,7 +486,7 @@ func getSharedFxOption() fx.Option {
 			}
 		}),
 		settingsimpl.Module(),
-		agenttelemetryimpl.Module(),
+		agenttelemetryfx.Module(),
 		networkpath.Bundle(),
 	)
 }
