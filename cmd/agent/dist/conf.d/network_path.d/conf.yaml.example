@@ -5,8 +5,8 @@ init_config:
     #
     # min_collection_interval: 60
 
-# Network Path integration is supported on Linux and Windows,
-# macOS is not supported yet.
+# Network Path integration is used to monitor individual endpoints.
+# Supported platforms are Linux and Windows. macOS is not supported yet.
 instances:
   - ## @param hostname - string - required
     ## Hostname or IP of the target endpoint to monitor via Network Path.
