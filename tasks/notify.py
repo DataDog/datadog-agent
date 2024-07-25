@@ -10,7 +10,8 @@ from invoke.exceptions import Exit
 import tasks.libs.notify.unit_tests as unit_tests_utils
 from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.gitlab_api import (
-    GitlabCIDiff,
+    MultiGitlabCIDiff,
+    get_all_gitlab_ci_configurations,
     get_gitlab_ci_configuration,
     print_gitlab_ci_configuration,
 )
@@ -203,12 +204,12 @@ def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_
         before = ctx.run(f'git merge-base {before} {after or "HEAD"}', hide=True).stdout.strip()
 
         print(f'Getting after changes config ({color_message(after_name, Color.BOLD)})')
-        after_config = get_gitlab_ci_configuration(ctx, git_ref=after)
+        after_config = get_all_gitlab_ci_configurations(ctx, git_ref=after, clean_configs=True)
 
         print(f'Getting before changes config ({color_message(before_name, Color.BOLD)})')
-        before_config = get_gitlab_ci_configuration(ctx, git_ref=before)
+        before_config = get_all_gitlab_ci_configurations(ctx, git_ref=before, clean_configs=True)
 
-        diff = GitlabCIDiff(before_config, after_config)
+        diff = MultiGitlabCIDiff(before_config, after_config)
 
         if not diff:
             print(color_message("No changes in the gitlab-ci configuration", Color.GREEN))

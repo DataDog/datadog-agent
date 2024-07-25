@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"reflect"
 	"regexp"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -45,6 +47,21 @@ import (
 )
 
 var entityIDRegex = regexp.MustCompile(`^en-(init\.)?([a-fA-F0-9-]+)/([a-zA-Z0-9-_]+)$`)
+
+const (
+	// External Data Prefixes
+	// These prefixes are used to build the External Data Environment Variable.
+	// This variable is then used for Origin Detection.
+	externalDataInitPrefix          = "it-"
+	externalDataContainerNamePrefix = "cn-"
+	externalDataPodUIDPrefix        = "pu-"
+)
+
+type externalData struct {
+	init          bool
+	containerName string
+	podUID        string
+}
 
 type dependencies struct {
 	fx.In
@@ -454,6 +471,7 @@ func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggerty
 			}
 		}
 	default:
+		// Tag using Local Data
 		if originInfo.FromUDS != packets.NoOrigin {
 			if err := t.AccumulateTagsFor(originInfo.FromUDS, cardinality, tb); err != nil {
 				log.Errorf(err.Error())
@@ -465,14 +483,66 @@ func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggerty
 		}
 
 		if err := t.AccumulateTagsFor(kubelet.KubePodTaggerEntityPrefix+originInfo.FromTag, cardinality, tb); err != nil {
-			log.Tracef("Cannot get tags for entity %s: %s", originInfo.FromMsg, err)
+			log.Tracef("Cannot get tags for entity %s: %s", originInfo.FromTag, err)
+		}
+
+		// Tag using External Data.
+		// External Data is a list that contain prefixed-items, split by a ','. Current items are:
+		// * "it-<init>" if the container is an init container.
+		// * "cn-<container-name>" for the container name.
+		// * "pu-<pod-uid>" for the pod UID.
+		// Order does not matter.
+		// Possible values:
+		// * "it-false,cn-nginx,pu-3413883c-ac60-44ab-96e0-9e52e4e173e2"
+		// * "cn-init,pu-cb4aba1d-0129-44f1-9f1b-b4dc5d29a3b3,it-true"
+		if originInfo.ExternalData != "" {
+			// Parse the external data and get the tags for the entity
+			var parsedExternalData externalData
+			var initParsingError error
+			for _, item := range strings.Split(originInfo.ExternalData, ",") {
+				switch {
+				case strings.HasPrefix(item, externalDataInitPrefix):
+					parsedExternalData.init, initParsingError = strconv.ParseBool(item[len(externalDataInitPrefix):])
+					if initParsingError != nil {
+						log.Tracef("Cannot parse bool from %s: %s", item[len(externalDataInitPrefix):], initParsingError)
+					}
+				case strings.HasPrefix(item, externalDataContainerNamePrefix):
+					parsedExternalData.containerName = item[len(externalDataContainerNamePrefix):]
+				case strings.HasPrefix(item, externalDataPodUIDPrefix):
+					parsedExternalData.podUID = item[len(externalDataPodUIDPrefix):]
+				}
+			}
+
+			// Accumulate tags for pod UID
+			if parsedExternalData.podUID != "" {
+				if err := t.AccumulateTagsFor(kubelet.KubePodTaggerEntityPrefix+parsedExternalData.podUID, cardinality, tb); err != nil {
+					log.Tracef("Cannot get tags for entity %s: %s", originInfo.FromMsg, err)
+				}
+			}
+
+			// Generate container ID from External Data
+			generatedContainerID, err := t.generateContainerIDFromExternalData(parsedExternalData, metrics.GetProvider(optional.NewOption(t.wmeta)).GetMetaCollector())
+			if err != nil {
+				log.Tracef("Failed to generate container ID from %s: %s", originInfo.ExternalData, err)
+			}
+
+			// Accumulate tags for generated container ID
+			if generatedContainerID != "" {
+				if err := t.AccumulateTagsFor(containers.BuildTaggerEntityName(generatedContainerID), cardinality, tb); err != nil {
+					log.Tracef("Cannot get tags for entity %s: %s", generatedContainerID, err)
+				}
+			}
 		}
 	}
 
 	if err := t.globalTagBuilder(cardinality, tb); err != nil {
 		log.Error(err.Error())
 	}
+}
 
+// generateContainerIDFromExternalData generates a container ID from the external data
+func (t *TaggerClient) generateContainerIDFromExternalData(e externalData, metricsProvider provider.ContainerIDForPodUIDAndContNameRetriever) (string, error) {
+	return metricsProvider.ContainerIDForPodUIDAndContName(e.podUID, e.containerName, e.init, time.Second)
 }
 
 // parseEntityID parses the entity ID and returns the correct tagger entity
