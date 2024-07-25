@@ -45,8 +45,9 @@ var packagesConfig = []testPackageConfig{
 
 func installScriptPackageManagerEnv(env map[string]string, arch e2eos.Architecture) {
 	apiKey := os.Getenv("DD_API_KEY")
+	var err error
 	if apiKey == "" {
-		apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
+		apiKey, err = runner.GetProfile().SecretStore().Get(parameters.APIKey)
 		if apiKey == "" || err != nil {
 			apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
 		}
