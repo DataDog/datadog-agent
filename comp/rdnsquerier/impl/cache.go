@@ -6,16 +6,18 @@
 package rdnsquerierimpl
 
 import (
+	"encoding/json"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 )
 
 type cacheEntry struct {
-	hostname         string
+	Hostname         string
 	callbacks        []func(string, error)
-	expirationTime   time.Time
+	ExpirationTime   time.Time
 	retriesRemaining int
 	queryInProgress  bool
 }
@@ -48,18 +50,9 @@ type cacheImpl struct {
 func (c *cacheImpl) start() {
 	c.querier.start()
 
-	ticker := time.NewTicker(c.config.cacheCleanInterval)
-	go func() {
-		for {
-			select {
-			case now := <-ticker.C:
-				c.expire(now)
-			case <-c.exit:
-				ticker.Stop()
-				return
-			}
-		}
-	}()
+	c.loadPersistentCache()
+	c.runExpireLoop()
+	c.runPersistLoop()
 }
 
 func (c *cacheImpl) stop() {
@@ -103,10 +96,10 @@ func (c *cacheImpl) getHostname(addr string, updateHostnameSync func(string), up
 			return nil
 		}
 
-		if entry.expirationTime.After(time.Now()) {
+		if entry.ExpirationTime.After(time.Now()) {
 			// cache hit (not expired) - invoke the sync callback
 			c.internalTelemetry.cacheHit.Inc()
-			updateHostnameSync(entry.hostname)
+			updateHostnameSync(entry.Hostname)
 			return nil
 		}
 
@@ -119,7 +112,7 @@ func (c *cacheImpl) getHostname(addr string, updateHostnameSync func(string), up
 
 	// create an in progress cache entry
 	c.data[addr] = &cacheEntry{
-		hostname:         "",
+		Hostname:         "",
 		callbacks:        []func(string, error){updateHostnameAsync},
 		retriesRemaining: c.config.cacheMaxRetries,
 		queryInProgress:  true,
@@ -173,8 +166,8 @@ func (c *cacheImpl) sendQuery(addr string) error {
 			// add the result to the cache and invoke callback(s)
 			c.mutex.Lock()
 			if entry, ok := c.data[addr]; ok {
-				entry.hostname = hostname
-				entry.expirationTime = time.Now().Add(c.config.cacheEntryTTL)
+				entry.Hostname = hostname
+				entry.ExpirationTime = time.Now().Add(c.config.cacheEntryTTL)
 				entry.queryInProgress = false
 
 				callbacks := entry.callbacks
@@ -201,6 +194,23 @@ func (c *cacheImpl) sendQuery(addr string) error {
 	)
 }
 
+func (c *cacheImpl) runExpireLoop() {
+	// call expire() periodically to remove expired entries from the cache
+	ticker := time.NewTicker(c.config.cacheCleanInterval)
+	go func() {
+		for {
+			select {
+			case now := <-ticker.C:
+				c.expire(now)
+			case <-c.exit:
+				ticker.Stop()
+				return
+			}
+		}
+	}()
+
+}
+
 func (c *cacheImpl) expire(startTime time.Time) {
 	expired := 0
 	c.mutex.Lock()
@@ -209,7 +219,7 @@ func (c *cacheImpl) expire(startTime time.Time) {
 			continue
 		}
 
-		if entry.expirationTime.Before(startTime) {
+		if entry.ExpirationTime.Before(startTime) {
 			expired++
 			delete(c.data, addr)
 		}
@@ -220,6 +230,89 @@ func (c *cacheImpl) expire(startTime time.Time) {
 	c.internalTelemetry.cacheExpired.Add(float64(expired))
 	c.internalTelemetry.cacheSize.Set(float64(size))
 	c.logger.Debugf("Reverse DNS Enrichment %d cache entries expired, execution time=%s, cache size=%d", expired, time.Since(startTime), size)
+}
+
+func (c *cacheImpl) runPersistLoop() {
+	// call persist() periodically to save the cache to persistent storage
+	ticker := time.NewTicker(c.config.cachePersistInterval)
+	go func() {
+		for {
+			select {
+			case now := <-ticker.C:
+				c.persist(now)
+			case <-c.exit:
+				ticker.Stop()
+				return
+			}
+		}
+	}()
+}
+
+const cachePersistKey = "reverse_dns_enrichment_persistent_cache-1"
+
+func (c *cacheImpl) loadPersistentCache() {
+	serializedData, err := persistentcache.Read(cachePersistKey)
+	if err != nil {
+		c.logger.Debugf("error reading cache for cachePersistKey %s: %v", cachePersistKey, err)
+		return
+	}
+	if serializedData == "" {
+		return
+	}
+
+	persistedMap := make(map[string]*cacheEntry)
+	err = json.Unmarshal([]byte(serializedData), &persistedMap)
+	if err != nil {
+		c.logger.Warnf("couldn't unmarshal cache for cachePersistKey %s: %v", cachePersistKey, err)
+		return
+	}
+
+	c.mutex.Lock()
+	c.data = persistedMap
+	c.logger.Debugf("Reverse DNS Enrichment cache loaded from persistent storage, cache size=%d", len(c.data))
+	c.mutex.Unlock()
+}
+
+func (c *cacheImpl) serializeData() (string, int) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	mapCopy := make(map[string]*cacheEntry)
+	for k, v := range c.data {
+		if v.queryInProgress {
+			continue
+		}
+		mapCopy[k] = v
+	}
+
+	size := len(mapCopy)
+	if size == 0 {
+		return "", 0
+	}
+
+	// Note that the lock must be held while calling json.Marshal on mapCopy since the values are pointers
+	// to the same cacheEntry objects referenced by c.data.
+	serializedData, err := json.Marshal(mapCopy)
+	if err != nil {
+		c.logger.Warnf("Reverse DNS Enrichment cache persist failed - error marshalling cache: %v", err)
+		return "", 0
+	}
+
+	return string(serializedData), size
+}
+
+func (c *cacheImpl) persist(startTime time.Time) {
+	serializedData, size := c.serializeData()
+	if serializedData == "" {
+		return
+	}
+
+	err := persistentcache.Write(cachePersistKey, serializedData)
+	if err != nil {
+		c.logger.Warnf("Reverse DNS Enrichment cache persist failed - error writing cache: %v", err)
+	}
+
+	c.logger.Debugf("Reverse DNS Enrichment %d cache entries persisted, execution time=%s", size, time.Since(startTime))
 }
 
 // Noop cache used when rdnsquerier cache is disabled

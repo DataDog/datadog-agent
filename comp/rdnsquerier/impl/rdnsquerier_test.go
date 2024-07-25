@@ -672,3 +672,89 @@ func TestCacheExpiration(t *testing.T) {
 	assert.NotNil(t, internalCache)
 	assert.Equal(t, 0, len(internalCache.data))
 }
+
+// Test that the cache is persisted periodically and that it is loaded and used when the agent starts.
+func TestCachePersist(t *testing.T) {
+	overrides := map[string]interface{}{
+		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
+		"reverse_dns_enrichment.cache.persist_interval":          time.Duration(100) * time.Millisecond,
+		"run_path": t.TempDir(),
+	}
+
+	ts := testSetup(t, overrides, true, nil)
+
+	var wg sync.WaitGroup
+
+	// async callback should be called the first time an IP address is queried
+	wg.Add(1)
+	err := ts.rdnsQuerier.GetHostname(
+		[]byte{192, 168, 1, 100},
+		func(string) {
+			assert.FailNow(t, "Sync callback should not be called")
+		},
+		func(hostname string, err error) {
+			assert.NoError(t, err)
+			assert.Equal(t, "fakehostname-192.168.1.100", hostname)
+			wg.Done()
+		},
+	)
+	assert.NoError(t, err)
+	wg.Wait()
+
+	// cache hit should result in sync callback being called the second time an IP address is queried
+	wg.Add(1)
+	err = ts.rdnsQuerier.GetHostname(
+		[]byte{192, 168, 1, 100},
+		func(hostname string) {
+			assert.Equal(t, "fakehostname-192.168.1.100", hostname)
+			wg.Done()
+		},
+		func(string, error) {
+			assert.FailNow(t, "Async callback should not be called")
+		},
+	)
+	assert.NoError(t, err)
+	wg.Wait()
+
+	expectedTelemetry := ts.makeExpectedTelemetry(map[string]float64{
+		"total":      2.0,
+		"private":    2.0,
+		"chan_added": 1.0,
+		"successful": 1.0,
+		"cache_hit":  1.0,
+		"cache_miss": 1.0,
+	})
+	ts.validateExpected(t, expectedTelemetry)
+
+	// sleep long enough for the persist interval to trigger
+	time.Sleep(2 * time.Second)
+
+	// stop the original test setup
+	assert.NoError(t, ts.lc.Stop(ts.ctx))
+
+	// create new testsetup, validate that the IP address previously queried and cached is still cached
+	ts = testSetup(t, overrides, true, nil)
+
+	// cache hit should result in sync callback being called the first time the IP address is queried after
+	// restart because persistent cache should have been loaded
+	wg.Add(1)
+	err = ts.rdnsQuerier.GetHostname(
+		[]byte{192, 168, 1, 100},
+		func(hostname string) {
+			assert.Equal(t, "fakehostname-192.168.1.100", hostname)
+			wg.Done()
+		},
+		func(string, error) {
+			assert.FailNow(t, "Async callback should not be called")
+		},
+	)
+	assert.NoError(t, err)
+	wg.Wait()
+
+	expectedTelemetry = ts.makeExpectedTelemetry(map[string]float64{
+		"total":     1.0,
+		"private":   1.0,
+		"cache_hit": 1.0,
+	})
+	ts.validateExpected(t, expectedTelemetry)
+}
