@@ -8,6 +8,7 @@ package installerwindows
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer"
 	"testing"
 )
 
@@ -36,6 +37,35 @@ func (suite *testAgentInstallSuite) TestInstallAgentPackage() {
 		// Assert
 		suite.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
 		suite.Require().Host(suite.Env().RemoteHost).HasARunningDatadogAgentService()
+	})
+
+	suite.Run("Uninstall", func() {
+		// Arrange
+
+		// Act
+		output, err := suite.installer.RemovePackage(AgentPackage)
+
+		// Assert
+		suite.Require().NoErrorf(err, "failed to remove the Datadog Agent package: %s", output)
+		suite.Require().Host(suite.Env().RemoteHost).HasNoDatadogAgentService()
+	})
+}
+
+// TestUpgradeAgentPackage tests that it's possible to upgrade the Datadog Agent using the Datadog Installer.
+func (suite *testAgentInstallSuite) TestUpgradeAgentPackage() {
+	suite.Run("Install", func() {
+		// Arrange
+
+		// Act
+		output, err := suite.installer.InstallPackage(AgentPackage, WithVersion(installer.StableVersionPackage))
+
+		// Assert
+		suite.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
+		suite.Require().Host(suite.Env().RemoteHost).
+			HasBinary("C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe").
+			WithVersionEqual(installer.StableVersion).
+			HasAService("datadogagent").
+			WithStatus("Running")
 	})
 
 	suite.Run("Uninstall", func() {
