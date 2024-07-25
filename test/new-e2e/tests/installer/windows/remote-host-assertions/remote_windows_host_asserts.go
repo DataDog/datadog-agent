@@ -17,7 +17,7 @@ import (
 type RemoteWindowsHostAssertions struct {
 	// Don't embed the "require.Assertions" type because that could confuse the caller as to which code executes
 	// on the remoteHost vs locally.
-	// With a "private" SuiteAssertions, when the caller uses suite.Require().Host() they will
+	// With a "private" require.Assertions, when the caller uses suite.Require().Host() they will
 	// only get access to the assertions that can effectively run on the remote server, preventing
 	// accidental misuse.
 	require    *require.Assertions
