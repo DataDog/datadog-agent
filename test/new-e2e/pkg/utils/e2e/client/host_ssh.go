@@ -7,14 +7,14 @@ package client
 
 import (
 	"fmt"
+	"github.com/pkg/sftp"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 	"io"
 	"net"
 	"os"
 	"path"
-
-	"github.com/pkg/sftp"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
+	"strings"
 )
 
 func execute(sshClient *ssh.Client, command string) (string, error) {
@@ -79,6 +79,13 @@ func getSSHClient(user, host string, privateKey, privateKeyPassphrase []byte) (*
 }
 
 func copyFileFromIoReader(sftpClient *sftp.Client, srcFile io.Reader, dst string) error {
+	lastSlashIdx := strings.LastIndex(dst, "\\")
+	if lastSlashIdx >= 0 {
+		// Ensure the target directory exists
+		// otherwise sftpClient.Create will return an error
+		sftpClient.MkdirAll(dst[:lastSlashIdx])
+	}
+
 	dstFile, err := sftpClient.Create(dst)
 	if err != nil {
 		return err
