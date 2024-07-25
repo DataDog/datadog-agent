@@ -367,23 +367,6 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 	writeHTTPResponse(w, response)
 }
 
-func redactHeader(header http.Header) http.Header {
-	if header == nil {
-		return header
-	}
-	safeHeader := make(http.Header, len(header))
-	for key, values := range header {
-		if !strings.Contains(strings.ToLower(key), "key") {
-			for _, value := range values {
-				safeHeader.Add(key, value)
-			}
-			continue
-		}
-		safeHeader.Add(strings.ToLower(key), "<redacted>")
-	}
-	return safeHeader
-}
-
 func (fi *Server) forwardRequestToDDDev(req *http.Request, payload []byte) error {
 	url := fi.forwardEndpoint + req.URL.Path
 

@@ -165,6 +165,7 @@
 /cmd/agent/dist/conf.d/jetson.d/        @DataDog/agent-devx-infra
 /cmd/agent/dist/conf.d/oracle.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring
+/cmd/agent/dist/conf.d/network_path.d/  @DataDog/Networks @DataDog/network-device-monitoring
 /cmd/agent/dist/conf.d/sbom.d/          @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring
 /cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-agent
@@ -207,6 +208,7 @@
 /Dockerfiles/agent/entrypoint.d.windows/ @DataDog/container-integrations @DataDog/windows-agent
 /Dockerfiles/agent/entrypoint.ps1        @DataDog/container-integrations @DataDog/windows-agent
 /Dockerfiles/agent/windows/              @DataDog/container-integrations @DataDog/windows-agent
+/Dockerfiles/agent-ot/Dockerfile.byoc   @DataDog/opentelemetry
 
 /docs/                                  @DataDog/documentation @DataDog/agent-devx-loops
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-metrics-logs

@@ -356,6 +356,13 @@ func (s *upgradeScenarioSuite) TestInstallerAgentFailure() {
 	s.executeInstallerGoldenPath()
 }
 
+func (s *upgradeScenarioSuite) TestUpgradeSuccessfulWithUmask() {
+	oldmask := s.host.SetUmask("0027")
+	defer s.host.SetUmask(oldmask)
+
+	s.TestUpgradeSuccessful()
+}
+
 func (s *upgradeScenarioSuite) startExperiment(pkg packageName, version string) (string, error) {
 	cmd := fmt.Sprintf("sudo datadog-installer daemon start-experiment %s %s > /tmp/start_experiment.log 2>&1", pkg, version)
 	s.T().Logf("Running start command: %s", cmd)
