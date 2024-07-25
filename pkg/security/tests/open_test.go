@@ -188,26 +188,21 @@ func TestOpen(t *testing.T) {
 	t.Run("ftruncate", func(t *testing.T) {
 		SkipIfNotAvailable(t)
 
-		defer os.Remove(testFile)
-
-		var f *os.File
-		test.WaitSignal(t, func() error {
-			f, err = os.OpenFile(testFile, os.O_RDWR|os.O_CREATE, 0755)
-			if err != nil {
-				return err
-			}
-
-			_, err = syscall.Write(int(f.Fd()), []byte("this data will soon be truncated\n"))
-			if err != nil {
-				return err
-			}
-
-			return nil
-		}, func(event *model.Event, r *rules.Rule) {})
-
-		if f != nil {
-			defer f.Close()
+		f, err := os.OpenFile(testFileTrunc, os.O_RDWR|os.O_CREATE, 0755)
+		if err != nil {
+			t.Fatal(err)
 		}
+
+		if _, err := f.Write([]byte("this data will soon be truncated\n")); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := f.Sync(); err != nil {
+			t.Fatal(err)
+		}
+
+		defer os.Remove(testFile)
+		defer f.Close()
 
 		test.WaitSignal(t, func() error {
 			if f == nil {
@@ -223,7 +218,7 @@ func TestOpen(t *testing.T) {
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, int(event.Open.Flags), "wrong flags")
-			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+			assert.Equal(t, getInode(t, testFileTrunc), event.Open.File.Inode, "wrong inode")
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
