@@ -1657,11 +1657,16 @@ api_key:
     #
     # enabled: false
 
-  ## @param workers - integer - optional - default: 4
-  ## @env DD_WORKERS - integer - optional - default: 4
-  ## The `workers` refers to the number of concurrent workers available for network path execution.
+  ## @param collector - custom object - optional
+  ## Configuration related to Network Path Collector.
   #
-  # workers: 4
+  # collector:
+
+    ## @param workers - integer - optional - default: 4
+    ## @env DD_WORKERS - integer - optional - default: 4
+    ## The `workers` refers to the number of concurrent workers available for network path execution.
+    #
+    # workers: 4
 
 {{ end -}}
 {{ end -}}
