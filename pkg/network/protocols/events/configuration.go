@@ -8,6 +8,7 @@
 package events
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"slices"
@@ -22,18 +23,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/encoding"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 // defaultPerfBufferSize controls the amount of memory in bytes used *per CPU*
 // allocated for buffering perf event data
 var defaultPerfEventBufferSize = 16 * os.Getpagesize()
-
-// defaultPerfHandlerSize controls the size of the go channel that buffers perf
-// events. All perf events handled by this library have
-// fixed size (sizeof(batch_data_t)) which is ~4KB, so by choosing a value of
-// 100 we'll be buffering up to ~400KB of data in *Go* heap memory.
-const defaultPerfHandlerSize = 100
 
 // Configure a given `*manager.Manager` for event processing
 // This essentially instantiates the perf map/ring buffers and configure the
@@ -52,8 +46,8 @@ func Configure(cfg *config.Config, proto string, m *manager.Manager, o *manager.
 
 	configureBatchMaps(proto, o, numCPUs)
 
-	callbackFn, callbackCh := ddsync.CallbackChannel[*batch](defaultPerfHandlerSize)
 	mapName := eventMapName(proto)
+	h := registerProtocol(proto)
 
 	eopts := perf.EventHandlerOptions{
 		MapName: mapName,
@@ -62,7 +56,7 @@ func Configure(cfg *config.Config, proto string, m *manager.Manager, o *manager.
 				log.Debug(err.Error())
 				return
 			}
-			callbackFn(b)
+			h.callback(b)
 		}),
 		TelemetryEnabled:  cfg.InternalTelemetryEnabled,
 		UseRingBuffer:     cfg.EnableUSMRingBuffers,
@@ -80,10 +74,12 @@ func Configure(cfg *config.Config, proto string, m *manager.Manager, o *manager.
 	eh, err := perf.NewEventHandler(eopts)
 	if err != nil {
 		log.Errorf("unable to create perf event handler: %v", err)
+		unregisterHandler(proto)
 		return
 	}
 	if err := eh.Init(m, o); err != nil {
 		log.Errorf("unable to initialize perf event handler: %v", err)
+		unregisterHandler(proto)
 		return
 	}
 	utils.AddBoolConst(o, eh.MapType() == ebpf.RingBuf, "use_ring_buffer")
@@ -91,7 +87,6 @@ func Configure(cfg *config.Config, proto string, m *manager.Manager, o *manager.
 	m.Maps = slices.DeleteFunc(m.Maps, func(currentMap *manager.Map) bool {
 		return currentMap.Name == mapName
 	})
-	setHandler(proto, callbackCh)
 }
 
 func configureBatchMaps(proto string, o *manager.Options, numCPUs int) {
@@ -132,28 +127,46 @@ func alreadySetUp(proto string, m *manager.Manager) bool {
 // usage of this package a little bit, so a call to `events.Configure` can be
 // later linked to a call to `events.NewConsumer` without the need to explicitly
 // propagate any values. The map is guarded by `handlerMux`.
-var handlerByProtocol map[string]<-chan *batch
+var handlerByProtocol map[string]*protoHandler
 var handlerMux sync.Mutex
 
-func getHandler(proto string) <-chan *batch {
-	handlerMux.Lock()
-	defer handlerMux.Unlock()
-	if handlerByProtocol == nil {
-		return nil
-	}
-
-	handler := handlerByProtocol[proto]
-	delete(handlerByProtocol, proto)
-	return handler
+type protoHandler struct {
+	callback func(*batch)
 }
 
-func setHandler(proto string, handler <-chan *batch) {
+func setHandler(proto string, cb func(*batch)) error {
 	handlerMux.Lock()
 	defer handlerMux.Unlock()
 	if handlerByProtocol == nil {
-		handlerByProtocol = make(map[string]<-chan *batch)
+		return fmt.Errorf("no protocols registered")
 	}
-	handlerByProtocol[proto] = handler
+
+	handler, ok := handlerByProtocol[proto]
+	if !ok {
+		return fmt.Errorf("unregistered protocol %q", proto)
+	}
+	delete(handlerByProtocol, proto)
+	handler.callback = cb
+	return nil
+}
+
+func unregisterHandler(proto string) {
+	handlerMux.Lock()
+	defer handlerMux.Unlock()
+	delete(handlerByProtocol, proto)
+}
+
+func registerProtocol(proto string) *protoHandler {
+	handlerMux.Lock()
+	defer handlerMux.Unlock()
+	if handlerByProtocol == nil {
+		handlerByProtocol = make(map[string]*protoHandler)
+	}
+	// default cb function does nothing but release memory back to pool
+	// set in case setHandler is never called
+	h := &protoHandler{callback: func(b *batch) { batchPool.Put(b) }}
+	handlerByProtocol[proto] = h
+	return h
 }
 
 // toPowerOf2 converts a number to its nearest power of 2

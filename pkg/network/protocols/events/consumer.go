@@ -35,7 +35,6 @@ type Consumer[V any] struct {
 	proto       string
 	syncRequest chan (chan struct{})
 	offsets     *offsetManager
-	dataChannel <-chan *batch
 	batchReader *batchReader
 	callback    func([]V)
 
@@ -44,8 +43,21 @@ type Consumer[V any] struct {
 	stopped     bool
 
 	// telemetry
-	metricGroup        *telemetry.MetricGroup
-	eventsCount        *telemetry.Counter
+	metricGroup *telemetry.MetricGroup
+	eventsCount *telemetry.Counter
+
+	// failedFlushesCount tracks the number of failed calls to
+	// `bpf_perf_event_output`. This is usually indicative of a slow-consumer
+	// problem, because flushing a perf event will fail when there is no space
+	// available in the perf ring. Having said that, in the context of this
+	// library a failed call to `bpf_perf_event_output` won't necessarily
+	// translate into data drop, because this library will retry flushing a
+	// given batch *until the call to `bpf_perf_event_output` succeeds*.  This
+	// is OK (in terms of no datapoints being dropped) as long as we have enough
+	// event "slots" in other batch pages while the retrying happens.
+	//
+	// The exact number of events dropped can be obtained using the metric
+	// `kernel_dropped_events`.
 	failedFlushesCount *telemetry.Counter
 	kernelDropsCount   *telemetry.Counter
 	invalidEventsCount *telemetry.Counter
@@ -74,50 +86,30 @@ func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V))
 		return nil, err
 	}
 
-	handler := getHandler(proto)
-	if handler == nil {
-		return nil, fmt.Errorf("unable to detect perf handler. perhaps you forgot to call events.Configure()?")
-	}
-
 	// setup telemetry
 	metricGroup := telemetry.NewMetricGroup(
 		fmt.Sprintf("usm.%s", proto),
 		telemetry.OptStatsd,
 	)
 
-	eventsCount := metricGroup.NewCounter("events_captured")
-	kernelDropsCount := metricGroup.NewCounter("kernel_dropped_events")
-	invalidEventsCount := metricGroup.NewCounter("invalid_events")
-
-	// failedFlushesCount tracks the number of failed calls to
-	// `bpf_perf_event_output`. This is usually indicative of a slow-consumer
-	// problem, because flushing a perf event will fail when there is no space
-	// available in the perf ring. Having said that, in the context of this
-	// library a failed call to `bpf_perf_event_output` won't necessarily
-	// translate into data drop, because this library will retry flushing a
-	// given batch *until the call to `bpf_perf_event_output` succeeds*.  This
-	// is OK (in terms of no datapoints being dropped) as long as we have enough
-	// event "slots" in other batch pages while the retrying happens.
-	//
-	// The exact number of events dropped can be obtained using the metric
-	// `kernel_dropped_events`.
-	failedFlushesCount := metricGroup.NewCounter("failed_flushes")
-
-	return &Consumer[V]{
+	c := &Consumer[V]{
 		proto:       proto,
 		callback:    callback,
 		syncRequest: make(chan chan struct{}),
 		offsets:     offsets,
-		dataChannel: handler,
 		batchReader: batchReader,
 
-		// telemetry
 		metricGroup:        metricGroup,
-		eventsCount:        eventsCount,
-		failedFlushesCount: failedFlushesCount,
-		kernelDropsCount:   kernelDropsCount,
-		invalidEventsCount: invalidEventsCount,
-	}, nil
+		eventsCount:        metricGroup.NewCounter("events_captured"),
+		failedFlushesCount: metricGroup.NewCounter("failed_flushes"),
+		kernelDropsCount:   metricGroup.NewCounter("kernel_dropped_events"),
+		invalidEventsCount: metricGroup.NewCounter("invalid_events"),
+	}
+
+	if err := setHandler(proto, c.batchCallback); err != nil {
+		return nil, fmt.Errorf("unable to set perf handler: %s. perhaps you forgot to call events.Configure()?", err)
+	}
+	return c, nil
 }
 
 // Start consumption of eBPF events
@@ -125,28 +117,12 @@ func (c *Consumer[V]) Start() {
 	c.eventLoopWG.Add(1)
 	go func() {
 		defer c.eventLoopWG.Done()
-		for {
-			select {
-			case b, ok := <-c.dataChannel:
-				if !ok {
-					return
-				}
-
-				c.failedFlushesCount.Add(int64(b.Failed_flushes))
-				c.kernelDropsCount.Add(int64(b.Dropped_events))
-				c.process(b, false)
-				batchPool.Put(b)
-			case done, ok := <-c.syncRequest:
-				if !ok {
-					return
-				}
-
-				c.batchReader.ReadAll(func(cpu int, b *batch) {
-					c.process(b, true)
-				})
-				log.Debugf("usm events summary: name=%q %s", c.proto, c.metricGroup.Summary())
-				close(done)
-			}
+		for done := range c.syncRequest {
+			c.batchReader.ReadAll(func(cpu int, b *batch) {
+				c.process(b, true)
+			})
+			log.Debugf("usm events summary: name=%q %s", c.proto, c.metricGroup.Summary())
+			close(done)
 		}
 	}()
 }
@@ -181,6 +157,14 @@ func (c *Consumer[V]) Stop() {
 	c.batchReader.Stop()
 	close(c.syncRequest)
 	c.eventLoopWG.Wait()
+}
+
+func (c *Consumer[V]) batchCallback(b *batch) {
+	defer batchPool.Put(b)
+
+	c.failedFlushesCount.Add(int64(b.Failed_flushes))
+	c.kernelDropsCount.Add(int64(b.Dropped_events))
+	c.process(b, false)
 }
 
 func (c *Consumer[V]) process(b *batch, syncing bool) {
