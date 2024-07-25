@@ -83,7 +83,10 @@ func copyFileFromIoReader(sftpClient *sftp.Client, srcFile io.Reader, dst string
 	if lastSlashIdx >= 0 {
 		// Ensure the target directory exists
 		// otherwise sftpClient.Create will return an error
-		sftpClient.MkdirAll(dst[:lastSlashIdx])
+		err := sftpClient.MkdirAll(dst[:lastSlashIdx])
+		if err != nil {
+			return err
+		}
 	}
 
 	dstFile, err := sftpClient.Create(dst)
