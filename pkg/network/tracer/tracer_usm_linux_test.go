@@ -277,8 +277,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHo
 }
 
 type tlsTestCommand struct {
-	version        uint16
-	openSSLCommand []string
+	version uint16
 }
 
 func getFreePort() (port uint16, err error) {
@@ -308,20 +307,16 @@ func (s *USMSuite) TestTLSClassification() {
 
 	scenarios := []tlsTestCommand{
 		{
-			version:        tls.VersionTLS10,
-			openSSLCommand: []string{"-tls1", "-cipher=DEFAULT@SECLEVEL=0"},
+			version: tls.VersionTLS10,
 		},
 		{
-			version:        tls.VersionTLS11,
-			openSSLCommand: []string{"-tls1_1", "-cipher=DEFAULT@SECLEVEL=0"},
+			version: tls.VersionTLS11,
 		},
 		{
-			version:        tls.VersionTLS12,
-			openSSLCommand: []string{"-tls1_2"},
+			version: tls.VersionTLS12,
 		},
 		{
-			version:        tls.VersionTLS13,
-			openSSLCommand: []string{"-tls1_3"},
+			version: tls.VersionTLS13,
 		},
 	}
 
