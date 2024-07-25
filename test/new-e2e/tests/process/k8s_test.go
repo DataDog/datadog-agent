@@ -154,6 +154,7 @@ func (s *K8sSuite) TestManualContainerCheck() {
 func execProcessAgentCheck(t *testing.T, cluster *components.KubernetesCluster, check string) string {
 	agent := getAgentPod(t, cluster.Client())
 	// set the wait interval as workloadmeta takes some time to initialize for container data
+	// https://datadoghq.atlassian.net/browse/PROCS-4157
 	cmd := fmt.Sprintf("DD_LOG_LEVEL=OFF process-agent check %s -w 10s --json", check)
 
 	// The log level needs to be overridden as the pod has an ENV var set.
