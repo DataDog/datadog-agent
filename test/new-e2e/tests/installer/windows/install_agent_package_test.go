@@ -45,7 +45,7 @@ func (suite *testAgentInstallSuite) TestInstallAgentPackage() {
 		output, err := suite.installer.RemovePackage(AgentPackage)
 
 		// Assert
-		suite.Require().NoErrorf(err, "failed to purge the Datadog Agent package: %s", output)
+		suite.Require().NoErrorf(err, "failed to remove the Datadog Agent package: %s", output)
 		suite.Require().Host(suite.Env().RemoteHost).HasNoDatadogAgentService()
 	})
 }
