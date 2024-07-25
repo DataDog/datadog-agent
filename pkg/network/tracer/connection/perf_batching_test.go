@@ -27,8 +27,15 @@ const (
 )
 
 func TestGetPendingConns(t *testing.T) {
-	cb, cbCh := ddsync.CallbackChannel[*network.ConnectionStats](100)
-	manager := newTestBatchManager(t, cb)
+	var pendingConns []*network.ConnectionStats
+	flushDone := make(chan struct{})
+	manager := newTestBatchManager(t, func(conn *network.ConnectionStats) {
+		if conn == nil {
+			flushDone <- struct{}{}
+			return
+		}
+		pendingConns = append(pendingConns, conn)
+	})
 
 	batch := new(netebpf.Batch)
 	batch.Id = 0
@@ -43,14 +50,8 @@ func TestGetPendingConns(t *testing.T) {
 	}
 	updateBatch()
 
-	manager.Flush()
-	var pendingConns []*network.ConnectionStats
-	for conn := range cbCh {
-		if conn == nil {
-			break
-		}
-		pendingConns = append(pendingConns, conn)
-	}
+	go manager.Flush()
+	<-flushDone
 	assert.GreaterOrEqual(t, len(pendingConns), 2)
 	for _, pid := range []uint32{pidMax + 1, pidMax + 2} {
 		found := false
@@ -71,14 +72,9 @@ func TestGetPendingConns(t *testing.T) {
 	updateBatch()
 
 	// We should now get only the connection that hasn't been processed before
-	manager.Flush()
+	go manager.Flush()
 	pendingConns = pendingConns[:0]
-	for conn := range cbCh {
-		if conn == nil {
-			break
-		}
-		pendingConns = append(pendingConns, conn)
-	}
+	<-flushDone
 	assert.GreaterOrEqual(t, len(pendingConns), 1)
 	var found bool
 	for _, p := range pendingConns {
@@ -92,8 +88,12 @@ func TestGetPendingConns(t *testing.T) {
 }
 
 func TestPerfBatchStateCleanup(t *testing.T) {
-	cb, cbCh := ddsync.CallbackChannel[*network.ConnectionStats](100)
-	manager := newTestBatchManager(t, cb)
+	flushDone := make(chan struct{})
+	manager := newTestBatchManager(t, func(stats *network.ConnectionStats) {
+		if stats == nil {
+			flushDone <- struct{}{}
+		}
+	})
 	manager.extractor.expiredStateInterval = 100 * time.Millisecond
 
 	batch := new(netebpf.Batch)
@@ -106,24 +106,15 @@ func TestPerfBatchStateCleanup(t *testing.T) {
 	err := manager.batchMap.Put(&cpu, batch)
 	require.NoError(t, err)
 
-	manager.Flush()
-	for conn := range cbCh {
-		if conn == nil {
-			break
-		}
-	}
-
+	go manager.Flush()
+	<-flushDone
 	_, ok := manager.extractor.stateByCPU[cpu].processed[batch.Id]
 	require.True(t, ok)
 	assert.Equal(t, uint16(2), manager.extractor.stateByCPU[cpu].processed[batch.Id].offset)
 
 	manager.extractor.CleanupExpiredState(time.Now().Add(manager.extractor.expiredStateInterval))
-	manager.Flush()
-	for conn := range cbCh {
-		if conn == nil {
-			break
-		}
-	}
+	go manager.Flush()
+	<-flushDone
 
 	// state should not have been cleaned up, since no more connections have happened
 	_, ok = manager.extractor.stateByCPU[cpu].processed[batch.Id]
