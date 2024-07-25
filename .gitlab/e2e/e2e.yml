@@ -365,6 +365,11 @@ new-e2e-installer:
     - deploy_windows_testing-a7
     - qa_installer_oci
     - qa_agent_oci
+  before_script:
+    # CURRENT_AGENT_VERSION is used to verify the installed agent version
+    # Must run before new_e2e_template changes the aws profile
+    # Note: this is similar to the WINDOWS_AGENT_VERSION in new-e2e_windows_msi but this job is running cross platforms
+    - export CURRENT_AGENT_VERSION=$(invoke agent.version --major-version $AGENT_MAJOR_VERSION)
   variables:
     TARGETS: ./tests/installer
     TEAM: fleet

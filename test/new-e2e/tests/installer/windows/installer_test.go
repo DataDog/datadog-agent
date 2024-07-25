@@ -108,6 +108,7 @@ func (suite *testInstallerSuite) TestInstalls() {
 func (suite *testInstallerSuite) TestUpgrades() {
 	// Arrange
 	suite.Require().NoError(suite.installer.Install(WithInstallerURLFromInstallersJSON(pipeline.AgentS3BucketTesting, pipeline.StableChannel, installer.StableVersionPackage)))
+	// sanity check: make sure we did indeed install the stable version
 	suite.Require().Host(suite.Env().RemoteHost).
 		HasBinary(InstallerBinaryPath).
 		// Don't check the binary signature because it could have been updated since the last stable was built
@@ -122,7 +123,7 @@ func (suite *testInstallerSuite) TestUpgrades() {
 		HasBinary(InstallerBinaryPath).
 		WithSignature(agent.GetCodeSignatureThumbprints()).
 		WithVersionMatchPredicate(func(version string) {
-			pipelineVersion := os.Getenv("WINDOWS_AGENT_VERSION")
+			pipelineVersion := os.Getenv("CURRENT_AGENT_VERSION")
 			if pipelineVersion == "" {
 				suite.Require().NotEqual(installer.StableVersion, version, "upgraded version should be different than stable version")
 			} else {

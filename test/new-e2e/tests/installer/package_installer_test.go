@@ -10,6 +10,7 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
+	"os"
 )
 
 type packageInstallerSuite struct {
@@ -120,5 +121,10 @@ func (s *packageInstallerSuite) TestUpdateInstallerOCI() {
 	assert.NoError(s.T(), err)
 
 	version = s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version")
-	assert.NotEqual(s.T(), fmt.Sprintf("%s\n", StableVersion), version)
+	pipelineVersion := os.Getenv("CURRENT_AGENT_VERSION")
+	if pipelineVersion == "" {
+		assert.NotEqual(s.T(), fmt.Sprintf("%s\n", StableVersion), version)
+	} else {
+		assert.Equal(s.T(), fmt.Sprintf("%s\n", pipelineVersion), version)
+	}
 }
