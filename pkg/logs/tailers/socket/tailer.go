@@ -111,7 +111,7 @@ func (t *Tailer) readForever() {
 				copiedTags = append(copiedTags, sourceHostTag)
 			}
 			origin.SetTags(copiedTags)
-			t.decoder.InputChan <- message.NewMessage(data, origin, "test_status", 0)
+			t.decoder.InputChan <- message.NewMessage(data, origin, message.StatusInfo, 0)
 		}
 	}
 }

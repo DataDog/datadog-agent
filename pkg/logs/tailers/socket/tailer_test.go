@@ -7,7 +7,6 @@ package socket
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"testing"
 
@@ -19,25 +18,18 @@ import (
 )
 
 func TestReadAndForwardShouldSucceedWithSuccessfulRead(t *testing.T) {
-	fmt.Println("wack")
 	msgChan := make(chan *message.Message)
 	r, w := net.Pipe()
-	fmt.Println("wack1")
 	tailer := NewTailer(sources.NewLogSource("", &config.LogsConfig{}), r, msgChan, read)
-	fmt.Println("wack2")
 	tailer.Start()
-	fmt.Println("wack3")
 
 	var msg *message.Message
 
 	// should receive and decode one message
 
 	w.Write([]byte("foo\n"))
-	fmt.Println("wack4")
 	msg = <-msgChan
-	fmt.Println("wack4.5")
 	assert.Equal(t, "foo", string(msg.GetContent()))
-	fmt.Println("wack5")
 
 	// should receive and decode two messages
 	w.Write([]byte("bar\nboo\n"))
