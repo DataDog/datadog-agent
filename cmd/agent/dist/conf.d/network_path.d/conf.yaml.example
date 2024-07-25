@@ -1,4 +1,9 @@
 init_config:
+    ## @param min_collection_interval - number - optional - default: 60
+    ## Specifies how frequently we should probe the endpoint.
+    ## Min collection interval is defined in seconds.
+    #
+    # min_collection_interval: 60
 
 instances:
   - ## @param hostname - string - required
