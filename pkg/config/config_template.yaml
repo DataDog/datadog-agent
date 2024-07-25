@@ -1638,7 +1638,8 @@ api_key:
 
 {{ end }}
 
-{{- if .NetworkModule }}
+{{- if .NetworkPath }}
+{{- if (ne .OS "darwin")}}
 
 ########################################
 ## Network Path Configuration         ##
@@ -1661,7 +1662,7 @@ api_key:
   ## The `workers` refers to the number of concurrent workers available for network path execution.
   #
   # workers: 4
-
+{{ end -}}
 {{ end -}}
 {{ end -}}
 {{- if .Compliance }}
@@ -1848,6 +1849,21 @@ api_key:
 # ping:
   ## @param enabled - boolean - optional - default: false
   ## Set to true to enable the Ping Module of the System Probe
+  #
+  # enabled: false
+
+{{ end -}}
+
+
+{{- if .TracerouteModule }}
+
+#####################################
+## System Probe Traceroute Configuration ##
+#####################################
+
+# traceroute:
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable the Traceroute Module of the System Probe
   #
   # enabled: false
 
