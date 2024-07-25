@@ -73,6 +73,10 @@ func (s *serverSecure) TaggerStreamEntities(req *pb.StreamTagsRequest, srv pb.Ag
 	return s.taggerServer.TaggerStreamEntities(req, srv)
 }
 
+func (s *serverSecure) TaggerGenerateContainerIDFromExternalData(ctx context.Context, req *pb.GenerateContainerIDFromExternalDataRequest) (*pb.GenerateContainerIDFromExternalDataResponse, error) {
+	return s.taggerServer.TaggerGenerateContainerIDFromExternalData(ctx, req)
+}
+
 func (s *serverSecure) TaggerFetchEntity(ctx context.Context, req *pb.FetchEntityRequest) (*pb.FetchEntityResponse, error) {
 	return s.taggerServer.TaggerFetchEntity(ctx, req)
 }
