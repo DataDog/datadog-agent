@@ -233,13 +233,16 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	repository := i.repositories.Get(pkg)
-	err := repository.DeleteExperiment(ctx)
+	err := i.stopExperiment(ctx, pkg)
 	if err != nil {
-		return fmt.Errorf("could not delete experiment: %w", err)
+		return fmt.Errorf("could not stop experiment: %w", err)
 	}
 
-	err = i.stopExperiment(ctx, pkg)
+	// We need to delete the link *after* the stopExperiment call
+	// otherwise on Windows we would delete the link pointing to the installer before
+	// we can run it.
+	repository := i.repositories.Get(pkg)
+	err = repository.DeleteExperiment(ctx)
 	if err != nil {
 		return fmt.Errorf("could not delete experiment: %w", err)
 	}
