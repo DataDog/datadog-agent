@@ -8,12 +8,14 @@ package installerwindows
 
 import (
 	"embed"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
+	installtest "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test"
 	"os"
 	"testing"
 )
@@ -102,6 +104,28 @@ func (suite *testInstallerSuite) TestInstalls() {
 			HasAService(InstallerServiceName).
 			WithStatus("Running")
 	})
+}
+
+// TestSystemIntegrity tests that we don't damage the system with our installer.
+func (suite *testInstallerSuite) TestSystemIntegrity() {
+	// Arrange
+	systemFiles, err := common.NewFileSystemSnapshot(suite.Env().RemoteHost, installtest.SystemPaths())
+	suite.Require().NoError(err)
+
+	// Act
+	suite.Require().NoError(suite.installer.Install())
+	suite.Require().NoError(suite.installer.Uninstall())
+
+	// Assert
+	systemFilesAfterUninstall, err := common.NewFileSystemSnapshot(suite.Env().RemoteHost, installtest.SystemPaths())
+	suite.Require().NoError(err)
+
+	diff, err := systemFiles.CompareSnapshots(systemFilesAfterUninstall)
+	suite.Require().NoError(err)
+
+	// Mark flake because the result depends on Windows behavior
+	flake.Mark(suite.T())
+	suite.Require().Empty(diff)
 }
 
 // TestUpgrades tests upgrading the stable version of the Datadog Installer to the latest from the pipeline.
