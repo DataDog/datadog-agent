@@ -228,9 +228,6 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 	hostnameDetected, _ := hostname.Get(context.TODO())
 	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hostnameDetected)
 
-	// TODO: prior to appending events to k.instance.CollectedEventTypes, we need a way to identify
-	// events in the config as added by the user (i.e. user should be billed for collection)
-
 	// Automatically add events based on activated Datadog products
 	if ddConfig.Datadog().GetBool("autoscaling.workload.enabled") {
 		k.instance.CollectedEventTypes = append(k.instance.CollectedEventTypes, collectedEventType{
@@ -238,6 +235,8 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 		})
 	}
 
+	// TODO: prior to appending events to k.instance.CollectedEventTypes, we need a way to distinguish between
+	// default allowed events and events added by the user
 	if k.instance.FilteringEnabled {
 		k.instance.CollectedEventTypes = append(k.instance.CollectedEventTypes, integrationCollectedEventTypes...)
 	}
