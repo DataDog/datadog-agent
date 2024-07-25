@@ -47,9 +47,9 @@ func TestFlareHasRightForm(t *testing.T) {
 				//  * the original flare request URL, which redirects on HEAD to /post-target
 				//  * HEAD /post-target - responds with 200 OK
 				//  * POST /post-target - the final POST
-				if r.Header.Get("Authorization") != "Bearer abcdef" {
+				if r.Header.Get("DD-API-KEY") != "abcdef" {
 					w.WriteHeader(403)
-					io.WriteString(w, "request missing Authorization header")
+					io.WriteString(w, "request missing DD-API-KEY header")
 				}
 
 				if r.Method == "HEAD" && r.RequestURI == "/support/flare/12345" {

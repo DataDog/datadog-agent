@@ -122,7 +122,7 @@ func readAndPostFlareFile(archivePath, caseID, email, hostname, url string, sour
 	if err != nil {
 		return nil, err
 	}
-	request.Header.Add("Authorization", fmt.Sprintf("Bearer %s", apiKey))
+	request.Header.Add("DD-API-KEY", apiKey)
 
 	// We need to set the Content-Type header here, but we still haven't created the writer
 	// to obtain it from. Here we create one which only purpose is to give us a proper
@@ -198,7 +198,7 @@ func resolveFlarePOSTURL(url string, client *http.Client, apiKey string) (string
 	if err != nil {
 		return "", err
 	}
-	request.Header.Add("Authorization", fmt.Sprintf("Bearer %s", apiKey))
+	request.Header.Add("DD-API-KEY", apiKey)
 
 	r, err := client.Do(request)
 	if err != nil {
