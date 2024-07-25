@@ -46,12 +46,10 @@ var libPathPool = ddsync.NewDefaultTypedPool[libPath]()
 type ebpfProgram struct {
 	cfg          *config.Config
 	eventHandler *perf.EventHandler
-	eventChannel <-chan *libPath
 	*ddebpf.Manager
 }
 
-func newEBPFProgram(c *config.Config) *ebpfProgram {
-	callback, callbackCh := ddsync.CallbackChannel[*libPath](100)
+func newEBPFProgram(c *config.Config, callback func(*libPath)) *ebpfProgram {
 	ehopts := perf.EventHandlerOptions{
 		MapName:          sharedLibrariesPerfMap,
 		TelemetryEnabled: c.InternalTelemetryEnabled,
@@ -89,7 +87,6 @@ func newEBPFProgram(c *config.Config) *ebpfProgram {
 		cfg:          c,
 		Manager:      emgr,
 		eventHandler: eh,
-		eventChannel: callbackCh,
 	}
 }
 
@@ -120,10 +117,6 @@ func (e *ebpfProgram) Init() error {
 	}
 
 	return e.initPrebuilt()
-}
-
-func (e *ebpfProgram) GetPerfHandler() <-chan *libPath {
-	return e.eventChannel
 }
 
 func (e *ebpfProgram) Stop() {
