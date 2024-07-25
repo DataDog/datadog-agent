@@ -79,7 +79,6 @@ func getSSHClient(user, host string, privateKey, privateKeyPassphrase []byte) (*
 }
 
 func copyFileFromIoReader(sftpClient *sftp.Client, srcFile io.Reader, dst string) error {
-	dst = strings.ReplaceAll(dst, "\\", "/")
 	lastSlashIdx := strings.LastIndex(dst, "/")
 	if lastSlashIdx >= 0 {
 		// Ensure the target directory exists
