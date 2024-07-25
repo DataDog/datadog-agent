@@ -1858,9 +1858,9 @@ api_key:
 
 {{- if .TracerouteModule }}
 
-#####################################
+###########################################
 ## System Probe Traceroute Configuration ##
-#####################################
+###########################################
 
 # traceroute:
   ## @param enabled - boolean - optional - default: false
