@@ -22,6 +22,8 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.json import JSONWithCommentsDecoder
 
 VSCODE_DIR = ".vscode"
+VSCODE_LAUNCH_FILE = "launch.json"
+VSCODE_LAUNCH_TEMPLATE = "launch.json.template"
 VSCODE_SETTINGS_FILE = "settings.json"
 VSCODE_SETTINGS_TEMPLATE = "settings.json.template"
 VSCODE_TASKS_FILE = "tasks.json"
@@ -42,7 +44,8 @@ def setup(ctx, force=False):
     setup_tasks(ctx, force)
     print(color_message("* Setting up settings", Color.BOLD))
     setup_settings(ctx, force)
-    # TODO: setup_launch (see #27508)
+    print(color_message("* Setting up launch settings", Color.BOLD))
+    setup_launch(ctx, force)
 
 
 @task(
@@ -185,3 +188,25 @@ def setup_settings(_, force=False):
             ).replace("'", '"')
         )
     print(color_message("VSCode settings file created successfully.", Color.GREEN))
+
+
+@task
+def setup_launch(_: Context, force=False):
+    """
+    This creates the `.vscode/launch.json` file based on the `.vscode/launch.json.template` file
+
+    - force: Force file override
+    """
+    file = Path(VSCODE_DIR) / VSCODE_LAUNCH_FILE
+    template = Path(VSCODE_DIR) / VSCODE_LAUNCH_TEMPLATE
+
+    print(color_message("Creating initial VSCode launch file...", Color.BLUE))
+    if file.exists():
+        message = 'overriding current file' if force else 'skipping...'
+        print(color_message("warning:", Color.ORANGE), 'VSCode launch file already exists,', message)
+        if not force:
+            return
+
+    shutil.copy(template, file)
+
+    print(color_message('Launch config created, open Run and Debug tab in VSCode to start debugging', Color.GREEN))
