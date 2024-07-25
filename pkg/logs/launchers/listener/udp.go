@@ -33,6 +33,7 @@ type UDPListener struct {
 	source           *sources.LogSource
 	frameSize        int
 	tailer           *tailer.Tailer
+	Conn             net.UDPConn
 }
 
 // NewUDPListener returns an initialized UDPListener
@@ -82,14 +83,19 @@ func (l *UDPListener) newUDPConnection() (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return net.ListenUDP("udp", udpAddr)
+	udpConn, err := net.ListenUDP("udp", udpAddr)
+	if err != nil {
+		return nil, err
+	}
+	l.Conn = *udpConn
+	return udpConn, nil
 }
 
 // read reads data from the tailer connection, returns an error if it failed and reset the tailer.
 func (l *UDPListener) read(tailer *tailer.Tailer) ([]byte, string, error) {
 	frame := make([]byte, l.frameSize+1)
 	// Add casting to UDPConn
-	n, udpAddr, err := tailer.Conn.(*net.UDPConn).ReadFromUDP(frame)
+	n, udpAddr, err := l.Conn.ReadFromUDP(frame)
 	switch {
 	case err != nil && isClosedConnError(err):
 		return nil, "", err
