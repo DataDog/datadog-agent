@@ -151,7 +151,7 @@ func (h *Host) MustExecute(command string, options ...ExecuteOption) string {
 	return stdout
 }
 
-// CopyFileFromEmbedded creates a sftp session and copy a single file embedded file to the remote host through SSH
+// CopyFileFromEmbedded creates a sftp session and copy a single embedded file to the remote host through SSH
 func (h *Host) CopyFileFromEmbedded(fs embed.FS, src, dst string) {
 	h.context.T().Logf("Copying file from local %s to remote %s", src, dst)
 	dst = h.convertPathSeparator(dst)
