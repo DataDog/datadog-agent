@@ -24,6 +24,9 @@
     - git config --global credential.helper '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; };f'
     - cd /tmp/
     - ${CI_PROJECT_DIR}/tools/ci/retry.sh git clone --depth=1 https://github.com/DataDog/datadog-packages
+    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    - export GOPROXY="binaries.ddbuild.io,proxy.golang.org,direct"
+    - export GONOSUMDB="github.com/DataDog,go.ddbuild.io"
     - cd datadog-packages/cmd/datadog-package
     - go build .
     - OUTPUT_DIR="/tmp/oci_output"

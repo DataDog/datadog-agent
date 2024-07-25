@@ -343,7 +343,7 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	log.Printf("Handling Datadog %s request to %s, header %v", req.Method, req.URL.Path, req.Header)
+	log.Printf("Handling Datadog %s request to %s, header %v", req.Method, req.URL.Path, redactHeader(req.Header))
 
 	switch req.Method {
 	case http.MethodPost:
@@ -365,6 +365,23 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 
 	response := buildErrorResponse(fmt.Errorf("invalid request with route %s and method %s", req.URL.Path, req.Method))
 	writeHTTPResponse(w, response)
+}
+
+func redactHeader(header http.Header) http.Header {
+	if header == nil {
+		return header
+	}
+	safeHeader := make(http.Header, len(header))
+	for key, values := range header {
+		if !strings.Contains(strings.ToLower(key), "key") {
+			for _, value := range values {
+				safeHeader.Add(key, value)
+			}
+			continue
+		}
+		safeHeader.Add(strings.ToLower(key), "<redacted>")
+	}
+	return safeHeader
 }
 
 func (fi *Server) forwardRequestToDDDev(req *http.Request, payload []byte) error {
