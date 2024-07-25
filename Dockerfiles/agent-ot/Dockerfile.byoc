@@ -5,7 +5,6 @@ FROM ubuntu:24.04 AS builder
 # Set environment variables
 ARG AGENT_VERSION
 ENV DEBIAN_FRONTEND=noninteractive
-ARG GO_VERSION=1.22.0
 
 # Set the working directory
 WORKDIR /workspace
@@ -24,8 +23,23 @@ RUN apt-get update && \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# TEMP: Use github source code
+RUN git clone https://github.com/DataDog/datadog-agent.git datadog-agent-${AGENT_VERSION}
+
+# Once we have stable releases, we can use the following code to download the source code
+# TODO: use released agent version once we have an agent release with the otel binary
+# Download and unpack source code
+#RUN curl -L https://github.com/DataDog/datadog-agent/archive/refs/tags/${AGENT_VERSION}.tar.gz -o datadog-agent-${AGENT_VERSION}.tar.gz && \
+#    tar -xzvf datadog-agent-${AGENT_VERSION}.tar.gz && \
+#    rm datadog-agent-${AGENT_VERSION}.tar.gz
+
+
+# Set the working directory to the source code
+WORKDIR /workspace/datadog-agent-${AGENT_VERSION}
+
 # Install Go based on architecture
-RUN ARCH=$(dpkg --print-architecture) && \
+RUN GO_VERSION=$(cat .go-version) && \
+    ARCH=$(dpkg --print-architecture) && \
     if [ "$ARCH" = "amd64" ]; then \
     GO_ARCH="linux-amd64"; \
     elif [ "$ARCH" = "arm64" ]; then \
@@ -46,20 +60,6 @@ ENV GOPATH=/go
 RUN go version && \
     python3 --version && \
     curl --version
-
-# TEMP: Use github source code
-RUN git clone https://github.com/DataDog/datadog-agent.git datadog-agent-${AGENT_VERSION}
-
-# Once we have stable releases, we can use the following code to download the source code
-# TODO: use released agent version once we have an agent release with the otel binary
-# Download and unpack source code
-#RUN curl -L https://github.com/DataDog/datadog-agent/archive/refs/tags/${AGENT_VERSION}.tar.gz -o datadog-agent-${AGENT_VERSION}.tar.gz && \
-#    tar -xzvf datadog-agent-${AGENT_VERSION}.tar.gz && \
-#    rm datadog-agent-${AGENT_VERSION}.tar.gz
-
-
-# Set the working directory to the source code
-WORKDIR /workspace/datadog-agent-${AGENT_VERSION}
 
 # Create and activate virtual environment, then install requirements
 RUN python3 -m venv venv && \
