@@ -8,7 +8,6 @@ package installerwindows
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer"
 	"testing"
 )
 
@@ -23,7 +22,8 @@ func TestAgentInstalls(t *testing.T) {
 			winawshost.ProvisionerNoAgentNoFakeIntake(
 				winawshost.WithInstaller(),
 			)),
-		e2e.WithStackName("datadog-windows-installer-test"))
+		e2e.WithStackName("datadog-windows-installer-test"),
+		e2e.WithDevMode())
 }
 
 // TestInstallAgentPackage tests installing and uninstalling the Datadog Agent using the Datadog Installer.
@@ -53,29 +53,40 @@ func (suite *testAgentInstallSuite) TestInstallAgentPackage() {
 
 // TestUpgradeAgentPackage tests that it's possible to upgrade the Datadog Agent using the Datadog Installer.
 func (suite *testAgentInstallSuite) TestUpgradeAgentPackage() {
-	suite.Run("Install", func() {
+	suite.Run("Install stable", func() {
 		// Arrange
 
 		// Act
-		output, err := suite.installer.InstallPackage(AgentPackage, WithVersion(installer.StableVersionPackage))
+		// public.ecr.aws/datadog/agent-package:7.55
+		output, err := suite.installer.InstallPackage(AgentPackage,
+			WithRegistry("public.ecr.aws/datadog"),
+			WithVersion("7.55.1-1"),
+			WithAuthentication(""),
+		)
 
 		// Assert
-		suite.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
+		suite.Require().NoErrorf(err, "failed to install the stable Datadog Agent package: %s", output)
 		suite.Require().Host(suite.Env().RemoteHost).
-			HasBinary("C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe").
-			WithVersionEqual(installer.StableVersion).
-			HasAService("datadogagent").
-			WithStatus("Running")
+			HasARunningDatadogAgentService().
+			WithVersionMatchPredicate(func(version string) {
+				suite.Require().Contains(version, "Agent 7.55.1")
+			}).
+			DirExists("C:\\ProgramData\\Datadog Installer\\packages\\datadog-agent\\stable")
 	})
 
-	suite.Run("Uninstall", func() {
+	suite.Run("Upgrade to latest", func() {
 		// Arrange
 
 		// Act
-		output, err := suite.installer.RemovePackage(AgentPackage)
+		output, err := suite.installer.InstallExperiment(AgentPackage)
 
 		// Assert
-		suite.Require().NoErrorf(err, "failed to remove the Datadog Agent package: %s", output)
-		suite.Require().Host(suite.Env().RemoteHost).HasNoDatadogAgentService()
+		suite.Require().NoErrorf(err, "failed to upgrade to the latest Datadog Agent package: %s", output)
+		suite.Require().Host(suite.Env().RemoteHost).
+			HasARunningDatadogAgentService().
+			WithVersionMatchPredicate(func(version string) {
+				suite.Require().NotContains(version, "7.55.1")
+			}).
+			DirExists("C:\\ProgramData\\Datadog Installer\\packages\\datadog-agent\\experiment")
 	})
 }

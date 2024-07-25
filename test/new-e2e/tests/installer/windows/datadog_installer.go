@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent/installers/v2"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
-	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -73,21 +72,33 @@ func (d *DatadogInstaller) Version() (string, error) {
 	return d.execute("version")
 }
 
-func setVersion(pkg, version string) map[string]string {
-	return map[string]string{
-		"DD_INSTALLER_DEFAULT_PKG_VERSION_" + strings.ToUpper(strings.ReplaceAll(pkg, "-", "_")): version,
-	}
-}
-
 // InstallPackageParams contains the optional parameters for the Datadog Installer InstallPackage command
 type InstallPackageParams struct {
-	version string
+	version  string
+	registry string
+	auth     string
 }
 
 // InstallPackageOption is an optional function parameter type for the Datadog Installer
 type InstallPackageOption func(*InstallPackageParams) error
 
-// WithVersion uses a specific URL for the Datadog Installer instead of using the pipeline URL.
+// WithAuthentication uses a specific authentication for a registry to install the package.
+func WithAuthentication(auth string) InstallPackageOption {
+	return func(params *InstallPackageParams) error {
+		params.auth = auth
+		return nil
+	}
+}
+
+// WithRegistry uses a specific registry from where to install the package.
+func WithRegistry(registryURL string) InstallPackageOption {
+	return func(params *InstallPackageParams) error {
+		params.registry = registryURL
+		return nil
+	}
+}
+
+// WithVersion uses a specific version of the package.
 func WithVersion(version string) InstallPackageOption {
 	return func(params *InstallPackageParams) error {
 		params.version = version
@@ -95,47 +106,70 @@ func WithVersion(version string) InstallPackageOption {
 	}
 }
 
-// InstallPackage will attempt to use the Datadog Installer to install the package given in parameter.
-// version: A function that returns the version of the package to install. By default, it will install
-// the package matching the current pipeline. This is a function so that it can be combined with
-// Note that this command is a direct command and won't go through the Daemon.
-func (d *DatadogInstaller) InstallPackage(packageName string, opts ...InstallPackageOption) (string, error) {
+func (d *DatadogInstaller) runCommand(command, packageName string, opts ...InstallPackageOption) (string, error) {
 	params := InstallPackageParams{
-		version: fmt.Sprintf("pipeline-%s", d.env.AwsEnvironment.PipelineID()),
+		registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com",
+		version:  fmt.Sprintf("pipeline-%s", d.env.AwsEnvironment.PipelineID()),
+		auth:     "ecr",
 	}
+
+	registryTag := packageName
+	switch packageName {
+	case AgentPackage:
+		// datadog-agent is called "agent-package" in the OCI registries
+		registryTag = "agent-package"
+	}
+
 	err := optional.ApplyOptions(&params, opts)
 	if err != nil {
 		return "", nil
 	}
 
 	envVars := installer.InstallScriptEnv(e2eos.AMD64Arch)
-	// Note: the URL doesn't matter here, only the "image" name and the version, e.g.:
-	// `agent-package:pipeline-123456`
-	// The rest is going to be overridden by the environment variables.
-	packageURL := "oci://a.b.c/"
-	switch packageName {
-	case AgentPackage:
-		const packageName = "agent-package"
-		packageURL += packageName
-		if params.version != "" {
-			maps.Copy(envVars, setVersion(packageName, params.version))
-			packageURL += fmt.Sprintf(":%s", params.version)
-		}
-	default:
-		return "", fmt.Errorf("installing package %s is not yet implemented", packageName)
+	packageURL := fmt.Sprintf("oci://%s/%s:%s", params.registry, registryTag, params.version)
+
+	name := strings.ToUpper(strings.ReplaceAll(packageName, "-", "_"))
+	image := strings.TrimPrefix(name, "DATADOG_") + "_PACKAGE"
+	if params.registry != "" {
+		envVars[fmt.Sprintf("DD_INSTALLER_REGISTRY_URL_%s", image)] = params.registry
+	} else {
+		delete(envVars, fmt.Sprintf("DD_INSTALLER_REGISTRY_URL_%s", image))
+	}
+	if params.auth != "" {
+		envVars[fmt.Sprintf("DD_INSTALLER_REGISTRY_AUTH_%s", image)] = params.auth
+	} else {
+		delete(envVars, fmt.Sprintf("DD_INSTALLER_REGISTRY_AUTH_%s", image))
+	}
+	if params.version != "" {
+		envVars[fmt.Sprintf("DD_INSTALLER_DEFAULT_PKG_VERSION_%s", name)] = params.version
+	} else {
+		delete(envVars, fmt.Sprintf("DD_INSTALLER_DEFAULT_PKG_VERSION_%s", name))
 	}
 
-	return d.execute(fmt.Sprintf("install %s", packageURL), client.WithEnvVariables(envVars))
+	return d.execute(fmt.Sprintf("%s %s", command, packageURL), client.WithEnvVariables(envVars))
+}
+
+// InstallPackage will attempt to use the Datadog Installer to install the package given in parameter.
+// version: A function that returns the version of the package to install. By default, it will install
+// the package matching the current pipeline. This is a function so that it can be combined with
+// Note that this command is a direct command and won't go through the Daemon.
+func (d *DatadogInstaller) InstallPackage(packageName string, opts ...InstallPackageOption) (string, error) {
+	return d.runCommand("install", packageName, opts...)
+}
+
+// InstallExperiment will attempt to use the Datadog Installer to start an experiment for the package given in parameter.
+func (d *DatadogInstaller) InstallExperiment(packageName string, opts ...InstallPackageOption) (string, error) {
+	return d.runCommand("install-experiment", packageName, opts...)
 }
 
 // RemovePackage requests that the Datadog Installer removes a package on the remote host.
 func (d *DatadogInstaller) RemovePackage(packageName string) (string, error) {
-	switch packageName {
-	case AgentPackage:
-		return d.execute("remove datadog-agent")
-	default:
-		return "", fmt.Errorf("removing package %s is not yet implemented", packageName)
-	}
+	return d.execute(fmt.Sprintf("remove %s", packageName))
+}
+
+// RemoveExperiment requests that the Datadog Installer removes a package on the remote host.
+func (d *DatadogInstaller) RemoveExperiment(packageName string) (string, error) {
+	return d.execute(fmt.Sprintf("remove-experiment %s", packageName))
 }
 
 // InstallerParams contains the optional parameters for the Datadog Installer Install command

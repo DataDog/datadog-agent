@@ -12,6 +12,10 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
+const (
+	defaultAgentBinPath = "C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"
+)
+
 // RemoteWindowsHostAssertions is a type that extends the SuiteAssertions to add assertions
 // executing on a RemoteHost.
 type RemoteWindowsHostAssertions struct {
@@ -52,6 +56,15 @@ func (r *RemoteWindowsHostAssertions) HasNoService(serviceName string) *RemoteWi
 	return r
 }
 
+// DirExists checks whether a file exists in the given path. It also fails if
+// the path points to a directory or there is an error when trying to check the file.
+func (r *RemoteWindowsHostAssertions) DirExists(path string, msgAndArgs ...interface{}) *RemoteWindowsHostAssertions {
+	r.suite.T().Helper()
+	_, err := r.remoteHost.Lstat(path)
+	r.require.NoError(err, msgAndArgs...)
+	return r
+}
+
 // FileExists checks whether a file exists in the given path. It also fails if
 // the path points to a directory or there is an error when trying to check the file.
 func (r *RemoteWindowsHostAssertions) FileExists(path string, msgAndArgs ...interface{}) *RemoteWindowsHostAssertions {
@@ -75,19 +88,25 @@ func (r *RemoteWindowsHostAssertions) NoFileExists(path string, msgAndArgs ...in
 // HasARunningDatadogAgentService checks if the remote host has a Datadog Agent installed & running.
 // It does not run a full test suite on it, but merely checks if it has the required
 // service running.
-func (r *RemoteWindowsHostAssertions) HasARunningDatadogAgentService() *RemoteWindowsHostAssertions {
+func (r *RemoteWindowsHostAssertions) HasARunningDatadogAgentService() *RemoteWindowsBinaryAssertions {
 	r.suite.T().Helper()
-	r.FileExists("C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe")
+	r.FileExists(defaultAgentBinPath)
 	r.HasAService("datadogagent").WithStatus("Running")
-	return r
+	return &RemoteWindowsBinaryAssertions{
+		RemoteWindowsHostAssertions: r,
+		binaryPath:                  defaultAgentBinPath,
+	}
 }
 
 // HasNoDatadogAgentService checks if the remote host doesn't have a Datadog Agent installed.
-func (r *RemoteWindowsHostAssertions) HasNoDatadogAgentService() *RemoteWindowsHostAssertions {
+func (r *RemoteWindowsHostAssertions) HasNoDatadogAgentService() *RemoteWindowsBinaryAssertions {
 	r.suite.T().Helper()
-	r.NoFileExists("C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe")
+	r.NoFileExists(defaultAgentBinPath)
 	r.HasNoService("datadogagent")
-	return r
+	return &RemoteWindowsBinaryAssertions{
+		RemoteWindowsHostAssertions: r,
+		binaryPath:                  defaultAgentBinPath,
+	}
 }
 
 // HasBinary checks if a binary exists on the remote host and returns a more specific assertion
