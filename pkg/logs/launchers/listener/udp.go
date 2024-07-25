@@ -92,7 +92,7 @@ func (l *UDPListener) newUDPConnection() (net.Conn, error) {
 }
 
 // read reads data from the tailer connection, returns an error if it failed and reset the tailer.
-func (l *UDPListener) read(tailer *tailer.Tailer) ([]byte, string, error) {
+func (l *UDPListener) read(_ *tailer.Tailer) ([]byte, string, error) {
 	frame := make([]byte, l.frameSize+1)
 	// Add casting to UDPConn
 	n, udpAddr, err := l.Conn.ReadFromUDP(frame)
