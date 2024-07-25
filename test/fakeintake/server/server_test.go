@@ -654,3 +654,27 @@ func PostSomeRealisticLogs(t *testing.T, url string) {
 	require.NoError(t, err, "Error on POST request")
 	defer response.Body.Close()
 }
+
+func TestRedactHeader(t *testing.T) {
+	header := http.Header{
+		"Foo":       []string{"bar"},
+		"Key":       []string{"AAAAAAA"},
+		"appkEy":    []string{"BBBBBBB"},
+		"other-KeY": []string{"CCCCCCC"},
+	}
+	redactedHeader := redactHeader(header)
+	expectedHeader := http.Header{
+		"Foo":       []string{"bar"},
+		"Key":       []string{"<redacted>"},
+		"Appkey":    []string{"<redacted>"},
+		"Other-Key": []string{"<redacted>"},
+	}
+	for key, expectedValues := range expectedHeader {
+		redactedValues := redactedHeader[key]
+		assert.Equal(t, expectedValues, redactedValues, "unexpected value at key %s", key)
+	}
+	for key, redactedValues := range redactedHeader {
+		expectedValues := expectedHeader[key]
+		assert.Equal(t, expectedValues, redactedValues, "unexpected value at key %s", key)
+	}
+}
