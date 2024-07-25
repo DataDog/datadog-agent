@@ -13,11 +13,8 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 )
 
-// setInstallerUmask sets umask 0022 to override any inherited umask.
-// Files are created with at most 644 permissions
-// Dirs are created with at most 755 permissions
-// Any file that requires more permissive permissions should be set explicitly
+// setInstallerUmask sets umask 0 to override any inherited umask
 func setInstallerUmask(span ddtrace.Span) {
-	oldmask := syscall.Umask(0022)
+	oldmask := syscall.Umask(0)
 	span.SetTag("inherited_umask", oldmask)
 }
