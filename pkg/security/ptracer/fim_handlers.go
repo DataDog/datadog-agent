@@ -23,193 +23,229 @@ import (
 func registerFIMHandlers(handlers map[int]syscallHandler) []string {
 	fimHandlers := []syscallHandler{
 		{
-			IDs:        []syscallID{{ID: OpenNr, Name: "open"}},
+			ID:         syscallID{ID: OpenNr, Name: "open"},
 			Func:       handleOpen,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleOpensRet,
 		},
 		{
-			IDs:        []syscallID{{ID: OpenatNr, Name: "openat"}},
+			ID:         syscallID{ID: OpenatNr, Name: "openat"},
 			Func:       handleOpenAt,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleOpensRet,
 		},
 		{
-			IDs:        []syscallID{{ID: Openat2Nr, Name: "openat2"}},
+			ID:         syscallID{ID: Openat2Nr, Name: "openat2"},
 			Func:       handleOpenAt2,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleOpensRet,
 		},
 		{
-			IDs:        []syscallID{{ID: CreatNr, Name: "creat"}},
+			ID:         syscallID{ID: CreatNr, Name: "creat"},
 			Func:       handleCreat,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleOpensRet,
 		},
 		{
-			IDs:        []syscallID{{ID: NameToHandleAtNr, Name: "name_to_handle_at"}},
+			ID:         syscallID{ID: NameToHandleAtNr, Name: "name_to_handle_at"},
 			Func:       handleNameToHandleAt,
 			ShouldSend: nil,
 			RetFunc:    handleNameToHandleAtRet,
 		},
 		{
-			IDs:        []syscallID{{ID: OpenByHandleAtNr, Name: "open_by_handle_at"}},
+			ID:         syscallID{ID: OpenByHandleAtNr, Name: "open_by_handle_at"},
 			Func:       handleOpenByHandleAt,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleOpensRet,
 		},
 		{
-			IDs:        []syscallID{{ID: MemfdCreateNr, Name: "memfd_create"}},
+			ID:         syscallID{ID: MemfdCreateNr, Name: "memfd_create"},
 			Func:       handleMemfdCreate,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleOpensRet,
 		},
 		{
-			IDs:        []syscallID{{ID: FcntlNr, Name: "fcntl"}},
+			ID:         syscallID{ID: FcntlNr, Name: "fcntl"},
 			Func:       handleFcntl,
 			ShouldSend: nil,
 			RetFunc:    handleFcntlRet,
 		},
 		{
-			IDs:        []syscallID{{ID: DupNr, Name: "dup"}, {ID: Dup2Nr, Name: "dup2"}, {ID: Dup3Nr, Name: "dup3"}},
+			ID:         syscallID{ID: DupNr, Name: "dup"},
 			Func:       handleDup,
 			ShouldSend: nil,
 			RetFunc:    handleDupRet,
 		},
 		{
-			IDs:        []syscallID{{ID: CloseNr, Name: "close"}},
+			ID:         syscallID{ID: Dup2Nr, Name: "dup2"},
+			Func:       handleDup,
+			ShouldSend: nil,
+			RetFunc:    handleDupRet,
+		},
+		{
+			ID:         syscallID{ID: Dup3Nr, Name: "dup3"},
+			Func:       handleDup,
+			ShouldSend: nil,
+			RetFunc:    handleDupRet,
+		},
+		{
+			ID:         syscallID{ID: CloseNr, Name: "close"},
 			Func:       handleClose,
 			ShouldSend: nil,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: UnlinkNr, Name: "unlink"}},
+			ID:         syscallID{ID: UnlinkNr, Name: "unlink"},
 			Func:       handleUnlink,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: UnlinkatNr, Name: "unlinkat"}},
+			ID:         syscallID{ID: UnlinkatNr, Name: "unlinkat"},
 			Func:       handleUnlinkat,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: RmdirNr, Name: "rmdir"}},
+			ID:         syscallID{ID: RmdirNr, Name: "rmdir"},
 			Func:       handleRmdir,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: RenameNr, Name: "rename"}},
+			ID:         syscallID{ID: RenameNr, Name: "rename"},
 			Func:       handleRename,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleRenamesRet,
 		},
 		{
-			IDs:        []syscallID{{ID: RenameAtNr, Name: "renameat"}, {ID: RenameAt2Nr, Name: "renameat2"}},
+			ID:         syscallID{ID: RenameAtNr, Name: "renameat"},
 			Func:       handleRenameAt,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleRenamesRet,
 		},
 		{
-			IDs:        []syscallID{{ID: MkdirNr, Name: "mkdir"}},
+			ID:         syscallID{ID: RenameAt2Nr, Name: "renameat2"},
+			Func:       handleRenameAt,
+			ShouldSend: isAcceptedRetval,
+			RetFunc:    handleRenamesRet,
+		},
+		{
+			ID:         syscallID{ID: MkdirNr, Name: "mkdir"},
 			Func:       handleMkdir,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleMkdirRet,
 		},
 		{
-			IDs:        []syscallID{{ID: MkdirAtNr, Name: "mkdirat"}},
+			ID:         syscallID{ID: MkdirAtNr, Name: "mkdirat"},
 			Func:       handleMkdirAt,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleMkdirRet,
 		},
 		{
-			IDs:        []syscallID{{ID: UtimeNr, Name: "utime"}},
+			ID:         syscallID{ID: UtimeNr, Name: "utime"},
 			Func:       handleUtime,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: UtimesNr, Name: "utimes"}},
+			ID:         syscallID{ID: UtimesNr, Name: "utimes"},
 			Func:       handleUtimes,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: UtimensAtNr, Name: "utimensat"}, {ID: FutimesAtNr, Name: "futimesat"}},
+			ID:         syscallID{ID: UtimensAtNr, Name: "utimensat"},
 			Func:       handleUtimensAt,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: LinkNr, Name: "link"}},
+			ID:         syscallID{ID: FutimesAtNr, Name: "futimesat"},
+			Func:       handleUtimensAt,
+			ShouldSend: isAcceptedRetval,
+			RetFunc:    nil,
+		},
+		{
+			ID:         syscallID{ID: LinkNr, Name: "link"},
 			Func:       handleLink,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleLinksRet,
 		},
 		{
-			IDs:        []syscallID{{ID: LinkAtNr, Name: "linkat"}},
+			ID:         syscallID{ID: LinkAtNr, Name: "linkat"},
 			Func:       handleLinkAt,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleLinksRet,
 		},
 		{
-			IDs:        []syscallID{{ID: SymlinkNr, Name: "symlink"}},
+			ID:         syscallID{ID: SymlinkNr, Name: "symlink"},
 			Func:       handleSymlink,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleLinksRet,
 		},
 		{
-			IDs:        []syscallID{{ID: SymlinkAtNr, Name: "symlinkat"}},
+			ID:         syscallID{ID: SymlinkAtNr, Name: "symlinkat"},
 			Func:       handleSymlinkAt,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleLinksRet,
 		},
 		{
-			IDs:        []syscallID{{ID: ChmodNr, Name: "chmod"}},
+			ID:         syscallID{ID: ChmodNr, Name: "chmod"},
 			Func:       handleChmod,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: FchmodNr, Name: "fchmod"}},
+			ID:         syscallID{ID: FchmodNr, Name: "fchmod"},
 			Func:       handleFchmod,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: FchmodAtNr, Name: "fchmodat"}, {ID: FchmodAt2Nr, Name: "fchmodat2"}},
+			ID:         syscallID{ID: FchmodAtNr, Name: "fchmodat"},
 			Func:       handleFchmodAt,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: ChownNr, Name: "chown"}, {ID: LchownNr, Name: "lchown"}},
+			ID:         syscallID{ID: FchmodAt2Nr, Name: "fchmodat2"},
+			Func:       handleFchmodAt,
+			ShouldSend: isAcceptedRetval,
+			RetFunc:    nil,
+		},
+		{
+			ID:         syscallID{ID: ChownNr, Name: "chown"},
 			Func:       handleChown,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: FchownNr, Name: "fchown"}},
+			ID:         syscallID{ID: LchownNr, Name: "lchown"},
+			Func:       handleChown,
+			ShouldSend: isAcceptedRetval,
+			RetFunc:    nil,
+		},
+		{
+			ID:         syscallID{ID: FchownNr, Name: "fchown"},
 			Func:       handleFchown,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: FchownAtNr, Name: "fchownat"}},
+			ID:         syscallID{ID: FchownAtNr, Name: "fchownat"},
 			Func:       handleFchownAt,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: MountNr, Name: "mount"}},
+			ID:         syscallID{ID: MountNr, Name: "mount"},
 			Func:       handleMount,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: Umount2Nr, Name: "umount2"}},
+			ID:         syscallID{ID: Umount2Nr, Name: "umount2"},
 			Func:       handleUmount2,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
@@ -218,11 +254,9 @@ func registerFIMHandlers(handlers map[int]syscallHandler) []string {
 
 	syscallList := []string{}
 	for _, h := range fimHandlers {
-		for _, id := range h.IDs {
-			if id.ID >= 0 { // insert only available syscalls
-				handlers[id.ID] = h
-				syscallList = append(syscallList, id.Name)
-			}
+		if h.ID.ID >= 0 { // insert only available syscalls
+			handlers[h.ID.ID] = h
+			syscallList = append(syscallList, h.ID.Name)
 		}
 	}
 	return syscallList
@@ -382,7 +416,7 @@ func handleOpenByHandleAt(tracer *Tracer, process *Process, msg *ebpfless.Syscal
 		handleBytes: binary.BigEndian.Uint32(pFileHandleData[:4]),
 		handleType:  int32(binary.BigEndian.Uint32(pFileHandleData[4:8])),
 	}
-	val, ok := process.Res.FileHandleCache[key]
+	val, ok := process.FdRes.FileHandleCache[key]
 	if !ok {
 		return errors.New("didn't find correspondance in the file handle cache")
 	}
@@ -559,7 +593,7 @@ func handleDup(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscal
 
 func handleClose(tracer *Tracer, process *Process, _ *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
 	fd := tracer.ReadArgInt32(regs, 0)
-	delete(process.Res.Fd, fd)
+	delete(process.FdRes.Fd, fd)
 	return nil
 }
 
@@ -691,7 +725,7 @@ func handleUtimensAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg,
 	if filenamePtr == 0 {
 		// fd points to the file itself, not the directory
 		var exists bool
-		if filename, exists = process.Res.Fd[fd]; !exists {
+		if filename, exists = process.FdRes.Fd[fd]; !exists {
 			return errors.New("process FD cache incomplete during path resolution")
 		}
 	} else {
@@ -931,7 +965,7 @@ func handleChmod(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, reg
 func handleFchmod(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	fd := tracer.ReadArgInt32(regs, 0)
 
-	filename, found := process.Res.Fd[fd]
+	filename, found := process.FdRes.Fd[fd]
 	if !found {
 		return errors.New("FD cache incomplete")
 	}
@@ -998,7 +1032,7 @@ func handleChown(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, reg
 func handleFchown(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	fd := tracer.ReadArgInt32(regs, 0)
 
-	filename, found := process.Res.Fd[fd]
+	filename, found := process.FdRes.Fd[fd]
 	if !found {
 		return errors.New("FD cache incomplete")
 	}
@@ -1030,7 +1064,7 @@ func handleFchownAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 	if flags&unix.AT_EMPTY_PATH > 0 {
 		// if AT_EMPTY_PATH is specified, the fd points to the file itself, not the directory
 		var exists bool
-		if filename, exists = process.Res.Fd[fd]; !exists {
+		if filename, exists = process.FdRes.Fd[fd]; !exists {
 			return errors.New("process FD cache incomplete during path resolution")
 		}
 	} else {
@@ -1132,15 +1166,15 @@ func handleNameToHandleAtRet(tracer *Tracer, process *Process, msg *ebpfless.Sys
 		handleBytes: binary.BigEndian.Uint32(pFileHandleData[:4]),
 		handleType:  int32(binary.BigEndian.Uint32(pFileHandleData[4:8])),
 	}
-	process.Res.FileHandleCache[key] = &fileHandleVal{
+	process.FdRes.FileHandleCache[key] = &fileHandleVal{
 		pathName: msg.Open.Filename,
 	}
 	return nil
 }
 
 func handleOpensRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
-	if ret := tracer.ReadRet(regs); msg.Open != nil && ret > 0 {
-		process.Res.Fd[int32(ret)] = msg.Open.Filename
+	if ret := tracer.ReadRet(regs); msg.Open != nil && ret >= 0 {
+		process.FdRes.Fd[int32(ret)] = msg.Open.Filename
 	}
 	return nil
 }
@@ -1149,8 +1183,8 @@ func handleFcntlRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 	if ret := tracer.ReadRet(regs); msg.Fcntl != nil && ret >= 0 {
 		// maintain fd/path mapping
 		if msg.Fcntl.Cmd == unix.F_DUPFD || msg.Fcntl.Cmd == unix.F_DUPFD_CLOEXEC {
-			if path, exists := process.Res.Fd[int32(msg.Fcntl.Fd)]; exists {
-				process.Res.Fd[int32(ret)] = path
+			if path, exists := process.FdRes.Fd[int32(msg.Fcntl.Fd)]; exists {
+				process.FdRes.Fd[int32(ret)] = path
 			}
 		}
 	}
@@ -1159,9 +1193,9 @@ func handleFcntlRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 
 func handleDupRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
 	if ret := tracer.ReadRet(regs); msg.Dup != nil && ret >= 0 {
-		if path, ok := process.Res.Fd[msg.Dup.OldFd]; ok {
+		if path, ok := process.FdRes.Fd[msg.Dup.OldFd]; ok {
 			// maintain fd/path in case of dups
-			process.Res.Fd[int32(ret)] = path
+			process.FdRes.Fd[int32(ret)] = path
 		}
 	}
 	return nil
