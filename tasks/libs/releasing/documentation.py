@@ -245,3 +245,14 @@ def create_release_notes(freeze_date, teams):
                         pass
 
     return doc.getvalue()
+
+
+def list_not_closed_qa_cards(version):
+    username = os.environ['ATLASSIAN_USERNAME']
+    password = os.environ['ATLASSIAN_PASSWORD']
+    from atlassian import Jira
+
+    jira = Jira(url="https://datadoghq.atlassian.net", username=username, password=password)
+    jql = f'labels in (ddqa) and labels not in (test_ignore) and labels in ({version}-qa)  and status not in ((Done, DONE, "Won\'t Fix", "WON\'T FIX", "In Progress", "Testing/Review", "In review", "✅ Done", "won\'t do", Duplicate, Closed, "NOT DOING", not-do, canceled, QA)) order by created desc'
+    response = jira.jql(jql)
+    return response['issues']

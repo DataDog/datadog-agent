@@ -331,3 +331,104 @@ namespace: test
 
 	sender.AssertNotCalled(t, "Gauge", "cisco_sdwan.hardware.status", mock.Anything, mock.Anything, mock.Anything)
 }
+
+func TestNoMetricsAndMetadataCollection(t *testing.T) {
+	payload.TimeNow = mockTimeNow
+	report.TimeNow = mockTimeNow
+
+	apiMockServer := client.SetupMockAPIServer()
+	defer apiMockServer.Close()
+
+	deps := createDeps(t)
+	chk := newCheck()
+	senderManager := deps.Demultiplexer
+
+	url := strings.TrimPrefix(apiMockServer.URL, "http://")
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+vmanage_endpoint: ` + url + `
+username: admin
+password: 'test-password'
+use_http: true
+namespace: test
+send_ndm_metadata: false
+collect_hardware_metrics: false
+collect_interface_metrics: false
+collect_tunnel_metrics: false
+collect_control_connection_metrics: false
+collect_omp_peer_metrics: false
+collect_device_counters_metrics: false
+collect_bfd_session_status: false
+collect_hardware_status: false
+`)
+
+	// Use ID to ensure the mock sender gets registered
+	id := checkid.BuildID(CheckName, integration.FakeConfigHash, rawInstanceConfig, []byte(``))
+	sender := mocksender.NewMockSenderWithSenderManager(id, senderManager)
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("CountWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+
+	sender.On("Commit").Return()
+
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	require.NoError(t, err)
+
+	err = chk.Run()
+	require.NoError(t, err)
+
+	// Assert hardware metrics not sent
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.cpu.usage", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.memory.usage", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.disk.usage", mock.Anything, mock.Anything, mock.Anything)
+
+	// Assert interface metrics not sent
+	sender.AssertNotCalled(t, "CountWithTimestamp", "cisco_sdwan.interface.tx_bits", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "CountWithTimestamp", "cisco_sdwan.interface.rx_bits", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.interface.rx_bps", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.interface.tx_bps", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.interface.rx_bandwidth_usage", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.interface.tx_bandwidth_usage", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "CountWithTimestamp", "cisco_sdwan.interface.rx_errors", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "CountWithTimestamp", "cisco_sdwan.interface.tx_errors", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "CountWithTimestamp", "cisco_sdwan.interface.rx_drops", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "CountWithTimestamp", "cisco_sdwan.interface.tx_drops", mock.Anything, mock.Anything, mock.Anything)
+
+	// Assert uptime metrics not sent
+	sender.AssertNotCalled(t, "Gauge", "cisco_sdwan.device.uptime", mock.Anything, mock.Anything, mock.Anything)
+
+	// Assert application aware routing metrics not sent
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.tunnel.status", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.tunnel.latency", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.tunnel.jitter", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.tunnel.loss", 0, mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.tunnel.qoe", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "CountWithTimestamp", "cisco_sdwan.tunnel.rx_bits", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "CountWithTimestamp", "cisco_sdwan.tunnel.tx_bits", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "CountWithTimestamp", "cisco_sdwan.tunnel.rx_packets", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "CountWithTimestamp", "cisco_sdwan.tunnel.tx_packets", mock.Anything, mock.Anything, mock.Anything)
+
+	// Assert control-connection metrics not sent
+	sender.AssertNotCalled(t, "Gauge", "cisco_sdwan.control_connection.status", mock.Anything, mock.Anything, mock.Anything)
+
+	// Assert OMP Peer metrics not sent
+	sender.AssertNotCalled(t, "Gauge", "cisco_sdwan.omp_peer.status", mock.Anything, mock.Anything, mock.Anything)
+
+	// Assert BFD Session metrics not sent
+	sender.AssertNotCalled(t, "Gauge", "cisco_sdwan.bfd_session.status", mock.Anything, mock.Anything, mock.Anything)
+
+	// Assert device counters metrics not sent
+	sender.AssertNotCalled(t, "MonotonicCount", "cisco_sdwan.crash.count", mock.Anything, mock.Anything, mock.Anything)
+	sender.AssertNotCalled(t, "MonotonicCount", "cisco_sdwan.reboot.count", mock.Anything, mock.Anything, mock.Anything)
+
+	// Assert device status metrics
+	sender.AssertNotCalled(t, "Gauge", "cisco_sdwan.device.reachable", mock.Anything, mock.Anything, mock.Anything)
+
+	// Assert hardware status metrics
+	sender.AssertNotCalled(t, "Gauge", "cisco_sdwan.hardware.status_ok", mock.Anything, mock.Anything, mock.Anything)
+
+	sender.AssertNotCalled(t, "EventPlatformEvent", mock.Anything, mock.Anything)
+}

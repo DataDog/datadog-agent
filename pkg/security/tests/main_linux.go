@@ -137,9 +137,10 @@ func preTestsHook() {
 		opts := ptracer.Opts{
 			Async:           true,
 			SeccompDisabled: disableSeccomp,
+			Debug:           true,
 		}
 
-		err := ptracer.StartCWSPtracer(args, envs, constants.DefaultEBPFLessProbeAddr, opts)
+		err := ptracer.Wrap(args, envs, constants.DefaultEBPFLessProbeAddr, opts)
 		if err != nil {
 			fmt.Printf("unable to trace [%v]: %s", args, err)
 			os.Exit(-1)

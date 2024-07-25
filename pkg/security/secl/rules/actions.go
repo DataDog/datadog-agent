@@ -39,8 +39,8 @@ type ActionDefinition struct {
 
 // Check returns an error if the action in invalid
 func (a *ActionDefinition) Check(opts PolicyLoaderOpts) error {
-	if a.Set == nil && a.InternalCallback == nil && a.Kill == nil && a.Hash == nil {
-		return errors.New("either 'set', 'kill' or 'hash' section of an action must be specified")
+	if a.Set == nil && a.InternalCallback == nil && a.Kill == nil && a.Hash == nil && a.CoreDump == nil {
+		return errors.New("either 'set', 'kill', 'hash' or 'coredump' section of an action must be specified")
 	}
 
 	if a.Set != nil {

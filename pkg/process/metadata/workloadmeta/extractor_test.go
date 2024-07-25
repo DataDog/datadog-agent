@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -39,7 +39,7 @@ func testProc(pid int32, cmdline []string) *procutil.Process {
 func TestExtractor(t *testing.T) {
 	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
 
-	extractor := NewWorkloadMetaExtractor(config.Mock(t))
+	extractor := NewWorkloadMetaExtractor(configmock.New(t))
 
 	var (
 		proc1 = testProc(Pid1, []string{"java", "mydatabase.jar"})
@@ -275,7 +275,7 @@ func BenchmarkHashProcess(b *testing.B) {
 func TestLateContainerId(t *testing.T) {
 	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
 
-	extractor := NewWorkloadMetaExtractor(config.Mock(t))
+	extractor := NewWorkloadMetaExtractor(configmock.New(t))
 
 	var (
 		proc1 = testProc(Pid1, []string{"java", "mydatabase.jar"})
