@@ -706,25 +706,10 @@ func Benchmark_npCollectorImpl_ScheduleConns(b *testing.B) {
 	b.ResetTimer() // Reset timer after setup
 
 	for i := 0; i < b.N; i++ {
+		_ = i
 		npCollector.ScheduleConns(connections)
 
-		//timeoutChan := time.After(60 * time.Second)
-		//tick := time.NewTicker(100 * time.Millisecond)
-		//defer tick.Stop()
-
 		waitForProcessedPathtests(npCollector, 60*time.Second, 50)
-		// for {
-		// 	select {
-		// 	case <-timeoutChan:
-		// 		b.Logf("We've timed out!")
-		// 		return
-		// 	case <-tick.C:
-		// 		if npCollector.processedTracerouteCount.Load() >= 50 {
-		// 			b.Logf("We've processed all pathtests!")
-		// 			return
-		// 		}
-		// 	}
-		// }
 	}
 
 	// TEST STOP
