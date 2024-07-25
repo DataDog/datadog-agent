@@ -9,6 +9,7 @@ package inventorychecksimpl
 import (
 	"context"
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -131,6 +132,14 @@ func newInventoryChecksProvider(deps dependencies) provides {
 
 	if logAgent, isSet := deps.LogAgent.Get(); isSet {
 		ic.sources.Set(logAgent.GetSources())
+	}
+
+	// Set the expvar callback to the current inventorycheck
+	// This should be removed when migrated to collector component
+	if icExpvar := expvar.Get("inventories"); icExpvar == nil {
+		expvar.Publish("inventories", expvar.Func(func() interface{} {
+			return ic.getPayload()
+		}))
 	}
 
 	return provides{

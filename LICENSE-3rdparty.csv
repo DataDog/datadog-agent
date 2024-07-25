@@ -2769,6 +2769,7 @@ core,google.golang.org/grpc/balancer/base,Apache-2.0,Copyright 2014 gRPC authors
 core,google.golang.org/grpc/balancer/grpclb,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/grpclb/grpc_lb_v1,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/grpclb/state,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/balancer/pickfirst,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/roundrobin,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/binarylog/grpc_binarylog_v1,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/channelz,Apache-2.0,Copyright 2014 gRPC authors.
@@ -2803,7 +2804,6 @@ core,google.golang.org/grpc/internal/credentials,Apache-2.0,Copyright 2014 gRPC 
 core,google.golang.org/grpc/internal/envconfig,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/googlecloud,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/grpclog,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/internal/grpcrand,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/grpcsync,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/grpcutil,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/idle,Apache-2.0,Copyright 2014 gRPC authors.
