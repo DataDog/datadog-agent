@@ -487,6 +487,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/collector/corechecks/ebpf/probe/ebpfcheck/c_types.go": [
                 "pkg/collector/corechecks/ebpf/c/runtime/ebpf-kern-user.h"
             ],
+            "pkg/collector/corechecks/ebpf/probe/oomkill/c_types.go": [
+                "pkg/collector/corechecks/ebpf/c/runtime/oom-kill-kern-user.h",
+            ],
             "pkg/ebpf/types.go": [
                 "pkg/ebpf/c/lock_contention.h",
             ],
