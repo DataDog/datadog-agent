@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"io/fs"
 )
 
 const (
@@ -56,12 +57,20 @@ func (r *RemoteWindowsHostAssertions) HasNoService(serviceName string) *RemoteWi
 	return r
 }
 
-// DirExists checks whether a file exists in the given path. It also fails if
+// DirExists checks whether a directory exists in the given path. It also fails if
 // the path points to a directory or there is an error when trying to check the file.
 func (r *RemoteWindowsHostAssertions) DirExists(path string, msgAndArgs ...interface{}) *RemoteWindowsHostAssertions {
 	r.suite.T().Helper()
 	_, err := r.remoteHost.Lstat(path)
 	r.require.NoError(err, msgAndArgs...)
+	return r
+}
+
+// NoDirExists checks whether a directory does not exist in the given path.
+func (r *RemoteWindowsHostAssertions) NoDirExists(path string, msgAndArgs ...interface{}) *RemoteWindowsHostAssertions {
+	r.suite.T().Helper()
+	_, err := r.remoteHost.Lstat(path)
+	r.require.ErrorIs(err, fs.ErrNotExist, msgAndArgs...)
 	return r
 }
 

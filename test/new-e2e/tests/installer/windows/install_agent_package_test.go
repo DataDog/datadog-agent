@@ -21,8 +21,7 @@ func TestAgentInstalls(t *testing.T) {
 		e2e.WithProvisioner(
 			winawshost.ProvisionerNoAgentNoFakeIntake(
 				winawshost.WithInstaller(),
-			)),
-		e2e.WithStackName("datadog-windows-installer-test"))
+			)))
 }
 
 // TestInstallAgentPackage tests installing and uninstalling the Datadog Agent using the Datadog Installer.
@@ -70,10 +69,10 @@ func (suite *testAgentInstallSuite) TestUpgradeAgentPackage() {
 			WithVersionMatchPredicate(func(version string) {
 				suite.Require().Contains(version, "Agent 7.55.1")
 			}).
-			DirExists("C:\\ProgramData\\Datadog Installer\\packages\\datadog-agent\\stable")
+			DirExists(StableDir(AgentPackage))
 	})
 
-	suite.Run("Upgrade to latest", func() {
+	suite.Run("Upgrade to latest using an experiment", func() {
 		// Arrange
 
 		// Act
@@ -86,6 +85,19 @@ func (suite *testAgentInstallSuite) TestUpgradeAgentPackage() {
 			WithVersionMatchPredicate(func(version string) {
 				suite.Require().NotContains(version, "7.55.1")
 			}).
-			DirExists("C:\\ProgramData\\Datadog Installer\\packages\\datadog-agent\\experiment")
+			DirExists(ExperimentDir(AgentPackage))
+	})
+
+	suite.Run("Stop experiment", func() {
+		// Arrange
+
+		// Act
+		output, err := suite.installer.RemoveExperiment(AgentPackage)
+
+		// Assert
+		suite.Require().NoErrorf(err, "failed to remove the experiment for the Datadog Agent package: %s", output)
+		suite.Require().Host(suite.Env().RemoteHost).
+			HasNoDatadogAgentService().
+			NoDirExists(ExperimentDir(AgentPackage))
 	})
 }
