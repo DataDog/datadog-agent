@@ -9,6 +9,7 @@ package mock
 
 import (
 	"sync"
+	"testing"
 
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
@@ -22,8 +23,8 @@ type Provides struct {
 	Comp Component
 }
 
-// NewMock returns a mock for datadogclient component.
-func NewMock() Provides {
+// New returns a mock for datadogclient component.
+func New(*testing.T) Provides {
 	return Provides{
 		Comp: &mockDatadogClient{},
 	}

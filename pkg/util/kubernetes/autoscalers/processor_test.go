@@ -15,10 +15,8 @@ import (
 	"testing"
 	"time"
 
-	datadogclientfxmock "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/fx-mock"
 	datadogclientmock "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/mock"
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
@@ -159,7 +157,7 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
-			datadogClientComp := fxutil.Test[datadogclientmock.Component](t, datadogclientfxmock.MockModule())
+			datadogClientComp := datadogclientmock.New(t).Comp
 			datadogClientComp.SetQueryMetricsFunc(func(int64, int64, string) ([]datadog.Series, error) {
 				return tt.series, nil
 			})
@@ -194,7 +192,7 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 			Valid:      true,
 		},
 	}
-	datadogClientComp := fxutil.Test[datadogclientmock.Component](t, datadogclientfxmock.MockModule())
+	datadogClientComp := datadogclientmock.New(t).Comp
 	datadogClientComp.SetQueryMetricsFunc(func(int64, int64, string) ([]datadog.Series, error) {
 		return nil, fmt.Errorf("API error 400 Bad Request: {\"error\": [\"Rate limit of 300 requests in 3600 seconds reqchec.\"]}")
 	})
@@ -344,7 +342,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 		res.bc = 0
 		res.m.Unlock()
 		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
-			datadogClientComp := fxutil.Test[datadogclientmock.Component](t, datadogclientfxmock.MockModule())
+			datadogClientComp := datadogclientmock.New(t).Comp
 			datadogClientComp.SetGetRateLimitsFunc(func() map[string]datadog.RateLimit {
 				return map[string]datadog.RateLimit{
 					queryEndpoint: {
@@ -495,7 +493,7 @@ func TestProcessor_ProcessHPAs(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
-			datadogClientComp := fxutil.Test[datadogclientmock.Component](t, datadogclientfxmock.MockModule())
+			datadogClientComp := datadogclientmock.New(t).Comp
 			hpaCl := &Processor{datadogClient: datadogClientComp, externalMaxAge: maxAge}
 
 			externalMetrics := hpaCl.ProcessHPAs(&tt.metrics)
@@ -640,7 +638,7 @@ func TestUpdateRateLimiting(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
-			datadogClientComp := fxutil.Test[datadogclientmock.Component](t, datadogclientfxmock.MockModule())
+			datadogClientComp := datadogclientmock.New(t).Comp
 			datadogClientComp.SetGetRateLimitsFunc(func() map[string]datadog.RateLimit {
 				return tt.rateLimits
 			})
