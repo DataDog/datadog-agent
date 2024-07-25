@@ -2,3 +2,21 @@ init_config:
 
 instances:
   -
+
+#
+#	DestHostname string `yaml:"hostname"`
+#
+#	DestPort uint16 `yaml:"port"`
+#
+#	Protocol string `yaml:"protocol"`
+#
+#	SourceService      string `yaml:"source_service"`
+#	DestinationService string `yaml:"destination_service"`
+#
+#	MaxTTL uint8 `yaml:"max_ttl"`
+#
+#	TimeoutMs uint `yaml:"timeout"` // millisecond
+#
+#	MinCollectionInterval int `yaml:"min_collection_interval"`
+#
+#	Tags []string `yaml:"tags"`
