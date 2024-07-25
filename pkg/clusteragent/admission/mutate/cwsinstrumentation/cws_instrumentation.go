@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation/k8scp"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation/k8sexec"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -63,6 +64,7 @@ const (
 	cwsNilCommandReason                    = "nil_command"
 	cwsClusterAgentServiceAccountReason    = "cluster_agent_service_account"
 	cwsClusterAgentKubectlCPReason         = "cluster_agent_kubectl_cp"
+	cwsClusterAgentKubectlExecHealthReason = "cluster_agent_kubectl_exec_health"
 	cwsExcludedResourceReason              = "excluded_resource"
 	cwsDescribePodErrorReason              = "describe_pod_error"
 	cwsExcludedByAnnotationReason          = "excluded_by_annotation"
@@ -433,7 +435,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 		}
 
 		// fall back in case the service account filter somehow didn't work
-		if len(exec.Command) > len(k8scp.CWSRemoteCopyCommand) && slices.Equal(exec.Command[0:len(k8scp.CWSRemoteCopyCommand)], k8scp.CWSRemoteCopyCommand) {
+		if len(exec.Command) >= len(k8scp.CWSRemoteCopyCommand) && slices.Equal(exec.Command[0:len(k8scp.CWSRemoteCopyCommand)], k8scp.CWSRemoteCopyCommand) {
 			log.Debugf("Ignoring kubectl cp requests to %s from the cluster agent", name)
 			metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsClusterAgentKubectlCPReason)
 			return false, nil
@@ -498,6 +500,14 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 				metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsReadonlyFilesystemReason)
 				return false, errors.New(metrics.InvalidInput)
 			}
+		}
+
+		// Now that we have computed the remote path of cws-instrumentation, we can make sure the current command isn't
+		// remote health command from the cluster-agent (in which case we should simply ignore this request)
+		if len(exec.Command) >= 2 && slices.Equal(exec.Command[0:2], []string{cwsInstrumentationRemotePath, k8sexec.CWSHealthCommand}) {
+			log.Debugf("Ignoring kubectl health check exec requests to %s from the cluster agent", name)
+			metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsClusterAgentKubectlExecHealthReason)
+			return false, nil
 		}
 
 		arch, err := ci.resolveNodeArch(pod.Spec.NodeName, apiClient)
@@ -585,7 +595,13 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentationRemoteCopy(pod *cor
 	}
 
 	cp := k8scp.NewCopy(apiclient)
-	return cp.CopyToPod(cwsInstrumentationLocalPath, cwsInstrumentationRemotePath, pod, container)
+	if err = cp.CopyToPod(cwsInstrumentationLocalPath, cwsInstrumentationRemotePath, pod, container); err != nil {
+		return err
+	}
+
+	// check cws-instrumentation was properly copied by running "cws-instrumentation health"
+	health := k8sexec.NewHealthCommand(apiclient)
+	return health.Run(cwsInstrumentationRemotePath, pod, container)
 }
 
 func (ci *CWSInstrumentation) injectForPod(request *admission.MutateRequest) ([]byte, error) {

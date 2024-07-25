@@ -5,8 +5,8 @@
 
 //go:build !linux
 
-// Package rules holds rules related files
-package rules
+// Package bundled contains bundled rules
+package bundled
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"

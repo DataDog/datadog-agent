@@ -22,11 +22,14 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.json import JSONWithCommentsDecoder
 
 VSCODE_DIR = ".vscode"
+VSCODE_LAUNCH_FILE = "launch.json"
+VSCODE_LAUNCH_TEMPLATE = "launch.json.template"
 VSCODE_SETTINGS_FILE = "settings.json"
 VSCODE_SETTINGS_TEMPLATE = "settings.json.template"
 VSCODE_TASKS_FILE = "tasks.json"
 VSCODE_TASKS_TEMPLATE = "tasks.json.template"
 VSCODE_EXTENSIONS_FILE = "extensions.json"
+VSCODE_PYTHON_ENV_FILE = ".env"
 
 
 @task
@@ -40,9 +43,12 @@ def setup(ctx, force=False):
     setup_extensions(ctx)
     print(color_message("* Setting up tasks", Color.BOLD))
     setup_tasks(ctx, force)
+    print(color_message("* Setting up tests", Color.BOLD))
+    setup_tasks(ctx, force)
     print(color_message("* Setting up settings", Color.BOLD))
     setup_settings(ctx, force)
-    # TODO: setup_launch (see #27508)
+    print(color_message("* Setting up launch settings", Color.BOLD))
+    setup_launch(ctx, force)
 
 
 @task(
@@ -135,6 +141,31 @@ def setup_extensions(ctx: Context):
 
 
 @task
+def setup_tests(_, force=False):
+    """
+    Setup the tests tab for vscode
+
+    - Documentation: https://datadoghq.atlassian.net/wiki/x/z4Jf6
+    """
+    from invoke_unit_tests import TEST_ENV
+
+    env = Path(VSCODE_PYTHON_ENV_FILE)
+
+    print(color_message("Creating initial python environment file...", Color.BLUE))
+    if env.exists():
+        message = 'overriding current file' if force else 'skipping...'
+        print(color_message("warning:", Color.ORANGE), 'VSCode python environment file already exists,', message)
+        if not force:
+            return
+
+    with open('.env', 'w') as f:
+        for key, value in TEST_ENV.items():
+            print(f'{key}={value}', file=f)
+
+    print(color_message('The .env file has been created', Color.GREEN))
+
+
+@task
 def setup_tasks(_, force=False):
     """
     Creates the initial .vscode/tasks.json file based on the template
@@ -185,3 +216,25 @@ def setup_settings(_, force=False):
             ).replace("'", '"')
         )
     print(color_message("VSCode settings file created successfully.", Color.GREEN))
+
+
+@task
+def setup_launch(_: Context, force=False):
+    """
+    This creates the `.vscode/launch.json` file based on the `.vscode/launch.json.template` file
+
+    - force: Force file override
+    """
+    file = Path(VSCODE_DIR) / VSCODE_LAUNCH_FILE
+    template = Path(VSCODE_DIR) / VSCODE_LAUNCH_TEMPLATE
+
+    print(color_message("Creating initial VSCode launch file...", Color.BLUE))
+    if file.exists():
+        message = 'overriding current file' if force else 'skipping...'
+        print(color_message("warning:", Color.ORANGE), 'VSCode launch file already exists,', message)
+        if not force:
+            return
+
+    shutil.copy(template, file)
+
+    print(color_message('Launch config created, open Run and Debug tab in VSCode to start debugging', Color.GREEN))

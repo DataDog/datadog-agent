@@ -416,7 +416,7 @@ func handleOpenByHandleAt(tracer *Tracer, process *Process, msg *ebpfless.Syscal
 		handleBytes: binary.BigEndian.Uint32(pFileHandleData[:4]),
 		handleType:  int32(binary.BigEndian.Uint32(pFileHandleData[4:8])),
 	}
-	val, ok := process.Res.FileHandleCache[key]
+	val, ok := process.FdRes.FileHandleCache[key]
 	if !ok {
 		return errors.New("didn't find correspondance in the file handle cache")
 	}
@@ -593,7 +593,7 @@ func handleDup(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscal
 
 func handleClose(tracer *Tracer, process *Process, _ *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
 	fd := tracer.ReadArgInt32(regs, 0)
-	delete(process.Res.Fd, fd)
+	delete(process.FdRes.Fd, fd)
 	return nil
 }
 
@@ -725,7 +725,7 @@ func handleUtimensAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg,
 	if filenamePtr == 0 {
 		// fd points to the file itself, not the directory
 		var exists bool
-		if filename, exists = process.Res.Fd[fd]; !exists {
+		if filename, exists = process.FdRes.Fd[fd]; !exists {
 			return errors.New("process FD cache incomplete during path resolution")
 		}
 	} else {
@@ -965,7 +965,7 @@ func handleChmod(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, reg
 func handleFchmod(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	fd := tracer.ReadArgInt32(regs, 0)
 
-	filename, found := process.Res.Fd[fd]
+	filename, found := process.FdRes.Fd[fd]
 	if !found {
 		return errors.New("FD cache incomplete")
 	}
@@ -1032,7 +1032,7 @@ func handleChown(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, reg
 func handleFchown(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	fd := tracer.ReadArgInt32(regs, 0)
 
-	filename, found := process.Res.Fd[fd]
+	filename, found := process.FdRes.Fd[fd]
 	if !found {
 		return errors.New("FD cache incomplete")
 	}
@@ -1064,7 +1064,7 @@ func handleFchownAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 	if flags&unix.AT_EMPTY_PATH > 0 {
 		// if AT_EMPTY_PATH is specified, the fd points to the file itself, not the directory
 		var exists bool
-		if filename, exists = process.Res.Fd[fd]; !exists {
+		if filename, exists = process.FdRes.Fd[fd]; !exists {
 			return errors.New("process FD cache incomplete during path resolution")
 		}
 	} else {
@@ -1166,15 +1166,15 @@ func handleNameToHandleAtRet(tracer *Tracer, process *Process, msg *ebpfless.Sys
 		handleBytes: binary.BigEndian.Uint32(pFileHandleData[:4]),
 		handleType:  int32(binary.BigEndian.Uint32(pFileHandleData[4:8])),
 	}
-	process.Res.FileHandleCache[key] = &fileHandleVal{
+	process.FdRes.FileHandleCache[key] = &fileHandleVal{
 		pathName: msg.Open.Filename,
 	}
 	return nil
 }
 
 func handleOpensRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
-	if ret := tracer.ReadRet(regs); msg.Open != nil && ret > 0 {
-		process.Res.Fd[int32(ret)] = msg.Open.Filename
+	if ret := tracer.ReadRet(regs); msg.Open != nil && ret >= 0 {
+		process.FdRes.Fd[int32(ret)] = msg.Open.Filename
 	}
 	return nil
 }
@@ -1183,8 +1183,8 @@ func handleFcntlRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 	if ret := tracer.ReadRet(regs); msg.Fcntl != nil && ret >= 0 {
 		// maintain fd/path mapping
 		if msg.Fcntl.Cmd == unix.F_DUPFD || msg.Fcntl.Cmd == unix.F_DUPFD_CLOEXEC {
-			if path, exists := process.Res.Fd[int32(msg.Fcntl.Fd)]; exists {
-				process.Res.Fd[int32(ret)] = path
+			if path, exists := process.FdRes.Fd[int32(msg.Fcntl.Fd)]; exists {
+				process.FdRes.Fd[int32(ret)] = path
 			}
 		}
 	}
@@ -1193,9 +1193,9 @@ func handleFcntlRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 
 func handleDupRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
 	if ret := tracer.ReadRet(regs); msg.Dup != nil && ret >= 0 {
-		if path, ok := process.Res.Fd[msg.Dup.OldFd]; ok {
+		if path, ok := process.FdRes.Fd[msg.Dup.OldFd]; ok {
 			// maintain fd/path in case of dups
-			process.Res.Fd[int32(ret)] = path
+			process.FdRes.Fd[int32(ret)] = path
 		}
 	}
 	return nil

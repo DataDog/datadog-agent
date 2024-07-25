@@ -570,32 +570,15 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 				// remove previously registered TLS
 				pc.UnsetSpan(process.Tgid)
 			case CloneNr:
-				if flags := tracer.ReadArgUint64(regs, 0); flags&uint64(unix.SIGCHLD) == 0 {
-					pc.SetAsThreadOf(process, ppid)
-				} else if parent := pc.Get(ppid); parent != nil {
-					sendSyscallMsg(&ebpfless.SyscallMsg{
-						Type: ebpfless.SyscallTypeFork,
-						Fork: &ebpfless.ForkSyscallMsg{
-							PPID: uint32(parent.Tgid),
-						},
-					})
-				}
+				handleClone(pc, tracer.ReadArgUint64(regs, 0), process, ppid, sendSyscallMsg)
 			case Clone3Nr:
 				data, err := tracer.ReadArgData(process.Pid, regs, 0, 8 /*sizeof flags only*/)
 				if err != nil {
 					logger.Debugf("error reading clone3 flags: %v", err)
 					return
 				}
-				if flags := binary.NativeEndian.Uint64(data); flags&uint64(unix.SIGCHLD) == 0 {
-					pc.SetAsThreadOf(process, ppid)
-				} else if parent := pc.Get(ppid); parent != nil {
-					sendSyscallMsg(&ebpfless.SyscallMsg{
-						Type: ebpfless.SyscallTypeFork,
-						Fork: &ebpfless.ForkSyscallMsg{
-							PPID: uint32(parent.Tgid),
-						},
-					})
-				}
+
+				handleClone(pc, binary.NativeEndian.Uint64(data), process, ppid, sendSyscallMsg)
 			case ForkNr, VforkNr:
 				if parent := pc.Get(ppid); parent != nil {
 					sendSyscallMsg(&ebpfless.SyscallMsg{
@@ -653,4 +636,19 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 	time.Sleep(time.Second)
 
 	return nil
+}
+
+func handleClone(pc *ProcessCache, flags uint64, process *Process, ppid int, sendSyscallMsg func(msg *ebpfless.SyscallMsg)) {
+	pc.shareResources(process, ppid, flags)
+
+	if flags&unix.CLONE_THREAD == 0 {
+		if parent := pc.Get(ppid); parent != nil {
+			sendSyscallMsg(&ebpfless.SyscallMsg{
+				Type: ebpfless.SyscallTypeFork,
+				Fork: &ebpfless.ForkSyscallMsg{
+					PPID: uint32(parent.Tgid),
+				},
+			})
+		}
+	}
 }

@@ -10,6 +10,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -24,6 +25,9 @@ const (
 	// longestScalingRulePeriodAllowed is the maximum period allowed for a scaling rule
 	// increasing duration increase the number of events to keep in memory and to process for recommendations.
 	longestScalingRulePeriodAllowed = 30 * time.Minute
+
+	// statusRetainedActions is the number of horizontal actions kept in status
+	statusRetainedActions = 5
 )
 
 // PodAutoscalerInternal hols the necessary data to work with the `DatadogPodAutoscaler` CRD.
@@ -223,8 +227,8 @@ func (p *PodAutoscalerInternal) UpdateFromStatus(status *datadoghq.DatadogPodAut
 			}
 		}
 
-		if status.Horizontal.LastAction != nil {
-			p.horizontalLastActions = append(p.horizontalLastActions, *status.Horizontal.LastAction)
+		if len(status.Horizontal.LastActions) > 0 {
+			p.horizontalLastActions = status.Horizontal.LastActions
 		}
 	}
 
@@ -388,8 +392,13 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 			},
 		}
 
-		if len(p.horizontalLastActions) > 0 {
-			status.Horizontal.LastAction = &p.horizontalLastActions[len(p.horizontalLastActions)-1]
+		if lenActions := len(p.horizontalLastActions); lenActions > 0 {
+			firstIndex := lenActions - statusRetainedActions
+			if firstIndex < 0 {
+				firstIndex = 0
+			}
+
+			status.Horizontal.LastActions = slices.Clone(p.horizontalLastActions[firstIndex:lenActions])
 		}
 	}
 
