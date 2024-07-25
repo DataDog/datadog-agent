@@ -26,7 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const telemetryModuleName = "network_tracer__filter"
+const (
+	telemetryModuleName = "network_tracer__filter"
+	defaultSnapLen      = 4096
+)
 
 // Telemetry
 var packetSourceTelemetry = struct {
@@ -48,11 +51,14 @@ type AFPacketSource struct {
 	exit chan struct{}
 }
 
+// OptSnapLen specifies the maximum length of the packet to read
+//
+// Defaults to 4096 bytes
 type OptSnapLen int
 
 // NewPacketSource creates an AFPacketSource using the provided BPF filter
-func NewPacketSource(mbSize int, opts ...interface{}) (*AFPacketSource, error) {
-	snapLen := 4096
+func NewPacketSource(size int, opts ...interface{}) (*AFPacketSource, error) {
+	snapLen := defaultSnapLen
 	for _, opt := range opts {
 		switch o := opt.(type) {
 		case OptSnapLen:
@@ -65,7 +71,7 @@ func NewPacketSource(mbSize int, opts ...interface{}) (*AFPacketSource, error) {
 		}
 	}
 
-	frameSize, blockSize, numBlocks, err := afpacketComputeSize(mbSize, snapLen, os.Getpagesize())
+	frameSize, blockSize, numBlocks, err := afpacketComputeSize(size, snapLen, os.Getpagesize())
 	if err != nil {
 		return nil, fmt.Errorf("error computing mmap'ed buffer parameters: %w", err)
 	}
@@ -187,7 +193,7 @@ func (p *AFPacketSource) pollStats() {
 // frame size and page size.
 //
 // See https://www.kernel.org/doc/Documentation/networking/packet_mmap.txt
-func afpacketComputeSize(targetSizeMb, snaplen, pageSize int) (frameSize, blockSize, numBlocks int, err error) {
+func afpacketComputeSize(targetSize, snaplen, pageSize int) (frameSize, blockSize, numBlocks int, err error) {
 	frameSize = tpacketAlign(unix.TPACKET_HDRLEN) + tpacketAlign(snaplen)
 	if frameSize <= pageSize {
 		frameSize = int(nextPowerOf2(int64(frameSize)))
@@ -200,8 +206,6 @@ func afpacketComputeSize(targetSizeMb, snaplen, pageSize int) (frameSize, blockS
 		blockSize = frameSize
 	}
 
-	// convert to bytes from MB
-	targetSize := targetSizeMb << 20
 	numBlocks = targetSize / blockSize
 	if numBlocks == 0 {
 		return 0, 0, 0, fmt.Errorf("buffer size is too small")
@@ -220,6 +224,10 @@ func tpacketAlign(x int) int {
 	return (x + unix.TPACKET_ALIGNMENT - 1) & ^(unix.TPACKET_ALIGNMENT - 1)
 }
 
+// nextPowerOf2 rounds up `v` to the next power of 2
+//
+// Taken from Hacker's Delight by Henry S. Warren, Jr.,
+// https://en.wikipedia.org/wiki/Hacker%27s_Delight
 func nextPowerOf2(v int64) int64 {
 	v--
 	v |= v >> 1

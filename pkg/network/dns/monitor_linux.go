@@ -44,7 +44,7 @@ func NewReverseDNS(cfg *config.Config, _ telemetry.Component) (ReverseDNS, error
 	defer ns.Close()
 
 	err = kernel.WithNS(ns, func() error {
-		packetSrc, srcErr = filterpkg.NewPacketSource(4)
+		packetSrc, srcErr = filterpkg.NewPacketSource(4 << 20) // 4 MB total
 		return srcErr
 	})
 	if err != nil {

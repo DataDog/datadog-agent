@@ -77,7 +77,9 @@ func NewEbpfLessTracer(cfg *config.Config) (Tracer, error) {
 }
 
 func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
-	packetSrc, err := filter.NewPacketSource(8, filter.OptSnapLen(segmentLen))
+	packetSrc, err := filter.NewPacketSource(
+		8<<20, // 8 MB total space
+		filter.OptSnapLen(segmentLen))
 	if err != nil {
 		return nil, fmt.Errorf("error creating packet source: %w", err)
 	}
@@ -186,13 +188,6 @@ func (t *ebpfLessTracer) processConnection(
 		log.Debugf("ignoring packet since its not udp or tcp")
 		ebpfLessTracerTelemetry.skippedPackets.Inc("not_tcp_udp")
 		return nil
-	}
-
-	if !keyConn.Source.IsValid() ||
-		!keyConn.Dest.IsValid() ||
-		keyConn.SPort == 0 ||
-		keyConn.DPort == 0 {
-		return fmt.Errorf("missing dest/source ip/port in packet conn=%+v", keyConn)
 	}
 
 	flipSourceDest(keyConn, pktType)
