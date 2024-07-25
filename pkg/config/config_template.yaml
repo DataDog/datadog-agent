@@ -1637,6 +1637,32 @@ api_key:
   # enabled: false
 
 {{ end }}
+
+{{- if .NetworkModule }}
+
+########################################
+## Network Path Configuration         ##
+########################################
+
+# network_path:
+  ## @param connections_monitoring - custom object - optional
+  ## Specific configurations for monitoring network connections via Network Path.
+  #
+  # connections_monitoring:
+
+    ## @param enabled - bool - optional - default: false
+    ## @env DD_NETWORK_PATH_CONNECTIONS_MONITORING_ENABLED - bool - optional - default: false
+    ## [Beta] Enables monitoring network connections via Network Path.
+    #
+    # enabled: false
+
+  ## @param workers - integer - optional - default: 4
+  ## @env DD_WORKERS - integer - optional - default: 4
+  ## The `workers` refers to the number of concurrent workers available for network path execution.
+  #
+  # workers: 4
+
+{{ end -}}
 {{ end -}}
 {{- if .Compliance }}
 #############################################
