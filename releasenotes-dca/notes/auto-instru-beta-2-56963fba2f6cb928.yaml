@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    The auto-instrumentation webhook (beta) uses a new injector library.

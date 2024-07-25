@@ -16,6 +16,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	admiv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -55,8 +56,10 @@ type Webhook struct {
 	initSecurityContext      *corev1.SecurityContext
 	initResourceRequirements corev1.ResourceRequirements
 	containerRegistry        string
+	injectorImageTag         string
 	injectionFilter          mutatecommon.InjectionFilter
 	pinnedLibraries          []libInfo
+	version                  version
 	wmeta                    workloadmeta.Component
 }
 
@@ -81,6 +84,11 @@ func NewWebhook(wmeta workloadmeta.Component, filter mutatecommon.InjectionFilte
 		return nil, err
 	}
 
+	v, err := instrumentationVersion(config.Datadog().GetString("apm_config.instrumentation.version"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid version for key apm_config.instrumentation.version: %w", err)
+	}
+
 	containerRegistry := mutatecommon.ContainerRegistry("admission_controller.auto_instrumentation.container_registry")
 
 	return &Webhook{
@@ -93,7 +101,9 @@ func NewWebhook(wmeta workloadmeta.Component, filter mutatecommon.InjectionFilte
 		initResourceRequirements: initResourceRequirements,
 		injectionFilter:          filter,
 		containerRegistry:        containerRegistry,
+		injectorImageTag:         config.Datadog().GetString("apm_config.instrumentation.injector_image_tag"),
 		pinnedLibraries:          getPinnedLibraries(containerRegistry),
+		version:                  v,
 		wmeta:                    wmeta,
 	}, nil
 }
@@ -424,6 +434,25 @@ func (w *Webhook) initContainerMutators() []containerMutator {
 	}
 }
 
+func (w *Webhook) newInjector(startTime time.Time, pod *corev1.Pod) *injector {
+	var opts []injectorOption
+	for _, e := range []annotationExtractor[injectorOption]{
+		injectorVersionAnnotationExtractor,
+		injectorImageAnnotationExtractor,
+	} {
+		opt, err := e.extract(pod)
+		if err != nil {
+			if !isErrAnnotationNotFound(err) {
+				log.Warnf("error extracting injector annotation %s in single step", e.key)
+			}
+			continue
+		}
+		opts = append(opts, opt)
+	}
+
+	return newInjector(startTime, w.containerRegistry, w.injectorImageTag, opts...)
+}
+
 func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo, autoDetected bool, injectionType string) error {
 	if len(libsToInject) == 0 {
 		return nil
@@ -436,6 +465,7 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo
 		lastError             error
 		configInjector        = &libConfigInjector{}
 		initContainerMutators = w.initContainerMutators()
+		apmInjector           = w.newInjector(time.Now(), pod)
 	)
 
 	for _, lib := range libsToInject {
@@ -445,8 +475,9 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo
 			metrics.LibInjectionAttempts.Inc(langStr, strconv.FormatBool(injected), strconv.FormatBool(autoDetected), injectionType)
 		}()
 
-		if err := lib.podMutator(initContainerMutators, []podMutator{
+		if err := lib.podMutator(w.version, initContainerMutators, []podMutator{
 			configInjector.podMutator(lib.lang),
+			apmInjector.podMutator(w.version),
 		}).mutatePod(pod); err != nil {
 			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
 			lastError = err
