@@ -6,6 +6,7 @@
 package inventorychecksimpl
 
 import (
+	"expvar"
 	"fmt"
 	"testing"
 
@@ -247,4 +248,12 @@ func TestFlareProviderFilename(t *testing.T) {
 		t, optional.NewNoneOption[collector.Component](), optional.Option[logagent.Component]{}, nil,
 	)
 	assert.Equal(t, "checks.json", ic.FlareFileName)
+}
+
+// TODO (Component): This test will be removed when the inventorychecks component will be move into the collector component
+func TestExpvarExist(t *testing.T) {
+	getTestInventoryChecks(
+		t, optional.NewNoneOption[collector.Component](), optional.Option[logagent.Component]{}, nil,
+	)
+	assert.NotNil(t, expvar.Get("inventories"))
 }
