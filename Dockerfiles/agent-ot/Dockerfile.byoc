@@ -47,13 +47,14 @@ RUN go version && \
     python3 --version && \
     curl --version
 
+# TEMP: Use github source code
+RUN git clone https://github.com/DataDog/datadog-agent.git datadog-agent-${AGENT_VERSION}
+
+# Once we have stable releases, we can use the following code to download the source code
 # Download and unpack source code
 #RUN curl -L https://github.com/DataDog/datadog-agent/archive/refs/tags/${AGENT_VERSION}.tar.gz -o datadog-agent-${AGENT_VERSION}.tar.gz && \
 #    tar -xzvf datadog-agent-${AGENT_VERSION}.tar.gz && \
 #    rm datadog-agent-${AGENT_VERSION}.tar.gz
-
-# TEMP: Use github source code
-RUN git clone https://github.com/DataDog/datadog-agent.git datadog-agent-${AGENT_VERSION}
 
 
 # Set the working directory to the source code
