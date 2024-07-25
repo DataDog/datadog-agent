@@ -300,6 +300,7 @@ func (s *USMSuite) TestTLSClassification() {
 	cfg.ProtocolClassificationEnabled = true
 	cfg.CollectTCPv4Conns = true
 	cfg.CollectTCPv6Conns = true
+	cfg.BypassEnabled = true
 
 	if !classificationSupported(cfg) {
 		t.Skip("TLS classification platform not supported")
@@ -336,8 +337,9 @@ func (s *USMSuite) TestTLSClassification() {
 	tests := make([]tlsTest, 0, len(scenarios))
 	for _, scenario := range scenarios {
 		scenario := scenario
+		// Test handshake classification
 		tests = append(tests, tlsTest{
-			name: strings.Replace(tls.VersionName(scenario.version), " ", "-", 1) + "_docker",
+			name: strings.Replace(tls.VersionName(scenario.version), " ", "-", 1) + "_handshake",
 			postTracerSetup: func(t *testing.T, _ map[string]interface{}) {
 				srv := testutil.NewTLSServerWithSpecificVersion("localhost:"+portAsString, func(conn net.Conn) {
 					defer conn.Close()
@@ -365,6 +367,68 @@ func (s *USMSuite) TestTLSClassification() {
 
 				// Perform the TLS handshake
 				require.NoError(t, tlsConn.Handshake())
+			},
+			validation: func(t *testing.T, _ map[string]interface{}, tr *Tracer) {
+				// Iterate through active connections until we find connection created above
+				require.Eventuallyf(t, func() bool {
+					payload := getConnections(t, tr)
+					for _, c := range payload.Conns {
+						if c.DPort == port && c.ProtocolStack.Contains(protocols.TLS) {
+							return true
+						}
+					}
+					return false
+				}, 4*time.Second, 100*time.Millisecond, "couldn't find TLS connection matching: dst port %v", portAsString)
+			},
+		})
+		// Test application data classification
+		tests = append(tests, tlsTest{
+			name:    strings.Replace(tls.VersionName(scenario.version), " ", "-", 1) + "_app_data",
+			context: make(map[string]interface{}),
+			preTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
+				srv := testutil.NewTLSServerWithSpecificVersion("localhost:"+portAsString, func(conn net.Conn) {
+					defer conn.Close()
+					// Echo back whatever is received
+					_, err := io.Copy(conn, conn)
+					if err != nil {
+						fmt.Printf("Failed to echo data: %v\n", err)
+						return
+					}
+				}, scenario.version)
+				done := make(chan struct{})
+				require.NoError(t, srv.Run(done))
+				t.Cleanup(func() { close(done) })
+				tlsConfig := &tls.Config{
+					MinVersion:         scenario.version,
+					MaxVersion:         scenario.version,
+					InsecureSkipVerify: true,
+				}
+				conn, err := net.Dial("tcp", "localhost:"+portAsString)
+				require.NoError(t, err)
+
+				// Wrap the TCP connection with TLS
+				tlsConn := tls.Client(conn, tlsConfig)
+
+				// Perform the TLS handshake
+				require.NoError(t, tlsConn.Handshake())
+				ctx["conn"] = tlsConn
+			},
+			postTracerSetup: func(t *testing.T, ctx map[string]interface{}) {
+				for i := 0; i < 10; i++ {
+					payload := getConnections(t, tr)
+					for _, c := range payload.Conns {
+						// Making sure the connection is not already tagged as TLS
+						require.False(t, c.DPort == port && c.ProtocolStack.Contains(protocols.TLS))
+					}
+					time.Sleep(100 * time.Millisecond)
+				}
+				conn, ok := ctx["conn"]
+				require.True(t, ok)
+				tlsConn, ok := conn.(*tls.Conn)
+				require.True(t, ok)
+				defer tlsConn.Close()
+				_, err := tlsConn.Write([]byte("Hello, World!"))
+				require.NoError(t, err)
 			},
 			validation: func(t *testing.T, _ map[string]interface{}, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
