@@ -24,14 +24,19 @@ import (
 )
 
 const (
-	// AgentPackage is the name of the Datadog Agent package in the AWS OCI registry (/!\ but not in the ddbuild.io registry  /!\)
-	AgentPackage string = "agent-package"
+	// AgentPackage is the name of the Datadog Agent package
+	// We use a constant to make it easier for calling code, because depending on the context
+	// the Agent package can be referred to as "agent-package" (like in the OCI registry) or "datadog-agent" (in the
+	// local database once the Agent is installed).
+	AgentPackage string = "datadog-agent"
 	// InstallerPath is the path where the Datadog Installer is installed on disk
 	InstallerPath string = "C:\\Program Files\\Datadog\\Datadog Installer"
 	// InstallerBinaryName is the name of the Datadog Installer binary on disk
 	InstallerBinaryName string = "datadog-installer.exe"
 	// InstallerServiceName the installer service name
 	InstallerServiceName string = "Datadog Installer"
+	// InstallerConfigPath is the location of the Datadog Installer's configuration on disk
+	InstallerConfigPath string = "C:\\ProgramData\\Datadog\\datadog.yaml"
 )
 
 var (
@@ -84,12 +89,6 @@ func (d *DatadogInstaller) InstallPackage(packageName string) (string, error) {
 	}
 
 	envVars := installer.InstallScriptEnv(e2eos.AMD64Arch)
-	fmt.Printf("displaying package environment variables\n")
-	for key, value := range envVars {
-		fmt.Printf("\t%s: %v\n", key, value)
-	}
-
-	// Don't display the API key in the output...
 	apikey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
 	if err == nil {
 		envVars["DD_API_KEY"] = apikey
@@ -99,7 +98,12 @@ func (d *DatadogInstaller) InstallPackage(packageName string) (string, error) {
 
 // RemovePackage requests that the Datadog Installer removes a package on the remote host.
 func (d *DatadogInstaller) RemovePackage(packageName string) (string, error) {
-	return d.execute(fmt.Sprintf("remove %s", packageName))
+	switch packageName {
+	case AgentPackage:
+		return d.execute("remove datadog-agent")
+	default:
+		return "", fmt.Errorf("removing package %s is not yet implemented", packageName)
+	}
 }
 
 // InstallerParams contains the optional parameters for the Datadog Installer
@@ -118,7 +122,7 @@ func WithInstallerURL(installerURL string) InstallerOption {
 	}
 }
 
-// WithInstallerURLFromInstallersJSON uses a specific URL for the Datadog I nstaller from an installers_v2.json
+// WithInstallerURLFromInstallersJSON uses a specific URL for the Datadog Installer from an installers_v2.json
 // file.
 // bucket: The S3 bucket to look for the installers_v2.json file, i.e. "dd-agent-mstesting"
 // channel: The channel in the bucket, i.e. "stable"

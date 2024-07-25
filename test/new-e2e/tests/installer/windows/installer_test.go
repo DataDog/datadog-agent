@@ -53,8 +53,7 @@ func (suite *testInstallerSuite) TestInstalls() {
 
 	suite.Run("Start service with a configuration file", func() {
 		// Arrange
-		suite.Env().RemoteHost.MkdirAll("C:\\ProgramData\\Datadog")
-		suite.Env().RemoteHost.CopyFileFromEmbedded(fixturesFS, "fixtures/sample_config", "C:\\ProgramData\\Datadog\\datadog.yaml")
+		suite.Env().RemoteHost.CopyFileFromEmbedded(fixturesFS, "fixtures/sample_config", InstallerConfigPath)
 
 		// Act
 		suite.Require().NoError(common.StartService(suite.Env().RemoteHost, InstallerServiceName))
@@ -75,11 +74,25 @@ func (suite *testInstallerSuite) TestInstalls() {
 		suite.Require().Host(suite.Env().RemoteHost).
 			NoFileExists(InstallerBinaryPath).
 			HasNoService(InstallerServiceName).
-			FileExists("C:\\ProgramData\\Datadog\\datadog.yaml")
+			FileExists(InstallerConfigPath)
 	})
 
 	suite.Run("Install with existing configuration file", func() {
 		// Arrange
+
+		// Act
+		suite.Require().NoError(suite.installer.Install())
+
+		// Assert
+		suite.Require().Host(suite.Env().RemoteHost).
+			HasAService(InstallerServiceName).
+			WithStatus("Running")
+	})
+
+	suite.Run("Repair", func() {
+		// Arrange
+		suite.Require().NoError(common.StopService(suite.Env().RemoteHost, InstallerServiceName))
+		suite.Env().RemoteHost.Remove(InstallerBinaryPath)
 
 		// Act
 		suite.Require().NoError(suite.installer.Install())
@@ -97,6 +110,7 @@ func (suite *testInstallerSuite) TestUpgrades() {
 	suite.Require().NoError(suite.installer.Install(WithInstallerURLFromInstallersJSON(pipeline.AgentS3BucketTesting, pipeline.StableChannel, installer.StableVersionPackage)))
 	suite.Require().Host(suite.Env().RemoteHost).
 		HasBinary(InstallerBinaryPath).
+		// Don't check the binary signature because it could have been updated since the last stable was built
 		WithVersionEqual(installer.StableVersion)
 
 	// Act
