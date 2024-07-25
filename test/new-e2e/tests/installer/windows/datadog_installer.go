@@ -8,8 +8,6 @@ package installerwindows
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer"
@@ -89,10 +87,6 @@ func (d *DatadogInstaller) InstallPackage(packageName string) (string, error) {
 	}
 
 	envVars := installer.InstallScriptEnv(e2eos.AMD64Arch)
-	apikey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
-	if err == nil {
-		envVars["DD_API_KEY"] = apikey
-	}
 	return d.execute(fmt.Sprintf("install %s", packageURL), client.WithEnvVariables(envVars))
 }
 
