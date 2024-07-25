@@ -107,6 +107,8 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				kprobeOrFentry("commit_creds"),
 				kprobeOrFentry("switch_task_namespaces"),
 				kprobeOrFentry("do_coredump"),
+				kprobeOrFentry("audit_set_loginuid"),
+				kretprobeOrFexit("audit_set_loginuid"),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("cgroup_procs_write"),

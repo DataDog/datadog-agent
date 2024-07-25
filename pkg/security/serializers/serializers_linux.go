@@ -117,6 +117,8 @@ type CredentialsSerializer struct {
 	FSGID int `json:"fsgid"`
 	// Filesystem Group name
 	FSGroup string `json:"fsgroup,omitempty"`
+	// Login UID
+	AUID int `json:"auid"`
 	// Effective Capability set
 	CapEffective []string `json:"cap_effective"`
 	// Permitted Capability set
@@ -704,6 +706,7 @@ func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 		EGroup:       ce.EGroup,
 		FSGID:        int(ce.FSGID),
 		FSGroup:      ce.FSGroup,
+		AUID:         int(ce.AUID),
 		CapEffective: model.KernelCapability(ce.CapEffective).StringArray(),
 		CapPermitted: model.KernelCapability(ce.CapPermitted).StringArray(),
 	}

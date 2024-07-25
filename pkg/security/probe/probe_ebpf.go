@@ -866,6 +866,16 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 		defer p.Resolvers.ProcessResolver.UpdateCapset(event.PIDContext.Pid, event)
+	case model.LoginUIDWriteEventType:
+		if event.Error != nil {
+			break
+		}
+
+		if _, err = event.LoginUIDWrite.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode login_uid_write event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		defer p.Resolvers.ProcessResolver.UpdateLoginUID(event.PIDContext.Pid, event)
 	case model.SELinuxEventType:
 		if _, err = event.SELinux.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode selinux event: %s (offset %d, len %d)", err, offset, len(data))

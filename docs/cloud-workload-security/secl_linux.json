@@ -138,6 +138,11 @@
           "property_doc_link": "common-process-argv0-doc"
         },
         {
+          "name": "process.ancestors.auid",
+          "definition": "Login UID of the process",
+          "property_doc_link": "common-credentials-auid-doc"
+        },
+        {
           "name": "process.ancestors.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -518,6 +523,11 @@
           "property_doc_link": "common-process-argv0-doc"
         },
         {
+          "name": "process.auid",
+          "definition": "Login UID of the process",
+          "property_doc_link": "common-credentials-auid-doc"
+        },
+        {
           "name": "process.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -851,6 +861,11 @@
           "name": "process.parent.argv0",
           "definition": "First argument of the process",
           "property_doc_link": "common-process-argv0-doc"
+        },
+        {
+          "name": "process.parent.auid",
+          "definition": "Login UID of the process",
+          "property_doc_link": "common-credentials-auid-doc"
         },
         {
           "name": "process.parent.cap_effective",
@@ -1835,6 +1850,11 @@
           "property_doc_link": "common-process-argv0-doc"
         },
         {
+          "name": "exec.auid",
+          "definition": "Login UID of the process",
+          "property_doc_link": "common-credentials-auid-doc"
+        },
+        {
           "name": "exec.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -2227,6 +2247,11 @@
           "name": "exit.argv0",
           "definition": "First argument of the process",
           "property_doc_link": "common-process-argv0-doc"
+        },
+        {
+          "name": "exit.auid",
+          "definition": "Login UID of the process",
+          "property_doc_link": "common-credentials-auid-doc"
         },
         {
           "name": "exit.cap_effective",
@@ -3510,6 +3535,11 @@
           "property_doc_link": "common-process-argv0-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.auid",
+          "definition": "Login UID of the process",
+          "property_doc_link": "common-credentials-auid-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -3890,6 +3920,11 @@
           "property_doc_link": "common-process-argv0-doc"
         },
         {
+          "name": "ptrace.tracee.auid",
+          "definition": "Login UID of the process",
+          "property_doc_link": "common-credentials-auid-doc"
+        },
+        {
           "name": "ptrace.tracee.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -4223,6 +4258,11 @@
           "name": "ptrace.tracee.parent.argv0",
           "definition": "First argument of the process",
           "property_doc_link": "common-process-argv0-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.auid",
+          "definition": "Login UID of the process",
+          "property_doc_link": "common-credentials-auid-doc"
         },
         {
           "name": "ptrace.tracee.parent.cap_effective",
@@ -5362,6 +5402,11 @@
           "property_doc_link": "common-process-argv0-doc"
         },
         {
+          "name": "signal.target.ancestors.auid",
+          "definition": "Login UID of the process",
+          "property_doc_link": "common-credentials-auid-doc"
+        },
+        {
           "name": "signal.target.ancestors.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -5742,6 +5787,11 @@
           "property_doc_link": "common-process-argv0-doc"
         },
         {
+          "name": "signal.target.auid",
+          "definition": "Login UID of the process",
+          "property_doc_link": "common-credentials-auid-doc"
+        },
+        {
           "name": "signal.target.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -6075,6 +6125,11 @@
           "name": "signal.target.parent.argv0",
           "definition": "First argument of the process",
           "property_doc_link": "common-process-argv0-doc"
+        },
+        {
+          "name": "signal.target.parent.auid",
+          "definition": "Login UID of the process",
+          "property_doc_link": "common-credentials-auid-doc"
         },
         {
           "name": "signal.target.parent.cap_effective",
@@ -7015,6 +7070,28 @@
       "link": "common-process-argv0-doc",
       "type": "string",
       "definition": "First argument of the process",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.auid",
+      "link": "common-credentials-auid-doc",
+      "type": "int",
+      "definition": "Login UID of the process",
       "prefixes": [
         "exec",
         "exit",

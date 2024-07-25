@@ -138,7 +138,7 @@ func (e *CapsetEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Credentials) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 40 {
+	if len(data) < 48 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -148,9 +148,23 @@ func (e *Credentials) UnmarshalBinary(data []byte) (int, error) {
 	e.EGID = binary.NativeEndian.Uint32(data[12:16])
 	e.FSUID = binary.NativeEndian.Uint32(data[16:20])
 	e.FSGID = binary.NativeEndian.Uint32(data[20:24])
-	e.CapEffective = binary.NativeEndian.Uint64(data[24:32])
-	e.CapPermitted = binary.NativeEndian.Uint64(data[32:40])
-	return 40, nil
+	e.AUID = binary.NativeEndian.Uint32(data[24:28])
+	if binary.NativeEndian.Uint32(data[28:32]) != 1 {
+		e.AUID = AuditUIDUnset
+	}
+	e.CapEffective = binary.NativeEndian.Uint64(data[32:40])
+	e.CapPermitted = binary.NativeEndian.Uint64(data[40:48])
+	return 48, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *LoginUIDWriteEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 4 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.AUID = binary.NativeEndian.Uint32(data[0:4])
+	return 4, nil
 }
 
 func unmarshalTime(data []byte) time.Time {
@@ -204,7 +218,7 @@ func (e *Process) UnmarshalProcEntryBinary(data []byte) (int, error) {
 
 // UnmarshalPidCacheBinary unmarshalls Unmarshal pid_cache_t
 func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
-	const size = 80
+	const size = 88
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -236,7 +250,7 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	const size = 280 // size of struct exec_event_t starting from process_entry_t, inclusive
+	const size = 288 // size of struct exec_event_t starting from process_entry_t, inclusive
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
