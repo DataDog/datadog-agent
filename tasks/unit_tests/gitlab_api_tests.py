@@ -208,6 +208,13 @@ class TestGitlabConfigurationIsModified(unittest.TestCase):
         self.assertTrue(gitlab_configuration_is_modified(c))
 
     @patch("tasks.libs.ciproviders.gitlab_api.get_current_branch", new=MagicMock(return_value="main"))
+    def test_reference_one_line(self):
+        file = "tasks/unit_tests/testdata/yaml_configurations/needs_one_line.yml"
+        diff = f'diff --git a/{file} b/{file}\nindex 561eb1a201..e9a74219ba 100644\n--- a/{file}\n+++ b/{file}\n@@ -4,7 +4,7 @@\n \n .linux_tests:\n   stage: source_test\n  needs: ["go_deps", "go_tools_deps"]\n   rules:\n+     - !reference [.adding_new_reference]\n     - !reference [.except_disable_unit_tests]\n     - !reference [.fast_on_dev_branch_only]'
+        c = MockContext(run={"git diff HEAD^1..HEAD": Result(diff)})
+        self.assertTrue(gitlab_configuration_is_modified(c))
+
+    @patch("tasks.libs.ciproviders.gitlab_api.get_current_branch", new=MagicMock(return_value="main"))
     def test_needs_removed(self):
         file = "tasks/unit_tests/testdata/yaml_configurations/needs_one_line.yml"
         diff = f'diff --git a/{file} b/{file}\nindex 561eb1a201..e9a74219ba 100644\n--- a/{file}\n+++ b/{file}\n@@ -4,6 +4,6 @@\n \n .linux_tests:\n   stage: source_test\n-  needs: ["go_deps", "go_tools_deps"]\n   rules:\n     - !reference [.except_disable_unit_tests]\n     - !reference [.fast_on_dev_branch_only]'
