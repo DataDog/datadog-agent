@@ -61,6 +61,13 @@ type Store struct {
 	// notification with a group of events.
 	Receives telemetry.Counter
 
+	// ExternalDataRequests tracks the number of requests to the tagger
+	// to generate a container ID from external data.
+	ExternalDataRequests telemetry.Counter
+
+	// ExternalDataSuccess tracks the number of successful resolutions of ExternalData.
+	ExternalDataSuccess telemetry.Counter
+
 	LowCardinalityQueries          CardinalityTelemetry
 	OrchestratorCardinalityQueries CardinalityTelemetry
 	HighCardinalityQueries         CardinalityTelemetry
