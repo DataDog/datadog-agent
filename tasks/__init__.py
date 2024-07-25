@@ -17,6 +17,7 @@ from tasks import (
     components,
     coverage,
     cws_instrumentation,
+    debug,
     devcontainer,
     diff,
     docker_tasks,
@@ -193,6 +194,7 @@ ns.add_collection(devcontainer)
 ns.add_collection(omnibus)
 ns.add_collection(collector)
 ns.add_collection(invoke_unit_tests)
+ns.add_collection(debug)
 ns.configure(
     {
         "run": {

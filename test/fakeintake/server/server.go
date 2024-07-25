@@ -343,7 +343,7 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	log.Printf("Handling Datadog %s request to %s, header %v", req.Method, req.URL.Path, req.Header)
+	log.Printf("Handling Datadog %s request to %s, header %v", req.Method, req.URL.Path, redactHeader(req.Header))
 
 	switch req.Method {
 	case http.MethodPost:
