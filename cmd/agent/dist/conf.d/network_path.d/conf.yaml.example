@@ -36,6 +36,16 @@ instances:
     #
     # min_collection_interval: 60
 
+    ## @param source_service - string - optional
+    ## Source service name.
+    #
+    # source_service: <SOURCE_SERVICE>
+
+    ## @param destination_service - string - optional
+    ## Destination service name.
+    #
+    # destination_service: <DESTINATION_SERVICE>
+
     ## @param tags - list of strings - optional
     ## A list of tags to attach to every metric and service check emitted by this instance.
     ##
