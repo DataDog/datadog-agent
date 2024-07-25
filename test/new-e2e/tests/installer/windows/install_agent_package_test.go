@@ -22,8 +22,7 @@ func TestAgentInstalls(t *testing.T) {
 			winawshost.ProvisionerNoAgentNoFakeIntake(
 				winawshost.WithInstaller(),
 			)),
-		e2e.WithStackName("datadog-windows-installer-test"),
-		e2e.WithDevMode())
+		e2e.WithStackName("datadog-windows-installer-test"))
 }
 
 // TestInstallAgentPackage tests installing and uninstalling the Datadog Agent using the Datadog Installer.
