@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"expvar"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -242,7 +243,7 @@ func publishDropCheckPayloads() interface{} {
 	infoMutex.RLock()
 	defer infoMutex.RUnlock()
 
-	return infoDropCheckPayloads
+	return slices.Clone(infoDropCheckPayloads)
 }
 
 // InitExpvars initializes expvars
