@@ -34,6 +34,8 @@ struct process_context_t {
 
 typedef char container_id_t[CONTAINER_ID_LEN];
 
+typedef char cgroup_prefix_t[256];
+
 struct ktimeval {
     long tv_sec;
     long tv_nsec;

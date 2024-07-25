@@ -15,11 +15,6 @@
 #define CGROUP_MANAGER_CRI 4
 #define CGROUP_MANAGER_SYSTEMD 5
 
-__attribute__((always_inline)) struct dentry_resolver_input_t *get_cgroup_dentry_resolver_inputs() {
-    u32 key = 0;
-    return bpf_map_lookup_elem(&cgroup_dentry_resolver_inputs, &key);
-}
-
 static __attribute__((always_inline)) int is_docker_cgroup(ctx_t *ctx, struct dentry *container_d) {
     struct dentry *parent_d;
     struct qstr parent_qstr;
@@ -88,11 +83,13 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
 
     int check_validity = 0;
     u32 container_flags = 0;
-    char prefix[95];
 
-    struct dentry_resolver_input_t *resolver;
-    resolver = get_cgroup_dentry_resolver_inputs();
-    if (resolver == NULL)
+    struct dentry_resolver_input_t cgroup_dentry_resolver;
+    struct dentry_resolver_input_t *resolver = &cgroup_dentry_resolver;
+
+    u32 key = 0;
+    cgroup_prefix_t *prefix = bpf_map_lookup_elem(&cgroup_prefix, &key);
+    if (prefix == NULL)
         return 0;
 
     resolver->key.ino = 0;
@@ -143,28 +140,29 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     }
 
 
-    bpf_probe_read(&prefix, sizeof(prefix), container_id);
+    if (bpf_probe_read(prefix, 15, container_id))
+        return 0;
 
-    if (prefix[0] == 'd' && prefix[1] == 'o' && prefix[2] == 'c' && prefix[3] == 'k' && prefix[4] == 'e'
-        && prefix[5] == 'r' && prefix[6] == '-') {
+    if ((*prefix)[0] == 'd' && (*prefix)[1] == 'o' && (*prefix)[2] == 'c' && (*prefix)[3] == 'k' && (*prefix)[4] == 'e'
+        && (*prefix)[5] == 'r' && (*prefix)[6] == '-') {
         container_id += 7; // skip "docker-"
         container_flags |= CGROUP_MANAGER_DOCKER;
         check_validity = 1;
     }
-    else if (prefix[0] == 'c' && prefix[1] == 'r' && prefix[2] == 'i' && prefix[3] == 'o' && prefix[4] == '-') {
+    else if ((*prefix)[0] == 'c' && (*prefix)[1] == 'r' && (*prefix)[2] == 'i' && (*prefix)[3] == 'o' && (*prefix)[4] == '-') {
         container_id += 5; // skip "crio-"
         container_flags |= CGROUP_MANAGER_CRIO;
         check_validity = 1;
     }
-    else if (prefix[0] == 'l' && prefix[1] == 'i' && prefix[2] == 'b' && prefix[3] == 'p' && prefix[4] == 'o'
-        && prefix[5] == 'd' && prefix[6] == '-') {
+    else if ((*prefix)[0] == 'l' && (*prefix)[1] == 'i' && (*prefix)[2] == 'b' && (*prefix)[3] == 'p' && (*prefix)[4] == 'o'
+        && (*prefix)[5] == 'd' && (*prefix)[6] == '-') {
         container_id += 7; // skip "libpod-"
         container_flags |= CGROUP_MANAGER_PODMAN;
         check_validity = 1;
     }
-    else if (prefix[0] == 'c' && prefix[1] == 'r' && prefix[2] == 'i' && prefix[3] == '-' && prefix[4] == 'c'
-        && prefix[5] == 'o' && prefix[6] == 'n' && prefix[7] == 't' && prefix[8] == 'a' && prefix[9] == 'i'
-        && prefix[10] == 'n' && prefix[11] == 'e' && prefix[12] == 'r' && prefix[13] == 'd' && prefix[14] == '-') {
+    else if ((*prefix)[0] == 'c' && (*prefix)[1] == 'r' && (*prefix)[2] == 'i' && (*prefix)[3] == '-' && (*prefix)[4] == 'c'
+        && (*prefix)[5] == 'o' && (*prefix)[6] == 'n' && (*prefix)[7] == 't' && (*prefix)[8] == 'a' && (*prefix)[9] == 'i'
+        && (*prefix)[10] == 'n' && (*prefix)[11] == 'e' && (*prefix)[12] == 'r' && (*prefix)[13] == 'd' && (*prefix)[14] == '-') {
         container_id += 15; // skip "cri-containerd-"
         container_flags |= CGROUP_MANAGER_CRI;
         check_validity = 1;
@@ -176,11 +174,12 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
 
     bpf_probe_read(&new_entry.container.container_id, sizeof(new_entry.container.container_id), container_id);
 
-    int length = bpf_probe_read_str(&prefix, sizeof(prefix), container_id) & 0x5f;
-    if (length >= 9 && prefix[length-9] == '.' &&
-        ((prefix[length-8] == 's' && prefix[length-7] == 'e' && prefix[length-6] == 'r' && prefix[length-5] == 'v' && prefix[length-4] == 'i' && prefix[length-3] == 'c' && prefix[length-2] == 'e') ||
-         (prefix[length-6] == 's' && prefix[length-5] == 'c' && prefix[length-4] == 'o' && prefix[length-3] == 'p' && prefix[length-2] == 'e'))) {
-        new_entry.container.container_id[length-9] = '\0';
+    int length = bpf_probe_read_str(prefix, sizeof(cgroup_prefix_t), container_id) & 0xff;
+    if (container_flags == 0 && (
+        (length >= 9 && (*prefix)[length-9] == '.'  && (*prefix)[length-8] == 's' && (*prefix)[length-7] == 'e' && (*prefix)[length-6] == 'r' && (*prefix)[length-5] == 'v' && (*prefix)[length-4] == 'i' && (*prefix)[length-3] == 'c' && (*prefix)[length-2] == 'e')
+        ||
+        (length >= 7 && (*prefix)[length-7] == '.'  && (*prefix)[length-6] == 's' && (*prefix)[length-5] == 'c' && (*prefix)[length-4] == 'o' && (*prefix)[length-3] == 'p' && (*prefix)[length-2] == 'e')
+    )) {
         check_validity = 0;
         container_flags |= CGROUP_MANAGER_SYSTEMD;
     }
