@@ -163,6 +163,8 @@ func setupTraceAgent(tags map[string]string) trace.ServerlessTraceAgent {
 
 func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
 	pkgconfig.Datadog().Set("use_v2_api.series", false, model.SourceAgentRuntime)
+	pkgconfig.Datadog().Set("dogstatsd_socket", "", model.SourceAgentRuntime)
+
 	metricAgent := &metrics.ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 0,
 	}
