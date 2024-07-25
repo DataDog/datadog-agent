@@ -15,7 +15,6 @@ import traceback
 from collections import defaultdict
 from collections.abc import Iterable
 from pathlib import Path
-from time import sleep
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -24,6 +23,7 @@ import tasks.modules
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import check_uncommitted_changes
+from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import TimedOperationResult, get_build_flags, timed
 from tasks.licenses import get_licenses_list
@@ -110,20 +110,8 @@ def deps(ctx, verbose=False):
     """
     Setup Go dependencies
     """
-    max_retry = 3
-    print("downloading dependencies")
-    with timed("go mod download"):
-        verbosity = ' -x' if verbose else ''
-        for mod in DEFAULT_MODULES.values():
-            with ctx.cd(mod.full_path()):
-                for retry in range(max_retry):
-                    result = ctx.run(f"go mod download{verbosity}")
-                    if result.exited is None or result.exited > 0:
-                        wait = 10 ** (retry + 1)
-                        print(f"[{(retry + 1) / max_retry}] Failed downloading {mod.path}, retrying in {wait} seconds")
-                        sleep(wait)
-                        continue
-                    break
+    paths = [mod.full_path() for mod in DEFAULT_MODULES.values()]
+    download_go_dependencies(ctx, paths, verbose=verbose)
 
 
 @task

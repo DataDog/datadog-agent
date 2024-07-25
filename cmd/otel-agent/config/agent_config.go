@@ -73,6 +73,7 @@ func NewConfigComponent(ctx context.Context, uris []string) (config.Component, e
 
 	// Log configs
 	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("logs_config.force_use_http", true, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("logs_config.logs_dd_url", ddc.Logs.Endpoint, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("logs_config.batch_wait", ddc.Logs.BatchWait, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("logs_config.use_compression", ddc.Logs.UseCompression, pkgconfigmodel.SourceLocalConfigProcess)

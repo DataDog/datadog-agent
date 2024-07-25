@@ -3,10 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package rules holds rules related files
-package rules
+// Package bundled contains bundled rules
+package bundled
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -33,15 +35,15 @@ func newBundledPolicyRules(cfg *config.RuntimeSecurityConfig) []*rules.RuleDefin
 			Actions: []*rules.ActionDefinition{{
 				InternalCallback: &rules.InternalCallbackDefinition{},
 				Set: &rules.SetDefinition{
-					Name:  "pkg_db_modified",
-					Scope: "process",
+					Name:  needRefreshSBOMVariableName,
+					Scope: needRefreshSBOMVariableScope,
 					Value: true,
 				},
 			}},
 			Silent: true,
 		}, &rules.RuleDefinition{
 			ID:         events.RefreshSBOMRuleID,
-			Expression: `exit.cause == EXITED && ${process.pkg_db_modified}`,
+			Expression: fmt.Sprintf("exit.cause == EXITED && ${%s.%s}", needRefreshSBOMVariableScope, needRefreshSBOMVariableName),
 			Actions: []*rules.ActionDefinition{{
 				InternalCallback: &rules.InternalCallbackDefinition{},
 			}},

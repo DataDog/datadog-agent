@@ -9,7 +9,7 @@
 //
 // ---------------------------------------------------
 
-package agenttelemetryimpl
+package impl
 
 import (
 	"context"
@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	telemetrypkg "github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -235,7 +234,7 @@ func TestReportMetricBasic(t *testing.T) {
 	// TODO: moved Status and Metric collection to an interface and use a mock for testing
 	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
 	tel.Reset()
-	counter := telemetrypkg.NewCounter("checks", "execution_time", []string{"check_name"}, "")
+	counter := tel.NewCounter("checks", "execution_time", []string{"check_name"}, "")
 	counter.Inc("mycheck")
 
 	o := getCommonOverrideConfig(true, "foo.bar")
@@ -266,7 +265,7 @@ func TestNoTagSpecifiedAggregationCounter(t *testing.T) {
 	// setup and initiate atel
 	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
 	tel.Reset()
-	counter := telemetrypkg.NewCounter("bar", "zoo", []string{"tag1", "tag2", "tag3"}, "")
+	counter := tel.NewCounter("bar", "zoo", []string{"tag1", "tag2", "tag3"}, "")
 	counter.AddWithTags(10, map[string]string{"tag1": "a1", "tag2": "b1", "tag3": "c1"})
 	counter.AddWithTags(20, map[string]string{"tag1": "a2", "tag2": "b2", "tag3": "c2"})
 	counter.AddWithTags(30, map[string]string{"tag1": "a3", "tag2": "b3", "tag3": "c3"})
@@ -307,7 +306,7 @@ func TestNoTagSpecifiedAggregationGauge(t *testing.T) {
 	// setup and initiate atel
 	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
 	tel.Reset()
-	gauge := telemetrypkg.NewGauge("bar", "zoo", []string{"tag1", "tag2", "tag3"}, "")
+	gauge := tel.NewGauge("bar", "zoo", []string{"tag1", "tag2", "tag3"}, "")
 	gauge.WithTags(map[string]string{"tag1": "a1", "tag2": "b1", "tag3": "c1"}).Set(10)
 	gauge.WithTags(map[string]string{"tag1": "a2", "tag2": "b2", "tag3": "c2"}).Set(20)
 	gauge.WithTags(map[string]string{"tag1": "a3", "tag2": "b3", "tag3": "c3"}).Set(30)
@@ -350,7 +349,7 @@ func TestNoTagSpecifiedAggregationHistogram(t *testing.T) {
 	tel.Reset()
 
 	buckets := []float64{10, 100, 1000, 10000}
-	gauge := telemetrypkg.NewHistogram("bar", "zoo", []string{"tag1", "tag2", "tag3"}, "", buckets)
+	gauge := tel.NewHistogram("bar", "zoo", []string{"tag1", "tag2", "tag3"}, "", buckets)
 	gauge.WithTags(map[string]string{"tag1": "a1", "tag2": "b1", "tag3": "c1"}).Observe(1001)
 	gauge.WithTags(map[string]string{"tag1": "a2", "tag2": "b2", "tag3": "c2"}).Observe(1002)
 	gauge.WithTags(map[string]string{"tag1": "a3", "tag2": "b3", "tag3": "c3"}).Observe(1003)
@@ -391,7 +390,7 @@ func TestTagSpecifiedAggregationCounter(t *testing.T) {
 	// setup and initiate atel
 	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
 	tel.Reset()
-	counter := telemetrypkg.NewCounter("bar", "zoo", []string{"tag1", "tag2", "tag3"}, "")
+	counter := tel.NewCounter("bar", "zoo", []string{"tag1", "tag2", "tag3"}, "")
 
 	// should generate 2 timeseries withj tag1:a1, tag1:a2
 	counter.AddWithTags(10, map[string]string{"tag1": "a1", "tag2": "b1", "tag3": "c1"})
@@ -440,7 +439,7 @@ func TestTagAggregateTotalCounter(t *testing.T) {
 	// setup and initiate atel
 	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
 	tel.Reset()
-	counter := telemetrypkg.NewCounter("bar", "zoo", []string{"tag1", "tag2", "tag3"}, "")
+	counter := tel.NewCounter("bar", "zoo", []string{"tag1", "tag2", "tag3"}, "")
 
 	// should generate 4 timeseries withj tag1:a1, tag1:a2, tag1:a3 and total:6
 	counter.AddWithTags(10, map[string]string{"tag1": "a1", "tag2": "b1", "tag3": "c1"})
