@@ -29,6 +29,7 @@ VSCODE_SETTINGS_TEMPLATE = "settings.json.template"
 VSCODE_TASKS_FILE = "tasks.json"
 VSCODE_TASKS_TEMPLATE = "tasks.json.template"
 VSCODE_EXTENSIONS_FILE = "extensions.json"
+VSCODE_PYTHON_ENV_FILE = ".env"
 
 
 @task
@@ -41,6 +42,8 @@ def setup(ctx, force=False):
     print(color_message("* Setting up extensions", Color.BOLD))
     setup_extensions(ctx)
     print(color_message("* Setting up tasks", Color.BOLD))
+    setup_tasks(ctx, force)
+    print(color_message("* Setting up tests", Color.BOLD))
     setup_tasks(ctx, force)
     print(color_message("* Setting up settings", Color.BOLD))
     setup_settings(ctx, force)
@@ -135,6 +138,31 @@ def setup_extensions(ctx: Context):
     for extension in content.get("recommendations", []):
         print(color_message(f"Installing extension {extension}", Color.BLUE))
         ctx.run(f"code --install-extension {extension} --force")
+
+
+@task
+def setup_tests(_, force=False):
+    """
+    Setup the tests tab for vscode
+
+    - Documentation: https://datadoghq.atlassian.net/wiki/x/z4Jf6
+    """
+    from invoke_unit_tests import TEST_ENV
+
+    env = Path(VSCODE_PYTHON_ENV_FILE)
+
+    print(color_message("Creating initial python environment file...", Color.BLUE))
+    if env.exists():
+        message = 'overriding current file' if force else 'skipping...'
+        print(color_message("warning:", Color.ORANGE), 'VSCode python environment file already exists,', message)
+        if not force:
+            return
+
+    with open('.env', 'w') as f:
+        for key, value in TEST_ENV.items():
+            print(f'{key}={value}', file=f)
+
+    print(color_message('The .env file has been created', Color.GREEN))
 
 
 @task
