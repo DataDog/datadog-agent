@@ -160,7 +160,7 @@ remove_apm_remote_config()
 
 stop_agent
 deregister_agent
-remove_custom_integrations
+# remove_custom_integrations
 remove_py_compiled_files
 
 case "$1" in
