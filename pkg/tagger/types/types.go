@@ -24,6 +24,7 @@ type OriginInfo struct {
 	FromUDS       string        // FromUDS is the origin resolved using Unix Domain Socket.
 	FromTag       string        // FromTag is the origin resolved from tags.
 	FromMsg       string        // FromMsg is the origin resolved from the message.
+	ExternalData  string        // ExternalData is the external data list.
 	Cardinality   string        // Cardinality is the cardinality of the resolved origin.
 	ProductOrigin ProductOrigin // ProductOrigin is the product that sent the origin information.
 }

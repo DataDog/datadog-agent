@@ -1,0 +1,56 @@
+init_config:
+    ## @param min_collection_interval - number - optional - default: 60
+    ## Specifies how frequently we should probe the endpoint.
+    ## Min collection interval is defined in seconds.
+    #
+    # min_collection_interval: 60
+
+# Network Path integration is used to monitor individual endpoints.
+# Supported platforms are Linux and Windows. macOS is not supported yet.
+instances:
+  - ## @param hostname - string - required
+    ## Hostname or IP of the target endpoint to monitor via Network Path.
+    #
+    hostname: <HOSTNAME>
+
+    ## @param port - integer - optional
+    ## Port of the target endpoint to monitor via Network Path.
+    ## If port is not set, a random port will be used.
+    #
+    # port: <PORT>
+
+    ## @param protocol - string - optional - default: UDP
+    ## Protocol used to monitor an endpoint via Network Path.
+    ## Available protocols: UDP, TCP
+    #
+    # protocol: <PROTOCOL>
+
+    ## @param max_ttl - integer - optional - default: 30
+    ## Specifies the maximum number of hops (max time-to-live value) traceroute will probe.
+    #
+    # max_ttl: <PORT>
+
+    ## @param min_collection_interval - number - optional - default: 60
+    ## Specifies how frequently we should probe the endpoint.
+    ## Min collection interval is defined in seconds.
+    #
+    # min_collection_interval: 60
+
+    ## @param source_service - string - optional
+    ## Source service name.
+    #
+    # source_service: <SOURCE_SERVICE>
+
+    ## @param destination_service - string - optional
+    ## Destination service name.
+    #
+    # destination_service: <DESTINATION_SERVICE>
+
+    ## @param tags - list of strings - optional
+    ## A list of tags to attach to every metric and service check emitted by this instance.
+    ##
+    ## Learn more about tagging at https://docs.datadoghq.com/tagging
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>

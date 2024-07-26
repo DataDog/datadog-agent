@@ -10,7 +10,7 @@ import tempfile
 
 from invoke import task
 
-from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+from tasks.libs.ciproviders.gitlab_api import get_all_gitlab_ci_configurations, get_gitlab_repo
 from tasks.libs.civisibility import (
     get_pipeline_link_to_job_id,
     get_pipeline_link_to_job_on_main,
@@ -129,3 +129,16 @@ def print_job(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_
         return repo.jobs.get(id)
 
     print_gitlab_object(get_job, ctx, ids, repo, jq, jq_colors)
+
+
+@task
+def print_entry_points(ctx):
+    """
+    Print gitlab ci configuration entry points.
+    """
+    print(color_message('info:', Color.BLUE), 'Fetching entry points...')
+    entry_points = get_all_gitlab_ci_configurations(ctx, filter_configs=True, clean_configs=True)
+
+    print(len(entry_points), 'entry points:')
+    for entry_point, config in entry_points.items():
+        print(f'- {color_message(entry_point, Color.BOLD)} ({len(config)} components)')

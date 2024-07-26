@@ -30,11 +30,11 @@ import (
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 const (
 	postgresPort           = "5432"
+	repeatCount            = postgres.BufferSize / len("table_")
 	createTableQuery       = "CREATE TABLE dummy (id SERIAL PRIMARY KEY, foo TEXT)"
 	updateSingleValueQuery = "UPDATE dummy SET foo = 'updated' WHERE id = 1"
 	selectAllQuery         = "SELECT * FROM dummy"
@@ -42,6 +42,11 @@ const (
 	deleteTableQuery       = "DELETE FROM dummy WHERE id = 1"
 	alterTableQuery        = "ALTER TABLE dummy ADD test VARCHAR(255);"
 	truncateTableQuery     = "TRUNCATE TABLE dummy"
+)
+
+var (
+	longCreateQuery = fmt.Sprintf("CREATE TABLE %s (id SERIAL PRIMARY KEY, foo TEXT)", strings.Repeat("table_", repeatCount))
+	longDropeQuery  = fmt.Sprintf("DROP TABLE IF EXISTS %s", strings.Repeat("table_", repeatCount))
 )
 
 func createInsertQuery(values ...string) string {
@@ -113,8 +118,6 @@ func (s *postgresProtocolParsingSuite) TestLoadPostgresBinary() {
 
 func (s *postgresProtocolParsingSuite) TestDecoding() {
 	t := s.T()
-	// USMON-1080
-	flake.Mark(t)
 
 	tests := []struct {
 		name  string
@@ -429,16 +432,15 @@ func testDecoding(t *testing.T, isTLS bool) {
 			},
 			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
 				pg := ctx.extras["pg"].(*postgres.PGXClient)
-				longTableName := strings.Repeat("table_", 15)
-				require.NoError(t, pg.RunQuery(fmt.Sprintf("CREATE TABLE %s (id SERIAL PRIMARY KEY, foo TEXT)", longTableName)))
-				require.NoError(t, pg.RunQuery(fmt.Sprintf("DROP TABLE IF EXISTS %s", longTableName)))
+				require.NoError(t, pg.RunQuery(longCreateQuery))
+				require.NoError(t, pg.RunQuery(longDropeQuery))
 			},
 			validation: func(t *testing.T, ctx pgTestContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
-					"table_table_table_table_table_table_table_table_tab": {
+					getTruncatedTableName(longCreateQuery, 13): {
 						postgres.CreateTableOP: adjustCount(1),
 					},
-					"table_table_table_table_table_table_table_t": {
+					getTruncatedTableName(longDropeQuery, 21): {
 						postgres.DropTableOP: adjustCount(1),
 					},
 				}, isTLS)
@@ -511,6 +513,12 @@ func testDecoding(t *testing.T, isTLS bool) {
 			tt.validation(t, tt.context, monitor)
 		})
 	}
+}
+
+// getTruncatedTableName returns the truncated table name by reducing the operation and extracting the remaining
+// table name by the current max buffer size.
+func getTruncatedTableName(query string, tableNameIndex int) string {
+	return query[tableNameIndex:postgres.BufferSize]
 }
 
 // getPostgresInFlightEntries returns the entries in the in-flight map.

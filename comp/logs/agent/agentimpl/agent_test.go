@@ -24,8 +24,8 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -112,8 +112,8 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 
 	deps := fxutil.Test[testDeps](suite.T(), fx.Options(
 		fx.Supply(configComponent.Params{}),
-		fx.Supply(logimpl.Params{}),
-		logimpl.MockModule(),
+		fx.Supply(log.Params{}),
+		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
 		configComponent.MockModule(),
 		hostnameimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
@@ -391,8 +391,8 @@ func (suite *AgentTestSuite) TestFlareProvider() {
 func (suite *AgentTestSuite) createDeps() dependencies {
 	return fxutil.Test[dependencies](suite.T(), fx.Options(
 		fx.Supply(configComponent.Params{}),
-		fx.Supply(logimpl.Params{}),
-		logimpl.MockModule(),
+		fx.Supply(log.Params{}),
+		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
 		configComponent.MockModule(),
 		hostnameimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),

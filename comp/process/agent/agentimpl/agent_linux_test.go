@@ -9,6 +9,7 @@ package agentimpl
 
 import (
 	"net/http"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -118,6 +119,8 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 			flavor.SetFlavor(tc.agentFlavor)
 			defer func() {
 				flavor.SetFlavor(originalFlavor)
+				// reset agent module global variable "Once" to ensure Enabled() function runs for each unit test
+				agent.Once = sync.Once{}
 			}()
 
 			opts := []fx.Option{
@@ -179,6 +182,8 @@ func TestStatusProvider(t *testing.T) {
 			flavor.SetFlavor(tc.agentFlavor)
 			defer func() {
 				flavor.SetFlavor(originalFlavor)
+				// reset agent module global variable "Once" to ensure Enabled() function runs for each unit test
+				agent.Once = sync.Once{}
 			}()
 
 			deps := fxutil.Test[dependencies](t, fx.Options(
@@ -205,6 +210,7 @@ func TestStatusProvider(t *testing.T) {
 					}
 				}),
 			))
+
 			provides, err := newProcessAgent(deps)
 			assert.IsType(t, tc.expected, provides.StatusProvider.Provider)
 			assert.NoError(t, err)
@@ -217,8 +223,12 @@ func TestTelemetryCoreAgent(t *testing.T) {
 	// registered to help avoid introducing panics.
 
 	originalFlavor := flavor.GetFlavor()
-	defer flavor.SetFlavor(originalFlavor)
 	flavor.SetFlavor("agent")
+	defer func() {
+		flavor.SetFlavor(originalFlavor)
+		// reset agent module global variable "Once" to ensure Enabled() function runs for each unit test
+		agent.Once = sync.Once{}
+	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		runnerimpl.Module(),
@@ -245,6 +255,7 @@ func TestTelemetryCoreAgent(t *testing.T) {
 			}
 		}),
 	))
+
 	_, err := newProcessAgent(deps)
 	assert.NoError(t, err)
 

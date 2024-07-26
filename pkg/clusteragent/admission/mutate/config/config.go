@@ -24,7 +24,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	apiCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -102,29 +101,31 @@ type conf struct {
 
 // Webhook is the webhook that injects DD_AGENT_HOST and DD_ENTITY_ID into a pod
 type Webhook struct {
-	name       string
-	config     conf
-	isEnabled  bool
-	endpoint   string
-	resources  []string
-	operations []admiv1.OperationType
-	mode       string
-	wmeta      workloadmeta.Component
+	name            string
+	config          conf
+	isEnabled       bool
+	endpoint        string
+	resources       []string
+	operations      []admiv1.OperationType
+	mode            string
+	wmeta           workloadmeta.Component
+	injectionFilter common.InjectionFilter
 }
 
 // NewWebhook returns a new Webhook
-func NewWebhook(wmeta workloadmeta.Component) *Webhook {
+func NewWebhook(wmeta workloadmeta.Component, injectionFilter common.InjectionFilter) *Webhook {
 	return &Webhook{
 		name: webhookName,
 		config: conf{
 			injectContName: config.Datadog().GetBool("admission_controller.inject_config.inject_container_name"),
 		},
-		isEnabled:  config.Datadog().GetBool("admission_controller.inject_config.enabled"),
-		endpoint:   config.Datadog().GetString("admission_controller.inject_config.endpoint"),
-		resources:  []string{"pods"},
-		operations: []admiv1.OperationType{admiv1.Create},
-		mode:       config.Datadog().GetString("admission_controller.inject_config.mode"),
-		wmeta:      wmeta,
+		isEnabled:       config.Datadog().GetBool("admission_controller.inject_config.enabled"),
+		endpoint:        config.Datadog().GetString("admission_controller.inject_config.endpoint"),
+		resources:       []string{"pods"},
+		operations:      []admiv1.OperationType{admiv1.Create},
+		mode:            config.Datadog().GetString("admission_controller.inject_config.mode"),
+		wmeta:           wmeta,
+		injectionFilter: injectionFilter,
 	}
 }
 
@@ -182,7 +183,7 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, 
 		return false, errors.New(metrics.InvalidInput)
 	}
 
-	if !autoinstrumentation.ShouldInject(pod, w.wmeta) {
+	if !w.injectionFilter.ShouldMutatePod(pod) {
 		return false, nil
 	}
 
