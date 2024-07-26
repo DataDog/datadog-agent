@@ -39,7 +39,9 @@ func (c *mockConfig) SetKnown(key string) {
 	c.Config.SetKnown(key)
 }
 
-// MockSystemProbe is creating and returning a mock system-probe config
+// MockSystemProbe is creating and returning a mock system-probe Config
+//
+// This method is deprecated and will soon be removed. Use pkg/config/mock.NewSystemProbe instead.
 func MockSystemProbe(t testing.TB) model.Config {
 	// We only check isSystemProbeConfigMocked when registering a cleanup function. 'isSystemProbeConfigMocked'
 	// avoids nested calls to Mock to reset the config to a blank state. This way we have only one mock per test and
