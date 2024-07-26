@@ -587,3 +587,38 @@ func TestGetCloudExpressMetrics(t *testing.T) {
 	// Ensure endpoint has been called 1 times
 	require.Equal(t, 1, handler.numberOfCalls())
 }
+
+func TestGetBGPNeighbors(t *testing.T) {
+	mux := setupCommonServerMux()
+
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+		query := r.URL.Query()
+		count := query.Get("count")
+
+		require.Equal(t, "2000", count)
+
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(fixtures.FakePayload(fixtures.GetBGPNeighbors)))
+	})
+
+	mux.HandleFunc("/dataservice/data/device/state/BGPNeighbor", handler.Func)
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+
+	devices, err := client.GetBGPNeighbors()
+	require.NoError(t, err)
+
+	require.Equal(t, "10.10.1.11", devices[0].VmanageSystemIP)
+	require.Equal(t, "ipv4-unicast", devices[0].Afi)
+	require.Equal(t, float64(1), devices[0].VpnID)
+	require.Equal(t, "10.60.1.1", devices[0].PeerAddr)
+	require.Equal(t, float64(2024), devices[0].AS)
+	require.Equal(t, "established", devices[0].State)
+
+	// Ensure endpoint has been called 1 times
+	require.Equal(t, 1, handler.numberOfCalls())
+}
