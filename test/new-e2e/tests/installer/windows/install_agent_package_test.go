@@ -69,7 +69,7 @@ func (suite *testAgentInstallSuite) TestUpgradeAgentPackage() {
 			WithVersionMatchPredicate(func(version string) {
 				suite.Require().Contains(version, "Agent 7.55.1")
 			}).
-			DirExists(StableDir(AgentPackage))
+			DirExists(GetStableDirFor(AgentPackage))
 	})
 
 	suite.Run("Upgrade to latest using an experiment", func() {
@@ -85,7 +85,7 @@ func (suite *testAgentInstallSuite) TestUpgradeAgentPackage() {
 			WithVersionMatchPredicate(func(version string) {
 				suite.Require().NotContains(version, "7.55.1")
 			}).
-			DirExists(ExperimentDir(AgentPackage))
+			DirExists(GetExperimentDirFOr(AgentPackage))
 	})
 
 	suite.Run("Stop experiment", func() {
@@ -96,8 +96,14 @@ func (suite *testAgentInstallSuite) TestUpgradeAgentPackage() {
 
 		// Assert
 		suite.Require().NoErrorf(err, "failed to remove the experiment for the Datadog Agent package: %s", output)
+
+		// Remove experiment uninstalls the experimental version but also re-installs the stable version
 		suite.Require().Host(suite.Env().RemoteHost).
-			HasNoDatadogAgentService().
-			NoDirExists(ExperimentDir(AgentPackage))
+			HasARunningDatadogAgentService().
+			WithVersionMatchPredicate(func(version string) {
+				suite.Require().Contains(version, "Agent 7.55.1")
+			}).
+			DirExists(GetStableDirFor(AgentPackage)).
+			NoDirExists(GetExperimentDirFOr(AgentPackage))
 	})
 }
