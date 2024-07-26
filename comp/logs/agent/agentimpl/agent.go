@@ -246,9 +246,6 @@ func (a *logAgent) startPipeline() {
 
 	if !sds.ShouldBlockCollectionUntilSDSConfiguration(a.config) {
 		a.startSchedulers()
-		a.log.Info("logs-agent started")
-
-		a.started.Store(status.StatusRunning)
 	} else {
 		a.log.Info("logs-agent ready, schedulers not started: waiting for an SDS configuration to start the logs collection")
 		a.started.Store(status.StatusCollectionNotStarted)
@@ -263,7 +260,7 @@ func (a *logAgent) startSchedulers() {
 			a.AddScheduler(scheduler)
 		}
 
-		a.log.Info("logs-agent schedulers started")
+		a.log.Info("logs-agent started")
 		a.started.Store(status.StatusRunning)
 	})
 }

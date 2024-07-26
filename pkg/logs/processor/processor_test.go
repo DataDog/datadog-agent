@@ -6,7 +6,6 @@
 package processor
 
 import (
-	"log"
 	"regexp"
 	"sync/atomic"
 	"testing"
@@ -337,7 +336,6 @@ func TestBuffering(t *testing.T) {
 	go func() {
 		for {
 			msg := <-p.outputChan
-			log.Println("processed:", string(msg.GetContent()))
 			processedMessages.Add(1)
 		}
 	}()
