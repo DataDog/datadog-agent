@@ -436,3 +436,26 @@ const GetCloudExpressMetrics = `
 	}
 ]
 `
+
+// GetBGPNeighbors /dataservice/data/device/state/BGPNeighbor
+const GetBGPNeighbors = `
+[
+	{
+		"recordId": "0:BGPNeighborNode:1000:500",
+		"vdevice-name": "10.10.1.11",
+		"afi": "ipv4-unicast",
+		"createTimeStamp": 1707919131595,
+		"last-uptime": "Thu Jul 25 13:48:17 2024",
+		"vpn-id": 1,
+		"vdevice-host-name": "DC-cEdge01",
+		"peer-addr": "10.60.1.1",
+		"as": 2024,
+		"vdevice-dataKey": "10.10.1.11-10.60.1.1",
+		"@rid": 100,
+		"vmanage-system-ip": "10.10.1.11",
+		"afi-id": 0,
+		"lastupdated": 1708940180703,
+		"state": "established"
+	}
+]
+`

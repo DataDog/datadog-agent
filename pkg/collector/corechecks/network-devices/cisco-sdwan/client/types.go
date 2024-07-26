@@ -60,7 +60,8 @@ type Content interface {
 		OMPPeer |
 		BFDSession |
 		HardwareEnvironment |
-		CloudXStatistics
+		CloudXStatistics |
+		BGPNeighbor
 }
 
 // Response is a generic struct for API responses
@@ -438,4 +439,22 @@ type CloudXStatistics struct {
 	VpnID            float64 `json:"vpn_id"`
 	AppURLHostIP     string  `json:"app_url_host_ip"`
 	ID               string  `json:"id"`
+}
+
+// BGPNeighbor /dataservice/data/device/state/BGPNeighbor
+type BGPNeighbor struct {
+	RecordID        string  `json:"recordId"`
+	VdeviceName     string  `json:"vdevice-name"`
+	Afi             string  `json:"afi"`
+	CreateTimeStamp float64 `json:"createTimeStamp"`
+	VpnID           float64 `json:"vpn-id"`
+	VdeviceHostName string  `json:"vdevice-host-name"`
+	PeerAddr        string  `json:"peer-addr"`
+	AS              float64 `json:"as"`
+	VdeviceDataKey  string  `json:"vdevice-dataKey"`
+	Rid             float64 `json:"@rid"`
+	VmanageSystemIP string  `json:"vmanage-system-ip"`
+	AfiID           float64 `json:"afi-id"`
+	Lastupdated     float64 `json:"lastupdated"`
+	State           string  `json:"state"`
 }
