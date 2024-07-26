@@ -79,9 +79,9 @@ const (
 	// Special tokens
 	month
 	day
-	apm // am or pm
-	zone
-	t
+	apm  // am or pm
+	zone // Represents a timezone
+	t    // t (often `T`) denotes a time separator in many timestamp formats
 
 	end // Not a valid token. Used to mark the end of the token list or as a terminator.
 )
