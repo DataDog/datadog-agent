@@ -7,11 +7,8 @@
 package integration
 
 import (
-	"fmt"
-	"log"
 	"os"
 	"strings"
-	"time"
 
 	ddLog "github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -29,10 +26,7 @@ import (
 // write logs to, then creates file sources for the file launcher to tail
 type Launcher struct {
 	sources              *sources.LogSources
-	piplineProvider      pipeline.Provider
-	registry             auditor.Registry
 	addedSources         chan *sources.LogSource
-	removedSources       chan *sources.LogSource
 	stop                 chan struct{}
 	done                 chan struct{}
 	runPath              string
@@ -40,14 +34,14 @@ type Launcher struct {
 	integrationToFile    map[string]string
 	// writeLogToFile is used as a function pointer so it can be overridden in
 	// testing to make deterministic tests
-	writeFunction func(filepath, log string)
+	writeFunction func(filepath, log string) error
 }
 
 // NewLauncher returns a new launcher
-func NewLauncher(sources *sources.LogSources, runPath string, integrationsLogsComp integrations.Component) *Launcher {
+func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.Component) *Launcher {
 	return &Launcher{
 		sources:              sources,
-		runPath:              runPath,
+		runPath:              pkgConfig.Datadog().GetString("logs_config.run_path"),
 		stop:                 make(chan struct{}),
 		done:                 make(chan struct{}),
 		integrationsLogsChan: integrationsLogsComp.Subscribe(),
@@ -57,10 +51,8 @@ func NewLauncher(sources *sources.LogSources, runPath string, integrationsLogsCo
 }
 
 // Start starts the launcher and launches the run loop in a go function
-func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, _ *tailers.TailerTracker) {
-	s.piplineProvider = pipelineProvider
-	s.addedSources, s.removedSources = sourceProvider.SubscribeForType(config.IntegrationType)
-	s.registry = registry
+func (s *Launcher) Start(sourceProvider launchers.SourceProvider, _ pipeline.Provider, _ auditor.Registry, _ *tailers.TailerTracker) {
+	s.addedSources, _ = sourceProvider.SubscribeForType(config.IntegrationType)
 
 	go s.run()
 }
@@ -73,9 +65,7 @@ func (s *Launcher) Stop() {
 
 // run checks if there are new files to tail and tails them
 func (s *Launcher) run() {
-	scanTicker := time.NewTicker(time.Second * 1)
 	defer func() {
-		scanTicker.Stop()
 		close(s.done)
 	}()
 
@@ -84,7 +74,12 @@ func (s *Launcher) run() {
 		case source := <-s.addedSources:
 			// Send logs configurations to the file launcher to tail, it will handle
 			// tailer lifecycle, file rotation, etc.
-			filepath := s.createFile(source)
+			filepath, err := s.createFile(source)
+			if err != nil {
+				ddLog.Warn("Failed to create integration log file: ", err)
+				continue
+			}
+
 			filetypeSource := s.makeFileSource(source, filepath)
 			s.sources.AddSource(filetypeSource)
 
@@ -95,10 +90,13 @@ func (s *Launcher) run() {
 			integrationName := integrationSplit[0]
 			filepath := s.integrationToFile[integrationName]
 
-			s.ensureFileSize(filepath)
+			err := s.ensureFileSize(filepath)
+			if err != nil {
+				ddLog.Warn("Failed to get file size: ", err)
+				continue
+			}
 
 			s.writeFunction(filepath, log.Log)
-		case <-scanTicker.C:
 		case <-s.stop:
 			return
 		}
@@ -106,18 +104,22 @@ func (s *Launcher) run() {
 }
 
 // writeLogToFile is used as a function pointer
-func writeLogToFile(filepath, log string) {
+func writeLogToFile(filepath, log string) error {
 	file, err := os.OpenFile(filepath, os.O_WRONLY, 0644)
 	if err != nil {
-		ddLog.Warn("Failed to open file")
+		ddLog.Warn("Failed to open file to write log to: ", err)
+		return err
 	}
 
 	defer file.Close()
 
 	_, err = file.WriteString(log)
 	if err != nil {
-		ddLog.Warn("Failed to write integration log to file")
+		ddLog.Warn("Failed to write integration log to file: ", err)
+		return err
 	}
+
+	return nil
 }
 
 // makeFileSource Turns an integrations source into a logsSource
@@ -136,21 +138,21 @@ func (s *Launcher) makeFileSource(source *sources.LogSource, filepath string) *s
 
 // TODO Change file naming to reflect ID once logs from go interfaces gets merged.
 // createFile creates a file for the logsource
-func (s *Launcher) createFile(source *sources.LogSource) string {
+func (s *Launcher) createFile(source *sources.LogSource) (string, error) {
 	directory, filepath := s.integrationLogFilePath(*source)
 
 	err := os.MkdirAll(directory, 0755)
 	if err != nil {
-		log.Fatal(err)
+		return "", err
 	}
 
 	file, err := os.Create(filepath)
 	if err != nil {
-		log.Fatal(err)
+		return "", nil
 	}
 	defer file.Close()
 
-	return filepath
+	return filepath, nil
 }
 
 // integrationLogFilePath returns a directory and file to use for an integration log file
@@ -165,20 +167,20 @@ func (s *Launcher) integrationLogFilePath(source sources.LogSource) (string, str
 
 // ensureFileSize enforces the max file size for files integrations logs
 // files. Files over the set size will be deleted and remade.
-func (s *Launcher) ensureFileSize(filepath string) {
+func (s *Launcher) ensureFileSize(filepath string) error {
 	maxFileSizeSetting := pkgConfig.Datadog().GetInt("logs_config.integrations_logs_files_max_size")
 	maxFileSizeBytes := maxFileSizeSetting * 1024 * 1024
 
 	fi, err := os.Stat(filepath)
 	if err != nil {
-		ddLog.Warn("Could not stat file: ", filepath)
+		return err
 	}
 
 	if fi.Size() > int64(maxFileSizeBytes) {
 		err := os.Remove(filepath)
 		if err != nil {
 			if os.IsNotExist(err) {
-				fmt.Println("File does not exist, creating new one.")
+				ddLog.Warn("File does not exist, creating new one: ", err)
 			} else {
 				ddLog.Warn("Error deleting file: ", err)
 			}
@@ -188,8 +190,10 @@ func (s *Launcher) ensureFileSize(filepath string) {
 
 		file, err := os.Create(filepath)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 		defer file.Close()
 	}
+
+	return nil
 }

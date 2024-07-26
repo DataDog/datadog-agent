@@ -56,9 +56,7 @@ func (suite *LauncherTestSuite) SetupTest() {
 	suite.testFile = f
 
 	suite.source = sources.NewLogSource("", &config.LogsConfig{Type: config.IntegrationType, Path: suite.testPath})
-	suite.s = NewLauncher(nil, suite.testDir, suite.integrationsComp)
-	suite.s.piplineProvider = suite.pipelineProvider
-	suite.s.registry = auditor.NewRegistry()
+	suite.s = NewLauncher(nil, suite.integrationsComp)
 	status.InitStatus(pkgConfig.Datadog(), util.CreateSources([]*sources.LogSource{suite.source}))
 }
 
@@ -70,7 +68,8 @@ func (suite *LauncherTestSuite) TestFileCreation() {
 	source := sources.NewLogSource("testLogsSource", &config.LogsConfig{Type: config.IntegrationType, Identifier: "123456789", Path: suite.testPath})
 	sources.NewLogSources().AddSource(source)
 
-	filePath := suite.s.createFile(source)
+	filePath, err := suite.s.createFile(source)
+	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), filePath)
 }
 
@@ -80,12 +79,14 @@ func (suite *LauncherTestSuite) TestSendLog() {
 	source := sources.NewLogSource("testLogsSource", &config.LogsConfig{Type: config.IntegrationType, Name: "integrationName", Path: suite.testPath})
 	filepathChan := make(chan string)
 	fileLogChan := make(chan string)
-	suite.s.writeFunction = func(filepath, log string) {
+	suite.s.writeFunction = func(filepath, log string) error {
 		fileLogChan <- log
 		filepathChan <- filepath
+		return nil
 	}
 
-	filepath := suite.s.createFile(source)
+	filepath, err := suite.s.createFile(source)
+	assert.Nil(suite.T(), err)
 	suite.s.integrationToFile[source.Name] = filepath
 	fileSource := suite.s.makeFileSource(source, filepath)
 	suite.s.sources.AddSource(fileSource)

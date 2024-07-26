@@ -59,7 +59,7 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 	lnchrs.AddLauncher(windowsevent.NewLauncher())
 	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta))
 	lnchrs.AddLauncher(integrationLauncher.NewLauncher(
-		a.sources, a.config.GetString("logs_config.run_path"), integrationsLogs))
+		a.sources, integrationsLogs))
 
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
 	a.auditor = auditor
