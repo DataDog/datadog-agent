@@ -31,7 +31,7 @@
     - export GOPRIVATE="github.com/DataDog,go.ddbuild.io"
     - cd datadog-packages/cmd/datadog-package
     - git checkout revert-21-revert-20-revert-19-revert-18-baptiste.foy/FA/auth
-    - go build .
+    - go build -v .
     - OUTPUT_DIR="/tmp/oci_output"
     - mkdir -p ${OUTPUT_DIR}
     - ls $OMNIBUS_PACKAGE_DIR
