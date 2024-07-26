@@ -58,6 +58,7 @@ func (c *cacheImpl) start() {
 func (c *cacheImpl) stop() {
 	close(c.exit)
 	c.querier.stop()
+	c.persist(time.Now())
 }
 
 func newCache(config *rdnsQuerierConfig, logger log.Component, internalTelemetry *rdnsQuerierTelemetry, querier querier) cache {
@@ -273,13 +274,13 @@ func (c *cacheImpl) loadPersistentCache() {
 	c.mutex.Unlock()
 }
 
-func (c *cacheImpl) serializeData() (string, int) {
+func (c *cacheImpl) serializeData(startTime time.Time) (string, int) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
 	mapCopy := make(map[string]*cacheEntry)
 	for k, v := range c.data {
-		if v.queryInProgress {
+		if v.queryInProgress || v.ExpirationTime.Before(startTime) {
 			continue
 		}
 		mapCopy[k] = v
@@ -302,7 +303,7 @@ func (c *cacheImpl) serializeData() (string, int) {
 }
 
 func (c *cacheImpl) persist(startTime time.Time) {
-	serializedData, size := c.serializeData()
+	serializedData, size := c.serializeData(startTime)
 	if serializedData == "" {
 		return
 	}

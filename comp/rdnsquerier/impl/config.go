@@ -33,9 +33,9 @@ const (
 
 	defaultRateLimitPerSec = 1000
 
-	defaultCacheEntryTTL        = time.Hour
-	defaultCacheCleanInterval   = 30 * time.Minute
-	defaultCachePersistInterval = 30 * time.Minute
+	defaultCacheEntryTTL        = 24 * time.Hour
+	defaultCacheCleanInterval   = 2 * time.Hour
+	defaultCachePersistInterval = 2 * time.Hour
 	defaultCacheMaxRetries      = 10
 	defaultCacheMaxSize         = 1_000_000
 )
