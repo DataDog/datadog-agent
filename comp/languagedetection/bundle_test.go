@@ -12,7 +12,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -29,10 +30,9 @@ func TestBundleDependencies(t *testing.T) {
 		config.Module(),
 		fx.Supply(config.Params{}),
 		telemetryimpl.Module(),
-		logimpl.Module(),
 		fxutil.ProvideOptional[secrets.Component](),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		secretsimpl.MockModule(),
-		fx.Supply(logimpl.Params{}),
 		workloadmetafx.Module(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Invoke(func(client.Component) {}),

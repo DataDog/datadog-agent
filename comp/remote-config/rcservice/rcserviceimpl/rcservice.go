@@ -10,7 +10,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"

@@ -19,7 +19,7 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
@@ -69,7 +69,7 @@ type dependencies struct {
 
 	Demultiplexer aggregator.Demultiplexer
 
-	Log       logComponent.Component
+	Log       log.Component
 	Config    configComponent.Component
 	Debug     serverdebug.Component
 	Replay    replay.Component
@@ -98,7 +98,7 @@ type cachedOriginCounter struct {
 
 // Server represent a Dogstatsd server
 type server struct {
-	log    logComponent.Component
+	log    log.Component
 	config config.Reader
 	// listeners are the instantiated socket listener (UDS or UDP or both)
 	listeners []listeners.StatsdListener
@@ -197,7 +197,7 @@ func newServer(deps dependencies) provides {
 	}
 }
 
-func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
+func newServerCompat(cfg config.Reader, log log.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry() })
 	var stats *util.Stats
@@ -815,7 +815,7 @@ func (s *server) parseServiceCheckMessage(parser *parser, message []byte, origin
 	return serviceCheck, nil
 }
 
-func getBuckets(cfg config.Reader, logger logComponent.Component, option string) []float64 {
+func getBuckets(cfg config.Reader, logger log.Component, option string) []float64 {
 	if !cfg.IsSet(option) {
 		return nil
 	}

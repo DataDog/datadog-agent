@@ -12,8 +12,13 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.github_api import GithubAPI
-from tasks.libs.ciproviders.gitlab_api import get_gitlab_bot_token, get_gitlab_repo, refresh_pipeline
-from tasks.libs.common.color import color_message
+from tasks.libs.ciproviders.gitlab_api import (
+    get_gitlab_bot_token,
+    get_gitlab_repo,
+    gitlab_configuration_is_modified,
+    refresh_pipeline,
+)
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH, GITHUB_REPO_NAME
 from tasks.libs.common.git import check_clean_branch_state, get_commit_sha, get_current_branch
 from tasks.libs.common.utils import (
@@ -31,6 +36,8 @@ from tasks.libs.pipeline.tools import (
     wait_for_pipeline,
 )
 from tasks.libs.releasing.documentation import nightly_entry_for, release_entry_for
+
+BOT_NAME = "github-actions[bot]"
 
 
 class GitlabReference(yaml.YAMLObject):
@@ -991,3 +998,74 @@ def test_merge_queue(ctx):
     ctx.run(f"git push origin :{test_main}", hide=True)
     if not success:
         raise Exit(message="Merge queue test failed", code=1)
+
+
+@task
+def compare_to_itself(ctx):
+    """
+    Create a new branch with 'compare_to_itself' in gitlab-ci.yml and trigger a pipeline
+    """
+    if not gitlab_configuration_is_modified(ctx):
+        print("No modification in the gitlab configuration, ignoring this test.")
+        return
+    agent = get_gitlab_repo()
+    gh = GithubAPI()
+    current_branch = os.environ["CI_COMMIT_REF_NAME"]
+    if current_branch.startswith("compare/"):
+        print("Branch already in compare_to_itself mode, ignoring this test to prevent infinite loop")
+        return
+    new_branch = f"compare/{current_branch}/{int(datetime.now(timezone.utc).timestamp())}"
+    ctx.run(f"git checkout -b {new_branch}", hide=True)
+    ctx.run(
+        f"git remote set-url origin https://x-access-token:{gh._auth.token}@github.com/DataDog/datadog-agent.git",
+        hide=True,
+    )
+    ctx.run(f"git config --global user.name '{BOT_NAME}'")
+    ctx.run("git config --global user.email 'github-app[bot]@users.noreply.github.com'")
+    # The branch must exist in gitlab to be able to "compare_to"
+    ctx.run(f"git push origin {new_branch}", hide=True)
+    for file in ['.gitlab-ci.yml', '.gitlab/notify/notify.yml']:
+        with open(file) as f:
+            content = f.read()
+        with open(file, 'w') as f:
+            f.write(content.replace('compare_to: main', f'compare_to: {new_branch}'))
+    ctx.run("git commit -am 'Compare to itself'", hide=True)
+    ctx.run(f"git push origin {new_branch}", hide=True)
+    max_attempts = 6
+    compare_to_pipeline = None
+    for attempt in range(max_attempts):
+        print(f"[{datetime.now()}] Waiting 30s for the pipelines to be created")
+        time.sleep(30)
+        pipelines = agent.pipelines.list(ref=new_branch, get_all=True)
+        for pipeline in pipelines:
+            commit = agent.commits.get(pipeline.sha)
+            if commit.author_name == BOT_NAME:
+                compare_to_pipeline = pipeline
+                print(f"Test pipeline found: {pipeline.web_url}")
+        if compare_to_pipeline:
+            break
+        if attempt == max_attempts - 1:
+            # Clean up the branch and possible pipelines
+            for pipeline in pipelines:
+                pipeline.cancel()
+            ctx.run(f"git checkout {current_branch}", hide=True)
+            ctx.run(f"git branch -D {new_branch}", hide=True)
+            ctx.run(f"git push origin :{new_branch}", hide=True)
+            raise RuntimeError(f"No pipeline found for {new_branch}")
+    try:
+        if len(compare_to_pipeline.jobs.list(get_all=False)) == 0:
+            print(
+                f"[{color_message('ERROR', Color.RED)}] Failed to generate a pipeline for {new_branch}, please check {compare_to_pipeline.web_url}"
+            )
+            raise Exit(message="compare_to itself failed", code=1)
+        else:
+            print(f"Pipeline correctly created, {color_message('congrats', Color.GREEN)}")
+    finally:
+        # Clean up
+        print("Cleaning up the pipelines")
+        for pipeline in pipelines:
+            pipeline.cancel()
+        print("Cleaning up git")
+        ctx.run(f"git checkout {current_branch}", hide=True)
+        ctx.run(f"git branch -D {new_branch}", hide=True)
+        ctx.run(f"git push origin :{new_branch}", hide=True)
