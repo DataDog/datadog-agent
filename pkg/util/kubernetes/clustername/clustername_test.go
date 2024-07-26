@@ -12,11 +12,12 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestGetClusterName(t *testing.T) {
 	ctx := context.Background()
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	config.SetFeatures(t, config.Kubernetes)
 	data := newClusterNameData()
 

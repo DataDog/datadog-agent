@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -154,11 +155,22 @@ func (t *telemetry) reportContainers() error {
 		return err
 	}
 
+	var fargate bool
+	if os.Getenv("ECS_FARGATE") == "true" || os.Getenv("DD_ECS_FARGATE") == "true" || os.Getenv("DD_EKS_FARGATE") == "true" {
+		fargate = true
+	}
+
 	var metricName string
 	if cfg.RuntimeEnabled {
 		metricName = metrics.MetricSecurityAgentRuntimeContainersRunning
+		if fargate {
+			metricName = metrics.MetricSecurityAgentFargateRuntimeContainersRunning
+		}
 	} else if cfg.FIMEnabled {
 		metricName = metrics.MetricSecurityAgentFIMContainersRunning
+		if fargate {
+			metricName = metrics.MetricSecurityAgentFargateFIMContainersRunning
+		}
 	} else {
 		// nothing to report
 		return nil

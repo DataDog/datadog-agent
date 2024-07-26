@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import io
 import os
 import sys
-import traceback
 from datetime import timedelta
 
 from invoke import Context, task
@@ -12,7 +10,8 @@ from invoke.exceptions import Exit
 import tasks.libs.notify.unit_tests as unit_tests_utils
 from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.gitlab_api import (
-    GitlabCIDiff,
+    MultiGitlabCIDiff,
+    get_all_gitlab_ci_configurations,
     get_gitlab_ci_configuration,
     print_gitlab_ci_configuration,
 )
@@ -22,9 +21,7 @@ from tasks.libs.common.datadog_api import send_metrics
 from tasks.libs.common.utils import gitlab_section
 from tasks.libs.notify import alerts, failure_summary, pipeline_status
 from tasks.libs.notify.utils import PROJECT_NAME
-from tasks.libs.pipeline.data import get_failed_jobs
 from tasks.libs.pipeline.notifications import (
-    base_message,
     check_for_missing_owners_slack_and_jira,
 )
 from tasks.libs.pipeline.stats import compute_failed_jobs_series, compute_required_jobs_max_duration
@@ -50,23 +47,7 @@ def send_message(ctx: Context, notification_type: str = "merge", dry_run: bool =
     Use the --dry-run option to test this locally, without sending
     real slack messages.
     """
-
-    try:
-        failed_jobs = get_failed_jobs(PROJECT_NAME, os.environ["CI_PIPELINE_ID"])
-        messages_to_send = pipeline_status.generate_failure_messages(PROJECT_NAME, failed_jobs)
-    except Exception as e:
-        buffer = io.StringIO()
-        print(base_message("datadog-agent", "is in an unknown state"), file=buffer)
-        print("Found exception when generating notification:", file=buffer)
-        traceback.print_exc(limit=-1, file=buffer)
-        print("See the notify job log for the full exception traceback.", file=buffer)
-
-        # Print traceback on job log
-        print(e)
-        traceback.print_exc()
-        raise Exit(code=1) from e
-
-    pipeline_status.send_message_and_metrics(ctx, failed_jobs, messages_to_send, notification_type, dry_run)
+    pipeline_status.send_message(ctx, notification_type, dry_run)
 
 
 @task
@@ -223,12 +204,12 @@ def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_
         before = ctx.run(f'git merge-base {before} {after or "HEAD"}', hide=True).stdout.strip()
 
         print(f'Getting after changes config ({color_message(after_name, Color.BOLD)})')
-        after_config = get_gitlab_ci_configuration(ctx, git_ref=after)
+        after_config = get_all_gitlab_ci_configurations(ctx, git_ref=after, clean_configs=True)
 
         print(f'Getting before changes config ({color_message(before_name, Color.BOLD)})')
-        before_config = get_gitlab_ci_configuration(ctx, git_ref=before)
+        before_config = get_all_gitlab_ci_configurations(ctx, git_ref=before, clean_configs=True)
 
-        diff = GitlabCIDiff(before_config, after_config)
+        diff = MultiGitlabCIDiff(before_config, after_config)
 
         if not diff:
             print(color_message("No changes in the gitlab-ci configuration", Color.GREEN))

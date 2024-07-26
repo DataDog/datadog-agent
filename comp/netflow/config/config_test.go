@@ -9,19 +9,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestReadConfig(t *testing.T) {
-	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
+	logger := logmock.New(t)
 
 	var tests = []struct {
 		name           string

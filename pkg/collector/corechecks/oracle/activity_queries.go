@@ -72,12 +72,7 @@ const activityQueryOnView12 = `SELECT /* DD_ACTIVITY_SAMPLING */
 	command_name
 FROM sys.dd_session
 WHERE
-	( sql_text NOT LIKE '%DD_ACTIVITY_SAMPLING%' OR sql_text is NULL )
-	AND (
-		NOT (state = 'WAITING' AND wait_class = 'Idle')
-		OR state = 'WAITING' AND event = 'fbar timer' AND type = 'USER'
-	)
-	AND status = 'ACTIVE'`
+	( sql_text NOT LIKE '%DD_ACTIVITY_SAMPLING%' OR sql_text is NULL )`
 
 const activityQueryOnView11 = `SELECT /* DD_ACTIVITY_SAMPLING */
 	SYSDATE as now,
@@ -143,14 +138,10 @@ const activityQueryOnView11 = `SELECT /* DD_ACTIVITY_SAMPLING */
 	command_name
 FROM sys.dd_session
 WHERE
-	( sql_text NOT LIKE '%DD_ACTIVITY_SAMPLING%' OR sql_text is NULL )
-	AND (
-		NOT (state = 'WAITING' AND wait_class = 'Idle')
-		OR state = 'WAITING' AND event = 'fbar timer' AND type = 'USER'
-	)
-	AND status = 'ACTIVE'`
+	( sql_text NOT LIKE '%DD_ACTIVITY_SAMPLING%' OR sql_text is NULL )`
 
 const activityQueryDirect = `SELECT /*+ push_pred(sq) push_pred(sq_prev) */ /* DD_ACTIVITY_SAMPLING */
+SYSDATE as now,
 s.sid,
 s.serial#,
 s.username,
@@ -223,10 +214,5 @@ AND sq.child_number(+) = s.sql_child_number
 AND sq_prev.sql_id(+)   = s.prev_sql_id
 AND sq_prev.child_number(+) = s.prev_child_number
 AND ( sq.sql_text NOT LIKE '%DD_ACTIVITY_SAMPLING%' OR sq.sql_text is NULL )
-AND (
-	NOT (state = 'WAITING' AND wait_class = 'Idle')
-	OR state = 'WAITING' AND event = 'fbar timer' AND type = 'USER'
-)
-AND status = 'ACTIVE'
 AND s.con_id = c.con_id(+)
 AND s.command = comm.command_type(+)`

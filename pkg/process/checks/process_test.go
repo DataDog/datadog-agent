@@ -24,7 +24,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -239,7 +239,7 @@ func TestProcessCheckWithRealtime(t *testing.T) {
 }
 
 func TestOnlyEnvConfigArgsScrubbingEnabled(t *testing.T) {
-	cfg := ddconfig.Mock(t)
+	cfg := configmock.New(t)
 
 	t.Setenv("DD_CUSTOM_SENSITIVE_WORDS", "*password*,consul_token,*api_key")
 
@@ -265,7 +265,7 @@ func TestOnlyEnvConfigArgsScrubbingEnabled(t *testing.T) {
 }
 
 func TestOnlyEnvConfigArgsScrubbingDisabled(t *testing.T) {
-	cfg := ddconfig.Mock(t)
+	cfg := configmock.New(t)
 
 	t.Setenv("DD_SCRUB_ARGS", "false")
 	t.Setenv("DD_CUSTOM_SENSITIVE_WORDS", "*password*,consul_token,*api_key")
@@ -463,7 +463,7 @@ func BenchmarkProcessCheck(b *testing.B) {
 
 func TestProcessCheckZombieToggleFalse(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
-	cfg := ddconfig.Mock(t)
+	cfg := configmock.New(t)
 	processCheck.config = cfg
 	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
 
@@ -514,7 +514,7 @@ func TestProcessCheckZombieToggleFalse(t *testing.T) {
 
 func TestProcessCheckZombieToggleTrue(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
-	cfg := ddconfig.Mock(t)
+	cfg := configmock.New(t)
 	processCheck.config = cfg
 	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
 

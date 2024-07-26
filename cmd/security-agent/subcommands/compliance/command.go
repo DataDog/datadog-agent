@@ -22,8 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/check"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/aptconfig"
@@ -80,7 +79,7 @@ func complianceLoadCommand(globalParams *command.GlobalParams) *cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
 				}),
 				core.Bundle(),
 			)
@@ -158,7 +157,7 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
 				}),
 				core.Bundle(),
 			)

@@ -29,10 +29,10 @@ import (
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 )
@@ -142,7 +142,7 @@ func TestUpdateOutdatedWebhookV1(t *testing.T) {
 }
 
 func TestAdmissionControllerFailureModeIgnore(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	f := newFixtureV1(t)
 	c, _ := f.createController()
 	c.config = NewConfig(true, false)
@@ -173,7 +173,7 @@ func TestAdmissionControllerFailureModeIgnore(t *testing.T) {
 }
 
 func TestAdmissionControllerFailureModeFail(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	f := newFixtureV1(t)
 	c, _ := f.createController()
 
@@ -191,7 +191,7 @@ func TestAdmissionControllerFailureModeFail(t *testing.T) {
 }
 
 func TestAdmissionControllerReinvocationPolicyV1(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	f := newFixtureV1(t)
 	c, _ := f.createController()
 	c.config = NewConfig(true, false)
@@ -956,11 +956,9 @@ func TestGenerateTemplatesV1(t *testing.T) {
 	)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig := config.Mock(t)
+			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("kube_resources_namespace", "nsfoo")
 			tt.setupConfig(mockConfig)
-			autoinstrumentation.UnsetWebhook()       // Ensure that the webhook uses the config set above
-			defer autoinstrumentation.UnsetWebhook() // So other tests are not impacted
 
 			c := &ControllerV1{}
 			c.config = tt.configFunc()
@@ -973,7 +971,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 }
 
 func TestGetWebhookSkeletonV1(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	defaultReinvocationPolicy := admiv1.IfNeededReinvocationPolicy
 	failurePolicy := admiv1.Ignore
 	matchPolicy := admiv1.Exact

@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
@@ -22,7 +23,7 @@ import (
 // fromConfig
 
 func TestFromConfig(t *testing.T) {
-	config.Mock(t)
+	configmock.New(t)
 	config.Datadog().SetWithoutSource("hostname", "test-hostname")
 
 	hostname, err := fromConfig(context.TODO(), "")
@@ -31,7 +32,7 @@ func TestFromConfig(t *testing.T) {
 }
 
 func TestFromConfigInvalid(t *testing.T) {
-	config.Mock(t)
+	configmock.New(t)
 	config.Datadog().SetWithoutSource("hostname", "hostname_with_underscore")
 
 	_, err := fromConfig(context.TODO(), "")
@@ -48,7 +49,7 @@ func setupHostnameFile(t *testing.T, content string) {
 	err = os.WriteFile(destFile.Name(), []byte(content), os.ModePerm)
 	require.NoError(t, err, "Could not write to tmp file %s: %s", destFile.Name(), err)
 
-	config.Mock(t)
+	configmock.New(t)
 	config.Datadog().SetWithoutSource("hostname_file", destFile.Name())
 
 	destFile.Close()
@@ -71,7 +72,7 @@ func TestFromHostnameFileWhitespaceTrim(t *testing.T) {
 }
 
 func TestFromHostnameFileNoFileName(t *testing.T) {
-	config.Mock(t)
+	configmock.New(t)
 	config.Datadog().SetWithoutSource("hostname_file", "")
 
 	_, err := fromHostnameFile(context.TODO(), "")
@@ -111,7 +112,7 @@ func TestFromFQDN(t *testing.T) {
 	osHostnameUsable = func(ctx context.Context) bool { return true }
 	fqdnHostname = func() (string, error) { return "fqdn-hostname", nil }
 
-	config.Mock(t)
+	configmock.New(t)
 	config.Datadog().SetWithoutSource("hostname_fqdn", false)
 
 	_, err := fromFQDN(context.TODO(), "")
@@ -165,7 +166,7 @@ func TestFromEc2Prioritize(t *testing.T) {
 	// This test than when a NON default EC2 hostname is detected but ec2_prioritize_instance_id_as_hostname is set
 	// to true we use the instance ID
 	defer func() { ec2GetInstanceID = ec2.GetInstanceID }()
-	config.Mock(t)
+	configmock.New(t)
 	config.Datadog().SetWithoutSource("ec2_prioritize_instance_id_as_hostname", true)
 
 	// make AWS provider return an error

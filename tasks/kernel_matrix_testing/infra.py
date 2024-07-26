@@ -10,7 +10,7 @@ from invoke.context import Context
 
 from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
-from tasks.kernel_matrix_testing.tool import Exit, ask, error, info
+from tasks.kernel_matrix_testing.tool import Exit, error, info
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import KMTArchNameOrLocal, PathOrStr, SSHKey, StackOutput
@@ -130,7 +130,11 @@ class LibvirtDomain:
         self.run_cmd(ctx, f"mkdir -p {os.path.dirname(target)}", verbose=verbose)
 
         run = self._get_rsync_base(exclude) + f" {source} root@{self.ip}:{target}"
-        return self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
+        res = self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
+        if res:
+            info(f"[+] (HOST: {source}) => (VM: {target})")
+
+        return res
 
     def download(
         self,
@@ -141,7 +145,10 @@ class LibvirtDomain:
         verbose: bool = False,
     ):
         run = self._get_rsync_base(exclude) + f" root@{self.ip}:{source} {target}"
-        return self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
+        res = self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
+        if res:
+            info(f"[+] (VM: {source}) => (HOST: {target})")
+        return res
 
     def __repr__(self):
         return f"<LibvirtDomain> {self.name} {self.ip}"
@@ -193,15 +200,6 @@ def build_infrastructure(stack: str, ssh_key_obj: SSHKey | None = None):
         infra[arch] = instance
 
     return infra
-
-
-def ask_for_ssh() -> bool:
-    return (
-        ask(
-            "You may want to provide ssh key, since the given config launches a remote instance.\nContinue without a ssh key?[Y/n]"
-        )
-        != "y"
-    )
 
 
 def get_ssh_key_name(pubkey: Path) -> str | None:

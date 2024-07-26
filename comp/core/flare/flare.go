@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"

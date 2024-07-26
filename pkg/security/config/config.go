@@ -204,6 +204,8 @@ type RuntimeSecurityConfig struct {
 	// SBOMResolverWorkloadsCacheSize defines the count of SBOMs to keep in memory in order to prevent re-computing
 	// the SBOMs of short-lived and periodical workloads
 	SBOMResolverWorkloadsCacheSize int
+	// SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM
+	SBOMResolverHostEnabled bool
 
 	// HashResolverEnabled defines if the hash resolver should be enabled
 	HashResolverEnabled bool
@@ -371,6 +373,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		// SBOM resolver
 		SBOMResolverEnabled:            coreconfig.SystemProbe.GetBool("runtime_security_config.sbom.enabled"),
 		SBOMResolverWorkloadsCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.sbom.workloads_cache_size"),
+		SBOMResolverHostEnabled:        coreconfig.SystemProbe.GetBool("runtime_security_config.sbom.host.enabled"),
 
 		// Hash resolver
 		HashResolverEnabled:        coreconfig.SystemProbe.GetBool("runtime_security_config.hash_resolver.enabled"),
@@ -510,16 +513,7 @@ func (c *RuntimeSecurityConfig) sanitizeRuntimeSecurityConfigActivityDump() erro
 		c.ActivityDumpTracedCgroupsCount = model.MaxTracedCgroupsCount
 	}
 
-	hasProfileStorageFormat := false
-	for _, format := range c.ActivityDumpLocalStorageFormats {
-		hasProfileStorageFormat = hasProfileStorageFormat || format == Profile
-	}
-
-	if c.SecurityProfileEnabled && !hasProfileStorageFormat {
-		return fmt.Errorf("'profile' storage format has to be enabled when using security profiles, got only formats: %v", c.ActivityDumpLocalStorageFormats)
-	}
-
-	if c.SecurityProfileEnabled && c.ActivityDumpLocalStorageDirectory != c.SecurityProfileDir {
+	if c.SecurityProfileEnabled && c.ActivityDumpEnabled && c.ActivityDumpLocalStorageDirectory != c.SecurityProfileDir {
 		return fmt.Errorf("activity dumps storage directory '%s' has to be the same than security profile storage directory '%s'", c.ActivityDumpLocalStorageDirectory, c.SecurityProfileDir)
 	}
 

@@ -28,7 +28,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -245,19 +246,18 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			webhook, err := GetWebhook(wmeta)
-			require.NoError(t, err)
-
-			err = webhook.injectAutoInstruConfig(tt.pod, tt.libsToInject, false, "")
+			webhook := mustWebhook(t, wmeta)
+			err := webhook.injectAutoInstruConfig(tt.pod, tt.libsToInject, false, "")
 			if tt.wantErr {
-				require.Error(t, err)
+				require.Error(t, err, "expected injectAutoInstruConfig to error")
 			} else {
-				require.NoError(t, err)
+				require.NoError(t, err, "expected injectAutoInstruConfig to succeed")
 			}
 
 			if err != nil {
 				return
 			}
+
 			assertLibReq(t, tt.pod, tt.libsToInject[0].lang, tt.libsToInject[0].image, tt.expectedEnvKey, tt.expectedEnvVal)
 		})
 	}
@@ -329,7 +329,7 @@ func TestExtractLibInfo(t *testing.T) {
 		},
 	}
 
-	var mockConfig *config.MockConfig
+	var mockConfig model.Config
 	tests := []struct {
 		name                 string
 		pod                  *corev1.Pod
@@ -543,6 +543,35 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 		},
 		{
+			name:                 "all with mutate_unlabelled off",
+			pod:                  common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "latest"),
+			containerRegistry:    "registry",
+			expectedPodEligible:  pointer.Ptr(false),
+			expectedLibsToInject: allLatestLibs,
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
+			},
+		},
+		{
+			name: "all with mutate_unlabelled off, but labelled admission enabled",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"admission.datadoghq.com/all-lib.version": "latest",
+					},
+					Labels: map[string]string{
+						"admission.datadoghq.com/enabled": "true",
+					},
+				},
+			},
+			containerRegistry:    "registry",
+			expectedPodEligible:  pointer.Ptr(true),
+			expectedLibsToInject: allLatestLibs,
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
+			},
+		},
+		{
 			name: "java + all",
 			pod: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
@@ -627,8 +656,8 @@ func TestExtractLibInfo(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Fix me: since comp-config and pkg-config don't work together yet we have to set settings
-			// twice
+			// Fix me: since comp-config and pkg-config don't work together,
+			// we have to set settings twice
 			overrides := map[string]interface{}{
 				"admission_controller.mutate_unlabelled":  true,
 				"admission_controller.container_registry": commonRegistry,
@@ -643,7 +672,7 @@ func TestExtractLibInfo(t *testing.T) {
 				workloadmetafxmock.MockModule(),
 				fx.Supply(workloadmeta.NewParams()),
 			)
-			mockConfig = config.Mock(t)
+			mockConfig = configmock.New(t)
 			for k, v := range overrides {
 				mockConfig.SetWithoutSource(k, v)
 			}
@@ -652,17 +681,13 @@ func TestExtractLibInfo(t *testing.T) {
 				tt.setupConfig()
 			}
 
-			// Need to create a new instance of the webhook to take into account
-			// the config changes.
-			UnsetWebhook()
-			apmInstrumentationWebhook, errInitAPMInstrumentation := GetWebhook(wmeta)
-			require.NoError(t, errInitAPMInstrumentation)
+			webhook := mustWebhook(t, wmeta)
 
 			if tt.expectedPodEligible != nil {
-				require.Equal(t, *tt.expectedPodEligible, apmInstrumentationWebhook.isPodEligible(tt.pod))
+				require.Equal(t, *tt.expectedPodEligible, webhook.isPodEligible(tt.pod))
 			}
 
-			libsToInject, _ := apmInstrumentationWebhook.extractLibInfo(tt.pod)
+			libsToInject, _ := webhook.extractLibInfo(tt.pod)
 			require.ElementsMatch(t, tt.expectedLibsToInject, libsToInject)
 		})
 	}
@@ -804,7 +829,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			conf := config.Mock(t)
+			conf := configmock.New(t)
 			if tt.cpu != "" {
 				conf.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.cpu", tt.cpu)
 			}
@@ -899,7 +924,7 @@ func injectAllEnvs() []corev1.EnvVar {
 
 func TestInjectAutoInstrumentation(t *testing.T) {
 	var (
-		mockConfig *config.MockConfig
+		mockConfig model.Config
 		wConfig    = func(k string, v any) func() {
 			return func() {
 				mockConfig.SetWithoutSource(k, v)
@@ -2151,20 +2176,16 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 
 			wmeta := common.FakeStoreWithDeployment(t, tt.langDetectionDeployments)
 
-			mockConfig = config.Mock(t)
+			mockConfig = configmock.New(t)
 			if tt.setupConfig != nil {
 				for _, f := range tt.setupConfig {
 					f()
 				}
 			}
 
-			// Need to create a new instance of the webhook to take into account
-			// the config changes.
-			UnsetWebhook()
-			apmInstrumentationWebhook, errInitAPMInstrumentation := GetWebhook(wmeta)
-			require.NoError(t, errInitAPMInstrumentation)
+			webhook := mustWebhook(t, wmeta)
 
-			_, err := apmInstrumentationWebhook.inject(tt.pod, "", fake.NewSimpleDynamicClient(scheme.Scheme))
+			_, err := webhook.inject(tt.pod, "", fake.NewSimpleDynamicClient(scheme.Scheme))
 			require.False(t, (err != nil) != tt.wantErr)
 
 			container := tt.pod.Spec.Containers[0]
@@ -2228,7 +2249,7 @@ func getLanguageFromInitContainerName(initContainerName string) string {
 }
 
 func TestShouldInject(t *testing.T) {
-	var mockConfig *config.MockConfig
+	var mockConfig model.Config
 	tests := []struct {
 		name        string
 		pod         *corev1.Pod
@@ -2403,19 +2424,19 @@ func TestShouldInject(t *testing.T) {
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig = config.Mock(nil)
+			mockConfig = configmock.New(t)
 			tt.setupConfig()
 
-			// Need to create a new instance of the webhook to take into account
-			// the config changes.
-			UnsetWebhook()
-			webhook, errInitAPMInstrumentation := GetWebhook(wmeta)
-			require.NoError(t, errInitAPMInstrumentation)
-
-			require.Equal(t, tt.want, ShouldInject(tt.pod, webhook.wmeta), "expected ShouldInject() to be %t", tt.want)
+			webhook := mustWebhook(t, wmeta)
 			require.Equal(t, tt.want, webhook.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
 		})
 	}
+}
+
+func mustWebhook(t *testing.T, wmeta workloadmeta.Component) *Webhook {
+	webhook, err := NewWebhook(wmeta, GetInjectionFilter())
+	require.NoError(t, err)
+	return webhook
 }
 
 func languageSetOf(languages ...string) util.LanguageSet {

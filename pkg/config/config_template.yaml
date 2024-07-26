@@ -972,7 +972,7 @@ api_key:
 
   ## @param batch_wait - integer - optional - default: 5
   ## @env DD_LOGS_CONFIG_BATCH_WAIT - integer - optional - default: 5
-  ## The maximum time the Datadog Agent waits to fill each batch of logs before sending.
+  ## The maximum time (in seconds) the Datadog Agent waits to fill each batch of logs before sending.
   #
   # batch_wait: 5
 
@@ -1637,6 +1637,39 @@ api_key:
   # enabled: false
 
 {{ end }}
+
+{{- if .NetworkPath }}
+{{- if (ne .OS "darwin")}}
+
+########################################
+## Network Path Configuration         ##
+########################################
+
+# network_path:
+  ## @param connections_monitoring - custom object - optional
+  ## Specific configurations for monitoring network connections via Network Path.
+  #
+  # connections_monitoring:
+
+    ## @param enabled - bool - optional - default: false
+    ## @env DD_NETWORK_PATH_CONNECTIONS_MONITORING_ENABLED - bool - optional - default: false
+    ## [Beta] Enables monitoring network connections via Network Path.
+    #
+    # enabled: false
+
+  ## @param collector - custom object - optional
+  ## Configuration related to Network Path Collector.
+  #
+  # collector:
+
+    ## @param workers - integer - optional - default: 4
+    ## @env DD_WORKERS - integer - optional - default: 4
+    ## The `workers` refers to the number of concurrent workers available for network path execution.
+    #
+    # workers: 4
+
+{{ end -}}
+{{ end -}}
 {{ end -}}
 {{- if .Compliance }}
 #############################################
@@ -1822,6 +1855,21 @@ api_key:
 # ping:
   ## @param enabled - boolean - optional - default: false
   ## Set to true to enable the Ping Module of the System Probe
+  #
+  # enabled: false
+
+{{ end -}}
+
+
+{{- if .TracerouteModule }}
+
+###########################################
+## System Probe Traceroute Configuration ##
+###########################################
+
+# traceroute:
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable the Traceroute Module of the System Probe
   #
   # enabled: false
 

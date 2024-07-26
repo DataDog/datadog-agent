@@ -165,6 +165,7 @@
 /cmd/agent/dist/conf.d/jetson.d/        @DataDog/agent-devx-infra
 /cmd/agent/dist/conf.d/oracle.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring
+/cmd/agent/dist/conf.d/network_path.d/  @DataDog/Networks @DataDog/network-device-monitoring
 /cmd/agent/dist/conf.d/sbom.d/          @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring
 /cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-agent
@@ -207,6 +208,7 @@
 /Dockerfiles/agent/entrypoint.d.windows/ @DataDog/container-integrations @DataDog/windows-agent
 /Dockerfiles/agent/entrypoint.ps1        @DataDog/container-integrations @DataDog/windows-agent
 /Dockerfiles/agent/windows/              @DataDog/container-integrations @DataDog/windows-agent
+/Dockerfiles/agent-ot/Dockerfile.byoc   @DataDog/opentelemetry
 
 /docs/                                  @DataDog/documentation @DataDog/agent-devx-loops
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-metrics-logs
@@ -537,7 +539,9 @@
 /tasks/updater.py                       @DataDog/fleet
 /tasks/libs/common/omnibus.py           @DataDog/agent-delivery
 /tasks/omnibus.py                       @DataDog/agent-delivery
+/tasks/unit_tests/components_tests.py   @DataDog/agent-shared-components
 /tasks/unit_tests/omnibus_tests.py      @DataDog/agent-delivery
+/tasks/unit_tests/testdata/components_src/ @DataDog/agent-shared-components
 /tasks/installer.py                     @DataDog/fleet
 /test/                                  @DataDog/agent-devx-loops
 /test/benchmarks/                       @DataDog/agent-metrics-logs
@@ -585,6 +589,7 @@
 /test/new-e2e/tests/orchestrator              @DataDog/container-app
 /test/new-e2e/tests/process                   @DataDog/processes
 /test/new-e2e/tests/sysprobe-functional     @DataDog/windows-kernel-integrations
+/test/new-e2e/tests/security-agent-functional     @DataDog/windows-kernel-integrations
 /test/new-e2e/tests/cws                       @DataDog/agent-security
 /test/new-e2e/tests/agent-metrics-logs   @DataDog/agent-metrics-logs
 /test/new-e2e/tests/windows                   @DataDog/windows-agent @DataDog/windows-kernel-integrations
@@ -600,6 +605,7 @@
 /test/workload-checks/                        @DataDog/single-machine-performance
 
 /tools/                                 @DataDog/agent-devx-loops
+/tools/ci                               @DataDog/agent-devx-infra
 /tools/ebpf/                            @DataDog/ebpf-platform
 /tools/gdb/                             @DataDog/agent-shared-components
 /tools/go-update/                       @DataDog/agent-shared-components

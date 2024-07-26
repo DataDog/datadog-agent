@@ -15,12 +15,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
+
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver"
+	"github.com/stretchr/testify/require"
 )
 
 type MockedDirEntry struct {
@@ -45,7 +44,7 @@ func (m MockedDirEntry) Type() fs.FileMode {
 }
 
 func blankResolver(t testing.TB) *multiFilesOIDResolver {
-	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
+	logger := logmock.New(t)
 	return &multiFilesOIDResolver{traps: make(oidresolver.TrapSpec), logger: logger}
 }
 
@@ -74,7 +73,7 @@ func TestDecoding(t *testing.T) {
 }
 
 func TestSortFiles(t *testing.T) {
-	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
+	logger := logmock.New(t)
 	files := []fs.DirEntry{
 		MockedDirEntry{name: "totoro", isDir: false},
 		MockedDirEntry{name: "porco", isDir: false},

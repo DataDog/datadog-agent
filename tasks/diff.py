@@ -77,6 +77,7 @@ def go_deps(
     baseline_ref=None,
     report_file=None,
     report_metrics: bool = False,
+    git_ref: str | None = None,
 ):
     if check_uncommitted_changes(ctx):
         raise Exit(
@@ -176,7 +177,11 @@ def go_deps(
                                 f"os:{goos}",
                                 f"arch:{goarch}",
                                 f"git_sha:{commit_sha}",
+                                f"git_ref:{git_ref}",
                             ]
+
+                            if git_ref:
+                                tags.append(f"git_ref:{git_ref}")
 
                             dependency_diff = create_count(METRIC_GO_DEPS_DIFF, timestamp, (add - remove), tags)
                             send_metrics([dependency_diff])

@@ -15,7 +15,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
