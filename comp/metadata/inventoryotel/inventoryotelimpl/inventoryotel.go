@@ -129,7 +129,7 @@ func newInventoryOtelProvider(deps dependencies) (provides, error) {
 		return provides{}, err
 	}
 
-	i.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, i.getPayload, "otel.json")
+	i.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, i.getPayload, "otel")
 
 	if i.Enabled {
 		// TODO: if there's an update on the OTel side we currently will not be

@@ -191,7 +191,7 @@ func (m *MockSerializer) SendIterableSeries(_ metrics.SerieSource) error        
 func (m *MockSerializer) AreSeriesEnabled() bool                                  { return true }
 func (m *MockSerializer) SendSketch(_ metrics.SketchesSource) error               { return nil }
 func (m *MockSerializer) AreSketchesEnabled() bool                                { return true }
-func (m *MockSerializer) SendMetadata(_ marshaler.JSONMarshaler) error            { return nil }
+func (m *MockSerializer) SendMetadata(_ marshaler.JSONMarshaler, _ string) error  { return nil }
 func (m *MockSerializer) SendHostMetadata(_ marshaler.JSONMarshaler) error        { return nil }
 func (m *MockSerializer) SendProcessesMetadata(_ interface{}) error               { return nil }
 func (m *MockSerializer) SendAgentchecksMetadata(_ marshaler.JSONMarshaler) error { return nil }

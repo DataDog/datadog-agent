@@ -71,6 +71,8 @@ var (
 		[]string{"domain", "endpoint", "error_type"}, "Count of transactions errored grouped by type of error")
 	tlmTxHTTPErrors = telemetry.NewCounter("transactions", "http_errors",
 		[]string{"domain", "endpoint", "code"}, "Count of transactions http errors per http code")
+
+	tlmPayloadTypeSent = telemetry.NewCounter("payloads", "success_sent_count", []string{"type"}, "Count of payloads types sent successfully")
 )
 
 var trace *httptrace.ClientTrace
@@ -218,6 +220,10 @@ func (d Destination) String() string {
 		return "Unknown"
 	}
 }
+
+// PayloadTypeHTTPHeaderKey is the http header key used to specify the type of the payload
+// It should only be used for debug and telemetry purposes
+const PayloadTypeHTTPHeaderKey = "DD-Payload-Type"
 
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
 type HTTPTransaction struct {
@@ -443,6 +449,12 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 	TransactionsSuccessByEndpoint.Add(transactionEndpointName, 1)
 	transactionsSuccessBytesByEndpoint.Add(transactionEndpointName, int64(t.GetPayloadSize()))
 	transactionsSuccess.Add(1)
+
+	// if the transaction has "payload type" headers, increment the telemetry counter
+	payloadTypes := t.Headers.Values(PayloadTypeHTTPHeaderKey)
+	for _, payloadType := range payloadTypes {
+		tlmPayloadTypeSent.Inc(payloadType)
+	}
 
 	loggingFrequency := config.GetInt64("logging_frequency")
 

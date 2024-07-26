@@ -130,17 +130,17 @@ func (_m *MetricSerializer) SendIterableSeries(serieSource metrics.SerieSource) 
 	return r0
 }
 
-// SendMetadata provides a mock function with given fields: m
-func (_m *MetricSerializer) SendMetadata(m marshaler.JSONMarshaler) error {
-	ret := _m.Called(m)
+// SendMetadata provides a mock function with given fields: m, payloadType
+func (_m *MetricSerializer) SendMetadata(m marshaler.JSONMarshaler, payloadType string) error {
+	ret := _m.Called(m, payloadType)
 
 	if len(ret) == 0 {
 		panic("no return value specified for SendMetadata")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(marshaler.JSONMarshaler) error); ok {
-		r0 = rf(m)
+	if rf, ok := ret.Get(0).(func(marshaler.JSONMarshaler, string) error); ok {
+		r0 = rf(m, payloadType)
 	} else {
 		r0 = ret.Error(0)
 	}

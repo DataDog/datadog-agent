@@ -437,20 +437,20 @@ func TestSendMetadata(t *testing.T) {
 			compressor := compressionimpl.NewCompressor(mockConfig)
 			s := NewSerializer(f, nil, compressor, mockConfig, "testhost")
 			jsonPayloads, _ := mkPayloads(jsonString, true, s)
-			f.On("SubmitMetadata", jsonPayloads, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
+			f.On("SubmitMetadata", jsonPayloads, addTransactionTypeHeader(s.jsonExtraHeadersWithCompression, "metadata-test")).Return(nil).Times(1)
 
 			payload := &testPayload{compressor: compressor}
-			err := s.SendMetadata(payload)
+			err := s.SendMetadata(payload, "test")
 			require.Nil(t, err)
 			f.AssertExpectations(t)
 
-			f.On("SubmitMetadata", jsonPayloads, s.jsonExtraHeadersWithCompression).Return(fmt.Errorf("some error")).Times(1)
-			err = s.SendMetadata(payload)
+			f.On("SubmitMetadata", jsonPayloads, addTransactionTypeHeader(s.jsonExtraHeadersWithCompression, "metadata-test")).Return(fmt.Errorf("some error")).Times(1)
+			err = s.SendMetadata(payload, "test")
 			require.NotNil(t, err)
 			f.AssertExpectations(t)
 
 			errPayload := &testErrorPayload{}
-			err = s.SendMetadata(errPayload)
+			err = s.SendMetadata(errPayload, "test")
 			require.NotNil(t, err)
 		})
 	}
@@ -472,13 +472,13 @@ func TestSendProcessesMetadata(t *testing.T) {
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			s := NewSerializer(f, nil, compressionimpl.NewCompressor(mockConfig), mockConfig, "testhost")
 			payloads, _ := mkPayloads(payload, true, s)
-			f.On("SubmitV1Intake", payloads, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
+			f.On("SubmitV1Intake", payloads, addTransactionTypeHeader(s.jsonExtraHeadersWithCompression, "metadata-processes")).Return(nil).Times(1)
 
 			err := s.SendProcessesMetadata("test")
 			require.Nil(t, err)
 			f.AssertExpectations(t)
 
-			f.On("SubmitV1Intake", payloads, s.jsonExtraHeadersWithCompression).Return(fmt.Errorf("some error")).Times(1)
+			f.On("SubmitV1Intake", payloads, addTransactionTypeHeader(s.jsonExtraHeadersWithCompression, "metadata-processes")).Return(fmt.Errorf("some error")).Times(1)
 			err = s.SendProcessesMetadata("test")
 			require.NotNil(t, err)
 			f.AssertExpectations(t)
@@ -526,9 +526,15 @@ func TestSendWithDisabledKind(t *testing.T) {
 			f.AssertNotCalled(t, "SubmitSketchSeries")
 
 			// We never disable metadata
-			f.On("SubmitMetadata", jsonPayloads, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
-			s.SendMetadata(payload)
+			f.On("SubmitMetadata", jsonPayloads, addTransactionTypeHeader(s.jsonExtraHeadersWithCompression, "metadata-test")).Return(nil).Times(1)
+			s.SendMetadata(payload, "test")
 			f.AssertNumberOfCalls(t, "SubmitMetadata", 1) // called once for the metadata
 		})
 	}
+}
+
+func addTransactionTypeHeader(base http.Header, value string) http.Header {
+	h := base.Clone()
+	h.Add(transaction.PayloadTypeHTTPHeaderKey, value)
+	return h
 }

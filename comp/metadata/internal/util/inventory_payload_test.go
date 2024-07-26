@@ -42,7 +42,7 @@ func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *Invent
 		fxutil.Test[log.Component](t, logimpl.MockModule()),
 		serializermock.NewMetricSerializer(t),
 		func() marshaler.JSONMarshaler { return &testPayload{} },
-		"test.json",
+		"test",
 	)
 	return &i
 }
@@ -155,11 +155,11 @@ func TestCollectStartupTime(t *testing.T) {
 	serializerMock.On(
 		"SendMetadata",
 		mock.MatchedBy(func(m marshaler.JSONMarshaler) bool {
-			if _, ok := m.(*testPayload); !ok {
-				return false
-			}
-			return true
-		})).Return(nil)
+			_, ok := m.(*testPayload)
+			return ok
+		}),
+		"inventory-test",
+	).Return(nil)
 
 	i.serializer = serializerMock
 	interval = i.collect(context.Background())
@@ -180,11 +180,11 @@ func TestCollect(t *testing.T) {
 	serializerMock.On(
 		"SendMetadata",
 		mock.MatchedBy(func(m marshaler.JSONMarshaler) bool {
-			if _, ok := m.(*testPayload); !ok {
-				return false
-			}
-			return true
-		})).Return(nil)
+			_, ok := m.(*testPayload)
+			return ok
+		}),
+		"inventory-test",
+	).Return(nil)
 
 	// Make sure the minInterval between two payload has expired
 	i.LastCollect = time.Now().Add(-1 * time.Hour)
@@ -213,11 +213,11 @@ func TestCollect(t *testing.T) {
 	serializerMock.On(
 		"SendMetadata",
 		mock.MatchedBy(func(m marshaler.JSONMarshaler) bool {
-			if _, ok := m.(*testPayload); !ok {
-				return false
-			}
-			return true
-		})).Return(nil)
+			_, ok := m.(*testPayload)
+			return ok
+		}),
+		"inventory-test",
+	).Return(nil)
 
 	i.collect(context.Background())
 	i.serializer.(*serializermock.MetricSerializer).AssertExpectations(t)
