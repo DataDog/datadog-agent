@@ -8,7 +8,6 @@ package assertions
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -64,8 +63,6 @@ func (r *RemoteWindowsBinaryAssertions) WithVersionMatchPredicate(predicate func
 	r.suite.T().Helper()
 	actual, err := r.remoteHost.Execute(fmt.Sprintf("& \"%s\" %s", r.binaryPath, "version"))
 	r.require.NoError(err)
-	actualVersion, err := version.New(strings.TrimSuffix(actual, "\n"), "")
-	r.require.NoErrorf(err, "invalid actual version %s", actual)
-	predicate(actualVersion.GetNumberAndPre())
+	predicate(strings.TrimSuffix(actual, "\n"))
 	return r
 }
