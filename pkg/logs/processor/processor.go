@@ -49,8 +49,8 @@ type sdsProcessor struct {
 	bufferedBytes int
 	maxBufferSize int
 
-	waitForConfig bool // the configuration value indicating if we want to wait for an SDS configuration
-	buffering     bool // the runtime status
+	/// buffering indicates if we're buffering while waiting for an SDS configuration
+	buffering bool
 
 	scanner *sds.Scanner // configured through RC
 }
@@ -75,7 +75,6 @@ func New(cfg pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message,
 		hostname:                  hostname,
 
 		sds: sdsProcessor{
-			waitForConfig: waitForSDSConfig,
 			// will immediately starts buffering if it has been configured as so
 			buffering:     waitForSDSConfig,
 			maxBufferSize: maxBufferSize,
@@ -172,22 +171,20 @@ func (p *Processor) applySDSReconfiguration(order sds.ReconfigureOrder) {
 	if err != nil {
 		log.Errorf("Error while reconfiguring the SDS scanner: %v", err)
 	} else {
-		// no error while reconfiguring the SDS scanner and it is active?
+		// no error while reconfiguring the SDS scanner and since it looks active now,
 		// we should drain the buffered messages if any and stop the
 		// buffering mechanism.
 		if p.sds.buffering && isActive {
-			if p.sds.waitForConfig {
-				log.Debug("Processor ready with an SDS configuration.")
-				p.sds.buffering = false
+			log.Debug("Processor ready with an SDS configuration.")
+			p.sds.buffering = false
 
-				// drain the buffer of messages if anything's in there
-				log.Info("SDS: draining", len(p.sds.buffer), "buffered messages")
-				for _, msg := range p.sds.buffer {
-					p.processMessage(msg)
-				}
-
-				p.sds.resetBuffer()
+			// drain the buffer of messages if anything's in there
+			log.Info("SDS: draining", len(p.sds.buffer), "buffered messages")
+			for _, msg := range p.sds.buffer {
+				p.processMessage(msg)
 			}
+
+			p.sds.resetBuffer()
 		}
 		// no else case, the buffering is only a startup mechanism, after having
 		// enabled the SDS scanners, if they become inactive it is because the
@@ -199,12 +196,27 @@ func (p *Processor) applySDSReconfiguration(order sds.ReconfigureOrder) {
 
 func (s *sdsProcessor) bufferMsg(msg *message.Message) {
 	msgSize := len(msg.GetContent())
+
+	// we still have room, just add it
 	if msgSize+s.bufferedBytes < s.maxBufferSize {
 		s.buffer = append(s.buffer, msg)
 		s.bufferedBytes += msgSize
-	}
+	} else {
+		// we don't have enough room anymore, let's remove a few messages to make it fit
+		for len(s.buffer) > 1 {
+			// remove the oldest msg
+			oldestMsg := s.buffer[0]
+			s.bufferedBytes -= len(oldestMsg.GetContent())
+			s.buffer = s.buffer[1:]
+			metrics.TlmLogsDiscardedFromSDSBuffer.Inc()
 
-	// TODO(remy): account for dropped messages
+			// do we have enough room available now?
+			if s.bufferedBytes+msgSize < s.maxBufferSize {
+				s.buffer = append(s.buffer, msg)
+				break
+			}
+		}
+	}
 }
 
 func (s *sdsProcessor) resetBuffer() {

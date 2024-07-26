@@ -6,6 +6,7 @@
 package processor
 
 import (
+	"log"
 	"regexp"
 	"sync/atomic"
 	"testing"
@@ -324,9 +325,8 @@ func TestBuffering(t *testing.T) {
 		done:                      make(chan struct{}),
 		// configured to buffer (max 3 messages)
 		sds: sdsProcessor{
-			maxBufferSize: len("hello") + len("hello second") + len("hello third") + 1,
+			maxBufferSize: len("hello1world") + len("hello2world") + len("hello3world") + 1,
 			buffering:     true,
-			waitForConfig: true,
 			scanner:       sds.CreateScanner(42),
 		},
 	}
@@ -336,7 +336,8 @@ func TestBuffering(t *testing.T) {
 	// consumer
 	go func() {
 		for {
-			<-p.outputChan
+			msg := <-p.outputChan
+			log.Println("processed:", string(msg.GetContent()))
 			processedMessages.Add(1)
 		}
 	}()
@@ -348,16 +349,18 @@ func TestBuffering(t *testing.T) {
 	assert.Len(p.sds.buffer, 0)
 
 	// validates it buffers these 3 messages
-	src := newSource("exclude_at_match", "", "world")
-	p.inputChan <- newMessage([]byte("hello"), &src, "")
-	p.inputChan <- newMessage([]byte("hello second"), &src, "")
-	p.inputChan <- newMessage([]byte("hello third"), &src, "")
+	src := newSource("exclude_at_match", "", "foobar")
+	p.inputChan <- newMessage([]byte("hello1world"), &src, "")
+	p.inputChan <- newMessage([]byte("hello2world"), &src, "")
+	p.inputChan <- newMessage([]byte("hello3world"), &src, "")
 	// wait for the other routine to process the messages
 	messagesDequeue(t, func() bool { return processedMessages.Load() == 0 }, "the messages should not be be procesesd")
+	messagesDequeue(t, func() bool { return len(p.sds.buffer) == 3 }, "all messages should be in the buffer")
 
 	// the limit is configured to 3 messages
-	p.inputChan <- newMessage([]byte("hello fourth"), &src, "")
+	p.inputChan <- newMessage([]byte("hello4world"), &src, "")
 	messagesDequeue(t, func() bool { return processedMessages.Load() == 0 }, "the messages should still not be processed")
+	messagesDequeue(t, func() bool { return len(p.sds.buffer) == 3 }, "only 3 messages should be part of the buffer")
 
 	// reconfigure the processor
 	// --
@@ -409,6 +412,7 @@ func TestBuffering(t *testing.T) {
 
 	// first, check that the buffer is still full
 	messagesDequeue(t, func() bool { return processedMessages.Load() == 0 }, "no messages should be processed just yet")
+	messagesDequeue(t, func() bool { return len(p.sds.buffer) == 3 }, "no messages should be processed just yet")
 
 	order = sds.ReconfigureOrder{
 		Type: sds.AgentConfig,

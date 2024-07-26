@@ -132,7 +132,7 @@ func newLogsAgent(deps dependencies) provides {
 			config:         deps.Config,
 			inventoryAgent: deps.InventoryAgent,
 			hostname:       deps.Hostname,
-			started:        atomic.NewUint32(0),
+			started:        atomic.NewUint32(status.StatusNotStarted),
 
 			sources:            sources.NewLogSources(),
 			services:           service.NewServices(),
@@ -218,6 +218,10 @@ func (a *logAgent) setupAgent() error {
 	if config.HasMultiLineRule(processingRules) {
 		a.log.Warn(multiLineWarning)
 		status.AddGlobalWarning(invalidProcessingRules, multiLineWarning)
+	}
+
+	if !sds.ValidateConfigField(a.config) {
+		a.log.Warn("Invalid configuration value for 'logs_config.sds.wait_for_configuration' parameter")
 	}
 
 	a.SetupPipeline(processingRules, a.wmeta)
