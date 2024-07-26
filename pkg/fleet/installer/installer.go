@@ -256,7 +256,6 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-
 	return i.getInstallerPackageFor(pkg).StopExperiment(ctx)
 }
 
@@ -264,12 +263,6 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-
-	repository := i.repositories.Get(pkg)
-	err := repository.PromoteExperiment(ctx)
-	if err != nil {
-		return fmt.Errorf("could not promote experiment: %w", err)
-	}
 	return i.getInstallerPackageFor(pkg).PromoteExperiment(ctx)
 }
 
