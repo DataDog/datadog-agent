@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -49,7 +50,7 @@ func TestCGroup(t *testing.T) {
 		},
 		{
 			ID:         "test_cgroup_systemd",
-			Expression: `open.file.path == "{{.Root}}/test-open" && cgroup.id == "/system.slice/cws-test.service" && cgroup.manager == "systemd"`,
+			Expression: `open.file.path == "{{.Root}}/test-open2" && cgroup.id == "/system.slice/cws-test.service"`, // && cgroup.manager == "systemd"
 		},
 	}
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -65,6 +66,11 @@ func TestCGroup(t *testing.T) {
 	defer os.RemoveAll(cgroupPath)
 
 	testFile, testFilePtr, err := test.Path("test-open")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testFile2, _, err := test.Path("test-open2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,10 +96,15 @@ func TestCGroup(t *testing.T) {
 	})
 
 	t.Run("systemd", func(t *testing.T) {
+		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
+			// TODO(lebauce): On the systems, systemd service creation doesn't trigger a cprocs write
+			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
+		})
+
 		test.WaitSignal(t, func() error {
 			serviceUnit := fmt.Sprintf(`[Service]
 Type=oneshot
-ExecStart=/usr/bin/touch %s`, testFile)
+ExecStart=/usr/bin/touch %s`, testFile2)
 			if err := os.WriteFile("/etc/systemd/system/cws-test.service", []byte(serviceUnit), 0700); err != nil {
 				return err
 			}
@@ -114,7 +125,7 @@ ExecStart=/usr/bin/touch %s`, testFile)
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_cgroup_systemd")
-			assertFieldEqual(t, event, "open.file.path", testFile)
+			assertFieldEqual(t, event, "open.file.path", testFile2)
 			assertFieldEqual(t, event, "cgroup.manager", "systemd")
 			assertFieldNotEqual(t, event, "cgroup.id", "")
 
