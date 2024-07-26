@@ -139,14 +139,14 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (payload.Network
 	}
 	switch protocol {
 	case payload.ProtocolTCP:
-		log.Debugf("Running TCP traceroute for: %+v", cfg)
+		log.Tracef("Running TCP traceroute for: %+v", cfg)
 		pathResult, err = r.runTCP(cfg, hname, dest, maxTTL, timeout)
 		if err != nil {
 			tracerouteRunnerTelemetry.failedRuns.Inc()
 			return payload.NetworkPath{}, err
 		}
 	case payload.ProtocolUDP:
-		log.Debugf("Running UDP traceroute for: %+v", cfg)
+		log.Tracef("Running UDP traceroute for: %+v", cfg)
 		pathResult, err = r.runUDP(cfg, hname, dest, maxTTL, timeout)
 		if err != nil {
 			tracerouteRunnerTelemetry.failedRuns.Inc()
@@ -186,7 +186,7 @@ func (r *Runner) runUDP(cfg Config, hname string, dest net.IP, maxTTL uint8, tim
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}
-	log.Debugf("UDP Results: %+v", pathResult)
+	log.Tracef("UDP Results: %+v", pathResult)
 
 	return pathResult, nil
 }
@@ -216,7 +216,7 @@ func (r *Runner) runTCP(cfg Config, hname string, target net.IP, maxTTL uint8, t
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}
-	log.Debugf("TCP Results: %+v", pathResult)
+	log.Tracef("TCP Results: %+v", pathResult)
 
 	return pathResult, nil
 }
