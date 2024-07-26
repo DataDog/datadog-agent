@@ -180,6 +180,11 @@ func (p *Provider) kubeletContainerLogFilesystemUsedBytes(metricFam *prom.Metric
 	for _, metric := range metricFam.Samples {
 		cID := common.GetContainerID(p.store, metric.Metric, p.filter)
 
+		if cID == "" {
+			// Container is not found, or is excluded from metrics collection
+			continue
+		}
+
 		tags, _ := tagger.Tag(cID, types.HighCardinality)
 		if len(tags) == 0 {
 			log.Debugf("Tags not found for container: %s/%s/%s:%s", metric.Metric["namespace"], metric.Metric["pod"], metric.Metric["container"], cID)
