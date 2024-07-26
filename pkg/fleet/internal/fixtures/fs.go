@@ -60,6 +60,19 @@ func fsContainsAll(a fs.FS, b fs.FS) error {
 		if err != nil {
 			return err
 		}
+		// On Windows we have pesky \r that will mess our test result.
+		if runtime.GOOS == "windows" {
+			for i, c := range contentA {
+				if c == '\r' {
+					contentA = append(contentA[:i], contentA[i+1:]...)
+				}
+			}
+			for i, c := range contentB {
+				if c == '\r' {
+					contentB = append(contentB[:i], contentB[i+1:]...)
+				}
+			}
+		}
 		if !bytes.Equal(contentA, contentB) {
 			return fmt.Errorf("files %s do not have the same content: %s != %s", path, contentA, contentB)
 		}
