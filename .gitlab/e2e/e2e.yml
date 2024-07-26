@@ -398,8 +398,7 @@ new-e2e-ndm-snmp:
 generate-flakes-finder-pipeline:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: e2e
-  rules:
-    - !reference [.on_deploy_nightly_repo_branch]
+  rules: !reference [.on_deploy_nightly_repo_branch]
   needs:
     - deploy_deb_testing-a7_arm64
     - deploy_deb_testing-a7_x64
