@@ -8,6 +8,7 @@ package automultilinedetection
 
 import (
 	"bytes"
+	"strings"
 	"unicode"
 )
 
@@ -81,7 +82,6 @@ const (
 	apm // am or pm
 	zone
 	t
-	z
 
 	end // Not a valid token. Used to mark the end of the token list or as a terminator.
 )
@@ -258,12 +258,13 @@ func getSpecialShortToken(char byte) Token {
 	case 'T':
 		return t
 	case 'Z':
-		return z
+		return zone
 	}
 	return end
 }
 
-// getSpecialLongToken returns a special token that is > 1 character
+// getSpecialLongToken returns a special token that is > 1 character.
+// NOTE: This set of tokens is non-exhaustive and can be expanded.
 func getSpecialLongToken(input string) Token {
 	switch input {
 	case "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL",
@@ -288,17 +289,9 @@ func getSpecialLongToken(input string) Token {
 // tokenToString converts a single token to a debug string.
 func tokenToString(token Token) string {
 	if token >= d1 && token <= d10 {
-		t := ""
-		for i := 0; i <= int(token-d1); i++ {
-			t += "D"
-		}
-		return t
+		return strings.Repeat("D", int(token-d1)+1)
 	} else if token >= c1 && token <= c10 {
-		t := ""
-		for i := 0; i <= int(token-c1); i++ {
-			t += "C"
-		}
-		return t
+		return strings.Repeat("C", int(token-c1)+1)
 	}
 
 	switch token {
@@ -368,8 +361,6 @@ func tokenToString(token Token) string {
 		return "PM"
 	case t:
 		return "T"
-	case z:
-		return "Z"
 	case zone:
 		return "ZONE"
 	}

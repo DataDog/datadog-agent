@@ -34,13 +34,13 @@ func TestTokenizer(t *testing.T) {
 		{input: "!@#$%^&*()_+[]:-/\\.,\\'{}\"`~", expectedToken: "!@#$%^&*()_+[]:-/\\.,\\'{}\"`~"},
 		{input: "123-abc-[foo] (bar)", expectedToken: "DDD-CCC-[CCC] (CCC)"},
 		{input: "Sun Mar 2PM EST", expectedToken: "DAY MTH DPM ZONE"},
-		{input: "12-12-12T12:12:12.12T12:12Z123", expectedToken: "DD-DD-DDTDD:DD:DD.DDTDD:DDZDDD"},
+		{input: "12-12-12T12:12:12.12T12:12Z123", expectedToken: "DD-DD-DDTDD:DD:DD.DDTDD:DDZONEDDD"},
 		{input: "amped", expectedToken: "CCCCC"},   // am should not be handled if it's part of a word
 		{input: "am!ped", expectedToken: "PM!CCC"}, // am should be handled since it's separated by a special character
 		{input: "TIME", expectedToken: "CCCC"},
 		{input: "T123", expectedToken: "TDDD"},
 		{input: "ZONE", expectedToken: "CCCC"},
-		{input: "Z0NE", expectedToken: "ZDCC"},
+		{input: "Z0NE", expectedToken: "ZONEDCC"},
 		{input: "abc!📀🐶📊123", expectedToken: "CCC!CCCCCCCCCCDDD"},
 		{input: "!!!$$$###", expectedToken: "!$#"}, // Symobl runs get truncated
 	}
