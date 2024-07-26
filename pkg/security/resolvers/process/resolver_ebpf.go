@@ -362,6 +362,14 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	if err := unix.Statx(unix.AT_FDCWD, taskPath, 0, unix.STATX_ALL, &fileStats); err == nil {
 		entry.Process.CGroup.CGroupFile.MountID = uint32(fileStats.Mnt_id)
 		entry.Process.CGroup.CGroupFile.Inode = fileStats.Ino
+	} else {
+		// Get the file fields of the cgroup file
+		info, err := p.retrieveExecFileFields(taskPath)
+		if err != nil {
+			seclog.Debugf("snapshot failed for %d: couldn't retrieve inode info: %w", proc.Pid, err)
+		} else {
+			entry.Process.CGroup.CGroupFile.MountID = info.MountID
+		}
 	}
 
 	if entry.FileEvent.IsFileless() {

@@ -509,16 +509,22 @@ func (fh *EBPFFieldHandlers) ResolveHashes(eventType model.EventType, process *m
 // ResolveCGroupID resolves the cgroup ID of the event
 func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, e *model.CGroupContext) string {
 	if len(e.CGroupID) == 0 {
-		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil && e.CGroupFile.Inode != 0 {
-			if entry.CGroup.CGroupID != "" {
+		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil {
+			if entry.CGroup.CGroupID != "" && entry.CGroup.CGroupID != "/" {
 				return string(entry.CGroup.CGroupID)
 			}
 
 			path, err := fh.resolvers.DentryResolver.Resolve(e.CGroupFile, true)
 			if err == nil && path != "" {
-				path = filepath.Dir(string(path))
-				entry.CGroup.CGroupID = model.CGroupID(path)
+				cgroup := filepath.Dir(string(path))
+				if cgroup == "/" {
+					cgroup = path
+				}
+
+				entry.Process.CGroup.CGroupID = model.CGroupID(cgroup)
+				entry.CGroup.CGroupID = model.CGroupID(cgroup)
 				containerID, _ := model.GetContainerFromCgroup(string(entry.CGroup.CGroupID))
+				entry.Process.ContainerID = model.ContainerID(containerID)
 				entry.ContainerID = model.ContainerID(containerID)
 			} else {
 				entry.CGroup.CGroupID = containerutils.GetCgroupFromContainer(entry.ContainerID, entry.CGroup.CGroupFlags)

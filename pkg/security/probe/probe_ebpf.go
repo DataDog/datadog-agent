@@ -723,9 +723,14 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		if err == nil && path != "" {
 			path = filepath.Dir(string(path))
 			event.ProcessCacheEntry.CGroup.CGroupID = model.CGroupID(path)
-			containerID, cgroupFlags := model.GetContainerFromCgroup(string(event.ProcessCacheEntry.CGroup.CGroupID))
+			event.ProcessCacheEntry.Process.CGroup.CGroupID = model.CGroupID(path)
+			containerID, cgroupFlags := model.GetContainerFromCgroup(path)
 			event.ProcessCacheEntry.ContainerID = model.ContainerID(containerID)
+			event.ProcessCacheEntry.Process.ContainerID = model.ContainerID(containerID)
 			event.ProcessCacheEntry.CGroup.CGroupFlags = cgroupFlags
+			event.ProcessCacheEntry.Process.CGroup = event.ProcessCacheEntry.CGroup
+		} else {
+			seclog.Debugf("failed to resolve cgroup file %v", event.CgroupWrite.File)
 		}
 
 	case model.FileMountEventType:

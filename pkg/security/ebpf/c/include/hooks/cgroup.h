@@ -127,6 +127,18 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         bpf_probe_read(&container_qstr, sizeof(container_qstr), &container_d->d_name);
         container_id = (void *)container_qstr.name;
 
+        u64 inode = get_dentry_ino(container_d);
+        resolver->key.ino = inode;
+        struct file_t *entry = bpf_map_lookup_elem(&exec_file_cache, &inode);
+        if (entry == NULL) {
+            return 0;
+        }
+        else {
+            resolver->key.mount_id = entry->path_key.mount_id;
+        }
+
+        resolver->dentry = container_d;
+
         if (is_docker_cgroup(ctx, container_d)) {
             container_flags |= CGROUP_MANAGER_DOCKER;
             check_validity = 1;
@@ -261,6 +273,40 @@ int hook_cgroup_tasks_write(ctx_t *ctx) {
 HOOK_ENTRY("cgroup1_tasks_write")
 int hook_cgroup1_tasks_write(ctx_t *ctx) {
     return trace__cgroup_write(ctx);
+}
+
+static __attribute__((always_inline)) void cache_file(struct dentry *dentry, u32 mount_id);
+
+static __attribute__((always_inline)) int trace__cgroup_open(ctx_t *ctx) {
+    u32 cgroup_write_type = get_cgroup_write_type();
+    struct file *file;
+
+    switch (cgroup_write_type) {
+    case CGROUP_CENTOS_7: {
+        file = (struct file *)CTX_PARM2(ctx);
+        break;
+    }
+    default:
+        // ignore
+        return 0;
+    }
+
+    struct dentry *dentry = get_file_dentry(file);
+    u32 mount_id = get_file_mount_id(file);
+
+    cache_file(dentry, mount_id);
+
+    return 0;
+}
+
+HOOK_ENTRY("cgroup_procs_open")
+int hook_cgroup_procs_open(ctx_t *ctx) {
+    return trace__cgroup_open(ctx);
+}
+
+HOOK_ENTRY("cgroup_tasks_open")
+int hook_cgroup_tasks_open(ctx_t *ctx) {
+    return trace__cgroup_open(ctx);
 }
 
 #endif
