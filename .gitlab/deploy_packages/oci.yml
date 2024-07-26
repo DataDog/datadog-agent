@@ -21,7 +21,8 @@ include:
     - export VERSION=$(inv agent.version --url-safe)-1
     - git config --global credential.helper '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; };f'
     - ${CI_PROJECT_DIR}/tools/ci/retry.sh git clone -v https://github.com/DataDog/datadog-packages /tmp/datadog-packages
-    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    - function urlencode() { old_lc_collate=$LC_COLLATE; LC_COLLATE=C; local length="${#1}"; for (( i = 0; i < length; i++ )); do local c="${1:$i:1}"; case $c in [a-zA-Z0-9.~_-]) printf '%s' "$c" ;; *) printf '%%%02X' "'$c" ;; esac; done; LC_COLLATE=$old_lc_collate; }
+    - git config --global url."https://gitlab-ci-token:$(urlencode "${CI_JOB_TOKEN}")@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
     - export GOPROXY="binaries.ddbuild.io,proxy.golang.org,direct"
     - export GONOSUMDB="github.com/DataDog,go.ddbuild.io"
     - export GOPRIVATE="github.com/DataDog,go.ddbuild.io"
