@@ -89,7 +89,6 @@ go_e2e_deps:
   extends: .cache_policy
   variables:
     KUBERNETES_CPU_REQUEST: 16
-    SHOULD_RUN_IN_FLAKES_FINDER: "true"
   script:
     - if [ -f modcache_e2e.tar.xz  ]; then exit 0; fi
     - source /root/.bashrc
