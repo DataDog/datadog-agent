@@ -366,7 +366,7 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 		// Get the file fields of the cgroup file
 		info, err := p.retrieveExecFileFields(taskPath)
 		if err != nil {
-			seclog.Debugf("snapshot failed for %d: couldn't retrieve inode info: %w", proc.Pid, err)
+			seclog.Debugf("snapshot failed for %d: couldn't retrieve inode info: %s", proc.Pid, err)
 		} else {
 			entry.Process.CGroup.CGroupFile.MountID = info.MountID
 		}
