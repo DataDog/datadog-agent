@@ -90,7 +90,7 @@ func testSetup(t *testing.T, overrides map[string]interface{}, start bool, fakeI
 	// use fake resolver so the test results are deterministic
 	internalRDNSQuerier := provides.Comp.(*rdnsQuerierImpl)
 	assert.NotNil(t, internalRDNSQuerier)
-	if internalRDNSQuerier.config.cacheEnabled {
+	if internalRDNSQuerier.config.cache.enabled {
 		internalCache := internalRDNSQuerier.cache.(*cacheImpl)
 		assert.NotNil(t, internalCache)
 		internalQuerier := internalCache.querier.(*querierImpl)
@@ -133,6 +133,7 @@ func (ts *testState) makeExpectedTelemetry(checkTelemetry map[string]float64) ma
 		"cache_expired":           0.0,
 		"cache_size":              0.0,
 		"cache_max_size_exceeded": 0.0,
+		"rate_limiter_limit":      0.0,
 	}
 	for name, value := range checkTelemetry {
 		et[name] = value

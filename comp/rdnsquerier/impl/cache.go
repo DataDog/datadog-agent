@@ -62,7 +62,7 @@ func (c *cacheImpl) stop() {
 }
 
 func newCache(config *rdnsQuerierConfig, logger log.Component, internalTelemetry *rdnsQuerierTelemetry, querier querier) cache {
-	if !config.cacheEnabled {
+	if !config.cache.enabled {
 		return &cacheNone{
 			querier: querier,
 		}
@@ -115,7 +115,7 @@ func (c *cacheImpl) getHostname(addr string, updateHostnameSync func(string), up
 	c.data[addr] = &cacheEntry{
 		Hostname:         "",
 		callbacks:        []func(string, error){updateHostnameAsync},
-		retriesRemaining: c.config.cacheMaxRetries,
+		retriesRemaining: c.config.cache.maxRetries,
 		queryInProgress:  true,
 	}
 
@@ -168,13 +168,13 @@ func (c *cacheImpl) sendQuery(addr string) error {
 			c.mutex.Lock()
 			if entry, ok := c.data[addr]; ok {
 				entry.Hostname = hostname
-				entry.ExpirationTime = time.Now().Add(c.config.cacheEntryTTL)
+				entry.ExpirationTime = time.Now().Add(c.config.cache.entryTTL)
 				entry.queryInProgress = false
 
 				callbacks := entry.callbacks
 				entry.callbacks = nil
 
-				if len(c.data) > c.config.cacheMaxSize {
+				if len(c.data) > c.config.cache.maxSize {
 					c.internalTelemetry.cacheMaxSizeExceeded.Inc()
 					// cache size exceeds max, delete this entry
 					// note that it is not expected to be common to exceed the max size, so this is simply a safeguard to prevent the cache from growing indefinitely
@@ -197,7 +197,7 @@ func (c *cacheImpl) sendQuery(addr string) error {
 
 func (c *cacheImpl) runExpireLoop() {
 	// call expire() periodically to remove expired entries from the cache
-	ticker := time.NewTicker(c.config.cacheCleanInterval)
+	ticker := time.NewTicker(c.config.cache.cleanInterval)
 	go func() {
 		for {
 			select {
@@ -235,7 +235,7 @@ func (c *cacheImpl) expire(startTime time.Time) {
 
 func (c *cacheImpl) runPersistLoop() {
 	// call persist() periodically to save the cache to persistent storage
-	ticker := time.NewTicker(c.config.cachePersistInterval)
+	ticker := time.NewTicker(c.config.cache.persistInterval)
 	go func() {
 		for {
 			select {

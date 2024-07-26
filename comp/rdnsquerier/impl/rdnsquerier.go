@@ -40,16 +40,6 @@ type rdnsQuerierTelemetry = struct {
 	invalidIPAddress telemetry.Counter
 	private          telemetry.Counter
 
-	// querier
-	chanAdded          telemetry.Counter
-	droppedChanFull    telemetry.Counter
-	droppedRateLimiter telemetry.Counter
-	lookupErrNotFound  telemetry.Counter
-	lookupErrTimeout   telemetry.Counter
-	lookupErrTemporary telemetry.Counter
-	lookupErrOther     telemetry.Counter
-	successful         telemetry.Counter
-
 	// cache
 	cacheHit             telemetry.Counter
 	cacheHitExpired      telemetry.Counter
@@ -60,6 +50,19 @@ type rdnsQuerierTelemetry = struct {
 	cacheExpired         telemetry.Counter
 	cacheSize            telemetry.Gauge
 	cacheMaxSizeExceeded telemetry.Counter
+
+	// querier
+	chanAdded          telemetry.Counter
+	droppedChanFull    telemetry.Counter
+	droppedRateLimiter telemetry.Counter
+	lookupErrNotFound  telemetry.Counter
+	lookupErrTimeout   telemetry.Counter
+	lookupErrTemporary telemetry.Counter
+	lookupErrOther     telemetry.Counter
+	successful         telemetry.Counter
+
+	// rate limiter
+	rateLimiterLimit telemetry.Gauge
 }
 
 type rdnsQuerierImpl struct {
@@ -75,16 +78,25 @@ type rdnsQuerierImpl struct {
 // NewComponent creates a new rdnsquerier component
 func NewComponent(reqs Requires) (Provides, error) {
 	rdnsQuerierConfig := newConfig(reqs.AgentConfig)
-	reqs.Logger.Infof("Reverse DNS Enrichment config: (enabled=%t workers=%d chan_size=%d rate_limiter.enabled=%t rate_limiter.limit_per_sec=%d cache.enabled=%t cache.entry_ttl=%d cache.clean_interval=%d cache.persist_interval=%d)",
+	reqs.Logger.Infof("Reverse DNS Enrichment config: (enabled=%t workers=%d chan_size=%d cache.enabled=%t cache.entry_ttl=%d cache.clean_interval=%d cache.persist_interval=%d cache.max_retries=%d cache.max_size=%d rate_limiter.enabled=%t rate_limiter.limit_per_sec=%d rate_limiter.limit_throttled_per_sec=%d rate_limiter.throttle_error_threshold=%d rate_limiter.recovery_intervals=%d rate_limiter.recovery_interval=%d)",
 		rdnsQuerierConfig.enabled,
 		rdnsQuerierConfig.workers,
 		rdnsQuerierConfig.chanSize,
-		rdnsQuerierConfig.rateLimiterEnabled,
-		rdnsQuerierConfig.rateLimitPerSec,
-		rdnsQuerierConfig.cacheEnabled,
-		rdnsQuerierConfig.cacheEntryTTL,
-		rdnsQuerierConfig.cacheCleanInterval,
-		rdnsQuerierConfig.cachePersistInterval)
+
+		rdnsQuerierConfig.cache.enabled,
+		rdnsQuerierConfig.cache.entryTTL,
+		rdnsQuerierConfig.cache.cleanInterval,
+		rdnsQuerierConfig.cache.persistInterval,
+		rdnsQuerierConfig.cache.maxRetries,
+		rdnsQuerierConfig.cache.maxSize,
+
+		rdnsQuerierConfig.rateLimiter.enabled,
+		rdnsQuerierConfig.rateLimiter.limitPerSec,
+		rdnsQuerierConfig.rateLimiter.limitThrottledPerSec,
+		rdnsQuerierConfig.rateLimiter.throttleErrorThreshold,
+		rdnsQuerierConfig.rateLimiter.recoveryIntervals,
+		rdnsQuerierConfig.rateLimiter.recoveryInterval,
+	)
 
 	if !rdnsQuerierConfig.enabled {
 		return Provides{
@@ -97,15 +109,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 		reqs.Telemetry.NewCounter(moduleName, "invalid_ip_address", []string{}, "Counter measuring the number of rDNS requests with an invalid IP address"),
 		reqs.Telemetry.NewCounter(moduleName, "private", []string{}, "Counter measuring the number of rDNS requests in the private address space"),
 
-		reqs.Telemetry.NewCounter(moduleName, "chan_added", []string{}, "Counter measuring the number of rDNS requests added to the channel"),
-		reqs.Telemetry.NewCounter(moduleName, "dropped_chan_full", []string{}, "Counter measuring the number of rDNS requests dropped because the channel was full"),
-		reqs.Telemetry.NewCounter(moduleName, "dropped_rate_limiter", []string{}, "Counter measuring the number of rDNS requests dropped because the rate limiter wait failed"),
-		reqs.Telemetry.NewCounter(moduleName, "lookup_err_not_found", []string{}, "Counter measuring the number of rDNS lookups that returned a not found error"),
-		reqs.Telemetry.NewCounter(moduleName, "lookup_err_timeout", []string{}, "Counter measuring the number of rDNS lookups that returned a timeout error"),
-		reqs.Telemetry.NewCounter(moduleName, "lookup_err_temporary", []string{}, "Counter measuring the number of rDNS lookups that returned a temporary error"),
-		reqs.Telemetry.NewCounter(moduleName, "lookup_err_other", []string{}, "Counter measuring the number of rDNS lookups that returned error not otherwise classified"),
-		reqs.Telemetry.NewCounter(moduleName, "successful", []string{}, "Counter measuring the number of successful rDNS requests"),
-
 		reqs.Telemetry.NewCounter(moduleName, "cache_hit", []string{}, "Counter measuring the number of successful rDNS cache hits"),
 		reqs.Telemetry.NewCounter(moduleName, "cache_hit_expired", []string{}, "Counter measuring the number of expired rDNS cache hits"),
 		reqs.Telemetry.NewCounter(moduleName, "cache_hit_in_progress", []string{}, "Counter measuring the number of in progress rDNS cache hits"),
@@ -115,6 +118,17 @@ func NewComponent(reqs Requires) (Provides, error) {
 		reqs.Telemetry.NewCounter(moduleName, "cache_expired", []string{}, "Counter measuring the number of expired rDNS cache entries"),
 		reqs.Telemetry.NewGauge(moduleName, "cache_size", []string{}, "Gauge measuring the number of rDNS cache entries"),
 		reqs.Telemetry.NewCounter(moduleName, "cache_max_size_exceeded", []string{}, "Counter measuring the number of times the rDNS cache exceeded the maximum size"),
+
+		reqs.Telemetry.NewCounter(moduleName, "chan_added", []string{}, "Counter measuring the number of rDNS requests added to the channel"),
+		reqs.Telemetry.NewCounter(moduleName, "dropped_chan_full", []string{}, "Counter measuring the number of rDNS requests dropped because the channel was full"),
+		reqs.Telemetry.NewCounter(moduleName, "dropped_rate_limiter", []string{}, "Counter measuring the number of rDNS requests dropped because the rate limiter wait failed"),
+		reqs.Telemetry.NewCounter(moduleName, "lookup_err_not_found", []string{}, "Counter measuring the number of rDNS lookups that returned a not found error"),
+		reqs.Telemetry.NewCounter(moduleName, "lookup_err_timeout", []string{}, "Counter measuring the number of rDNS lookups that returned a timeout error"),
+		reqs.Telemetry.NewCounter(moduleName, "lookup_err_temporary", []string{}, "Counter measuring the number of rDNS lookups that returned a temporary error"),
+		reqs.Telemetry.NewCounter(moduleName, "lookup_err_other", []string{}, "Counter measuring the number of rDNS lookups that returned error not otherwise classified"),
+		reqs.Telemetry.NewCounter(moduleName, "successful", []string{}, "Counter measuring the number of successful rDNS requests"),
+
+		reqs.Telemetry.NewGauge(moduleName, "rate_limiter_limit", []string{}, "Gauge measuring the rDNS rate limiter limit per second"),
 	}
 
 	q := &rdnsQuerierImpl{

@@ -46,14 +46,15 @@ func newQuerier(config *rdnsQuerierConfig, logger log.Component, internalTelemet
 		config:            config,
 		logger:            logger,
 		internalTelemetry: internalTelemetry,
-		rateLimiter:       newRateLimiter(config),
+		rateLimiter:       newRateLimiter(config, logger, internalTelemetry),
 		resolver:          newResolver(config),
 	}
 }
 
 func (q *querierImpl) start() {
-	q.ctx, q.cancel = context.WithCancel(context.Background())
+	q.rateLimiter.start()
 
+	q.ctx, q.cancel = context.WithCancel(context.Background())
 	q.queryChan = make(chan *query, q.config.chanSize)
 
 	for range q.config.workers {
@@ -66,8 +67,9 @@ func (q *querierImpl) start() {
 func (q *querierImpl) stop() {
 	q.cancel()
 	q.wg.Wait()
-
 	q.logger.Infof("Reverse DNS Enrichment stopped workers")
+
+	q.rateLimiter.stop()
 }
 
 func (q *querierImpl) worker() {
@@ -116,6 +118,7 @@ func (q *querierImpl) getHostname(query *query) {
 				q.logger.Debugf("Reverse DNS Enrichment net.LookupAddr returned not found error '%v' for IP address %v", err, query.addr)
 				// IsNotFound error is treated as a successful resolution with a hostname of ""
 				query.updateHostnameAsync("", nil)
+				q.rateLimiter.markSuccess()
 				return
 			}
 			if dnsErr.IsTimeout {
@@ -127,15 +130,18 @@ func (q *querierImpl) getHostname(query *query) {
 				q.logger.Debugf("Reverse DNS Enrichment net.LookupAddr returned isTemporary error '%v' for IP address %v", err, query.addr)
 			}
 			query.updateHostnameAsync("", err)
+			q.rateLimiter.markFailure()
 			return
 		}
 		q.internalTelemetry.lookupErrOther.Inc()
 		q.logger.Debugf("Reverse DNS Enrichment net.LookupAddr returned error '%v' for IP address %v", err, query.addr)
 		query.updateHostnameAsync("", err)
+		q.rateLimiter.markFailure()
 		return
 	}
 
 	q.internalTelemetry.successful.Inc()
 	q.logger.Tracef("Reverse DNS Enrichment q.resolver.lookup() successfully resolved IP address %s hostname = %s", query.addr, hostname)
 	query.updateHostnameAsync(hostname, nil)
+	q.rateLimiter.markSuccess()
 }
