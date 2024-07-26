@@ -38,7 +38,7 @@ func SystemPaths() []string {
 		`C:\Windows\System32\Tasks\`,
 		`C:\Windows\System32\spp\`,
 		`C:\Windows\SystemTemp\`,
-		`C:\Windows\Microsoft.NET`,
+		`C:\Windows\Microsoft.NET\`,
 	}
 }
 
