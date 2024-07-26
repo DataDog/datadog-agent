@@ -8,6 +8,6 @@
 ---
 features:
   - |
-    Implement static allow list of kubernetes events to send by default.
+    Implement static allowlist of Kubernetes events to send by default.
     This feature is only enabled when ``filtering_enabled`` is set to
     ``true`` in the ``kubernetes_apiserver`` integration configuration.
