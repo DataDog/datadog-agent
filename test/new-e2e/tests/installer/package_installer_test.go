@@ -121,3 +121,9 @@ func (s *packageInstallerSuite) TestUpdateInstallerOCI() {
 	version = s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version")
 	assert.NotEqual(s.T(), "7.55.0-installer-0.2.1\n", version)
 }
+
+func (s *packageInstallerSuite) TestInstallWithUmask() {
+	oldmask := s.host.SetUmask("0027")
+	defer s.host.SetUmask(oldmask)
+	s.TestInstall()
+}

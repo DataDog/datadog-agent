@@ -7,7 +7,11 @@
 
 package kafka
 
-import "github.com/DataDog/datadog-agent/pkg/network/types"
+import (
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/network/types"
+)
 
 // ConnTuple returns the connection tuple for the transaction
 func (tx *EbpfTx) ConnTuple() types.ConnectionKey {
@@ -39,4 +43,25 @@ func (tx *EbpfTx) RecordsCount() uint32 {
 // ErrorCode returns the error code in the transaction
 func (tx *EbpfTx) ErrorCode() int8 {
 	return tx.Transaction.Error_code
+}
+
+// String returns a string representation of the kafka eBPF telemetry.
+func (t *RawKernelTelemetry) String() string {
+	return fmt.Sprintf(`
+RawKernelTelemetry{
+	"topic name size distribution": {
+		"in range [1, 10]": %d,
+		"in range [11, 20]": %d,
+		"in range [21, 30]": %d,
+		"in range [31, 40]": %d,
+		"in range [41, 50]": %d,
+		"in range [51, 60]": %d,
+		"in range [61, 70]": %d,
+		"in range [71, 80]": %d,
+		"in range [81, 90]": %d,
+		"in range [91, 255]": %d,
+	}
+}`, t.Name_size_buckets[0], t.Name_size_buckets[1], t.Name_size_buckets[2], t.Name_size_buckets[3],
+		t.Name_size_buckets[4], t.Name_size_buckets[5], t.Name_size_buckets[6], t.Name_size_buckets[7],
+		t.Name_size_buckets[8], t.Name_size_buckets[9])
 }

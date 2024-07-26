@@ -49,6 +49,7 @@ const (
 	kafkaHeapMap       = "kafka_heap"
 	inFlightMap        = "kafka_in_flight"
 	responseMap        = "kafka_response"
+	telemetryMap       = "kafka_telemetry"
 
 	tlsFilterTailCall = "uprobe__kafka_tls_filter"
 
@@ -83,7 +84,7 @@ var Spec = &protocols.ProtocolSpec{
 			Name: "kafka_topic_name",
 		},
 		{
-			Name: "kafka_telemetry",
+			Name: telemetryMap,
 		},
 		{
 			Name: "kafka_batch_events",
@@ -278,6 +279,14 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 		iter := currentMap.Iterate()
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
+		}
+	case telemetryMap:
+		var zeroKey uint32
+
+		var value RawKernelTelemetry
+		protocols.WriteMapDumpHeader(w, currentMap, mapName, zeroKey, value)
+		if err := currentMap.Lookup(unsafe.Pointer(&zeroKey), unsafe.Pointer(&value)); err == nil {
+			spew.Fdump(w, zeroKey, value)
 		}
 	}
 }

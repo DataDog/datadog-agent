@@ -37,7 +37,7 @@ func New(cfg Config, telemetry telemetry.Component) (*MacTraceroute, error) {
 
 	// TCP is not supported at the moment due to the
 	// way go listensn for TCP in our implementation on BSD systems
-	if cfg.Protocol == TCP {
+	if cfg.Protocol == payload.ProtocolTCP {
 		return nil, fmt.Errorf(tcpNotSupportedMsg)
 	}
 
@@ -55,7 +55,7 @@ func (m *MacTraceroute) Run(ctx context.Context) (payload.NetworkPath, error) {
 
 	// TCP is not supported at the moment due to the
 	// way go listens for TCP in our implementation on BSD systems
-	if m.cfg.Protocol == TCP {
+	if m.cfg.Protocol == payload.ProtocolTCP {
 		return payload.NetworkPath{}, fmt.Errorf(tcpNotSupportedMsg)
 	}
 
