@@ -62,7 +62,6 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 		start := time.Now()
 		id := getClientID(req)
 		cfg, err := parseParams(req)
-		log.Debugf("Module Received params: %+v", cfg)
 		if err != nil {
 			log.Errorf("invalid params for host: %s: %s", cfg.DestHostname, err)
 			w.WriteHeader(http.StatusBadRequest)
@@ -103,7 +102,7 @@ func (t *traceroute) Close() {}
 
 func logTracerouteRequests(host string, client string, runCount uint64, start time.Time) {
 	args := []interface{}{host, client, runCount, time.Since(start)}
-	msg := "Got request on /traceroute/%s?client_id=%s (count: %d): retrieved traceroute in %s"
+	msg := "Got request on /traceroute/%s?client_id=%s (count: %d): retrieved traceroutcleare in %s"
 	switch {
 	case runCount <= 5, runCount%20 == 0:
 		log.Infof(msg, args...)
