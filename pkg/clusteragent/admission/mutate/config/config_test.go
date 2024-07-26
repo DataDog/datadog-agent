@@ -383,6 +383,10 @@ func TestJSONPatchCorrectness(t *testing.T) {
 			name: "inject only pod uid",
 			file: "./testdata/expected_jsonpatch.json",
 		},
+		{
+			name: "inject pod uid and cont_name",
+			file: "./testdata/expected_jsonpatch_with_cont_name.json",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			pod := mutatecommon.FakePodWithContainer("foo", mutatecommon.FakeContainer("container"))
