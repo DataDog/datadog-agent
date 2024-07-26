@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -60,11 +59,6 @@ func fsContainsAll(a fs.FS, b fs.FS) error {
 		contentB, err := io.ReadAll(entryB)
 		if err != nil {
 			return err
-		}
-		// On Windows we have pesky \r that will mess our test result.
-		if runtime.GOOS == "windows" {
-			contentA = bytes.ReplaceAll(contentA, []byte{'\r'}, nil)
-			contentB = bytes.ReplaceAll(contentB, []byte{'\r'}, nil)
 		}
 		if !bytes.Equal(contentA, contentB) {
 			return fmt.Errorf("files %s do not have the same content: %s != %s", path, contentA, contentB)
