@@ -7,7 +7,6 @@ package testinfradefinition
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -39,10 +38,9 @@ func TestMyKindSuite(t *testing.T) {
 
 func (v *myKindSuite) TestClusterAgentInstalled() {
 	res, _ := v.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.TODO(), v1.ListOptions{})
-	fmt.Printf("KubernetesAgentas: %+v", v.Env().Agent)
 	containsClusterAgent := false
 	for _, pod := range res.Items {
-		if strings.Contains(pod.Name, v.Env().Agent.LinuxClusterAgent.Name) {
+		if strings.Contains(pod.Name, "cluster-agent") {
 			containsClusterAgent = true
 			break
 		}

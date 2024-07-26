@@ -36,7 +36,7 @@ func (v *myLocalKindSuite) TestClusterAgentInstalled() {
 	res, _ := v.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.TODO(), v1.ListOptions{})
 	containsClusterAgent := false
 	for _, pod := range res.Items {
-		if strings.Contains(pod.Name, v.Env().Agent.LinuxClusterAgent.Name) {
+		if strings.Contains(pod.Name, "cluster-agent") {
 			containsClusterAgent = true
 			break
 		}

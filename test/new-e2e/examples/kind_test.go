@@ -48,7 +48,7 @@ func (v *myKindSuite) TestClusterAgentInstalled() {
 	var clusterAgent corev1.Pod
 	containsClusterAgent := false
 	for _, pod := range res.Items {
-		if strings.Contains(pod.Name, v.Env().Agent.LinuxClusterAgent.Name) {
+		if strings.Contains(pod.Name, "cluster-agent") {
 			containsClusterAgent = true
 			clusterAgent = pod
 			break
