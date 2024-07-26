@@ -706,6 +706,7 @@ func Benchmark_npCollectorImpl_ScheduleConns(b *testing.B) {
 	b.ResetTimer() // Reset timer after setup
 
 	for i := 0; i < b.N; i++ {
+		// add line to avoid linter error
 		_ = i
 		npCollector.ScheduleConns(connections)
 
