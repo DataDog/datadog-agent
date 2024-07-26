@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
 	"github.com/DataDog/test-infra-definitions/common/config"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	agent "github.com/DataDog/test-infra-definitions/components/datadog/agent/helm"
 	"github.com/DataDog/test-infra-definitions/resources/local"
 
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
