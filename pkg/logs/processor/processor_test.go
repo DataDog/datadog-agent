@@ -335,7 +335,7 @@ func TestBuffering(t *testing.T) {
 	// consumer
 	go func() {
 		for {
-			msg := <-p.outputChan
+			<-p.outputChan
 			processedMessages.Add(1)
 		}
 	}()
