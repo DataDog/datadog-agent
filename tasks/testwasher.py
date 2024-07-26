@@ -171,7 +171,7 @@ class TestWasher:
         return test_family
 
 
-@task()
+@task
 def generate_flake_finder_pipeline(ctx, n=3):
     """
     Generate a child pipeline where jobs marked with SHOULD_RUN_IN_FLAKES_FINDER are run n times
@@ -196,14 +196,9 @@ def generate_flake_finder_pipeline(ctx, n=3):
 
     # Remove needs, rules, extends and retry from the jobs
     for job in kept_job:
-        if 'needs' in kept_job[job]:
-            del kept_job[job]["needs"]
-        if 'rules' in kept_job[job]:
-            del kept_job[job]["rules"]
-        if 'retry' in kept_job[job]:
-            del kept_job[job]["retry"]
-        if 'extends' in kept_job[job]:
-            del kept_job[job]["extends"]
+        for step in ('needs', 'rules', 'extends', 'retry'):
+            if step in kept_job[job]:
+                del kept_job[job][step]
 
     new_jobs = {}
     new_jobs['variables'] = copy.deepcopy(config['variables'])
@@ -229,6 +224,7 @@ def generate_flake_finder_pipeline(ctx, n=3):
                 ):
                     new_job['variables']['E2E_COMMIT_SHA'] = "$PARENT_COMMIT_SHA"
             new_job["rules"] = [{"when": "always"}]
+            new_job["needs"] = ["!reference [.needs_new_e2e_template]"]
             new_jobs[f"{job}-{i}"] = new_job
 
     with open("flake-finder-gitlab-ci.yml", "w") as f:
