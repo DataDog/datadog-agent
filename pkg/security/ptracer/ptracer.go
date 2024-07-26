@@ -289,7 +289,7 @@ func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 	for {
 		pid, err := syscall.Wait4(-1, &waitStatus, 0, nil)
 		if err != nil {
-			t.opts.Logger.Debugf("unable to wait for pid %d: %v", pid, err)
+			t.opts.Logger.Errorf("unable to wait for pid %d: %v", pid, err)
 			break
 		}
 
@@ -315,7 +315,7 @@ func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 			}
 
 			if err := syscall.PtraceGetRegs(pid, &regs); err != nil {
-				t.opts.Logger.Debugf("unable to get registers for pid %d: %v", pid, err)
+				t.opts.Logger.Logf("unable to get registers for pid %d: %v", pid, err)
 
 				// it got probably killed
 				cb(CallbackExitType, ExitNr, pid, 0, regs, &waitStatus)
@@ -349,7 +349,7 @@ func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 				default:
 					state := tracker.NextStop(pid)
 
-					if tracker.IsSyscallEntry(pid) {
+					if state.Entry {
 						cb(CallbackPreType, nr, pid, 0, regs, nil)
 					} else {
 						// we already captured the exit of the exec syscall with PTRACE_EVENT_EXEC if success
@@ -362,7 +362,7 @@ func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 			}
 
 			if err := syscall.PtraceSyscall(pid, 0); err != nil {
-				t.opts.Logger.Debugf("unable to call ptrace continue for pid %d: %v", pid, err)
+				t.opts.Logger.Errorf("unable to call ptrace continue for pid %d: %v", pid, err)
 			}
 		}
 	}
@@ -389,7 +389,7 @@ func (t *Tracer) traceWithSeccomp(cb func(cbType CallbackType, nr int, pid int, 
 	for {
 		pid, err := syscall.Wait4(-1, &waitStatus, 0, nil)
 		if err != nil {
-			t.opts.Logger.Debugf("unable to wait for pid %d: %v", pid, err)
+			t.opts.Logger.Errorf("unable to wait for pid %d: %v", pid, err)
 			break
 		}
 
@@ -413,7 +413,7 @@ func (t *Tracer) traceWithSeccomp(cb func(cbType CallbackType, nr int, pid int, 
 			}
 
 			if err := syscall.PtraceGetRegs(pid, &regs); err != nil {
-				t.opts.Logger.Debugf("unable to get registers for pid %d: %v", pid, err)
+				t.opts.Logger.Logf("unable to get registers for pid %d: %v", pid, err)
 
 				// it got probably killed
 				cb(CallbackExitType, ExitNr, pid, 0, regs, &waitStatus)
@@ -445,7 +445,7 @@ func (t *Tracer) traceWithSeccomp(cb func(cbType CallbackType, nr int, pid int, 
 
 					// force a ptrace syscall in order to get to return value
 					if err := syscall.PtraceSyscall(pid, 0); err != nil {
-						t.opts.Logger.Debugf("unable to call ptrace syscall for pid %d: %v", pid, err)
+						t.opts.Logger.Errorf("unable to call ptrace syscall for pid %d: %v", pid, err)
 					}
 					continue
 				}
@@ -464,7 +464,7 @@ func (t *Tracer) traceWithSeccomp(cb func(cbType CallbackType, nr int, pid int, 
 			}
 
 			if err := syscall.PtraceCont(pid, 0); err != nil {
-				t.opts.Logger.Debugf("unable to call ptrace continue for pid %d: %v", pid, err)
+				t.opts.Logger.Errorf("unable to call ptrace continue for pid %d: %v", pid, err)
 			}
 		}
 	}

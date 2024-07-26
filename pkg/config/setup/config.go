@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
@@ -1440,6 +1441,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// maximum time that the windows tailer will hold a log file open, while waiting for
 	// the downstream logs pipeline to be ready to accept more data
 	config.BindEnvAndSetDefault("logs_config.windows_open_file_timeout", 5)
+	config.BindEnvAndSetDefault("logs_config.experimental_auto_multi_line_detection", false)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection", false)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_extra_patterns", []string{})
 	// The following auto_multi_line settings are experimental and may change
@@ -1888,6 +1890,17 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 	// setTracemallocEnabled *must* be called before setNumWorkers
 	warnings.TraceMallocEnabledWithPy2 = setTracemallocEnabled(config)
 	setNumWorkers(config)
+
+	flareStrippedKeys := config.GetStringSlice("flare_stripped_keys")
+	if len(flareStrippedKeys) > 0 {
+		log.Warn("flare_stripped_keys is deprecated, please use scrubber.additional_keys instead.")
+		scrubber.AddStrippedKeys(flareStrippedKeys)
+	}
+	scrubberAdditionalKeys := config.GetStringSlice("scrubber.additional_keys")
+	if len(scrubberAdditionalKeys) > 0 {
+		scrubber.AddStrippedKeys(scrubberAdditionalKeys)
+	}
+
 	return warnings, setupFipsEndpoints(config)
 }
 

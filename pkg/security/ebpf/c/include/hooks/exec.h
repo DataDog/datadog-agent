@@ -69,7 +69,7 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, stru
     syscall->exec.linux_binprm.interpreter = get_inode_key_path(interpreter_inode, get_file_f_path_addr(file));
     syscall->exec.linux_binprm.interpreter.path_id = get_path_id(syscall->exec.linux_binprm.interpreter.mount_id, 0);
 
-#ifdef DEBUG
+#if defined(DEBUG_INTERPRETER)
     bpf_printk("interpreter file: %llx", file);
     bpf_printk("interpreter inode: %u", syscall->exec.linux_binprm.interpreter.ino);
     bpf_printk("interpreter mount id: %u %u %u", syscall->exec.linux_binprm.interpreter.mount_id, get_file_mount_id(file), get_path_mount_id(get_file_f_path_addr(file)));
@@ -573,7 +573,7 @@ int __attribute__((always_inline)) fetch_interpreter(void *ctx, struct linux_bin
     struct file *interpreter;
     bpf_probe_read(&interpreter, sizeof(interpreter), (char *)bprm + binprm_file_offset);
 
-#ifdef DEBUG
+#if defined(DEBUG_INTERPRETER)
     bpf_printk("binprm_file_offset: %d", binprm_file_offset);
 
     bpf_printk("interpreter file: %llx", interpreter);

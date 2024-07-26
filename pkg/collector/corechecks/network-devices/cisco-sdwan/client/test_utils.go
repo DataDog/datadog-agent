@@ -107,6 +107,8 @@ func SetupMockAPIServer() *httptest.Server {
 	mux.HandleFunc("/dataservice/data/device/state/OMPPeer", fixtureHandler(fixtures.GetOMPPeersState))
 	mux.HandleFunc("/dataservice/data/device/state/BFDSessions", fixtureHandler(fixtures.GetBFDSessionsState))
 	mux.HandleFunc("/dataservice/data/device/state/HardwareEnvironment", fixtureHandler(fixtures.GetHardwareStates))
+	mux.HandleFunc("/dataservice/data/device/statistics/cloudxstatistics", fixtureHandler(fixtures.GetCloudExpressMetrics))
+	mux.HandleFunc("/dataservice/data/device/state/BGPNeighbor", fixtureHandler(fixtures.GetBGPNeighbors))
 
 	return httptest.NewServer(mux)
 }

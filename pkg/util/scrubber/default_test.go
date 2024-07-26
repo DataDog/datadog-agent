@@ -679,3 +679,33 @@ func TestAuthorization(t *testing.T) {
 		`  authorization: some auth`,
 		`  authorization: "********"`)
 }
+
+func TestScrubCommandsEnv(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			"api key",
+			`DD_API_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa agent run`,
+			`DD_API_KEY=***************************aaaaa agent run`,
+		}, {
+			"app key",
+			`DD_APP_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa agent run`,
+			`DD_APP_KEY=***********************************aaaaa agent run`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run("line "+tc.name, func(t *testing.T) {
+			scrubbed := ScrubLine(tc.input)
+			assert.EqualValues(t, tc.expected, scrubbed)
+		})
+		t.Run("bytes "+tc.name, func(t *testing.T) {
+			scrubbed, err := ScrubBytes([]byte(tc.input))
+			require.NoError(t, err)
+			assert.EqualValues(t, tc.expected, scrubbed)
+		})
+	}
+}

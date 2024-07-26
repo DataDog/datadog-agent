@@ -219,6 +219,9 @@ variables:
   GITLAB_FULL_API_TOKEN_SSM_NAME: ci.datadog-agent.gitlab_full_api_token  # ci-cd
   INSTALL_SCRIPT_API_KEY_SSM_NAME: ci.agent-linux-install-script.datadog_api_key_2  # agent-delivery
   JIRA_READ_API_TOKEN_SSM_NAME: ci.datadog-agent.jira_read_api_token  # agent-devx-infra
+  AGENT_GITHUB_APP_ID_SSM_NAME: ci.datadog-agent.platform-github-app-id  # agent-devx-infra
+  AGENT_GITHUB_INSTALLATION_ID_SSM_NAME: ci.datadog-agent.platform-github-app-installation-id  # agent-devx-infra
+  AGENT_GITHUB_KEY_SSM_NAME: ci.datadog-agent.platform-github-app-key  # agent-devx-infra
   MACOS_GITHUB_APP_ID_SSM_NAME: ci.datadog-agent.macos_github_app_id  # agent-devx-infra
   MACOS_GITHUB_INSTALLATION_ID_SSM_NAME: ci.datadog-agent.macos_github_installation_id  # agent-devx-infra
   MACOS_GITHUB_KEY_SSM_NAME: ci.datadog-agent.macos_github_key_b64  # agent-devx-infra
@@ -359,14 +362,12 @@ variables:
 .if_mergequeue: &if_mergequeue
   if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
 
-.fakeintake_changes: &fakeintake_changes
-  changes:
-    paths:
-      - "test/fakeintake/**/*"
-      - .gitlab/binary_build/fakeintake.yml
-      - .gitlab/container_build/fakeintake.yml
-      - .gitlab/dev_container_deploy/fakeintake.yml
-    compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+.fakeintake_paths: &fakeintake_paths
+  paths:
+    - "test/fakeintake/**/*"
+    - .gitlab/binary_build/fakeintake.yml
+    - .gitlab/container_build/fakeintake.yml
+    - .gitlab/dev_container_deploy/fakeintake.yml
 
 #
 # Workflow rules
@@ -685,8 +686,8 @@ workflow:
   - .gitlab/kernel_matrix_testing/common.yml
   - test/new-e2e/system-probe/**/*
   - test/new-e2e/scenarios/system-probe/**/*
-  - test/new-e2e/runner/**/*
-  - test/new-e2e-utils/**/*
+  - test/new-e2e/pkg/runner/**/*
+  - test/new-e2e/pkg/utils/**/*
   - test/new-e2e/go.mod
   - tasks/security_agent.py
   - tasks/kmt.py
@@ -707,7 +708,7 @@ workflow:
   changes:
       paths:
         - tools/windows/DatadogAgentInstaller/**/*
-        - .gitlab/new-e2e_testing/windows.yml
+        - .gitlab/kitchen_testing/new-e2e_testing/windows.yml
         - test/new-e2e/tests/windows/install-test/**/*
         - test/new-e2e/tests/windows/domain-test/**/*
         - tasks/msi.py
@@ -740,8 +741,8 @@ workflow:
   - .gitlab/kernel_matrix_testing/common.yml
   - test/new-e2e/system-probe/**/*
   - test/new-e2e/scenarios/system-probe/**/*
-  - test/new-e2e/runner/**/*
-  - test/new-e2e-utils/**/*
+  - test/new-e2e/pkg/runner/**/*
+  - test/new-e2e/pkg/utils/**/*
   - test/new-e2e/go.mod
   - tasks/system_probe.py
   - tasks/kmt.py
@@ -790,7 +791,9 @@ workflow:
 
 .on_e2e_or_fakeintake_changes_or_manual:
   - !reference [.on_e2e_main_release_or_rc]
-  - <<: *fakeintake_changes
+  - changes:
+      <<: *fakeintake_paths
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     variables:
       FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
     when: on_success
@@ -815,7 +818,6 @@ workflow:
         - pkg/collector/corechecks/containers/**/*
         - pkg/collector/corechecks/containerimage/**/*
         - pkg/collector/corechecks/containerlifecycle/**/*
-        - pkg/collector/corechecks/kubernetes/**/*
         - pkg/collector/corechecks/sbom/**/*
         - pkg/sbom/**/*
         - pkg/util/clusteragent/**/*
@@ -888,13 +890,13 @@ workflow:
         - comp/core/agenttelemetry/**/*
         - comp/core/autodiscovery/providers/config_reader*.go
         - comp/core/autodiscovery/providers/file*.go
+        - comp/dogstatsd/**/*
         - comp/forwarder/**/*
         - comp/logs/**/*
         - comp/serializer/compression/**/*
         - pkg/aggregator/**/*
         - pkg/collector/**/*
         - pkg/commonchecks/**/*
-        - pkg/dogstatsd/**/*
         - pkg/jmxfetch/**/*
         - pkg/logs/**/*
         - pkg/metrics/**/*
@@ -1040,7 +1042,6 @@ workflow:
       paths:
         - omnibus/**/*
         - .gitlab-ci.yml
-        - .gitlab/package_build.yml
         - release.json
         - .gitlab/package_build/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
@@ -1053,10 +1054,13 @@ workflow:
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_fakeintake_changes:
-  - <<: *fakeintake_changes
+  - changes:
+      <<: *fakeintake_paths
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_fakeintake_changes_on_main:
-  - <<: *fakeintake_changes
+  - changes:
+      <<: *fakeintake_paths
     <<: *if_main_branch
 
 .fast_on_dev_branch_only:

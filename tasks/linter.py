@@ -15,13 +15,16 @@ from tasks.go import run_golangci_lint
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
     generate_gitlab_full_configuration,
+    get_all_gitlab_ci_configurations,
+    get_gitlab_ci_configuration,
     get_gitlab_repo,
     get_preset_contexts,
     load_context,
     read_includes,
+    retrieve_all_paths,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH, GITHUB_REPO_NAME
 from tasks.libs.common.git import get_staged_files
 from tasks.libs.common.utils import (
@@ -369,25 +372,57 @@ def is_get_parameter_call(file):
 def gitlab_ci(ctx, test="all", custom_context=None):
     """
     Lint Gitlab CI files in the datadog-agent repository.
+
+    This will lint the main gitlab ci file with different
+    variable contexts and lint other triggered gitlab ci configs.
     """
-    all_contexts = []
-    if custom_context:
-        all_contexts = load_context(custom_context)
-    else:
-        all_contexts = get_preset_contexts(test)
-    print(f"We will tests {len(all_contexts)} contexts.")
+
     agent = get_gitlab_repo()
-    for context in all_contexts:
-        print("Test gitlab configuration with context: ", context)
-        config = generate_gitlab_full_configuration(ctx, ".gitlab-ci.yml", dict(context))
+    has_errors = False
+
+    print(f'{color_message("info", Color.BLUE)}: Fetching Gitlab CI configurations...')
+    configs = get_all_gitlab_ci_configurations(ctx)
+
+    def test_gitlab_configuration(entry_point, input_config, context=None):
+        nonlocal has_errors
+
+        # Update config and lint it
+        config = generate_gitlab_full_configuration(ctx, entry_point, context=context, input_config=input_config)
         res = agent.ci_lint.create({"content": config, "dry_run": True, "include_jobs": True})
         status = color_message("valid", "green") if res.valid else color_message("invalid", "red")
-        print(f"Config is {status}")
+
+        print(f"{color_message(entry_point, Color.BOLD)} config is {status}")
         if len(res.warnings) > 0:
-            print(color_message(f"Warnings: {res.warnings}", "orange"), file=sys.stderr)
+            print(
+                f'{color_message("warning", Color.ORANGE)}: {color_message(entry_point, Color.BOLD)}: {res.warnings})',
+                file=sys.stderr,
+            )
         if not res.valid:
-            print(color_message(f"Errors: {res.errors}", "red"), file=sys.stderr)
-            raise Exit(code=1)
+            print(
+                f'{color_message("error", Color.RED)}: {color_message(entry_point, Color.BOLD)}: {res.errors})',
+                file=sys.stderr,
+            )
+            has_errors = True
+
+    for entry_point, input_config in configs.items():
+        with gitlab_section(f"Testing {entry_point}", echo=True):
+            # Only the main config should be tested with all contexts
+            if entry_point == ".gitlab-ci.yml":
+                all_contexts = []
+                if custom_context:
+                    all_contexts = load_context(custom_context)
+                else:
+                    all_contexts = get_preset_contexts(test)
+
+                print(f'{color_message("info", Color.BLUE)}: We will test {len(all_contexts)} contexts')
+                for context in all_contexts:
+                    print("Test gitlab configuration with context: ", context)
+                    test_gitlab_configuration(entry_point, input_config, dict(context))
+            else:
+                test_gitlab_configuration(entry_point, input_config)
+
+    if has_errors:
+        raise Exit(code=1)
 
 
 @task
@@ -422,14 +457,104 @@ def update_go(_):
 
 
 @task(iterable=['job_files'])
-def test_change_path(ctx, job_files=None):
+def job_change_path(ctx, job_files=None):
     """
     Verify that the jobs defined within job_files contain a change path rule.
     """
+
+    tests_without_change_path_allow_list = {
+        'generate-flakes-finder-pipeline',
+        'k8s-e2e-cspm-dev',
+        'k8s-e2e-cspm-main',
+        'k8s-e2e-otlp-dev',
+        'k8s-e2e-otlp-main',
+        'new-e2e-agent-platform-install-script-amazonlinux-a6-arm64',
+        'new-e2e-agent-platform-install-script-amazonlinux-a6-x86_64',
+        'new-e2e-agent-platform-install-script-amazonlinux-a7-arm64',
+        'new-e2e-agent-platform-install-script-amazonlinux-a7-x64',
+        'new-e2e-agent-platform-install-script-centos-a6-x86_64',
+        'new-e2e-agent-platform-install-script-centos-a7-x86_64',
+        'new-e2e-agent-platform-install-script-centos-dogstatsd-a7-x86_64',
+        'new-e2e-agent-platform-install-script-centos-fips-a6-x86_64',
+        'new-e2e-agent-platform-install-script-centos-fips-a7-x86_64',
+        'new-e2e-agent-platform-install-script-centos-fips-dogstatsd-a7-x86_64',
+        'new-e2e-agent-platform-install-script-centos-fips-iot-agent-a7-x86_64',
+        'new-e2e-agent-platform-install-script-centos-iot-agent-a7-x86_64',
+        'new-e2e-agent-platform-install-script-debian-a6-arm64',
+        'new-e2e-agent-platform-install-script-debian-a6-x86_64',
+        'new-e2e-agent-platform-install-script-debian-a7-arm64',
+        'new-e2e-agent-platform-install-script-debian-a7-x86_64',
+        'new-e2e-agent-platform-install-script-debian-dogstatsd-a7-x86_64',
+        'new-e2e-agent-platform-install-script-debian-heroku-agent-a6-x86_64',
+        'new-e2e-agent-platform-install-script-debian-heroku-agent-a7-x86_64',
+        'new-e2e-agent-platform-install-script-debian-iot-agent-a7-x86_64',
+        'new-e2e-agent-platform-install-script-suse-a6-x86_64',
+        'new-e2e-agent-platform-install-script-suse-a7-arm64',
+        'new-e2e-agent-platform-install-script-suse-a7-x86_64',
+        'new-e2e-agent-platform-install-script-suse-dogstatsd-a7-x86_64',
+        'new-e2e-agent-platform-install-script-suse-iot-agent-a7-x86_64',
+        'new-e2e-agent-platform-install-script-ubuntu-a6-arm64',
+        'new-e2e-agent-platform-install-script-ubuntu-a6-x86_64',
+        'new-e2e-agent-platform-install-script-ubuntu-a7-arm64',
+        'new-e2e-agent-platform-install-script-ubuntu-a7-x86_64',
+        'new-e2e-agent-platform-install-script-ubuntu-dogstatsd-a7-x86_64',
+        'new-e2e-agent-platform-install-script-ubuntu-heroku-agent-a6-x86_64',
+        'new-e2e-agent-platform-install-script-ubuntu-heroku-agent-a7-x86_64',
+        'new-e2e-agent-platform-install-script-ubuntu-iot-agent-a7-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade6-amazonlinux-x64',
+        'new-e2e-agent-platform-install-script-upgrade6-centos-fips-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade6-centos-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade6-debian-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade6-suse-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade6-ubuntu-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-amazonlinux-iot-agent-x64',
+        'new-e2e-agent-platform-install-script-upgrade7-amazonlinux-x64',
+        'new-e2e-agent-platform-install-script-upgrade7-centos-fips-iot-agent-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-centos-fips-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-centos-iot-agent-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-centos-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-debian-iot-agent-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-debian-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-suse-iot-agent-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-suse-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-ubuntu-iot-agent-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-ubuntu-x86_64',
+        'new-e2e-agent-platform-package-signing-amazonlinux-a6-x86_64',
+        'new-e2e-agent-platform-package-signing-debian-a7-x86_64',
+        'new-e2e-agent-platform-package-signing-suse-a7-x86_64',
+        'new-e2e-agent-platform-rpm-centos6-a7-x86_64',
+        'new-e2e-agent-platform-step-by-step-amazonlinux-a6-arm64',
+        'new-e2e-agent-platform-step-by-step-amazonlinux-a6-x86_64',
+        'new-e2e-agent-platform-step-by-step-amazonlinux-a7-arm64',
+        'new-e2e-agent-platform-step-by-step-amazonlinux-a7-x64',
+        'new-e2e-agent-platform-step-by-step-centos-a6-x86_64',
+        'new-e2e-agent-platform-step-by-step-centos-a7-x86_64',
+        'new-e2e-agent-platform-step-by-step-debian-a6-arm64',
+        'new-e2e-agent-platform-step-by-step-debian-a6-x86_64',
+        'new-e2e-agent-platform-step-by-step-debian-a7-arm64',
+        'new-e2e-agent-platform-step-by-step-debian-a7-x64',
+        'new-e2e-agent-platform-step-by-step-suse-a6-x86_64',
+        'new-e2e-agent-platform-step-by-step-suse-a7-arm64',
+        'new-e2e-agent-platform-step-by-step-suse-a7-x86_64',
+        'new-e2e-agent-platform-step-by-step-ubuntu-a6-arm64',
+        'new-e2e-agent-platform-step-by-step-ubuntu-a6-x86_64',
+        'new-e2e-agent-platform-step-by-step-ubuntu-a7-arm64',
+        'new-e2e-agent-platform-step-by-step-ubuntu-a7-x86_64',
+        'new-e2e-agent-shared-components',
+        'new-e2e-cws',
+        'new-e2e-language-detection',
+        'new-e2e-npm-docker',
+        'new-e2e-npm-packages',
+        'new-e2e-orchestrator',
+        'new-e2e_windows_powershell_module_test',
+        'trigger-flakes-finder',
+    }
+
     job_files = job_files or (['.gitlab/e2e/e2e.yml'] + list(glob('.gitlab/kitchen_testing/new-e2e_testing/*.yml')))
 
-    # Read gitlab config
-    config = generate_gitlab_full_configuration(ctx, ".gitlab-ci.yml", {}, return_dump=False, apply_postprocessing=True)
+    # Read and parse gitlab config
+    # The config is filtered to only include jobs
+    config = get_gitlab_ci_configuration(ctx, ".gitlab-ci.yml")
 
     # Fetch all test jobs
     test_config = read_includes(ctx, job_files, return_config=True, add_file_path=True)
@@ -449,17 +574,53 @@ def test_change_path(ctx, job_files=None):
 
     # Verify that all tests contain a change path rule
     tests_without_change_path = defaultdict(list)
+    tests_without_change_path_allowed = defaultdict(list)
     for test, filepath in tests:
         if not any(contains_valid_change_rule(rule) for rule in config[test]['rules'] if isinstance(rule, dict)):
-            tests_without_change_path[filepath].append(test)
+            if test in tests_without_change_path_allow_list:
+                tests_without_change_path_allowed[filepath].append(test)
+            else:
+                tests_without_change_path[filepath].append(test)
+
+    if len(tests_without_change_path_allowed) != 0:
+        with gitlab_section('Allow-listed jobs', collapsed=True):
+            print(
+                color_message(
+                    'warning: The following tests do not contain required change paths rule but are allowed:',
+                    Color.ORANGE,
+                )
+            )
+            for filepath, tests in tests_without_change_path_allowed.items():
+                print(f"- {color_message(filepath, Color.BLUE)}: {', '.join(tests)}")
+            print(color_message('warning: End of allow-listed jobs', Color.ORANGE))
+            print()
 
     if len(tests_without_change_path) != 0:
         print(color_message("error: Tests without required change paths rule:", "red"), file=sys.stderr)
         for filepath, tests in tests_without_change_path.items():
-            print(f"- {color_message(filepath, 'bold')}: {', '.join(tests)}", file=sys.stderr)
+            print(f"- {color_message(filepath, Color.BLUE)}: {', '.join(tests)}", file=sys.stderr)
 
         raise RuntimeError(
-            'Some tests do not contain required change paths rule, they must contain at least one non-test path.'
+            color_message(
+                'Some tests do not contain required change paths rule, they must contain at least one non-test path.',
+                Color.RED,
+            )
         )
     else:
-        print(color_message("success: All tests contain a change paths rule", "green"))
+        print(color_message("success: All tests contain a change paths rule or are allow-listed", "green"))
+
+
+@task
+def gitlab_change_paths(ctx):
+    # Read gitlab config
+    config = generate_gitlab_full_configuration(ctx, ".gitlab-ci.yml", {}, return_dump=False, apply_postprocessing=True)
+    error_paths = []
+    for path in set(retrieve_all_paths(config)):
+        files = glob(path, recursive=True)
+        if len(files) == 0:
+            error_paths.append(path)
+    if error_paths:
+        raise Exit(
+            f"{color_message('No files found for paths', Color.RED)}:\n{chr(10).join(' - ' + path for path in error_paths)}"
+        )
+    print(f"All rule:changes:paths from gitlab-ci are {color_message('valid', Color.GREEN)}.")

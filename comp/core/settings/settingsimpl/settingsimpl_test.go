@@ -22,7 +22,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -308,7 +309,7 @@ func TestRuntimeSettings(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
-				logimpl.MockModule(),
+				fx.Provide(func() log.Component { return logmock.New(t) }),
 				fx.Supply(
 					settings.Params{
 						Config: fxutil.Test[config.Component](t, config.MockModule()),

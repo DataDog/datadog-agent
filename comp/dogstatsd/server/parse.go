@@ -45,6 +45,9 @@ var (
 	// * "ci-<container-id>,in-<cgroupv2-inode>"
 	localDataPrefix = []byte("c:")
 
+	// externalDataPrefix is the prefix for a common field which contains the external data for Origin Detection.
+	externalDataPrefix = []byte("e:")
+
 	// containerIDPrefix is the prefix for a notation holding the sender's container Inode in the containerIDField
 	containerIDPrefix = []byte("ci-")
 	// inodePrefix is the prefix for a notation holding the sender's container Inode in the containerIDField
@@ -174,6 +177,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 	sampleRate := 1.0
 	var tags []string
 	var containerID []byte
+	var externalData string
 	var optionalField []byte
 	var timestamp time.Time
 	for message != nil {
@@ -204,19 +208,23 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 		// container ID
 		case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, localDataPrefix):
 			containerID = p.resolveContainerIDFromLocalData(optionalField)
+		// external data
+		case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, externalDataPrefix):
+			externalData = string(optionalField[len(externalDataPrefix):])
 		}
 	}
 
 	return dogstatsdMetricSample{
-		name:        p.interner.LoadOrStore(name),
-		value:       value,
-		values:      values,
-		setValue:    string(setValue),
-		metricType:  metricType,
-		sampleRate:  sampleRate,
-		tags:        tags,
-		containerID: containerID,
-		ts:          timestamp,
+		name:         p.interner.LoadOrStore(name),
+		value:        value,
+		values:       values,
+		setValue:     string(setValue),
+		metricType:   metricType,
+		sampleRate:   sampleRate,
+		tags:         tags,
+		containerID:  containerID,
+		externalData: externalData,
+		ts:           timestamp,
 	}, nil
 }
 
