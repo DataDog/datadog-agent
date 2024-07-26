@@ -10,6 +10,7 @@ from invoke import task
 from tasks.libs.ciproviders.gitlab_api import (
     get_full_gitlab_ci_configuration,
 )
+from tasks.libs.common.utils import gitlab_section
 from tasks.test_core import ModuleTestResult
 
 
@@ -230,8 +231,8 @@ def generate_flake_finder_pipeline(ctx, n=3):
     with open("flake-finder-gitlab-ci.yml", "w") as f:
         f.write(yaml.safe_dump(new_jobs))
 
-    # with gitlab_section("Flake finder generated pipeline", collapsed=True):
-    #     print(yaml.safe_dump(new_jobs))
+    with gitlab_section("Flake finder generated pipeline", collapsed=True):
+        print(yaml.safe_dump(new_jobs))
 
 
 def _clean_job(job):
