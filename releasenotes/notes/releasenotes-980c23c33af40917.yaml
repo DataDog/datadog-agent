@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    * Add `agent_version`, `install_method` and `install_method_version` in Pods, Clusters and ECS Tasks collectors.
+    * Add hostname to `CollectorECSTask`.
