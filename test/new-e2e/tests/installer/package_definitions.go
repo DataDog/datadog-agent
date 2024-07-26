@@ -8,6 +8,8 @@ package installer
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"os"
 	"strings"
@@ -44,12 +46,11 @@ var packagesConfig = []testPackageConfig{
 func installScriptPackageManagerEnv(env map[string]string, arch e2eos.Architecture) {
 	apiKey := os.Getenv("DD_API_KEY")
 	if apiKey == "" {
-		// Doesn't seem to work
-		// var err error
-		// apiKey, err = runner.GetProfile().SecretStore().Get(parameters.APIKey)
-		// if apiKey == "" || err != nil {
-		apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
-		// }
+		var err error
+		apiKey, err = runner.GetProfile().SecretStore().Get(parameters.APIKey)
+		if apiKey == "" || err != nil {
+			apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
+		}
 	}
 	env["DD_API_KEY"] = apiKey
 	env["DD_SITE"] = "datadoghq.com"

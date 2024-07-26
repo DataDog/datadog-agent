@@ -373,6 +373,7 @@ new-e2e-installer:
     # Must run before new_e2e_template changes the aws profile
     # Note: this is similar to the WINDOWS_AGENT_VERSION in new-e2e_windows_msi but this job is running cross platforms
     - export CURRENT_AGENT_VERSION=$(invoke agent.version --major-version $AGENT_MAJOR_VERSION)
+    - !reference [.new_e2e_template, before_script]
   variables:
     TARGETS: ./tests/installer
     TEAM: fleet
