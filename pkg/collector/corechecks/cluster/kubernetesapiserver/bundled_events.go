@@ -52,7 +52,7 @@ func (c *bundledTransformer) Transform(events []*v1.Event) ([]event.Event, []err
 		)
 
 		if c.filteringEnabled {
-			if !shouldCollect(event, c.collectedTypes) {
+			if !(shouldCollectByDefault(event) || shouldCollect(event, c.collectedTypes)) {
 				continue
 			}
 		}

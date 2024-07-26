@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component, types []collectedEventType, bundleUnspecifiedEvents bool) eventTransformer {
+func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component, types []collectedEventType, bundleUnspecifiedEvents bool, filteringEnabled bool) eventTransformer {
 	collectedTypes := make([]collectedEventType, 0, len(types))
 	for _, f := range types {
 		if f.Kind == "" && f.Source == "" {
@@ -41,6 +41,7 @@ func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component
 		taggerInstance:          taggerInstance,
 		bundledTransformer:      t,
 		bundleUnspecifiedEvents: bundleUnspecifiedEvents,
+		filteringEnabled:        filteringEnabled,
 	}
 }
 
@@ -50,6 +51,7 @@ type unbundledTransformer struct {
 	taggerInstance          tagger.Component
 	bundledTransformer      eventTransformer
 	bundleUnspecifiedEvents bool
+	filteringEnabled        bool
 }
 
 func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []error) {
@@ -71,7 +73,8 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 			source,
 		)
 
-		if !c.shouldCollect(ev) {
+		isCollected := (c.filteringEnabled && shouldCollectByDefault(ev)) || c.shouldCollect(ev)
+		if !isCollected {
 			if c.bundleUnspecifiedEvents {
 				eventsToBundle = append(eventsToBundle, ev)
 			}

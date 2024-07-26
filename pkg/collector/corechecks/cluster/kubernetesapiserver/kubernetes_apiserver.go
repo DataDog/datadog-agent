@@ -122,61 +122,6 @@ type KubeASCheck struct {
 	oshiftAPILevel  apiserver.OpenShiftAPILevel
 }
 
-var integrationCollectedEventTypes = []collectedEventType{
-	// Kubernetes events
-	{
-		Kind:    "Pod",
-		Reasons: []string{"Failed", "BackOff", "Unhealthy", "FailedScheduling", "FailedMount", "FailedAttachVolume"},
-	},
-	{
-		Kind:    "Node",
-		Reasons: []string{"TerminatingEvictedPod", "NodeNotReady", "Rebooted", "HostPortConflict"},
-	},
-	{
-		Kind:    "CronJob",
-		Reasons: []string{"SawCompletedJob"},
-	},
-	// Integrations
-	{
-		Source: "karpenter",
-		Reasons: []string{
-			"DisruptionBlocked",
-			"DisruptionLaunching",
-			"DisruptionTerminating",
-			"DisruptionWaitingReadiness",
-			"FailedDraining",
-			"InstanceTerminating",
-			"SpotInterrupted",
-			"SpotRebalanceRecommendation",
-			"TerminatingOnInterruption",
-		},
-	},
-	{
-		Source: "datadog-operator",
-	},
-	{
-		Source: "amazon elb",
-	},
-	{
-		Source: "cilium",
-	},
-	{
-		Source: "fluxcd",
-	},
-	{
-		Source: "kubernetes cluster autoscaler",
-	},
-	{
-		Source: "spark",
-	},
-	{
-		Source: "vault",
-	},
-	{
-		Reasons: []string{"BackOff"}, // Change tracking consumes all CLB events
-	},
-}
-
 func (c *KubeASConfig) parse(data []byte) error {
 	// default values
 	c.CollectEvent = ddConfig.Datadog().GetBool("collect_kubernetes_events")
@@ -235,12 +180,6 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 		})
 	}
 
-	// TODO: prior to appending events to k.instance.CollectedEventTypes, we need a way to distinguish between
-	// default allowed events and events added by the user
-	if k.instance.FilteringEnabled {
-		k.instance.CollectedEventTypes = append(k.instance.CollectedEventTypes, integrationCollectedEventTypes...)
-	}
-
 	// When we use both bundled and unbundled transformers, we apply two filters: filtered_event_types and collected_event_types.
 	// When we use only the bundled transformer, we apply filtered_event_types.
 	// When we use only the unbundled transformer, we apply collected_event_types.
@@ -249,7 +188,7 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 	}
 
 	if k.instance.UnbundleEvents {
-		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, tagger.GetTaggerInstance(), k.instance.CollectedEventTypes, k.instance.BundleUnspecifiedEvents)
+		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, tagger.GetTaggerInstance(), k.instance.CollectedEventTypes, k.instance.BundleUnspecifiedEvents, k.instance.FilteringEnabled)
 	} else {
 		k.eventCollection.Transformer = newBundledTransformer(clusterName, tagger.GetTaggerInstance(), k.instance.CollectedEventTypes, k.instance.FilteringEnabled)
 	}
