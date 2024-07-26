@@ -331,22 +331,26 @@ def ssm_parameters(ctx, mode="all", folders=None):
     elif mode == "wrapper":
         error_files = [f for f in error_files if not f.with_wrapper]
     if error_files:
-        print("The following files contain unexpected syntax for aws ssm get-parameter:")
+        print(
+            f"[{color_message('ERROR', Color.RED)}] The following files contain unexpected syntax for aws ssm get-parameter:"
+        )
         for filename in error_files:
             print(f"  - {filename}")
         raise Exit(code=1)
+    print(f"[{color_message('OK', Color.GREEN)}] All files are correctly using wrapper for aws ssm parameters.")
 
 
 class SSMParameterCall:
-    def __init__(self, file, line_nb, with_wrapper=False, with_env_var=False):
+    def __init__(self, file, line_nb, with_wrapper=False, with_env_var=False, not_standard=False):
         self.file = file
         self.line_nb = line_nb
         self.with_wrapper = with_wrapper
         self.with_env_var = with_env_var
+        self.not_standard = not_standard
 
     def __str__(self):
         message = ""
-        if not self.with_wrapper:
+        if not self.with_wrapper or self.not_standard:
             message += "Please use the dedicated `aws_ssm_get_wrapper.(sh|ps1)`."
         if not self.with_env_var:
             message += " Save your parameter name as environment variable in .gitlab-ci.yml file."
@@ -359,7 +363,8 @@ class SSMParameterCall:
 def list_get_parameter_calls(file):
     ssm_get = re.compile(r"^.+ssm.get.+$")
     aws_ssm_call = re.compile(r"^.+ssm get-parameter.+--name +(?P<param>[^ ]+).*$")
-    ssm_wrapper_call = re.compile(r"^.+aws_ssm_get_wrapper.(sh|ps1) +(?P<param>[^ )]+).*$")
+    # remove the 'a' of 'aws' because '\a' is badly interpreted for windows paths
+    ssm_wrapper_call = re.compile(r"^.+ws_ssm_get_wrapper.(sh|ps1)[\"]? +(?P<param>[^ )]+).*$")
     calls = []
     with open(file) as f:
         try:
@@ -368,14 +373,17 @@ def list_get_parameter_calls(file):
                 if is_ssm_get:
                     m = aws_ssm_call.match(line.strip())
                     if m:
+                        # Remove possible quotes
+                        param = m["param"].replace('"', '').replace("'", "")
                         calls.append(
-                            SSMParameterCall(
-                                file, nb, with_wrapper=False, with_env_var=m.group("param").startswith("$")
-                            )
+                            SSMParameterCall(file, nb, with_env_var=(param.startswith("$") or "os.environ" in param))
                         )
                     m = ssm_wrapper_call.match(line.strip())
-                    if m and not m.group("param").startswith("$"):
-                        calls.append(SSMParameterCall(file, nb, with_wrapper=True, with_env_var=False))
+                    param = m["param"].replace('"', '').replace("'", "") if m else None
+                    if m and not (param.startswith("$") or "os.environ" in param):
+                        calls.append(SSMParameterCall(file, nb, with_wrapper=True))
+                    if not m:
+                        calls.append(SSMParameterCall(file, nb, not_standard=True))
         except UnicodeDecodeError:
             pass
     return calls

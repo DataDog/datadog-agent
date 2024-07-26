@@ -217,9 +217,6 @@ variables:
   GITLAB_SCHEDULER_TOKEN_SSM_NAME: ci.datadog-agent.gitlab_pipelines_scheduler_token  # ci-cd
   GITLAB_READ_API_TOKEN_SSM_NAME: ci.datadog-agent.gitlab_read_api_token  # ci-cd
   GITLAB_FULL_API_TOKEN_SSM_NAME: ci.datadog-agent.gitlab_full_api_token  # ci-cd
-  GITHUB_APP_KEY_SSM_NAME: ci.datadog-agent.platform-github-app-key  # agent-ci-experience
-  GITHUB_APP_ID_SSM_NAME: ci.datadog-agent.platform-github-app-id  # agent-ci-experience
-  GITHUB_APP_INSTALLATION_ID_SSM_NAME: ci.datadog-agent.platform-github-app-installation-id  # agent-ci-experience
   INSTALL_SCRIPT_API_KEY_SSM_NAME: ci.agent-linux-install-script.datadog_api_key_2  # agent-delivery
   JIRA_READ_API_TOKEN_SSM_NAME: ci.datadog-agent.jira_read_api_token  # agent-devx-infra
   AGENT_GITHUB_APP_ID_SSM_NAME: ci.datadog-agent.platform-github-app-id  # agent-devx-infra
