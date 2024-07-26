@@ -3,12 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package logimpl
+package log
 
 import (
+	"os"
 	"runtime"
-
-	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 )
 
 // Params defines the parameters for this log component.
@@ -62,7 +61,13 @@ func ForOneShot(loggerName, level string, overrideFromEnv bool) Params {
 	params := Params{}
 	params.loggerName = loggerName
 	if overrideFromEnv {
-		params.logLevelFn = func(configGetter) string { return pkgconfigenv.GetEnvDefault("DD_LOG_LEVEL", level) }
+		params.logLevelFn = func(configGetter) string {
+			value, found := os.LookupEnv("DD_LOG_LEVEL")
+			if !found {
+				return level
+			}
+			return value
+		}
 	} else {
 		params.logLevelFn = func(configGetter) string { return level }
 	}

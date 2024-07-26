@@ -3,18 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package tracelogimpl provides a component that implements the log.Component for the trace-agent logger
-package tracelogimpl
+// Package fxlog defines the fx options for this component.
+package fxlog
 
 import (
-	"go.uber.org/fx"
-
+	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// Module defines the fx options for the log component in its Trace variant.
+// Module defines the fx options for this component
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newTraceLogger),
+		fxutil.ProvideComponentConstructor(
+			logimpl.NewComponent,
+		),
 	)
 }

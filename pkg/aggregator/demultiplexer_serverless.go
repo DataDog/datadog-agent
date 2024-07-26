@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
@@ -43,8 +43,8 @@ type ServerlessDemultiplexer struct {
 // InitAndStartServerlessDemultiplexer creates and starts new Demultiplexer for the serverless agent.
 func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]string, forwarderTimeout time.Duration) *ServerlessDemultiplexer {
 	bufferSize := config.Datadog().GetInt("aggregator_buffer_size")
-	log := logimpl.NewTemporaryLoggerWithoutInit()
-	forwarder := forwarder.NewSyncForwarder(config.Datadog(), log, keysPerDomain, forwarderTimeout)
+	logger := logimpl.NewTemporaryLoggerWithoutInit()
+	forwarder := forwarder.NewSyncForwarder(config.Datadog(), logger, keysPerDomain, forwarderTimeout)
 	h, _ := hostname.Get(context.Background())
 	serializer := serializer.NewSerializer(forwarder, nil, compressionimpl.NewCompressor(config.Datadog()), config.Datadog(), h)
 	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled(config.Datadog()))
@@ -55,7 +55,7 @@ func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]string, forw
 	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore)
 
 	demux := &ServerlessDemultiplexer{
-		log:              log,
+		log:              logger,
 		forwarder:        forwarder,
 		statsdSampler:    statsdSampler,
 		statsdWorker:     statsdWorker,
