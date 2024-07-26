@@ -9,12 +9,6 @@
 #include "structs/dentry_resolver.h"
 #include "maps.h"
 
-#define CGROUP_MANAGER_DOCKER 1
-#define CGROUP_MANAGER_CRIO 2
-#define CGROUP_MANAGER_PODMAN 3
-#define CGROUP_MANAGER_CRI 4
-#define CGROUP_MANAGER_SYSTEMD 5
-
 static __attribute__((always_inline)) int is_docker_cgroup(ctx_t *ctx, struct dentry *container_d) {
     struct dentry *parent_d;
     struct qstr parent_qstr;
@@ -184,8 +178,6 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     bpf_printk("container id: %s\n", container_qstr.name);
 #endif
 
-    bpf_probe_read(&new_entry.container.container_id, sizeof(new_entry.container.container_id), container_id);
-
     int length = bpf_probe_read_str(prefix, sizeof(cgroup_prefix_t), container_id) & 0xff;
     if (container_flags == 0 && (
         (length >= 9 && (*prefix)[length-9] == '.'  && (*prefix)[length-8] == 's' && (*prefix)[length-7] == 'e' && (*prefix)[length-6] == 'r' && (*prefix)[length-5] == 'v' && (*prefix)[length-4] == 'i' && (*prefix)[length-3] == 'c' && (*prefix)[length-2] == 'e')
@@ -194,6 +186,8 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     )) {
         check_validity = 0;
         container_flags |= CGROUP_MANAGER_SYSTEMD;
+    } else {
+        bpf_probe_read(&new_entry.container.container_id, sizeof(new_entry.container.container_id), container_id);
     }
 
     new_entry.container.cgroup_context.cgroup_flags = container_flags;
