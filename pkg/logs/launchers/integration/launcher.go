@@ -96,7 +96,10 @@ func (s *Launcher) run() {
 				continue
 			}
 
-			s.writeFunction(filepath, log.Log)
+			err = s.writeFunction(filepath, log.Log)
+			if err != nil {
+				ddLog.Warn("Error writing log to file: ", err)
+			}
 		case <-s.stop:
 			return
 		}
