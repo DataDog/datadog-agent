@@ -319,7 +319,7 @@ func (suite *baseSuite) testLog(args *testLogArgs) {
 
 			// Check tags
 			if expectedTags != nil {
-				err := assertTags(logs[len(logs)-1].GetTags(), expectedTags, []*regexp.Regexp{}, false)
+				err := assertTags(logs[len(logs)-1].GetTags(), expectedTags, []*regexp.Regexp{}, true)
 				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyLogQuery)
 			}
 
