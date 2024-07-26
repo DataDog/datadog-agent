@@ -260,7 +260,7 @@ func NewTracer(config *config.Config, _ telemetryComponent.Component) (Tracer, e
 	tr := &tracer{
 		removeTuple:    &netebpf.ConnTuple{},
 		failedCallback: func(*netebpf.FailedConn) {},
-		ch:				newCookieHasher(),
+		ch:             newCookieHasher(),
 	}
 
 	connCloseEventHandler, err := initClosedConnEventHandler(config, tr.closedPerfCallback, connPool, extractor)
@@ -342,15 +342,18 @@ func NewTracer(config *config.Config, _ telemetryComponent.Component) (Tracer, e
 	return tr, nil
 }
 
-func initFailedConnEventHandler(config *config.Config, failedCallback func(*netebpf.FailedConn), failedConnGetter ddsync.PoolGetter[netebpf.FailedConn]) (*perf.EventHandler, error) {
+func initFailedConnEventHandler(config *config.Config, failedCallback func(*netebpf.FailedConn), pool ddsync.Pool[netebpf.FailedConn]) (*perf.EventHandler, error) {
 	var failedConnsHandler *perf.EventHandler
 	var err error
 
 	if config.FailedConnectionsSupported() {
 		fcopts := perf.EventHandlerOptions{
 			MapName: probes.FailedConnEventMap,
-			Handler: encoding.BinaryUnmarshalCallback(failedConnGetter.Get, func(b *netebpf.FailedConn, err error) {
+			Handler: encoding.BinaryUnmarshalCallback(pool.Get, func(b *netebpf.FailedConn, err error) {
 				if err != nil {
+					if b != nil {
+						pool.Put(b)
+					}
 					log.Debug(err.Error())
 					return
 				}
@@ -375,10 +378,13 @@ func initFailedConnEventHandler(config *config.Config, failedCallback func(*nete
 	return failedConnsHandler, err
 }
 
-func initClosedConnEventHandler(config *config.Config, closedCallback func(*network.ConnectionStats), connGetter ddsync.PoolGetter[network.ConnectionStats], extractor *batchExtractor) (*perf.EventHandler, error) {
+func initClosedConnEventHandler(config *config.Config, closedCallback func(*network.ConnectionStats), pool ddsync.Pool[network.ConnectionStats], extractor *batchExtractor) (*perf.EventHandler, error) {
 	connHasher := newCookieHasher()
-	singleConnHandler := encoding.BinaryUnmarshalCallback(connGetter.Get, func(b *network.ConnectionStats, err error) {
+	singleConnHandler := encoding.BinaryUnmarshalCallback(pool.Get, func(b *network.ConnectionStats, err error) {
 		if err != nil {
+			if b != nil {
+				pool.Put(b)
+			}
 			log.Debug(err.Error())
 			return
 		}
@@ -408,7 +414,7 @@ func initClosedConnEventHandler(config *config.Config, closedCallback func(*netw
 			case l >= netebpf.SizeofBatch:
 				b := netebpf.ToBatch(buf)
 				for rc := extractor.NextConnection(b); rc != nil; rc = extractor.NextConnection(b) {
-					c := connGetter.Get()
+					c := pool.Get()
 					c.FromConn(rc)
 					connHasher.Hash(c)
 

@@ -18,6 +18,12 @@ type PoolGetter[K any] interface {
 	Get() *K
 }
 
+// Pool is a combination interface of PoolGetter and PoolReleaser
+type Pool[K any] interface {
+	PoolGetter[K]
+	PoolReleaser[K]
+}
+
 // TypedPool is a type-safe version of sync.Pool
 type TypedPool[K any] struct {
 	p sync.Pool

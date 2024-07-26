@@ -53,6 +53,9 @@ func Configure(cfg *config.Config, proto string, m *manager.Manager, o *manager.
 		MapName: mapName,
 		Handler: encoding.BinaryUnmarshalCallback(batchPool.Get, func(b *batch, err error) {
 			if err != nil {
+				if b != nil {
+					batchPool.Put(b)
+				}
 				log.Debug(err.Error())
 				return
 			}

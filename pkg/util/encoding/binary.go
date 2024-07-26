@@ -14,7 +14,9 @@ import (
 // using `newFn` to create an instance of *T and the encoding.BinaryUnmarshaler interface to do the actual conversion.
 // `callback` will be called with the resulting *T.
 // If the argument byte slice is empty, callback will be called with `nil`.
-// Unmarshalling errors will be provided to the callback as the second argument.
+// Unmarshalling errors will be provided to the callback as the second argument. The data argument to the callback
+// may still be non-nil even if there was an error. This allows the callback to handle the allocated object, even
+// in the face of errors.
 // This function panics if `*T` does not implement encoding.BinaryUnmarshaler.
 func BinaryUnmarshalCallback[T any](newFn func() *T, callback func(*T, error)) func(buf []byte) {
 	// we use `any` as the type constraint rather than encoding.BinaryUnmarshaler because we are not allowed to
@@ -32,7 +34,8 @@ func BinaryUnmarshalCallback[T any](newFn func() *T, callback func(*T, error)) f
 
 		d := newFn()
 		if err := any(d).(encoding.BinaryUnmarshaler).UnmarshalBinary(buf); err != nil {
-			callback(nil, err)
+			// pass d here so callback can choose how to deal with the data
+			callback(d, err)
 			return
 		}
 		callback(d, nil)
