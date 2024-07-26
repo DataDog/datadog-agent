@@ -7,6 +7,7 @@
 package propagation
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -219,4 +220,55 @@ func rawPayloadCarrier(rawPayload []byte) (tracer.TextMapReader, error) {
 // context from a Headers field of form map[string]string.
 func headersCarrier(hdrs map[string]string) (tracer.TextMapReader, error) {
 	return tracer.TextMapCarrier(hdrs), nil
+}
+
+// createTraceContextFromStepFunctionInput extracts the execution ARN, state name, and state entered time and uses them to generate Trace ID and Parent ID
+func createTraceContextFromStepFunctionInput(event events.StepFunctionEvent) (*TraceContext, error) {
+	tc := new(TraceContext)
+
+	execArn := event.Execution.Id
+	stateName := event.State.Name
+	stateEnteredTime := event.State.EnteredTime
+
+	lowerTraceID, _ := stringToDdTraceIds(execArn)
+	parentID := stringToDdSpanId(execArn, stateName, stateEnteredTime)
+
+	tc.TraceID = lowerTraceID
+	tc.TraceIdUpper64Hex = "fake"
+	tc.ParentID = parentID
+	return tc, nil
+}
+
+// stringToDdSpanId hashes the Execution ARN, state name, and state entered time to generate a 64-bit span ID
+func stringToDdSpanId(execArn string, stateName string, stateEnteredTime string) uint64 {
+	uniqueSpanString := fmt.Sprintf("%s#%s#%s", execArn, stateName, stateEnteredTime)
+	spanHash := sha256.Sum256([]byte(uniqueSpanString))
+	parentID := getPositiveUInt64(spanHash[0:8])
+	return parentID
+}
+
+// stringToDdTraceIds hashes an Execution ARN to generate the lower and upper 64 bits of a 128-bit trace ID
+func stringToDdTraceIds(toHash string) (uint64, uint64) {
+	hash := sha256.Sum256([]byte(toHash))
+	lower64 := getPositiveUInt64(hash[0:8])
+	upper64 := getPositiveUInt64(hash[8:16])
+	return lower64, upper64
+}
+
+// getPositiveUInt64 converts the first 8 bytes of a byte array to a positive uint64
+func getPositiveUInt64(hashBytes []byte) uint64 {
+	var result uint64
+	for i := 0; i < 8; i++ {
+		result = (result << 8) + uint64(hashBytes[i])
+	}
+	result &= ^uint64(1 << 63) // Ensure the highest bit is always 0
+	if result == 0 {
+		return 1
+	}
+	return result
+}
+
+func getHexEncodedString(toEncode uint64) string {
+	//return hex.EncodeToString(hashBytes[:8])
+	return fmt.Sprintf("%x", toEncode) //maybe?
 }

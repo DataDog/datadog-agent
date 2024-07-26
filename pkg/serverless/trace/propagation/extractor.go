@@ -21,11 +21,12 @@ import (
 const (
 	defaultSamplingPriority sampler.SamplingPriority = sampler.PriorityNone
 
-	ddTraceIDHeader          = "x-datadog-trace-id"
-	ddParentIDHeader         = "x-datadog-parent-id"
-	ddSpanIDHeader           = "x-datadog-span-id"
-	ddSamplingPriorityHeader = "x-datadog-sampling-priority"
-	ddInvocationErrorHeader  = "x-datadog-invocation-error"
+	ddTraceIDHeader            = "x-datadog-trace-id"
+	ddParentIDHeader           = "x-datadog-parent-id"
+	ddSpanIDHeader             = "x-datadog-span-id"
+	ddSamplingPriorityHeader   = "x-datadog-sampling-priority"
+	ddInvocationErrorHeader    = "x-datadog-invocation-error"
+	ddTraceIdUpper64BitsHeader = "_dd.p.tid"
 )
 
 var (
@@ -45,9 +46,10 @@ type Extractor struct {
 
 // TraceContext stores the propagated trace context values.
 type TraceContext struct {
-	TraceID          uint64
-	ParentID         uint64
-	SamplingPriority sampler.SamplingPriority
+	TraceID           uint64
+	TraceIdUpper64Hex string
+	ParentID          uint64
+	SamplingPriority  sampler.SamplingPriority
 }
 
 // TraceContextExtended stores the propagated trace context values plus other
@@ -112,6 +114,11 @@ func (e Extractor) extract(event interface{}) (*TraceContext, error) {
 		carrier, err = headersCarrier(ev.Headers)
 	case events.LambdaFunctionURLRequest:
 		carrier, err = headersCarrier(ev.Headers)
+	case events.StepFunctionEvent:
+		tc, err := createTraceContextFromStepFunctionInput(ev)
+		if err == nil {
+			return tc, nil
+		}
 	default:
 		err = errorUnsupportedExtractionType
 	}
