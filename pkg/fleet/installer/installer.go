@@ -124,7 +124,9 @@ func (i *installerImpl) getInstallerPackageFor(pkgName string) packageInstaller 
 		installerImpl: i,
 		pkgName:       pkgName,
 	}
-	i.packageInstallers[pkgName] = pakInstaller
+	if i.packageInstallers != nil {
+		i.packageInstallers[pkgName] = pakInstaller
+	}
 	return pakInstaller
 }
 
