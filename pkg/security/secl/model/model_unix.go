@@ -594,8 +594,8 @@ type SpliceEvent struct {
 
 // CgroupTracingEvent is used to signal that a new cgroup should be traced by the activity dump manager
 type CgroupTracingEvent struct {
-	CGroupFlags      uint64
 	ContainerContext ContainerContext
+	CGroupContext    CGroupContext
 	Config           ActivityDumpLoadConfig
 	ConfigCookie     uint64
 }
