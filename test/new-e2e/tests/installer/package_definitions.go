@@ -25,22 +25,65 @@ var (
 	StableVersionPackage = fmt.Sprintf("%s-1", StableVersion)
 )
 
-type testPackageConfig struct {
-	name           string
-	defaultVersion string
-	registry       string
-	auth           string
+// TestPackageConfig is a struct that regroups the fields necessary to install a package from an OCI Registry
+type TestPackageConfig struct {
+	// Name the name of the package
+	Name string
+	// Alias Sometimes the package is named differently in some registries
+	Alias string
+	// Version the version to install
+	Version string
+	// Registry the URL of the registry
+	Registry string
+	// Auth the authentication method, "" for no authentication
+	Auth string
 }
 
-var packagesConfig = []testPackageConfig{
-	{name: "datadog-installer", defaultVersion: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", auth: "ecr"},
-	{name: "datadog-agent", defaultVersion: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", auth: "ecr"},
-	{name: "datadog-apm-inject", defaultVersion: "latest"},
-	{name: "datadog-apm-library-java", defaultVersion: "latest"},
-	{name: "datadog-apm-library-ruby", defaultVersion: "latest"},
-	{name: "datadog-apm-library-js", defaultVersion: "latest"},
-	{name: "datadog-apm-library-dotnet", defaultVersion: "latest"},
-	{name: "datadog-apm-library-python", defaultVersion: "latest"},
+// PackageOption is an optional function parameter type for the Datadog Installer
+type PackageOption func(*TestPackageConfig) error
+
+// WithAuthentication uses a specific authentication for a Registry to install the package.
+func WithAuthentication(auth string) PackageOption {
+	return func(params *TestPackageConfig) error {
+		params.Auth = auth
+		return nil
+	}
+}
+
+// WithRegistry uses a specific Registry from where to install the package.
+func WithRegistry(registryURL string) PackageOption {
+	return func(params *TestPackageConfig) error {
+		params.Registry = registryURL
+		return nil
+	}
+}
+
+// WithVersion uses a specific version of the package.
+func WithVersion(version string) PackageOption {
+	return func(params *TestPackageConfig) error {
+		params.Version = version
+		return nil
+	}
+}
+
+// WithAlias specifies the package's alias.
+func WithAlias(alias string) PackageOption {
+	return func(params *TestPackageConfig) error {
+		params.Alias = alias
+		return nil
+	}
+}
+
+// PackagesConfig is the list of known packages configuration for testing
+var PackagesConfig = []TestPackageConfig{
+	{Name: "datadog-installer", Version: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), Registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", Auth: "ecr"},
+	{Name: "datadog-agent", Alias: "agent-package", Version: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), Registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", Auth: "ecr"},
+	{Name: "datadog-apm-inject", Version: "latest"},
+	{Name: "datadog-apm-library-java", Version: "latest"},
+	{Name: "datadog-apm-library-ruby", Version: "latest"},
+	{Name: "datadog-apm-library-js", Version: "latest"},
+	{Name: "datadog-apm-library-dotnet", Version: "latest"},
+	{Name: "datadog-apm-library-python", Version: "latest"},
 }
 
 func installScriptPackageManagerEnv(env map[string]string, arch e2eos.Architecture) {
@@ -63,26 +106,31 @@ func installScriptPackageManagerEnv(env map[string]string, arch e2eos.Architectu
 	env["TESTING_YUM_VERSION_PATH"] = fmt.Sprintf("testing/pipeline-%s-a7/7", os.Getenv("E2E_PIPELINE_ID"))
 }
 
-func installScriptInstallerEnv(env map[string]string) {
+func installScriptInstallerEnv(env map[string]string, packagesConfig []TestPackageConfig) {
 	for _, pkg := range packagesConfig {
-		name := strings.ToUpper(strings.ReplaceAll(pkg.name, "-", "_"))
+		name := strings.ToUpper(strings.ReplaceAll(pkg.Name, "-", "_"))
 		image := strings.TrimPrefix(name, "DATADOG_") + "_PACKAGE"
-		if pkg.registry != "" {
-			env[fmt.Sprintf("DD_INSTALLER_REGISTRY_URL_%s", image)] = pkg.registry
+		if pkg.Registry != "" {
+			env[fmt.Sprintf("DD_INSTALLER_REGISTRY_URL_%s", image)] = pkg.Registry
 		}
-		if pkg.auth != "" {
-			env[fmt.Sprintf("DD_INSTALLER_REGISTRY_AUTH_%s", image)] = pkg.auth
+		if pkg.Auth != "" {
+			env[fmt.Sprintf("DD_INSTALLER_REGISTRY_AUTH_%s", image)] = pkg.Auth
 		}
-		if pkg.defaultVersion != "" && pkg.defaultVersion != "latest" {
-			env[fmt.Sprintf("DD_INSTALLER_DEFAULT_PKG_VERSION_%s", name)] = pkg.defaultVersion
+		if pkg.Version != "" && pkg.Version != "latest" {
+			env[fmt.Sprintf("DD_INSTALLER_DEFAULT_PKG_VERSION_%s", name)] = pkg.Version
 		}
 	}
 }
 
 // InstallScriptEnv returns the environment variables for the install script
 func InstallScriptEnv(arch e2eos.Architecture) map[string]string {
+	return InstallScriptEnvWithPackages(arch, PackagesConfig)
+}
+
+// InstallScriptEnvWithPackages returns the environment variables for the install script for the given packages
+func InstallScriptEnvWithPackages(arch e2eos.Architecture, packagesConfig []TestPackageConfig) map[string]string {
 	env := map[string]string{}
 	installScriptPackageManagerEnv(env, arch)
-	installScriptInstallerEnv(env)
+	installScriptInstallerEnv(env, packagesConfig)
 	return env
 }

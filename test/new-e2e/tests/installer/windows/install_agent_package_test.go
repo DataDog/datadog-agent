@@ -8,6 +8,7 @@ package installerwindows
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer"
 	"testing"
 )
 
@@ -57,9 +58,9 @@ func (suite *testAgentInstallSuite) TestUpgradeAgentPackage() {
 		// Act
 		// public.ecr.aws/datadog/agent-package:7.55
 		output, err := suite.installer.InstallPackage(AgentPackage,
-			WithRegistry("public.ecr.aws/datadog"),
-			WithVersion("7.55.1-1"),
-			WithAuthentication(""),
+			installer.WithRegistry("public.ecr.aws/datadog"),
+			installer.WithVersion("7.55.1-1"),
+			installer.WithAuthentication(""),
 		)
 
 		// Assert

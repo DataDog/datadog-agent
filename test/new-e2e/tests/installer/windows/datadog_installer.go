@@ -72,78 +72,32 @@ func (d *DatadogInstaller) Version() (string, error) {
 	return d.execute("version")
 }
 
-// InstallPackageParams contains the optional parameters for the Datadog Installer InstallPackage command
-type InstallPackageParams struct {
-	version  string
-	registry string
-	auth     string
-}
-
-// InstallPackageOption is an optional function parameter type for the Datadog Installer
-type InstallPackageOption func(*InstallPackageParams) error
-
-// WithAuthentication uses a specific authentication for a registry to install the package.
-func WithAuthentication(auth string) InstallPackageOption {
-	return func(params *InstallPackageParams) error {
-		params.auth = auth
-		return nil
-	}
-}
-
-// WithRegistry uses a specific registry from where to install the package.
-func WithRegistry(registryURL string) InstallPackageOption {
-	return func(params *InstallPackageParams) error {
-		params.registry = registryURL
-		return nil
-	}
-}
-
-// WithVersion uses a specific version of the package.
-func WithVersion(version string) InstallPackageOption {
-	return func(params *InstallPackageParams) error {
-		params.version = version
-		return nil
-	}
-}
-
-func (d *DatadogInstaller) runCommand(command, packageName string, opts ...InstallPackageOption) (string, error) {
-	params := InstallPackageParams{
-		registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com",
-		version:  fmt.Sprintf("pipeline-%s", d.env.AwsEnvironment.PipelineID()),
-		auth:     "ecr",
+func (d *DatadogInstaller) runCommand(command, packageName string, opts ...installer.PackageOption) (string, error) {
+	var packageConfigFound = false
+	var packageConfig installer.TestPackageConfig
+	for _, packageConfig = range installer.PackagesConfig {
+		if packageConfig.Name == packageName {
+			packageConfigFound = true
+			break
+		}
 	}
 
-	registryTag := packageName
-	switch packageName {
-	case AgentPackage:
-		// datadog-agent is called "agent-package" in the OCI registries
-		registryTag = "agent-package"
+	if !packageConfigFound {
+		return "", fmt.Errorf("unknown package %s", packageName)
 	}
 
-	err := optional.ApplyOptions(&params, opts)
+	err := optional.ApplyOptions(&packageConfig, opts)
 	if err != nil {
 		return "", nil
 	}
 
-	envVars := installer.InstallScriptEnv(e2eos.AMD64Arch)
-	packageURL := fmt.Sprintf("oci://%s/%s:%s", params.registry, registryTag, params.version)
-	name := strings.ToUpper(strings.ReplaceAll(packageName, "-", "_"))
-	image := strings.TrimPrefix(name, "DATADOG_") + "_PACKAGE"
-	if params.registry != "" {
-		envVars[fmt.Sprintf("DD_INSTALLER_REGISTRY_URL_%s", image)] = params.registry
-	} else {
-		delete(envVars, fmt.Sprintf("DD_INSTALLER_REGISTRY_URL_%s", image))
+	registryTag := packageName
+	if packageConfig.Alias != "" {
+		registryTag = packageConfig.Alias
 	}
-	if params.auth != "" {
-		envVars[fmt.Sprintf("DD_INSTALLER_REGISTRY_AUTH_%s", image)] = params.auth
-	} else {
-		delete(envVars, fmt.Sprintf("DD_INSTALLER_REGISTRY_AUTH_%s", image))
-	}
-	if params.version != "" {
-		envVars[fmt.Sprintf("DD_INSTALLER_DEFAULT_PKG_VERSION_%s", name)] = params.version
-	} else {
-		delete(envVars, fmt.Sprintf("DD_INSTALLER_DEFAULT_PKG_VERSION_%s", name))
-	}
+
+	envVars := installer.InstallScriptEnvWithPackages(e2eos.AMD64Arch, []installer.TestPackageConfig{packageConfig})
+	packageURL := fmt.Sprintf("oci://%s/%s:%s", packageConfig.Registry, registryTag, packageConfig.Version)
 
 	return d.execute(fmt.Sprintf("%s %s", command, packageURL), client.WithEnvVariables(envVars))
 }
@@ -152,12 +106,12 @@ func (d *DatadogInstaller) runCommand(command, packageName string, opts ...Insta
 // version: A function that returns the version of the package to install. By default, it will install
 // the package matching the current pipeline. This is a function so that it can be combined with
 // Note that this command is a direct command and won't go through the Daemon.
-func (d *DatadogInstaller) InstallPackage(packageName string, opts ...InstallPackageOption) (string, error) {
+func (d *DatadogInstaller) InstallPackage(packageName string, opts ...installer.PackageOption) (string, error) {
 	return d.runCommand("install", packageName, opts...)
 }
 
 // InstallExperiment will attempt to use the Datadog Installer to start an experiment for the package given in parameter.
-func (d *DatadogInstaller) InstallExperiment(packageName string, opts ...InstallPackageOption) (string, error) {
+func (d *DatadogInstaller) InstallExperiment(packageName string, opts ...installer.PackageOption) (string, error) {
 	return d.runCommand("install-experiment", packageName, opts...)
 }
 
