@@ -120,10 +120,12 @@ func (i *installerImpl) getInstallerPackageFor(pkgName string) packageInstaller 
 		return pakInstaller
 	}
 	// Return a default package installer with the given name for cases where we don't have a specific package installer.
-	return &basePackageInstaller{
+	pakInstaller := &basePackageInstaller{
 		installerImpl: i,
 		pkgName:       pkgName,
 	}
+	i.packageInstallers[pkgName] = pakInstaller
+	return pakInstaller
 }
 
 // State returns the state of a package.
