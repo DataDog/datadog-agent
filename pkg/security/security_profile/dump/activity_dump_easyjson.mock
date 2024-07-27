@@ -13,10 +13,10 @@ import (
 )
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
-func (v ActivityDump) MarshalEasyJSON(w *jwriter.Writer) {
+func (v ActivityDumpHeader) MarshalEasyJSON(w *jwriter.Writer) {
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
-func (v *ActivityDump) UnmarshalEasyJSON(l *jlexer.Lexer) {
+func (v *ActivityDumpHeader) UnmarshalEasyJSON(l *jlexer.Lexer) {
 }
 
