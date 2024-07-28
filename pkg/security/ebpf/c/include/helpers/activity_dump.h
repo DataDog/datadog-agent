@@ -115,16 +115,19 @@ __attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, containe
 
 __attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u64 now, u32 pid, struct container_context_t *container) {
     // should we start tracing this cgroup ?
-    if (is_cgroup_activity_dumps_enabled() && container->container_id[0] != 0) {
+    container_id_t container_id;
+    bpf_probe_read(&container_id, sizeof(container_id), &container->container_id[0]);
+
+    if (is_cgroup_activity_dumps_enabled() && container_id[0] != 0) {
         // is this cgroup traced ?
-        u64 *cookie = bpf_map_lookup_elem(&traced_cgroups, &container->container_id[0]);
+        u64 *cookie = bpf_map_lookup_elem(&traced_cgroups, &container_id[0]);
 
         if (cookie) {
             u64 cookie_val = *cookie;
             struct activity_dump_config *config = bpf_map_lookup_elem(&activity_dumps_config, &cookie_val);
             if (config == NULL) {
                 // delete expired cgroup entry
-                bpf_map_delete_elem(&traced_cgroups, &container->container_id[0]);
+                bpf_map_delete_elem(&traced_cgroups, &container_id[0]);
                 return 0;
             }
 
@@ -140,7 +143,7 @@ __attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u6
 
             if (now > config->end_timestamp) {
                 // delete expired cgroup entry
-                bpf_map_delete_elem(&traced_cgroups, &container->container_id[0]);
+                bpf_map_delete_elem(&traced_cgroups, &container_id[0]);
                 // delete config
                 bpf_map_delete_elem(&activity_dumps_config, &cookie_val);
                 return 0;
@@ -152,11 +155,11 @@ __attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u6
 
         } else {
             // have we seen this cgroup before ?
-            u64 *wait_timeout = bpf_map_lookup_elem(&cgroup_wait_list, &container->container_id[0]);
+            u64 *wait_timeout = bpf_map_lookup_elem(&cgroup_wait_list, &container_id[0]);
             if (wait_timeout) {
                 if (now > *wait_timeout) {
                     // delete expired wait_list entry
-                    bpf_map_delete_elem(&cgroup_wait_list, &container->container_id[0]);
+                    bpf_map_delete_elem(&cgroup_wait_list, &container_id[0]);
                 }
 
                 // this cgroup is on the wait list, do not start tracing it
@@ -164,7 +167,7 @@ __attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u6
             }
 
             // can we start tracing this cgroup ?
-            u64 cookie_val = trace_new_cgroup(ctx, now, container->container_id, &container->cgroup_context);
+            u64 cookie_val = trace_new_cgroup(ctx, now, container_id, &container->cgroup_context);
             if (cookie_val == 0) {
                 return 0;
             }
