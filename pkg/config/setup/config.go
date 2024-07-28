@@ -1455,6 +1455,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// a more substantial refactor of autodiscovery is made to determine this automatically.
 	config.BindEnvAndSetDefault("logs_config.use_podman_logs", false)
 
+	// If true, then a source_host tag (IP Address) will be added to TCP/UDP logs.
+	config.BindEnvAndSetDefault("logs_config.use_sourcehost_tag", true)
+
 	// If set, the agent will look in this path for docker container log files.  Use this option if
 	// docker's `data-root` has been set to a custom path and you wish to ingest docker logs from files. In
 	// order to check your docker data-root directory, run the command `docker info -f '{{.DockerRootDir}}'`

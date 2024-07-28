@@ -18,6 +18,7 @@ from gitlab.v4.objects import Project, ProjectCommit, ProjectPipeline
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.git import get_common_ancestor, get_current_branch
 from tasks.libs.common.utils import retry_function
 
 BASE_URL = "https://gitlab.ddbuild.io"
@@ -868,3 +869,58 @@ def retrieve_all_paths(yaml):
     elif isinstance(yaml, list):
         for item in yaml:
             yield from retrieve_all_paths(item)
+
+
+def gitlab_configuration_is_modified(ctx):
+    branch = get_current_branch(ctx)
+    if branch == "main":
+        # We usually squash merge on main so comparing only to the last commit
+        diff = ctx.run("git diff HEAD^1..HEAD", hide=True).stdout.strip().splitlines()
+    else:
+        # On dev branch we compare all the new commits
+        ctx.run("git fetch origin main:main")
+        ancestor = get_common_ancestor(ctx, branch)
+        diff = ctx.run(f"git diff {ancestor}..HEAD", hide=True).stdout.strip().splitlines()
+    modified_files = re.compile(r"^diff --git a/(.*) b/(.*)")
+    changed_lines = re.compile(r"^@@ -\d+,\d+ \+(\d+),(\d+) @@")
+    leading_space = re.compile(r"^(\s*).*$")
+    in_config = False
+    for line in diff:
+        if line.startswith("diff --git"):
+            files = modified_files.match(line)
+            new_file = files.group(1)
+            # Third condition is only for testing purposes
+            if (
+                new_file.startswith(".gitlab") and new_file.endswith(".yml")
+            ) or "testdata/yaml_configurations" in new_file:
+                in_config = True
+                print(f"Found a gitlab configuration file: {new_file}")
+            else:
+                in_config = False
+        if in_config and line.startswith("@@"):
+            lines = changed_lines.match(line)
+            start = int(lines.group(1))
+            with open(new_file) as f:
+                content = f.readlines()
+                item = leading_space.match(content[start])
+                if item:
+                    for above_line in reversed(content[:start]):
+                        current = leading_space.match(above_line)
+                        if current[1] < item[1]:
+                            if any(keyword in above_line for keyword in ["needs:", "dependencies:"]):
+                                print(f"> Found a gitlab configuration change on line: {content[start]}")
+                                return True
+                            else:
+                                break
+        if (
+            in_config
+            and line.startswith("+")
+            and (
+                (len(line) > 1 and line[1].isalpha())
+                or any(keyword in line for keyword in ["needs:", "dependencies:", "!reference"])
+            )
+        ):
+            print(f"> Found a gitlab configuration change on line: {line}")
+            return True
+
+    return False
