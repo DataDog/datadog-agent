@@ -2640,12 +2640,12 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				}
 			}
 
-      wehbook, errInitAPMInstrumentation := NewWebhook(wmeta, GetInstrumentationFilter())
-      if tt.wantWebhookInitErr {
+			webhook, errInitAPMInstrumentation := NewWebhook(wmeta, GetInjectionFilter())
+			if tt.wantWebhookInitErr {
 				require.Error(t, errInitAPMInstrumentation)
 				return
 			}
-      
+
 			require.NoError(t, errInitAPMInstrumentation)
 
 			_, err := webhook.inject(tt.pod, "", fake.NewSimpleDynamicClient(scheme.Scheme))

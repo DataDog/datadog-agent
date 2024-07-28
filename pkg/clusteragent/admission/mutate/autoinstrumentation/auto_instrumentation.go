@@ -164,10 +164,9 @@ type Webhook struct {
 	endpoint            string
 	resources           []string
 	operations          []admiv1.OperationType
-	filter              *containers.Filter
-  injectionFilter   mutatecommon.InjectionFilter
 	initSecurityContext *corev1.SecurityContext
 	containerRegistry   string
+	injectionFilter     mutatecommon.InjectionFilter
 	pinnedLibraries     []libInfo
 	wmeta               workloadmeta.Component
 }
@@ -196,9 +195,8 @@ func NewWebhook(wmeta workloadmeta.Component, filter mutatecommon.InjectionFilte
 		endpoint:            config.Datadog().GetString("admission_controller.auto_instrumentation.endpoint"),
 		resources:           []string{"pods"},
 		operations:          []admiv1.OperationType{admiv1.Create},
-		filter:              filter,
 		initSecurityContext: initSecurityContext,
-    injectionFilter:   filter,
+		injectionFilter:     filter,
 		containerRegistry:   containerRegistry,
 		pinnedLibraries:     getPinnedLibraries(containerRegistry),
 		wmeta:               wmeta,
