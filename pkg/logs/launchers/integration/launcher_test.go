@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	"github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	integrationsMock "github.com/DataDog/datadog-agent/comp/logs/integrations/mock"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	auditor "github.com/DataDog/datadog-agent/pkg/logs/auditor/mock"
