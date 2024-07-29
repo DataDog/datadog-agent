@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type packageTests func(os e2eos.Descriptor, arch e2eos.Architecture) packageSuite
+type packageTests func(os e2eos.Descriptor, arch e2eos.Architecture, method installMethodOption) packageSuite
 
 type packageTestsWithSkipedFlavors struct {
 	t              packageTests
@@ -72,6 +72,8 @@ var packagesConfig = []testPackageConfig{
 	{name: "datadog-apm-library-python", defaultVersion: "latest"},
 }
 
+var supportedInstallMethods = []installMethodOption{installMethodInstallScript}
+
 func shouldSkip(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
 	for _, f := range flavors {
 		if f.Flavor == flavor.Flavor && f.Version == flavor.Version {
@@ -98,28 +100,30 @@ func TestPackages(t *testing.T) {
 		flavors = append(flavors, flavor)
 	}
 	for _, f := range flavors {
-		for _, test := range packagesTestsWithSkippedFlavors {
-			flavor := f // capture range variable for parallel tests closure
-			if shouldSkip(test.skippedFlavors, flavor) {
-				continue
+		for _, method := range supportedInstallMethods {
+			for _, test := range packagesTestsWithSkippedFlavors {
+				flavor := f // capture range variable for parallel tests closure
+				if shouldSkip(test.skippedFlavors, flavor) {
+					continue
+				}
+				suite := test.t(flavor, flavor.Architecture, method)
+				t.Run(suite.Name(), func(t *testing.T) {
+					t.Parallel()
+					// FIXME: Fedora currently has DNS issues
+					if flavor.Flavor == e2eos.Fedora {
+						flake.Mark(t)
+					}
+					opts := []awshost.ProvisionerOption{
+						awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
+						awshost.WithoutAgent(),
+					}
+					opts = append(opts, suite.ProvisionerOptions()...)
+					e2e.Run(t, suite,
+						e2e.WithProvisioner(awshost.Provisioner(opts...)),
+						e2e.WithStackName(suite.Name()),
+					)
+				})
 			}
-			suite := test.t(flavor, flavor.Architecture)
-			t.Run(suite.Name(), func(t *testing.T) {
-				t.Parallel()
-				// FIXME: Fedora currently has DNS issues
-				if flavor.Flavor == e2eos.Fedora {
-					flake.Mark(t)
-				}
-				opts := []awshost.ProvisionerOption{
-					awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
-					awshost.WithoutAgent(),
-				}
-				opts = append(opts, suite.ProvisionerOptions()...)
-				e2e.Run(t, suite,
-					e2e.WithProvisioner(awshost.Provisioner(opts...)),
-					e2e.WithStackName(suite.Name()),
-				)
-			})
 		}
 	}
 }
@@ -135,23 +139,32 @@ type packageBaseSuite struct {
 	e2e.BaseSuite[environments.Host]
 	host *host.Host
 
-	opts []awshost.ProvisionerOption
-	pkg  string
-	arch e2eos.Architecture
-	os   e2eos.Descriptor
+	opts          []awshost.ProvisionerOption
+	pkg           string
+	arch          e2eos.Architecture
+	os            e2eos.Descriptor
+	installMethod installMethodOption
 }
 
-func newPackageSuite(pkg string, os e2eos.Descriptor, arch e2eos.Architecture, opts ...awshost.ProvisionerOption) packageBaseSuite {
+type installMethodOption string
+
+const (
+	installMethodInstallScript installMethodOption = "install_script"
+	installMethodAnsible       installMethodOption = "ansible"
+)
+
+func newPackageSuite(pkg string, os e2eos.Descriptor, arch e2eos.Architecture, method installMethodOption, opts ...awshost.ProvisionerOption) packageBaseSuite {
 	return packageBaseSuite{
-		os:   os,
-		arch: arch,
-		pkg:  pkg,
-		opts: opts,
+		os:            os,
+		arch:          arch,
+		pkg:           pkg,
+		opts:          opts,
+		installMethod: method,
 	}
 }
 
 func (s *packageBaseSuite) Name() string {
-	return regexp.MustCompile("[^a-zA-Z0-9]+").ReplaceAllString(fmt.Sprintf("%s/%s", s.pkg, s.os), "_")
+	return regexp.MustCompile("[^a-zA-Z0-9]+").ReplaceAllString(fmt.Sprintf("%s/%s/%s", s.pkg, s.os, s.installMethod), "_")
 }
 
 func (s *packageBaseSuite) ProvisionerOptions() []awshost.ProvisionerOption {
@@ -184,12 +197,17 @@ func (s *packageBaseSuite) RunInstallScriptWithError(params ...string) error {
 }
 
 func (s *packageBaseSuite) RunInstallScript(params ...string) {
-	// bugfix for https://major.io/p/systemd-in-fedora-22-failed-to-restart-service-access-denied/
-	if s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version {
-		s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reexec")
+	switch s.installMethod {
+	case installMethodInstallScript:
+		// bugfix for https://major.io/p/systemd-in-fedora-22-failed-to-restart-service-access-denied/
+		if s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version {
+			s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reexec")
+		}
+		err := s.RunInstallScriptWithError(params...)
+		require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log"))
+	default:
+		s.T().Fatal("unsupported install method")
 	}
-	err := s.RunInstallScriptWithError(params...)
-	require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log"))
 }
 
 func envForceInstall(pkg string) string {
