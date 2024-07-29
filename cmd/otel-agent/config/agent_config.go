@@ -26,7 +26,7 @@ import (
 )
 
 // NewConfigComponent creates a new config component from the given URIs
-func NewConfigComponent(ctx context.Context, uris []string) (config.Component, error) {
+func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (config.Component, error) {
 	// Load the configuration from the fileName
 	rs := confmap.ResolverSettings{
 		URIs: uris,
@@ -60,6 +60,17 @@ func NewConfigComponent(ctx context.Context, uris []string) (config.Component, e
 	apiKey := string(ddc.API.Key)
 	// Set the global agent config
 	pkgconfig := pkgconfigsetup.Datadog()
+	if len(ddCfg) != 0 {
+		// if the configuration file path was supplied on the command line,
+		// add that first so it's first in line
+		pkgconfig.AddConfigPath(ddCfg)
+		// If they set a config file directly, let's try to honor that
+		if strings.HasSuffix(ddCfg, ".yaml") || strings.HasSuffix(ddCfg, ".yml") {
+			pkgconfig.SetConfigFile(ddCfg)
+		}
+	}
+	pkgconfigsetup.LoadWithoutSecret(pkgconfig, nil)
+
 	pkgconfig.SetConfigName("OTel")
 	pkgconfig.SetEnvPrefix("DD")
 	pkgconfig.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

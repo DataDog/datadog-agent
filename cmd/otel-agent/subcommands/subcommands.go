@@ -13,10 +13,11 @@ import "strings"
 // A pointer to this type is passed to SubcommandFactory's, but its contents
 // are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
-	ConfPaths  []string
-	Sets       []string
-	ConfigName string
-	LoggerName string
+	ConfPaths    []string
+	Sets         []string
+	CoreConfPath string
+	ConfigName   string
+	LoggerName   string
 }
 
 // Set is called by Cobra when a flag is set.
