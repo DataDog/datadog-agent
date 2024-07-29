@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -38,6 +39,7 @@ type mockdependencies struct {
 	Params     MockParams
 	TaggerComp tagger.Mock
 	LogsComp   log.Component
+	Telemetry  telemetry.Component
 }
 
 type mockprovides struct {
@@ -48,7 +50,7 @@ type mockprovides struct {
 }
 
 func newMockAutoConfig(deps mockdependencies) mockprovides {
-	ac := createNewAutoConfig(deps.Params.Scheduler, nil, deps.WMeta, deps.TaggerComp, deps.LogsComp)
+	ac := createNewAutoConfig(deps.Params.Scheduler, nil, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry)
 	return mockprovides{
 		Comp:     ac,
 		Endpoint: api.NewAgentEndpointProvider(ac.mockHandleRequest, "/config-check", "GET"),
