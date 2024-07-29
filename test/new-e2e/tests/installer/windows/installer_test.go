@@ -50,7 +50,7 @@ func (suite *testInstallerSuite) TestInstalls() {
 			HasAService(InstallerServiceName).
 			// the service cannot start because of the missing API key
 			WithStatus("Stopped").
-			WithUserSid("S-1-5-18")
+			WithIdentity(common.GetIdentityForSID("S-1-5-18"))
 	})
 
 	suite.Run("Start service with a configuration file", func() {

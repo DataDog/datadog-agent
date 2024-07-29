@@ -25,16 +25,9 @@ func (r *RemoteWindowsServiceAssertions) WithStatus(expectedStatus string) *Remo
 	return r
 }
 
-// WithLogon asserts that the service runs under the given logon (username).
-func (r *RemoteWindowsServiceAssertions) WithLogon(logon string) *RemoteWindowsServiceAssertions {
+// WithIdentity asserts that the service runs under the given identity.
+func (r *RemoteWindowsServiceAssertions) WithIdentity(userIdentity common.Identity) *RemoteWindowsServiceAssertions {
 	r.suite.T().Helper()
-	r.require.Equal(logon, r.serviceConfig.UserName)
-	return r
-}
-
-// WithUserSid asserts that the service runs under the given SID.
-func (r *RemoteWindowsServiceAssertions) WithUserSid(sid string) *RemoteWindowsServiceAssertions {
-	r.suite.T().Helper()
-	r.require.Equal(sid, r.serviceConfig.UserSID)
+	r.require.Equal(userIdentity.GetSID(), r.serviceConfig.UserSID)
 	return r
 }
