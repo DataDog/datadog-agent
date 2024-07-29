@@ -299,6 +299,11 @@ type fxLifecycleAdapter struct {
 	lc fx.Lifecycle
 }
 
+// FxLifecycleAdapter create an fx.Option to convert fx.Lifecycle to compdef.Lifecycle when needed.
+func FxLifecycleAdapter() fx.Option {
+	return fx.Provide(newFxLifecycleAdapter)
+}
+
 func newFxLifecycleAdapter(lc fx.Lifecycle) compdef.Lifecycle {
 	return &fxLifecycleAdapter{lc: lc}
 }

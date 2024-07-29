@@ -141,24 +141,18 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 		return fmt.Sprintf("produce%d_fetch%d", produce, fetch)
 	}
 
-	t.Run("without TLS", func(t *testing.T) {
-		for _, version := range versions {
-			t.Run(versionName(version), func(t *testing.T) {
-				s.testKafkaProtocolParsing(t, false, version)
-			})
-		}
-	})
-
-	t.Run("with TLS", func(t *testing.T) {
-		if !gotlsutils.GoTLSSupported(t, config.New()) {
-			t.Skip("GoTLS not supported for this setup")
-		}
-		for _, version := range versions {
-			t.Run(versionName(version), func(t *testing.T) {
-				s.testKafkaProtocolParsing(t, true, version)
-			})
-		}
-	})
+	for mode, name := range map[bool]string{false: "without TLS", true: "with TLS"} {
+		t.Run(name, func(t *testing.T) {
+			if mode && !gotlsutils.GoTLSSupported(t, config.New()) {
+				t.Skip("GoTLS not supported for this setup")
+			}
+			for _, version := range versions {
+				t.Run(versionName(version), func(t *testing.T) {
+					s.testKafkaProtocolParsing(t, mode, version)
+				})
+			}
+		})
+	}
 }
 
 func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls bool, version *kversion.Versions) {
@@ -1448,7 +1442,7 @@ func (i *PrintableInt) Add(other int) {
 
 func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount int, topicName string, validation kafkaParsingValidation, errorCode int32) map[kafka.Key]*kafka.RequestStats {
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		protocolStats := monitor.GetProtocolStats()
 		kafkaProtocolStats, exists := protocolStats[protocols.Kafka]
 		// We might not have kafka stats, and it might be the expected case (to capture 0).
@@ -1468,12 +1462,16 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 			validateProduceFetchCount(collect, kafkaStats, topicName, validation, errorCode)
 		}
 	}, time.Second*5, time.Millisecond*10)
+	if t.Failed() {
+		ebpftest.DumpMapsTestHelper(t, monitor.ebpfProgram.Manager.Manager.DumpMaps, "kafka_in_flight", "kafka_batches", "kafka_response", "kafka_telemetry")
+		t.FailNow()
+	}
 	return kafkaStats
 }
 
 func getAndValidateKafkaStatsWithErrorCodes(t *testing.T, monitor *Monitor, expectedStatsCount int, topicName string, validation kafkaParsingValidationWithErrorCodes) map[kafka.Key]*kafka.RequestStats {
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		protocolStats := monitor.GetProtocolStats()
 		kafkaProtocolStats, exists := protocolStats[protocols.Kafka]
 		// We might not have kafka stats, and it might be the expected case (to capture 0).
@@ -1493,6 +1491,10 @@ func getAndValidateKafkaStatsWithErrorCodes(t *testing.T, monitor *Monitor, expe
 			validateProduceFetchCountWithErrorCodes(collect, kafkaStats, topicName, validation)
 		}
 	}, time.Second*5, time.Millisecond*10)
+	if t.Failed() {
+		ebpftest.DumpMapsTestHelper(t, monitor.ebpfProgram.Manager.Manager.DumpMaps, "kafka_in_flight", "kafka_batches", "kafka_response", "kafka_telemetry")
+		t.FailNow()
+	}
 	return kafkaStats
 }
 

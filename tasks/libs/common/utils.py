@@ -521,13 +521,18 @@ def is_pr_context(branch, pr_id, test_name):
 
 
 @contextmanager
-def gitlab_section(section_name, collapsed=False):
+def gitlab_section(section_name, collapsed=False, echo=False):
+    """
+    - echo: If True, will echo the gitlab section in bold in CLI mode instead of not showing anything
+    """
     section_id = section_name.replace(" ", "_").replace("/", "_")
     in_ci = running_in_gitlab_ci()
     try:
         if in_ci:
             collapsed = '[collapsed=true]' if collapsed else ''
             print(f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}")
+        elif echo:
+            print(color_message(f"> {section_name}...", 'bold'))
         yield
     finally:
         if in_ci:
