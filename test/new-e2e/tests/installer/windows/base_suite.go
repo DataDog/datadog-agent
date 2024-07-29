@@ -6,9 +6,9 @@
 package installerwindows
 
 import (
-	"flag"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/suite-assertions"
 )
 
@@ -17,10 +17,6 @@ type baseSuite struct {
 	installer *DatadogInstaller
 }
 
-var (
-	msiLogPath = flag.String("log-path", "", "the location where to store the installation logs on the local host. By default it will use a temporary folder.")
-)
-
 func (s *baseSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 
@@ -28,8 +24,11 @@ func (s *baseSuite) SetupSuite() {
 	if s.Env().AwsEnvironment.PipelineID() == "" {
 		s.FailNow("E2E_PIPELINE_ID env var is not set, this test requires this variable to be set to work")
 	}
-	// If *msiLogPath == "" then we will use a temporary path on the host
-	s.installer = NewDatadogInstaller(s.Env(), *msiLogPath)
+
+	outputDir, err := runner.GetTestOutputDir(runner.GetProfile(), s.T())
+	s.Require().NoError(err, "should get output dir")
+	s.T().Logf("Output dir: %s", outputDir)
+	s.installer = NewDatadogInstaller(s.Env(), outputDir)
 }
 
 // Require instantiates a suiteAssertions for the current suite.
