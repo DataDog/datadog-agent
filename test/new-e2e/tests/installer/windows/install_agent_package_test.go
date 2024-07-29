@@ -56,10 +56,9 @@ func (suite *testAgentInstallSuite) TestUpgradeAgentPackage() {
 		// Arrange
 
 		// Act
-		// public.ecr.aws/datadog/agent-package:7.55
 		output, err := suite.installer.InstallPackage(AgentPackage,
 			installer.WithRegistry("public.ecr.aws/datadog"),
-			installer.WithVersion("7.55.1-1"),
+			installer.WithVersion("latest"),
 			installer.WithAuthentication(""),
 		)
 
