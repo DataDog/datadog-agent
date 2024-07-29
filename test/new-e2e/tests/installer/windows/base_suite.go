@@ -21,8 +21,8 @@ var (
 	msiLogPath = flag.String("log-path", "", "the location where to store the installation logs on the local host. By default it will use a temporary folder.")
 )
 
-func (s *baseSuite) BeforeTest(suiteName, testName string) {
-	s.BaseSuite.BeforeTest(suiteName, testName)
+func (s *baseSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
 
 	// TODO:FA-779
 	if s.Env().AwsEnvironment.PipelineID() == "" {
