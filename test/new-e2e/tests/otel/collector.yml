@@ -29,6 +29,8 @@ receivers:
           regex: ".*grpc_io.*"
           action: drop
 exporters:
+  debug:
+    verbosity: detailed
   datadog:
     traces:
       span_name_as_resource_name: true
@@ -55,16 +57,12 @@ service:
     traces: # this pipeline computes APM stats
       receivers: [otlp]
       processors: [batch]
-      exporters: [datadog/connector]
-    traces/sampling: # this pipeline uses sampling and sends traces
-      receivers: [otlp]
-      processors: [probabilistic_sampler, infraattributes,batch]
-      exporters: [datadog]
+      exporters: [debug]
     metrics:
-      receivers: [otlp, datadog/connector, prometheus]
+      receivers: [otlp, prometheus]
       processors: [infraattributes,batch]
-      exporters: [datadog]
+      exporters: [debug]
     logs:
       receivers: [otlp]
       processors: [infraattributes, batch]
-      exporters: [datadog]
+      exporters: [debug]
