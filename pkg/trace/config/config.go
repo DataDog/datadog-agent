@@ -289,7 +289,7 @@ type AgentConfig struct {
 	ExtraAggregators       []string      // DEPRECATED
 	PeerTagsAggregation    bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
 	ComputeStatsBySpanKind bool          // enables/disables the computing of stats based on a span's `span.kind` field
-	PeerTags               []string      // additional tags to use for peer entity stats aggregation. If this field is not empty, the concentrator will aggregate on all of these keys.
+	PeerTags               []string      // additional tags to use for peer entity stats aggregation
 
 	// Sampler configuration
 	ExtraSampleRate float64

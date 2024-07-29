@@ -2560,22 +2560,6 @@ func TestPeerTagsAggregation(t *testing.T) {
 		assert.True(t, cfg.PeerTagsAggregation)
 		assert.Equal(t, []string{"user_peer_tag"}, cfg.PeerTags)
 	})
-	// t.Run("dedup", func(t *testing.T) {
-	// 	overrides := map[string]interface{}{
-	// 		"apm_config.peer_tags":             basePeerTags[:1],
-	// 		"apm_config.peer_tags_aggregation": true,
-	// 	}
-
-	// 	config := fxutil.Test[Component](t, fx.Options(
-	// 		corecomp.MockModule(),
-	// 		fx.Replace(corecomp.MockParams{Overrides: overrides}),
-	// 		MockModule(),
-	// 	))
-	// 	// underlying config
-	// 	cfg := config.Object()
-	// 	require.NotNil(t, cfg)
-	// 	assert.Equal(t, basePeerTags, cfg.PeerTags)
-	// })
 }
 
 func TestComputeStatsBySpanKind(t *testing.T) {
