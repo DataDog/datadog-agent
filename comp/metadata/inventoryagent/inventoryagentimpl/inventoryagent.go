@@ -299,6 +299,10 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	ia.data["feature_usm_http_by_status_code_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_http_stats_by_status_code")
 	ia.data["feature_usm_go_tls_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.go.enabled")
 
+	// Discovery module / system-probe
+
+	ia.data["feature_discovery_enabled"] = sysProbeConf.GetBool("discovery.enabled")
+
 	// miscellaneous / system-probe
 
 	ia.data["feature_tcp_queue_length_enabled"] = sysProbeConf.GetBool("system_probe_config.enable_tcp_queue_length")
