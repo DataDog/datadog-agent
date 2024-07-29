@@ -28,7 +28,6 @@ type Launcher struct {
 	sources              *sources.LogSources
 	addedSources         chan *sources.LogSource
 	stop                 chan struct{}
-	done                 chan struct{}
 	runPath              string
 	integrationsLogsChan chan integrations.IntegrationLog
 	integrationToFile    map[string]string
@@ -43,7 +42,6 @@ func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.
 		sources:              sources,
 		runPath:              pkgConfig.Datadog().GetString("logs_config.run_path"),
 		stop:                 make(chan struct{}),
-		done:                 make(chan struct{}),
 		integrationsLogsChan: integrationsLogsComp.Subscribe(),
 		integrationToFile:    make(map[string]string),
 		writeFunction:        writeLogToFile,
@@ -57,18 +55,13 @@ func (s *Launcher) Start(sourceProvider launchers.SourceProvider, _ pipeline.Pro
 	go s.run()
 }
 
-// Stop stops the scanner
+// Stop stops the launcher
 func (s *Launcher) Stop() {
 	s.stop <- struct{}{}
-	<-s.done
 }
 
 // run checks if there are new files to tail and tails them
 func (s *Launcher) run() {
-	defer func() {
-		close(s.done)
-	}()
-
 	for {
 		select {
 		case source := <-s.addedSources:
@@ -86,6 +79,7 @@ func (s *Launcher) run() {
 			// file to write the incoming logs to
 			s.integrationToFile[source.Name] = filepath
 		case log := <-s.integrationsLogsChan:
+			// Integrations will come in the form of: check_name:instance_config_hash
 			integrationSplit := strings.Split(log.IntegrationID, ":")
 			integrationName := integrationSplit[0]
 			filepath := s.integrationToFile[integrationName]
@@ -171,7 +165,7 @@ func (s *Launcher) integrationLogFilePath(source sources.LogSource) (string, str
 // ensureFileSize enforces the max file size for files integrations logs
 // files. Files over the set size will be deleted and remade.
 func (s *Launcher) ensureFileSize(filepath string) error {
-	maxFileSizeSetting := pkgConfig.Datadog().GetInt("logs_config.integrations_logs_files_max_size")
+	maxFileSizeSetting := pkgConfig.Datadog().GetInt64("logs_config.integrations_logs_files_max_size")
 	maxFileSizeBytes := maxFileSizeSetting * 1024 * 1024
 
 	fi, err := os.Stat(filepath)
