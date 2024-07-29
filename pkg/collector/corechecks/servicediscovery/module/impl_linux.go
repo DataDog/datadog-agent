@@ -15,10 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-const (
-	status = "/status"
-)
-
 // Ensure discovery implements the module.Module interface.
 var _ module.Module = &discovery{}
 
@@ -37,7 +33,7 @@ func (s *discovery) GetStats() map[string]interface{} {
 
 // Register registers the discovery module with the provided HTTP mux.
 func (s *discovery) Register(httpMux *module.Router) error {
-	httpMux.HandleFunc(status, s.handleStatusEndpoint)
+	httpMux.HandleFunc("/status", s.handleStatusEndpoint)
 	return nil
 }
 
