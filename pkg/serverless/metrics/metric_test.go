@@ -222,14 +222,14 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 			conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
 			time.Sleep(10 * time.Nanosecond)
 		}
-		finish.Done()
+		wg.Done()
 	}(finish)
 
 	go func(wg *sync.WaitGroup) {
 		for i := 0; i < 1000; i++ {
 			s.ServerlessFlush(time.Second * 10)
 		}
-		finish.Done()
+		wg.Done()
 	}(finish)
 
 	finish.Wait()

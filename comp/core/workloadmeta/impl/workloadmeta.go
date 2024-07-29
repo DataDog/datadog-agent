@@ -101,7 +101,7 @@ func NewWorkloadMeta(deps dependencies) Provider {
 		ongoingPulls: make(map[string]time.Time),
 	}
 
-	deps.Lc.Append(fx.Hook{OnStart: func(c context.Context) error {
+	deps.Lc.Append(fx.Hook{OnStart: func(_ context.Context) error {
 
 		var err error
 

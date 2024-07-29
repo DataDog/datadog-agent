@@ -117,7 +117,7 @@ func TestStart(t testing.TB, opts fx.Option, appAssert appAssertFn, fn interface
 // fxutil.Run call will satisfy fx's dependences by using fx.ValidateApp.
 func TestRun(t *testing.T, f func() error) {
 	var fxFakeAppRan bool
-	fxAppTestOverride = func(i interface{}, opts []fx.Option) error {
+	fxAppTestOverride = func(_ interface{}, opts []fx.Option) error {
 		fxFakeAppRan = true
 		opts = append(opts, fx.Provide(newFxLifecycleAdapter))
 		require.NoError(t, fx.ValidateApp(opts...))
@@ -309,7 +309,7 @@ func createFxInvokeOption(componentTypes []reflect.Type) fx.Option {
 	fctSig := reflect.FuncOf(componentTypes, nil, false)
 	captureArgs := reflect.MakeFunc(
 		fctSig,
-		func(args []reflect.Value) []reflect.Value {
+		func(_ []reflect.Value) []reflect.Value {
 			return []reflect.Value{}
 		})
 

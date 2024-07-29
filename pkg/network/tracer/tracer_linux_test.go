@@ -928,7 +928,7 @@ func (s *TracerSuite) TestConnectionAssured() {
 	tr := setupTracer(t, cfg)
 	server := &UDPServer{
 		network: "udp4",
-		onMessage: func(b []byte, n int) []byte {
+		onMessage: func([]byte, int) []byte {
 			return genPayload(serverMessageSize)
 		},
 	}
@@ -970,7 +970,7 @@ func (s *TracerSuite) TestConnectionNotAssured() {
 
 	server := &UDPServer{
 		network: "udp4",
-		onMessage: func(b []byte, n int) []byte {
+		onMessage: func([]byte, int) []byte {
 			return nil
 		},
 	}
@@ -1535,7 +1535,7 @@ func (s *TracerSuite) TestSendfileRegression() {
 				var rcvd int64
 				server := &UDPServer{
 					network: "udp" + strings.TrimPrefix(family.String(), "v"),
-					onMessage: func(b []byte, n int) []byte {
+					onMessage: func(_ []byte, n int) []byte {
 						rcvd = rcvd + int64(n)
 						return nil
 					},
@@ -1927,7 +1927,7 @@ func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 	server := &UDPServer{
 		network: "udp",
 		address: "localhost:8125",
-		onMessage: func(b []byte, n int) []byte {
+		onMessage: func(b []byte, _ int) []byte {
 			return b
 		},
 	}

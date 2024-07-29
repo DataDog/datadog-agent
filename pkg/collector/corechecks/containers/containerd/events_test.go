@@ -66,10 +66,10 @@ func TestCheckEvents(t *testing.T) {
 		MockEvents: func() containerd.EventService {
 			return containerd.EventService(me)
 		},
-		MockNamespaces: func(ctx context.Context) ([]string, error) {
+		MockNamespaces: func(context.Context) ([]string, error) {
 			return []string{testNamespace}, nil
 		},
-		MockContainers: func(namespace string) ([]containerd.Container, error) {
+		MockContainers: func(string) ([]containerd.Container, error) {
 			return nil, nil
 		},
 	}
@@ -166,7 +166,7 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 		MockEvents: func() containerd.EventService {
 			return containerd.EventService(me)
 		},
-		MockNamespaces: func(ctx context.Context) ([]string, error) {
+		MockNamespaces: func(context.Context) ([]string, error) {
 			return []string{testNamespace}, nil
 		},
 		MockContainers: func(namespace string) ([]containerd.Container, error) {

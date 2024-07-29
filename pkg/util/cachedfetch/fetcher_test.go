@@ -16,7 +16,7 @@ import (
 // If Attempt never succeeds, f.Fetch returns an error
 func TestFetcherNeverSucceeds(t *testing.T) {
 	f := Fetcher{
-		Attempt: func(ctx context.Context) (interface{}, error) { return nil, fmt.Errorf("uhoh") },
+		Attempt: func(context.Context) (interface{}, error) { return nil, fmt.Errorf("uhoh") },
 	}
 
 	v, err := f.Fetch(context.TODO())
@@ -97,7 +97,7 @@ func TestFetcherLogsWhenUsingCached(t *testing.T) {
 // FetchString casts to a string
 func TestFetchString(t *testing.T) {
 	f := Fetcher{
-		Attempt: func(ctx context.Context) (interface{}, error) { return "hello", nil },
+		Attempt: func(context.Context) (interface{}, error) { return "hello", nil },
 	}
 	v, err := f.FetchString(context.TODO())
 	require.Equal(t, "hello", v)
@@ -107,7 +107,7 @@ func TestFetchString(t *testing.T) {
 // FetchString casts to a string
 func TestFetchStringError(t *testing.T) {
 	f := Fetcher{
-		Attempt: func(ctx context.Context) (interface{}, error) { return nil, fmt.Errorf("uhoh") },
+		Attempt: func(context.Context) (interface{}, error) { return nil, fmt.Errorf("uhoh") },
 	}
 	v, err := f.FetchString(context.TODO())
 	require.Equal(t, "", v)
@@ -117,7 +117,7 @@ func TestFetchStringError(t *testing.T) {
 // FetchStringSlice casts to a []string
 func TestFetchStringSlice(t *testing.T) {
 	f := Fetcher{
-		Attempt: func(ctx context.Context) (interface{}, error) { return []string{"hello"}, nil },
+		Attempt: func(context.Context) (interface{}, error) { return []string{"hello"}, nil },
 	}
 	v, err := f.FetchStringSlice(context.TODO())
 	require.Equal(t, []string{"hello"}, v)
@@ -127,7 +127,7 @@ func TestFetchStringSlice(t *testing.T) {
 // FetchStringSlice casts to a []string
 func TestFetchStringSliceError(t *testing.T) {
 	f := Fetcher{
-		Attempt: func(ctx context.Context) (interface{}, error) { return nil, fmt.Errorf("uhoh") },
+		Attempt: func(context.Context) (interface{}, error) { return nil, fmt.Errorf("uhoh") },
 	}
 	v, err := f.FetchStringSlice(context.TODO())
 	require.Nil(t, v)
@@ -135,8 +135,8 @@ func TestFetchStringSliceError(t *testing.T) {
 }
 
 func TestReset(t *testing.T) {
-	succeed := func(ctx context.Context) (interface{}, error) { return "yay", nil }
-	fail := func(ctx context.Context) (interface{}, error) { return nil, fmt.Errorf("uhoh") }
+	succeed := func(context.Context) (interface{}, error) { return "yay", nil }
+	fail := func(context.Context) (interface{}, error) { return nil, fmt.Errorf("uhoh") }
 	f := Fetcher{}
 
 	f.Attempt = succeed

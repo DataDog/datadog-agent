@@ -81,10 +81,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 
 	reqs.Lc.Append(compdef.Hook{
-		OnStart: func(ctx context.Context) error {
+		OnStart: func(_ context.Context) error {
 			return probe.start()
 		},
-		OnStop: func(ctx context.Context) error {
+		OnStop: func(_ context.Context) error {
 			return probe.stop()
 		},
 	})

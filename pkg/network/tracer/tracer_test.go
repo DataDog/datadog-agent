@@ -483,7 +483,7 @@ func (s *TracerSuite) TestUDPDisabled() {
 
 	// Create UDP Server which sends back serverMessageSize bytes
 	server := &UDPServer{
-		onMessage: func(b []byte, n int) []byte {
+		onMessage: func([]byte, int) []byte {
 			return genPayload(serverMessageSize)
 		},
 	}

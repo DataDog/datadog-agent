@@ -317,13 +317,13 @@ func createSyslogHeaderFormatter(params string) seelog.FormatterFunc {
 	appName := filepath.Base(os.Args[0])
 
 	if rfc { // RFC 5424
-		return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+		return func(_ string, level seelog.LogLevel, _ seelog.LogContextInterface) interface{} {
 			return fmt.Sprintf("<%d>1 %s %d - -", facility*8+levelToSyslogSeverity[level], appName, pid)
 		}
 	}
 
 	// otherwise old-school logging
-	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+	return func(_ string, level seelog.LogLevel, _ seelog.LogContextInterface) interface{} {
 		return fmt.Sprintf("<%d>%s[%d]:", facility*8+levelToSyslogSeverity[level], appName, pid)
 	}
 }
@@ -458,7 +458,7 @@ func (s *SyslogReceiver) Close() error {
 }
 
 func parseShortFilePath(params string) seelog.FormatterFunc { //nolint:revive // TODO fix revive unused-parameter
-	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		return extractShortPathFromFullPath(context.FullPath())
 	}
 }
@@ -486,7 +486,7 @@ func extractShortPathFromFullPath(fullPath string) string {
 }
 
 func createExtraJSONContext(params string) seelog.FormatterFunc { //nolint:revive // TODO fix revive unused-parameter
-	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		contextList, ok := context.CustomContext().([]interface{})
 		if len(contextList) == 0 || !ok {
 			return ""
@@ -496,7 +496,7 @@ func createExtraJSONContext(params string) seelog.FormatterFunc { //nolint:reviv
 }
 
 func createExtraTextContext(params string) seelog.FormatterFunc { //nolint:revive // TODO fix revive unused-parameter
-	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		contextList, ok := context.CustomContext().([]interface{})
 		if len(contextList) == 0 || !ok {
 			return ""

@@ -598,7 +598,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		},
 	}
 
-	kafkaTeardown := func(t *testing.T, ctx testContext) {
+	kafkaTeardown := func(_ *testing.T, ctx testContext) {
 		for key, val := range ctx.extras {
 			if strings.HasSuffix(key, "client") {
 				client := val.(*kafka.Client)
@@ -901,7 +901,7 @@ func testMySQLProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		},
 	}
 
-	mysqlTeardown := func(t *testing.T, ctx testContext) {
+	mysqlTeardown := func(_ *testing.T, ctx testContext) {
 		if client, ok := ctx.extras["conn"].(*mysql.Client); ok {
 			defer client.DB.Close()
 			client.DropDB()
@@ -1443,7 +1443,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *tracer.Tracer, clientH
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.validation = validateProtocolConnection(expectedProtocolStack)
-			tt.teardown = func(t *testing.T, ctx testContext) {
+			tt.teardown = func(_ *testing.T, ctx testContext) {
 				if pg, ok := ctx.extras["pg"].(*pgutils.PGClient); ok {
 					defer pg.Close()
 					_ = pg.RunDropQuery()
@@ -1474,7 +1474,7 @@ func testMongoProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		},
 	}
 
-	mongoTeardown := func(t *testing.T, ctx testContext) {
+	mongoTeardown := func(_ *testing.T, ctx testContext) {
 		if client, ok := ctx.extras["client"].(*protocolsmongo.Client); ok {
 			require.NoError(t, client.DeleteDatabases())
 			defer client.Stop()
@@ -1657,7 +1657,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		},
 	}
 
-	redisTeardown := func(t *testing.T, ctx testContext) {
+	redisTeardown := func(_ *testing.T, ctx testContext) {
 		redis.NewClient(ctx.serverAddress, defaultDialer, withTLS)
 		if client, ok := ctx.extras["client"].(*redis2.Client); ok {
 			timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
@@ -1857,7 +1857,7 @@ func testAMQPProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, client
 		}
 	}
 
-	amqpTeardown := func(t *testing.T, ctx testContext) {
+	amqpTeardown := func(_ *testing.T, ctx testContext) {
 		if client, ok := ctx.extras["client"].(*amqp.Client); ok {
 			defer client.Terminate()
 			require.NoError(t, client.DeleteQueues())

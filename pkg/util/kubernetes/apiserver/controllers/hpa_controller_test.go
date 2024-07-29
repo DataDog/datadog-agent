@@ -318,7 +318,7 @@ func TestAutoscalerController(t *testing.T) {
 		},
 	}
 	d := &fakeDatadogClient{
-		queryMetricsFunc: func(from, to int64, query string) ([]datadog.Series, error) {
+		queryMetricsFunc: func(int64, int64, string) ([]datadog.Series, error) {
 			return ddSeries, nil
 		},
 	}

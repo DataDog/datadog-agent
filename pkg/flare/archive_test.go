@@ -34,7 +34,7 @@ import (
 func TestGoRoutines(t *testing.T) {
 	expected := "No Goroutines for you, my friend!"
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintf(w, "%s", expected)
 	}))
 	defer ts.Close()

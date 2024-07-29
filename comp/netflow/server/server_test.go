@@ -73,7 +73,7 @@ var testOptions = fx.Options(
 		// Set the internal flush frequency to a small number so tests don't take forever
 		c.(*Server).FlowAgg.FlushFlowsToSendInterval = 1 * time.Second
 		lc.Append(fx.Hook{
-			OnStop: func(ctx context.Context) error {
+			OnStop: func(_ context.Context) error {
 				// Remove the flow processor to avoid a spurious race detection error
 				replaceWithDummyFlowProcessor(c.(*Server))
 				return nil

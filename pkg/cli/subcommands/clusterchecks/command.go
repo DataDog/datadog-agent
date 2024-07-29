@@ -56,7 +56,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		Use:   "clusterchecks",
 		Short: "Prints the active cluster check configurations",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			globalParams := globalParamsGetter()
 
 			return fxutil.OneShot(run,
@@ -73,7 +73,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		Use:   "rebalance",
 		Short: "Rebalances cluster checks",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			globalParams := globalParamsGetter()
 
 			return fxutil.OneShot(rebalance,
@@ -92,7 +92,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		Use:   "isolate",
 		Short: "Isolates a single check in the cluster runner",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			globalParams := globalParamsGetter()
 
 			return fxutil.OneShot(isolate,

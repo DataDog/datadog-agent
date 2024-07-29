@@ -273,7 +273,7 @@ func (suite *AgentTestSuite) TestStatusOut() {
 		UseHTTP:      true,
 	}
 
-	logsProvider = func(verbose bool) logsStatus.Status {
+	logsProvider = func(_ bool) logsStatus.Status {
 		return mockResult
 	}
 
@@ -342,7 +342,7 @@ func (suite *AgentTestSuite) TestStatusOut() {
 	}
 
 	for _, test := range tests {
-		suite.T().Run(test.name, func(t *testing.T) {
+		suite.T().Run(test.name, func(_ *testing.T) {
 			test.assertFunc(suite.T())
 		})
 	}

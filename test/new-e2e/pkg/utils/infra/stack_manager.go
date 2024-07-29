@@ -17,8 +17,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV1"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/debug"
@@ -28,6 +26,9 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/workspace"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 )
 
 const (
@@ -235,7 +236,7 @@ func (sm *StackManager) DeleteStack(ctx context.Context, name string, logWriter 
 		// Build configuration from profile
 		profile := runner.GetProfile()
 		stackName := buildStackName(profile.NamePrefix(), name)
-		workspace, err := buildWorkspace(ctx, profile, stackName, func(ctx *pulumi.Context) error { return nil })
+		workspace, err := buildWorkspace(ctx, profile, stackName, func(*pulumi.Context) error { return nil })
 		if err != nil {
 			return err
 		}

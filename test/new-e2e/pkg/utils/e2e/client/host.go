@@ -429,7 +429,7 @@ func (h *Host) NewHTTPClient() *http.Client {
 
 func (h *Host) newHTTPTransport() *http.Transport {
 	return &http.Transport{
-		DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
+		DialContext: func(_ context.Context, _, addr string) (net.Conn, error) {
 			hostname, port, err := net.SplitHostPort(addr)
 			if err != nil {
 				return nil, err
