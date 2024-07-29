@@ -102,7 +102,7 @@ func (t *traceroute) Close() {}
 
 func logTracerouteRequests(host string, client string, runCount uint64, start time.Time) {
 	args := []interface{}{host, client, runCount, time.Since(start)}
-	msg := "Got request on /traceroute/%s?client_id=%s (count: %d): retrieved traceroutcleare in %s"
+	msg := "Got request on /traceroute/%s?client_id=%s (count: %d): retrieved traceroute in %s"
 	switch {
 	case runCount <= 5, runCount%20 == 0:
 		log.Infof(msg, args...)
