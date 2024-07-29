@@ -538,3 +538,87 @@ func TestGetHardwareStates(t *testing.T) {
 	// Ensure endpoint has been called 1 times
 	require.Equal(t, 1, handler.numberOfCalls())
 }
+
+func TestGetCloudExpressMetrics(t *testing.T) {
+	timeNow = mockTimeNow
+	mux := setupCommonServerMux()
+
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+		query := r.URL.Query()
+		count := query.Get("count")
+		timeZone := query.Get("timeZone")
+		startDate := query.Get("startDate")
+		endDate := query.Get("endDate")
+
+		require.Equal(t, "2000", count)
+		require.Equal(t, "UTC", timeZone)
+		require.Equal(t, "1999-12-31T23:50:00", startDate)
+		require.Equal(t, "2000-01-01T00:00:00", endDate)
+
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(fixtures.FakePayload(fixtures.GetCloudExpressMetrics)))
+	})
+
+	mux.HandleFunc("/dataservice/data/device/statistics/cloudxstatistics", handler.Func)
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+
+	devices, err := client.GetCloudExpressMetrics()
+	require.NoError(t, err)
+
+	require.Equal(t, "10.10.1.13", devices[0].VmanageSystemIP)
+	require.Equal(t, "10.10.1.13", devices[0].LocalSystemIP)
+	require.Equal(t, "10.10.1.11", devices[0].GatewaySystemIP)
+	require.Equal(t, "mpls", devices[0].LocalColor)
+	require.Equal(t, "mpls", devices[0].RemoteColor)
+	require.Equal(t, "FALSE", devices[0].BestPath)
+	require.Equal(t, "amazon_aws", devices[0].Application)
+	require.Equal(t, "amazon-group", devices[0].NbarAppGroupName)
+	require.Equal(t, float64(1), devices[0].VpnID)
+	require.Equal(t, float64(1721819993833), devices[0].EntryTime)
+	require.Equal(t, float64(404), devices[0].Latency)
+	require.Equal(t, float64(0), devices[0].Loss)
+	require.Equal(t, "5.0", devices[0].VqeScore)
+
+	// Ensure endpoint has been called 1 times
+	require.Equal(t, 1, handler.numberOfCalls())
+}
+
+func TestGetBGPNeighbors(t *testing.T) {
+	mux := setupCommonServerMux()
+
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+		query := r.URL.Query()
+		count := query.Get("count")
+
+		require.Equal(t, "2000", count)
+
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(fixtures.FakePayload(fixtures.GetBGPNeighbors)))
+	})
+
+	mux.HandleFunc("/dataservice/data/device/state/BGPNeighbor", handler.Func)
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+
+	devices, err := client.GetBGPNeighbors()
+	require.NoError(t, err)
+
+	require.Equal(t, "10.10.1.11", devices[0].VmanageSystemIP)
+	require.Equal(t, "ipv4-unicast", devices[0].Afi)
+	require.Equal(t, float64(1), devices[0].VpnID)
+	require.Equal(t, "10.60.1.1", devices[0].PeerAddr)
+	require.Equal(t, float64(2024), devices[0].AS)
+	require.Equal(t, "established", devices[0].State)
+
+	// Ensure endpoint has been called 1 times
+	require.Equal(t, 1, handler.numberOfCalls())
+}

@@ -48,7 +48,6 @@ var (
 	IsServerless                 = env.IsServerless
 	IsContainerized              = env.IsContainerized
 	IsDockerRuntime              = env.IsDockerRuntime
-	GetEnvDefault                = env.GetEnvDefault
 	IsHostProcAvailable          = env.IsHostProcAvailable
 	IsHostSysAvailable           = env.IsHostSysAvailable
 	IsAnyContainerFeaturePresent = env.IsAnyContainerFeaturePresent

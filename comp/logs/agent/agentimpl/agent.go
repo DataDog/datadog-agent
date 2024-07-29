@@ -19,7 +19,7 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
@@ -45,7 +45,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
@@ -73,7 +72,7 @@ type dependencies struct {
 	fx.In
 
 	Lc                 fx.Lifecycle
-	Log                logComponent.Component
+	Log                log.Component
 	Config             configComponent.Component
 	InventoryAgent     inventoryagent.Component
 	Hostname           hostname.Component
@@ -95,7 +94,7 @@ type provides struct {
 // processes and sends logs to the backend.  See the package README for
 // a description of its operation.
 type logAgent struct {
-	log            logComponent.Component
+	log            log.Component
 	config         pkgConfig.Reader
 	inventoryAgent inventoryagent.Component
 	hostname       hostname.Component
@@ -325,7 +324,7 @@ func (a *logAgent) onUpdateSDSRules(updates map[string]state.RawConfig, applySta
 	}
 
 	if err != nil {
-		log.Errorf("Can't update SDS standard rules: %v", err)
+		a.log.Errorf("Can't update SDS standard rules: %v", err)
 	}
 
 	// Apply the new status to all configs
@@ -360,7 +359,7 @@ func (a *logAgent) onUpdateSDSAgentConfig(updates map[string]state.RawConfig, ap
 	}
 
 	if err != nil {
-		log.Errorf("Can't update SDS configurations: %v", err)
+		a.log.Errorf("Can't update SDS configurations: %v", err)
 	}
 
 	// Apply the new status to all configs

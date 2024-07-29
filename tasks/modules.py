@@ -140,7 +140,10 @@ DEFAULT_MODULES = {
     "comp/core/hostname/hostnameinterface": GoModule(
         "comp/core/hostname/hostnameinterface", independent=True, used_by_otel=True
     ),
-    "comp/core/log": GoModule("comp/core/log", independent=True, used_by_otel=True),
+    "comp/core/log/def": GoModule("comp/core/log/def", independent=True, used_by_otel=True),
+    "comp/core/log/impl": GoModule("comp/core/log/impl", independent=True, used_by_otel=True),
+    "comp/core/log/impl-trace": GoModule("comp/core/log/impl-trace", independent=True),
+    "comp/core/log/mock": GoModule("comp/core/log/mock", independent=True, used_by_otel=True),
     "comp/core/secrets": GoModule("comp/core/secrets", independent=True, used_by_otel=True),
     "comp/core/status": GoModule("comp/core/status", independent=True, used_by_otel=True),
     "comp/core/status/statusimpl": GoModule("comp/core/status/statusimpl", independent=True),

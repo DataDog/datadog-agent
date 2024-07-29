@@ -414,6 +414,12 @@ func (s *packageApmInjectSuite) TestDefaultPackageVersion() {
 	s.host.AssertPackagePrefix("datadog-apm-library-python", "2")
 }
 
+func (s *packageApmInjectSuite) TestInstallWithUmask() {
+	oldmask := s.host.SetUmask("0027")
+	defer s.host.SetUmask(oldmask)
+	s.TestInstall()
+}
+
 func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {
 	found := assert.Eventually(s.T(), func() bool {
 		tracePayloads, err := s.Env().FakeIntake.Client().GetTraces()

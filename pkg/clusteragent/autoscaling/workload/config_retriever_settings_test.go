@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
+	v1 "k8s.io/api/core/v1"
 	clock "k8s.io/utils/clock/testing"
 
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
@@ -185,8 +186,17 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 	// Update to existing autoscalingsettings received
 	// Update the settings for object3
 	// Both adding and removing fields
-	object3Spec.Recommender = &datadoghq.DatadogPodAutoscalerRecommender{
-		Name: "some-option",
+	object3Spec.Targets = []datadoghq.DatadogPodAutoscalerTarget{
+		{
+			Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
+			PodResource: &datadoghq.DatadogPodAutoscalerResourceTarget{
+				Name: v1.ResourceCPU,
+				Value: datadoghq.DatadogPodAutoscalerTargetValue{
+					Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+					Utilization: pointer.Ptr[int32](80),
+				},
+			},
+		},
 	}
 	object3Spec.Policy = nil
 

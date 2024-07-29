@@ -16,7 +16,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -37,7 +38,7 @@ func newWorkloadmetaObject(deps dependencies) *workloadmeta {
 func TestHandleEvents(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(wmdef.NewParams()),
 	))
@@ -660,7 +661,7 @@ func TestSubscribe(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
-				logimpl.MockModule(),
+				fx.Provide(func() log.Component { return logmock.New(t) }),
 				config.MockModule(),
 				fx.Supply(wmdef.NewParams()),
 			))
@@ -701,7 +702,7 @@ func TestSubscribe(t *testing.T) {
 
 func TestGetKubernetesDeployment(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(wmdef.NewParams()),
 	))
@@ -744,7 +745,7 @@ func TestGetKubernetesDeployment(t *testing.T) {
 
 func TestGetProcess(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(wmdef.NewParams()),
 	))
@@ -823,7 +824,7 @@ func TestListContainers(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
-				logimpl.MockModule(),
+				fx.Provide(func() log.Component { return logmock.New(t) }),
 				config.MockModule(),
 				fx.Supply(wmdef.NewParams()),
 			))
@@ -861,7 +862,7 @@ func TestListContainersWithFilter(t *testing.T) {
 	}
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(wmdef.NewParams()),
 	))
@@ -920,7 +921,7 @@ func TestListProcesses(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
-				logimpl.MockModule(),
+				fx.Provide(func() log.Component { return logmock.New(t) }),
 				config.MockModule(),
 				fx.Supply(wmdef.NewParams()),
 			))
@@ -958,7 +959,7 @@ func TestListProcessesWithFilter(t *testing.T) {
 	}
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(wmdef.NewParams()),
 	))
@@ -1075,7 +1076,7 @@ func TestGetKubernetesPodByName(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
-				logimpl.MockModule(),
+				fx.Provide(func() log.Component { return logmock.New(t) }),
 				config.MockModule(),
 				fx.Supply(wmdef.NewParams()),
 			))
@@ -1136,7 +1137,7 @@ func TestListImages(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
-				logimpl.MockModule(),
+				fx.Provide(func() log.Component { return logmock.New(t) }),
 				config.MockModule(),
 				fx.Supply(wmdef.NewParams()),
 			))
@@ -1188,7 +1189,7 @@ func TestGetImage(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
-				logimpl.MockModule(),
+				fx.Provide(func() log.Component { return logmock.New(t) }),
 				config.MockModule(),
 				fx.Supply(wmdef.NewParams()),
 			))
@@ -1266,7 +1267,7 @@ func TestListECSTasks(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
-				logimpl.MockModule(),
+				fx.Provide(func() log.Component { return logmock.New(t) }),
 				config.MockModule(),
 				fx.Supply(wmdef.NewParams()),
 			))
@@ -1357,7 +1358,7 @@ func TestResetProcesses(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
-				logimpl.MockModule(),
+				fx.Provide(func() log.Component { return logmock.New(t) }),
 				config.MockModule(),
 				fx.Supply(wmdef.NewParams()),
 			))
@@ -1403,7 +1404,7 @@ func TestResetProcesses(t *testing.T) {
 
 func TestGetKubernetesMetadata(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(wmdef.NewParams()),
 	))
@@ -1446,7 +1447,7 @@ func TestGetKubernetesMetadata(t *testing.T) {
 
 func TestListKubernetesMetadata(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(wmdef.NewParams()),
 	))
@@ -1657,7 +1658,7 @@ func TestReset(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
-				logimpl.MockModule(),
+				fx.Provide(func() log.Component { return logmock.New(t) }),
 				config.MockModule(),
 				fx.Supply(wmdef.NewParams()),
 			))
@@ -1704,7 +1705,7 @@ func TestNoDataRace(t *testing.T) {
 	// This test ensures that no race conditions are encountered when the "--race" flag is passed
 	// to the test process and an entity is accessed in a different thread than the one handling events
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(wmdef.NewParams()),
 	))
@@ -1734,7 +1735,7 @@ func TestNoDataRace(t *testing.T) {
 func TestPushEvents(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(wmdef.NewParams()),
 	))

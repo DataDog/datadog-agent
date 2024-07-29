@@ -9,7 +9,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../../core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../../core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../../../core/hostname/hostnameinterface
-	github.com/DataDog/datadog-agent/comp/core/log => ../../../../../core/log
+	github.com/DataDog/datadog-agent/comp/core/log/def => ../../../../../core/log/def
+	github.com/DataDog/datadog-agent/comp/core/log/mock => ../../../../../core/log/mock
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../../../core/secrets
 	github.com/DataDog/datadog-agent/comp/core/status => ../../../../../core/status
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../../core/telemetry
@@ -124,7 +125,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/comp/core/log v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/core/log/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.56.0-rc.3 // indirect

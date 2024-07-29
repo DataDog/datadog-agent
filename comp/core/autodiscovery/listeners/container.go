@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -35,7 +36,7 @@ type ContainerListener struct {
 }
 
 // NewContainerListener returns a new ContainerListener.
-func NewContainerListener(_ Config, wmeta optional.Option[workloadmeta.Component]) (ServiceListener, error) {
+func NewContainerListener(_ Config, wmeta optional.Option[workloadmeta.Component], telemetryStore *telemetry.Store) (ServiceListener, error) {
 	const name = "ad-containerlistener"
 	l := &ContainerListener{}
 	filter := workloadmeta.NewFilterBuilder().
@@ -47,7 +48,7 @@ func NewContainerListener(_ Config, wmeta optional.Option[workloadmeta.Component
 		return nil, errors.New("workloadmeta store is not initialized")
 	}
 	var err error
-	l.workloadmetaListener, err = newWorkloadmetaListener(name, filter, l.createContainerService, wmetaInstance)
+	l.workloadmetaListener, err = newWorkloadmetaListener(name, filter, l.createContainerService, wmetaInstance, telemetryStore)
 	if err != nil {
 		return nil, err
 	}

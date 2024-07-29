@@ -48,6 +48,9 @@ jobs:
 
             - name: Check for changes since last RC
               id: check_for_changes
+              env:
+                ATLASSIAN_USERNAME: ${{ secrets.ATLASSIAN_USERNAME }}
+                ATLASSIAN_PASSWORD: ${{ secrets.ATLASSIAN_PASSWORD }}
               run: |
                 echo "CHANGES=$(inv -e release.check-for-changes -r ${{ env.RELEASE_BRANCH }} ${{ env.WARNING }})" >> $GITHUB_OUTPUT
 

@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
@@ -27,7 +28,7 @@ type StaticConfigService struct {
 var _ Service = &StaticConfigService{}
 
 // NewStaticConfigListener creates a StaticConfigListener
-func NewStaticConfigListener(Config) (ServiceListener, error) {
+func NewStaticConfigListener(Config, *telemetry.Store) (ServiceListener, error) {
 	return &StaticConfigListener{}, nil
 }
 

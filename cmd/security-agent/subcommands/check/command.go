@@ -26,8 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
@@ -63,7 +62,7 @@ func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command 
 			ConfigParams:         config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 			SecretParams:         secrets.NewEnabledParams(),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-			LogParams:            logimpl.ForOneShot(command.LoggerName, "info", true),
+			LogParams:            log.ForOneShot(command.LoggerName, "info", true),
 		}
 	})
 }
@@ -87,7 +86,7 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 
 			bundleParams := bundleParamsFactory()
 			if checkArgs.verbose {
-				bundleParams.LogParams = logimpl.ForOneShot(bundleParams.LogParams.LoggerName(), "trace", true)
+				bundleParams.LogParams = log.ForOneShot(bundleParams.LogParams.LoggerName(), "trace", true)
 			}
 
 			return fxutil.OneShot(RunCheck,

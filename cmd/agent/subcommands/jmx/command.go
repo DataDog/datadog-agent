@@ -39,7 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
@@ -118,7 +118,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		params := core.BundleParams{
 			ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
 			SecretParams: secrets.NewEnabledParams(),
-			LogParams:    logimpl.ForOneShot(command.LoggerName, cliParams.jmxLogLevel, false)}
+			LogParams:    log.ForOneShot(command.LoggerName, cliParams.jmxLogLevel, false)}
 		if cliParams.logFile != "" {
 			params.LogParams.LogToFile(cliParams.logFile)
 		}

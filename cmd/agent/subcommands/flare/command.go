@@ -33,8 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -105,7 +104,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams:         config,
 					SecretParams:         secrets.NewEnabledParams(),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-					LogParams:            logimpl.ForOneShot(command.LoggerName, "off", false),
+					LogParams:            log.ForOneShot(command.LoggerName, "off", false),
 				}),
 				fx.Supply(flare.NewLocalParams(
 					commonpath.GetDistPath(),

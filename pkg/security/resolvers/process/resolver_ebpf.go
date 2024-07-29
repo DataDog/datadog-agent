@@ -383,6 +383,12 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 		entry.Credentials.EGID = uint32(filledProc.Gids[1])
 		entry.Credentials.FSGID = uint32(filledProc.Gids[3])
 	}
+	// fetch login_uid
+	entry.Credentials.AUID, err = utils.GetLoginUID(uint32(proc.Pid))
+	if err != nil {
+		return fmt.Errorf("snapshot failed for %d: couldn't get login UID: %w", proc.Pid, err)
+	}
+
 	entry.Credentials.CapEffective, entry.Credentials.CapPermitted, err = utils.CapEffCapEprm(uint32(proc.Pid))
 	if err != nil {
 		return fmt.Errorf("snapshot failed for %d: couldn't parse kernel capabilities: %w", proc.Pid, err)
@@ -1073,6 +1079,20 @@ func (p *EBPFResolver) UpdateCapset(pid uint32, e *model.Event) {
 	}
 }
 
+// UpdateLoginUID updates the AUID of the provided pid
+func (p *EBPFResolver) UpdateLoginUID(pid uint32, e *model.Event) {
+	if e.ProcessContext.Pid != e.ProcessContext.Tid {
+		return
+	}
+
+	p.Lock()
+	defer p.Unlock()
+	entry := p.entryCache[pid]
+	if entry != nil {
+		entry.Credentials.AUID = e.LoginUIDWrite.AUID
+	}
+}
+
 // UpdateAWSSecurityCredentials updates the list of AWS Security Credentials
 func (p *EBPFResolver) UpdateAWSSecurityCredentials(pid uint32, e *model.Event) {
 	if len(e.IMDS.AWS.SecurityCredentials.AccessKeyID) == 0 {
@@ -1241,7 +1261,7 @@ func (p *EBPFResolver) syncCache(proc *process.Process, filledProc *utils.Filled
 			seclog.Errorf("couldn't push proc_cache entry to kernel space: %s", err)
 		}
 	}
-	pidCacheEntryB := make([]byte, 80)
+	pidCacheEntryB := make([]byte, 88)
 	_, err = entry.Process.MarshalPidCache(pidCacheEntryB, bootTime)
 	if err != nil {
 		seclog.Errorf("couldn't marshal pid_cache entry: %s", err)
