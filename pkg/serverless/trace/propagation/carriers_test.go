@@ -780,7 +780,7 @@ func Test_stringToDdTraceIds(t *testing.T) {
 		name               string
 		args               args
 		expectedLower64    uint64
-		expectedUpper64Hex uint64
+		expectedUpper64Hex string
 	}{
 		{
 			"first Test Case",
@@ -788,7 +788,7 @@ func Test_stringToDdTraceIds(t *testing.T) {
 				"arn:aws:states:sa-east-1:425362996713:stateMachine:MyStateMachine-b276uka1j",
 			},
 			1680583253837593461,
-			3711631873188331089,
+			"60ee1db79e4803f8",
 		},
 	}
 	for _, tt := range tests {

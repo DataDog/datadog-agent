@@ -230,11 +230,11 @@ func createTraceContextFromStepFunctionInput(event events.StepFunctionEvent) (*T
 	stateName := event.State.Name
 	stateEnteredTime := event.State.EnteredTime
 
-	lowerTraceID, _ := stringToDdTraceIds(execArn)
+	lowerTraceID, upperTraceId := stringToDdTraceIds(execArn)
 	parentID := stringToDdSpanId(execArn, stateName, stateEnteredTime)
 
 	tc.TraceID = lowerTraceID
-	tc.TraceIdUpper64Hex = "fake"
+	tc.TraceIdUpper64Hex = upperTraceId
 	tc.ParentID = parentID
 	return tc, nil
 }
@@ -248,10 +248,10 @@ func stringToDdSpanId(execArn string, stateName string, stateEnteredTime string)
 }
 
 // stringToDdTraceIds hashes an Execution ARN to generate the lower and upper 64 bits of a 128-bit trace ID
-func stringToDdTraceIds(toHash string) (uint64, uint64) {
+func stringToDdTraceIds(toHash string) (uint64, string) {
 	hash := sha256.Sum256([]byte(toHash))
-	lower64 := getPositiveUInt64(hash[0:8])
-	upper64 := getPositiveUInt64(hash[8:16])
+	lower64 := getPositiveUInt64(hash[8:16])
+	upper64 := getHexEncodedString(getPositiveUInt64(hash[0:8]))
 	return lower64, upper64
 }
 
