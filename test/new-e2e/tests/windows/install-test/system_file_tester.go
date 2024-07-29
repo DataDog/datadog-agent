@@ -46,9 +46,13 @@ func SystemPaths() []string {
 func AssertDoesNotRemoveSystemFiles(t *testing.T, host *components.RemoteHost, beforeInstall *windowsCommon.FileSystemSnapshot) {
 	t.Run("does not change system files", func(tt *testing.T) {
 		afterUninstall, err := windowsCommon.NewFileSystemSnapshot(host, SystemPaths())
-		assert.NoError(tt, err)
+		if !assert.NoError(tt, err) {
+			return
+		}
 		result, err := beforeInstall.CompareSnapshots(afterUninstall)
-		assert.NoError(tt, err)
+		if !assert.NoError(tt, err) {
+			return
+		}
 
 		// Since the result of this test can depend on Windows behavior unrelated to the agent,
 		// we mark it as flaky so it doesn't block PRs.
@@ -93,7 +97,8 @@ func AssertDoesNotChangePathPermissions(t *testing.T, host *components.RemoteHos
 	t.Helper()
 	for path, sddl := range beforeInstall {
 		perms, err := windowsCommon.GetSecurityInfoForPath(host, path)
-		assert.NoError(t, err)
-		assert.Equal(t, sddl, perms.SDDL, "%s permissions should not have changed", path)
+		if assert.NoError(t, err) {
+			assert.Equal(t, sddl, perms.SDDL, "%s permissions should not have changed", path)
+		}
 	}
 }

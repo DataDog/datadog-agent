@@ -8,7 +8,6 @@ package installerwindows
 
 import (
 	"embed"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer"
@@ -119,19 +118,8 @@ func (suite *testInstallerSuite) TestSystemIntegrity() {
 	suite.Require().NoError(suite.installer.Uninstall())
 
 	// Assert
-	systemFilesAfterUninstall, err := common.NewFileSystemSnapshot(suite.Env().RemoteHost, installtest.SystemPaths())
-	suite.Require().NoError(err)
-
-	systemPathsPermissionsAfterUninstall, err := installtest.SnapshotPermissionsForPaths(suite.Env().RemoteHost, installtest.SystemPathsForPermissionsValidation())
-	suite.Require().NoError(err)
-	suite.Require().Equal(systemPathsPermissions, systemPathsPermissionsAfterUninstall)
-
-	diff, err := systemFiles.CompareSnapshots(systemFilesAfterUninstall)
-	suite.Require().NoError(err)
-
-	// Mark flake because the result depends on Windows behavior
-	flake.Mark(suite.T())
-	suite.Require().Empty(diff)
+	installtest.AssertDoesNotChangePathPermissions(suite.T(), suite.Env().RemoteHost, systemPathsPermissions)
+	installtest.AssertDoesNotRemoveSystemFiles(suite.T(), suite.Env().RemoteHost, systemFiles)
 }
 
 // TestUpgrades tests upgrading the stable version of the Datadog Installer to the latest from the pipeline.
