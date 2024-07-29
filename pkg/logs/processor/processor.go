@@ -179,9 +179,11 @@ func (p *Processor) applySDSReconfiguration(order sds.ReconfigureOrder) {
 			p.sds.buffering = false
 
 			// drain the buffer of messages if anything's in there
-			log.Info("SDS: sending", len(p.sds.buffer), "buffered messages")
-			for _, msg := range p.sds.buffer {
-				p.processMessage(msg)
+			if len(p.sds.buffer) > 0 {
+				log.Info("SDS: sending", len(p.sds.buffer), "buffered messages")
+				for _, msg := range p.sds.buffer {
+					p.processMessage(msg)
+				}
 			}
 
 			p.sds.resetBuffer()
@@ -195,26 +197,16 @@ func (p *Processor) applySDSReconfiguration(order sds.ReconfigureOrder) {
 }
 
 func (s *sdsProcessor) bufferMsg(msg *message.Message) {
-	msgSize := len(msg.GetContent())
+	s.buffer = append(s.buffer, msg)
+	s.bufferedBytes += len(msg.GetContent())
 
-	// we still have room, just add it
-	if msgSize+s.bufferedBytes < s.maxBufferSize {
-		s.buffer = append(s.buffer, msg)
-		s.bufferedBytes += msgSize
-	} else {
-		// we don't have enough room anymore, let's remove a few messages to make it fit
-		for len(s.buffer) > 1 {
-			// remove the oldest msg
-			oldestMsg := s.buffer[0]
-			s.bufferedBytes -= len(oldestMsg.GetContent())
+	for len(s.buffer) > 0 {
+		if s.bufferedBytes > s.maxBufferSize {
+			s.bufferedBytes -= len(s.buffer[0].GetContent())
 			s.buffer = s.buffer[1:]
 			metrics.TlmLogsDiscardedFromSDSBuffer.Inc()
-
-			// do we have enough room available now?
-			if s.bufferedBytes+msgSize < s.maxBufferSize {
-				s.buffer = append(s.buffer, msg)
-				break
-			}
+		} else {
+			break
 		}
 	}
 }

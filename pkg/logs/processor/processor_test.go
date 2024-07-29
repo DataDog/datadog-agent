@@ -411,6 +411,13 @@ func TestBuffering(t *testing.T) {
 	// first, check that the buffer is still full
 	messagesDequeue(t, func() bool { return processedMessages.Load() == 0 }, "no messages should be processed just yet")
 	messagesDequeue(t, func() bool { return len(p.sds.buffer) == 3 }, "no messages should be processed just yet")
+	messagesDequeue(t, func() bool { // bufferedBytes validation
+		var sum int
+		for _, msg := range p.sds.buffer {
+			sum += len(msg.GetContent())
+		}
+		return sum == p.sds.bufferedBytes
+	}, "wrong amount of bytes stored")
 
 	order = sds.ReconfigureOrder{
 		Type: sds.AgentConfig,

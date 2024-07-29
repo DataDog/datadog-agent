@@ -221,10 +221,6 @@ func (a *logAgent) setupAgent() error {
 		status.AddGlobalWarning(invalidProcessingRules, multiLineWarning)
 	}
 
-	if !sds.ValidateConfigField(a.config) {
-		a.log.Warn("Invalid configuration value for 'logs_config.sds.wait_for_configuration' parameter")
-	}
-
 	a.SetupPipeline(processingRules, a.wmeta)
 	return nil
 }

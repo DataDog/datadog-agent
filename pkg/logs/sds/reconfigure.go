@@ -13,11 +13,9 @@ import (
 type ReconfigureOrderType string
 
 const waitForConfigField = "logs_config.sds.wait_for_configuration"
-const waitForConfigBufferMaxSizeField = "logs_config.sds.buffer_max_size"
+const waitForConfigBuffering = "logs_config.sds.wait_for_configuration.buffering"
+const waitForConfigBufferMaxSizeField = "logs_config.sds.wait_for_configuration.buffer_max_size"
 const waitForConfigDefaultBufferMaxSize = 1024 * 1024 * 500
-
-const waitForConfigNoCollection = "no_collection"
-const waitForConfigBuffer = "buffer"
 
 const (
 	// StandardRules triggers the storage of a new set of standard rules
@@ -46,31 +44,26 @@ type ReconfigureResponse struct {
 	IsActive bool
 }
 
-// ValidateConfigField returns true if the configuration value for
-// wait_for_configuration is valid.
-func ValidateConfigField(cfg pkgconfigmodel.Reader) bool {
-	str := cfg.GetString(waitForConfigField)
-	return str == "" || str == waitForConfigBuffer || str == waitForConfigNoCollection
-}
-
 // ShouldBlockCollectionUntilSDSConfiguration returns true if we want to start the
 // collection only after having received an SDS configuration.
+// We wait to start the collection only if the buffering mode is disabled.
 func ShouldBlockCollectionUntilSDSConfiguration(cfg pkgconfigmodel.Reader) bool {
 	if cfg == nil {
 		return false
 	}
 
-	return SDSEnabled && cfg.GetString(waitForConfigField) == waitForConfigNoCollection
+	return SDSEnabled && cfg.GetBool(waitForConfigField) && !cfg.GetBool(waitForConfigBuffering)
 }
 
 // ShouldBufferUntilSDSConfiguration returns true if we have to buffer until we've
 // received an SDS configuration.
+// When enabling the buffering mode, we won't wait to start the collection.
 func ShouldBufferUntilSDSConfiguration(cfg pkgconfigmodel.Reader) bool {
 	if cfg == nil {
 		return false
 	}
 
-	return SDSEnabled && cfg.GetString(waitForConfigField) == waitForConfigBuffer
+	return SDSEnabled && cfg.GetBool(waitForConfigField) && cfg.GetBool(waitForConfigBuffering)
 }
 
 // WaitForConfigurationBufferMaxSize returns a size for the buffer used while
@@ -84,5 +77,6 @@ func WaitForConfigurationBufferMaxSize(cfg pkgconfigmodel.Reader) int {
 	if v <= 0 {
 		v = waitForConfigDefaultBufferMaxSize
 	}
+
 	return v
 }
