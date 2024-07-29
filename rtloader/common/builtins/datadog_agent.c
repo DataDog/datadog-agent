@@ -13,7 +13,7 @@
 static cb_get_clustername_t cb_get_clustername = NULL;
 static cb_get_config_t cb_get_config = NULL;
 static cb_get_hostname_t cb_get_hostname = NULL;
-static cb_get_host_tags_t cb_get_hostname = NULL;
+static cb_get_host_tags_t cb_get_host_tags = NULL;
 static cb_tracemalloc_enabled_t cb_tracemalloc_enabled = NULL;
 static cb_get_version_t cb_get_version = NULL;
 static cb_headers_t cb_headers = NULL;
