@@ -25,7 +25,7 @@ static __attribute__((always_inline)) void cache_file(struct dentry *dentry, u32
     fill_file(dentry, &entry);
 
     // why not inode + mount id ?
-    bpf_map_update_elem(&exec_file_cache, &inode, &entry, BPF_NOEXIST);
+    bpf_map_update_elem(&exec_file_cache, &inode, &entry, BPF_ANY);
 }
 
 // used by both snapshot and process resolver fallback
