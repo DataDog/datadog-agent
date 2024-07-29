@@ -10,6 +10,7 @@ package model
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"net"
 	"reflect"
 )
@@ -30347,7 +30348,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "CGroupContext.CGroupID"}
 		}
-		ev.CGroupContext.CGroupID = CGroupID(rv)
+		ev.CGroupContext.CGroupID = containerutils.CGroupID(rv)
 		return nil
 	case "chdir.file.change_time":
 		rv, ok := value.(int)
@@ -30871,7 +30872,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ContainerContext.ContainerID"}
 		}
-		ev.BaseEvent.ContainerContext.ContainerID = ContainerID(rv)
+		ev.BaseEvent.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
 	case "container.runtime":
 		if ev.BaseEvent.ContainerContext == nil {
@@ -31089,7 +31090,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.CGroup.CGroupID"}
 		}
-		ev.Exec.Process.CGroup.CGroupID = CGroupID(rv)
+		ev.Exec.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
 	case "exec.comm":
 		if ev.Exec.Process == nil {
@@ -31109,7 +31110,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.ContainerID"}
 		}
-		ev.Exec.Process.ContainerID = ContainerID(rv)
+		ev.Exec.Process.ContainerID = containerutils.ContainerID(rv)
 		return nil
 	case "exec.created_at":
 		if ev.Exec.Process == nil {
@@ -31877,7 +31878,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.CGroup.CGroupID"}
 		}
-		ev.Exit.Process.CGroup.CGroupID = CGroupID(rv)
+		ev.Exit.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
 	case "exit.code":
 		rv, ok := value.(int)
@@ -31904,7 +31905,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.ContainerID"}
 		}
-		ev.Exit.Process.ContainerID = ContainerID(rv)
+		ev.Exit.Process.ContainerID = containerutils.ContainerID(rv)
 		return nil
 	case "exit.created_at":
 		if ev.Exit.Process == nil {
@@ -33895,7 +33896,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.CGroupID"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.CGroupID = CGroupID(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
 	case "process.ancestors.comm":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33921,7 +33922,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerID"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerID = ContainerID(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerID = containerutils.ContainerID(rv)
 		return nil
 	case "process.ancestors.created_at":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34870,7 +34871,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.CGroup.CGroupID"}
 		}
-		ev.BaseEvent.ProcessContext.Process.CGroup.CGroupID = CGroupID(rv)
+		ev.BaseEvent.ProcessContext.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
 	case "process.comm":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34890,7 +34891,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.ContainerID"}
 		}
-		ev.BaseEvent.ProcessContext.Process.ContainerID = ContainerID(rv)
+		ev.BaseEvent.ProcessContext.Process.ContainerID = containerutils.ContainerID(rv)
 		return nil
 	case "process.created_at":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35581,7 +35582,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.CGroup.CGroupID"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupID = CGroupID(rv)
+		ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
 	case "process.parent.comm":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35607,7 +35608,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.ContainerID"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.ContainerID = ContainerID(rv)
+		ev.BaseEvent.ProcessContext.Parent.ContainerID = containerutils.ContainerID(rv)
 		return nil
 	case "process.parent.created_at":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -36693,7 +36694,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.CGroup.CGroupID"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.CGroup.CGroupID = CGroupID(rv)
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
 	case "ptrace.tracee.ancestors.comm":
 		if ev.PTrace.Tracee == nil {
@@ -36719,7 +36720,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.ContainerID"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.ContainerID = ContainerID(rv)
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.ContainerID = containerutils.ContainerID(rv)
 		return nil
 	case "ptrace.tracee.ancestors.created_at":
 		if ev.PTrace.Tracee == nil {
@@ -37668,7 +37669,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.CGroup.CGroupID"}
 		}
-		ev.PTrace.Tracee.Process.CGroup.CGroupID = CGroupID(rv)
+		ev.PTrace.Tracee.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
 	case "ptrace.tracee.comm":
 		if ev.PTrace.Tracee == nil {
@@ -37688,7 +37689,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.ContainerID"}
 		}
-		ev.PTrace.Tracee.Process.ContainerID = ContainerID(rv)
+		ev.PTrace.Tracee.Process.ContainerID = containerutils.ContainerID(rv)
 		return nil
 	case "ptrace.tracee.created_at":
 		if ev.PTrace.Tracee == nil {
@@ -38379,7 +38380,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.CGroup.CGroupID"}
 		}
-		ev.PTrace.Tracee.Parent.CGroup.CGroupID = CGroupID(rv)
+		ev.PTrace.Tracee.Parent.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
 	case "ptrace.tracee.parent.comm":
 		if ev.PTrace.Tracee == nil {
@@ -38405,7 +38406,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.ContainerID"}
 		}
-		ev.PTrace.Tracee.Parent.ContainerID = ContainerID(rv)
+		ev.PTrace.Tracee.Parent.ContainerID = containerutils.ContainerID(rv)
 		return nil
 	case "ptrace.tracee.parent.created_at":
 		if ev.PTrace.Tracee == nil {
@@ -40338,7 +40339,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.CGroup.CGroupID"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.CGroup.CGroupID = CGroupID(rv)
+		ev.Signal.Target.Ancestor.ProcessContext.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
 	case "signal.target.ancestors.comm":
 		if ev.Signal.Target == nil {
@@ -40364,7 +40365,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.ContainerID"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.ContainerID = ContainerID(rv)
+		ev.Signal.Target.Ancestor.ProcessContext.Process.ContainerID = containerutils.ContainerID(rv)
 		return nil
 	case "signal.target.ancestors.created_at":
 		if ev.Signal.Target == nil {
@@ -41313,7 +41314,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.CGroup.CGroupID"}
 		}
-		ev.Signal.Target.Process.CGroup.CGroupID = CGroupID(rv)
+		ev.Signal.Target.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
 	case "signal.target.comm":
 		if ev.Signal.Target == nil {
@@ -41333,7 +41334,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.ContainerID"}
 		}
-		ev.Signal.Target.Process.ContainerID = ContainerID(rv)
+		ev.Signal.Target.Process.ContainerID = containerutils.ContainerID(rv)
 		return nil
 	case "signal.target.created_at":
 		if ev.Signal.Target == nil {
@@ -42024,7 +42025,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.CGroup.CGroupID"}
 		}
-		ev.Signal.Target.Parent.CGroup.CGroupID = CGroupID(rv)
+		ev.Signal.Target.Parent.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
 	case "signal.target.parent.comm":
 		if ev.Signal.Target == nil {
@@ -42050,7 +42051,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.ContainerID"}
 		}
-		ev.Signal.Target.Parent.ContainerID = ContainerID(rv)
+		ev.Signal.Target.Parent.ContainerID = containerutils.ContainerID(rv)
 		return nil
 	case "signal.target.parent.created_at":
 		if ev.Signal.Target == nil {
