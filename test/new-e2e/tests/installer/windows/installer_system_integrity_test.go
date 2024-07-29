@@ -25,7 +25,7 @@ type testSystemIntegrityInstallerSuite struct {
 // To do so we change the function that is called in TestSystemIntegrity, which explains the weird
 // suite.sutFn(suite) call.
 func TestInstallerSystemIntegrity(t *testing.T) {
-	suites := []testSystemIntegrityInstallerSuite{
+	suites := []*testSystemIntegrityInstallerSuite{
 		{
 			name: "test install uninstall",
 			sutFn: func(suite *testSystemIntegrityInstallerSuite) {
@@ -45,8 +45,8 @@ func TestInstallerSystemIntegrity(t *testing.T) {
 	for _, suite := range suites {
 		suite := suite
 		suite.Run(suite.name, func() {
-			t.Parallel()
-			e2e.Run(t, &suite, e2e.WithProvisioner(winawshost.ProvisionerNoAgentNoFakeIntake()))
+			suite.T().Parallel()
+			e2e.Run(suite.T(), suite, e2e.WithProvisioner(winawshost.ProvisionerNoAgentNoFakeIntake()))
 		})
 	}
 }
