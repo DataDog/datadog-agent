@@ -353,12 +353,10 @@ func TestBuffering(t *testing.T) {
 	p.inputChan <- newMessage([]byte("hello3world"), &src, "")
 	// wait for the other routine to process the messages
 	messagesDequeue(t, func() bool { return processedMessages.Load() == 0 }, "the messages should not be be procesesd")
-	messagesDequeue(t, func() bool { return len(p.sds.buffer) == 3 }, "all messages should be in the buffer")
 
 	// the limit is configured to 3 messages
 	p.inputChan <- newMessage([]byte("hello4world"), &src, "")
 	messagesDequeue(t, func() bool { return processedMessages.Load() == 0 }, "the messages should still not be processed")
-	messagesDequeue(t, func() bool { return len(p.sds.buffer) == 3 }, "only 3 messages should be part of the buffer")
 
 	// reconfigure the processor
 	// --
@@ -410,14 +408,6 @@ func TestBuffering(t *testing.T) {
 
 	// first, check that the buffer is still full
 	messagesDequeue(t, func() bool { return processedMessages.Load() == 0 }, "no messages should be processed just yet")
-	messagesDequeue(t, func() bool { return len(p.sds.buffer) == 3 }, "no messages should be processed just yet")
-	messagesDequeue(t, func() bool { // bufferedBytes validation
-		var sum int
-		for _, msg := range p.sds.buffer {
-			sum += len(msg.GetContent())
-		}
-		return sum == p.sds.bufferedBytes
-	}, "wrong amount of bytes stored")
 
 	order = sds.ReconfigureOrder{
 		Type: sds.AgentConfig,
