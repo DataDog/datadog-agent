@@ -212,8 +212,8 @@ func (d *DatadogInstaller) Uninstall() error {
 	return windowsCommon.UninstallMSI(d.env.RemoteHost, productCode, logPath)
 }
 
-// GetExperimentDirFOr is the path to the experiment symbolic link on disk
-func GetExperimentDirFOr(packageName string) string {
+// GetExperimentDirFor is the path to the experiment symbolic link on disk
+func GetExperimentDirFor(packageName string) string {
 	return fmt.Sprintf("C:\\ProgramData\\Datadog Installer\\packages\\%s\\experiment", packageName)
 }
 

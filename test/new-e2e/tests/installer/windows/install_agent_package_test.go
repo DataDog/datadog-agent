@@ -85,7 +85,7 @@ func (suite *testAgentInstallSuite) TestUpgradeAgentPackage() {
 			WithVersionMatchPredicate(func(version string) {
 				suite.Require().NotContains(version, "7.55.1")
 			}).
-			DirExists(GetExperimentDirFOr(AgentPackage))
+			DirExists(GetExperimentDirFor(AgentPackage))
 	})
 
 	suite.Run("Stop experiment", func() {
@@ -104,6 +104,6 @@ func (suite *testAgentInstallSuite) TestUpgradeAgentPackage() {
 				suite.Require().Contains(version, "Agent 7.55.1")
 			}).
 			DirExists(GetStableDirFor(AgentPackage)).
-			NoDirExists(GetExperimentDirFOr(AgentPackage))
+			NoDirExists(GetExperimentDirFor(AgentPackage))
 	})
 }
