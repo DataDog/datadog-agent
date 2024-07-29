@@ -457,8 +457,7 @@ DATADOG_AGENT_RTLOADER_API void set_headers_cb(rtloader_t *, cb_headers_t);
 DATADOG_AGENT_RTLOADER_API void set_get_hostname_cb(rtloader_t *, cb_get_hostname_t);
 
 /*! \fn void set_get_host_tags_cb(rtloader_t *, cb_get_host_tags_t)
-    \brief Sets a callback to be used by rtloader to collect the host tags from the
-    agent.
+    \brief Sets a callback to be used by rtloader to collect the host tags from the agent.
     \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
     \param object A function pointer with cb_get_host_tags_t prototype to the callback
     function.
