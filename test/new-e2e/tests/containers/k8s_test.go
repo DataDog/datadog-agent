@@ -293,19 +293,29 @@ func (suite *k8sSuite) testAgentCLI() {
 	})
 
 	suite.Run("agent check -r container", func() {
-		stdout, _, err := suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "check", "-r", "container", "--table", "--delay", "1000"})
-		suite.Require().NoError(err)
-		suite.Contains(stdout, "container.memory.usage        gauge")
+		suite.EventuallyWithT(func(c *assert.CollectT) {
+			stdout, _, err := suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "check", "-r", "container", "--table", "--delay", "1000"})
+			// Can be replaced by require.NoError(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NoError(c, err) {
+				return
+			}
+			assert.Contains(c, stdout, "container.memory.usage        gauge")
+		}, 2*time.Minute, 1*time.Second)
 	})
 
 	suite.Run("agent check -r container --json", func() {
-		stdout, _, err := suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "check", "-r", "container", "--table", "--delay", "1000", "--json"})
-		suite.Require().NoError(err)
-		if !suite.Truef(json.Valid([]byte(stdout)), "Output of `agent check -r container --json` isn’t valid JSON") {
-			var blob interface{}
-			err := json.Unmarshal([]byte(stdout), &blob)
-			suite.NoError(err)
-		}
+		suite.EventuallyWithT(func(c *assert.CollectT) {
+			stdout, _, err := suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "check", "-r", "container", "--table", "--delay", "1000", "--json"})
+			// Can be replaced by require.NoError(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NoError(c, err) {
+				return
+			}
+			if !assert.Truef(c, json.Valid([]byte(stdout)), "Output of `agent check -r container --json` isn’t valid JSON") {
+				var blob interface{}
+				err := json.Unmarshal([]byte(stdout), &blob)
+				assert.NoError(c, err)
+			}
+		}, 2*time.Minute, 1*time.Second)
 	})
 
 	suite.Run("agent workload-list", func() {
