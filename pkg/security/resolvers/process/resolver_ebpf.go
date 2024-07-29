@@ -30,7 +30,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/security/common/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
@@ -41,6 +40,7 @@ import (
 	spath "github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -351,7 +351,7 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	entry.FileEvent.MountOrigin = model.MountOriginProcfs
 	entry.FileEvent.MountSource = model.MountSourceSnapshot
 
-	var id model.CGroupID
+	var id containerutils.CGroupID
 	id, entry.Process.ContainerID = containerutils.GetCGroupContext(containerID, containerFlags)
 	entry.Process.CGroup.CGroupID = id
 	entry.Process.CGroup.CGroupFlags = containerFlags
@@ -852,7 +852,7 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64) *mod
 		containerID, containerFlags, err := p.containerResolver.GetContainerContext(pid)
 		if err == nil {
 			entry.CGroup.CGroupFlags = containerFlags
-			entry.CGroup.CGroupID = model.GetCgroupFromContainer(containerID, containerFlags)
+			entry.CGroup.CGroupID = containerutils.GetCgroupFromContainer(containerID, containerFlags)
 		}
 	}
 
