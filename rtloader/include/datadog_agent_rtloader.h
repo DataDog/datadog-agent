@@ -465,7 +465,7 @@ DATADOG_AGENT_RTLOADER_API void set_get_hostname_cb(rtloader_t *, cb_get_hostnam
 
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
-DATADOG_AGENT_RTLOADER_API void set_get_host_tagse_cb(rtloader_t *, cb_get_host_tags_t);
+DATADOG_AGENT_RTLOADER_API void set_get_host_tags_cb(rtloader_t *, cb_get_host_tags_t);
 
 
 /*! \fn void set_get_clustername_cb(rtloader_t *, cb_get_clustername_t)
