@@ -290,6 +290,10 @@ static __attribute__((always_inline)) int trace__cgroup_open(ctx_t *ctx) {
 
     cache_file(dentry, mount_id);
 
+    struct dentry *d_parent;
+    bpf_probe_read(&d_parent, sizeof(d_parent), &dentry->d_parent);
+    cache_file(d_parent, mount_id);
+
     return 0;
 }
 
