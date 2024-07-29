@@ -63,12 +63,14 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 }
 
 const configFlag = "config"
+const coreConfigFlag = "core-config"
 
 func flags(reg *featuregate.Registry, cfgs *subcommands.GlobalParams) *flag.FlagSet {
 	flagSet := new(flag.FlagSet)
 
 	flagSet.Var(cfgs, configFlag, "Locations to the config file(s), note that only a"+
 		" single location can be set per flag entry e.g. `--config=file:/path/to/first --config=file:path/to/second`.")
+	flagSet.StringVar(&cfgs.CoreConfPath, coreConfigFlag, "", "Location to the Datadog Agent config file.")
 
 	flagSet.Func("set",
 		"Set arbitrary component config property. The component has to be defined in the config file and the flag"+
