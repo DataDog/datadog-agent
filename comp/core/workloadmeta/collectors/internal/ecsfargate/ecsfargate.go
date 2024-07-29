@@ -22,6 +22,7 @@ import (
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -87,9 +88,14 @@ func (c *collector) setTaskCollectionParser() {
 	var err error
 	c.metaV4, err = ecsmeta.V4FromCurrentTask()
 	if c.taskCollectionEnabled && err == nil {
+		log.Infof("detailed task collection enabled, using metadata v4 endpoint")
 		c.taskCollectionParser = c.parseTaskFromV4Endpoint
 		return
+	} else if c.taskCollectionEnabled && err != nil {
+		log.Warnf("failed to initialize metadata v4 client, using metdata v2: %v", err)
 	}
+
+	log.Infof("detailed task collection disabled, using metadata v2 endpoint")
 	c.taskCollectionParser = c.parseTaskFromV2Endpoint
 }
 

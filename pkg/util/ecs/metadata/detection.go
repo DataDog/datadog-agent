@@ -14,7 +14,10 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
+
+	"github.com/docker/docker/api/types/container"
 
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
@@ -136,4 +139,57 @@ func getAgentV4URLFromEnv() (string, error) {
 		return "", fmt.Errorf("Could not initialize client: missing metadata v4 URL")
 	}
 	return agentURL, nil
+}
+
+// IsMetadataV4Available checks if the v4 metadata endpoint is available.
+// It checks if metadata v4 url is available in the environment variable.
+// It should be available when the agent is deployed by ECS, as the ECS agent injects this environment variable.
+// Then it checks if agent is deployed directly on EC2 running in ECS.
+// It returns true if any container has the v4 endpoint env variable.
+func IsMetadataV4Available() (bool, error) {
+	// Agent is deployed by ECS
+	_, err := getAgentV4URLFromEnv()
+	if err == nil {
+		return true, nil
+	}
+
+	// If the agent is deployed on Fargate and v4 is not available, return false
+	if config.IsECSFargate() {
+		return false, errors.New("v4 endpoint not found in Fargate")
+	}
+
+	// Check if agent is deployed directly on EC2
+	du, err := docker.GetDockerUtil()
+	if err != nil {
+		return false, err
+	}
+
+	containers, err := du.RawContainerList(context.Background(), container.ListOptions{})
+	if err != nil {
+		return false, err
+	}
+
+	// Check if any container has the v4 endpoint env variable
+	for _, c := range containers {
+		if hasMetadataURIv4EnvVariable(du, c.ID) {
+			return true, nil
+		}
+	}
+
+	return false, errors.New("v4 endpoint not found in any container")
+}
+
+func hasMetadataURIv4EnvVariable(du *docker.DockerUtil, containerID string) bool {
+	inspect, err := du.Inspect(context.Background(), containerID, false)
+	if err != nil {
+		log.Infof("Unable to inspect container, docker inspect failed: %s", err)
+		return false
+	}
+
+	for _, env := range inspect.Config.Env {
+		if strings.HasPrefix(env, v3or4.DefaultMetadataURIv4EnvVariable) {
+			return true
+		}
+	}
+	return false
 }

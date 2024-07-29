@@ -121,11 +121,16 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 }
 
 func (c *collector) setTaskCollectionParser() {
-	_, err := ecsmeta.V4FromCurrentTask()
-	if c.taskCollectionEnabled && err == nil {
+	ok, err := ecsmeta.IsMetadataV4Available()
+	if c.taskCollectionEnabled && ok && err == nil {
+		log.Infof("detailed task collection enabled, using metadata v4 endpoint")
 		c.taskCollectionParser = c.parseTasksFromV4Endpoint
 		return
+	} else if c.taskCollectionEnabled && err != nil {
+		log.Warnf("detailed task collection enabled but agent cannot determine if v4 metadata endpoint is available: %s", err.Error())
 	}
+
+	log.Infof("detailed task collection disabled, using metadata v1 endpoint")
 	c.taskCollectionParser = c.parseTasksFromV1Endpoint
 }
 

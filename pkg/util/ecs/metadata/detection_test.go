@@ -104,3 +104,24 @@ func TestGetAgentV1ContainerURLs(t *testing.T) {
 	assert.Contains(t, agentURLS, "http://172.17.0.3:51678/")
 	assert.Equal(t, "http://ip-172-29-167-5:51678/", agentURLS[2])
 }
+
+func TestHasMetadataURIv4EnvVariable(t *testing.T) {
+	co := types.ContainerJSON{
+		Config: &container.Config{
+			Env: []string{
+				"AWS_EXECUTION_ENV=AWS_ECS_EC2",
+				"ECS_CONTAINER_METADATA_URI=http://169.254.170.2/v3/123",
+				"ECS_CONTAINER_METADATA_URI_V4=http://169.254.170.2/v4/123",
+			},
+		},
+		ContainerJSONBase: &types.ContainerJSONBase{},
+	}
+
+	docker.EnableTestingMode()
+	cacheKey := docker.GetInspectCacheKey("container-id-3bc6d22", false)
+	cache.Cache.Set(cacheKey, co, 10*time.Second)
+
+	du, err := docker.GetDockerUtil()
+	require.NoError(t, err)
+	require.True(t, hasMetadataURIv4EnvVariable(du, "container-id-3bc6d22"))
+}
