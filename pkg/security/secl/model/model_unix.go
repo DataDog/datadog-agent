@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
 
 // Event represents an event sent from the kernel
@@ -87,8 +88,8 @@ type Event struct {
 
 // CGroupContext holds the cgroup context of an event
 type CGroupContext struct {
-	CGroupID    CGroupID    `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
-	CGroupFlags CGroupFlags `field:"-"`
+	CGroupID    containerutils.CGroupID    `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
+	CGroupFlags containerutils.CGroupFlags `field:"-"`
 }
 
 // SyscallEvent contains common fields for all the event
@@ -199,8 +200,8 @@ type Process struct {
 
 	FileEvent FileEvent `field:"file,check:IsNotKworker"`
 
-	CGroup      CGroupContext `field:"cgroup"`                                         // SECLDoc[cgroup] Definition:`CGroup`
-	ContainerID ContainerID   `field:"container.id,handler:ResolveProcessContainerID"` // SECLDoc[container.id] Definition:`Container ID`
+	CGroup      CGroupContext              `field:"cgroup"`                                         // SECLDoc[cgroup] Definition:`CGroup`
+	ContainerID containerutils.ContainerID `field:"container.id,handler:ResolveProcessContainerID"` // SECLDoc[container.id] Definition:`Container ID`
 
 	SpanID  uint64 `field:"-"`
 	TraceID uint64 `field:"-"`

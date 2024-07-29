@@ -8,6 +8,8 @@ package model
 
 import (
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
 
 // CGroup managers
@@ -40,21 +42,21 @@ var RuntimePrefixes = map[string]uint64{
 }
 
 // GetContainerFromCgroup extracts the container ID from a cgroup name
-func GetContainerFromCgroup(cgroup string) (string, CGroupFlags) {
+func GetContainerFromCgroup(cgroup string) (string, containerutils.CGroupFlags) {
 	for runtimePrefix, runtimeFlag := range RuntimePrefixes {
 		if strings.HasPrefix(cgroup, runtimePrefix) {
-			return cgroup[len(runtimePrefix):], CGroupFlags(runtimeFlag)
+			return cgroup[len(runtimePrefix):], containerutils.CGroupFlags(runtimeFlag)
 		}
 	}
 	return cgroup, 0
 }
 
 // GetCgroupFromContainer infers the container runtime from a cgroup name
-func GetCgroupFromContainer(id ContainerID, flags CGroupFlags) CGroupID {
+func GetCgroupFromContainer(id containerutils.ContainerID, flags containerutils.CGroupFlags) containerutils.CGroupID {
 	for runtimePrefix, runtimeFlag := range RuntimePrefixes {
 		if uint64(flags)&0b111 == runtimeFlag {
-			return CGroupID(runtimePrefix + string(id))
+			return containerutils.CGroupID(runtimePrefix + string(id))
 		}
 	}
-	return CGroupID(id)
+	return containerutils.CGroupID(id)
 }

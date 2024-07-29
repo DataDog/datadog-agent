@@ -10,6 +10,8 @@ package model
 
 import (
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
 
 // SetAncestor sets the ancestor
@@ -31,7 +33,7 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 func hasValidLineage(pc *ProcessCacheEntry) (bool, error) {
 	var (
 		pid, ppid uint32
-		ctrID     ContainerID
+		ctrID     containerutils.ContainerID
 		err       error
 	)
 

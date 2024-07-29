@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
 
 func validateReadSize(size, read int) (int, error) {
@@ -40,7 +41,7 @@ func (e *CGroupContext) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.CGroupFlags = CGroupFlags(binary.NativeEndian.Uint64(data[:8]))
+	e.CGroupFlags = containerutils.CGroupFlags(binary.NativeEndian.Uint64(data[:8]))
 
 	return 8, nil
 }
@@ -52,7 +53,7 @@ func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 
-	e.ContainerID = ContainerID(id)
+	e.ContainerID = containerutils.ContainerID(id)
 
 	return ContainerIDLen, nil
 }
