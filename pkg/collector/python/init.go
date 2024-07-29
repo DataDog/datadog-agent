@@ -94,11 +94,13 @@ char* ObfuscateSQL(char *, char *, char **);
 char* ObfuscateSQLExecPlan(char *, bool, char **);
 double getProcessStartTime();
 char* ObfuscateMongoDBString(char *, char **);
+void GetHostTags(char **);
 
 void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_clustername_cb(rtloader, GetClusterName);
 	set_get_config_cb(rtloader, GetConfig);
 	set_get_hostname_cb(rtloader, GetHostname);
+	set_get_host_tags_cb(rtloader, GetHostTags);
 	set_get_version_cb(rtloader, GetVersion);
 	set_headers_cb(rtloader, Headers);
 	set_set_check_metadata_cb(rtloader, SetCheckMetadata);
