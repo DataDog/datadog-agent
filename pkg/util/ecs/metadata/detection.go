@@ -159,19 +159,19 @@ func IsMetadataV4Available() (bool, error) {
 	}
 
 	// Check if agent is deployed directly on EC2
-	du, err := docker.GetDockerUtil()
+	dockerUtil, err := docker.GetDockerUtil()
 	if err != nil {
 		return false, err
 	}
 
-	containers, err := du.RawContainerList(context.Background(), container.ListOptions{})
+	containers, err := dockerUtil.RawContainerList(context.Background(), container.ListOptions{})
 	if err != nil {
 		return false, err
 	}
 
 	// Check if any container has the v4 endpoint env variable
 	for _, c := range containers {
-		if hasMetadataURIv4EnvVariable(du, c.ID) {
+		if hasMetadataURIv4EnvVariable(dockerUtil, c.ID) {
 			return true, nil
 		}
 	}
@@ -179,8 +179,8 @@ func IsMetadataV4Available() (bool, error) {
 	return false, errors.New("v4 endpoint not found in any container")
 }
 
-func hasMetadataURIv4EnvVariable(du *docker.DockerUtil, containerID string) bool {
-	inspect, err := du.Inspect(context.Background(), containerID, false)
+func hasMetadataURIv4EnvVariable(dockerUtil *docker.DockerUtil, containerID string) bool {
+	inspect, err := dockerUtil.Inspect(context.Background(), containerID, false)
 	if err != nil {
 		log.Infof("Unable to inspect container, docker inspect failed: %s", err)
 		return false
