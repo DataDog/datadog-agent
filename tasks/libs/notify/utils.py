@@ -9,6 +9,7 @@ CI_VISIBILITY_JOB_URL = 'https://app.datadoghq.com/ci/pipeline-executions?query=
 NOTIFICATION_DISCLAIMER = "If there is something wrong with the notification please contact #agent-devx-help"
 CHANNEL_BROADCAST = '#agent-devx-ops'
 PIPELINES_CHANNEL = '#datadog-agent-pipelines'
+DEPLOY_PIPELINES_CHANNEL = '#datadog-agent-deploy-pipelines'
 AWS_S3_CP_CMD = "aws s3 cp --only-show-errors --region us-east-1 --sse AES256"
 AWS_S3_LS_CMD = "aws s3api list-objects-v2 --bucket '{bucket}' --prefix '{prefix}/' --delimiter /"
 

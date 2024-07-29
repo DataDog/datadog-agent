@@ -14,9 +14,12 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -31,10 +34,14 @@ func TestProcessEvents(t *testing.T) {
 		workloadmetafxmock.MockModule(),
 	))
 
+	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryStore := acTelemetry.NewStore(telemetry)
+
 	cp := &ContainerConfigProvider{
 		workloadmetaStore: store,
 		configCache:       make(map[string]map[string]integration.Config),
 		configErrors:      make(map[string]ErrorMsgSet),
+		telemetryStore:    telemetryStore,
 	}
 
 	tests := []struct {
