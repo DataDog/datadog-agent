@@ -343,39 +343,34 @@ func NewTracer(config *config.Config, _ telemetryComponent.Component) (Tracer, e
 }
 
 func initFailedConnEventHandler(config *config.Config, failedCallback func(*netebpf.FailedConn), pool ddsync.Pool[netebpf.FailedConn]) (*perf.EventHandler, error) {
-	var failedConnsHandler *perf.EventHandler
-	var err error
-
-	if config.FailedConnectionsSupported() {
-		fcopts := perf.EventHandlerOptions{
-			MapName: probes.FailedConnEventMap,
-			Handler: encoding.BinaryUnmarshalCallback(pool.Get, func(b *netebpf.FailedConn, err error) {
-				if err != nil {
-					if b != nil {
-						pool.Put(b)
-					}
-					log.Debug(err.Error())
-					return
-				}
-				failedCallback(b)
-			}),
-			TelemetryEnabled:  config.InternalTelemetryEnabled,
-			UseRingBuffer:     config.RingBufferSupportedNPM(),
-			UpgradePerfBuffer: true,
-			PerfOptions: perf.PerfBufferOptions{
-				BufferSize: util.ComputeDefaultFailedConnPerfBufferSize(),
-				Watermark:  1,
-			},
-			RingBufOptions: perf.RingBufferOptions{
-				BufferSize: util.ComputeDefaultFailedConnectionsRingBufferSize(),
-			},
-		}
-		failedConnsHandler, err = perf.NewEventHandler(fcopts)
-		if err != nil {
-			return nil, err
-		}
+	if !config.FailedConnectionsSupported() {
+		return nil, nil
 	}
-	return failedConnsHandler, err
+
+	fcopts := perf.EventHandlerOptions{
+		MapName: probes.FailedConnEventMap,
+		Handler: encoding.BinaryUnmarshalCallback(pool.Get, func(b *netebpf.FailedConn, err error) {
+			if err != nil {
+				if b != nil {
+					pool.Put(b)
+				}
+				log.Debug(err.Error())
+				return
+			}
+			failedCallback(b)
+		}),
+		TelemetryEnabled:  config.InternalTelemetryEnabled,
+		UseRingBuffer:     config.RingBufferSupportedNPM(),
+		UpgradePerfBuffer: true,
+		PerfOptions: perf.PerfBufferOptions{
+			BufferSize: util.ComputeDefaultFailedConnPerfBufferSize(),
+			Watermark:  1,
+		},
+		RingBufOptions: perf.RingBufferOptions{
+			BufferSize: util.ComputeDefaultFailedConnectionsRingBufferSize(),
+		},
+	}
+	return perf.NewEventHandler(fcopts)
 }
 
 func initClosedConnEventHandler(config *config.Config, closedCallback func(*network.ConnectionStats), pool ddsync.Pool[network.ConnectionStats], extractor *batchExtractor) (*perf.EventHandler, error) {
@@ -433,11 +428,7 @@ func initClosedConnEventHandler(config *config.Config, closedCallback func(*netw
 		eopts.Handler = singleConnHandler
 	}
 
-	connCloseEventHandler, err := perf.NewEventHandler(eopts)
-	if err != nil {
-		return nil, err
-	}
-	return connCloseEventHandler, nil
+	return perf.NewEventHandler(eopts)
 }
 
 func boolConst(name string, value bool) manager.ConstantEditor {
