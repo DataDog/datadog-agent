@@ -373,7 +373,7 @@ func (s *upgradeScenarioSuite) mustStartExperiment(pkg packageName, version stri
 	output, err := s.startExperiment(pkg, version)
 	require.NoError(s.T(), err, "Failed to start experiment: %s\ndatadog-installer journalctl:\n%s",
 		s.Env().RemoteHost.MustExecute("cat /tmp/start_experiment.log"),
-		s.Env().RemoteHost.MustExecute("journalctl -xeu datadog-installer --no-pager"),
+		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer --no-pager"),
 	)
 	return output
 }
@@ -388,7 +388,7 @@ func (s *upgradeScenarioSuite) mustPromoteExperiment(pkg packageName) string {
 	output, err := s.promoteExperiment(pkg)
 	require.NoError(s.T(), err, "Failed to promote experiment: %s\ndatadog-installer journalctl:\n%s",
 		s.Env().RemoteHost.MustExecute("cat /tmp/promote_experiment.log"),
-		s.Env().RemoteHost.MustExecute("journalctl -xeu datadog-installer --no-pager"),
+		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer --no-pager"),
 	)
 	return output
 }
@@ -403,7 +403,7 @@ func (s *upgradeScenarioSuite) mustStopExperiment(pkg packageName) string {
 	output, err := s.stopExperiment(pkg)
 	require.NoError(s.T(), err, "Failed to stop experiment: %s\ndatadog-installer journalctl:\n%s",
 		s.Env().RemoteHost.MustExecute("cat /tmp/stop_experiment.log"),
-		s.Env().RemoteHost.MustExecute("journalctl -xeu datadog-installer --no-pager"),
+		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer --no-pager"),
 	)
 	return output
 }
