@@ -11,6 +11,7 @@ import (
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 	"os"
+	"strings"
 )
 
 type packageInstallerSuite struct {
@@ -120,11 +121,11 @@ func (s *packageInstallerSuite) TestUpdateInstallerOCI() {
 	err = s.RunInstallScriptWithError()
 	assert.NoError(s.T(), err)
 
-	version = s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version")
+	version = strings.TrimSpace(s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version"))
 	pipelineVersion := os.Getenv("CURRENT_AGENT_VERSION")
 	if pipelineVersion == "" {
-		assert.NotEqual(s.T(), fmt.Sprintf("%s\n", StableVersion), version)
+		assert.NotEqual(s.T(), StableVersion, version)
 	} else {
-		assert.Equal(s.T(), fmt.Sprintf("%s\n", pipelineVersion), version)
+		assert.Equal(s.T(), pipelineVersion, version)
 	}
 }
