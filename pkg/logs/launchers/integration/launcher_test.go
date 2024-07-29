@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	integrationsMock "github.com/DataDog/datadog-agent/comp/logs/integrations/mock"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	auditor "github.com/DataDog/datadog-agent/pkg/logs/auditor/mock"
@@ -58,6 +58,7 @@ func (suite *LauncherTestSuite) SetupTest() {
 	suite.source = sources.NewLogSource("", &config.LogsConfig{Type: config.IntegrationType, Path: suite.testPath})
 	suite.s = NewLauncher(nil, suite.integrationsComp)
 	status.InitStatus(pkgConfig.Datadog(), util.CreateSources([]*sources.LogSource{suite.source}))
+	suite.s.runPath = suite.testDir
 }
 
 func (suite *LauncherTestSuite) TearDownTest() {
