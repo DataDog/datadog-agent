@@ -92,7 +92,7 @@ func (suite *testInstallerSuite) TestInstalls() {
 	suite.Run("Repair", func() {
 		// Arrange
 		suite.Require().NoError(common.StopService(suite.Env().RemoteHost, InstallerServiceName))
-		suite.Env().RemoteHost.Remove(InstallerBinaryPath)
+		suite.Require().NoError(suite.Env().RemoteHost.Remove(InstallerBinaryPath))
 
 		// Act
 		suite.Require().NoError(suite.installer.Install())
