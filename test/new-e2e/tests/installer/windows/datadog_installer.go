@@ -180,7 +180,7 @@ func (d *DatadogInstaller) Install(opts ...InstallerOption) error {
 	}
 	if params.installerURL == "" {
 		artifactURL, err := pipeline.GetPipelineArtifact(d.env.AwsEnvironment.PipelineID(), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
-			return strings.Contains(artifact, "datadog-installer")
+			return strings.Contains(artifact, "datadog-installer") && strings.HasSuffix(artifact, ".msi")
 		})
 		if err != nil {
 			return err

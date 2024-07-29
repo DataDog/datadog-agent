@@ -61,7 +61,7 @@ func WithInstallURL(url string) func(*Configuration) error {
 func NewConfig(env aws.Environment, options ...Option) (*Configuration, error) {
 	if env.PipelineID() != "" {
 		artifactURL, err := pipeline.GetPipelineArtifact(env.PipelineID(), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
-			return strings.Contains(artifact, "datadog-installer")
+			return strings.Contains(artifact, "datadog-installer") && strings.HasSuffix(artifact, ".msi")
 		})
 		if err != nil {
 			return nil, err
