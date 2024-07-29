@@ -32,9 +32,6 @@ Bug Fixes
 
 - Fixes an issue introduced in `7.55.0` with container metrics. In some rare cases, container metrics (cpu, memory, limits, etc.) could be incorrect and not reflect actual resources usage.
 
-- Fix a regression where the agent would fail to start on systems with SysVinit
-
-
 .. _Release Notes_7.55.1:
 
 7.55.1 / 6.55.1
