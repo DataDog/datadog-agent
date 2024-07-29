@@ -1089,6 +1089,17 @@ func (ev *Event) GetExecArgvScrubbed() []string {
 	return ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, ev.Exec.Process)
 }
 
+// GetExecAuid returns the value of the field, resolving if necessary
+func (ev *Event) GetExecAuid() uint32 {
+	if ev.GetEventType().String() != "exec" {
+		return uint32(0)
+	}
+	if ev.Exec.Process == nil {
+		return uint32(0)
+	}
+	return ev.Exec.Process.Credentials.AUID
+}
+
 // GetExecCapEffective returns the value of the field, resolving if necessary
 func (ev *Event) GetExecCapEffective() uint64 {
 	if ev.GetEventType().String() != "exec" {
@@ -2153,6 +2164,17 @@ func (ev *Event) GetExitArgvScrubbed() []string {
 		return []string{}
 	}
 	return ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, ev.Exit.Process)
+}
+
+// GetExitAuid returns the value of the field, resolving if necessary
+func (ev *Event) GetExitAuid() uint32 {
+	if ev.GetEventType().String() != "exit" {
+		return uint32(0)
+	}
+	if ev.Exit.Process == nil {
+		return uint32(0)
+	}
+	return ev.Exit.Process.Credentials.AUID
 }
 
 // GetExitCapEffective returns the value of the field, resolving if necessary
@@ -4802,6 +4824,27 @@ func (ev *Event) GetProcessAncestorsArgvScrubbed() []string {
 	return values
 }
 
+// GetProcessAncestorsAuid returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessAncestorsAuid() []uint32 {
+	if ev.BaseEvent.ProcessContext == nil {
+		return []uint32{}
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		return []uint32{}
+	}
+	var values []uint32
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := element.ProcessContext.Process.Credentials.AUID
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
 // GetProcessAncestorsCapEffective returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsCapEffective() []uint64 {
 	if ev.BaseEvent.ProcessContext == nil {
@@ -6357,6 +6400,14 @@ func (ev *Event) GetProcessArgvScrubbed() []string {
 	return ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
+// GetProcessAuid returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessAuid() uint32 {
+	if ev.BaseEvent.ProcessContext == nil {
+		return uint32(0)
+	}
+	return ev.BaseEvent.ProcessContext.Process.Credentials.AUID
+}
+
 // GetProcessCapEffective returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessCapEffective() uint64 {
 	if ev.BaseEvent.ProcessContext == nil {
@@ -7095,6 +7146,20 @@ func (ev *Event) GetProcessParentArgvScrubbed() []string {
 		return []string{}
 	}
 	return ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, ev.BaseEvent.ProcessContext.Parent)
+}
+
+// GetProcessParentAuid returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessParentAuid() uint32 {
+	if ev.BaseEvent.ProcessContext == nil {
+		return uint32(0)
+	}
+	if ev.BaseEvent.ProcessContext.Parent == nil {
+		return uint32(0)
+	}
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return uint32(0)
+	}
+	return ev.BaseEvent.ProcessContext.Parent.Credentials.AUID
 }
 
 // GetProcessParentCapEffective returns the value of the field, resolving if necessary
@@ -8462,6 +8527,30 @@ func (ev *Event) GetPtraceTraceeAncestorsArgvScrubbed() []string {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, &element.ProcessContext.Process)
 		values = append(values, result...)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
+// GetPtraceTraceeAncestorsAuid returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeAncestorsAuid() []uint32 {
+	if ev.GetEventType().String() != "ptrace" {
+		return []uint32{}
+	}
+	if ev.PTrace.Tracee == nil {
+		return []uint32{}
+	}
+	if ev.PTrace.Tracee.Ancestor == nil {
+		return []uint32{}
+	}
+	var values []uint32
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := element.ProcessContext.Process.Credentials.AUID
+		values = append(values, result)
 		ptr = iterator.Next()
 	}
 	return values
@@ -10259,6 +10348,17 @@ func (ev *Event) GetPtraceTraceeArgvScrubbed() []string {
 	return ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, &ev.PTrace.Tracee.Process)
 }
 
+// GetPtraceTraceeAuid returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeAuid() uint32 {
+	if ev.GetEventType().String() != "ptrace" {
+		return uint32(0)
+	}
+	if ev.PTrace.Tracee == nil {
+		return uint32(0)
+	}
+	return ev.PTrace.Tracee.Process.Credentials.AUID
+}
+
 // GetPtraceTraceeCapEffective returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeCapEffective() uint64 {
 	if ev.GetEventType().String() != "ptrace" {
@@ -11216,6 +11316,23 @@ func (ev *Event) GetPtraceTraceeParentArgvScrubbed() []string {
 		return []string{}
 	}
 	return ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, ev.PTrace.Tracee.Parent)
+}
+
+// GetPtraceTraceeParentAuid returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeParentAuid() uint32 {
+	if ev.GetEventType().String() != "ptrace" {
+		return uint32(0)
+	}
+	if ev.PTrace.Tracee == nil {
+		return uint32(0)
+	}
+	if ev.PTrace.Tracee.Parent == nil {
+		return uint32(0)
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return uint32(0)
+	}
+	return ev.PTrace.Tracee.Parent.Credentials.AUID
 }
 
 // GetPtraceTraceeParentCapEffective returns the value of the field, resolving if necessary
@@ -13884,6 +14001,30 @@ func (ev *Event) GetSignalTargetAncestorsArgvScrubbed() []string {
 	return values
 }
 
+// GetSignalTargetAncestorsAuid returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetAncestorsAuid() []uint32 {
+	if ev.GetEventType().String() != "signal" {
+		return []uint32{}
+	}
+	if ev.Signal.Target == nil {
+		return []uint32{}
+	}
+	if ev.Signal.Target.Ancestor == nil {
+		return []uint32{}
+	}
+	var values []uint32
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := element.ProcessContext.Process.Credentials.AUID
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
 // GetSignalTargetAncestorsCapEffective returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsCapEffective() []uint64 {
 	if ev.GetEventType().String() != "signal" {
@@ -15676,6 +15817,17 @@ func (ev *Event) GetSignalTargetArgvScrubbed() []string {
 	return ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, &ev.Signal.Target.Process)
 }
 
+// GetSignalTargetAuid returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetAuid() uint32 {
+	if ev.GetEventType().String() != "signal" {
+		return uint32(0)
+	}
+	if ev.Signal.Target == nil {
+		return uint32(0)
+	}
+	return ev.Signal.Target.Process.Credentials.AUID
+}
+
 // GetSignalTargetCapEffective returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetCapEffective() uint64 {
 	if ev.GetEventType().String() != "signal" {
@@ -16633,6 +16785,23 @@ func (ev *Event) GetSignalTargetParentArgvScrubbed() []string {
 		return []string{}
 	}
 	return ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, ev.Signal.Target.Parent)
+}
+
+// GetSignalTargetParentAuid returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetParentAuid() uint32 {
+	if ev.GetEventType().String() != "signal" {
+		return uint32(0)
+	}
+	if ev.Signal.Target == nil {
+		return uint32(0)
+	}
+	if ev.Signal.Target.Parent == nil {
+		return uint32(0)
+	}
+	if !ev.Signal.Target.HasParent() {
+		return uint32(0)
+	}
+	return ev.Signal.Target.Parent.Credentials.AUID
 }
 
 // GetSignalTargetParentCapEffective returns the value of the field, resolving if necessary

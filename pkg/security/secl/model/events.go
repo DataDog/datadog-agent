@@ -93,6 +93,8 @@ const (
 	IMDSEventType
 	// OnDemandEventType is sent for on-demand events
 	OnDemandEventType
+	// LoginUIDWriteEventType is sent for login_uid write events
+	LoginUIDWriteEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -259,6 +261,8 @@ func (t EventType) String() string {
 		return "delete_key"
 	case ChangePermissionEventType:
 		return "change_permission"
+	case LoginUIDWriteEventType:
+		return "login_uid_write"
 	default:
 		return "unknown"
 	}
