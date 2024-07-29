@@ -5,6 +5,7 @@
 
 //go:build test
 
+// Package fx provides fx options for the agent component.
 package fx
 
 import (
@@ -14,6 +15,8 @@ import (
 	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+// team: agent-apm
 
 // Mock implements mock-specific methods.
 type Mock interface {

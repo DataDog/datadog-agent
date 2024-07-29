@@ -20,3 +20,4 @@ func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(traceagentimpl.NewAgent))
 }
+

@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package impl implements the securityagent metadata providers interface
-package impl
+// Package securityagentimpl implements the securityagent metadata providers interface
+package securityagentimpl
 
 import (
 	"encoding/json"
