@@ -713,7 +713,7 @@ require (
 	// todo: update datadog connector with breaking changes from https://github.com/DataDog/datadog-agent/pull/26347.
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.103.0
 	github.com/planetscale/vtprotobuf v0.6.0
-	github.com/prometheus-community/pro-bing v0.3.0
+	github.com/prometheus-community/pro-bing v0.4.1
 	github.com/rickar/props v1.0.0
 	github.com/sijms/go-ora/v2 v2.8.19
 	github.com/swaggest/jsonschema-go v0.3.70
@@ -734,9 +734,6 @@ require (
 	k8s.io/cli-runtime v0.29.0
 	k8s.io/kubectl v0.29.0
 )
-
-// NDM: Temporary fork until pro-bing merges the PR
-replace github.com/prometheus-community/pro-bing => github.com/ken-schneider/pro-bing v0.0.0-20240702202240-4cb73c5b2d22
 
 require (
 	cloud.google.com/go/auth v0.5.1 // indirect
