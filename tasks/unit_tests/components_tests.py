@@ -248,7 +248,7 @@ def replace_line(filename, target, replace):
 
 
 def insert_after_line(filename, target, replace):
-    actual_replace = '%s\n%s' % (target, replace)
+    actual_replace = f"{target}\n{replace}"
     replace_line(filename, target, actual_replace)
 
 
