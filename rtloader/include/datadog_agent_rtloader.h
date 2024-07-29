@@ -466,7 +466,6 @@ DATADOG_AGENT_RTLOADER_API void set_get_hostname_cb(rtloader_t *, cb_get_hostnam
 */
 DATADOG_AGENT_RTLOADER_API void set_get_host_tags_cb(rtloader_t *, cb_get_host_tags_t);
 
-
 /*! \fn void set_get_clustername_cb(rtloader_t *, cb_get_clustername_t)
     \brief Sets a callback to be used by rtloader to collect the K8s clustername from the
     agent.
