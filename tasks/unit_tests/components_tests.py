@@ -13,14 +13,14 @@ class TestComponents(unittest.TestCase):
         # tests to modify the source files
         self.tmpdir = tempfile.mkdtemp()
         self.origDir = os.getcwd()
-        self.copy_component_src_to_tmpdir()
+        self.reset_component_src_in_tmpdir()
         # Preserve currenty directory, change to temp directory
         os.chdir(self.tmpdir)
         classicComp = 'comp/classic/classicimpl'
         if classicComp not in components.components_classic_style:
             components.components_classic_style.append(classicComp)
 
-    def copy_component_src_to_tmpdir(self):
+    def reset_component_src_in_tmpdir(self):
         shutil.copytree(
             os.path.join(self.origDir, 'tasks/unit_tests/testdata/components_src/comp'),
             os.path.join(self.tmpdir, 'comp'),
@@ -76,7 +76,7 @@ class TestComponents(unittest.TestCase):
         self.assertIn('Component interface', errs[0])
 
         # No lint errors with original source
-        self.copy_component_src_to_tmpdir()
+        self.reset_component_src_in_tmpdir()
 
         _, bundles = components.get_components_and_bundles()
         errs = components.validate_bundles(bundles)
@@ -105,7 +105,7 @@ class TestComponents(unittest.TestCase):
         self.assertIn('team owner', errs[0])
 
         # Lint error because of wrong package name
-        self.copy_component_src_to_tmpdir()
+        self.reset_component_src_in_tmpdir()
 
         filename = os.path.join(comps[3].path, 'def/component.go')
         replace_line(filename, 'package newstyle', 'package def')
@@ -116,7 +116,7 @@ class TestComponents(unittest.TestCase):
         self.assertIn('wrong package', errs[0])
 
         # Lint error because def/component.go doesn't define Component interface
-        self.copy_component_src_to_tmpdir()
+        self.reset_component_src_in_tmpdir()
 
         filename = os.path.join(comps[3].path, 'def/component.go')
         remove_line(filename, 'type Component interface{}')
@@ -127,7 +127,7 @@ class TestComponents(unittest.TestCase):
         self.assertIn('does not define', errs[0])
 
         # Lint error because def/component.go should not contain Mock interface
-        self.copy_component_src_to_tmpdir()
+        self.reset_component_src_in_tmpdir()
 
         filename = os.path.join(comps[3].path, 'def/component.go')
         append_line(filename, 'type Mock interface{}')
@@ -152,7 +152,7 @@ class TestComponents(unittest.TestCase):
         self.assertIn('wrong package name', errs[0])
 
         # Lint error because fx/fx.go should call ProvideComponentConstructor
-        self.copy_component_src_to_tmpdir()
+        self.reset_component_src_in_tmpdir()
 
         filename = os.path.join(comps[3].path, 'fx/fx.go')
         replace_line(filename, '\t\tfxutil.ProvideComponentConstructor(', '\t\tfx.Provide(')
@@ -163,7 +163,7 @@ class TestComponents(unittest.TestCase):
         self.assertIn('should call', errs[0])
 
         # Lint error because fx/ source file must be fx.go
-        self.copy_component_src_to_tmpdir()
+        self.reset_component_src_in_tmpdir()
 
         badfilename = os.path.join(comps[3].path, 'fx/effeks.go')
         shutil.move(filename, badfilename)
@@ -188,7 +188,7 @@ class TestComponents(unittest.TestCase):
         self.assertIn('wrong package name', errs[0])
 
         # Lint error because implementation imports uber fx
-        self.copy_component_src_to_tmpdir()
+        self.reset_component_src_in_tmpdir()
 
         filename = os.path.join(comps[3].path, 'impl/newstyle.go')
         insert_after_line(filename, 'import (', '\t"go.uber.org/fx"')
@@ -199,7 +199,7 @@ class TestComponents(unittest.TestCase):
         self.assertIn('should not import', errs[0])
 
         # Lint error because implementation imports fxutil
-        self.copy_component_src_to_tmpdir()
+        self.reset_component_src_in_tmpdir()
 
         filename = os.path.join(comps[3].path, 'impl/newstyle.go')
         insert_after_line(filename, 'import (', '\t"github.com/DataDog/datadog-agent/pkg/util/fxutil"')
@@ -210,7 +210,7 @@ class TestComponents(unittest.TestCase):
         self.assertIn('should not import', errs[0])
 
         # Okay for implementation to use a suffix for its non-primary implementation
-        self.copy_component_src_to_tmpdir()
+        self.reset_component_src_in_tmpdir()
 
         implfolder = os.path.join(comps[3].path, 'impl')
         newfolder = os.path.join(comps[3].path, 'impl-alt')
