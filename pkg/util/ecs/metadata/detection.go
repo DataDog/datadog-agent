@@ -14,10 +14,10 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
+	"runtime"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
+	"github.com/hashicorp/go-version"
 
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
@@ -27,6 +27,14 @@ import (
 
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	v3or4 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
+)
+
+const (
+	// MinimumECSAgentVersionForMetadataV4OnLinux is the minimum ECS agent version required to use the metadata v4 endpoint on Linux
+	// https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-metadata-endpoint-v4.html
+	MinimumECSAgentVersionForMetadataV4OnLinux = "1.39.0"
+	// MinimumECSAgentVersionForMetadataV4OnWindows is the minimum ECS agent version required to use the metadata v4 endpoint on Windows
+	MinimumECSAgentVersionForMetadataV4OnWindows = "1.54.0"
 )
 
 func detectAgentV1URL() (string, error) {
@@ -141,55 +149,27 @@ func getAgentV4URLFromEnv() (string, error) {
 	return agentURL, nil
 }
 
-// IsMetadataV4Available checks if the v4 metadata endpoint is available.
-// It checks if metadata v4 url is available in the environment variable.
-// It should be available when the agent is deployed by ECS, as the ECS agent injects this environment variable.
-// Then it checks if agent is deployed directly on EC2 running in ECS.
-// It returns true if any container has the v4 endpoint env variable.
-func IsMetadataV4Available() (bool, error) {
-	// Agent is deployed by ECS
-	_, err := getAgentV4URLFromEnv()
-	if err == nil {
-		return true, nil
-	}
-
-	// If the agent is deployed on Fargate and v4 is not available, return false
-	if config.IsECSFargate() {
-		return false, errors.New("v4 endpoint not found in Fargate")
-	}
-
-	// Check if agent is deployed directly on EC2
-	dockerUtil, err := docker.GetDockerUtil()
+// IsMetadataV4Available checks if the ECS agent version is compatible with the metadata v4 endpoint
+func IsMetadataV4Available(ecsAgentVersion string) (bool, error) {
+	// Agent is deployed directly on EC2 running in ECS
+	currentECSAgentVersion, err := version.NewVersion(ecsAgentVersion)
 	if err != nil {
 		return false, err
 	}
 
-	containers, err := dockerUtil.RawContainerList(context.Background(), container.ListOptions{})
+	minimumECSAgentVersion := MinimumECSAgentVersionForMetadataV4OnLinux
+	if runtime.GOOS == "windows" {
+		minimumECSAgentVersion = MinimumECSAgentVersionForMetadataV4OnWindows
+	}
+
+	expectedMinimumECSAgentVersion, err := version.NewVersion(minimumECSAgentVersion)
 	if err != nil {
 		return false, err
 	}
 
-	// Check if any container has the v4 endpoint env variable
-	for _, c := range containers {
-		if hasMetadataURIv4EnvVariable(dockerUtil, c.ID) {
-			return true, nil
-		}
+	if currentECSAgentVersion.LessThan(expectedMinimumECSAgentVersion) {
+		return false, fmt.Errorf("ECS agent version %s is less than the minimum required version %s", currentECSAgentVersion, expectedMinimumECSAgentVersion)
 	}
 
-	return false, errors.New("v4 endpoint not found in any container")
-}
-
-func hasMetadataURIv4EnvVariable(dockerUtil *docker.DockerUtil, containerID string) bool {
-	inspect, err := dockerUtil.Inspect(context.Background(), containerID, false)
-	if err != nil {
-		log.Infof("Unable to inspect container, docker inspect failed: %s", err)
-		return false
-	}
-
-	for _, env := range inspect.Config.Env {
-		if strings.HasPrefix(env, v3or4.DefaultMetadataURIv4EnvVariable) {
-			return true
-		}
-	}
-	return false
+	return true, nil
 }

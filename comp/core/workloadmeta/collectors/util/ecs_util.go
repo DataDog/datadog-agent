@@ -9,6 +9,7 @@ package util
 
 import (
 	"context"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -264,4 +265,19 @@ func parseClusterName(cluster string) string {
 		return cluster
 	}
 	return parts[1]
+}
+
+// ParserECSAgentVersion parses the ECS agent version from the version string
+// Instance metadata returns the version in the format `Amazon ECS Agent - v1.30.0 (02ff320c)`
+func ParserECSAgentVersion(s string) string {
+	// \d+\.\d+\.\d+ for versions like 1.32.0
+	// (-\w+)? for optional pre-release tags like -beta
+	// |\d+\.\d+ for shorter versions like 0.1
+	// |\d+ for versions like 1
+	re := regexp.MustCompile(`v(\d+\.\d+\.\d+(-\w+)?|\d+\.\d+(-\w+)?|\d+(-\w+)?)`)
+	match := re.FindStringSubmatch(s)
+	if len(match) > 1 {
+		return match[1]
+	}
+	return ""
 }
