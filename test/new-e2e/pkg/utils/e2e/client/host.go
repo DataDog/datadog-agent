@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"embed"
 	"errors"
 	"fmt"
 	"io"
@@ -151,8 +150,8 @@ func (h *Host) MustExecute(command string, options ...ExecuteOption) string {
 	return stdout
 }
 
-// CopyFileFromEmbedded creates a sftp session and copy a single embedded file to the remote host through SSH
-func (h *Host) CopyFileFromEmbedded(fs embed.FS, src, dst string) {
+// CopyFileFromFS creates a sftp session and copy a single embedded file to the remote host through SSH
+func (h *Host) CopyFileFromFS(fs fs.FS, src, dst string) {
 	h.context.T().Logf("Copying file from local %s to remote %s", src, dst)
 	dst = h.convertPathSeparator(dst)
 	sftpClient := h.getSFTPClient()

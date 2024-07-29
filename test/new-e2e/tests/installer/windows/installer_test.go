@@ -53,7 +53,7 @@ func (s *testInstallerSuite) TestInstalls() {
 
 	s.Run("Start service with a configuration file", func() {
 		// Arrange
-		s.Env().RemoteHost.CopyFileFromEmbedded(fixturesFS, "fixtures/sample_config", InstallerConfigPath)
+		s.Env().RemoteHost.CopyFileFromFS(fixturesFS, "fixtures/sample_config", InstallerConfigPath)
 
 		// Act
 		s.Require().NoError(common.StartService(s.Env().RemoteHost, InstallerServiceName))
