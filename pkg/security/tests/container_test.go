@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/stretchr/testify/assert"
@@ -94,7 +95,7 @@ func TestContainerCreatedAt(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_container_created_at_delay")
 			assertFieldEqual(t, event, "open.file.path", testFileDelay)
 			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
-			assert.Equal(t, event.CGroupContext.CGroupFlags, model.CGroupFlags(model.CGroupManagerDocker))
+			assert.Equal(t, event.CGroupContext.CGroupFlags, containerutils.CGroupFlags(containerutils.CGroupManagerDocker))
 			createdAtNano, _ := event.GetFieldValue("container.created_at")
 			createdAt := time.Unix(0, int64(createdAtNano.(int)))
 			assert.True(t, time.Since(createdAt) > 3*time.Second)
@@ -144,7 +145,7 @@ func TestContainerFlags(t *testing.T) {
 			assertFieldEqual(t, event, "open.file.path", testFile)
 			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
 			assertFieldEqual(t, event, "container.runtime", "docker")
-			assert.Equal(t, model.CGroupFlags(model.CGroupManagerDocker), event.CGroupContext.CGroupFlags)
+			assert.Equal(t, containerutils.CGroupFlags(containerutils.CGroupManagerDocker), event.CGroupContext.CGroupFlags)
 
 			test.validateOpenSchema(t, event)
 		})
@@ -268,7 +269,7 @@ func TestCGroupID(t *testing.T) {
 			assertFieldEqual(t, event, "open.file.path", testFile)
 			assertFieldEqual(t, event, "container.id", "")
 			assertFieldEqual(t, event, "container.runtime", "")
-			assert.Equal(t, model.CGroupFlags(0), event.CGroupContext.CGroupFlags)
+			assert.Equal(t, containerutils.CGroupFlags(0), event.CGroupContext.CGroupFlags)
 			assertFieldEqual(t, event, "cgroup.id", "cg1")
 
 			test.validateOpenSchema(t, event)

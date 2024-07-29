@@ -19,6 +19,7 @@ import (
 	imdsutils "github.com/DataDog/datadog-agent/pkg/security/tests/imds_utils"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
@@ -571,7 +572,7 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(rule *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.ContainerID == model.ContainerID(dump.ContainerID) {
+			if event.ProcessContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
 				t.Fatal("Got a signal that should have been suppressed")
 			}
 			return false
@@ -590,7 +591,7 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(rule *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.ContainerID == model.ContainerID(dump.ContainerID) {
+			if event.ProcessContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
 				t.Fatal("Got a signal that should have been suppressed")
 			}
 			return false
@@ -680,7 +681,7 @@ func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
 			_, err := cmd.CombinedOutput()
 			return err
 		}, func(rule *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.ContainerID == model.ContainerID(dockerInstance2.containerID) {
+			if event.ProcessContext.ContainerID == containerutils.ContainerID(dockerInstance2.containerID) {
 				t.Fatal("Got a signal that should have been suppressed")
 			}
 			return false
@@ -699,7 +700,7 @@ func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(rule *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.ContainerID == model.ContainerID(dockerInstance2.containerID) {
+			if event.ProcessContext.ContainerID == containerutils.ContainerID(dockerInstance2.containerID) {
 				t.Fatal("Got a signal that should have been suppressed")
 			}
 			return false
