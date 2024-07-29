@@ -212,11 +212,6 @@ class TestExpandMatrixJobs(unittest.TestCase):
                         {
                             'VAR1': 'b',
                         },
-                        # # Used OrderedDict to ensure order is preserved and the name is deterministic
-                        # OrderedDict({
-                        #     'VAR1': 'a',
-                        #     'VAR2': 'val2',
-                        # }),
                     ]
                 },
             }
@@ -236,6 +231,7 @@ class TestExpandMatrixJobs(unittest.TestCase):
                 'script': 'echo hello',
                 'parallel': {
                     'matrix': [
+                        # Used OrderedDict to ensure order is preserved and the name is deterministic
                         OrderedDict(
                             [
                                 ('VAR1', 'a'),

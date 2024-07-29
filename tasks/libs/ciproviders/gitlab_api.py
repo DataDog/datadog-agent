@@ -522,28 +522,32 @@ def expand_matrix_jobs(yml: dict) -> dict:
     Will expand matrix jobs into multiple jobs
     """
 
-    def get_combinations(arg: dict[str, (str | list[str])]):
+    def get_combinated_variables(arg: dict[str, (str | list[str])]):
         """
-        Make combinations from the matrix arguments.
+        Make combinations from the matrix arguments to obtain the list of variables that have each new job.
 
-        combinations({'key1': ['val1', 'val2'], 'key2': 'val3'}) -> [[('key1', 'val1'), ('key2', 'val3')], [('key1', 'val2'), ('key2', 'val3')]]
+        combinations({'key1': ['val1', 'val2'], 'key2': 'val3'}) -> [
+            {'key1': 'val1', 'key2': 'val3'},
+            {'key1': 'val2', 'key2': 'val3'}
+        ]
+
+        - Returns a tuple of (1) the list of variable values and (2) the list of variable dictionaries
         """
-        # Convert single values to list singletons
-        arg_strict: dict[str, list[str]] = {
-            key: [value] if not isinstance(value, list) else value for key, value in arg.items()
-        }
 
-        # {key1: [val1, val2], key2: [val3]} -> [[(key1, val1), (key1, val2)], [(key2, val3)]]
-        job_vars = [[(key, val) for val in value] for key, value in arg_strict.items()]
+        job_keys = []
+        job_values = []
+        for key, values in arg.items():
+            if not isinstance(values, list):
+                values = [values]
 
-        # Make all possible matrix combinations of variables (the product order is deterministic)
-        job_values = [[value for (_, value) in spec] for spec in job_vars]
-        job_keys = [[key for (key, _) in spec] for spec in job_vars]
-        job_values = list(product(*job_values))
+            job_keys.append([key] * len(values))
+            job_values.append(values)
+
+        # Product order is deterministic so each item in job_values will be associated with the same item in job_keys
         job_keys = list(product(*job_keys))
+        job_values = list(product(*job_values))
 
-        # List of (key, value) for each new job
-        job_vars = [list(zip(k, v, strict=True)) for (k, v) in zip(job_keys, job_values, strict=True)]
+        job_vars = [dict(zip(k, v, strict=True)) for (k, v) in zip(job_keys, job_values, strict=True)]
 
         return job_values, job_vars
 
@@ -553,7 +557,8 @@ def expand_matrix_jobs(yml: dict) -> dict:
         if 'parallel' in yml[job] and 'matrix' in yml[job]['parallel']:
             to_remove.add(job)
             for arg in yml[job]['parallel']['matrix']:
-                job_values, job_vars = get_combinations(arg)
+                # Compute all combinations of variables
+                job_values, job_vars = get_combinated_variables(arg)
 
                 # Create names
                 job_names = [', '.join(str(value) for value in spec) for spec in job_values]
@@ -563,7 +568,7 @@ def expand_matrix_jobs(yml: dict) -> dict:
                     new_job = deepcopy(yml[job])
 
                     # Update variables
-                    new_job['variables'] = {**new_job.get('variables', {}), **dict(variables)}
+                    new_job['variables'] = {**new_job.get('variables', {}), **variables}
 
                     # Remove matrix config for the new jobs
                     del new_job['parallel']['matrix']
