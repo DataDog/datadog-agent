@@ -13,7 +13,17 @@ from invoke.exceptions import Exit
 
 from tasks.libs.types.copyright import COPYRIGHT_HEADER
 
+# Component represents a directory defining a component
+#  version=1 is the classic style using:
+#    comp/<name>/component.go
+#    comp/<name>/<name>impl/*
+#  version=2 is the new style using:
+#    comp/<name>/def/component.go
+#    comp/<name>/fx/fx.go
+#    comp/<name>/impl/*
 Component = namedtuple('Component', ['name', 'def_file', 'path', 'doc', 'team', 'version'])
+# Bundle represents a bundle of components, defined using:
+#    comp/<group>/bundle.go
 Bundle = namedtuple('Bundle', ['path', 'doc', 'team', 'content', 'components'])
 
 
@@ -181,6 +191,10 @@ ignore_package_name = [
     "comp/metadata/systemprobe",
 ]
 
+ignore_fx_usage = [
+    "comp/otelcol/collector-contrib",
+]
+
 mock_definitions = [
     "type Mock interface",
     "func Module() fxutil.Module",
@@ -209,13 +223,13 @@ def check_component_contents_and_file_hiearchy(comp):
     if comp.def_file == 'comp/api/api/def/component.go':
         return
 
-    # Definition file `def/component.go` must use `package <compname>`
+    # Definition file `component.go` (v1) or `def/component.go` (v2) must use `package <compname>`
     pkgname = parse_package_name(comp.def_file)
     if pkgname != comp.name:
         if comp.path not in ignore_package_name:
             return f"** {comp.def_file} has wrong package name '{pkgname}', must be '{comp.name}'"
 
-    # Definition file `def/component.go` must not contain a mock definition
+    # Definition file `component.go` (v1) or `def/component.go` (v2) must not contain a mock definition
     for mock_definition in mock_definitions:
         if any(line.startswith(mock_definition) for line in def_content):
             return f"** {comp.def_file} defines '{mock_definition}' which should be in separate implementation. See docs/components/defining-components.md"
@@ -242,13 +256,20 @@ def check_component_contents_and_file_hiearchy(comp):
                 return f"** {src_file} should not import 'go.uber.org/fx' because it a component implementation"
             if 'fxutil' in src_content:
                 return f"** {src_file} should not import 'fxutil' because it a component implementation"
-        # FX files should use correct package name
+        # FX files should use correct filename and package name, and call ProvideComponentConstructor
         for src_file in locate_fx_source_files(root_path):
+            if comp.path in ignore_fx_usage:
+                continue
+            if src_file.name != 'fx.go':
+                return f"** {src_file} should be named 'fx.go'"
             pkgname = parse_package_name(src_file)
             expectname = comp.name + 'fx'
             if pkgname != 'fx' and pkgname != expectname:
                 if comp.path not in ignore_package_name:
                     return f"** {src_file} has wrong package name '{pkgname}', must be 'fx' or '{expectname}'"
+            src_content = read_file_content(src_file)
+            if 'ProvideComponentConstructor' not in src_content:
+                return f"** {src_file} should call ProvideComponentConstructor to convert regular constructor into fx-aware"
 
     return  # no error
 
@@ -382,7 +403,7 @@ def get_components_and_bundles():
                 bundle_components.append(c)
         sorted_bundles.append(Bundle(b.path, b.doc, b.team, b.content, sorted(bundle_components)))
 
-    return sorted(components), sorted(sorted_bundles)
+    return sorted(components, key=lambda c: c.path), sorted(sorted_bundles)
 
 
 def locate_component_def(dir):
@@ -553,7 +574,7 @@ def without_bundle(comps, bundles):
     for c in comps:
         if not any(c in b.components for b in bundles):
             ans.append(c)
-    return ans
+    return sorted(ans, key=lambda c: c.path)
 
 
 @task

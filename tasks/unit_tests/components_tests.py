@@ -31,6 +31,8 @@ class TestComponents(unittest.TestCase):
         if self.tmpdir:
             shutil.rmtree(self.tmpdir)
         os.chdir(self.origDir)
+        classicComp = 'comp/classic/classicimpl'
+        components.components_classic_style.remove(classicComp)
 
     def test_find_team(self):
         content = ['// my file', '// team: agent-shared-components', '// file starts here']
@@ -48,6 +50,16 @@ class TestComponents(unittest.TestCase):
         self.assertEqual('comp/group/inbundle', comps[1].path)
         self.assertEqual('comp/multiple', comps[2].path)
         self.assertEqual('comp/newstyle', comps[3].path)
+
+    def test_locate_root(self):
+        root = components.locate_component_def(Path('comp/classic'))
+        self.assertEqual(1, root.version)
+
+        root = components.locate_component_def(Path('comp/multiple'))
+        self.assertEqual(2, root.version)
+
+        root = components.locate_component_def(Path('comp/newstyle'))
+        self.assertEqual(2, root.version)
 
     def test_validate_bundles(self):
         _, bundles = components.get_components_and_bundles()
@@ -139,15 +151,84 @@ class TestComponents(unittest.TestCase):
         self.assertEqual(1, len(errs))
         self.assertIn('wrong package name', errs[0])
 
-    def test_locate_root(self):
-        root = components.locate_component_def(Path('comp/classic'))
-        self.assertEqual(1, root.version)
+        # Lint error because fx/fx.go should call ProvideComponentConstructor
+        self.copy_component_src_to_tmpdir()
 
-        root = components.locate_component_def(Path('comp/multiple'))
-        self.assertEqual(2, root.version)
+        filename = os.path.join(comps[3].path, 'fx/fx.go')
+        replace_line(filename, '\t\tfxutil.ProvideComponentConstructor(', '\t\tfx.Provide(')
 
-        root = components.locate_component_def(Path('comp/newstyle'))
-        self.assertEqual(2, root.version)
+        comps, _ = components.get_components_and_bundles()
+        errs = components.validate_components(comps)
+        self.assertEqual(1, len(errs))
+        self.assertIn('should call', errs[0])
+
+        # Lint error because fx/ source file must be fx.go
+        self.copy_component_src_to_tmpdir()
+
+        badfilename = os.path.join(comps[3].path, 'fx/effeks.go')
+        shutil.move(filename, badfilename)
+
+        comps, _ = components.get_components_and_bundles()
+        errs = components.validate_components(comps)
+        self.assertEqual(1, len(errs))
+        self.assertIn("should be named 'fx.go'", errs[0])
+
+    def test_validate_component_implementation(self):
+        comps, _ = components.get_components_and_bundles()
+        errs = components.validate_components(comps)
+        self.assertEqual(0, len(errs))
+
+        # Lint error because implementation uses wrong package name
+        filename = os.path.join(comps[3].path, 'impl/newstyle.go')
+        replace_line(filename, 'package newstyleimpl', 'package impl')
+
+        comps, _ = components.get_components_and_bundles()
+        errs = components.validate_components(comps)
+        self.assertEqual(1, len(errs))
+        self.assertIn('wrong package name', errs[0])
+
+        # Lint error because implementation imports uber fx
+        self.copy_component_src_to_tmpdir()
+
+        filename = os.path.join(comps[3].path, 'impl/newstyle.go')
+        insert_after_line(filename, 'import (', '\t"go.uber.org/fx"')
+
+        comps, _ = components.get_components_and_bundles()
+        errs = components.validate_components(comps)
+        self.assertEqual(1, len(errs))
+        self.assertIn('should not import', errs[0])
+
+        # Lint error because implementation imports fxutil
+        self.copy_component_src_to_tmpdir()
+
+        filename = os.path.join(comps[3].path, 'impl/newstyle.go')
+        insert_after_line(filename, 'import (', '\t"github.com/DataDog/datadog-agent/pkg/util/fxutil"')
+
+        comps, _ = components.get_components_and_bundles()
+        errs = components.validate_components(comps)
+        self.assertEqual(1, len(errs))
+        self.assertIn('should not import', errs[0])
+
+        # Okay for implementation to use a suffix for its non-primary implementation
+        self.copy_component_src_to_tmpdir()
+
+        implfolder = os.path.join(comps[3].path, 'impl')
+        newfolder = os.path.join(comps[3].path, 'impl-alt')
+        shutil.move(implfolder, newfolder)
+
+        comps, _ = components.get_components_and_bundles()
+        errs = components.validate_components(comps)
+        self.assertEqual(0, len(errs))
+
+        # Lint error because implementation doesn't use the 'impl' or 'impl-<suffix>' folder
+        oldfolder = os.path.join(comps[3].path, 'impl-alt')
+        newfolder = os.path.join(comps[3].path, 'implements')
+        shutil.move(oldfolder, newfolder)
+
+        comps, _ = components.get_components_and_bundles()
+        errs = components.validate_components(comps)
+        self.assertEqual(1, len(errs))
+        self.assertIn('missing the implementation folder', errs[0])
 
 
 def remove_line(filename, target):
@@ -164,6 +245,11 @@ def replace_line(filename, target, replace):
     fout = open(filename, 'w')
     fout.write(content)
     fout.close()
+
+
+def insert_after_line(filename, target, replace):
+    actual_replace = '%s\n%s' % (target, replace)
+    replace_line(filename, target, actual_replace)
 
 
 def append_line(filename, text):
