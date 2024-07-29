@@ -110,7 +110,7 @@ LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} rev-list -1 HEAD {int
 def build(
     ctx,
     rebuild=False,
-    race=False,
+    race=True,
     build_include=None,
     build_exclude=None,
     flavor=AgentFlavor.base.name,
