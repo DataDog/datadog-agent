@@ -184,7 +184,7 @@ build do
   end
 
   # CWS Instrumentation
-  cws_inst_support = (not heroku_target?) && (linux_target?)
+  cws_inst_support = !heroku_target? && linux_target?
   if cws_inst_support
     command "invoke -e cws-instrumentation.build", :env => env
     copy 'bin/cws-instrumentation/cws-instrumentation', "#{install_dir}/embedded/bin"
