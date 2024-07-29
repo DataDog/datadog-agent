@@ -63,6 +63,6 @@ func (r *RemoteWindowsBinaryAssertions) WithVersionMatchPredicate(predicate func
 	r.suite.T().Helper()
 	actual, err := r.remoteHost.Execute(fmt.Sprintf("& \"%s\" %s", r.binaryPath, "version"))
 	r.require.NoError(err)
-	predicate(strings.TrimSuffix(actual, "\n"))
+	predicate(strings.TrimSpace(actual))
 	return r
 }
