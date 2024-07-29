@@ -12,7 +12,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -32,7 +32,7 @@ var (
 	}
 )
 
-func enabledHelper(config config.Component, checkComponents []types.CheckComponent, log logComponent.Component) bool {
+func enabledHelper(config config.Component, checkComponents []types.CheckComponent, l log.Component) bool {
 	runInCoreAgent := config.GetBool("process_config.run_in_core_agent.enabled")
 
 	var npmEnabled bool
@@ -50,15 +50,15 @@ func enabledHelper(config config.Component, checkComponents []types.CheckCompone
 	case flavor.ProcessAgent:
 		if npmEnabled {
 			if runInCoreAgent {
-				log.Info("Network Performance Monitoring is not supported in the core agent. " +
+				l.Info("Network Performance Monitoring is not supported in the core agent. " +
 					"The process-agent will be enabled as a standalone agent")
 			}
 		}
 
 		if runInCoreAgent {
-			log.Info("The process checks will run in the core agent")
+			l.Info("The process checks will run in the core agent")
 		} else if processEnabled {
-			log.Info("Process/Container Collection in the Process Agent will be deprecated in a future release " +
+			l.Info("Process/Container Collection in the Process Agent will be deprecated in a future release " +
 				"and will instead be run in the Core Agent. " +
 				"Set process_config.run_in_core_agent.enabled to true to switch now.")
 		}
@@ -66,7 +66,7 @@ func enabledHelper(config config.Component, checkComponents []types.CheckCompone
 		return !runInCoreAgent || npmEnabled
 	case flavor.DefaultAgent:
 		if npmEnabled && runInCoreAgent {
-			log.Info("Network Performance Monitoring is not supported in the core agent. " +
+			l.Info("Network Performance Monitoring is not supported in the core agent. " +
 				"The process-agent will be enabled as a standalone agent to collect network performance metrics.")
 		}
 		return runInCoreAgent
@@ -83,9 +83,9 @@ func enabledHelper(config config.Component, checkComponents []types.CheckCompone
 // enabled.
 // If 'run_in_core_agent' flag is enabled and the connections/NPM check is not enabled, the process-agent will run in
 // the core agent.
-func Enabled(config config.Component, checkComponents []types.CheckComponent, log logComponent.Component) bool {
+func Enabled(config config.Component, checkComponents []types.CheckComponent, l log.Component) bool {
 	Once.Do(func() {
-		enabled = enabledHelper(config, checkComponents, log)
+		enabled = enabledHelper(config, checkComponents, l)
 	})
 	return enabled
 }

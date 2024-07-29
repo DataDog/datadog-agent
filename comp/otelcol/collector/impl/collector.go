@@ -21,7 +21,7 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
 
-	corelog "github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
@@ -44,7 +44,7 @@ import (
 )
 
 type collectorImpl struct {
-	log corelog.Component
+	log log.Component
 	set otelcol.CollectorSettings
 	col *otelcol.Collector
 }
@@ -56,7 +56,7 @@ type Requires struct {
 	Lc compdef.Lifecycle
 
 	// Log specifies the logging component.
-	Log                 corelog.Component
+	Log                 log.Component
 	Provider            confmap.Converter
 	ConfigStore         configstore.Component
 	CollectorContrib    collectorcontrib.Component
