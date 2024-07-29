@@ -124,7 +124,7 @@ discovery:
 }
 
 func configurationFromYAML(t *testing.T, yaml string) config.Config {
-	f, err := os.CreateTemp("", "system-probe.*.yaml")
+	f, err := os.CreateTemp(t.TempDir(), "system-probe.*.yaml")
 	require.NoError(t, err)
 	defer os.Remove(f.Name())
 
