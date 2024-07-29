@@ -6,7 +6,6 @@ import platform
 import re
 import subprocess
 import sys
-from collections import UserList
 from copy import deepcopy
 from dataclasses import dataclass
 from difflib import Differ
@@ -439,18 +438,24 @@ class ReferenceTag(yaml.YAMLObject):
     def __init__(self, references):
         self.references = references
 
-    @classmethod
-    def from_yaml(cls, loader, node):
-        return UserList(loader.construct_sequence(node))
+    def __iter__(self):
+        return iter(self.references)
+
+    def __str__(self):
+        return f'{self.yaml_tag} {self.references}'
 
     @classmethod
-    def to_yaml(cls, dumper, data):
-        return dumper.represent_sequence(cls.yaml_tag, data.data, flow_style=True)
+    def from_yaml(cls, loader, node):
+        return ReferenceTag(loader.construct_sequence(node))
+
+    @classmethod
+    def to_yaml(cls, dumper, data: ReferenceTag):
+        return dumper.represent_sequence(cls.yaml_tag, data.references, flow_style=True)
 
 
 # Update loader/dumper to handle !reference tag
 yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
-yaml.SafeDumper.add_representer(UserList, ReferenceTag.to_yaml)
+yaml.SafeDumper.add_representer(ReferenceTag, ReferenceTag.to_yaml)
 
 # HACK: The following line is a workaround to prevent yaml dumper from removing quote around comma separated numbers, otherwise Gitlab Lint API will remove the commas
 yaml.SafeDumper.add_implicit_resolver(
