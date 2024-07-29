@@ -46,13 +46,14 @@ type Event struct {
 	Chdir       ChdirEvent    `field:"chdir" event:"chdir"`             // [7.52] [File] [Experimental] A process changed the current directory
 
 	// process events
-	Exec     ExecEvent     `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed or forked
-	SetUID   SetuidEvent   `field:"setuid" event:"setuid"` // [7.27] [Process] A process changed its effective uid
-	SetGID   SetgidEvent   `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
-	Capset   CapsetEvent   `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
-	Signal   SignalEvent   `field:"signal" event:"signal"` // [7.35] [Process] A signal was sent
-	Exit     ExitEvent     `field:"exit" event:"exit"`     // [7.38] [Process] A process was terminated
-	Syscalls SyscallsEvent `field:"-"`
+	Exec          ExecEvent          `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed or forked
+	SetUID        SetuidEvent        `field:"setuid" event:"setuid"` // [7.27] [Process] A process changed its effective uid
+	SetGID        SetgidEvent        `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
+	Capset        CapsetEvent        `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
+	Signal        SignalEvent        `field:"signal" event:"signal"` // [7.35] [Process] A signal was sent
+	Exit          ExitEvent          `field:"exit" event:"exit"`     // [7.38] [Process] A process was terminated
+	Syscalls      SyscallsEvent      `field:"-"`
+	LoginUIDWrite LoginUIDWriteEvent `field:"-"`
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
@@ -180,6 +181,8 @@ type Credentials struct {
 	FSGID   uint32 `field:"fsgid"`   // SECLDoc[fsgid] Definition:`FileSystem-gid of the process`
 	FSUser  string `field:"fsuser"`  // SECLDoc[fsuser] Definition:`FileSystem-user of the process`
 	FSGroup string `field:"fsgroup"` // SECLDoc[fsgroup] Definition:`FileSystem-group of the process`
+
+	AUID uint32 `field:"auid"` // SECLDoc[auid] Definition:`Login UID of the process`
 
 	CapEffective uint64 `field:"cap_effective"` // SECLDoc[cap_effective] Definition:`Effective capability set of the process` Constants:`Kernel Capability constants`
 	CapPermitted uint64 `field:"cap_permitted"` // SECLDoc[cap_permitted] Definition:`Permitted capability set of the process` Constants:`Kernel Capability constants`
@@ -668,4 +671,9 @@ type OnDemandEvent struct {
 	Arg3Uint uint64    `field:"arg3.uint,handler:ResolveOnDemandArg3Uint"`
 	Arg4Str  string    `field:"arg4.str,handler:ResolveOnDemandArg4Str"`
 	Arg4Uint uint64    `field:"arg4.uint,handler:ResolveOnDemandArg4Uint"`
+}
+
+// LoginUIDWriteEvent is used to propagate login UID updates to user space
+type LoginUIDWriteEvent struct {
+	AUID uint32 `field:"-"`
 }

@@ -143,6 +143,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
 | [`process.ancestors.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`process.ancestors.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`process.ancestors.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`process.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -219,6 +220,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
 | [`process.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`process.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`process.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`process.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -286,6 +288,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
 | [`process.parent.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`process.parent.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`process.parent.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`process.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -526,6 +529,7 @@ A process was executed or forked
 | [`exec.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
 | [`exec.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`exec.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`exec.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`exec.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`exec.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`exec.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -610,6 +614,7 @@ A process was terminated
 | [`exit.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
 | [`exit.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`exit.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`exit.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`exit.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`exit.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`exit.cause`](#exit-cause-doc) | Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED) |
@@ -915,6 +920,7 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
 | [`ptrace.tracee.ancestors.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`ptrace.tracee.ancestors.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`ptrace.tracee.ancestors.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`ptrace.tracee.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -991,6 +997,7 @@ A ptrace command was executed
 | [`ptrace.tracee.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
 | [`ptrace.tracee.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`ptrace.tracee.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`ptrace.tracee.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`ptrace.tracee.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -1058,6 +1065,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
 | [`ptrace.tracee.parent.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`ptrace.tracee.parent.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`ptrace.tracee.parent.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`ptrace.tracee.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -1327,6 +1335,7 @@ A signal was sent
 | [`signal.target.ancestors.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
 | [`signal.target.ancestors.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`signal.target.ancestors.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`signal.target.ancestors.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`signal.target.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -1403,6 +1412,7 @@ A signal was sent
 | [`signal.target.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
 | [`signal.target.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`signal.target.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`signal.target.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`signal.target.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -1470,6 +1480,7 @@ A signal was sent
 | [`signal.target.parent.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
 | [`signal.target.parent.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`signal.target.parent.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`signal.target.parent.auid`](#common-credentials-auid-doc) | Login UID of the process |
 | [`signal.target.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
@@ -1750,6 +1761,15 @@ Type: string
 Definition: First argument of the process
 
 `*.argv0` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.auid` {#common-credentials-auid-doc}
+Type: int
+
+Definition: Login UID of the process
+
+`*.auid` has 11 possible prefixes:
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 

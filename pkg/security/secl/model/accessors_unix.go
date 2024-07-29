@@ -1106,6 +1106,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
 		}, nil
+	case "exec.auid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Exec.Process.Credentials.AUID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "exec.cap_effective":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1914,6 +1923,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+		}, nil
+	case "exit.auid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Exit.Process.Credentials.AUID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 	case "exit.cap_effective":
 		return &eval.IntEvaluator{
@@ -4431,6 +4449,26 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
 		}, nil
+	case "process.ancestors.auid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.Credentials.AUID)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
 	case "process.ancestors.cap_effective":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -6108,6 +6146,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
 		}, nil
+	case "process.auid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.BaseEvent.ProcessContext.Process.Credentials.AUID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "process.cap_effective":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -6844,6 +6891,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+		}, nil
+	case "process.parent.auid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				return int(ev.BaseEvent.ProcessContext.Parent.Credentials.AUID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 	case "process.parent.cap_effective":
 		return &eval.IntEvaluator{
@@ -8013,6 +8072,26 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
+		}, nil
+	case "ptrace.tracee.ancestors.auid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.Credentials.AUID)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
 		}, nil
 	case "ptrace.tracee.ancestors.cap_effective":
 		return &eval.IntArrayEvaluator{
@@ -9691,6 +9770,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
 		}, nil
+	case "ptrace.tracee.auid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.PTrace.Tracee.Process.Credentials.AUID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "ptrace.tracee.cap_effective":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -10427,6 +10515,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+		}, nil
+	case "ptrace.tracee.parent.auid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				return int(ev.PTrace.Tracee.Parent.Credentials.AUID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 	case "ptrace.tracee.parent.cap_effective":
 		return &eval.IntEvaluator{
@@ -12751,6 +12851,26 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
 		}, nil
+	case "signal.target.ancestors.auid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.Credentials.AUID)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
 	case "signal.target.ancestors.cap_effective":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -14428,6 +14548,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
 		}, nil
+	case "signal.target.auid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Signal.Target.Process.Credentials.AUID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "signal.target.cap_effective":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -15164,6 +15293,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+		}, nil
+	case "signal.target.parent.auid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Signal.Target.Parent.Credentials.AUID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 	case "signal.target.parent.cap_effective":
 		return &eval.IntEvaluator{
@@ -16978,6 +17119,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.args_truncated",
 		"exec.argv",
 		"exec.argv0",
+		"exec.auid",
 		"exec.cap_effective",
 		"exec.cap_permitted",
 		"exec.cgroup.id",
@@ -17055,6 +17197,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.args_truncated",
 		"exit.argv",
 		"exit.argv0",
+		"exit.auid",
 		"exit.cap_effective",
 		"exit.cap_permitted",
 		"exit.cause",
@@ -17311,6 +17454,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.args_truncated",
 		"process.ancestors.argv",
 		"process.ancestors.argv0",
+		"process.ancestors.auid",
 		"process.ancestors.cap_effective",
 		"process.ancestors.cap_permitted",
 		"process.ancestors.cgroup.id",
@@ -17387,6 +17531,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.args_truncated",
 		"process.argv",
 		"process.argv0",
+		"process.auid",
 		"process.cap_effective",
 		"process.cap_permitted",
 		"process.cgroup.id",
@@ -17454,6 +17599,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.args_truncated",
 		"process.parent.argv",
 		"process.parent.argv0",
+		"process.parent.auid",
 		"process.parent.cap_effective",
 		"process.parent.cap_permitted",
 		"process.parent.cgroup.id",
@@ -17541,6 +17687,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.args_truncated",
 		"ptrace.tracee.ancestors.argv",
 		"ptrace.tracee.ancestors.argv0",
+		"ptrace.tracee.ancestors.auid",
 		"ptrace.tracee.ancestors.cap_effective",
 		"ptrace.tracee.ancestors.cap_permitted",
 		"ptrace.tracee.ancestors.cgroup.id",
@@ -17617,6 +17764,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.args_truncated",
 		"ptrace.tracee.argv",
 		"ptrace.tracee.argv0",
+		"ptrace.tracee.auid",
 		"ptrace.tracee.cap_effective",
 		"ptrace.tracee.cap_permitted",
 		"ptrace.tracee.cgroup.id",
@@ -17684,6 +17832,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.args_truncated",
 		"ptrace.tracee.parent.argv",
 		"ptrace.tracee.parent.argv0",
+		"ptrace.tracee.parent.auid",
 		"ptrace.tracee.parent.cap_effective",
 		"ptrace.tracee.parent.cap_permitted",
 		"ptrace.tracee.parent.cgroup.id",
@@ -17897,6 +18046,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.args_truncated",
 		"signal.target.ancestors.argv",
 		"signal.target.ancestors.argv0",
+		"signal.target.ancestors.auid",
 		"signal.target.ancestors.cap_effective",
 		"signal.target.ancestors.cap_permitted",
 		"signal.target.ancestors.cgroup.id",
@@ -17973,6 +18123,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.args_truncated",
 		"signal.target.argv",
 		"signal.target.argv0",
+		"signal.target.auid",
 		"signal.target.cap_effective",
 		"signal.target.cap_permitted",
 		"signal.target.cgroup.id",
@@ -18040,6 +18191,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.args_truncated",
 		"signal.target.parent.argv",
 		"signal.target.parent.argv0",
+		"signal.target.parent.auid",
 		"signal.target.parent.cap_effective",
 		"signal.target.parent.cap_permitted",
 		"signal.target.parent.cgroup.id",
@@ -18428,6 +18580,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exec.Process), nil
 	case "exec.argv0":
 		return ev.FieldHandlers.ResolveProcessArgv0(ev, ev.Exec.Process), nil
+	case "exec.auid":
+		return int(ev.Exec.Process.Credentials.AUID), nil
 	case "exec.cap_effective":
 		return int(ev.Exec.Process.Credentials.CapEffective), nil
 	case "exec.cap_permitted":
@@ -18690,6 +18844,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exit.Process), nil
 	case "exit.argv0":
 		return ev.FieldHandlers.ResolveProcessArgv0(ev, ev.Exit.Process), nil
+	case "exit.auid":
+		return int(ev.Exit.Process.Credentials.AUID), nil
 	case "exit.cap_effective":
 		return int(ev.Exit.Process.Credentials.CapEffective), nil
 	case "exit.cap_permitted":
@@ -19366,6 +19522,18 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
 			result := ev.FieldHandlers.ResolveProcessArgv0(ev, &element.ProcessContext.Process)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.auid":
+		var values []int
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.Credentials.AUID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -20222,6 +20390,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveProcessArgv(ev, &ev.BaseEvent.ProcessContext.Process), nil
 	case "process.argv0":
 		return ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.BaseEvent.ProcessContext.Process), nil
+	case "process.auid":
+		return int(ev.BaseEvent.ProcessContext.Process.Credentials.AUID), nil
 	case "process.cap_effective":
 		return int(ev.BaseEvent.ProcessContext.Process.Credentials.CapEffective), nil
 	case "process.cap_permitted":
@@ -20482,6 +20652,11 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return "", &eval.ErrNotSupported{Field: field}
 		}
 		return ev.FieldHandlers.ResolveProcessArgv0(ev, ev.BaseEvent.ProcessContext.Parent), nil
+	case "process.parent.auid":
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return 0, &eval.ErrNotSupported{Field: field}
+		}
+		return int(ev.BaseEvent.ProcessContext.Parent.Credentials.AUID), nil
 	case "process.parent.cap_effective":
 		if !ev.BaseEvent.ProcessContext.HasParent() {
 			return 0, &eval.ErrNotSupported{Field: field}
@@ -21018,6 +21193,18 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
 			result := ev.FieldHandlers.ResolveProcessArgv0(ev, &element.ProcessContext.Process)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "ptrace.tracee.ancestors.auid":
+		var values []int
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.Credentials.AUID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -21874,6 +22061,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveProcessArgv(ev, &ev.PTrace.Tracee.Process), nil
 	case "ptrace.tracee.argv0":
 		return ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.PTrace.Tracee.Process), nil
+	case "ptrace.tracee.auid":
+		return int(ev.PTrace.Tracee.Process.Credentials.AUID), nil
 	case "ptrace.tracee.cap_effective":
 		return int(ev.PTrace.Tracee.Process.Credentials.CapEffective), nil
 	case "ptrace.tracee.cap_permitted":
@@ -22134,6 +22323,11 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return "", &eval.ErrNotSupported{Field: field}
 		}
 		return ev.FieldHandlers.ResolveProcessArgv0(ev, ev.PTrace.Tracee.Parent), nil
+	case "ptrace.tracee.parent.auid":
+		if !ev.PTrace.Tracee.HasParent() {
+			return 0, &eval.ErrNotSupported{Field: field}
+		}
+		return int(ev.PTrace.Tracee.Parent.Credentials.AUID), nil
 	case "ptrace.tracee.parent.cap_effective":
 		if !ev.PTrace.Tracee.HasParent() {
 			return 0, &eval.ErrNotSupported{Field: field}
@@ -22922,6 +23116,18 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
 			result := ev.FieldHandlers.ResolveProcessArgv0(ev, &element.ProcessContext.Process)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "signal.target.ancestors.auid":
+		var values []int
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.Credentials.AUID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -23778,6 +23984,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveProcessArgv(ev, &ev.Signal.Target.Process), nil
 	case "signal.target.argv0":
 		return ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.Signal.Target.Process), nil
+	case "signal.target.auid":
+		return int(ev.Signal.Target.Process.Credentials.AUID), nil
 	case "signal.target.cap_effective":
 		return int(ev.Signal.Target.Process.Credentials.CapEffective), nil
 	case "signal.target.cap_permitted":
@@ -24038,6 +24246,11 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return "", &eval.ErrNotSupported{Field: field}
 		}
 		return ev.FieldHandlers.ResolveProcessArgv0(ev, ev.Signal.Target.Parent), nil
+	case "signal.target.parent.auid":
+		if !ev.Signal.Target.HasParent() {
+			return 0, &eval.ErrNotSupported{Field: field}
+		}
+		return int(ev.Signal.Target.Parent.Credentials.AUID), nil
 	case "signal.target.parent.cap_effective":
 		if !ev.Signal.Target.HasParent() {
 			return 0, &eval.ErrNotSupported{Field: field}
@@ -24881,6 +25094,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 	case "exec.argv0":
 		return "exec", nil
+	case "exec.auid":
+		return "exec", nil
 	case "exec.cap_effective":
 		return "exec", nil
 	case "exec.cap_permitted":
@@ -25034,6 +25249,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exit.argv":
 		return "exit", nil
 	case "exit.argv0":
+		return "exit", nil
+	case "exit.auid":
 		return "exit", nil
 	case "exit.cap_effective":
 		return "exit", nil
@@ -25547,6 +25764,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.ancestors.argv0":
 		return "*", nil
+	case "process.ancestors.auid":
+		return "*", nil
 	case "process.ancestors.cap_effective":
 		return "*", nil
 	case "process.ancestors.cap_permitted":
@@ -25699,6 +25918,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.argv0":
 		return "*", nil
+	case "process.auid":
+		return "*", nil
 	case "process.cap_effective":
 		return "*", nil
 	case "process.cap_permitted":
@@ -25832,6 +26053,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.parent.argv":
 		return "*", nil
 	case "process.parent.argv0":
+		return "*", nil
+	case "process.parent.auid":
 		return "*", nil
 	case "process.parent.cap_effective":
 		return "*", nil
@@ -26007,6 +26230,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.argv0":
 		return "ptrace", nil
+	case "ptrace.tracee.ancestors.auid":
+		return "ptrace", nil
 	case "ptrace.tracee.ancestors.cap_effective":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.cap_permitted":
@@ -26159,6 +26384,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.argv0":
 		return "ptrace", nil
+	case "ptrace.tracee.auid":
+		return "ptrace", nil
 	case "ptrace.tracee.cap_effective":
 		return "ptrace", nil
 	case "ptrace.tracee.cap_permitted":
@@ -26292,6 +26519,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "ptrace.tracee.parent.argv":
 		return "ptrace", nil
 	case "ptrace.tracee.parent.argv0":
+		return "ptrace", nil
+	case "ptrace.tracee.parent.auid":
 		return "ptrace", nil
 	case "ptrace.tracee.parent.cap_effective":
 		return "ptrace", nil
@@ -26719,6 +26948,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.ancestors.argv0":
 		return "signal", nil
+	case "signal.target.ancestors.auid":
+		return "signal", nil
 	case "signal.target.ancestors.cap_effective":
 		return "signal", nil
 	case "signal.target.ancestors.cap_permitted":
@@ -26871,6 +27102,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.argv0":
 		return "signal", nil
+	case "signal.target.auid":
+		return "signal", nil
 	case "signal.target.cap_effective":
 		return "signal", nil
 	case "signal.target.cap_permitted":
@@ -27004,6 +27237,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "signal.target.parent.argv":
 		return "signal", nil
 	case "signal.target.parent.argv0":
+		return "signal", nil
+	case "signal.target.parent.auid":
 		return "signal", nil
 	case "signal.target.parent.cap_effective":
 		return "signal", nil
@@ -27542,6 +27777,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "exec.argv0":
 		return reflect.String, nil
+	case "exec.auid":
+		return reflect.Int, nil
 	case "exec.cap_effective":
 		return reflect.Int, nil
 	case "exec.cap_permitted":
@@ -27696,6 +27933,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "exit.argv0":
 		return reflect.String, nil
+	case "exit.auid":
+		return reflect.Int, nil
 	case "exit.cap_effective":
 		return reflect.Int, nil
 	case "exit.cap_permitted":
@@ -28208,6 +28447,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "process.ancestors.argv0":
 		return reflect.String, nil
+	case "process.ancestors.auid":
+		return reflect.Int, nil
 	case "process.ancestors.cap_effective":
 		return reflect.Int, nil
 	case "process.ancestors.cap_permitted":
@@ -28360,6 +28601,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "process.argv0":
 		return reflect.String, nil
+	case "process.auid":
+		return reflect.Int, nil
 	case "process.cap_effective":
 		return reflect.Int, nil
 	case "process.cap_permitted":
@@ -28494,6 +28737,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "process.parent.argv0":
 		return reflect.String, nil
+	case "process.parent.auid":
+		return reflect.Int, nil
 	case "process.parent.cap_effective":
 		return reflect.Int, nil
 	case "process.parent.cap_permitted":
@@ -28668,6 +28913,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "ptrace.tracee.ancestors.argv0":
 		return reflect.String, nil
+	case "ptrace.tracee.ancestors.auid":
+		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.cap_effective":
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.cap_permitted":
@@ -28820,6 +29067,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "ptrace.tracee.argv0":
 		return reflect.String, nil
+	case "ptrace.tracee.auid":
+		return reflect.Int, nil
 	case "ptrace.tracee.cap_effective":
 		return reflect.Int, nil
 	case "ptrace.tracee.cap_permitted":
@@ -28954,6 +29203,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "ptrace.tracee.parent.argv0":
 		return reflect.String, nil
+	case "ptrace.tracee.parent.auid":
+		return reflect.Int, nil
 	case "ptrace.tracee.parent.cap_effective":
 		return reflect.Int, nil
 	case "ptrace.tracee.parent.cap_permitted":
@@ -29380,6 +29631,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "signal.target.ancestors.argv0":
 		return reflect.String, nil
+	case "signal.target.ancestors.auid":
+		return reflect.Int, nil
 	case "signal.target.ancestors.cap_effective":
 		return reflect.Int, nil
 	case "signal.target.ancestors.cap_permitted":
@@ -29532,6 +29785,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "signal.target.argv0":
 		return reflect.String, nil
+	case "signal.target.auid":
+		return reflect.Int, nil
 	case "signal.target.cap_effective":
 		return reflect.Int, nil
 	case "signal.target.cap_permitted":
@@ -29666,6 +29921,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "signal.target.parent.argv0":
 		return reflect.String, nil
+	case "signal.target.parent.auid":
+		return reflect.Int, nil
 	case "signal.target.parent.cap_effective":
 		return reflect.Int, nil
 	case "signal.target.parent.cap_permitted":
@@ -30794,6 +31051,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Exec.Process.Argv0 = string(rv)
 		return nil
+	case "exec.auid":
+		if ev.Exec.Process == nil {
+			ev.Exec.Process = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.AUID"}
+		}
+		ev.Exec.Process.Credentials.AUID = uint32(rv)
+		return nil
 	case "exec.cap_effective":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
@@ -31564,6 +31831,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Argv0"}
 		}
 		ev.Exit.Process.Argv0 = string(rv)
+		return nil
+	case "exit.auid":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.AUID"}
+		}
+		ev.Exit.Process.Credentials.AUID = uint32(rv)
 		return nil
 	case "exit.cap_effective":
 		if ev.Exit.Process == nil {
@@ -33568,6 +33845,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv0 = string(rv)
 		return nil
+	case "process.ancestors.auid":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.AUID"}
+		}
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.AUID = uint32(rv)
+		return nil
 	case "process.ancestors.cap_effective":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -34542,6 +34832,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Process.Argv0 = string(rv)
 		return nil
+	case "process.auid":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Credentials.AUID"}
+		}
+		ev.BaseEvent.ProcessContext.Process.Credentials.AUID = uint32(rv)
+		return nil
 	case "process.cap_effective":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -35230,6 +35530,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Argv0"}
 		}
 		ev.BaseEvent.ProcessContext.Parent.Argv0 = string(rv)
+		return nil
+	case "process.parent.auid":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.AUID"}
+		}
+		ev.BaseEvent.ProcessContext.Parent.Credentials.AUID = uint32(rv)
 		return nil
 	case "process.parent.cap_effective":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -36330,6 +36643,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv0 = string(rv)
 		return nil
+	case "ptrace.tracee.ancestors.auid":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.AUID"}
+		}
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.AUID = uint32(rv)
+		return nil
 	case "ptrace.tracee.ancestors.cap_effective":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -37304,6 +37630,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.PTrace.Tracee.Process.Argv0 = string(rv)
 		return nil
+	case "ptrace.tracee.auid":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.AUID"}
+		}
+		ev.PTrace.Tracee.Process.Credentials.AUID = uint32(rv)
+		return nil
 	case "ptrace.tracee.cap_effective":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -37992,6 +38328,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Argv0"}
 		}
 		ev.PTrace.Tracee.Parent.Argv0 = string(rv)
+		return nil
+	case "ptrace.tracee.parent.auid":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.AUID"}
+		}
+		ev.PTrace.Tracee.Parent.Credentials.AUID = uint32(rv)
 		return nil
 	case "ptrace.tracee.parent.cap_effective":
 		if ev.PTrace.Tracee == nil {
@@ -39939,6 +40288,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Signal.Target.Ancestor.ProcessContext.Process.Argv0 = string(rv)
 		return nil
+	case "signal.target.ancestors.auid":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.AUID"}
+		}
+		ev.Signal.Target.Ancestor.ProcessContext.Process.Credentials.AUID = uint32(rv)
+		return nil
 	case "signal.target.ancestors.cap_effective":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -40913,6 +41275,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Signal.Target.Process.Argv0 = string(rv)
 		return nil
+	case "signal.target.auid":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.AUID"}
+		}
+		ev.Signal.Target.Process.Credentials.AUID = uint32(rv)
+		return nil
 	case "signal.target.cap_effective":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -41601,6 +41973,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Argv0"}
 		}
 		ev.Signal.Target.Parent.Argv0 = string(rv)
+		return nil
+	case "signal.target.parent.auid":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.AUID"}
+		}
+		ev.Signal.Target.Parent.Credentials.AUID = uint32(rv)
 		return nil
 	case "signal.target.parent.cap_effective":
 		if ev.Signal.Target == nil {
