@@ -13,7 +13,7 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	logComp "github.com/DataDog/datadog-agent/comp/core/log"
+	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
@@ -47,7 +47,6 @@ func newDatadogSingleClient(cfg configComponent.Component, logger logComp.Compon
 	}
 
 	logger.Infof("Initialized the Datadog Client for HPA with endpoint %q", ddEndpoint)
-	logger.Infof("API_KEY= %s", apiKey)
 
 	client := datadog.NewClient(apiKey, appKey)
 	client.HttpClient.Transport = httputils.CreateHTTPTransport(cfg)

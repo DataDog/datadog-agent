@@ -12,7 +12,7 @@ import (
 
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	logComp "github.com/DataDog/datadog-agent/comp/core/log"
+	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 )

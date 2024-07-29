@@ -13,7 +13,7 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	logComp "github.com/DataDog/datadog-agent/comp/core/log"
+	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 

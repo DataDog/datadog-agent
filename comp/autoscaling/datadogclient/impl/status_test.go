@@ -14,7 +14,8 @@ import (
 
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
@@ -22,8 +23,7 @@ import (
 
 func TestStatusProvider(t *testing.T) {
 	dc := fxutil.Test[datadogclient.Component](t,
-		fx.Supply(logimpl.Params{}),
-		logimpl.MockModule(),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
 			"api_key": "apikey123",
@@ -58,7 +58,7 @@ func TestStatusProvider(t *testing.T) {
 		}},
 		{"NAME", func(t *testing.T) {
 			name := provider.Name()
-			assert.Equal(t, name, "External Metrcis")
+			assert.Equal(t, name, "External Metrcis Endpoints")
 		}},
 		{"Text", func(t *testing.T) {
 			b := new(bytes.Buffer)
@@ -66,16 +66,17 @@ func TestStatusProvider(t *testing.T) {
 
 			assert.NoError(t, err)
 			expectedTextOutput := `
-- URL: https://api.datadoghq.com  [Unknown]
-  Last failure: Never
-  Last Success: Never
-- URL: https://api.datadoghq.eu  [Unknown]
-  Last failure: Never
-  Last Success: Never`
+  - URL: https://api.datadoghq.com  [Unknown]
+    Last failure: Never
+    Last Success: Never
+  - URL: https://api.datadoghq.eu  [Unknown]
+    Last failure: Never
+    Last Success: Never
+`
 			// We replace windows line break by linux so the tests pass on every OS
 			expected := strings.Replace(string(expectedTextOutput), "\r\n", "\n", -1)
 			output := strings.Replace(b.String(), "\r\n", "\n", -1)
-			assert.Equal(t, output, expected)
+			assert.Equal(t, expected, output)
 		}},
 		{"HTML", func(t *testing.T) {
 			b := new(bytes.Buffer)

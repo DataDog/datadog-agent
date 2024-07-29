@@ -14,8 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +23,7 @@ import (
 
 func TestNewSingleClient(t *testing.T) {
 	cfg := fxutil.Test[config.Component](t, config.MockModule())
-	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
+	logger := logmock.New(t)
 	cfg.Set("api_key", "apikey123", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.Set("app_key", "appkey456", pkgconfigmodel.SourceLocalConfigProcess)
 	datadogClient, err := createDatadogClient(cfg, logger)
@@ -36,7 +35,7 @@ func TestNewSingleClient(t *testing.T) {
 
 func TestNewFallbackClient(t *testing.T) {
 	cfg := fxutil.Test[config.Component](t, config.MockModule())
-	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
+	logger := logmock.New(t)
 	cfg.Set("api_key", "apikey123", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.Set("app_key", "appkey456", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.SetWithoutSource(metricsRedundantEndpointConfig,
@@ -68,11 +67,11 @@ func TestExternalMetricsProviderEndpointAndRefresh(t *testing.T) {
 	}))
 	defer ts.Close()
 	cfg := fxutil.Test[config.Component](t, config.MockModule())
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
+	logger := logmock.New(t)
 	cfg.Set("api_key", "apikey123", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.Set("app_key", "appkey456", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.SetWithoutSource(metricsEndpointConfig, ts.URL)
-	datadogClientProvides, err := NewComponent(Requires{Config: cfg, Log: log})
+	datadogClientProvides, err := NewComponent(Requires{Config: cfg, Log: logger})
 	// test component creation
 	datadogClientComp := datadogClientProvides.Comp
 	assert.NoError(t, err)
@@ -102,6 +101,4 @@ func TestExternalMetricsProviderEndpointAndRefresh(t *testing.T) {
 	payload2 := <-reqs
 	assert.Contains(t, payload2, newAPIKey)
 	assert.Contains(t, payload2, newAPPKey)
-	log.Infof(payload2)
-
 }
