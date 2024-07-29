@@ -31,19 +31,19 @@ func TestInstaller(t *testing.T) {
 }
 
 // TestInstalls tests installing and uninstalling the latest version of the Datadog Installer from the pipeline.
-func (suite *testInstallerSuite) TestInstalls() {
-	suite.Run("Fresh install", func() {
+func (s *testInstallerSuite) TestInstalls() {
+	s.Run("Fresh install", func() {
 		// Arrange
 
 		// Act
-		suite.Require().NoError(suite.installer.Install())
+		s.Require().NoError(s.installer.Install())
 
 		// Assert
-		suite.Require().Host(suite.Env().RemoteHost).
+		s.Require().Host(s.Env().RemoteHost).
 			HasBinary(InstallerBinaryPath).
 			WithSignature(agent.GetCodeSignatureThumbprints()).
 			WithVersionMatchPredicate(func(version string) {
-				suite.Require().NotEmpty(version)
+				s.Require().NotEmpty(version)
 			}).
 			HasAService(InstallerServiceName).
 			// the service cannot start because of the missing API key
@@ -51,83 +51,83 @@ func (suite *testInstallerSuite) TestInstalls() {
 			WithIdentity(common.GetIdentityForSID(common.LocalSystemSID))
 	})
 
-	suite.Run("Start service with a configuration file", func() {
+	s.Run("Start service with a configuration file", func() {
 		// Arrange
-		suite.Env().RemoteHost.CopyFileFromEmbedded(fixturesFS, "fixtures/sample_config", InstallerConfigPath)
+		s.Env().RemoteHost.CopyFileFromEmbedded(fixturesFS, "fixtures/sample_config", InstallerConfigPath)
 
 		// Act
-		suite.Require().NoError(common.StartService(suite.Env().RemoteHost, InstallerServiceName))
+		s.Require().NoError(common.StartService(s.Env().RemoteHost, InstallerServiceName))
 
 		// Assert
-		suite.Require().Host(suite.Env().RemoteHost).
+		s.Require().Host(s.Env().RemoteHost).
 			HasAService(InstallerServiceName).
 			WithStatus("Running")
 	})
 
-	suite.Run("Uninstall", func() {
+	s.Run("Uninstall", func() {
 		// Arrange
 
 		// Act
-		suite.Require().NoError(suite.installer.Uninstall())
+		s.Require().NoError(s.installer.Uninstall())
 
 		// Assert
-		suite.Require().Host(suite.Env().RemoteHost).
+		s.Require().Host(s.Env().RemoteHost).
 			NoFileExists(InstallerBinaryPath).
 			HasNoService(InstallerServiceName).
 			FileExists(InstallerConfigPath)
 	})
 
-	suite.Run("Install with existing configuration file", func() {
+	s.Run("Install with existing configuration file", func() {
 		// Arrange
 
 		// Act
-		suite.Require().NoError(suite.installer.Install())
+		s.Require().NoError(s.installer.Install())
 
 		// Assert
-		suite.Require().Host(suite.Env().RemoteHost).
+		s.Require().Host(s.Env().RemoteHost).
 			HasAService(InstallerServiceName).
 			WithStatus("Running")
 	})
 
-	suite.Run("Repair", func() {
+	s.Run("Repair", func() {
 		// Arrange
-		suite.Require().NoError(common.StopService(suite.Env().RemoteHost, InstallerServiceName))
-		suite.Require().NoError(suite.Env().RemoteHost.Remove(InstallerBinaryPath))
+		s.Require().NoError(common.StopService(s.Env().RemoteHost, InstallerServiceName))
+		s.Require().NoError(s.Env().RemoteHost.Remove(InstallerBinaryPath))
 
 		// Act
-		suite.Require().NoError(suite.installer.Install())
+		s.Require().NoError(s.installer.Install())
 
 		// Assert
-		suite.Require().Host(suite.Env().RemoteHost).
+		s.Require().Host(s.Env().RemoteHost).
 			HasAService(InstallerServiceName).
 			WithStatus("Running")
 	})
 }
 
 // TestUpgrades tests upgrading the stable version of the Datadog Installer to the latest from the pipeline.
-func (suite *testInstallerSuite) TestUpgrades() {
+func (s *testInstallerSuite) TestUpgrades() {
 	// Arrange
-	suite.Require().NoError(suite.installer.Install(WithInstallerURLFromInstallersJSON(pipeline.AgentS3BucketTesting, pipeline.StableChannel, installer.StableVersionPackage)))
+	s.Require().NoError(s.installer.Install(WithInstallerURLFromInstallersJSON(pipeline.AgentS3BucketTesting, pipeline.StableChannel, installer.StableVersionPackage)))
 	// sanity check: make sure we did indeed install the stable version
-	suite.Require().Host(suite.Env().RemoteHost).
+	s.Require().Host(s.Env().RemoteHost).
 		HasBinary(InstallerBinaryPath).
 		// Don't check the binary signature because it could have been updated since the last stable was built
 		WithVersionEqual(installer.StableVersion)
 
 	// Act
 	// Install "latest" from the pipeline
-	suite.Require().NoError(suite.installer.Install())
+	s.Require().NoError(s.installer.Install())
 
 	// Assert
-	suite.Require().Host(suite.Env().RemoteHost).
+	s.Require().Host(s.Env().RemoteHost).
 		HasBinary(InstallerBinaryPath).
 		WithSignature(agent.GetCodeSignatureThumbprints()).
 		WithVersionMatchPredicate(func(version string) {
 			pipelineVersion := os.Getenv("CURRENT_AGENT_VERSION")
 			if pipelineVersion == "" {
-				suite.Require().NotEqual(installer.StableVersion, version, "upgraded version should be different than stable version")
+				s.Require().NotEqual(installer.StableVersion, version, "upgraded version should be different than stable version")
 			} else {
-				suite.Require().Equal(pipelineVersion, version, "upgraded version should be equal to pipeline version")
+				s.Require().Equal(pipelineVersion, version, "upgraded version should be equal to pipeline version")
 			}
 		})
 }

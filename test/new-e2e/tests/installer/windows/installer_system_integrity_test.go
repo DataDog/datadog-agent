@@ -52,17 +52,17 @@ func TestInstallerSystemIntegrity(t *testing.T) {
 }
 
 // TestSystemIntegrity tests that we don't damage the system with our installer.
-func (suite *testSystemIntegrityInstallerSuite) TestSystemIntegrity() {
+func (s *testSystemIntegrityInstallerSuite) TestSystemIntegrity() {
 	// Arrange
-	systemFiles, err := common.NewFileSystemSnapshot(suite.Env().RemoteHost, installtest.SystemPaths())
-	suite.Require().NoError(err)
-	systemPathsPermissions, err := installtest.SnapshotPermissionsForPaths(suite.Env().RemoteHost, installtest.SystemPathsForPermissionsValidation())
-	suite.Require().NoError(err)
+	systemFiles, err := common.NewFileSystemSnapshot(s.Env().RemoteHost, installtest.SystemPaths())
+	s.Require().NoError(err)
+	systemPathsPermissions, err := installtest.SnapshotPermissionsForPaths(s.Env().RemoteHost, installtest.SystemPathsForPermissionsValidation())
+	s.Require().NoError(err)
 
 	// Act
-	suite.sutFn(suite)
+	s.sutFn(s)
 
 	// Assert
-	installtest.AssertDoesNotChangePathPermissions(suite.T(), suite.Env().RemoteHost, systemPathsPermissions)
-	installtest.AssertDoesNotRemoveSystemFiles(suite.T(), suite.Env().RemoteHost, systemFiles)
+	installtest.AssertDoesNotChangePathPermissions(s.T(), s.Env().RemoteHost, systemPathsPermissions)
+	installtest.AssertDoesNotRemoveSystemFiles(s.T(), s.Env().RemoteHost, systemFiles)
 }
