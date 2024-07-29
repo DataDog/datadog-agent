@@ -100,6 +100,9 @@ func (s *packageAgentSuite) TestUpgrade_AgentDebRPM_to_OCI() {
 	s.assertUnits(state, false)
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
+
+	symlinkPath := strings.TrimSpace(s.Env().RemoteHost.MustExecute("which datadog-agent"))
+	assert.Equal(s.T(), symlinkPath, "/usr/local/bin/datadog-agent")
 }
 
 // TestUpgrade_Agent_OCI_then_DebRpm agent deb/rpm install while OCI one is installed
@@ -125,6 +128,9 @@ func (s *packageAgentSuite) TestUpgrade_Agent_OCI_then_DebRpm() {
 	s.assertUnits(state, false)
 	state.AssertDirExists("/opt/datadog-agent", 0755, "dd-agent", "dd-agent")
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
+
+	symlinkPath := strings.TrimSpace(s.Env().RemoteHost.MustExecute("which datadog-agent"))
+	assert.Equal(s.T(), symlinkPath, "/usr/local/bin/datadog-agent")
 }
 
 func (s *packageAgentSuite) TestExperimentTimeout() {

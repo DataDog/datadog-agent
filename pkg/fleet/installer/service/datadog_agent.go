@@ -22,7 +22,7 @@ import (
 
 const (
 	pathOldAgent      = "/opt/datadog-agent"
-	agentSymlink      = "/usr/bin/datadog-agent"
+	agentSymlink      = "/usr/local/bin/datadog-agent"
 	agentUnit         = "datadog-agent.service"
 	traceAgentUnit    = "datadog-agent-trace.service"
 	processAgentUnit  = "datadog-agent-process.service"
