@@ -54,8 +54,14 @@ func NewController(
 		Client:    client,
 		Lister:    mainInformer.Lister(),
 		synced:    mainInformer.Informer().HasSynced,
-		Workqueue: workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
-		IsLeader:  isLeader,
+		Workqueue: workqueue.NewRateLimitingQueueWithConfig(
+			workqueue.DefaultItemBasedRateLimiter(),
+			workqueue.RateLimitingQueueConfig{
+				Name:            subsystem,
+				MetricsProvider: queueMetricsProvider,
+			},
+		),
+		IsLeader: isLeader,
 	}
 
 	if _, err := mainInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
