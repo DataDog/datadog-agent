@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
-	installtest "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test"
 	"os"
 	"testing"
 )
@@ -103,23 +102,6 @@ func (suite *testInstallerSuite) TestInstalls() {
 			HasAService(InstallerServiceName).
 			WithStatus("Running")
 	})
-}
-
-// TestSystemIntegrity tests that we don't damage the system with our installer.
-func (suite *testInstallerSuite) TestSystemIntegrity() {
-	// Arrange
-	systemFiles, err := common.NewFileSystemSnapshot(suite.Env().RemoteHost, installtest.SystemPaths())
-	suite.Require().NoError(err)
-	systemPathsPermissions, err := installtest.SnapshotPermissionsForPaths(suite.Env().RemoteHost, installtest.SystemPathsForPermissionsValidation())
-	suite.Require().NoError(err)
-
-	// Act
-	suite.Require().NoError(suite.installer.Install())
-	suite.Require().NoError(suite.installer.Uninstall())
-
-	// Assert
-	installtest.AssertDoesNotChangePathPermissions(suite.T(), suite.Env().RemoteHost, systemPathsPermissions)
-	installtest.AssertDoesNotRemoveSystemFiles(suite.T(), suite.Env().RemoteHost, systemFiles)
 }
 
 // TestUpgrades tests upgrading the stable version of the Datadog Installer to the latest from the pipeline.

@@ -128,6 +128,7 @@ func (d *DatadogInstaller) RemoveExperiment(packageName string) (string, error) 
 // InstallerParams contains the optional parameters for the Datadog Installer Install command
 type InstallerParams struct {
 	installerURL string
+	msiArgs      []string
 }
 
 // InstallerOption is an optional function parameter type for the Datadog Installer Install command
@@ -137,6 +138,14 @@ type InstallerOption func(*InstallerParams) error
 func WithInstallerURL(installerURL string) InstallerOption {
 	return func(params *InstallerParams) error {
 		params.installerURL = installerURL
+		return nil
+	}
+}
+
+// WithMSIArg uses a specific URL for the Datadog Installer Install command instead of using the pipeline URL.
+func WithMSIArg(arg string) InstallerOption {
+	return func(params *InstallerParams) error {
+		params.msiArgs = append(params.msiArgs, arg)
 		return nil
 	}
 }
@@ -182,7 +191,11 @@ func (d *DatadogInstaller) Install(opts ...InstallerOption) error {
 	if logPath == "" {
 		logPath = filepath.Join(os.TempDir(), "install.log")
 	}
-	return windowsCommon.InstallMSI(d.env.RemoteHost, params.installerURL, "", logPath)
+	msiArgs := ""
+	if params.msiArgs != nil {
+		msiArgs = strings.Join(params.msiArgs, " ")
+	}
+	return windowsCommon.InstallMSI(d.env.RemoteHost, params.installerURL, msiArgs, logPath)
 }
 
 // Uninstall will attempt to uninstall the Datadog Installer on the remote host.
