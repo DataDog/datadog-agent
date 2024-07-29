@@ -327,7 +327,7 @@ func (c *localAPIClientImpl) SetCatalog(catalog string) error {
 		return err
 	}
 	if response.Error != nil {
-		return fmt.Errorf("error starting experiment: %s", response.Error.Message)
+		return fmt.Errorf("error setting catalog: %s", response.Error.Message)
 	}
 	return nil
 }
@@ -437,7 +437,7 @@ func (c *localAPIClientImpl) Install(pkg, version string) error {
 		return err
 	}
 	if response.Error != nil {
-		return fmt.Errorf("error starting experiment: %s", response.Error.Message)
+		return fmt.Errorf("error installing: %s", response.Error.Message)
 	}
 	return nil
 }
