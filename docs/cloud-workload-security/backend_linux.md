@@ -1282,6 +1282,10 @@ CSM Threats event for Linux systems have the following JSON schema:
                     "type": "string",
                     "description": "Filesystem Group name"
                 },
+                "auid": {
+                    "type": "integer",
+                    "description": "Login UID"
+                },
                 "cap_effective": {
                     "items": {
                         "type": "string"
@@ -1309,6 +1313,7 @@ CSM Threats event for Linux systems have the following JSON schema:
                 "egid",
                 "fsuid",
                 "fsgid",
+                "auid",
                 "cap_effective",
                 "cap_permitted"
             ],
@@ -3582,6 +3587,10 @@ CSM Threats event for Linux systems have the following JSON schema:
             "type": "string",
             "description": "Filesystem Group name"
         },
+        "auid": {
+            "type": "integer",
+            "description": "Login UID"
+        },
         "cap_effective": {
             "items": {
                 "type": "string"
@@ -3609,6 +3618,7 @@ CSM Threats event for Linux systems have the following JSON schema:
         "egid",
         "fsuid",
         "fsgid",
+        "auid",
         "cap_effective",
         "cap_permitted"
     ],
@@ -3631,6 +3641,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `fsuser` | Filesystem User name |
 | `fsgid` | Filesystem Group ID |
 | `fsgroup` | Filesystem Group name |
+| `auid` | Login UID |
 | `cap_effective` | Effective Capability set |
 | `cap_permitted` | Permitted Capability set |
 | `destination` | Credentials after the operation |

@@ -107,6 +107,8 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				kprobeOrFentry("commit_creds"),
 				kprobeOrFentry("switch_task_namespaces"),
 				kprobeOrFentry("do_coredump"),
+				kprobeOrFentry("audit_set_loginuid"),
+				kretprobeOrFexit("audit_set_loginuid"),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("cgroup_procs_write"),
@@ -147,12 +149,16 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			kprobeOrFentry("security_inode_setattr"),
 
 			// Open probes
-			&manager.AllOf{Selectors: []manager.ProbesSelector{
+			&manager.OneOf{Selectors: []manager.ProbesSelector{
+				kprobeOrFentry("security_path_truncate"),
+				kprobeOrFentry("security_file_truncate"),
 				kprobeOrFentry("vfs_truncate"),
+				kprobeOrFentry("do_truncate"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "open", fentry, EntryAndExit, true)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "creat", fentry, EntryAndExit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "truncate", fentry, EntryAndExit, true)},
+			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "ftruncate", fentry, EntryAndExit, true)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "openat", fentry, EntryAndExit, true)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "openat2", fentry, EntryAndExit)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "open_by_handle_at", fentry, EntryAndExit, true)},

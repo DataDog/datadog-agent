@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -103,6 +104,8 @@ func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
 		}
 	case ebpfless.MessageTypeSyscall:
 		p.handleSyscallMsg(cl, msg.Syscall)
+	default:
+		seclog.Errorf("unknown message type: %d", msg.Type)
 	}
 }
 
@@ -292,7 +295,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	}
 
 	// container context
-	event.ContainerContext.ContainerID = model.ContainerID(syscallMsg.ContainerID)
+	event.ContainerContext.ContainerID = containerutils.ContainerID(syscallMsg.ContainerID)
 	if containerContext, exists := p.containerContexts[syscallMsg.ContainerID]; exists {
 		event.ContainerContext.CreatedAt = containerContext.CreatedAt
 		event.ContainerContext.Tags = []string{
@@ -587,7 +590,7 @@ func (p *EBPFLessProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				return
 			}
 
-			p.processKiller.KillAndReport(action.Kill.Scope, action.Kill.Signal, ev, func(pid uint32, sig uint32) error {
+			p.processKiller.KillAndReport(action.Kill.Scope, action.Kill.Signal, rule, ev, func(pid uint32, sig uint32) error {
 				return p.processKiller.KillFromUserspace(pid, sig, ev)
 			})
 		case action.Hash != nil:

@@ -9,6 +9,8 @@ package payload
 import "github.com/DataDog/datadog-agent/pkg/network"
 
 // Protocol defines supported network protocols
+// Please define new protocols based on the Keyword from:
+// https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
 type Protocol string
 
 const (

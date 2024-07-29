@@ -214,6 +214,10 @@ struct syscall_cache_t {
             struct path *path;
             struct file_t file;
         } chdir;
+
+        struct {
+            u32 auid;
+        } login_uid;
     };
 };
 

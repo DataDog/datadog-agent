@@ -17,8 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -48,7 +47,7 @@ as well as which services are serving the pods. Or the deployment name for the p
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, command.DefaultLogLevel, true),
+					LogParams:    log.ForOneShot(command.LoggerName, command.DefaultLogLevel, true),
 				}),
 				core.Bundle(),
 			)

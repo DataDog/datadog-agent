@@ -2,6 +2,36 @@
 Release Notes
 =============
 
+.. _Release Notes_7.55.2:
+
+7.55.2
+================
+
+.. _Release Notes_7.55.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-07-25
+
+- Please refer to the `7.55.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7552>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.55.2_Security Notes:
+
+Security Notes
+--------------
+
+- Fix ``CVE-2024-6257``.
+
+
+.. _Release Notes_7.55.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes an issue introduced in `7.55.0` with container metrics. In some rare cases, container metrics (cpu, memory, limits, etc.) could be incorrect and not reflect actual resources usage.
+
 .. _Release Notes_7.55.1:
 
 7.55.1

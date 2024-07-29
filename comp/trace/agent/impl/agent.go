@@ -179,7 +179,10 @@ func setupMetrics(statsd statsd.Component, cfg config.Component, telemetryCollec
 		return nil, fmt.Errorf("cannot configure dogstatsd: %v", err)
 	}
 
-	_ = client.Count("datadog.trace_agent.started", 1, nil, 1)
+	err = client.Count("datadog.trace_agent.started", 1, nil, 1)
+	if err != nil {
+		log.Error("Failed to emit datadog.trace_agent.started metric: ", err)
+	}
 	return client, nil
 }
 

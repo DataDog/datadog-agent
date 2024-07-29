@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent/helm"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"

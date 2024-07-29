@@ -6,14 +6,17 @@
 package apm
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -305,6 +308,35 @@ apm_config.probabilistic_sampler.hash_seed: 22
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		tracesSampledByProbabilitySampler(s.T(), c, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed to find traces sampled by the probability sampler")
+}
+
+func (s *VMFakeintakeSuite) TestSIGTERM() {
+	output := s.Env().RemoteHost.MustExecute("cat /opt/datadog-agent/run/trace-agent.pid")
+	pid, err := strconv.ParseInt(strings.TrimSpace(output), 10, 64)
+	s.Require().NoError(err, "failed to parse trace-agent pid")
+
+	start := time.Now()
+	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("sudo kill -SIGTERM %d", pid))
+	s.Require().NoError(err, "failed to send SIGTERM to trace-agent")
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		_, err := s.Env().RemoteHost.Execute("pgrep -x trace-agent")
+		if err == nil {
+			c.Errorf("trace-agent should not be running")
+			return
+		}
+
+		// pgrep exits with 1 if no process is found
+		var exitErr *ssh.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitStatus() == 1 {
+			end := time.Now()
+			s.T().Logf("trace-agent exited after %s", end.Sub(start).String())
+			return
+		}
+		assert.NoError(c, err, "failed to check the trace-agent process state")
+	}, 30*time.Second, 1*time.Second, "failed to stop trace-agent service in 30 seconds")
+
+	// make sure the trace-agent is running after this test
+	s.Env().RemoteHost.MustExecute("sudo systemctl start datadog-agent-trace.service")
 }
 
 type statusReporter struct {

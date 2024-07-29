@@ -169,7 +169,12 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 	if analyzersDisabled(TypeImageConfigSecret) {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeImageConfigSecret)
 	}
-
+	disabledAnalyzers = append(disabledAnalyzers,
+		analyzer.TypeExecutable,
+		analyzer.TypeRedHatContentManifestType,
+		analyzer.TypeRedHatDockerfileType,
+		analyzer.TypeSBOM,
+		analyzer.TypeUbuntuESM)
 	return disabledAnalyzers
 }
 

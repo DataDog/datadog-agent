@@ -7,13 +7,14 @@ package daemon
 
 import (
 	"context"
+
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -47,7 +48,7 @@ func getCommonFxOption(global *command.GlobalParams) fx.Option {
 			ConfigParams:         config.NewAgentParams(global.ConfFilePath),
 			SecretParams:         secrets.NewEnabledParams(),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
-			LogParams:            logimpl.ForDaemon("INSTALLER", "installer.log_file", pkgconfig.DefaultUpdaterLogFile),
+			LogParams:            log.ForDaemon("INSTALLER", "installer.log_file", pkgconfig.DefaultUpdaterLogFile),
 		}),
 		core.Bundle(),
 		fx.Supply(&rcservice.Params{
