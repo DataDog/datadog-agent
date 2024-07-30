@@ -53,7 +53,7 @@ This file hierarchy aims to solve a few problems:
 
 ## Bootstrapping components
 
-You can use the [invoke](../setup.md#preface) task `deva components.new-component comp/<component>` to generate a scaffold for your new component.
+You can use the [invoke](../setup.md#preface) task `deva components.new-component comp/<COMPONENT_NAME>` to generate a scaffold for your new component.
 
 Every public variable, function, struct, and interface of your component **must** be documented. Refer to the [Documentation](#documentation) section below for details.
 
@@ -80,7 +80,7 @@ In the example of a compression component, the def folder looks like this:
     }
     ```
 
-All component interfaces must be called `Component`, so all imports have the form `<component>.Component`.
+All component interfaces must be called `Component`, so all imports have the form `<COMPONENT_NAME>.Component`.
 
 You can see that the interface only exposes the bare minimum. You should aim at having the smallest possible interface
 for your component.
@@ -114,7 +114,7 @@ internally by each component (more on this [here TODO]()). -->
 ### The impl folders
 
 The `impl` folder is where the component implementation is written. The details of component implementation are up to the developer.
-The only requirements are that the package name follows the pattern `<component>impl` and that there is a public instantiation function called `NewComponent`.
+The only requirements are that the package name follows the pattern `<COMPONENT_NAME>impl` and that there is a public instantiation function called `NewComponent`.
 
 === ":octicons-file-code-16: comp/compression/impl-zstd/compressor.go"
     ```go
@@ -373,7 +373,7 @@ Never add a Go module to the component folder (for example,`comp/compression`) o
 In the end, a classic component folder should look like:
 
 ```
-comp/<component>/
+comp/<COMPONENT_NAME>/
 ├── def
 │   └── component.go
 ├── fx
