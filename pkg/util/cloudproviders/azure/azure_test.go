@@ -114,11 +114,11 @@ func TestGetNTPHosts(t *testing.T) {
 
 	responseIdx := 0
 	responses := []func(w http.ResponseWriter, r *http.Request){
-		func(w http.ResponseWriter, r *http.Request) {
+		func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "text/plain")
 			io.WriteString(w, "test")
 		},
-		func(w http.ResponseWriter, r *http.Request) {
+		func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			io.WriteString(w, fmt.Sprintf(`{
 				"name": "vm-name",

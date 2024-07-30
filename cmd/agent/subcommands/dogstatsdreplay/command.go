@@ -59,7 +59,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "dogstatsd-replay",
 		Short: "Replay dogstatsd traffic",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			return fxutil.OneShot(dogstatsdReplay,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),

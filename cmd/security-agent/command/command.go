@@ -53,7 +53,7 @@ func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
 		Long: `
 Datadog Security Agent takes care of running compliance and security checks.`,
 		SilenceUsage: true, // don't print usage on errors
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		PersistentPreRunE: func(_ *cobra.Command, args []string) error {
 			if globalParams.NoColor {
 				color.NoColor = true
 			}

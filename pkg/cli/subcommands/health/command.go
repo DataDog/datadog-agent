@@ -52,7 +52,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		Short:        "Print the current agent health",
 		Long:         ``,
 		SilenceUsage: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			globalParams := globalParamsGetter()
 			return fxutil.OneShot(requestHealth,
 				fx.Supply(cliParams),

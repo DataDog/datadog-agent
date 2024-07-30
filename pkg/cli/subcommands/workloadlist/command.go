@@ -51,7 +51,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		Use:   "workload-list",
 		Short: "Print the workload content of a running agent",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			globalParams := globalParamsGetter()
 
 			cliParams.GlobalParams = globalParams

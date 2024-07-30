@@ -37,7 +37,7 @@ func tokenHandler(w http.ResponseWriter, _ *http.Request) {
 }
 
 func fixtureHandler(payload string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(fixtures.FakePayload(payload)))
 	}

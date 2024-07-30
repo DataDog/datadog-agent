@@ -120,7 +120,7 @@ func TestGetAgentTaggerList(t *testing.T) {
 		Entities: tagMap,
 	}
 
-	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		out, _ := json.Marshal(resp)
 		w.Write(out)
 	}))
@@ -149,7 +149,7 @@ func TestGetWorkloadList(t *testing.T) {
 		Entities: workloadMap,
 	}
 
-	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		out, _ := json.Marshal(resp)
 		w.Write(out)
 	}))

@@ -43,7 +43,7 @@ func Command() []*cobra.Command {
 	injectCmd := &cobra.Command{
 		Use:   "inject",
 		Short: "Forwards the input user context to the CWS agent with eRPC",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			return InjectUserSessionCmd(args, &params)
 		},
 	}

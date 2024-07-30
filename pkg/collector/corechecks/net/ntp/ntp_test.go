@@ -223,7 +223,7 @@ hosts:
 	ntpInitCfg := []byte("")
 
 	offset = 1
-	ntpQuery = func(host string, opt ntp.QueryOptions) (*ntp.Response, error) {
+	ntpQuery = func(host string, _ ntp.QueryOptions) (*ntp.Response, error) {
 		o, _ := strconv.Atoi(host)
 		return &ntp.Response{
 			ClockOffset: time.Duration(o) * time.Second,
@@ -265,7 +265,7 @@ hosts:
 	ntpInitCfg := []byte("")
 
 	offset = 1
-	ntpQuery = func(host string, opt ntp.QueryOptions) (*ntp.Response, error) {
+	ntpQuery = func(host string, _ ntp.QueryOptions) (*ntp.Response, error) {
 		o, _ := strconv.Atoi(host)
 		return &ntp.Response{
 			ClockOffset: time.Duration(o) * time.Second,

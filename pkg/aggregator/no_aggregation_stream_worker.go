@@ -158,7 +158,7 @@ func (w *noAggregationStreamWorker) run() {
 		metrics.Serialize(
 			w.seriesSink,
 			w.sketchesSink,
-			func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+			func(_ metrics.SerieSink, sketchesSink metrics.SketchesSink) {
 			mainloop:
 				for {
 					select {
@@ -238,7 +238,7 @@ func (w *noAggregationStreamWorker) run() {
 				}
 			}, func(serieSource metrics.SerieSource) {
 				sendIterableSeries(w.serializer, start, serieSource)
-			}, func(sketches metrics.SketchesSource) {
+			}, func(_ metrics.SketchesSource) {
 				// noop: we do not support sketches in the no-agg pipeline.
 			})
 

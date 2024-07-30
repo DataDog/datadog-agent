@@ -29,7 +29,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "version",
 		Short: "Print the version info",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			return fxutil.OneShot(displayVersion,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),

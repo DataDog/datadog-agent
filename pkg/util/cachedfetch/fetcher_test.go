@@ -32,7 +32,7 @@ func TestFetcherNeverSucceeds(t *testing.T) {
 func TestFetcherCalledEachFetch(t *testing.T) {
 	count := 0
 	f := Fetcher{
-		Attempt: func(ctx context.Context) (interface{}, error) {
+		Attempt: func(context.Context) (interface{}, error) {
 			count++
 			return count, nil
 		},
@@ -52,7 +52,7 @@ func TestFetcherUsesCachedValue(t *testing.T) {
 	count := 0
 	f := Fetcher{
 		Name: "test",
-		Attempt: func(ctx context.Context) (interface{}, error) {
+		Attempt: func(context.Context) (interface{}, error) {
 			count++
 			if count%2 == 0 {
 				return nil, fmt.Errorf("uhoh")
@@ -73,7 +73,7 @@ func TestFetcherLogsWhenUsingCached(t *testing.T) {
 	count := 0
 	errs := []string{}
 	f := Fetcher{
-		Attempt: func(ctx context.Context) (interface{}, error) {
+		Attempt: func(context.Context) (interface{}, error) {
 			count++
 			if count%2 == 0 {
 				return nil, fmt.Errorf("uhoh")

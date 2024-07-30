@@ -42,7 +42,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "remote-config",
 		Short: "Remote configuration state command",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			return fxutil.OneShot(state,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
