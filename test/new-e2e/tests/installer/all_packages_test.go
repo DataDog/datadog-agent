@@ -12,7 +12,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -217,11 +216,6 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 
 		// Run the playbook
 		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-playbook %s", ansiblePrefix, playbookPath))
-
-		// TEMP: remove me
-		time.Sleep(10 * time.Second)
-		ot := s.Env().RemoteHost.MustExecute("sudo datadog-installer status")
-		s.T().Log(ot)
 	default:
 		s.T().Fatal("unsupported install method")
 	}
@@ -364,9 +358,9 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(params ...string) string {
 		case "DD_REMOTE_UPDATES":
 			playbookStringSuffix += fmt.Sprintf("    datadog_remote_updates: %s\n", value)
 			// TODO: remove this when we don't require this setting in the playbook
-			playbookStringSuffix += fmt.Sprintf("    datadog_apm_instrumentation_enabled: host\n")
+			playbookStringSuffix += "    datadog_apm_instrumentation_enabled: \"host\"\n"
 		case "DD_APM_INSTRUMENTATION_ENABLED":
-			playbookStringSuffix += fmt.Sprintf("    datadog_apm_instrumentation_enabled: %s\n", value)
+			playbookStringSuffix += fmt.Sprintf("    datadog_apm_instrumentation_enabled: \"%s\"\n", value)
 		case "DD_APM_INSTRUMENTATION_LIBRARIES":
 			playbookStringSuffix += fmt.Sprintf("    datadog_apm_instrumentation_libraries: [%s]\n", value)
 		default:
