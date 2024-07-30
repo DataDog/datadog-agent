@@ -75,7 +75,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func dogstatsdCapture(log log.Component, config config.Component, cliParams *cliParams) error {
+func dogstatsdCapture(_ log.Component, config config.Component, cliParams *cliParams) error {
 	fmt.Printf("Starting a dogstatsd traffic capture session...\n\n")
 
 	ctx, cancel := context.WithCancel(context.Background())

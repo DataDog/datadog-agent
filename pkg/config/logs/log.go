@@ -59,7 +59,7 @@ func getLogDateFormat(cfg pkgconfigmodel.Reader) string {
 	return logDateFormat
 }
 
-func createQuoteMsgFormatter(params string) seelog.FormatterFunc { //nolint:revive // TODO fix revive unused-parameter
+func createQuoteMsgFormatter(_ string) seelog.FormatterFunc {
 	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		return strconv.Quote(message)
 	}
@@ -380,7 +380,7 @@ func getSyslogConnection(uri *url.URL, secure bool) (net.Conn, error) {
 }
 
 // ReceiveMessage process current log message
-func (s *SyslogReceiver) ReceiveMessage(message string, level seelog.LogLevel, context seelog.LogContextInterface) error { //nolint:revive // TODO fix revive unused-parameter
+func (s *SyslogReceiver) ReceiveMessage(message string, level seelog.LogLevel, context seelog.LogContextInterface) error {
 	if !s.enabled {
 		return nil
 	}
@@ -457,7 +457,7 @@ func (s *SyslogReceiver) Close() error {
 	return nil
 }
 
-func parseShortFilePath(params string) seelog.FormatterFunc { //nolint:revive // TODO fix revive unused-parameter
+func parseShortFilePath(params string) seelog.FormatterFunc {
 	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		return extractShortPathFromFullPath(context.FullPath())
 	}
@@ -485,7 +485,7 @@ func extractShortPathFromFullPath(fullPath string) string {
 	return shortPath
 }
 
-func createExtraJSONContext(params string) seelog.FormatterFunc { //nolint:revive // TODO fix revive unused-parameter
+func createExtraJSONContext(params string) seelog.FormatterFunc {
 	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		contextList, ok := context.CustomContext().([]interface{})
 		if len(contextList) == 0 || !ok {
@@ -495,7 +495,7 @@ func createExtraJSONContext(params string) seelog.FormatterFunc { //nolint:reviv
 	}
 }
 
-func createExtraTextContext(params string) seelog.FormatterFunc { //nolint:revive // TODO fix revive unused-parameter
+func createExtraTextContext(params string) seelog.FormatterFunc {
 	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		contextList, ok := context.CustomContext().([]interface{})
 		if len(contextList) == 0 || !ok {

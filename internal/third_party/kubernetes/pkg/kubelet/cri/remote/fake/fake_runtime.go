@@ -79,7 +79,7 @@ func (f *RemoteRuntime) Stop() {
 }
 
 // Version returns the runtime name, runtime version, and runtime API version.
-func (f *RemoteRuntime) Version(ctx context.Context, req *kubeapi.VersionRequest) (*kubeapi.VersionResponse, error) {
+func (f *RemoteRuntime) Version(_ context.Context, req *kubeapi.VersionRequest) (*kubeapi.VersionResponse, error) {
 	return f.RuntimeService.Version(req.Version)
 }
 

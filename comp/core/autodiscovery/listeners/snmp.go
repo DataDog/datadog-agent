@@ -375,7 +375,7 @@ func (s *SNMPService) IsReady(context.Context) bool {
 // HasFilter returns false on SNMP
 //
 //nolint:revive // TODO(NDM) Fix revive linter
-func (s *SNMPService) HasFilter(filter containers.FilterType) bool {
+func (s *SNMPService) HasFilter(_ containers.FilterType) bool {
 	return false
 }
 

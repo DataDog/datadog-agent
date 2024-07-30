@@ -28,7 +28,7 @@ func (lo LoaderOne) Name() string {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (lo LoaderOne) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
+func (lo LoaderOne) Load(_ sender.SenderManager, _ integration.Config, instance integration.Data) (check.Check, error) {
 	var c check.Check
 	return c, nil
 }

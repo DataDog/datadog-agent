@@ -24,7 +24,7 @@ import (
 )
 
 // nolint: revive
-func applyEmpty(s string, as state.ApplyStatus) {}
+func applyEmpty(_ string, _ state.ApplyStatus) {}
 
 func TestStart(t *testing.T) {
 	ctrl := gomock.NewController(t)

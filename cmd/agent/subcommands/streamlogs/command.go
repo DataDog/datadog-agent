@@ -83,7 +83,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func streamLogs(log log.Component, config config.Component, cliParams *CliParams) error {
+func streamLogs(_ log.Component, config config.Component, cliParams *CliParams) error {
 	ipcAddress, err := pkgconfig.GetIPCAddress()
 	if err != nil {
 		return err

@@ -42,7 +42,7 @@ hosts: [ 0.datadog.pool.ntp.org, 1.datadog.pool.ntp.org, 2.datadog.pool.ntp.org,
 )
 
 //nolint:revive // TODO(PLINT) Fix revive linter
-func testNTPQueryError(host string, opt ntp.QueryOptions) (*ntp.Response, error) {
+func testNTPQueryError(_ string, opt ntp.QueryOptions) (*ntp.Response, error) {
 	return nil, fmt.Errorf("test error from NTP")
 }
 

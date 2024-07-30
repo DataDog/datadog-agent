@@ -78,7 +78,7 @@ func init() {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func newNoAggregationStreamWorker(maxMetricsPerPayload int, metricSamplePool *metrics.MetricSamplePool,
+func newNoAggregationStreamWorker(maxMetricsPerPayload int, _ *metrics.MetricSamplePool,
 	serializer serializer.MetricSerializer, flushConfig FlushAndSerializeInParallel,
 ) *noAggregationStreamWorker {
 	return &noAggregationStreamWorker{

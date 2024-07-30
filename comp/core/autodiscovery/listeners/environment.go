@@ -36,7 +36,7 @@ func NewEnvironmentListener(Config, *telemetry.Store) (ServiceListener, error) {
 // Listen starts the goroutine to detect checks based on environment
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (l *EnvironmentListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
+func (l *EnvironmentListener) Listen(newSvc chan<- Service, _ chan<- Service) {
 	l.newService = newSvc
 
 	// ATM we consider environment as a fixed space

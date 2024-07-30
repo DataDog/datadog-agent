@@ -22,14 +22,14 @@ type RemoteSysProbeUtil struct{}
 // CheckPath is not supported
 //
 //nolint:revive // TODO(PROC) Fix revive linter
-func CheckPath(path string) error {
+func CheckPath(_ string) error {
 	return ErrNotImplemented
 }
 
 // GetRemoteSystemProbeUtil is not supported
 //
 //nolint:revive // TODO(PROC) Fix revive linter
-func GetRemoteSystemProbeUtil(path string) (*RemoteSysProbeUtil, error) {
+func GetRemoteSystemProbeUtil(_ string) (*RemoteSysProbeUtil, error) {
 	return &RemoteSysProbeUtil{}, ErrNotImplemented
 }
 

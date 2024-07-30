@@ -8,10 +8,10 @@
 package network
 
 // GetStaticTags return the string list of static tags from network.ConnectionStats.Tags
-func GetStaticTags(staticTags uint64) (tags []string) { //nolint:revive // TODO fix revive unused-parameter
+func GetStaticTags(_ uint64) (tags []string) {
 	return tags
 }
 
-func IsTLSTag(staticTags uint64) bool { //nolint:revive // TODO fix revive unused-parameter
+func IsTLSTag(staticTags uint64) bool {
 	return false
 }

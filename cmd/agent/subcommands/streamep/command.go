@@ -55,7 +55,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
-func streamEventPlatform(log log.Component, config config.Component, cliParams *cliParams) error {
+func streamEventPlatform(_ log.Component, config config.Component, cliParams *cliParams) error {
 	ipcAddress, err := pkgconfig.GetIPCAddress()
 	if err != nil {
 		return err

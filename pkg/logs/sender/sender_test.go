@@ -67,7 +67,7 @@ func TestSender(t *testing.T) {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func TestSenderSingleDestination(t *testing.T) {
+func TestSenderSingleDestination(_ *testing.T) {
 	cfg := getNewConfig()
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)

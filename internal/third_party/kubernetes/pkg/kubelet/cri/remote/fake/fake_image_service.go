@@ -23,7 +23,7 @@ import (
 )
 
 // ListImages lists existing images.
-func (f *RemoteRuntime) ListImages(ctx context.Context, req *kubeapi.ListImagesRequest) (*kubeapi.ListImagesResponse, error) {
+func (f *RemoteRuntime) ListImages(_ context.Context, req *kubeapi.ListImagesRequest) (*kubeapi.ListImagesResponse, error) {
 	images, err := f.ImageService.ListImages(req.Filter)
 	if err != nil {
 		return nil, err
