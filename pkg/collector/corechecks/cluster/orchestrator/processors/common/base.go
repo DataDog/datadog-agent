@@ -11,6 +11,8 @@ package common
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 //nolint:revive // TODO(CAPP) Fix revive linter
@@ -52,4 +54,18 @@ func ExtractModelManifests(ctx processors.ProcessorContext, resourceManifests []
 		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
 	}
 	return cm
+}
+
+// K8sAgentInfo returns the agent info for k8s
+func K8sAgentInfo(i *installinfo.InstallInfo) *model.K8SAgentInfo {
+	if i == nil {
+		return &model.K8SAgentInfo{
+			Version: version.AgentVersion,
+		}
+	}
+	return &model.K8SAgentInfo{
+		Version:              version.AgentVersion,
+		InstallMethod:        i.Tool,
+		InstallMethodVersion: i.InstallerVersion,
+	}
 }

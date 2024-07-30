@@ -48,7 +48,8 @@ func (t *TaskCollector) Metadata() *collectors.CollectorMetadata {
 // Init is used to initialize the collector.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (t *TaskCollector) Init(rcfg *collectors.CollectorRunConfig) {}
+func (t *TaskCollector) Init(rcfg *collectors.CollectorRunConfig) {
+}
 
 // Run triggers the collection process.
 func (t *TaskCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.CollectorRunResult, error) {

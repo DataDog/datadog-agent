@@ -89,7 +89,7 @@ func RegisterChecks(store workloadmeta.Component, cfg config.Component, telemetr
 	corecheckLoader.RegisterCheck(winkmem.CheckName, winkmem.Factory())
 	corecheckLoader.RegisterCheck(winproc.CheckName, winproc.Factory())
 	corecheckLoader.RegisterCheck(systemd.CheckName, systemd.Factory())
-	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory())
+	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(cfg))
 	corecheckLoader.RegisterCheck(docker.CheckName, docker.Factory(store))
 	corecheckLoader.RegisterCheck(sbom.CheckName, sbom.Factory(store, cfg))
 	corecheckLoader.RegisterCheck(kubelet.CheckName, kubelet.Factory(store))

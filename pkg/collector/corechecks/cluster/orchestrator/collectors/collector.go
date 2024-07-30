@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
+	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
@@ -81,6 +82,7 @@ type CollectorRunConfig struct {
 	ClusterID   string
 	Config      *config.OrchestratorConfig
 	MsgGroupRef *atomic.Int32
+	InstallInfo *installinfo.InstallInfo
 }
 
 // CollectorRunResult contains information about what the collector has done.

@@ -13,6 +13,7 @@ import (
 	"fmt"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -149,6 +150,7 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 			GroupId:     pctx.MsgGroupID,
 			Cluster:     clusterModel,
 			Tags:        pctx.Cfg.ExtraTags,
+			AgentInfo:   common.K8sAgentInfo(pctx.InstallInfo),
 		},
 	}
 	processResult = processors.ProcessResult{

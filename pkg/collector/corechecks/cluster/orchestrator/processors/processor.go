@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
+	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -73,6 +74,7 @@ type K8sProcessorContext struct {
 	HostName  string
 	//nolint:revive // TODO(CAPP) Fix revive linter
 	ApiGroupVersionTag string
+	InstallInfo        *installinfo.InstallInfo
 	SystemInfo         *model.SystemInfo
 }
 

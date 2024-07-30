@@ -20,6 +20,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"

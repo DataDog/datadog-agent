@@ -75,6 +75,7 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 			ClusterID:   chk.clusterID,
 			Config:      chk.orchestratorConfig,
 			MsgGroupRef: chk.groupID,
+			InstallInfo: chk.installInfo,
 		},
 		stopCh:              chk.stopCh,
 		manifestBuffer:      NewManifestBuffer(chk),

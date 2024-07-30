@@ -14,6 +14,9 @@ import (
 	"math/rand"
 	"time"
 
+	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -80,9 +83,11 @@ type OrchestratorCheck struct {
 	isCLCRunner                 bool
 	apiClient                   *apiserver.APIClient
 	orchestratorInformerFactory *collectors.OrchestratorInformerFactory
+	installInfo                 *installinfo.InstallInfo
+	cfg                         compcfg.Component
 }
 
-func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance) *OrchestratorCheck {
+func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance, cfg compcfg.Component) *OrchestratorCheck {
 	return &OrchestratorCheck{
 		CheckBase:          base,
 		orchestratorConfig: orchcfg.NewDefaultOrchestratorConfig(),
@@ -90,18 +95,22 @@ func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance) *
 		stopCh:             make(chan struct{}),
 		groupID:            atomic.NewInt32(rand.Int31()),
 		isCLCRunner:        config.IsCLCRunner(),
+		cfg:                cfg,
 	}
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
+func Factory(cfg compcfg.Component) optional.Option[func() check.Check] {
+	return optional.NewOption[func() check.Check](func() check.Check {
+		return newCheck(cfg)
+	})
 }
 
-func newCheck() check.Check {
+func newCheck(cfg compcfg.Component) check.Check {
 	return newOrchestratorCheck(
 		core.NewCheckBase(CheckName),
 		&OrchestratorInstance{},
+		cfg,
 	)
 }
 
@@ -156,6 +165,10 @@ func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integr
 	}
 
 	o.orchestratorInformerFactory = getOrchestratorInformerFactory(o.apiClient)
+	o.installInfo, err = installinfo.Get(o.cfg)
+	if err != nil {
+		log.Warnf("Error getting install info: %s", err)
+	}
 
 	// Create a new bundle for the check.
 	o.collectorBundle = NewCollectorBundle(o)

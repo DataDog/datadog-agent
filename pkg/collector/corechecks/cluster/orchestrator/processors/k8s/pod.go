@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
