@@ -423,6 +423,7 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 
 	err = fi.store.AppendPayload(req.URL.Path, payload, encoding, fi.clock.Now().UTC())
 	if err != nil {
+		log.Printf("Error adding payload to store: %v", err)
 		response := buildErrorResponse(err)
 		writeHTTPResponse(w, response)
 		return nil

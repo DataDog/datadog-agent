@@ -43,7 +43,7 @@ func TestSNMPListener(t *testing.T) {
 		}
 	}
 
-	l, err := NewSNMPListener(&config.Listeners{})
+	l, err := NewSNMPListener(&config.Listeners{}, nil)
 	assert.Equal(t, nil, err)
 	l.Listen(newSvc, delSvc)
 
@@ -142,7 +142,7 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 		}
 	}
 
-	l, err := NewSNMPListener(&config.Listeners{})
+	l, err := NewSNMPListener(&config.Listeners{}, nil)
 	assert.Equal(t, nil, err)
 	l.Listen(newSvc, delSvc)
 

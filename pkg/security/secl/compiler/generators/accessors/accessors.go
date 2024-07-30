@@ -100,7 +100,7 @@ func origTypeToBasicType(kind string) string {
 	switch kind {
 	case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64":
 		return "int"
-	case "ContainerID", "CGroupID":
+	case "containerutils.ContainerID", "containerutils.CGroupID":
 		return "string"
 	}
 	return kind

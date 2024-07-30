@@ -6,6 +6,8 @@
 // Package common holds common related files
 package common
 
+import "fmt"
+
 // EventTypeMetadata is used to iterate over the model from the event types
 type EventTypeMetadata struct {
 	Doc    string
@@ -150,6 +152,6 @@ func (sf *StructField) GetCacheName() string {
 	case "bool":
 		return "BoolCache"
 	default:
-		panic("no cache name defined for this return type")
+		panic(fmt.Sprintf("no cache name defined for return type '%s'", sf.ReturnType))
 	}
 }
