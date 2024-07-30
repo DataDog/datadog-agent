@@ -38,7 +38,7 @@ func FindContainerID(s string) (string, uint64) {
 	match := containerIDPattern.FindIndex([]byte(s))
 	if match == nil {
 		if isSystemdCgroup(s) {
-			return "", uint64(model.CGroupManagerSystemd)
+			return "", uint64(CGroupManagerSystemd)
 		}
 
 		return "", 0
@@ -49,7 +49,7 @@ func FindContainerID(s string) (string, uint64) {
 		previousChar := string(s[match[0]-1])
 		if strings.ContainsAny(previousChar, containerIDCoreChars) {
 			if isSystemdCgroup(s) {
-				return "", uint64(model.CGroupManagerSystemd)
+				return "", uint64(CGroupManagerSystemd)
 			}
 			return "", 0
 		}
@@ -59,7 +59,7 @@ func FindContainerID(s string) (string, uint64) {
 		nextChar := string(s[match[1]])
 		if strings.ContainsAny(nextChar, containerIDCoreChars) {
 			if isSystemdCgroup(s) {
-				return "", uint64(model.CGroupManagerSystemd)
+				return "", uint64(CGroupManagerSystemd)
 			}
 			return "", 0
 		}

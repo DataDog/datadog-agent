@@ -5,7 +5,7 @@
 
 //go:generate stringer -type=CGroupManager -linecomment -output cgroup_strings.go
 
-// Package model holds model related files
+// Package containerutils holds multiple utils functions around Container IDs and their patterns
 package containerutils
 
 import (
