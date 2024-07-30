@@ -33,75 +33,84 @@ func TestInstaller(t *testing.T) {
 // TestInstalls tests installing and uninstalling the latest version of the Datadog Installer from the pipeline.
 func (s *testInstallerSuite) TestInstalls() {
 	s.Run("Fresh install", func() {
-		// Arrange
-
-		// Act
-		s.Require().NoError(s.installer.Install())
-
-		// Assert
-		s.Require().Host(s.Env().RemoteHost).
-			HasBinary(InstallerBinaryPath).
-			WithSignature(agent.GetCodeSignatureThumbprints()).
-			WithVersionMatchPredicate(func(version string) {
-				s.Require().NotEmpty(version)
-			}).
-			HasAService(InstallerServiceName).
-			// the service cannot start because of the missing API key
-			WithStatus("Stopped").
-			WithIdentity(common.GetIdentityForSID(common.LocalSystemSID))
+		s.freshInstall()
+		s.Run("Start service with a configuration file", s.startServiceWithConfigFile)
+		s.Run("Uninstall", func() {
+			s.uninstall()
+			s.Run("Install with existing configuration file", s.installWithExistingConfigFile)
+		})
 	})
+}
 
-	s.Run("Start service with a configuration file", func() {
-		// Arrange
-		s.Env().RemoteHost.CopyFileFromFS(fixturesFS, "fixtures/sample_config", InstallerConfigPath)
+func (s *testInstallerSuite) freshInstall() {
+	// Arrange
 
-		// Act
-		s.Require().NoError(common.StartService(s.Env().RemoteHost, InstallerServiceName))
+	// Act
+	s.Require().NoError(s.installer.Install())
 
-		// Assert
-		s.Require().Host(s.Env().RemoteHost).
-			HasAService(InstallerServiceName).
-			WithStatus("Running")
-	})
+	// Assert
+	s.Require().Host(s.Env().RemoteHost).
+		HasBinary(InstallerBinaryPath).
+		WithSignature(agent.GetCodeSignatureThumbprints()).
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().NotEmpty(version)
+		}).
+		HasAService(InstallerServiceName).
+		// the service cannot start because of the missing API key
+		WithStatus("Stopped").
+		WithIdentity(common.GetIdentityForSID(common.LocalSystemSID))
+}
 
-	s.Run("Uninstall", func() {
-		// Arrange
+func (s *testInstallerSuite) startServiceWithConfigFile() {
+	// Arrange
+	s.Env().RemoteHost.CopyFileFromFS(fixturesFS, "fixtures/sample_config", InstallerConfigPath)
 
-		// Act
-		s.Require().NoError(s.installer.Uninstall())
+	// Act
+	s.Require().NoError(common.StartService(s.Env().RemoteHost, InstallerServiceName))
 
-		// Assert
-		s.Require().Host(s.Env().RemoteHost).
-			NoFileExists(InstallerBinaryPath).
-			HasNoService(InstallerServiceName).
-			FileExists(InstallerConfigPath)
-	})
+	// Assert
+	s.Require().Host(s.Env().RemoteHost).
+		HasAService(InstallerServiceName).
+		WithStatus("Running")
+}
 
-	s.Run("Install with existing configuration file", func() {
-		// Arrange
+func (s *testInstallerSuite) uninstall() {
+	// Arrange
 
-		// Act
-		s.Require().NoError(s.installer.Install())
+	// Act
+	s.Require().NoError(s.installer.Uninstall())
 
-		// Assert
-		s.Require().Host(s.Env().RemoteHost).
-			HasAService(InstallerServiceName).
-			WithStatus("Running")
-	})
+	// Assert
+	s.Require().Host(s.Env().RemoteHost).
+		NoFileExists(InstallerBinaryPath).
+		HasNoService(InstallerServiceName).
+		FileExists(InstallerConfigPath)
+}
 
-	s.Run("Repair", func() {
-		// Arrange
-		s.Require().NoError(common.StopService(s.Env().RemoteHost, InstallerServiceName))
-		s.Require().NoError(s.Env().RemoteHost.Remove(InstallerBinaryPath))
+func (s *testInstallerSuite) installWithExistingConfigFile() {
+	// Arrange
 
-		// Act
-		s.Require().NoError(s.installer.Install())
+	// Act
+	s.Require().NoError(s.installer.Install())
 
-		// Assert
-		s.Require().Host(s.Env().RemoteHost).
-			HasAService(InstallerServiceName).
-			WithStatus("Running")
-	})
+	// Assert
+	s.Require().Host(s.Env().RemoteHost).
+		HasAService(InstallerServiceName).
+		WithStatus("Running")
+}
+
+func (s *testInstallerSuite) repair() {
+	// Arrange
+	s.Require().NoError(common.StopService(s.Env().RemoteHost, InstallerServiceName))
+	s.Require().NoError(s.Env().RemoteHost.Remove(InstallerBinaryPath))
+
+	// Act
+	s.Require().NoError(s.installer.Install())
+
+	// Assert
+	s.Require().Host(s.Env().RemoteHost).
+		HasAService(InstallerServiceName).
+		WithStatus("Running")
 }
 
 // TestUpgrades tests upgrading the stable version of the Datadog Installer to the latest from the pipeline.

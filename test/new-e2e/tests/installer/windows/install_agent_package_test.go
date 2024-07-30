@@ -28,82 +28,95 @@ func TestAgentInstalls(t *testing.T) {
 // TestInstallAgentPackage tests installing and uninstalling the Datadog Agent using the Datadog Installer.
 func (s *testAgentInstallSuite) TestInstallAgentPackage() {
 	s.Run("Install", func() {
-		// Arrange
-
-		// Act
-		output, err := s.installer.InstallPackage(AgentPackage)
-
-		// Assert
-		s.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
-		s.Require().Host(s.Env().RemoteHost).HasARunningDatadogAgentService()
+		s.installAgent()
+		s.Run("Uninstall", s.uninstallAgent)
 	})
+}
 
-	s.Run("Uninstall", func() {
-		// Arrange
+func (s *testAgentInstallSuite) installAgent() {
+	// Arrange
 
-		// Act
-		output, err := s.installer.RemovePackage(AgentPackage)
+	// Act
+	output, err := s.installer.InstallPackage(AgentPackage)
 
-		// Assert
-		s.Require().NoErrorf(err, "failed to remove the Datadog Agent package: %s", output)
-		s.Require().Host(s.Env().RemoteHost).HasNoDatadogAgentService()
-	})
+	// Assert
+	s.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
+	s.Require().Host(s.Env().RemoteHost).HasARunningDatadogAgentService()
+}
+
+func (s *testAgentInstallSuite) uninstallAgent() {
+	// Arrange
+
+	// Act
+	output, err := s.installer.RemovePackage(AgentPackage)
+
+	// Assert
+	s.Require().NoErrorf(err, "failed to remove the Datadog Agent package: %s", output)
+	s.Require().Host(s.Env().RemoteHost).HasNoDatadogAgentService()
 }
 
 // TestUpgradeAgentPackage tests that it's possible to upgrade the Datadog Agent using the Datadog Installer.
 func (s *testAgentInstallSuite) TestUpgradeAgentPackage() {
 	s.Run("Install stable", func() {
-		// Arrange
-
-		// Act
-		output, err := s.installer.InstallPackage(AgentPackage,
-			installer.WithRegistry("public.ecr.aws/datadog"),
-			installer.WithVersion("latest"),
-			installer.WithAuthentication(""),
-		)
-
-		// Assert
-		s.Require().NoErrorf(err, "failed to install the stable Datadog Agent package: %s", output)
-		s.Require().Host(s.Env().RemoteHost).
-			HasARunningDatadogAgentService().
-			WithVersionMatchPredicate(func(version string) {
-				s.Require().Contains(version, "Agent 7.55.1")
-			}).
-			DirExists(GetStableDirFor(AgentPackage))
+		s.installStableAgent()
+		s.Run("Upgrade to latest using an experiment", func() {
+			s.startLatestExperiment()
+			s.Run("Stop experiment", s.stopExperiment)
+		})
 	})
+}
 
-	s.Run("Upgrade to latest using an experiment", func() {
-		// Arrange
+func (s *testAgentInstallSuite) installStableAgent() {
+	// Arrange
 
-		// Act
-		output, err := s.installer.InstallExperiment(AgentPackage)
+	// Act
+	output, err := s.installer.InstallPackage(AgentPackage,
+		installer.WithRegistry("public.ecr.aws/datadog"),
+		installer.WithVersion("latest"),
+		installer.WithAuthentication(""),
+	)
 
-		// Assert
-		s.Require().NoErrorf(err, "failed to upgrade to the latest Datadog Agent package: %s", output)
-		s.Require().Host(s.Env().RemoteHost).
-			HasARunningDatadogAgentService().
-			WithVersionMatchPredicate(func(version string) {
-				s.Require().NotContains(version, "7.55.1")
-			}).
-			DirExists(GetExperimentDirFor(AgentPackage))
-	})
+	// Assert
+	s.Require().NoErrorf(err, "failed to install the stable Datadog Agent package: %s", output)
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, "Agent 7.55.1")
+		}).
+		DirExists(GetStableDirFor(AgentPackage))
+}
 
-	s.Run("Stop experiment", func() {
-		// Arrange
+func (s *testAgentInstallSuite) startLatestExperiment() {
+	// Arrange
 
-		// Act
-		output, err := s.installer.RemoveExperiment(AgentPackage)
+	// Act
+	output, err := s.installer.InstallExperiment(AgentPackage)
 
-		// Assert
-		s.Require().NoErrorf(err, "failed to remove the experiment for the Datadog Agent package: %s", output)
+	// Assert
+	s.Require().NoErrorf(err, "failed to upgrade to the latest Datadog Agent package: %s", output)
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().NotContains(version, "7.55.1")
+		}).
+		DirExists(GetExperimentDirFor(AgentPackage))
+}
 
-		// Remove experiment uninstalls the experimental version but also re-installs the stable version
-		s.Require().Host(s.Env().RemoteHost).
-			HasARunningDatadogAgentService().
-			WithVersionMatchPredicate(func(version string) {
-				s.Require().Contains(version, "Agent 7.55.1")
-			}).
-			DirExists(GetStableDirFor(AgentPackage)).
-			NoDirExists(GetExperimentDirFor(AgentPackage))
-	})
+func (s *testAgentInstallSuite) stopExperiment() {
+	// Arrange
+
+	// Act
+	output, err := s.installer.RemoveExperiment(AgentPackage)
+
+	// Assert
+	s.Require().NoErrorf(err, "failed to remove the experiment for the Datadog Agent package: %s", output)
+
+	// Remove experiment uninstalls the experimental version but also re-installs the stable version
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().
+		WithVersionMatchPredicate(func(version string) {
+			s.Require().Contains(version, "Agent 7.55.1")
+		}).
+		DirExists(GetStableDirFor(AgentPackage)).
+		NoDirExists(GetExperimentDirFor(AgentPackage))
 }
