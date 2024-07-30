@@ -58,6 +58,7 @@ func (suite *LauncherTestSuite) SetupTest() {
 	suite.source = sources.NewLogSource("", &config.LogsConfig{Type: config.IntegrationType, Path: suite.testPath})
 	suite.s = NewLauncher(nil, suite.integrationsComp)
 	status.InitStatus(pkgConfig.Datadog(), util.CreateSources([]*sources.LogSource{suite.source}))
+	suite.s.runPath = suite.testDir
 }
 
 func (suite *LauncherTestSuite) TearDownTest() {
