@@ -52,6 +52,10 @@ func TestParserECSAgentVersion(t *testing.T) {
 			version:  "Amazon ECS Agent - (02ff320c)",
 			expected: "",
 		},
+		{
+			version:  "someprefixv0.1somesuffix",
+			expected: "",
+		},
 	} {
 		version := ParseECSAgentVersion(testCase.version)
 		require.Equal(t, testCase.expected, version)

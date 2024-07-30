@@ -267,15 +267,15 @@ func parseClusterName(cluster string) string {
 	return parts[1]
 }
 
+// ecsAgentRegexp is a regular expression to match ECS agent versions
+// \d+(?:\.\d+){0,2} for versions like 1.32.0, 1.3 and 1
+// (-\w+)? for optional pre-release tags like -beta
+var ecsAgentVersionRegexp = regexp.MustCompile(`\bv(\d+(?:\.\d+){0,2}(?:-\w+)?)\b`)
+
 // ParseECSAgentVersion parses the ECS agent version from the version string
 // Instance metadata returns the version in the format `Amazon ECS Agent - v1.30.0 (02ff320c)`
 func ParseECSAgentVersion(s string) string {
-	// \d+\.\d+\.\d+ for versions like 1.32.0
-	// (-\w+)? for optional pre-release tags like -beta
-	// |\d+\.\d+ for shorter versions like 0.1
-	// |\d+ for versions like 1
-	re := regexp.MustCompile(`v(\d+\.\d+\.\d+(-\w+)?|\d+\.\d+(-\w+)?|\d+(-\w+)?)`)
-	match := re.FindStringSubmatch(s)
+	match := ecsAgentVersionRegexp.FindStringSubmatch(s)
 	if len(match) > 1 {
 		return match[1]
 	}

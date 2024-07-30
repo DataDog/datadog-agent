@@ -111,7 +111,7 @@ func TestIsMetadataV4Available(t *testing.T) {
 	assert.False(t, ok)
 
 	ok, err = IsMetadataV4Available("1.0.0")
-	assert.NotNil(t, err)
+	assert.NoError(t, err)
 	assert.False(t, ok)
 
 	ok, err = IsMetadataV4Available("1.80.0")

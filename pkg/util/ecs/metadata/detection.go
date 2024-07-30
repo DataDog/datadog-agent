@@ -168,7 +168,8 @@ func IsMetadataV4Available(ecsAgentVersion string) (bool, error) {
 	}
 
 	if currentECSAgentVersion.LessThan(expectedMinimumECSAgentVersion) {
-		return false, fmt.Errorf("ECS agent version %s is less than the minimum required version %s", currentECSAgentVersion, expectedMinimumECSAgentVersion)
+		log.Debugf("ECS agent version %s is less than the minimum required version %s", currentECSAgentVersion, expectedMinimumECSAgentVersion)
+		return false, nil
 	}
 
 	return true, nil
