@@ -31,6 +31,7 @@ type Launcher struct {
 	runPath              string
 	integrationsLogsChan chan integrations.IntegrationLog
 	integrationToFile    map[string]string
+	logFileMaxSize       int64
 	// writeLogToFile is used as a function pointer so it can be overridden in
 	// testing to make deterministic tests
 	writeFunction func(filepath, log string) error
@@ -41,6 +42,7 @@ func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.
 	return &Launcher{
 		sources:              sources,
 		runPath:              pkgConfig.Datadog().GetString("logs_config.run_path"),
+		logFileMaxSize:       pkgConfig.Datadog().GetInt64("logs_config.integrations_logs_files_max_size"),
 		stop:                 make(chan struct{}),
 		integrationsLogsChan: integrationsLogsComp.Subscribe(),
 		integrationToFile:    make(map[string]string),
@@ -165,8 +167,7 @@ func (s *Launcher) integrationLogFilePath(source sources.LogSource) (string, str
 // ensureFileSize enforces the max file size for files integrations logs
 // files. Files over the set size will be deleted and remade.
 func (s *Launcher) ensureFileSize(filepath string) error {
-	maxFileSizeSetting := pkgConfig.Datadog().GetInt64("logs_config.integrations_logs_files_max_size")
-	maxFileSizeBytes := maxFileSizeSetting * 1024 * 1024
+	maxFileSizeBytes := s.logFileMaxSize * 1024 * 1024
 
 	fi, err := os.Stat(filepath)
 	if err != nil {

@@ -1013,9 +1013,9 @@ api_key:
   #
   # max_message_size_bytes: 256000
 
-  ## @param integrations_logs_files_max_size - integer - optional - default: 100
-  ## @env DD_LOGS_CONFIG_INTEGRATIONS_LOGS_FILES_MAX_SIZE - integer - optional - default: 100
-  ## The combined size in MB of all the integration logs files the Agent is allowed to write.
+  ## @param integrations_logs_files_max_size - integer - optional - default: 10
+  ## @env DD_LOGS_CONFIG_INTEGRATIONS_LOGS_FILES_MAX_SIZE - integer - optional - default: 10
+  ## The max size in MB an integration logs file is allowed to use
   #
   # integrations_logs_files_max_size
 
