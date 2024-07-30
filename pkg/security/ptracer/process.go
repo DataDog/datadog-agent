@@ -62,8 +62,9 @@ func NewProcess(pid int) *Process {
 	}
 }
 
-var pipeFdErr = errors.New("pipe fd")
+var errPipeFd = errors.New("pipe fd")
 
+// GetFilenameFromFd returns the filename for the given fd
 func (p *Process) GetFilenameFromFd(fd int32) (string, error) {
 	raw, err := p.getFilenameFromFdRaw(fd)
 	if err != nil {
@@ -71,7 +72,7 @@ func (p *Process) GetFilenameFromFd(fd int32) (string, error) {
 	}
 
 	if strings.HasPrefix(raw, "pipe:") {
-		return "", pipeFdErr
+		return "", errPipeFd
 	}
 
 	return raw, nil
