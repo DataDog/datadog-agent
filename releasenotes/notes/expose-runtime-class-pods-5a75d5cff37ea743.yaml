@@ -8,5 +8,5 @@
 ---
 features:
   - |
-    Adds a kube_runtime_class tag to metrics associated with kubernetes
+    Adds a `kube_runtime_class` tag to metrics associated with Kubernetes
     pods and their containers.
