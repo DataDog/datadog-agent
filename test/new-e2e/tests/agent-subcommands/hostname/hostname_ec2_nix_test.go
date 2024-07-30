@@ -22,7 +22,6 @@ type linuxHostnameSuite struct {
 }
 
 func TestLinuxHostnameSuite(t *testing.T) {
-	t.Skip("Skipping due to a bug on the latest ubuntu AMI #incident-29343")
 	t.Parallel()
 	osOption := awshost.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault))
 	e2e.Run(t, &linuxHostnameSuite{baseHostnameSuite: baseHostnameSuite{osOption: osOption}}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
@@ -47,13 +46,13 @@ func (v *linuxHostnameSuite) TestAgentConfigPreferImdsv2() {
 }
 
 // https://github.com/DataDog/datadog-agent/blob/main/pkg/util/hostname/README.md#the-current-logic
-func (v *linuxHostnameSuite) TestAgentHostnameDefaultsToResourceId() {
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithAgentOptions(agentparams.WithAgentConfig(""))))
+func (v *linuxHostnameSuite) TestAgentHostnameDefaultsToNotInstanceId() {
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithAgentOptions(agentparams.WithAgentConfig("ec2_prefer_imdsv2: false"))))
 
 	metadata := client.NewEC2Metadata(v.T(), v.Env().RemoteHost.Host, v.Env().RemoteHost.OSFamily)
 	hostname := v.Env().Agent.Client.Hostname()
 
-	// Default configuration of hostname for EC2 instances is the resource-id
-	resourceID := metadata.Get("instance-id")
-	assert.Equal(v.T(), resourceID, hostname)
+	instanceID := metadata.Get("instance-id")
+	// As IMDSv1 is disabled by default, the hostname should not be the instance ID
+	assert.NotEqual(v.T(), instanceID, hostname)
 }
