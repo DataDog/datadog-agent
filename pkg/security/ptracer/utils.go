@@ -27,9 +27,9 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/security/common/containerutils"
 	usergrouputils "github.com/DataDog/datadog-agent/pkg/security/common/usergrouputils"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 

@@ -13,12 +13,18 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-// RemoveLastAppliedConfigurationAnnotation redacts the whole
+const consulOriginalPodAnnotation = "consul.hashicorp.com/original-pod"
+
+var sensitiveAnnotations = []string{v1.LastAppliedConfigAnnotation, consulOriginalPodAnnotation}
+
+// RemoveSensitiveAnnotations redacts sensitive annotations like the whole
 // "kubectl.kubernetes.io/last-applied-configuration" annotation value. As it
 // may contain duplicate information and secrets.
-func RemoveLastAppliedConfigurationAnnotation(annotations map[string]string) {
-	if _, found := annotations[v1.LastAppliedConfigAnnotation]; found {
-		annotations[v1.LastAppliedConfigAnnotation] = redactedAnnotationValue
+func RemoveSensitiveAnnotations(annotations map[string]string) {
+	for _, v := range sensitiveAnnotations {
+		if _, found := annotations[v]; found {
+			annotations[v] = redactedAnnotationValue
+		}
 	}
 }
 

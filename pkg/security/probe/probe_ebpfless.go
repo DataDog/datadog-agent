@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -294,7 +295,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	}
 
 	// container context
-	event.ContainerContext.ContainerID = model.ContainerID(syscallMsg.ContainerID)
+	event.ContainerContext.ContainerID = containerutils.ContainerID(syscallMsg.ContainerID)
 	if containerContext, exists := p.containerContexts[syscallMsg.ContainerID]; exists {
 		event.ContainerContext.CreatedAt = containerContext.CreatedAt
 		event.ContainerContext.Tags = []string{

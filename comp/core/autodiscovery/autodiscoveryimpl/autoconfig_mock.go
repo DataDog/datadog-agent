@@ -9,7 +9,6 @@ package autodiscoveryimpl
 
 import (
 	"net/http"
-	"testing"
 
 	"go.uber.org/fx"
 
@@ -18,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -64,12 +62,4 @@ func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newMockAutoConfig),
 	)
-}
-
-// CreateMockAutoConfig creates a mock AutoConfig for testing
-func CreateMockAutoConfig(t *testing.T, scheduler *scheduler.Controller) autodiscovery.Mock {
-	return fxutil.Test[autodiscovery.Mock](t, fx.Options(
-		fx.Supply(MockParams{Scheduler: scheduler}),
-		taggerimpl.MockModule(),
-		MockModule()))
 }
