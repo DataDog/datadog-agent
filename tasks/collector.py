@@ -19,6 +19,29 @@ LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repo
 """
 OCB_VERSION = "0.104.0"
 
+MANDATORY_COMPONENTS = {
+    "extensions": [
+        "zpagesextension",
+        "healthcheckextension",
+        "pprofextension",
+    ],
+    "receivers": [
+        "prometheusreceiver",
+    ],
+}
+
+COMPONENTS_TO_STRIP = {
+    "connectors": [
+        "datadogconnector",
+    ],
+    "exporters": [
+        "datadogexporter",
+    ],
+    "receivers": [
+        "awscontainerinsightreceiver",
+    ],
+}
+
 BASE_URL = (
     f"https://github.com/open-telemetry/opentelemetry-collector/releases/download/cmd%2Fbuilder%2Fv{OCB_VERSION}/"
 )
@@ -34,6 +57,76 @@ BINARY_NAMES_BY_SYSTEM_AND_ARCH = {
         "arm64": f"ocb_{OCB_VERSION}_darwin_arm64",
     },
 }
+
+
+class YAMLValidationError(Exception):
+    def __init__(self, message):
+        super().__init__(message)
+
+
+def validate_manifest(manifest):  # return list of components to remove, empty list if valid
+    # validate collector version matches ocb version
+    version_checks = ["otelcol_version"]
+    for version in version_checks:
+        manifest_version = manifest.get("dist").get(version)
+        if manifest_version and manifest_version != OCB_VERSION:
+            raise YAMLValidationError(
+                f"Collector version ({manifest_version}) in manifest does not match required OCB version ({OCB_VERSION})"
+            )
+    # validate component versions matches ocb version
+    module_types = ["extensions", "exporters", "processors", "receivers", "connectors"]
+    for module_type in module_types:
+        for components in manifest.get(module_type):
+            for module in components.values():
+                if module.find(OCB_VERSION) == -1:
+                    raise YAMLValidationError(
+                        f"Extension {module}) in manifest does not match required OCB version ({OCB_VERSION})"
+                    )
+    # validate mandatory components are present
+    missing_components = []
+    for component_type, components in MANDATORY_COMPONENTS.items():
+        for component in components:
+            found_component = False
+            for module in manifest.get(component_type):
+                if module.get("gomod").find(component) != -1:
+                    found_component = True
+                    break
+            if not found_component:
+                missing_components.append(component)
+    if missing_components:
+        raise YAMLValidationError(f"Missing mandatory components in manifest: {', '.join(missing_components)}")
+    # determine if conflicting components are included in manifest, and if so, return list to remove
+    conflicting_components = []
+    for component_type, components in COMPONENTS_TO_STRIP.items():
+        for component in components:
+            for module in manifest.get(component_type):
+                if module.get("gomod").find(component) != -1:
+                    conflicting_components.append(component)
+                    break
+    return conflicting_components
+
+
+def strip_invalid_components(file_path, components_to_remove):
+    lines = []
+    try:
+        with open(file_path) as file:
+            lines = file.readlines()
+    except Exception as e:
+        raise Exit(
+            color_message(f"Failed to read manifest file: {e}", Color.RED),
+            code=1,
+        ) from e
+    try:
+        with open(file_path, "w") as file:
+            for line in lines:
+                if any(component in line for component in components_to_remove):
+                    continue
+                file.write(line)
+    except Exception as e:
+        raise Exit(
+            color_message(f"Failed to write to manifest file: {e}", Color.RED),
+            code=1,
+        ) from e
 
 
 @task(post=[tidy])
@@ -85,15 +178,20 @@ def generate(ctx):
     # Read the output path from the manifest file
     impl_path = "./comp/otelcol/collector-contrib/impl"
     output_path = None
+    components_to_remove = []
     try:
         with open(config_path) as file:
             manifest = yaml.safe_load(file)
             output_path = manifest["dist"]["output_path"]
+            components_to_remove = validate_manifest(manifest)
     except Exception as e:
         raise Exit(
             color_message(f"Failed to read manifest file: {e}", Color.RED),
             code=1,
         ) from e
+
+    if components_to_remove:
+        strip_invalid_components(config_path, components_to_remove)
 
     if output_path != impl_path:
         files_to_copy = ["components.go", "go.mod"]
