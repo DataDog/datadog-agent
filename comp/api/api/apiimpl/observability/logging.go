@@ -41,7 +41,9 @@ func logResponseHandler(serverName string, getLogFunc func(int) logFunc, clock c
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var statusCode int
-			next = extractStatusCodeHandler(&statusCode)(next)
+			// the next argument is defined outside this function so it must not be written to,
+			// otherwise every use will add a new layer of middlewares
+			next := extractStatusCodeHandler(&statusCode)(next)
 
 			var duration time.Duration
 			next = timeHandler(clock, &duration)(next)
