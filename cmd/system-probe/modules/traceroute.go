@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	tracerouteutil "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 type traceroute struct {
@@ -39,7 +38,7 @@ var (
 	tracerouteConfigNamespaces = []string{"traceroute"}
 )
 
-func createTracerouteModule(_ *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], telemetry telemetry.Component) (module.Module, error) {
+func createTracerouteModule(_ *sysconfigtypes.Config, _ workloadmeta.Component, telemetry telemetry.Component) (module.Module, error) {
 	runner, err := tracerouteutil.NewRunner(telemetry)
 	if err != nil {
 		return &traceroute{}, err

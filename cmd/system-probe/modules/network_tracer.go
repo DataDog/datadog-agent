@@ -38,7 +38,6 @@ import (
 	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // ErrSysprobeUnsupported is the unsupported error prefix, for error-class matching from callers
@@ -49,7 +48,7 @@ const inactivityRestartDuration = 20 * time.Minute
 
 var networkTracerModuleConfigNamespaces = []string{"network_config", "service_monitoring_config"}
 
-func createNetworkTracerModule(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], telemetryComponent telemetryComponent.Component) (module.Module, error) {
+func createNetworkTracerModule(cfg *sysconfigtypes.Config, _ workloadmeta.Component, telemetryComponent telemetryComponent.Component) (module.Module, error) {
 	ncfg := networkconfig.New()
 
 	// Checking whether the current OS + kernel version is supported by the tracer

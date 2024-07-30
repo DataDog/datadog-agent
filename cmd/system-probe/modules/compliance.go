@@ -23,7 +23,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"go.uber.org/atomic"
 )
@@ -37,7 +36,7 @@ import (
 var ComplianceModule = module.Factory{
 	Name:             config.ComplianceModule,
 	ConfigNamespaces: []string{},
-	Fn: func(_ *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], _ telemetry.Component) (module.Module, error) {
+	Fn: func(_ *sysconfigtypes.Config, _ workloadmeta.Component, _ telemetry.Component) (module.Module, error) {
 		return &complianceModule{}, nil
 	},
 	NeedsEBPF: func() bool {
