@@ -29,6 +29,7 @@ import (
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
@@ -38,7 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
@@ -117,7 +118,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		params := core.BundleParams{
 			ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
 			SecretParams: secrets.NewEnabledParams(),
-			LogParams:    logimpl.ForOneShot(command.LoggerName, cliParams.jmxLogLevel, false)}
+			LogParams:    log.ForOneShot(command.LoggerName, cliParams.jmxLogLevel, false)}
 		if cliParams.logFile != "" {
 			params.LogParams.LogToFile(cliParams.logFile)
 		}
@@ -151,6 +152,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
 			fx.Supply(optional.NewNoneOption[collector.Component]()),
 			fx.Supply(optional.NewNoneOption[logsAgent.Component]()),
+			fx.Supply(optional.NewNoneOption[integrations.Component]()),
 			fx.Provide(func() dogstatsdServer.Component { return nil }),
 			fx.Provide(func() pidmap.Component { return nil }),
 			fx.Provide(func() replay.Component { return nil }),
@@ -297,7 +299,8 @@ func runJmxCommandConsole(config config.Component,
 	secretResolver secrets.Component,
 	agentAPI internalAPI.Component,
 	collector optional.Option[collector.Component],
-	jmxLogger jmxlogger.Component) error {
+	jmxLogger jmxlogger.Component,
+	logReceiver optional.Option[integrations.Component]) error {
 	// This prevents log-spam from "comp/core/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
 	// It appears that this collector creates some contention in AD.
 	// Disabling it is both more efficient and gets rid of this log spam
@@ -314,7 +317,7 @@ func runJmxCommandConsole(config config.Component,
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
-	pkgcollector.InitCheckScheduler(collector, senderManager)
+	pkgcollector.InitCheckScheduler(collector, senderManager, logReceiver)
 
 	// if cliSelectedChecks is empty, then we want to fetch all check configs;
 	// otherwise, we fetch only the matching cehck configs.

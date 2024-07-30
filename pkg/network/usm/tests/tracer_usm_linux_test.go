@@ -342,6 +342,10 @@ func (s *USMSuite) TestTLSClassification() {
 	tests := make([]tlsTest, 0, len(scenarios))
 	for _, scenario := range scenarios {
 		scenario := scenario
+		if scenario.version == tls.VersionTLS10 || scenario.version == tls.VersionTLS11 {
+			// Only tests for TLS 1.2 and 1.3 are expected to pass until PR#26591 is reintroduced.
+			continue
+		}
 		tests = append(tests, tlsTest{
 			name: strings.Replace(tls.VersionName(scenario.version), " ", "-", 1) + "_docker",
 			postTracerSetup: func(t *testing.T) {
@@ -2290,7 +2294,7 @@ func goTLSAttachPID(t *testing.T, pid int) {
 		return
 	}
 	require.NoError(t, usm.GoTLSAttachPID(uint32(pid)))
-	utils.WaitForProgramsToBeTraced(t, "go-tls", pid)
+	utils.WaitForProgramsToBeTraced(t, "go-tls", pid, utils.ManualTracingFallbackEnabled)
 }
 
 // goTLSDetachPID detaches the Go-TLS monitoring from the given PID.

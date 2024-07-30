@@ -7,6 +7,7 @@ package containers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 
 	"github.com/fatih/color"
 	"github.com/samber/lo"
@@ -54,6 +56,7 @@ type k8sSuite struct {
 	KubeClusterName             string
 	AgentLinuxHelmInstallName   string
 	AgentWindowsHelmInstallName string
+	KubernetesAgentRef          *components.KubernetesAgent
 
 	K8sConfig *restclient.Config
 	K8sClient kubernetes.Interface
@@ -133,7 +136,7 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 			}
 
 			linuxPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("app", suite.AgentLinuxHelmInstallName+"-datadog").String(),
+				LabelSelector: fields.OneTermEqualSelector("app", suite.KubernetesAgentRef.LinuxNodeAgent.LabelSelectors["app"]).String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoErrorf(c, err, "Failed to list Linux datadog agent pods") {
@@ -141,7 +144,7 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 			}
 
 			windowsPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("app", suite.AgentWindowsHelmInstallName+"-datadog").String(),
+				LabelSelector: fields.OneTermEqualSelector("app", suite.KubernetesAgentRef.WindowsNodeAgent.LabelSelectors["app"]).String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoErrorf(c, err, "Failed to list Windows datadog agent pods") {
@@ -149,7 +152,7 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 			}
 
 			clusterAgentPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("app", suite.AgentLinuxHelmInstallName+"-datadog-cluster-agent").String(),
+				LabelSelector: fields.OneTermEqualSelector("app", suite.KubernetesAgentRef.LinuxClusterAgent.LabelSelectors["app"]).String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoErrorf(c, err, "Failed to list datadog cluster agent pods") {
@@ -157,7 +160,7 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 			}
 
 			clusterChecksPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("app", suite.AgentLinuxHelmInstallName+"-datadog-clusterchecks").String(),
+				LabelSelector: fields.OneTermEqualSelector("app", suite.KubernetesAgentRef.LinuxClusterChecks.LabelSelectors["app"]).String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoErrorf(c, err, "Failed to list datadog cluster checks runner pods") {
@@ -201,22 +204,22 @@ func (suite *k8sSuite) TestVersion() {
 	}{
 		{
 			"Linux agent",
-			suite.AgentLinuxHelmInstallName + "-datadog",
+			suite.KubernetesAgentRef.LinuxNodeAgent.LabelSelectors["app"],
 			"agent",
 		},
 		{
 			"Windows agent",
-			suite.AgentWindowsHelmInstallName + "-datadog",
+			suite.KubernetesAgentRef.WindowsNodeAgent.LabelSelectors["app"],
 			"agent",
 		},
 		{
 			"cluster agent",
-			suite.AgentLinuxHelmInstallName + "-datadog-cluster-agent",
+			suite.KubernetesAgentRef.LinuxClusterAgent.LabelSelectors["app"],
 			"cluster-agent",
 		},
 		{
 			"cluster checks",
-			suite.AgentLinuxHelmInstallName + "-datadog-clusterchecks",
+			suite.KubernetesAgentRef.LinuxClusterChecks.LabelSelectors["app"],
 			"agent",
 		},
 	} {
@@ -248,21 +251,137 @@ func (suite *k8sSuite) TestVersion() {
 	}
 }
 
-func (suite *k8sSuite) TestClusterAgentConfigCheck() {
-	ctx := context.Background()
-	suite.Run("cluster agent pods return the right information for the config check command", func() {
-		appSelector := suite.AgentLinuxHelmInstallName + "-datadog-cluster-agent"
+func (suite *k8sSuite) TestCLI() {
+	suite.Run("agent CLI", func() { suite.testAgentCLI() })
+	suite.Run("cluster agent CLI", func() { suite.testClusterAgentCLI() })
+}
 
-		linuxPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-			LabelSelector: fields.OneTermEqualSelector("app", appSelector).String(),
-			Limit:         1,
-		})
+func (suite *k8sSuite) testAgentCLI() {
+	ctx := context.Background()
+
+	pod, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", suite.KubernetesAgentRef.LinuxNodeAgent.LabelSelectors["app"]).String(),
+		Limit:         1,
+	})
+	suite.Require().NoError(err)
+	suite.Require().Len(pod.Items, 1)
+
+	suite.Run("agent status", func() {
+		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "status"})
 		suite.Require().NoError(err)
-		suite.Require().Len(linuxPods.Items, 1)
-		stdout, stderr, err := suite.podExec("datadog", linuxPods.Items[0].Name, "cluster-agent", []string{"agent", "configcheck"})
+		suite.Empty(stderr, "Standard error of `agent status` should be empty")
+		suite.Contains(stdout, "Collector")
+		suite.Contains(stdout, "Running Checks")
+		suite.Contains(stdout, "Instance ID: container [OK]")
+	})
+
+	suite.Run("agent status --json", func() {
+		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "status", "--json"})
 		suite.Require().NoError(err)
-		suite.Empty(stderr, "Standard error of `agent configcheck` should be empty")
-		suite.Contains(stdout, "=== kubernetes_apiserver check ===")
+		suite.Empty(stderr, "Standard error of `agent status` should be empty")
+		if !suite.Truef(json.Valid([]byte(stdout)), "Output of `agent status --json` isn’t valid JSON") {
+			var blob interface{}
+			err := json.Unmarshal([]byte(stdout), &blob)
+			suite.NoError(err)
+		}
+	})
+
+	suite.Run("agent checkconfig", func() {
+		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "checkconfig"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent checkconfig` should be empty")
+		suite.Contains(stdout, "=== container check ===")
+		suite.Contains(stdout, "Config for instance ID: container:")
+	})
+
+	suite.Run("agent check -r container", func() {
+		suite.EventuallyWithT(func(c *assert.CollectT) {
+			stdout, _, err := suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "check", "-r", "container", "--table", "--delay", "1000"})
+			// Can be replaced by require.NoError(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NoError(c, err) {
+				return
+			}
+			assert.Contains(c, stdout, "container.memory.usage        gauge")
+		}, 2*time.Minute, 1*time.Second)
+	})
+
+	suite.Run("agent check -r container --json", func() {
+		suite.EventuallyWithT(func(c *assert.CollectT) {
+			stdout, _, err := suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "check", "-r", "container", "--table", "--delay", "1000", "--json"})
+			// Can be replaced by require.NoError(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NoError(c, err) {
+				return
+			}
+			if !assert.Truef(c, json.Valid([]byte(stdout)), "Output of `agent check -r container --json` isn’t valid JSON") {
+				var blob interface{}
+				err := json.Unmarshal([]byte(stdout), &blob)
+				assert.NoError(c, err)
+			}
+		}, 2*time.Minute, 1*time.Second)
+	})
+
+	suite.Run("agent workload-list", func() {
+		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "workload-list", "-v"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent workload-list` should be empty")
+		suite.Contains(stdout, "=== Entity container sources(merged):[node_orchestrator runtime] id: ")
+		suite.Contains(stdout, "=== Entity kubernetes_pod sources(merged):[cluster_orchestrator node_orchestrator] id: ")
+	})
+
+	suite.Run("agent tagger-list", func() {
+		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "tagger-list"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent tagger-list` should be empty")
+		suite.Contains(stdout, "=== Entity container_id://")
+		suite.Contains(stdout, "=== Entity kubernetes_pod_uid://")
+	})
+}
+
+func (suite *k8sSuite) testClusterAgentCLI() {
+	ctx := context.Background()
+
+	pod, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", suite.KubernetesAgentRef.LinuxClusterAgent.LabelSelectors["app"]).String(),
+		Limit:         1,
+	})
+	suite.Require().NoError(err)
+	suite.Require().Len(pod.Items, 1)
+
+	suite.Run("cluster-agent status", func() {
+		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "cluster-agent", []string{"datadog-cluster-agent", "status"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `datadog-cluster-agent status` should be empty")
+		suite.Contains(stdout, "Collector")
+		suite.Contains(stdout, "Running Checks")
+		suite.Contains(stdout, "kubernetes_state_core")
+	})
+
+	suite.Run("cluster-agent status --json", func() {
+		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "cluster-agent", []string{"env", "DD_LOG_LEVEL=off", "datadog-cluster-agent", "status", "--json"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `datadog-cluster-agent status` should be empty")
+		if !suite.Truef(json.Valid([]byte(stdout)), "Output of `datadog-cluster-agent status --json` isn’t valid JSON") {
+			var blob interface{}
+			err := json.Unmarshal([]byte(stdout), &blob)
+			suite.NoError(err)
+		}
+	})
+
+	suite.Run("cluster-agent checkconfig", func() {
+		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "cluster-agent", []string{"datadog-cluster-agent", "checkconfig"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `datadog-cluster-agent checkconfig` should be empty")
+		suite.Contains(stdout, "=== kubernetes_state_core check ===")
+		suite.Contains(stdout, "Config for instance ID: kubernetes_state_core:")
+	})
+
+	suite.Run("cluster-agent clusterchecks", func() {
+		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "cluster-agent", []string{"datadog-cluster-agent", "clusterchecks"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `datadog-cluster-agent clusterchecks` should be empty")
+		suite.Contains(stdout, "agents reporting ===")
+		suite.Contains(stdout, "===== Checks on ")
+		suite.Contains(stdout, "=== helm check ===")
 	})
 }
 
@@ -294,6 +413,8 @@ func (suite *k8sSuite) TestNginx() {
 				`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^short_image:apps-nginx-server$`,
+				`^email:team-container-platform@datadoghq.com$`,
+				`^team:contp$`,
 			},
 			AcceptUnexpectedTags: true,
 		},
@@ -367,6 +488,8 @@ func (suite *k8sSuite) TestNginx() {
 				`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^short_image:apps-nginx-server$`,
+				`^email:team-container-platform@datadoghq.com$`,
+				`^team:contp$`,
 			},
 			Message: `GET / HTTP/1\.1`,
 		},

@@ -12,6 +12,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -36,6 +37,7 @@ import (
 func (a *logAgent) SetupPipeline(
 	processingRules []*config.ProcessingRule,
 	wmeta optional.Option[workloadmeta.Component],
+	_ integrations.Component,
 ) {
 	health := health.RegisterLiveness("logs-agent")
 
@@ -67,11 +69,5 @@ func (a *logAgent) SetupPipeline(
 
 // buildEndpoints builds endpoints for the logs agent
 func buildEndpoints(coreConfig pkgConfig.Reader) (*config.Endpoints, error) {
-	config, err := config.BuildServerlessEndpoints(coreConfig, intakeTrackType, config.DefaultIntakeProtocol)
-	if err != nil {
-		return nil, err
-	}
-	// in serverless mode, we never want the batch strategy to flush with a tick
-	config.BatchWait = 365 * 24 * time.Hour
-	return config, nil
+	return config.BuildServerlessEndpoints(coreConfig, intakeTrackType, config.DefaultIntakeProtocol)
 }

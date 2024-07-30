@@ -64,7 +64,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	_, found := deps.EventPlatformFwd.Get()
 	require.True(found)
 	_, found = deps.OrchestratorFwd.Get()
-	require.False(found)
+	require.Equal(orchestratorForwarderSupport, found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
@@ -77,7 +77,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	_, found = deps.EventPlatformFwd.Get()
 	require.False(found)
 	_, found = deps.OrchestratorFwd.Get()
-	require.False(found)
+	require.Equal(orchestratorForwarderSupport, found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
@@ -90,7 +90,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	_, found = deps.EventPlatformFwd.Get()
 	require.True(found)
 	_, found = deps.OrchestratorFwd.Get()
-	require.False(found)
+	require.Equal(orchestratorForwarderSupport, found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
@@ -147,28 +147,12 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	require.True(found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
-
-	// no options to disable it, but the feature is not enabled
-
-	pkgconfig.Datadog().SetWithoutSource("orchestrator_explorer.enabled", false)
-
-	opts = demuxTestOptions()
-	deps = createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
-	demux = deps.Demultiplexer
-	require.NotNil(demux)
-	_, found = deps.EventPlatformFwd.Get()
-	require.True(found)
-	_, found = deps.OrchestratorFwd.Get()
-	require.False(found)
-	require.NotNil(deps.SharedForwarder)
-	demux.Stop(false)
 }
 
 func TestDemuxSerializerCreated(t *testing.T) {
 	require := require.New(t)
 
-	// default options should have created all forwarders except for the orchestrator
-	// forwarders since we're not in a cluster-agent environment
+	// default options should have created all forwarders
 
 	opts := demuxTestOptions()
 	deps := createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
@@ -183,8 +167,7 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	require := require.New(t)
 	var defaultCheckID checkid.ID // empty checkid.ID is the default sender ID
 
-	// default options should have created all forwarders except for the orchestrator
-	// forwarders since we're not in a cluster-agent environment
+	// default options should have created all forwarders
 
 	opts := demuxTestOptions()
 	opts.FlushInterval = time.Hour

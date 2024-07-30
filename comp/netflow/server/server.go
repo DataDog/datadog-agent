@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
@@ -57,10 +57,10 @@ func newServer(lc fx.Lifecycle, deps dependencies) (provides, error) {
 	// it with a noop implementation.
 	rdnsQuerier := deps.RDNSQuerier
 	if conf.ReverseDNSEnrichmentEnabled {
-		deps.Logger.Debugf("NetFlow Reverse DNS Enrichment enabled")
+		deps.Logger.Infof("Reverse DNS Enrichment is enabled for NDM NetFlow")
 	} else {
 		rdnsQuerier = rdnsquerierimplnone.NewNone().Comp
-		deps.Logger.Debugf("NetFlow Reverse DNS Enrichment disabled")
+		deps.Logger.Infof("Reverse DNS Enrichment is disabled for NDM NetFlow")
 	}
 
 	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger, rdnsQuerier)

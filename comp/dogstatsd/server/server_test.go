@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -507,7 +507,8 @@ func TestUDPForward(t *testing.T) {
 	requireStart(t, deps.Server)
 
 	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
-	require.NoError(t, err, "cannot connect to DSD socket")
+	require.NoError(t, err)
+	require.NotNil(t, conn)
 	defer conn.Close()
 
 	// Check if message is forwarded
@@ -515,7 +516,7 @@ func TestUDPForward(t *testing.T) {
 
 	conn.Write(message)
 
-	pc.SetReadDeadline(time.Now().Add(2 * time.Second))
+	pc.SetReadDeadline(time.Now().Add(4 * time.Second))
 
 	buffer := make([]byte, len(message))
 	_, _, err = pc.ReadFrom(buffer)

@@ -16,6 +16,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 )
 
@@ -67,17 +68,14 @@ func (r *Releasable) AppendReleaseCallback(callback func()) {
 	}
 }
 
-// ContainerID represents a container ID
-type ContainerID string
-
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
 	Releasable
-	ContainerID ContainerID `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
-	CreatedAt   uint64      `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
-	Tags        []string    `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
-	Resolved    bool        `field:"-"`
-	Runtime     string      `field:"runtime,handler:ResolveContainerRuntime"` // SECLDoc[runtime] Definition:`Runtime managing the container`
+	ContainerID containerutils.ContainerID `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
+	CreatedAt   uint64                     `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
+	Tags        []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
+	Resolved    bool                       `field:"-"`
+	Runtime     string                     `field:"runtime,handler:ResolveContainerRuntime"` // SECLDoc[runtime] Definition:`Runtime managing the container`
 }
 
 // SecurityProfileContext holds the security context of the profile
@@ -99,11 +97,11 @@ type IPPortContext struct {
 type NetworkContext struct {
 	Device NetworkDeviceContext `field:"device"` // network device on which the network packet was captured
 
-	L3Protocol  uint16        `field:"l3_protocol"` // SECLDoc[l3_protocol] Definition:`l3 protocol of the network packet` Constants:`L3 protocols`
-	L4Protocol  uint16        `field:"l4_protocol"` // SECLDoc[l4_protocol] Definition:`l4 protocol of the network packet` Constants:`L4 protocols`
+	L3Protocol  uint16        `field:"l3_protocol"` // SECLDoc[l3_protocol] Definition:`L3 protocol of the network packet` Constants:`L3 protocols`
+	L4Protocol  uint16        `field:"l4_protocol"` // SECLDoc[l4_protocol] Definition:`L4 protocol of the network packet` Constants:`L4 protocols`
 	Source      IPPortContext `field:"source"`      // source of the network packet
 	Destination IPPortContext `field:"destination"` // destination of the network packet
-	Size        uint32        `field:"size"`        // SECLDoc[size] Definition:`size in bytes of the network packet`
+	Size        uint32        `field:"size"`        // SECLDoc[size] Definition:`Size in bytes of the network packet`
 }
 
 // SpanContext describes a span context
@@ -141,12 +139,6 @@ type BaseEvent struct {
 	// field resolution
 	FieldHandlers FieldHandlers `field:"-"`
 }
-
-// CGroupID represents a cgroup ID
-type CGroupID string
-
-// CGroupFlags represents the flags of a cgroup
-type CGroupFlags uint64
 
 func initMember(member reflect.Value, deja map[string]bool) {
 	for i := 0; i < member.NumField(); i++ {
@@ -321,6 +313,7 @@ type MatchedRule struct {
 // ActionReport defines an action report
 type ActionReport interface {
 	ToJSON() ([]byte, bool, error)
+	IsMatchingRule(ruleID eval.RuleID) bool
 }
 
 // NewMatchedRule return a new MatchedRule instance

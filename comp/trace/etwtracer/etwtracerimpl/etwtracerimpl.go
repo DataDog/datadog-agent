@@ -28,7 +28,7 @@ import (
 	"go.uber.org/fx"
 	"golang.org/x/sys/windows"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/etw"
 	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

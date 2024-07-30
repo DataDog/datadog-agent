@@ -73,6 +73,7 @@ func TestTraceExporter(t *testing.T) {
 
 	params := exportertest.NewNopSettings()
 	tcfg := config.New()
+	tcfg.ReceiverEnabled = false
 	tcfg.TraceWriter.FlushPeriodSeconds = 0.1
 	tcfg.Endpoints[0].APIKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	tcfg.Endpoints[0].Host = server.URL
@@ -104,6 +105,7 @@ func TestNewTracesExporter(t *testing.T) {
 	tcfg := config.New()
 	tcfg.Endpoints[0].APIKey = "ddog_32_characters_long_api_key1"
 	ctx := context.Background()
+	tcfg.ReceiverEnabled = false
 	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
 	// The client should have been created correctly

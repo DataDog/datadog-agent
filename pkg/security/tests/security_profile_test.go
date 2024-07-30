@@ -16,14 +16,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 func TestSecurityProfile(t *testing.T) {
@@ -869,7 +873,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(rule *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.ContainerID == model.ContainerID(dump.ContainerID) {
+			if event.ProcessContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
 				t.Fatal("Got a signal that should have been suppressed")
 			}
 			return false
@@ -888,7 +892,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(rule *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.ContainerID == model.ContainerID(dump.ContainerID) {
+			if event.ProcessContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
 				t.Fatal("Got a signal that should have been suppressed")
 			}
 			return false
@@ -2072,5 +2076,423 @@ func TestSecurityProfilePersistence(t *testing.T) {
 				t.Fatal(otherErr)
 			}
 		}
+	})
+}
+
+func generateSyscallTestProfile(add ...model.Syscall) *dumpsv1.SecurityProfile {
+	syscallProfile := &dumpsv1.SecurityProfile{
+		Selector: &dumpsv1.ProfileSelector{
+			ImageName: "fake_ubuntu",
+			ImageTag:  "latest",
+		},
+		ProfileContexts: map[string]*dumpsv1.ProfileContext{
+			"latest": {
+				Syscalls: []uint32{
+					5,   // SysFstat
+					10,  // SysMprotect
+					11,  // SysMunmap
+					12,  // SysBrk
+					13,  // SysRtSigaction
+					14,  // SysRtSigprocmask
+					15,  // SysRtSigreturn
+					17,  // SysPread64
+					24,  // SysSchedYield
+					28,  // SysMadvise
+					35,  // SysNanosleep
+					39,  // SysGetpid
+					56,  // SysClone
+					63,  // SysUname
+					72,  // SysFcntl
+					79,  // SysGetcwd
+					80,  // SysChdir
+					97,  // SysGetrlimit
+					102, // SysGetuid
+					105, // SysSetuid
+					106, // SysSetgid
+					116, // SysSetgroups
+					125, // SysCapget
+					126, // SysCapset
+					131, // SysSigaltstack
+					137, // SysStatfs
+					138, // SysFstatfs
+					157, // SysPrctl
+					158, // SysArchPrctl
+					186, // SysGettid
+					202, // SysFutex
+					204, // SysSchedGetaffinity
+					217, // SysGetdents64
+					218, // SysSetTidAddress
+					233, // SysEpollCtl
+					234, // SysTgkill
+					250, // SysKeyctl
+					257, // SysOpenat
+					262, // SysNewfstatat
+					267, // SysReadlinkat
+					273, // SysSetRobustList
+					281, // SysEpollPwait
+					291, // SysEpollCreate1
+					293, // SysPipe2
+					317, // SysSeccomp
+					334, // SysRseq
+					435, // SysClone3
+					439, // SysFaccessat2
+				},
+			},
+		},
+	}
+	for _, toAdd := range add {
+		if !slices.Contains(syscallProfile.ProfileContexts["latest"].Syscalls, uint32(toAdd)) {
+			syscallProfile.ProfileContexts["latest"].Syscalls = append(syscallProfile.ProfileContexts["latest"].Syscalls, uint32(toAdd))
+		}
+	}
+	return syscallProfile
+}
+
+func checkExpectedSyscalls(t *testing.T, got []model.Syscall, expectedSyscalls []model.Syscall, eventReason model.SyscallDriftEventReason, testOutput map[model.SyscallDriftEventReason]bool) bool {
+	for _, s := range expectedSyscalls {
+		if !slices.Contains(got, s) {
+			t.Logf("A %s syscall drift event was received with the wrong list of syscalls. Expected %v, got %v", eventReason, expectedSyscalls, got)
+			return false
+		}
+	}
+	if len(got) != len(expectedSyscalls) {
+		t.Logf("A %s syscall drift event was received with additional syscalls. Expected %v, got %v", eventReason, expectedSyscalls, got)
+		return false
+	}
+	testOutput[eventReason] = true
+
+	// If all 3 reasons are OK, exit early
+	return testOutput[model.ExecveReason] && testOutput[model.ExitReason] && testOutput[model.SyscallMonitorPeriodReason]
+}
+
+func TestSecurityProfileSyscallDrift(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// this test is only available on amd64
+	if utils.RuntimeArch() != "x64" {
+		t.Skip("Skip test when not running on amd64")
+	}
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+	if !IsDedicatedNodeForAD() {
+		t.Skip("Skip test when not run in dedicated env")
+	}
+
+	outputDir := t.TempDir()
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		activityDumpSyscallMonitorPeriod:           3 * time.Second,
+		anomalyDetectionDefaultMinimumStablePeriod: 1 * time.Second,
+		anomalyDetectionEventTypes:                 []string{"exec", "syscalls"},
+		anomalyDetectionWarmupPeriod:               1 * time.Second,
+		enableSecurityProfile:                      true,
+		enableAnomalyDetection:                     true,
+		securityProfileDir:                         outputDir,
+		tagsResolver:                               NewFakeMonoResolver(),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var dockerInstance *dockerCmdWrapper
+	dockerInstance, err = test.StartADocker()
+	if err != nil {
+		t.Fatalf("failed to start a Docker instance: %v", err)
+	}
+
+	testOutput := map[model.SyscallDriftEventReason]bool{
+		model.ExecveReason:               false,
+		model.ExitReason:                 false,
+		model.SyscallMonitorPeriodReason: false,
+	}
+
+	t.Run("activity-dump-syscall-drift", func(t *testing.T) {
+		if err = test.GetProbeEvent(func() error {
+			secProfileManager := test.probe.PlatformProbe.GetProfileManager().(*probe.SecurityProfileManagers).GetSecurityProfileManager()
+			secProfileManager.OnNewProfileEvent(cgroupModel.WorkloadSelector{
+				Image: "fake_ubuntu",
+				Tag:   "latest",
+			}, generateSyscallTestProfile())
+
+			time.Sleep(1 * time.Second) // ensure the profile has time to be pushed kernel space
+
+			// run the syscall drift test command
+			cmd := dockerInstance.Command(goSyscallTester, []string{"-syscall-drift-test"}, []string{})
+			_, err = cmd.CombinedOutput()
+			return err
+		}, func(event *model.Event) bool {
+			if event.GetType() == "syscalls" {
+				var expectedSyscalls []model.Syscall
+				switch event.Syscalls.EventReason {
+				case model.ExecveReason:
+					// Context: this syscall drift event should be sent when `runc.XXXX` execs into the syscall tester.
+					// Only basic syscalls performed to prepare the execution of the syscall tester, and that are
+					// not in the profile should be here. This includes the Execve syscall itself
+					expectedSyscalls = []model.Syscall{
+						model.SysRead,
+						model.SysWrite,
+						model.SysClose,
+						model.SysMmap,
+						model.SysExecve,
+					}
+				case model.SyscallMonitorPeriodReason:
+					// Context: this event should be sent by the openat syscall made by the syscall tester while creating the
+					// temporary file. The openat syscall itself shouldn't be in the list, since it is already in the profile.
+					// Thus, only basic syscalls performed during the start of the execution of the syscall tester, and that are
+					// not in the profile should be here.
+					expectedSyscalls = []model.Syscall{
+						model.SysRead,
+						model.SysClose,
+						model.SysMmap,
+					}
+				case model.ExitReason:
+					// Context: this event should be sent when the syscall tester exits and the last dirty syscall cache entry
+					// is flushed to user space. This event should include only the file management syscalls that
+					// are performed by the syscall tester after the sleep, and that aren't in the profile.
+					expectedSyscalls = []model.Syscall{
+						model.SysWrite,
+						model.SysClose,
+						model.SysExitGroup,
+						model.SysUnlinkat,
+					}
+				default:
+					t.Errorf("unknown syscall drift event reason: %v", event.Syscalls.EventReason)
+					return false
+				}
+
+				return checkExpectedSyscalls(t, event.Syscalls.Syscalls, expectedSyscalls, event.Syscalls.EventReason, testOutput)
+			}
+			return false
+		}, 20*time.Second); err != nil {
+			t.Error(err)
+		}
+
+		// Make sure all 3 syscall drift events were received
+		for key, value := range testOutput {
+			if !value {
+				t.Errorf("missing syscall drift event reason: %v", key)
+			}
+		}
+
+		dockerInstance.stop()
+	})
+}
+
+func TestSecurityProfileSyscallDriftExecExitInProfile(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// this test is only available on amd64
+	if utils.RuntimeArch() != "x64" {
+		t.Skip("Skip test when not running on amd64")
+	}
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+	if !IsDedicatedNodeForAD() {
+		t.Skip("Skip test when not run in dedicated env")
+	}
+
+	outputDir := t.TempDir()
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		activityDumpSyscallMonitorPeriod:           3 * time.Second,
+		anomalyDetectionDefaultMinimumStablePeriod: 1 * time.Second,
+		anomalyDetectionEventTypes:                 []string{"exec", "syscalls"},
+		anomalyDetectionWarmupPeriod:               1 * time.Second,
+		enableSecurityProfile:                      true,
+		enableAnomalyDetection:                     true,
+		securityProfileDir:                         outputDir,
+		tagsResolver:                               NewFakeMonoResolver(),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var dockerInstance *dockerCmdWrapper
+	dockerInstance, err = test.StartADocker()
+	if err != nil {
+		t.Fatalf("failed to start a Docker instance: %v", err)
+	}
+
+	testOutput := map[model.SyscallDriftEventReason]bool{
+		model.ExecveReason:               false,
+		model.ExitReason:                 false,
+		model.SyscallMonitorPeriodReason: false,
+	}
+
+	t.Run("activity-dump-syscall-drift", func(t *testing.T) {
+		if err = test.GetProbeEvent(func() error {
+			secProfileManager := test.probe.PlatformProbe.GetProfileManager().(*probe.SecurityProfileManagers).GetSecurityProfileManager()
+			secProfileManager.OnNewProfileEvent(cgroupModel.WorkloadSelector{
+				Image: "fake_ubuntu",
+				Tag:   "latest",
+			}, generateSyscallTestProfile(model.SysExecve, model.SysExit, model.SysExitGroup))
+
+			time.Sleep(1 * time.Second) // ensure the profile has time to be pushed kernel space
+
+			// run the syscall drift test command
+			cmd := dockerInstance.Command(goSyscallTester, []string{"-syscall-drift-test"}, []string{})
+			_, err = cmd.CombinedOutput()
+			return err
+		}, func(event *model.Event) bool {
+			if event.GetType() == "syscalls" {
+				var expectedSyscalls []model.Syscall
+				switch event.Syscalls.EventReason {
+				case model.ExecveReason:
+					// Context: this syscall drift event should be sent when `runc.XXXX` execs into the syscall tester.
+					// Only basic syscalls performed to prepare the execution of the syscall tester, and that are
+					// not in the profile should be here. This includes the Execve syscall itself
+					expectedSyscalls = []model.Syscall{
+						model.SysRead,
+						model.SysWrite,
+						model.SysClose,
+						model.SysMmap,
+					}
+				case model.SyscallMonitorPeriodReason:
+					// Context: this event should be sent by the openat syscall made by the syscall tester while creating the
+					// temporary file. The openat syscall itself shouldn't be in the list, since it is already in the profile.
+					// Thus, only basic syscalls performed during the start of the execution of the syscall tester, and that are
+					// not in the profile should be here.
+					expectedSyscalls = []model.Syscall{
+						model.SysRead,
+						model.SysClose,
+						model.SysMmap,
+					}
+				case model.ExitReason:
+					// Context: this event should be sent when the syscall tester exits and the last dirty syscall cache entry
+					// is flushed to user space. This event should include only the file management syscalls that
+					// are performed by the syscall tester after the sleep, and that aren't in the profile.
+					expectedSyscalls = []model.Syscall{
+						model.SysWrite,
+						model.SysClose,
+						model.SysUnlinkat,
+					}
+				default:
+					t.Errorf("unknown syscall drift event reason: %v", event.Syscalls.EventReason)
+					return false
+				}
+
+				return checkExpectedSyscalls(t, event.Syscalls.Syscalls, expectedSyscalls, event.Syscalls.EventReason, testOutput)
+			}
+			return false
+		}, 20*time.Second); err != nil {
+			t.Error(err)
+		}
+
+		// Make sure all 3 syscall drift events were received
+		for key, value := range testOutput {
+			if !value {
+				t.Errorf("missing syscall drift event reason: %v", key)
+			}
+		}
+
+		dockerInstance.stop()
+	})
+}
+
+func TestSecurityProfileSyscallDriftNoNewSyscall(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// this test is only available on amd64
+	if utils.RuntimeArch() != "x64" {
+		t.Skip("Skip test when not running on amd64")
+	}
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+	if !IsDedicatedNodeForAD() {
+		t.Skip("Skip test when not run in dedicated env")
+	}
+
+	outputDir := t.TempDir()
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		activityDumpSyscallMonitorPeriod:           3 * time.Second,
+		anomalyDetectionDefaultMinimumStablePeriod: 1 * time.Second,
+		anomalyDetectionEventTypes:                 []string{"exec", "syscalls"},
+		anomalyDetectionWarmupPeriod:               1 * time.Second,
+		enableSecurityProfile:                      true,
+		enableAnomalyDetection:                     true,
+		securityProfileDir:                         outputDir,
+		tagsResolver:                               NewFakeMonoResolver(),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var dockerInstance *dockerCmdWrapper
+	dockerInstance, err = test.StartADocker()
+	if err != nil {
+		t.Fatalf("failed to start a Docker instance: %v", err)
+	}
+
+	t.Run("activity-dump-syscall-drift", func(t *testing.T) {
+		if err = test.GetProbeEvent(func() error {
+			secProfileManager := test.probe.PlatformProbe.GetProfileManager().(*probe.SecurityProfileManagers).GetSecurityProfileManager()
+			secProfileManager.OnNewProfileEvent(cgroupModel.WorkloadSelector{
+				Image: "fake_ubuntu",
+				Tag:   "latest",
+			}, generateSyscallTestProfile(
+				model.SysExecve,
+				model.SysExit,
+				model.SysExitGroup,
+				model.SysRead,
+				model.SysWrite,
+				model.SysClose,
+				model.SysMmap,
+				model.SysUnlinkat,
+			))
+
+			time.Sleep(1 * time.Second) // ensure the profile has time to be pushed kernel space
+
+			// run the syscall drift test command
+			cmd := dockerInstance.Command(goSyscallTester, []string{"-syscall-drift-test"}, []string{})
+			_, err = cmd.CombinedOutput()
+			return err
+		}, func(event *model.Event) bool {
+			if event.GetType() == "syscalls" {
+				t.Errorf("shouldn't get an event, got: syscalls:%v reason:%v", event.Syscalls.Syscalls, event.Syscalls.EventReason)
+				return true
+			}
+			return false
+		}, 20*time.Second); err != nil && errors.Is(err, ErrTimeout{}) {
+			t.Error(err)
+		}
+
+		dockerInstance.stop()
 	})
 }

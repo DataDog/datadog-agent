@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/lldp"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/metadata"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
@@ -236,6 +237,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		OsVersion:      osVersion,
 		OsHostname:     osHostname,
 		DeviceType:     deviceType,
+		Integration:    common.SnmpIntegrationName,
 	}
 }
 

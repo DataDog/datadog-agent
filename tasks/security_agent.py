@@ -197,14 +197,13 @@ def run_functional_tests(ctx, testsuite, verbose=False, testflags='', fentry=Fal
 
 
 @task
-def run_ebpfless_functional_tests(ctx, cws_instrumentation, testsuite, verbose=False, testflags=''):
+def run_ebpfless_functional_tests(ctx, testsuite, verbose=False, testflags=''):
     cmd = '{testsuite} -trace {verbose_opt} {testflags}'
 
     if os.getuid() != 0:
         cmd = 'sudo -E PATH={path} ' + cmd
 
     args = {
-        "cws_instrumentation": cws_instrumentation,
         "testsuite": testsuite,
         "verbose_opt": "-test.v" if verbose else "",
         "testflags": testflags,
@@ -515,7 +514,6 @@ def ebpfless_functional_tests(
     testflags='',
     skip_linters=False,
     kernel_release=None,
-    cws_instrumentation='bin/cws-instrumentation/cws-instrumentation',
 ):
     build_functional_tests(
         ctx,
@@ -529,7 +527,6 @@ def ebpfless_functional_tests(
 
     run_ebpfless_functional_tests(
         ctx,
-        cws_instrumentation,
         testsuite=output,
         verbose=verbose,
         testflags=testflags,
@@ -724,9 +721,9 @@ def combine_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONST
 def generate_cws_proto(ctx):
     with tempfile.TemporaryDirectory() as temp_gobin:
         with environ({"GOBIN": temp_gobin}):
-            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.33.0")
+            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.34.2")
             ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.6.0")
-            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0")
+            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.4.0")
 
             plugin_opts = " ".join(
                 [

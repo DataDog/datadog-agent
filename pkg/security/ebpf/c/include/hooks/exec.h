@@ -69,7 +69,7 @@ int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, stru
     syscall->exec.linux_binprm.interpreter = get_inode_key_path(interpreter_inode, get_file_f_path_addr(file));
     syscall->exec.linux_binprm.interpreter.path_id = get_path_id(syscall->exec.linux_binprm.interpreter.mount_id, 0);
 
-#ifdef DEBUG
+#if defined(DEBUG_INTERPRETER)
     bpf_printk("interpreter file: %llx", file);
     bpf_printk("interpreter inode: %u", syscall->exec.linux_binprm.interpreter.ino);
     bpf_printk("interpreter mount id: %u %u %u", syscall->exec.linux_binprm.interpreter.mount_id, get_file_mount_id(file), get_path_mount_id(get_file_f_path_addr(file)));
@@ -252,7 +252,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     bpf_map_update_elem(&pid_cache, &pid, &on_stack_pid_entry, BPF_ANY);
 
     // [activity_dump] inherit tracing state
-    inherit_traced_state(args, ppid, pid, event->container.container_id);
+    inherit_traced_state(args, ppid, pid, &event->container);
 
     // send the entry to maintain userspace cache
     send_event_ptr(args, EVENT_FORK, event);
@@ -573,7 +573,7 @@ int __attribute__((always_inline)) fetch_interpreter(void *ctx, struct linux_bin
     struct file *interpreter;
     bpf_probe_read(&interpreter, sizeof(interpreter), (char *)bprm + binprm_file_offset);
 
-#ifdef DEBUG
+#if defined(DEBUG_INTERPRETER)
     bpf_printk("binprm_file_offset: %d", binprm_file_offset);
 
     bpf_printk("interpreter file: %llx", interpreter);
@@ -741,7 +741,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     fill_args_envs(event, syscall);
 
     // [activity_dump] check if this process should be traced
-    should_trace_new_process(ctx, now, (event->container.cgroup_context.cgroup_flags<<32)|tgid, event->container.container_id);
+    should_trace_new_process(ctx, now, tgid, &event->container);
 
     // add interpreter path info
     event->linux_binprm.interpreter = syscall->exec.linux_binprm.interpreter;

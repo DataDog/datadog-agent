@@ -16,7 +16,7 @@ import (
 	"time"
 
 	healthprobeComponent "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/gorilla/mux"

@@ -9,6 +9,7 @@
 package mock
 
 import (
+	"fmt"
 	"net/netip"
 
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
@@ -28,13 +29,19 @@ func NewMock() rdnsquerier.Component {
 
 // GetHostnameAsync simulates resolving the hostname for the given IP address.  If the IP address is in the private address
 // space the updateHostname function will be called asynchronously with the simulated hostname.
-func (q *rdnsQuerierMock) GetHostnameAsync(ipAddr []byte, updateHostname func(string)) {
+func (q *rdnsQuerierMock) GetHostnameAsync(ipAddr []byte, updateHostname func(string)) error {
 	ipaddr, ok := netip.AddrFromSlice(ipAddr)
-	if !ok || !ipaddr.IsPrivate() {
-		return
+	if !ok {
+		return fmt.Errorf("invalid IP address %v", ipAddr)
+	}
+
+	if !ipaddr.IsPrivate() {
+		return nil
 	}
 
 	go func() {
 		updateHostname("hostname-" + ipaddr.String())
 	}()
+
+	return nil
 }

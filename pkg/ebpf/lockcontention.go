@@ -19,11 +19,12 @@ import (
 	"syscall"
 	"unsafe"
 
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/ebpf-manager/tracefs"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/DataDog/ebpf-manager/tracefs"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -372,7 +373,6 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		opts := ebpf.CollectionOptions{
 			Programs: ebpf.ProgramOptions{
 				LogLevel:    ebpf.LogLevelBranch,
-				LogSize:     10 * 1024 * 1024,
 				KernelTypes: managerOptions.VerifierOptions.Programs.KernelTypes,
 			},
 		}
@@ -557,7 +557,6 @@ func getKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses ...string) (m
 		opts := ebpf.CollectionOptions{
 			Programs: ebpf.ProgramOptions{
 				LogLevel:    ebpf.LogLevelBranch,
-				LogSize:     10 * 1024 * 1024,
 				KernelTypes: managerOptions.VerifierOptions.Programs.KernelTypes,
 			},
 		}
