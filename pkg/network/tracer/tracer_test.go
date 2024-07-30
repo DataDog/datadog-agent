@@ -1237,18 +1237,6 @@ func (s *TracerSuite) TestTCPDirection() {
 	assert.Equal(t, conn.Direction, network.INCOMING, "connection direction must be incoming: %s", conn)
 }
 
-func skipOnEbpflessNotSupported(t *testing.T, cfg *config.Config) {
-	if cfg.EnableEbpfless {
-		t.Skip("not supported on ebpf-less")
-	}
-}
-
-func skipEbpflessTodo(t *testing.T, cfg *config.Config) {
-	if cfg.EnableEbpfless {
-		t.Skip("TODO: ebpf-less")
-	}
-}
-
 func (s *TracerSuite) TestTCPFailureConnectionRefused() {
 	t := s.T()
 

@@ -2354,3 +2354,15 @@ func setupDropTrafficRule(tb testing.TB) (ns string) {
 	testutil.RunCommands(tb, cmds, false)
 	return
 }
+
+func skipOnEbpflessNotSupported(t *testing.T, cfg *config.Config) {
+	if cfg.EnableEbpfless {
+		t.Skip("not supported on ebpf-less")
+	}
+}
+
+func skipEbpflessTodo(t *testing.T, cfg *config.Config) {
+	if cfg.EnableEbpfless {
+		t.Skip("TODO: ebpf-less")
+	}
+}
