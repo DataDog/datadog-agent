@@ -154,7 +154,7 @@ func (s *sqlStore) CleanUpPayloadsOlderThan(time time.Time) {
 // GetRawPayloads returns all raw payloads for a given route
 func (s *sqlStore) GetRawPayloads(route string) []api.Payload {
 	now := time.Now()
-	rows, err := s.db.Query("SELECT timestamp, data, encoding FROM payloads WHERE route = ?", route)
+	rows, err := s.db.Query("SELECT timestamp, data, encoding, content_type FROM payloads WHERE route = ?", route)
 	if err != nil {
 		log.Println("Error fetching raw payloads: ", err)
 		return nil
@@ -165,17 +165,19 @@ func (s *sqlStore) GetRawPayloads(route string) []api.Payload {
 	var timestamp int64
 	var data []byte
 	var encoding string
+	var contentType string
 	payloads := []api.Payload{}
 	for rows.Next() {
-		err := rows.Scan(&timestamp, &data, &encoding)
+		err := rows.Scan(&timestamp, &data, &encoding, &contentType)
 		if err != nil {
 			log.Println("Error scanning raw payload: ", err)
 			continue
 		}
 		payloads = append(payloads, api.Payload{
-			Timestamp: time.Unix(timestamp, 0),
-			Data:      data,
-			Encoding:  encoding,
+			Timestamp:   time.Unix(timestamp, 0),
+			Data:        data,
+			Encoding:    encoding,
+			ContentType: contentType,
 		})
 	}
 	return payloads

@@ -196,14 +196,14 @@ func testServer(t *testing.T, opts ...Option) {
 				{
 					Timestamp:   clock.Now().UTC(),
 					Encoding:    "text/plain",
-					ContentType: "text/plain",
 					Data:        []byte("totoro|7|tag:valid,owner:pducolin"),
+					ContentType: "text/plain",
 				},
 				{
 					Timestamp:   clock.Now().UTC(),
 					Encoding:    "text/plain",
-					ContentType: "text/plain",
 					Data:        []byte("totoro|5|tag:valid,owner:kiki"),
+					ContentType: "text/plain",
 				},
 			},
 		}
