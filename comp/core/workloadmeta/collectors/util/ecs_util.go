@@ -267,9 +267,9 @@ func parseClusterName(cluster string) string {
 	return parts[1]
 }
 
-// ParserECSAgentVersion parses the ECS agent version from the version string
+// ParseECSAgentVersion parses the ECS agent version from the version string
 // Instance metadata returns the version in the format `Amazon ECS Agent - v1.30.0 (02ff320c)`
-func ParserECSAgentVersion(s string) string {
+func ParseECSAgentVersion(s string) string {
 	// \d+\.\d+\.\d+ for versions like 1.32.0
 	// (-\w+)? for optional pre-release tags like -beta
 	// |\d+\.\d+ for shorter versions like 0.1

@@ -53,7 +53,7 @@ func TestParserECSAgentVersion(t *testing.T) {
 			expected: "",
 		},
 	} {
-		version := ParserECSAgentVersion(testCase.version)
+		version := ParseECSAgentVersion(testCase.version)
 		require.Equal(t, testCase.expected, version)
 	}
 }

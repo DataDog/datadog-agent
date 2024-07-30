@@ -127,7 +127,7 @@ func (c *collector) setTaskCollectionParser(version string) {
 		return
 	}
 
-	ok, err := ecsmeta.IsMetadataV4Available(util.ParserECSAgentVersion(version))
+	ok, err := ecsmeta.IsMetadataV4Available(util.ParseECSAgentVersion(version))
 	if err != nil {
 		log.Warnf("detailed task collection enabled but agent cannot determine if v4 metadata endpoint is available, using metadata v1 endpoint: %s", err.Error())
 		c.taskCollectionParser = c.parseTasksFromV1Endpoint
