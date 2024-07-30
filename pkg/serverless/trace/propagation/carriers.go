@@ -236,6 +236,7 @@ func createTraceContextFromStepFunctionInput(event events.StepFunctionEvent) (*T
 	tc.TraceID = lowerTraceID
 	tc.TraceIdUpper64Hex = upperTraceId
 	tc.ParentID = parentID
+	tc.SamplingPriority = sampler.PriorityAutoKeep
 	return tc, nil
 }
 

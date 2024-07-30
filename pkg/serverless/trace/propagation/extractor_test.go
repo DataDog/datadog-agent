@@ -510,6 +510,39 @@ func TestExtractorExtract(t *testing.T) {
 			expCtx:   nil,
 			expNoErr: false,
 		},
+
+		// Step Functions event
+		{
+			name: "step-function-event with no input",
+			events: []interface{}{
+				events.StepFunctionEvent{
+					Execution: events.StepFunctionExecution{
+						Id:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+						Input:        interface{}(nil),
+						StartTime:    "2024-07-30T20:46:20.777Z",
+						Name:         "aa6c9316-713a-41d4-9c30-61131716744f",
+						RoleArn:      "arn:aws:iam::425362996713:role/test-serverless-stepfunctions-dev-AgocsTestSFRole-tRkeFXScjyk4",
+						RedriveCount: 0,
+					},
+					StateMachine: events.StepFunctionStateMachine{
+						Id:   "arn:aws:states:us-east-1:425362996713:stateMachine:agocsTestSF",
+						Name: "agocsTestSF",
+					},
+					State: events.StepFunctionState{
+						Name:        "agocsTest1",
+						EnteredTime: "2024-07-30T20:46:20.824Z",
+						RetryCount:  0,
+					},
+				},
+			},
+			expCtx: &TraceContext{
+				TraceID:           5377636026938777059,
+				TraceIdUpper64Hex: "6fb5c3a05c73dbfe",
+				ParentID:          8947638978974359093,
+				SamplingPriority:  1,
+			},
+			expNoErr: true,
+		},
 	}
 
 	for _, tc := range testcases {

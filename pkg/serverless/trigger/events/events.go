@@ -359,6 +359,7 @@ type StepFunctionExecution struct {
 	Name         string
 	RoleArn      string
 	RedriveCount int64
+	Input        interface{}
 }
 
 // StepFunctionStateMachine is the JSON object that represents a State Machine
