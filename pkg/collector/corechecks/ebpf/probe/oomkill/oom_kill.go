@@ -29,18 +29,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+/*
+#include <string.h>
+#include "../../c/runtime/oom-kill-kern-user.h"
+#cgo CFLAGS: -I "${SRCDIR}/../../../../../ebpf/c"
+*/
+import "C"
+
 const oomMapName = "oom_stats"
 
 // Probe is the eBPF side of the OOM Kill check
 type Probe struct {
 	m      *manager.Manager
-	oomMap *maps.GenericMap[uint32, oomStats]
+	oomMap *maps.GenericMap[uint32, C.struct_oom_stats]
 }
 
 // NewProbe creates a [Probe]
 func NewProbe(cfg *ebpf.Config) (*Probe, error) {
 	if cfg.EnableCORE {
-		probe, err := loadOOMKillCOREProbe()
+		probe, err := loadOOMKillCOREProbe(cfg)
 		if err == nil {
 			return probe, nil
 		}
@@ -54,7 +61,7 @@ func NewProbe(cfg *ebpf.Config) (*Probe, error) {
 	return loadOOMKillRuntimeCompiledProbe(cfg)
 }
 
-func loadOOMKillCOREProbe() (*Probe, error) {
+func loadOOMKillCOREProbe(cfg *ebpf.Config) (*Probe, error) { //nolint:revive // TODO fix revive unused-parameter
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("error detecting kernel version: %s", err)
@@ -117,7 +124,7 @@ func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options)
 		return nil, fmt.Errorf("failed to start manager: %w", err)
 	}
 
-	oomMap, err := maps.GetMap[uint32, oomStats](m, oomMapName)
+	oomMap, err := maps.GetMap[uint32, C.struct_oom_stats](m, oomMapName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get map '%s': %w", oomMapName, err)
 	}
@@ -140,7 +147,7 @@ func (k *Probe) Close() {
 // GetAndFlush gets the stats
 func (k *Probe) GetAndFlush() (results []model.OOMKillStats) {
 	var pid uint32
-	var stat oomStats
+	var stat C.struct_oom_stats
 	it := k.oomMap.Iterate()
 	for it.Next(&pid, &stat) {
 		results = append(results, convertStats(stat))
@@ -159,15 +166,15 @@ func (k *Probe) GetAndFlush() (results []model.OOMKillStats) {
 	return results
 }
 
-func convertStats(in oomStats) (out model.OOMKillStats) {
-	out.CgroupName = unix.ByteSliceToString(in.Cgroup_name[:])
-	out.Pid = in.Pid
-	out.TPid = in.Tpid
-	out.Score = in.Score
-	out.ScoreAdj = in.Score_adj
-	out.FComm = unix.ByteSliceToString(in.Fcomm[:])
-	out.TComm = unix.ByteSliceToString(in.Tcomm[:])
-	out.Pages = in.Pages
-	out.MemCgOOM = in.Memcg_oom
+func convertStats(in C.struct_oom_stats) (out model.OOMKillStats) {
+	out.CgroupName = C.GoString(&in.cgroup_name[0])
+	out.Pid = uint32(in.pid)
+	out.TPid = uint32(in.tpid)
+	out.Score = int64(in.score)
+	out.ScoreAdj = int16(in.score_adj)
+	out.FComm = C.GoString(&in.fcomm[0])
+	out.TComm = C.GoString(&in.tcomm[0])
+	out.Pages = uint64(in.pages)
+	out.MemCgOOM = uint32(in.memcg_oom)
 	return
 }
