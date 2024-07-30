@@ -98,6 +98,7 @@ var supportedLanguages = []language{
 	python,
 	dotnet,
 	ruby,
+	php,
 }
 
 func (l language) isSupported() bool {
@@ -253,6 +254,17 @@ func (i libInfo) envVars() []envVar {
 			{
 				key:     rubyOptKey,
 				valFunc: rubyEnvValFunc,
+			},
+		}
+	case php:
+		return []envVar{
+			{
+				key:     "PHP_INI_SCANDIR",
+				valFunc: phpEnvValFunc,
+			},
+			{
+				key:     "DD_LOADER_PACKAGE_PATH",
+				valFunc: identityValFunc(phpPathValue),
 			},
 		}
 	default:
