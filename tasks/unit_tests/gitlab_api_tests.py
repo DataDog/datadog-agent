@@ -1,4 +1,5 @@
 import unittest
+from collections import OrderedDict
 from unittest.mock import MagicMock, patch
 
 from invoke import MockContext, Result
@@ -6,6 +7,7 @@ from invoke import MockContext, Result
 from tasks.libs.ciproviders.gitlab_api import (
     GitlabCIDiff,
     clean_gitlab_ci_configuration,
+    expand_matrix_jobs,
     filter_gitlab_ci_configuration,
     gitlab_configuration_is_modified,
     read_includes,
@@ -197,6 +199,154 @@ class TestRetrieveAllPaths(unittest.TestCase):
             'hand_of_the_king',
         ]
         self.assertListEqual(paths, expected_paths)
+
+
+class TestExpandMatrixJobs(unittest.TestCase):
+    def test_single(self):
+        yml = {
+            'job': {
+                'script': 'echo hello',
+                'parallel': {
+                    'matrix': [
+                        {
+                            'VAR1': 'a',
+                        },
+                        {
+                            'VAR1': 'b',
+                        },
+                    ]
+                },
+            }
+        }
+        expected_yml = {
+            'job: [a]': {'script': 'echo hello', 'variables': {'VAR1': 'a'}},
+            'job: [b]': {'script': 'echo hello', 'variables': {'VAR1': 'b'}},
+        }
+
+        res = expand_matrix_jobs(yml)
+
+        self.assertDictEqual(res, expected_yml)
+
+    def test_single2(self):
+        yml = {
+            'job': {
+                'script': 'echo hello',
+                'parallel': {
+                    'matrix': [
+                        # Used OrderedDict to ensure order is preserved and the name is deterministic
+                        OrderedDict(
+                            [
+                                ('VAR1', 'a'),
+                                ('VAR2', 'b'),
+                            ]
+                        ),
+                        OrderedDict(
+                            [
+                                ('VAR1', 'c'),
+                                ('VAR2', 'd'),
+                            ]
+                        ),
+                    ]
+                },
+            }
+        }
+        expected_yml = {
+            'job: [a, b]': {'script': 'echo hello', 'variables': {'VAR1': 'a', 'VAR2': 'b'}},
+            'job: [c, d]': {'script': 'echo hello', 'variables': {'VAR1': 'c', 'VAR2': 'd'}},
+        }
+
+        res = expand_matrix_jobs(yml)
+
+        self.assertDictEqual(res, expected_yml)
+
+    def test_multiple(self):
+        yml = {
+            'job': {
+                'script': 'echo hello',
+                'parallel': {
+                    'matrix': [
+                        OrderedDict(
+                            [
+                                ('VAR1', ['a', 'b']),
+                                ('VAR2', 'x'),
+                            ]
+                        )
+                    ]
+                },
+            }
+        }
+        expected_yml = {
+            'job: [a, x]': {'script': 'echo hello', 'variables': {'VAR1': 'a', 'VAR2': 'x'}},
+            'job: [b, x]': {'script': 'echo hello', 'variables': {'VAR1': 'b', 'VAR2': 'x'}},
+        }
+
+        res = expand_matrix_jobs(yml)
+
+        self.assertDictEqual(res, expected_yml)
+
+    def test_multiple2(self):
+        yml = {
+            'job': {
+                'script': 'echo hello',
+                'parallel': {
+                    'matrix': [
+                        OrderedDict(
+                            [
+                                ('VAR1', ['a', 'b']),
+                                ('VAR2', ['x', 'y']),
+                            ]
+                        )
+                    ]
+                },
+            }
+        }
+        expected_yml = {
+            'job: [a, x]': {'script': 'echo hello', 'variables': {'VAR1': 'a', 'VAR2': 'x'}},
+            'job: [b, x]': {'script': 'echo hello', 'variables': {'VAR1': 'b', 'VAR2': 'x'}},
+            'job: [a, y]': {'script': 'echo hello', 'variables': {'VAR1': 'a', 'VAR2': 'y'}},
+            'job: [b, y]': {'script': 'echo hello', 'variables': {'VAR1': 'b', 'VAR2': 'y'}},
+        }
+
+        res = expand_matrix_jobs(yml)
+
+        self.assertDictEqual(res, expected_yml)
+
+    def test_many(self):
+        yml = {
+            'job': {
+                'script': 'echo hello',
+                'parallel': {
+                    'matrix': [
+                        OrderedDict(
+                            [
+                                ('VAR1', ['a', 'b']),
+                                ('VAR2', ['x', 'y']),
+                            ]
+                        ),
+                        OrderedDict(
+                            [
+                                ('VAR1', ['alpha', 'beta']),
+                                ('VAR2', ['x', 'y']),
+                            ]
+                        ),
+                    ]
+                },
+            }
+        }
+        expected_yml = {
+            'job: [a, x]': {'script': 'echo hello', 'variables': {'VAR1': 'a', 'VAR2': 'x'}},
+            'job: [b, x]': {'script': 'echo hello', 'variables': {'VAR1': 'b', 'VAR2': 'x'}},
+            'job: [a, y]': {'script': 'echo hello', 'variables': {'VAR1': 'a', 'VAR2': 'y'}},
+            'job: [b, y]': {'script': 'echo hello', 'variables': {'VAR1': 'b', 'VAR2': 'y'}},
+            'job: [alpha, x]': {'script': 'echo hello', 'variables': {'VAR1': 'alpha', 'VAR2': 'x'}},
+            'job: [beta, x]': {'script': 'echo hello', 'variables': {'VAR1': 'beta', 'VAR2': 'x'}},
+            'job: [alpha, y]': {'script': 'echo hello', 'variables': {'VAR1': 'alpha', 'VAR2': 'y'}},
+            'job: [beta, y]': {'script': 'echo hello', 'variables': {'VAR1': 'beta', 'VAR2': 'y'}},
+        }
+
+        res = expand_matrix_jobs(yml)
+
+        self.assertDictEqual(res, expected_yml)
 
 
 class TestGitlabConfigurationIsModified(unittest.TestCase):
