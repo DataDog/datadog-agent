@@ -89,6 +89,9 @@ func (p *Process) getFilenameFromFdRaw(fd int32) (string, error) {
 		return "", err
 	}
 
+	// fill the cache for next time
+	p.FdRes.Fd[fd] = filename
+
 	return filename, nil
 }
 
