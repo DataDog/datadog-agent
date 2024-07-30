@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -210,13 +211,15 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		ansiblePrefix := s.installAnsible(s.os)
 
 		// /home/ubuntu/.local/bin/ansible-galaxy collection install datadog.dd
-		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%s/ansible-galaxy collection install datadog.dd", ansiblePrefix))
+		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-galaxy collection install datadog.dd", ansiblePrefix))
 		// Write the playbook
 		playbookPath := s.writeAnsiblePlaybook(params...)
 
 		// Run the playbook
-		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%s/ansible-playbook %s", ansiblePrefix, playbookPath))
+		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-playbook %s", ansiblePrefix, playbookPath))
 
+		// TEMP: remove me
+		time.Sleep(10 * time.Second)
 		ot := s.Env().RemoteHost.MustExecute("sudo datadog-installer status")
 		s.T().Log(ot)
 	default:
@@ -313,13 +316,20 @@ func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
 	// Install pipx, and set the default ansible path prefix
 	switch flavor.Flavor {
 	case e2eos.Ubuntu:
-		s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt install -y pipx && pipx ensurepath")
-		pathPrefix = "/home/ubuntu/.local/bin"
+		s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt install -y ansible-core")
+	case e2eos.Debian:
+		s.Env().RemoteHost.MustExecute("sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 93C4A3FD7BB9C367 && sudo apt update && sudo apt install -y ansible-core")
 	case e2eos.Fedora:
-		s.Env().RemoteHost.MustExecute("sudo dnf install -y pipx && pipx ensurepath")
+		s.Env().RemoteHost.MustExecute("sudo dnf install -y ansible-core")
 		ot := s.Env().RemoteHost.MustExecute("sudo find / -name 'ansible-galaxy'")
 		s.T().Log(ot)
-		pathPrefix = "/home/fedora/.local/bin"
+	case e2eos.RedHat, e2eos.CentOS:
+		s.Env().RemoteHost.MustExecute("sudo yum install -y ansible-core")
+	// case e2eos.AmazonLinux:
+	// 	s.Env().RemoteHost.MustExecute("python3 -m pip install pipx && python3 -m pipx ensurepath")
+	// 	s.Env().RemoteHost.MustExecute("pipx install --include-deps ansible-core")
+	case e2eos.Suse:
+		s.Env().RemoteHost.MustExecute("sudo zypper install -y ansible-core")
 	default:
 		s.Env().RemoteHost.MustExecute("python3 -m pip install pipx && python3 -m pipx ensurepath")
 		ot := s.Env().RemoteHost.MustExecute("sudo find / -name 'ansible-galaxy'")
@@ -328,7 +338,6 @@ func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
 	}
 
 	// Install ansible and the datadog collection
-	s.Env().RemoteHost.MustExecute("pipx install --include-deps ansible-core")
 
 	return pathPrefix
 }
@@ -354,7 +363,9 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(params ...string) string {
 		switch key {
 		case "DD_REMOTE_UPDATES":
 			playbookStringSuffix += fmt.Sprintf("    datadog_remote_updates: %s\n", value)
-		case "DD_APM_INSTRUMENTATION_ENABLED=host":
+			// TODO: remove this when we don't require this setting in the playbook
+			playbookStringSuffix += fmt.Sprintf("    datadog_apm_instrumentation_enabled: host\n")
+		case "DD_APM_INSTRUMENTATION_ENABLED":
 			playbookStringSuffix += fmt.Sprintf("    datadog_apm_instrumentation_enabled: %s\n", value)
 		case "DD_APM_INSTRUMENTATION_LIBRARIES":
 			playbookStringSuffix += fmt.Sprintf("    datadog_apm_instrumentation_libraries: [%s]\n", value)
