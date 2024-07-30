@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	coreStatusImpl "github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
@@ -34,7 +34,7 @@ import (
 
 var mockCoreBundleParams = core.BundleParams{
 	ConfigParams: configComp.NewParams("", configComp.WithConfigMissingOK(true)),
-	LogParams:    logimpl.ForOneShot("PROCESS", "trace", false),
+	LogParams:    log.ForOneShot("PROCESS", "trace", false),
 }
 
 func TestBundleDependencies(t *testing.T) {

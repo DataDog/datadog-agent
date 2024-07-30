@@ -1688,6 +1688,8 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers14(
 		switch key {
 		case "id":
 			out.ID = string(in.String())
+		case "manager":
+			out.Manager = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -1707,6 +1709,16 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers14(
 		first = false
 		out.RawString(prefix[1:])
 		out.String(string(in.ID))
+	}
+	if in.Manager != "" {
+		const prefix string = ",\"manager\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.Manager))
 	}
 	out.RawByte('}')
 }

@@ -54,9 +54,11 @@ type context struct {
 	UniversalServiceMonitoringModule bool // Sub-module of System Probe
 	DataStreamsModule                bool // Sub-module of System Probe
 	PingModule                       bool // Sub-module of System Probe
+	TracerouteModule                 bool // Sub-module of System Probe
 	PrometheusScrape                 bool
 	OTLP                             bool
 	APMInjection                     bool
+	NetworkPath                      bool
 }
 
 func mkContext(buildType string) context {
@@ -88,6 +90,7 @@ func mkContext(buildType string) context {
 		SNMP:              true,
 		PrometheusScrape:  true,
 		OTLP:              true,
+		NetworkPath:       true,
 	}
 
 	switch buildType {
@@ -115,6 +118,7 @@ func mkContext(buildType string) context {
 			DataStreamsModule:                true,
 			SecurityModule:                   true,
 			PingModule:                       true,
+			TracerouteModule:                 true,
 		}
 	case "dogstatsd":
 		return context{

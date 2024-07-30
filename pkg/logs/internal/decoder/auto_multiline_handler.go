@@ -24,6 +24,7 @@ func NewAutoMultilineHandler(outputFn func(m *message.Message), maxContentSize i
 	// Order is important
 	heuristics := []automultilinedetection.Heuristic{
 		automultilinedetection.NewJSONDetector(),
+		automultilinedetection.NewTokenizer(40), // TODO: (brian) this will be configruable in a future change.
 	}
 
 	return &AutoMultilineHandler{

@@ -8,7 +8,7 @@ package defaultforwarder
 import (
 	"expvar"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"

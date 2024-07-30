@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -226,7 +227,7 @@ func TestParseEntityID(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			fakeCl := TaggerClient{}
+			fakeCl := TaggerClient{log: logmock.New(t)}
 			assert.Equal(t, tt.expected, fakeCl.parseEntityID(tt.entityID, tt.cidProvider))
 		})
 	}
@@ -271,7 +272,8 @@ func TestTaggerCardinality(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, taggerCardinality(tt.cardinality, tagger.DogstatsdCardinality()))
+			l := logmock.New(t)
+			assert.Equal(t, tt.want, taggerCardinality(tt.cardinality, tagger.DogstatsdCardinality(), l))
 		})
 	}
 }

@@ -715,6 +715,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.inject_auto_detected_libraries", false)                                   // allows injecting libraries for languages detected by automatic language detection feature
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.cpu")
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.memory")
+	config.BindEnv("admission_controller.auto_instrumentation.init_security_context")
 	config.BindEnv("admission_controller.auto_instrumentation.asm.enabled", "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_APPSEC_ENABLED")          // config for ASM which is implemented in the client libraries
 	config.BindEnv("admission_controller.auto_instrumentation.iast.enabled", "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_IAST_ENABLED")           // config for IAST which is implemented in the client libraries
 	config.BindEnv("admission_controller.auto_instrumentation.asm_sca.enabled", "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_APPSEC_SCA_ENABLED")  // config for SCA
@@ -1454,6 +1455,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// a more substantial refactor of autodiscovery is made to determine this automatically.
 	config.BindEnvAndSetDefault("logs_config.use_podman_logs", false)
 
+	// If true, then a source_host tag (IP Address) will be added to TCP/UDP logs.
+	config.BindEnvAndSetDefault("logs_config.use_sourcehost_tag", true)
+
 	// If set, the agent will look in this path for docker container log files.  Use this option if
 	// docker's `data-root` has been set to a custom path and you wish to ingest docker logs from files. In
 	// order to check your docker data-root directory, run the command `docker info -f '{{.DockerRootDir}}'`
@@ -1478,6 +1482,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// WARNING: 'by_modification_time' is less performant than 'by_name' and will trigger
 	// more disk I/O at the wildcard log paths
 	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
+
+	// Max size in MB to allow for integrations logs files
+	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
 }
 
 func vector(config pkgconfigmodel.Setup) {

@@ -32,6 +32,7 @@ type LinuxTraceroute struct {
 // New creates a new instance of LinuxTraceroute
 // based on an input configuration
 func New(cfg Config, _ telemetry.Component) (*LinuxTraceroute, error) {
+	log.Debugf("Creating new traceroute with config: %+v", cfg)
 	return &LinuxTraceroute{
 		cfg: cfg,
 	}, nil
@@ -46,7 +47,6 @@ func (l *LinuxTraceroute) Run(_ context.Context) (payload.NetworkPath, error) {
 		return payload.NetworkPath{}, err
 	}
 
-	log.Debugf("Network Path Config: %+v", l.cfg)
 	resp, err := tu.GetTraceroute(clientID, l.cfg.DestHostname, l.cfg.DestPort, l.cfg.Protocol, l.cfg.MaxTTL, l.cfg.TimeoutMs)
 	if err != nil {
 		return payload.NetworkPath{}, err

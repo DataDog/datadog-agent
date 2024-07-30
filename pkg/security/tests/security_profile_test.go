@@ -10,23 +10,24 @@ package tests
 
 import (
 	"errors"
-	"github.com/DataDog/agent-payload/v5/cws/dumpsv1"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"os"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 func TestSecurityProfile(t *testing.T) {
@@ -872,7 +873,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(rule *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.ContainerID == model.ContainerID(dump.ContainerID) {
+			if event.ProcessContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
 				t.Fatal("Got a signal that should have been suppressed")
 			}
 			return false
@@ -891,7 +892,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(rule *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.ContainerID == model.ContainerID(dump.ContainerID) {
+			if event.ProcessContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
 				t.Fatal("Got a signal that should have been suppressed")
 			}
 			return false
