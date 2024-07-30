@@ -72,7 +72,7 @@ var packagesConfig = []testPackageConfig{
 	{name: "datadog-apm-library-python", defaultVersion: "latest"},
 }
 
-var supportedInstallMethods = []installMethodOption{installMethodInstallScript}
+var supportedInstallMethods = []installMethodOption{installMethodInstallScript, installMethodAnsible}
 
 func shouldSkip(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
 	for _, f := range flavors {
@@ -205,6 +205,17 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		}
 		err := s.RunInstallScriptWithError(params...)
 		require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log"))
+	case installMethodAnsible:
+		// Install ansible then install the agent
+		ansiblePrefix := s.installAnsible(s.os)
+
+		// /home/ubuntu/.local/bin/ansible-galaxy collection install datadog.dd
+		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%s/ansible-galaxy collection install datadog.dd", ansiblePrefix))
+		// Write the playbook
+		playbookPath := s.writeAnsiblePlaybook(params...)
+
+		// Run the playbook
+		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%s/ansible-playbook %s", ansiblePrefix, playbookPath))
 	default:
 		s.T().Fatal("unsupported install method")
 	}
@@ -292,4 +303,63 @@ func installScriptEnv(arch e2eos.Architecture) map[string]string {
 	installScriptPackageManagerEnv(env, arch)
 	installScriptInstallerEnv(env)
 	return env
+}
+
+func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
+	pathPrefix := ""
+	// Install pipx, and set the default ansible path prefix
+	switch flavor.Flavor {
+	case e2eos.Ubuntu:
+		s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt install -y pipx && pipx ensurepath")
+		pathPrefix = "/home/ubuntu/.local/bin"
+	case e2eos.Fedora:
+		s.Env().RemoteHost.MustExecute("sudo dnf install -y pipx && pipx ensurepath")
+		ot := s.Env().RemoteHost.MustExecute("sudo find / -name 'ansible-galaxy'")
+		s.T().Log(ot)
+		pathPrefix = "/home/fedora/.local/bin"
+	default:
+		s.Env().RemoteHost.MustExecute("python3 -m pip install pipx && python3 -m pipx ensurepath")
+		ot := s.Env().RemoteHost.MustExecute("sudo find / -name 'ansible-galaxy'")
+		s.T().Log(ot)
+		pathPrefix = "/home/ec2-user/.local/bin"
+	}
+
+	// Install ansible and the datadog collection
+	s.Env().RemoteHost.MustExecute("pipx install --include-deps ansible-core")
+
+	return pathPrefix
+}
+
+func (s *packageBaseSuite) writeAnsiblePlaybook(params ...string) string {
+	playbookPath := "/tmp/datadog-agent-playbook.yml"
+	playbookString := `
+- hosts: localhost
+  tasks:
+    - name: Import the Datadog Agent role from the Datadog collection
+      become: true
+      import_role:
+        name: datadog.dd.agent
+  vars:
+    datadog_api_key: "<api key>"
+    datadog_site: "datadoghq.com"
+`
+	environments := []string{}
+	for _, param := range params {
+		key, value := strings.Split(param, "=")[0], strings.Split(param, "=")[1]
+		switch key {
+		case "DD_REMOTE_UPDATES":
+			playbookString += fmt.Sprintf("    datadog_remote_updates: %s\n", value)
+		case "DD_APM_INSTRUMENTATION_ENABLED=host":
+			playbookString += fmt.Sprintf("    datadog_apm_instrumentation_enabled: %s\n", value)
+		case "DD_APM_INSTRUMENTATION_LIBRARIES":
+			playbookString += fmt.Sprintf("    datadog_apm_instrumentation_libraries: [%s]\n", value)
+		default:
+			environments = append(environments, fmt.Sprintf("%s: %s ", key, value))
+		}
+	}
+
+	// Write the playbook to a file
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf("echo '%s' | sudo tee %s", playbookString, playbookPath))
+
+	return playbookPath
 }
