@@ -57,6 +57,7 @@ const (
 	IoctlNr          = unix.SYS_IOCTL             // IoctlNr defines the syscall ID for arm64
 	MountNr          = unix.SYS_MOUNT             // MountNr defines the syscall ID for arm64
 	Umount2Nr        = unix.SYS_UMOUNT2           // Umount2Nr defines the syscall ID for arm64
+	Pipe2Nr          = unix.SYS_PIPE2             // Pipe2Nr defines the syscall ID for arm64
 
 	OpenNr      = -1  // OpenNr not available on arm64
 	ForkNr      = -2  // ForkNr not available on arm64

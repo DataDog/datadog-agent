@@ -65,6 +65,19 @@ func NewProcess(pid int) *Process {
 var pipeFdErr = errors.New("pipe fd")
 
 func (p *Process) GetFilenameFromFd(fd int32) (string, error) {
+	raw, err := p.getFilenameFromFdRaw(fd)
+	if err != nil {
+		return "", err
+	}
+
+	if strings.HasPrefix(raw, "pipe:") {
+		return "", pipeFdErr
+	}
+
+	return raw, nil
+}
+
+func (p *Process) getFilenameFromFdRaw(fd int32) (string, error) {
 	filename, ok := p.FdRes.Fd[fd]
 	if ok {
 		return filename, nil
@@ -74,10 +87,6 @@ func (p *Process) GetFilenameFromFd(fd int32) (string, error) {
 	filename, err := os.Readlink(procPath)
 	if err != nil {
 		return "", err
-	}
-
-	if strings.HasPrefix(filename, "pipe:") {
-		return "", pipeFdErr
 	}
 
 	return filename, nil

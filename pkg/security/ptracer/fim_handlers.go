@@ -251,6 +251,11 @@ func registerFIMHandlers(handlers map[int]syscallHandler) []string {
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
+		{
+			ID:      syscallID{ID: Pipe2Nr, Name: "pipe2"},
+			Func:    handlePipe2,
+			RetFunc: handlePipe2Ret,
+		},
 	}
 
 	syscallList := []string{}
@@ -588,6 +593,13 @@ func handleDup(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscal
 	// using msg to temporary store arg0, as it will be erased by the return value on ARM64
 	msg.Dup = &ebpfless.DupSyscallFakeMsg{
 		OldFd: tracer.ReadArgInt32(regs, 0),
+	}
+	return nil
+}
+
+func handlePipe2(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
+	msg.Pipe = &ebpfless.PipeSyscallFakeMsg{
+		FdsPtr: tracer.ReadArgUint64(regs, 0),
 	}
 	return nil
 }
@@ -1198,6 +1210,24 @@ func handleDupRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 			// maintain fd/path in case of dups
 			process.FdRes.Fd[int32(ret)] = path
 		}
+	}
+	return nil
+}
+
+const sizeOfInt = 4
+
+func handlePipe2Ret(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
+	if ret := tracer.ReadRet(regs); msg.Pipe != nil && ret == 0 {
+		fds, err := tracer.readData(process.Pid, msg.Pipe.FdsPtr, 2*sizeOfInt)
+		if err != nil {
+			return err
+		}
+
+		fd1 := int32(binary.NativeEndian.Uint32(fds[:sizeOfInt]))
+		fd2 := int32(binary.NativeEndian.Uint32(fds[sizeOfInt:]))
+
+		process.FdRes.Fd[fd1] = "pipe:"
+		process.FdRes.Fd[fd2] = "pipe:"
 	}
 	return nil
 }
