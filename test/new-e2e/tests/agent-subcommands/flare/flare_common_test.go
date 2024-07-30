@@ -28,19 +28,19 @@ func (v *baseFlareSuite) TestFlareDefaultFiles() {
 
 	assert.NotContains(v.T(), logs, "Error")
 
-	assertFilesExist(v.T(), flare, defaultFlareFiles)
-	assertFilesExist(v.T(), flare, defaultLogFiles)
-	assertFilesExist(v.T(), flare, defaultConfigFiles)
-	assertFilesExist(v.T(), flare, defaultMetadataFlareFiles)
-	assertFoldersExist(v.T(), flare, defaultFlareFolders)
+	AssertFilesExist(v.T(), flare, defaultFlareFiles)
+	AssertFilesExist(v.T(), flare, defaultLogFiles)
+	AssertFilesExist(v.T(), flare, defaultConfigFiles)
+	AssertFilesExist(v.T(), flare, defaultMetadataFlareFiles)
+	AssertFoldersExist(v.T(), flare, defaultFlareFolders)
 
-	assertFilesExist(v.T(), flare, nonLocalFlareFiles)
-	assertFilesExist(v.T(), flare, nonLocalMetadataFlareFiles)
+	AssertFilesExist(v.T(), flare, nonLocalFlareFiles)
+	AssertFilesExist(v.T(), flare, nonLocalMetadataFlareFiles)
 
 	assertLogsFolderOnlyContainsLogFile(v.T(), flare)
 	assertEtcFolderOnlyContainsConfigFile(v.T(), flare)
 
-	assertFileContains(v.T(), flare, "process_check_output.json", "'process_config.process_collection.enabled' is disabled")
+	AssertFileContains(v.T(), flare, "process_check_output.json", "'process_config.process_collection.enabled' is disabled")
 	assertFileNotContains(v.T(), flare, "container_check_output.json", "'process_config.container_collection.enabled' is disabled")
 	assertFileNotContains(v.T(), flare, "process_discovery_check_output.json", "'process_config.process_discovery.enabled' is disabled")
 }
@@ -51,13 +51,13 @@ func (v *baseFlareSuite) TestLocalFlareDefaultFiles() {
 
 	assert.Contains(v.T(), logs, "Initiating flare locally.")
 	assert.NotContains(v.T(), logs, "Error")
-	assertFilesExist(v.T(), flare, []string{"local"})
+	AssertFilesExist(v.T(), flare, []string{"local"})
 
-	assertFilesExist(v.T(), flare, defaultFlareFiles)
-	assertFilesExist(v.T(), flare, defaultLogFiles)
-	assertFilesExist(v.T(), flare, defaultConfigFiles)
-	assertFilesExist(v.T(), flare, defaultMetadataFlareFiles)
-	assertFoldersExist(v.T(), flare, defaultFlareFolders)
+	AssertFilesExist(v.T(), flare, defaultFlareFiles)
+	AssertFilesExist(v.T(), flare, defaultLogFiles)
+	AssertFilesExist(v.T(), flare, defaultConfigFiles)
+	AssertFilesExist(v.T(), flare, defaultMetadataFlareFiles)
+	AssertFoldersExist(v.T(), flare, defaultFlareFolders)
 
 	assertLogsFolderOnlyContainsLogFile(v.T(), flare)
 	assertEtcFolderOnlyContainsConfigFile(v.T(), flare)
@@ -74,7 +74,7 @@ func (v *baseFlareSuite) TestFlareProfiling() {
 	assert.Contains(v.T(), logs, "Getting a 31s profile snapshot from security-agent.")
 	assert.Contains(v.T(), logs, "Getting a 31s profile snapshot from process.")
 
-	assertFilesExist(v.T(), flare, profilingFiles)
+	AssertFilesExist(v.T(), flare, profilingFiles)
 }
 
 func requestAgentFlareAndFetchFromFakeIntake(v *baseFlareSuite, flareArgs ...agentclient.AgentArgsOption) (flare.Flare, string) {

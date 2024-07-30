@@ -34,11 +34,11 @@ func TestWindowsFlareSuite(t *testing.T) {
 func (v *windowsFlareSuite) TestzzzFlareWindows() {
 	flare, _ := requestAgentFlareAndFetchFromFakeIntake(&v.baseFlareSuite, agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
-	assertFilesExist(v.T(), flare, windowsFiles)
+	AssertFilesExist(v.T(), flare, windowsFiles)
 	assertEventlogFolderOnlyContainsWindoesEventLog(v.T(), flare)
 
 	expectedCounterStrings := []string{"Write Packets/sec", "Events Logged per sec"}
-	assertFileContains(v.T(), flare, "counter_strings.txt", expectedCounterStrings...)
+	AssertFileContains(v.T(), flare, "counter_strings.txt", expectedCounterStrings...)
 
 	_, err := flare.GetFile("datadog-raw.reg")
 	assert.Error(v.T(), err, "File 'datadog-raw.reg' was found in flare, but was expected not to be part of the archive")

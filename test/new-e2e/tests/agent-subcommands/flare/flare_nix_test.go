@@ -67,17 +67,17 @@ func (v *linuxFlareSuite) TestzzzFlareWithAllConfiguration() {
 
 	flare, _ := requestAgentFlareAndFetchFromFakeIntake(&v.baseFlareSuite, agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
-	assertFilesExist(v.T(), flare, scenarioExpectedFiles)
-	assertFilesExist(v.T(), flare, allLogFiles)
-	assertFilesExist(v.T(), flare, allConfigFiles)
+	AssertFilesExist(v.T(), flare, scenarioExpectedFiles)
+	AssertFilesExist(v.T(), flare, allLogFiles)
+	AssertFilesExist(v.T(), flare, allConfigFiles)
 
 	extraCustomConfigFiles := []string{"etc/confd/dist/test.yaml", "etc/confd/dist/test.yml", "etc/confd/dist/test.yml.test", "etc/confd/checksd/test.yml"}
-	assertFilesExist(v.T(), flare, extraCustomConfigFiles)
+	AssertFilesExist(v.T(), flare, extraCustomConfigFiles)
 
 	assertFileNotContains(v.T(), flare, "process_check_output.json", "'process_config.process_collection.enabled' is disabled")
-	assertFileContains(v.T(), flare, "container_check_output.json", "'process_config.container_collection.enabled' is disabled")
-	assertFileContains(v.T(), flare, "process_discovery_check_output.json", "'process_config.process_discovery.enabled' is disabled")
+	AssertFileContains(v.T(), flare, "container_check_output.json", "'process_config.container_collection.enabled' is disabled")
+	AssertFileContains(v.T(), flare, "process_discovery_check_output.json", "'process_config.process_discovery.enabled' is disabled")
 
 	filesRegistredInPermissionsLog := append(systemProbeDummyFiles, "/etc/datadog-agent/auth_token")
-	assertFileContains(v.T(), flare, "permissions.log", filesRegistredInPermissionsLog...)
+	AssertFileContains(v.T(), flare, "permissions.log", filesRegistredInPermissionsLog...)
 }
