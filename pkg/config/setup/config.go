@@ -1484,9 +1484,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
 
 	// SDS logs blocking mechanism
-	config.BindEnvAndSetDefault("logs_config.sds.wait_for_configuration", false)
-	config.BindEnvAndSetDefault("logs_config.sds.wait_for_configuration.buffering", false)
-	config.BindEnvAndSetDefault("logs_config.sds.wait_for_configuration.buffer_max_size", 0)
+	config.BindEnvAndSetDefault("logs_config.sds.wait_for_configuration", "")
+	config.BindEnvAndSetDefault("logs_config.sds.buffer_max_size", 0)
 }
 
 func vector(config pkgconfigmodel.Setup) {

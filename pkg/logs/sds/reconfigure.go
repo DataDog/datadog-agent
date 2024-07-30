@@ -7,15 +7,19 @@
 package sds
 
 import (
+	"fmt"
+
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 type ReconfigureOrderType string
 
 const waitForConfigField = "logs_config.sds.wait_for_configuration"
-const waitForConfigBuffering = "logs_config.sds.wait_for_configuration.buffering"
-const waitForConfigBufferMaxSizeField = "logs_config.sds.wait_for_configuration.buffer_max_size"
+const waitForConfigBufferMaxSizeField = "logs_config.sds.buffer_max_size"
 const waitForConfigDefaultBufferMaxSize = 1024 * 1024 * 500
+
+const waitForConfigNoCollection = "no_collection"
+const waitForConfigBuffer = "buffer"
 
 const (
 	// StandardRules triggers the storage of a new set of standard rules
@@ -44,26 +48,46 @@ type ReconfigureResponse struct {
 	IsActive bool
 }
 
+// ValidateConfigField returns true if the configuration value for
+// wait_for_configuration is valid.
+// Validates its value only when SDS is enabled.
+func ValidateConfigField(cfg pkgconfigmodel.Reader) error {
+	str := cfg.GetString(waitForConfigField)
+
+	if !SDSEnabled ||
+		str == "" || str == waitForConfigBuffer || str == waitForConfigNoCollection {
+		return nil
+	}
+
+	return fmt.Errorf("invalid value for '%s': %s. Valid values: %s, %s",
+		waitForConfigField, str,
+		waitForConfigBuffer, waitForConfigNoCollection)
+}
+
 // ShouldBlockCollectionUntilSDSConfiguration returns true if we want to start the
 // collection only after having received an SDS configuration.
-// We wait to start the collection only if the buffering mode is disabled.
 func ShouldBlockCollectionUntilSDSConfiguration(cfg pkgconfigmodel.Reader) bool {
 	if cfg == nil {
 		return false
 	}
 
-	return SDSEnabled && cfg.GetBool(waitForConfigField) && !cfg.GetBool(waitForConfigBuffering)
+	// in case of an invalid value for the `wait_for_configuration` field,
+	// as a safeguard, we want to block collection until we received an SDS configuration.
+	if SDSEnabled && ValidateConfigField(cfg) != nil {
+		return true
+	}
+
+	return SDSEnabled && cfg.GetString(waitForConfigField) == waitForConfigNoCollection
 }
 
 // ShouldBufferUntilSDSConfiguration returns true if we have to buffer until we've
 // received an SDS configuration.
-// When enabling the buffering mode, we won't wait to start the collection.
 func ShouldBufferUntilSDSConfiguration(cfg pkgconfigmodel.Reader) bool {
 	if cfg == nil {
 		return false
 	}
 
-	return SDSEnabled && cfg.GetBool(waitForConfigField) && cfg.GetBool(waitForConfigBuffering)
+	return SDSEnabled && cfg.GetString(waitForConfigField) == waitForConfigBuffer
 }
 
 // WaitForConfigurationBufferMaxSize returns a size for the buffer used while
@@ -77,6 +101,5 @@ func WaitForConfigurationBufferMaxSize(cfg pkgconfigmodel.Reader) int {
 	if v <= 0 {
 		v = waitForConfigDefaultBufferMaxSize
 	}
-
 	return v
 }

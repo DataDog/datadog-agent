@@ -221,6 +221,10 @@ func (a *logAgent) setupAgent() error {
 		status.AddGlobalWarning(invalidProcessingRules, multiLineWarning)
 	}
 
+	if err := sds.ValidateConfigField(a.config); err != nil {
+		a.log.Error(fmt.Errorf("error while reading configuration, will block until the Agents receive an SDS configuration: %v", err))
+	}
+
 	a.SetupPipeline(processingRules, a.wmeta)
 	return nil
 }
