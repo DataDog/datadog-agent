@@ -64,7 +64,7 @@ func GetHostname(hostname **C.char) {
 func GetHostTags(hostname **C.char) {
 	log.Info("natasha testing GetHostTags function 1")
 	GetHostname(hostname)
-    log.Infof("natasha testing GetHostTags function 2 %s", C.GoString(*hostname))
+	log.Infof("natasha testing GetHostTags function 2 %s", C.GoString(*hostname))
 }
 
 // GetClusterName exposes the current clustername (if it exists) of the agent to Python checks.
