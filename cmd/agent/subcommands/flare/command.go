@@ -96,14 +96,16 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				config.WithConfigLoadSecurityAgent(true),
 				config.WithIgnoreErrors(true),
-				config.WithExtraConfFiles(globalParams.ExtraConfFilePath))
+				config.WithExtraConfFiles(globalParams.ExtraConfFilePath),
+				config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
+			)
 
 			return fxutil.OneShot(makeFlare,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config,
 					SecretParams:         secrets.NewEnabledParams(),
-					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
+					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:            log.ForOneShot(command.LoggerName, "off", false),
 				}),
 				fx.Supply(flare.NewLocalParams(

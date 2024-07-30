@@ -65,7 +65,7 @@ func listCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(listActivityDumps,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
@@ -88,7 +88,7 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(stopActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
@@ -135,7 +135,7 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 			return fxutil.OneShot(generateEncodingFromActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
@@ -202,7 +202,7 @@ func diffCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(diffActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),

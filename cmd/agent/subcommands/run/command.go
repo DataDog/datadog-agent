@@ -178,9 +178,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				ddruntime.SetMaxProcs()
 			}),
 			fx.Supply(core.BundleParams{
-				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath)),
+				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
 				SecretParams:         secrets.NewEnabledParams(),
-				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
+				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
 			}),
 			fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
