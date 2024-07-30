@@ -9,6 +9,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -36,7 +37,7 @@ func startUnit(ctx context.Context, unit string, args ...string) error {
 	defer span.Finish()
 	span.SetTag("unit", unit)
 	args = append([]string{"start", unit}, args...)
-	return exec.CommandContext(ctx, "systemctl", args...).Run()
+	return runUnitCommand(exec.CommandContext(ctx, "systemctl", args...))
 }
 
 func enableUnit(ctx context.Context, unit string) error {
@@ -89,4 +90,22 @@ func isSystemdRunning() (running bool, err error) {
 		return false, err
 	}
 	return true, nil
+}
+
+func runUnitCommand(cmdCtx *exec.Cmd) error {
+	var stderr bytes.Buffer
+	cmdCtx.Stderr = &stderr
+
+	err := cmdCtx.Run()
+	if err == nil {
+		return nil
+	}
+
+	if _, ok := err.(*exec.ExitError); ok {
+		return fmt.Errorf("command failed: %s", stderr.String())
+	}
+	if baseError, ok := err.(*exec.Error); ok {
+		return fmt.Errorf("command failed: %s", baseError.Error())
+	}
+	return fmt.Errorf("command failed: %s", err.Error())
 }
