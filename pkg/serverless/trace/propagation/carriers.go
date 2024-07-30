@@ -226,30 +226,30 @@ func headersCarrier(hdrs map[string]string) (tracer.TextMapReader, error) {
 func createTraceContextFromStepFunctionInput(event events.StepFunctionEvent) (*TraceContext, error) {
 	tc := new(TraceContext)
 
-	execArn := event.Execution.Id
+	execArn := event.Execution.ID
 	stateName := event.State.Name
 	stateEnteredTime := event.State.EnteredTime
 
-	lowerTraceID, upperTraceId := stringToDdTraceIds(execArn)
-	parentID := stringToDdSpanId(execArn, stateName, stateEnteredTime)
+	lowerTraceID, upperTraceID := stringToDdTraceIDs(execArn)
+	parentID := stringToDdSpanID(execArn, stateName, stateEnteredTime)
 
 	tc.TraceID = lowerTraceID
-	tc.TraceIdUpper64Hex = upperTraceId
+	tc.TraceIDUpper64Hex = upperTraceID
 	tc.ParentID = parentID
 	tc.SamplingPriority = sampler.PriorityAutoKeep
 	return tc, nil
 }
 
-// stringToDdSpanId hashes the Execution ARN, state name, and state entered time to generate a 64-bit span ID
-func stringToDdSpanId(execArn string, stateName string, stateEnteredTime string) uint64 {
+// stringToDdSpanID hashes the Execution ARN, state name, and state entered time to generate a 64-bit span ID
+func stringToDdSpanID(execArn string, stateName string, stateEnteredTime string) uint64 {
 	uniqueSpanString := fmt.Sprintf("%s#%s#%s", execArn, stateName, stateEnteredTime)
 	spanHash := sha256.Sum256([]byte(uniqueSpanString))
 	parentID := getPositiveUInt64(spanHash[0:8])
 	return parentID
 }
 
-// stringToDdTraceIds hashes an Execution ARN to generate the lower and upper 64 bits of a 128-bit trace ID
-func stringToDdTraceIds(toHash string) (uint64, string) {
+// stringToDdTraceIDs hashes an Execution ARN to generate the lower and upper 64 bits of a 128-bit trace ID
+func stringToDdTraceIDs(toHash string) (uint64, string) {
 	hash := sha256.Sum256([]byte(toHash))
 	lower64 := getPositiveUInt64(hash[8:16])
 	upper64 := getHexEncodedString(getPositiveUInt64(hash[0:8]))

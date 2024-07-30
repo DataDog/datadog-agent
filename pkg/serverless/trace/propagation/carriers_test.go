@@ -767,7 +767,7 @@ func Test_stringToDdSpanId(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, stringToDdSpanId(tt.args.execArn, tt.args.stateName, tt.args.stateEnteredTime), "stringToDdSpanId(%v, %v, %v)", tt.args.execArn, tt.args.stateName, tt.args.stateEnteredTime)
+			assert.Equalf(t, tt.want, stringToDdSpanID(tt.args.execArn, tt.args.stateName, tt.args.stateEnteredTime), "stringToDdSpanID(%v, %v, %v)", tt.args.execArn, tt.args.stateName, tt.args.stateEnteredTime)
 		})
 	}
 }
@@ -793,9 +793,9 @@ func Test_stringToDdTraceIds(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, got1 := stringToDdTraceIds(tt.args.toHash)
-			assert.Equalf(t, tt.expectedLower64, got, "stringToDdTraceIds(%v)", tt.args.toHash)
-			assert.Equalf(t, tt.expectedUpper64Hex, got1, "stringToDdTraceIds(%v)", tt.args.toHash)
+			got, got1 := stringToDdTraceIDs(tt.args.toHash)
+			assert.Equalf(t, tt.expectedLower64, got, "stringToDdTraceIDs(%v)", tt.args.toHash)
+			assert.Equalf(t, tt.expectedUpper64Hex, got1, "stringToDdTraceIDs(%v)", tt.args.toHash)
 		})
 	}
 }

@@ -354,7 +354,7 @@ type StepFunctionEvent struct {
 
 // StepFunctionExecution is the JSON object that represents a StepFunction execution, that is passed as part of the Lambda function input
 type StepFunctionExecution struct {
-	Id           string
+	ID           string
 	StartTime    string
 	Name         string
 	RoleArn      string
@@ -364,7 +364,7 @@ type StepFunctionExecution struct {
 
 // StepFunctionStateMachine is the JSON object that represents a State Machine
 type StepFunctionStateMachine struct {
-	Id   string
+	ID   string
 	Name string
 }
 

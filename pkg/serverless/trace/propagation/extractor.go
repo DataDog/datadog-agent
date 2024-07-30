@@ -26,7 +26,7 @@ const (
 	ddSpanIDHeader             = "x-datadog-span-id"
 	ddSamplingPriorityHeader   = "x-datadog-sampling-priority"
 	ddInvocationErrorHeader    = "x-datadog-invocation-error"
-	ddTraceIdUpper64BitsHeader = "_dd.p.tid"
+	ddTraceIDUpper64BitsHeader = "_dd.p.tid"
 )
 
 var (
@@ -47,7 +47,7 @@ type Extractor struct {
 // TraceContext stores the propagated trace context values.
 type TraceContext struct {
 	TraceID           uint64
-	TraceIdUpper64Hex string
+	TraceIDUpper64Hex string
 	ParentID          uint64
 	SamplingPriority  sampler.SamplingPriority
 }
