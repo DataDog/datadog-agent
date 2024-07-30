@@ -176,6 +176,112 @@ func TestProcessCheckSecondRun(t *testing.T) {
 	assert.Nil(t, actual.RealtimePayloads())
 }
 
+func TestProcessCheckSecondRunWithChunking(t *testing.T) {
+	processCheck, probe := processCheckWithMockProbe(t)
+
+	// Set small chunk size to encourage chunking behavior
+	processCheck.maxBatchBytes = 0
+	processCheck.maxBatchSize = 0
+
+	now := time.Now().Unix()
+	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
+	proc2 := makeProcessWithCreateTime(2, "mine-bitcoins -all -x", now+1)
+	proc3 := makeProcessWithCreateTime(3, "foo --version", now+2)
+	proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
+	proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
+
+	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
+
+	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
+		Return(processesByPid, nil)
+
+	expected := []model.MessageBody{
+		&model.CollectorProc{
+			Processes: []*model.Process{makeProcessModel(t, proc1, []string{"process_context:git"})},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		},
+		&model.CollectorProc{
+			Processes: []*model.Process{makeProcessModel(t, proc2, []string{"process_context:mine-bitcoins"})},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		},
+		&model.CollectorProc{
+			Processes: []*model.Process{makeProcessModel(t, proc3, []string{"process_context:foo"})},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		},
+		&model.CollectorProc{
+			Processes: []*model.Process{makeProcessModel(t, proc4, []string{"process_context:foo"})},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		},
+		&model.CollectorProc{
+			Processes: []*model.Process{makeProcessModel(t, proc5, []string{"process_context:datadog-process-agent"})},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		},
+	}
+
+	// Run check with NoChunking option set to false
+	processCheck.Run(func() int32 { return 0 }, &RunOptions{RunStandard: true, NoChunking: false})
+	// Second run
+	actual, err := processCheck.Run(func() int32 { return 0 }, &RunOptions{RunStandard: true, NoChunking: false})
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expected, actual.Payloads()) // ordering is not guaranteed
+	assert.Nil(t, actual.RealtimePayloads())
+}
+
+func TestProcessCheckSecondRunWithoutChunking(t *testing.T) {
+	processCheck, probe := processCheckWithMockProbe(t)
+
+	// Set small chunk size to encourage chunking behavior
+	processCheck.maxBatchBytes = 0
+	processCheck.maxBatchSize = 0
+
+	now := time.Now().Unix()
+	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
+	proc2 := makeProcessWithCreateTime(2, "mine-bitcoins -all -x", now+1)
+	proc3 := makeProcessWithCreateTime(3, "foo --version", now+2)
+	proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
+	proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
+
+	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
+
+	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
+		Return(processesByPid, nil)
+
+	expected := []model.MessageBody{
+		&model.CollectorProc{
+			Processes: []*model.Process{
+				makeProcessModel(t, proc1, []string{"process_context:git"}),
+				makeProcessModel(t, proc2, []string{"process_context:mine-bitcoins"}),
+				makeProcessModel(t, proc3, []string{"process_context:foo"}),
+				makeProcessModel(t, proc4, []string{"process_context:foo"}),
+				makeProcessModel(t, proc5, []string{"process_context:datadog-process-agent"})},
+			GroupSize: 1, // As one chunk
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		},
+	}
+
+	// Run check with NoChunking option set to true
+	processCheck.Run(func() int32 { return 0 }, &RunOptions{RunStandard: true, NoChunking: true})
+	// Test second check runs without error
+	actual, err := processCheck.Run(func() int32 { return 0 }, &RunOptions{RunStandard: true, NoChunking: true})
+	require.NoError(t, err)
+
+	// Assert to check there is only one chunk and that the nested values of this chunk match expected
+	assert.Len(t, actual.Payloads(), 1)
+	assert.Equal(t, &expected[0], &actual.Payloads()[0])
+	assert.Nil(t, actual.RealtimePayloads())
+}
+
 func TestProcessCheckWithRealtime(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
 	proc1 := makeProcess(1, "git clone google.com")

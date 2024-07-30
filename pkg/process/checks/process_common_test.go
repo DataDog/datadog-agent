@@ -79,6 +79,17 @@ func makeProcessModel(t *testing.T, process *procutil.Process, processContext []
 	}
 }
 
+func makeProcessDiscoveryModel(t *testing.T, process *procutil.Process) *model.ProcessDiscovery {
+	t.Helper()
+
+	return &model.ProcessDiscovery{
+		Pid:     process.Pid,
+		Command: &model.Command{Args: process.Cmdline},
+		User:    &model.ProcessUser{},
+		CreateTime:     process.Stats.CreateTime,
+	}
+}
+
 func makeProcessStatModels(t *testing.T, processes ...*procutil.Process) []*model.ProcessStat {
 	t.Helper()
 

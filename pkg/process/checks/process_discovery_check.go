@@ -109,7 +109,12 @@ func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, options *RunOption
 
 	// For no chunking, set max batch size as number of process discoveries to ensure one chunk
 	if options != nil && options.NoChunking {
+		oldMaxBatchSize := d.maxBatchSize
 		d.maxBatchSize = len(procDiscoveries)
+
+		defer func() {
+			d.maxBatchSize = oldMaxBatchSize
+		}()
 	}
 
 	procDiscoveryChunks := chunkProcessDiscoveries(procDiscoveries, d.maxBatchSize)

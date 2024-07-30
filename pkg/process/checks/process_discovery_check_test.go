@@ -7,15 +7,42 @@ package checks
 
 import (
 	"testing"
+	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
 )
+
+func processDiscoveryCheckWithMockProbe(t *testing.T) (*ProcessDiscoveryCheck, *mocks.Probe) {
+	t.Helper()
+	probe := mocks.NewProbe(t)
+	sysInfo := &model.SystemInfo{
+		Cpus: []*model.CPUInfo{
+			{CoreId: "1"},
+			{CoreId: "2"},
+			{CoreId: "3"},
+			{CoreId: "4"},
+		},
+	}
+	info := &HostInfo{
+		SystemInfo: sysInfo,
+	}
+
+	return &ProcessDiscoveryCheck{
+		probe:      probe,
+		scrubber:   procutil.NewDefaultDataScrubber(),
+		info:       info,
+		userProbe:  &LookupIdProbe{},
+		initCalled: true,
+	}, probe
+}
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func testGroupId(groupID int32) func() int32 {
@@ -61,6 +88,97 @@ func TestProcessDiscoveryCheck(t *testing.T) {
 				maxBatchSize, len(collectorProcDiscovery.ProcessDiscoveries))
 		}
 	}
+}
+
+func TestProcessDiscoveryCheckWithChunking(t *testing.T) {
+	check, probe := processDiscoveryCheckWithMockProbe(t)
+
+	// Set small chunk size to encourage chunking behavior
+	check.maxBatchSize = 1
+
+	now := time.Now().Unix()
+	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
+	proc2 := makeProcessWithCreateTime(2, "mine-bitcoins -all -x", now+1)
+	proc3 := makeProcessWithCreateTime(3, "foo --version", now+2)
+	proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
+	proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
+	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
+
+	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
+		Return(processesByPid, nil)
+
+	expected := []model.MessageBody{
+		&model.CollectorProcDiscovery{
+			ProcessDiscoveries: []*model.ProcessDiscovery{makeProcessDiscoveryModel(t, proc1)},
+			GroupSize:          int32(len(processesByPid)),
+			Host:               &model.Host{},
+		},
+		&model.CollectorProcDiscovery{
+			ProcessDiscoveries: []*model.ProcessDiscovery{makeProcessDiscoveryModel(t, proc2)},
+			GroupSize:          int32(len(processesByPid)),
+			Host:               &model.Host{},
+		},
+		&model.CollectorProcDiscovery{
+			ProcessDiscoveries: []*model.ProcessDiscovery{makeProcessDiscoveryModel(t, proc3)},
+			GroupSize:          int32(len(processesByPid)),
+			Host:               &model.Host{},
+		},
+		&model.CollectorProcDiscovery{
+			ProcessDiscoveries: []*model.ProcessDiscovery{makeProcessDiscoveryModel(t, proc4)},
+			GroupSize:          int32(len(processesByPid)),
+			Host:               &model.Host{},
+		},
+		&model.CollectorProcDiscovery{
+			ProcessDiscoveries: []*model.ProcessDiscovery{makeProcessDiscoveryModel(t, proc5)},
+			GroupSize:          int32(len(processesByPid)),
+			Host:               &model.Host{},
+		},
+	}
+
+	// Test check runs without error
+	actual, err := check.Run(testGroupId(0), &RunOptions{RunStandard: true, NoChunking: false})
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expected, actual.Payloads())
+}
+
+func TestProcessDiscoveryCheckWithoutChunking(t *testing.T) {
+	check, probe := processDiscoveryCheckWithMockProbe(t)
+
+	// Set small chunk size to encourage chunking behavior
+	check.maxBatchSize = 1
+
+	now := time.Now().Unix()
+	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
+	proc2 := makeProcessWithCreateTime(2, "mine-bitcoins -all -x", now+1)
+	proc3 := makeProcessWithCreateTime(3, "foo --version", now+2)
+	proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
+	proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
+
+	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
+	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
+		Return(processesByPid, nil)
+
+	expected := []model.MessageBody{
+		&model.CollectorProcDiscovery{
+			ProcessDiscoveries: []*model.ProcessDiscovery{
+				makeProcessDiscoveryModel(t, proc1),
+				makeProcessDiscoveryModel(t, proc2),
+				makeProcessDiscoveryModel(t, proc3),
+				makeProcessDiscoveryModel(t, proc4),
+				makeProcessDiscoveryModel(t, proc5),
+			},
+			GroupSize: 1, // As one chunk
+			Host:      &model.Host{},
+		},
+	}
+
+	// Test check runs without error
+	actual, err := check.Run(testGroupId(0), &RunOptions{RunStandard: true, NoChunking: true})
+	require.NoError(t, err)
+
+	// Assert to check there is only one chunk and that the nested values of this chunk match expected
+	assert.Len(t, actual.Payloads(), 1)
+	assert.Equal(t, &expected[0], &actual.Payloads()[0])
 }
 
 func TestProcessDiscoveryChunking(t *testing.T) {

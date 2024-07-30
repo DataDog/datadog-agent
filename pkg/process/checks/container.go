@@ -122,7 +122,12 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 
 	// For no chunking, set groupsize as 1 to ensure one chunk
 	if options != nil && options.NoChunking {
+		oldGroupSize := groupSize
 		groupSize = 1
+
+		defer func() {
+			groupSize = oldGroupSize
+		}()
 	}
 
 	chunked := chunkContainers(containers, groupSize)

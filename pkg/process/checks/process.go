@@ -376,8 +376,15 @@ func (p *ProcessCheck) Run(nextGroupID func() int32, options *RunOptions) (RunRe
 
 	// For no chunking, set max batch size to max value to ensure one chunk
 	if options.NoChunking {
+		oldMaxBatchSize := p.maxBatchSize
+		oldMaxBatchBytes := p.maxBatchBytes
 		p.maxBatchSize = math.MaxInt
 		p.maxBatchBytes = math.MaxInt
+
+		defer func(){
+			p.maxBatchSize = oldMaxBatchSize
+			p.maxBatchBytes = oldMaxBatchBytes
+		}()
 	}
 
 	if options.RunStandard {
