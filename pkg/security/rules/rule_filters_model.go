@@ -62,6 +62,11 @@ func (m *RuleFilterModel) GetIterator(field eval.Field) (eval.Iterator, error) {
 	return nil, &eval.ErrIteratorNotSupported{Field: field}
 }
 
+// GetFieldRestrictions returns the field event type restrictions
+func (m *RuleFilterModel) GetFieldRestrictions(_ eval.Field) []eval.EventType {
+	return nil
+}
+
 func getHostname() string {
 	hostname, err := utils.GetHostname()
 	if err != nil || hostname == "" {
