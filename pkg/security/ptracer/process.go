@@ -9,9 +9,11 @@
 package ptracer
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"golang.org/x/sys/unix"
@@ -60,6 +62,8 @@ func NewProcess(pid int) *Process {
 	}
 }
 
+var pipeFdErr = errors.New("pipe fd")
+
 func (p *Process) GetFilenameFromFd(fd int32) (string, error) {
 	filename, ok := p.FdRes.Fd[fd]
 	if ok {
@@ -70,6 +74,10 @@ func (p *Process) GetFilenameFromFd(fd int32) (string, error) {
 	filename, err := os.Readlink(procPath)
 	if err != nil {
 		return "", err
+	}
+
+	if strings.HasPrefix(filename, "pipe:") {
+		return "", pipeFdErr
 	}
 
 	return filename, nil
