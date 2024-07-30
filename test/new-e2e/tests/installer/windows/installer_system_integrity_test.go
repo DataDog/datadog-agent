@@ -46,7 +46,7 @@ func TestInstallerSystemIntegrity(t *testing.T) {
 		suite := suite
 		t.Run(suite.name, func(t *testing.T) {
 			t.Parallel()
-			e2e.Run(t, suite, e2e.WithProvisioner(winawshost.ProvisionerNoAgentNoFakeIntake()))
+			e2e.Run(t, suite, e2e.WithProvisioner(winawshost.ProvisionerNoAgentNoFakeIntake()), e2e.WithStackName(suite.name))
 		})
 	}
 }
