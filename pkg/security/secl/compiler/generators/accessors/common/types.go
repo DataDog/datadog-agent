@@ -70,6 +70,7 @@ type StructField struct {
 	AliasPrefix      string
 	GettersOnly      bool
 	Ref              string
+	RestrictedTo     []string
 }
 
 // GetEvaluatorType returns the evaluator type name

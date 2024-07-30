@@ -78,51 +78,6 @@
           "property_doc_link": "event-timestamp-doc"
         },
         {
-          "name": "network.destination.ip",
-          "definition": "IP address",
-          "property_doc_link": "common-ipportcontext-ip-doc"
-        },
-        {
-          "name": "network.destination.port",
-          "definition": "Port number",
-          "property_doc_link": "common-ipportcontext-port-doc"
-        },
-        {
-          "name": "network.device.ifindex",
-          "definition": "Interface ifindex",
-          "property_doc_link": "network-device-ifindex-doc"
-        },
-        {
-          "name": "network.device.ifname",
-          "definition": "Interface ifname",
-          "property_doc_link": "network-device-ifname-doc"
-        },
-        {
-          "name": "network.l3_protocol",
-          "definition": "L3 protocol of the network packet",
-          "property_doc_link": "network-l3_protocol-doc"
-        },
-        {
-          "name": "network.l4_protocol",
-          "definition": "L4 protocol of the network packet",
-          "property_doc_link": "network-l4_protocol-doc"
-        },
-        {
-          "name": "network.size",
-          "definition": "Size in bytes of the network packet",
-          "property_doc_link": "network-size-doc"
-        },
-        {
-          "name": "network.source.ip",
-          "definition": "IP address",
-          "property_doc_link": "common-ipportcontext-ip-doc"
-        },
-        {
-          "name": "network.source.port",
-          "definition": "Port number",
-          "property_doc_link": "common-ipportcontext-port-doc"
-        },
-        {
           "name": "process.ancestors.args",
           "definition": "Arguments of the process (as a string, excluding argv0)",
           "property_doc_link": "common-process-args-doc"
@@ -1869,6 +1824,51 @@
           "name": "dns.question.type",
           "definition": "a two octet code which specifies the DNS question type",
           "property_doc_link": "dns-question-type-doc"
+        },
+        {
+          "name": "network.destination.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.destination.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "network.device.ifindex",
+          "definition": "Interface ifindex",
+          "property_doc_link": "network-device-ifindex-doc"
+        },
+        {
+          "name": "network.device.ifname",
+          "definition": "Interface ifname",
+          "property_doc_link": "network-device-ifname-doc"
+        },
+        {
+          "name": "network.l3_protocol",
+          "definition": "L3 protocol of the network packet",
+          "property_doc_link": "network-l3_protocol-doc"
+        },
+        {
+          "name": "network.l4_protocol",
+          "definition": "L4 protocol of the network packet",
+          "property_doc_link": "network-l4_protocol-doc"
+        },
+        {
+          "name": "network.size",
+          "definition": "Size in bytes of the network packet",
+          "property_doc_link": "network-size-doc"
+        },
+        {
+          "name": "network.source.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.source.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
         }
       ]
     },
@@ -2751,6 +2751,51 @@
           "name": "imds.user_agent",
           "definition": "the user agent of the HTTP client",
           "property_doc_link": "imds-user_agent-doc"
+        },
+        {
+          "name": "network.destination.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.destination.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "network.device.ifindex",
+          "definition": "Interface ifindex",
+          "property_doc_link": "network-device-ifindex-doc"
+        },
+        {
+          "name": "network.device.ifname",
+          "definition": "Interface ifname",
+          "property_doc_link": "network-device-ifname-doc"
+        },
+        {
+          "name": "network.l3_protocol",
+          "definition": "L3 protocol of the network packet",
+          "property_doc_link": "network-l3_protocol-doc"
+        },
+        {
+          "name": "network.l4_protocol",
+          "definition": "L4 protocol of the network packet",
+          "property_doc_link": "network-l4_protocol-doc"
+        },
+        {
+          "name": "network.size",
+          "definition": "Size in bytes of the network packet",
+          "property_doc_link": "network-size-doc"
+        },
+        {
+          "name": "network.source.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.source.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
         }
       ]
     },
