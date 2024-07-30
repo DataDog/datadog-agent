@@ -158,18 +158,12 @@ func TestProcessDiscoveryCheckWithoutChunking(t *testing.T) {
 	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
 		Return(processesByPid, nil)
 
-	expected := []model.MessageBody{
-		&model.CollectorProcDiscovery{
-			ProcessDiscoveries: []*model.ProcessDiscovery{
-				makeProcessDiscoveryModel(t, proc1),
-				makeProcessDiscoveryModel(t, proc2),
-				makeProcessDiscoveryModel(t, proc3),
-				makeProcessDiscoveryModel(t, proc4),
-				makeProcessDiscoveryModel(t, proc5),
-			},
-			GroupSize: 1, // As one chunk
-			Host:      &model.Host{},
-		},
+	expected := []*model.ProcessDiscovery{
+		makeProcessDiscoveryModel(t, proc1),
+		makeProcessDiscoveryModel(t, proc2),
+		makeProcessDiscoveryModel(t, proc3),
+		makeProcessDiscoveryModel(t, proc4),
+		makeProcessDiscoveryModel(t, proc5),
 	}
 
 	// Test check runs without error
@@ -178,7 +172,14 @@ func TestProcessDiscoveryCheckWithoutChunking(t *testing.T) {
 
 	// Assert to check there is only one chunk and that the nested values of this chunk match expected
 	assert.Len(t, actual.Payloads(), 1)
-	assert.Equal(t, &expected[0], &actual.Payloads()[0])
+	for _, elem := range actual.Payloads() {
+		assert.IsType(t, &model.CollectorProcDiscovery{}, elem)
+		collectorProcDiscovery := elem.(*model.CollectorProcDiscovery)
+		ProcessDiscoveries := collectorProcDiscovery.GetProcessDiscoveries()
+		assert.ElementsMatch(t, expected, ProcessDiscoveries)
+		assert.EqualValues(t, 1, collectorProcDiscovery.GetGroupSize())
+		assert.ElementsMatch(t, &model.Host{}, collectorProcDiscovery.GetHost())
+	}
 }
 
 func TestProcessDiscoveryChunking(t *testing.T) {

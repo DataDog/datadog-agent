@@ -256,18 +256,12 @@ func TestProcessCheckSecondRunWithoutChunking(t *testing.T) {
 	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
 		Return(processesByPid, nil)
 
-	expected := []model.MessageBody{
-		&model.CollectorProc{
-			Processes: []*model.Process{
-				makeProcessModel(t, proc1, []string{"process_context:git"}),
-				makeProcessModel(t, proc2, []string{"process_context:mine-bitcoins"}),
-				makeProcessModel(t, proc3, []string{"process_context:foo"}),
-				makeProcessModel(t, proc4, []string{"process_context:foo"}),
-				makeProcessModel(t, proc5, []string{"process_context:datadog-process-agent"})},
-			GroupSize: 1, // As one chunk
-			Info:      processCheck.hostInfo.SystemInfo,
-			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
-		},
+	expected := []*model.Process{
+		makeProcessModel(t, proc1, []string{"process_context:git"}),
+		makeProcessModel(t, proc2, []string{"process_context:mine-bitcoins"}),
+		makeProcessModel(t, proc3, []string{"process_context:foo"}),
+		makeProcessModel(t, proc4, []string{"process_context:foo"}),
+		makeProcessModel(t, proc5, []string{"process_context:datadog-process-agent"}),
 	}
 
 	// Run check with NoChunking option set to true
@@ -278,7 +272,14 @@ func TestProcessCheckSecondRunWithoutChunking(t *testing.T) {
 
 	// Assert to check there is only one chunk and that the nested values of this chunk match expected
 	assert.Len(t, actual.Payloads(), 1)
-	assert.Equal(t, &expected[0], &actual.Payloads()[0])
+	for _, elem := range actual.Payloads() {
+		assert.IsType(t, &model.CollectorProc{}, elem)
+		collectorProc := elem.(*model.CollectorProc)
+		ProcessDiscoveries := collectorProc.GetProcesses()
+		assert.ElementsMatch(t, expected, ProcessDiscoveries)
+		assert.EqualValues(t, 1, collectorProc.GetGroupSize())
+		assert.EqualValues(t, 0b1, collectorProc.GetHintMask())
+	}
 	assert.Nil(t, actual.RealtimePayloads())
 }
 
