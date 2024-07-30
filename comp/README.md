@@ -591,6 +591,12 @@ Package telemetry provides the installer telemetry component.
 
 Package updater is the updater component.
 
+### [comp/autoscaling/datadogclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient)
+
+*Datadog Team*: container-integrations
+
+Package datadogclient provides a client to query the datadog API
+
 ### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
 
 *Datadog Team*: windows-agent
