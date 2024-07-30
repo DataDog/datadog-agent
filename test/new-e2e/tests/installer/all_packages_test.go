@@ -216,6 +216,9 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 
 		// Run the playbook
 		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%s/ansible-playbook %s", ansiblePrefix, playbookPath))
+
+		ot := s.Env().RemoteHost.MustExecute("sudo datadog-installer status")
+		s.T().Log(ot)
 	default:
 		s.T().Fatal("unsupported install method")
 	}
@@ -332,13 +335,15 @@ func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
 
 func (s *packageBaseSuite) writeAnsiblePlaybook(params ...string) string {
 	playbookPath := "/tmp/datadog-agent-playbook.yml"
-	playbookString := `
+	playbookStringPrefix := `
 - hosts: localhost
   tasks:
     - name: Import the Datadog Agent role from the Datadog collection
       become: true
       import_role:
         name: datadog.dd.agent
+`
+	playbookStringSuffix := `
   vars:
     datadog_api_key: "<api key>"
     datadog_site: "datadoghq.com"
@@ -348,15 +353,23 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(params ...string) string {
 		key, value := strings.Split(param, "=")[0], strings.Split(param, "=")[1]
 		switch key {
 		case "DD_REMOTE_UPDATES":
-			playbookString += fmt.Sprintf("    datadog_remote_updates: %s\n", value)
+			playbookStringSuffix += fmt.Sprintf("    datadog_remote_updates: %s\n", value)
 		case "DD_APM_INSTRUMENTATION_ENABLED=host":
-			playbookString += fmt.Sprintf("    datadog_apm_instrumentation_enabled: %s\n", value)
+			playbookStringSuffix += fmt.Sprintf("    datadog_apm_instrumentation_enabled: %s\n", value)
 		case "DD_APM_INSTRUMENTATION_LIBRARIES":
-			playbookString += fmt.Sprintf("    datadog_apm_instrumentation_libraries: [%s]\n", value)
+			playbookStringSuffix += fmt.Sprintf("    datadog_apm_instrumentation_libraries: [%s]\n", value)
 		default:
 			environments = append(environments, fmt.Sprintf("%s: %s ", key, value))
 		}
 	}
+	if len(environments) > 0 {
+		playbookStringPrefix += "      environment:\n"
+		for _, env := range environments {
+			playbookStringPrefix += fmt.Sprintf("        %s\n", env)
+		}
+	}
+
+	playbookString := playbookStringPrefix + playbookStringSuffix
 
 	// Write the playbook to a file
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf("echo '%s' | sudo tee %s", playbookString, playbookPath))
