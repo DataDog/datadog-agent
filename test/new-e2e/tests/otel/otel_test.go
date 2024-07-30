@@ -10,7 +10,10 @@ package otel
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
 	"fmt"
+	"github.com/cenkalti/backoff"
+	"k8s.io/apimachinery/pkg/fields"
 	"strings"
 	"testing"
 	"time"
@@ -25,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	localkubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/local/kubernetes"
+	flareHelpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-subcommands/flare"
 )
 
 type linuxTestSuite struct {
@@ -53,8 +57,8 @@ func (s *linuxTestSuite) TestOtelAgentInstalled() {
 }
 
 func (s *linuxTestSuite) TestOTelPipelines() {
-	ctx := context.Background()
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	ctx := context.Background()
 	var ttlSecondsAfterFinished int32 = 300
 	var backOffLimit int32 = 4
 
@@ -85,7 +89,7 @@ func (s *linuxTestSuite) TestOTelPipelines() {
 	_, err := s.Env().KubernetesCluster.Client().BatchV1().Jobs("datadog").Create(ctx, jobSpec, metav1.CreateOptions{})
 	assert.NoError(s.T(), err, "Could not properly start job")
 
-	time.Sleep(5 * time.Minute)
+	//time.Sleep(5 * time.Minute)
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		traces, err := s.Env().FakeIntake.Client().GetTraces()
@@ -93,4 +97,67 @@ func (s *linuxTestSuite) TestOTelPipelines() {
 		fmt.Println(traces)
 	}, 1*time.Minute, 10*time.Second)
 
+}
+
+// waitForReadyTimeout blocks up to timeout waiting for agent to be ready.
+// Retries every 100 ms up to timeout.
+// Returns error on failure.
+func (s *linuxTestSuite) waitForReadyTimeout(timeout time.Duration, agentName string) error {
+	interval := 100 * time.Millisecond
+	maxRetries := timeout.Milliseconds() / interval.Milliseconds()
+	fmt.Println("Waiting for the agent to be ready")
+	err := backoff.Retry(func() error {
+		_, _, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agentName, "agent", []string{"agent", "status"})
+		if err != nil {
+			return fmt.Errorf("agent not ready: %w", err)
+		}
+		return nil
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), uint64(maxRetries)))
+	return err
+}
+
+func (s *linuxTestSuite) TestOTelFlare() {
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+
+	// Wait for the fakeintake to be ready to avoid 503 when sending the flare
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		assert.NoError(c, s.Env().FakeIntake.Client().GetServerHealth())
+	}, 5*time.Minute, 20*time.Second, "timedout waiting for fakeintake to be healthy")
+
+	agent := s.getAgentPod()
+	err := s.waitForReadyTimeout(1*time.Minute, agent.Name)
+	assert.NoError(s.T(), err, "the agent is not ready")
+
+	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "flare", "--email", "e2e@test.com", "--send"})
+	assert.NoError(s.T(), err, "Failed to execute flare")
+	fmt.Println("---- stdout ----")
+	fmt.Println(stdout)
+	fmt.Println("---- stderr ----")
+	fmt.Println(stderr)
+
+	flare, err := s.Env().FakeIntake.Client().GetLatestFlare()
+	assert.NoError(s.T(), err, "Failed to get latest flare")
+
+	flareHelpers.AssertFoldersExist(s.T(), flare, []string{"otel", "otel/otel-flare"})
+	flareHelpers.AssertFilesExist(s.T(), flare, []string{"otel/otel-response.json"})
+	flareHelpers.AssertFileContains(s.T(), flare, "otel/otel-response.json", "otel-agent")
+
+	content, _ := flare.GetFileContent("otel/otel-response.json")
+
+	var response map[string]interface{}
+	json.Unmarshal([]byte(content), &response)
+	fmt.Println("---- response ----")
+	fmt.Println(response)
+
+	time.Sleep(5 * time.Minute)
+
+}
+
+func (s *linuxTestSuite) getAgentPod() corev1.Pod {
+	res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), v1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
+	})
+	assert.NoError(s.T(), err)
+	assert.NotEmpty(s.T(), res.Items)
+	return res.Items[0]
 }
