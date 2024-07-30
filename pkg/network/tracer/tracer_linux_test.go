@@ -72,7 +72,7 @@ func (s *TracerSuite) TestTCPRemoveEntries() {
 	config.TCPConnTimeout = 100 * time.Millisecond
 	tr := setupTracer(t, config)
 	// Create a dummy TCP Server
-	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+	server := tracertestutil.NewTCPServer(func(_ net.Conn) {
 	})
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
@@ -833,7 +833,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 	// run tcp server in test1 net namespace
 	var server *tracertestutil.TCPServer
 	err = kernel.WithNS(test1Ns, func() error {
-		server = tracertestutil.NewTCPServerOnAddress("2.2.2.2:0", func(c net.Conn) {})
+		server = tracertestutil.NewTCPServerOnAddress("2.2.2.2:0", func(_ net.Conn) {})
 		return server.Run()
 	})
 	require.NoError(t, err)
@@ -1315,7 +1315,7 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 		return &UDPServer{
 			network: udpnet,
 			lc: &net.ListenConfig{
-				Control: func(network, address string, c syscall.RawConn) error {
+				Control: func(_, address string, c syscall.RawConn) error {
 					var opErr error
 					err := c.Control(func(fd uintptr) {
 						opErr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT, 1)
@@ -1327,7 +1327,7 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 				},
 			},
 			address: fmt.Sprintf("%s:%d", ip, port),
-			onMessage: func(buf []byte, n int) []byte {
+			onMessage: func(_ []byte, n int) []byte {
 				return genPayload(serverMessageSize)
 			},
 		}

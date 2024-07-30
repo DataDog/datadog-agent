@@ -427,7 +427,7 @@ func testUDPSendAndReceive(t *testing.T, tr *Tracer, addr string) {
 
 	server := &UDPServer{
 		address: addr,
-		onMessage: func(_ []byte, n int) []byte {
+		onMessage: func(_ []byte, _ int) []byte {
 			return genPayload(serverMessageSize)
 		},
 	}
