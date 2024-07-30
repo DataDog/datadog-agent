@@ -341,7 +341,7 @@ func TestGetAuroraClustersFromTags(t *testing.T) {
 	}{
 		{
 			name:            "no filter tags supplied",
-			configureClient: func(k *MockrdsService) {},
+			configureClient: func(_ *MockrdsService) {},
 			tags:            []string{},
 			expectedErr:     errors.New("at least one tag filter is required"),
 		},

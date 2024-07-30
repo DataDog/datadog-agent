@@ -117,7 +117,7 @@ func TestRaceFlushVersusAddSample(t *testing.T) {
 
 	server := http.Server{
 		Addr: "localhost:8888",
-		Handler: http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		Handler: http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 			time.Sleep(10 * time.Millisecond)
 		}),
 	}

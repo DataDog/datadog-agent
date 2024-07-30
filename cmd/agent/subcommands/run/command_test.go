@@ -24,7 +24,7 @@ func TestCommand(t *testing.T) {
 		Commands(newGlobalParamsTest(t)),
 		[]string{"run"},
 		run,
-		func(_ pidimpl.Params, coreParams core.BundleParams, secretParams secrets.Params) {
+		func(_ pidimpl.Params, _ core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, true, secretParams.Enabled)
 		})
 }

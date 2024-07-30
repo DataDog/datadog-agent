@@ -105,7 +105,7 @@ func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Optio
 		SBOMSources:       []string{},
 		DisabledHandlers:  DefaultDisabledHandlers(),
 		WalkOption: artifact.WalkOption{
-			ErrorCallback: func(pathname string, err error) error {
+			ErrorCallback: func(_ string, err error) error {
 				if errors.Is(err, fs.ErrPermission) || errors.Is(err, os.ErrNotExist) {
 					return nil
 				}

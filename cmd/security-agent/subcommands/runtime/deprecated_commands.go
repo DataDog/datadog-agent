@@ -29,7 +29,7 @@ func checkPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command 
 	checkPoliciesCmd := &cobra.Command{
 		Use:   "check-policies",
 		Short: "check policies and return a report",
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(checkPolicies,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
@@ -52,7 +52,7 @@ func reloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command
 	reloadPoliciesCmd := &cobra.Command{
 		Use:   "reload",
 		Short: "Reload policies",
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(reloadRuntimePolicies,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),

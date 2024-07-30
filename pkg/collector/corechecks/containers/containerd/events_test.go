@@ -58,7 +58,7 @@ func TestCheckEvents(t *testing.T) {
 	cha := make(chan *events.Envelope)
 	errorsCh := make(chan error)
 	me := &mockEvt{
-		mockSubscribe: func(ctx context.Context, filter ...string) (ch <-chan *events.Envelope, errs <-chan error) {
+		mockSubscribe: func(_ context.Context, filter ...string) (ch <-chan *events.Envelope, errs <-chan error) {
 			return cha, errorsCh
 		},
 	}
@@ -155,7 +155,7 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 	cha := make(chan *events.Envelope)
 	errorsCh := make(chan error)
 	me := &mockEvt{
-		mockSubscribe: func(ctx context.Context, filter ...string) (ch <-chan *events.Envelope, errs <-chan error) {
+		mockSubscribe: func(_ context.Context, filter ...string) (ch <-chan *events.Envelope, errs <-chan error) {
 			return cha, errorsCh
 		},
 	}

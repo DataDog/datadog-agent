@@ -20,7 +20,7 @@ import (
 func TestRun_success(t *testing.T) {
 	cmd := &cobra.Command{
 		Use: "ok",
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return nil
 		},
 	}
@@ -31,7 +31,7 @@ func TestRun_success(t *testing.T) {
 func TestRun_fail(t *testing.T) {
 	cmd := &cobra.Command{
 		Use: "bad",
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return errors.New("uhoh")
 		},
 	}

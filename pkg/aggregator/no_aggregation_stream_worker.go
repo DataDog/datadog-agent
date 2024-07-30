@@ -158,7 +158,7 @@ func (w *noAggregationStreamWorker) run() {
 		metrics.Serialize(
 			w.seriesSink,
 			w.sketchesSink,
-			func(_ metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+			func(_ metrics.SerieSink, _ metrics.SketchesSink) {
 			mainloop:
 				for {
 					select {

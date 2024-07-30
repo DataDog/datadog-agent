@@ -49,7 +49,7 @@ func TestGetHostnameFromGRPC(t *testing.T) {
 	).Return(&pb.HostnameReply{Hostname: "unit-test-hostname"}, nil)
 
 	t.Run("hostname returns from grpc", func(t *testing.T) {
-		hostname, err := getHostnameFromGRPC(ctx, func(_ context.Context, address, cmdPort string, opts ...grpc.DialOption) (pb.AgentClient, error) {
+		hostname, err := getHostnameFromGRPC(ctx, func(_ context.Context, _, cmdPort string, opts ...grpc.DialOption) (pb.AgentClient, error) {
 			return mockClient, nil
 		}, config.DefaultGRPCConnectionTimeoutSecs*time.Second)
 
@@ -59,7 +59,7 @@ func TestGetHostnameFromGRPC(t *testing.T) {
 
 	t.Run("grpc client is unavailable", func(t *testing.T) {
 		grpcErr := errors.New("no grpc client")
-		hostname, err := getHostnameFromGRPC(ctx, func(_ context.Context, address, cmdPort string, opts ...grpc.DialOption) (pb.AgentClient, error) {
+		hostname, err := getHostnameFromGRPC(ctx, func(_ context.Context, _, cmdPort string, opts ...grpc.DialOption) (pb.AgentClient, error) {
 			return nil, grpcErr
 		}, config.DefaultGRPCConnectionTimeoutSecs*time.Second)
 

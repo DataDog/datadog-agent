@@ -56,7 +56,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "stream-logs",
 		Short: "Stream the logs being processed by a running agent",
 		Long:  ``,
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(streamLogs,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -72,7 +72,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd.Flags().DurationVarP(&cliParams.Duration, "duration", "d", 0, "Duration of the log stream (default: 0, infinite)")
 	cmd.Flags().BoolVarP(&cliParams.Quiet, "quiet", "q", false, "Quiet mode (no output to stdout)")
 	// PreRunE is used to validate duration before stream-logs is run.
-	cmd.PreRunE = func(_ *cobra.Command, args []string) error {
+	cmd.PreRunE = func(_ *cobra.Command, _ []string) error {
 		if cliParams.Duration < 0 {
 			return fmt.Errorf("duration must be a positive value")
 		}

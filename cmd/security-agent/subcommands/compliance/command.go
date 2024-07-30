@@ -151,7 +151,7 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 	eventCmd := &cobra.Command{
 		Use:   "event",
 		Short: "Issue logs to test Security Agent compliance events",
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(eventRun,
 				fx.Supply(eventArgs),
 				fx.Supply(core.BundleParams{

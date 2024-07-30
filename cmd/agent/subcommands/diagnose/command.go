@@ -82,7 +82,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "diagnose",
 		Short: "Validate Agent installation, configuration and environment",
 		Long:  ``,
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(cmdDiagnose,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
@@ -143,7 +143,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "[internal] Print the metadata payload for the agent.",
 		Long: `
 This command print the V5 metadata payload for the Agent. This payload is used to populate the infra list and host map in Datadog. It's called 'V5' because it's the same payload sent since Agent V5. This payload is mandatory in order to create a new host in Datadog.`,
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("v5")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -157,7 +157,7 @@ This command print the V5 metadata payload for the Agent. This payload is used t
 		Short: "[internal] Print the gohai payload for the agent.",
 		Long: `
 This command prints the gohai data sent by the Agent, including current processes running on the machine.`,
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("gohai")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -171,7 +171,7 @@ This command prints the gohai data sent by the Agent, including current processe
 		Short: "[internal] Print the Inventory agent metadata payload.",
 		Long: `
 This command print the inventory-agent metadata payload. This payload is used by the 'inventories/sql' product.`,
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("inventory-agent")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -185,7 +185,7 @@ This command print the inventory-agent metadata payload. This payload is used by
 		Short: "[internal] Print the Inventory host metadata payload.",
 		Long: `
 This command print the inventory-host metadata payload. This payload is used by the 'inventories/sql' product.`,
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("inventory-host")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -199,7 +199,7 @@ This command print the inventory-host metadata payload. This payload is used by 
 		Short: "Print the Inventory otel metadata payload.",
 		Long: `
 This command print the inventory-otel metadata payload. This payload is used by the 'inventories/sql' product.`,
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("inventory-otel")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -213,7 +213,7 @@ This command print the inventory-otel metadata payload. This payload is used by 
 		Short: "[internal] Print the Inventory checks metadata payload.",
 		Long: `
 This command print the inventory-checks metadata payload. This payload is used by the 'inventories/sql' product.`,
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("inventory-checks")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -227,7 +227,7 @@ This command print the inventory-checks metadata payload. This payload is used b
 		Short: "[internal] Print the Inventory package signing payload.",
 		Long: `
 This command print the package-signing metadata payload. This payload is used by the 'fleet automation' product.`,
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("package-signing")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -241,7 +241,7 @@ This command print the package-signing metadata payload. This payload is used by
 		Short: "[internal] Print the inventory systemprobe metadata payload.",
 		Long: `
 This command print the system-probe metadata payload. This payload is used by the 'fleet automation' product.`,
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("system-probe")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -255,7 +255,7 @@ This command print the system-probe metadata payload. This payload is used by th
 		Short: "[internal] Print the security-agent process metadata payload.",
 		Long: `
 This command print the security-agent metadata payload. This payload is used by the 'fleet automation' product.`,
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("security-agent")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
