@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"

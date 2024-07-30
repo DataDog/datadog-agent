@@ -152,6 +152,8 @@ typedef enum {
     PROG_POSTGRES,
     PROG_POSTGRES_PROCESS_PARSE_MESSAGE,
     PROG_POSTGRES_TERMINATION,
+    PROG_REDIS,
+    PROG_REDIS_TERMINATION,
     // Add before this value.
     PROG_MAX,
 } protocol_prog_t;

@@ -165,6 +165,7 @@
 /cmd/agent/dist/conf.d/jetson.d/        @DataDog/agent-devx-infra
 /cmd/agent/dist/conf.d/oracle.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring
+/cmd/agent/dist/conf.d/network_path.d/  @DataDog/Networks @DataDog/network-device-monitoring
 /cmd/agent/dist/conf.d/sbom.d/          @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring
 /cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-agent
@@ -191,6 +192,7 @@
 /cmd/system-probe/modules/tcp_queue_tracer* @DataDog/container-integrations
 /cmd/system-probe/modules/traceroute*   @DataDog/network-device-monitoring @Datadog/Networks
 /cmd/system-probe/modules/ping*         @DataDog/network-device-monitoring
+/cmd/system-probe/modules/service_discover* @DataDog/apm-onboarding @DataDog/universal-service-monitoring
 /cmd/system-probe/runtime/              @DataDog/agent-security
 /cmd/system-probe/windows/              @DataDog/windows-kernel-integrations
 /cmd/system-probe/windows_resources/    @DataDog/windows-kernel-integrations
@@ -207,6 +209,7 @@
 /Dockerfiles/agent/entrypoint.d.windows/ @DataDog/container-integrations @DataDog/windows-agent
 /Dockerfiles/agent/entrypoint.ps1        @DataDog/container-integrations @DataDog/windows-agent
 /Dockerfiles/agent/windows/              @DataDog/container-integrations @DataDog/windows-agent
+/Dockerfiles/agent-ot/Dockerfile.byoc   @DataDog/opentelemetry
 
 /docs/                                  @DataDog/documentation @DataDog/agent-devx-loops
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-metrics-logs
@@ -341,7 +344,7 @@
 /pkg/collector/corechecks/net/          @DataDog/platform-integrations
 /pkg/collector/corechecks/oracle        @DataDog/database-monitoring
 /pkg/collector/corechecks/sbom/         @DataDog/container-integrations
-/pkg/collector/corechecks/servicediscovery/ @DataDog/apm-onboarding
+/pkg/collector/corechecks/servicediscovery/ @DataDog/apm-onboarding @DataDog/universal-service-monitoring
 /pkg/collector/corechecks/snmp/         @DataDog/network-device-monitoring
 /pkg/collector/corechecks/system/                 @DataDog/platform-integrations
 /pkg/collector/corechecks/system/**/*_windows*.go @DataDog/platform-integrations @DataDog/windows-agent
@@ -603,6 +606,7 @@
 /test/workload-checks/                        @DataDog/single-machine-performance
 
 /tools/                                 @DataDog/agent-devx-loops
+/tools/ci                               @DataDog/agent-devx-infra
 /tools/ebpf/                            @DataDog/ebpf-platform
 /tools/gdb/                             @DataDog/agent-shared-components
 /tools/go-update/                       @DataDog/agent-shared-components

@@ -16,6 +16,7 @@ import (
 
 	{{if ne $.SourcePkg $.TargetPkg}}"{{.SourcePkg}}"{{end}}
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
 
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {

@@ -106,6 +106,11 @@ func parseVEdgeIP(ip string) (string, int32, error) {
 	if err != nil {
 		return "", 0, err
 	}
+
+	if ipaddr.IsUnspecified() {
+		return "", 0, fmt.Errorf("IP address is unspecified")
+	}
+
 	prefixLen, _ := ipv4Net.Mask.Size()
 
 	return ipaddr.String(), int32(prefixLen), nil

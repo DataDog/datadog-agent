@@ -19,7 +19,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -234,7 +235,7 @@ type MockDeployment struct {
 // deployments
 func FakeStoreWithDeployment(t *testing.T, deployments []MockDeployment) workloadmeta.Component {
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		coreconfig.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),

@@ -9,7 +9,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../core/hostname/hostnameinterface
-	github.com/DataDog/datadog-agent/comp/core/log => ../../core/log
+	github.com/DataDog/datadog-agent/comp/core/log/def => ../../core/log/def
+	github.com/DataDog/datadog-agent/comp/core/log/mock => ../../core/log/mock
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../core/secrets
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../core/telemetry
 	github.com/DataDog/datadog-agent/comp/def => ../../def

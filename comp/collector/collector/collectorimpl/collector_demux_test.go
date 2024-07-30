@@ -19,7 +19,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -80,7 +81,7 @@ func (s *SenderManagerProxy) GetDefaultSender() (sender.Sender, error) {
 }
 
 func (suite *CollectorDemuxTestSuite) SetupTest() {
-	suite.demux = fxutil.Test[demultiplexer.FakeSamplerMock](suite.T(), logimpl.MockModule(), compressionimpl.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
+	suite.demux = fxutil.Test[demultiplexer.FakeSamplerMock](suite.T(), fx.Provide(func() log.Component { return logmock.New(suite.T()) }), compressionimpl.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 	suite.SenderManagerMock = NewSenderManagerMock(suite.demux)
 	suite.c = newCollector(fxutil.Test[dependencies](suite.T(),
 		core.MockBundle(),

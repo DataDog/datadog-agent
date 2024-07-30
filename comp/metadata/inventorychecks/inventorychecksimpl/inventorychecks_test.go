@@ -6,6 +6,7 @@
 package inventorychecksimpl
 
 import (
+	"expvar"
 	"fmt"
 	"testing"
 
@@ -16,7 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	logsBundle "github.com/DataDog/datadog-agent/comp/logs"
@@ -36,7 +38,7 @@ func getTestInventoryChecks(t *testing.T, coll optional.Option[collector.Compone
 	p := newInventoryChecksProvider(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule(),
+			fx.Provide(func() log.Component { return logmock.New(t) }),
 			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: overrides}),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
@@ -248,4 +250,12 @@ func TestFlareProviderFilename(t *testing.T) {
 		t, optional.NewNoneOption[collector.Component](), optional.Option[logagent.Component]{}, nil,
 	)
 	assert.Equal(t, "checks.json", ic.FlareFileName)
+}
+
+// TODO (Component): This test will be removed when the inventorychecks component will be move into the collector component
+func TestExpvarExist(t *testing.T) {
+	getTestInventoryChecks(
+		t, optional.NewNoneOption[collector.Component](), optional.Option[logagent.Component]{}, nil,
+	)
+	assert.NotNil(t, expvar.Get("inventories"))
 }

@@ -21,7 +21,7 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
 
-	corelog "github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
@@ -38,12 +38,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
 type collectorImpl struct {
-	log corelog.Component
+	log log.Component
 	set otelcol.CollectorSettings
 	col *otelcol.Collector
 }
@@ -55,7 +56,7 @@ type Requires struct {
 	Lc compdef.Lifecycle
 
 	// Log specifies the logging component.
-	Log                 corelog.Component
+	Log                 log.Component
 	Provider            confmap.Converter
 	ConfigStore         configstore.Component
 	CollectorContrib    collectorcontrib.Component
@@ -115,6 +116,7 @@ func addFactories(reqs Requires, factories otelcol.Factories) {
 	}
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger)
 	factories.Extensions[ddextension.Type] = ddextension.NewFactory(reqs.ConfigStore)
+	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
 }
 
 // NewComponent returns a new instance of the collector component.

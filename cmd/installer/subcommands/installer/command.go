@@ -78,6 +78,7 @@ func newCmd(operation string) *cmd {
 	env := env.FromEnv()
 	t := newTelemetry(env)
 	span, ctx := newSpan(operation)
+	setInstallerUmask(span)
 	return &cmd{
 		t:    t,
 		ctx:  ctx,

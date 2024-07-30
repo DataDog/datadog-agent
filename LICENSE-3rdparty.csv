@@ -131,6 +131,7 @@ core,github.com/DataDog/aptly/pgp,MIT,"* Alexander Guy (https://github.com/alexa
 core,github.com/DataDog/aptly/utils,MIT,"* Alexander Guy (https://github.com/alexanderguy) | * Alexander Zubarev (https://github.com/strike) | * Andre Roth (https://github.com/neolynx) | * Andrea Bernardo Ciddio (https://github.com/bcandrea) | * Andrey Smirnov (https://github.com/smira) | * Artem Smirnov (https://github.com/urpylka) | * Benj Fassbind (https://github.com/randombenj) | * Benoit Foucher (https://github.com/bentoi) | * Boxjan (https://github.com/boxjan) | * Charles Hsu (https://github.com/charz) | * Chris Read (https://github.com/cread) | * Chuan Liu (https://github.com/chuan) | * Clemens Rabe (https://github.com/seeraven) | * Dmitrii Kashin (https://github.com/freehck) | * Don Kuntz (https://github.com/dkuntz2) | * Geoffrey Thomas (https://github.com/geofft) | * Harald Sitter (https://github.com/apachelogger) | * Ivan Kurnosov (https://github.com/zerkms) | * Johannes Layher (https://github.com/jola5) | * Josh Bayfield (https://github.com/jbayfield) | * Joshua Colson (https://github.com/freakinhippie) | * Lorenzo Bolla (https://github.com/lbolla) | * Ludovico Cavedon (https://github.com/cavedon) | * Markus Muellner (https://github.com/mmianl) | * Matt Martyn (https://github.com/MMartyn) | * Mauro Regli (https://github.com/reglim) | * Maximilian Stein (https://github.com/steinymity) | * Michael Koval (https://github.com/mkoval) | * Nabil Bendafi (https://github.com/nabilbendafi) | * Oliver Sauder (https://github.com/sliverc) | * Paul Krohn (https://github.com/paul-krohn) | * Petr Jediny (https://github.com/pjediny) | * Phil Frost (https://github.com/bitglue) | * Raphael Medaer (https://github.com/rmedaer) | * Raul Benencia (https://github.com/rul) | * Rohan Garg (https://github.com/shadeslayer) | * Russ Allbery (https://github.com/rra) | * Russell Greene (https://github.com/russelltg) | * Ryan Uber (https://github.com/ryanuber) | * Samuel Mutel (https://github.com/smutel) | * Sebastien Badia (https://github.com/sbadia) | * Sebastien Binet (https://github.com/sbinet) | * Shengjing Zhu (https://github.com/zhsj) | * Simon Aquino (https://github.com/queeno) | * Steven Stone (https://github.com/smstone) | * Strajan Sebastian (https://github.com/strajansebastian) | * Sylvain Baubeau (https://github.com/lebauce) | * Szymon Sobik (https://github.com/sobczyk) | * TJ Merritt (https://github.com/tjmerritt) | * Vincent Batoufflet (https://github.com/vbatoufflet) | * Vincent Bernat (https://github.com/vincentbernat) | * Wade Simmons (https://github.com/wadey) | * William Manley (https://github.com/wmanley) | * x539 (https://github.com/x539) | Copyright 2013-2015 aptly authors. All rights reserved | List of contributors, in chronological order:"
 core,github.com/DataDog/datadog-api-client-go/v2,Apache-2.0,"Copyright 2019-Present Datadog, Inc"
 core,github.com/DataDog/datadog-api-client-go/v2/api/datadog,Apache-2.0,"Copyright 2019-Present Datadog, Inc"
+core,github.com/DataDog/datadog-api-client-go/v2/api/datadogV1,Apache-2.0,"Copyright 2019-Present Datadog, Inc"
 core,github.com/DataDog/datadog-api-client-go/v2/api/datadogV2,Apache-2.0,"Copyright 2019-Present Datadog, Inc"
 core,github.com/DataDog/datadog-go/v5/statsd,MIT,"Copyright (c) 2015 Datadog, Inc"
 core,github.com/DataDog/datadog-operator/apis/datadoghq/common,Apache-2.0,"Copyright 2016-present Datadog, Inc"
@@ -777,7 +778,6 @@ core,github.com/containerd/containerd/images/archive,Apache-2.0,"Copyright 2012-
 core,github.com/containerd/containerd/labels,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/leases,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/leases/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/log,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/mount,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/namespaces,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/oci,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -2768,6 +2768,7 @@ core,google.golang.org/grpc/balancer/base,Apache-2.0,Copyright 2014 gRPC authors
 core,google.golang.org/grpc/balancer/grpclb,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/grpclb/grpc_lb_v1,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/grpclb/state,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/balancer/pickfirst,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/roundrobin,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/binarylog/grpc_binarylog_v1,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/channelz,Apache-2.0,Copyright 2014 gRPC authors.
@@ -2802,7 +2803,6 @@ core,google.golang.org/grpc/internal/credentials,Apache-2.0,Copyright 2014 gRPC 
 core,google.golang.org/grpc/internal/envconfig,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/googlecloud,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/grpclog,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/internal/grpcrand,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/grpcsync,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/grpcutil,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/idle,Apache-2.0,Copyright 2014 gRPC authors.
@@ -3772,11 +3772,13 @@ core,sigs.k8s.io/controller-runtime/pkg/internal/httpserver,Apache-2.0,Copyright
 core,sigs.k8s.io/controller-runtime/pkg/internal/log,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/controller-runtime/pkg/internal/recorder,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/controller-runtime/pkg/internal/source,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/internal/syncs,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/controller-runtime/pkg/leaderelection,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/controller-runtime/pkg/log,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/controller-runtime/pkg/manager,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/controller-runtime/pkg/manager/signals,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/controller-runtime/pkg/metrics,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/metrics/server,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/controller-runtime/pkg/predicate,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/controller-runtime/pkg/ratelimiter,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/controller-runtime/pkg/reconcile,Apache-2.0,Copyright 2017 The Kubernetes Authors.

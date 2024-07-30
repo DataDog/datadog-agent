@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -245,10 +246,7 @@ func expvarPythonInitErrors() interface{} {
 	pyInitLock.RLock()
 	defer pyInitLock.RUnlock()
 
-	pyInitErrorsCopy := []string{}
-	pyInitErrorsCopy = append(pyInitErrorsCopy, pyInitErrors...)
-
-	return pyInitErrorsCopy
+	return slices.Clone(pyInitErrors)
 }
 
 func addExpvarPythonInitErrors(msg string) error {
