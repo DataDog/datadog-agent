@@ -381,7 +381,7 @@ func (p *ProcessCheck) Run(nextGroupID func() int32, options *RunOptions) (RunRe
 		p.maxBatchSize = math.MaxInt
 		p.maxBatchBytes = math.MaxInt
 
-		defer func(){
+		defer func() {
 			p.maxBatchSize = oldMaxBatchSize
 			p.maxBatchBytes = oldMaxBatchBytes
 		}()

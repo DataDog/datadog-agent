@@ -83,10 +83,10 @@ func makeProcessDiscoveryModel(t *testing.T, process *procutil.Process) *model.P
 	t.Helper()
 
 	return &model.ProcessDiscovery{
-		Pid:     process.Pid,
-		Command: &model.Command{Args: process.Cmdline},
-		User:    &model.ProcessUser{},
-		CreateTime:     process.Stats.CreateTime,
+		Pid:        process.Pid,
+		Command:    &model.Command{Args: process.Cmdline},
+		User:       &model.ProcessUser{},
+		CreateTime: process.Stats.CreateTime,
 	}
 }
 
