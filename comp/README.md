@@ -571,7 +571,7 @@ Package status implements the core status component information provider interfa
 
 ## [comp/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater) (Component Bundle)
 
-*Datadog Team*: fleet
+*Datadog Team*: fleet windows-agent
 
 Package updater implements the updater component.
 
