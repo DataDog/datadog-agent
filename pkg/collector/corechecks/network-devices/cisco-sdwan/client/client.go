@@ -345,6 +345,20 @@ func (client *Client) GetCloudExpressMetrics() ([]CloudXStatistics, error) {
 	return cloudApplications.Data, nil
 }
 
+// GetBGPNeighbors gets BGP neighbors
+func (client *Client) GetBGPNeighbors() ([]BGPNeighbor, error) {
+	params := map[string]string{
+		"count": client.maxCount,
+	}
+
+	bgpNeighbors, err := getAllEntries[BGPNeighbor](client, "/dataservice/data/device/state/BGPNeighbor", params)
+	if err != nil {
+		return nil, err
+	}
+
+	return bgpNeighbors.Data, nil
+}
+
 func (client *Client) statisticsTimeRange() (string, string) {
 	endDate := timeNow().UTC()
 	startDate := endDate.Add(-client.lookback)

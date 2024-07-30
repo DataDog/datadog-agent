@@ -1013,6 +1013,12 @@ api_key:
   #
   # max_message_size_bytes: 256000
 
+  ## @param integrations_logs_files_max_size - integer - optional - default: 100
+  ## @env DD_LOGS_CONFIG_INTEGRATIONS_LOGS_FILES_MAX_SIZE - integer - optional - default: 100
+  ## The combined size in MB of all the integration logs files the Agent is allowed to write.
+  #
+  # integrations_logs_files_max_size
+
 {{ end -}}
 {{- if .TraceAgent }}
 
@@ -3041,6 +3047,16 @@ api_key:
       ## Configures the memory request and limit for the init containers.
       #
       # memory:
+
+    ## @param init_security_context - json - optional
+    ## @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_SECURITY_CONTEXT - json - optional
+    ## Security context for the init containers in JSON format. Follows the Kubernetes security context spec,
+    ## https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#securitycontext-v1-core,
+    ## ignores unknown properties.
+    #
+    # init_security_context: '{"privileged": false}'
+    #
+    # DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_SECURITY_CONTEXT='{"privileged": false}'
 {{ end -}}
 {{- if .DockerTagging }}
 

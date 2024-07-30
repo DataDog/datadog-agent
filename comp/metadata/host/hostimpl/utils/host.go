@@ -212,8 +212,3 @@ func GetFromCache(ctx context.Context, conf config.Reader) *Payload {
 func GetPlatformName() string {
 	return GetInformation().Platform
 }
-
-// GetKernelVersion returns the kernel version
-func GetKernelVersion() string {
-	return GetInformation().KernelVersion
-}
