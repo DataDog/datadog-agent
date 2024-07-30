@@ -36,7 +36,7 @@ var collectorConfig string
 
 func TestOtel(t *testing.T) {
 	fmt.Println("config", collectorConfig)
-	e2e.Run(t, &linuxTestSuite{}, e2e.WithProvisioner(localkubernetes.Provisioner(localkubernetes.WithAgentOptions(kubernetesagentparams.WithOTELAgent(), kubernetesagentparams.WithOTELConfig(collectorConfig)))))
+	e2e.Run(t, &linuxTestSuite{}, e2e.WithProvisioner(localkubernetes.Provisioner(localkubernetes.WithAgentOptions(kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(collectorConfig)))))
 }
 
 func (s *linuxTestSuite) TestOtelAgentInstalled() {
@@ -49,23 +49,16 @@ func (s *linuxTestSuite) TestOtelAgentInstalled() {
 		}
 	}
 	assert.True(s.T(), containsOtelAgent, "Otel Agent not found")
-	assert.Equal(s.T(), s.Env().Agent.NodeAgent, "otel-agent")
+	assert.Equal(s.T(), s.Env().Agent.LinuxNodeAgent, "otel-agent")
 }
 
 func (s *linuxTestSuite) TestOTelPipelines() {
+	ctx := context.Background()
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	var ttlSecondsAfterFinished int32 = 300
 	var backOffLimit int32 = 4
 
-	var otlpEndpoint string
-	res, _ := s.Env().KubernetesCluster.Client().CoreV1().Endpoints("datadog").List(context.TODO(), v1.ListOptions{})
-	for _, item := range res.Items {
-		if strings.HasPrefix(item.Name, "dda-linux-datadog") && !strings.Contains(item.Name, "cluster") {
-			otlpEndpoint = fmt.Sprintf("%v:4317", item.Name)
-		}
-	}
-	assert.False(s.T(), otlpEndpoint == "", "Failed to get OTel Agent endpoint")
-
+	otlpEndpoint := fmt.Sprintf("%v:4317", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"])
 	jobSpec := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "telemetrygen-job",
@@ -89,7 +82,7 @@ func (s *linuxTestSuite) TestOTelPipelines() {
 		},
 	}
 
-	_, err := s.Env().KubernetesCluster.Client().BatchV1().Jobs("datadog").Create(context.TODO(), jobSpec, metav1.CreateOptions{})
+	_, err := s.Env().KubernetesCluster.Client().BatchV1().Jobs("datadog").Create(ctx, jobSpec, metav1.CreateOptions{})
 	assert.NoError(s.T(), err, "Could not properly start job")
 
 	time.Sleep(5 * time.Minute)
