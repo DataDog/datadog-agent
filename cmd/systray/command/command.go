@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
@@ -71,11 +71,11 @@ func MakeCommand() *cobra.Command {
 	}
 
 	// log params
-	var logParams logimpl.Params
+	var logParams log.Params
 	if subsystem == "windows" {
-		logParams = logimpl.ForDaemon("TRAY", "system_tray.log_file", logFilePath)
+		logParams = log.ForDaemon("TRAY", "system_tray.log_file", logFilePath)
 	} else if subsystem == "console" {
-		logParams = logimpl.ForOneShot("TRAY", "info", true)
+		logParams = log.ForOneShot("TRAY", "info", true)
 	}
 
 	// root command

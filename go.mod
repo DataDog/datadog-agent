@@ -30,7 +30,10 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ./comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ./comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ./comp/core/hostname/hostnameinterface
-	github.com/DataDog/datadog-agent/comp/core/log => ./comp/core/log/
+	github.com/DataDog/datadog-agent/comp/core/log/def => ./comp/core/log/def
+	github.com/DataDog/datadog-agent/comp/core/log/impl => ./comp/core/log/impl
+	github.com/DataDog/datadog-agent/comp/core/log/impl-trace => ./comp/core/log/impl-trace
+	github.com/DataDog/datadog-agent/comp/core/log/mock => ./comp/core/log/mock
 	github.com/DataDog/datadog-agent/comp/core/secrets => ./comp/core/secrets
 	github.com/DataDog/datadog-agent/comp/core/status => ./comp/core/status
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl => ./comp/core/status/statusimpl
@@ -178,12 +181,12 @@ require (
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/cilium/ebpf v0.15.1-0.20240709101333-5976561b28aa
 	github.com/clbanning/mxj v1.8.4
-	github.com/containerd/containerd v1.7.17
+	github.com/containerd/containerd v1.7.18
 	github.com/containernetworking/cni v1.2.0
 	github.com/coreos/go-semver v0.3.1
 	github.com/coreos/go-systemd v22.5.0+incompatible
 	github.com/cri-o/ocicni v0.4.3
-	github.com/cyphar/filepath-securejoin v0.3.0
+	github.com/cyphar/filepath-securejoin v0.3.1
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/docker/docker v25.0.5+incompatible
 	github.com/docker/go-connections v0.5.0
@@ -234,7 +237,7 @@ require (
 	github.com/netsampler/goflow2 v1.3.3
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852
-	github.com/open-policy-agent/opa v0.65.0
+	github.com/open-policy-agent/opa v0.66.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.104.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.0
@@ -304,7 +307,7 @@ require (
 	golang.org/x/tools v0.23.0
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028
 	google.golang.org/genproto v0.0.0-20240617180043-68d350f18fd4 // indirect
-	google.golang.org/grpc v1.64.1
+	google.golang.org/grpc v1.65.0
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.34.2
 	gopkg.in/DataDog/dd-trace-go.v1 v1.65.1
@@ -416,7 +419,7 @@ require (
 	github.com/go-openapi/validate v0.23.0 // indirect
 	github.com/go-redis/redis/v8 v8.11.5 // indirect
 	github.com/godbus/dbus/v5 v5.1.0
-	github.com/golang/glog v1.2.0 // indirect
+	github.com/golang/glog v1.2.1 // indirect
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb // indirect
 	github.com/google/licenseclassifier/v2 v2.0.0 // indirect
 	github.com/google/uuid v1.6.0
@@ -599,7 +602,10 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/core/log v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/comp/core/log/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/log/impl v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/log/impl-trace v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/log/mock v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/status v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.56.0-rc.3
@@ -634,7 +640,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/env v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/logs v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.0.0-20240723160440-69ec7b21bb9c
 	github.com/DataDog/datadog-agent/pkg/config/model v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/remote v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.0-rc.3
@@ -707,7 +713,7 @@ require (
 	// todo: update datadog connector with breaking changes from https://github.com/DataDog/datadog-agent/pull/26347.
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.103.0
 	github.com/planetscale/vtprotobuf v0.6.0
-	github.com/prometheus-community/pro-bing v0.3.0
+	github.com/prometheus-community/pro-bing v0.4.1
 	github.com/rickar/props v1.0.0
 	github.com/sijms/go-ora/v2 v2.8.19
 	github.com/swaggest/jsonschema-go v0.3.70
@@ -728,9 +734,6 @@ require (
 	k8s.io/cli-runtime v0.29.0
 	k8s.io/kubectl v0.29.0
 )
-
-// NDM: Temporary fork until pro-bing merges the PR
-replace github.com/prometheus-community/pro-bing => github.com/ken-schneider/pro-bing v0.0.0-20240702202240-4cb73c5b2d22
 
 require (
 	cloud.google.com/go/auth v0.5.1 // indirect
@@ -787,7 +790,7 @@ require (
 	github.com/cheggaaa/pb/v3 v3.1.4 // indirect
 	github.com/chrusty/protoc-gen-jsonschema v0.0.0-20240212064413-73d5723042b8 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
-	github.com/cncf/xds/go v0.0.0-20240318125728-8a4994d93e50 // indirect
+	github.com/cncf/xds/go v0.0.0-20240423153145-555b57ec207b // indirect
 	github.com/containerd/errdefs v0.1.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/csaf-poc/csaf_distribution/v3 v3.0.0 // indirect
@@ -1013,7 +1016,7 @@ replace k8s.io/cri-api => k8s.io/cri-api v0.25.5
 // Pull in replacements needed by upstream Trivy
 replace (
 	// Maps to Trivy fork https://github.com/DataDog/trivy/commits/use-fs-main-dd/
-	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20240709234153-8e964513696c
+	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20240729123106-0d652d4a5630
 	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950
 	// testcontainers-go has a bug with versions v0.25.0 and v0.26.0
 	// ref: https://github.com/testcontainers/testcontainers-go/issues/1782

@@ -17,7 +17,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -128,22 +128,6 @@ func NewWorkloadMeta(deps dependencies) Provider {
 		Comp:          wm,
 		FlareProvider: flaretypes.NewProvider(wm.sbomFlareProvider),
 		Endpoint:      api.NewAgentEndpointProvider(wm.writeResponse, "/workload-list", "GET"),
-	}
-}
-
-// NewWorkloadMetaOptional creates a new optional workloadmeta component.
-func NewWorkloadMetaOptional(deps dependencies) OptionalProvider {
-	if deps.Params.NoInstance {
-		return OptionalProvider{
-			Comp: optional.NewNoneOption[wmdef.Component](),
-		}
-	}
-	c := NewWorkloadMeta(deps)
-
-	return OptionalProvider{
-		Comp:          optional.NewOption(c.Comp),
-		FlareProvider: c.FlareProvider,
-		Endpoint:      c.Endpoint,
 	}
 }
 

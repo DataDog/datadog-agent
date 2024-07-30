@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	statsdComp "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -48,7 +48,7 @@ type dependencies struct {
 	fx.In
 
 	Lc             fx.Lifecycle
-	Log            logComponent.Component
+	Log            log.Component
 	Config         config.Component
 	Checks         []types.CheckComponent `group:"check"`
 	Runner         runner.Component
@@ -61,7 +61,7 @@ type dependencies struct {
 type processAgent struct {
 	enabled     bool
 	Checks      []checks.Check
-	Log         logComponent.Component
+	Log         log.Component
 	flarehelper *agent.FlareHelper
 }
 

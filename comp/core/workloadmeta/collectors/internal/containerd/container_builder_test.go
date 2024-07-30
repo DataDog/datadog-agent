@@ -24,7 +24,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -241,7 +242,7 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 
 	// Create a workload meta global store containing image metadata
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),

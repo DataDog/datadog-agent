@@ -235,7 +235,8 @@ collect_hardware_status: true
   "ip_addresses": [
     {
       "interface_id": "test:10.10.1.17:4",
-      "ip_address": "0.0.0.0"
+      "ip_address": "10.0.0.1",
+	  "prefixlen": 24
     }
   ],
   "collect_timestamp": 1708942920

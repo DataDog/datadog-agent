@@ -26,8 +26,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -166,7 +165,7 @@ func getTestAtel(t *testing.T,
 
 	cfg := fxutil.Test[config.Component](t, config.MockModule(),
 		fx.Replace(config.MockParams{Overrides: confOverrides}))
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
+	log := logmock.New(t)
 	status := fxutil.Test[status.Component](t,
 		func() fxutil.Module {
 			return fxutil.Component(

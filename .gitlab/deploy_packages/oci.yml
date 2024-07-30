@@ -21,6 +21,9 @@ include:
     - export VERSION=$(inv agent.version --url-safe)-1
     - git config --global credential.helper '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; };f'
     - ${CI_PROJECT_DIR}/tools/ci/retry.sh git clone -v --depth=1 https://github.com/DataDog/datadog-packages /tmp/datadog-packages
+    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    - export GOPROXY="binaries.ddbuild.io,proxy.golang.org,direct"
+    - export GONOSUMDB="github.com/DataDog,go.ddbuild.io"
     - cd /tmp/datadog-packages/cmd/datadog-package
     - go build .
     - ./datadog-package push registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:${VERSION} ${OMNIBUS_PACKAGE_DIR}/${OCI_PRODUCT}-${VERSION}.oci.tar

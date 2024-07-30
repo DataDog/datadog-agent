@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 
 	"github.com/fatih/color"
 	"github.com/samber/lo"
@@ -54,6 +55,7 @@ type k8sSuite struct {
 	KubeClusterName             string
 	AgentLinuxHelmInstallName   string
 	AgentWindowsHelmInstallName string
+	KubernetesAgentRef          *components.KubernetesAgent
 
 	K8sConfig *restclient.Config
 	K8sClient kubernetes.Interface
@@ -133,7 +135,7 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 			}
 
 			linuxPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("app", suite.AgentLinuxHelmInstallName+"-datadog").String(),
+				LabelSelector: fields.OneTermEqualSelector("app", suite.KubernetesAgentRef.LinuxNodeAgent.LabelSelectors["app"]).String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoErrorf(c, err, "Failed to list Linux datadog agent pods") {
@@ -141,7 +143,7 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 			}
 
 			windowsPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("app", suite.AgentWindowsHelmInstallName+"-datadog").String(),
+				LabelSelector: fields.OneTermEqualSelector("app", suite.KubernetesAgentRef.WindowsNodeAgent.LabelSelectors["app"]).String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoErrorf(c, err, "Failed to list Windows datadog agent pods") {
@@ -149,7 +151,7 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 			}
 
 			clusterAgentPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("app", suite.AgentLinuxHelmInstallName+"-datadog-cluster-agent").String(),
+				LabelSelector: fields.OneTermEqualSelector("app", suite.KubernetesAgentRef.LinuxClusterAgent.LabelSelectors["app"]).String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoErrorf(c, err, "Failed to list datadog cluster agent pods") {
@@ -157,7 +159,7 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 			}
 
 			clusterChecksPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("app", suite.AgentLinuxHelmInstallName+"-datadog-clusterchecks").String(),
+				LabelSelector: fields.OneTermEqualSelector("app", suite.KubernetesAgentRef.LinuxClusterChecks.LabelSelectors["app"]).String(),
 			})
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoErrorf(c, err, "Failed to list datadog cluster checks runner pods") {
@@ -201,22 +203,22 @@ func (suite *k8sSuite) TestVersion() {
 	}{
 		{
 			"Linux agent",
-			suite.AgentLinuxHelmInstallName + "-datadog",
+			suite.KubernetesAgentRef.LinuxNodeAgent.LabelSelectors["app"],
 			"agent",
 		},
 		{
 			"Windows agent",
-			suite.AgentWindowsHelmInstallName + "-datadog",
+			suite.KubernetesAgentRef.WindowsNodeAgent.LabelSelectors["app"],
 			"agent",
 		},
 		{
 			"cluster agent",
-			suite.AgentLinuxHelmInstallName + "-datadog-cluster-agent",
+			suite.KubernetesAgentRef.LinuxClusterAgent.LabelSelectors["app"],
 			"cluster-agent",
 		},
 		{
 			"cluster checks",
-			suite.AgentLinuxHelmInstallName + "-datadog-clusterchecks",
+			suite.KubernetesAgentRef.LinuxClusterChecks.LabelSelectors["app"],
 			"agent",
 		},
 	} {
@@ -251,7 +253,7 @@ func (suite *k8sSuite) TestVersion() {
 func (suite *k8sSuite) TestClusterAgentConfigCheck() {
 	ctx := context.Background()
 	suite.Run("cluster agent pods return the right information for the config check command", func() {
-		appSelector := suite.AgentLinuxHelmInstallName + "-datadog-cluster-agent"
+		appSelector := suite.KubernetesAgentRef.LinuxClusterAgent.LabelSelectors["app"]
 
 		linuxPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 			LabelSelector: fields.OneTermEqualSelector("app", appSelector).String(),
@@ -294,6 +296,8 @@ func (suite *k8sSuite) TestNginx() {
 				`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^short_image:apps-nginx-server$`,
+				`^email:team-container-platform@datadoghq.com$`,
+				`^team:contp$`,
 			},
 			AcceptUnexpectedTags: true,
 		},
@@ -367,6 +371,8 @@ func (suite *k8sSuite) TestNginx() {
 				`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^short_image:apps-nginx-server$`,
+				`^email:team-container-platform@datadoghq.com$`,
+				`^team:contp$`,
 			},
 			Message: `GET / HTTP/1\.1`,
 		},

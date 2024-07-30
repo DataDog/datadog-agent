@@ -48,6 +48,7 @@ func getDiagnoseOutput(v *baseDiagnoseSuite, commandArgs ...agentclient.AgentArg
 	}, 5*time.Minute, 20*time.Second, "timedout waiting for fakeintake to be healthy")
 
 	diagnose := v.Env().Agent.Client.Diagnose(commandArgs...)
+	v.T().Logf("Diagnose command output: %s", diagnose)
 	return diagnose
 }
 

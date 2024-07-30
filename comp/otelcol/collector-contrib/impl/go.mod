@@ -308,4 +308,32 @@ replace github.com/mattn/go-ieproxy => github.com/mattn/go-ieproxy v0.0.1
 
 replace github.com/openshift/api => github.com/openshift/api v0.0.0-20230726162818-81f778f3b3ec
 
+replace github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector => github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.103.0
+
+replace github.com/DataDog/datadog-agent/comp/core/config => ../../../core/config
+
+replace github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../core/flare/builder
+
+replace github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../core/flare/types
+
+replace github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../core/hostname/hostnameinterface
+
+replace github.com/DataDog/datadog-agent/comp/core/log/def => ../../../core/log/def
+
+replace github.com/DataDog/datadog-agent/comp/core/log/mock => ../../../core/log/mock
+
+replace github.com/DataDog/datadog-agent/comp/core/secrets => ../../../core/secrets
+
+replace github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../core/telemetry
+
+replace github.com/DataDog/datadog-agent/comp/def => ../../../def
+
+replace github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ../../../trace/compression/impl-gzip
+
+replace github.com/DataDog/datadog-agent/comp/trace/compression/def => ../../../trace/compression/def
+
+replace github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ../../../trace/compression/impl-zstd
+
+replace github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../logs/agent/config
+
 replace github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../def

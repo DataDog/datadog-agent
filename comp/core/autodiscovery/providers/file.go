@@ -15,13 +15,15 @@ import (
 
 // FileConfigProvider collect configuration files from disk
 type FileConfigProvider struct {
-	Errors map[string]string
+	Errors         map[string]string
+	telemetryStore *telemetry.Store
 }
 
 // NewFileConfigProvider creates a new FileConfigProvider.
-func NewFileConfigProvider() *FileConfigProvider {
+func NewFileConfigProvider(telemetryStore *telemetry.Store) *FileConfigProvider {
 	return &FileConfigProvider{
-		Errors: make(map[string]string),
+		Errors:         make(map[string]string),
+		telemetryStore: telemetryStore,
 	}
 }
 
@@ -36,7 +38,9 @@ func (c *FileConfigProvider) Collect(ctx context.Context) ([]integration.Config,
 	}
 
 	c.Errors = errors
-	telemetry.Errors.Set(float64(len(errors)), names.File)
+	if c.telemetryStore != nil {
+		c.telemetryStore.Errors.Set(float64(len(errors)), names.File)
+	}
 
 	return configs, nil
 }

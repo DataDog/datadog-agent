@@ -12,6 +12,7 @@ import (
 	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
+	"golang.org/x/sys/unix"
 )
 
 type fileHandleKey struct {
@@ -23,19 +24,24 @@ type fileHandleVal struct {
 	pathName string
 }
 
-// Resources defines shared process resources
-type Resources struct {
+// FdResources defines shared process resources
+type FdResources struct {
 	Fd              map[int32]string
-	Cwd             string
 	FileHandleCache map[fileHandleKey]*fileHandleVal
+}
+
+// FSResources defines shared process resources
+type FSResources struct {
+	Cwd string
 }
 
 // Process represents a process context
 type Process struct {
-	Pid  int
-	Tgid int
-	Nr   map[int]*ebpfless.SyscallMsg
-	Res  *Resources
+	Pid   int
+	Tgid  int
+	Nr    map[int]*ebpfless.SyscallMsg
+	FdRes *FdResources
+	FsRes *FSResources
 }
 
 // NewProcess returns a new process
@@ -44,10 +50,11 @@ func NewProcess(pid int) *Process {
 		Pid:  pid,
 		Tgid: pid,
 		Nr:   make(map[int]*ebpfless.SyscallMsg),
-		Res: &Resources{
+		FdRes: &FdResources{
 			Fd:              make(map[int32]string),
 			FileHandleCache: make(map[fileHandleKey]*fileHandleVal),
 		},
+		FsRes: &FSResources{},
 	}
 }
 
@@ -76,8 +83,7 @@ func (tc *ProcessCache) Add(pid int, process *Process) {
 	}
 }
 
-// SetAsThreadOf set the process as thread of the given tgid
-func (tc *ProcessCache) SetAsThreadOf(process *Process, ppid int) {
+func (tc *ProcessCache) shareResources(process *Process, ppid int, cloneFlags uint64) {
 	parent := tc.pid2Process[ppid]
 	if parent == nil {
 		// this shouldn't happen
@@ -85,8 +91,15 @@ func (tc *ProcessCache) SetAsThreadOf(process *Process, ppid int) {
 	}
 
 	// share resources, parent should never be nil
-	process.Tgid = parent.Tgid
-	process.Res = parent.Res
+	if cloneFlags&unix.CLONE_THREAD != 0 {
+		process.Tgid = parent.Tgid
+	}
+	if cloneFlags&unix.CLONE_FILES != 0 {
+		process.FdRes = parent.FdRes
+	}
+	if cloneFlags&unix.CLONE_FS != 0 {
+		process.FsRes = parent.FsRes
+	}
 
 	// re-add to update the caches
 	tc.Add(process.Pid, process)

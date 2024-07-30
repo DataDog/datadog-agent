@@ -46,6 +46,7 @@ type kubeEndpointsConfigProvider struct {
 	upToDate           bool
 	monitoredEndpoints map[string]bool
 	configErrors       map[string]ErrorMsgSet
+	telemetryStore     *telemetry.Store
 }
 
 // configInfo contains an endpoint check config template with its name and namespace
@@ -58,7 +59,7 @@ type configInfo struct {
 
 // NewKubeEndpointsConfigProvider returns a new ConfigProvider connected to apiserver.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewKubeEndpointsConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
+func NewKubeEndpointsConfigProvider(_ *config.ConfigurationProviders, telemetryStore *telemetry.Store) (ConfigProvider, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -74,6 +75,7 @@ func NewKubeEndpointsConfigProvider(*config.ConfigurationProviders) (ConfigProvi
 		serviceLister:      servicesInformer.Lister(),
 		monitoredEndpoints: make(map[string]bool),
 		configErrors:       make(map[string]ErrorMsgSet),
+		telemetryStore:     telemetryStore,
 	}
 
 	if _, err := servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -280,7 +282,9 @@ func (k *kubeEndpointsConfigProvider) parseServiceAnnotationsForEndpoints(servic
 
 	k.cleanErrorsOfDeletedEndpoints(setEndpointIDs)
 
-	telemetry.Errors.Set(float64(len(k.configErrors)), names.KubeEndpoints)
+	if k.telemetryStore != nil {
+		k.telemetryStore.Errors.Set(float64(len(k.configErrors)), names.KubeEndpoints)
+	}
 
 	return configsInfo
 }

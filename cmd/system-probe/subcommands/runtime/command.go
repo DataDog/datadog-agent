@@ -28,8 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
@@ -94,7 +93,7 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -127,7 +126,7 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -151,7 +150,7 @@ func commonReloadPoliciesCommands(_ *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -169,7 +168,7 @@ func selfTestCommands(_ *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -200,7 +199,7 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -235,7 +234,7 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -273,7 +272,7 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -300,7 +299,7 @@ func discardersCommands(_ *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
 		},
