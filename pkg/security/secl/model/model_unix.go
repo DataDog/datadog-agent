@@ -79,17 +79,21 @@ type Event struct {
 	ArgsEnvs         ArgsEnvsEvent         `field:"-"`
 	MountReleased    MountReleasedEvent    `field:"-"`
 	CgroupTracing    CgroupTracingEvent    `field:"-"`
+	CgroupWrite      CgroupWriteEvent      `field:"-"`
 	NetDevice        NetDeviceEvent        `field:"-"`
 	VethPair         VethPairEvent         `field:"-"`
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
+
 	// used for ebpfless
 	NSID uint64 `field:"-"`
 }
 
 // CGroupContext holds the cgroup context of an event
 type CGroupContext struct {
-	CGroupID    containerutils.CGroupID    `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
-	CGroupFlags containerutils.CGroupFlags `field:"-"`
+	CGroupID      containerutils.CGroupID    `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
+	CGroupFlags   containerutils.CGroupFlags `field:"-"`
+	CGroupManager string                     `field:"manager,handler:ResolveCGroupManager"` // SECLDoc[manager] Definition:`Lifecycle manager of the cgroup`
+	CGroupFile    PathKey                    `field:"file"`
 }
 
 // SyscallEvent contains common fields for all the event
@@ -590,10 +594,15 @@ type SpliceEvent struct {
 
 // CgroupTracingEvent is used to signal that a new cgroup should be traced by the activity dump manager
 type CgroupTracingEvent struct {
-	CGroupFlags      uint64
 	ContainerContext ContainerContext
+	CGroupContext    CGroupContext
 	Config           ActivityDumpLoadConfig
 	ConfigCookie     uint64
+}
+
+// CgroupWriteEvent is used to signal that a new cgroup was created
+type CgroupWriteEvent struct {
+	File FileEvent `field:"file"` // Path to the cgroup
 }
 
 // ActivityDumpLoadConfig represents the load configuration of an activity dump
