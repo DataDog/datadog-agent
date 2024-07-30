@@ -60,7 +60,7 @@ func getLogDateFormat(cfg pkgconfigmodel.Reader) string {
 }
 
 func createQuoteMsgFormatter(_ string) seelog.FormatterFunc {
-	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+	return func(message string, _ seelog.LogLevel, _ seelog.LogContextInterface) interface{} {
 		return strconv.Quote(message)
 	}
 }
