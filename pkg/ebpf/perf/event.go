@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux
+//go:build linux_bpf
 
 // Package perf implements types related to eBPF and the perf subsystem, like perf buffers and ring buffers.
 package perf
