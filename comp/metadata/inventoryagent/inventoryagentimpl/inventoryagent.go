@@ -422,6 +422,7 @@ func (ia *inventoryagent) getConfigs(data agentMetadata) {
 			model.SourceAgentRuntime:       "agent_runtime_configuration",
 			model.SourceLocalConfigProcess: "source_local_configuration",
 			model.SourceRC:                 "remote_configuration",
+			model.SourceFleetPolicies:      "fleet_policies",
 			model.SourceCLI:                "cli_configuration",
 			model.SourceProvided:           "provided_configuration",
 		}

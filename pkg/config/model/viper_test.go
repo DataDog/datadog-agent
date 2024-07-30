@@ -403,3 +403,18 @@ proxy:
 	assert.NoError(t, err)
 	assert.True(t, reflect.DeepEqual(oldConf, config.AllSettings()))
 }
+
+func TestMergeFleetPolicy(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config.SetConfigType("yaml")
+	config.Set("foo", "bar", SourceFile)
+
+	file, err := os.CreateTemp("", "datadog.yaml")
+	assert.NoError(t, err, "failed to create temporary file: %w", err)
+	file.Write([]byte("foo: baz"))
+	err = config.MergeFleetPolicy(file.Name())
+	assert.NoError(t, err)
+
+	assert.Equal(t, "baz", config.Get("foo"))
+	assert.Equal(t, SourceFleetPolicies, config.GetSource("foo"))
+}
