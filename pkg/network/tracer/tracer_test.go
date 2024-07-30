@@ -427,7 +427,7 @@ func testUDPSendAndReceive(t *testing.T, tr *Tracer, addr string) {
 
 	server := &UDPServer{
 		address: addr,
-		onMessage: func(buf []byte, n int) []byte {
+		onMessage: func(_ []byte, n int) []byte {
 			return genPayload(serverMessageSize)
 		},
 	}
@@ -734,7 +734,7 @@ func BenchmarkUDPEcho(b *testing.B) {
 
 func benchEchoUDP(size int) func(b *testing.B) {
 	payload := genPayload(size)
-	echoOnMessage := func(b []byte, n int) []byte {
+	echoOnMessage := func(b []byte, _ int) []byte {
 		resp := make([]byte, len(b))
 		copy(resp, b)
 		return resp
