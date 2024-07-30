@@ -38,8 +38,9 @@ func (th *telemetryMiddlewareFactory) Middleware(serverName string) mux.Middlewa
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var statusCode int
-			// the next argument is defined outside this function so it must not be written to,
-			// otherwise every use will add a new layer of middlewares
+			// next is an argument of the MiddlewareFunc, it is defined outside the HandlerFunc so it is shared between calls,
+			// and so it must not be updated otherwise every call of the HandlerFunc will add a new layer of middlewares
+			// (and the HandlerFunc is called multiple times)
 			next := extractStatusCodeHandler(&statusCode)(next)
 
 			var duration time.Duration
