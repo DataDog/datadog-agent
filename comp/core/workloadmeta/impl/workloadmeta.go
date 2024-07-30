@@ -131,22 +131,6 @@ func NewWorkloadMeta(deps dependencies) Provider {
 	}
 }
 
-// NewWorkloadMetaOptional creates a new optional workloadmeta component.
-func NewWorkloadMetaOptional(deps dependencies) OptionalProvider {
-	if deps.Params.NoInstance {
-		return OptionalProvider{
-			Comp: optional.NewNoneOption[wmdef.Component](),
-		}
-	}
-	c := NewWorkloadMeta(deps)
-
-	return OptionalProvider{
-		Comp:          optional.NewOption(c.Comp),
-		FlareProvider: c.FlareProvider,
-		Endpoint:      c.Endpoint,
-	}
-}
-
 func (w *workloadmeta) writeResponse(writer http.ResponseWriter, r *http.Request) {
 	verbose := false
 	params := r.URL.Query()

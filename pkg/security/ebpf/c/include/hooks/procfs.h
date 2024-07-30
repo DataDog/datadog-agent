@@ -7,6 +7,27 @@
 #include "helpers/filesystem.h"
 #include "helpers/utils.h"
 
+static __attribute__((always_inline)) void cache_file(struct dentry *dentry, u32 mount_id) {
+    u32 flags = 0;
+    u64 inode = get_dentry_ino(dentry);
+    if (is_overlayfs(dentry)) {
+        set_overlayfs_ino(dentry, &inode, &flags);
+    }
+
+    struct file_t entry = {
+        .path_key = {
+            .ino = inode,
+            .mount_id = mount_id,
+        },
+        .flags = flags,
+    };
+
+    fill_file(dentry, &entry);
+
+    // why not inode + mount id ?
+    bpf_map_update_elem(&exec_file_cache, &inode, &entry, BPF_ANY);
+}
+
 // used by both snapshot and process resolver fallback
 HOOK_ENTRY("security_inode_getattr")
 int hook_security_inode_getattr(ctx_t *ctx) {
@@ -31,23 +52,7 @@ int hook_security_inode_getattr(ctx_t *ctx) {
         dentry = get_path_dentry(path);
     }
 
-    u32 flags = 0;
-    u64 inode = get_dentry_ino(dentry);
-    if (is_overlayfs(dentry)) {
-        set_overlayfs_ino(dentry, &inode, &flags);
-    }
-
-    struct file_t entry = {
-        .path_key = {
-            .ino = inode,
-            .mount_id = mount_id,
-        },
-        .flags = flags,
-    };
-
-    fill_file(dentry, &entry);
-
-    bpf_map_update_elem(&exec_file_cache, &inode, &entry, BPF_NOEXIST);
+    cache_file(dentry, mount_id);
 
     return 0;
 }

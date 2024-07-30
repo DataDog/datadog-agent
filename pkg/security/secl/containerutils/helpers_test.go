@@ -11,14 +11,13 @@ package containerutils
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/stretchr/testify/assert"
 )
 
 type testCase struct {
 	input  string
 	output string
-	flags  uint64
+	flags  CGroupManager
 }
 
 func TestFindContainerID(t *testing.T) {
@@ -34,12 +33,12 @@ func TestFindContainerID(t *testing.T) {
 		{ // classic hexa as present in proc
 			input:  "/docker/aAbBcCdDeEfF2345678901234567890123456789012345678901234567890123",
 			output: "aAbBcCdDeEfF2345678901234567890123456789012345678901234567890123",
-			flags:  model.CGroupManagerDocker,
+			flags:  CGroupManagerDocker,
 		},
 		{ // another proc based
 			input:  "/kubepods.slice/kubepods-pod48d25824_cbe2_4fdc_9928_5bb49e05473d.slice/cri-containerd-c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad.scope",
 			output: "c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad",
-			flags:  model.CGroupManagerCRI,
+			flags:  CGroupManagerCRI,
 		},
 		{ // with prefix/suffix
 			input:  "prefixaAbBcCdDeEfF2345678901234567890123456789012345678901234567890123suffix",
@@ -64,6 +63,7 @@ func TestFindContainerID(t *testing.T) {
 		{ // Some random path which could match garden format
 			input:  "/user.slice/user-1000.slice/user@1000.service/apps.slice/apps-org.gnome.Terminal.slice/vte-spawn-f9176c6a-2a34-4ce2-86af-60d16888ed8e.scope",
 			output: "",
+			flags:  CGroupManagerSystemd,
 		},
 		{ // GARDEN with prefix / suffix
 			input:  "prefix01234567-0123-4567-890a-bcdesuffix",
@@ -94,6 +94,6 @@ func TestFindContainerID(t *testing.T) {
 	for _, test := range testCases {
 		containerID, containerFlags := FindContainerID(test.input)
 		assert.Equal(t, test.output, containerID)
-		assert.Equal(t, test.flags, containerFlags, "wrong flags for container %s", containerID)
+		assert.Equal(t, uint64(test.flags), containerFlags, "wrong flags for container %s", containerID)
 	}
 }

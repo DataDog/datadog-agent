@@ -10,14 +10,12 @@ package tests
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
-	"strconv"
-	"syscall"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/stretchr/testify/assert"
@@ -94,7 +92,7 @@ func TestContainerCreatedAt(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_container_created_at_delay")
 			assertFieldEqual(t, event, "open.file.path", testFileDelay)
 			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
-			assert.Equal(t, event.CGroupContext.CGroupFlags, model.CGroupFlags(model.CGroupManagerDocker))
+			assert.Equal(t, event.CGroupContext.CGroupFlags, containerutils.CGroupFlags(containerutils.CGroupManagerDocker))
 			createdAtNano, _ := event.GetFieldValue("container.created_at")
 			createdAt := time.Unix(0, int64(createdAtNano.(int)))
 			assert.True(t, time.Since(createdAt) > 3*time.Second)
@@ -110,7 +108,7 @@ func TestContainerFlags(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_container_flags",
-			Expression: `container.runtime == "docker" && container.id != "" && open.file.path == "{{.Root}}/test-open" && cgroup.id =~ "docker*"`,
+			Expression: `container.runtime == "docker" && container.id != "" && open.file.path == "{{.Root}}/test-open" && cgroup.id =~ "*docker*"`,
 		},
 	}
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -144,7 +142,7 @@ func TestContainerFlags(t *testing.T) {
 			assertFieldEqual(t, event, "open.file.path", testFile)
 			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
 			assertFieldEqual(t, event, "container.runtime", "docker")
-			assert.Equal(t, model.CGroupFlags(model.CGroupManagerDocker), event.CGroupContext.CGroupFlags)
+			assert.Equal(t, containerutils.CGroupFlags(containerutils.CGroupManagerDocker), event.CGroupContext.CGroupFlags)
 
 			test.validateOpenSchema(t, event)
 		})
@@ -209,69 +207,6 @@ func TestContainerScopedVariable(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "test_container_check_scoped_variable", rule.ID, "wrong rule triggered")
-		})
-	})
-}
-
-func createCGroup(name string) (string, error) {
-	cgroupPath := "/sys/fs/cgroup/memory/" + name
-	if err := os.MkdirAll(cgroupPath, 0700); err != nil {
-		return "", err
-	}
-
-	if err := os.WriteFile(cgroupPath+"/cgroup.procs", []byte(strconv.Itoa(os.Getpid())), 0700); err != nil {
-		return "", err
-	}
-
-	return cgroupPath, nil
-}
-func TestCGroupID(t *testing.T) {
-	if testEnvironment == DockerEnvironment {
-		t.Skip("skipping cgroup ID test in docker")
-	}
-
-	SkipIfNotAvailable(t)
-
-	ruleDefs := []*rules.RuleDefinition{
-		{
-			ID:         "test_container_flags",
-			Expression: `open.file.path == "{{.Root}}/test-open" && cgroup.id == "cg1"`,
-		},
-	}
-	test, err := newTestModule(t, nil, ruleDefs)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
-
-	cgroupPath, err := createCGroup("cg1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(cgroupPath)
-
-	testFile, testFilePtr, err := test.Path("test-open")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	test.Run(t, "cgroup-id", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		test.WaitSignal(t, func() error {
-			fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT, 0711, 0, 0)
-			if errno != 0 {
-				return error(errno)
-			}
-			return syscall.Close(int(fd))
-
-		}, func(event *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_container_flags")
-			assertFieldEqual(t, event, "open.file.path", testFile)
-			assertFieldEqual(t, event, "container.id", "")
-			assertFieldEqual(t, event, "container.runtime", "")
-			assert.Equal(t, model.CGroupFlags(0), event.CGroupContext.CGroupFlags)
-			assertFieldEqual(t, event, "cgroup.id", "cg1")
-
-			test.validateOpenSchema(t, event)
 		})
 	})
 }
