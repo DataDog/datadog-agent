@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -65,13 +66,12 @@ type Installer interface {
 type installerImpl struct {
 	m sync.Mutex
 
-	db                *db.PackagesDB
-	downloader        *oci.Downloader
-	repositories      *repository.Repositories
-	configsDir        string
-	packagesDir       string
-	tmpDirPath        string
-	packageInstallers map[string]packageInstaller
+	db           *db.PackagesDB
+	downloader   *oci.Downloader
+	repositories *repository.Repositories
+	configsDir   string
+	packagesDir  string
+	tmpDirPath   string
 }
 
 // NewInstaller returns a new Package Manager.
@@ -84,50 +84,14 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
-	i := &installerImpl{
+	return &installerImpl{
 		db:           db,
 		downloader:   oci.NewDownloader(env, http.DefaultClient),
 		repositories: repository.NewRepositories(paths.PackagesPath, paths.LocksPack),
 		configsDir:   paths.DefaultConfigsDir,
 		tmpDirPath:   paths.TmpDirPath,
 		packagesDir:  paths.PackagesPath,
-	}
-	i.packageInstallers = map[string]packageInstaller{
-		packageDatadogAgent: &datadogAgentPackageInstaller{
-			basePackageInstaller: &basePackageInstaller{
-				installerImpl: i,
-				pkgName:       packageDatadogAgent,
-			},
-		},
-		packageDatadogInstaller: &datadogInstallerPackageInstaller{
-			basePackageInstaller: &basePackageInstaller{
-				installerImpl: i,
-				pkgName:       packageDatadogInstaller,
-			},
-		},
-		packageAPMInjector: &apmInjectorPackageInstaller{
-			basePackageInstaller: &basePackageInstaller{
-				installerImpl: i,
-				pkgName:       packageAPMInjector,
-			},
-		},
-	}
-	return i, nil
-}
-
-func (i *installerImpl) getInstallerPackageFor(pkgName string) packageInstaller {
-	if pakInstaller, ok := i.packageInstallers[pkgName]; ok {
-		return pakInstaller
-	}
-	// Return a default package installer with the given name for cases where we don't have a specific package installer.
-	pakInstaller := &basePackageInstaller{
-		installerImpl: i,
-		pkgName:       pkgName,
-	}
-	if i.packageInstallers != nil {
-		i.packageInstallers[pkgName] = pakInstaller
-	}
-	return pakInstaller
+	}, nil
 }
 
 // State returns the state of a package.
@@ -212,7 +176,11 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 	if err != nil {
 		return fmt.Errorf("could not extract package config layer: %w", err)
 	}
-	err = i.getInstallerPackageFor(pkg.Name).SetupPackage(ctx, pkg.Version, tmpDir, args)
+	err = i.repositories.Create(ctx, pkg.Name, pkg.Version, tmpDir)
+	if err != nil {
+		return fmt.Errorf("could not create repository: %w", err)
+	}
+	err = i.setupPackage(ctx, pkg.Name, args)
 	if err != nil {
 		return fmt.Errorf("could not setup package: %w", err)
 	}
@@ -253,21 +221,56 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 	if err != nil {
 		return fmt.Errorf("could not extract package config layer: %w", err)
 	}
-	return i.getInstallerPackageFor(pkg.Name).StartExperiment(ctx, pkg.Version, tmpDir)
+	repository := i.repositories.Get(pkg.Name)
+	err = repository.SetExperiment(ctx, pkg.Version, tmpDir)
+	if err != nil {
+		return fmt.Errorf("could not set experiment: %w", err)
+	}
+	return i.startExperiment(ctx, pkg.Name)
 }
 
 // RemoveExperiment removes an experiment.
 func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	return i.getInstallerPackageFor(pkg).StopExperiment(ctx)
+
+	repository := i.repositories.Get(pkg)
+	if runtime.GOOS != "windows" && pkg == packageDatadogInstaller {
+		// Special case for the Linux installer since `stopExperiment`
+		// will kill the current process, delete the experiment first.
+		err := repository.DeleteExperiment(ctx)
+		if err != nil {
+			return fmt.Errorf("could not delete experiment: %w", err)
+		}
+		err = i.stopExperiment(ctx, pkg)
+		if err != nil {
+			return fmt.Errorf("could not stop experiment: %w", err)
+		}
+	} else {
+		err := i.stopExperiment(ctx, pkg)
+		if err != nil {
+			return fmt.Errorf("could not stop experiment: %w", err)
+		}
+		err = repository.DeleteExperiment(ctx)
+		if err != nil {
+			return fmt.Errorf("could not delete experiment: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // PromoteExperiment promotes an experiment to stable.
 func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	return i.getInstallerPackageFor(pkg).PromoteExperiment(ctx)
+
+	repository := i.repositories.Get(pkg)
+	err := repository.PromoteExperiment(ctx)
+	if err != nil {
+		return fmt.Errorf("could not promote experiment: %w", err)
+	}
+	return i.promoteExperiment(ctx, pkg)
 }
 
 // Purge removes all packages.
@@ -285,12 +288,12 @@ func (i *installerImpl) Purge(ctx context.Context) {
 		if pkg.Name == packageDatadogInstaller {
 			continue
 		}
-		err := i.getInstallerPackageFor(pkg.Name).RemovePackage(ctx)
+		err := i.removePackage(ctx, pkg.Name)
 		if err != nil {
 			log.Warnf("could not remove package %s: %v", pkg.Name, err)
 		}
 	}
-	err = i.getInstallerPackageFor(packageDatadogInstaller).RemovePackage(ctx)
+	err = i.removePackage(ctx, packageDatadogInstaller)
 	if err != nil {
 		log.Warnf("could not remove installer: %v", err)
 	}
@@ -308,7 +311,7 @@ func (i *installerImpl) Purge(ctx context.Context) {
 func (i *installerImpl) Remove(ctx context.Context, pkg string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	err := i.getInstallerPackageFor(pkg).RemovePackage(ctx)
+	err := i.removePackage(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not remove package: %w", err)
 	}
@@ -369,6 +372,65 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 		return fmt.Errorf("could not instrument APM: %w", err)
 	}
 	return nil
+}
+
+func (i *installerImpl) startExperiment(ctx context.Context, pkg string) error {
+	switch pkg {
+	case packageDatadogAgent:
+		return service.StartAgentExperiment(ctx)
+	case packageDatadogInstaller:
+		return service.StartInstallerExperiment(ctx)
+	default:
+		return nil
+	}
+}
+
+func (i *installerImpl) stopExperiment(ctx context.Context, pkg string) error {
+	switch pkg {
+	case packageDatadogAgent:
+		return service.StopAgentExperiment(ctx)
+	case packageDatadogInstaller:
+		return service.StopInstallerExperiment(ctx)
+	default:
+		return nil
+	}
+}
+
+func (i *installerImpl) promoteExperiment(ctx context.Context, pkg string) error {
+	switch pkg {
+	case packageDatadogAgent:
+		return service.PromoteAgentExperiment(ctx)
+	case packageDatadogInstaller:
+		return service.StopInstallerExperiment(ctx)
+	default:
+		return nil
+	}
+}
+
+func (i *installerImpl) setupPackage(ctx context.Context, pkg string, args []string) error {
+	switch pkg {
+	case packageDatadogInstaller:
+		return service.SetupInstaller(ctx)
+	case packageDatadogAgent:
+		return service.SetupAgent(ctx, args)
+	case packageAPMInjector:
+		return service.SetupAPMInjector(ctx)
+	default:
+		return nil
+	}
+}
+
+func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
+	switch pkg {
+	case packageDatadogAgent:
+		return service.RemoveAgent(ctx)
+	case packageAPMInjector:
+		return service.RemoveAPMInjector(ctx)
+	case packageDatadogInstaller:
+		return service.RemoveInstaller(ctx)
+	default:
+		return nil
+	}
 }
 
 const (
