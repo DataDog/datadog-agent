@@ -40,8 +40,11 @@ var (
 
 func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, ac autodiscovery.Component) {
 	providers.InitConfigFilesReader(confSearchPaths)
+
+	acTelemetryStore := ac.GetTelemetryStore()
+
 	ac.AddConfigProvider(
-		providers.NewFileConfigProvider(),
+		providers.NewFileConfigProvider(acTelemetryStore),
 		config.Datadog().GetBool("autoconf_config_files_poll"),
 		time.Duration(config.Datadog().GetInt("autoconf_config_files_poll_interval"))*time.Second,
 	)
@@ -107,7 +110,7 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 	for _, cp := range uniqueConfigProviders {
 		factory, found := ac.GetProviderCatalog()[cp.Name]
 		if found {
-			configProvider, err := factory(&cp, wmeta)
+			configProvider, err := factory(&cp, wmeta, acTelemetryStore)
 			if err != nil {
 				log.Errorf("Error while adding config provider %v: %v", cp.Name, err)
 				continue

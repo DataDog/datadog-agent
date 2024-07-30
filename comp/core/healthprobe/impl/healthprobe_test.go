@@ -14,18 +14,16 @@ import (
 	"testing"
 
 	healthprobeComponent "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestServer(t *testing.T) {
 
 	lc := compdef.NewTestLifecycle()
-	logComponent := fxutil.Test[log.Component](t, logimpl.MockModule())
+	logComponent := logmock.New(t)
 
 	requires := Requires{
 		Lc:  lc,
@@ -49,7 +47,7 @@ func TestServer(t *testing.T) {
 
 func TestServerNoHealthPort(t *testing.T) {
 	lc := compdef.NewTestLifecycle()
-	logComponent := fxutil.Test[log.Component](t, logimpl.MockModule())
+	logComponent := logmock.New(t)
 
 	requires := Requires{
 		Lc:  lc,
@@ -67,7 +65,7 @@ func TestServerNoHealthPort(t *testing.T) {
 }
 
 func TestLiveHandler(t *testing.T) {
-	logComponent := fxutil.Test[log.Component](t, logimpl.MockModule())
+	logComponent := logmock.New(t)
 
 	request := httptest.NewRequest(http.MethodGet, "/live", nil)
 	responseRecorder := httptest.NewRecorder()
@@ -80,7 +78,7 @@ func TestLiveHandler(t *testing.T) {
 }
 
 func TestLiveHandlerUnhealthy(t *testing.T) {
-	logComponent := fxutil.Test[log.Component](t, logimpl.MockModule())
+	logComponent := logmock.New(t)
 
 	request := httptest.NewRequest(http.MethodGet, "/live", nil)
 	responseRecorder := httptest.NewRecorder()
@@ -98,7 +96,7 @@ func TestLiveHandlerUnhealthy(t *testing.T) {
 }
 
 func TestReadyHandler(t *testing.T) {
-	logComponent := fxutil.Test[log.Component](t, logimpl.MockModule())
+	logComponent := logmock.New(t)
 
 	request := httptest.NewRequest(http.MethodGet, "/ready", nil)
 	responseRecorder := httptest.NewRecorder()
@@ -111,7 +109,7 @@ func TestReadyHandler(t *testing.T) {
 }
 
 func TestReadyHandlerUnhealthy(t *testing.T) {
-	logComponent := fxutil.Test[log.Component](t, logimpl.MockModule())
+	logComponent := logmock.New(t)
 
 	request := httptest.NewRequest(http.MethodGet, "/ready", nil)
 	responseRecorder := httptest.NewRecorder()
@@ -129,7 +127,7 @@ func TestReadyHandlerUnhealthy(t *testing.T) {
 }
 
 func TestHealthHandlerFails(t *testing.T) {
-	logComponent := fxutil.Test[log.Component](t, logimpl.MockModule())
+	logComponent := logmock.New(t)
 
 	request := httptest.NewRequest(http.MethodGet, "/live", nil)
 	responseRecorder := httptest.NewRecorder()

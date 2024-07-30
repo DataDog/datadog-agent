@@ -15,6 +15,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// TruncatedFlag is the flag that is added at the beginning
+// or/and at the end of every trucated lines.
+var TruncatedFlag = []byte("...TRUNCATED...")
+
+// EscapedLineFeed is used to escape new line character
+// for multiline message.
+// New line character needs to be escaped because they are used
+// as delimiter for transport.
+var EscapedLineFeed = []byte(`\n`)
+
 // Payload represents an encoded collection of messages ready to be sent to the intake
 type Payload struct {
 	// The slice of sources messages encoded in the payload
@@ -34,7 +44,10 @@ type Message struct {
 	Origin             *Origin
 	Status             string
 	IngestionTimestamp int64
-	RawDataLen         int
+	// RawDataLen tracks the original size of the message content before any trimming/transformation.
+	// This is used when calculating the tailer offset - so this will NOT always be equal to `len(Content)`.
+	RawDataLen  int
+	IsMultiLine bool
 	// Tags added on processing
 	ProcessingTags []string
 	// Extra information from the parsers
@@ -190,6 +203,40 @@ func NewMessage(content []byte, origin *Origin, status string, ingestionTimestam
 		Origin:             origin,
 		Status:             status,
 		IngestionTimestamp: ingestionTimestamp,
+	}
+}
+
+// NewRawMessage returns a new encoded message.
+func NewRawMessage(content []byte, status string, rawDataLen int, readTimestamp string) *Message {
+	return &Message{
+		MessageContent: MessageContent{
+			content: content,
+			State:   StateUnstructured,
+		},
+		Status:             status,
+		RawDataLen:         rawDataLen,
+		IngestionTimestamp: time.Now().UnixNano(),
+		ParsingExtra: ParsingExtra{
+			Timestamp: readTimestamp,
+		},
+		IsMultiLine: false,
+	}
+}
+
+// NewRawMultiLineMessage returns a new encoded message.
+func NewRawMultiLineMessage(content []byte, status string, rawDataLen int, readTimestamp string) *Message {
+	return &Message{
+		MessageContent: MessageContent{
+			content: content,
+			State:   StateUnstructured,
+		},
+		Status:             status,
+		RawDataLen:         rawDataLen,
+		IngestionTimestamp: time.Now().UnixNano(),
+		ParsingExtra: ParsingExtra{
+			Timestamp: readTimestamp,
+		},
+		IsMultiLine: true,
 	}
 }
 

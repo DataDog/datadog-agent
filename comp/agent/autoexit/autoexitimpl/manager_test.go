@@ -9,9 +9,8 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	assert "github.com/stretchr/testify/require"
 )
 
@@ -35,7 +34,7 @@ func (f *processFixture) run(t *testing.T, logComp log.Component) {
 }
 
 func TestExitDetection(t *testing.T) {
-	logComponent := fxutil.Test[log.Component](t, logimpl.MockModule())
+	logComponent := logmock.New(t)
 	tests := []processFixture{
 		{
 			name: "existing process",

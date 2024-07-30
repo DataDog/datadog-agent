@@ -25,6 +25,8 @@ struct credentials_t {
     u32 egid;
     u32 fsuid;
     u32 fsgid;
+    u32 auid;
+    u32 is_auid_set;
     u64 cap_effective;
     u64 cap_permitted;
 };

@@ -9,6 +9,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
@@ -94,4 +95,45 @@ func TestEventStreamEnabledForSupportedKernelsWindowsUnsupported(t *testing.T) {
 
 		require.False(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
 	})
+}
+
+func TestEnableDiscovery(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		config.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+discovery:
+  enabled: true
+`)
+		assert.True(t, cfg.GetBool(discoveryNS("enabled")))
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		config.ResetSystemProbeConfig(t)
+		t.Setenv("DD_DISCOVERY_ENABLED", "true")
+		cfg := config.SystemProbe
+
+		assert.True(t, cfg.GetBool(discoveryNS("enabled")))
+	})
+
+	t.Run("default", func(t *testing.T) {
+		config.ResetSystemProbeConfig(t)
+		cfg := config.SystemProbe
+
+		assert.False(t, cfg.GetBool(discoveryNS("enabled")))
+	})
+}
+
+func configurationFromYAML(t *testing.T, yaml string) config.Config {
+	f, err := os.CreateTemp(t.TempDir(), "system-probe.*.yaml")
+	require.NoError(t, err)
+	defer f.Close()
+
+	b := []byte(yaml)
+	n, err := f.Write(b)
+	require.NoError(t, err)
+	require.Equal(t, len(b), n)
+	f.Sync()
+
+	_, _ = New(f.Name())
+	return config.SystemProbe
 }

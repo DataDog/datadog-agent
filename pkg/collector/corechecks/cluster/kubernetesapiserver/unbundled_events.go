@@ -60,11 +60,15 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 	)
 
 	for _, ev := range events {
+
+		source := getEventSource(ev.ReportingController, ev.Source.Component)
+
 		kubeEvents.Inc(
 			ev.InvolvedObject.Kind,
 			ev.Source.Component,
 			ev.Type,
 			ev.Reason,
+			source,
 		)
 
 		if !c.shouldCollect(ev) {
@@ -80,12 +84,17 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 
 		tags := c.buildEventTags(ev, involvedObject, hostInfo)
 
-		emittedEvents.Inc(involvedObject.Kind, ev.Type)
+		emittedEvents.Inc(
+			involvedObject.Kind,
+			ev.Type,
+			source,
+		)
+
 		event := event.Event{
 			Title:          fmt.Sprintf("%s: %s", readableKey, ev.Reason),
 			Priority:       event.PriorityNormal,
 			Host:           hostInfo.hostname,
-			SourceTypeName: getEventSource(ev.ReportingController, ev.Source.Component),
+			SourceTypeName: source,
 			EventType:      CheckName,
 			Ts:             int64(ev.LastTimestamp.Unix()),
 			Tags:           tags,

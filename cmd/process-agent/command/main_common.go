@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -96,7 +96,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 	var appInitDeps struct {
 		fx.In
 
-		Logger logComponent.Component
+		Logger logcomp.Component
 
 		Checks       []types.CheckComponent `group:"check"`
 		Syscfg       sysprobeconfig.Component
@@ -195,6 +195,9 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
 		fxutil.FxLoggingOption(),
+
+		// Inject the Lifecycle adapter for non fx-aware components.
+		fxutil.FxLifecycleAdapter(),
 
 		// Set the pid file path
 		fx.Supply(pidimpl.NewParams(globalParams.PidFilePath)),
@@ -306,7 +309,7 @@ type miscDeps struct {
 	Syscfg       sysprobeconfig.Component
 	HostInfo     hostinfo.Component
 	WorkloadMeta workloadmeta.Component
-	Logger       logComponent.Component
+	Logger       logcomp.Component
 }
 
 // initMisc initializes modules that cannot, or have not yet been componetized.
