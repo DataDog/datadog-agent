@@ -71,9 +71,12 @@ var SyscallMonitorSelectors = []manager.ProbesSelector{
 
 // SnapshotSelectors selectors required during the snapshot
 func SnapshotSelectors() []manager.ProbesSelector {
+	procsOpen := kprobeOrFentry("cgroup_procs_open")
+	tasksOpen := kprobeOrFentry("cgroup_tasks_open")
 	return []manager.ProbesSelector{
 		// required to stat /proc/.../exe
 		kprobeOrFentry("security_inode_getattr"),
+		&manager.BestEffort{Selectors: []manager.ProbesSelector{procsOpen, tasksOpen}},
 	}
 }
 
@@ -113,6 +116,9 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("cgroup_procs_write"),
 				kprobeOrFentry("cgroup1_procs_write"),
+			}},
+			&manager.BestEffort{Selectors: []manager.ProbesSelector{
+				kprobeOrFentry("cgroup_procs_open"),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("_do_fork"),

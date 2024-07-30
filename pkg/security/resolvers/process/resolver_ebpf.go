@@ -28,6 +28,7 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/shirou/gopsutil/v3/process"
 	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -355,6 +356,21 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	id, entry.Process.ContainerID = containerutils.GetCGroupContext(containerID, containerFlags)
 	entry.Process.CGroup.CGroupID = id
 	entry.Process.CGroup.CGroupFlags = containerFlags
+	var fileStats unix.Statx_t
+
+	taskPath := utils.CgroupTaskPath(pid, pid)
+	if err := unix.Statx(unix.AT_FDCWD, taskPath, 0, unix.STATX_ALL, &fileStats); err == nil {
+		entry.Process.CGroup.CGroupFile.MountID = uint32(fileStats.Mnt_id)
+		entry.Process.CGroup.CGroupFile.Inode = fileStats.Ino
+	} else {
+		// Get the file fields of the cgroup file
+		info, err := p.retrieveExecFileFields(taskPath)
+		if err != nil {
+			seclog.Debugf("snapshot failed for %d: couldn't retrieve inode info: %s", proc.Pid, err)
+		} else {
+			entry.Process.CGroup.CGroupFile.MountID = info.MountID
+		}
+	}
 
 	if entry.FileEvent.IsFileless() {
 		entry.FileEvent.Filesystem = model.TmpFS
@@ -1252,7 +1268,7 @@ func (p *EBPFResolver) syncCache(proc *process.Process, filledProc *utils.Filled
 	bootTime := p.timeResolver.GetBootTime()
 
 	// insert new entry in kernel maps
-	procCacheEntryB := make([]byte, 232)
+	procCacheEntryB := make([]byte, 248)
 	_, err := entry.Process.MarshalProcCache(procCacheEntryB, bootTime)
 	if err != nil {
 		seclog.Errorf("couldn't marshal proc_cache entry: %s", err)
