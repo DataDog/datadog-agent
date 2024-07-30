@@ -20,6 +20,7 @@ type linuxStatusSuite struct {
 }
 
 func TestLinuxStatusSuite(t *testing.T) {
+	t.Skip("Skipping due to the latest ubuntu AMI disabling IMDSv1 #incident-29343")
 	e2e.Run(t, &linuxStatusSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 

@@ -22,6 +22,7 @@ type linuxHostnameSuite struct {
 }
 
 func TestLinuxHostnameSuite(t *testing.T) {
+	t.Skip("Skipping due to the latest ubuntu AMI disabling IMDSv1 #incident-29343")
 	osOption := awshost.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault))
 	e2e.Run(t, &linuxHostnameSuite{baseHostnameSuite: baseHostnameSuite{osOption: osOption}}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
