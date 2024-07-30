@@ -2011,6 +2011,8 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers15(
 			out.FSGID = int(in.Int())
 		case "fsgroup":
 			out.FSGroup = string(in.String())
+		case "auid":
+			out.AUID = int(in.Int())
 		case "cap_effective":
 			if in.IsNull() {
 				in.Skip()
@@ -2147,6 +2149,11 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers15(
 		const prefix string = ",\"fsgroup\":"
 		out.RawString(prefix)
 		out.String(string(in.FSGroup))
+	}
+	{
+		const prefix string = ",\"auid\":"
+		out.RawString(prefix)
+		out.Int(int(in.AUID))
 	}
 	{
 		const prefix string = ",\"cap_effective\":"
@@ -4196,6 +4203,8 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers25(
 			out.FSGID = int(in.Int())
 		case "fsgroup":
 			out.FSGroup = string(in.String())
+		case "auid":
+			out.AUID = int(in.Int())
 		case "cap_effective":
 			if in.IsNull() {
 				in.Skip()
@@ -4315,6 +4324,11 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers25(
 		const prefix string = ",\"fsgroup\":"
 		out.RawString(prefix)
 		out.String(string(in.FSGroup))
+	}
+	{
+		const prefix string = ",\"auid\":"
+		out.RawString(prefix)
+		out.Int(int(in.AUID))
 	}
 	{
 		const prefix string = ",\"cap_effective\":"

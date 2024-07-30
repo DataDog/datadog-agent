@@ -17,6 +17,7 @@ import (
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -165,7 +166,7 @@ func (fh *EBPFLessFieldHandlers) ResolveContainerRuntime(_ *model.Event, _ *mode
 func (fh *EBPFLessFieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
 	if len(e.ContainerID) == 0 {
 		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil {
-			e.ContainerID = model.ContainerID(entry.ContainerID)
+			e.ContainerID = containerutils.ContainerID(entry.ContainerID)
 		}
 	}
 	return string(e.ContainerID)

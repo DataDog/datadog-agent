@@ -15,10 +15,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/common/containerutils"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -189,7 +190,23 @@ func (fh *EBPFFieldHandlers) ResolveContainerRuntime(ev *model.Event, _ *model.C
 		return ""
 	}
 
-	return containerutils.GetContainerRuntime((ev.CGroupContext.CGroupFlags))
+	return getContainerRuntime((ev.CGroupContext.CGroupFlags))
+}
+
+// getContainerRuntime returns the container runtime managing the cgroup
+func getContainerRuntime(flags containerutils.CGroupFlags) string {
+	switch {
+	case (uint64(flags) & containerutils.CGroupManagerCRI) != 0:
+		return string(workloadmeta.ContainerRuntimeContainerd)
+	case (uint64(flags) & containerutils.CGroupManagerCRIO) != 0:
+		return string(workloadmeta.ContainerRuntimeCRIO)
+	case (uint64(flags) & containerutils.CGroupManagerDocker) != 0:
+		return string(workloadmeta.ContainerRuntimeDocker)
+	case (uint64(flags) & containerutils.CGroupManagerPodman) != 0:
+		return string(workloadmeta.ContainerRuntimePodman)
+	default:
+		return ""
+	}
 }
 
 // ResolveRights resolves the rights of a file
@@ -492,7 +509,7 @@ func (fh *EBPFFieldHandlers) ResolveHashes(eventType model.EventType, process *m
 func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, e *model.CGroupContext) string {
 	if len(e.CGroupID) == 0 {
 		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil {
-			e.CGroupID = model.GetCgroupFromContainer(entry.ContainerID, entry.CGroup.CGroupFlags)
+			e.CGroupID = containerutils.GetCgroupFromContainer(entry.ContainerID, entry.CGroup.CGroupFlags)
 			return string(e.CGroupID)
 		}
 	}
@@ -504,7 +521,7 @@ func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, e *model.CGroupCon
 func (fh *EBPFFieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
 	if len(e.ContainerID) == 0 {
 		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil {
-			e.ContainerID = model.ContainerID(entry.ContainerID)
+			e.ContainerID = containerutils.ContainerID(entry.ContainerID)
 			return string(e.ContainerID)
 		}
 	}

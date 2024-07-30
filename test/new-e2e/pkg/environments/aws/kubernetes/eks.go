@@ -329,7 +329,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		// Deploy the agent
 		dependsOnSetup := utils.PulumiDependsOn(workloadDeps...)
 		if params.agentOptions != nil {
-			paramsAgent, err := kubernetesagentparams.NewParams(&awsEnv, params.agentOptions...)
+			paramsAgent, err := kubernetesagentparams.NewParams(params.agentOptions...)
 			if err != nil {
 				return err
 			}

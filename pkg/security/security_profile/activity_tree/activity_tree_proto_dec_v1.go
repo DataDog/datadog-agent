@@ -13,6 +13,7 @@ import (
 
 	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -94,7 +95,7 @@ func protoDecodeProcessNode(p *adproto.ProcessInfo) model.Process {
 		IsThread:    p.IsThread,
 		IsExecExec:  p.IsExecChild,
 		FileEvent:   *protoDecodeFileEvent(p.File),
-		ContainerID: model.ContainerID(p.ContainerId),
+		ContainerID: containerutils.ContainerID(p.ContainerId),
 		SpanID:      p.SpanId,
 		TraceID:     p.TraceId,
 		TTYName:     p.Tty,

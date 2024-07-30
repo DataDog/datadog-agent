@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -137,7 +138,7 @@ func (p *EBPFLessResolver) NewEntry(key CacheResolverKey, ppid uint32, file stri
 		entry.Process.FileEvent.PathnameStr = file
 		entry.Process.FileEvent.BasenameStr = filepath.Base(entry.Process.FileEvent.PathnameStr)
 	}
-	entry.Process.ContainerID = model.ContainerID(ctrID)
+	entry.Process.ContainerID = containerutils.ContainerID(ctrID)
 
 	entry.ExecTime = time.Unix(0, int64(ts))
 

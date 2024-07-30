@@ -9,9 +9,6 @@ package containerutils
 import (
 	"regexp"
 	"strings"
-
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // ContainerIDPatternStr defines the regexp used to match container IDs
@@ -25,7 +22,7 @@ var containerIDCoreChars = "0123456789abcdefABCDEF"
 
 func init() {
 	var prefixes []string
-	for prefix := range model.RuntimePrefixes {
+	for prefix := range RuntimePrefixes {
 		prefixes = append(prefixes, prefix)
 	}
 	ContainerIDPatternStr = "(?:" + strings.Join(prefixes[:], "|") + ")?([0-9a-fA-F]{64})|([0-9a-fA-F]{32}-\\d+)|([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){4})"
@@ -58,31 +55,15 @@ func FindContainerID(s string) (string, uint64) {
 	// it starts or/and ends the initial string
 
 	cgroupID := s[match[0]:match[1]]
-	containerID, flags := model.GetContainerFromCgroup(cgroupID)
+	containerID, flags := GetContainerFromCgroup(cgroupID)
 	return containerID, uint64(flags)
 }
 
-// GetContainerRuntime returns the container runtime managing the cgroup
-func GetContainerRuntime(flags model.CGroupFlags) string {
-	switch {
-	case (uint64(flags) & model.CGroupManagerCRI) != 0:
-		return string(workloadmeta.ContainerRuntimeContainerd)
-	case (uint64(flags) & model.CGroupManagerCRIO) != 0:
-		return string(workloadmeta.ContainerRuntimeCRIO)
-	case (uint64(flags) & model.CGroupManagerDocker) != 0:
-		return string(workloadmeta.ContainerRuntimeDocker)
-	case (uint64(flags) & model.CGroupManagerPodman) != 0:
-		return string(workloadmeta.ContainerRuntimePodman)
-	default:
-		return ""
-	}
-}
-
 // GetCGroupContext returns the cgroup ID and the sanitized container ID from a container id/flags tuple
-func GetCGroupContext(containerID model.ContainerID, cgroupFlags model.CGroupFlags) (model.CGroupID, model.ContainerID) {
-	cgroupID := model.GetCgroupFromContainer(containerID, cgroupFlags)
+func GetCGroupContext(containerID ContainerID, cgroupFlags CGroupFlags) (CGroupID, ContainerID) {
+	cgroupID := GetCgroupFromContainer(containerID, cgroupFlags)
 	if cgroupFlags&0b111 == 0 {
 		containerID = ""
 	}
-	return model.CGroupID(cgroupID), model.ContainerID(containerID)
+	return CGroupID(cgroupID), ContainerID(containerID)
 }
