@@ -24,8 +24,6 @@ import (
 	"golang.org/x/net/bpf"
 	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
-
-	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 // CallbackType represents a callback type
@@ -137,7 +135,7 @@ func (t *Tracer) readInt32(pid int, ptr uint64) (int32, error) {
 	// []byte to int32
 	buf := bytes.NewReader(data)
 	var val int32
-	err = binary.Read(buf, native.Endian, &val)
+	err = binary.Read(buf, binary.NativeEndian, &val)
 	if err != nil {
 		return 0, err
 	}
@@ -238,7 +236,7 @@ func (t *Tracer) ReadArgStringArray(pid int, regs syscall.PtraceRegs, arg int) (
 			return result, err
 		}
 
-		ptr := native.Endian.Uint64(data)
+		ptr := binary.NativeEndian.Uint64(data)
 		if ptr == 0 {
 			break
 		}
