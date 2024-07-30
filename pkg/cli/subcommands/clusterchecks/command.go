@@ -117,7 +117,7 @@ func bundleParams(globalParams GlobalParams) core.BundleParams {
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
-func run(_ log.Component, config config.Component, cliParams *cliParams) error {
+func run(_ log.Component, _ config.Component, cliParams *cliParams) error {
 	if err := flare.GetClusterChecks(color.Output, cliParams.checkName); err != nil {
 		return err
 	}

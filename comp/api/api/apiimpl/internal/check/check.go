@@ -33,7 +33,7 @@ func listChecks(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte("Not yet implemented."))
 }
 
-func listCheck(w http.ResponseWriter, r *http.Request) {
+func listCheck(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.Write([]byte("Not yet implemented."))
 }

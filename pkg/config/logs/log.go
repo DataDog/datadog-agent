@@ -380,7 +380,7 @@ func getSyslogConnection(uri *url.URL, secure bool) (net.Conn, error) {
 }
 
 // ReceiveMessage process current log message
-func (s *SyslogReceiver) ReceiveMessage(message string, level seelog.LogLevel, context seelog.LogContextInterface) error {
+func (s *SyslogReceiver) ReceiveMessage(message string, _ seelog.LogLevel, _ seelog.LogContextInterface) error {
 	if !s.enabled {
 		return nil
 	}
@@ -457,7 +457,7 @@ func (s *SyslogReceiver) Close() error {
 	return nil
 }
 
-func parseShortFilePath(params string) seelog.FormatterFunc {
+func parseShortFilePath(_ string) seelog.FormatterFunc {
 	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		return extractShortPathFromFullPath(context.FullPath())
 	}
@@ -485,7 +485,7 @@ func extractShortPathFromFullPath(fullPath string) string {
 	return shortPath
 }
 
-func createExtraJSONContext(params string) seelog.FormatterFunc {
+func createExtraJSONContext(_ string) seelog.FormatterFunc {
 	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		contextList, ok := context.CustomContext().([]interface{})
 		if len(contextList) == 0 || !ok {
@@ -495,7 +495,7 @@ func createExtraJSONContext(params string) seelog.FormatterFunc {
 	}
 }
 
-func createExtraTextContext(params string) seelog.FormatterFunc {
+func createExtraTextContext(_ string) seelog.FormatterFunc {
 	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		contextList, ok := context.CustomContext().([]interface{})
 		if len(contextList) == 0 || !ok {

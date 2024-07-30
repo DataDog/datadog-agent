@@ -45,7 +45,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 }
 
 // DebugNetworkState is not implemented on this OS for Tracer
-func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, error) {
+func (t *Tracer) DebugNetworkState(_ string) (map[string]interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 

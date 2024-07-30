@@ -27,7 +27,7 @@ func NewLauncher(_ *flareController.FlareController) *Launcher {
 // Start does nothing
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func (l *Launcher) Start(_ launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
+func (l *Launcher) Start(_ launchers.SourceProvider, _ pipeline.Provider, _ auditor.Registry, _ *tailers.TailerTracker) {
 }
 
 // Stop does nothing

@@ -13,6 +13,6 @@ func IsTracerSupportedByOS(_ []string) (bool, string) {
 	return verifyOSVersion(0, "", nil)
 }
 
-func verifyOSVersion(kernelCode uint32, platform string, exclusionList []string) (bool, string) {
+func verifyOSVersion(_ uint32, _ string, _ []string) (bool, string) {
 	return false, "unsupported architecture"
 }

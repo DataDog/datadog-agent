@@ -128,19 +128,19 @@ func (s *EnvironmentService) IsReady(context.Context) bool {
 // HasFilter is not supported
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (s *EnvironmentService) HasFilter(filter containers.FilterType) bool {
+func (s *EnvironmentService) HasFilter(_ containers.FilterType) bool {
 	return false
 }
 
 // GetExtraConfig is not supported
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (s *EnvironmentService) GetExtraConfig(key string) (string, error) {
+func (s *EnvironmentService) GetExtraConfig(_ string) (string, error) {
 	return "", ErrNotSupported
 }
 
 // FilterTemplates does nothing.
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (s *EnvironmentService) FilterTemplates(configs map[string]integration.Config) {
+func (s *EnvironmentService) FilterTemplates(_ map[string]integration.Config) {
 }

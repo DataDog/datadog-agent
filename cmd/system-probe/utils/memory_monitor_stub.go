@@ -12,7 +12,7 @@ package utils
 type MemoryMonitor struct{}
 
 // NewMemoryMonitor instantiates a new memory monitor
-func NewMemoryMonitor(_ string, _ bool, pressureLevels map[string]string, thresholds map[string]string) (*MemoryMonitor, error) {
+func NewMemoryMonitor(_ string, _ bool, _ map[string]string, _ map[string]string) (*MemoryMonitor, error) {
 	return &MemoryMonitor{}, nil
 }
 

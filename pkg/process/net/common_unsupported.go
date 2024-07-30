@@ -36,7 +36,7 @@ func GetRemoteSystemProbeUtil(_ string) (*RemoteSysProbeUtil, error) {
 // GetConnections is not supported
 //
 //nolint:revive // TODO(PROC) Fix revive linter
-func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections, error) {
+func (r *RemoteSysProbeUtil) GetConnections(_ string) (*model.Connections, error) {
 	return nil, ErrNotImplemented
 }
 
@@ -48,14 +48,14 @@ func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
 // GetProcStats is not supported
 //
 //nolint:revive // TODO(PROC) Fix revive linter
-func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPermByPID, error) {
+func (r *RemoteSysProbeUtil) GetProcStats(_ []int32) (*model.ProcStatsWithPermByPID, error) {
 	return nil, ErrNotImplemented
 }
 
 // Register is not supported
 //
 //nolint:revive // TODO(PROC) Fix revive linter
-func (r *RemoteSysProbeUtil) Register(clientID string) error {
+func (r *RemoteSysProbeUtil) Register(_ string) error {
 	return ErrNotImplemented
 }
 

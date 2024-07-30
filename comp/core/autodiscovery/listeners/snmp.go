@@ -449,7 +449,7 @@ func (s *SNMPService) GetExtraConfig(key string) (string, error) {
 // FilterTemplates does nothing.
 //
 //nolint:revive // TODO(NDM) Fix revive linter
-func (s *SNMPService) FilterTemplates(configs map[string]integration.Config) {
+func (s *SNMPService) FilterTemplates(_ map[string]integration.Config) {
 }
 
 func convertToCommaSepTags(tags []string) string {

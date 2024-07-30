@@ -78,7 +78,7 @@ func TestNoRetries(t *testing.T) {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func testNoRetry(t *testing.T, statusCode int) {
+func testNoRetry(_ *testing.T, statusCode int) {
 	cfg := getNewConfig()
 	server := NewTestServer(statusCode, cfg)
 	input := make(chan *message.Payload)

@@ -12,6 +12,6 @@ func GetStaticTags(_ uint64) (tags []string) {
 	return tags
 }
 
-func IsTLSTag(staticTags uint64) bool {
+func IsTLSTag(_ uint64) bool {
 	return false
 }

@@ -74,7 +74,7 @@ type MockListener struct {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (l *MockListener) Listen(newSvc, delSvc chan<- listeners.Service) {
+func (l *MockListener) Listen(_, _ chan<- listeners.Service) {
 	l.ListenCount++
 }
 

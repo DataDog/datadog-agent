@@ -780,7 +780,7 @@ var rpmDbs = []string{
 	"/var/lib/rpm/Packages",
 }
 
-func (r *defaultResolver) resolvePackage(ctx context.Context, spec InputSpecPackage) (pkg *packageInfo, err error) {
+func (r *defaultResolver) resolvePackage(_ context.Context, spec InputSpecPackage) (pkg *packageInfo, err error) {
 	if len(spec.Names) == 0 {
 		return nil, nil
 	}
