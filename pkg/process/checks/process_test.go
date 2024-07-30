@@ -272,15 +272,15 @@ func TestProcessCheckSecondRunWithoutChunking(t *testing.T) {
 
 	// Assert to check there is only one chunk and that the nested values of this chunk match expected
 	assert.Len(t, actual.Payloads(), 1)
-	for _, elem := range actual.Payloads() {
-		assert.IsType(t, &model.CollectorProc{}, elem)
-		collectorProc := elem.(*model.CollectorProc)
-		ProcessDiscoveries := collectorProc.GetProcesses()
-		assert.ElementsMatch(t, expected, ProcessDiscoveries)
-		assert.EqualValues(t, 1, collectorProc.GetGroupSize())
-		assert.EqualValues(t, 0b1, collectorProc.GetHintMask())
-	}
+	actualPayloads := actual.Payloads()
+	assert.IsType(t, &model.CollectorProc{}, actualPayloads[0])
+	collectorProc := actualPayloads[0].(*model.CollectorProc)
+	ProcessDiscoveries := collectorProc.GetProcesses()
+	assert.ElementsMatch(t, expected, ProcessDiscoveries)
+	assert.EqualValues(t, 1, collectorProc.GetGroupSize())
+	assert.EqualValues(t, 0b1, collectorProc.GetHintMask())
 	assert.Nil(t, actual.RealtimePayloads())
+
 }
 
 func TestProcessCheckWithRealtime(t *testing.T) {

@@ -139,11 +139,10 @@ func TestContainerCheckWithoutChunking(t *testing.T) {
 
 	// Assert to check there is only one chunk and that the nested values of this chunk match expected
 	assert.Len(t, actual.Payloads(), 1)
-	for _, elem := range actual.Payloads() {
-		assert.IsType(t, &model.CollectorContainer{}, elem)
-		collectorContainer := elem.(*model.CollectorContainer)
-		ProcessDiscoveries := collectorContainer.GetContainers()
-		assert.ElementsMatch(t, containers, ProcessDiscoveries)
-		assert.EqualValues(t, 1, collectorContainer.GetGroupSize())
-	}
+	actualPayloads := actual.Payloads()
+	assert.IsType(t, &model.CollectorContainer{}, actualPayloads[0])
+	collectorContainer := actualPayloads[0].(*model.CollectorContainer)
+	ProcessDiscoveries := collectorContainer.GetContainers()
+	assert.ElementsMatch(t, containers, ProcessDiscoveries)
+	assert.EqualValues(t, 1, collectorContainer.GetGroupSize())
 }

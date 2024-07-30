@@ -172,14 +172,13 @@ func TestProcessDiscoveryCheckWithoutChunking(t *testing.T) {
 
 	// Assert to check there is only one chunk and that the nested values of this chunk match expected
 	assert.Len(t, actual.Payloads(), 1)
-	for _, elem := range actual.Payloads() {
-		assert.IsType(t, &model.CollectorProcDiscovery{}, elem)
-		collectorProcDiscovery := elem.(*model.CollectorProcDiscovery)
-		ProcessDiscoveries := collectorProcDiscovery.GetProcessDiscoveries()
-		assert.ElementsMatch(t, expected, ProcessDiscoveries)
-		assert.EqualValues(t, 1, collectorProcDiscovery.GetGroupSize())
-		assert.ElementsMatch(t, &model.Host{}, collectorProcDiscovery.GetHost())
-	}
+	actualPayloads := actual.Payloads()
+	assert.IsType(t, &model.CollectorProcDiscovery{}, actualPayloads[0])
+	collectorProcDiscovery := actualPayloads[0].(*model.CollectorProcDiscovery)
+	ProcessDiscoveries := collectorProcDiscovery.GetProcessDiscoveries()
+	assert.ElementsMatch(t, expected, ProcessDiscoveries)
+	assert.EqualValues(t, 1, collectorProcDiscovery.GetGroupSize())
+	assert.ElementsMatch(t, &model.Host{}, collectorProcDiscovery.GetHost())
 }
 
 func TestProcessDiscoveryChunking(t *testing.T) {
