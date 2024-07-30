@@ -7,12 +7,11 @@ package installer
 
 import (
 	"context"
+	"github.com/stretchr/testify/assert"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -50,6 +49,7 @@ func (i *testPackageManager) ConfigFS(f fixtures.Fixture) fs.FS {
 func TestInstallStable(t *testing.T) {
 	s := fixtures.NewServer(t)
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+	defer installer.db.Close()
 
 	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
@@ -65,6 +65,7 @@ func TestInstallStable(t *testing.T) {
 func TestInstallExperiment(t *testing.T) {
 	s := fixtures.NewServer(t)
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+	defer installer.db.Close()
 
 	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
@@ -83,6 +84,7 @@ func TestInstallExperiment(t *testing.T) {
 func TestInstallPromoteExperiment(t *testing.T) {
 	s := fixtures.NewServer(t)
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+	defer installer.db.Close()
 
 	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
@@ -102,6 +104,7 @@ func TestInstallPromoteExperiment(t *testing.T) {
 func TestUninstallExperiment(t *testing.T) {
 	s := fixtures.NewServer(t)
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
+	defer installer.db.Close()
 
 	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
