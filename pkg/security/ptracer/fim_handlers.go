@@ -11,6 +11,7 @@ package ptracer
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"syscall"
 	"time"
 
@@ -724,9 +725,9 @@ func handleUtimensAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg,
 	filename := ""
 	if filenamePtr == 0 {
 		// fd points to the file itself, not the directory
-		var exists bool
-		if filename, exists = process.FdRes.Fd[fd]; !exists {
-			return errors.New("process FD cache incomplete during path resolution")
+		var err error
+		if filename, err = process.GetFilenameFromFd(fd); err != nil {
+			return fmt.Errorf("process FD cache incomplete during path resolution: %w", err)
 		}
 	} else {
 		var err error
@@ -965,9 +966,9 @@ func handleChmod(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, reg
 func handleFchmod(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	fd := tracer.ReadArgInt32(regs, 0)
 
-	filename, found := process.FdRes.Fd[fd]
-	if !found {
-		return errors.New("FD cache incomplete")
+	filename, err := process.GetFilenameFromFd(fd)
+	if err != nil {
+		return fmt.Errorf("FD cache incomplete: %w", err)
 	}
 
 	msg.Type = ebpfless.SyscallTypeChmod
@@ -1032,9 +1033,9 @@ func handleChown(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, reg
 func handleFchown(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	fd := tracer.ReadArgInt32(regs, 0)
 
-	filename, found := process.FdRes.Fd[fd]
-	if !found {
-		return errors.New("FD cache incomplete")
+	filename, err := process.GetFilenameFromFd(fd)
+	if err != nil {
+		return fmt.Errorf("FD cache incomplete: %w", err)
 	}
 
 	msg.Type = ebpfless.SyscallTypeChown
@@ -1063,9 +1064,9 @@ func handleFchownAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 	flags := tracer.ReadArgInt32(regs, 4)
 	if flags&unix.AT_EMPTY_PATH > 0 {
 		// if AT_EMPTY_PATH is specified, the fd points to the file itself, not the directory
-		var exists bool
-		if filename, exists = process.FdRes.Fd[fd]; !exists {
-			return errors.New("process FD cache incomplete during path resolution")
+		var err error
+		if filename, err = process.GetFilenameFromFd(fd); err != nil {
+			return fmt.Errorf("process FD cache incomplete during path resolution: %w", err)
 		}
 	} else {
 		filename, err = getFullPathFromFd(process, filename, fd)
@@ -1183,7 +1184,7 @@ func handleFcntlRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 	if ret := tracer.ReadRet(regs); msg.Fcntl != nil && ret >= 0 {
 		// maintain fd/path mapping
 		if msg.Fcntl.Cmd == unix.F_DUPFD || msg.Fcntl.Cmd == unix.F_DUPFD_CLOEXEC {
-			if path, exists := process.FdRes.Fd[int32(msg.Fcntl.Fd)]; exists {
+			if path, err := process.GetFilenameFromFd(int32(msg.Fcntl.Fd)); err == nil {
 				process.FdRes.Fd[int32(ret)] = path
 			}
 		}
@@ -1193,7 +1194,7 @@ func handleFcntlRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 
 func handleDupRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
 	if ret := tracer.ReadRet(regs); msg.Dup != nil && ret >= 0 {
-		if path, ok := process.FdRes.Fd[msg.Dup.OldFd]; ok {
+		if path, err := process.GetFilenameFromFd(msg.Dup.OldFd); err == nil {
 			// maintain fd/path in case of dups
 			process.FdRes.Fd[int32(ret)] = path
 		}

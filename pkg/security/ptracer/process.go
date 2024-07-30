@@ -9,6 +9,8 @@
 package ptracer
 
 import (
+	"fmt"
+	"os"
 	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
@@ -56,6 +58,21 @@ func NewProcess(pid int) *Process {
 		},
 		FsRes: &FSResources{},
 	}
+}
+
+func (p *Process) GetFilenameFromFd(fd int32) (string, error) {
+	filename, ok := p.FdRes.Fd[fd]
+	if ok {
+		return filename, nil
+	}
+
+	procPath := fmt.Sprintf("/proc/%d/fd/%d", p.Pid, fd)
+	filename, err := os.Readlink(procPath)
+	if err != nil {
+		return "", err
+	}
+
+	return filename, nil
 }
 
 // ProcessCache defines a thread cache
