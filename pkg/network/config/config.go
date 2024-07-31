@@ -165,8 +165,8 @@ type Config struct {
 	// get flushed on every client request (default 30s check interval)
 	MaxClosedConnectionsBuffered uint32
 
-	// MaxClosedConnectionsBuffered represents the maximum number of closed connections we'll buffer in memory. These closed connections
-	// get flushed on every client request (default 30s check interval)
+	// MaxFailedConnectionsBuffered represents the maximum number of failed connections we'll buffer in memory. These connections will be
+	// removed from memory as they are matched to closed connections
 	MaxFailedConnectionsBuffered uint32
 
 	// ClosedConnectionFlushThreshold represents the number of closed connections stored before signalling
