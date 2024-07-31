@@ -39,11 +39,13 @@ var (
 )
 
 var failureTelemetry = struct {
-	failedConnOrphans telemetry.Counter
-	failedConnMatches telemetry.Counter
+	failedConnMatches  telemetry.Counter
+	failedConnOrphans  telemetry.Counter
+	failedConnsDropped telemetry.Counter
 }{
-	telemetry.NewCounter(telemetryModuleName, "orphans", []string{}, "Counter measuring the number of orphans after associating failed connections with a closed connection"),
 	telemetry.NewCounter(telemetryModuleName, "matches", []string{"type"}, "Counter measuring the number of successful matches of failed connections with closed connections"),
+	telemetry.NewCounter(telemetryModuleName, "orphans", []string{}, "Counter measuring the number of orphans after associating failed connections with a closed connection"),
+	telemetry.NewCounter(telemetryModuleName, "dropped", []string{}, "Counter measuring the number of dropped failed connections"),
 }
 
 // FailedConnStats is a wrapper to help document the purpose of the underlying map
@@ -70,18 +72,20 @@ type FailedConnMap map[ebpf.ConnTuple]*FailedConnStats
 
 // FailedConns is a struct to hold failed connections
 type FailedConns struct {
-	FailedConnMap map[ebpf.ConnTuple]*FailedConnStats
-	failureTuple  *ebpf.ConnTuple
-	mapCleaner    *ddebpf.MapCleaner[ebpf.ConnTuple, int64]
-	pool          *ddsync.TypedPool[FailedConnStats]
+	FailedConnMap       map[ebpf.ConnTuple]*FailedConnStats
+	maxFailuresBuffered uint32
+	failureTuple        *ebpf.ConnTuple
+	mapCleaner          *ddebpf.MapCleaner[ebpf.ConnTuple, int64]
+	pool                *ddsync.TypedPool[FailedConnStats]
 	sync.RWMutex
 }
 
 // NewFailedConns returns a new FailedConns struct
-func NewFailedConns(m *manager.Manager) *FailedConns {
+func NewFailedConns(m *manager.Manager, maxFailedConnsBuffered uint32) *FailedConns {
 	fc := &FailedConns{
-		FailedConnMap: make(map[ebpf.ConnTuple]*FailedConnStats),
-		failureTuple:  &ebpf.ConnTuple{},
+		FailedConnMap:       make(map[ebpf.ConnTuple]*FailedConnStats),
+		maxFailuresBuffered: maxFailedConnsBuffered,
+		failureTuple:        &ebpf.ConnTuple{},
 		pool: ddsync.NewTypedPool(func() *FailedConnStats {
 			return &FailedConnStats{
 				CountByErrCode: make(map[uint32]uint32),
@@ -95,6 +99,10 @@ func NewFailedConns(m *manager.Manager) *FailedConns {
 // upsertConn adds or updates the failed connection in the failed connection map
 func (fc *FailedConns) upsertConn(failedConn *ebpf.FailedConn) {
 	if _, exists := allowListErrs[failedConn.Reason]; !exists {
+		return
+	}
+	if len(fc.FailedConnMap) >= int(fc.maxFailuresBuffered) {
+		failureTelemetry.failedConnsDropped.Inc()
 		return
 	}
 	connTuple := failedConn.Tup

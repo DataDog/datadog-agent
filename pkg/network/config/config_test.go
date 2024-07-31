@@ -1181,6 +1181,23 @@ func TestMaxClosedConnectionsBuffered(t *testing.T) {
 	})
 }
 
+func TestMaxFailedConnectionsBuffered(t *testing.T) {
+	maxTrackedConnections := New().MaxTrackedConnections
+
+	t.Run("value set", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_CONFIG_MAX_FAILED_CONNECTIONS_BUFFERED", fmt.Sprintf("%d", maxTrackedConnections-1))
+		cfg := New()
+		require.Equal(t, maxTrackedConnections-1, cfg.MaxFailedConnectionsBuffered)
+	})
+
+	t.Run("value not set", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		require.Equal(t, cfg.MaxTrackedConnections, cfg.MaxFailedConnectionsBuffered)
+	})
+}
+
 func TestMaxHTTPStatsBuffered(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)

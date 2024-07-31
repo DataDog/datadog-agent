@@ -165,6 +165,10 @@ type Config struct {
 	// get flushed on every client request (default 30s check interval)
 	MaxClosedConnectionsBuffered uint32
 
+	// MaxClosedConnectionsBuffered represents the maximum number of closed connections we'll buffer in memory. These closed connections
+	// get flushed on every client request (default 30s check interval)
+	MaxFailedConnectionsBuffered uint32
+
 	// ClosedConnectionFlushThreshold represents the number of closed connections stored before signalling
 	// the agent to flush the connections.  This value only valid on Windows
 	ClosedConnectionFlushThreshold int
@@ -340,6 +344,7 @@ func New() *Config {
 		TCPFailedConnectionsEnabled:    cfg.GetBool(join(netNS, "enable_tcp_failed_connections")),
 		MaxTrackedConnections:          uint32(cfg.GetInt64(join(spNS, "max_tracked_connections"))),
 		MaxClosedConnectionsBuffered:   uint32(cfg.GetInt64(join(spNS, "max_closed_connections_buffered"))),
+		MaxFailedConnectionsBuffered:   uint32(cfg.GetInt64(join(spNS, "max_failed_connections_buffered"))),
 		ClosedConnectionFlushThreshold: cfg.GetInt(join(spNS, "closed_connection_flush_threshold")),
 		ClosedChannelSize:              cfg.GetInt(join(spNS, "closed_channel_size")),
 		MaxConnectionsStateBuffered:    cfg.GetInt(join(spNS, "max_connection_state_buffered")),
