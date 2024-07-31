@@ -46,12 +46,6 @@ type FailedConnStats struct {
 	Expiry         int64
 }
 
-func (t FailedConnStats) reset() {
-	for k := range t.CountByErrCode {
-		delete(t.CountByErrCode, k)
-	}
-}
-
 // String returns a string representation of the failedConnStats
 func (t FailedConnStats) String() string {
 	return fmt.Sprintf(
