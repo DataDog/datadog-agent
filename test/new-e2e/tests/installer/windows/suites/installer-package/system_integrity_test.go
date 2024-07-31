@@ -28,14 +28,14 @@ type testSystemIntegrityInstallerSuite struct {
 func TestInstallerSystemIntegrity(t *testing.T) {
 	suites := []*testSystemIntegrityInstallerSuite{
 		{
-			name: "test install uninstall",
+			name: "test-install-uninstall",
 			sutFn: func(suite *testSystemIntegrityInstallerSuite) {
 				suite.Require().NoError(suite.Installer().Install())
 				suite.Require().NoError(suite.Installer().Uninstall())
 			},
 		},
 		{
-			name: "test install rollback",
+			name: "test-install-rollback",
 			sutFn: func(suite *testSystemIntegrityInstallerSuite) {
 				msiErr := suite.Installer().Install(installerwindows.WithMSIArg("WIXFAILWHENDEFERRED=1"))
 				suite.Require().Error(msiErr)
