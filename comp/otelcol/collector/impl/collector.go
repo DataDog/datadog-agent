@@ -21,7 +21,6 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
 
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -58,7 +57,6 @@ type Requires struct {
 
 	// Log specifies the logging component.
 	Log                 log.Component
-	CoreConfig          coreconfig.Component
 	Provider            confmap.Converter
 	ConfigStore         configstore.Component
 	CollectorContrib    collectorcontrib.Component

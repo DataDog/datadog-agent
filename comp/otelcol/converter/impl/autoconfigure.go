@@ -21,7 +21,7 @@ type component struct {
 	Config       any
 }
 
-func enhanceConfig(conf *confmap.Conf) {
+func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
 	// extensions
 	for _, extension := range extensions {
 		if extensionIsInServicePipeline(conf, extension) {
