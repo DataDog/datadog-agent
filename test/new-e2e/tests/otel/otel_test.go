@@ -10,11 +10,7 @@ package otel
 import (
 	"context"
 	_ "embed"
-	"encoding/json"
 	"fmt"
-	"github.com/cenkalti/backoff"
-	"k8s.io/apimachinery/pkg/fields"
-	"strings"
 	"testing"
 	"time"
 
@@ -24,7 +20,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	localkubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/local/kubernetes"
@@ -40,32 +39,120 @@ var collectorConfig string
 
 func TestOtel(t *testing.T) {
 	fmt.Println("config", collectorConfig)
-	e2e.Run(t, &linuxTestSuite{}, e2e.WithProvisioner(localkubernetes.Provisioner(localkubernetes.WithAgentOptions(kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(collectorConfig)))))
+	e2e.Run(t, &linuxTestSuite{}, e2e.WithProvisioner(localkubernetes.Provisioner(localkubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(collectorConfig)))))
 }
 
 func (s *linuxTestSuite) TestOtelAgentInstalled() {
-	res, _ := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.TODO(), v1.ListOptions{})
-	containsOtelAgent := false
-	for _, pod := range res.Items {
-		if strings.Contains(pod.Name, "otel-agent") {
-			containsOtelAgent = true
-			break
-		}
-	}
-	assert.True(s.T(), containsOtelAgent, "Otel Agent not found")
-	assert.Equal(s.T(), s.Env().Agent.LinuxNodeAgent, "otel-agent")
+	agent := s.getAgentPod()
+	assert.Contains(s.T(), agent.ObjectMeta.String(), "otel-agent")
 }
 
-func (s *linuxTestSuite) TestOTelPipelines() {
-	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+func (s *linuxTestSuite) TestOTLPTraces() {
 	ctx := context.Background()
-	var ttlSecondsAfterFinished int32 = 300
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	service := "telemetrygen-job"
+	numTraces := 10
+
+	s.T().Log("Starting telemetrygen")
+	s.createTelemetrygenJob(ctx, "traces", []string{"--service", service, "--traces", fmt.Sprint(numTraces)})
+
+	s.T().Log("Waiting for traces")
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		traces, err := s.Env().FakeIntake.Client().GetTraces()
+		assert.NoError(c, err)
+		assert.NotEmpty(c, traces)
+		trace := traces[0]
+		assert.Equal(c, "none", trace.Env)
+		assert.NotEmpty(c, trace.TracerPayloads)
+		tp := trace.TracerPayloads[0]
+		assert.NotEmpty(c, tp.Chunks)
+		assert.NotEmpty(c, tp.Chunks[0].Spans)
+		spans := tp.Chunks[0].Spans
+		for _, sp := range spans {
+			assert.Equal(c, service, sp.Service)
+			assert.Equal(c, "telemetrygen", sp.Meta["otel.library.name"])
+		}
+	}, 2*time.Minute, 10*time.Second)
+}
+
+func (s *linuxTestSuite) TestOTLPMetrics() {
+	ctx := context.Background()
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	service := "telemetrygen-job"
+	serviceAttribute := fmt.Sprintf("service.name=\"%v\"", service)
+	numMetrics := 10
+
+	s.T().Log("Starting telemetrygen")
+	s.createTelemetrygenJob(ctx, "metrics", []string{"--metrics", fmt.Sprint(numMetrics), "--otlp-attributes", serviceAttribute})
+
+	s.T().Log("Waiting for metrics")
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		serviceTag := "service:" + service
+		metrics, err := s.Env().FakeIntake.Client().FilterMetrics("gen", fakeintake.WithTags[*aggregator.MetricSeries]([]string{serviceTag}))
+		assert.NoError(c, err)
+		assert.NotEmpty(c, metrics)
+	}, 2*time.Minute, 10*time.Second)
+}
+
+func (s *linuxTestSuite) TestOTLPLogs() {
+	ctx := context.Background()
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	service := "telemetrygen-job"
+	serviceAttribute := fmt.Sprintf("service.name=\"%v\"", service)
+	numLogs := 10
+	logBody := "telemetrygen log"
+
+	s.T().Log("Starting telemetrygen")
+	s.createTelemetrygenJob(ctx, "logs", []string{"--logs", fmt.Sprint(numLogs), "--otlp-attributes", serviceAttribute, "--body", logBody})
+
+	s.T().Log("Waiting for logs")
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		logs, err := s.Env().FakeIntake.Client().FilterLogs(service)
+		assert.NoError(c, err)
+		assert.NotEmpty(c, logs)
+		for _, log := range logs {
+			assert.Contains(c, log.Message, logBody)
+		}
+	}, 2*time.Minute, 10*time.Second)
+}
+
+func (s *linuxTestSuite) TestOTelFlare() {
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	// TODO: remove this prefix when localkubernetes is removed
+	localFlarePrefix := "kind-control-plane-sliu-e2e-linu/"
+
+	s.T().Log("Starting flare")
+	agent := s.getAgentPod()
+	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "flare", "--email", "e2e@test.com", "--send"})
+	assert.NoError(s.T(), err, "Failed to execute flare")
+	assert.Empty(s.T(), stderr)
+	assert.NotNil(s.T(), stdout)
+
+	s.T().Log("Getting latest flare")
+	flare, err := s.Env().FakeIntake.Client().GetLatestFlare()
+	assert.NoError(s.T(), err, "Failed to get latest flare")
+	flareHelpers.AssertFoldersExist(s.T(), flare, []string{localFlarePrefix + "otel", localFlarePrefix + "otel/otel-flare"})
+	flareHelpers.AssertFilesExist(s.T(), flare, []string{localFlarePrefix + "otel/otel-response.json"})
+	flareHelpers.AssertFileContains(s.T(), flare, localFlarePrefix+"otel/otel-response.json", "otel-agent", "datadog:", "health_check:", "pprof:", "zpages:", "infraattributes:", "prometheus:", "key: '[REDACTED]'")
+}
+
+func (s *linuxTestSuite) getAgentPod() corev1.Pod {
+	res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), v1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
+	})
+	assert.NoError(s.T(), err)
+	assert.NotEmpty(s.T(), res.Items)
+	return res.Items[0]
+}
+
+func (s *linuxTestSuite) createTelemetrygenJob(ctx context.Context, telemetry string, options []string) {
+	var ttlSecondsAfterFinished int32 = 0
 	var backOffLimit int32 = 4
 
 	otlpEndpoint := fmt.Sprintf("%v:4317", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"])
 	jobSpec := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "telemetrygen-job",
+			Name:      fmt.Sprintf("telemetrygen-job-%v", telemetry),
 			Namespace: "datadog",
 		},
 		Spec: batchv1.JobSpec{
@@ -76,7 +163,7 @@ func (s *linuxTestSuite) TestOTelPipelines() {
 						{
 							Name:    "telemetrygen-job",
 							Image:   "ghcr.io/open-telemetry/opentelemetry-collector-contrib/telemetrygen:latest",
-							Command: []string{"/telemetrygen", "traces", "--otlp-endpoint", otlpEndpoint, "--otlp-insecure", "--traces", "20", "--service", "telemetrygen-job"},
+							Command: append([]string{"/telemetrygen", telemetry, "--otlp-endpoint", otlpEndpoint, "--otlp-insecure"}, options...),
 						},
 					},
 					RestartPolicy: corev1.RestartPolicyNever,
@@ -88,76 +175,4 @@ func (s *linuxTestSuite) TestOTelPipelines() {
 
 	_, err := s.Env().KubernetesCluster.Client().BatchV1().Jobs("datadog").Create(ctx, jobSpec, metav1.CreateOptions{})
 	assert.NoError(s.T(), err, "Could not properly start job")
-
-	//time.Sleep(5 * time.Minute)
-
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		traces, err := s.Env().FakeIntake.Client().GetTraces()
-		assert.NoError(c, err, "Error starting job")
-		fmt.Println(traces)
-	}, 1*time.Minute, 10*time.Second)
-
-}
-
-// waitForReadyTimeout blocks up to timeout waiting for agent to be ready.
-// Retries every 100 ms up to timeout.
-// Returns error on failure.
-func (s *linuxTestSuite) waitForReadyTimeout(timeout time.Duration, agentName string) error {
-	interval := 100 * time.Millisecond
-	maxRetries := timeout.Milliseconds() / interval.Milliseconds()
-	fmt.Println("Waiting for the agent to be ready")
-	err := backoff.Retry(func() error {
-		_, _, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agentName, "agent", []string{"agent", "status"})
-		if err != nil {
-			return fmt.Errorf("agent not ready: %w", err)
-		}
-		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), uint64(maxRetries)))
-	return err
-}
-
-func (s *linuxTestSuite) TestOTelFlare() {
-	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-
-	// Wait for the fakeintake to be ready to avoid 503 when sending the flare
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		assert.NoError(c, s.Env().FakeIntake.Client().GetServerHealth())
-	}, 5*time.Minute, 20*time.Second, "timedout waiting for fakeintake to be healthy")
-
-	agent := s.getAgentPod()
-	err := s.waitForReadyTimeout(1*time.Minute, agent.Name)
-	assert.NoError(s.T(), err, "the agent is not ready")
-
-	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "flare", "--email", "e2e@test.com", "--send"})
-	assert.NoError(s.T(), err, "Failed to execute flare")
-	fmt.Println("---- stdout ----")
-	fmt.Println(stdout)
-	fmt.Println("---- stderr ----")
-	fmt.Println(stderr)
-
-	flare, err := s.Env().FakeIntake.Client().GetLatestFlare()
-	assert.NoError(s.T(), err, "Failed to get latest flare")
-
-	flareHelpers.AssertFoldersExist(s.T(), flare, []string{"otel", "otel/otel-flare"})
-	flareHelpers.AssertFilesExist(s.T(), flare, []string{"otel/otel-response.json"})
-	flareHelpers.AssertFileContains(s.T(), flare, "otel/otel-response.json", "otel-agent")
-
-	content, _ := flare.GetFileContent("otel/otel-response.json")
-
-	var response map[string]interface{}
-	json.Unmarshal([]byte(content), &response)
-	fmt.Println("---- response ----")
-	fmt.Println(response)
-
-	time.Sleep(5 * time.Minute)
-
-}
-
-func (s *linuxTestSuite) getAgentPod() corev1.Pod {
-	res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), v1.ListOptions{
-		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
-	})
-	assert.NoError(s.T(), err)
-	assert.NotEmpty(s.T(), res.Items)
-	return res.Items[0]
 }
