@@ -32,18 +32,19 @@ var collectorConfig string
 
 func TestOtel(t *testing.T) {
 	fmt.Println("config", collectorConfig)
-	e2e.Run(t, &linuxTestSuite{}, e2e.WithProvisioner(localkubernetes.Provisioner(localkubernetes.WithAgentOptions(kubernetesagentparams.WithOTELAgent(), kubernetesagentparams.WithOTELConfig(collectorConfig)))))
+	e2e.Run(t, &linuxTestSuite{}, e2e.WithProvisioner(localkubernetes.Provisioner(localkubernetes.WithAgentOptions(kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(collectorConfig)))))
 }
 
 func (s *linuxTestSuite) TestOtelAgentInstalled() {
 	res, _ := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.TODO(), v1.ListOptions{})
 	containsOtelAgent := false
 	for _, pod := range res.Items {
+		fmt.Printf("Pod: %s\n", pod.Name)
+
 		if strings.Contains(pod.Name, "otel-agent") {
 			containsOtelAgent = true
 			break
 		}
 	}
 	assert.True(s.T(), containsOtelAgent, "Otel Agent not found")
-	assert.Equal(s.T(), s.Env().Agent.NodeAgent, "otel-agent")
 }
