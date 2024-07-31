@@ -29,7 +29,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 const (
@@ -137,7 +136,7 @@ func initConn(probeAddr string, nbAttempts uint) (net.Conn, error) {
 func sendMsgData(client net.Conn, data []byte) error {
 	// write size
 	var size [4]byte
-	native.Endian.PutUint32(size[:], uint32(len(data)))
+	binary.NativeEndian.PutUint32(size[:], uint32(len(data)))
 	if _, err := client.Write(size[:]); err != nil {
 		return fmt.Errorf("unable to send size: %v", err)
 	}
