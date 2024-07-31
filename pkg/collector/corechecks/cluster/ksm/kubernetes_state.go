@@ -24,6 +24,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
@@ -299,8 +300,6 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	builder.WithKubeClient(c.InformerCl)
 
-	builder.WithVPAClient(c.VPAInformerClient)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	k.cancel = cancel
 	builder.WithContext(ctx)
@@ -406,9 +405,13 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 
 	factories = manageResourcesReplacement(c, factories, resources)
 
+	clientConfig, err := apiserver.GetClientConfig(time.Duration(config.Datadog().GetInt64("kubernetes_apiserver_client_timeout")) * time.Second)
+	if err != nil {
+	}
+
 	clients := make(map[string]interface{}, len(factories))
 	for _, f := range factories {
-		client, _ := f.CreateClient(nil)
+		client, _ := f.CreateClient(clientConfig)
 		clients[f.Name()] = client
 	}
 

@@ -29,6 +29,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	basemetrics "k8s.io/component-base/metrics"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
+	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 )
@@ -43,9 +44,115 @@ var (
 
 // NewCronJobV1Beta1Factory returns a new CronJob metric family generator factory.
 func NewCronJobV1Beta1Factory(client *apiserver.APIClient) customresource.RegistryFactory {
-	return &cronjobv1beta1Factory{
-		client: client.Cl,
-	}
+	factory, _ := customresourcestate.NewCustomResourceMetrics(customresourcestate.Resource{
+		GroupVersionKind: customresourcestate.GroupVersionKind{
+			Group:   "batch",
+			Version: "v1beta1",
+			Kind:    "CronJob",
+		},
+		Metrics: []customresourcestate.Generator{
+			{
+				Name: "kube_cronjob_annotations",
+				Help: "Kubernetes annotations converted to Prometheus labels.",
+				Each: customresourcestate.Metric{
+					Type: customresourcestate.MetricTypeInfo,
+				},
+			},
+			{
+				Name: "kube_cronjob_labels",
+				Help: "Kubernetes labels converted to Prometheus labels.",
+				Each: customresourcestate.Metric{
+					Type: customresourcestate.MetricTypeInfo,
+				},
+			},
+			{
+				Name: "kube_cronjob_info",
+				Help: "Info about cronjob.",
+				Each: customresourcestate.Metric{
+					Type: customresourcestate.MetricTypeInfo,
+					Info: &customresourcestate.MetricInfo{
+						MetricMeta: customresourcestate.MetricMeta{
+							LabelsFromPath: map[string][]string{
+								"schedule":           {"spec", "schedule"},
+								"concurrency_policy": {"spec", "concurrencyPolicy"},
+							},
+						},
+					},
+				},
+			},
+			{
+				Name: "kube_cronjob_status_last_schedule_time",
+				Help: "LastScheduleTime keeps information of when was the last time the job was successfully scheduled.",
+				Each: customresourcestate.Metric{
+					Type: customresourcestate.MetricTypeGauge,
+					Gauge: &customresourcestate.MetricGauge{
+						ValueFrom: []string{"status", "lastScheduleTime"},
+					},
+				},
+			},
+			{
+				Name: "kube_cronjob_spec_suspend",
+				Help: "Suspend flag tells the controller to suspend subsequent executions.",
+				Each: customresourcestate.Metric{
+					Type: customresourcestate.MetricTypeGauge,
+					Gauge: &customresourcestate.MetricGauge{
+						ValueFrom: []string{"spec", "suspend"},
+					},
+				},
+			},
+			{
+				Name: "kube_cronjob_spec_starting_deadline_seconds",
+				Help: "Deadline in seconds for starting the job if it misses scheduled time for any reason.",
+				Each: customresourcestate.Metric{
+					Type: customresourcestate.MetricTypeGauge,
+					Gauge: &customresourcestate.MetricGauge{
+						ValueFrom: []string{"spec", "startingDeadlineSeconds"},
+					},
+				},
+			},
+			// {
+			// 	Name: "kube_cronjob_next_schedule_time",
+			// 	Help: "Next time the cronjob should be scheduled. The time after lastScheduleTime, or after the cron job's creation time if it's never been scheduled. Use this to determine if the job is delayed.",
+			// 	Each: customresourcestate.Metric{
+			// 		Type: customresourcestate.MetricTypeGauge,
+			// 		Gauge: &customresourcestate.MetricGauge{
+			// 			ValueFrom: []string{"status", "lastScheduleTime"},
+			// 		},
+			// 	},
+			// },
+			{
+				Name: "kube_cronjob_metadata_resource_version",
+				Help: "Resource version representing a specific version of the cronjob.",
+				Each: customresourcestate.Metric{
+					Type: customresourcestate.MetricTypeGauge,
+					Gauge: &customresourcestate.MetricGauge{
+						ValueFrom: []string{"metadata", "resourceVersion"},
+					},
+				},
+			},
+			{
+				Name: "kube_cronjob_spec_successful_job_history_limit",
+				Help: "Successful job history limit tells the controller how many completed jobs should be preserved.",
+				Each: customresourcestate.Metric{
+					Type: customresourcestate.MetricTypeGauge,
+					Gauge: &customresourcestate.MetricGauge{
+						ValueFrom: []string{"spec", "successfulJobsHistoryLimit"},
+					},
+				},
+			},
+			{
+				Name: "kube_cronjob_spec_failed_job_history_limit",
+				Help: "Failed job history limit tells the controller how many failed jobs should be preserved.",
+				Each: customresourcestate.Metric{
+					Type: customresourcestate.MetricTypeGauge,
+					Gauge: &customresourcestate.MetricGauge{
+						ValueFrom: []string{"spec", "failedJobsHistoryLimit"},
+					},
+				},
+			},
+		},
+	})
+	return factory
 }
 
 type cronjobv1beta1Factory struct {

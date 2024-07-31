@@ -20,6 +20,7 @@ import (
 	"k8s.io/component-base/metrics"
 	"k8s.io/kube-state-metrics/v2/pkg/constant"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
+	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 
@@ -30,9 +31,8 @@ var descNodeLabelsDefaultLabels = []string{"node"}
 
 // NewExtendedNodeFactory returns a new Node metric family generator factory.
 func NewExtendedNodeFactory(client *apiserver.APIClient) customresource.RegistryFactory {
-	return &extendedNodeFactory{
-		client: client.Cl,
-	}
+	factory, _ := customresourcestate.NewCustomResourceMetrics(customresourcestate.Resource{})
+	return factory
 }
 
 type extendedNodeFactory struct {

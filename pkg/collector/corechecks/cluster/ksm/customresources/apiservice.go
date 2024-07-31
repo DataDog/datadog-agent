@@ -20,6 +20,7 @@ import (
 	v1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistrationclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
+	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 )
@@ -34,9 +35,8 @@ var (
 
 // NewAPIServiceFactory returns a new APIService metric family generator factory.
 func NewAPIServiceFactory(client *apiserver.APIClient) customresource.RegistryFactory {
-	return &apiserviceFactory{
-		client: client.APISInformerClient,
-	}
+	factory, _ := customresourcestate.NewCustomResourceMetrics(customresourcestate.Resource{})
+	return factory
 }
 
 type apiserviceFactory struct {
