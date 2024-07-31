@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 var (
@@ -33,6 +34,8 @@ var (
 
 	telemetryModuleName = "network_tracer__tcp_failure"
 	mapTTL              = 10 * time.Millisecond.Nanoseconds()
+
+	tuplePool = ddsync.NewDefaultTypedPool[ebpf.ConnTuple]()
 )
 
 var failureTelemetry = struct {
@@ -47,6 +50,12 @@ var failureTelemetry = struct {
 type FailedConnStats struct {
 	CountByErrCode map[uint32]uint32
 	Expiry         int64
+}
+
+func (t FailedConnStats) reset() {
+	for k := range t.CountByErrCode {
+		delete(t.CountByErrCode, k)
+	}
 }
 
 // String returns a string representation of the failedConnStats
@@ -64,6 +73,7 @@ type FailedConns struct {
 	FailedConnMap map[ebpf.ConnTuple]*FailedConnStats
 	failureTuple  *ebpf.ConnTuple
 	mapCleaner    *ddebpf.MapCleaner[ebpf.ConnTuple, int64]
+	pool          *ddsync.TypedPool[FailedConnStats]
 	sync.RWMutex
 }
 
@@ -72,6 +82,11 @@ func NewFailedConns(m *manager.Manager) *FailedConns {
 	fc := &FailedConns{
 		FailedConnMap: make(map[ebpf.ConnTuple]*FailedConnStats),
 		failureTuple:  &ebpf.ConnTuple{},
+		pool: ddsync.NewTypedPool(func() *FailedConnStats {
+			return &FailedConnStats{
+				CountByErrCode: make(map[uint32]uint32),
+			}
+		}),
 	}
 	fc.setupMapCleaner(m)
 	return fc
@@ -89,9 +104,8 @@ func (fc *FailedConns) upsertConn(failedConn *ebpf.FailedConn) {
 
 	stats, ok := fc.FailedConnMap[connTuple]
 	if !ok {
-		stats = &FailedConnStats{
-			CountByErrCode: make(map[uint32]uint32),
-		}
+		stats = fc.pool.Get()
+		stats.reset()
 		fc.FailedConnMap[connTuple] = stats
 	}
 
@@ -110,9 +124,11 @@ func (fc *FailedConns) MatchFailedConn(conn *network.ConnectionStats) {
 	util.ConnStatsToTuple(conn, fc.failureTuple)
 
 	fc.RLock()
-	defer fc.RUnlock()
+	foundMatch := false
+	var failedConn *FailedConnStats
 
 	if failedConn, ok := fc.FailedConnMap[*fc.failureTuple]; ok {
+		foundMatch = true
 		// found matching failed connection
 		conn.TCPFailures = make(map[uint32]uint32)
 
@@ -120,6 +136,13 @@ func (fc *FailedConns) MatchFailedConn(conn *network.ConnectionStats) {
 			failureTelemetry.failedConnMatches.Add(1, strconv.Itoa(int(errCode)))
 			conn.TCPFailures[errCode] += count
 		}
+	}
+	fc.RUnlock()
+	if foundMatch {
+		fc.Lock()
+		delete(fc.FailedConnMap, *fc.failureTuple)
+		fc.pool.Put(failedConn)
+		fc.Unlock()
 	}
 }
 
