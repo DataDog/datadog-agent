@@ -22,7 +22,7 @@ type provides struct {
 	Comp resources.Component
 }
 
-func newResourcesProvider(log log.Component, config config.Component) provides {
+func newResourcesProvider(_ log.Component, config config.Component) provides {
 	return provides{
 		// We return a dummy Component
 		Comp: &resourcesImpl{},
