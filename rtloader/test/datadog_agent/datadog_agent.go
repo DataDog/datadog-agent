@@ -47,6 +47,7 @@ static void initDatadogAgentTests(rtloader_t *rtloader) {
    set_get_clustername_cb(rtloader, getClustername);
    set_get_config_cb(rtloader, getConfig);
    set_get_hostname_cb(rtloader, getHostname);
+   set_get_host_tags_cb(rtloader, getHostTags);
    set_tracemalloc_enabled_cb(rtloader, getTracemallocEnabled);
    set_get_version_cb(rtloader, getVersion);
    set_headers_cb(rtloader, headers);
