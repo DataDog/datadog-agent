@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
+	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -29,7 +30,10 @@ import (
 )
 
 // newAutoscalersController returns a new autoscalersController
-func newAutoscalersController(client kubernetes.Interface, eventRecorder record.EventRecorder, isLeaderFunc func() bool, dogCl autoscalers.DatadogClient) (*autoscalersController, error) {
+func newAutoscalersController(client kubernetes.Interface,
+	eventRecorder record.EventRecorder,
+	isLeaderFunc func() bool,
+	dogCl datadogclient.Component) (*autoscalersController, error) {
 	var err error
 	h := &autoscalersController{
 		clientSet:     client,

@@ -23,6 +23,8 @@ import (
 type CGroupContextSerializer struct {
 	// CGroup ID
 	ID string `json:"id,omitempty"`
+	// CGroup manager
+	Manager string `json:"manager,omitempty"`
 }
 
 // ContainerContextSerializer serializes a container context to JSON

@@ -18,7 +18,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
@@ -128,8 +129,8 @@ func setup() (workloadmeta.Component, error) {
 			"", compcfg.WithConfigMissingOK(true))),
 		compcfg.Module(),
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
-		fx.Supply(logimpl.ForOneShot("TEST", "info", false)),
-		logimpl.Module(),
+		fx.Supply(logdef.ForOneShot("TEST", "info", false)),
+		logfx.Module(),
 		fx.Supply(workloadmeta.NewParams()),
 		collectors.GetCatalog(),
 		workloadmetafx.Module(),

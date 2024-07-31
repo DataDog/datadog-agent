@@ -18,7 +18,6 @@ func SystemPaths() []string {
 	// Ignoring paths while creating the snapshot reduces the snapshot size by >90%
 	return []string{
 		`C:\Windows\assembly\`,
-		`C:\Windows\Microsoft.NET\assembly\`,
 		`C:\windows\AppReadiness\`,
 		`C:\Windows\Temp\`,
 		`C:\Windows\Prefetch\`,
@@ -39,6 +38,7 @@ func SystemPaths() []string {
 		`C:\Windows\System32\Tasks\`,
 		`C:\Windows\System32\spp\`,
 		`C:\Windows\SystemTemp\`,
+		`C:\Windows\Microsoft.NET\`,
 	}
 }
 

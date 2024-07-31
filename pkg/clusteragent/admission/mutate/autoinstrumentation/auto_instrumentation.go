@@ -159,15 +159,16 @@ func (l language) defaultLibVersion() string {
 
 // Webhook is the auto instrumentation webhook
 type Webhook struct {
-	name              string
-	isEnabled         bool
-	endpoint          string
-	resources         []string
-	operations        []admiv1.OperationType
-	containerRegistry string
-	injectionFilter   mutatecommon.InjectionFilter
-	pinnedLibraries   []libInfo
-	wmeta             workloadmeta.Component
+	name                string
+	isEnabled           bool
+	endpoint            string
+	resources           []string
+	operations          []admiv1.OperationType
+	initSecurityContext *corev1.SecurityContext
+	containerRegistry   string
+	injectionFilter     mutatecommon.InjectionFilter
+	pinnedLibraries     []libInfo
+	wmeta               workloadmeta.Component
 }
 
 // NewWebhook returns a new Webhook dependent on the injection filter.
@@ -182,16 +183,23 @@ func NewWebhook(wmeta workloadmeta.Component, filter mutatecommon.InjectionFilte
 	}
 
 	containerRegistry := mutatecommon.ContainerRegistry("admission_controller.auto_instrumentation.container_registry")
+
+	initSecurityContext, err := parseInitSecurityContext()
+	if err != nil {
+		return nil, err
+	}
+
 	return &Webhook{
-		name:              webhookName,
-		isEnabled:         config.Datadog().GetBool("admission_controller.auto_instrumentation.enabled"),
-		endpoint:          config.Datadog().GetString("admission_controller.auto_instrumentation.endpoint"),
-		resources:         []string{"pods"},
-		operations:        []admiv1.OperationType{admiv1.Create},
-		containerRegistry: containerRegistry,
-		injectionFilter:   filter,
-		pinnedLibraries:   getPinnedLibraries(containerRegistry),
-		wmeta:             wmeta,
+		name:                webhookName,
+		isEnabled:           config.Datadog().GetBool("admission_controller.auto_instrumentation.enabled"),
+		endpoint:            config.Datadog().GetString("admission_controller.auto_instrumentation.endpoint"),
+		resources:           []string{"pods"},
+		operations:          []admiv1.OperationType{admiv1.Create},
+		initSecurityContext: initSecurityContext,
+		injectionFilter:     filter,
+		containerRegistry:   containerRegistry,
+		pinnedLibraries:     getPinnedLibraries(containerRegistry),
+		wmeta:               wmeta,
 	}, nil
 }
 
@@ -620,7 +628,7 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo
 	}
 
 	for lang, image := range initContainerToInject {
-		err := injectLibInitContainer(pod, image, lang)
+		err := injectLibInitContainer(pod, image, lang, w.initSecurityContext)
 		if err != nil {
 			langStr := string(lang)
 			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
@@ -659,7 +667,7 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo
 	return lastError
 }
 
-func injectLibInitContainer(pod *corev1.Pod, image string, lang language) error {
+func injectLibInitContainer(pod *corev1.Pod, image string, lang language, securityContext *corev1.SecurityContext) error {
 	initCtrName := initContainerName(lang)
 	log.Debugf("Injecting init container named %q with image %q into pod %s", initCtrName, image, mutatecommon.PodString(pod))
 	initContainer := corev1.Container{
@@ -679,6 +687,9 @@ func injectLibInitContainer(pod *corev1.Pod, image string, lang language) error 
 		return err
 	}
 	initContainer.Resources = resources
+
+	initContainer.SecurityContext = securityContext
+
 	pod.Spec.InitContainers = append([]corev1.Container{initContainer}, pod.Spec.InitContainers...)
 	return nil
 }
@@ -712,6 +723,21 @@ func initResources() (corev1.ResourceRequirements, error) {
 	}
 
 	return resources, nil
+}
+
+func parseInitSecurityContext() (*corev1.SecurityContext, error) {
+	securityContext := corev1.SecurityContext{}
+	confKey := "admission_controller.auto_instrumentation.init_security_context"
+
+	if config.Datadog().IsSet(confKey) {
+		confValue := config.Datadog().GetString(confKey)
+		err := json.Unmarshal([]byte(confValue), &securityContext)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get init security context from configuration, %s=`%s`: %v", confKey, confValue, err)
+		}
+	}
+
+	return &securityContext, nil
 }
 
 // injectLibRequirements injects the minimal config requirements (env vars and volume mounts) to enable instrumentation

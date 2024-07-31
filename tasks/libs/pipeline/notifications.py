@@ -6,6 +6,7 @@ import pathlib
 import re
 import subprocess
 from collections import defaultdict
+from datetime import datetime, timezone
 
 import gitlab
 import yaml
@@ -157,11 +158,12 @@ def email_to_slackid(ctx: Context, email: str) -> str:
 def warn_new_commits(release_managers, team, branch, next_rc):
     from slack_sdk import WebClient
 
+    today = datetime.today()
+    rc_date = datetime(today.year, today.month, today.day, hour=14, minute=0, second=0, tzinfo=timezone.utc)
+    rc_schedule_link = "https://github.com/DataDog/datadog-agent/blob/main/.github/workflows/create_rc_pr.yml#L6"
     message = "Hello :wave:\n"
     message += f":announcement: We detected new commits on the {branch} release branch of `integrations-core`.\n"
-    message += (
-        f"Could you please release and tag your repo to prepare the {next_rc} `datadog-agent` release candidate?\n"
-    )
+    message += f"Could you please release and tag your repo to prepare the {next_rc} `datadog-agent` release candidate planned <{rc_schedule_link}|{rc_date.strftime('%Y-%m-%d %H:%M')}> UTC?\n"
     message += "Thanks in advance!\n"
     message += f"cc {' '.join(release_managers)}"
     client = WebClient(os.environ["SLACK_API_TOKEN"])

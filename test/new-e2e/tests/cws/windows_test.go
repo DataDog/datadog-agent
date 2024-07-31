@@ -96,6 +96,7 @@ func (a *agentSuiteWindows) Test01RulesetLoadedDefaultRC() {
 }
 
 func (a *agentSuiteWindows) Test02Selftests() {
+	time.Sleep(time.Minute)
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
 		testSelftestsEvent(c, a, func(event *api.SelftestsEvent) {
 			assert.Contains(c, event.SucceededTests, "datadog_agent_cws_self_test_rule_windows_create_file", "missing selftest result")
@@ -161,6 +162,9 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 		}
 		assert.Contains(c, output, securityStartLog, "security-agent could not start")
 	}, 30*time.Second, 1*time.Second)
+
+	// Wait for host tags
+	time.Sleep(3 * time.Minute)
 
 	// Download policies
 	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)

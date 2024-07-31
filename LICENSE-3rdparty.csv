@@ -778,7 +778,6 @@ core,github.com/containerd/containerd/images/archive,Apache-2.0,"Copyright 2012-
 core,github.com/containerd/containerd/labels,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/leases,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/leases/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
-core,github.com/containerd/containerd/log,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/mount,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/namespaces,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/oci,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -1990,6 +1989,8 @@ core,github.com/sagikazarmark/locafero,MIT,Copyright (c) 2023 Márk Sági-Kazár
 core,github.com/sagikazarmark/slog-shim,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/saintfish/chardet,MIT,Copyright (c) 2012 chardet Authors | Sheng Yu (yusheng dot sjtu at gmail dot com)
 core,github.com/samber/lo,MIT,Copyright (c) 2022 Samuel Berthe | Copyright © 2022 [Samuel Berthe](https://github.com/samber)
+core,github.com/samber/lo/internal/constraints,MIT,Copyright (c) 2022 Samuel Berthe | Copyright © 2022 [Samuel Berthe](https://github.com/samber)
+core,github.com/samber/lo/internal/rand,MIT,Copyright (c) 2022 Samuel Berthe | Copyright © 2022 [Samuel Berthe](https://github.com/samber)
 core,github.com/samuel/go-zookeeper/zk,BSD-3-Clause,"Copyright (c) 2013, Samuel Stauffer <samuel@descolada.com>"
 core,github.com/santhosh-tekuri/jsonschema/v5,Apache-2.0,Copyright (c) 2017-2024 Santhosh Kumar Tekuri
 core,github.com/saracen/walker,MIT,Copyright (c) 2019 Arran Walker

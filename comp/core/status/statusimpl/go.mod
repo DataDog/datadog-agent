@@ -8,7 +8,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/config => ../../config
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../comp/core/flare/types
-	github.com/DataDog/datadog-agent/comp/core/log => ../../log
+	github.com/DataDog/datadog-agent/comp/core/log/def => ../../log/def
+	github.com/DataDog/datadog-agent/comp/core/log/mock => ../../log/mock
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../secrets
 	github.com/DataDog/datadog-agent/comp/core/status => ../.
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../telemetry
@@ -39,7 +40,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/config v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/core/log v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/comp/core/log/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/log/mock v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/status v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.56.0-rc.3
@@ -57,7 +59,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/logs v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/logs v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.56.0-rc.3 // indirect
@@ -71,6 +73,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.56.0-rc.3 // indirect
 	github.com/DataDog/viper v1.13.5 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
@@ -106,6 +109,7 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
 	golang.org/x/sys v0.21.0 // indirect
+	google.golang.org/protobuf v1.34.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

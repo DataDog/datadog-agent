@@ -12,8 +12,6 @@ from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.gitlab_api import (
     MultiGitlabCIDiff,
     get_all_gitlab_ci_configurations,
-    get_gitlab_ci_configuration,
-    print_gitlab_ci_configuration,
 )
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH
@@ -135,34 +133,6 @@ def unit_tests(ctx, pipeline_id, pipeline_url, branch_name, dry_run=False):
         print(msg)
     else:
         unit_tests_utils.comment_pr(msg, pipeline_id, branch_name, jobs_with_no_tests_run)
-
-
-@task
-def print_gitlab_ci(
-    ctx,
-    input_file: str = '.gitlab-ci.yml',
-    job: str | None = None,
-    sort: bool = False,
-    clean: bool = True,
-    git_ref: str | None = None,
-    ignore_errors: bool = False,
-):
-    """
-    Prints the full gitlab ci configuration.
-
-    - job: If provided, print only one job
-    - clean: Apply post processing to make output more readable (remove extends, flatten lists of lists...)
-    - ignore_errors: If True, ignore errors in the gitlab configuration (only process yaml)
-    - git_ref: If provided, use this git reference to fetch the configuration
-    - NOTE: This requires a full api token access level to the repository
-    """
-
-    yml = get_gitlab_ci_configuration(
-        ctx, input_file, job=job, clean=clean, git_ref=git_ref, ignore_errors=ignore_errors
-    )
-
-    # Print
-    print_gitlab_ci_configuration(yml, sort_jobs=sort)
 
 
 @task
