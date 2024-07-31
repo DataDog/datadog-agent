@@ -36,7 +36,7 @@ type dummyFlowProcessor struct {
 	stopped          bool
 }
 
-func (d *dummyFlowProcessor) FlowRoutine(_ int, addr string, port int, reuseport bool) error {
+func (d *dummyFlowProcessor) FlowRoutine(_ int, addr string, port int, _ bool) error {
 	return utils.UDPStoppableRoutine(make(chan struct{}), "test_udp", func(msg interface{}) error {
 		d.receivedMessages <- msg
 		return nil
