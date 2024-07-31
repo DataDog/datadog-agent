@@ -1408,6 +1408,10 @@ func (p *EBPFProbe) Close() error {
 		return err
 	}
 
+	if err := p.Erpc.Close(); err != nil {
+		return err
+	}
+
 	// when we reach this point, we do not generate nor consume events anymore, we can close the resolvers
 	return p.Resolvers.Close()
 }
