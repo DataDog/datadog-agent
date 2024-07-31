@@ -31,6 +31,7 @@ jobs:
                 python -m pip install --upgrade pip
                 pip install -r requirements.txt
                 pip install -r tasks/libs/requirements-github.txt
+                pip install -r tasks/requirements_release_tasks.txt
 
             - name: Determine the release active branch
               run: |
