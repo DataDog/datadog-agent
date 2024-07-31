@@ -343,13 +343,13 @@ func (api *API) EvtUpdateBookmark(Bookmark evtapi.EventBookmarkHandle, Event evt
 // EvtCreateRenderContext fake
 // not implemented.
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtcreaterendercontext
-func (api *API) EvtCreateRenderContext(_ []string, Flags uint) (evtapi.EventRenderContextHandle, error) {
+func (api *API) EvtCreateRenderContext(_ []string, _ uint) (evtapi.EventRenderContextHandle, error) {
 	return evtapi.EventRenderContextHandle(0), fmt.Errorf("not implemented")
 }
 
 // EvtRenderEventValues is a fake of EvtRender with EvtRenderEventValues
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtrender
-func (api *API) EvtRenderEventValues(_ evtapi.EventRenderContextHandle, Fragment evtapi.EventRecordHandle) (evtapi.EvtVariantValues, error) {
+func (api *API) EvtRenderEventValues(_ evtapi.EventRenderContextHandle, _ evtapi.EventRecordHandle) (evtapi.EvtVariantValues, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
