@@ -65,7 +65,7 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "Starting OpenTelemetry Collector",
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			globalParams := globalConfGetter()
 			return runOTelAgentCommand(context.Background(), globalParams)
 		},
