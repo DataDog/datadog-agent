@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func testCrashReader(filename string, ctx *logCallbackContext, exterr *uint32) error {
+func testCrashReader(filename string, ctx *logCallbackContext, _ *uint32) error {
 	testbytes, err := os.ReadFile(filename)
 	if err != nil {
 		return err
@@ -29,7 +29,7 @@ func testCrashReader(filename string, ctx *logCallbackContext, exterr *uint32) e
 
 }
 
-func testCrashReaderWithLineSplits(filename string, ctx *logCallbackContext, exterr *uint32) error {
+func testCrashReaderWithLineSplits(filename string, ctx *logCallbackContext, _ *uint32) error {
 	testbytes, err := os.ReadFile(filename)
 	if err != nil {
 		return err
