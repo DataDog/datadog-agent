@@ -37,7 +37,10 @@ func (s *testInstallerSuite) TestInstalls() {
 		s.Run("Start service with a configuration file", s.startServiceWithConfigFile)
 		s.Run("Uninstall", func() {
 			s.uninstall()
-			s.Run("Install with existing configuration file", s.installWithExistingConfigFile)
+			s.Run("Install with existing configuration file", func() {
+				s.installWithExistingConfigFile()
+				s.Run("Repair", s.repair)
+			})
 		})
 	})
 }
