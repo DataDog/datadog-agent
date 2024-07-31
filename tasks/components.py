@@ -182,8 +182,11 @@ components_missing_implementation_folder = [
 ignore_package_name = [
     "comp/trace/agent",
     "comp/trace/compression",
-    "comp/core/workloadmeta",
+    "comp/core/agenttelemetry",
+    "comp/core/log",
     "comp/core/healthprobe",
+    "comp/core/workloadmeta",
+    "comp/logs/integrations",
     "comp/otelcol/collector",
     "comp/otelcol/collector-contrib",
     "comp/metadata/securityagent",

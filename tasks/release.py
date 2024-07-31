@@ -961,8 +961,9 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
             changes = 'true'
             print(f"{repo_name} has new commits since {last_tag_name}", file=sys.stderr)
             if warning_mode:
-                emails = release_manager(repo_name, repo['branch'])
-                warn_new_commits(emails, "agent-integrations", repo['branch'], next_version)
+                team = "agent-integrations"
+                emails = release_manager(next_version.clone(), team)
+                warn_new_commits(emails, team, repo['branch'], next_version)
             else:
                 if repo_name not in ["datadog-agent", "integrations-core"]:
                     with clone(ctx, repo_name, repo['branch'], options="--filter=blob:none --no-checkout"):

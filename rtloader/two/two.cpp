@@ -923,6 +923,11 @@ void Two::setLogCb(cb_log_t cb)
     _set_log_cb(cb);
 }
 
+void Two::setSendLogCb(cb_send_log_t cb)
+{
+    _set_send_log_cb(cb);
+}
+
 void Two::setSetCheckMetadataCb(cb_set_check_metadata_t cb)
 {
     _set_set_check_metadata_cb(cb);

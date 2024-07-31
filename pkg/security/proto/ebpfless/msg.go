@@ -162,6 +162,11 @@ type DupSyscallFakeMsg struct {
 	OldFd int32
 }
 
+// PipeSyscallFakeMsg defines a pipe message
+type PipeSyscallFakeMsg struct {
+	FdsPtr uint64
+}
+
 // ChdirSyscallMsg defines a chdir message
 type ChdirSyscallMsg struct {
 	Dir FileSyscallMsg
@@ -326,7 +331,8 @@ type SyscallMsg struct {
 	Umount       *UmountSyscallMsg       `json:",omitempty"`
 
 	// internals
-	Dup *DupSyscallFakeMsg `json:",omitempty"`
+	Dup  *DupSyscallFakeMsg  `json:",omitempty"`
+	Pipe *PipeSyscallFakeMsg `json:",omitempty"`
 }
 
 // String returns string representation
