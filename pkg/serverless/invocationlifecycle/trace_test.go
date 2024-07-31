@@ -101,14 +101,35 @@ func TestStartExecutionSpan(t *testing.T) {
 	reqHeadersWithCtx.Set("x-datadog-sampling-priority", "3")
 	reqHeadersWithCtx.Set("traceparent", "00-00000000000000000000000000000006-0000000000000006-01")
 
+	stepFunctionEvent := events.StepFunctionEvent{
+		Execution: events.StepFunctionExecution{
+			ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+			Input:        interface{}(nil),
+			StartTime:    "2024-07-30T20:46:20.777Z",
+			Name:         "aa6c9316-713a-41d4-9c30-61131716744f",
+			RoleArn:      "arn:aws:iam::425362996713:role/test-serverless-stepfunctions-dev-AgocsTestSFRole-tRkeFXScjyk4",
+			RedriveCount: 0,
+		},
+		StateMachine: events.StepFunctionStateMachine{
+			ID:   "arn:aws:states:us-east-1:425362996713:stateMachine:agocsTestSF",
+			Name: "agocsTestSF",
+		},
+		State: events.StepFunctionState{
+			Name:        "agocsTest1",
+			EnteredTime: "2024-07-30T20:46:20.824Z",
+			RetryCount:  0,
+		},
+	}
+
 	testcases := []struct {
-		name           string
-		event          interface{}
-		payload        []byte
-		reqHeaders     http.Header
-		infSpanEnabled bool
-		propStyle      string
-		expectCtx      *ExecutionStartInfo
+		name                    string
+		event                   interface{}
+		payload                 []byte
+		reqHeaders              http.Header
+		infSpanEnabled          bool
+		propStyle               string
+		expectCtx               *ExecutionStartInfo
+		expectTraceIDUpper64Hex string
 	}{
 		{
 			name:       "eventWithoutCtx-payloadWithoutCtx-reqHeadersWithoutCtx-datadog",
@@ -315,6 +336,20 @@ func TestStartExecutionSpan(t *testing.T) {
 				SamplingPriority: sampler.SamplingPriority(1),
 			},
 		},
+		{
+			name:           "step function event",
+			event:          stepFunctionEvent,
+			payload:        payloadWithoutCtx,
+			reqHeaders:     reqHeadersWithoutCtx,
+			infSpanEnabled: false,
+			propStyle:      "datadog",
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          5377636026938777059,
+				parentID:         8947638978974359093,
+				SamplingPriority: 1,
+			},
+			expectTraceIDUpper64Hex: "6fb5c3a05c73dbfe",
+		},
 	}
 
 	for _, tc := range testcases {
@@ -333,6 +368,7 @@ func TestStartExecutionSpan(t *testing.T) {
 				requestHandler: &RequestHandler{
 					executionInfo: actualCtx,
 					inferredSpans: [2]*inferredspan.InferredSpan{inferredSpan},
+					triggerTags:   make(map[string]string),
 				},
 			}
 			startDetails := &InvocationStartDetails{
@@ -357,6 +393,11 @@ func TestStartExecutionSpan(t *testing.T) {
 			} else {
 				assert.Equal(uint64(0), inferredSpan.Span.TraceID)
 				assert.Equal(uint64(0), inferredSpan.Span.ParentID)
+			}
+			if tc.expectTraceIDUpper64Hex != "" {
+				actualUpper64, ok := lp.requestHandler.GetMetaTag("_dd.p.tid")
+				assert.True(ok)
+				assert.Equal(tc.expectTraceIDUpper64Hex, actualUpper64)
 			}
 		})
 	}
