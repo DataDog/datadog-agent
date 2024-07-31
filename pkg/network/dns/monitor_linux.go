@@ -11,15 +11,14 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/vishvananda/netns"
-
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/vishvananda/netns"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
+	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -33,7 +32,7 @@ type dnsMonitor struct {
 func NewReverseDNS(cfg *config.Config, _ telemetry.Component) (ReverseDNS, error) {
 	// Create the RAW_SOCKET inside the root network namespace
 	var (
-		packetSrc *filterpkg.AFPacketSource
+		packetSrc *filter.AFPacketSource
 		srcErr    error
 		ns        netns.NsHandle
 	)
@@ -44,7 +43,7 @@ func NewReverseDNS(cfg *config.Config, _ telemetry.Component) (ReverseDNS, error
 	defer ns.Close()
 
 	err = kernel.WithNS(ns, func() error {
-		packetSrc, srcErr = filterpkg.NewPacketSource(4 << 20) // 4 MB total
+		packetSrc, srcErr = filter.NewAFPacketSource(4 << 20) // 4 MB total
 		return srcErr
 	})
 	if err != nil {

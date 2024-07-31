@@ -51,13 +51,21 @@ type AFPacketSource struct {
 	exit chan struct{}
 }
 
+// AFPacketInfo holds information about a packet
+type AFPacketInfo struct {
+	// PktType corresponds to sll_pkttype in the
+	// sockaddr_ll struct; see packet(7)
+	// https://man7.org/linux/man-pages/man7/packet.7.html
+	PktType uint8
+}
+
 // OptSnapLen specifies the maximum length of the packet to read
 //
 // Defaults to 4096 bytes
 type OptSnapLen int
 
-// NewPacketSource creates an AFPacketSource using the provided BPF filter
-func NewPacketSource(size int, opts ...interface{}) (*AFPacketSource, error) {
+// NewAFPacketSource creates an AFPacketSource using the provided BPF filter
+func NewAFPacketSource(size int, opts ...interface{}) (*AFPacketSource, error) {
 	snapLen := defaultSnapLen
 	for _, opt := range opts {
 		switch o := opt.(type) {
@@ -110,7 +118,8 @@ func (p *AFPacketSource) SetBPF(filter []bpf.RawInstruction) error {
 }
 
 // VisitPackets starts reading packets from the source
-func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, uint8, time.Time) error) error {
+func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func(data []byte, info PacketInfo, t time.Time) error) error {
+	pktInfo := &AFPacketInfo{}
 	for {
 		// allow the read loop to be prematurely interrupted
 		select {
@@ -134,14 +143,15 @@ func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, u
 			return err
 		}
 
-		if err := visit(data, stats.AncillaryData[0].(afpacket.AncillaryPktType).Type, stats.Timestamp); err != nil {
+		pktInfo.PktType = stats.AncillaryData[0].(afpacket.AncillaryPktType).Type
+		if err := visit(data, pktInfo, stats.Timestamp); err != nil {
 			return err
 		}
 	}
 }
 
-// PacketType is the gopacket.LayerType for this source
-func (p *AFPacketSource) PacketType() gopacket.LayerType {
+// LayerType is the gopacket.LayerType for this source
+func (p *AFPacketSource) LayerType() gopacket.LayerType {
 	return layers.LayerTypeEthernet
 }
 

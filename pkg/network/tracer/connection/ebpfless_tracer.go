@@ -77,7 +77,7 @@ func NewEbpfLessTracer(cfg *config.Config) (Tracer, error) {
 }
 
 func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
-	packetSrc, err := filter.NewPacketSource(
+	packetSrc, err := filter.NewAFPacketSource(
 		8<<20, // 8 MB total space
 		filter.OptSnapLen(segmentLen))
 	if err != nil {
@@ -120,11 +120,12 @@ func (t *ebpfLessTracer) Start(func([]network.ConnectionStats)) error {
 		parser := gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, &eth, &ip4, &ip6, &tcp, &udp)
 		parser.IgnoreUnsupported = true
 		for {
-			err := t.packetSrc.VisitPackets(t.exit, func(b []byte, pktType uint8, ts time.Time) error {
+			err := t.packetSrc.VisitPackets(t.exit, func(b []byte, info filter.PacketInfo, ts time.Time) error {
 				if err := parser.DecodeLayers(b, &decoded); err != nil {
 					return fmt.Errorf("error decoding packet layers: %w", err)
 				}
 
+				pktType := info.(*filter.AFPacketInfo).PktType
 				// only process PACKET_HOST and PACK_OUTGOING packets
 				if pktType != unix.PACKET_HOST && pktType != unix.PACKET_OUTGOING {
 					ebpfLessTracerTelemetry.skippedPackets.Inc("unsupported_packet_type")
