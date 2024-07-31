@@ -21,6 +21,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
+// chunking and no chunking options used for testing chunking of check output
+var (
+	chunkingOptions = &RunOptions{RunStandard: true, NoChunking: false}
+	noChunkingOptions = &RunOptions{RunStandard: true, NoChunking: true}
+)
+
+//nolint:revive // TODO(PROC) Fix revive linter
+func testGroupId(groupID int32) func() int32 {
+	return func() int32 {
+		return groupID
+	}
+}
+
 //nolint:deadcode,unused
 func procsToHash(procs []*procutil.Process) (procsByPid map[int32]*procutil.Process) {
 	procsByPid = make(map[int32]*procutil.Process)

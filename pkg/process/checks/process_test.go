@@ -179,7 +179,7 @@ func TestProcessCheckSecondRun(t *testing.T) {
 func TestProcessCheckSecondRunWithChunking(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
 
-	// Set small chunk size to encourage chunking behavior
+	// Set small chunk size to force chunking behavior
 	processCheck.maxBatchBytes = 0
 	processCheck.maxBatchSize = 0
 
@@ -229,9 +229,9 @@ func TestProcessCheckSecondRunWithChunking(t *testing.T) {
 	}
 
 	// Run check with NoChunking option set to false
-	processCheck.Run(func() int32 { return 0 }, &RunOptions{RunStandard: true, NoChunking: false})
+	processCheck.Run(testGroupId(0), chunkingOptions)
 	// Second run
-	actual, err := processCheck.Run(func() int32 { return 0 }, &RunOptions{RunStandard: true, NoChunking: false})
+	actual, err := processCheck.Run(testGroupId(0), chunkingOptions)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, expected, actual.Payloads()) // ordering is not guaranteed
 	assert.Nil(t, actual.RealtimePayloads())
@@ -240,7 +240,7 @@ func TestProcessCheckSecondRunWithChunking(t *testing.T) {
 func TestProcessCheckSecondRunWithoutChunking(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
 
-	// Set small chunk size to encourage chunking behavior
+	// Set small chunk size to force chunking behavior
 	processCheck.maxBatchBytes = 0
 	processCheck.maxBatchSize = 0
 
@@ -265,9 +265,9 @@ func TestProcessCheckSecondRunWithoutChunking(t *testing.T) {
 	}
 
 	// Run check with NoChunking option set to true
-	processCheck.Run(func() int32 { return 0 }, &RunOptions{RunStandard: true, NoChunking: true})
+	processCheck.Run(testGroupId(0), noChunkingOptions)
 	// Test second check runs without error
-	actual, err := processCheck.Run(func() int32 { return 0 }, &RunOptions{RunStandard: true, NoChunking: true})
+	actual, err := processCheck.Run(testGroupId(0), noChunkingOptions)
 	require.NoError(t, err)
 
 	// Assert to check there is only one chunk and that the nested values of this chunk match expected
@@ -280,7 +280,6 @@ func TestProcessCheckSecondRunWithoutChunking(t *testing.T) {
 	assert.EqualValues(t, 1, collectorProc.GetGroupSize())
 	assert.EqualValues(t, 0b1, collectorProc.GetHintMask())
 	assert.Nil(t, actual.RealtimePayloads())
-
 }
 
 func TestProcessCheckWithRealtime(t *testing.T) {

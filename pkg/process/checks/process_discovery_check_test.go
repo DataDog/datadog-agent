@@ -21,7 +21,6 @@ import (
 )
 
 func processDiscoveryCheckWithMockProbe(t *testing.T) (*ProcessDiscoveryCheck, *mocks.Probe) {
-	t.Helper()
 	probe := mocks.NewProbe(t)
 	sysInfo := &model.SystemInfo{
 		Cpus: []*model.CPUInfo{
@@ -42,13 +41,6 @@ func processDiscoveryCheckWithMockProbe(t *testing.T) (*ProcessDiscoveryCheck, *
 		userProbe:  &LookupIdProbe{},
 		initCalled: true,
 	}, probe
-}
-
-//nolint:revive // TODO(PROC) Fix revive linter
-func testGroupId(groupID int32) func() int32 {
-	return func() int32 {
-		return groupID
-	}
 }
 
 func TestProcessDiscoveryCheck(t *testing.T) {
@@ -93,7 +85,7 @@ func TestProcessDiscoveryCheck(t *testing.T) {
 func TestProcessDiscoveryCheckWithChunking(t *testing.T) {
 	check, probe := processDiscoveryCheckWithMockProbe(t)
 
-	// Set small chunk size to encourage chunking behavior
+	// Set small chunk size to force chunking behavior
 	check.maxBatchSize = 1
 
 	now := time.Now().Unix()
@@ -136,7 +128,7 @@ func TestProcessDiscoveryCheckWithChunking(t *testing.T) {
 	}
 
 	// Test check runs without error
-	actual, err := check.Run(testGroupId(0), &RunOptions{RunStandard: true, NoChunking: false})
+	actual, err := check.Run(testGroupId(0), chunkingOptions)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, expected, actual.Payloads())
 }
@@ -144,7 +136,7 @@ func TestProcessDiscoveryCheckWithChunking(t *testing.T) {
 func TestProcessDiscoveryCheckWithoutChunking(t *testing.T) {
 	check, probe := processDiscoveryCheckWithMockProbe(t)
 
-	// Set small chunk size to encourage chunking behavior
+	// Set small chunk size to force chunking behavior
 	check.maxBatchSize = 1
 
 	now := time.Now().Unix()
@@ -167,7 +159,7 @@ func TestProcessDiscoveryCheckWithoutChunking(t *testing.T) {
 	}
 
 	// Test check runs without error
-	actual, err := check.Run(testGroupId(0), &RunOptions{RunStandard: true, NoChunking: true})
+	actual, err := check.Run(testGroupId(0), noChunkingOptions)
 	require.NoError(t, err)
 
 	// Assert to check there is only one chunk and that the nested values of this chunk match expected
@@ -175,8 +167,8 @@ func TestProcessDiscoveryCheckWithoutChunking(t *testing.T) {
 	actualPayloads := actual.Payloads()
 	assert.IsType(t, &model.CollectorProcDiscovery{}, actualPayloads[0])
 	collectorProcDiscovery := actualPayloads[0].(*model.CollectorProcDiscovery)
-	ProcessDiscoveries := collectorProcDiscovery.GetProcessDiscoveries()
-	assert.ElementsMatch(t, expected, ProcessDiscoveries)
+	processDiscoveries := collectorProcDiscovery.GetProcessDiscoveries()
+	assert.ElementsMatch(t, expected, processDiscoveries)
 	assert.EqualValues(t, 1, collectorProcDiscovery.GetGroupSize())
 	assert.ElementsMatch(t, &model.Host{}, collectorProcDiscovery.GetHost())
 }

@@ -23,7 +23,6 @@ const (
 )
 
 func containerCheckWithMockContainerProvider(t *testing.T) (*ContainerCheck, *proccontainersmocks.MockContainerProvider) {
-	t.Helper()
 	mockCtrl := gomock.NewController(t)
 	containerProvider := proccontainersmocks.NewMockContainerProvider(mockCtrl)
 	sysInfo := &model.SystemInfo{
@@ -47,7 +46,7 @@ func containerCheckWithMockContainerProvider(t *testing.T) (*ContainerCheck, *pr
 func TestContainerCheckWithChunking(t *testing.T) {
 	containerCheck, mockContainerProvider := containerCheckWithMockContainerProvider(t)
 
-	// Set small size per chunk to encourage chunking behavior
+	// Set small size per chunk to force chunking behavior
 	containerCheck.maxBatchSize = 1
 
 	ctr1 := &model.Container{
@@ -93,7 +92,7 @@ func TestContainerCheckWithChunking(t *testing.T) {
 	}
 
 	// Test check runs without error
-	actual, err := containerCheck.Run(func() int32 { return 0 }, &RunOptions{RunStandard: true, NoChunking: false})
+	actual, err := containerCheck.Run(testGroupId(0), chunkingOptions)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, expected, actual.Payloads())
 }
@@ -101,7 +100,7 @@ func TestContainerCheckWithChunking(t *testing.T) {
 func TestContainerCheckWithoutChunking(t *testing.T) {
 	containerCheck, mockContainerProvider := containerCheckWithMockContainerProvider(t)
 
-	// Set small size per chunk to encourage chunking behavior
+	// Set small size per chunk to force chunking behavior
 	containerCheck.maxBatchSize = 1
 
 	ctr1 := &model.Container{
@@ -134,7 +133,7 @@ func TestContainerCheckWithoutChunking(t *testing.T) {
 	mockContainerProvider.EXPECT().GetContainers(cacheValidityNoRTTest, nil).Return(containers, nil, nil, nil)
 
 	// Test check runs without error
-	actual, err := containerCheck.Run(func() int32 { return 0 }, &RunOptions{RunStandard: true, NoChunking: true})
+	actual, err := containerCheck.Run(testGroupId(0), noChunkingOptions)
 	require.NoError(t, err)
 
 	// Assert to check there is only one chunk and that the nested values of this chunk match expected
