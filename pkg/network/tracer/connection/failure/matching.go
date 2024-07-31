@@ -9,11 +9,12 @@ package failure
 
 import (
 	"fmt"
-	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -22,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 var (
@@ -68,7 +68,6 @@ type FailedConns struct {
 	maxFailuresBuffered uint32
 	failureTuple        *ebpf.ConnTuple
 	mapCleaner          *ddebpf.MapCleaner[ebpf.ConnTuple, int64]
-	statsPool           *ddsync.TypedPool[FailedConnStats]
 	sync.RWMutex
 }
 
@@ -78,11 +77,6 @@ func NewFailedConns(m *manager.Manager, maxFailedConnsBuffered uint32) *FailedCo
 		FailedConnMap:       make(map[ebpf.ConnTuple]*FailedConnStats),
 		maxFailuresBuffered: maxFailedConnsBuffered,
 		failureTuple:        &ebpf.ConnTuple{},
-		statsPool: ddsync.NewTypedPool(func() *FailedConnStats {
-			return &FailedConnStats{
-				CountByErrCode: make(map[uint32]uint32),
-			}
-		}),
 	}
 	fc.setupMapCleaner(m)
 	return fc
@@ -101,8 +95,9 @@ func (fc *FailedConns) upsertConn(failedConn *ebpf.FailedConn) {
 
 	stats, ok := fc.FailedConnMap[connTuple]
 	if !ok {
-		stats = fc.statsPool.Get()
-		stats.reset()
+		stats = &FailedConnStats{
+			CountByErrCode: make(map[uint32]uint32),
+		}
 		fc.FailedConnMap[connTuple] = stats
 	}
 
@@ -122,23 +117,20 @@ func (fc *FailedConns) MatchFailedConn(conn *network.ConnectionStats) {
 
 	fc.RLock()
 	foundMatch := false
-	var failedConn *FailedConnStats
 
 	if failedConn, ok := fc.FailedConnMap[*fc.failureTuple]; ok {
 		// found matching failed connection
 		foundMatch = true
-		conn.TCPFailures = make(map[uint32]uint32)
+		conn.TCPFailures = failedConn.CountByErrCode
 
-		for errCode, count := range failedConn.CountByErrCode {
-			failureTelemetry.failedConnMatches.Add(1, strconv.Itoa(int(errCode)))
-			conn.TCPFailures[errCode] += count
+		for errCode := range failedConn.CountByErrCode {
+			failureTelemetry.failedConnMatches.Add(1, unix.ErrnoName(syscall.Errno(errCode)))
 		}
 	}
 	fc.RUnlock()
 	if foundMatch {
 		fc.Lock()
 		delete(fc.FailedConnMap, *fc.failureTuple)
-		fc.statsPool.Put(failedConn)
 		fc.Unlock()
 	}
 }
