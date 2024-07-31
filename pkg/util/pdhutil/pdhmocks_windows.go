@@ -49,7 +49,7 @@ func mockCounterFromString(path string) mockCounter {
 	}
 }
 
-func mockPdhOpenQuery(_ uintptr, dwUserData uintptr, phQuery *PDH_HQUERY) uint32 {
+func mockPdhOpenQuery(_, _ uintptr, phQuery *PDH_HQUERY) uint32 {
 	var mq mockQuery
 	mq.counters = make(map[int]mockCounter)
 	openQueriesIndex++

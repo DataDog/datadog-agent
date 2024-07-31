@@ -14,6 +14,6 @@ func IsTracerSupportedByOS(_ []string) (bool, string) {
 }
 
 // TODO Determine which windows versions we will support, and potentially remove kernelCode from parameters list
-func verifyOSVersion(_ uint32, platform string, exclusionList []string) (bool, string) {
+func verifyOSVersion(_ uint32, _ string, exclusionList []string) (bool, string) {
 	return true, ""
 }

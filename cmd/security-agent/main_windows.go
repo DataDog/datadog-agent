@@ -88,7 +88,7 @@ func (s *service) Run(svcctx context.Context) error {
 
 	params := &cliParams{}
 	err := fxutil.OneShot(
-		func(log log.Component, config config.Component, _ secrets.Component, _ statsd.Component, sysprobeconfig sysprobeconfig.Component,
+		func(log log.Component, config config.Component, _ secrets.Component, _ statsd.Component, _ sysprobeconfig.Component,
 			telemetry telemetry.Component, _ workloadmeta.Component, _ *cliParams, statusComponent status.Component, _ autoexit.Component, settings settings.Component, wmeta workloadmeta.Component) error {
 			defer start.StopAgent(log)
 

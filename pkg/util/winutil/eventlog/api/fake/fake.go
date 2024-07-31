@@ -194,7 +194,7 @@ func (e *eventLog) addEventRecord(event *eventRecord) {
 }
 
 func (e *eventLog) reportEvent(
-	api *API,
+	_ *API,
 	Type uint,
 	Category uint,
 	EventID uint,

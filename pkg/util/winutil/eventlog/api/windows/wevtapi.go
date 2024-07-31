@@ -406,7 +406,7 @@ func (api *API) EvtFormatMessage(
 	PublisherMetadata evtapi.EventPublisherMetadataHandle,
 	Event evtapi.EventRecordHandle,
 	MessageID uint,
-	Values evtapi.EvtVariantValues,
+	_ evtapi.EvtVariantValues,
 	Flags uint) (string, error) {
 
 	// `EvtFormatMessage` has a bug in its size calculations that can cause a crash.

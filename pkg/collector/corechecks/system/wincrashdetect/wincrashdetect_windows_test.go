@@ -86,7 +86,7 @@ func TestWinCrashReporting(t *testing.T) {
 	mux.Handle("/windows_crash_detection/check", http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
 		utils.WriteAsJSON(rw, p)
 	}))
-	mux.Handle("/debug/stats", http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+	mux.Handle("/debug/stats", http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 	}))
 	go server.Serve(listener)
 
