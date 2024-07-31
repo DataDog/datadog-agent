@@ -55,6 +55,7 @@ func (s *BaseInstallerSuite) StableInstallerVersionPackage() string {
 	return s.stableInstallerVersionPackage
 }
 
+// SetupSuite checks that the environment variables are correctly setup for the test
 func (s *BaseInstallerSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 
@@ -75,6 +76,7 @@ func (s *BaseInstallerSuite) SetupSuite() {
 	s.stableInstallerVersion = strings.TrimSuffix(s.stableInstallerVersionPackage, "-1")
 }
 
+// BeforeTest creates a new Datadog Installer and sets the output logs directory for each tests
 func (s *BaseInstallerSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
 

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package installerwindows implements E2E tests for the Datadog installer on Windows
+// Package installerPackageTests implements E2E tests for the Datadog installer package on Windows
 package installerPackageTests
 
 import (
