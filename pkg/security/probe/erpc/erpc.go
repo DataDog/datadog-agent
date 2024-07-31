@@ -82,6 +82,7 @@ func (k *ERPC) Request(req *Request) error {
 	return nil
 }
 
+// Close closes the ERPC client
 func (k *ERPC) Close() error {
 	return syscall.Close(k.fd)
 }
