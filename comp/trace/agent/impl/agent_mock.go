@@ -38,7 +38,7 @@ func (c *noopConcentrator) Stop()             {}
 func (c *noopConcentrator) Add(_ stats.Input) {}
 
 // NewMock creates a new mock agent component.
-func NewMock(deps dependencies, t testing.TB) traceagent.Component {
+func NewMock(deps dependencies, _ testing.TB) traceagent.Component {
 	telemetryCollector := telemetry.NewCollector(deps.Config.Object())
 
 	// Several related non-components require a shared context to gracefully stop.

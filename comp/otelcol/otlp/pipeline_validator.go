@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-func checkAndUpdateCfg(cfg config.Component, pcfg PipelineConfig, logsAgentChannel chan *message.Message) error {
+func checkAndUpdateCfg(_ config.Component, pcfg PipelineConfig, logsAgentChannel chan *message.Message) error {
 	if pcfg.LogsEnabled && logsAgentChannel == nil {
 		pipelineError.Store(fmt.Errorf("OTLP logs is enabled but logs agent is not enabled"))
 		return pipelineError.Load()
