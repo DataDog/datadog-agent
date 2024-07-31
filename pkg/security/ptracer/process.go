@@ -9,7 +9,11 @@
 package ptracer
 
 import (
+	"errors"
+	"fmt"
+	"os"
 	"slices"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"golang.org/x/sys/unix"
@@ -56,6 +60,40 @@ func NewProcess(pid int) *Process {
 		},
 		FsRes: &FSResources{},
 	}
+}
+
+var errPipeFd = errors.New("pipe fd")
+
+// GetFilenameFromFd returns the filename for the given fd
+func (p *Process) GetFilenameFromFd(fd int32) (string, error) {
+	raw, err := p.getFilenameFromFdRaw(fd)
+	if err != nil {
+		return "", err
+	}
+
+	if strings.HasPrefix(raw, "pipe:") {
+		return "", errPipeFd
+	}
+
+	return raw, nil
+}
+
+func (p *Process) getFilenameFromFdRaw(fd int32) (string, error) {
+	filename, ok := p.FdRes.Fd[fd]
+	if ok {
+		return filename, nil
+	}
+
+	procPath := fmt.Sprintf("/proc/%d/fd/%d", p.Pid, fd)
+	filename, err := os.Readlink(procPath)
+	if err != nil {
+		return "", err
+	}
+
+	// fill the cache for next time
+	p.FdRes.Fd[fd] = filename
+
+	return filename, nil
 }
 
 // ProcessCache defines a thread cache
