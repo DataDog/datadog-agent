@@ -30,34 +30,40 @@ func (cs *configSync) runWithChan(ch <-chan time.Time) {
 
 	cs.Log.Infof("Starting to sync config with core agent at %s", cs.url)
 
+	updater := func() {
+		cfg, err := fetchConfig(cs.ctx, cs.client, cs.Authtoken.Get(), url)
+		if err != nil {
+			if connected {
+				cs.Log.Warnf("Failed to fetch config from core agent: %v", err)
+				connected = false
+			} else {
+				cs.Log.Debugf("Failed to fetch config from core agent: %v", err)
+			}
+			return
+		}
+
+		if connected {
+			cs.Log.Debug("Succeeded to fetch config from core agent")
+		} else {
+			cs.Log.Info("Succeeded to fetch config from core agent")
+			connected = true
+		}
+
+		for key, value := range cfg {
+			if updateConfig(cs.Config, key, value) {
+				cs.Log.Debugf("Updating config key %s from core agent", key)
+			}
+		}
+	}
+
+	updater()
+
 	for {
 		select {
 		case <-cs.ctx.Done():
 			return
 		case <-ch:
-			cfg, err := fetchConfig(cs.ctx, cs.client, cs.Authtoken.Get(), url)
-			if err != nil {
-				if connected {
-					cs.Log.Warnf("Failed to fetch config from core agent: %v", err)
-					connected = false
-				} else {
-					cs.Log.Debugf("Failed to fetch config from core agent: %v", err)
-				}
-				continue
-			}
-
-			if connected {
-				cs.Log.Debug("Succeeded to fetch config from core agent")
-			} else {
-				cs.Log.Info("Succeeded to fetch config from core agent")
-				connected = true
-			}
-
-			for key, value := range cfg {
-				if updateConfig(cs.Config, key, value) {
-					cs.Log.Debugf("Updating config key %s from core agent", key)
-				}
-			}
+			updater()
 		}
 	}
 }
