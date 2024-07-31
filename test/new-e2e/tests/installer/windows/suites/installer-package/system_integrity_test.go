@@ -3,18 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package installerwindows
+package installerPackageTests
 
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
+	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test"
 	"testing"
 )
 
 type testSystemIntegrityInstallerSuite struct {
-	baseSuite
+	installerwindows.BaseInstallerSuite
 	name  string
 	sutFn func(suite *testSystemIntegrityInstallerSuite)
 }
@@ -29,14 +30,14 @@ func TestInstallerSystemIntegrity(t *testing.T) {
 		{
 			name: "test install uninstall",
 			sutFn: func(suite *testSystemIntegrityInstallerSuite) {
-				suite.Require().NoError(suite.installer.Install())
-				suite.Require().NoError(suite.installer.Uninstall())
+				suite.Require().NoError(suite.Installer().Install())
+				suite.Require().NoError(suite.Installer().Uninstall())
 			},
 		},
 		{
 			name: "test install rollback",
 			sutFn: func(suite *testSystemIntegrityInstallerSuite) {
-				msiErr := suite.installer.Install(WithMSIArg("WIXFAILWHENDEFERRED=1"))
+				msiErr := suite.Installer().Install(installerwindows.WithMSIArg("WIXFAILWHENDEFERRED=1"))
 				suite.Require().Error(msiErr)
 			},
 		},

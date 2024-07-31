@@ -15,16 +15,6 @@ import (
 	"strings"
 )
 
-const (
-	// StableVersion the latest stable version of the Datadog Installer
-	StableVersion string = "7.56.0-installer-0.4.5"
-)
-
-var (
-	// StableVersionPackage the latest stable version of the Datadog Installer in package format
-	StableVersionPackage = fmt.Sprintf("%s-1", StableVersion)
-)
-
 // TestPackageConfig is a struct that regroups the fields necessary to install a package from an OCI Registry
 type TestPackageConfig struct {
 	// Name the name of the package
