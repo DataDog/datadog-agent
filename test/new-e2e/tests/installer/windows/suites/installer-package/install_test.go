@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package installerPackageTests implements E2E tests for the Datadog installer package on Windows
-package installerPackageTests
+// Package installertests implements E2E tests for the Datadog installer package on Windows
+package installertests
 
 import (
 	"embed"
@@ -51,12 +51,12 @@ func (s *testInstallerSuite) freshInstall() {
 
 	// Assert
 	s.Require().Host(s.Env().RemoteHost).
-		HasBinary(installerwindows.InstallerBinaryPath).
+		HasBinary(installerwindows.BinaryPath).
 		WithSignature(agent.GetCodeSignatureThumbprints()).
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().NotEmpty(version)
 		}).
-		HasAService(installerwindows.InstallerServiceName).
+		HasAService(installerwindows.ServiceName).
 		// the service cannot start because of the missing API key
 		WithStatus("Stopped").
 		WithIdentity(common.GetIdentityForSID(common.LocalSystemSID))
@@ -64,14 +64,14 @@ func (s *testInstallerSuite) freshInstall() {
 
 func (s *testInstallerSuite) startServiceWithConfigFile() {
 	// Arrange
-	s.Env().RemoteHost.CopyFileFromFS(fixturesFS, "fixtures/sample_config", installerwindows.InstallerConfigPath)
+	s.Env().RemoteHost.CopyFileFromFS(fixturesFS, "fixtures/sample_config", installerwindows.ConfigPath)
 
 	// Act
-	s.Require().NoError(common.StartService(s.Env().RemoteHost, installerwindows.InstallerServiceName))
+	s.Require().NoError(common.StartService(s.Env().RemoteHost, installerwindows.ServiceName))
 
 	// Assert
 	s.Require().Host(s.Env().RemoteHost).
-		HasAService(installerwindows.InstallerServiceName).
+		HasAService(installerwindows.ServiceName).
 		WithStatus("Running")
 }
 
@@ -83,9 +83,9 @@ func (s *testInstallerSuite) uninstall() {
 
 	// Assert
 	s.Require().Host(s.Env().RemoteHost).
-		NoFileExists(installerwindows.InstallerBinaryPath).
-		HasNoService(installerwindows.InstallerServiceName).
-		FileExists(installerwindows.InstallerConfigPath)
+		NoFileExists(installerwindows.BinaryPath).
+		HasNoService(installerwindows.ServiceName).
+		FileExists(installerwindows.ConfigPath)
 }
 
 func (s *testInstallerSuite) installWithExistingConfigFile() {
@@ -96,20 +96,20 @@ func (s *testInstallerSuite) installWithExistingConfigFile() {
 
 	// Assert
 	s.Require().Host(s.Env().RemoteHost).
-		HasAService(installerwindows.InstallerServiceName).
+		HasAService(installerwindows.ServiceName).
 		WithStatus("Running")
 }
 
 func (s *testInstallerSuite) repair() {
 	// Arrange
-	s.Require().NoError(common.StopService(s.Env().RemoteHost, installerwindows.InstallerServiceName))
-	s.Require().NoError(s.Env().RemoteHost.Remove(installerwindows.InstallerBinaryPath))
+	s.Require().NoError(common.StopService(s.Env().RemoteHost, installerwindows.ServiceName))
+	s.Require().NoError(s.Env().RemoteHost.Remove(installerwindows.BinaryPath))
 
 	// Act
 	s.Require().NoError(s.Installer().Install())
 
 	// Assert
 	s.Require().Host(s.Env().RemoteHost).
-		HasAService(installerwindows.InstallerServiceName).
+		HasAService(installerwindows.ServiceName).
 		WithStatus("Running")
 }

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package installerPackageTests
+package installertests
 
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -29,7 +29,7 @@ func (s *testInstallerUpgradesSuite) TestUpgrades() {
 	s.Require().NoError(s.Installer().Install(installerwindows.WithInstallerURLFromInstallersJSON(pipeline.AgentS3BucketTesting, pipeline.StableChannel, s.StableInstallerVersion())))
 	// sanity check: make sure we did indeed install the stable version
 	s.Require().Host(s.Env().RemoteHost).
-		HasBinary(installerwindows.InstallerBinaryPath).
+		HasBinary(installerwindows.BinaryPath).
 		// Don't check the binary signature because it could have been updated since the last stable was built
 		WithVersionEqual(s.StableInstallerVersion())
 
@@ -39,7 +39,7 @@ func (s *testInstallerUpgradesSuite) TestUpgrades() {
 
 	// Assert
 	s.Require().Host(s.Env().RemoteHost).
-		HasBinary(installerwindows.InstallerBinaryPath).
+		HasBinary(installerwindows.BinaryPath).
 		WithSignature(agent.GetCodeSignatureThumbprints()).
 		WithVersionEqual(s.CurrentAgentVersion())
 }

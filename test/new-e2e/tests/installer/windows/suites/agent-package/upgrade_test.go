@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package agentPackageTests
+package agenttests
 
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"

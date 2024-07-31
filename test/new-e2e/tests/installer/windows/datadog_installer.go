@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package installerwindows contains code for the E2E tests for the Datadog installer on Windows
-package installerwindows
+// Package installer contains code for the E2E tests for the Datadog installer on Windows
+package installer
 
 import (
 	"fmt"
@@ -28,19 +28,19 @@ const (
 	// the Agent package can be referred to as "agent-package" (like in the OCI registry) or "datadog-agent" (in the
 	// local database once the Agent is installed).
 	AgentPackage string = "datadog-agent"
-	// InstallerPath is the path where the Datadog Installer is installed on disk
-	InstallerPath string = "C:\\Program Files\\Datadog\\Datadog Installer"
-	// InstallerBinaryName is the name of the Datadog Installer binary on disk
-	InstallerBinaryName string = "datadog-installer.exe"
-	// InstallerServiceName the installer service name
-	InstallerServiceName string = "Datadog Installer"
-	// InstallerConfigPath is the location of the Datadog Installer's configuration on disk
-	InstallerConfigPath string = "C:\\ProgramData\\Datadog\\datadog.yaml"
+	// Path is the path where the Datadog Installer is installed on disk
+	Path string = "C:\\Program Files\\Datadog\\Datadog Installer"
+	// BinaryName is the name of the Datadog Installer binary on disk
+	BinaryName string = "datadog-installer.exe"
+	// ServiceName the installer service name
+	ServiceName string = "Datadog Installer"
+	// ConfigPath is the location of the Datadog Installer's configuration on disk
+	ConfigPath string = "C:\\ProgramData\\Datadog\\datadog.yaml"
 )
 
 var (
-	// InstallerBinaryPath is the path of the Datadog Installer binary on disk
-	InstallerBinaryPath = path.Join(InstallerPath, InstallerBinaryName)
+	// BinaryPath is the path of the Datadog Installer binary on disk
+	BinaryPath = path.Join(Path, BinaryName)
 )
 
 // DatadogInstaller represents an interface to the Datadog Installer on the remote host.
@@ -54,7 +54,7 @@ type DatadogInstaller struct {
 // on a remote Windows host.
 func NewDatadogInstaller(env *environments.WindowsHost, logPath string) *DatadogInstaller {
 	return &DatadogInstaller{
-		binaryPath: path.Join(InstallerPath, InstallerBinaryName),
+		binaryPath: path.Join(Path, BinaryName),
 		env:        env,
 		logPath:    logPath,
 	}
@@ -126,26 +126,26 @@ func (d *DatadogInstaller) RemoveExperiment(packageName string) (string, error) 
 	return d.execute(fmt.Sprintf("remove-experiment %s", packageName))
 }
 
-// InstallerParams contains the optional parameters for the Datadog Installer Install command
-type InstallerParams struct {
+// Params contains the optional parameters for the Datadog Installer Install command
+type Params struct {
 	installerURL string
 	msiArgs      []string
 }
 
-// InstallerOption is an optional function parameter type for the Datadog Installer Install command
-type InstallerOption func(*InstallerParams) error
+// Option is an optional function parameter type for the Datadog Installer Install command
+type Option func(*Params) error
 
 // WithInstallerURL uses a specific URL for the Datadog Installer Install command instead of using the pipeline URL.
-func WithInstallerURL(installerURL string) InstallerOption {
-	return func(params *InstallerParams) error {
+func WithInstallerURL(installerURL string) Option {
+	return func(params *Params) error {
 		params.installerURL = installerURL
 		return nil
 	}
 }
 
 // WithMSIArg uses a specific URL for the Datadog Installer Install command instead of using the pipeline URL.
-func WithMSIArg(arg string) InstallerOption {
-	return func(params *InstallerParams) error {
+func WithMSIArg(arg string) Option {
+	return func(params *Params) error {
 		params.msiArgs = append(params.msiArgs, arg)
 		return nil
 	}
@@ -160,8 +160,8 @@ func WithMSIArg(arg string) InstallerOption {
 // Example: WithInstallerURLFromInstallersJSON("dd-agent-mstesting", "stable", "7.56.0-installer-0.4.5-1")
 // will look into "https://s3.amazonaws.com/dd-agent-mstesting/builds/stable/installers_v2.json" for the Datadog Installer
 // version "7.56.0-installer-0.4.5-1"
-func WithInstallerURLFromInstallersJSON(bucket, channel, version string) InstallerOption {
-	return func(params *InstallerParams) error {
+func WithInstallerURLFromInstallersJSON(bucket, channel, version string) Option {
+	return func(params *Params) error {
 		url, err := installers.GetProductURL(fmt.Sprintf("https://s3.amazonaws.com/%s/builds/%s/installers_v2.json", bucket, channel), "datadog-installer", version, "x86_64")
 		if err != nil {
 			return err
@@ -173,8 +173,8 @@ func WithInstallerURLFromInstallersJSON(bucket, channel, version string) Install
 
 // Install will attempt to install the Datadog Installer on the remote host.
 // By default, it will use the installer from the current pipeline.
-func (d *DatadogInstaller) Install(opts ...InstallerOption) error {
-	params := InstallerParams{}
+func (d *DatadogInstaller) Install(opts ...Option) error {
+	params := Params{}
 	err := optional.ApplyOptions(&params, opts)
 	if err != nil {
 		return nil
