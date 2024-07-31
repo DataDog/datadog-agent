@@ -134,8 +134,8 @@ func (fc *FailedConns) MatchFailedConn(conn *network.ConnectionStats) {
 	var failedConn *FailedConnStats
 
 	if failedConn, ok := fc.FailedConnMap[*fc.failureTuple]; ok {
-		foundMatch = true
 		// found matching failed connection
+		foundMatch = true
 		conn.TCPFailures = make(map[uint32]uint32)
 
 		for errCode, count := range failedConn.CountByErrCode {
