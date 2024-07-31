@@ -146,7 +146,7 @@ def build(
         # for agent build purposes the UA agent is just like base
         flavor = AgentFlavor.base
 
-    if not exclude_rtloader and not flavor.is_iot():
+    if not exclude_rtloader and (not flavor.is_iot() or flavor.is_ka()):
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
         # in the embedded path folder because that's what is used in get_build_flags()
         with gitlab_section("Install embedded rtloader", collapsed=True):
@@ -182,8 +182,8 @@ def build(
     else:
         bundled_agents += bundle or BUNDLED_AGENTS.get(flavor, [])
 
-    if flavor.is_iot():
-        # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
+    if flavor.is_iot() or flavor.is_ka():
+        # Iot and KA mode overrides whatever passed through `--build-exclude` and `--build-include`
         build_tags = get_default_build_tags(build="agent", flavor=flavor)
     else:
         all_tags = set()
@@ -213,6 +213,13 @@ def build(
         build_tags.append("sds")
 
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/{flavor}"
+    command_flavor = "agent"
+
+    if flavor.is_iot():
+        command_flavor = "iot-agent"
+    if flavor.is_ka():
+        command_flavor = "kernel-agent"
+
     args = {
         "go_mod": go_mod,
         "race_opt": "-race" if race else "",
@@ -222,7 +229,7 @@ def build(
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
-        "flavor": "iot-agent" if flavor.is_iot() else "agent",
+        "flavor": command_flavor,
     }
     with gitlab_section("Build agent", collapsed=True):
         ctx.run(cmd.format(**args), env=env)
