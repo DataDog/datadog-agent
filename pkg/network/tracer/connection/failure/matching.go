@@ -101,32 +101,22 @@ func (fc *FailedConns) upsertConn(failedConn *ebpf.FailedConn) {
 
 // MatchFailedConn increments the failed connection counters for a given connection based on the failed connection map
 func (fc *FailedConns) MatchFailedConn(conn *network.ConnectionStats) {
-	if fc == nil {
-		return
-	}
-	if conn.Type != network.TCP {
+	if fc == nil || conn.Type != network.TCP {
 		return
 	}
 	util.ConnStatsToTuple(conn, fc.failureTuple)
 
-	fc.RLock()
-	foundMatch := false
+	fc.Lock()
+	defer fc.Unlock()
 
 	if failedConn, ok := fc.FailedConnMap[*fc.failureTuple]; ok {
 		// found matching failed connection
-		foundMatch = true
 		conn.TCPFailures = failedConn.CountByErrCode
 
 		for errCode := range failedConn.CountByErrCode {
 			failureTelemetry.failedConnMatches.Add(1, unix.ErrnoName(syscall.Errno(errCode)))
 		}
-		failedConn.CountByErrCode = nil
-	}
-	fc.RUnlock()
-	if foundMatch {
-		fc.Lock()
 		delete(fc.FailedConnMap, *fc.failureTuple)
-		fc.Unlock()
 	}
 }
 
