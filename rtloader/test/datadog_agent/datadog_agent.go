@@ -243,7 +243,7 @@ func writePersistentCache(key, value *C.char) {
 }
 
 //export readPersistentCache
-func readPersistentCache(_ *C.char) *C.char {
+func readPersistentCache(key *C.char) *C.char {
 	return (*C.char)(helpers.TrackedCString("somevalue"))
 }
 
