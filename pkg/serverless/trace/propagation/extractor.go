@@ -21,12 +21,11 @@ import (
 const (
 	defaultSamplingPriority sampler.SamplingPriority = sampler.PriorityNone
 
-	ddTraceIDHeader            = "x-datadog-trace-id"
-	ddParentIDHeader           = "x-datadog-parent-id"
-	ddSpanIDHeader             = "x-datadog-span-id"
-	ddSamplingPriorityHeader   = "x-datadog-sampling-priority"
-	ddInvocationErrorHeader    = "x-datadog-invocation-error"
-	ddTraceIDUpper64BitsHeader = "_dd.p.tid"
+	ddTraceIDHeader          = "x-datadog-trace-id"
+	ddParentIDHeader         = "x-datadog-parent-id"
+	ddSpanIDHeader           = "x-datadog-span-id"
+	ddSamplingPriorityHeader = "x-datadog-sampling-priority"
+	ddInvocationErrorHeader  = "x-datadog-invocation-error"
 )
 
 var (

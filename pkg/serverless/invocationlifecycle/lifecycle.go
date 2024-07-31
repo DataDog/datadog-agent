@@ -27,6 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const ddTraceIDUpper64BitsHeader = "_dd.p.tid"
+
 // LifecycleProcessor is a InvocationProcessor implementation
 type LifecycleProcessor struct {
 	ExtraTags            *serverlessLog.Tags
