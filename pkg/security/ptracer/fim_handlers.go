@@ -252,6 +252,11 @@ func registerFIMHandlers(handlers map[int]syscallHandler) []string {
 			RetFunc:    nil,
 		},
 		{
+			ID:      syscallID{ID: PipeNr, Name: "pipe"},
+			Func:    handlePipe2,
+			RetFunc: handlePipe2Ret,
+		},
+		{
 			ID:      syscallID{ID: Pipe2Nr, Name: "pipe2"},
 			Func:    handlePipe2,
 			RetFunc: handlePipe2Ret,

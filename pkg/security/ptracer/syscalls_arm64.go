@@ -76,6 +76,7 @@ const (
 	ChmodNr     = -15 // ChmodNr not available on arm64
 	ChownNr     = -16 // ChownNr not available on arm64
 	LchownNr    = -17 // LchownNr not available on arm64
+	PipeNr      = -18 // PipeNr not available on arm64
 )
 
 func (t *Tracer) argToRegValue(regs syscall.PtraceRegs, arg int) uint64 {
