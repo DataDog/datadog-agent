@@ -10,6 +10,7 @@ package erpc
 
 import (
 	"errors"
+	"runtime"
 	"syscall"
 	"unsafe"
 )
@@ -78,6 +79,8 @@ func (k *ERPC) Request(req *Request) error {
 			return errno
 		}
 	}
+
+	runtime.KeepAlive(req)
 
 	return nil
 }
