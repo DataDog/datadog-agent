@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"runtime"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -89,6 +90,7 @@ func (m *testPackageManager) UninstrumentAPMInjector(ctx context.Context, method
 }
 
 type testRemoteConfigClient struct {
+	sync.Mutex
 	listeners map[string][]client.Handler
 }
 
@@ -105,6 +107,8 @@ func (c *testRemoteConfigClient) Close() {
 }
 
 func (c *testRemoteConfigClient) Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
+	c.Lock()
+	defer c.Unlock()
 	c.listeners[product] = append(c.listeners[product], client.Handler(fn))
 }
 
@@ -112,6 +116,8 @@ func (c *testRemoteConfigClient) SetUpdaterPackagesState(_ []*pbgo.PackageState)
 }
 
 func (c *testRemoteConfigClient) SubmitCatalog(catalog catalog) {
+	c.Lock()
+	defer c.Unlock()
 	rawCatalog, err := json.Marshal(catalog)
 	if err != nil {
 		panic(err)
@@ -126,6 +132,8 @@ func (c *testRemoteConfigClient) SubmitCatalog(catalog catalog) {
 }
 
 func (c *testRemoteConfigClient) SubmitRequest(request remoteAPIRequest) {
+	c.Lock()
+	defer c.Unlock()
 	rawTask, err := json.Marshal(request)
 	if err != nil {
 		panic(err)
