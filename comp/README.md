@@ -571,7 +571,7 @@ Package status implements the core status component information provider interfa
 
 ## [comp/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater) (Component Bundle)
 
-*Datadog Team*: fleet
+*Datadog Team*: fleet windows-agent
 
 Package updater implements the updater component.
 
@@ -590,6 +590,12 @@ Package telemetry provides the installer telemetry component.
 ### [comp/updater/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/updater)
 
 Package updater is the updater component.
+
+### [comp/autoscaling/datadogclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient)
+
+*Datadog Team*: container-integrations
+
+Package datadogclient provides a client to query the datadog API
 
 ### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
 

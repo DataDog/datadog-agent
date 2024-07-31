@@ -201,6 +201,28 @@ func ReadPersistentCache(key *C.char) *C.char {
 	return TrackedCString(data)
 }
 
+// SendLog submits a log for one check instance.
+// Indirectly used by the C function `send_log` that's mapped to `datadog_agent.send_log`.
+//
+//export SendLog
+func SendLog(logLine, checkID *C.char) {
+	line := C.GoString(logLine)
+	cid := C.GoString(checkID)
+
+	cc, err := getCheckContext()
+	if err != nil {
+		log.Errorf("Log submission failed: %s", err)
+	}
+
+	lr, ok := cc.logReceiver.Get()
+	if !ok {
+		log.Error("Log submission failed: no receiver")
+		return
+	}
+
+	lr.SendLog(line, cid)
+}
+
 var (
 	// one obfuscator instance is shared across all python checks. It is not threadsafe but that is ok because
 	// the GIL is always locked when calling c code from python which means that the exported functions in this file

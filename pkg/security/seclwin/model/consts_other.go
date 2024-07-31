@@ -31,3 +31,4 @@ func initProtConstansts()            {}
 func initMMapFlagsConstants()        {}
 func initSignalConstants()           {}
 func initBPFMapNamesConstants()      {}
+func initAUIDConstants()             {}

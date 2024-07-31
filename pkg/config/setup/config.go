@@ -692,7 +692,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.webhook_name", "datadog-webhook")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.inject_config.endpoint", "/injectconfig")
-	config.BindEnvAndSetDefault("admission_controller.inject_config.inject_container_name", false)
 	config.BindEnvAndSetDefault("admission_controller.inject_config.mode", "hostip") // possible values: hostip / service / socket
 	config.BindEnvAndSetDefault("admission_controller.inject_config.local_service_name", "datadog")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.socket_path", "/var/run/datadog")
@@ -768,11 +767,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_manifest", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
-	config.BindEnvAndSetDefault("orchestrator_explorer.ecs_collection.enabled", false)
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
-	config.BindEnvAndSetDefault("container_lifecycle.ecs_task_event.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "container_lifecycle.")
 
 	// Container image configuration
@@ -1482,6 +1479,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// WARNING: 'by_modification_time' is less performant than 'by_name' and will trigger
 	// more disk I/O at the wildcard log paths
 	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
+
+	// Max size in MB to allow for integrations logs files
+	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
 }
 
 func vector(config pkgconfigmodel.Setup) {

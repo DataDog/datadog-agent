@@ -457,7 +457,7 @@ func (adm *ActivityDumpManager) HandleCGroupTracingEvent(event *model.CgroupTrac
 		return
 	}
 
-	if err := adm.startDumpWithConfig(string(event.ContainerContext.ContainerID), event.CGroupFlags, event.ConfigCookie, event.Config); err != nil {
+	if err := adm.startDumpWithConfig(string(event.ContainerContext.ContainerID), uint64(event.CGroupContext.CGroupFlags), event.ConfigCookie, event.Config); err != nil {
 		seclog.Warnf("%v", err)
 	}
 }
