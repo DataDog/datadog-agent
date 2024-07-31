@@ -12,6 +12,7 @@ func GetStaticTags(_ uint64) (tags []string) {
 	return tags
 }
 
+// IsTLSTag return if the tag is a TLS tag
 func IsTLSTag(_ uint64) bool {
 	return false
 }
