@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// go:build test
-
 package tcp
 
 import (
@@ -187,48 +185,46 @@ func Test_parseIPv4Layer(t *testing.T) {
 	}
 }
 
-func Test_parseICMPPacket(t *testing.T) {
+func Test_parseICMP(t *testing.T) {
 	innerSrcIP := net.ParseIP("10.0.0.1")
 	innerDstIP := net.ParseIP("192.168.1.1")
-	ipv4Layer := createMockIPv4Layer(srcIP, dstIP, layers.IPProtocolICMPv4)
+	ipv4Header := createMockIPv4Header(srcIP, dstIP, 1)
 	icmpLayer := createMockICMPLayer(layers.ICMPv4CodeTTLExceeded)
 	innerIPv4Layer := createMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP)
 	innerTCPLayer := createMockTCPLayer(12345, 443, 28394, 12737, true, true, true)
 
-	// create packet without an ICMP layer
-	buf := gopacket.NewSerializeBuffer()
-	gopacket.SerializeLayers(buf, gopacket.SerializeOptions{},
-		ipv4Layer,
-	)
-	missingICMPLayer := gopacket.NewPacket(buf.Bytes(), layers.LayerTypeIPv4, gopacket.Default)
-
 	tt := []struct {
 		description string
-		input       gopacket.Packet
+		inHeader    *ipv4.Header
+		inPayload   []byte
 		expected    *icmpResponse
 		errMsg      string
 	}{
 		{
 			description: "empty IPv4 layer should return an error",
-			input:       gopacket.NewPacket([]byte{}, layers.LayerTypeTCP, gopacket.Default),
+			inHeader:    &ipv4.Header{},
+			inPayload:   []byte{},
 			expected:    nil,
-			errMsg:      "packet does not contain an IPv4 layer",
+			errMsg:      "invalid IP header for ICMP packet",
 		},
 		{
 			description: "missing ICMP layer should return an error",
-			input:       missingICMPLayer,
+			inHeader:    ipv4Header,
+			inPayload:   []byte{},
 			expected:    nil,
-			errMsg:      "packet does not contain an ICMP layer",
+			errMsg:      "failed to decode ICMP packet",
 		},
 		{
 			description: "missing inner layers should return an error",
-			input:       createMockICMPPacket(ipv4Layer, icmpLayer, nil, nil, false),
+			inHeader:    ipv4Header,
+			inPayload:   createMockICMPPacket(icmpLayer, nil, nil, false),
 			expected:    nil,
-			errMsg:      "failed to decode ICMP payload",
+			errMsg:      "failed to decode inner ICMP payload",
 		},
 		{
 			description: "ICMP packet with partial TCP header should create icmpResponse",
-			input:       createMockICMPPacket(ipv4Layer, icmpLayer, innerIPv4Layer, innerTCPLayer, true),
+			inHeader:    ipv4Header,
+			inPayload:   createMockICMPPacket(icmpLayer, innerIPv4Layer, innerTCPLayer, true),
 			expected: &icmpResponse{
 				SrcIP:        srcIP,
 				DstIP:        dstIP,
@@ -242,7 +238,8 @@ func Test_parseICMPPacket(t *testing.T) {
 		},
 		{
 			description: "full ICMP packet should create icmpResponse",
-			input:       createMockICMPPacket(ipv4Layer, icmpLayer, innerIPv4Layer, innerTCPLayer, false),
+			inHeader:    ipv4Header,
+			inPayload:   createMockICMPPacket(icmpLayer, innerIPv4Layer, innerTCPLayer, true),
 			expected: &icmpResponse{
 				SrcIP:        srcIP,
 				DstIP:        dstIP,
@@ -258,7 +255,7 @@ func Test_parseICMPPacket(t *testing.T) {
 
 	for _, test := range tt {
 		t.Run(test.description, func(t *testing.T) {
-			actual, err := parseICMPPacket(test.input)
+			actual, err := parseICMP(test.inHeader, test.inPayload)
 			if test.errMsg != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), test.errMsg)
@@ -378,7 +375,18 @@ func (me mockTimeoutErr) Timeout() bool {
 	return true
 }
 
-func createMockICMPPacket(ipLayer *layers.IPv4, icmpLayer *layers.ICMPv4, innerIP *layers.IPv4, innerTCP *layers.TCP, partialTCPHeader bool) gopacket.Packet {
+func createMockIPv4Header(srcIP, dstIP net.IP, protocol int) *ipv4.Header {
+	return &ipv4.Header{
+		Version:  4,
+		Src:      srcIP,
+		Dst:      dstIP,
+		Protocol: protocol,
+		TTL:      64,
+		Len:      8,
+	}
+}
+
+func createMockICMPPacket(icmpLayer *layers.ICMPv4, innerIP *layers.IPv4, innerTCP *layers.TCP, partialTCPHeader bool) []byte {
 	innerBuf := gopacket.NewSerializeBuffer()
 	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
 
@@ -407,14 +415,11 @@ func createMockICMPPacket(ipLayer *layers.IPv4, icmpLayer *layers.ICMPv4, innerI
 
 	buf := gopacket.NewSerializeBuffer()
 	gopacket.SerializeLayers(buf, opts,
-		ipLayer,
 		icmpLayer,
 		gopacket.Payload(payload),
 	)
 
-	pkt := gopacket.NewPacket(buf.Bytes(), layers.LayerTypeIPv4, gopacket.Default)
-
-	return pkt
+	return buf.Bytes()
 }
 
 func createMockTCPPacket(ipLayer *layers.IPv4, tcpLayer *layers.TCP) (*layers.TCP, gopacket.Packet) {

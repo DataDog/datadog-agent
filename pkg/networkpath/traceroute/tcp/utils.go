@@ -280,68 +280,98 @@ func parseIPv4Layer(pkt gopacket.Packet) (net.IP, net.IP, error) {
 	return net.IP{}, net.IP{}, fmt.Errorf("packet does not contain an IPv4 layer")
 }
 
-func parseICMP(header *ipv4.Header, payload []byte) (*icmpResponse, error) {
-	packetBytes, err := MarshalPacket(header, payload)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal packet: %w", err)
-	}
-	packet := readRawPacket(packetBytes)
-
-	return parseICMPPacket(packet)
-}
-
-// parseICMPPacket takes in a gopacket.Packet and tries to convert to an ICMP message
-// it returns all the fields from the packet we need to validate it's the response
+// parseICMP takes in an IPv4 header and payload and tries to convert to an ICMP
+// message, it returns all the fields from the packet we need to validate it's the response
 // we're looking for
-func parseICMPPacket(pkt gopacket.Packet) (*icmpResponse, error) {
-	// this parsing could likely be improved to be more performant if we read from the
-	// the original packet bytes directly where we expect the required fields to be
-	// or even just creating a single DecodingLayerParser but in both cases we lose
-	// some flexibility
-	var err error
+func parseICMP(header *ipv4.Header, payload []byte) (*icmpResponse, error) {
+	// in addition to parsing, it is probably not a bad idea to do some validation
+	// so we can ignore the ICMP packets we don't care about
 	icmpResponse := icmpResponse{}
 
-	icmpResponse.SrcIP, icmpResponse.DstIP, err = parseIPv4Layer(pkt)
-	if err != nil {
+	if header.Protocol != 1 || header.Version != 4 ||
+		header.Src == nil || header.Dst == nil {
+		log.Errorf("invalid IP header for ICMP packet")
+		return nil, fmt.Errorf("invalid IP header for ICMP packet: %+v", header)
+	}
+	icmpResponse.SrcIP = header.Src
+	icmpResponse.DstIP = header.Dst
+
+	var icmpv4Layer layers.ICMPv4
+	decoded := []gopacket.LayerType{}
+	icmpParser := gopacket.NewDecodingLayerParser(layers.LayerTypeICMPv4, &icmpv4Layer)
+	icmpParser.IgnoreUnsupported = true // ignore unsupported layers, we will decode them in the next step
+	if err := icmpParser.DecodeLayers(payload, &decoded); err != nil {
 		return nil, fmt.Errorf("failed to decode ICMP packet: %w", err)
 	}
-
-	if icmpLayer := pkt.Layer(layers.LayerTypeICMPv4); icmpLayer != nil {
-		icmp, ok := icmpLayer.(*layers.ICMPv4)
-		if !ok {
-			return nil, fmt.Errorf("failed to assert ICMPv4 layer type")
-		}
-		icmpResponse.TypeCode = icmp.TypeCode
-
-		var payload []byte
-		if len(icmp.Payload) < 40 {
-			log.Tracef("Payload length %d is less than 40, extending...\n", len(icmp.Payload))
-			payload = make([]byte, 40)
-			copy(payload, icmp.Payload)
-			// we have to set this in order for the TCP
-			// parser to work
-			payload[32] = 5 << 4 // set data offset
-		} else {
-			payload = icmp.Payload
-		}
-
-		// if we're in an ICMP packet, we know that we should have
-		// an inner IPv4 and TCP header section
-		var innerIPLayer layers.IPv4
-		var innerTCPLayer layers.TCP
-		decoded := []gopacket.LayerType{}
-		innerIPParser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &innerIPLayer, &innerTCPLayer)
-		if err := innerIPParser.DecodeLayers(payload, &decoded); err != nil {
-			return nil, fmt.Errorf("failed to decode ICMP payload: %w", err)
-		}
-		icmpResponse.InnerSrcIP = innerIPLayer.SrcIP
-		icmpResponse.InnerDstIP = innerIPLayer.DstIP
-		icmpResponse.InnerSrcPort = uint16(innerTCPLayer.SrcPort)
-		icmpResponse.InnerDstPort = uint16(innerTCPLayer.DstPort)
-		icmpResponse.InnerSeqNum = innerTCPLayer.Seq
-	} else {
-		return nil, fmt.Errorf("packet does not contain an ICMP layer")
+	// since we ignore unsupported layers, we need to check if we actually decoded
+	// anything
+	if len(decoded) < 1 {
+		return nil, fmt.Errorf("failed to decode ICMP packet, no layers decoded")
 	}
+	icmpResponse.TypeCode = icmpv4Layer.TypeCode
+
+	var icmpPayload []byte
+	if len(icmpv4Layer.Payload) < 40 {
+		log.Tracef("Payload length %d is less than 40, extending...\n", len(icmpv4Layer.Payload))
+		icmpPayload = make([]byte, 40)
+		copy(icmpPayload, icmpv4Layer.Payload)
+		// we have to set this in order for the TCP
+		// parser to work
+		icmpPayload[32] = 5 << 4 // set data offset
+	} else {
+		icmpPayload = icmpv4Layer.Payload
+	}
+
+	// a separate parser is needed to decode the inner IP and TCP headers because
+	// gopacket doesn't support this type of nesting in a single decoder
+	var innerIPLayer layers.IPv4
+	var innerTCPLayer layers.TCP
+	innerIPParser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &innerIPLayer, &innerTCPLayer)
+	if err := innerIPParser.DecodeLayers(icmpPayload, &decoded); err != nil {
+		return nil, fmt.Errorf("failed to decode inner ICMP payload: %w", err)
+	}
+	icmpResponse.InnerSrcIP = innerIPLayer.SrcIP
+	icmpResponse.InnerDstIP = innerIPLayer.DstIP
+	icmpResponse.InnerSrcPort = uint16(innerTCPLayer.SrcPort)
+	icmpResponse.InnerDstPort = uint16(innerTCPLayer.DstPort)
+	icmpResponse.InnerSeqNum = innerTCPLayer.Seq
+
+	// if icmpLayer := pkt.Layer(layers.LayerTypeICMPv4); icmpLayer != nil {
+	// 	icmp, ok := icmpLayer.(*layers.ICMPv4)
+	// 	if !ok {
+	// 		return nil, fmt.Errorf("failed to assert ICMPv4 layer type")
+	// 	}
+	// 	icmpResponse.TypeCode = icmp.TypeCode
+
+	// var payload []byte
+	// if len(icmp.Payload) < 40 {
+	// 	log.Tracef("Payload length %d is less than 40, extending...\n", len(icmp.Payload))
+	// 	payload = make([]byte, 40)
+	// 	copy(payload, icmp.Payload)
+	// 	// we have to set this in order for the TCP
+	// 	// parser to work
+	// 	payload[32] = 5 << 4 // set data offset
+	// } else {
+	// 	payload = icmp.Payload
+	// }
+
+	// if we're in an ICMP packet, we know that we should have
+	// an inner IPv4 and TCP header section
+	// var innerIPLayer layers.IPv4
+	// var innerTCPLayer layers.TCP
+	// decoded := []gopacket.LayerType{}
+	// innerIPParser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &innerIPLayer, &innerTCPLayer)
+	// if err := innerIPParser.DecodeLayers(payload, &decoded); err != nil {
+	// 	return nil, fmt.Errorf("failed to decode ICMP payload: %w", err)
+	// }
+	// icmpResponse.InnerSrcIP = innerIPLayer.SrcIP
+	// icmpResponse.InnerDstIP = innerIPLayer.DstIP
+	// icmpResponse.InnerSrcPort = uint16(innerTCPLayer.SrcPort)
+	// icmpResponse.InnerDstPort = uint16(innerTCPLayer.DstPort)
+	// icmpResponse.InnerSeqNum = innerTCPLayer.Seq
+	// } else {
+	// 	return nil, fmt.Errorf("packet does not contain an ICMP layer")
+	// }
 
 	return &icmpResponse, nil
 }
