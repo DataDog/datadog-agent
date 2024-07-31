@@ -17,28 +17,28 @@ import (
 )
 
 const (
-	// AgentAPIKey pulumi config paramater name
+	// AgentAPIKey pulumi config parameter name
 	AgentAPIKey = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentAPIKeyParamName
-	// AgentAPPKey pulumi config paramater name
+	// AgentAPPKey pulumi config parameter name
 	AgentAPPKey = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentAPPKeyParamName
 	// AgentPipelineID pulumi config parameter name
 	AgentPipelineID = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentPipelineID
 	// AgentCommitSHA pulumi config parameter name
 	AgentCommitSHA = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentCommitSHA
 
-	// InfraEnvironmentVariables pulumi config paramater name
+	// InfraEnvironmentVariables pulumi config parameter name
 	InfraEnvironmentVariables = commonconfig.DDInfraConfigNamespace + ":" + commonconfig.DDInfraEnvironment
 
-	// InfraExtraResourcesTags pulumi config paramater name
+	// InfraExtraResourcesTags pulumi config parameter name
 	InfraExtraResourcesTags = commonconfig.DDInfraConfigNamespace + ":" + commonconfig.DDInfraExtraResourcesTags
 
-	// AWSKeyPairName pulumi config paramater name
+	// AWSKeyPairName pulumi config parameter name
 	AWSKeyPairName = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultKeyPairParamName
-	// AWSPublicKeyPath pulumi config paramater name
+	// AWSPublicKeyPath pulumi config parameter name
 	AWSPublicKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDinfraDefaultPublicKeyPath
-	// AWSPrivateKeyPath pulumi config paramater name
+	// AWSPrivateKeyPath pulumi config parameter name
 	AWSPrivateKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultPrivateKeyPath
-	// AWSPrivateKeyPassword pulumi config paramater name
+	// AWSPrivateKeyPassword pulumi config parameter name
 	AWSPrivateKeyPassword = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultPrivateKeyPassword
 )
 
@@ -94,48 +94,40 @@ func setConfigMapFromParameter(store parameters.Store, cm ConfigMap, paramName p
 // BuildStackParameters creates a config map from a profile, a scenario config map
 // and env/cli configuration parameters
 func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap, error) {
+	var err error
 	// Priority order: profile configs < scenarioConfig < Env/CLI config
 	cm := ConfigMap{}
 
 	// Parameters from profile
-	cm.Set("ddinfra:env", profile.EnvironmentNames(), false)
-	err := SetConfigMapFromParameter(profile.ParamStore(), cm, parameters.KeyPairName, AWSKeyPairName)
-	if err != nil {
-		return nil, err
+	cm.Set(InfraEnvironmentVariables, profile.EnvironmentNames(), false)
+	params := map[parameters.StoreKey]string{
+		parameters.KeyPairName:        AWSKeyPairName,
+		parameters.PublicKeyPath:      AWSPublicKeyPath,
+		parameters.PrivateKeyPath:     AWSPrivateKeyPath,
+		parameters.ExtraResourcesTags: InfraExtraResourcesTags,
+		parameters.PipelineID:         AgentPipelineID,
+		parameters.CommitSHA:          AgentCommitSHA,
 	}
-	err = SetConfigMapFromParameter(profile.ParamStore(), cm, parameters.PublicKeyPath, AWSPublicKeyPath)
-	if err != nil {
-		return nil, err
-	}
-	err = SetConfigMapFromParameter(profile.ParamStore(), cm, parameters.PrivateKeyPath, AWSPrivateKeyPath)
-	if err != nil {
-		return nil, err
-	}
-	err = SetConfigMapFromParameter(profile.ParamStore(), cm, parameters.ExtraResourcesTags, InfraExtraResourcesTags)
-	if err != nil {
-		return nil, err
-	}
-	err = SetConfigMapFromParameter(profile.ParamStore(), cm, parameters.PipelineID, AgentPipelineID)
-	if err != nil {
-		return nil, err
-	}
-	err = SetConfigMapFromParameter(profile.ParamStore(), cm, parameters.CommitSHA, AgentCommitSHA)
-	if err != nil {
-		return nil, err
+
+	for storeKey, configMapKey := range params {
+		err = SetConfigMapFromParameter(profile.ParamStore(), cm, storeKey, configMapKey)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Secret parameters from profile store
-	err = SetConfigMapFromSecret(profile.SecretStore(), cm, parameters.APIKey, AgentAPIKey)
-	if err != nil {
-		return nil, err
+	secretParams := map[parameters.StoreKey]string{
+		parameters.APIKey:             AgentAPIKey,
+		parameters.APPKey:             AgentAPPKey,
+		parameters.PrivateKeyPassword: AWSPrivateKeyPassword,
 	}
-	err = SetConfigMapFromSecret(profile.SecretStore(), cm, parameters.APPKey, AgentAPPKey)
-	if err != nil {
-		return nil, err
-	}
-	err = SetConfigMapFromSecret(profile.SecretStore(), cm, parameters.PrivateKeyPassword, AWSPrivateKeyPassword)
-	if err != nil {
-		return nil, err
+
+	for storeKey, configMapKey := range secretParams {
+		err = SetConfigMapFromSecret(profile.SecretStore(), cm, storeKey, configMapKey)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Merge with scenario variables
