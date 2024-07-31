@@ -26,12 +26,6 @@ import (
 )
 
 var (
-	allowListErrs = map[uint32]struct{}{
-		ebpf.TCPFailureConnReset:   {}, // Connection reset by peer
-		ebpf.TCPFailureConnTimeout: {}, // Connection timed out
-		ebpf.TCPFailureConnRefused: {}, // Connection refused
-	}
-
 	telemetryModuleName = "network_tracer__tcp_failure"
 	mapTTL              = 10 * time.Millisecond.Nanoseconds()
 )
@@ -96,9 +90,6 @@ func NewFailedConns(m *manager.Manager, maxFailedConnsBuffered uint32) *FailedCo
 
 // upsertConn adds or updates the failed connection in the failed connection map
 func (fc *FailedConns) upsertConn(failedConn *ebpf.FailedConn) {
-	if _, exists := allowListErrs[failedConn.Reason]; !exists {
-		return
-	}
 	if len(fc.FailedConnMap) >= int(fc.maxFailuresBuffered) {
 		failureTelemetry.failedConnsDropped.Inc()
 		return
