@@ -96,6 +96,7 @@ func injectUserSession(params *InjectCliParams) error {
 	if err != nil {
 		return fmt.Errorf("couldn't create eRPC client: %w", err)
 	}
+	defer client.Close()
 
 	// generate random ID for this session
 	id := (uint64(rand.Uint32()) << 32) + uint64(time.Now().Unix())

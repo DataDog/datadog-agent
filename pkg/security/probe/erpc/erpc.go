@@ -82,6 +82,10 @@ func (k *ERPC) Request(req *Request) error {
 	return nil
 }
 
+func (k *ERPC) Close() error {
+	return syscall.Close(k.fd)
+}
+
 // NewERPC returns a new ERPC object
 func NewERPC() (*ERPC, error) {
 	fd, err := syscall.Dup(syscall.Stdout)
