@@ -6,11 +6,9 @@
 package installer
 
 import (
-	"fmt"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
-	"strings"
 )
 
 type packageInstallerSuite struct {
@@ -114,12 +112,12 @@ func (s *packageInstallerSuite) TestUpdateInstallerOCI() {
 	assert.NoError(s.T(), err)
 
 	version := s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version")
-	assert.Equal(s.T(), fmt.Sprintf("%s\n", "7.55.0-installer-0.2.1-1"), version)
+	assert.Equal(s.T(), "7.55.0-installer-0.2.1\n", version)
 
 	// Install from QA registry
 	err = s.RunInstallScriptWithError()
 	assert.NoError(s.T(), err)
 
-	version = strings.TrimSpace(s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version"))
-	assert.NotEqual(s.T(), "7.55.0-installer-0.2.1-1", version)
+	version = s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version")
+	assert.NotEqual(s.T(), "7.55.0-installer-0.2.1\n", version)
 }
