@@ -40,30 +40,30 @@ func (h *SingleLineHandler) flush() {
 // it guarantees that the content of the line won't exceed
 // the limit and that the length of the line is properly tracked
 // so that the agent restarts tailing from the right place.
-func (h *SingleLineHandler) process(message *message.Message) {
+func (h *SingleLineHandler) process(msg *message.Message) {
 	isTruncated := h.shouldTruncate
 	h.shouldTruncate = false
 
-	content := message.GetContent()
+	content := msg.GetContent()
 	content = bytes.TrimSpace(content)
 
 	if isTruncated {
 		// the previous line has been truncated because it was too long,
 		// the new line is just a remainder,
 		// adding the truncated flag at the beginning of the content
-		content = append(truncatedFlag, content...)
+		content = append(message.TruncatedFlag, content...)
 	}
 
 	// how should we detect logs which are too long before rendering them?
 	if len(content) < h.lineLimit {
-		message.SetContent(content) // refresh the content in the message
-		h.outputFn(message)
+		msg.SetContent(content) // refresh the content in the message
+		h.outputFn(msg)
 	} else {
 		// the line is too long, it needs to be cut off and send,
 		// adding the truncated flag the end of the content
-		content = append(content, truncatedFlag...)
-		message.SetContent(content) // refresh the content in the message
-		h.outputFn(message)
+		content = append(content, message.TruncatedFlag...)
+		msg.SetContent(content) // refresh the content in the message
+		h.outputFn(msg)
 		// make sure the following part of the line will be cut off as well
 		h.shouldTruncate = true
 	}

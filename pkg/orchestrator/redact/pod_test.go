@@ -13,31 +13,35 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestRemoveLastAppliedConfigurationAnnotation(t *testing.T) {
+func TestRemoveSensitiveAnnotations(t *testing.T) {
 	objectMeta := metav1.ObjectMeta{Annotations: map[string]string{
 		v1.LastAppliedConfigAnnotation: `{"apiVersion":"v1","kind":"Pod","metadata":{"annotations":{},"name":"quota","namespace":"default"},"spec":{"containers":[{"args":["-c","while true; do echo hello; sleep 10;done"],"command":["/bin/sh"],"image":"ubuntu","name":"high-priority","resources":{"limits":{"cpu":"500m","memory":"10Gi"},"requests":{"cpu":"500m","memory":"10Gi"}}}],"priorityClassName":"high-priority"}}`,
+		consulOriginalPodAnnotation:    `{"content": "previous pod definition"}`,
 	}}
-	RemoveLastAppliedConfigurationAnnotation(objectMeta.Annotations)
-	actual := objectMeta.Annotations[v1.LastAppliedConfigAnnotation]
-	assert.Equal(t, redactedAnnotationValue, actual)
+	RemoveSensitiveAnnotations(objectMeta.Annotations)
+	expected := map[string]string{
+		v1.LastAppliedConfigAnnotation: redactedAnnotationValue,
+		consulOriginalPodAnnotation:    redactedAnnotationValue,
+	}
+	assert.Equal(t, expected, objectMeta.Annotations)
 }
 
-func TestRemoveLastAppliedConfigurationAnnotationNotPresent(t *testing.T) {
+func TestRemoveSensitiveAnnotationsNotPresent(t *testing.T) {
 	objectMeta := metav1.ObjectMeta{Annotations: map[string]string{
 		"not.last.applied.annotation": "value",
 	}}
 
-	RemoveLastAppliedConfigurationAnnotation(objectMeta.Annotations)
+	RemoveSensitiveAnnotations(objectMeta.Annotations)
 	actual := objectMeta.Annotations[v1.LastAppliedConfigAnnotation]
 	assert.Equal(t, "", actual)
 }
 
-func TestRemoveLastAppliedConfigurationAnnotationEmpty(t *testing.T) {
+func TestRemoveSensitiveAnnotationsEmpty(t *testing.T) {
 	objectMeta := metav1.ObjectMeta{Annotations: map[string]string{
 		v1.LastAppliedConfigAnnotation: "",
 	}}
 
-	RemoveLastAppliedConfigurationAnnotation(objectMeta.Annotations)
+	RemoveSensitiveAnnotations(objectMeta.Annotations)
 	actual := objectMeta.Annotations[v1.LastAppliedConfigAnnotation]
 	assert.Equal(t, redactedAnnotationValue, actual)
 }

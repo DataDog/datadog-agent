@@ -26,8 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -114,7 +113,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(cliParams),
 			fx.Supply(core.BundleParams{
 				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigMissingOK(true), config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
-				LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true),
+				LogParams:    log.ForOneShot(command.LoggerName, "off", true),
 			}),
 			core.Bundle(),
 		)

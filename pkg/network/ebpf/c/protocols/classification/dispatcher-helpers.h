@@ -17,6 +17,8 @@
 #include "protocols/kafka/usm-events.h"
 #include "protocols/postgres/helpers.h"
 #include "protocols/postgres/usm-events.h"
+#include "protocols/redis/helpers.h"
+#include "protocols/redis/usm-events.h"
 
 __maybe_unused static __always_inline protocol_prog_t protocol_to_program(protocol_t proto) {
     switch(proto) {
@@ -28,6 +30,8 @@ __maybe_unused static __always_inline protocol_prog_t protocol_to_program(protoc
         return PROG_KAFKA;
     case PROTOCOL_POSTGRES:
         return PROG_POSTGRES;
+    case PROTOCOL_REDIS:
+        return PROG_REDIS;
     default:
         if (proto != PROTOCOL_UNKNOWN) {
             log_debug("protocol doesn't have a matching program: %d", proto);
@@ -77,6 +81,8 @@ static __always_inline void classify_protocol_for_dispatcher(protocol_t *protoco
         *protocol = PROTOCOL_HTTP2;
     } else if (is_postgres_monitoring_enabled() && is_postgres(buf, size)) {
         *protocol = PROTOCOL_POSTGRES;
+    } else if (is_redis_monitoring_enabled() && is_redis(buf, size)) {
+        *protocol = PROTOCOL_REDIS;
     } else {
         *protocol = PROTOCOL_UNKNOWN;
     }

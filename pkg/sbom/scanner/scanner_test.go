@@ -16,7 +16,8 @@ import (
 	"time"
 
 	compConfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -76,7 +77,7 @@ var _ sbom.Report = mockReport{}
 func TestRetryLogic_Error(t *testing.T) {
 	// Create a workload meta global store
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		compConfig.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
@@ -158,7 +159,7 @@ func TestRetryLogic_Error(t *testing.T) {
 func TestRetryLogic_ImageDeleted(t *testing.T) {
 	// Create a workload meta global store
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		compConfig.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
@@ -225,7 +226,7 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 func TestRetryChannelFull(t *testing.T) {
 	// Create a workload meta global store
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		compConfig.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),

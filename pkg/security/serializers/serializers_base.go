@@ -8,8 +8,10 @@
 package serializers
 
 import (
+	"slices"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -21,6 +23,8 @@ import (
 type CGroupContextSerializer struct {
 	// CGroup ID
 	ID string `json:"id,omitempty"`
+	// CGroup manager
+	Manager string `json:"manager,omitempty"`
 }
 
 // ContainerContextSerializer serializes a container context to JSON
@@ -353,6 +357,10 @@ func newVariablesContext(e *model.Event, opts *eval.Opts, prefix string) (variab
 		store := opts.VariableStore
 		for name, variable := range store.Variables {
 			if _, found := model.SECLVariables[name]; found {
+				continue
+			}
+
+			if slices.Contains(bundled.InternalVariables[:], name) {
 				continue
 			}
 
