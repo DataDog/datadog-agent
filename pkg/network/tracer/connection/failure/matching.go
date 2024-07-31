@@ -120,6 +120,7 @@ func (fc *FailedConns) MatchFailedConn(conn *network.ConnectionStats) {
 		for errCode := range failedConn.CountByErrCode {
 			failureTelemetry.failedConnMatches.Add(1, unix.ErrnoName(syscall.Errno(errCode)))
 		}
+		failedConn.CountByErrCode = nil
 	}
 	fc.RUnlock()
 	if foundMatch {
