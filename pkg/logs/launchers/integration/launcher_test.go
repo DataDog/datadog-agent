@@ -110,6 +110,18 @@ func (suite *LauncherTestSuite) TestWriteLogToFile() {
 	assert.Equal(suite.T(), logText, string(fileContents))
 }
 
+// TestDeserializeJSONLog tests deseralizing JSON formatted logs
+func (suite *LauncherTestSuite) TestDeserializeJSONLog() {
+	jsonString := `{"message": "log message", "ddtags": "env:prod,source:test", "ddsource": "test_source", "ddservice": "test_service"}`
+	isJSON := isJSON(jsonString)
+	assert.True(suite.T(), isJSON)
+
+	// Deserialize the string
+	logComp, err := suite.s.deserializeLog(jsonString)
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), "log message", logComp.Message)
+}
+
 func TestLauncherTestSuite(t *testing.T) {
 	suite.Run(t, new(LauncherTestSuite))
 }
