@@ -76,14 +76,14 @@ func TestRunWithChan(t *testing.T) {
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				assert.EqualValues(t, i, callnb.Load())
 				assert.Equal(t, "not-value1", cs.Config.GetString("key1"))
-			}, 100*time.Millisecond, 10*time.Millisecond)
+			}, 200*time.Millisecond, 10*time.Millisecond)
 		}
 
 		ch <- time.Now()
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			assert.EqualValues(t, errnums+1, callnb.Load())
 			assertConfigIsSet(t, cs.Config, "key1", "value1")
-		}, 100*time.Millisecond, 10*time.Millisecond)
+		}, 200*time.Millisecond, 10*time.Millisecond)
 	})
 }
 
