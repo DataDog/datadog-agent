@@ -14,9 +14,11 @@ import (
 	"runtime"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
@@ -91,11 +93,13 @@ func (m *testPackageManager) UninstrumentAPMInjector(ctx context.Context, method
 
 type testRemoteConfigClient struct {
 	sync.Mutex
+	t         *testing.T
 	listeners map[string][]client.Handler
 }
 
-func newTestRemoteConfigClient() *testRemoteConfigClient {
+func newTestRemoteConfigClient(t *testing.T) *testRemoteConfigClient {
 	return &testRemoteConfigClient{
+		t:         t,
 		listeners: make(map[string][]client.Handler),
 	}
 }
@@ -131,7 +135,17 @@ func (c *testRemoteConfigClient) SubmitCatalog(catalog catalog) {
 	}
 }
 
+func (c *testRemoteConfigClient) subscribedToRequests() bool {
+	c.Lock()
+	defer c.Unlock()
+	_, ok := c.listeners[state.ProductUpdaterTask]
+	return ok
+}
+
 func (c *testRemoteConfigClient) SubmitRequest(request remoteAPIRequest) {
+	// wait for the client to subscribe to the requests after the catalog has been applied
+	require.Eventually(c.t, c.subscribedToRequests, 1*time.Second, 10*time.Millisecond)
+
 	c.Lock()
 	defer c.Unlock()
 	rawTask, err := json.Marshal(request)
@@ -153,10 +167,10 @@ type testInstaller struct {
 	pm  *testPackageManager
 }
 
-func newTestInstaller() *testInstaller {
+func newTestInstaller(t *testing.T) *testInstaller {
 	pm := &testPackageManager{}
 	pm.On("States").Return(map[string]repository.State{}, nil)
-	rcc := newTestRemoteConfigClient()
+	rcc := newTestRemoteConfigClient(t)
 	rc := &remoteConfig{client: rcc}
 	i := &testInstaller{
 		daemonImpl: newDaemon(rc, pm, &env.Env{RemoteUpdates: true}),
@@ -172,7 +186,7 @@ func (i *testInstaller) Stop() {
 }
 
 func TestInstall(t *testing.T) {
-	i := newTestInstaller()
+	i := newTestInstaller(t)
 	defer i.Stop()
 
 	testURL := "oci://example.com/test-package:1.0.0"
@@ -187,7 +201,7 @@ func TestInstall(t *testing.T) {
 }
 
 func TestStartExperiment(t *testing.T) {
-	i := newTestInstaller()
+	i := newTestInstaller(t)
 	defer i.Stop()
 
 	testURL := "oci://example.com/test-package:1.0.0"
@@ -202,7 +216,7 @@ func TestStartExperiment(t *testing.T) {
 }
 
 func TestStopExperiment(t *testing.T) {
-	i := newTestInstaller()
+	i := newTestInstaller(t)
 	defer i.Stop()
 
 	pkg := "test-package"
@@ -217,7 +231,7 @@ func TestStopExperiment(t *testing.T) {
 }
 
 func TestPromoteExperiment(t *testing.T) {
-	i := newTestInstaller()
+	i := newTestInstaller(t)
 	defer i.Stop()
 
 	pkg := "test-package"
@@ -232,7 +246,7 @@ func TestPromoteExperiment(t *testing.T) {
 }
 
 func TestUpdateCatalog(t *testing.T) {
-	i := newTestInstaller()
+	i := newTestInstaller(t)
 	defer i.Stop()
 
 	testPackage := Package{
@@ -255,7 +269,7 @@ func TestUpdateCatalog(t *testing.T) {
 }
 
 func TestRemoteRequest(t *testing.T) {
-	i := newTestInstaller()
+	i := newTestInstaller(t)
 	defer i.Stop()
 
 	testStablePackage := Package{
