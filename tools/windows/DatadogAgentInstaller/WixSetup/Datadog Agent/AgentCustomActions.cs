@@ -1,4 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using Datadog.CustomActions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Rollback;
@@ -71,6 +74,8 @@ namespace WixSetup.Datadog_Agent
         public ManagedAction StartDDServicesRollback { get; }
 
         public ManagedAction RestoreDaclRollback { get; }
+
+        public ManagedAction DDCreateFolders { get; }
 
         /// <summary>
         /// Registers and sequences our custom actions
@@ -544,6 +549,19 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }.SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
+            DDCreateFolders = new CustomAction<ConfigCustomActions>(
+                    new Id(nameof(DDCreateFolders)),
+                    ConfigCustomActions.DDCreateFolders,
+
+                    Return.check,
+                    When.Before,
+                    Step.CreateFolders,
+                    Conditions.FirstInstall | Conditions.Upgrading
+                    )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }.SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
         }
     }
 }
