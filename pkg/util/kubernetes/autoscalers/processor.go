@@ -16,12 +16,12 @@ import (
 	"sync"
 	"time"
 
-	"gopkg.in/zorkian/go-datadog-api.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 
+	datadogclientcomp "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -34,12 +34,6 @@ const (
 	extraQueryCharacters = 16
 )
 
-// DatadogClient abstracts the dependency on the Datadog api
-type DatadogClient interface {
-	QueryMetrics(from, to int64, query string) ([]datadog.Series, error)
-	GetRateLimitStats() map[string]datadog.RateLimit
-}
-
 // ProcessorInterface is used to easily mock the interface for testing
 type ProcessorInterface interface {
 	UpdateExternalMetrics(emList map[string]custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue
@@ -50,7 +44,7 @@ type ProcessorInterface interface {
 // Processor embeds the configuration to refresh metrics from Datadog and process Ref structs to ExternalMetrics.
 type Processor struct {
 	externalMaxAge time.Duration
-	datadogClient  DatadogClient
+	datadogClient  datadogclientcomp.Component
 }
 
 // queryResponse ensures that we capture all the signals from the call to Datadog's backend.
@@ -60,7 +54,7 @@ type queryResponse struct {
 }
 
 // NewProcessor returns a new Processor
-func NewProcessor(datadogCl DatadogClient) *Processor {
+func NewProcessor(datadogCl datadogclientcomp.Component) *Processor {
 	externalMaxAge := math.Max(config.Datadog().GetFloat64("external_metrics_provider.max_age"), 3*config.Datadog().GetFloat64("external_metrics_provider.rollup"))
 	return &Processor{
 		externalMaxAge: time.Duration(externalMaxAge) * time.Second,

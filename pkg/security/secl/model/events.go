@@ -95,6 +95,8 @@ const (
 	OnDemandEventType
 	// LoginUIDWriteEventType is sent for login_uid write events
 	LoginUIDWriteEventType
+	// CgroupWriteEventType is sent when a new cgroup was created
+	CgroupWriteEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -144,6 +146,7 @@ const (
 	DeleteRegistryKeyEventType
 	// ChangePermissionEventType event
 	ChangePermissionEventType
+
 	// MaxAllEventType is used internally to get the maximum number of events.
 	MaxAllEventType
 )
