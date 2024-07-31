@@ -29,6 +29,7 @@ extern void doLog(char*, int);
 extern void getClustername(char **);
 extern void getConfig(char *, char **);
 extern void getHostname(char **);
+extern void getHostTags(char **);
 extern bool getTracemallocEnabled();
 extern void getVersion(char **);
 extern void headers(char **);
