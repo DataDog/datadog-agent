@@ -179,7 +179,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
-	github.com/cilium/ebpf v0.15.1-0.20240709101333-5976561b28aa
+	github.com/cilium/ebpf v0.16.0
 	github.com/clbanning/mxj v1.8.4
 	github.com/containerd/containerd v1.7.18
 	github.com/containernetworking/cni v1.2.3
