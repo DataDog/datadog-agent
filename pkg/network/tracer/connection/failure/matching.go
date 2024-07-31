@@ -34,8 +34,6 @@ var (
 
 	telemetryModuleName = "network_tracer__tcp_failure"
 	mapTTL              = 10 * time.Millisecond.Nanoseconds()
-
-	tuplePool = ddsync.NewDefaultTypedPool[ebpf.ConnTuple]()
 )
 
 var failureTelemetry = struct {
@@ -76,7 +74,7 @@ type FailedConns struct {
 	maxFailuresBuffered uint32
 	failureTuple        *ebpf.ConnTuple
 	mapCleaner          *ddebpf.MapCleaner[ebpf.ConnTuple, int64]
-	pool                *ddsync.TypedPool[FailedConnStats]
+	statsPool           *ddsync.TypedPool[FailedConnStats]
 	sync.RWMutex
 }
 
@@ -86,7 +84,7 @@ func NewFailedConns(m *manager.Manager, maxFailedConnsBuffered uint32) *FailedCo
 		FailedConnMap:       make(map[ebpf.ConnTuple]*FailedConnStats),
 		maxFailuresBuffered: maxFailedConnsBuffered,
 		failureTuple:        &ebpf.ConnTuple{},
-		pool: ddsync.NewTypedPool(func() *FailedConnStats {
+		statsPool: ddsync.NewTypedPool(func() *FailedConnStats {
 			return &FailedConnStats{
 				CountByErrCode: make(map[uint32]uint32),
 			}
@@ -112,7 +110,7 @@ func (fc *FailedConns) upsertConn(failedConn *ebpf.FailedConn) {
 
 	stats, ok := fc.FailedConnMap[connTuple]
 	if !ok {
-		stats = fc.pool.Get()
+		stats = fc.statsPool.Get()
 		stats.reset()
 		fc.FailedConnMap[connTuple] = stats
 	}
@@ -149,7 +147,7 @@ func (fc *FailedConns) MatchFailedConn(conn *network.ConnectionStats) {
 	if foundMatch {
 		fc.Lock()
 		delete(fc.FailedConnMap, *fc.failureTuple)
-		fc.pool.Put(failedConn)
+		fc.statsPool.Put(failedConn)
 		fc.Unlock()
 	}
 }
