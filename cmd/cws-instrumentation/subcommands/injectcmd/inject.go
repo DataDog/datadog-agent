@@ -102,7 +102,6 @@ func injectUserSession(params *InjectCliParams) error {
 
 	// send the user session to the CWS agent
 	cursor := 0
-	var segmentSize int
 	segmentCursor := uint8(1)
 	for cursor < len(params.Data) || (len(params.Data) == 0 && cursor == 0) {
 		req := erpc.NewERPCRequest(erpc.UserSessionContextOp)
@@ -112,11 +111,11 @@ func injectUserSession(params *InjectCliParams) error {
 		// padding
 		req.Data[16] = uint8(sessionType)
 
-		if erpc.ERPCDefaultDataSize-17 < len(params.Data)-cursor {
+		segmentSize := len(params.Data) - cursor
+		if erpc.ERPCDefaultDataSize-17 < segmentSize {
 			segmentSize = erpc.ERPCDefaultDataSize - 17
-		} else {
-			segmentSize = len(params.Data) - cursor
 		}
+
 		copy(req.Data[17:], params.Data[cursor:cursor+segmentSize])
 
 		// issue eRPC calls
