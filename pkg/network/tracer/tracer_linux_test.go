@@ -1315,7 +1315,7 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 		return &UDPServer{
 			network: udpnet,
 			lc: &net.ListenConfig{
-				Control: func(_, address string, c syscall.RawConn) error {
+				Control: func(_, _ string, c syscall.RawConn) error {
 					var opErr error
 					err := c.Control(func(fd uintptr) {
 						opErr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT, 1)
@@ -1327,7 +1327,7 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 				},
 			},
 			address: fmt.Sprintf("%s:%d", ip, port),
-			onMessage: func(_ []byte, n int) []byte {
+			onMessage: func(_ []byte, _ int) []byte {
 				return genPayload(serverMessageSize)
 			},
 		}

@@ -221,7 +221,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *tracer.Tracer, c
 				IP:   net.ParseIP(clientHost),
 				Port: 0,
 			},
-			Control: func(_, address string, c syscall.RawConn) error {
+			Control: func(_, _ string, c syscall.RawConn) error {
 				var opErr error
 				err := c.Control(func(fd uintptr) {
 					opErr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT, 1)
