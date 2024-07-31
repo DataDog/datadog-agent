@@ -123,8 +123,8 @@ func (b *Builder) WithAllowLabels(l map[string][]string) error {
 }
 
 // WithAllowAnnotations configures which annotations can be returned for metrics
-func (b *Builder) WithAllowAnnotations(l map[string][]string) {
-	b.ksmBuilder.WithAllowAnnotations(l)
+func (b *Builder) WithAllowAnnotations(l map[string][]string) error {
+	return b.ksmBuilder.WithAllowAnnotations(l)
 }
 
 // Build initializes and registers all enabled stores.

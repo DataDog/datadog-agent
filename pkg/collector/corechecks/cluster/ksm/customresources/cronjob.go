@@ -55,21 +55,21 @@ func NewCronJobV1Beta1Factory(client *apiserver.APIClient) customresource.Regist
 				Name: "kube_cronjob_annotations",
 				Help: "Kubernetes annotations converted to Prometheus labels.",
 				Each: customresourcestate.Metric{
-					Type: customresourcestate.MetricTypeInfo,
+					Type: metric.Info,
 				},
 			},
 			{
 				Name: "kube_cronjob_labels",
 				Help: "Kubernetes labels converted to Prometheus labels.",
 				Each: customresourcestate.Metric{
-					Type: customresourcestate.MetricTypeInfo,
+					Type: metric.Info,
 				},
 			},
 			{
 				Name: "kube_cronjob_info",
 				Help: "Info about cronjob.",
 				Each: customresourcestate.Metric{
-					Type: customresourcestate.MetricTypeInfo,
+					Type: metric.Info,
 					Info: &customresourcestate.MetricInfo{
 						MetricMeta: customresourcestate.MetricMeta{
 							LabelsFromPath: map[string][]string{
@@ -84,7 +84,7 @@ func NewCronJobV1Beta1Factory(client *apiserver.APIClient) customresource.Regist
 				Name: "kube_cronjob_status_last_schedule_time",
 				Help: "LastScheduleTime keeps information of when was the last time the job was successfully scheduled.",
 				Each: customresourcestate.Metric{
-					Type: customresourcestate.MetricTypeGauge,
+					Type: metric.Gauge,
 					Gauge: &customresourcestate.MetricGauge{
 						ValueFrom: []string{"status", "lastScheduleTime"},
 					},
@@ -94,7 +94,7 @@ func NewCronJobV1Beta1Factory(client *apiserver.APIClient) customresource.Regist
 				Name: "kube_cronjob_spec_suspend",
 				Help: "Suspend flag tells the controller to suspend subsequent executions.",
 				Each: customresourcestate.Metric{
-					Type: customresourcestate.MetricTypeGauge,
+					Type: metric.Gauge,
 					Gauge: &customresourcestate.MetricGauge{
 						ValueFrom: []string{"spec", "suspend"},
 					},
@@ -104,7 +104,7 @@ func NewCronJobV1Beta1Factory(client *apiserver.APIClient) customresource.Regist
 				Name: "kube_cronjob_spec_starting_deadline_seconds",
 				Help: "Deadline in seconds for starting the job if it misses scheduled time for any reason.",
 				Each: customresourcestate.Metric{
-					Type: customresourcestate.MetricTypeGauge,
+					Type: metric.Gauge,
 					Gauge: &customresourcestate.MetricGauge{
 						ValueFrom: []string{"spec", "startingDeadlineSeconds"},
 					},
@@ -124,7 +124,7 @@ func NewCronJobV1Beta1Factory(client *apiserver.APIClient) customresource.Regist
 				Name: "kube_cronjob_metadata_resource_version",
 				Help: "Resource version representing a specific version of the cronjob.",
 				Each: customresourcestate.Metric{
-					Type: customresourcestate.MetricTypeGauge,
+					Type: metric.Gauge,
 					Gauge: &customresourcestate.MetricGauge{
 						ValueFrom: []string{"metadata", "resourceVersion"},
 					},
@@ -134,7 +134,7 @@ func NewCronJobV1Beta1Factory(client *apiserver.APIClient) customresource.Regist
 				Name: "kube_cronjob_spec_successful_job_history_limit",
 				Help: "Successful job history limit tells the controller how many completed jobs should be preserved.",
 				Each: customresourcestate.Metric{
-					Type: customresourcestate.MetricTypeGauge,
+					Type: metric.Gauge,
 					Gauge: &customresourcestate.MetricGauge{
 						ValueFrom: []string{"spec", "successfulJobsHistoryLimit"},
 					},
@@ -144,7 +144,7 @@ func NewCronJobV1Beta1Factory(client *apiserver.APIClient) customresource.Regist
 				Name: "kube_cronjob_spec_failed_job_history_limit",
 				Help: "Failed job history limit tells the controller how many failed jobs should be preserved.",
 				Each: customresourcestate.Metric{
-					Type: customresourcestate.MetricTypeGauge,
+					Type: metric.Gauge,
 					Gauge: &customresourcestate.MetricGauge{
 						ValueFrom: []string{"spec", "failedJobsHistoryLimit"},
 					},
@@ -170,7 +170,7 @@ func (f *cronjobv1beta1Factory) CreateClient(cfg *rest.Config) (interface{}, err
 	return f.client, nil
 }
 
-func (f *cronjobv1beta1Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *cronjobv1beta1Factory) MetricFamilyGenerators() []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGeneratorWithStability(
 			descCronJobAnnotationsName,
@@ -179,7 +179,7 @@ func (f *cronjobv1beta1Factory) MetricFamilyGenerators(allowAnnotationsList, all
 			basemetrics.ALPHA,
 			"",
 			wrapCronJobFunc(func(j *batchv1beta1.CronJob) *metric.Family {
-				annotationKeys, annotationValues := createPrometheusLabelKeysValues("annotation", j.Annotations, allowAnnotationsList)
+				annotationKeys, annotationValues := kubeMapToPrometheusLabels("annotation", j.Annotations)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
@@ -198,7 +198,7 @@ func (f *cronjobv1beta1Factory) MetricFamilyGenerators(allowAnnotationsList, all
 			basemetrics.STABLE,
 			"",
 			wrapCronJobFunc(func(j *batchv1beta1.CronJob) *metric.Family {
-				labelKeys, labelValues := createPrometheusLabelKeysValues("label", j.Labels, allowLabelsList)
+				labelKeys, labelValues := kubeMapToPrometheusLabels("label", j.Labels)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{

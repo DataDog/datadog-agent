@@ -49,7 +49,7 @@ type crdFactory struct {
 	client interface{}
 }
 
-func (f *crdFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *crdFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGeneratorWithStability(
 			descCustomResourceDefinitionAnnotationsName,
@@ -58,7 +58,7 @@ func (f *crdFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 			basemetrics.ALPHA,
 			"",
 			wrapCustomResourceDefinition(func(c *crd.CustomResourceDefinition) *metric.Family {
-				annotationKeys, annotationValues := createPrometheusLabelKeysValues("annotation", c.Annotations, allowAnnotationsList)
+				annotationKeys, annotationValues := kubeMapToPrometheusLabels("annotation", c.Annotations)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
@@ -77,7 +77,7 @@ func (f *crdFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 			basemetrics.ALPHA,
 			"",
 			wrapCustomResourceDefinition(func(c *crd.CustomResourceDefinition) *metric.Family {
-				labelKeys, labelValues := createPrometheusLabelKeysValues("label", c.Labels, allowLabelsList)
+				labelKeys, labelValues := kubeMapToPrometheusLabels("label", c.Labels)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
