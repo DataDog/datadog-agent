@@ -738,6 +738,76 @@ func TestEndExecutionSpanWithTimeout(t *testing.T) {
 	assert.Equal(t, "Datadog detected an Impending Timeout", executionSpan.Meta["error.msg"])
 }
 
+func TestEndExecutionSpanWithStepFunctions(t *testing.T) {
+	t.Setenv(functionNameEnvVar, "TestFunction")
+	currentExecutionInfo := &ExecutionStartInfo{}
+	lp := &LifecycleProcessor{
+		requestHandler: &RequestHandler{
+			executionInfo: currentExecutionInfo,
+			triggerTags:   make(map[string]string),
+		},
+	}
+
+	lp.requestHandler.triggerTags["_dd.p.tid"] = "6fb5c3a05c73dbfe"
+
+	startTime := time.Now()
+	startDetails := &InvocationStartDetails{
+		StartTime:          startTime,
+		InvokeEventHeaders: http.Header{},
+	}
+
+	stepFunctionEvent := events.StepFunctionEvent{
+		Execution: events.StepFunctionExecution{
+			ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+			Input:        interface{}(nil),
+			StartTime:    "2024-07-30T20:46:20.777Z",
+			Name:         "aa6c9316-713a-41d4-9c30-61131716744f",
+			RoleArn:      "arn:aws:iam::425362996713:role/test-serverless-stepfunctions-dev-AgocsTestSFRole-tRkeFXScjyk4",
+			RedriveCount: 0,
+		},
+		StateMachine: events.StepFunctionStateMachine{
+			ID:   "arn:aws:states:us-east-1:425362996713:stateMachine:agocsTestSF",
+			Name: "agocsTestSF",
+		},
+		State: events.StepFunctionState{
+			Name:        "agocsTest1",
+			EnteredTime: "2024-07-30T20:46:20.824Z",
+			RetryCount:  0,
+		},
+	}
+
+	lp.startExecutionSpan(stepFunctionEvent, []byte("[]"), startDetails)
+
+	assert.Equal(t, uint64(5377636026938777059), currentExecutionInfo.TraceID)
+	assert.Equal(t, uint64(8947638978974359093), currentExecutionInfo.parentID)
+	assert.Equal(t, "6fb5c3a05c73dbfe", lp.requestHandler.triggerTags["_dd.p.tid"])
+
+	duration := 1 * time.Second
+	endTime := startTime.Add(duration)
+
+	endDetails := &InvocationEndDetails{
+		EndTime:            endTime,
+		IsError:            false,
+		RequestID:          "test-request-id",
+		ResponseRawPayload: []byte(`{"response":"test response payload"}`),
+		ColdStart:          true,
+		ProactiveInit:      false,
+		Runtime:            "dotnet6",
+	}
+	executionSpan := lp.endExecutionSpan(endDetails)
+
+	assert.Equal(t, "aws.lambda", executionSpan.Name)
+	assert.Equal(t, "aws.lambda", executionSpan.Service)
+	assert.Equal(t, "TestFunction", executionSpan.Resource)
+	assert.Equal(t, "serverless", executionSpan.Type)
+	assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
+	assert.Equal(t, currentExecutionInfo.SpanID, executionSpan.SpanID)
+	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
+	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
+	assert.Equal(t, "6fb5c3a05c73dbfe", executionSpan.Meta["_dd.p.tid"])
+
+}
+
 func TestParseLambdaPayload(t *testing.T) {
 	assert.Equal(t, []byte(""), ParseLambdaPayload([]byte("")))
 	assert.Equal(t, []byte("{}"), ParseLambdaPayload([]byte("{}")))
