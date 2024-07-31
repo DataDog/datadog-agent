@@ -159,7 +159,7 @@ def warn_new_commits(release_managers, team, branch, next_rc):
     from slack_sdk import WebClient
 
     today = datetime.today()
-    rc_date = datetime(today.year, today.month, today.day, hour=15, minute=0, second=0, tzinfo=timezone.utc)
+    rc_date = datetime(today.year, today.month, today.day, hour=14, minute=0, second=0, tzinfo=timezone.utc)
     rc_schedule_link = "https://github.com/DataDog/datadog-agent/blob/main/.github/workflows/create_rc_pr.yml#L6"
     message = "Hello :wave:\n"
     message += f":announcement: We detected new commits on the {branch} release branch of `integrations-core`.\n"
