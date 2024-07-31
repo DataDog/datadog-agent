@@ -107,8 +107,8 @@ type NetworkContext struct {
 
 // SpanContext describes a span context
 type SpanContext struct {
-	SpanID  uint64          `field:"_"`
-	TraceID mathutil.Int128 `field:"_"`
+	SpanID  uint64          `field:"-"`
+	TraceID mathutil.Int128 `field:"-"`
 }
 
 // BaseEvent represents an event sent from the kernel

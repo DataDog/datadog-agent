@@ -1054,6 +1054,15 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 	return &ps
 }
 
+// DDContextSerializer serializes a span context to JSON
+// easyjson:json
+type DDContextSerializer struct {
+	// Span ID used for APM correlation
+	SpanID string `json:"span_id,omitempty"`
+	// Trace ID used for APM correlation
+	TraceID string `json:"trace_id,omitempty"`
+}
+
 func newDDContextSerializer(e *model.Event) *DDContextSerializer {
 	s := &DDContextSerializer{}
 	if e.SpanContext.SpanID != 0 && (e.SpanContext.TraceID.Hi != 0 || e.SpanContext.TraceID.Lo != 0) {
