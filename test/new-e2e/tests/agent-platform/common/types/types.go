@@ -35,7 +35,7 @@ type remoteHostExecutor components.RemoteHost
 
 // Execute runs commands to satisfy the Executor interface
 func (e *remoteHostExecutor) Execute(command string) (output string, err error) {
-	return e.Execute(command)
+	return e.Host.Execute(command)
 }
 
 // NewHostFromRemote creates a Host instance from a components.RemoteHost
