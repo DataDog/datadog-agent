@@ -9,13 +9,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
+// SpanConcentratorConfig exposes configuration options for a SpanConcentrator
 type SpanConcentratorConfig struct {
+	// ComputeStatsBySpanKind enables/disables the computing of stats based on a span's `span.kind` field
 	ComputeStatsBySpanKind bool
-	BucketInterval         int64
-	PeerTagsAggregation    bool
-	PeerTags               []string
+	// BucketInterval the size of our pre-aggregation per bucket
+	BucketInterval int64
+	// PeerTagsAggregation enables/disables stats aggregation for peer entity tags
+	PeerTagsAggregation bool
+	// PeerTags additional tags to use for peer entity stats aggregation
+	PeerTags []string
 }
 
+// SpanConcentrator produces time bucketed statistics from a stream of raw spans.
 type SpanConcentrator struct {
 	computeStatsBySpanKind bool
 	// bucket duration in nanoseconds
@@ -36,6 +42,7 @@ type SpanConcentrator struct {
 	buckets map[int64]*RawBucket
 }
 
+// NewSpanConcentrator builds a new SpanConcentrator object
 func NewSpanConcentrator(cfg *SpanConcentratorConfig, now time.Time) *SpanConcentrator {
 	sc := &SpanConcentrator{
 		computeStatsBySpanKind: false,
@@ -83,10 +90,13 @@ func (sc *SpanConcentrator) addSpan(s *pb.Span, aggKey PayloadAggregationKey, co
 	b.HandleSpan(s, weight, isTop, origin, aggKey, sc.peerTagsAggregation, sc.peerTagKeys)
 }
 
+// AddSpan to the SpanConcentrator, appending the new data to the appropriate internal bucket.
 func (sc *SpanConcentrator) AddSpan(s *pb.Span, aggKey PayloadAggregationKey, containerID string, containerTags []string, origin string) {
 	sc.addSpan(s, aggKey, containerID, containerTags, origin, 1)
 }
 
+// Flush deletes and returns complete ClientStatsPayloads.
+// The force boolean guarantees flushing all buckets if set to true.
 func (sc *SpanConcentrator) Flush(now int64, force bool) []*pb.ClientStatsPayload {
 	m := make(map[PayloadAggregationKey][]*pb.ClientStatsBucket)
 	containerTagsByID := make(map[string][]string)
