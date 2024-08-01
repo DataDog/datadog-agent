@@ -23,6 +23,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	logComponentMock "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -60,6 +62,15 @@ func setUpCollectorTest(t *testing.T, configOverrides map[string]interface{}) co
 		workloadmetafxmock.MockModule(),
 	))
 
+	mockConfig := fxutil.Test[config.Component](t, fx.Options(
+		fx.Replace(config.MockParams{Overrides: configOverrides}),
+		config.MockModule(),
+	)).(config.Mock)
+
+	mockLog := fxutil.Test[logComponent.Component](t, fx.Options(
+		logComponentMock.MockModule(),
+	)).(logComponent.Mock)
+
 	time.Sleep(time.Second)
 
 	wlmExtractor := processwlm.NewWorkloadMetaExtractor(mockStore.GetConfig())
@@ -76,6 +87,8 @@ func setUpCollectorTest(t *testing.T, configOverrides map[string]interface{}) co
 		pidToCid:        make(map[int]string),
 		wlmExtractor:    wlmExtractor,
 		collectionClock: mockClock,
+		config:          mockConfig,
+		log:             mockLog,
 	}
 
 	return collectorTest{processCollector, probe, mockClock, mockStore}
