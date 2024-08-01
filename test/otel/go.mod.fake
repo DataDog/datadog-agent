@@ -9,7 +9,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ./../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ./../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ./../../comp/core/hostname/hostnameinterface
-	github.com/DataDog/datadog-agent/comp/core/log => ./../../comp/core/log
+	github.com/DataDog/datadog-agent/comp/core/log/def => ./../../comp/core/log/def
+	github.com/DataDog/datadog-agent/comp/core/log/mock => ./../../comp/core/log/mock
 	github.com/DataDog/datadog-agent/comp/core/secrets => ./../../comp/core/secrets
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ./../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/def => ./../../comp/def
@@ -89,7 +90,7 @@ replace (
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.56.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.56.0-rc.1
-	github.com/DataDog/datadog-agent/comp/core/log v0.56.0-rc.1
+	github.com/DataDog/datadog-agent/comp/core/log/def v0.56.0-rc.1
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.56.0-rc.1
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl v0.56.0-rc.1
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.56.0-rc.1

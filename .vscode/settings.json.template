@@ -1,0 +1,39 @@
+{{
+    "go.buildTags": "{build_tags}",
+    "go.lintTool": "golangci-lint",
+    "go.lintFlags": [
+        "--build-tags",
+        "{build_tags}",
+        "--config",
+        "{workspace_folder}/.golangci.yml"
+    ],
+    "[go]": {{
+        "editor.formatOnSave": true,
+    }},
+    "gopls": {{
+        "formatting.local": "github.com/DataDog/datadog-agent",
+        "directoryFilters": {excluded_directories},
+    }},
+    "go.testTimeout": "0s",
+    "go.testFlags": [
+      "-v"
+    ],
+    "ruff.configurationPreference": "filesystemFirst",
+    "shellcheck.customArgs": [
+        "--severity=info", "--shell=bash"
+    ],
+    "shellcheck.exclude": [
+        "SC2059",
+        "SC2028"
+    ],
+    "shellcheck.run": "onSave",
+    "python.testing.unittestArgs": [
+        "-v",
+        "-s",
+        "./tasks",
+        "-p",
+        "*_tests.py"
+    ],
+    "python.testing.pytestEnabled": false,
+    "python.testing.unittestEnabled": true
+}}

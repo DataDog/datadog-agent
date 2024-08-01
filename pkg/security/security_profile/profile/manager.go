@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
@@ -371,7 +372,7 @@ func (m *SecurityProfileManager) FillProfileContextFromContainerID(id string, ct
 		profile.Lock()
 		for _, instance := range profile.Instances {
 			instance.Lock()
-			if instance.ContainerID == model.ContainerID(id) {
+			if instance.ContainerID == containerutils.ContainerID(id) {
 				ctx.Name = profile.Metadata.Name
 				profileContext, ok := profile.versionContexts[imageTag]
 				if ok { // should always be the case

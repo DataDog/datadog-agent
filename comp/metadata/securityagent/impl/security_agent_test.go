@@ -20,11 +20,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
+	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -51,7 +51,7 @@ func setupFetcher(t *testing.T) {
 }
 
 func getSecurityAgentComp(t *testing.T, enableConfig bool) *securityagent {
-	l := fxutil.Test[log.Component](t, logimpl.MockModule())
+	l := logmock.New(t)
 
 	cfg := fxutil.Test[config.Component](t, config.MockModule())
 	cfg.Set("inventories_configuration_enabled", enableConfig, model.SourceUnknown)
@@ -59,7 +59,7 @@ func getSecurityAgentComp(t *testing.T, enableConfig bool) *securityagent {
 	r := Requires{
 		Log:        l,
 		Config:     cfg,
-		Serializer: &serializer.MockSerializer{},
+		Serializer: serializermock.NewMetricSerializer(t),
 		AuthToken: fxutil.Test[authtoken.Component](t,
 			authtokenimpl.Module(),
 			fx.Provide(func() log.Component { return l }),

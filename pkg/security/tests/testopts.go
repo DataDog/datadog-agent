@@ -35,6 +35,7 @@ type testOpts struct {
 	activityDumpLocalStorageDirectory          string
 	activityDumpLocalStorageCompression        bool
 	activityDumpLocalStorageFormats            []string
+	activityDumpSyscallMonitorPeriod           time.Duration
 	enableSecurityProfile                      bool
 	securityProfileMaxImageTags                int
 	securityProfileDir                         string
@@ -107,6 +108,7 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.activityDumpCgroupDifferentiateArgs == opts.activityDumpCgroupDifferentiateArgs &&
 		to.activityDumpAutoSuppressionEnabled == opts.activityDumpAutoSuppressionEnabled &&
 		to.activityDumpLoadControllerTimeout == opts.activityDumpLoadControllerTimeout &&
+		to.activityDumpSyscallMonitorPeriod == opts.activityDumpSyscallMonitorPeriod &&
 		reflect.DeepEqual(to.activityDumpTracedEventTypes, opts.activityDumpTracedEventTypes) &&
 		to.activityDumpLocalStorageDirectory == opts.activityDumpLocalStorageDirectory &&
 		to.activityDumpLocalStorageCompression == opts.activityDumpLocalStorageCompression &&

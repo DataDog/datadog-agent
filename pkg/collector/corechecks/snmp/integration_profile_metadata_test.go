@@ -370,6 +370,7 @@ profiles:
       "os_name":"LINUX (3.10.0-862.14.4.el7.ve.x86_64)",
       "os_version":"3.10.0-862.14.4.el7.ve.x86_64",
       "os_hostname":"my-linux-f5-server",
+	  "integration": "snmp",
 	  "device_type": "load_balancer"
     }
   ],

@@ -1633,7 +1633,7 @@ static __always_inline bool kafka_allow_packet(skb_info_t *skb_info) {
 
 // update_path_size_telemetry updates the topic name size telemetry.
 static __always_inline void update_topic_name_size_telemetry(kafka_telemetry_t *kafka_tel, __u64 size) {
-    // We have 10 buckets in the ranges of: 1 - 10, 11 - 20, ... , 71 - 80, 81 - 90, 91 - 100, 101 - 255
+    // We have 10 buckets in the ranges of: 1 - 10, 11 - 20, ... , 71 - 80, 81 - 90, 91 - 255
     __u8 bucket_idx = (size - 1) / KAFKA_TELEMETRY_TOPIC_NAME_BUCKET_SIZE;
 
     // Ensure that the bucket index falls within the valid range.

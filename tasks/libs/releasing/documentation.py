@@ -93,11 +93,13 @@ def release_manager(version, team):
 
     from atlassian import Confluence
 
+    # Disable the rc flag if any to get the release base name `x.y.z`
+    version.rc = False
     c = Confluence(url=CONFLUENCE_DOMAIN, username=username, password=password)
     page = c.get_page_by_title(SPACE_KEY, f"Agent {version}", expand="body.storage")
     account_ids = parse_table(page['body']['storage']['value'], missing=False, teams=[team])
     for id in account_ids:
-        user = c.get_user_by_account_id(id)
+        user = c.get_user_details_by_accountid(id)
         yield user['email']
 
 
@@ -245,3 +247,14 @@ def create_release_notes(freeze_date, teams):
                         pass
 
     return doc.getvalue()
+
+
+def list_not_closed_qa_cards(version):
+    username = os.environ['ATLASSIAN_USERNAME']
+    password = os.environ['ATLASSIAN_PASSWORD']
+    from atlassian import Jira
+
+    jira = Jira(url="https://datadoghq.atlassian.net", username=username, password=password)
+    jql = f'labels in (ddqa) and labels not in (test_ignore) and labels in ({version}-qa)  and status not in ((Done, DONE, "Won\'t Fix", "WON\'T FIX", "In Progress", "Testing/Review", "In review", "✅ Done", "won\'t do", Duplicate, Closed, "NOT DOING", not-do, canceled, QA)) order by created desc'
+    response = jira.jql(jql)
+    return response['issues']

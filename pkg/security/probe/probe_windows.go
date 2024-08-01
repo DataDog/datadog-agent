@@ -207,6 +207,11 @@ func (p *WindowsProbe) Init() error {
 	return p.initEtwFIM()
 }
 
+// GetProfileManager returns the Profile Managers
+func (p *WindowsProbe) GetProfileManager() interface{} {
+	return nil
+}
+
 func (p *WindowsProbe) initEtwFIM() error {
 
 	if !p.config.RuntimeSecurity.FIMEnabled {
@@ -1347,7 +1352,7 @@ func (p *WindowsProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				return
 			}
 
-			p.processKiller.KillAndReport(action.Kill.Scope, action.Kill.Signal, ev, func(pid uint32, sig uint32) error {
+			p.processKiller.KillAndReport(action.Kill.Scope, action.Kill.Signal, rule, ev, func(pid uint32, sig uint32) error {
 				return p.processKiller.KillFromUserspace(pid, sig, ev)
 			})
 		}

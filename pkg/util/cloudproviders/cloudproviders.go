@@ -11,7 +11,7 @@ import (
 	"errors"
 	"sync"
 
-	logComp "github.com/DataDog/datadog-agent/comp/core/log"
+	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
@@ -46,7 +46,7 @@ var cloudProviderDetectors = []cloudProviderDetector{
 }
 
 // DetectCloudProvider detects the cloud provider where the agent is running in order:
-func DetectCloudProvider(ctx context.Context, collectAccountID bool, l logComp.Component) (string, string) {
+func DetectCloudProvider(ctx context.Context, collectAccountID bool, l logcomp.Component) (string, string) {
 	for _, cloudDetector := range cloudProviderDetectors {
 		if cloudDetector.callback(ctx) {
 			l.Infof("Cloud provider %s detected", cloudDetector.name)
