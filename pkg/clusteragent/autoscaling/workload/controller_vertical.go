@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	k8sutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -70,6 +71,7 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 		autoscalerInternal.Spec().TargetRef.Name,
 		autoscalerInternal.Name(),
 		string(scalingValues.Vertical.Source),
+		le.JoinLeaderValue,
 	)
 
 	recomendationID := scalingValues.Vertical.ResourcesHash
@@ -81,6 +83,7 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 			autoscalerInternal.Spec().TargetRef.Name,
 			autoscalerInternal.Name(),
 			string(scalingValues.Vertical.Source),
+			le.JoinLeaderValue,
 		)
 		return autoscaling.NoRequeue, err
 	}
@@ -140,6 +143,7 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 				autoscalerInternal.Name(),
 				string(scalingValues.Vertical.Source),
 				string(requestName),
+				le.JoinLeaderValue,
 			)
 		}
 
@@ -151,6 +155,7 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 				autoscalerInternal.Name(),
 				string(scalingValues.Vertical.Source),
 				string(limitName),
+				le.JoinLeaderValue,
 			)
 		}
 	}
@@ -216,7 +221,7 @@ func (u *verticalController) syncDeploymentKind(
 	_, err = u.dynamicClient.Resource(gvr).Namespace(target.Namespace).Patch(ctx, target.Name, types.StrategicMergePatchType, patchData, metav1.PatchOptions{})
 	if err != nil {
 		err = fmt.Errorf("failed to trigger rollout for gvk: %s, name: %s, err: %v", targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name, err)
-		rolloutTriggered.Inc(target.Kind, target.Name, target.Namespace, "error")
+		rolloutTriggered.Inc(target.Kind, target.Name, target.Namespace, "error", le.JoinLeaderValue)
 		autoscalerInternal.UpdateFromVerticalAction(nil, err)
 		u.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.FailedTriggerRolloutEventReason, err.Error())
 
@@ -225,7 +230,7 @@ func (u *verticalController) syncDeploymentKind(
 
 	// Propagating information about the rollout
 	log.Infof("Successfully triggered rollout for autoscaler: %s, gvk: %s, name: %s", autoscalerInternal.ID(), targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name)
-	rolloutTriggered.Inc(target.Kind, target.Name, target.Namespace, "success")
+	rolloutTriggered.Inc(target.Kind, target.Name, target.Namespace, "success", le.JoinLeaderValue)
 	u.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeNormal, model.SuccessfulTriggerRolloutEventReason, "Successfully triggered rollout on target:%s/%s", targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name)
 
 	autoscalerInternal.UpdateFromVerticalAction(&datadoghq.DatadogPodAutoscalerVerticalAction{

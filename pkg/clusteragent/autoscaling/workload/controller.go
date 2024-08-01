@@ -26,6 +26,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -309,9 +310,9 @@ func (c *Controller) createPodAutoscaler(ctx context.Context, podAutoscalerInter
 
 	for _, condition := range autoscalerStatus.Conditions {
 		if condition.Status == corev1.ConditionTrue {
-			autoscalingStatusConditions.Set(1.0, podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), string(condition.Type), condition.Reason, condition.Message)
+			autoscalingStatusConditions.Set(1.0, podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), string(condition.Type), condition.Reason, condition.Message, le.JoinLeaderValue)
 		} else {
-			autoscalingStatusConditions.Set(0.0, podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), string(condition.Type), condition.Reason, condition.Message)
+			autoscalingStatusConditions.Set(0.0, podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), string(condition.Type), condition.Reason, condition.Message, le.JoinLeaderValue)
 		}
 	}
 

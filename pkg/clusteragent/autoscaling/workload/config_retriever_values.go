@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -87,6 +88,7 @@ func (p autoscalingValuesProcessor) processValues(values *kubeAutoscaling.Worklo
 		podAutoscaler.Namespace(),
 		values.Name,
 		podAutoscaler.Name(),
+		le.JoinLeaderValue,
 	)
 
 	for _, resource := range scalingValues.Vertical.ContainerResources {
@@ -98,6 +100,7 @@ func (p autoscalingValuesProcessor) processValues(values *kubeAutoscaling.Worklo
 				podAutoscaler.Name(),
 				string(scalingValues.Vertical.Source),
 				string(requestName),
+				le.JoinLeaderValue,
 			)
 		}
 
@@ -109,6 +112,7 @@ func (p autoscalingValuesProcessor) processValues(values *kubeAutoscaling.Worklo
 				podAutoscaler.Name(),
 				string(scalingValues.Vertical.Source),
 				string(limitName),
+				le.JoinLeaderValue,
 			)
 		}
 	}

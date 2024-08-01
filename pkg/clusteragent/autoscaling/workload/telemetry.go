@@ -9,11 +9,12 @@ package workload
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	workqueuetelemetry "github.com/DataDog/datadog-agent/pkg/util/workqueue/telemetry"
 )
 
 const (
-	subsystem = "workload_autoscaling"
+	subsystem = "autoscaling"
 )
 
 var commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
@@ -23,7 +24,7 @@ var (
 	rolloutTriggered = telemetry.NewCounterWithOpts(
 		subsystem,
 		"rollout_triggered",
-		[]string{"owner_kind", "owner_name", "namespace", "status"},
+		[]string{"owner_kind", "owner_name", "namespace", "status", le.JoinLeaderLabel},
 		"Tracks the number of patch requests sent by the patcher to the kubernetes api server",
 		commonOpts,
 	)
@@ -32,7 +33,7 @@ var (
 	telemetryHorizontalScaleAttempts = telemetry.NewCounterWithOpts(
 		subsystem,
 		"horizontal_scaling_attempts",
-		[]string{"namespace", "target_name", "autoscaler_name"},
+		[]string{"namespace", "target_name", "autoscaler_name", le.JoinLeaderLabel},
 		"Tracks the number of horizontal scaling events triggered",
 		commonOpts,
 	)
@@ -40,7 +41,7 @@ var (
 	telemetryHorizontalScaleErrors = telemetry.NewCounterWithOpts(
 		subsystem,
 		"horizontal_scaling_errors",
-		[]string{"namespace", "target_name", "autoscaler_name"},
+		[]string{"namespace", "target_name", "autoscaler_name", le.JoinLeaderLabel},
 		"Tracks the number of horizontal scaling events triggered",
 		commonOpts,
 	)
@@ -49,7 +50,7 @@ var (
 	telemetryHorizontalScaleReceivedRecommendations = telemetry.NewGaugeWithOpts(
 		subsystem,
 		"horizontal_scaling_received_replicas",
-		[]string{"namespace", "target_name", "autoscaler_name"},
+		[]string{"namespace", "target_name", "autoscaler_name", le.JoinLeaderLabel},
 		"Tracks the value of replicas applied by the horizontal scaling recommendation",
 		commonOpts,
 	)
@@ -57,7 +58,7 @@ var (
 	telemetryHorizontalScaleAppliedRecommendations = telemetry.NewGaugeWithOpts(
 		subsystem,
 		"horizontal_scaling_applied_replicas",
-		[]string{"namespace", "target_name", "autoscaler_name"},
+		[]string{"namespace", "target_name", "autoscaler_name", le.JoinLeaderLabel},
 		"Tracks the value of replicas applied by the horizontal scaling recommendation",
 		commonOpts,
 	)
@@ -66,7 +67,7 @@ var (
 	telemetryVerticalScaleAttempts = telemetry.NewCounterWithOpts(
 		subsystem,
 		"vertical_scaling_attempts",
-		[]string{"namespace", "target_name", "autoscaler_name", "source"},
+		[]string{"namespace", "target_name", "autoscaler_name", "source", le.JoinLeaderLabel},
 		"Tracks the number of vertical scaling events triggered",
 		commonOpts,
 	)
@@ -74,7 +75,7 @@ var (
 	telemetryVerticalScaleErrors = telemetry.NewCounterWithOpts(
 		subsystem,
 		"vertical_scaling_errors",
-		[]string{"namespace", "target_name", "autoscaler_name", "source"},
+		[]string{"namespace", "target_name", "autoscaler_name", "source", le.JoinLeaderLabel},
 		"Tracks the number of vertical scaling events triggered",
 		commonOpts,
 	)
@@ -83,7 +84,7 @@ var (
 	telemetryVerticalScaleReceivedRecommendationsLimits = telemetry.NewGaugeWithOpts(
 		subsystem,
 		"vertical_scaling_received_limits",
-		[]string{"namespace", "target_name", "autoscaler_name", "resource_name"},
+		[]string{"namespace", "target_name", "autoscaler_name", "source", "resource_name", le.JoinLeaderLabel},
 		"Tracks the value of limits received by the vertical scaling controller",
 		commonOpts,
 	)
@@ -91,7 +92,7 @@ var (
 	telemetryVerticalScaleReceivedRecommendationsRequests = telemetry.NewGaugeWithOpts(
 		subsystem,
 		"vertical_scaling_received_requests",
-		[]string{"namespace", "target_name", "autoscaler_name", "resource_name"},
+		[]string{"namespace", "target_name", "autoscaler_name", "source", "resource_name", le.JoinLeaderLabel},
 		"Tracks the value of requests received by the vertical scaling recommendation",
 		commonOpts,
 	)
@@ -99,7 +100,7 @@ var (
 	telemetryVerticalScaleAppliedRecommendationsLimits = telemetry.NewGaugeWithOpts(
 		subsystem,
 		"vertical_scaling_applied_limits",
-		[]string{"namespace", "target_name", "autoscaler_name", "source", "resource_name"},
+		[]string{"namespace", "target_name", "autoscaler_name", "source", "resource_name", le.JoinLeaderLabel},
 		"Tracks the value of limits applied by the vertical scaling controller",
 		commonOpts,
 	)
@@ -107,7 +108,7 @@ var (
 	telemetryVerticalScaleAppliedRecommendationsRequests = telemetry.NewGaugeWithOpts(
 		subsystem,
 		"vertical_scaling_applied_requests",
-		[]string{"namespace", "target_name", "autoscaler_name", "source", "resource_name"},
+		[]string{"namespace", "target_name", "autoscaler_name", "source", "resource_name", le.JoinLeaderLabel},
 		"Tracks the value of requests applied by the vertical scaling controller",
 		commonOpts,
 	)
@@ -116,7 +117,7 @@ var (
 	autoscalingStatusConditions = telemetry.NewGaugeWithOpts(
 		subsystem,
 		"autoscaler_conditions",
-		[]string{"namespace", "autoscaler_name", "type", "reason", "message"},
+		[]string{"namespace", "autoscaler_name", "type", "reason", "message", le.JoinLeaderLabel},
 		"Tracks the changes in autoscaler conditions",
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)

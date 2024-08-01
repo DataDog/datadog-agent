@@ -27,6 +27,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -129,12 +130,12 @@ func (hr *horizontalController) performScaling(ctx context.Context, podAutoscale
 	}
 
 	scale.Spec.Replicas = horizontalAction.ToReplicas
-	telemetryHorizontalScaleAttempts.Inc(scale.Namespace, scale.Name, podAutoscaler.Name)
+	telemetryHorizontalScaleAttempts.Inc(scale.Namespace, scale.Name, podAutoscaler.Name, le.JoinLeaderValue)
 	_, err = hr.scaler.update(ctx, gr, scale)
 	if err != nil {
 		err = fmt.Errorf("failed to scale target: %s/%s to %d replicas, err: %w", scale.Namespace, scale.Name, horizontalAction.ToReplicas, err)
 		hr.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.FailedScaleEventReason, err.Error())
-		telemetryHorizontalScaleErrors.Inc(scale.Namespace, scale.Name, podAutoscaler.Name)
+		telemetryHorizontalScaleErrors.Inc(scale.Namespace, scale.Name, podAutoscaler.Name, le.JoinLeaderValue)
 		autoscalerInternal.UpdateFromHorizontalAction(nil, err)
 		return autoscaling.Requeue, err
 	}
@@ -147,6 +148,7 @@ func (hr *horizontalController) performScaling(ctx context.Context, podAutoscale
 		scale.Namespace,
 		scale.Name,
 		podAutoscaler.Name,
+		le.JoinLeaderValue,
 	)
 	if nextEvalAfter > 0 {
 		return autoscaling.Requeue.After(nextEvalAfter), nil
