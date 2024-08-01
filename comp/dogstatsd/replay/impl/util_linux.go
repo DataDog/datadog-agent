@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package replay
+package replayimpl
 
 import (
 	"os"

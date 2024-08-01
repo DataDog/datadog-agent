@@ -13,8 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-apm
-
 // Module defines the fx options for the agent component.
 func Module() fxutil.Module {
 	return fxutil.Component(

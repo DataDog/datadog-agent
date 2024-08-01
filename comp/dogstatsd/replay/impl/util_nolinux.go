@@ -5,7 +5,7 @@
 
 //go:build !linux
 
-package replay
+package replayimpl
 
 // GetUcredsForPid returns the replay ucreds for the specified pid
 //
