@@ -162,6 +162,7 @@ func (c *Counters) Increment(r Result) {
 		c.UnexpectedErr++
 	}
 }
+
 // Catalog stores the list of registered Diagnose functions
 type Catalog struct {
 	suites []Suite
