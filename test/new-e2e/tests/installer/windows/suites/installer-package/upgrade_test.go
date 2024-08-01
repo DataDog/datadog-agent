@@ -41,5 +41,5 @@ func (s *testInstallerUpgradesSuite) TestUpgrades() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasBinary(installerwindows.BinaryPath).
 		WithSignature(agent.GetCodeSignatureThumbprints()).
-		WithVersionEqual(s.CurrentAgentVersion())
+		WithVersionEqual(s.CurrentAgentVersion().GetNumberAndPre())
 }
