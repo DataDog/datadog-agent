@@ -13,8 +13,8 @@ import (
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/config/logs"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 // Requires declares the input types to the logger component constructor
@@ -35,8 +35,8 @@ func NewComponent(deps Requires) (Provides, error) {
 		return Provides{}, errors.New("must call one of core.BundleParams.ForOneShot or ForDaemon")
 	}
 
-	err := pkgconfiglogs.SetupLogger(
-		pkgconfiglogs.LoggerName(deps.Params.LoggerName()),
+	err := pkglogsetup.SetupLogger(
+		pkglogsetup.LoggerName(deps.Params.LoggerName()),
 		deps.Params.LogLevelFn(deps.Config),
 		deps.Params.LogFileFn(deps.Config),
 		deps.Params.LogSyslogURIFn(deps.Config),
