@@ -299,7 +299,9 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_close_clean_protocols) {
         bpf_map_delete_elem(&tcp_close_args, &pid_tgid);
     }
 
-    bpf_tail_call_compat(ctx, &tcp_close_progs, 0);
+    if (is_batching_enabled()) {
+        bpf_tail_call_compat(ctx, &tcp_close_progs, 0);
+    }
 
     return 0;
 }

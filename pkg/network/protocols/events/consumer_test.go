@@ -18,10 +18,13 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/ebpf/features"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -132,7 +135,7 @@ func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
 	}
 	defer bc.Close()
 
-	m := &manager.Manager{
+	m := ddebpf.NewManager(&manager.Manager{
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -140,7 +143,7 @@ func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
 				},
 			},
 		},
-	}
+	})
 	options := manager.Options{
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,
@@ -160,12 +163,16 @@ func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
 			},
 		},
 	}
-
-	Configure(config.New(), "test", m, &options)
-	err = m.InitWithOptions(bc, options)
+	if err := m.LoadELF(bc); err != nil {
+		return nil, err
+	}
+	Configure(config.New(), "test", m.Manager, &options)
+	if features.HaveMapType(ebpf.RingBuf) != nil {
+		m.EnabledModifiers = append(m.EnabledModifiers, ddebpf.NewHelperCallRemover(asm.FnRingbufOutput))
+	}
+	err = m.InitWithOptions(nil, &options)
 	if err != nil {
 		return nil, err
 	}
-
-	return m, nil
+	return m.Manager, nil
 }

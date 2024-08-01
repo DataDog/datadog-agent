@@ -26,12 +26,12 @@ func NewNoOpConntracker() Conntracker {
 func (*noOpConntracker) GetType() string { return "" }
 
 //nolint:revive // TODO(NET) Fix revive linter
-func (*noOpConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {
+func (*noOpConntracker) GetTranslationForConn(c *network.ConnectionStats) *network.IPTranslation {
 	return nil
 }
 
 //nolint:revive // TODO(NET) Fix revive linter
-func (*noOpConntracker) DeleteTranslation(c network.ConnectionStats) {
+func (*noOpConntracker) DeleteTranslation(c *network.ConnectionStats) {
 
 }
 

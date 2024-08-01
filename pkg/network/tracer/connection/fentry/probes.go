@@ -140,7 +140,6 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, tcpSendPageReturn)
 		enableProgram(enabled, selectVersionBasedProbe(kv, tcpRecvMsgReturn, tcpRecvMsgPre5190Return, kv5190))
 		enableProgram(enabled, tcpClose)
-		enableProgram(enabled, tcpCloseReturn)
 		enableProgram(enabled, tcpConnect)
 		enableProgram(enabled, tcpFinishConnect)
 		enableProgram(enabled, inetCskAcceptReturn)
@@ -155,30 +154,40 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		// if err == nil && len(missing) == 0 {
 		// 	enableProgram(enabled, sockFDLookupRet)
 		// }
+
+		if c.KernelBatchingEnabled {
+			enableProgram(enabled, tcpCloseReturn)
+		}
 	}
 
 	if c.CollectUDPv4Conns {
 		enableProgram(enabled, udpSendPageReturn)
 		enableProgram(enabled, udpDestroySock)
-		enableProgram(enabled, udpDestroySockReturn)
 		enableProgram(enabled, inetBind)
 		enableProgram(enabled, inetBindRet)
 		enableProgram(enabled, udpRecvMsg)
 		enableProgram(enabled, selectVersionBasedProbe(kv, udpRecvMsgReturn, udpRecvMsgPre5190Return, kv5190))
 		enableProgram(enabled, udpSendMsgReturn)
 		enableProgram(enabled, udpSendSkb)
+
+		if c.KernelBatchingEnabled {
+			enableProgram(enabled, udpDestroySockReturn)
+		}
 	}
 
 	if c.CollectUDPv6Conns {
 		enableProgram(enabled, udpSendPageReturn)
 		enableProgram(enabled, udpv6DestroySock)
-		enableProgram(enabled, udpv6DestroySockReturn)
 		enableProgram(enabled, inet6Bind)
 		enableProgram(enabled, inet6BindRet)
 		enableProgram(enabled, udpv6RecvMsg)
 		enableProgram(enabled, selectVersionBasedProbe(kv, udpv6RecvMsgReturn, udpv6RecvMsgPre5190Return, kv5190))
 		enableProgram(enabled, udpv6SendMsgReturn)
 		enableProgram(enabled, udpv6SendSkb)
+
+		if c.KernelBatchingEnabled {
+			enableProgram(enabled, udpv6DestroySockReturn)
+		}
 	}
 
 	if c.CollectUDPv4Conns || c.CollectUDPv6Conns {

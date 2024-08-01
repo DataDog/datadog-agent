@@ -17,6 +17,8 @@ import (
 	"unsafe"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/ebpf/features"
 	"github.com/davecgh/go-spew/spew"
 	"golang.org/x/sys/unix"
 
@@ -374,6 +376,10 @@ func (e *ebpfProgram) configureManagerWithSupportedProtocols(protocols []*protoc
 }
 
 func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) error {
+	if err := e.LoadELF(buf); err != nil {
+		return fmt.Errorf("loading ELF: %w", err)
+	}
+
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
 	if e.cfg.AttachKprobesWithKprobeEventsABI {
 		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
@@ -433,16 +439,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	for _, p := range supported {
 		p.Instance.ConfigureOptions(e.Manager.Manager, &options)
 	}
-	if e.cfg.InternalTelemetryEnabled {
-		for _, pm := range e.PerfMaps {
-			pm.TelemetryEnabled = true
-			ebpftelemetry.ReportPerfMapTelemetry(pm)
-		}
-		for _, rb := range e.RingBuffers {
-			rb.TelemetryEnabled = true
-			ebpftelemetry.ReportRingBufferTelemetry(rb)
-		}
-	}
 
 	// Add excluded functions from disabled protocols
 	for _, p := range notSupported {
@@ -465,7 +461,10 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		}
 	}
 
-	err := e.InitWithOptions(buf, &options)
+	if features.HaveMapType(ebpf.RingBuf) != nil {
+		e.EnabledModifiers = append(e.EnabledModifiers, ddebpf.NewHelperCallRemover(asm.FnRingbufOutput))
+	}
+	err := e.InitWithOptions(nil, &options)
 	if err != nil {
 		cleanup()
 	} else {

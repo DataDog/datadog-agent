@@ -15,8 +15,8 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -169,14 +169,14 @@ func testTracerFallbackCOREAndRCErr(t *testing.T) {
 	runFallbackTests(t, "CORE and RC error", true, true, tests)
 }
 
-func loaderFunc(closeFn func(), err error) func(_ *config.Config, _ manager.Options, _ ddebpf.EventHandler, _ ddebpf.EventHandler) (*manager.Manager, func(), error) {
-	return func(_ *config.Config, _ manager.Options, _ ddebpf.EventHandler, _ ddebpf.EventHandler) (*manager.Manager, func(), error) {
+func loaderFunc(closeFn func(), err error) func(_ *config.Config, _ manager.Options, _ *perf.EventHandler, _ *perf.EventHandler) (*manager.Manager, func(), error) {
+	return func(_ *config.Config, _ manager.Options, _ *perf.EventHandler, _ *perf.EventHandler) (*manager.Manager, func(), error) {
 		return nil, closeFn, err
 	}
 }
 
-func prebuiltLoaderFunc(closeFn func(), err error) func(_ *config.Config, _ manager.Options, _ ddebpf.EventHandler) (*manager.Manager, func(), error) {
-	return func(_ *config.Config, _ manager.Options, _ ddebpf.EventHandler) (*manager.Manager, func(), error) {
+func prebuiltLoaderFunc(closeFn func(), err error) func(_ *config.Config, _ manager.Options, _ *perf.EventHandler) (*manager.Manager, func(), error) {
+	return func(_ *config.Config, _ manager.Options, _ *perf.EventHandler) (*manager.Manager, func(), error) {
 		return nil, closeFn, err
 	}
 }
@@ -251,12 +251,12 @@ func TestCORETracerSupported(t *testing.T) {
 	})
 
 	coreCalled := false
-	coreTracerLoader = func(config *config.Config, mgrOpts manager.Options, closedConnEventHandler ddebpf.EventHandler, failedConnEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+	coreTracerLoader = func(config *config.Config, mgrOpts manager.Options, closedConnEventHandler *perf.EventHandler, failedConnEventHandler *perf.EventHandler) (*manager.Manager, func(), error) {
 		coreCalled = true
 		return nil, nil, nil
 	}
 	prebuiltCalled := false
-	prebuiltTracerLoader = func(config *config.Config, mgrOpts manager.Options, closedConnEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+	prebuiltTracerLoader = func(config *config.Config, mgrOpts manager.Options, closedConnEventHandler *perf.EventHandler) (*manager.Manager, func(), error) {
 		prebuiltCalled = true
 		return nil, nil, nil
 	}
@@ -296,7 +296,7 @@ func TestCORETracerSupported(t *testing.T) {
 
 func TestDefaultKprobeMaxActiveSet(t *testing.T) {
 	prevLoader := tracerLoaderFromAsset
-	tracerLoaderFromAsset = func(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, failedConnHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+	tracerLoaderFromAsset = func(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, connCloseEventHandler *perf.EventHandler, failedConnHandler *perf.EventHandler) (*manager.Manager, func(), error) {
 		assert.Equal(t, mgrOpts.DefaultKProbeMaxActive, 128)
 		return nil, nil, nil
 	}

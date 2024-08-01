@@ -11,9 +11,8 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
+	"github.com/DataDog/datadog-agent/pkg/util/slices"
 )
 
 var mainProbes = []probes.ProbeFuncName{
@@ -32,9 +31,7 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.TCPReadSockReturn,
 	probes.TCPClose,
 	probes.TCPDone,
-	probes.TCPDoneFlushReturn,
 	probes.TCPCloseCleanProtocolsReturn,
-	probes.TCPCloseFlushReturn,
 	probes.TCPConnect,
 	probes.TCPFinishConnect,
 	probes.IPMakeSkb,
@@ -50,9 +47,7 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.InetCskAcceptReturn,
 	probes.InetCskListenStop,
 	probes.UDPDestroySock,
-	probes.UDPDestroySockReturn,
 	probes.UDPv6DestroySock,
-	probes.UDPv6DestroySockReturn,
 	probes.InetBind,
 	probes.Inet6Bind,
 	probes.InetBindRet,
@@ -61,7 +56,14 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.UDPSendPageReturn,
 }
 
-func initManager(mgr *ddebpf.Manager, connCloseEventHandler ddebpf.EventHandler, failedConnsHandler ddebpf.EventHandler, runtimeTracer bool, cfg *config.Config) error {
+var batchProbes = []probes.ProbeFuncName{
+	probes.TCPDoneFlushReturn,
+	probes.TCPCloseFlushReturn,
+	probes.UDPDestroySockReturn,
+	probes.UDPv6DestroySockReturn,
+}
+
+func initManager(mgr *ddebpf.Manager, runtimeTracer bool) error {
 	mgr.Maps = []*manager.Map{
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
@@ -83,48 +85,45 @@ func initManager(mgr *ddebpf.Manager, connCloseEventHandler ddebpf.EventHandler,
 		{Name: probes.ClassificationProgsMap},
 		{Name: probes.TCPCloseProgsMap},
 	}
-	util.SetupClosedConnHandler(connCloseEventHandler, mgr, cfg)
-	if cfg.FailedConnectionsSupported() && failedConnsHandler != nil {
-		util.SetupFailedConnHandler(failedConnsHandler, mgr, cfg)
-	}
 
-	for _, funcName := range mainProbes {
-		p := &manager.Probe{
+	var funcNameToProbe = func(funcName probes.ProbeFuncName) *manager.Probe {
+		return &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: funcName,
 				UID:          probeUID,
 			},
 		}
-		mgr.Probes = append(mgr.Probes, p)
 	}
 
-	mgr.Probes = append(mgr.Probes,
-		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.SKBFreeDatagramLocked, UID: probeUID}},
-		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UnderscoredSKBFreeDatagramLocked, UID: probeUID}},
-		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.SKBConsumeUDP, UID: probeUID}},
-	)
+	mgr.Probes = append(mgr.Probes, slices.Map(mainProbes, funcNameToProbe)...)
+	mgr.Probes = append(mgr.Probes, slices.Map(batchProbes, funcNameToProbe)...)
+	mgr.Probes = append(mgr.Probes, slices.Map([]probes.ProbeFuncName{
+		probes.SKBFreeDatagramLocked,
+		probes.UnderscoredSKBFreeDatagramLocked,
+		probes.SKBConsumeUDP,
+	}, funcNameToProbe)...)
 
 	if !runtimeTracer {
 		// the runtime compiled tracer has no need for separate probes targeting specific kernel versions, since it can
 		// do that with #ifdefs inline. Thus, the following probes should only be declared as existing in the prebuilt
 		// tracer.
-		mgr.Probes = append(mgr.Probes,
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPRetransmitPre470, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.IPMakeSkbPre4180, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.IP6MakeSkbPre470, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.IP6MakeSkbPre5180, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPRecvMsgPre5190, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPv6RecvMsgPre5190, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPRecvMsgPre470, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPv6RecvMsgPre470, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPRecvMsgPre410, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPv6RecvMsgPre410, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPRecvMsgReturnPre470, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.UDPv6RecvMsgReturnPre470, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPSendMsgPre410, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPRecvMsgPre410, UID: probeUID}},
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.TCPRecvMsgPre5190, UID: probeUID}},
-		)
+		mgr.Probes = append(mgr.Probes, slices.Map([]probes.ProbeFuncName{
+			probes.TCPRetransmitPre470,
+			probes.IPMakeSkbPre4180,
+			probes.IP6MakeSkbPre470,
+			probes.IP6MakeSkbPre5180,
+			probes.UDPRecvMsgPre5190,
+			probes.UDPv6RecvMsgPre5190,
+			probes.UDPRecvMsgPre470,
+			probes.UDPv6RecvMsgPre470,
+			probes.UDPRecvMsgPre410,
+			probes.UDPv6RecvMsgPre410,
+			probes.UDPRecvMsgReturnPre470,
+			probes.UDPv6RecvMsgReturnPre470,
+			probes.TCPSendMsgPre410,
+			probes.TCPRecvMsgPre410,
+			probes.TCPRecvMsgPre5190,
+		}, funcNameToProbe)...)
 	}
 
 	return nil

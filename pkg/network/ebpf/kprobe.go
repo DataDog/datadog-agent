@@ -102,3 +102,12 @@ func (cs ConnStats) IsAssured() bool {
 func ToBatch(data []byte) *Batch {
 	return (*Batch)(unsafe.Pointer(&data[0]))
 }
+
+// UnmarshalBinary implements encoding.BinaryUnmarshaler interface
+func (fc *FailedConn) UnmarshalBinary(data []byte) error {
+	if len(data) < SizeofFailedConn {
+		return fmt.Errorf("'FailedConn' binary data too small, received %d but expected %d bytes", len(data), SizeofFailedConn)
+	}
+	*fc = *(*FailedConn)(unsafe.Pointer(&data[0]))
+	return nil
+}
