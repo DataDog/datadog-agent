@@ -83,6 +83,7 @@ void initLogger(rtloader_t *rtloader) {
 void GetClusterName(char **);
 void GetConfig(char*, char **);
 void GetHostname(char **);
+void GetHostTags(char **);
 void GetVersion(char **);
 void Headers(char **);
 char * ReadPersistentCache(char *);
@@ -94,7 +95,6 @@ char* ObfuscateSQL(char *, char *, char **);
 char* ObfuscateSQLExecPlan(char *, bool, char **);
 double getProcessStartTime();
 char* ObfuscateMongoDBString(char *, char **);
-void GetHostTags(char **);
 
 void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_clustername_cb(rtloader, GetClusterName);
