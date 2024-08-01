@@ -16,12 +16,16 @@ AWS_S3_LS_CMD = "aws s3api list-objects-v2 --bucket '{bucket}' --prefix '{prefix
 
 def get_ci_visibility_job_url(name: str, prefix=True, extra_flags: list[str] | str = "") -> str:
     # Escape (https://docs.datadoghq.com/logs/explorer/search_syntax/#escape-special-characters-and-spaces)
+    fully_escaped = re.sub(r"([-+=&|><!(){}[\]^\"“”~*?:\\ ])", r"\\\1", name)
+
     if prefix:
         # Cannot escape using double quotes for glob syntax
-        name = re.sub(r"([-+=&|><!(){}[\]^\"“”~*?:\\ ])", r"\\\1", name) + '*'
+        name = fully_escaped + '*'
         name = quote(name)
-    else:
+    elif '"' not in name and '\\' not in name:
         name = quote(f'"{name}"')
+    else:
+        name = quote(fully_escaped)
 
     if isinstance(extra_flags, list):
         extra_flags = quote(''.join(' ' + flag for flag in extra_flags))
