@@ -53,11 +53,14 @@ type collector struct {
 	// taskCollectionEnabled is a flag to enable detailed task collection
 	// if the flag is enabled, the collector will query the latest metadata endpoint, currently v4, for each task
 	// that is returned from the v1/tasks endpoint
-	taskCollectionEnabled bool
-	taskCollectionParser  util.TaskParser
-	taskCache             *cache.Cache
-	taskRateRPS           int
-	taskRateBurst         int
+	taskCollectionEnabled        bool
+	taskCollectionParser         util.TaskParser
+	taskCache                    *cache.Cache
+	taskRateRPS                  int
+	taskRateBurst                int
+	metadataRetryInitialInterval time.Duration
+	metadataRetryMaxElapsedTime  time.Duration
+	metadataRetryTimeoutFactor   int
 }
 
 type resourceTags struct {
@@ -69,15 +72,18 @@ type resourceTags struct {
 func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
-			id:                    collectorID,
-			resourceTags:          make(map[string]resourceTags),
-			seen:                  make(map[workloadmeta.EntityID]struct{}),
-			catalog:               workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
-			config:                deps.Config,
-			taskCollectionEnabled: util.IsTaskCollectionEnabled(deps.Config),
-			taskCache:             cache.New(deps.Config.GetDuration("ecs_task_cache_ttl"), 30*time.Second),
-			taskRateRPS:           deps.Config.GetInt("ecs_task_collection_rate"),
-			taskRateBurst:         deps.Config.GetInt("ecs_task_collection_burst"),
+			id:                           collectorID,
+			resourceTags:                 make(map[string]resourceTags),
+			seen:                         make(map[workloadmeta.EntityID]struct{}),
+			catalog:                      workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			config:                       deps.Config,
+			taskCollectionEnabled:        util.IsTaskCollectionEnabled(deps.Config),
+			taskCache:                    cache.New(deps.Config.GetDuration("ecs_task_cache_ttl"), 30*time.Second),
+			taskRateRPS:                  deps.Config.GetInt("ecs_task_collection_rate"),
+			taskRateBurst:                deps.Config.GetInt("ecs_task_collection_burst"),
+			metadataRetryInitialInterval: deps.Config.GetDuration("ecs_metadata_retry_initial_interval"),
+			metadataRetryMaxElapsedTime:  deps.Config.GetDuration("ecs_metadata_retry_max_elapsed_time"),
+			metadataRetryTimeoutFactor:   deps.Config.GetInt("ecs_metadata_retry_timeout_factor"),
 		},
 	}, nil
 }
