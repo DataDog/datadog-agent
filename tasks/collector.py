@@ -64,7 +64,7 @@ class YAMLValidationError(Exception):
         super().__init__(message)
 
 
-def validate_manifest(manifest):  # return list of components to remove, empty list if valid
+def validate_manifest(manifest) -> list:  # return list of components to remove, empty list if valid
     # validate collector version matches ocb version
     version_checks = ["otelcol_version"]
     for version in version_checks:
