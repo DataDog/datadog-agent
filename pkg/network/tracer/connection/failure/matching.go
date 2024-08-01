@@ -105,16 +105,12 @@ func (fc *FailedConns) upsertConn(failedConn *ebpf.FailedConn) {
 
 // MatchFailedConn increments the failed connection counters for a given connection based on the failed connection map
 func (fc *FailedConns) MatchFailedConn(conn *network.ConnectionStats) {
-	if fc == nil {
+	if fc == nil || conn.Type != network.TCP {
 		return
 	}
 
 	fc.Lock()
 	defer fc.Unlock()
-
-	if conn.Type != network.TCP {
-		return
-	}
 
 	util.ConnStatsToTuple(conn, fc.failureTuple)
 
