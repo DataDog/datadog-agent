@@ -8,6 +8,7 @@ include:
   stage: deploy_packages
   rules:
     - !reference [.on_deploy]
+    - !reference [.on_deploy_installer]
     - !reference [.on_installer_or_e2e_changes]
     - !reference [.manual]
   before_script:

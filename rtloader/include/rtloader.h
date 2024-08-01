@@ -336,6 +336,15 @@ public:
     */
     virtual void setLogCb(cb_log_t) = 0;
 
+    //! sendLogCb member.
+    /*!
+      \param A cb_send_log_t function pointer to the CGO callback.
+
+      This allows us to set the relevant CGO callback that will allow for sending a log for
+      eventual submission for a specific check instance.
+    */
+    virtual void setSendLogCb(cb_send_log_t) = 0;
+
     //! setCheckMetadataCb member.
     /*!
       \param A cb_set_check_metadata_t function pointer to the CGO callback.
