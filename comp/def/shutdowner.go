@@ -6,7 +6,7 @@
 // Package compdef defines basic types used for components
 package compdef
 
-// Shutdowner may be added to a component's requires struct so it can shutdown the application
+// Shutdowner may be added to a component's dependencies so it can shutdown the application
 type Shutdowner interface {
 	Shutdown() error
 }

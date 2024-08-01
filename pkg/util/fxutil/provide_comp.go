@@ -294,8 +294,8 @@ func coerceStructTo(input reflect.Value, outType reflect.Type, oldEmbed, newEmbe
 	return result
 }
 
-// FxPrerequisites returns all of our adapters from compdef types to fx types
-func FxPrerequisites() fx.Option {
+// FxAgentBase returns all of our adapters from compdef types to fx types
+func FxAgentBase() fx.Option {
 	return fx.Options(
 		FxLoggingOption(),
 		fx.Provide(newFxLifecycleAdapter),
