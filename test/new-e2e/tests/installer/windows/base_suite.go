@@ -7,6 +7,7 @@ package installer
 
 import (
 	"fmt"
+	agentVersion "github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
@@ -56,7 +57,7 @@ func newVersionFromPackageVersion(packageVersion string) PackageVersion {
 type BaseInstallerSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
 	installer              *DatadogInstaller
-	currentAgentVersion    string
+	currentAgentVersion    agentVersion.Version
 	stableInstallerVersion PackageVersion
 	stableAgentVersion     PackageVersion
 }
@@ -67,8 +68,8 @@ func (s *BaseInstallerSuite) Installer() *DatadogInstaller {
 }
 
 // CurrentAgentVersion the version of the Agent in the current pipeline
-func (s *BaseInstallerSuite) CurrentAgentVersion() string {
-	return s.currentAgentVersion
+func (s *BaseInstallerSuite) CurrentAgentVersion() *agentVersion.Version {
+	return &s.currentAgentVersion
 }
 
 // StableInstallerVersion the version of the last published stable installer
@@ -90,10 +91,9 @@ func (s *BaseInstallerSuite) SetupSuite() {
 		s.FailNow("E2E_PIPELINE_ID env var is not set, this test requires this variable to be set to work")
 	}
 
-	s.currentAgentVersion = os.Getenv("CURRENT_AGENT_VERSION")
-	if s.currentAgentVersion == "" {
-		s.FailNow("CURRENT_AGENT_VERSION was not set")
-	}
+	var err error
+	s.currentAgentVersion, err = agentVersion.New(os.Getenv("CURRENT_AGENT_VERSION"), "")
+	s.Require().NoError(err, "Agent version was in an incorrect format")
 
 	s.stableInstallerVersion = newVersionFromPackageVersion(os.Getenv("STABLE_INSTALLER_VERSION_PACKAGE"))
 	if s.stableInstallerVersion.PackageVersion() == "" {

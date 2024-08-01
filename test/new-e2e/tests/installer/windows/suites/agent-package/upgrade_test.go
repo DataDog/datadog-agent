@@ -52,7 +52,6 @@ func (s *testAgentUpgradeSuite) installStableAgent() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().
 		WithVersionMatchPredicate(func(version string) {
-			// StableInstallerVersion should be the same as the StableAgentVersion
 			s.Require().Contains(version, s.StableAgentVersion().Version())
 		}).
 		DirExists(installerwindows.GetStableDirFor(installerwindows.AgentPackage))
@@ -69,7 +68,7 @@ func (s *testAgentUpgradeSuite) startLatestExperiment() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().
 		WithVersionMatchPredicate(func(version string) {
-			s.Require().Contains(version, s.CurrentAgentVersion())
+			s.Require().Contains(version, s.CurrentAgentVersion().GetNumberAndPre())
 		}).
 		DirExists(installerwindows.GetExperimentDirFor(installerwindows.AgentPackage))
 }
