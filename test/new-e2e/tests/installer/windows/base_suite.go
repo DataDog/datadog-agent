@@ -15,11 +15,43 @@ import (
 	"strings"
 )
 
+// PackageVersion is a helper type to store both the version and the package version of a binary.
+// The package version has the "-1" suffix, whereas the binary's "version" command does not contain the "-1" suffix.
+type PackageVersion struct {
+	value        string
+	packageValue string
+}
+
+// Version the version without the package suffix
+func (v PackageVersion) Version() string {
+	return v.value
+}
+
+// PackageVersion the version with the package suffix
+func (v PackageVersion) PackageVersion() string {
+	return v.packageValue
+}
+
+func newVersionFromPackageVersion(packageVersion string) PackageVersion {
+	return PackageVersion{
+		value:        strings.TrimSuffix(packageVersion, "-1"),
+		packageValue: packageVersion,
+	}
+}
+
+func newVersion(version string) PackageVersion {
+	return PackageVersion{
+		value:        version,
+		packageValue: fmt.Sprintf("%s-1", version),
+	}
+}
+
 // BaseInstallerSuite the base suite for all installer tests on Windows.
 // To run the test suites locally, pick a pipeline and define the following environment variables:
 // E2E_PIPELINE_ID: the ID of the pipeline
 // CURRENT_AGENT_VERSION: pull it from one of the jobs that builds the Agent
-// STABLE_INSTALLER_VERSION_PACKAGE: use `crane ls public.ecr.aws/datadog/installer-package | sort | tail -n 2 | head -n 1` '
+// STABLE_INSTALLER_VERSION_PACKAGE: use `crane ls public.ecr.aws/datadog/installer-package | sort | tail -n 2 | head -n 1`
+// STABLE_AGENT_VERSION_PACKAGE: use `crane ls public.ecr.aws/datadog/agent-package | sort | tail -n 2 | head -n 1`
 // or pick any other version from that registry.
 //
 // For example:
@@ -27,12 +59,13 @@ import (
 //	E2E_PIPELINE_ID=40537701;
 //	CURRENT_AGENT_VERSION=7.57.0-devel+git.370.d429ae3;
 //	STABLE_INSTALLER_VERSION_PACKAGE=7.56.0-installer-0.4.6-1-1
+//	STABLE_AGENT_VERSION_PACKAGE=7.55.2-1
 type BaseInstallerSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
-	installer                     *DatadogInstaller
-	currentAgentVersion           string
-	stableInstallerVersionPackage string
-	stableInstallerVersion        string
+	installer              *DatadogInstaller
+	currentAgentVersion    string
+	stableInstallerVersion PackageVersion
+	stableAgentVersion     PackageVersion
 }
 
 // Installer the Datadog Installer for testing.
@@ -46,13 +79,13 @@ func (s *BaseInstallerSuite) CurrentAgentVersion() string {
 }
 
 // StableInstallerVersion the version of the last published stable installer
-func (s *BaseInstallerSuite) StableInstallerVersion() string {
+func (s *BaseInstallerSuite) StableInstallerVersion() PackageVersion {
 	return s.stableInstallerVersion
 }
 
-// StableInstallerVersionPackage same as StableInstallerVersion but with the suffix `-1`
-func (s *BaseInstallerSuite) StableInstallerVersionPackage() string {
-	return s.stableInstallerVersionPackage
+// StableAgentVersion the version of the last published stable agent
+func (s *BaseInstallerSuite) StableAgentVersion() PackageVersion {
+	return s.stableAgentVersion
 }
 
 // SetupSuite checks that the environment variables are correctly setup for the test
@@ -66,14 +99,18 @@ func (s *BaseInstallerSuite) SetupSuite() {
 
 	s.currentAgentVersion = os.Getenv("CURRENT_AGENT_VERSION")
 	if s.currentAgentVersion == "" {
-		s.FailNow("Set CURRENT_AGENT_VERSION")
+		s.FailNow("CURRENT_AGENT_VERSION was not set")
 	}
 
-	s.stableInstallerVersionPackage = os.Getenv("STABLE_INSTALLER_VERSION_PACKAGE")
-	if s.stableInstallerVersionPackage == "" {
-		s.FailNow("Set STABLE_INSTALLER_VERSION_PACKAGE")
+	s.stableInstallerVersion = newVersionFromPackageVersion(os.Getenv("STABLE_INSTALLER_VERSION_PACKAGE"))
+	if s.stableInstallerVersion.PackageVersion() == "" {
+		s.FailNow("STABLE_INSTALLER_VERSION_PACKAGE was not set")
 	}
-	s.stableInstallerVersion = strings.TrimSuffix(s.stableInstallerVersionPackage, "-1")
+
+	s.stableAgentVersion = newVersionFromPackageVersion(os.Getenv("STABLE_AGENT_VERSION_PACKAGE"))
+	if s.stableAgentVersion.PackageVersion() == "" {
+		s.FailNow("STABLE_AGENT_VERSION_PACKAGE was not set")
+	}
 }
 
 // BeforeTest creates a new Datadog Installer and sets the output logs directory for each tests
