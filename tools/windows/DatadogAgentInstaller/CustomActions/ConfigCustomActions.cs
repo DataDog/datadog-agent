@@ -426,56 +426,55 @@ namespace Datadog.CustomActions
 
         private static ActionResult DDCreateFolders(ISession session)
         {
-            var path = session.Property("APPLICATIONDATADIRECTORY");
-
-            // This section is copied from RollbackDataStore.cs
-            // Create DACL for only SYSTEM and Administrators, disable inheritance
-            FileSystemSecurity security = new DirectorySecurity();
-            security.SetAccessRuleProtection(true, false);
-            security.AddAccessRule(new FileSystemAccessRule(
-                new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
-                FileSystemRights.FullControl,
-                InheritanceFlags.ObjectInherit | InheritanceFlags.ContainerInherit,
-                PropagationFlags.None,
-                AccessControlType.Allow));
-            security.AddAccessRule(new FileSystemAccessRule(
-                new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
-                FileSystemRights.FullControl,
-                InheritanceFlags.ObjectInherit | InheritanceFlags.ContainerInherit,
-                PropagationFlags.None,
-                AccessControlType.Allow));
-
-            if (Directory.Exists(path)) // If the Datadog directory already exists, we need ensure it is locked down
+            try
             {
-                session.Log($"{path} already exists. Verifying permissions");
-                var directoryInfo = new DirectoryInfo(path);
-                var _fileSystemServices = new FileSystemServices();
-                var _fileSystemSecurity = _fileSystemServices.GetAccessControl(path, AccessControlSections.All);
+                var path = session.Property("APPLICATIONDATADIRECTORY");
 
-                // Getting and removing old owner
-                var owner = (SecurityIdentifier)_fileSystemSecurity.GetOwner(typeof(SecurityIdentifier));
-                var group = (SecurityIdentifier)_fileSystemSecurity.GetGroup(typeof(SecurityIdentifier));
-                session.Log($"{path} has owner: {owner}. Setting owner to SYSTEM");
+                // This section is copied from RollbackDataStore.cs
+                // Create DACL for only SYSTEM and Administrators, disable inheritance
+                FileSystemSecurity security = new DirectorySecurity();
+                security.SetAccessRuleProtection(true, false);
+                security.AddAccessRule(new FileSystemAccessRule(
+                    new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+                    FileSystemRights.FullControl,
+                    InheritanceFlags.ObjectInherit | InheritanceFlags.ContainerInherit,
+                    PropagationFlags.None,
+                    AccessControlType.Allow));
+                security.AddAccessRule(new FileSystemAccessRule(
+                    new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+                    FileSystemRights.FullControl,
+                    InheritanceFlags.ObjectInherit | InheritanceFlags.ContainerInherit,
+                    PropagationFlags.None,
+                    AccessControlType.Allow));
+                security.SetOwner(new SecurityIdentifier(
+                    WellKnownSidType.LocalSystemSid, null));
+                security.SetGroup(new SecurityIdentifier(
+                    WellKnownSidType.LocalSystemSid, null));
 
-                _fileSystemSecurity.SetOwner(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null));
-                _fileSystemSecurity.SetGroup(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null));
+                if (Directory.Exists(path))
+                {
+                    var _oldACL = Directory.GetAccessControl(path, AccessControlSections.All);
+                    session.Log($"{path} current ACL: {_oldACL.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
+                }
+                else
+                {
+                    session.Log($"Creating {path}");
+                }
 
-                // Apply the modified security back to the directory
-                directoryInfo.SetAccessControl((DirectorySecurity)_fileSystemSecurity);
+                // Create the directory with the above DACL
+                Directory.CreateDirectory(path, (DirectorySecurity)security); // Create directory with ACL if needed
+                session.Log($"Updating ACL on {path}");
+                Directory.SetAccessControl(path, (DirectorySecurity)security); // otherwise update ACL in case directory already existed
 
-                // Verifying
-                owner = (SecurityIdentifier)_fileSystemSecurity.GetOwner(typeof(SecurityIdentifier));
-                session.Log($"{path} has new owner: {owner}");
-
-                // Set the modified ACL to the directory
-                directoryInfo.SetAccessControl((DirectorySecurity)security);
-                session.Log($"Permissions for {path} validated successfully.");
+                // Log final permissions and owner
+                var _newACL = Directory.GetAccessControl(path, AccessControlSections.All);
+                session.Log($"{path} final ACL: {_newACL.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
             }
-            else
+
+            catch (Exception e)
             {
-                // Create the directory with the DACL
-                session.Log($"Creating {path}");
-                Directory.CreateDirectory(path, (DirectorySecurity)security);
+                session.Log($"Application directory could not be created/configured: {e}");
+                return ActionResult.Failure;
             }
             return ActionResult.Success;
         }

@@ -552,11 +552,10 @@ namespace WixSetup.Datadog_Agent
             DDCreateFolders = new CustomAction<ConfigCustomActions>(
                     new Id(nameof(DDCreateFolders)),
                     ConfigCustomActions.DDCreateFolders,
-
                     Return.check,
                     When.Before,
                     Step.CreateFolders,
-                    Conditions.FirstInstall | Conditions.Upgrading
+                    Conditions.FirstInstall
                     )
             {
                 Execute = Execute.deferred,
