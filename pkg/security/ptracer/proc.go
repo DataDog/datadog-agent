@@ -9,7 +9,6 @@ package ptracer
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"os"
 	"slices"
@@ -275,16 +274,20 @@ func procToMsg(proc *ProcProcess) (*ebpfless.Message, error) {
 	}, nil
 }
 
-func scanProcfs(ctx context.Context, tracer *Tracer, msgCb func(msg *ebpfless.Message), every time.Duration, logger Logger) {
+func (ctx *CWSPtracerCtx) scanProcfs() {
 	cache := make(map[int32]int64)
 
+	every := ctx.opts.ScanProcEvery
+	if every == 0 {
+		every = 500 * time.Millisecond
+	}
 	ticker := time.NewTicker(every)
 
 	for {
 		select {
 		case <-ticker.C:
-			tracer.pidLock.RLock()
-			for _, pid := range tracer.PIDs {
+			ctx.pidLock.RLock()
+			for _, pid := range ctx.PIDs {
 				add, del, err := collectProcesses(int32(pid), cache)
 				if err != nil {
 					logger.Errorf("unable to collect processes: %v", err)
@@ -293,7 +296,7 @@ func scanProcfs(ctx context.Context, tracer *Tracer, msgCb func(msg *ebpfless.Me
 
 				for _, proc := range add {
 					if msg, err := procToMsg(proc); err == nil {
-						msgCb(msg)
+						_ = ctx.sendMsg(msg)
 					}
 					cache[proc.Pid] = proc.CreateTime
 				}
@@ -311,12 +314,24 @@ func scanProcfs(ctx context.Context, tracer *Tracer, msgCb func(msg *ebpfless.Me
 							Exit:      &ebpfless.ExitSyscallMsg{},
 						},
 					}
-					msgCb(msg)
+					_ = ctx.sendMsg(msg)
 				}
 			}
-			tracer.pidLock.RUnlock()
-		case <-ctx.Done():
+			ctx.pidLock.RUnlock()
+		case <-ctx.cancel.Done():
 			return
 		}
 	}
+}
+
+func (ctx *CWSPtracerCtx) startScanProcfs() {
+	ctx.wg.Add(1)
+	go func() {
+		defer ctx.wg.Done()
+
+		// introduce a delay before starting to scan procfs to let the tracer event first
+		time.Sleep(2 * time.Second)
+
+		ctx.scanProcfs()
+	}()
 }
