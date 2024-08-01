@@ -430,6 +430,10 @@ Package hostinfo wraps the hostinfo inside a component. This is useful because i
 
 Package processcheck implements a component to handle Process data collection in the Process Agent.
 
+### [comp/process/processcollector](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/processcollector)
+
+Package processcollector contains a process-collector component
+
 ### [comp/process/processdiscoverycheck](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck)
 
 Package processdiscoverycheck implements a component to handle Process Discovery data collection in the Process Agent for customers who do not pay for live processes.

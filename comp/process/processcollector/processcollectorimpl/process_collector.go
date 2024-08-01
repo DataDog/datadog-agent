@@ -15,14 +15,14 @@ import (
 
 	"github.com/benbjohnson/clock"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	processwlm "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -35,6 +35,8 @@ type collector struct {
 	id      string
 	store   workloadmeta.Component
 	catalog workloadmeta.AgentType
+	config  config.Component
+	log     logComponent.Component
 
 	wlmExtractor  *processwlm.WorkloadMetaExtractor
 	processDiffCh <-chan *processwlm.ProcessCacheDiff
@@ -46,24 +48,34 @@ type collector struct {
 	containerProvider proccontainers.ContainerProvider
 }
 
-// NewCollector returns a new local process collector provider and an error.
+type Provides struct {
+	CollectorProvider workloadmeta.CollectorProvider
+}
+
+type Requires struct {
+	Log    logComponent.Component
+	Config config.Component
+}
+
+// NewComponent returns a new local process collector provider and an error.
 // Currently, this is only used on Linux when language detection and run in core agent are enabled.
-func NewCollector() (workloadmeta.CollectorProvider, error) {
-	wlmExtractor := processwlm.GetSharedWorkloadMetaExtractor(config.SystemProbe)
+func NewComponent(req Requires) Provides {
+	wlmExtractor := processwlm.GetSharedWorkloadMetaExtractor(req.Config)
 	processData := NewProcessData()
 	processData.Register(wlmExtractor)
 
-	return workloadmeta.CollectorProvider{
-		Collector: &collector{
-			id:              collectorID,
-			catalog:         workloadmeta.NodeAgent,
-			wlmExtractor:    wlmExtractor,
-			processDiffCh:   wlmExtractor.ProcessCacheDiff(),
-			processData:     processData,
-			pidToCid:        make(map[int]string),
-			collectionClock: clock.New(),
-		},
-	}, nil
+	return Provides{
+		CollectorProvider: workloadmeta.CollectorProvider{
+			Collector: &collector{
+				id:              collectorID,
+				catalog:         workloadmeta.NodeAgent,
+				wlmExtractor:    wlmExtractor,
+				processDiffCh:   wlmExtractor.ProcessCacheDiff(),
+				processData:     processData,
+				pidToCid:        make(map[int]string),
+				collectionClock: clock.New(),
+			},
+		}}
 }
 
 func (c *collector) enabled() bool {
@@ -71,8 +83,8 @@ func (c *collector) enabled() bool {
 		return false
 	}
 
-	processChecksInCoreAgent := config.Datadog().GetBool("process_config.run_in_core_agent.enabled")
-	langDetectionEnabled := config.Datadog().GetBool("language_detection.enabled")
+	processChecksInCoreAgent := c.config.GetBool("process_config.run_in_core_agent.enabled")
+	langDetectionEnabled := c.config.GetBool("language_detection.enabled")
 
 	return langDetectionEnabled && processChecksInCoreAgent
 }
@@ -86,7 +98,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 
 	// If process collection is disabled, the collector will gather the basic process and container data
 	// necessary for language detection.
-	if !config.Datadog().GetBool("process_config.process_collection.enabled") {
+	if !c.config.GetBool("process_config.process_collection.enabled") {
 		collectionTicker := c.collectionClock.Ticker(10 * time.Second)
 		if c.containerProvider == nil {
 			c.containerProvider = proccontainers.GetSharedContainerProvider(store)
@@ -112,10 +124,10 @@ func (c *collector) collect(ctx context.Context, containerProvider proccontainer
 			c.wlmExtractor.SetLastPidToCid(c.pidToCid)
 			err := c.processData.Fetch()
 			if err != nil {
-				log.Error("Error fetching process data:", err)
+				c.log.Error("Error fetching process data:", err)
 			}
 		case <-ctx.Done():
-			log.Infof("The %s collector has stopped", collectorID)
+			c.log.Infof("The %s collector has stopped", collectorID)
 			return
 		}
 	}
@@ -130,14 +142,14 @@ func (c *collector) stream(ctx context.Context) {
 		case <-health.C:
 
 		case diff := <-c.processDiffCh:
-			log.Debugf("Received process diff with %d creations and %d deletions", len(diff.Creation), len(diff.Deletion))
+			c.log.Debugf("Received process diff with %d creations and %d deletions", len(diff.Creation), len(diff.Deletion))
 			events := transform(diff)
 			c.store.Notify(events)
 
 		case <-ctx.Done():
 			err := health.Deregister()
 			if err != nil {
-				log.Warnf("error de-registering health check: %s", err)
+				c.log.Warnf("error de-registering health check: %s", err)
 			}
 			return
 		}

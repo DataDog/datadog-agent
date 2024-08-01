@@ -3,20 +3,24 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
+//go:build !linux
 
 // Package fx creates the process collector module
 package fx
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 
-	processcollectorimpl "github.com/DataDog/datadog-agent/comp/process/processcollector/processcollectorimpl"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+
+	processcollector "github.com/DataDog/datadog-agent/comp/process/processcollector/def"
 )
 
-// Module specifies the processcollector module.
+// Module specifies the fallback processcollector module.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(processcollectorimpl.NewComponent),
-	)
+		fx.Provide(func() optional.Option[processcollector.Component] {
+			return optional.NewNoneOption[processcollector.Component]()
+		}))
 }

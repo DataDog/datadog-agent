@@ -12,5 +12,5 @@ import workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def
 
 // Component is the process-collector component type
 type Component interface {
-	workloadmeta.CollectorProvider
+	workloadmeta.Collector
 }
