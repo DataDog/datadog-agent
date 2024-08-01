@@ -62,7 +62,7 @@ type FailedConns struct {
 	maxFailuresBuffered uint32
 	failureTuple        *ebpf.ConnTuple
 	mapCleaner          *ddebpf.MapCleaner[ebpf.ConnTuple, int64]
-	sync.RWMutex
+	sync.Mutex
 }
 
 // NewFailedConns returns a new FailedConns struct
@@ -78,14 +78,14 @@ func NewFailedConns(m *manager.Manager, maxFailedConnsBuffered uint32) *FailedCo
 
 // upsertConn adds or updates the failed connection in the failed connection map
 func (fc *FailedConns) upsertConn(failedConn *ebpf.FailedConn) {
+	fc.Lock()
+	defer fc.Unlock()
+
 	if len(fc.FailedConnMap) >= int(fc.maxFailuresBuffered) {
 		failureTelemetry.failedConnsDropped.Inc()
 		return
 	}
 	connTuple := failedConn.Tup
-
-	fc.Lock()
-	defer fc.Unlock()
 
 	stats, ok := fc.FailedConnMap[connTuple]
 	if !ok {
@@ -101,13 +101,14 @@ func (fc *FailedConns) upsertConn(failedConn *ebpf.FailedConn) {
 
 // MatchFailedConn increments the failed connection counters for a given connection based on the failed connection map
 func (fc *FailedConns) MatchFailedConn(conn *network.ConnectionStats) {
+	fc.Lock()
+	defer fc.Unlock()
+
 	if fc == nil || conn.Type != network.TCP {
 		return
 	}
-	util.ConnStatsToTuple(conn, fc.failureTuple)
 
-	fc.Lock()
-	defer fc.Unlock()
+	util.ConnStatsToTuple(conn, fc.failureTuple)
 
 	if failedConn, ok := fc.FailedConnMap[*fc.failureTuple]; ok {
 		// found matching failed connection
