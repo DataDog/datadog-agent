@@ -114,7 +114,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 					return settings.Params{
 						Settings: map[string]settings.RuntimeSetting{
-							"log_level":                       &commonsettings.LogLevelRuntimeSetting{ConfigKey: "log_level"},
+							"log_level":                       commonsettings.NewLogLevelRuntimeSetting(),
 							"runtime_mutex_profile_fraction":  &commonsettings.RuntimeMutexProfileFraction{ConfigPrefix: configPrefix},
 							"runtime_block_profile_rate":      &commonsettings.RuntimeBlockProfileRate{ConfigPrefix: configPrefix},
 							"internal_profiling_goroutines":   profilingGoRoutines,
@@ -270,7 +270,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 
 			return settings.Params{
 				Settings: map[string]settings.RuntimeSetting{
-					"log_level":                       &commonsettings.LogLevelRuntimeSetting{ConfigKey: "log_level"},
+					"log_level":                       commonsettings.NewLogLevelRuntimeSetting(),
 					"runtime_mutex_profile_fraction":  &commonsettings.RuntimeMutexProfileFraction{ConfigPrefix: configPrefix},
 					"runtime_block_profile_rate":      &commonsettings.RuntimeBlockProfileRate{ConfigPrefix: configPrefix},
 					"internal_profiling_goroutines":   profilingGoRoutines,
