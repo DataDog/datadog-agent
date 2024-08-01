@@ -213,8 +213,8 @@ func TestProcessCheckChunking(t *testing.T) {
 				Return(processesByPid, nil)
 
 			// Test second check runs without error and has correct number of chunks
-			processCheck.Run(testGroupId(0), getChunkingOption(tc.noChunking))
-			actual, err := processCheck.Run(testGroupId(0), getChunkingOption(tc.noChunking))
+			processCheck.Run(testGroupID(0), getChunkingOption(tc.noChunking))
+			actual, err := processCheck.Run(testGroupID(0), getChunkingOption(tc.noChunking))
 			require.NoError(t, err)
 			assert.Len(t, actual.Payloads(), tc.expectedPayloadLength)
 		})

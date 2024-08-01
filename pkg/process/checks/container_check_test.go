@@ -73,7 +73,7 @@ func TestContainerCheckPayloads(t *testing.T) {
 	mockContainerProvider.EXPECT().GetContainers(cacheValidityNoRTTest, nil).Return(containers, nil, nil, nil)
 
 	// Test check runs without error using default chunk settings
-	result, err := check.Run(testGroupId(0), nil)
+	result, err := check.Run(testGroupID(0), nil)
 	assert.NoError(t, err)
 
 	// Test that result has the proper number of chunks, and that those chunks are of the correct type
@@ -133,7 +133,7 @@ func TestContainerCheckChunking(t *testing.T) {
 			mockContainerProvider.EXPECT().GetContainers(cacheValidityNoRTTest, nil).Return(containers, nil, nil, nil)
 
 			// Test check runs without error and has correct number of chunks
-			actual, err := containerCheck.Run(testGroupId(0), getChunkingOption(tc.noChunking))
+			actual, err := containerCheck.Run(testGroupID(0), getChunkingOption(tc.noChunking))
 			require.NoError(t, err)
 			assert.Len(t, actual.Payloads(), tc.expectedPayloadLength)
 		})

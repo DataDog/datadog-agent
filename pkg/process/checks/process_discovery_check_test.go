@@ -65,7 +65,7 @@ func TestProcessDiscoveryCheck(t *testing.T) {
 	)
 
 	// Test check runs without error
-	result, err := check.Run(testGroupId(0), nil)
+	result, err := check.Run(testGroupID(0), nil)
 	assert.NoError(t, err)
 
 	// Test that result has the proper number of chunks, and that those chunks are of the correct type
@@ -118,8 +118,8 @@ func TestProcessDiscoveryCheckChunking(t *testing.T) {
 				Return(processesByPid, nil)
 
 			// Test second check runs without error and has correct number of chunks
-			check.Run(testGroupId(0), getChunkingOption(tc.noChunking))
-			actual, err := check.Run(testGroupId(0), getChunkingOption(tc.noChunking))
+			check.Run(testGroupID(0), getChunkingOption(tc.noChunking))
+			actual, err := check.Run(testGroupID(0), getChunkingOption(tc.noChunking))
 			require.NoError(t, err)
 			assert.Len(t, actual.Payloads(), tc.expectedPayloadLength)
 		})

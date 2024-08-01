@@ -249,7 +249,7 @@ func TestProcessEventsCheck(t *testing.T) {
 	events := make([]*payload.ProcessEvent, 0)
 	assert.Eventually(t, func() bool {
 		// Run the process_events check until all expected events are collected
-		msgs, err := check.Run(testGroupId(0), nil)
+		msgs, err := check.Run(testGroupID(0), nil)
 		require.NoError(t, err)
 
 		for _, msg := range msgs.Payloads() {

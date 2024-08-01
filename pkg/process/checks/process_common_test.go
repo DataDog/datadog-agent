@@ -26,7 +26,7 @@ func getChunkingOption(noChunking bool) *RunOptions {
 	return &RunOptions{RunStandard: true, NoChunking: noChunking}
 }
 
-func testGroupId(groupID int32) func() int32 {
+func testGroupID(groupID int32) func() int32 {
 	return func() int32 {
 		return groupID
 	}
