@@ -348,7 +348,8 @@ func (p *Provider) getEntityIDIfContainerMetric(labels model.Metric) string {
 			// Return the pod UID so that we can collect metrics from it later on.
 			return p.getPodUID(labels)
 		}
-		return common.GetContainerID(p.store, labels, p.filter)
+		cID, _ := common.GetContainerID(p.store, labels, p.filter)
+		return cID
 	}
 	return ""
 }

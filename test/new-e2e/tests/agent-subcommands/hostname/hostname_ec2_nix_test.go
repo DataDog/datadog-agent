@@ -6,6 +6,7 @@
 package hostname
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -46,13 +47,11 @@ func (v *linuxHostnameSuite) TestAgentConfigPreferImdsv2() {
 }
 
 // https://github.com/DataDog/datadog-agent/blob/main/pkg/util/hostname/README.md#the-current-logic
-func (v *linuxHostnameSuite) TestAgentHostnameDefaultsToResourceId() {
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithAgentOptions(agentparams.WithAgentConfig(""))))
+func (v *linuxHostnameSuite) TestAgentDefaultHostnameIMDSv1() {
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithAgentOptions(agentparams.WithAgentConfig("ec2_prefer_imdsv2: false"))))
 
-	metadata := client.NewEC2Metadata(v.T(), v.Env().RemoteHost.Host, v.Env().RemoteHost.OSFamily)
 	hostname := v.Env().Agent.Client.Hostname()
-
-	// Default configuration of hostname for EC2 instances is the resource-id
-	resourceID := metadata.Get("instance-id")
-	assert.Equal(v.T(), resourceID, hostname)
+	osHostname := v.Env().RemoteHost.Host.MustExecute("hostname")
+	osHostname = strings.TrimSpace(osHostname)
+	assert.Equal(v.T(), osHostname, hostname)
 }

@@ -11,6 +11,7 @@ package controllers
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	k8serrors "k8s.io/apimachinery/pkg/util/errors"
@@ -21,10 +22,10 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 
+	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -70,6 +71,7 @@ type ControllerContext struct {
 	IsLeaderFunc           func() bool
 	EventRecorder          record.EventRecorder
 	WorkloadMeta           workloadmeta.Component
+	DatadogClient          datadogclient.Component
 	StopCh                 chan struct{}
 }
 
@@ -138,16 +140,15 @@ func startMetadataController(ctx ControllerContext, c chan error) {
 // The synchronization of the informers is handled by the controller.
 func startAutoscalersController(ctx ControllerContext, c chan error) {
 	var err error
-	apiserver.DogCl, err = autoscalers.NewDatadogClient()
-	if err != nil {
-		c <- err
+	if ctx.DatadogClient == nil {
+		c <- fmt.Errorf("datadog client is nil")
 		return
 	}
 	autoscalersController, err := newAutoscalersController(
 		ctx.Client,
 		ctx.EventRecorder,
 		ctx.IsLeaderFunc,
-		apiserver.DogCl,
+		ctx.DatadogClient,
 	)
 	if err != nil {
 		c <- err

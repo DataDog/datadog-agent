@@ -9,8 +9,10 @@ package rcservicemrfimpl
 import (
 	"context"
 	"fmt"
+	"time"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -68,7 +70,6 @@ func newMrfRemoteConfigService(deps dependencies) (rcservicemrf.Component, error
 		return nil, fmt.Errorf("unable to get MRF remote config endpoint: %s", err)
 	}
 	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(deps.Cfg)
-	configuredTags := configUtils.GetConfiguredTags(deps.Cfg, false)
 	options := []remoteconfig.Option{
 		remoteconfig.WithAPIKey(apiKey),
 		remoteconfig.WithTraceAgentEnv(traceAgentEnv),
@@ -95,7 +96,7 @@ func newMrfRemoteConfigService(deps dependencies) (rcservicemrf.Component, error
 		"MRF",
 		baseRawURL,
 		deps.Hostname.GetSafe(context.Background()),
-		configuredTags,
+		getHostTags(deps.Cfg),
 		deps.DdRcTelemetryReporter,
 		version.AgentVersion,
 		options...,
@@ -120,4 +121,16 @@ func newMrfRemoteConfigService(deps dependencies) (rcservicemrf.Component, error
 	}})
 
 	return mrfConfigService, nil
+}
+
+func getHostTags(config cfgcomp.Component) func() []string {
+	return func() []string {
+		// Host tags are cached on host, but we add a timeout to avoid blocking the RC request
+		// if the host tags are not available yet and need to be fetched. They will be fetched
+		// by the first agent metadata V5 payload.
+		ctx, cc := context.WithTimeout(context.Background(), time.Second)
+		defer cc()
+		hostTags := hosttags.Get(ctx, true, config)
+		return append(hostTags.System, hostTags.GoogleCloudPlatform...)
+	}
 }
