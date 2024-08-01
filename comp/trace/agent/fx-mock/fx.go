@@ -5,6 +5,7 @@
 
 //go:build test
 
+// Package fx provides fx options for the agent component.
 package fx
 
 import (

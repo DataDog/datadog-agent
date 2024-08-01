@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package impl implements the healthprobe component interface
-package impl
+// Package healthprobeimpl implements the healthprobe component interface
+package healthprobeimpl
 
 import (
 	"context"
