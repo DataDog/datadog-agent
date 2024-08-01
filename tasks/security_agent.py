@@ -666,11 +666,6 @@ def cws_go_generate(ctx, verbose=False):
             "./pkg/security/serializers/serializers_linux_easyjson.go",
         )
 
-        shutil.copy(
-            "./pkg/security/security_profile/dump/activity_dump_easyjson.mock",
-            "./pkg/security/security_profile/dump/activity_dump_easyjson.go",
-        )
-
     ctx.run("go generate ./pkg/security/...")
 
 

@@ -10,6 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 var (
@@ -151,7 +153,7 @@ func (e ErrRuleLoad) Type() RuleLoadErrType {
 	}
 
 	switch e.Err.(type) {
-	case *ErrFieldTypeUnknown, *ErrValueTypeUnknown, *ErrRuleSyntax:
+	case *ErrFieldTypeUnknown, *ErrValueTypeUnknown, *ErrRuleSyntax, *ErrFieldNotAvailable:
 		return SyntaxErrType
 	}
 
@@ -175,4 +177,15 @@ type ErrActionFilter struct {
 
 func (e ErrActionFilter) Error() string {
 	return fmt.Sprintf("filter `%s` error: %s", e.Expression, e.Err)
+}
+
+// ErrFieldNotAvailable is returned when a field is not available
+type ErrFieldNotAvailable struct {
+	Field        eval.Field
+	EventType    eval.EventType
+	RestrictedTo []eval.EventType
+}
+
+func (e *ErrFieldNotAvailable) Error() string {
+	return fmt.Sprintf("field `%s` not available for event type `%v`, available for `%v`", e.Field, e.EventType, e.RestrictedTo)
 }

@@ -4,7 +4,7 @@
 // Copyright 2024-present Datadog, Inc.
 
 // Package impl implements the healthprobe component interface
-package impl
+package healthprobeimpl
 
 import (
 	"context"

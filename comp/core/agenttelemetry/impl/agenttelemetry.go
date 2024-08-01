@@ -9,8 +9,8 @@
 //
 // ---------------------------------------------------
 
-// Package impl provides the implementation of the agenttelemetry component.
-package impl
+// Package agenttelemetryimpl provides the implementation of the agenttelemetry component.
+package agenttelemetryimpl
 
 import (
 	"bytes"

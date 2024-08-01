@@ -415,7 +415,7 @@ func (s *packageAgentSuite) installDebRPMAgent() {
 	case "apt":
 		s.Env().RemoteHost.Execute("sudo apt-get install -y --force-yes datadog-agent")
 	case "yum":
-		s.Env().RemoteHost.Execute("sudo yum -y install datadog-agent")
+		s.Env().RemoteHost.Execute("sudo yum -y install --disablerepo=* --enablerepo=datadog datadog-agent")
 	case "zypper":
 		s.Env().RemoteHost.Execute("sudo zypper install -y datadog-agent")
 	default:
