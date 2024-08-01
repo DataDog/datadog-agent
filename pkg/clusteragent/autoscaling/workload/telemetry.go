@@ -8,12 +8,8 @@
 package workload
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
+	workqueuetelemetry "github.com/DataDog/datadog-agent/pkg/util/workqueue/telemetry"
 )
 
 const (
@@ -21,14 +17,6 @@ const (
 )
 
 var commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
-
-func resourceListToString(m map[corev1.ResourceName]resource.Quantity) string {
-	var sb strings.Builder
-	for k, v := range m {
-		sb.WriteString(fmt.Sprintf("%s:%s", string(k), v.String()))
-	}
-	return sb.String()
-}
 
 var (
 	// rolloutTriggered tracks the number of patch requests sent by the patcher to the kubernetes api server
@@ -40,21 +28,89 @@ var (
 		commonOpts,
 	)
 
-	// telemetryHorizonalScale tracks the horizontal scaling recommendation values
-	telemetryHorizonalScale = telemetry.NewCounterWithOpts(
+	// telemetryHorizontalScaleAttempts tracks the number of horizontal scaling attempts
+	telemetryHorizontalScaleAttempts = telemetry.NewCounterWithOpts(
 		subsystem,
-		"horizontal_scaling",
-		[]string{"namespace", "resource_name", "from_replicas", "to_replicas", "recommended_replicas", "is_error"},
+		"horizontal_scaling_attempts",
+		[]string{"namespace", "target_name", "autoscaler_name"},
+		"Tracks the number of horizontal scaling events triggered",
+		commonOpts,
+	)
+	// telemetryHorizontalScaleErrors tracks the number of horizontal scaling errors
+	telemetryHorizontalScaleErrors = telemetry.NewCounterWithOpts(
+		subsystem,
+		"horizontal_scaling_errors",
+		[]string{"namespace", "target_name", "autoscaler_name"},
 		"Tracks the number of horizontal scaling events triggered",
 		commonOpts,
 	)
 
-	// telemetryVerticalScale tracks the vertical scaling recommendation values
-	telemetryVerticalScale = telemetry.NewCounterWithOpts(
+	// telemetryHorizontalScaleReceivedRecommendations tracks the horizontal scaling recommendation values received
+	telemetryHorizontalScaleReceivedRecommendations = telemetry.NewGaugeWithOpts(
 		subsystem,
-		"vertical_scaling",
-		[]string{"namespace", "name", "source", "container_name", "limits", "requests", "is_error"},
+		"horizontal_scaling_received_replicas",
+		[]string{"namespace", "target_name", "autoscaler_name"},
+		"Tracks the value of replicas applied by the horizontal scaling recommendation",
+		commonOpts,
+	)
+	// telemetryHorizontalScaleAppliedRecommendations tracks the horizontal scaling recommendation values applied
+	telemetryHorizontalScaleAppliedRecommendations = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"horizontal_scaling_applied_replicas",
+		[]string{"namespace", "target_name", "autoscaler_name"},
+		"Tracks the value of replicas applied by the horizontal scaling recommendation",
+		commonOpts,
+	)
+
+	// telemetryVerticalScaleAttempts tracks the number of vertical scaling attempts
+	telemetryVerticalScaleAttempts = telemetry.NewCounterWithOpts(
+		subsystem,
+		"vertical_scaling_attempts",
+		[]string{"namespace", "target_name", "autoscaler_name", "source"},
 		"Tracks the number of vertical scaling events triggered",
 		commonOpts,
 	)
+	// telemetryVerticalScaleErrors tracks the number of vertical scaling errors
+	telemetryVerticalScaleErrors = telemetry.NewCounterWithOpts(
+		subsystem,
+		"vertical_scaling_errors",
+		[]string{"namespace", "target_name", "autoscaler_name", "source"},
+		"Tracks the number of vertical scaling events triggered",
+		commonOpts,
+	)
+
+	// telemetryVerticalScaleReceivedRecommendationsLimits tracks the vertical scaling recommendation limits received
+	telemetryVerticalScaleReceivedRecommendationsLimits = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"vertical_scaling_received_limits",
+		[]string{"namespace", "target_name", "autoscaler_name", "resource_name"},
+		"Tracks the value of limits received by the vertical scaling controller",
+		commonOpts,
+	)
+	// telemetryVerticalScaleReceivedRecommendationsRequests tracks the vertical scaling recommendation requests received
+	telemetryVerticalScaleReceivedRecommendationsRequests = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"vertical_scaling_received_requests",
+		[]string{"namespace", "target_name", "autoscaler_name", "resource_name"},
+		"Tracks the value of requests received by the vertical scaling recommendation",
+		commonOpts,
+	)
+	// telemetryVerticalScaleAppliedRecommendationsLimits tracks the vertical scaling recommendation limits applied
+	telemetryVerticalScaleAppliedRecommendationsLimits = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"vertical_scaling_applied_limits",
+		[]string{"namespace", "target_name", "autoscaler_name", "source", "resource_name"},
+		"Tracks the value of limits applied by the vertical scaling controller",
+		commonOpts,
+	)
+	// telemetryVerticalScaleAppliedRecommendationsRequests tracks the vertical scaling recommendation requests applied
+	telemetryVerticalScaleAppliedRecommendationsRequests = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"vertical_scaling_applied_requests",
+		[]string{"namespace", "target_name", "autoscaler_name", "source", "resource_name"},
+		"Tracks the value of requests applied by the vertical scaling controller",
+		commonOpts,
+	)
+
+	autoscalingQueueMetricsProvider = workqueuetelemetry.NewQueueMetricsProvider()
 )

@@ -65,34 +65,24 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 		return autoscaling.NoRequeue, nil
 	}
 
+	telemetryVerticalScaleAttempts.Inc(
+		autoscalerInternal.Namespace(),
+		autoscalerInternal.Spec().TargetRef.Name,
+		autoscalerInternal.Name(),
+		string(scalingValues.Vertical.Source),
+	)
+
 	recomendationID := scalingValues.Vertical.ResourcesHash
 	targetGVK, err := autoscalerInternal.TargetGVK()
 	if err != nil {
 		autoscalerInternal.SetError(err)
-		for _, resource := range scalingValues.Vertical.ContainerResources {
-			telemetryVerticalScale.Inc(
-				autoscalerInternal.Namespace(),
-				autoscalerInternal.Spec().TargetRef.Name,
-				string(scalingValues.Vertical.Source),
-				resource.Name,
-				resourceListToString(resource.Limits),
-				resourceListToString(resource.Requests),
-				"true",
-			)
-		}
-		return autoscaling.NoRequeue, err
-	}
-
-	for _, resource := range scalingValues.Vertical.ContainerResources {
-		telemetryVerticalScale.Inc(
+		telemetryVerticalScaleErrors.Inc(
 			autoscalerInternal.Namespace(),
 			autoscalerInternal.Spec().TargetRef.Name,
+			autoscalerInternal.Name(),
 			string(scalingValues.Vertical.Source),
-			resource.Name,
-			resourceListToString(resource.Limits),
-			resourceListToString(resource.Requests),
-			"false",
 		)
+		return autoscaling.NoRequeue, err
 	}
 
 	// Get the pod owner from the workload
@@ -139,6 +129,30 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	if autoscalerInternal.VerticalLastAction() != nil && autoscalerInternal.VerticalLastAction().Time.Add(rolloutCheckRequeueDelay).After(u.clock.Now()) {
 		log.Debugf("Last action was done less than %s ago for autoscaler: %s, skipping", rolloutCheckRequeueDelay.String(), autoscalerInternal.ID())
 		return autoscaling.ProcessResult{Requeue: true, RequeueAfter: rolloutCheckRequeueDelay}, nil
+	}
+
+	for _, resource := range scalingValues.Vertical.ContainerResources {
+		for requestName, requestValue := range resource.Requests {
+			telemetryVerticalScaleAppliedRecommendationsRequests.Set(
+				requestValue.AsApproximateFloat64(),
+				autoscalerInternal.Namespace(),
+				autoscalerInternal.Spec().TargetRef.Name,
+				resource.Name,
+				string(scalingValues.Vertical.Source),
+				string(requestName),
+			)
+		}
+
+		for limitName, limitValue := range resource.Limits {
+			telemetryVerticalScaleAppliedRecommendationsLimits.Set(
+				limitValue.AsApproximateFloat64(),
+				autoscalerInternal.Namespace(),
+				autoscalerInternal.Spec().TargetRef.Name,
+				resource.Name,
+				string(scalingValues.Vertical.Source),
+				string(limitName),
+			)
+		}
 	}
 
 	switch targetGVK.Kind {
