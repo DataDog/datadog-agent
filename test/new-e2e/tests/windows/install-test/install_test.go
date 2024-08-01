@@ -39,7 +39,7 @@ func (s *testInstallSuite) TestInstall() {
 	// initialize test helper
 	t := s.newTester(vm)
 
-	// create a dummy auth-token with known value to see if it gets replaced
+	// create a dummy auth-token with known value to be replaced
 	vm.MkdirAll(windowsAgent.DefaultConfigRoot)
 	vm.WriteFile(filepath.Join(windowsAgent.DefaultConfigRoot, "auth_token"), []byte("F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0"))
 

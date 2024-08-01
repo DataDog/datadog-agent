@@ -248,7 +248,7 @@ func (t *Tester) TestUninstallExpectations(tt *testing.T) {
 	tt.Run("file permissions", func(tt *testing.T) {
 		if strings.HasPrefix(tt.Name(), "TestInstallFail/") {
 			// TODO WINA-852: install rollback leaves different permissions behind
-			tt.Skip("WINA-852: skipping known failure, install rollback leaves different permissions behind")
+			// tt.Skip("WINA-852: skipping known failure, install rollback leaves different permissions behind")
 		}
 		t.testUninstalledFilePermissions(tt)
 	})
