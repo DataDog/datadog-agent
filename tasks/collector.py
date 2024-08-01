@@ -64,45 +64,55 @@ class YAMLValidationError(Exception):
         super().__init__(message)
 
 
+def find_matching_components(manifest, components_to_match: dict, present: bool) -> list:
+    """Given a manifest and dict of components to match, if present=True, return list of
+    components found, otherwise return list of components missing."""
+    res = []
+    for component_type, components in components_to_match.items():
+        for component in components:
+            found_component = False
+            components_matching_component_type = manifest.get(component_type)
+            if components_matching_component_type:
+                for module in components_matching_component_type:
+                    if module.get("gomod").find(component) != -1:
+                        found_component = True
+                        if not present:
+                            found_component = True
+                        else:
+                            res.append(component)
+                        break
+            if not present and not found_component:
+                res.append(component)
+    return res
+
+
 def validate_manifest(manifest) -> list:  # return list of components to remove, empty list if valid
     # validate collector version matches ocb version
-    version_checks = ["otelcol_version"]
-    for version in version_checks:
-        manifest_version = manifest.get("dist").get(version)
-        if manifest_version and manifest_version != OCB_VERSION:
-            raise YAMLValidationError(
-                f"Collector version ({manifest_version}) in manifest does not match required OCB version ({OCB_VERSION})"
-            )
+    manifest_version = manifest.get("dist").get("otelcol_version")
+    if manifest_version and manifest_version != OCB_VERSION:
+        raise YAMLValidationError(
+            f"Collector version ({manifest_version}) in manifest does not match required OCB version ({OCB_VERSION})"
+        )
+
     # validate component versions matches ocb version
     module_types = ["extensions", "exporters", "processors", "receivers", "connectors"]
     for module_type in module_types:
-        for components in manifest.get(module_type):
-            for module in components.values():
-                if module.find(OCB_VERSION) == -1:
-                    raise YAMLValidationError(
-                        f"Extension {module}) in manifest does not match required OCB version ({OCB_VERSION})"
-                    )
+        components = manifest.get(module_type)
+        if components:
+            for component in components:
+                for module in component.values():
+                    if module.find(OCB_VERSION) == -1:
+                        raise YAMLValidationError(
+                            f"Extension {module}) in manifest does not match required OCB version ({OCB_VERSION})"
+                        )
+
     # validate mandatory components are present
-    missing_components = []
-    for component_type, components in MANDATORY_COMPONENTS.items():
-        for component in components:
-            found_component = False
-            for module in manifest.get(component_type):
-                if module.get("gomod").find(component) != -1:
-                    found_component = True
-                    break
-            if not found_component:
-                missing_components.append(component)
+    missing_components = find_matching_components(manifest, MANDATORY_COMPONENTS, False)
     if missing_components:
         raise YAMLValidationError(f"Missing mandatory components in manifest: {', '.join(missing_components)}")
+
     # determine if conflicting components are included in manifest, and if so, return list to remove
-    conflicting_components = []
-    for component_type, components in COMPONENTS_TO_STRIP.items():
-        for component in components:
-            for module in manifest.get(component_type):
-                if module.get("gomod").find(component) != -1:
-                    conflicting_components.append(component)
-                    break
+    conflicting_components = find_matching_components(manifest, COMPONENTS_TO_STRIP, True)
     return conflicting_components
 
 
