@@ -39,13 +39,6 @@ func newVersionFromPackageVersion(packageVersion string) PackageVersion {
 	}
 }
 
-func newVersion(version string) PackageVersion {
-	return PackageVersion{
-		value:        version,
-		packageValue: fmt.Sprintf("%s-1", version),
-	}
-}
-
 // BaseInstallerSuite the base suite for all installer tests on Windows.
 // To run the test suites locally, pick a pipeline and define the following environment variables:
 // E2E_PIPELINE_ID: the ID of the pipeline
