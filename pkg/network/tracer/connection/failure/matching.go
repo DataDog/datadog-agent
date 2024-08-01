@@ -78,6 +78,10 @@ func NewFailedConns(m *manager.Manager, maxFailedConnsBuffered uint32) *FailedCo
 
 // upsertConn adds or updates the failed connection in the failed connection map
 func (fc *FailedConns) upsertConn(failedConn *ebpf.FailedConn) {
+	if fc == nil {
+		return
+	}
+
 	fc.Lock()
 	defer fc.Unlock()
 
@@ -101,10 +105,14 @@ func (fc *FailedConns) upsertConn(failedConn *ebpf.FailedConn) {
 
 // MatchFailedConn increments the failed connection counters for a given connection based on the failed connection map
 func (fc *FailedConns) MatchFailedConn(conn *network.ConnectionStats) {
+	if fc == nil {
+		return
+	}
+
 	fc.Lock()
 	defer fc.Unlock()
 
-	if fc == nil || conn.Type != network.TCP {
+	if conn.Type != network.TCP {
 		return
 	}
 
