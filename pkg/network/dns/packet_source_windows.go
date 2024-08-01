@@ -24,7 +24,7 @@ type windowsPacketSource struct {
 }
 
 // newWindowsPacketSource constructs a new packet source
-func newWindowsPacketSource(telemetrycomp telemetry.Component) (packetSource, error) {
+func newWindowsPacketSource(telemetrycomp telemetry.Component) (filter.PacketSource, error) {
 	di, err := newDriver(telemetrycomp)
 	if err != nil {
 		return nil, err
