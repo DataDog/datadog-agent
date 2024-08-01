@@ -129,7 +129,7 @@ type Diagnosis struct {
 
 // DiagnoseResult contains the results of the diagnose command
 type DiagnoseResult struct {
-	Diagnoses []Diagnoses `json:"diagnoses"`
+	Diagnoses []Diagnoses `json:"results"`
 	Summary   Counters    `json:"summary"`
 }
 
