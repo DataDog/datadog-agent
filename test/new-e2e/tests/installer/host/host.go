@@ -183,6 +183,11 @@ func (h *Host) InstallerVersion() string {
 	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-installer version"))
 }
 
+// AgentVersion returns the version of the agent on the host.
+func (h *Host) AgentVersion() string {
+	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-agent version -n | awk '{print $2}'"))
+}
+
 // AssertPackageInstalledByInstaller checks if a package is installed by the installer on the host.
 func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
 	for _, pkg := range pkgs {
