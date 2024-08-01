@@ -6,7 +6,6 @@
 package stats
 
 import (
-	_ "embed"
 	"strings"
 	"sync"
 	"time"
