@@ -43,7 +43,6 @@
     - deploy_rpm_testing-a7_arm64
 
 new-e2e-agent-platform-install-script-amazonlinux-a6-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -54,7 +53,6 @@ new-e2e-agent-platform-install-script-amazonlinux-a6-x86_64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-amazonlinux-a6-arm64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -65,7 +63,6 @@ new-e2e-agent-platform-install-script-amazonlinux-a6-arm64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-amazonlinux-a7-x64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -77,7 +74,6 @@ new-e2e-agent-platform-install-script-amazonlinux-a7-x64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-amazonlinux-a7-arm64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -89,7 +85,6 @@ new-e2e-agent-platform-install-script-amazonlinux-a7-arm64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-step-by-step-amazonlinux-a6-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_step_by_step
@@ -102,7 +97,6 @@ new-e2e-agent-platform-step-by-step-amazonlinux-a6-x86_64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-step-by-step-amazonlinux-a6-arm64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_step_by_step
@@ -115,7 +109,6 @@ new-e2e-agent-platform-step-by-step-amazonlinux-a6-arm64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-step-by-step-amazonlinux-a7-x64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_step_by_step
@@ -128,7 +121,6 @@ new-e2e-agent-platform-step-by-step-amazonlinux-a7-x64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-step-by-step-amazonlinux-a7-arm64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_step_by_step
@@ -141,7 +133,6 @@ new-e2e-agent-platform-step-by-step-amazonlinux-a7-arm64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-upgrade7-amazonlinux-x64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_script_upgrade7
@@ -152,7 +143,6 @@ new-e2e-agent-platform-install-script-upgrade7-amazonlinux-x64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-upgrade6-amazonlinux-x64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_script_upgrade6
@@ -163,7 +153,6 @@ new-e2e-agent-platform-install-script-upgrade6-amazonlinux-x64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-upgrade7-amazonlinux-iot-agent-x64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_script_upgrade7

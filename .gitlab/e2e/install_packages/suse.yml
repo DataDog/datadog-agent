@@ -39,7 +39,6 @@
     - deploy_suse_rpm_testing_arm64-a7
 
 new-e2e-agent-platform-install-script-suse-a6-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -50,7 +49,6 @@ new-e2e-agent-platform-install-script-suse-a6-x86_64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-suse-a7-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -62,7 +60,6 @@ new-e2e-agent-platform-install-script-suse-a7-x86_64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-suse-a7-arm64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -74,7 +71,6 @@ new-e2e-agent-platform-install-script-suse-a7-arm64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-suse-iot-agent-a7-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -86,7 +82,6 @@ new-e2e-agent-platform-install-script-suse-iot-agent-a7-x86_64:
     FLAVOR: datadog-iot-agent
 
 new-e2e-agent-platform-install-script-suse-dogstatsd-a7-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -97,7 +92,6 @@ new-e2e-agent-platform-install-script-suse-dogstatsd-a7-x86_64:
     FLAVOR: datadog-dogstatsd
 
 new-e2e-agent-platform-step-by-step-suse-a6-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_step_by_step
@@ -110,7 +104,6 @@ new-e2e-agent-platform-step-by-step-suse-a6-x86_64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-step-by-step-suse-a7-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_step_by_step
@@ -123,7 +116,6 @@ new-e2e-agent-platform-step-by-step-suse-a7-x86_64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-step-by-step-suse-a7-arm64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_step_by_step
@@ -136,7 +128,6 @@ new-e2e-agent-platform-step-by-step-suse-a7-arm64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-upgrade7-suse-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_script_upgrade7
@@ -151,7 +142,6 @@ new-e2e-agent-platform-install-script-upgrade7-suse-x86_64:
         END_MAJOR_VERSION: [7]
 
 new-e2e-agent-platform-install-script-upgrade6-suse-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_script_upgrade7
@@ -166,7 +156,6 @@ new-e2e-agent-platform-install-script-upgrade6-suse-x86_64:
         END_MAJOR_VERSION: [6]
 
 new-e2e-agent-platform-install-script-upgrade7-suse-iot-agent-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_script_upgrade7
