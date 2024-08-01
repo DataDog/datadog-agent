@@ -14,7 +14,9 @@ AWS_S3_CP_CMD = "aws s3 cp --only-show-errors --region us-east-1 --sse AES256"
 AWS_S3_LS_CMD = "aws s3api list-objects-v2 --bucket '{bucket}' --prefix '{prefix}/' --delimiter /"
 
 
-def get_ci_visibility_job_url(name: str, prefix=True, extra_flags: list[str] | str = "", extra_args: dict[str, any] | str = '') -> str:
+def get_ci_visibility_job_url(
+    name: str, prefix=True, extra_flags: list[str] | str = "", extra_args: dict[str, any] | str = ''
+) -> str:
     """
     Returns the link to a query matching the job (or its prefix by default) in ci visibility
 

@@ -234,7 +234,9 @@ def upload_summary(ctx: Context, pipeline_id: int) -> SummaryData:
     return summary
 
 
-def send_summary_slack_notification(channel: str, stats: list[dict], allow_failure: bool = False, dry_run: bool = False):
+def send_summary_slack_notification(
+    channel: str, stats: list[dict], allow_failure: bool = False, dry_run: bool = False
+):
     """
     Send the summary to channel with these job stats
     - stats: Item of the dict returned by SummaryStats.make_stats
@@ -265,7 +267,12 @@ def send_summary_slack_notification(channel: str, stats: list[dict], allow_failu
     for stat in stats:
         name = stat['name']
         fail = stat['failures']
-        link = get_ci_visibility_job_url(name, prefix=False, extra_flags=['status:error', '-@error.domain:provider'], extra_args={'start': timestamp_start, 'end': timestamp_end, 'paused': 'true'})
+        link = get_ci_visibility_job_url(
+            name,
+            prefix=False,
+            extra_flags=['status:error', '-@error.domain:provider'],
+            extra_args={'start': timestamp_start, 'end': timestamp_end, 'paused': 'true'},
+        )
         message.append(f"- <{link}|{name}>: *{fail} failures*")
 
     header = f'{period} Job Failure Report'
@@ -301,7 +308,12 @@ def send_summary_slack_notification(channel: str, stats: list[dict], allow_failu
 
 
 def send_summary_messages(
-    ctx: Context, allow_failure: bool, max_length: int, period: timedelta, jobowners: str = '.gitlab/JOBOWNERS', dry_run: bool = False
+    ctx: Context,
+    allow_failure: bool,
+    max_length: int,
+    period: timedelta,
+    jobowners: str = '.gitlab/JOBOWNERS',
+    dry_run: bool = False,
 ):
     """
     Fetches the summaries for the period and sends messages to all teams having these jobs
