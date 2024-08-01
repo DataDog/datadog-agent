@@ -30,6 +30,10 @@ const (
 	//nolint:revive // TODO(SERV) Fix revive linter
 	InitType = "AWS_LAMBDA_INITIALIZATION_TYPE"
 
+	// Environment variables for Source Code Integration
+	GitCommitShaEnvVar  = "DD_GIT_COMMIT_SHA"
+	GitRepositoryEnvVar = "DD_GIT_REPOSITORY_URL"
+
 	// FunctionARNKey is the tag key for a function's arn
 	FunctionARNKey = "function_arn"
 	// FunctionNameKey is the tag key for a function's name
@@ -49,6 +53,11 @@ const (
 	VersionKey = "version"
 	// ServiceKey is the tag key for a function's service environment variable
 	ServiceKey = "service"
+
+	// GitCommitShaKey is the tag key for a function's git.commit.sha environment variable
+	GitCommitShaKey = "git.commit.sha"
+	// GitRepositoryKey is the tag key for a function's git.repository_url environment variable
+	GitRepositoryKey = "git.repository_url"
 
 	// SnapStartValue is the Lambda init type env var value indicating SnapStart initialized the function
 	SnapStartValue = "snap-start"
@@ -95,6 +104,8 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags = setIfNotEmpty(tags, EnvKey, os.Getenv(envEnvVar))
 	tags = setIfNotEmpty(tags, VersionKey, os.Getenv(versionEnvVar))
 	tags = setIfNotEmpty(tags, ServiceKey, os.Getenv(serviceEnvVar))
+	tags = setIfNotEmpty(tags, GitCommitShaKey, os.Getenv(GitCommitShaEnvVar))
+	tags = setIfNotEmpty(tags, GitRepositoryKey, os.Getenv(GitRepositoryEnvVar))
 
 	tags = MergeWithOverwrite(tags, ArrayToMap(configTags))
 
