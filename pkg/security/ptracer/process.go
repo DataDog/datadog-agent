@@ -77,9 +77,14 @@ func NewProcess(pid int) *Process {
 }
 
 var errPipeFd = errors.New("pipe fd")
+var errNegativeFd = errors.New("negative fd")
 
 // GetFilenameFromFd returns the filename for the given fd
 func (p *Process) GetFilenameFromFd(fd int32) (string, error) {
+	if fd < 0 {
+		return "", errNegativeFd
+	}
+
 	raw, err := p.getFilenameFromFdRaw(fd)
 	if err != nil {
 		return "", err
