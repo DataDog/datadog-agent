@@ -28,10 +28,12 @@ type SpanConcentrator struct {
 	// wait such time before flushing the stats.
 	// This only applies to past buckets. Stats buckets in the future are allowed with no restriction.
 	bufferLen           int
-	mu                  sync.Mutex
-	buckets             map[int64]*RawBucket
 	peerTagKeys         []string // keys for supplementary tags that describe peer.service entities
 	peerTagsAggregation bool     // flag to enable aggregation of peer tags
+
+	// mu protects the buckets field
+	mu      sync.Mutex
+	buckets map[int64]*RawBucket
 }
 
 func NewSpanConcentrator(cfg *SpanConcentratorConfig, now time.Time) *SpanConcentrator {

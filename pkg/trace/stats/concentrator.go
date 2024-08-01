@@ -45,8 +45,6 @@ type Concentrator struct {
 	bsize         int64
 	exit          chan struct{}
 	exitWG        sync.WaitGroup
-	buckets       map[int64]*RawBucket // buckets used to aggregate stats per timestamp
-	mu            sync.Mutex
 	agentEnv      string
 	agentHostname string
 	agentVersion  string
@@ -109,6 +107,7 @@ func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, sta
 		agentHostname:    conf.Hostname,
 		agentVersion:     conf.AgentVersion,
 		statsd:           statsd,
+		bsize:            bsize,
 	}
 	return &c
 }
@@ -187,8 +186,6 @@ func NewStatsInput(numChunks int, containerID string, clientComputedStats bool, 
 
 // Add applies the given input to the concentrator.
 func (c *Concentrator) Add(t Input) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	for _, trace := range t.Traces {
 		c.addNow(&trace, t.ContainerID, t.ContainerTags)
 	}
