@@ -124,7 +124,7 @@ func (f *Store) Add(pathtestToAdd *common.Pathtest) {
 	defer f.contextsMutex.Unlock()
 
 	if len(f.contexts) >= f.maxContexts {
-		f.logger.Warnf("Pathteststore is full, dropping pathtest: %+v, maximum set to: %d", pathtestToAdd, f.maxContexts)
+		f.logger.Warnf("Pathteststore is full, maximum set to: %d, dropping pathtest: %+v", f.maxContexts, pathtestToAdd)
 		return
 	}
 
