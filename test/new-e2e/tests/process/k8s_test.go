@@ -26,7 +26,6 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeClient "k8s.io/client-go/kubernetes"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -83,8 +82,6 @@ func TestK8sTestSuite(t *testing.T) {
 }
 
 func (s *K8sSuite) TestProcessCheck() {
-	// https://datadoghq.atlassian.net/browse/PROCS-4184
-	flake.Mark(s.T())
 	t := s.T()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
@@ -156,7 +153,9 @@ func (s *K8sSuite) TestManualContainerCheck() {
 
 func execProcessAgentCheck(t *testing.T, cluster *components.KubernetesCluster, check string) string {
 	agent := getAgentPod(t, cluster.Client())
-	cmd := fmt.Sprintf("DD_LOG_LEVEL=OFF process-agent check %s -w 5s --json", check)
+	// set the wait interval as workloadmeta takes some time to initialize for container data
+	// https://datadoghq.atlassian.net/browse/PROCS-4157
+	cmd := fmt.Sprintf("DD_LOG_LEVEL=OFF process-agent check %s -w 10s --json", check)
 
 	// The log level needs to be overridden as the pod has an ENV var set.
 	// This is so we get just json back from the check

@@ -10,19 +10,20 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ../../def
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
+	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../pkg/util/optional
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../pkg/util/winutil
 
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.55.0-rc.3
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.55.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.55.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.55.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.55.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.56.0-rc.3
 	github.com/benbjohnson/clock v1.3.0
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/fx v1.18.2
@@ -32,8 +33,9 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.55.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.55.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.55.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
@@ -52,6 +54,7 @@ require (
 	github.com/spf13/cobra v1.7.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	go.opentelemetry.io/otel v1.27.0 // indirect
+	go.opentelemetry.io/otel/exporters/prometheus v0.42.0 // indirect
 	go.opentelemetry.io/otel/metric v1.27.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.27.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.27.0 // indirect

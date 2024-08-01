@@ -10,18 +10,20 @@ import (
 	"unsafe"
 
 	"go.uber.org/atomic"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type genericPool interface {
-	Get() interface{}
-	Put(x interface{})
+type managedPoolTypes interface {
+	[]byte | Packet
+}
+
+type genericPool[K managedPoolTypes] interface {
+	Get() *K
+	Put(x *K)
 }
 
 // PoolManager helps manage sync pools so multiple references to the same pool objects may be held.
-type PoolManager struct {
-	pool genericPool
+type PoolManager[K managedPoolTypes] struct {
+	pool genericPool[K]
 	refs sync.Map
 
 	passthru *atomic.Bool
@@ -30,48 +32,36 @@ type PoolManager struct {
 }
 
 // NewPoolManager creates a PoolManager to manage the underlying genericPool.
-func NewPoolManager(gp genericPool) *PoolManager {
-	return &PoolManager{
+func NewPoolManager[K managedPoolTypes](gp genericPool[K]) *PoolManager[K] {
+	return &PoolManager[K]{
 		pool:     gp,
 		passthru: atomic.NewBool(true),
 	}
 }
 
 // Get gets an object from the pool.
-func (p *PoolManager) Get() interface{} {
+func (p *PoolManager[K]) Get() *K {
 	return p.pool.Get()
 }
 
 // Put declares intent to return an object to the pool. In passthru mode the object is immediately
 // returned to the pool, otherwise we wait until the object is put by all (only 2 currently supported)
 // reference holders before actually returning it to the object pool.
-func (p *PoolManager) Put(x interface{}) {
+func (p *PoolManager[K]) Put(x *K) {
 
 	if p.IsPassthru() {
 		p.pool.Put(x)
 		return
 	}
 
-	var ref unsafe.Pointer
-	switch t := x.(type) {
-	case *[]byte:
-		ref = unsafe.Pointer(t)
-	case *Packet:
-		ref = unsafe.Pointer(t)
-	default:
-		log.Debugf("Unsupported type by pool manager")
-		return
-	}
+	ref := unsafe.Pointer(x)
 
 	// This lock is not to guard the map, it's here to
 	// avoid adding items to the map while flushing.
 	p.RLock()
 
-	// TODO: use LoadAndDelete when go 1.15 is introduced
-	_, loaded := p.refs.Load(ref)
+	_, loaded := p.refs.LoadAndDelete(ref)
 	if loaded {
-		// reference exists, put back.
-		p.refs.Delete(ref)
 		p.pool.Put(x)
 	} else {
 		// reference does not exist, account.
@@ -83,13 +73,13 @@ func (p *PoolManager) Put(x interface{}) {
 }
 
 // IsPassthru returns a boolean telling us if the PoolManager is in passthru mode or not.
-func (p *PoolManager) IsPassthru() bool {
+func (p *PoolManager[K]) IsPassthru() bool {
 	return p.passthru.Load()
 }
 
 // SetPassthru sets the passthru mode to the specified value. It will flush the sccounting before
 // enabling passthru mode.
-func (p *PoolManager) SetPassthru(b bool) {
+func (p *PoolManager[K]) SetPassthru(b bool) {
 	if b {
 		p.passthru.Store(true)
 		p.Flush()
@@ -99,7 +89,7 @@ func (p *PoolManager) SetPassthru(b bool) {
 }
 
 // Count returns the number of elements accounted by the PoolManager.
-func (p *PoolManager) Count() int {
+func (p *PoolManager[K]) Count() int {
 	p.RLock()
 	defer p.RUnlock()
 
@@ -113,12 +103,12 @@ func (p *PoolManager) Count() int {
 }
 
 // Flush flushes all objects back to the object pool, and stops tracking any pending objects.
-func (p *PoolManager) Flush() {
+func (p *PoolManager[K]) Flush() {
 	p.Lock()
 	defer p.Unlock()
 
-	p.refs.Range(func(k, v interface{}) bool {
-		p.pool.Put(v)
+	p.refs.Range(func(k, v any) bool {
+		p.pool.Put(v.(*K))
 		p.refs.Delete(k)
 		return true
 	})

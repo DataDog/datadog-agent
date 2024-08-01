@@ -8,9 +8,9 @@ package config
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/core/log"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 
@@ -33,6 +33,8 @@ type NetflowConfig struct {
 
 	PrometheusListenerAddress string `mapstructure:"prometheus_listener_address"` // Example `localhost:9090`
 	PrometheusListenerEnabled bool   `mapstructure:"prometheus_listener_enabled"`
+
+	ReverseDNSEnrichmentEnabled bool `mapstructure:"reverse_dns_enrichment_enabled"`
 }
 
 // ListenerConfig contains configuration for a single flow listener

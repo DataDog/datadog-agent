@@ -18,11 +18,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -468,6 +470,46 @@ func TestProcessMessageShouldProcessLogTypePlatformReportOutOfMemory(t *testing.
 	assert.Len(t, timed, 0)
 	assert.Equal(t, serverlessMetrics.OutOfMemoryMetric, received[6].Name)
 	assert.Equal(t, serverlessMetrics.ErrorsMetric, received[7].Name)
+}
+
+func TestProcessMessageShouldSendFailoverMetric(t *testing.T) {
+	demux := createDemultiplexer(t)
+
+	message := LambdaLogAPIMessage{
+		logType:      logTypeExtension,
+		time:         time.Now(),
+		stringRecord: "{\"DD_EXTENSION_FAILOVER_REASON\":\"test-reason\"}",
+	}
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
+	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
+	metricTags := []string{"functionname:test-function"}
+
+	computeEnhancedMetrics := true
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
+	tags := Tags{
+		Tags: metricTags,
+	}
+	logChannel := make(chan<- *config.ChannelMessage)
+	lc := NewLambdaLogCollector(logChannel, demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
+	lc.invocationStartTime = time.Now()
+	lc.invocationEndTime = time.Now().Add(10 * time.Millisecond)
+
+	lc.processMessage(&message)
+
+	received, timed := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+	assert.Len(t, received, 1)
+	assert.Len(t, timed, 0)
+	demux.Reset()
+
+	// even if enhanced metrics are disabled, we should still send the failover metric
+	lc.enhancedMetricsEnabled = false
+	message.stringRecord = "{\"DD_EXTENSION_FAILOVER_REASON\":\"test-reason\"}" // add again bc processing empties it
+	lc.processMessage(&message)
+
+	received, timed = demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+	assert.Len(t, received, 1)
+	assert.Len(t, timed, 0)
 }
 
 func TestProcessLogMessageLogsEnabled(t *testing.T) {
@@ -1431,5 +1473,5 @@ func TestMultipleStartLogCollection(t *testing.T) {
 }
 
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
-	return fxutil.Test[demultiplexer.FakeSamplerMock](t, logimpl.MockModule(), compressionimpl.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
+	return fxutil.Test[demultiplexer.FakeSamplerMock](t, fx.Provide(func() log.Component { return logmock.New(t) }), compressionimpl.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 }

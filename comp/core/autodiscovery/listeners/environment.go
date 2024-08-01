@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,7 +29,7 @@ type EnvironmentService struct {
 var _ Service = &EnvironmentService{}
 
 // NewEnvironmentListener creates an EnvironmentListener
-func NewEnvironmentListener(Config) (ServiceListener, error) {
+func NewEnvironmentListener(Config, *telemetry.Store) (ServiceListener, error) {
 	return &EnvironmentListener{}, nil
 }
 
@@ -73,14 +74,19 @@ func (l *EnvironmentListener) createServices() {
 	}
 }
 
+// Equal returns whether the two EnvironmentService are equal
+func (s *EnvironmentService) Equal(o Service) bool {
+	s2, ok := o.(*EnvironmentService)
+	if !ok {
+		return false
+	}
+
+	return s.adIdentifier == s2.adIdentifier
+}
+
 // GetServiceID returns the unique entity name linked to that service
 func (s *EnvironmentService) GetServiceID() string {
 	return s.adIdentifier
-}
-
-// GetTaggerEntity returns the tagger entity
-func (s *EnvironmentService) GetTaggerEntity() string {
-	return ""
 }
 
 // GetADIdentifiers return the single AD identifier for an environment service
@@ -117,11 +123,6 @@ func (s *EnvironmentService) GetHostname(context.Context) (string, error) {
 // IsReady is always true
 func (s *EnvironmentService) IsReady(context.Context) bool {
 	return true
-}
-
-// GetCheckNames is not supported
-func (s *EnvironmentService) GetCheckNames(context.Context) []string {
-	return nil
 }
 
 // HasFilter is not supported

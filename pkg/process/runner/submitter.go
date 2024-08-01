@@ -19,7 +19,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 
 	//nolint:revive // TODO(PROC) Fix revive linter
@@ -408,6 +408,7 @@ func (s *CheckSubmitter) messagesToCheckResult(start time.Time, name string, mes
 		extraHeaders.Set(headers.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
 		extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
 		extraHeaders.Set(headers.AgentStartTime, strconv.FormatInt(s.agentStartTime, 10))
+		extraHeaders.Set(headers.PayloadSource, flavor.GetFlavor())
 
 		switch name {
 		case checks.ProcessEventsCheckName:

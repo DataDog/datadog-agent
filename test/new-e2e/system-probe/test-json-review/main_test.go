@@ -35,6 +35,14 @@ const rerunTestData = `{"Time":"2024-06-14T22:24:53.156240262Z","Action":"run","
 {"Time":"2024-06-14T22:28:02.039003529Z","Action":"pass","Package":"a/b/c","Test":"testname","Elapsed":26.25}
 `
 
+const onlyParentOfFlakeFailed = `{"Time":"2024-06-14T22:24:52.156240262Z","Action":"run","Package":"a/b/c","Test":"testparent"}
+{"Time":"2024-06-14T22:24:53.156240262Z","Action":"run","Package":"a/b/c","Test":"testparent/testname"}
+{"Time":"2024-06-14T22:24:53.156263319Z","Action":"output","Package":"a/b/c","Test":"testparent/testname","Output":"=== RUN   testparent/testname\n"}
+{"Time":"2024-06-14T22:24:53.156271614Z","Action":"output","Package":"a/b/c","Test":"testparent/testname","Output":"    file_test.go:10: flakytest: this is a known flaky test\n"}
+{"Time":"2024-06-14T22:26:02.039003529Z","Action":"pass","Package":"a/b/c","Test":"testparent/testname","Elapsed":26.25}
+{"Time":"2024-06-14T22:26:03.039003529Z","Action":"fail","Package":"a/b/c","Test":"testparent","Elapsed":28.25}
+`
+
 func TestFlakeInOutput(t *testing.T) {
 	out, err := reviewTestsReaders(bytes.NewBuffer([]byte(flakeTestData)), nil)
 	require.NoError(t, err)
@@ -57,4 +65,12 @@ func TestRerunInOutput(t *testing.T) {
 	assert.Empty(t, out.Failed)
 	assert.Empty(t, out.Flaky)
 	assert.Equal(t, fmt.Sprintf(rerunFormat, "a/b/c", "testname", "pass"), out.ReRuns)
+}
+
+func TestOnlyParentOfFlakeFailed(t *testing.T) {
+	out, err := reviewTestsReaders(bytes.NewBuffer([]byte(onlyParentOfFlakeFailed)), nil)
+	require.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf(failFormat, "a/b/c", "testparent"), out.Failed)
+	assert.Empty(t, out.Flaky)
+	assert.Empty(t, out.ReRuns)
 }

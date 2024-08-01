@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
@@ -27,7 +28,7 @@ type StaticConfigService struct {
 var _ Service = &StaticConfigService{}
 
 // NewStaticConfigListener creates a StaticConfigListener
-func NewStaticConfigListener(Config) (ServiceListener, error) {
+func NewStaticConfigListener(Config, *telemetry.Store) (ServiceListener, error) {
 	return &StaticConfigListener{}, nil
 }
 
@@ -56,14 +57,19 @@ func (l *StaticConfigListener) createServices() {
 	}
 }
 
+// Equal returns whether the two StaticConfigService are equal
+func (s *StaticConfigService) Equal(o Service) bool {
+	s2, ok := o.(*StaticConfigService)
+	if !ok {
+		return false
+	}
+
+	return s.adIdentifier == s2.adIdentifier
+}
+
 // GetServiceID returns the unique entity name linked to that service
 func (s *StaticConfigService) GetServiceID() string {
 	return s.adIdentifier
-}
-
-// GetTaggerEntity returns the tagger entity
-func (s *StaticConfigService) GetTaggerEntity() string {
-	return ""
 }
 
 // GetADIdentifiers return the single AD identifier for a static config service
@@ -100,11 +106,6 @@ func (s *StaticConfigService) GetHostname(context.Context) (string, error) {
 // IsReady is always true
 func (s *StaticConfigService) IsReady(context.Context) bool {
 	return true
-}
-
-// GetCheckNames is not supported
-func (s *StaticConfigService) GetCheckNames(context.Context) []string {
-	return nil
 }
 
 // HasFilter is not supported

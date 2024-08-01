@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/comp/netflow/portrollup"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
@@ -125,16 +125,14 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	aggHash := flowToAdd.AggregationHash()
 	aggFlow, ok := f.flows[aggHash]
 	if !ok {
-		flowToAdd.SrcReverseDNSHostname = f.rdnsQuerier.GetHostname(flowToAdd.SrcAddr)
-		flowToAdd.DstReverseDNSHostname = f.rdnsQuerier.GetHostname(flowToAdd.DstAddr)
 		f.flows[aggHash] = newFlowContext(flowToAdd)
+		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
 		return
 	}
 	if aggFlow.flow == nil {
 		// flowToAdd is for the same hash as an aggregated flow that has been flushed
-		flowToAdd.SrcReverseDNSHostname = f.rdnsQuerier.GetHostname(flowToAdd.SrcAddr)
-		flowToAdd.DstReverseDNSHostname = f.rdnsQuerier.GetHostname(flowToAdd.DstAddr)
 		aggFlow.flow = flowToAdd
+		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
 	} else {
 		// use go routine for hash collision detection to avoid blocking critical path
 		go f.detectHashCollision(aggHash, *aggFlow.flow, *flowToAdd)
@@ -161,6 +159,40 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		}
 	}
 	f.flows[aggHash] = aggFlow
+}
+
+func (f *flowAccumulator) addRDNSEnrichment(aggHash uint64, srcAddr []byte, dstAddr []byte) {
+	err := f.rdnsQuerier.GetHostnameAsync(
+		srcAddr,
+		func(hostname string) {
+			f.flowsMutex.Lock()
+			defer f.flowsMutex.Unlock()
+
+			aggFlow, ok := f.flows[aggHash]
+			if ok && aggFlow.flow != nil {
+				aggFlow.flow.SrcReverseDNSHostname = hostname
+			}
+		},
+	)
+	if err != nil {
+		f.logger.Debugf("Error requesting reverse DNS enrichment for source IP address: %v error: %v", srcAddr, err)
+	}
+
+	err = f.rdnsQuerier.GetHostnameAsync(
+		dstAddr,
+		func(hostname string) {
+			f.flowsMutex.Lock()
+			defer f.flowsMutex.Unlock()
+
+			aggFlow, ok := f.flows[aggHash]
+			if ok && aggFlow.flow != nil {
+				aggFlow.flow.DstReverseDNSHostname = hostname
+			}
+		},
+	)
+	if err != nil {
+		f.logger.Debugf("Error requesting reverse DNS enrichment for destination IP address: %v error: %v", dstAddr, err)
+	}
 }
 
 func (f *flowAccumulator) getFlowContextCount() int {

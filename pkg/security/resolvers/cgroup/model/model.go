@@ -15,6 +15,7 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -70,6 +71,7 @@ func (ws WorkloadSelector) ToTags() []string {
 
 // CacheEntry cgroup resolver cache entry
 type CacheEntry struct {
+	model.CGroupContext
 	model.ContainerContext
 	sync.RWMutex
 	Deleted          *atomic.Bool
@@ -78,11 +80,15 @@ type CacheEntry struct {
 }
 
 // NewCacheEntry returns a new instance of a CacheEntry
-func NewCacheEntry(id string, pids ...uint32) (*CacheEntry, error) {
+func NewCacheEntry(containerID string, cgroupFlags uint64, pids ...uint32) (*CacheEntry, error) {
 	newCGroup := CacheEntry{
 		Deleted: atomic.NewBool(false),
+		CGroupContext: model.CGroupContext{
+			CGroupID:    containerutils.GetCgroupFromContainer(containerutils.ContainerID(containerID), containerutils.CGroupFlags(cgroupFlags)),
+			CGroupFlags: containerutils.CGroupFlags(cgroupFlags),
+		},
 		ContainerContext: model.ContainerContext{
-			ID: id,
+			ContainerID: containerutils.ContainerID(containerID),
 		},
 		PIDs: make(map[uint32]int8, 10),
 	}
@@ -150,5 +156,5 @@ func (cgce *CacheEntry) GetWorkloadSelectorCopy() *WorkloadSelector {
 
 // NeedsTagsResolution returns true if this workload is missing its tags
 func (cgce *CacheEntry) NeedsTagsResolution() bool {
-	return len(cgce.ID) != 0 && !cgce.WorkloadSelector.IsReady()
+	return len(cgce.ContainerID) != 0 && !cgce.WorkloadSelector.IsReady()
 }

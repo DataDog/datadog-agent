@@ -86,6 +86,9 @@ type Config struct {
 	// EnablePostgresMonitoring specifies whether the tracer should monitor Postgres traffic.
 	EnablePostgresMonitoring bool
 
+	// EnableRedisMonitoring specifies whether the tracer should monitor Redis traffic.
+	EnableRedisMonitoring bool
+
 	// EnableNativeTLSMonitoring specifies whether the USM should monitor HTTPS traffic via native libraries.
 	// Supported libraries: OpenSSL, GnuTLS, LibCrypto.
 	EnableNativeTLSMonitoring bool
@@ -188,6 +191,10 @@ type Config struct {
 	// MaxPostgresStatsBuffered represents the maximum number of Postgres stats we'll buffer in memory. These stats
 	// get flushed on every client request (default 30s check interval)
 	MaxPostgresStatsBuffered int
+
+	// MaxRedisStatsBuffered represents the maximum number of Redis stats we'll buffer in memory. These stats
+	// get flushed on every client request (default 30s check interval)
+	MaxRedisStatsBuffered int
 
 	// MaxConnectionsStateBuffered represents the maximum number of state objects that we'll store in memory. These state objects store
 	// the stats for a connection so we can accurately determine traffic change between client requests.
@@ -353,18 +360,20 @@ func New() *Config {
 
 		NPMRingbuffersEnabled: cfg.GetBool(join(netNS, "enable_ringbuffers")),
 
-		EnableHTTPMonitoring:       cfg.GetBool(join(smNS, "enable_http_monitoring")),
-		EnableHTTP2Monitoring:      cfg.GetBool(join(smNS, "enable_http2_monitoring")),
-		EnableKafkaMonitoring:      cfg.GetBool(join(smNS, "enable_kafka_monitoring")),
-		EnablePostgresMonitoring:   cfg.GetBool(join(smNS, "enable_postgres_monitoring")),
-		EnableNativeTLSMonitoring:  cfg.GetBool(join(smNS, "tls", "native", "enabled")),
-		EnableIstioMonitoring:      cfg.GetBool(join(smNS, "tls", "istio", "enabled")),
-		EnableNodeJSMonitoring:     cfg.GetBool(join(smNS, "tls", "nodejs", "enabled")),
-		MaxUSMConcurrentRequests:   uint32(cfg.GetInt(join(smNS, "max_concurrent_requests"))),
-		MaxHTTPStatsBuffered:       cfg.GetInt(join(smNS, "max_http_stats_buffered")),
-		MaxKafkaStatsBuffered:      cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
-		MaxPostgresStatsBuffered:   cfg.GetInt(join(smNS, "max_postgres_stats_buffered")),
+		EnableHTTPMonitoring:      cfg.GetBool(join(smNS, "enable_http_monitoring")),
+		EnableHTTP2Monitoring:     cfg.GetBool(join(smNS, "enable_http2_monitoring")),
+		EnableKafkaMonitoring:     cfg.GetBool(join(smNS, "enable_kafka_monitoring")),
+		EnablePostgresMonitoring:  cfg.GetBool(join(smNS, "enable_postgres_monitoring")),
+		EnableRedisMonitoring:     cfg.GetBool(join(smNS, "enable_redis_monitoring")),
+		EnableNativeTLSMonitoring: cfg.GetBool(join(smNS, "tls", "native", "enabled")),
+		EnableIstioMonitoring:     cfg.GetBool(join(smNS, "tls", "istio", "enabled")),
+		EnableNodeJSMonitoring:    cfg.GetBool(join(smNS, "tls", "nodejs", "enabled")),
+		MaxUSMConcurrentRequests:  uint32(cfg.GetInt(join(smNS, "max_concurrent_requests"))),
+		MaxHTTPStatsBuffered:      cfg.GetInt(join(smNS, "max_http_stats_buffered")),
+		MaxKafkaStatsBuffered:     cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
+		MaxPostgresStatsBuffered:  cfg.GetInt(join(smNS, "max_postgres_stats_buffered")),
 		MaxPostgresTelemetryBuffer: cfg.GetInt(join(smNS, "max_postgres_telemetry_buffer")),
+		MaxRedisStatsBuffered:     cfg.GetInt(join(smNS, "max_redis_stats_buffered")),
 
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(smNS, "max_tracked_http_connections")),
 		HTTPNotificationThreshold: cfg.GetInt64(join(smNS, "http_notification_threshold")),

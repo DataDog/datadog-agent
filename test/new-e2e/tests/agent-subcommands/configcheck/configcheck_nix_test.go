@@ -12,8 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 )
@@ -23,10 +21,11 @@ type linuxConfigCheckSuite struct {
 }
 
 func TestLinuxConfigCheckSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &linuxConfigCheckSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 
-// cpu, disk, file_handle, io, load, memory, network, ntp, uptime, service_discovery
+// cpu, disk, file_handle, io, load, memory, network, ntp, uptime
 func (v *linuxConfigCheckSuite) TestDefaultInstalledChecks() {
 	testChecks := []CheckConfigOutput{
 		{
@@ -83,15 +82,9 @@ func (v *linuxConfigCheckSuite) TestDefaultInstalledChecks() {
 			InstanceID: "uptime:",
 			Settings:   "{}",
 		},
-		{
-			CheckName:  "service_discovery",
-			Filepath:   "file:/etc/datadog-agent/conf.d/service_discovery.d/conf.yaml.default",
-			InstanceID: "service_discovery:",
-			Settings:   "{}",
-		},
 	}
 
-	output := v.Env().Agent.Client.ConfigCheck(agentclient.WithArgs([]string{"-n"}))
+	output := v.Env().Agent.Client.ConfigCheck()
 	VerifyDefaultInstalledCheck(v.T(), output, testChecks)
 }
 
@@ -103,7 +96,7 @@ func (v *linuxConfigCheckSuite) TestWithBadConfigCheck() {
 	integration := agentparams.WithIntegration("http_check.d", config)
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(integration)))
 
-	output := v.Env().Agent.Client.ConfigCheck(agentclient.WithArgs([]string{"-n"}))
+	output := v.Env().Agent.Client.ConfigCheck()
 
 	assert.Contains(v.T(), output, "http_check: yaml: line 2: found character that cannot start any token")
 }
@@ -116,7 +109,7 @@ func (v *linuxConfigCheckSuite) TestWithAddedIntegrationsCheck() {
 	integration := agentparams.WithIntegration("http_check.d", config)
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(integration)))
 
-	output := v.Env().Agent.Client.ConfigCheck(agentclient.WithArgs([]string{"-n"}))
+	output := v.Env().Agent.Client.ConfigCheck()
 
 	result, err := MatchCheckToTemplate("http_check", output)
 	require.NoError(v.T(), err)

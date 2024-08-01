@@ -185,10 +185,11 @@ type PolicyState struct {
 // RuleAction is used to report policy was loaded
 // easyjson:json
 type RuleAction struct {
-	Filter *string         `json:"filter,omitempty"`
-	Set    *RuleSetAction  `json:"set,omitempty"`
-	Kill   *RuleKillAction `json:"kill,omitempty"`
-	Hash   *HashAction     `json:"hash,omitempty"`
+	Filter   *string         `json:"filter,omitempty"`
+	Set      *RuleSetAction  `json:"set,omitempty"`
+	Kill     *RuleKillAction `json:"kill,omitempty"`
+	Hash     *HashAction     `json:"hash,omitempty"`
+	CoreDump *CoreDumpAction `json:"coredump,omitempty"`
 }
 
 // HashAction is used to report 'hash' action
@@ -212,6 +213,15 @@ type RuleSetAction struct {
 type RuleKillAction struct {
 	Signal string `json:"signal,omitempty"`
 	Scope  string `json:"scope,omitempty"`
+}
+
+// CoreDumpAction is used to report the 'coredump' action
+// easyjson:json
+type CoreDumpAction struct {
+	Process       bool `json:"process,omitempty"`
+	Mount         bool `json:"mount,omitempty"`
+	Dentry        bool `json:"dentry,omitempty"`
+	NoCompression bool `json:"no_compression,omitempty"`
 }
 
 // RulesetLoadedEvent is used to report that a new ruleset was loaded
@@ -277,6 +287,13 @@ func RuleStateFromDefinition(def *rules.RuleDefinition, status string, message s
 		case action.Hash != nil:
 			ruleAction.Hash = &HashAction{
 				Enabled: true,
+			}
+		case action.CoreDump != nil:
+			ruleAction.CoreDump = &CoreDumpAction{
+				Process:       action.CoreDump.Process,
+				Mount:         action.CoreDump.Mount,
+				Dentry:        action.CoreDump.Dentry,
+				NoCompression: action.CoreDump.NoCompression,
 			}
 		}
 		ruleState.Actions = append(ruleState.Actions, ruleAction)

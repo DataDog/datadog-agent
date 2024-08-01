@@ -25,6 +25,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 func unsetEnvForTest(t *testing.T, env string) {
@@ -440,7 +441,7 @@ func TestProxy(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			_, err := LoadCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+			_, err := LoadDatadogCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -548,7 +549,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			_, err := LoadCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+			_, err := LoadDatadogCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -1250,7 +1251,7 @@ func TestConfigAssignAtPath(t *testing.T) {
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
+	err := LoadCustom(config, nil)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
@@ -1302,7 +1303,7 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
+	err := LoadCustom(config, nil)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
@@ -1342,7 +1343,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	os.WriteFile(configPath, testSimpleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
+	err := LoadCustom(config, nil)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_arguments", "0"}, "password1")
@@ -1405,32 +1406,35 @@ use_proxy_for_cloud_metadata: true
 		}, nil
 	})
 
-	_, err := LoadCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+	err := LoadCustom(config, nil)
 	assert.NoError(t, err)
+
+	err = ResolveSecrets(config, resolver, "unit_test")
+	require.NoError(t, err)
 
 	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())
 	assert.NoError(t, err)
-	assert.Equal(t, expectedYaml, string(yamlConf))
+	assert.YAMLEq(t, expectedYaml, string(yamlConf))
 
 	// use resolver to modify a 2nd config with a different origin
 	diffYaml, err := resolver.Resolve(testMinimalDiffConf, "diff_test")
 	assert.NoError(t, err)
-	assert.Equal(t, expectedDiffYaml, string(diffYaml))
+	assert.YAMLEq(t, expectedDiffYaml, string(diffYaml))
 
 	// verify that the original config was not changed because origin is different
 	yamlConf, err = yaml.Marshal(config.AllSettingsWithoutDefault())
 	assert.NoError(t, err)
-	assert.Equal(t, expectedYaml, string(yamlConf))
+	assert.YAMLEq(t, expectedYaml, string(yamlConf))
 
 	// use resolver again, but with the original origin now
 	diffYaml, err = resolver.Resolve(testMinimalDiffConf, "unit_test")
 	assert.NoError(t, err)
-	assert.Equal(t, expectedDiffYaml, string(diffYaml))
+	assert.YAMLEq(t, expectedDiffYaml, string(diffYaml))
 
 	// now the original config was modified because of the origin match
 	yamlConf, err = yaml.Marshal(config.AllSettingsWithoutDefault())
 	assert.NoError(t, err)
-	assert.Equal(t, expectedDiffYaml, string(yamlConf))
+	assert.YAMLEq(t, expectedDiffYaml, string(yamlConf))
 }
 
 func TestConfigAssignAtPathForIntMapKeys(t *testing.T) {
@@ -1451,7 +1455,7 @@ additional_endpoints:
 	os.WriteFile(configPath, testIntKeysConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
+	err := LoadCustom(config, nil)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"additional_endpoints", "2"}, "cherry")
@@ -1498,4 +1502,36 @@ func TestAgentConfigInit(t *testing.T) {
 	assert.True(t, conf.IsKnown("forwarder_timeout"))
 	assert.True(t, conf.IsKnown("sbom.enabled"))
 	assert.True(t, conf.IsKnown("inventories_enabled"))
+}
+
+func TestENVAdditionalKeysToScrubber(t *testing.T) {
+	// Test that the scrubber is correctly configured with the expected keys
+	cfg := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	data := `scrubber.additional_keys:
+- yet_another_key
+flare_stripped_keys:
+- some_other_key`
+
+	path := t.TempDir()
+	configPath := filepath.Join(path, "empty_conf.yaml")
+	err := os.WriteFile(configPath, []byte(data), 0o600)
+	require.NoError(t, err)
+	cfg.SetConfigFile(configPath)
+
+	_, err = LoadDatadogCustom(cfg, "test", optional.NewNoneOption[secrets.Component](), []string{})
+	require.NoError(t, err)
+
+	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+some_other_key: 'bbbb'
+app_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccc'
+yet_another_key: 'dddd'`
+
+	scrubbed, err := scrubber.ScrubYamlString(stringToScrub)
+	assert.Nil(t, err)
+	expected := `api_key: '***************************aaaaa'
+some_other_key: "********"
+app_key: '***********************************acccc'
+yet_another_key: "********"`
+	assert.YAMLEq(t, expected, scrubbed)
 }

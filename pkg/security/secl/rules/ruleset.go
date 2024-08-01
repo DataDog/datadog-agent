@@ -202,6 +202,8 @@ type RuleSet struct {
 
 	// event collector, used for tests
 	eventCollector EventCollector
+
+	OnDemandHookPoints []OnDemandHookPoint
 }
 
 // ListRuleIDs returns the list of RuleIDs from the ruleset
@@ -216,6 +218,11 @@ func (rs *RuleSet) ListRuleIDs() []RuleID {
 // GetRules returns the active rules
 func (rs *RuleSet) GetRules() map[eval.RuleID]*Rule {
 	return rs.rules
+}
+
+// GetOnDemandHookPoints gets the on-demand hook points
+func (rs *RuleSet) GetOnDemandHookPoints() []OnDemandHookPoint {
+	return rs.OnDemandHookPoints
 }
 
 // ListMacroIDs returns the list of MacroIDs from the ruleset
@@ -249,24 +256,24 @@ func (rs *RuleSet) AddMacro(parsingContext *ast.ParsingContext, macroDef *MacroD
 		return nil, &ErrMacroLoad{Definition: macroDef, Err: ErrDefinitionIDConflict}
 	}
 
-	macro := &Macro{Definition: macroDef}
+	var macro *eval.Macro
 
 	switch {
 	case macroDef.Expression != "" && len(macroDef.Values) > 0:
 		return nil, &ErrMacroLoad{Definition: macroDef, Err: errors.New("only one of 'expression' and 'values' can be defined")}
 	case macroDef.Expression != "":
-		if macro.Macro, err = eval.NewMacro(macroDef.ID, macroDef.Expression, rs.model, parsingContext, rs.evalOpts); err != nil {
+		if macro, err = eval.NewMacro(macroDef.ID, macroDef.Expression, rs.model, parsingContext, rs.evalOpts); err != nil {
 			return nil, &ErrMacroLoad{Definition: macroDef, Err: err}
 		}
 	default:
-		if macro.Macro, err = eval.NewStringValuesMacro(macroDef.ID, macroDef.Values, rs.evalOpts); err != nil {
+		if macro, err = eval.NewStringValuesMacro(macroDef.ID, macroDef.Values, rs.evalOpts); err != nil {
 			return nil, &ErrMacroLoad{Definition: macroDef, Err: err}
 		}
 	}
 
-	rs.evalOpts.MacroStore.Add(macro.Macro)
+	rs.evalOpts.MacroStore.Add(macro)
 
-	return macro.Macro, nil
+	return macro, nil
 }
 
 // AddRules adds rules to the ruleset and generate their partials
@@ -455,6 +462,14 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, ruleDef *RuleDefi
 	eventType, err := GetRuleEventType(rule.Rule)
 	if err != nil {
 		return nil, &ErrRuleLoad{Definition: ruleDef, Err: err}
+	}
+
+	// validate event context against event type
+	for _, field := range rule.GetFields() {
+		restrictions := rs.model.GetFieldRestrictions(field)
+		if len(restrictions) > 0 && !slices.Contains(restrictions, eventType) {
+			return nil, &ErrRuleLoad{Definition: ruleDef, Err: &ErrFieldNotAvailable{Field: field, EventType: eventType, RestrictedTo: restrictions}}
+		}
 	}
 
 	// ignore event types not supported
@@ -876,6 +891,8 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 				allRules = append(allRules, rule)
 			}
 		}
+
+		rs.OnDemandHookPoints = append(rs.OnDemandHookPoints, policy.OnDemandHookPoints...)
 	}
 
 	if err := rs.AddMacros(parsingContext, allMacros); err.ErrorOrNil() != nil {
@@ -910,6 +927,19 @@ func (rs *RuleSet) newFakeEvent() eval.Event {
 	}
 
 	return model.NewFakeEvent()
+}
+
+// OnDemandHookPoint represents a hook point definition
+type OnDemandHookPoint struct {
+	Name      string         `yaml:"name"`
+	IsSyscall bool           `yaml:"syscall"`
+	Args      []HookPointArg `yaml:"args"`
+}
+
+// HookPointArg represents the definition of a hook point argument
+type HookPointArg struct {
+	N    int    `yaml:"n"`
+	Kind string `yaml:"kind"`
 }
 
 // NewRuleSet returns a new ruleset for the specified data model

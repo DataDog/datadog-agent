@@ -10,11 +10,13 @@ package listeners
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aws"
 	dbmconfig "github.com/DataDog/datadog-agent/pkg/databasemonitoring/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -66,7 +68,7 @@ type DBMAuroraService struct {
 }
 
 // NewDBMAuroraListener returns a new DBMAuroraListener
-func NewDBMAuroraListener(Config) (ServiceListener, error) {
+func NewDBMAuroraListener(Config, *telemetry.Store) (ServiceListener, error) {
 	config, err := dbmconfig.NewAuroraAutodiscoveryConfig()
 	if err != nil {
 		return nil, err
@@ -189,6 +191,21 @@ func findDeletedServices(currServices map[string]Service, discoveredServices map
 	}
 
 	return deletedServices
+}
+
+// Equal returns whether the two DBMAuroraService are equal
+func (d *DBMAuroraService) Equal(o Service) bool {
+	d2, ok := o.(*DBMAuroraService)
+	if !ok {
+		return false
+	}
+
+	return d.adIdentifier == d2.adIdentifier &&
+		d.entityID == d2.entityID &&
+		d.checkName == d2.checkName &&
+		d.clusterID == d2.clusterID &&
+		d.region == d2.region &&
+		reflect.DeepEqual(d.instance, d2.instance)
 }
 
 // GetServiceID returns the unique entity name linked to that service

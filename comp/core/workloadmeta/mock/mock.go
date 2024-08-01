@@ -9,8 +9,8 @@
 package mock
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // Mock implements mock-specific methods.

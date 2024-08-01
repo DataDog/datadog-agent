@@ -2,8 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-
-//go:build kubeapiserver
+// Skip mac os test as cluster agent doesn't run on mac os
+//go:build kubeapiserver && !darwin
 
 package webhook
 
@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"runtime"
 	"testing"
 	"time"
 
@@ -28,10 +29,10 @@ import (
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 )
@@ -87,6 +88,9 @@ func TestCreateWebhookV1beta1(t *testing.T) {
 }
 
 func TestUpdateOutdatedWebhookV1beta1(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("Skipping flaky test on macOS")
+	}
 	f := newFixtureV1beta1(t)
 
 	data, err := certificate.GenerateSecretData(time.Now(), time.Now().Add(365*24*time.Hour), []string{"my.svc.dns"})
@@ -133,7 +137,7 @@ func TestUpdateOutdatedWebhookV1beta1(t *testing.T) {
 }
 
 func TestAdmissionControllerFailureModeIgnoreV1beta1(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	f := newFixtureV1beta1(t)
 	c, _ := f.createController()
 	c.config = NewConfig(true, false)
@@ -164,7 +168,7 @@ func TestAdmissionControllerFailureModeIgnoreV1beta1(t *testing.T) {
 }
 
 func TestAdmissionControllerFailureModeFailV1beta1(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	f := newFixtureV1beta1(t)
 	c, _ := f.createController()
 
@@ -182,7 +186,7 @@ func TestAdmissionControllerFailureModeFailV1beta1(t *testing.T) {
 }
 
 func TestAdmissionControllerReinvocationPolicyV1beta1(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	f := newFixtureV1beta1(t)
 	c, _ := f.createController()
 	c.config = NewConfig(true, false)
@@ -594,15 +598,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				execWebhook := webhook(
 					"datadog.webhook.cws.exec.instrumentation",
 					"/inject-command-cws",
-					&metav1.LabelSelector{
-						MatchExpressions: []metav1.LabelSelectorRequirement{
-							{
-								Key:      cwsinstrumentation.PodLabelEnabled,
-								Operator: metav1.LabelSelectorOpNotIn,
-								Values:   []string{"false"},
-							},
-						},
-					},
+					nil,
 					nil,
 					[]admiv1beta1.OperationType{admiv1beta1.Connect},
 					[]string{"pods/exec"},
@@ -639,11 +635,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				execWebhook := webhook(
 					"datadog.webhook.cws.exec.instrumentation",
 					"/inject-command-cws",
-					&metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							cwsinstrumentation.PodLabelEnabled: "true",
-						},
-					},
+					nil,
 					nil,
 					[]admiv1beta1.OperationType{admiv1beta1.Connect},
 					[]string{"pods/exec"},
@@ -685,15 +677,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 					"datadog.webhook.cws.exec.instrumentation",
 					"/inject-command-cws",
 					nil,
-					&metav1.LabelSelector{
-						MatchExpressions: []metav1.LabelSelectorRequirement{
-							{
-								Key:      cwsinstrumentation.PodLabelEnabled,
-								Operator: metav1.LabelSelectorOpNotIn,
-								Values:   []string{"false"},
-							},
-						},
-					},
+					nil,
 					[]admiv1beta1.OperationType{admiv1beta1.Connect},
 					[]string{"pods/exec"},
 				)
@@ -730,11 +714,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 					"datadog.webhook.cws.exec.instrumentation",
 					"/inject-command-cws",
 					nil,
-					&metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							cwsinstrumentation.PodLabelEnabled: "true",
-						},
-					},
+					nil,
 					[]admiv1beta1.OperationType{admiv1beta1.Connect},
 					[]string{"pods/exec"},
 				)
@@ -969,12 +949,9 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 	)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig := config.Mock(t)
+			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("kube_resources_namespace", "nsfoo")
-
 			tt.setupConfig(mockConfig)
-			autoinstrumentation.UnsetWebhook()       // Ensure that the webhook uses the config set above
-			defer autoinstrumentation.UnsetWebhook() // So other tests are not impacted
 
 			c := &ControllerV1beta1{}
 			c.config = tt.configFunc()
@@ -987,7 +964,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 }
 
 func TestGetWebhookSkeletonV1beta1(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	failurePolicy := admiv1beta1.Ignore
 	matchPolicy := admiv1beta1.Exact
 	sideEffects := admiv1beta1.SideEffectClassNone

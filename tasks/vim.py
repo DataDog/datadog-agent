@@ -6,19 +6,19 @@ Helpers for getting Vim set up nicely
 
 from invoke import task
 
-from tasks.build_tags import (
-    build_tags,
-    filter_incompatible_tags,
-    get_build_tags,
-    get_default_build_tags,
-)
+from tasks.build_tags import build_tags, compute_config_build_tags
 from tasks.flavor import AgentFlavor
 
 
-@task
+@task(
+    help={
+        "targets": f"Comma separated list of targets to include. Possible values: all, {', '.join(build_tags[AgentFlavor.base].keys())}. Default: all",
+        "flavor": f"Agent flavor to use. Possible values: {', '.join(AgentFlavor.__members__.keys())}. Default: {AgentFlavor.base.name}",
+    }
+)
 def set_buildtags(
     _,
-    target="agent",
+    targets="all",
     build_include=None,
     build_exclude=None,
     flavor=AgentFlavor.base.name,
@@ -26,20 +26,12 @@ def set_buildtags(
     """
     Create .vimrc settings file for this project to include correct build tags
     """
-    flavor = AgentFlavor[flavor]
-
-    if target not in build_tags[flavor]:
-        print("Must choose a valid target.  Valid targets are: \n")
-        print(f'{", ".join(build_tags[flavor].keys())} \n')
-        return
-
-    build_include = (
-        get_default_build_tags(build=target, flavor=flavor)
-        if build_include is None
-        else filter_incompatible_tags(build_include.split(","))
+    use_tags = compute_config_build_tags(
+        targets=targets,
+        build_include=build_include,
+        build_exclude=build_exclude,
+        flavor=flavor,
     )
-    build_exclude = [] if build_exclude is None else build_exclude.split(",")
-    use_tags = get_build_tags(build_include, build_exclude)
 
     with open(".vimrc", "w") as f:
-        f.write(f"let g:ale_go_gopls_init_options = {{'buildFlags': ['-tags', '{','.join(use_tags)}']}}\n")
+        f.write(f"let g:ale_go_gopls_init_options = {{'buildFlags': ['-tags', '{','.join(sorted(use_tags))}']}}\n")

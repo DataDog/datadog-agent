@@ -23,35 +23,26 @@ type telemetryResults struct {
 }
 
 func Test_getBucketIndex(t *testing.T) {
-	for i := 0; i <= 130; i++ {
-		require.Equal(t, 0, getBucketIndex(i))
+	// We want to validate that the bucket index is calculated correctly, given the BufferSize and the bucketLength.
+	testCases := []struct {
+		start, end, expected int
+	}{
+		{0, BufferSize - 2*bucketLength, 0},
+		{BufferSize - 2*bucketLength + 1, BufferSize - bucketLength, 1},
+		{BufferSize - bucketLength + 1, BufferSize, 2},
+		{BufferSize + 1, BufferSize + bucketLength, 3},
+		{BufferSize + bucketLength + 1, BufferSize + 2*bucketLength, 4},
+		{BufferSize + 2*bucketLength + 1, BufferSize + 3*bucketLength, 5},
+		{BufferSize + 3*bucketLength + 1, BufferSize + 4*bucketLength, 6},
+		{BufferSize + 4*bucketLength + 1, BufferSize + 5*bucketLength, 7},
+		{BufferSize + 5*bucketLength + 1, BufferSize + 6*bucketLength, 8},
+		{BufferSize + 6*bucketLength + 1, BufferSize + 7*bucketLength, 9},
 	}
-	for i := 131; i <= 145; i++ {
-		require.Equal(t, 1, getBucketIndex(i))
-	}
-	for i := 146; i <= 160; i++ {
-		require.Equal(t, 2, getBucketIndex(i))
-	}
-	for i := 161; i <= 175; i++ {
-		require.Equal(t, 3, getBucketIndex(i))
-	}
-	for i := 176; i <= 190; i++ {
-		require.Equal(t, 4, getBucketIndex(i))
-	}
-	for i := 191; i <= 205; i++ {
-		require.Equal(t, 5, getBucketIndex(i))
-	}
-	for i := 206; i <= 220; i++ {
-		require.Equal(t, 6, getBucketIndex(i))
-	}
-	for i := 221; i <= 235; i++ {
-		require.Equal(t, 7, getBucketIndex(i))
-	}
-	for i := 236; i <= 250; i++ {
-		require.Equal(t, 8, getBucketIndex(i))
-	}
-	for i := 251; i <= 300; i++ {
-		require.Equal(t, 9, getBucketIndex(i))
+
+	for _, tc := range testCases {
+		for i := tc.start; i <= tc.end; i++ {
+			require.Equal(t, tc.expected, getBucketIndex(i), "query length %d should be in bucket %d", i, tc.expected)
+		}
 	}
 }
 
@@ -65,56 +56,16 @@ func TestTelemetry_Count(t *testing.T) {
 		{
 			name: "exceeded query length bucket for each bucket ones",
 			tx: []*EbpfEvent{
-				{
-					Tx: EbpfTx{
-						Original_query_size: 100,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 131,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 160,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 161,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 176,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 191,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 206,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 221,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 236,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 251,
-					},
-				},
+				createEbpfEvent(BufferSize - 2*bucketLength),
+				createEbpfEvent(BufferSize - bucketLength),
+				createEbpfEvent(BufferSize),
+				createEbpfEvent(BufferSize + 1),
+				createEbpfEvent(BufferSize + bucketLength + 1),
+				createEbpfEvent(BufferSize + 2*bucketLength + 1),
+				createEbpfEvent(BufferSize + 3*bucketLength + 1),
+				createEbpfEvent(BufferSize + 4*bucketLength + 1),
+				createEbpfEvent(BufferSize + 5*bucketLength + 1),
+				createEbpfEvent(BufferSize + 6*bucketLength + 1),
 			},
 
 			expectedTelemetry: telemetryResults{
@@ -166,6 +117,14 @@ func TestTelemetry_Count(t *testing.T) {
 			}
 			verifyTelemetry(t, tel, tt.expectedTelemetry)
 		})
+	}
+}
+
+func createEbpfEvent(querySize int) *EbpfEvent {
+	return &EbpfEvent{
+		Tx: EbpfTx{
+			Original_query_size: uint32(querySize),
+		},
 	}
 }
 

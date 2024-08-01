@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	eventmonitortestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
@@ -48,20 +48,22 @@ func launchProcessMonitor(t *testing.T, useEventStream bool) {
 
 type SharedLibrarySuite struct {
 	suite.Suite
-	useEventStream bool
 }
 
 func TestSharedLibrary(t *testing.T) {
-	if !http.TLSSupported(config.New()) {
+	if !usmconfig.TLSSupported(config.New()) {
 		t.Skip("shared library tracing not supported for this platform")
 	}
 
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
-		suite.Run(t, new(SharedLibrarySuite))
-	})
-
-	t.Run("event stream", func(t *testing.T) {
-		suite.Run(t, &SharedLibrarySuite{useEventStream: true})
+		t.Run("netlink", func(t *testing.T) {
+			launchProcessMonitor(t, false)
+			suite.Run(t, new(SharedLibrarySuite))
+		})
+		t.Run("event stream", func(t *testing.T) {
+			launchProcessMonitor(t, true)
+			suite.Run(t, new(SharedLibrarySuite))
+		})
 	})
 }
 
@@ -83,7 +85,6 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 	require.NoError(t, err)
 	watcher.Start()
 	t.Cleanup(watcher.Stop)
-	launchProcessMonitor(t, s.useEventStream)
 
 	// create files
 	command1, err := fileopener.OpenFromAnotherProcess(t, fooPath1)
@@ -141,7 +142,6 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDAndRootNamespace()
 	require.NoError(t, err)
 	watcher.Start()
 	t.Cleanup(watcher.Stop)
-	launchProcessMonitor(t, s.useEventStream)
 
 	time.Sleep(10 * time.Millisecond)
 	// simulate a slow (1 second) : open, write, close of the file
@@ -190,7 +190,6 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 	require.NoError(t, err)
 	watcher.Start()
 	t.Cleanup(watcher.Stop)
-	launchProcessMonitor(t, s.useEventStream)
 
 	command1, err := fileopener.OpenFromAnotherProcess(t, fooPath1, fooPath2)
 	require.NoError(t, err)
@@ -237,7 +236,6 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 	require.NoError(t, err)
 	watcher.Start()
 	t.Cleanup(watcher.Stop)
-	launchProcessMonitor(t, s.useEventStream)
 
 	command1, err := fileopener.OpenFromAnotherProcess(t, fooPath1, fooPath2)
 	require.NoError(t, err)
@@ -310,7 +308,6 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 
 	watcher.Start()
 	t.Cleanup(watcher.Stop)
-	launchProcessMonitor(t, s.useEventStream)
 
 	require.Eventually(t, func() bool {
 		return registerRecorder.CallsForPathID(fooPathID1) == 1 &&

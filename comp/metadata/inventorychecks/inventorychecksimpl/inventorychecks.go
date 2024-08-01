@@ -9,6 +9,7 @@ package inventorychecksimpl
 import (
 	"context"
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -18,11 +19,10 @@ import (
 	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
@@ -131,6 +132,14 @@ func newInventoryChecksProvider(deps dependencies) provides {
 
 	if logAgent, isSet := deps.LogAgent.Get(); isSet {
 		ic.sources.Set(logAgent.GetSources())
+	}
+
+	// Set the expvar callback to the current inventorycheck
+	// This should be removed when migrated to collector component
+	if icExpvar := expvar.Get("inventories"); icExpvar == nil {
+		expvar.Publish("inventories", expvar.Func(func() interface{} {
+			return ic.getPayload()
+		}))
 	}
 
 	return provides{
@@ -265,7 +274,7 @@ func (ic *inventorychecksImpl) writePayloadAsJSON(w http.ResponseWriter, _ *http
 	// GetAsJSON already return scrubbed data
 	scrubbed, err := ic.GetAsJSON()
 	if err != nil {
-		utils.SetJSONError(w, err, 500)
+		httputils.SetJSONError(w, err, 500)
 		return
 	}
 	w.Write(scrubbed)

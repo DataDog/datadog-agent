@@ -28,12 +28,3 @@ func Module() fxutil.Module {
 		}),
 	)
 }
-
-// OptionalModule defines the fx options when workloadmeta should be used as an optional.
-func OptionalModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(
-			workloadmeta.NewWorkloadMetaOptional,
-		),
-	)
-}

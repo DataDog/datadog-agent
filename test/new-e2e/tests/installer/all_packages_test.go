@@ -57,6 +57,7 @@ var (
 		{t: testInstaller},
 		{t: testAgent},
 		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.Fedora37, e2eos.Suse15}},
+		{t: testUpgradeScenario},
 	}
 )
 
@@ -161,18 +162,24 @@ func (s *packageBaseSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	s.setupFakeIntake()
 	s.host = host.New(s.T(), s.Env().RemoteHost, s.os, s.arch)
+	s.disableUnattendedUpgrades()
+}
+
+func (s *packageBaseSuite) disableUnattendedUpgrades() {
+	if _, err := s.Env().RemoteHost.Execute("which apt"); err == nil {
+		s.Env().RemoteHost.MustExecute("sudo apt remove -y unattended-upgrades")
+	}
 }
 
 func (s *packageBaseSuite) RunInstallScriptProdOci(params ...string) error {
 	env := map[string]string{}
 	installScriptPackageManagerEnv(env, s.arch)
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://storage.googleapis.com/updater-dev/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(env))
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://install.datadoghq.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(env))
 	return err
 }
 
 func (s *packageBaseSuite) RunInstallScriptWithError(params ...string) error {
-	// FIXME: use the official install script
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://storage.googleapis.com/updater-dev/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(installScriptEnv(s.arch)))
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://install.datadoghq.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(installScriptEnv(s.arch)))
 	return err
 }
 

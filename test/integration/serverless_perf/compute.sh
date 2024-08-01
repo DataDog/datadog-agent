@@ -2,7 +2,7 @@
 
 set -o pipefail
 
-STARTUP_TIME_THRESHOLD=40
+STARTUP_TIME_THRESHOLD=25
 
 calculate_median() {
     local sorted=($(printf "%s\n" "${@}" | sort -n))

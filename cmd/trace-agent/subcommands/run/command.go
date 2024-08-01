@@ -21,8 +21,8 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
-	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log/tracelogimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -35,6 +35,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/trace"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
+	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -85,10 +88,10 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		fx.Supply(secrets.NewEnabledParams()),
 		telemetryimpl.Module(),
 		coreconfig.Module(),
-		fx.Provide(func() corelogimpl.Params {
-			return corelogimpl.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
+		fx.Provide(func() log.Params {
+			return log.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
 		}),
-		tracelogimpl.Module(),
+		logtracefx.Module(),
 		// setup workloadmeta
 		collectors.GetCatalog(),
 		fx.Supply(workloadmeta.Params{
@@ -112,6 +115,12 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 			CPUProfile:  cliParams.CPUProfile,
 			MemProfile:  cliParams.MemProfile,
 			PIDFilePath: cliParams.PIDFilePath,
+		}),
+		fx.Provide(func(cfg config.Component) compression.Component {
+			if cfg.Object().HasFeature("zstd-encoding") {
+				return zstd.NewComponent()
+			}
+			return gzip.NewComponent()
 		}),
 		trace.Bundle(),
 		fetchonlyimpl.Module(),

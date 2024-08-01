@@ -9,19 +9,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestReadConfig(t *testing.T) {
-	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
+	logger := logmock.New(t)
 
 	var tests = []struct {
 		name           string
@@ -58,6 +55,7 @@ network_devices:
         namespace: |
           my-ns2<abc
           zz
+    reverse_dns_enrichment_enabled: true
 `,
 			expectedConfig: NetflowConfig{
 				Enabled:                                true,
@@ -86,6 +84,7 @@ network_devices:
 						Namespace: "my-ns2-abczz",
 					},
 				},
+				ReverseDNSEnrichmentEnabled: true,
 			},
 		},
 		{
@@ -115,6 +114,7 @@ network_devices:
 						Namespace: "default",
 					},
 				},
+				ReverseDNSEnrichmentEnabled: false,
 			},
 		},
 		{
@@ -145,6 +145,7 @@ network_devices:
 						Namespace: "default",
 					},
 				},
+				ReverseDNSEnrichmentEnabled: false,
 			},
 		},
 		{
@@ -209,6 +210,7 @@ network_devices:
 						},
 					},
 				},
+				ReverseDNSEnrichmentEnabled: false,
 			},
 		},
 	}

@@ -38,7 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/failure"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -118,15 +118,17 @@ var ConnTracerTelemetry = struct {
 	UdpSendsMissed *prometheus.Desc
 	//nolint:revive // TODO(NET) Fix revive linter
 	UdpDroppedConns *prometheus.Desc
-	//nolint:revive // TODO(NET) Fix revive linter
+	// doubleFlushAttemptsClose is a counter measuring the number of attempts to flush a closed connection twice from tcp_close
 	doubleFlushAttemptsClose *prometheus.Desc
-	//nolint:revive // TODO(NET) Fix revive linter
+	// doubleFlushAttemptsDone is a counter measuring the number of attempts to flush a closed connection twice from tcp_done
+	doubleFlushAttemptsDone *prometheus.Desc
+	// unsupportedTcpFailures is a counter measuring the number of attempts to flush a TCP failure that is not supported
 	unsupportedTcpFailures *prometheus.Desc
-	//nolint:revive // TODO(NET) Fix revive linter
-	skippedNewConnCreate *prometheus.Desc
-	PidCollisions        *telemetry.StatCounterWrapper
-	iterationDups        telemetry.Counter
-	iterationAborts      telemetry.Counter
+	// tcpDonePidMismatch is a counter measuring the number of TCP connections with a PID mismatch between tcp_connect and tcp_done
+	tcpDonePidMismatch *prometheus.Desc
+	PidCollisions      *telemetry.StatCounterWrapper
+	iterationDups      telemetry.Counter
+	iterationAborts    telemetry.Counter
 
 	//nolint:revive // TODO(NET) Fix revive linter
 	lastTcpFailedConnects *atomic.Int64
@@ -142,12 +144,14 @@ var ConnTracerTelemetry = struct {
 	lastUdpSendsMissed *atomic.Int64
 	//nolint:revive // TODO(NET) Fix revive linter
 	lastUdpDroppedConns *atomic.Int64
-	//nolint:revive // TODO(NET) Fix revive linter
+	// lastDoubleFlushAttemptsClose is a counter measuring the diff between the last two values of doubleFlushAttemptsClose
 	lastDoubleFlushAttemptsClose *atomic.Int64
-	//nolint:revive // TODO(NET) Fix revive linter
+	// lastDoubleFlushAttemptsDone is a counter measuring the diff between the last two values of doubleFlushAttemptsDone
+	lastDoubleFlushAttemptsDone *atomic.Int64
+	// lastUnsupportedTcpFailures is a counter measuring the diff between the last two values of unsupportedTcpFailures
 	lastUnsupportedTcpFailures *atomic.Int64
-	//nolint:revive // TODO(NET) Fix revive linter
-	lastSkippedNewConnCreate *atomic.Int64
+	// lastTcpDonePidMismatch is a counter measuring the diff between the last two values of tcpDonePidMismatch
+	lastTcpDonePidMismatch *atomic.Int64
 }{
 	telemetry.NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_failed_connects", "Counter measuring the number of failed TCP connections in the EBPF map", nil, nil),
@@ -157,12 +161,14 @@ var ConnTracerTelemetry = struct {
 	prometheus.NewDesc(connTracerModuleName+"__udp_sends_processed", "Counter measuring the number of processed UDP sends in EBPF", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__udp_sends_missed", "Counter measuring failures to process UDP sends in EBPF", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__udp_dropped_conns", "Counter measuring the number of dropped UDP connections in the EBPF map", nil, nil),
-	prometheus.NewDesc(connTracerModuleName+"__double_flush_attempts_close", "Counter measuring the number of attempts to flush a closed connection twice from tcp_done", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__double_flush_attempts_close", "Counter measuring the number of attempts to flush a closed connection twice from tcp_close", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__double_flush_attempts_done", "Counter measuring the number of attempts to flush a closed connection twice from tcp_done", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__unsupported_tcp_failures", "Counter measuring the number of attempts to flush a TCP failure that is not supported", nil, nil),
-	prometheus.NewDesc(connTracerModuleName+"__skipped_new_conn_create", "Counter measuring the number of skipped new connection creations", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__tcp_done_pid_mismatch", "Counter measuring the number of TCP connections with a PID mismatch between tcp_connect and tcp_done", nil, nil),
 	telemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
+	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
@@ -225,11 +231,6 @@ func NewTracer(config *config.Config, _ telemetryComponent.Component) (Tracer, e
 		ConstantEditors: []manager.ConstantEditor{
 			boolConst("tcpv6_enabled", config.CollectTCPv6Conns),
 			boolConst("udpv6_enabled", config.CollectUDPv6Conns),
-		},
-		VerifierOptions: ebpf.CollectionOptions{
-			Programs: ebpf.ProgramOptions{
-				LogSize: 10 * 1024 * 1024,
-			},
 		},
 		DefaultKProbeMaxActive: maxActive,
 		BypassEnabled:          config.BypassEnabled,
@@ -399,8 +400,6 @@ func (t *tracer) Stop() {
 func (t *tracer) GetMap(name string) *ebpf.Map {
 	switch name {
 	case probes.ConnectionProtocolMap:
-	case probes.MapErrTelemetryMap:
-	case probes.HelperErrTelemetryMap:
 	default:
 		return nil
 	}
@@ -417,7 +416,7 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 	// ebpf maps are being iterated over and deleted at the same time.
 	// The iteration can reset when that happens.
 	// See https://justin.azoff.dev/blog/bpf_map_get_next_key-pitfalls/
-	connsByTuple := make(map[netebpf.ConnTuple]struct{})
+	connsByTuple := make(map[netebpf.ConnTuple]uint32)
 
 	// Cached objects
 	conn := new(network.ConnectionStats)
@@ -426,7 +425,7 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 	var tcp4, tcp6, udp4, udp6 float64
 	entries := t.conns.Iterate()
 	for entries.Next(key, stats) {
-		if _, exists := connsByTuple[*key]; exists {
+		if cookie, exists := connsByTuple[*key]; exists && cookie == stats.Cookie {
 			// already seen the connection in current batch processing,
 			// due to race between the iterator and bpf_map_delete
 			ConnTracerTelemetry.iterationDups.Inc()
@@ -434,7 +433,7 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 		}
 
 		populateConnStats(conn, key, stats, t.ch)
-		connsByTuple[*key] = struct{}{}
+		connsByTuple[*key] = stats.Cookie
 
 		isTCP := conn.Type == network.TCP
 		switch conn.Family {
@@ -487,7 +486,7 @@ func updateTelemetry(tcp4 float64, tcp6 float64, udp4 float64, udp6 float64) {
 	ConnTracerTelemetry.connections.Set(udp6, "udp", "v6")
 }
 
-func removeConnection(conn *network.ConnectionStats) {
+func removeConnectionFromTelemetry(conn *network.ConnectionStats) {
 	isTCP := conn.Type == network.TCP
 	switch conn.Family {
 	case network.AFINET6:
@@ -506,23 +505,7 @@ func removeConnection(conn *network.ConnectionStats) {
 }
 
 func (t *tracer) Remove(conn *network.ConnectionStats) error {
-	t.removeTuple.Sport = conn.SPort
-	t.removeTuple.Dport = conn.DPort
-	t.removeTuple.Netns = conn.NetNS
-	t.removeTuple.Pid = conn.Pid
-	t.removeTuple.Saddr_l, t.removeTuple.Saddr_h = util.ToLowHigh(conn.Source)
-	t.removeTuple.Daddr_l, t.removeTuple.Daddr_h = util.ToLowHigh(conn.Dest)
-
-	if conn.Family == network.AFINET6 {
-		t.removeTuple.Metadata = uint32(netebpf.IPv6)
-	} else {
-		t.removeTuple.Metadata = uint32(netebpf.IPv4)
-	}
-	if conn.Type == network.TCP {
-		t.removeTuple.Metadata |= uint32(netebpf.TCP)
-	} else {
-		t.removeTuple.Metadata |= uint32(netebpf.UDP)
-	}
+	util.ConnStatsToTuple(conn, t.removeTuple)
 
 	err := t.conns.Delete(t.removeTuple)
 	if err != nil {
@@ -534,13 +517,16 @@ func (t *tracer) Remove(conn *network.ConnectionStats) error {
 		return err
 	}
 
-	removeConnection(conn)
+	removeConnectionFromTelemetry(conn)
 
-	// We have to remove the PID to remove the element from the TCP Map since we don't use the pid there
-	t.removeTuple.Pid = 0
 	if conn.Type == network.TCP {
 		// We can ignore the error for this map since it will not always contain the entry
 		_ = t.tcpStats.Delete(t.removeTuple)
+		// We remove the PID from the tuple as it is not used in the retransmits map
+		pid := t.removeTuple.Pid
+		t.removeTuple.Pid = 0
+		_ = t.tcpRetransmits.Delete(t.removeTuple)
+		t.removeTuple.Pid = pid
 	}
 	return nil
 }
@@ -575,8 +561,9 @@ func (t *tracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- ConnTracerTelemetry.UdpSendsMissed
 	ch <- ConnTracerTelemetry.UdpDroppedConns
 	ch <- ConnTracerTelemetry.doubleFlushAttemptsClose
+	ch <- ConnTracerTelemetry.doubleFlushAttemptsDone
 	ch <- ConnTracerTelemetry.unsupportedTcpFailures
-	ch <- ConnTracerTelemetry.skippedNewConnCreate
+	ch <- ConnTracerTelemetry.tcpDonePidMismatch
 }
 
 // Collect returns the current state of all metrics of the collector
@@ -617,13 +604,17 @@ func (t *tracer) Collect(ch chan<- prometheus.Metric) {
 	ConnTracerTelemetry.lastDoubleFlushAttemptsClose.Store(int64(ebpfTelemetry.Double_flush_attempts_close))
 	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.doubleFlushAttemptsClose, prometheus.CounterValue, float64(delta))
 
+	delta = int64(ebpfTelemetry.Double_flush_attempts_done) - ConnTracerTelemetry.lastDoubleFlushAttemptsDone.Load()
+	ConnTracerTelemetry.lastDoubleFlushAttemptsDone.Store(int64(ebpfTelemetry.Double_flush_attempts_done))
+	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.doubleFlushAttemptsDone, prometheus.CounterValue, float64(delta))
+
 	delta = int64(ebpfTelemetry.Unsupported_tcp_failures) - ConnTracerTelemetry.lastUnsupportedTcpFailures.Load()
 	ConnTracerTelemetry.lastUnsupportedTcpFailures.Store(int64(ebpfTelemetry.Unsupported_tcp_failures))
 	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.unsupportedTcpFailures, prometheus.CounterValue, float64(delta))
 
-	delta = int64(ebpfTelemetry.Skip_new_conn_create) - ConnTracerTelemetry.lastSkippedNewConnCreate.Load()
-	ConnTracerTelemetry.lastSkippedNewConnCreate.Store(int64(ebpfTelemetry.Skip_new_conn_create))
-	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.skippedNewConnCreate, prometheus.CounterValue, float64(delta))
+	delta = int64(ebpfTelemetry.Tcp_done_pid_mismatch) - ConnTracerTelemetry.lastTcpDonePidMismatch.Load()
+	ConnTracerTelemetry.lastTcpDonePidMismatch.Store(int64(ebpfTelemetry.Tcp_done_pid_mismatch))
+	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.tcpDonePidMismatch, prometheus.CounterValue, float64(delta))
 
 }
 

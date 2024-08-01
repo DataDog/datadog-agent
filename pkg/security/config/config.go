@@ -75,6 +75,10 @@ type RuntimeSecurityConfig struct {
 	LogTags []string
 	// HostServiceName string
 	HostServiceName string
+	// OnDemandEnabled defines whether the on-demand probes should be enabled
+	OnDemandEnabled bool
+	// OnDemandRateLimiterEnabled defines whether the on-demand probes rate limit getting hit disabled the on demand probes
+	OnDemandRateLimiterEnabled bool
 
 	// InternalMonitoringEnabled determines if the monitoring events of the agent should be sent to Datadog
 	InternalMonitoringEnabled bool
@@ -200,6 +204,8 @@ type RuntimeSecurityConfig struct {
 	// SBOMResolverWorkloadsCacheSize defines the count of SBOMs to keep in memory in order to prevent re-computing
 	// the SBOMs of short-lived and periodical workloads
 	SBOMResolverWorkloadsCacheSize int
+	// SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM
+	SBOMResolverHostEnabled bool
 
 	// HashResolverEnabled defines if the hash resolver should be enabled
 	HashResolverEnabled bool
@@ -317,6 +323,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		RemoteConfigurationEnabled:      isRemoteConfigEnabled(),
 		RemoteConfigurationDumpPolicies: coreconfig.SystemProbe.GetBool("runtime_security_config.remote_configuration.dump_policies"),
 
+		OnDemandEnabled:            coreconfig.SystemProbe.GetBool("runtime_security_config.on_demand.enabled"),
+		OnDemandRateLimiterEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.on_demand.rate_limiter.enabled"),
+
 		// policy & ruleset
 		PoliciesDir:                         coreconfig.SystemProbe.GetString("runtime_security_config.policies.dir"),
 		WatchPoliciesDir:                    coreconfig.SystemProbe.GetBool("runtime_security_config.policies.watch_dir"),
@@ -364,6 +373,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		// SBOM resolver
 		SBOMResolverEnabled:            coreconfig.SystemProbe.GetBool("runtime_security_config.sbom.enabled"),
 		SBOMResolverWorkloadsCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.sbom.workloads_cache_size"),
+		SBOMResolverHostEnabled:        coreconfig.SystemProbe.GetBool("runtime_security_config.sbom.host.enabled"),
 
 		// Hash resolver
 		HashResolverEnabled:        coreconfig.SystemProbe.GetBool("runtime_security_config.hash_resolver.enabled"),
@@ -503,16 +513,7 @@ func (c *RuntimeSecurityConfig) sanitizeRuntimeSecurityConfigActivityDump() erro
 		c.ActivityDumpTracedCgroupsCount = model.MaxTracedCgroupsCount
 	}
 
-	hasProfileStorageFormat := false
-	for _, format := range c.ActivityDumpLocalStorageFormats {
-		hasProfileStorageFormat = hasProfileStorageFormat || format == Profile
-	}
-
-	if c.SecurityProfileEnabled && !hasProfileStorageFormat {
-		return fmt.Errorf("'profile' storage format has to be enabled when using security profiles, got only formats: %v", c.ActivityDumpLocalStorageFormats)
-	}
-
-	if c.SecurityProfileEnabled && c.ActivityDumpLocalStorageDirectory != c.SecurityProfileDir {
+	if c.SecurityProfileEnabled && c.ActivityDumpEnabled && c.ActivityDumpLocalStorageDirectory != c.SecurityProfileDir {
 		return fmt.Errorf("activity dumps storage directory '%s' has to be the same than security profile storage directory '%s'", c.ActivityDumpLocalStorageDirectory, c.SecurityProfileDir)
 	}
 

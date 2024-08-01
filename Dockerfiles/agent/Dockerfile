@@ -44,7 +44,7 @@ ARG DD_AGENT_ARTIFACT=datadog-agent*_$TARGETARCH.deb
 ARG GENERAL_ARTIFACTS_CACHE_BUCKET_URL
 
 # copy everything - globbing with args wont work
-COPY datadog-agent*_$TARGETARCH.deb /
+COPY ${DD_AGENT_ARTIFACT} /
 WORKDIR /output
 
 # Get s6-overlay
@@ -65,8 +65,9 @@ RUN echo "$(cat /output/s6.$TARGETARCH.sha256) /output/s6.tgz" | sha256sum -c - 
 #   - static libraries                   # FIXME: move upstream
 #   - jmxfetch on nojmx build
 
-RUN find / -maxdepth 1 -type f -name "datadog-agent*_$TARGETARCH.deb" ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \; \
- && find / -maxdepth 1 -name "datadog-agent*_$TARGETARCH.deb" -exec dpkg -x {} . \; \
+RUN find / -maxdepth 1 -type f -name "datadog-*_$TARGETARCH.deb" ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \;
+
+RUN find / -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec dpkg -x {} . \; \
  && rm -rf usr etc/init lib \
     opt/datadog-agent/sources \
     opt/datadog-agent/embedded/share/doc \
@@ -111,6 +112,8 @@ FROM baseimage AS release
 LABEL maintainer "Datadog <package@datadoghq.com>"
 ARG WITH_JMX
 ARG PYTHON_VERSION
+ARG DD_GIT_REPOSITORY_URL
+ARG DD_GIT_COMMIT_SHA
 ENV DOCKER_DD_AGENT=true \
     DD_PYTHON_VERSION=$PYTHON_VERSION \
     PATH=/opt/datadog-agent/bin/agent/:/opt/datadog-agent/embedded/bin/:$PATH \
@@ -124,7 +127,10 @@ ENV DOCKER_DD_AGENT=true \
     # Allow readonlyrootfs
     S6_READ_ONLY_ROOT=1 \
     # Allow User Group to exec the secret backend script.
-    DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true"
+    DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true" \
+    # Source code integration
+    DD_GIT_REPOSITORY_URL=${DD_GIT_REPOSITORY_URL} \
+    DD_GIT_COMMIT_SHA=${DD_GIT_COMMIT_SHA}
 
 # make sure we have recent dependencies -- CVE-fixing time!
 RUN apt full-upgrade -y \
@@ -202,6 +208,12 @@ RUN if [ -n "$PYTHON_VERSION" ]; then \
 RUN  mv /etc/s6/init/init-stage3 /etc/s6/init/init-stage3-original
 COPY init-stage3          /etc/s6/init/init-stage3
 COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
+
+# Update if optional OTel Agent process should not run
+RUN if [ ! -f /opt/datadog-agent/embedded/bin/otel-agent ]; then \
+  rm -rf /etc/services.d/otel ; \
+  else \
+  mv /etc/datadog-agent/otel-config.yaml.example /etc/datadog-agent/otel-config.yaml; fi
 
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 
