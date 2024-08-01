@@ -78,7 +78,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
-	processcollector "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/external/process"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -116,6 +115,7 @@ import (
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
+	"github.com/DataDog/datadog-agent/comp/process/processcollector"
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
@@ -349,7 +349,7 @@ func getSharedFxOption() fx.Option {
 
 		// workloadmeta setup
 		collectors.GetCatalog(),
-		processcollector.GetFxOptions(),
+		processcollector.Module(),
 		fx.Provide(defaults.DefaultParams),
 		workloadmetafx.Module(),
 		fx.Supply(
