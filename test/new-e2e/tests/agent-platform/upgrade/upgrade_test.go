@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
 	helpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
@@ -85,13 +86,14 @@ func TestUpgradeScript(t *testing.T) {
 }
 
 func (is *upgradeSuite) TestUpgrade() {
-	fileManager := filemanager.NewUnix(is.Env().RemoteHost)
+	host := types.NewHostFromRemote(is.Env().RemoteHost)
+	fileManager := filemanager.NewUnix(host)
 
 	agentClient, err := client.NewHostAgentClient(is, is.Env().RemoteHost.HostOutput, false)
 	require.NoError(is.T(), err)
 
 	unixHelper := helpers.NewUnix()
-	VMclient := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
+	VMclient := common.NewTestClient(host, agentClient, fileManager, unixHelper)
 	is.SetupAgentStartVersion(VMclient)
 	is.UpgradeAgentVersion(VMclient)
 	is.CheckUpgradeAgentInstallation(VMclient)

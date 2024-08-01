@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
 	helpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
 
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -43,14 +44,14 @@ type stepByStepSuite struct {
 	cwsSupported bool
 }
 
-func ExecuteWithoutError(_ *testing.T, client *common.TestClient, cmd string, args ...any) {
+func ExecuteWithoutError(t *testing.T, client *common.TestClient, cmd string, args ...any) {
 	var finalCmd string
 	if len(args) > 0 {
 		finalCmd = fmt.Sprintf(cmd, args...)
 	} else {
 		finalCmd = cmd
 	}
-	client.Host.MustExecute(finalCmd)
+	client.Host.MustExecute(t, finalCmd)
 }
 
 func TestStepByStepScript(t *testing.T) {
@@ -116,11 +117,12 @@ func TestStepByStepScript(t *testing.T) {
 }
 
 func (is *stepByStepSuite) TestStepByStep() {
-	fileManager := filemanager.NewUnix(is.Env().RemoteHost)
+	host := types.NewHostFromRemote(is.Env().RemoteHost)
+	fileManager := filemanager.NewUnix(host)
 	unixHelper := helpers.NewUnix()
 	agentClient, err := client.NewHostAgentClient(is, is.Env().RemoteHost.HostOutput, false)
 	require.NoError(is.T(), err)
-	VMclient := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
+	VMclient := common.NewTestClient(host, agentClient, fileManager, unixHelper)
 
 	if *platform == "debian" || *platform == "ubuntu" {
 		is.StepByStepDebianTest(VMclient)

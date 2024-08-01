@@ -15,12 +15,14 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	boundport "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"testing"
 )
 
 func TestInstall(t *testing.T) {
@@ -285,7 +287,7 @@ func (s *testInstallOptsSuite) TestInstallOpts() {
 		if !assert.NoError(c, err) {
 			return
 		}
-		boundPort, err = common.GetBoundPort(vm, cmdPort)
+		boundPort, err = common.GetBoundPort(types.NewHostFromRemote(vm), cmdPort)
 		if !assert.NoError(c, err) {
 			return
 		}

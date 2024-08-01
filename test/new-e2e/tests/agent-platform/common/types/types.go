@@ -7,8 +7,11 @@
 package types
 
 import (
+	"testing"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/stretchr/testify/require"
 )
 
 // Executor is used to execute arbitrary commands
@@ -20,6 +23,13 @@ type Executor interface {
 type Host struct {
 	Executor
 	OSFamily componentos.Family
+}
+
+// MustExecute executes a command and requires no error.
+func (h *Host) MustExecute(t *testing.T, command string) string {
+	stdout, err := h.Execute(command)
+	require.NoError(t, err)
+	return stdout
 }
 
 // NewHostFromRemote creates a Host instance from a components.RemoteHost
@@ -38,7 +48,7 @@ func (e *remoteHostExecutor) Execute(command string) (output string, err error) 
 	return e.Host.Execute(command)
 }
 
-// NewHostFromRemote creates a Host instance from a components.RemoteHost
+// NewHostFromDocker creates a Host instance from a components.RemoteHost
 func NewHostFromDocker(host *components.RemoteHostDocker, containerName string) *Host {
 	return &Host{
 		Executor: &dockerExecutor{

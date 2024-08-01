@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
 )
 
 type linuxDiagnoseSuite struct {
@@ -38,7 +39,7 @@ func (v *linuxDiagnoseSuite) TestDiagnoseOtherCmdPort() {
 }
 
 func (v *linuxDiagnoseSuite) TestDiagnoseLocalFallback() {
-	svcManager := svcmanager.NewSystemctl(v.Env().RemoteHost)
+	svcManager := svcmanager.NewSystemctl(types.NewHostFromRemote(v.Env().RemoteHost))
 	svcManager.Stop("datadog-agent")
 
 	diagnose := getDiagnoseOutput(&v.baseDiagnoseSuite)

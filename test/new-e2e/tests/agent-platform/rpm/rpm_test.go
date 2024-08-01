@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
 	helpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
 )
 
@@ -95,11 +96,12 @@ func TestRpmScript(t *testing.T) {
 }
 
 func (is *rpmTestSuite) TestRpm() {
-	filemanager := filemanager.NewUnix(is.Env().RemoteHost)
+	host := types.NewHostFromRemote(is.Env().RemoteHost)
+	filemanager := filemanager.NewUnix(host)
 	unixHelper := helpers.NewUnix()
 	agentClient, err := client.NewHostAgentClient(is, is.Env().RemoteHost.HostOutput, false)
 	require.NoError(is.T(), err)
-	VMclient := common.NewTestClient(is.Env().RemoteHost, agentClient, filemanager, unixHelper)
+	VMclient := common.NewTestClient(host, agentClient, filemanager, unixHelper)
 
 	if *platform != "centos" {
 		is.T().Skip("Skipping test on non-centos platform")
@@ -138,8 +140,8 @@ func (is *rpmTestSuite) TestRpm() {
 	_, err = fileManager.WriteFile("/etc/yum.repos.d/datadog.repo", []byte(fileContent))
 	require.NoError(is.T(), err)
 
-	is.T().Run("install the RPM package", func(*testing.T) {
-		VMclient.Host.MustExecute("sudo yum makecache -y")
+	is.T().Run("install the RPM package", func(t *testing.T) {
+		VMclient.Host.MustExecute(t, "sudo yum makecache -y")
 		_, err := VMclient.Host.Execute("sudo yum install -y datadog-agent")
 
 		if is.osVersion < 7 {
