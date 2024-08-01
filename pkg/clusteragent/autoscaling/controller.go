@@ -46,6 +46,7 @@ func NewController(
 	gvr schema.GroupVersionResource,
 	isLeader func() bool,
 	observable Observable,
+	workqueue workqueue.RateLimitingInterface,
 ) (*Controller, error) {
 	mainInformer := informer.ForResource(gvr)
 	c := &Controller{
@@ -54,14 +55,8 @@ func NewController(
 		Client:    client,
 		Lister:    mainInformer.Lister(),
 		synced:    mainInformer.Informer().HasSynced,
-		Workqueue: workqueue.NewRateLimitingQueueWithConfig(
-			workqueue.DefaultItemBasedRateLimiter(),
-			workqueue.RateLimitingQueueConfig{
-				Name:            subsystem,
-				MetricsProvider: autoscalingQueueMetricsProvider,
-			},
-		),
-		IsLeader: isLeader,
+		Workqueue: workqueue,
+		IsLeader:  isLeader,
 	}
 
 	if _, err := mainInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{

@@ -18,6 +18,7 @@ import (
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	scaleclient "k8s.io/client-go/scale"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/clock"
 
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
@@ -74,7 +75,15 @@ func newController(
 		clock:         clock.RealClock{},
 	}
 
-	baseController, err := autoscaling.NewController(controllerID, c, dynamicClient, dynamicInformer, podAutoscalerGVR, isLeader, store)
+	autoscalingWorkqueue := workqueue.NewRateLimitingQueueWithConfig(
+		workqueue.DefaultItemBasedRateLimiter(),
+		workqueue.RateLimitingQueueConfig{
+			Name:            subsystem,
+			MetricsProvider: autoscalingQueueMetricsProvider,
+		},
+	)
+
+	baseController, err := autoscaling.NewController(controllerID, c, dynamicClient, dynamicInformer, podAutoscalerGVR, isLeader, store, autoscalingWorkqueue)
 	if err != nil {
 		return nil, err
 	}
