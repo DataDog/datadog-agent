@@ -11,6 +11,7 @@ package collectors
 import (
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/external/process"
 	cfcontainer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/container"
 	cfvm "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/vm"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/containerd"
@@ -41,6 +42,7 @@ func GetCatalog() fx.Option {
 		kubelet.GetFxOptions(),
 		kubemetadata.GetFxOptions(),
 		podman.GetFxOptions(),
+		process.GetFxOptions(),
 		remoteworkloadmeta.GetFxOptions(),
 		remoteWorkloadmetaParams(),
 		remoteprocesscollector.GetFxOptions(),
