@@ -58,7 +58,7 @@ func NewController(
 			workqueue.DefaultItemBasedRateLimiter(),
 			workqueue.RateLimitingQueueConfig{
 				Name:            subsystem,
-				MetricsProvider: queueMetricsProvider,
+				MetricsProvider: autoscalingQueueMetricsProvider,
 			},
 		),
 		IsLeader: isLeader,

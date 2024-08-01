@@ -19,5 +19,5 @@ const (
 var commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
 
 var (
-	queueMetricsProvider = workqueuetelemetry.NewQueueMetricsProvider()
+	autoscalingQueueMetricsProvider = workqueuetelemetry.NewQueueMetricsProvider()
 )
