@@ -9,18 +9,18 @@ package svcmanager
 import (
 	"fmt"
 
-	commontypes "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
 )
 
 // SystemCtl struct for the Systemctl service manager
 type SystemCtl struct {
-	host *commontypes.Host
+	host *types.Host
 }
 
 var _ ServiceManager = &SystemCtl{}
 
 // NewSystemctl return systemctl service manager
-func NewSystemctl(host *commontypes.Host) *SystemCtl {
+func NewSystemctl(host *types.Host) *SystemCtl {
 	return &SystemCtl{host: host}
 }
 

@@ -9,18 +9,18 @@ import (
 	"fmt"
 	"strings"
 
-	commontypes "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
 )
 
 // Upstart is a service manager for upstart
 type Upstart struct {
-	host *commontypes.Host
+	host *types.Host
 }
 
 var _ ServiceManager = &Upstart{}
 
 // NewUpstart return upstart service manager
-func NewUpstart(host *commontypes.Host) *Upstart {
+func NewUpstart(host *types.Host) *Upstart {
 	return &Upstart{host}
 }
 

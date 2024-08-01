@@ -6,18 +6,18 @@
 package pkgmanager
 
 import (
-	commontypes "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
 )
 
 // Zypper is a package manager for zypper
 type Zypper struct {
-	host *commontypes.Host
+	host *types.Host
 }
 
 var _ PackageManager = &Zypper{}
 
 // NewZypper return zypper package manager
-func NewZypper(host *commontypes.Host) *Zypper {
+func NewZypper(host *types.Host) *Zypper {
 	return &Zypper{host: host}
 }
 

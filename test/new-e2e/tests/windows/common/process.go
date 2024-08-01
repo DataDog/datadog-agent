@@ -10,11 +10,11 @@ import (
 	"strconv"
 	"strings"
 
-	commontypes "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
 )
 
 // IsProcessRunning returns true if process is running
-func IsProcessRunning(host *commontypes.Host, imageName string) (bool, error) {
+func IsProcessRunning(host *types.Host, imageName string) (bool, error) {
 	cmd := fmt.Sprintf(`tasklist /fi "ImageName -eq '%s'"`, imageName)
 	out, err := host.Execute(cmd)
 	if err != nil {
@@ -24,7 +24,7 @@ func IsProcessRunning(host *commontypes.Host, imageName string) (bool, error) {
 }
 
 // FindPID returns a list of PIDs for processes that match the given pattern
-func FindPID(host *commontypes.Host, pattern string) ([]int, error) {
+func FindPID(host *types.Host, pattern string) ([]int, error) {
 	cmd := fmt.Sprintf("Get-Process -Name '%s' | Select-Object -ExpandProperty Id", pattern)
 	out, err := host.Execute(cmd)
 	if err != nil {

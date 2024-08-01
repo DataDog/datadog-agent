@@ -9,13 +9,13 @@ package process
 import (
 	"fmt"
 
-	commontypes "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
 	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 )
 
 // IsRunning returns true if process is running
-func IsRunning(host *commontypes.Host, processName string) (bool, error) {
+func IsRunning(host *types.Host, processName string) (bool, error) {
 	os := host.OSFamily
 	if os == componentos.LinuxFamily {
 		return isProcessRunningUnix(host, processName)
@@ -26,7 +26,7 @@ func IsRunning(host *commontypes.Host, processName string) (bool, error) {
 }
 
 // FindPID returns list of PIDs that match processName
-func FindPID(host *commontypes.Host, processName string) ([]int, error) {
+func FindPID(host *types.Host, processName string) ([]int, error) {
 	os := host.OSFamily
 	if os == componentos.LinuxFamily {
 		return findPIDUnix(host, processName)

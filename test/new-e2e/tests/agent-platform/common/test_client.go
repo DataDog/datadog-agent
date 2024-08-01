@@ -22,7 +22,7 @@ import (
 	pkgmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/pkg-manager"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/process"
 	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
-	commontypes "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,7 +35,7 @@ type tHelper interface {
 	Helper()
 }
 
-func getServiceManager(host *commontypes.Host) svcmanager.ServiceManager {
+func getServiceManager(host *types.Host) svcmanager.ServiceManager {
 	if _, err := host.Execute("command -v systemctl"); err == nil {
 		return svcmanager.NewSystemctl(host)
 	}
@@ -50,7 +50,7 @@ func getServiceManager(host *commontypes.Host) svcmanager.ServiceManager {
 	return nil
 }
 
-func getPackageManager(host *commontypes.Host) pkgmanager.PackageManager {
+func getPackageManager(host *types.Host) pkgmanager.PackageManager {
 	if _, err := host.Execute("command -v apt"); err == nil {
 		return pkgmanager.NewApt(host)
 	}
@@ -68,7 +68,7 @@ func getPackageManager(host *commontypes.Host) pkgmanager.PackageManager {
 
 // TestClient contain the Agent Env and SvcManager and PkgManager for tests
 type TestClient struct {
-	Host        *commontypes.Host
+	Host        *types.Host
 	AgentClient agentclient.Agent
 	Helper      helpers.Helper
 	FileManager filemanager.FileManager
@@ -77,7 +77,7 @@ type TestClient struct {
 }
 
 // NewTestClient create a an ExtendedClient from VMClient and AgentCommandRunner, includes svcManager and pkgManager to write agent-platform tests
-func NewTestClient(host *commontypes.Host, agentClient agentclient.Agent, fileManager filemanager.FileManager, helper helpers.Helper) *TestClient {
+func NewTestClient(host *types.Host, agentClient agentclient.Agent, fileManager filemanager.FileManager, helper helpers.Helper) *TestClient {
 	svcManager := getServiceManager(host)
 	pkgManager := getPackageManager(host)
 	return &TestClient{
@@ -201,7 +201,7 @@ func NewWindowsTestClient(context e2e.Context, host *components.RemoteHost) *Tes
 	require.NoError(t, err)
 
 	helper := helpers.NewWindowsHelper()
-	client := NewTestClient(commontypes.NewHostFromRemote(host), agentClient, fileManager, helper)
+	client := NewTestClient(types.NewHostFromRemote(host), agentClient, fileManager, helper)
 	client.SvcManager = svcmanager.NewWindows(host)
 
 	return client
@@ -254,7 +254,7 @@ func AssertPortBoundByService(t assert.TestingT, client *TestClient, port int, s
 }
 
 // GetBoundPort returns a port that is bound on the host, or nil if the port is not bound
-func GetBoundPort(host *commontypes.Host, port int) (boundport.BoundPort, error) {
+func GetBoundPort(host *types.Host, port int) (boundport.BoundPort, error) {
 	ports, err := boundport.BoundPorts(host)
 	if err != nil {
 		return nil, err

@@ -8,18 +8,18 @@ package pkgmanager
 import (
 	"fmt"
 
-	commontypes "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
 )
 
 // Apt struct for Apt package manager
 type Apt struct {
-	host *commontypes.Host
+	host *types.Host
 }
 
 var _ PackageManager = &Apt{}
 
 // NewApt return apt package manager
-func NewApt(host *commontypes.Host) *Apt {
+func NewApt(host *types.Host) *Apt {
 	return &Apt{host: host}
 }
 
