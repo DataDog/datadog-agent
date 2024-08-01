@@ -310,20 +310,20 @@ func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
 	// Install pipx, and set the default ansible path prefix
 	switch flavor.Flavor {
 	case e2eos.Ubuntu:
-		s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt install -y ansible-core")
+		s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt install -y ansible")
 	case e2eos.Debian:
-		s.Env().RemoteHost.MustExecute("sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 93C4A3FD7BB9C367 && sudo apt update && sudo apt install -y ansible-core")
+		s.Env().RemoteHost.MustExecute("sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 93C4A3FD7BB9C367 && sudo apt update && sudo apt install -y ansible")
 	case e2eos.Fedora:
-		s.Env().RemoteHost.MustExecute("sudo dnf install -y ansible-core")
+		s.Env().RemoteHost.MustExecute("sudo dnf install -y ansible")
 		ot := s.Env().RemoteHost.MustExecute("sudo find / -name 'ansible-galaxy'")
 		s.T().Log(ot)
 	case e2eos.RedHat, e2eos.CentOS:
-		s.Env().RemoteHost.MustExecute("sudo yum install -y ansible-core")
+		s.Env().RemoteHost.MustExecute("sudo yum install -y ansible")
 	// case e2eos.AmazonLinux:
 	// 	s.Env().RemoteHost.MustExecute("python3 -m pip install pipx && python3 -m pipx ensurepath")
-	// 	s.Env().RemoteHost.MustExecute("pipx install --include-deps ansible-core")
+	// 	s.Env().RemoteHost.MustExecute("pipx install --include-deps ansible")
 	case e2eos.Suse:
-		s.Env().RemoteHost.MustExecute("sudo zypper install -y ansible-core")
+		s.Env().RemoteHost.MustExecute("sudo zypper install -y ansible")
 	default:
 		s.Env().RemoteHost.MustExecute("python3 -m pip install pipx && python3 -m pipx ensurepath")
 		ot := s.Env().RemoteHost.MustExecute("sudo find / -name 'ansible-galaxy'")
@@ -348,7 +348,7 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(params ...string) string {
 `
 	playbookStringSuffix := `
   vars:
-    datadog_api_key: "<api key>"
+    datadog_api_key: "abcdef"
     datadog_site: "datadoghq.com"
 `
 	environments := []string{}
