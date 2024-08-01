@@ -33,7 +33,7 @@ func Test_pathtestStore_add(t *testing.T) {
 	logger := logmock.New(t)
 
 	// GIVEN
-	store := NewPathtestStore(10*time.Minute, 1*time.Minute, logger)
+	store := NewPathtestStore(10*time.Minute, 1*time.Minute, 10, logger)
 
 	// WHEN
 	pt1 := &common.Pathtest{Hostname: "host1", Port: 53}
@@ -48,6 +48,31 @@ func Test_pathtestStore_add(t *testing.T) {
 
 	pt1Ctx := store.contexts[pt1.GetHash()]
 	pt2Ctx := store.contexts[pt2.GetHash()]
+	pt3Ctx := store.contexts[pt3.GetHash()]
+	assert.Equal(t, *pt1, *pt1Ctx.Pathtest)
+	assert.Equal(t, *pt2, *pt2Ctx.Pathtest)
+	assert.Equal(t, *pt3, *pt3Ctx.Pathtest)
+}
+
+func Test_pathtestStore_add_when_full(t *testing.T) {
+	logger := logmock.New(t)
+
+	// GIVEN
+	store := NewPathtestStore(10*time.Minute, 1*time.Minute, 2, logger)
+
+	// WHEN
+	pt1 := &common.Pathtest{Hostname: "host1", Port: 53}
+	pt2 := &common.Pathtest{Hostname: "host2", Port: 53}
+	pt3 := &common.Pathtest{Hostname: "host3", Port: 53}
+	store.Add(pt1)
+	store.Add(pt2)
+	store.Add(pt3)
+
+	// THEN
+	assert.Equal(t, 2, len(store.contexts))
+
+	pt1Ctx := store.contexts[pt1.GetHash()]
+	pt2Ctx := store.contexts[pt2.GetHash()]
 	assert.Equal(t, *pt1, *pt1Ctx.Pathtest)
 	assert.Equal(t, *pt2, *pt2Ctx.Pathtest)
 }
@@ -59,7 +84,7 @@ func Test_pathtestStore_flush(t *testing.T) {
 	runInterval := 1 * time.Minute
 
 	// GIVEN
-	store := NewPathtestStore(runDurationFromDisc, runInterval, logger)
+	store := NewPathtestStore(runDurationFromDisc, runInterval, 10, logger)
 
 	// WHEN
 	pt := &common.Pathtest{Hostname: "host1", Port: 53}
