@@ -206,13 +206,18 @@ func (t *ebpfLessTracer) processConnection(
 		conn.Duration = time.Duration(time.Now().UnixNano())
 	}
 
-	ls := ebpfless.NewLayers(conn.Family, conn.Type, ip4, ip6, udp, tcp)
 	var err error
+	ls, err := ebpfless.NewLayers(conn.Family, conn.Type, ip4, ip6, udp, tcp)
+	if err != nil {
+		return fmt.Errorf("error processing connection: error creating Layers: %w", err)
+	}
 	switch conn.Type {
 	case network.UDP:
 		err = t.udp.process(conn, pktType, ls)
 	case network.TCP:
 		err = t.tcp.process(conn, pktType, ls)
+	default:
+		err = fmt.Errorf("unsupported connection type %d", conn.Type)
 	}
 
 	if err != nil {

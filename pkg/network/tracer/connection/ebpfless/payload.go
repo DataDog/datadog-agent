@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2024-present Datadog, Inc.
 
 //go:build linux
 
@@ -9,6 +9,7 @@
 package ebpfless
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/google/gopacket"
@@ -16,6 +17,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 )
+
+var errZeroLengthUDPPacket = errors.New("UDP packet with length 0")
+var errZeroLengthIPPacket = errors.New("IP packet with length 0")
 
 // Layers holds a set of network layers for a packet
 type Layers struct {
@@ -32,12 +36,14 @@ func NewLayers(family network.ConnectionFamily,
 	ip6 *layers.IPv6,
 	udp *layers.UDP,
 	tcp *layers.TCP,
-) Layers {
+) (Layers, error) {
 	switch family {
 	case network.AFINET:
 		ip6 = nil
 	case network.AFINET6:
 		ip4 = nil
+	default:
+		return Layers{}, fmt.Errorf("unknown connection family %d", family)
 	}
 
 	switch proto {
@@ -45,9 +51,11 @@ func NewLayers(family network.ConnectionFamily,
 		udp = nil
 	case network.UDP:
 		tcp = nil
+	default:
+		return Layers{}, fmt.Errorf("unsupported connection type %d", proto)
 	}
 
-	return Layers{ip4, ip6, udp, tcp}
+	return Layers{ip4, ip6, udp, tcp}, nil
 }
 
 // PayloadLen returns the length of the application
@@ -55,9 +63,11 @@ func NewLayers(family network.ConnectionFamily,
 func (l Layers) PayloadLen() (uint16, error) {
 	if l.UDP != nil {
 		if l.UDP.Length == 0 {
-			return 0, fmt.Errorf("udp packet with length 0")
+			return 0, errZeroLengthUDPPacket
 		}
 
+		// Length includes the header (8 bytes),
+		// so we need to exclude that here
 		return l.UDP.Length - 8, nil
 	}
 
@@ -74,13 +84,23 @@ func (l Layers) PayloadLen() (uint16, error) {
 	}
 
 	if ipl == 0 {
-		return 0, fmt.Errorf("ip layer payload length of 0")
+		return 0, errZeroLengthIPPacket
 	}
 
+	// the data offset field in the TCP header specifies
+	// the length of the TCP header in 32 bit words, so
+	// subtracting that here to get the payload size
+	//
+	// see https://en.wikipedia.org/wiki/Transmission_Control_Protocol#TCP_segment_structure
 	return ipl - uint16(l.TCP.DataOffset)*4, nil
 }
 
 func ipv4PayloadLen(ip4 *layers.IPv4) (uint16, error) {
+	// the IHL field specifies the the size of the IP
+	// header in 32 bit words, so subtracting that here
+	// to get the payload size
+	//
+	// see https://en.wikipedia.org/wiki/IPv4#Header
 	return ip4.Length - uint16(ip4.IHL)*4, nil
 }
 

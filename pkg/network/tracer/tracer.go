@@ -135,10 +135,6 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 
 	if cfg.ServiceMonitoringEnabled {
 		if err := usmconfig.CheckUSMSupported(cfg); err != nil {
-			if !errors.Is(err, usmconfig.ErrNotSupported) {
-				return nil, err
-			}
-
 			// this is the case where USM is enabled and NPM is not enabled
 			// in config; we implicitly enable the network tracer module
 			// in system-probe if USM is enabled
