@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
 	"strings"
 	"time"
 
@@ -280,4 +281,94 @@ func ReadJournalCtl(t *testing.T, client *TestClient, grepPattern string) string
 		t.Log("Skipping, journalctl failed to run")
 	}
 	return journalCtlOutput
+}
+
+// DockerTestClient is a helper to run commands on a docker container for tests
+type DockerTestClient struct {
+	host          *components.RemoteHost
+	containerName string
+}
+
+// NewDockerTestClient creates a client to help write tests that run on a docker container
+func NewDockerTestClient(host *components.RemoteHost, containerName string) DockerTestClient {
+	return DockerTestClient{
+		host:          host,
+		containerName: containerName,
+	}
+}
+
+// RunContainer starts the docker container in the background based on the given image reference
+func (c *DockerTestClient) RunContainer(image string) error {
+	// We run an infinite no-op to keep it alive
+	_, err := c.host.Execute(
+		fmt.Sprintf("docker run -d -e DD_HOSTNAME=docker-test --name '%s' '%s' tail -f /dev/null", c.containerName, image),
+	)
+	return err
+}
+
+// Cleanup force-removes the docker container associated to the client
+func (c *DockerTestClient) Cleanup() error {
+	_, err := c.host.Execute(fmt.Sprintf("docker rm -f '%s'", c.containerName))
+	return err
+}
+
+// Execute runs commands on a Docker remote host
+func (c *DockerTestClient) Execute(command string) (output string, err error) {
+	return c.host.Execute(
+		// Run command on container via docker exec,
+		// wrap in a shell call to achieve similar behavior to remote hosts
+		fmt.Sprintf("docker exec %s sh -c '%s'", c.containerName, command),
+	)
+}
+
+// ExecuteWithRetry execute the command with retry
+func (c *DockerTestClient) ExecuteWithRetry(command string) (output string, err error) {
+	for try := 0; try < 5; try++ {
+		output, err = c.Execute(command)
+		if err == nil {
+			break
+		}
+		time.Sleep(time.Duration(math.Pow(2, float64(try))) * time.Second)
+	}
+
+	return output, err
+}
+
+// InstallWithInstallScript tries to run the install script on the docker host.
+// It makes the test fail if the installation fails
+func (c *DockerTestClient) InstallWithInstallScript(t *testing.T) {
+	pipelineID := os.Getenv("E2E_PIPELINE_ID")
+	majorVersion := "7"
+	commandLine := ""
+
+	if pipelineID != "" {
+		testEnvVars := []string{}
+		testEnvVars = append(testEnvVars, "TESTING_APT_URL=apttesting.datad0g.com")
+		// apt testing repo
+		// TESTING_APT_REPO_VERSION="pipeline-xxxxx-ay y"
+		testEnvVars = append(testEnvVars, fmt.Sprintf(`TESTING_APT_REPO_VERSION="pipeline-%v-a%v-%s %v"`, pipelineID, majorVersion, "x86_64", majorVersion))
+		testEnvVars = append(testEnvVars, "TESTING_YUM_URL=yumtesting.datad0g.com")
+		// yum testing repo
+		// TESTING_YUM_VERSION_PATH="testing/pipeline-xxxxx-ay/y"
+		testEnvVars = append(testEnvVars, fmt.Sprintf(`TESTING_YUM_VERSION_PATH="testing/pipeline-%v-a%v/%v"`, pipelineID, majorVersion, majorVersion))
+		commandLine = strings.Join(testEnvVars, " ")
+	}
+
+	apikey := "aaaaaaaaaa"
+	// Disable the telemetry to avoid 403 errors
+	commandLine += " DD_INSTRUMENTATION_TELEMETRY_ENABLED=false "
+
+	t.Run("Installing the agent", func(tt *testing.T) {
+		var downloadCmd string
+		source := "S3"
+		downloadCmd = fmt.Sprintf(`curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent%v.sh > installscript.sh`, majorVersion)
+
+		_, err := c.ExecuteWithRetry(downloadCmd)
+		require.NoError(tt, err, "failed to download install script from %s: ", source, err)
+
+		cmd := fmt.Sprintf(`DD_API_KEY="%s" %v DD_SITE="datadoghq.eu" bash installscript.sh`, apikey, commandLine)
+		output, err := c.ExecuteWithRetry(cmd)
+		tt.Log(output)
+		require.NoError(tt, err, "agent installation should not return any error: ", err)
+	})
 }

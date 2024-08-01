@@ -48,7 +48,11 @@ func TestInstallScript(t *testing.T) {
 	err := json.Unmarshal(platforms.Content, &platformJSON)
 	require.NoErrorf(t, err, "failed to umarshall platform file: %v", err)
 
-	osVersions := strings.Split(*osVersion, ",")
+	osVersions := []string{}
+	// Splitting an empty string results in a slice with a single empty string which wouldn't be useful
+	if *osVersion != "" {
+		osVersions = strings.Split(*osVersion, ",")
+	}
 	cwsSupportedOsVersionList := strings.Split(*cwsSupportedOsVersion, ",")
 
 	t.Log("Parsed platform json file: ", platformJSON)
@@ -87,6 +91,17 @@ func TestInstallScript(t *testing.T) {
 			)
 		})
 	}
+
+	t.Run("test install script on a docker container (using SysVInit)", func(tt *testing.T) {
+		e2e.Run(tt,
+			&installScriptSuiteSysVInit{},
+			e2e.WithProvisioner(
+				awshost.ProvisionerNoAgentNoFakeIntake(
+					awshost.WithDocker(),
+				),
+			),
+		)
+	})
 }
 
 func (is *installScriptSuite) TestInstallAgent() {
@@ -185,4 +200,39 @@ func (is *installScriptSuite) DogstatsdAgentTest() {
 	common.CheckDogstatsdAgentRestarts(is.T(), client)
 	common.CheckInstallationInstallScript(is.T(), client)
 	is.testUninstall(client, "datadog-dogstatsd")
+}
+
+type installScriptSuiteSysVInit struct {
+	e2e.BaseSuite[environments.Host]
+}
+
+func (is *installScriptSuiteSysVInit) TestInstallAgent() {
+	containerName := "installation-target"
+	host := is.Env().RemoteHost
+	client := common.NewDockerTestClient(host, containerName)
+
+	err := client.RunContainer("debian:bookworm")
+	require.NoError(is.T(), err)
+	defer client.Cleanup()
+
+	// We need `curl` to download the script, and `sudo` because all the existing test helpers run commands
+	// through it.
+	_, err = client.ExecuteWithRetry("apt-get update && apt-get install -y curl sudo")
+	require.NoError(is.T(), err)
+
+	// We can't easily reuse the rest of the helps that assume everything runs directly on the host
+	// We run a few selected sanity checks here instead (sufficient for this platform anyway)
+	client.InstallWithInstallScript(is.T())
+	is.T().Run("datadog-agent service running", func(tt *testing.T) {
+		_, err := client.Execute("service datadog-agent status")
+		require.NoError(tt, err, "datadog-agent service should be running")
+	})
+	is.T().Run("status command no errors", func(tt *testing.T) {
+		statusOutput, err := client.ExecuteWithRetry("datadog-agent \"status\"")
+		require.NoError(is.T(), err)
+
+		// API Key is invalid we should not check for the following error
+		statusOutput = strings.ReplaceAll(statusOutput, "[ERROR] API Key is invalid", "API Key is invalid")
+		require.NotContains(tt, statusOutput, "ERROR")
+	})
 }
