@@ -62,6 +62,7 @@ type Check interface {
 type RunOptions struct {
 	RunStandard bool
 	RunRealtime bool
+	NoChunking  bool
 }
 
 // RunResult is a result for a check run

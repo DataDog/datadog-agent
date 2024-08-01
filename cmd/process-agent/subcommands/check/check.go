@@ -189,6 +189,8 @@ func runCheck(log log.Component, cliParams *cliParams, ch checks.Check) error {
 
 	options := &checks.RunOptions{
 		RunStandard: true,
+		// disable chunking for all manual checks
+		NoChunking: true,
 	}
 
 	if cliParams.checkName == checks.RTName(ch.Name()) {

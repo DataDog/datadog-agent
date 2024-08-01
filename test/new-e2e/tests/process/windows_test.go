@@ -15,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -116,8 +117,6 @@ func (s *windowsTestSuite) TestProcessCheckIO() {
 }
 
 func (s *windowsTestSuite) TestManualProcessCheck() {
-	// test can be flaky due to missing CPU stats when cpu usage is extremely low (json output omits 0 values), so we want to re-run a full scan to ensure we have CPU stats
-	s.Env().RemoteHost.MustExecute("Start-MpScan -ScanType FullScan -AsJob")
 	check := s.Env().RemoteHost.
 		MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process --json")
 
@@ -125,9 +124,6 @@ func (s *windowsTestSuite) TestManualProcessCheck() {
 }
 
 func (s *windowsTestSuite) TestManualProcessDiscoveryCheck() {
-	// Skipping due to flakiness
-	// Responses with more than 100 processes end up being chunked, which fails JSON unmarshalling
-
 	check := s.Env().RemoteHost.
 		MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process_discovery --json")
 	assertManualProcessDiscoveryCheck(s.T(), check, "MsMpEng.exe")
