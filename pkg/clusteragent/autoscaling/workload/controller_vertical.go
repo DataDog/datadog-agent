@@ -136,8 +136,8 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 			telemetryVerticalScaleAppliedRecommendationsRequests.Set(
 				requestValue.AsApproximateFloat64(),
 				autoscalerInternal.Namespace(),
-				autoscalerInternal.Spec().TargetRef.Name,
 				resource.Name,
+				autoscalerInternal.Name(),
 				string(scalingValues.Vertical.Source),
 				string(requestName),
 			)
@@ -147,8 +147,8 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 			telemetryVerticalScaleAppliedRecommendationsLimits.Set(
 				limitValue.AsApproximateFloat64(),
 				autoscalerInternal.Namespace(),
-				autoscalerInternal.Spec().TargetRef.Name,
 				resource.Name,
+				autoscalerInternal.Name(),
 				string(scalingValues.Vertical.Source),
 				string(limitName),
 			)
