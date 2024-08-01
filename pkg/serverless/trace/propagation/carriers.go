@@ -37,16 +37,17 @@ const (
 var rootRegex = regexp.MustCompile("Root=1-[0-9a-fA-F]{8}-00000000[0-9a-fA-F]{16}")
 
 var (
-	errorAWSTraceHeaderMismatch = errors.New("AWSTraceHeader does not match expected regex")
-	errorAWSTraceHeaderEmpty    = errors.New("AWSTraceHeader does not contain trace ID and parent ID")
-	errorStringNotFound         = errors.New("String value not found in _datadog payload")
-	errorUnsupportedDataType    = errors.New("Unsupported DataType in _datadog payload")
-	errorNoDDContextFound       = errors.New("No Datadog trace context found")
-	errorUnsupportedPayloadType = errors.New("Unsupported type for _datadog payload")
-	errorUnsupportedTypeType    = errors.New("Unsupported type in _datadog payload")
-	errorUnsupportedValueType   = errors.New("Unsupported value type in _datadog payload")
-	errorUnsupportedTypeValue   = errors.New("Unsupported Type in _datadog payload")
-	errorCouldNotUnmarshal      = errors.New("Could not unmarshal the invocation event payload")
+	errorAWSTraceHeaderMismatch     = errors.New("AWSTraceHeader does not match expected regex")
+	errorAWSTraceHeaderEmpty        = errors.New("AWSTraceHeader does not contain trace ID and parent ID")
+	errorStringNotFound             = errors.New("String value not found in _datadog payload")
+	errorUnsupportedDataType        = errors.New("Unsupported DataType in _datadog payload")
+	errorNoDDContextFound           = errors.New("No Datadog trace context found")
+	errorUnsupportedPayloadType     = errors.New("Unsupported type for _datadog payload")
+	errorUnsupportedTypeType        = errors.New("Unsupported type in _datadog payload")
+	errorUnsupportedValueType       = errors.New("Unsupported value type in _datadog payload")
+	errorUnsupportedTypeValue       = errors.New("Unsupported Type in _datadog payload")
+	errorCouldNotUnmarshal          = errors.New("Could not unmarshal the invocation event payload")
+	errorNoStepFunctionContextFound = errors.New("no Step Function context found in Step Function event")
 )
 
 // extractTraceContextfromAWSTraceHeader extracts trace context from the
@@ -229,6 +230,10 @@ func createTraceContextFromStepFunctionInput(event events.StepFunctionEvent) (*T
 	execArn := event.Execution.ID
 	stateName := event.State.Name
 	stateEnteredTime := event.State.EnteredTime
+
+	if execArn == "" || stateName == "" || stateEnteredTime == "" {
+		return nil, errorNoStepFunctionContextFound
+	}
 
 	lowerTraceID, upperTraceID := stringToDdTraceIDs(execArn)
 	parentID := stringToDdSpanID(execArn, stateName, stateEnteredTime)
