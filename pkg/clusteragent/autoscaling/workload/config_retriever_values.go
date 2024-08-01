@@ -81,6 +81,38 @@ func (p autoscalingValuesProcessor) processValues(values *kubeAutoscaling.Worklo
 	}
 
 	podAutoscaler.UpdateFromValues(scalingValues)
+
+	telemetryHorizontalScaleReceivedRecommendations.Set(
+		float64(scalingValues.Horizontal.Replicas),
+		podAutoscaler.Namespace(),
+		values.Name,
+		podAutoscaler.Name(),
+	)
+
+	for _, resource := range scalingValues.Vertical.ContainerResources {
+		for requestName, requestValue := range resource.Requests {
+			telemetryVerticalScaleReceivedRecommendationsRequests.Set(
+				requestValue.AsApproximateFloat64(),
+				podAutoscaler.Namespace(),
+				resource.Name,
+				podAutoscaler.Name(),
+				string(scalingValues.Vertical.Source),
+				string(requestName),
+			)
+		}
+
+		for limitName, limitValue := range resource.Limits {
+			telemetryVerticalScaleReceivedRecommendationsLimits.Set(
+				limitValue.AsApproximateFloat64(),
+				podAutoscaler.Namespace(),
+				resource.Name,
+				podAutoscaler.Name(),
+				string(scalingValues.Vertical.Source),
+				string(limitName),
+			)
+		}
+	}
+
 	return nil
 }
 
