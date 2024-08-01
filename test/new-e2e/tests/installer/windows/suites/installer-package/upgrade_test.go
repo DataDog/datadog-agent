@@ -6,6 +6,7 @@
 package installertests
 
 import (
+	agentVersion "github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
@@ -41,5 +42,14 @@ func (s *testInstallerUpgradesSuite) TestUpgrades() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasBinary(installerwindows.BinaryPath).
 		WithSignature(agent.GetCodeSignatureThumbprints()).
-		WithVersionEqual(s.CurrentAgentVersion().GetNumberAndPre())
+		WithVersionMatchPredicate(func(version string) {
+			// We have to use a predicate and parse the installer's version here because unlike the stable format
+			// we only have a current "Agent" version, which uses a different format than the installer's.
+			// For example in a CI pipeline:
+			//		CURRENT_AGENT_VERSION: 7.57.0-devel+git.479.c6f7923.pipeline.40641070
+			//		version: 7.57.0-devel+git.481.634b7cd
+			actualVersion, err := agentVersion.New(version, "")
+			s.Require().NoError(err, "Agent version was in the wrong format")
+			s.Require().Equal(s.CurrentAgentVersion().GetNumberAndPre(), actualVersion.GetNumberAndPre())
+		})
 }
