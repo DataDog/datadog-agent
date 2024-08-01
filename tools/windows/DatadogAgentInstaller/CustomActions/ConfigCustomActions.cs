@@ -425,7 +425,7 @@ namespace Datadog.CustomActions
         }
 
         private static ActionResult DDCreateFolders(ISession session)
-        { 
+        {
             var path = session.Property("APPLICATIONDATADIRECTORY");
 
             // This section is copied from RollbackDataStore.cs
@@ -448,7 +448,6 @@ namespace Datadog.CustomActions
             if (Directory.Exists(path)) // If the Datadog directory already exists, we need ensure it is locked down
             {
                 session.Log($"{path} already exists. Verifying permissions");
-                
                 var directoryInfo = new DirectoryInfo(path);
                 var _fileSystemServices = new FileSystemServices();
                 var _fileSystemSecurity = _fileSystemServices.GetAccessControl(path, AccessControlSections.All);
