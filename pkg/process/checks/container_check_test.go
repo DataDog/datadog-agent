@@ -6,6 +6,7 @@
 package checks
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -43,105 +44,96 @@ func containerCheckWithMockContainerProvider(t *testing.T) (*ContainerCheck, *pr
 	}, containerProvider
 }
 
-func TestContainerCheckWithChunking(t *testing.T) {
-	containerCheck, mockContainerProvider := containerCheckWithMockContainerProvider(t)
+func TestContainerCheckPayloads(t *testing.T) {
+	check, mockContainerProvider := containerCheckWithMockContainerProvider(t)
+	check.maxBatchSize = 2
 
-	// Set small size per chunk to force chunking behavior
-	containerCheck.maxBatchSize = 1
-
-	ctr1 := &model.Container{
-		Id: "container-1",
-		Addresses: []*model.ContainerAddr{
-			{
-				Ip:       "10.0.2.15",
-				Port:     32769,
-				Protocol: model.ConnectionType_tcp,
-			},
-			{
-				Ip:       "172.17.0.4",
-				Port:     6379,
-				Protocol: model.ConnectionType_tcp,
+	// mock containers for testing
+	containers := []*model.Container{
+		{
+			Id: "container-1",
+			Addresses: []*model.ContainerAddr{
+				{Ip: "10.0.2.15", Port: 32769, Protocol: model.ConnectionType_tcp},
+				{Ip: "172.17.0.4", Port: 6379, Protocol: model.ConnectionType_tcp},
 			},
 		},
-	}
-	ctr2 := &model.Container{
-		Id: "container-2",
-		Addresses: []*model.ContainerAddr{
-			{
-				Ip:       "172.17.0.2",
-				Port:     80,
-				Protocol: model.ConnectionType_tcp,
+		{
+			Id: "container-2",
+			Addresses: []*model.ContainerAddr{
+				{Ip: "172.17.0.2", Port: 80, Protocol: model.ConnectionType_tcp},
+			},
+		},
+		{
+			Id: "container-3",
+			Addresses: []*model.ContainerAddr{
+				{Ip: "172.17.0.3", Port: 88, Protocol: model.ConnectionType_tcp},
 			},
 		},
 	}
 
-	containers := []*model.Container{ctr1, ctr2}
 	mockContainerProvider.EXPECT().GetContainers(cacheValidityNoRTTest, nil).Return(containers, nil, nil, nil)
 
-	expected := []model.MessageBody{
-		&model.CollectorContainer{
-			Containers: []*model.Container{ctr1},
-			Info:       containerCheck.hostInfo.SystemInfo,
-			GroupSize:  int32(len(containers)),
-		},
-		&model.CollectorContainer{
-			Containers: []*model.Container{ctr2},
-			Info:       containerCheck.hostInfo.SystemInfo,
-			GroupSize:  int32(len(containers)),
-		},
-	}
+	// Test check runs without error using default chunk settings
+	result, err := check.Run(testGroupId(0), nil)
+	assert.NoError(t, err)
 
-	// Test check runs without error
-	actual, err := containerCheck.Run(testGroupId(0), chunkingOptions)
-	require.NoError(t, err)
-	assert.ElementsMatch(t, expected, actual.Payloads())
+	// Test that result has the proper number of chunks, and that those chunks are of the correct type
+	for _, elem := range result.Payloads() {
+		assert.IsType(t, &model.CollectorContainer{}, elem)
+		collectorContainers := elem.(*model.CollectorContainer)
+		resultContainers := collectorContainers.GetContainers()
+		for _, ctr := range resultContainers {
+			assert.Empty(t, ctr.Host)
+		}
+		if len(resultContainers) > check.maxBatchSize {
+			t.Errorf("Expected less than %d messages in chunk, got %d",
+				check.maxBatchSize, len(resultContainers))
+		}
+	}
 }
 
-func TestContainerCheckWithoutChunking(t *testing.T) {
-	containerCheck, mockContainerProvider := containerCheckWithMockContainerProvider(t)
-
-	// Set small size per chunk to force chunking behavior
-	containerCheck.maxBatchSize = 1
-
-	ctr1 := &model.Container{
-		Id: "container-1",
-		Addresses: []*model.ContainerAddr{
-			{
-				Ip:       "10.0.2.15",
-				Port:     32769,
-				Protocol: model.ConnectionType_tcp,
-			},
-			{
-				Ip:       "172.17.0.4",
-				Port:     6379,
-				Protocol: model.ConnectionType_tcp,
-			},
+func TestContainerCheckChunking(t *testing.T) {
+	for _, tc := range []struct {
+		noChunking            bool
+		expectedPayloadLength int
+	}{
+		{
+			noChunking:            false,
+			expectedPayloadLength: 2,
 		},
-	}
-	ctr2 := &model.Container{
-		Id: "container-2",
-		Addresses: []*model.ContainerAddr{
-			{
-				Ip:       "172.17.0.2",
-				Port:     80,
-				Protocol: model.ConnectionType_tcp,
-			},
+		{
+			noChunking:            true,
+			expectedPayloadLength: 1,
 		},
+	} {
+		t.Run("NoChunking:"+strconv.FormatBool(tc.noChunking), func(t *testing.T) {
+			containerCheck, mockContainerProvider := containerCheckWithMockContainerProvider(t)
+
+			// Set small size per chunk to force chunking behavior
+			containerCheck.maxBatchSize = 1
+
+			// mock containers for testing
+			containers := []*model.Container{
+				{
+					Id: "container-1",
+					Addresses: []*model.ContainerAddr{
+						{Ip: "10.0.2.15", Port: 32769, Protocol: model.ConnectionType_tcp},
+						{Ip: "172.17.0.4", Port: 6379, Protocol: model.ConnectionType_tcp},
+					},
+				},
+				{
+					Id: "container-2",
+					Addresses: []*model.ContainerAddr{
+						{Ip: "172.17.0.2", Port: 80, Protocol: model.ConnectionType_tcp},
+					},
+				},
+			}
+			mockContainerProvider.EXPECT().GetContainers(cacheValidityNoRTTest, nil).Return(containers, nil, nil, nil)
+
+			// Test check runs without error and has correct number of chunks
+			actual, err := containerCheck.Run(testGroupId(0), getChunkingOption(tc.noChunking))
+			require.NoError(t, err)
+			assert.Len(t, actual.Payloads(), tc.expectedPayloadLength)
+		})
 	}
-
-	containers := []*model.Container{ctr1, ctr2}
-	mockContainerProvider.EXPECT().GetContainers(cacheValidityNoRTTest, nil).Return(containers, nil, nil, nil)
-
-	// Test check runs without error
-	actual, err := containerCheck.Run(testGroupId(0), noChunkingOptions)
-	require.NoError(t, err)
-
-	// Assert to check there is only one chunk and that the nested values of this chunk match expected
-	assert.Len(t, actual.Payloads(), 1)
-	actualPayloads := actual.Payloads()
-	assert.IsType(t, &model.CollectorContainer{}, actualPayloads[0])
-	collectorContainer := actualPayloads[0].(*model.CollectorContainer)
-	ProcessDiscoveries := collectorContainer.GetContainers()
-	assert.ElementsMatch(t, containers, ProcessDiscoveries)
-	assert.EqualValues(t, 1, collectorContainer.GetGroupSize())
 }

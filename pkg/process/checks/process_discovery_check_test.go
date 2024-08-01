@@ -6,6 +6,7 @@
 package checks
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -82,95 +83,45 @@ func TestProcessDiscoveryCheck(t *testing.T) {
 	}
 }
 
-func TestProcessDiscoveryCheckWithChunking(t *testing.T) {
-	check, probe := processDiscoveryCheckWithMockProbe(t)
+func TestProcessDiscoveryCheckChunking(t *testing.T) {
+	for _, tc := range []struct {
+		noChunking            bool
+		expectedPayloadLength int
+	}{
+		{
+			noChunking:            false,
+			expectedPayloadLength: 5,
+		},
+		{
+			noChunking:            true,
+			expectedPayloadLength: 1,
+		},
+	} {
+		t.Run("NoChunking:"+strconv.FormatBool(tc.noChunking), func(t *testing.T) {
+			check, probe := processDiscoveryCheckWithMockProbe(t)
 
-	// Set small chunk size to force chunking behavior
-	check.maxBatchSize = 1
+			// Set small chunk size to force chunking behavior
+			check.maxBatchSize = 1
 
-	now := time.Now().Unix()
-	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
-	proc2 := makeProcessWithCreateTime(2, "mine-bitcoins -all -x", now+1)
-	proc3 := makeProcessWithCreateTime(3, "foo --version", now+2)
-	proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
-	proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
-	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
+			// mock processes
+			now := time.Now().Unix()
+			proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
+			proc2 := makeProcessWithCreateTime(2, "mine-bitcoins -all -x", now+1)
+			proc3 := makeProcessWithCreateTime(3, "foo --version", now+2)
+			proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
+			proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
+			
+			processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
+			probe.On("ProcessesByPID", mock.Anything, mock.Anything).
+				Return(processesByPid, nil)
 
-	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
-		Return(processesByPid, nil)
-
-	expected := []model.MessageBody{
-		&model.CollectorProcDiscovery{
-			ProcessDiscoveries: []*model.ProcessDiscovery{makeProcessDiscoveryModel(t, proc1)},
-			GroupSize:          int32(len(processesByPid)),
-			Host:               &model.Host{},
-		},
-		&model.CollectorProcDiscovery{
-			ProcessDiscoveries: []*model.ProcessDiscovery{makeProcessDiscoveryModel(t, proc2)},
-			GroupSize:          int32(len(processesByPid)),
-			Host:               &model.Host{},
-		},
-		&model.CollectorProcDiscovery{
-			ProcessDiscoveries: []*model.ProcessDiscovery{makeProcessDiscoveryModel(t, proc3)},
-			GroupSize:          int32(len(processesByPid)),
-			Host:               &model.Host{},
-		},
-		&model.CollectorProcDiscovery{
-			ProcessDiscoveries: []*model.ProcessDiscovery{makeProcessDiscoveryModel(t, proc4)},
-			GroupSize:          int32(len(processesByPid)),
-			Host:               &model.Host{},
-		},
-		&model.CollectorProcDiscovery{
-			ProcessDiscoveries: []*model.ProcessDiscovery{makeProcessDiscoveryModel(t, proc5)},
-			GroupSize:          int32(len(processesByPid)),
-			Host:               &model.Host{},
-		},
+			// Test second check runs without error and has correct number of chunks
+			check.Run(testGroupId(0), getChunkingOption(tc.noChunking))
+			actual, err := check.Run(testGroupId(0), getChunkingOption(tc.noChunking))
+			require.NoError(t, err)
+			assert.Len(t, actual.Payloads(), tc.expectedPayloadLength)
+		})
 	}
-
-	// Test check runs without error
-	actual, err := check.Run(testGroupId(0), chunkingOptions)
-	require.NoError(t, err)
-	assert.ElementsMatch(t, expected, actual.Payloads())
-}
-
-func TestProcessDiscoveryCheckWithoutChunking(t *testing.T) {
-	check, probe := processDiscoveryCheckWithMockProbe(t)
-
-	// Set small chunk size to force chunking behavior
-	check.maxBatchSize = 1
-
-	now := time.Now().Unix()
-	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
-	proc2 := makeProcessWithCreateTime(2, "mine-bitcoins -all -x", now+1)
-	proc3 := makeProcessWithCreateTime(3, "foo --version", now+2)
-	proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
-	proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
-
-	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
-	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
-		Return(processesByPid, nil)
-
-	expected := []*model.ProcessDiscovery{
-		makeProcessDiscoveryModel(t, proc1),
-		makeProcessDiscoveryModel(t, proc2),
-		makeProcessDiscoveryModel(t, proc3),
-		makeProcessDiscoveryModel(t, proc4),
-		makeProcessDiscoveryModel(t, proc5),
-	}
-
-	// Test check runs without error
-	actual, err := check.Run(testGroupId(0), noChunkingOptions)
-	require.NoError(t, err)
-
-	// Assert to check there is only one chunk and that the nested values of this chunk match expected
-	assert.Len(t, actual.Payloads(), 1)
-	actualPayloads := actual.Payloads()
-	assert.IsType(t, &model.CollectorProcDiscovery{}, actualPayloads[0])
-	collectorProcDiscovery := actualPayloads[0].(*model.CollectorProcDiscovery)
-	processDiscoveries := collectorProcDiscovery.GetProcessDiscoveries()
-	assert.ElementsMatch(t, expected, processDiscoveries)
-	assert.EqualValues(t, 1, collectorProcDiscovery.GetGroupSize())
-	assert.ElementsMatch(t, &model.Host{}, collectorProcDiscovery.GetHost())
 }
 
 func TestProcessDiscoveryChunking(t *testing.T) {

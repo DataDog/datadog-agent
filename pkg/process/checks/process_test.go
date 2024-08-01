@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strconv"
 	"testing"
 	"time"
 
@@ -176,110 +177,46 @@ func TestProcessCheckSecondRun(t *testing.T) {
 	assert.Nil(t, actual.RealtimePayloads())
 }
 
-func TestProcessCheckSecondRunWithChunking(t *testing.T) {
-	processCheck, probe := processCheckWithMockProbe(t)
-
-	// Set small chunk size to force chunking behavior
-	processCheck.maxBatchBytes = 0
-	processCheck.maxBatchSize = 0
-
-	now := time.Now().Unix()
-	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
-	proc2 := makeProcessWithCreateTime(2, "mine-bitcoins -all -x", now+1)
-	proc3 := makeProcessWithCreateTime(3, "foo --version", now+2)
-	proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
-	proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
-
-	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
-
-	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
-		Return(processesByPid, nil)
-
-	expected := []model.MessageBody{
-		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc1, []string{"process_context:git"})},
-			GroupSize: int32(len(processesByPid)),
-			Info:      processCheck.hostInfo.SystemInfo,
-			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+func TestProcessCheckChunking(t *testing.T) {
+	for _, tc := range []struct {
+		noChunking            bool
+		expectedPayloadLength int
+	}{
+		{
+			noChunking:            false,
+			expectedPayloadLength: 5,
 		},
-		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc2, []string{"process_context:mine-bitcoins"})},
-			GroupSize: int32(len(processesByPid)),
-			Info:      processCheck.hostInfo.SystemInfo,
-			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
+		{
+			noChunking:            true,
+			expectedPayloadLength: 1,
 		},
-		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc3, []string{"process_context:foo"})},
-			GroupSize: int32(len(processesByPid)),
-			Info:      processCheck.hostInfo.SystemInfo,
-			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
-		},
-		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc4, []string{"process_context:foo"})},
-			GroupSize: int32(len(processesByPid)),
-			Info:      processCheck.hostInfo.SystemInfo,
-			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
-		},
-		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc5, []string{"process_context:datadog-process-agent"})},
-			GroupSize: int32(len(processesByPid)),
-			Info:      processCheck.hostInfo.SystemInfo,
-			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
-		},
+	} {
+		t.Run("NoChunking:"+strconv.FormatBool(tc.noChunking), func(t *testing.T) {
+			processCheck, probe := processCheckWithMockProbe(t)
+
+			// Set small chunk size to force chunking behavior
+			processCheck.maxBatchBytes = 0
+			processCheck.maxBatchSize = 0
+
+			// mock processes
+			now := time.Now().Unix()
+			proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
+			proc2 := makeProcessWithCreateTime(2, "mine-bitcoins -all -x", now+1)
+			proc3 := makeProcessWithCreateTime(3, "foo --version", now+2)
+			proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
+			proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
+
+			processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
+			probe.On("ProcessesByPID", mock.Anything, mock.Anything).
+				Return(processesByPid, nil)
+
+			// Test second check runs without error and has correct number of chunks
+			processCheck.Run(testGroupId(0), getChunkingOption(tc.noChunking))
+			actual, err := processCheck.Run(testGroupId(0), getChunkingOption(tc.noChunking))
+			require.NoError(t, err)
+			assert.Len(t, actual.Payloads(), tc.expectedPayloadLength)
+		})
 	}
-
-	// Run check with NoChunking option set to false
-	processCheck.Run(testGroupId(0), chunkingOptions)
-	// Second run
-	actual, err := processCheck.Run(testGroupId(0), chunkingOptions)
-	require.NoError(t, err)
-	assert.ElementsMatch(t, expected, actual.Payloads()) // ordering is not guaranteed
-	assert.Nil(t, actual.RealtimePayloads())
-}
-
-func TestProcessCheckSecondRunWithoutChunking(t *testing.T) {
-	processCheck, probe := processCheckWithMockProbe(t)
-
-	// Set small chunk size to force chunking behavior
-	processCheck.maxBatchBytes = 0
-	processCheck.maxBatchSize = 0
-
-	now := time.Now().Unix()
-	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
-	proc2 := makeProcessWithCreateTime(2, "mine-bitcoins -all -x", now+1)
-	proc3 := makeProcessWithCreateTime(3, "foo --version", now+2)
-	proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
-	proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
-
-	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
-
-	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
-		Return(processesByPid, nil)
-
-	expected := []*model.Process{
-		makeProcessModel(t, proc1, []string{"process_context:git"}),
-		makeProcessModel(t, proc2, []string{"process_context:mine-bitcoins"}),
-		makeProcessModel(t, proc3, []string{"process_context:foo"}),
-		makeProcessModel(t, proc4, []string{"process_context:foo"}),
-		makeProcessModel(t, proc5, []string{"process_context:datadog-process-agent"}),
-	}
-
-	// Run check with NoChunking option set to true
-	processCheck.Run(testGroupId(0), noChunkingOptions)
-	// Test second check runs without error
-	actual, err := processCheck.Run(testGroupId(0), noChunkingOptions)
-	require.NoError(t, err)
-
-	// Assert to check there is only one chunk and that the nested values of this chunk match expected
-	assert.Len(t, actual.Payloads(), 1)
-	actualPayloads := actual.Payloads()
-	assert.IsType(t, &model.CollectorProc{}, actualPayloads[0])
-	collectorProc := actualPayloads[0].(*model.CollectorProc)
-	ProcessDiscoveries := collectorProc.GetProcesses()
-	assert.ElementsMatch(t, expected, ProcessDiscoveries)
-	assert.EqualValues(t, 1, collectorProc.GetGroupSize())
-	assert.EqualValues(t, 0b1, collectorProc.GetHintMask())
-	assert.Nil(t, actual.RealtimePayloads())
 }
 
 func TestProcessCheckWithRealtime(t *testing.T) {

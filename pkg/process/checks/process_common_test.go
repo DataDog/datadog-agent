@@ -21,11 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-// chunking and no chunking options used for testing chunking of check output
-var (
-	chunkingOptions = &RunOptions{RunStandard: true, NoChunking: false}
-	noChunkingOptions = &RunOptions{RunStandard: true, NoChunking: true}
-)
+// Returns chunking and no chunking RunOptions
+func getChunkingOption(noChunking bool) *RunOptions {
+	return &RunOptions{RunStandard: true, NoChunking: noChunking}
+}
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func testGroupId(groupID int32) func() int32 {
