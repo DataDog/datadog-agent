@@ -11,8 +11,10 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 )
@@ -451,6 +453,46 @@ func TestFxReturnAnError(t *testing.T) {
 	require.Error(t, app.Err())
 }
 
+func TestFxShutdowner(t *testing.T) {
+	// a bit ugly to save a local reference, but it's okay for test-only code
+	var shutdown compdef.Shutdowner
+	NewAgentComponent := func(reqs requiresShutdownable) provides1 {
+		shutdown = reqs.Shutdown
+		return provides1{First: &firstImpl{}}
+	}
+
+	// define an entry point that waits momentarily then shuts down the application
+	entrypoint := func(first FirstComp) {
+		time.AfterFunc(100*time.Millisecond, func() {
+			shutdown.Shutdown()
+		})
+	}
+
+	// fx-aware upgrade from the regular constructor
+	module := Component(ProvideComponentConstructor(NewAgentComponent))
+
+	// instantiate the application
+	fxApp, _, err := TestApp[FirstComp](
+		fx.Invoke(entrypoint), module,
+	)
+	assert.NoError(t, err)
+
+	// create a wait-loop that will timeout if it takes longer than 1 second
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(1*time.Second, cancel)
+	select {
+	case <-ctx.Done():
+		assert.Fail(t, "waiting for Application timed out, Shutdown() did not work")
+		return
+	case <-fxApp.Done():
+		// if compdef.Shutdown is successfully upgraded to fx.Shutdown,
+		// then this loop should exit here
+		break
+	}
+	// TODO: (components) When we upgrade fx to 1.19.0, use fxApp.Wait() and check Shutdown's return code
+	// see: https://github.com/uber-go/fx/blob/45af511c27eebb3b9e02abe4a35e1f978ad61bdc/app.go#L748
+}
+
 func assertNoCtorError(t *testing.T, arg fx.Option) {
 	t.Helper()
 	app := fx.New(arg)
@@ -610,6 +652,12 @@ type requiresLc struct {
 
 type providesService struct {
 	First FirstComp
+}
+
+// requiresShutdownable has a Shutdowner
+
+type requiresShutdownable struct {
+	Shutdown compdef.Shutdowner
 }
 
 // fxAwareReqs is an fx-aware requires struct
