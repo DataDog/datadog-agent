@@ -8,7 +8,6 @@
 package usm
 
 import (
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -20,13 +19,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	defaultEnvoyName = "/bin/envoy"
+)
+
 func TestGetEnvoyPath(t *testing.T) {
-	_, pid := createFakeProc(t, "/bin")
+	_, pid := createFakeProcess(t, defaultEnvoyName)
 	monitor := newIstioTestMonitor(t)
 
 	t.Run("an actual envoy process", func(t *testing.T) {
 		path := monitor.getEnvoyPath(uint32(pid))
-		assert.True(t, strings.HasSuffix(path, "/bin/envoy"))
+		assert.True(t, strings.HasSuffix(path, defaultEnvoyName))
 	})
 	t.Run("something else", func(t *testing.T) {
 		path := monitor.getEnvoyPath(uint32(2))
@@ -35,45 +38,21 @@ func TestGetEnvoyPath(t *testing.T) {
 }
 
 func TestGetEnvoyPathWithConfig(t *testing.T) {
-	t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_ISTIO_ENVOY_PATH", "/test/envoy")
+	cfg := config.New()
+	cfg.EnableIstioMonitoring = true
+	cfg.EnvoyPath = "/test/envoy"
+	monitor := newIstioTestMonitorWithCFG(t, cfg)
 
-	_, pid := createFakeProc(t, "/test")
-	monitor := newIstioTestMonitor(t)
+	_, pid := createFakeProcess(t, cfg.EnvoyPath)
 
-	t.Run("an actual envoy process", func(t *testing.T) {
-		path := monitor.getEnvoyPath(uint32(pid))
-		assert.True(t, strings.HasSuffix(path, "/test/envoy"))
-	})
+	path := monitor.getEnvoyPath(uint32(pid))
+	assert.True(t, strings.HasSuffix(path, cfg.EnvoyPath))
 }
 
 func TestIstioSync(t *testing.T) {
-	t.Run("calling sync for the first time", func(t *testing.T) {
-		procRoot1, _ := createFakeProc(t, filepath.Join("test1", "bin"))
-		procRoot2, _ := createFakeProc(t, filepath.Join("test2", "bin"))
-		monitor := newIstioTestMonitor(t)
-		registerRecorder := new(utils.CallbackRecorder)
-
-		// Setup test callbacks
-		monitor.registerCB = registerRecorder.Callback()
-		monitor.unregisterCB = utils.IgnoreCB
-
-		// Calling sync should detect the two envoy processes
-		monitor.sync()
-
-		pathID1, err := utils.NewPathIdentifier(filepath.Join(procRoot1, "test1", "bin", "envoy"))
-		require.NoError(t, err)
-
-		pathID2, err := utils.NewPathIdentifier(filepath.Join(procRoot2, "test2", "bin", "envoy"))
-		require.NoError(t, err)
-
-		assert.Equal(t, 2, registerRecorder.TotalCalls())
-		assert.Equal(t, 1, registerRecorder.CallsForPathID(pathID1))
-		assert.Equal(t, 1, registerRecorder.CallsForPathID(pathID2))
-	})
-
 	t.Run("calling sync multiple times", func(t *testing.T) {
-		procRoot1, _ := createFakeProc(t, filepath.Join("test1", "bin"))
-		procRoot2, _ := createFakeProc(t, filepath.Join("test2", "bin"))
+		procRoot1, _ := createFakeProcess(t, filepath.Join("test1", defaultEnvoyName))
+		procRoot2, _ := createFakeProcess(t, filepath.Join("test2", defaultEnvoyName))
 		monitor := newIstioTestMonitor(t)
 		registerRecorder := new(utils.CallbackRecorder)
 
@@ -86,12 +65,11 @@ func TestIstioSync(t *testing.T) {
 		// trigger additional callback executions
 		monitor.sync()
 		monitor.sync()
-		monitor.sync()
 
-		pathID1, err := utils.NewPathIdentifier(filepath.Join(procRoot1, "test1", "bin", "envoy"))
+		pathID1, err := utils.NewPathIdentifier(procRoot1)
 		require.NoError(t, err)
 
-		pathID2, err := utils.NewPathIdentifier(filepath.Join(procRoot2, "test2", "bin", "envoy"))
+		pathID2, err := utils.NewPathIdentifier(procRoot2)
 		require.NoError(t, err)
 
 		// Each PathID should have triggered a callback exactly once
@@ -101,19 +79,16 @@ func TestIstioSync(t *testing.T) {
 	})
 }
 
-// createFakeProc creates a fake envoy process in the given temporary directory.
-// returns the temporary directory and the PID of the fake envoy process.
-func createFakeProc(t *testing.T, path string) (procRoot string, pid int) {
-	procRoot = t.TempDir()
-	binDir := filepath.Join(procRoot, path)
-	err := os.MkdirAll(binDir, os.ModePerm)
-	require.NoError(t, err)
-	fakeEnvoyPath := filepath.Join(binDir, "envoy")
+// createFakeProcess creates a fake process in a temporary location.
+// returns the full path of the temporary process and the PID of the fake process.
+func createFakeProcess(t *testing.T, processName string) (procRoot string, pid int) {
+	fakePath := filepath.Join(t.TempDir(), processName)
+	require.NoError(t, exec.Command("mkdir", "-p", filepath.Dir(fakePath)).Run())
 
 	// we are using the `yes` command as a fake envoy binary.
-	require.NoError(t, exec.Command("cp", "/usr/bin/yes", fakeEnvoyPath).Run())
+	require.NoError(t, exec.Command("cp", "/usr/bin/yes", fakePath).Run())
 
-	cmd := exec.Command(fakeEnvoyPath)
+	cmd := exec.Command(fakePath)
 	require.NoError(t, cmd.Start())
 
 	// Schedule process termination after the test
@@ -121,15 +96,18 @@ func createFakeProc(t *testing.T, path string) (procRoot string, pid int) {
 		_ = cmd.Process.Kill()
 	})
 
-	return procRoot, cmd.Process.Pid
+	return fakePath, cmd.Process.Pid
 }
 
 func newIstioTestMonitor(t *testing.T) *istioMonitor {
 	cfg := config.New()
 	cfg.EnableIstioMonitoring = true
 
+	return newIstioTestMonitorWithCFG(t, cfg)
+}
+
+func newIstioTestMonitorWithCFG(t *testing.T, cfg *config.Config) *istioMonitor {
 	monitor := newIstioMonitor(cfg, nil)
 	require.NotNil(t, monitor)
-
 	return monitor
 }
