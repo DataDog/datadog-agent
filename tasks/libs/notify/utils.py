@@ -5,7 +5,6 @@ from typing import Any
 from urllib.parse import quote
 
 PROJECT_NAME = "DataDog/datadog-agent"
-PROJECT_TITLE = PROJECT_NAME.removeprefix("DataDog/")
 CI_VISIBILITY_JOB_URL = 'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{name}{extra_flags}&agg_m=count{extra_args}'
 NOTIFICATION_DISCLAIMER = "If there is something wrong with the notification please contact #agent-devx-help"
 CHANNEL_BROADCAST = '#agent-devx-ops'
