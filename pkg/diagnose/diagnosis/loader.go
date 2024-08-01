@@ -162,16 +162,6 @@ func (c *Counters) Increment(r Result) {
 		c.UnexpectedErr++
 	}
 }
-
-// Merge merges the count of the diagnoses results
-func (c *Counters) Merge(other Counters) {
-	c.Total += other.Total
-	c.Success += other.Success
-	c.Fail += other.Fail
-	c.Warnings += other.Warnings
-	c.UnexpectedErr += other.UnexpectedErr
-}
-
 // Catalog stores the list of registered Diagnose functions
 type Catalog struct {
 	suites []Suite
