@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	processwlm "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
@@ -53,14 +54,15 @@ type Provides struct {
 }
 
 type Requires struct {
-	Log    logComponent.Component
-	Config config.Component
+	Log            logComponent.Component
+	Config         config.Component
+	SysProbeConfig sysprobeconfig.Component
 }
 
 // NewComponent returns a new local process collector provider and an error.
 // Currently, this is only used on Linux when language detection and run in core agent are enabled.
 func NewComponent(req Requires) Provides {
-	wlmExtractor := processwlm.GetSharedWorkloadMetaExtractor(req.Config)
+	wlmExtractor := processwlm.GetSharedWorkloadMetaExtractor(req.SysProbeConfig)
 	processData := NewProcessData()
 	processData.Register(wlmExtractor)
 
@@ -74,6 +76,8 @@ func NewComponent(req Requires) Provides {
 				processData:     processData,
 				pidToCid:        make(map[int]string),
 				collectionClock: clock.New(),
+				config:          req.Config,
+				log:             req.Log,
 			},
 		}}
 }
