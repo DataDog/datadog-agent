@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/version"
+	"github.com/DataDog/sketches-go/ddsketch"
+	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -16,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -142,12 +146,14 @@ func (a *ClientStatsAggregator) add(now time.Time, p *pb.ClientStatsPayload) {
 		}
 		b, ok := a.buckets[ts.Unix()]
 		if !ok {
-			b = &bucket{ts: ts}
+			b = &bucket{
+				ts:  ts,
+				agg: make(map[PayloadAggregationKey]map[BucketsAggregationKey]*aggregatedStats),
+			}
 			a.buckets[ts.Unix()] = b
 		}
-		p.Stats = []*pb.ClientStatsBucket{clientBucket}
 		a.setVersionDataFromContainerTags(p)
-		a.flush(b.add(p))
+		b.aggregateStats(p)
 	}
 }
 
@@ -196,52 +202,13 @@ func alignAggTs(t time.Time) time.Time {
 }
 
 type bucket struct {
-	// first is the first payload matching the bucket. If a second payload matches the bucket
-	// this field will be empty
-	first *pb.ClientStatsPayload
 	// ts is the timestamp attached to the payload
 	ts time.Time
-	// n counts the number of payloads matching the bucket
-	n int
 	// agg contains the aggregated Hits/Errors/Duration counts
-	agg map[PayloadAggregationKey]map[BucketsAggregationKey]*aggregatedCounts
+	agg map[PayloadAggregationKey]map[BucketsAggregationKey]*aggregatedStats
 }
 
-func (b *bucket) add(p *pb.ClientStatsPayload) []*pb.ClientStatsPayload {
-	b.n++
-	if b.n == 1 {
-		b.first = &pb.ClientStatsPayload{
-			Hostname:         p.GetHostname(),
-			Env:              p.GetEnv(),
-			Version:          p.GetVersion(),
-			Stats:            p.GetStats(),
-			Lang:             p.GetLang(),
-			TracerVersion:    p.GetTracerVersion(),
-			RuntimeID:        p.GetRuntimeID(),
-			Sequence:         p.GetSequence(),
-			AgentAggregation: p.GetAgentAggregation(),
-			Service:          p.GetService(),
-			ContainerID:      p.GetContainerID(),
-			Tags:             p.GetTags(),
-			GitCommitSha:     p.GetGitCommitSha(),
-			ImageTag:         p.GetImageTag(),
-		}
-		return nil
-	}
-	// if it's the second payload we flush the first payload with counts trimmed
-	if b.n == 2 {
-		first := b.first
-		b.first = &pb.ClientStatsPayload{}
-		b.agg = make(map[PayloadAggregationKey]map[BucketsAggregationKey]*aggregatedCounts, 2)
-		b.aggregateCounts(first)
-		b.aggregateCounts(p)
-		return []*pb.ClientStatsPayload{trimCounts(first), trimCounts(p)}
-	}
-	b.aggregateCounts(p)
-	return []*pb.ClientStatsPayload{trimCounts(p)}
-}
-
-func (b *bucket) aggregateCounts(p *pb.ClientStatsPayload) {
+func (b *bucket) aggregateStats(p *pb.ClientStatsPayload) {
 	payloadAggKey := newPayloadAggregationKey(p.Env, p.Hostname, p.Version, p.ContainerID, p.GitCommitSha, p.ImageTag)
 	payloadAgg, ok := b.agg[payloadAggKey]
 	if !ok {
@@ -249,7 +216,7 @@ func (b *bucket) aggregateCounts(p *pb.ClientStatsPayload) {
 		for _, s := range p.Stats {
 			size += len(s.Stats)
 		}
-		payloadAgg = make(map[BucketsAggregationKey]*aggregatedCounts, size)
+		payloadAgg = make(map[BucketsAggregationKey]*aggregatedStats, size)
 		b.agg[payloadAggKey] = payloadAgg
 	}
 	for _, s := range p.Stats {
@@ -260,49 +227,63 @@ func (b *bucket) aggregateCounts(p *pb.ClientStatsPayload) {
 			aggKey := newBucketAggregationKey(sb)
 			agg, ok := payloadAgg[aggKey]
 			if !ok {
-				agg = &aggregatedCounts{}
+				agg = &aggregatedStats{}
 				payloadAgg[aggKey] = agg
 				agg.peerTags = sb.PeerTags
 			}
+			// aggregate counts
 			agg.hits += sb.Hits
+			agg.topLevelHits += sb.TopLevelHits
 			agg.errors += sb.Errors
 			agg.duration += sb.Duration
+
+			// aggregate distributions
+			okDistribution, err := decodeSketch(sb.OkSummary)
+			if err != nil {
+				log.Error("Client stats aggregator is unable to decode OK distribution ddsketch: %v", err)
+			} else if agg.okDistribution == nil {
+				agg.okDistribution = okDistribution
+			} else {
+				if err := agg.okDistribution.MergeWith(okDistribution); err != nil {
+					log.Error("unable to merge OK distribution sketch: %v", err)
+				}
+			}
+
+			errDistribution, err := decodeSketch(sb.ErrorSummary)
+			if err != nil {
+				log.Error("Client stats aggregator is unable to decode Error distribution ddsketch: %v", err)
+			} else if agg.errDistribution == nil {
+				agg.errDistribution = errDistribution
+			} else {
+				if err := agg.errDistribution.MergeWith(errDistribution); err != nil {
+					log.Error("unable to merge Error distribution sketch: %v", err)
+				}
+			}
 		}
 	}
 }
 
 func (b *bucket) flush() []*pb.ClientStatsPayload {
-	if b.n == 1 {
-		return []*pb.ClientStatsPayload{b.first}
-	}
 	return b.aggregationToPayloads()
 }
 
 func (b *bucket) aggregationToPayloads() []*pb.ClientStatsPayload {
 	res := make([]*pb.ClientStatsPayload, 0, len(b.agg))
-	for payloadKey, aggrCounts := range b.agg {
-		stats := make([]*pb.ClientGroupedStats, 0, len(aggrCounts))
-		for aggrKey, counts := range aggrCounts {
-			stats = append(stats, &pb.ClientGroupedStats{
-				Service:        aggrKey.Service,
-				Name:           aggrKey.Name,
-				SpanKind:       aggrKey.SpanKind,
-				Resource:       aggrKey.Resource,
-				HTTPStatusCode: aggrKey.StatusCode,
-				Type:           aggrKey.Type,
-				Synthetics:     aggrKey.Synthetics,
-				IsTraceRoot:    aggrKey.IsTraceRoot,
-				PeerTags:       counts.peerTags,
-				Hits:           counts.hits,
-				Errors:         counts.errors,
-				Duration:       counts.duration,
-			})
+	for payloadKey, aggrStats := range b.agg {
+		groupedStats := make([]*pb.ClientGroupedStats, 0, len(aggrStats))
+		for aggrKey, stats := range aggrStats {
+			gs, err := exporGroupedStats(aggrKey, stats)
+			if err != nil {
+				log.Errorf("Dropping stats bucket due to encoding error: %v.", err)
+				continue
+			}
+			groupedStats = append(groupedStats, gs)
 		}
 		clientBuckets := []*pb.ClientStatsBucket{
 			{
 				Start:    uint64(b.ts.UnixNano()),
 				Duration: uint64(clientBucketDuration.Nanoseconds()),
-				Stats:    stats,
+				Stats:    groupedStats,
 			}}
 		res = append(res, &pb.ClientStatsPayload{
 			Hostname:         payloadKey.Hostname,
@@ -311,10 +292,50 @@ func (b *bucket) aggregationToPayloads() []*pb.ClientStatsPayload {
 			ImageTag:         payloadKey.ImageTag,
 			GitCommitSha:     payloadKey.GitCommitSha,
 			Stats:            clientBuckets,
-			AgentAggregation: keyCounts,
+			AgentAggregation: keyCounts, // TODO: the aggregation now contains BOTH counts and distributions
 		})
 	}
 	return res
+}
+
+func exporGroupedStats(aggrKey BucketsAggregationKey, stats *aggregatedStats) (*pb.ClientGroupedStats, error) {
+	var (
+		okSummary  []byte
+		errSummary []byte
+		err        error
+	)
+
+	if stats.okDistribution != nil {
+		msg := stats.okDistribution.ToProto()
+		okSummary, err = proto.Marshal(msg)
+		if err != nil {
+			return &pb.ClientGroupedStats{}, err
+		}
+	}
+	if stats.errDistribution != nil {
+		msg := stats.errDistribution.ToProto()
+		errSummary, err = proto.Marshal(msg)
+		if err != nil {
+			return &pb.ClientGroupedStats{}, err
+		}
+	}
+	return &pb.ClientGroupedStats{
+		Service:        aggrKey.Service,
+		Name:           aggrKey.Name,
+		SpanKind:       aggrKey.SpanKind,
+		Resource:       aggrKey.Resource,
+		HTTPStatusCode: aggrKey.StatusCode,
+		Type:           aggrKey.Type,
+		Synthetics:     aggrKey.Synthetics,
+		IsTraceRoot:    aggrKey.IsTraceRoot,
+		PeerTags:       stats.peerTags,
+		TopLevelHits:   stats.topLevelHits,
+		Hits:           stats.hits,
+		Errors:         stats.errors,
+		Duration:       stats.duration,
+		OkSummary:      okSummary,
+		ErrorSummary:   errSummary,
+	}, nil
 }
 
 func newPayloadAggregationKey(env, hostname, version, cid string, gitCommitSha string, imageTag string) PayloadAggregationKey {
@@ -345,25 +366,24 @@ func newBucketAggregationKey(b *pb.ClientGroupedStats) BucketsAggregationKey {
 	return k
 }
 
-func trimCounts(p *pb.ClientStatsPayload) *pb.ClientStatsPayload {
-	p.AgentAggregation = keyDistributions
-	for _, s := range p.Stats {
-		for i, b := range s.Stats {
-			if b == nil {
-				continue
-			}
-			b.Hits = 0
-			b.Errors = 0
-			b.Duration = 0
-			s.Stats[i] = b
-		}
-	}
-	return p
+// aggregatedStats holds aggregated counts and distributions
+type aggregatedStats struct {
+	hits, topLevelHits, errors, duration uint64
+	peerTags                             []string
+
+	okDistribution, errDistribution *ddsketch.DDSketch
 }
 
-// aggregate separately hits, errors, duration
-// Distributions and TopLevelCount will stay on the initial payload
-type aggregatedCounts struct {
-	hits, errors, duration uint64
-	peerTags               []string
+func decodeSketch(data []byte) (*ddsketch.DDSketch, error) {
+	if len(data) == 0 {
+		return nil, nil
+	}
+
+	var sketch sketchpb.DDSketch
+	err := proto.Unmarshal(data, &sketch)
+	if err != nil {
+		return nil, err
+	}
+
+	return ddsketch.FromProto(&sketch)
 }
