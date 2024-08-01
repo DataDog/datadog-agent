@@ -16,8 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-apm
-
 // Mock implements mock-specific methods.
 type Mock interface {
 	traceagent.Component
