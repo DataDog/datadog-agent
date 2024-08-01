@@ -10,7 +10,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/version"
 	"github.com/DataDog/sketches-go/ddsketch"
+	"github.com/DataDog/sketches-go/ddsketch/mapping"
 	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
+	"github.com/DataDog/sketches-go/ddsketch/store"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -33,6 +35,10 @@ const (
 	keyDistributions = "distributions"
 	// set on a stat payload containing counts (hit/error/duration) post aggregation
 	keyCounts = "counts"
+)
+
+var (
+	ddsketchMapping, _ = mapping.NewLogarithmicMapping(relativeAccuracy)
 )
 
 // ClientStatsAggregator aggregates client stats payloads on buckets of bucketDuration
@@ -238,26 +244,14 @@ func (b *bucket) aggregateStats(p *pb.ClientStatsPayload) {
 			agg.duration += sb.Duration
 
 			// aggregate distributions
-			okDistribution, err := decodeSketch(sb.OkSummary)
+			var err error
+			agg.okDistribution, err = mergeSketch(agg.okDistribution, sb.OkSummary)
 			if err != nil {
-				log.Error("Client stats aggregator is unable to decode OK distribution ddsketch: %v", err)
-			} else if agg.okDistribution == nil {
-				agg.okDistribution = okDistribution
-			} else {
-				if err := agg.okDistribution.MergeWith(okDistribution); err != nil {
-					log.Error("unable to merge OK distribution sketch: %v", err)
-				}
+				log.Error("Unable to merge OK distribution ddsketch: %v", err)
 			}
-
-			errDistribution, err := decodeSketch(sb.ErrorSummary)
+			agg.errDistribution, err = mergeSketch(agg.errDistribution, sb.ErrorSummary)
 			if err != nil {
-				log.Error("Client stats aggregator is unable to decode Error distribution ddsketch: %v", err)
-			} else if agg.errDistribution == nil {
-				agg.errDistribution = errDistribution
-			} else {
-				if err := agg.errDistribution.MergeWith(errDistribution); err != nil {
-					log.Error("unable to merge Error distribution sketch: %v", err)
-				}
+				log.Error("Unable to merge Error distribution ddsketch: %v", err)
 			}
 		}
 	}
@@ -372,6 +366,30 @@ type aggregatedStats struct {
 	peerTags                             []string
 
 	okDistribution, errDistribution *ddsketch.DDSketch
+}
+
+func mergeSketch(s1 *ddsketch.DDSketch, raw []byte) (*ddsketch.DDSketch, error) {
+	s2, err := decodeSketch(raw)
+	if err != nil {
+		return s1, err
+	}
+	s2 = normalizeSketch(s2)
+
+	if s1 == nil {
+		return s2, nil
+	}
+
+	err = s1.MergeWith(s2)
+	return s1, nil
+}
+
+func normalizeSketch(s *ddsketch.DDSketch) *ddsketch.DDSketch {
+	if s.IndexMapping.Equals(ddsketchMapping) {
+		// already normalized
+		return s
+	}
+
+	return s.ChangeMapping(ddsketchMapping, store.NewCollapsingLowestDenseStore(maxNumBins), store.NewCollapsingLowestDenseStore(maxNumBins), 1)
 }
 
 func decodeSketch(data []byte) (*ddsketch.DDSketch, error) {
