@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-sfixes:
+fixes:
   - |
     Fix OTLP status output not being displayed in the GUI. 
