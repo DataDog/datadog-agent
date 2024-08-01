@@ -243,43 +243,6 @@ func handlePackets(ctx context.Context, conn rawConnWrapper, listener string, lo
 	}
 }
 
-// MarshalPacket takes in an ipv4 header and a payload and copies
-// them into a newly allocated []byte
-func MarshalPacket(header *ipv4.Header, payload []byte) ([]byte, error) {
-	hdrBytes, err := header.Marshal()
-	if err != nil {
-		return nil, err
-	}
-
-	packet := make([]byte, len(hdrBytes)+len(payload))
-	copy(packet[:len(hdrBytes)], hdrBytes)
-	copy(packet[len(hdrBytes):], payload)
-
-	return packet, nil
-}
-
-// readRawPacket creates a gopacket given a byte array
-// containing a packet
-//
-// TODO: try doing this manually to see if it's more performant
-// we should either always use gopacket or never use gopacket
-func readRawPacket(rawPacket []byte) gopacket.Packet {
-	return gopacket.NewPacket(rawPacket, layers.LayerTypeIPv4, gopacket.Default)
-}
-
-func parseIPv4Layer(pkt gopacket.Packet) (net.IP, net.IP, error) {
-	if ipLayer := pkt.Layer(layers.LayerTypeIPv4); ipLayer != nil {
-		ip, ok := ipLayer.(*layers.IPv4)
-		if !ok {
-			return net.IP{}, net.IP{}, fmt.Errorf("failed to assert IPv4 layer type")
-		}
-
-		return ip.SrcIP, ip.DstIP, nil
-	}
-
-	return net.IP{}, net.IP{}, fmt.Errorf("packet does not contain an IPv4 layer")
-}
-
 // parseICMP takes in an IPv4 header and payload and tries to convert to an ICMP
 // message, it returns all the fields from the packet we need to validate it's the response
 // we're looking for

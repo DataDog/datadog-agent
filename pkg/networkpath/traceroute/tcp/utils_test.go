@@ -139,52 +139,6 @@ func Test_handlePackets(t *testing.T) {
 	}
 }
 
-func Test_parseIPv4Layer(t *testing.T) {
-	ipv4Layer := createMockIPv4Layer(srcIP, dstIP, 1)
-	buf := gopacket.NewSerializeBuffer()
-	gopacket.SerializeLayers(buf, gopacket.SerializeOptions{},
-		ipv4Layer,
-	)
-	ipv4Packet := gopacket.NewPacket(buf.Bytes(), layers.LayerTypeIPv4, gopacket.Default)
-
-	tt := []struct {
-		description string
-		input       gopacket.Packet
-		srcIP       net.IP
-		dstIP       net.IP
-		errMsg      string
-	}{
-		{
-			description: "empty IPv4 layer should return an error",
-			input:       gopacket.NewPacket([]byte{}, layers.LayerTypeTCP, gopacket.Default),
-			srcIP:       net.IP{},
-			dstIP:       net.IP{},
-			errMsg:      "packet does not contain an IPv4 layer",
-		},
-		{
-			description: "proper IPv4 layer parsing grabs source and dest IPs",
-			input:       ipv4Packet,
-			srcIP:       srcIP,
-			dstIP:       dstIP,
-			errMsg:      "",
-		},
-	}
-
-	for _, test := range tt {
-		t.Run(test.description, func(t *testing.T) {
-			actualSrc, actualDst, err := parseIPv4Layer(test.input)
-			if test.errMsg != "" {
-				require.Error(t, err)
-				assert.True(t, strings.Contains(err.Error(), test.errMsg))
-				return
-			}
-			require.Nil(t, err)
-			assert.True(t, test.srcIP.Equal(actualSrc))
-			assert.True(t, test.dstIP.Equal(actualDst))
-		})
-	}
-}
-
 func Test_parseICMP(t *testing.T) {
 	innerSrcIP := net.ParseIP("10.0.0.1")
 	innerDstIP := net.ParseIP("192.168.1.1")
