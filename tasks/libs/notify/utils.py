@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from typing import Any
 from urllib.parse import quote
 
 PROJECT_NAME = "DataDog/datadog-agent"
@@ -15,7 +16,7 @@ AWS_S3_LS_CMD = "aws s3api list-objects-v2 --bucket '{bucket}' --prefix '{prefix
 
 
 def get_ci_visibility_job_url(
-    name: str, prefix=True, extra_flags: list[str] | str = "", extra_args: dict[str, any] | str = ''
+    name: str, prefix=True, extra_flags: list[str] | str = "", extra_args: dict[str, Any] | str = ''
 ) -> str:
     """
     Returns the link to a query matching the job (or its prefix by default) in ci visibility
