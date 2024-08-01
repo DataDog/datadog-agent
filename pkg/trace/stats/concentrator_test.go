@@ -119,14 +119,15 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 	t.Run("with peer tags", func(t *testing.T) {
 		assert := assert.New(t)
 		cfg := config.AgentConfig{
-			BucketInterval: time.Duration(testBucketInterval),
-			AgentVersion:   "0.99.0",
-			DefaultEnv:     "env",
-			Hostname:       "hostname",
-			PeerTags:       []string{"zz_tag"},
+			BucketInterval:      time.Duration(testBucketInterval),
+			AgentVersion:        "0.99.0",
+			DefaultEnv:          "env",
+			Hostname:            "hostname",
+			PeerTagsAggregation: true,
+			PeerTags:            []string{"zz_tag"},
 		}
 		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-		assert.Equal([]string{"zz_tag"}, c.peerTagKeys)
+		assert.Equal(cfg.ConfiguredPeerTags(), c.peerTagKeys)
 	})
 }
 
