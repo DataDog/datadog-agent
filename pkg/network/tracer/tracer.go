@@ -19,6 +19,7 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
+	"go4.org/intern"
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -340,7 +341,8 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	}
 
 	if len(p.Tags) > 0 {
-		c.Tags = p.Tags
+		c.Tags = make([]*intern.Value, len(p.Tags))
+		copy(c.Tags, p.Tags)
 	}
 
 	if p.ContainerID != nil {
