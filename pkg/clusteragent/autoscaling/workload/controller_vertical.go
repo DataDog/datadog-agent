@@ -69,7 +69,30 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	targetGVK, err := autoscalerInternal.TargetGVK()
 	if err != nil {
 		autoscalerInternal.SetError(err)
+		for _, resource := range scalingValues.Vertical.ContainerResources {
+			telemetryVerticalScale.Inc(
+				autoscalerInternal.Namespace(),
+				autoscalerInternal.Spec().TargetRef.Name,
+				string(scalingValues.Vertical.Source),
+				resource.Name,
+				resourceListToString(resource.Limits),
+				resourceListToString(resource.Requests),
+				"true",
+			)
+		}
 		return autoscaling.NoRequeue, err
+	}
+
+	for _, resource := range scalingValues.Vertical.ContainerResources {
+		telemetryVerticalScale.Inc(
+			autoscalerInternal.Namespace(),
+			autoscalerInternal.Spec().TargetRef.Name,
+			string(scalingValues.Vertical.Source),
+			resource.Name,
+			resourceListToString(resource.Limits),
+			resourceListToString(resource.Requests),
+			"false",
+		)
 	}
 
 	// Get the pod owner from the workload

@@ -13,6 +13,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
 
@@ -28,6 +29,14 @@ const (
 
 	// statusRetainedActions is the number of horizontal actions kept in status
 	statusRetainedActions = 5
+)
+
+var autoscalingStatusConditions = telemetry.NewCounterWithOpts(
+	"autoscaling",
+	"status_condition",
+	[]string{"type", "reason", "message"},
+	"Tracks the number of status conditions",
+	telemetry.Options{NoDoubleUnderscoreSep: true},
 )
 
 // PodAutoscalerInternal hols the necessary data to work with the `DatadogPodAutoscaler` CRD.
@@ -499,6 +508,11 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 	}
 	status.Conditions = append(status.Conditions, newCondition(rolloutStatus, verticalReason, currentTime, datadoghq.DatadogPodAutoscalerVerticalAbleToApply, existingConditions))
 
+	for _, condition := range status.Conditions {
+		if condition.Status == corev1.ConditionTrue {
+			autoscalingStatusConditions.Inc(string(condition.Type), condition.Reason, condition.Message)
+		}
+	}
 	return status
 }
 

@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"time"
 
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
@@ -133,6 +134,7 @@ func (hr *horizontalController) performScaling(ctx context.Context, podAutoscale
 	if err != nil {
 		err = fmt.Errorf("failed to scale target: %s/%s to %d replicas, err: %w", scale.Namespace, scale.Name, horizontalAction.ToReplicas, err)
 		hr.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.FailedScaleEventReason, err.Error())
+		telemetryHorizonalScale.Inc(scale.Namespace, scale.Name, strconv.Itoa(int(horizontalAction.ToReplicas)), strconv.Itoa(int(horizontalAction.FromReplicas)), strconv.Itoa(int(*horizontalAction.RecommendedReplicas)), "true")
 		autoscalerInternal.UpdateFromHorizontalAction(nil, err)
 		return autoscaling.Requeue, err
 	}
@@ -140,6 +142,7 @@ func (hr *horizontalController) performScaling(ctx context.Context, podAutoscale
 	log.Debugf("Scaled target: %s/%s from %d replicas to %d replicas", scale.Namespace, scale.Name, horizontalAction.FromReplicas, horizontalAction.ToReplicas)
 	autoscalerInternal.UpdateFromHorizontalAction(horizontalAction, nil)
 	hr.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeNormal, model.SuccessfulScaleEventReason, "Scaled target: %s/%s from %d replicas to %d replicas", scale.Namespace, scale.Name, horizontalAction.FromReplicas, horizontalAction.ToReplicas)
+	telemetryHorizonalScale.Inc(scale.Namespace, scale.Name, strconv.Itoa(int(horizontalAction.ToReplicas)), strconv.Itoa(int(horizontalAction.FromReplicas)), strconv.Itoa(int(*horizontalAction.RecommendedReplicas)), "false")
 	if nextEvalAfter > 0 {
 		return autoscaling.Requeue.After(nextEvalAfter), nil
 	}
