@@ -15,7 +15,6 @@ from tasks.libs.common.omnibus import (
 )
 from tasks.libs.common.utils import gitlab_section, timed
 from tasks.libs.releasing.version import get_version, load_release_versions
-from tasks.ssm import get_pfx_pass, get_signing_cert
 
 
 def omnibus_run_task(
@@ -110,13 +109,6 @@ def get_omnibus_env(
         # Only overrides the env var if the value is a non-empty string.
         if value:
             env[key] = value
-
-    if sys.platform == 'win32' and os.environ.get('SIGN_WINDOWS'):
-        # get certificate and password from ssm
-        pfxfile = get_signing_cert(ctx)
-        pfxpass = get_pfx_pass(ctx)
-        env['SIGN_PFX'] = str(pfxfile)
-        env['SIGN_PFX_PW'] = str(pfxpass)
 
     if sys.platform == 'darwin':
         # Target MacOS 10.12

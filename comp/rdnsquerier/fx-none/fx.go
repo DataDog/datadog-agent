@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package fxnone provides the fx module for the noop rdnsquerier component
-package fxnone
+// Package fx provides the fx module for the noop rdnsquerier component
+package fx
 
 import (
 	rdnsquerierimplnone "github.com/DataDog/datadog-agent/comp/rdnsquerier/impl-none"
