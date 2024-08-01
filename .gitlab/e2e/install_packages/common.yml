@@ -20,12 +20,6 @@
     TEAM: agent-delivery
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --major-version $AGENT_MAJOR_VERSION --arch $E2E_ARCH --flavor $FLAVOR
 
-.new-e2e_package_signing:
-  variables:
-    TARGETS: ./tests/agent-platform/package-signing
-    TEAM: agent-delivery
-    EXTRA_PARAMS: --osversion $E2E_BRANCH_OSVERS
-
 .new-e2e_script_upgrade6:
   variables:
     TARGETS: ./tests/agent-platform/upgrade

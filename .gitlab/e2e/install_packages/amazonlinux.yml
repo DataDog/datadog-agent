@@ -88,14 +88,6 @@ new-e2e-agent-platform-install-script-amazonlinux-a7-arm64:
   variables:
     FLAVOR: datadog-agent
 
-new-e2e-agent-platform-package-signing-amazonlinux-a6-x86_64:
-  stage: kitchen_testing
-  extends:
-    - .new_e2e_template
-    - .new-e2e_amazonlinux_a7_x86_64
-    - .new-e2e_package_signing
-  rules: !reference [.on_default_new_e2e_tests]
-
 new-e2e-agent-platform-step-by-step-amazonlinux-a6-x86_64:
   stage: kitchen_testing
   extends:

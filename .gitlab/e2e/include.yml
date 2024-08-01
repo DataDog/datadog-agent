@@ -5,4 +5,5 @@
 
 include:
   - .gitlab/e2e/e2e.yml
+  - .gitlab/e2e/k8s_e2e.yml
   - .gitlab/e2e/install_packages/include.yml
