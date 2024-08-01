@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	commontypes "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 )
 
@@ -52,7 +52,7 @@ func (b *boundPort) PID() int {
 }
 
 // BoundPorts returns a list of ports that are bound on the host
-func BoundPorts(host *components.RemoteHost) ([]BoundPort, error) {
+func BoundPorts(host *commontypes.Host) ([]BoundPort, error) {
 	os := host.OSFamily
 	if os == componentos.LinuxFamily {
 		return boundPortsUnix(host)

@@ -10,10 +10,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	commontypes "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
 )
 
-func isProcessRunningUnix(host *components.RemoteHost, processName string) (bool, error) {
+func isProcessRunningUnix(host *commontypes.Host, processName string) (bool, error) {
 	_, err := host.Execute(fmt.Sprintf("pgrep -f %s", processName))
 	if err != nil {
 		return false, err
@@ -21,7 +21,7 @@ func isProcessRunningUnix(host *components.RemoteHost, processName string) (bool
 	return true, nil
 }
 
-func findPIDUnix(host *components.RemoteHost, processName string) ([]int, error) {
+func findPIDUnix(host *commontypes.Host, processName string) ([]int, error) {
 	out, err := host.Execute(fmt.Sprintf("pgrep -f '%s'", processName))
 	if err != nil {
 		return nil, err

@@ -17,3 +17,8 @@ type FileManager interface {
 	FileExists(path string) (bool, error)
 	WriteFile(path string, content []byte) (int64, error)
 }
+
+// Executor is used to execute arbitrary commands
+type Executor interface {
+	Execute(command string) (output string, err error)
+}

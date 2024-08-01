@@ -6,18 +6,18 @@
 package pkgmanager
 
 import (
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	commontypes "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
 )
 
 // Yum struct for the Yum package manager
 type Yum struct {
-	host *components.RemoteHost
+	host *commontypes.Host
 }
 
 var _ PackageManager = &Yum{}
 
 // NewYum return yum package manager
-func NewYum(host *components.RemoteHost) *Yum {
+func NewYum(host *commontypes.Host) *Yum {
 	return &Yum{host: host}
 }
 

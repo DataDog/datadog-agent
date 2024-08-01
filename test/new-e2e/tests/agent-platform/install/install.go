@@ -56,17 +56,17 @@ func Unix(t *testing.T, client *common.TestClient, options ...installparams.Opti
 	}
 
 	t.Run("Installing the agent", func(tt *testing.T) {
-		var downdloadCmd string
+		var downloadCmd string
 		var source string
 		if params.MajorVersion != "5" {
 			source = "S3"
-			downdloadCmd = fmt.Sprintf(`curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent%v.sh > installscript.sh`, params.MajorVersion)
+			downloadCmd = fmt.Sprintf(`curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent%v.sh > installscript.sh`, params.MajorVersion)
 		} else {
 			source = "dd-agent repository"
-			downdloadCmd = "curl -L https://raw.githubusercontent.com/DataDog/dd-agent/master/packaging/datadog-agent/source/install_agent.sh > installscript.sh"
+			downloadCmd = "curl -L https://raw.githubusercontent.com/DataDog/dd-agent/master/packaging/datadog-agent/source/install_agent.sh > installscript.sh"
 		}
 
-		_, err := client.ExecuteWithRetry(downdloadCmd)
+		_, err := client.ExecuteWithRetry(downloadCmd)
 		require.NoError(tt, err, "failed to download install script from %s: ", source, err)
 
 		cmd := fmt.Sprintf(`DD_API_KEY="%s" %v DD_SITE="datadoghq.eu" bash installscript.sh`, apikey, commandLine)

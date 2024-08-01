@@ -6,11 +6,11 @@
 package boundport
 
 import (
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	commontypes "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
 	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 )
 
-func boundPortsWindows(host *components.RemoteHost) ([]BoundPort, error) {
+func boundPortsWindows(host *commontypes.Host) ([]BoundPort, error) {
 	ports, err := windows.ListBoundPorts(host)
 	if err != nil {
 		return nil, err

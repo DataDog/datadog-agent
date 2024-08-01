@@ -9,18 +9,18 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	commontypes "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
 )
 
 // Service struct for Service service manager
 type Service struct {
-	host *components.RemoteHost
+	host *commontypes.Host
 }
 
 var _ ServiceManager = &Service{}
 
 // NewService return service service manager
-func NewService(host *components.RemoteHost) *Service {
+func NewService(host *commontypes.Host) *Service {
 	return &Service{host: host}
 }
 

@@ -14,18 +14,26 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/docker"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
 	helpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"github.com/stretchr/testify/require"
+)
+
+const (
+	containerName = "target"
 )
 
 var (
@@ -48,7 +56,11 @@ func TestInstallScript(t *testing.T) {
 	err := json.Unmarshal(platforms.Content, &platformJSON)
 	require.NoErrorf(t, err, "failed to umarshall platform file: %v", err)
 
-	osVersions := strings.Split(*osVersion, ",")
+	osVersions := []string{}
+	// Splitting an empty string results in a slice with a single empty string which wouldn't be useful
+	if *osVersion != "" {
+		osVersions = strings.Split(*osVersion, ",")
+	}
 	cwsSupportedOsVersionList := strings.Split(*cwsSupportedOsVersion, ",")
 
 	t.Log("Parsed platform json file: ", platformJSON)
@@ -87,6 +99,34 @@ func TestInstallScript(t *testing.T) {
 			)
 		})
 	}
+
+	t.Run("test install script on a docker container (using SysVInit)", func(tt *testing.T) {
+		targetCompose := fmt.Sprintf(`---
+services:
+  %[1]s:
+    image: debian:bookworm
+    container_name: %[1]s
+    entrypoint: "tail -f /dev/null"
+    environment:
+      DD_HOSTNAME: docker-test
+`,
+			containerName,
+		)
+		e2e.Run(tt,
+			&installScriptSuiteSysVInit{},
+			e2e.WithProvisioner(
+				awsdocker.Provisioner(
+					// We don't really want the Agent (which this will unavoidably spin up in a separate container),
+					// but this seems to be the most straightforward way available to get an "empty" container where
+					// we can attempt to install the Agent
+					awsdocker.WithAgentOptions(
+						dockeragentparams.WithExtraComposeManifest("target", pulumi.String(targetCompose)),
+					),
+					awsdocker.WithoutFakeIntake(),
+				),
+			),
+		)
+	})
 }
 
 func (is *installScriptSuite) TestInstallAgent() {
@@ -112,13 +152,14 @@ func (is *installScriptSuite) testUninstall(client *common.TestClient, flavor st
 }
 
 func (is *installScriptSuite) AgentTest(flavor string) {
-	host := is.Env().RemoteHost
+	remoteHost := is.Env().RemoteHost
+	host := types.NewHostFromRemote(remoteHost)
 	fileManager := filemanager.NewUnix(host)
-	agentClient, err := client.NewHostAgentClient(is, host.HostOutput, false)
+	agentClient, err := client.NewHostAgentClient(is, remoteHost.HostOutput, false)
 	require.NoError(is.T(), err)
 
 	unixHelper := helpers.NewUnix()
-	client := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
+	client := common.NewTestClient(host, agentClient, fileManager, unixHelper)
 
 	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(flavor), installparams.WithMajorVersion(*majorVersion))
 
@@ -147,13 +188,14 @@ func (is *installScriptSuite) AgentTest(flavor string) {
 }
 
 func (is *installScriptSuite) IotAgentTest() {
-	host := is.Env().RemoteHost
+	remoteHost := is.Env().RemoteHost
+	host := types.NewHostFromRemote(remoteHost)
 	fileManager := filemanager.NewUnix(host)
-	agentClient, err := client.NewHostAgentClient(is, host.HostOutput, false)
+	agentClient, err := client.NewHostAgentClient(is, remoteHost.HostOutput, false)
 	require.NoError(is.T(), err)
 
 	unixHelper := helpers.NewUnix()
-	client := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
+	client := common.NewTestClient(host, agentClient, fileManager, unixHelper)
 
 	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(*flavor))
 
@@ -168,13 +210,14 @@ func (is *installScriptSuite) IotAgentTest() {
 }
 
 func (is *installScriptSuite) DogstatsdAgentTest() {
-	host := is.Env().RemoteHost
+	remoteHost := is.Env().RemoteHost
+	host := types.NewHostFromRemote(remoteHost)
 	fileManager := filemanager.NewUnix(host)
-	agentClient, err := client.NewHostAgentClient(is, host.HostOutput, false)
+	agentClient, err := client.NewHostAgentClient(is, remoteHost.HostOutput, false)
 	require.NoError(is.T(), err)
 
 	unixHelper := helpers.NewUnixDogstatsd()
-	client := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
+	client := common.NewTestClient(host, agentClient, fileManager, unixHelper)
 
 	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(*flavor))
 
@@ -185,4 +228,46 @@ func (is *installScriptSuite) DogstatsdAgentTest() {
 	common.CheckDogstatsdAgentRestarts(is.T(), client)
 	common.CheckInstallationInstallScript(is.T(), client)
 	is.testUninstall(client, "datadog-dogstatsd")
+}
+
+type installScriptSuiteSysVInit struct {
+	e2e.BaseSuite[environments.DockerHost]
+}
+
+func (is *installScriptSuiteSysVInit) TestInstallAgent() {
+	flavor := "datadog-agent"
+	dockerHost := is.Env().Docker
+	host := types.NewHostFromDocker(dockerHost, containerName)
+	fileManager := filemanager.NewUnix(host)
+	agentClient, err := client.NewHostAgentClient(is, dockerHost.ManagerOutput.Host, false)
+	require.NoError(is.T(), err)
+
+	unixHelper := helpers.NewUnix()
+	client := common.NewTestClient(host, agentClient, fileManager, unixHelper)
+
+	// We need `curl` to download the script, and `sudo` because all the existing test helpers run commands
+	// through it.
+	_, err = client.ExecuteWithRetry("apt-get update && apt-get install -y curl sudo")
+	require.NoError(is.T(), err)
+
+	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(flavor), installparams.WithMajorVersion(*majorVersion))
+
+	common.CheckInstallation(is.T(), client)
+	common.CheckSigningKeys(is.T(), client)
+
+	// We can't run the tests that rely on the `AgentClient` since it's not possible to pass a custom executor
+	// to it (which is necessary in this case, as this is not quite the host case nor quite the docker case).
+	// We run a few selected sanity checks here instead (sufficient for this platform anyway)
+	is.T().Run("datadog-agent service running", func(tt *testing.T) {
+		_, err := client.SvcManager.Status(client.Helper.GetServiceName())
+		require.NoError(tt, err, "datadog-agent service should be running")
+	})
+	is.T().Run("status command no errors", func(tt *testing.T) {
+		statusOutput, err := client.ExecuteWithRetry("datadog-agent \"status\"")
+		require.NoError(is.T(), err)
+
+		// API Key is invalid we should not check for the following error
+		statusOutput = strings.ReplaceAll(statusOutput, "[ERROR] API Key is invalid", "API Key is invalid")
+		require.NotContains(tt, statusOutput, "ERROR")
+	})
 }

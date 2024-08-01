@@ -8,10 +8,10 @@ package boundport
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	commontypes "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
 )
 
-func boundPortsUnix(host *components.RemoteHost) ([]BoundPort, error) {
+func boundPortsUnix(host *commontypes.Host) ([]BoundPort, error) {
 	if _, err := host.Execute("command -v netstat"); err == nil {
 		out, err := host.Execute("sudo netstat -lntp")
 		if err != nil {

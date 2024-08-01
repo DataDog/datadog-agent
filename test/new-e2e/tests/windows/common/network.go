@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	commontypes "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
 )
 
 // BoundPort represents a port that is bound to a process
@@ -42,7 +43,7 @@ func (b *BoundPort) PID() int {
 }
 
 // ListBoundPorts returns a list of bound ports
-func ListBoundPorts(host *components.RemoteHost) ([]*BoundPort, error) {
+func ListBoundPorts(host *commontypes.Host) ([]*BoundPort, error) {
 	out, err := host.Execute(`Get-NetTCPConnection -State Listen | Foreach-Object {
 		@{
 			LocalAddress=$_.LocalAddress

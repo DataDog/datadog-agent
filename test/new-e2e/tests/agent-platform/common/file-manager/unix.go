@@ -9,19 +9,17 @@ import (
 	"fmt"
 	"io/fs"
 	"strings"
-
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
 // Unix implement filemanager interface for Unix distributions
 type Unix struct {
-	host *components.RemoteHost
+	host Executor
 }
 
 var _ FileManager = &Unix{}
 
 // NewUnix create a new unix file manager
-func NewUnix(host *components.RemoteHost) *Unix {
+func NewUnix(host Executor) *Unix {
 	return &Unix{host: host}
 }
 
