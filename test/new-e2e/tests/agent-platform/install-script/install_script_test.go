@@ -57,6 +57,11 @@ func TestInstallScript(t *testing.T) {
 
 	t.Log("Parsed platform json file: ", platformJSON)
 
+	if *platform == "docker" {
+		DockerTest(t)
+		return
+	}
+
 	for _, osVers := range osVersions {
 		osVers := osVers
 		if platformJSON[*platform][*architecture][osVers] == "" {
@@ -92,6 +97,9 @@ func TestInstallScript(t *testing.T) {
 		})
 	}
 
+}
+
+func DockerTest(t *testing.T) {
 	t.Run("test install script on a docker container (using SysVInit)", func(tt *testing.T) {
 		e2e.Run(tt,
 			&installScriptSuiteSysVInit{},
