@@ -594,7 +594,7 @@ def job_change_path(ctx, job_files=None):
         'trigger-flakes-finder',
     }
 
-    job_files = job_files or (['.gitlab/e2e/e2e.yml'] + list(glob('.gitlab/kitchen_testing/new-e2e_testing/*.yml')))
+    job_files = job_files or (['.gitlab/e2e/e2e.yml'] + list(glob('.gitlab/e2e/install_packages/*.yml')))
 
     # Read and parse gitlab config
     # The config is filtered to only include jobs
