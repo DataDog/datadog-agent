@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"strconv"
 	"testing"
 	"time"
 
@@ -179,19 +178,22 @@ func TestProcessCheckSecondRun(t *testing.T) {
 
 func TestProcessCheckChunking(t *testing.T) {
 	for _, tc := range []struct {
+		name                  string
 		noChunking            bool
 		expectedPayloadLength int
 	}{
 		{
+			name:                  "Chunking",
 			noChunking:            false,
 			expectedPayloadLength: 5,
 		},
 		{
+			name:                  "No chunking",
 			noChunking:            true,
 			expectedPayloadLength: 1,
 		},
 	} {
-		t.Run("NoChunking:"+strconv.FormatBool(tc.noChunking), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			processCheck, probe := processCheckWithMockProbe(t)
 
 			// Set small chunk size to force chunking behavior

@@ -108,16 +108,12 @@ func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, options *RunOption
 	procDiscoveries := pidMapToProcDiscoveries(procs, d.userProbe, d.scrubber)
 
 	// For no chunking, set max batch size as number of process discoveries to ensure one chunk
+	runMaxBatchSize := d.maxBatchSize
 	if options != nil && options.NoChunking {
-		oldMaxBatchSize := d.maxBatchSize
-		d.maxBatchSize = len(procDiscoveries)
-
-		defer func() {
-			d.maxBatchSize = oldMaxBatchSize
-		}()
+		runMaxBatchSize = len(procDiscoveries)
 	}
 
-	procDiscoveryChunks := chunkProcessDiscoveries(procDiscoveries, d.maxBatchSize)
+	procDiscoveryChunks := chunkProcessDiscoveries(procDiscoveries, runMaxBatchSize)
 	payload := make([]model.MessageBody, len(procDiscoveryChunks))
 
 	groupID := nextGroupID()

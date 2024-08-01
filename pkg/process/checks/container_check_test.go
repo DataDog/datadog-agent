@@ -6,7 +6,6 @@
 package checks
 
 import (
-	"strconv"
 	"testing"
 	"time"
 
@@ -94,19 +93,22 @@ func TestContainerCheckPayloads(t *testing.T) {
 
 func TestContainerCheckChunking(t *testing.T) {
 	for _, tc := range []struct {
+		name                  string
 		noChunking            bool
 		expectedPayloadLength int
 	}{
 		{
+			name:                  "Chunking",
 			noChunking:            false,
 			expectedPayloadLength: 2,
 		},
 		{
+			name:                  "No chunking",
 			noChunking:            true,
 			expectedPayloadLength: 1,
 		},
 	} {
-		t.Run("NoChunking:"+strconv.FormatBool(tc.noChunking), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			containerCheck, mockContainerProvider := containerCheckWithMockContainerProvider(t)
 
 			// Set small size per chunk to force chunking behavior

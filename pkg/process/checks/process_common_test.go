@@ -26,7 +26,6 @@ func getChunkingOption(noChunking bool) *RunOptions {
 	return &RunOptions{RunStandard: true, NoChunking: noChunking}
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
 func testGroupId(groupID int32) func() int32 {
 	return func() int32 {
 		return groupID
@@ -88,17 +87,6 @@ func makeProcessModel(t *testing.T, process *procutil.Process, processContext []
 		CreateTime:     process.Stats.CreateTime,
 		IoStat:         &model.IOStat{},
 		ProcessContext: processContext,
-	}
-}
-
-func makeProcessDiscoveryModel(t *testing.T, process *procutil.Process) *model.ProcessDiscovery {
-	t.Helper()
-
-	return &model.ProcessDiscovery{
-		Pid:        process.Pid,
-		Command:    &model.Command{Args: process.Cmdline},
-		User:       &model.ProcessUser{},
-		CreateTime: process.Stats.CreateTime,
 	}
 }
 

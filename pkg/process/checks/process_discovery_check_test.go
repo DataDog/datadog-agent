@@ -6,7 +6,6 @@
 package checks
 
 import (
-	"strconv"
 	"testing"
 	"time"
 
@@ -85,19 +84,22 @@ func TestProcessDiscoveryCheck(t *testing.T) {
 
 func TestProcessDiscoveryCheckChunking(t *testing.T) {
 	for _, tc := range []struct {
+		name                  string
 		noChunking            bool
 		expectedPayloadLength int
 	}{
 		{
+			name:                  "Chunking",
 			noChunking:            false,
 			expectedPayloadLength: 5,
 		},
 		{
+			name:                  "No chunking",
 			noChunking:            true,
 			expectedPayloadLength: 1,
 		},
 	} {
-		t.Run("NoChunking:"+strconv.FormatBool(tc.noChunking), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			check, probe := processDiscoveryCheckWithMockProbe(t)
 
 			// Set small chunk size to force chunking behavior
@@ -110,7 +112,7 @@ func TestProcessDiscoveryCheckChunking(t *testing.T) {
 			proc3 := makeProcessWithCreateTime(3, "foo --version", now+2)
 			proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
 			proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
-			
+
 			processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
 			probe.On("ProcessesByPID", mock.Anything, mock.Anything).
 				Return(processesByPid, nil)
