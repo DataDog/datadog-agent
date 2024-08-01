@@ -112,5 +112,14 @@ var (
 		commonOpts,
 	)
 
+	// autoscalingStatusConditions tracks the changes in autoscaler conditions
+	autoscalingStatusConditions = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"autoscaler_conditions",
+		[]string{"namespace", "autoscaler_name", "type", "reason", "message"},
+		"Tracks the changes in autoscaler conditions",
+		telemetry.Options{NoDoubleUnderscoreSep: true},
+	)
+
 	autoscalingQueueMetricsProvider = workqueuetelemetry.NewQueueMetricsProvider()
 )

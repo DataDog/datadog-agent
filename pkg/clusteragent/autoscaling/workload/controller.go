@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -295,6 +296,7 @@ func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq
 
 func (c *Controller) createPodAutoscaler(ctx context.Context, podAutoscalerInternal model.PodAutoscalerInternal) error {
 	log.Infof("Creating PodAutoscaler Spec: %s/%s", podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name())
+	autoscalerStatus := podAutoscalerInternal.BuildStatus(metav1.NewTime(c.clock.Now()), nil)
 	autoscalerObj := &datadoghq.DatadogPodAutoscaler{
 		TypeMeta: podAutoscalerMeta,
 		ObjectMeta: metav1.ObjectMeta{
@@ -302,7 +304,15 @@ func (c *Controller) createPodAutoscaler(ctx context.Context, podAutoscalerInter
 			Name:      podAutoscalerInternal.Name(),
 		},
 		Spec:   *podAutoscalerInternal.Spec().DeepCopy(),
-		Status: podAutoscalerInternal.BuildStatus(metav1.NewTime(c.clock.Now()), nil),
+		Status: autoscalerStatus,
+	}
+
+	for _, condition := range autoscalerStatus.Conditions {
+		if condition.Status == corev1.ConditionTrue {
+			autoscalingStatusConditions.Set(1.0, podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), string(condition.Type), condition.Reason, condition.Message)
+		} else {
+			autoscalingStatusConditions.Set(0.0, podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), string(condition.Type), condition.Reason, condition.Message)
+		}
 	}
 
 	obj, err := autoscaling.ToUnstructured(autoscalerObj)
@@ -341,6 +351,15 @@ func (c *Controller) updatePodAutoscalerSpec(ctx context.Context, podAutoscalerI
 
 func (c *Controller) updatePodAutoscalerStatus(ctx context.Context, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
 	newStatus := podAutoscalerInternal.BuildStatus(metav1.NewTime(c.clock.Now()), &podAutoscaler.Status)
+
+	for _, condition := range newStatus.Conditions {
+		if condition.Status == corev1.ConditionTrue {
+			autoscalingStatusConditions.Set(1.0, podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), string(condition.Type), condition.Reason, condition.Message)
+		} else {
+			autoscalingStatusConditions.Set(0.0, podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), string(condition.Type), condition.Reason, condition.Message)
+		}
+	}
+
 	if autoscaling.Semantic.DeepEqual(podAutoscaler.Status, newStatus) {
 		return nil
 	}
