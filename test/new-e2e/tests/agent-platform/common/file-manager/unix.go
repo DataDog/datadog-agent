@@ -9,17 +9,19 @@ import (
 	"fmt"
 	"io/fs"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/types"
 )
 
 // Unix implement filemanager interface for Unix distributions
 type Unix struct {
-	host Executor
+	host types.Executor
 }
 
 var _ FileManager = &Unix{}
 
 // NewUnix create a new unix file manager
-func NewUnix(host Executor) *Unix {
+func NewUnix(host types.Executor) *Unix {
 	return &Unix{host: host}
 }
 
