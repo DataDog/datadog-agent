@@ -19,9 +19,9 @@ func ConfFileDirectory(c pkgconfigmodel.Reader) string {
 	return filepath.Dir(c.ConfigFileUsed())
 }
 
-// SetLogLevel changes the log level of the Datadog agent.
-// It takes a `level` string representing the desired log level and a `source` model.Source indicating the desired subconfiguration to update.
-// It returns an error if the log level is invalid or if there is an error setting the log level.
+// SetLogLevel validates and sets the "log_level" setting in the configuration. The logger will automatically react to this configuration change.
+// It takes a `level` string representing the desired log level and a `source` model.Source indicating where the new level came from (CLI, Remote Config, ...).
+// It returns an error if the log level is invalid
 func SetLogLevel(level string, config pkgconfigmodel.Writer, source pkgconfigmodel.Source) error {
 	seelogLogLevel, err := log.ValidateLogLevel(level)
 	if err != nil {
