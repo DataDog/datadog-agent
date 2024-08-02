@@ -47,28 +47,3 @@ type remoteHostExecutor components.RemoteHost
 func (e *remoteHostExecutor) Execute(command string) (output string, err error) {
 	return e.Host.Execute(command)
 }
-
-// NewHostFromDocker creates a Host instance from a components.RemoteHost
-func NewHostFromDocker(host *components.RemoteHostDocker, containerName string) *Host {
-	return &Host{
-		Executor: &dockerExecutor{
-			remote:        host,
-			containerName: containerName,
-		},
-		OSFamily: componentos.LinuxFamily,
-	}
-}
-
-type dockerExecutor struct {
-	remote        *components.RemoteHostDocker
-	containerName string
-}
-
-// Execute runs commands to satisfy the Executor interface
-func (e *dockerExecutor) Execute(command string) (output string, err error) {
-	return e.remote.Client.ExecuteCommandWithErr(
-		e.containerName,
-		// Wrap in a shell call to achieve similar behavior to remote hosts
-		[]string{"sh", "-c", command}...,
-	)
-}

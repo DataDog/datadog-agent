@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/docker"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
@@ -24,16 +24,11 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	componentos "github.com/DataDog/test-infra-definitions/components/os"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"github.com/stretchr/testify/require"
-)
-
-const (
-	containerName = "target"
 )
 
 var (
@@ -101,28 +96,11 @@ func TestInstallScript(t *testing.T) {
 	}
 
 	t.Run("test install script on a docker container (using SysVInit)", func(tt *testing.T) {
-		targetCompose := fmt.Sprintf(`---
-services:
-  %[1]s:
-    image: debian:bookworm
-    container_name: %[1]s
-    entrypoint: "tail -f /dev/null"
-    environment:
-      DD_HOSTNAME: docker-test
-`,
-			containerName,
-		)
 		e2e.Run(tt,
 			&installScriptSuiteSysVInit{},
 			e2e.WithProvisioner(
-				awsdocker.Provisioner(
-					// We don't really want the Agent (which this will unavoidably spin up in a separate container),
-					// but this seems to be the most straightforward way available to get an "empty" container where
-					// we can attempt to install the Agent
-					awsdocker.WithAgentOptions(
-						dockeragentparams.WithExtraComposeManifest("target", pulumi.String(targetCompose)),
-					),
-					awsdocker.WithoutFakeIntake(),
+				awshost.ProvisionerNoAgentNoFakeIntake(
+					awshost.WithDocker(),
 				),
 			),
 		)
@@ -231,15 +209,24 @@ func (is *installScriptSuite) DogstatsdAgentTest() {
 }
 
 type installScriptSuiteSysVInit struct {
-	e2e.BaseSuite[environments.DockerHost]
+	e2e.BaseSuite[environments.Host]
 }
 
 func (is *installScriptSuiteSysVInit) TestInstallAgent() {
 	flavor := "datadog-agent"
-	dockerHost := is.Env().Docker
-	host := types.NewHostFromDocker(dockerHost, containerName)
+	containerName := "installation-target"
+	remoteHost := is.Env().RemoteHost
+	host := NewHostFromDocker(remoteHost, containerName)
+
+	// Start docker container
+	_, err := remoteHost.Execute(
+		fmt.Sprintf("docker run -d -e DD_HOSTNAME=docker-test --name '%s' debian:bookworm tail -f /dev/null", containerName),
+	)
+	require.NoError(is.T(), err)
+	defer remoteHost.Execute(fmt.Sprintf("docker rm -f '%s'", containerName))
+
 	fileManager := filemanager.NewUnix(host)
-	agentClient, err := client.NewHostAgentClient(is, dockerHost.ManagerOutput.Host, false)
+	agentClient, err := client.NewHostAgentClient(is, remoteHost.HostOutput, false)
 	require.NoError(is.T(), err)
 
 	unixHelper := helpers.NewUnix()
@@ -270,4 +257,27 @@ func (is *installScriptSuiteSysVInit) TestInstallAgent() {
 		statusOutput = strings.ReplaceAll(statusOutput, "[ERROR] API Key is invalid", "API Key is invalid")
 		require.NotContains(tt, statusOutput, "ERROR")
 	})
+}
+
+// NewHostFromDocker creates a Host instance from a components.RemoteHost
+func NewHostFromDocker(host *components.RemoteHost, containerName string) *types.Host {
+	return &types.Host{
+		Executor: &dockerExecutor{
+			remote:        host,
+			containerName: containerName,
+		},
+		OSFamily: componentos.LinuxFamily,
+	}
+}
+
+type dockerExecutor struct {
+	remote        *components.RemoteHost
+	containerName string
+}
+
+// Execute runs commands to satisfy the Executor interface
+func (e *dockerExecutor) Execute(command string) (output string, err error) {
+	// Run command on container via docker exec,
+	// wrap in a shell call to achieve similar behavior to remote hosts
+	return e.remote.Execute(fmt.Sprintf("docker exec %s sh -c '%s'", e.containerName, command))
 }
