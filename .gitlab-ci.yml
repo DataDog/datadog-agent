@@ -977,13 +977,23 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - pkg/collector/corechecks/snmp/**/*
-        - test/new-e2e/tests/ndm/snmp/**/*
-        - test/new-e2e/go.mod
+      #TODO: Add paths that should trigger tests for OTEL
+        - test/new-e2e/tests/otel/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
+
+.on_otel_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/trace/otel/**/*
+        - test/new-e2e/tests/otel/**/*
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+
 
 .on_windows_service_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
