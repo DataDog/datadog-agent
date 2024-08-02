@@ -15,6 +15,7 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -61,10 +62,10 @@ func GetHostname(hostname **C.char) {
 // GetHostTags exposes the tags of the agent host to Python checks.
 //
 //export GetHostTags
-func GetHostTags(hostname **C.char) {
+func GetHostTags(hostTags **C.char) {
+	test := hosttags.Get(context.Background(), true, config.Datadog())
 	log.Info("natasha testing GetHostTags function 1")
-	GetHostname(hostname)
-	log.Infof("natasha testing GetHostTags function 2 %s", C.GoString(*hostname))
+	log.Infof("natasha testing GetHostTags function 2 %v", test)
 }
 
 // GetClusterName exposes the current clustername (if it exists) of the agent to Python checks.
