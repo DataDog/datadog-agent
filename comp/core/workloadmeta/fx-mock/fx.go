@@ -5,8 +5,8 @@
 
 //go:build test
 
-// Package fxmock provides the workloadmeta fx mock component for the Datadog Agent
-package fxmock
+// Package fx provides the workloadmeta fx mock component for the Datadog Agent
+package fx
 
 import (
 	"go.uber.org/fx"

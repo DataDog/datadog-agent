@@ -246,6 +246,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+
 			webhook := mustWebhook(t, wmeta)
 			err := webhook.injectAutoInstruConfig(tt.pod, tt.libsToInject, false, "")
 			if tt.wantErr {
@@ -891,6 +892,8 @@ func TestInjectLibInitContainer(t *testing.T) {
 			},
 		},
 	}
+
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conf := configmock.New(t)
@@ -900,10 +903,24 @@ func TestInjectLibInitContainer(t *testing.T) {
 			if tt.mem != "" {
 				conf.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.memory", tt.mem)
 			}
-			err := injectLibInitContainer(tt.pod, tt.image, tt.lang, tt.secCtx)
+
+			wh, err := NewWebhook(wmeta, GetInjectionFilter())
 			if (err != nil) != tt.wantErr {
 				t.Errorf("injectLibInitContainer() error = %v, wantErr %v", err, tt.wantErr)
 			}
+			if err != nil {
+				return
+			}
+
+			wh.initSecurityContext = tt.secCtx
+
+			c := tt.lang.libInfo("", tt.image).initContainers()[0]
+			c.Mutators = wh.initContainerMutators()
+			err = c.mutatePod(tt.pod)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("injectLibInitContainer() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
 			if err != nil {
 				return
 			}
@@ -1048,19 +1065,17 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 	}{
 		{
 			name: "inject all with dotnet-profiler",
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
 					"admission.datadoghq.com/all-lib.version":   "latest",
 					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
 				},
-				map[string]string{
+				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
 				},
-				[]corev1.EnvVar{},
-				"replicaset",
-				"deployment-1234",
-			),
+				ParentKind: "replicaset",
+				ParentName: "deployment-1234",
+			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
@@ -1130,19 +1145,17 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject all",
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
 					"admission.datadoghq.com/all-lib.version":   "latest",
 					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
 				},
-				map[string]string{
+				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
 				},
-				[]corev1.EnvVar{},
-				"replicaset",
-				"deployment-1234",
-			),
+				ParentName: "replicaset",
+				ParentKind: "deployment-1234",
+			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
@@ -1212,21 +1225,17 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject library and all",
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
 					"admission.datadoghq.com/all-lib.version":   "latest",
 					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
 					"admission.datadoghq.com/js-lib.version":    "v1.10",
 					"admission.datadoghq.com/js-lib.config.v1":  `{"version":1,"tracing_sampling_rate":0.4}`,
 				},
-				map[string]string{
+				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
 				},
-				[]corev1.EnvVar{},
-				"",
-				"",
-			),
+			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_RUNTIME_METRICS_ENABLED",
@@ -1264,20 +1273,16 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject library and all no library version",
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
 					"admission.datadoghq.com/all-lib.version":   "latest",
 					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
 					"admission.datadoghq.com/js-lib.config.v1":  `{"version":1,"tracing_sampling_rate":0.4}`,
 				},
-				map[string]string{
+				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
 				},
-				[]corev1.EnvVar{},
-				"",
-				"",
-			),
+			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
@@ -1347,20 +1352,16 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject all error - bad json",
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
 					// TODO: we might not want to be injecting the libraries if the config is malformed
 					"admission.datadoghq.com/all-lib.version":   "latest",
 					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,`,
 				},
-				map[string]string{
+				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
 				},
-				[]corev1.EnvVar{},
-				"",
-				"",
-			),
+			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
@@ -1418,19 +1419,15 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject java",
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
 					"admission.datadoghq.com/java-lib.version":   "latest",
 					"admission.datadoghq.com/java-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`,
 				},
-				map[string]string{
+				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
 				},
-				[]corev1.EnvVar{},
-				"replicaset",
-				"deployment-1234",
-			),
+			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
@@ -1460,7 +1457,15 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject python",
-			pod:  common.FakePodWithParent("ns", map[string]string{"admission.datadoghq.com/python-lib.version": "latest", "admission.datadoghq.com/python-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`}, map[string]string{"admission.datadoghq.com/enabled": "true"}, []corev1.EnvVar{}, "", ""),
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
+					"admission.datadoghq.com/python-lib.version":   "latest",
+					"admission.datadoghq.com/python-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`,
+				},
+				Labels: map[string]string{
+					"admission.datadoghq.com/enabled": "true",
+				},
+			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_TRACE_SAMPLE_RATE",
@@ -1490,7 +1495,15 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject node",
-			pod:  common.FakePodWithParent("ns", map[string]string{"admission.datadoghq.com/js-lib.version": "latest", "admission.datadoghq.com/js-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`}, map[string]string{"admission.datadoghq.com/enabled": "true"}, []corev1.EnvVar{}, "", ""),
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
+					"admission.datadoghq.com/js-lib.version":   "latest",
+					"admission.datadoghq.com/js-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`,
+				},
+				Labels: map[string]string{
+					"admission.datadoghq.com/enabled": "true",
+				},
+			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_TRACE_SAMPLE_RATE",
@@ -1520,19 +1533,15 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject java bad json",
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
 					"admission.datadoghq.com/java-lib.version":   "latest",
 					"admission.datadoghq.com/java-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,`,
 				},
-				map[string]string{
+				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
 				},
-				[]corev1.EnvVar{},
-				"",
-				"",
-			),
+			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
@@ -1558,19 +1567,15 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject with enabled false",
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
 					"admission.datadoghq.com/java-lib.version":   "latest",
 					"admission.datadoghq.com/java-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,`,
 				},
-				map[string]string{
+				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "false",
 				},
-				[]corev1.EnvVar{},
-				"",
-				"",
-			),
+			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
@@ -1588,36 +1593,40 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation: user configuration is respected",
-			pod: common.FakePodWithParent("ns", map[string]string{}, map[string]string{}, []corev1.EnvVar{
-				{
-					Name:  "DD_SERVICE",
-					Value: "user-deployment",
+			pod: common.FakePodSpec{
+				Envs: []corev1.EnvVar{
+					{
+						Name:  "DD_SERVICE",
+						Value: "user-deployment",
+					},
+					{
+						Name:  "DD_TRACE_ENABLED",
+						Value: "false",
+					},
+					{
+						Name:  "DD_RUNTIME_METRICS_ENABLED",
+						Value: "false",
+					},
+					{
+						Name:  "DD_TRACE_HEALTH_METRICS_ENABLED",
+						Value: "false",
+					},
+					{
+						Name:  "DD_TRACE_SAMPLE_RATE",
+						Value: "0.5",
+					},
+					{
+						Name:  "DD_TRACE_RATE_LIMIT",
+						Value: "2",
+					},
+					{
+						Name:  "DD_LOGS_INJECTION",
+						Value: "false",
+					},
 				},
-				{
-					Name:  "DD_TRACE_ENABLED",
-					Value: "false",
-				},
-				{
-					Name:  "DD_RUNTIME_METRICS_ENABLED",
-					Value: "false",
-				},
-				{
-					Name:  "DD_TRACE_HEALTH_METRICS_ENABLED",
-					Value: "false",
-				},
-				{
-					Name:  "DD_TRACE_SAMPLE_RATE",
-					Value: "0.5",
-				},
-				{
-					Name:  "DD_TRACE_RATE_LIMIT",
-					Value: "2",
-				},
-				{
-					Name:  "DD_LOGS_INJECTION",
-					Value: "false",
-				},
-			}, "replicaset", "test-deployment-123"),
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
 			expectedEnvs: append(injectAllEnvs(), []corev1.EnvVar{
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
@@ -1668,11 +1677,13 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation: disable with label",
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{}, map[string]string{
+			pod: common.FakePodSpec{
+				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "false",
-				}, []corev1.EnvVar{}, "replicaset", "test-deployment-123"),
+				},
+				ParentKind: "replicaset",
+				ParentName: "test-deployment-123",
+			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
@@ -1691,14 +1702,10 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation: default service name for ReplicaSet",
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{},
-				map[string]string{},
-				[]corev1.EnvVar{},
-				"replicaset",
-				"test-deployment-123",
-			),
+			pod: common.FakePodSpec{
+				ParentKind: "replicaset",
+				ParentName: "test-deployment-123",
+			}.Create(),
 			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...), corev1.EnvVar{
 				Name:  "DD_SERVICE",
 				Value: "test-deployment",
@@ -1724,14 +1731,10 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation: default service name for StatefulSet",
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{},
-				map[string]string{},
-				[]corev1.EnvVar{},
-				"statefulset",
-				"test-statefulset-123",
-			),
+			pod: common.FakePodSpec{
+				ParentKind: "statefulset",
+				ParentName: "test-statefulset-123",
+			}.Create(),
 			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...), corev1.EnvVar{
 				Name:  "DD_SERVICE",
 				Value: "test-statefulset-123",
@@ -1757,7 +1760,10 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation: default service name (disabled)",
-			pod:  common.FakePodWithParent("ns", map[string]string{}, map[string]string{}, []corev1.EnvVar{}, "replicaset", "test-deployment-123"),
+			pod: common.FakePodSpec{
+				ParentKind: "replicaset",
+				ParentName: "test-deployment-123",
+			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
@@ -1776,7 +1782,10 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation: disabled namespaces should not be instrumented",
-			pod:  common.FakePodWithParent("ns", map[string]string{}, map[string]string{}, []corev1.EnvVar{}, "replicaset", "test-app-123"),
+			pod: common.FakePodSpec{
+				ParentKind: "replicaset",
+				ParentName: "test-deployment-123",
+			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
@@ -1795,13 +1804,16 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation: enabled namespaces should be instrumented",
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{},
-				map[string]string{},
-				[]corev1.EnvVar{{Name: "DD_INSTRUMENTATION_INSTALL_TYPE", Value: "k8s_single_step"}},
-				"replicaset", "test-app-123",
-			),
+			pod: common.FakePodSpec{
+				Envs: []corev1.EnvVar{
+					{
+						Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+						Value: "k8s_single_step",
+					},
+				},
+				ParentKind: "replicaset",
+				ParentName: "test-app-123",
+			}.Create(),
 			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...),
 				corev1.EnvVar{
 					Name:  "DD_SERVICE",
@@ -1828,17 +1840,12 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation enabled and language annotation provided",
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
 					"admission.datadoghq.com/js-lib.version":   "v1.10",
 					"admission.datadoghq.com/js-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.4}`,
 				},
-				map[string]string{},
-				[]corev1.EnvVar{},
-				"",
-				"",
-			),
+			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_RUNTIME_METRICS_ENABLED",
@@ -1885,14 +1892,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation enabled with libVersions set",
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{},
-				map[string]string{},
-				[]corev1.EnvVar{},
-				"",
-				"",
-			),
+			pod:  common.FakePodSpec{}.Create(),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_RUNTIME_METRICS_ENABLED",
@@ -1942,16 +1942,11 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation enabled, with language annotation and libVersions set",
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
 					"admission.datadoghq.com/js-lib.version": "v1.10",
 				},
-				map[string]string{},
-				[]corev1.EnvVar{},
-				"",
-				"",
-			),
+			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_RUNTIME_METRICS_ENABLED",
@@ -1997,14 +1992,10 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation enabled and language detection",
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{},
-				map[string]string{},
-				[]corev1.EnvVar{},
-				"replicaset",
-				"test-app-689695b6cc",
-			),
+			pod: common.FakePodSpec{
+				ParentKind: "replicaset",
+				ParentName: "test-app-689695b6cc",
+			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_SERVICE",
@@ -2066,14 +2057,11 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Library annotation, Single Step Instrumentation with library pinned and language detection",
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{"admission.datadoghq.com/js-lib.version": "v1.10"},
-				map[string]string{},
-				[]corev1.EnvVar{},
-				"replicaset",
-				"test-app-689695b6cc",
-			),
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{"admission.datadoghq.com/js-lib.version": "v1.10"},
+				ParentKind:  "replicaset",
+				ParentName:  "test-app-689695b6cc",
+			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_SERVICE",
@@ -2132,13 +2120,10 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation: enable ASM",
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{},
-				map[string]string{},
-				[]corev1.EnvVar{},
-				"replicaset", "test-app-123",
-			),
+			pod: common.FakePodSpec{
+				ParentKind: "replicaset",
+				ParentName: "test-app-123",
+			}.Create(),
 			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...),
 				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
@@ -2172,13 +2157,10 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation: enable iast",
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{},
-				map[string]string{},
-				[]corev1.EnvVar{},
-				"replicaset", "test-app-123",
-			),
+			pod: common.FakePodSpec{
+				ParentKind: "replicaset",
+				ParentName: "test-app-123",
+			}.Create(),
 			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...),
 				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
@@ -2212,13 +2194,10 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation: disable sca",
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{},
-				map[string]string{},
-				[]corev1.EnvVar{},
-				"replicaset", "test-app-123",
-			),
+			pod: common.FakePodSpec{
+				ParentKind: "replicaset",
+				ParentName: "test-app-123",
+			}.Create(),
 			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...),
 				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
@@ -2252,13 +2231,10 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation: enable profiling",
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{},
-				map[string]string{},
-				[]corev1.EnvVar{},
-				"replicaset", "test-app-123",
-			),
+			pod: common.FakePodSpec{
+				ParentKind: "replicaset",
+				ParentName: "test-app-123",
+			}.Create(),
 			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...),
 				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
@@ -2291,19 +2267,15 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject all with full security context",
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
 					"admission.datadoghq.com/all-lib.version":   "latest",
 					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
 				},
-				map[string]string{
+				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
 				},
-				[]corev1.EnvVar{},
-				"replicaset",
-				"deployment-1234",
-			),
+			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
@@ -2404,19 +2376,15 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: `inject all with pod security standard "restricted" compliant security context`,
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
 					"admission.datadoghq.com/all-lib.version":   "latest",
 					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
 				},
-				map[string]string{
+				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
 				},
-				[]corev1.EnvVar{},
-				"replicaset",
-				"deployment-1234",
-			),
+			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
@@ -2499,19 +2467,15 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: `inject all with ignoring unknown JSON properties in security context`,
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
 					"admission.datadoghq.com/all-lib.version":   "latest",
 					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
 				},
-				map[string]string{
+				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
 				},
-				[]corev1.EnvVar{},
-				"replicaset",
-				"deployment-1234",
-			),
+			}.Create(),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
@@ -2584,19 +2548,15 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: `invalid security context`,
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
 					"admission.datadoghq.com/all-lib.version":   "latest",
 					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
 				},
-				map[string]string{
+				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
 				},
-				[]corev1.EnvVar{},
-				"replicaset",
-				"deployment-1234",
-			),
+			}.Create(),
 			wantErr:            false,
 			wantWebhookInitErr: true,
 			setupConfig: funcs{
@@ -2605,19 +2565,15 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: `invalid security context - bad json`,
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
 					"admission.datadoghq.com/all-lib.version":   "latest",
 					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
 				},
-				map[string]string{
+				Labels: map[string]string{
 					"admission.datadoghq.com/enabled": "true",
 				},
-				[]corev1.EnvVar{},
-				"replicaset",
-				"deployment-1234",
-			),
+			}.Create(),
 			wantErr:            false,
 			wantWebhookInitErr: true,
 			setupConfig: funcs{
@@ -2648,7 +2604,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 
 			require.NoError(t, errInitAPMInstrumentation)
 
-			_, err := webhook.inject(tt.pod, "", fake.NewSimpleDynamicClient(scheme.Scheme))
+			_, err := webhook.inject(tt.pod, tt.pod.Namespace, fake.NewSimpleDynamicClient(scheme.Scheme))
 			require.False(t, (err != nil) != tt.wantErr)
 
 			container := tt.pod.Spec.Containers[0]
@@ -2674,7 +2630,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					}
 				}
 				if !found {
-					require.Failf(t, "Unexpected env var injected in container", expectEnv.Name)
+					require.Failf(t, "Expected env var injected in container not found", expectEnv.Name)
 				}
 			}
 
@@ -2691,7 +2647,6 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			require.Equal(t, len(tt.expectedEnvs), envCount)
 
 			initContainers := tt.pod.Spec.InitContainers
-
 			require.Equal(t, len(tt.expectedInjectedLibraries), len(initContainers))
 			for _, c := range initContainers {
 				language := getLanguageFromInitContainerName(c.Name)
@@ -2703,7 +2658,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					"unexpected language version %s", language)
 				require.Equal(t,
 					tt.expectedSecurityContext, c.SecurityContext,
-					"unexpected security context")
+					"unexpected security context for language %s", language)
 			}
 		})
 	}

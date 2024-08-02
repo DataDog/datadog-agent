@@ -18,19 +18,16 @@ import (
 
 var openCapabilities = Capabilities{
 	"open.file.path": {
-		PolicyFlags:     PolicyFlagBasename,
-		FieldValueTypes: eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
-		ValidateFnc:     validateBasenameFilter,
-		FilterWeight:    15,
+		ValueTypeBitmask: eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
+		ValidateFnc:      validateBasenameFilter,
+		FilterWeight:     15,
 	},
 	"open.file.name": {
-		PolicyFlags:     PolicyFlagBasename,
-		FieldValueTypes: eval.ScalarValueType,
-		FilterWeight:    10,
+		ValueTypeBitmask: eval.ScalarValueType,
+		FilterWeight:     10,
 	},
 	"open.flags": {
-		PolicyFlags:     PolicyFlagFlags,
-		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
+		ValueTypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
 }
 

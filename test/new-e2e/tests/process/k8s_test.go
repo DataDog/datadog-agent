@@ -84,7 +84,7 @@ func TestK8sTestSuite(t *testing.T) {
 func (s *K8sSuite) TestProcessCheck() {
 	t := s.T()
 
-	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+	assert.EventuallyWithT(t, func(*assert.CollectT) {
 		status := k8sAgentStatus(t, s.Env().KubernetesCluster)
 		assert.ElementsMatch(t, []string{"process", "rtprocess"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
 	}, 2*time.Minute, 5*time.Second)
@@ -120,7 +120,7 @@ func (s *K8sSuite) TestProcessDiscoveryCheck() {
 		awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
 	))
 
-	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+	assert.EventuallyWithT(t, func(*assert.CollectT) {
 		status := k8sAgentStatus(t, s.Env().KubernetesCluster)
 		assert.ElementsMatch(t, []string{"process_discovery"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
 	}, 2*time.Minute, 5*time.Second)

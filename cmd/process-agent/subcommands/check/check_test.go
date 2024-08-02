@@ -17,6 +17,6 @@ func TestRunCheckCmdCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"check", "process"},
 		RunCheckCmd,
-		func(CliParams *CliParams) {},
+		func(_ *CliParams) {},
 	)
 }

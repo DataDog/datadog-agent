@@ -55,7 +55,7 @@ func NewResolver(tagsResolver tags.Resolver) (*Resolver, error) {
 		workloadsWithoutTags: make(chan *cgroupModel.CacheEntry, 100),
 		listeners:            make(map[Event][]Listener),
 	}
-	workloads, err := simplelru.NewLRU(1024, func(key string, value *cgroupModel.CacheEntry) {
+	workloads, err := simplelru.NewLRU(1024, func(_ string, value *cgroupModel.CacheEntry) {
 		value.CallReleaseCallback()
 		value.Deleted.Store(true)
 

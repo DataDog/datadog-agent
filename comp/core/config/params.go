@@ -15,6 +15,9 @@ type Params struct {
 	// Usually given by the --extracfgpath command-line flag.
 	ExtraConfFilePath []string
 
+	// FleetPoliciesDirPath is the path at which to look for remote configuration files
+	FleetPoliciesDirPath string
+
 	// configName is the root of the name of the configuration file.  The
 	// comp/core/config component will search for a file with this name
 	// in ConfFilePath, using a variety of extensions.  The default is
@@ -128,6 +131,13 @@ func WithConfFilePath(confFilePath string) func(*Params) {
 func WithExtraConfFiles(extraConfFilePath []string) func(*Params) {
 	return func(b *Params) {
 		b.ExtraConfFilePath = extraConfFilePath
+	}
+}
+
+// WithFleetPoliciesDirPath returns an option which sets FleetPoliciesDirPath
+func WithFleetPoliciesDirPath(fleetPoliciesDirPath string) func(*Params) {
+	return func(b *Params) {
+		b.FleetPoliciesDirPath = fleetPoliciesDirPath
 	}
 }
 

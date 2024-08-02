@@ -52,7 +52,7 @@ func TestGetNTPHosts(t *testing.T) {
 	ctx := context.Background()
 	expectedHosts := []string{"169.254.169.254"}
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/octet-stream")
 		io.WriteString(w, "test")
 	}))

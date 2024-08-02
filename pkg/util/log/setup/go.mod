@@ -1,11 +1,11 @@
-module github.com/DataDog/datadog-agent/pkg/config/logs
+module github.com/DataDog/datadog-agent/pkg/util/log/setup
 
 go 1.21.0
 
 replace (
-	github.com/DataDog/datadog-agent/pkg/config/model => ../model/
-	github.com/DataDog/datadog-agent/pkg/util/log => ../../util/log/
-	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../util/scrubber/
+	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../pkg/config/model/
+	github.com/DataDog/datadog-agent/pkg/util/log => ../
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../util/scrubber/
 )
 
 require (

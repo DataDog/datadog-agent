@@ -18,6 +18,7 @@ import (
 	"github.com/acobaugh/osrelease"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/link"
 
@@ -364,4 +365,10 @@ func (k *Version) HaveFentrySupport() bool {
 // SupportBPFSendSignal returns true if the eBPF function bpf_send_signal is available
 func (k *Version) SupportBPFSendSignal() bool {
 	return k.Code != 0 && k.Code >= Kernel5_3
+}
+
+// SupportCORE returns is CORE is supported
+func (k *Version) SupportCORE() bool {
+	_, err := btf.LoadKernelSpec()
+	return err == nil
 }
