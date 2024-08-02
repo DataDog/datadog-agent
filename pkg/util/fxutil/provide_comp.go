@@ -245,9 +245,9 @@ func replaceStructEmbeds(typ, oldEmbed, newEmbed reflect.Type, assumeEmbed bool)
 			continue
 		}
 		if field.Type.Kind() == reflect.Struct && oldEmbed != nil && newEmbed != nil && hasEmbed {
-			field = reflect.StructField{Name: field.Name, Type: replaceStructEmbeds(field.Type, oldEmbed, newEmbed, false)}
+			field = reflect.StructField{Name: field.Name, Type: replaceStructEmbeds(field.Type, oldEmbed, newEmbed, false), Tag: field.Tag}
 		}
-		newFields = append(newFields, reflect.StructField{Name: field.Name, Type: field.Type})
+		newFields = append(newFields, reflect.StructField{Name: field.Name, Type: field.Type, Tag: field.Tag})
 	}
 
 	if hasEmbed && newEmbed != nil {

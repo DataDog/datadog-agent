@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -495,6 +497,45 @@ func TestFxShutdowner(t *testing.T) {
 	// see: https://github.com/uber-go/fx/blob/45af511c27eebb3b9e02abe4a35e1f978ad61bdc/app.go#L748
 }
 
+func TestFxValueGroups(t *testing.T) {
+	// Create two functions that provide value groups, and one that collects those value groups
+	// NOTE: These three functions are non-fx constructors, and all need to be upgraded with
+	// ProviderComponentConstructor in order for their value groups to be collected
+	v1Ctor := func() stringProvider {
+		return newStringProvider("abc")
+	}
+	v2Ctor := func() stringProvider {
+		return newStringProvider("def")
+	}
+	collectionCtor := func(deps depsCollection) collectionProvides {
+		texts := []string{}
+		for _, s := range deps.Strings {
+			texts = append(texts, s.String())
+		}
+		sort.Strings(texts)
+		return collectionProvides{
+			Result: collectionResult{
+				Texts: texts,
+			},
+		}
+	}
+
+	// An invocation that will concat all of the value group results
+	concatResult := ""
+	concatValueGroupResult := func(res collectionResult) {
+		concatResult = strings.Join(res.Texts, ",")
+	}
+
+	// Create the application, ensure that the value groups get properly concat'd
+	_ = fx.New(
+		fx.Invoke(concatValueGroupResult),
+		ProvideComponentConstructor(v1Ctor),
+		ProvideComponentConstructor(v2Ctor),
+		ProvideComponentConstructor(collectionCtor),
+	)
+	assert.Equal(t, concatResult, "abc,def")
+}
+
 func assertNoCtorError(t *testing.T, arg fx.Option) {
 	t.Helper()
 	app := fx.New(arg)
@@ -679,4 +720,44 @@ type plainReqs struct {
 type fxAwareProvides struct {
 	fx.Out
 	B Banana
+}
+
+// Non-fx types, using value groups, that can be upgraded to fx-aware
+
+type Stringer interface {
+	String() string
+}
+
+type stringProvider struct {
+	compdef.Out
+	Str Stringer `group:"test_value"`
+}
+
+type textStringer struct {
+	text string
+}
+
+func (v *textStringer) String() string {
+	return v.text
+}
+
+func newStringProvider(text string) stringProvider {
+	return stringProvider{
+		Str: &textStringer{
+			text: text,
+		},
+	}
+}
+
+type depsCollection struct {
+	compdef.In
+	Strings []Stringer `group:"test_value"`
+}
+
+type collectionProvides struct {
+	Result collectionResult
+}
+
+type collectionResult struct {
+	Texts []string
 }
