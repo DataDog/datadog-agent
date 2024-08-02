@@ -555,6 +555,10 @@ namespace WixSetup.Datadog_Agent
                     Return.check,
                     When.Before,
                     Step.CreateFolders,
+                    // Run only on FirstInstall.
+                    // In Upgrade/Repair the directory has already been
+                    // created and configured, and this action could leave the directory
+                    // without access for ddagentuser if the installer rolls back.
                     Conditions.FirstInstall
                     )
             {
