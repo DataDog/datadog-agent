@@ -99,11 +99,14 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		[]string{"pass", "pwd"},
 		[]byte(`$1 "********"`),
 	)
-	// replace all alphanum + special chars except quotes and semicolon
 	passwordReplacer := Replacer{
-		// see test cases for match patterns
-		Regex: regexp.MustCompile(`(?i)(\"?(?:pass(?:word)?|pswd|pwd)\"?)( = |=|: \"?)([0-9A-Za-z#!$%&()*+,\-./:<=>?@[\\\]^_{|}~]+)`),
-		Repl:  []byte(`$1$2********`),
+		// this regex has three parts:
+		// * key: case-insensitive, optionally quoted (pass | password | pswd | pwd), not anchored to match on args like --mysql_password= etc.
+		// * separator: (= or :) with optional opening quote we don't want to match as part of the password
+		// * password string: alphanum + special chars except quotes and semicolon
+		Regex: regexp.MustCompile(`(?i)(\"?(?:pass(?:word)?|pswd|pwd)\"?)((?:=| = |: )\"?)([0-9A-Za-z#!$%&()*+,\-./:<=>?@[\\\]^_{|}~]+)`),
+		// replace the 3rd capture group (password string) with ********
+		Repl: []byte(`$1$2********`),
 	}
 	tokenReplacer := matchYAMLKeyEnding(
 		`token`,
