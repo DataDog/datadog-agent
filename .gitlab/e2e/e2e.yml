@@ -374,8 +374,8 @@ new-e2e-installer:
     # Note: this is similar to the WINDOWS_AGENT_VERSION in new-e2e_windows_msi but this job is running cross platforms
     # Note 2: new_e2e_template does not define AGENT_MAJOR_VERSION, so define it as 7 below.
     - export CURRENT_AGENT_VERSION=$(invoke agent.version --major-version 7)
-    - export STABLE_AGENT_VERSION_PACKAGE=$(curl -sS https://hub.docker.com/v2/namespaces/datadog/repositories/agent-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
-    - export STABLE_INSTALLER_VERSION_PACKAGE=$(curl -sS https://hub.docker.com/v2/namespaces/datadog/repositories/installer-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
+    - export STABLE_AGENT_VERSION_PACKAGE=$(invoke agent.latest-package-version)
+    - export STABLE_INSTALLER_VERSION_PACKAGE=$(invoke installer.latest-package-version)
     - !reference [.new_e2e_template, before_script]
   variables:
     TARGETS: ./tests/installer
