@@ -76,9 +76,7 @@ def find_matching_components(manifest, components_to_match: dict, present: bool)
                 for module in components_matching_component_type:
                     if module.get("gomod").find(component) != -1:
                         found_component = True
-                        if not present:
-                            found_component = True
-                        else:
+                        if present:
                             res.append(component)
                         break
             if not present and not found_component:
@@ -86,9 +84,12 @@ def find_matching_components(manifest, components_to_match: dict, present: bool)
     return res
 
 
-def validate_manifest(manifest) -> list:  # return list of components to remove, empty list if valid
+def validate_manifest(manifest) -> list:
+    """Return a list of components to remove, or empty list if valid.
+    If invalid components are found, raise a YAMLValidationError."""
+
     # validate collector version matches ocb version
-    manifest_version = manifest.get("dist").get("otelcol_version")
+    manifest_version = manifest.get("dist", {}).get("otelcol_version")
     if manifest_version and manifest_version != OCB_VERSION:
         raise YAMLValidationError(
             f"Collector version ({manifest_version}) in manifest does not match required OCB version ({OCB_VERSION})"
