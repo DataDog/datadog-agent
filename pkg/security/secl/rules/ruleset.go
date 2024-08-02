@@ -169,7 +169,8 @@ func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 // Rule describes a rule of a ruleset
 type Rule struct {
 	*eval.Rule
-	Definition *RuleDefinition
+	Definition  *RuleDefinition
+	NoDiscarder bool
 }
 
 // RuleSetListener describes the methods implemented by an object used to be
@@ -603,13 +604,22 @@ func (rs *RuleSet) GetFieldValues(field eval.Field) []eval.FieldValue {
 
 // IsDiscarder partially evaluates an Event against a field
 func IsDiscarder(ctx *eval.Context, field eval.Field, rules []*Rule) (bool, error) {
+	var isDiscarder bool
+
 	for _, rule := range rules {
+		// ignore rule that can't generate discarders
+		if rule.NoDiscarder {
+			continue
+		}
+
 		isTrue, err := rule.PartialEval(ctx, field)
 		if err != nil || isTrue {
 			return false, err
 		}
+
+		isDiscarder = true
 	}
-	return true, nil
+	return isDiscarder, nil
 }
 
 // IsDiscarder partially evaluates an Event against a field

@@ -30,6 +30,8 @@ type ApplyRuleSetReport struct {
 func NewApplyRuleSetReport(config *config.Config, rs *rules.RuleSet) (*ApplyRuleSetReport, error) {
 	policies := make(map[eval.EventType]*PolicyReport)
 
+	// We need to call the approver detection even when approvers aren't enabled as it may have impact on some rule flags and
+	// the discarder mechanism, see ruleset.go
 	approvers, err := rs.GetApprovers(GetCapababilities())
 	if err != nil {
 		return nil, err
