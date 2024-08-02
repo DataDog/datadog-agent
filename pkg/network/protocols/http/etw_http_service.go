@@ -1472,7 +1472,7 @@ func ipAndPortFromTup(tup driver.ConnTupleType, local bool) ([16]uint8, uint16) 
 }
 
 func ip4format(ip [16]uint8) string {
-	ipObj := netip.AddrFrom4(*(*[4]byte)(ip[:4]))
+	ipObj := netip.AddrFrom4([4]byte(ip))
 	return ipObj.String()
 }
 
