@@ -30,6 +30,9 @@ func GetCatalog() fx.Option {
 	return fx.Options(opts...)
 }
 
+// TODO: (components) Move remote-only to its own catalog, similar to how catalog-less works
+// Depend on this catalog-remote using fx, instead of build tags
+
 func remoteWorkloadmetaParams() fx.Option {
 	var filter *workloadmeta.Filter // Nil filter accepts everything
 

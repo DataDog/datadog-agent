@@ -16,6 +16,9 @@ import (
 	remoteworkloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/workloadmeta"
 )
 
+// TODO: (components) Move remote-only to its own catalog, similar to how catalog-less works
+// Depend on this catalog-remote using fx, instead of build tags
+
 func getCollectorOptions() []fx.Option {
 	return []fx.Option{
 		remoteworkloadmeta.GetFxOptions(),
