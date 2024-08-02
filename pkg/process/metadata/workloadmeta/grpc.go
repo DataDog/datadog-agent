@@ -71,13 +71,13 @@ func NewGRPCServer(config config.Reader, extractor *WorkloadMetaExtractor) *GRPC
 }
 
 func (l *GRPCServer) consumeProcessDiff(diff *ProcessCacheDiff) ([]*pbgo.ProcessEventSet, []*pbgo.ProcessEventUnset) {
-	setEvents := make([]*pbgo.ProcessEventSet, len(diff.creation))
-	for i, proc := range diff.creation {
+	setEvents := make([]*pbgo.ProcessEventSet, len(diff.Creation))
+	for i, proc := range diff.Creation {
 		setEvents[i] = processEntityToEventSet(proc)
 	}
 
-	unsetEvents := make([]*pbgo.ProcessEventUnset, len(diff.deletion))
-	for i, proc := range diff.deletion {
+	unsetEvents := make([]*pbgo.ProcessEventUnset, len(diff.Deletion))
+	for i, proc := range diff.Deletion {
 		unsetEvents[i] = &pbgo.ProcessEventUnset{Pid: proc.Pid}
 	}
 
