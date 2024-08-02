@@ -40,6 +40,7 @@ ALL_TAGS = {
     "podman",
     "process",
     "python",
+    "remotewmonly",  # used when you want to use only the remote workloadmeta store without importing all dependencies of local collectors
     "sds",
     "serverless",
     "systemd",

@@ -18,21 +18,17 @@ import (
 
 var mmapCapabilities = Capabilities{
 	"mmap.file.path": {
-		PolicyFlags:     PolicyFlagBasename,
-		FieldValueTypes: eval.ScalarValueType | eval.PatternValueType,
-		ValidateFnc:     validateBasenameFilter,
+		ValueTypeBitmask: eval.ScalarValueType | eval.PatternValueType,
+		ValidateFnc:      validateBasenameFilter,
 	},
 	"mmap.file.name": {
-		PolicyFlags:     PolicyFlagBasename,
-		FieldValueTypes: eval.ScalarValueType,
+		ValueTypeBitmask: eval.ScalarValueType,
 	},
 	"mmap.protection": {
-		PolicyFlags:     PolicyFlagFlags,
-		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
+		ValueTypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
 	"mmap.flags": {
-		PolicyFlags:     PolicyFlagFlags,
-		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
+		ValueTypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
 }
 

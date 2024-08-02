@@ -313,7 +313,7 @@ func TestConfigHostname(t *testing.T) {
 			require.NotNil(t, err)
 			assert.Contains(t, err.Error(), "nor from OS")
 
-		}, func(config Component) {
+		}, func(_ Component) {
 			// nothing
 		})
 	})

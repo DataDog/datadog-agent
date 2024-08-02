@@ -24,7 +24,7 @@ func TestCommands(t *testing.T) {
 		{
 			name:     "flare",
 			cliInput: []string{"flare"},
-			check: func(cliParams *cliParams, params core.BundleParams) {
+			check: func(_ *cliParams, params core.BundleParams) {
 				require.Equal(t, command.LoggerName, params.LoggerName(), "logger name not matching")
 				require.Equal(t, "off", params.LogLevelFn(nil), "log level not matching")
 			},

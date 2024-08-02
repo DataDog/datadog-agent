@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -234,16 +235,27 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 	defer i.m.Unlock()
 
 	repository := i.repositories.Get(pkg)
-	err := repository.DeleteExperiment()
-	if err != nil {
-		return fmt.Errorf("could not delete experiment: %w", err)
+	if runtime.GOOS != "windows" && pkg == packageDatadogInstaller {
+		// Special case for the Linux installer since `stopExperiment`
+		// will kill the current process, delete the experiment first.
+		err := repository.DeleteExperiment()
+		if err != nil {
+			return fmt.Errorf("could not delete experiment: %w", err)
+		}
+		err = i.stopExperiment(ctx, pkg)
+		if err != nil {
+			return fmt.Errorf("could not stop experiment: %w", err)
+		}
+	} else {
+		err := i.stopExperiment(ctx, pkg)
+		if err != nil {
+			return fmt.Errorf("could not stop experiment: %w", err)
+		}
+		err = repository.DeleteExperiment()
+		if err != nil {
+			return fmt.Errorf("could not delete experiment: %w", err)
+		}
 	}
-
-	err = i.stopExperiment(ctx, pkg)
-	if err != nil {
-		return fmt.Errorf("could not delete experiment: %w", err)
-	}
-
 	return nil
 }
 

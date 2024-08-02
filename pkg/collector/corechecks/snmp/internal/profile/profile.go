@@ -55,7 +55,7 @@ func GetProfileForSysObjectID(profiles ProfileConfigMap, sysObjectID string) (st
 	var matchedOids []string
 
 	for profile, profConfig := range profiles {
-		for _, oidPattern := range profConfig.Definition.SysObjectIds {
+		for _, oidPattern := range profConfig.Definition.SysObjectIDs {
 			found, err := filepath.Match(oidPattern, sysObjectID)
 			if err != nil {
 				log.Debugf("pattern error in profile %q: %v", profile, err)

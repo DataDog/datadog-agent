@@ -110,6 +110,7 @@ func (h *PodHandlers) BuildMessageBody(ctx processors.ProcessorContext, resource
 		HostName:    pctx.HostName,
 		Pods:        models,
 		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Info:        pctx.SystemInfo,
 	}
 }
 
