@@ -181,7 +181,8 @@ new-e2e-containers:
 
 new-e2e-containers-eks-init:
   extends: .new_e2e_template
-  needs: []
+  needs:
+    - !reference [.needs_new_e2e_template]
   rules:
     - !reference [.on_container_or_e2e_changes]
     - !reference [.manual]
@@ -284,7 +285,8 @@ new-e2e-npm-docker:
 
 new-e2e-npm-eks-init:
   extends: .new_e2e_template
-  needs: []
+  needs:
+    - !reference [.needs_new_e2e_template]
   rules:
     - !reference [.on_npm_or_e2e_changes]
     - !reference [.manual]
