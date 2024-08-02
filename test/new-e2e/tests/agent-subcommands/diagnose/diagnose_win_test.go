@@ -22,7 +22,10 @@ type windowsDiagnoseSuite struct {
 }
 
 func TestWindowsDiagnoseSuite(t *testing.T) {
-	e2e.Run(t, &windowsDiagnoseSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
+	t.Parallel()
+	var suite windowsDiagnoseSuite
+	suite.suites = append(suite.suites, commonSuites...)
+	e2e.Run(t, &suite, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
 }
 
 func (v *windowsDiagnoseSuite) TestDiagnoseOtherCmdPort() {

@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -43,25 +42,27 @@ const webhookName = "standard_tags"
 
 // Webhook is the webhook that injects DD_ENV, DD_VERSION, DD_SERVICE env vars
 type Webhook struct {
-	name          string
-	isEnabled     bool
-	endpoint      string
-	resources     []string
-	operations    []admiv1.OperationType
-	ownerCacheTTL time.Duration
-	wmeta         workloadmeta.Component
+	name            string
+	isEnabled       bool
+	endpoint        string
+	resources       []string
+	operations      []admiv1.OperationType
+	ownerCacheTTL   time.Duration
+	wmeta           workloadmeta.Component
+	injectionFilter common.InjectionFilter
 }
 
 // NewWebhook returns a new Webhook
-func NewWebhook(wmeta workloadmeta.Component) *Webhook {
+func NewWebhook(wmeta workloadmeta.Component, injectionFilter common.InjectionFilter) *Webhook {
 	return &Webhook{
-		name:          webhookName,
-		isEnabled:     config.Datadog().GetBool("admission_controller.inject_tags.enabled"),
-		endpoint:      config.Datadog().GetString("admission_controller.inject_tags.endpoint"),
-		resources:     []string{"pods"},
-		operations:    []admiv1.OperationType{admiv1.Create},
-		ownerCacheTTL: ownerCacheTTL(),
-		wmeta:         wmeta,
+		name:            webhookName,
+		isEnabled:       config.Datadog().GetBool("admission_controller.inject_tags.enabled"),
+		endpoint:        config.Datadog().GetString("admission_controller.inject_tags.endpoint"),
+		resources:       []string{"pods"},
+		operations:      []admiv1.OperationType{admiv1.Create},
+		ownerCacheTTL:   ownerCacheTTL(),
+		wmeta:           wmeta,
+		injectionFilter: injectionFilter,
 	}
 }
 
@@ -139,8 +140,9 @@ func (w *Webhook) injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface) (
 		return false, errors.New(metrics.InvalidInput)
 	}
 
-	if !autoinstrumentation.ShouldInject(pod, w.wmeta) {
-		// Ignore pod if it has the label admission.datadoghq.com/enabled=false or Single step configuration is disabled
+	if !w.injectionFilter.ShouldMutatePod(pod) {
+		// Ignore pod if it has the label admission.datadoghq.com/enabled=false
+		// or Single step configuration is disabled
 		return false, nil
 	}
 

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package agent
+package agentimpl
 
 import (
 	"fmt"
@@ -77,7 +77,7 @@ func runAgentSidekicks(ag component) error {
 
 	api.AttachEndpoint(api.Endpoint{
 		Pattern: "/config/set",
-		Handler: func(r *api.HTTPReceiver) http.Handler {
+		Handler: func(_ *api.HTTPReceiver) http.Handler {
 			return ag.config.SetHandler()
 		},
 	})

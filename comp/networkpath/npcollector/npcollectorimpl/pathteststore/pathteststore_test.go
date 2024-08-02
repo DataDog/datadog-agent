@@ -9,11 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
+
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
 )
 
 // MockTimeNow mocks time.Now
@@ -31,7 +30,7 @@ func setMockTimeNow(newTime time.Time) {
 }
 
 func Test_pathtestStore_add(t *testing.T) {
-	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
+	logger := logmock.New(t)
 
 	// GIVEN
 	store := NewPathtestStore(10*time.Minute, 1*time.Minute, logger)
@@ -54,7 +53,7 @@ func Test_pathtestStore_add(t *testing.T) {
 }
 
 func Test_pathtestStore_flush(t *testing.T) {
-	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
+	logger := logmock.New(t)
 	timeNow = MockTimeNow
 	runDurationFromDisc := 10 * time.Minute
 	runInterval := 1 * time.Minute

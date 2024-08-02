@@ -96,9 +96,8 @@ func setupPerfRing(proto string, m *manager.Manager, o *manager.Options, numCPUs
 	rb := &manager.RingBuffer{
 		Map: manager.Map{Name: mapName},
 		RingBufferOptions: manager.RingBufferOptions{
-			RingBufferSize: ringBufferSize,
-			RecordHandler:  handler.RecordHandler,
-			RecordGetter:   handler.RecordGetter,
+			RecordHandler: handler.RecordHandler,
+			RecordGetter:  handler.RecordGetter,
 		},
 	}
 

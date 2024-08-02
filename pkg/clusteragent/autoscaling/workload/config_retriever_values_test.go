@@ -31,16 +31,16 @@ func TestConfigRetriverAutoscalingValuesFollower(t *testing.T) {
 	cr, mockRCClient := newMockConfigRetriever(t, false, clock.NewFakeClock(testTime))
 
 	// Dummy objects in store
-	dummy2 := model.PodAutoscalerInternal{
+	dummy2 := model.FakePodAutoscalerInternal{
 		Namespace: "ns",
 		Name:      "name2",
 	}
-	dummy3 := model.PodAutoscalerInternal{
+	dummy3 := model.FakePodAutoscalerInternal{
 		Namespace: "ns",
 		Name:      "name3",
 	}
-	cr.store.Set("ns/name2", dummy2, "unittest")
-	cr.store.Set("ns/name3", dummy3, "unittest")
+	cr.store.Set("ns/name2", dummy2.Build(), "unittest")
+	cr.store.Set("ns/name3", dummy3.Build(), "unittest")
 
 	// Object specs
 	value1 := &kubeAutoscaling.WorkloadValues{
@@ -60,7 +60,7 @@ func TestConfigRetriverAutoscalingValuesFollower(t *testing.T) {
 		map[string]state.RawConfig{
 			"foo1": buildAutoscalingValuesRawConfig(t, 1, value1),
 		},
-		func(configKey string, applyState state.ApplyStatus) {
+		func(_ string, applyState state.ApplyStatus) {
 			stateCallbackCalled++
 			assert.Equal(t, applyState, state.ApplyStatus{
 				State: state.ApplyStateUnacknowledged,
@@ -71,7 +71,7 @@ func TestConfigRetriverAutoscalingValuesFollower(t *testing.T) {
 
 	assert.Equal(t, 1, stateCallbackCalled)
 	podAutoscalers := cr.store.GetAll()
-	model.AssertPodAutoscalersEqual(t, []model.PodAutoscalerInternal{dummy2, dummy3}, podAutoscalers)
+	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{dummy2, dummy3}, podAutoscalers)
 }
 
 func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
@@ -79,18 +79,18 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	cr, mockRCClient := newMockConfigRetriever(t, true, clock.NewFakeClock(testTime))
 
 	// Dummy objects in store
-	cr.store.Set("ns/name1", model.PodAutoscalerInternal{
+	cr.store.Set("ns/name1", model.FakePodAutoscalerInternal{
 		Namespace: "ns",
 		Name:      "name1",
-	}, "unittest")
-	cr.store.Set("ns/name2", model.PodAutoscalerInternal{
+	}.Build(), "unittest")
+	cr.store.Set("ns/name2", model.FakePodAutoscalerInternal{
 		Namespace: "ns",
 		Name:      "name2",
-	}, "unittest")
-	cr.store.Set("ns/name3", model.PodAutoscalerInternal{
+	}.Build(), "unittest")
+	cr.store.Set("ns/name3", model.FakePodAutoscalerInternal{
 		Namespace: "ns",
 		Name:      "name3",
-	}, "unittest")
+	}.Build(), "unittest")
 
 	// Object specs
 	value1 := &kubeAutoscaling.WorkloadValues{
@@ -194,7 +194,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 			"foo1": buildAutoscalingValuesRawConfig(t, 1, value1),
 			"foo2": buildAutoscalingValuesRawConfig(t, 2, value2, value3),
 		},
-		func(configKey string, applyState state.ApplyStatus) {
+		func(_ string, applyState state.ApplyStatus) {
 			stateCallbackCalled++
 			assert.Equal(t, applyState, state.ApplyStatus{
 				State: state.ApplyStateAcknowledged,
@@ -206,7 +206,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	assert.Equal(t, 2, stateCallbackCalled)
 	podAutoscalers := cr.store.GetAll()
 
-	model.AssertPodAutoscalersEqual(t, []model.PodAutoscalerInternal{
+	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
 			Namespace: "ns",
 			Name:      "name1",
@@ -287,7 +287,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 			"foo1": buildAutoscalingValuesRawConfig(t, 10, value1),
 			"foo2": buildAutoscalingValuesRawConfig(t, 20, value2, value3),
 		},
-		func(configKey string, applyState state.ApplyStatus) {
+		func(_ string, applyState state.ApplyStatus) {
 			stateCallbackCalled++
 			assert.Equal(t, applyState, state.ApplyStatus{
 				State: state.ApplyStateAcknowledged,
@@ -298,7 +298,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	assert.Equal(t, 2, stateCallbackCalled)
 
 	podAutoscalers = cr.store.GetAll()
-	model.AssertPodAutoscalersEqual(t, []model.PodAutoscalerInternal{
+	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
 			Namespace:     "ns",
 			Name:          "name1",
@@ -349,7 +349,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 		map[string]state.RawConfig{
 			"foo1": buildRawConfig(t, data.ProductContainerAutoscalingValues, 11, []byte(`{"foo"}`)),
 		},
-		func(configKey string, applyState state.ApplyStatus) {
+		func(_ string, applyState state.ApplyStatus) {
 			stateCallbackCalled++
 			assert.Equal(t, applyState, state.ApplyStatus{
 				State: state.ApplyStateError,
@@ -360,7 +360,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	assert.Equal(t, 1, stateCallbackCalled)
 
 	podAutoscalers = cr.store.GetAll()
-	model.AssertPodAutoscalersEqual(t, []model.PodAutoscalerInternal{
+	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
 			Namespace:     "ns",
 			Name:          "name1",
@@ -411,7 +411,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 		map[string]state.RawConfig{
 			"foo2": buildAutoscalingValuesRawConfig(t, 21, value2),
 		},
-		func(configKey string, applyState state.ApplyStatus) {
+		func(_ string, applyState state.ApplyStatus) {
 			stateCallbackCalled++
 			assert.Equal(t, applyState, state.ApplyStatus{
 				State: state.ApplyStateAcknowledged,
@@ -422,7 +422,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	assert.Equal(t, 1, stateCallbackCalled)
 
 	podAutoscalers = cr.store.GetAll()
-	model.AssertPodAutoscalersEqual(t, []model.PodAutoscalerInternal{
+	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
 			Namespace: "ns",
 			Name:      "name1",

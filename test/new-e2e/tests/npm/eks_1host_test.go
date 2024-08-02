@@ -29,7 +29,7 @@ import (
 )
 
 type eksHttpbinEnv struct {
-	environments.AwsKubernetes
+	environments.Kubernetes
 
 	// Extra Components
 	HTTPBinHost *components.RemoteHost
@@ -45,8 +45,6 @@ func eksHttpbinEnvProvisioner(opts ...envkube.ProvisionerOption) e2e.PulumiEnvRu
 		if err != nil {
 			return err
 		}
-		env.AwsKubernetes.AwsEnvironment = &awsEnv
-
 		vmName := "httpbinvm"
 		httpbinHost, err := ec2.NewVM(awsEnv, vmName)
 		if err != nil {
@@ -69,13 +67,14 @@ func eksHttpbinEnvProvisioner(opts ...envkube.ProvisionerOption) e2e.PulumiEnvRu
 			return err
 		}
 
-		npmToolsWorkload := func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+		npmToolsWorkload := func(_ config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
 			// NPM tools Workload
 			testURL := "http://" + env.HTTPBinHost.Address + "/"
 			return npmtools.K8sAppDefinition(&awsEnv, kubeProvider, "npmtools", testURL)
 		}
 
 		provisionerOpts := []envkube.ProvisionerOption{
+			envkube.WithAwsEnv(&awsEnv),
 			envkube.WithEKSLinuxNodeGroup(),
 			envkube.WithAgentOptions(kubernetesagentparams.WithHelmValues(systemProbeConfigNPMHelmValues)),
 			envkube.WithWorkloadApp(npmToolsWorkload),
@@ -85,7 +84,7 @@ func eksHttpbinEnvProvisioner(opts ...envkube.ProvisionerOption) e2e.PulumiEnvRu
 		params := envkube.GetProvisionerParams(
 			provisionerOpts...,
 		)
-		envkube.EKSRunFunc(ctx, &env.AwsKubernetes, params)
+		envkube.EKSRunFunc(ctx, &env.Kubernetes, params)
 
 		return nil
 	}

@@ -1553,6 +1553,10 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			ID:         "test_capset",
 			Expression: `capset.cap_effective & CAP_WAKE_ALARM == 0 && capset.cap_permitted & CAP_SYS_BOOT == 0 && process.file.name == "syscall_go_tester"`,
 		},
+		{
+			ID:         "test_auid",
+			Expression: `exec.auid == 1234`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -2254,6 +2258,7 @@ func TestProcessResolution(t *testing.T) {
 			t.Helper()
 
 			assert.NotNil(t, entry1)
+			assert.NotNil(t, entry2)
 			assert.Equal(t, entry1.FileEvent.PathnameStr, entry2.FileEvent.PathnameStr)
 			assert.Equal(t, entry1.Pid, entry2.Pid)
 			assert.Equal(t, entry1.PPid, entry2.PPid)

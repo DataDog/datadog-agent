@@ -48,6 +48,7 @@ type testConfig struct {
 	testDirRoot       string
 	testingTools      string
 	extraParams       string
+	extraEnv          string
 }
 
 const ciVisibility = "/ci-visibility"
@@ -57,10 +58,13 @@ var baseEnv = []string{
 	"GOVERSION=" + runtime.Version(),
 }
 
+// change `TEST_TIMEOUTS` in `tasks/system_probe.py` if you change them here
 var timeouts = map[*regexp.Regexp]time.Duration{
+	regexp.MustCompile("pkg/network/protocols$"):      5 * time.Minute,
 	regexp.MustCompile("pkg/network/protocols/http$"): 15 * time.Minute,
 	regexp.MustCompile("pkg/network/tracer$"):         55 * time.Minute,
 	regexp.MustCompile("pkg/network/usm$"):            55 * time.Minute,
+	regexp.MustCompile("pkg/network/usm/tests$"):      20 * time.Minute,
 	regexp.MustCompile("pkg/security.*"):              30 * time.Minute,
 }
 
@@ -149,7 +153,7 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, 
 // concatenateJsons combines all the test json output files into a single file.
 func concatenateJsons(indir, outdir string) error {
 	testJSONFile := filepath.Join(outdir, "out.json")
-	matches, err := glob(indir, `.*\.json`, func(path string) bool { return true })
+	matches, err := glob(indir, `.*\.json`, func(_ string) bool { return true })
 	if err != nil {
 		return fmt.Errorf("json glob: %s", err)
 	}
@@ -230,6 +234,9 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 			"DD_SYSTEM_PROBE_BPF_DIR="+filepath.Join(testConfig.testDirRoot, buildDir),
 			"DD_SERVICE_MONITORING_CONFIG_TLS_JAVA_DIR="+filepath.Join(testConfig.testDirRoot, "pkg/network/protocols/tls/java"),
 		)
+		if testConfig.extraEnv != "" {
+			baseEnv = append(baseEnv, strings.Split(testConfig.extraEnv, " ")...)
+		}
 		cmd.Env = append(cmd.Environ(), baseEnv...)
 
 		cmd.Dir = filepath.Dir(testsuite)
@@ -273,6 +280,7 @@ func buildTestConfiguration() (*testConfig, error) {
 	testRoot := flag.String("test-root", "/opt/system-probe-tests", "directory containing test packages")
 	testTools := flag.String("test-tools", "/opt/testing-tools", "directory containing test tools")
 	extraParams := flag.String("extra-params", "", "extra parameters to pass to the test runner")
+	extraEnv := flag.String("extra-env", "", "extra environment variables to pass to the test runner")
 
 	flag.Parse()
 
@@ -310,6 +318,7 @@ func buildTestConfiguration() (*testConfig, error) {
 		testDirRoot:       root,
 		testingTools:      tools,
 		extraParams:       *extraParams,
+		extraEnv:          *extraEnv,
 	}, nil
 }
 

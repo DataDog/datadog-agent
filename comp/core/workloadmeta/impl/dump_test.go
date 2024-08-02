@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package workloadmeta
+package workloadmetaimpl
 
 import (
 	"context"
@@ -13,7 +13,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -21,7 +22,7 @@ import (
 func TestDump(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(wmdef.NewParams()),
@@ -133,7 +134,6 @@ Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
-Allowed env variables: DD_SERVICE:my-svc DD_ENV:prod DD_VERSION:v1 
 Hostname: 
 Network IPs: 
 PID: 0
@@ -163,7 +163,6 @@ Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
-Allowed env variables: 
 Hostname: 
 Network IPs: 
 PID: 1
@@ -193,7 +192,6 @@ Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
-Allowed env variables: DD_SERVICE:my-svc DD_ENV:prod DD_VERSION:v1 
 Hostname: 
 Network IPs: 
 PID: 1

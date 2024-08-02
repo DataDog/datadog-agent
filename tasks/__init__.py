@@ -17,6 +17,7 @@ from tasks import (
     components,
     coverage,
     cws_instrumentation,
+    debug,
     devcontainer,
     diff,
     docker_tasks,
@@ -31,6 +32,7 @@ from tasks import (
     gitlab_helpers,
     go_deps,
     installer,
+    invoke_unit_tests,
     kmt,
     linter,
     modules,
@@ -93,7 +95,6 @@ from tasks.install_tasks import download_tools, install_devcontainer_cli, instal
 from tasks.junit_tasks import junit_upload
 from tasks.libs.common.go_workspaces import handle_go_work
 from tasks.show_linters_issues.show_linters_issues import show_linters_issues
-from tasks.unit_tests import invoke_unit_tests
 from tasks.update_go import go_version, update_go
 from tasks.windows_resources import build_messagetable
 
@@ -123,7 +124,6 @@ ns.add_task(install_shellcheck)
 ns.add_task(install_devcontainer_cli)
 ns.add_task(download_tools)
 ns.add_task(install_tools)
-ns.add_task(invoke_unit_tests)
 ns.add_task(check_mod_tidy)
 ns.add_task(check_go_mod_replaces)
 ns.add_task(check_otel_build)
@@ -193,6 +193,8 @@ ns.add_collection(pre_commit)
 ns.add_collection(devcontainer)
 ns.add_collection(omnibus)
 ns.add_collection(collector)
+ns.add_collection(invoke_unit_tests)
+ns.add_collection(debug)
 ns.configure(
     {
         "run": {

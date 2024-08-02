@@ -415,7 +415,7 @@ func (p *Protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
 	}
 
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTP2DynamicTableMapCleanerInterval, nil, nil, func(now int64, key HTTP2StreamKey, val HTTP2Stream) bool {
+	mapCleaner.Clean(p.cfg.HTTP2DynamicTableMapCleanerInterval, nil, nil, func(now int64, _ HTTP2StreamKey, val HTTP2Stream) bool {
 		if updated := int64(val.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}

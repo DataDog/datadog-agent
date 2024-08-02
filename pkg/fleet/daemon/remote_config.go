@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/google/go-containerregistry/pkg/name"
 
@@ -48,8 +49,12 @@ func (rc *remoteConfig) Start(handleCatalogUpdate handleCatalogUpdate, handleRem
 	if rc.client == nil {
 		return
 	}
-	rc.client.Subscribe(state.ProductUpdaterCatalogDD, handleUpdaterCatalogDDUpdate(handleCatalogUpdate))
-	rc.client.Subscribe(state.ProductUpdaterTask, handleUpdaterTaskUpdate(handleRemoteAPIRequest))
+	subscribeToTask := func() {
+		// only subscribe to tasks once the first catalog has been applied
+		// subscribe in a goroutine to avoid deadlocking the client
+		go rc.client.Subscribe(state.ProductUpdaterTask, handleUpdaterTaskUpdate(handleRemoteAPIRequest))
+	}
+	rc.client.Subscribe(state.ProductUpdaterCatalogDD, handleUpdaterCatalogDDUpdate(handleCatalogUpdate, subscribeToTask))
 	rc.client.Start()
 }
 
@@ -89,7 +94,8 @@ func (c *catalog) getPackage(pkg string, version string, arch string, platform s
 
 type handleCatalogUpdate func(catalog catalog) error
 
-func handleUpdaterCatalogDDUpdate(h handleCatalogUpdate) client.Handler {
+func handleUpdaterCatalogDDUpdate(h handleCatalogUpdate, firstCatalogApplied func()) client.Handler {
+	var catalogOnce sync.Once
 	return func(catalogConfigs map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 		var mergedCatalog catalog
 		for configPath, config := range catalogConfigs {
@@ -118,6 +124,7 @@ func handleUpdaterCatalogDDUpdate(h handleCatalogUpdate) client.Handler {
 			}
 			return
 		}
+		catalogOnce.Do(firstCatalogApplied)
 		for configPath := range catalogConfigs {
 			applyStateCallback(configPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 		}

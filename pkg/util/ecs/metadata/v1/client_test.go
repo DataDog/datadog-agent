@@ -33,6 +33,7 @@ func TestGetInstance(t *testing.T) {
 
 	expected := &Instance{
 		Cluster: "ecs_cluster",
+		Version: "Amazon ECS Agent - v1.32.0 (a7f81040)",
 	}
 
 	client := NewClient(ts.URL)

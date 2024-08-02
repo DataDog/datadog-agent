@@ -5,8 +5,8 @@
 
 //go:build otlp
 
-// Package collector implements the collector component
-package collector
+// Package collectorimpl implements the collector component
+package collectorimpl
 
 import (
 	"context"

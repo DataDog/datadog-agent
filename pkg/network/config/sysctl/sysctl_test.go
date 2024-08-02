@@ -8,11 +8,13 @@
 package sysctl
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -100,4 +102,61 @@ func createTmpProcSys(t *testing.T) (procRoot string) {
 
 func createTmpSysctl(t *testing.T, procRoot, sysctl string, v string) {
 	require.NoError(t, os.WriteFile(filepath.Join(procRoot, "sys", sysctl), []byte(v), 0777))
+}
+
+func TestStickyError(t *testing.T) {
+	procRoot := createTmpProcSys(t)
+	t.Run("file does not exist", func(t *testing.T) {
+		calls := 0
+		s := newSCtl(procRoot, "foo", time.Minute, func(path string) ([]byte, error) {
+			calls++
+			return os.ReadFile(path)
+		})
+		_, updated, err := s.get(time.Now())
+		assert.False(t, updated)
+		assert.Equal(t, 1, calls)
+		assert.True(t, errors.Is(err, os.ErrNotExist))
+
+		// try the get again, os.ReadFile should not be called
+		_, updated, err = s.get(time.Now())
+		assert.False(t, updated)
+		assert.Equal(t, 1, calls)
+		assert.True(t, errors.Is(err, os.ErrNotExist))
+	})
+
+	t.Run("permission denied", func(t *testing.T) {
+		calls := 0
+		s := newSCtl(procRoot, "foo", time.Minute, func(string) ([]byte, error) {
+			calls++
+			return nil, os.ErrPermission
+		})
+		_, updated, err := s.get(time.Now())
+		assert.False(t, updated)
+		assert.Equal(t, 1, calls)
+		assert.True(t, errors.Is(err, os.ErrPermission))
+
+		// try the get again, os.ReadFile should not be called
+		_, updated, err = s.get(time.Now())
+		assert.False(t, updated)
+		assert.Equal(t, 1, calls)
+		assert.True(t, errors.Is(err, os.ErrPermission))
+	})
+
+	t.Run("non sticky error", func(t *testing.T) {
+		calls := 0
+		s := newSCtl(procRoot, "foo", time.Minute, func(string) ([]byte, error) {
+			calls++
+			return nil, os.ErrInvalid
+		})
+		_, updated, err := s.get(time.Now())
+		assert.False(t, updated)
+		assert.Equal(t, 1, calls)
+		assert.True(t, errors.Is(err, os.ErrInvalid))
+
+		// try the get again, os.ReadFile should not be called
+		_, updated, err = s.get(time.Now())
+		assert.False(t, updated)
+		assert.Equal(t, 2, calls)
+		assert.True(t, errors.Is(err, os.ErrInvalid))
+	})
 }

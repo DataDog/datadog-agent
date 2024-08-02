@@ -9,7 +9,6 @@ package ptracer
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"os"
 	"slices"
@@ -30,6 +29,23 @@ func isKThread(ppid, pid int32) bool {
 type ProcProcess struct {
 	*process.Process
 	CreateTime int64
+}
+
+func collectProcess(pid int32) (*ProcProcess, error) {
+	proc, err := process.NewProcess(pid)
+	if err != nil {
+		return nil, err
+	}
+
+	createTime, err := proc.CreateTime()
+	if err != nil {
+		return nil, err
+	}
+
+	return &ProcProcess{
+		Process:    proc,
+		CreateTime: createTime,
+	}, nil
 }
 
 func collectProcesses(traceePID int32, cache map[int32]int64) ([]*ProcProcess, []int32, error) {
@@ -258,44 +274,64 @@ func procToMsg(proc *ProcProcess) (*ebpfless.Message, error) {
 	}, nil
 }
 
-func scanProcfs(ctx context.Context, traceePID int, sendFnc func(msg *ebpfless.Message), every time.Duration, logger Logger) {
+func (ctx *CWSPtracerCtx) scanProcfs() {
 	cache := make(map[int32]int64)
 
+	every := ctx.opts.ScanProcEvery
+	if every == 0 {
+		every = 500 * time.Millisecond
+	}
 	ticker := time.NewTicker(every)
 
 	for {
 		select {
 		case <-ticker.C:
-			add, del, err := collectProcesses(int32(traceePID), cache)
-			if err != nil {
-				logger.Errorf("unable to collect processes: %v", err)
-				continue
-			}
-
-			for _, proc := range add {
-				if msg, err := procToMsg(proc); err == nil {
-					sendFnc(msg)
+			ctx.pidLock.RLock()
+			for _, pid := range ctx.PIDs {
+				add, del, err := collectProcesses(int32(pid), cache)
+				if err != nil {
+					logger.Errorf("unable to collect processes: %v", err)
+					continue
 				}
-				cache[proc.Pid] = proc.CreateTime
-			}
 
-			// cleanup
-			for _, pid := range del {
-				delete(cache, pid)
-
-				msg := &ebpfless.Message{
-					Type: ebpfless.MessageTypeSyscall,
-					Syscall: &ebpfless.SyscallMsg{
-						Type:      ebpfless.SyscallTypeExit,
-						PID:       uint32(pid),
-						Timestamp: uint64(time.Now().UnixNano()),
-						Exit:      &ebpfless.ExitSyscallMsg{},
-					},
+				for _, proc := range add {
+					if msg, err := procToMsg(proc); err == nil {
+						_ = ctx.sendMsg(msg)
+					}
+					cache[proc.Pid] = proc.CreateTime
 				}
-				sendFnc(msg)
+
+				// cleanup
+				for _, pid := range del {
+					delete(cache, pid)
+
+					msg := &ebpfless.Message{
+						Type: ebpfless.MessageTypeSyscall,
+						Syscall: &ebpfless.SyscallMsg{
+							Type:      ebpfless.SyscallTypeExit,
+							PID:       uint32(pid),
+							Timestamp: uint64(time.Now().UnixNano()),
+							Exit:      &ebpfless.ExitSyscallMsg{},
+						},
+					}
+					_ = ctx.sendMsg(msg)
+				}
 			}
-		case <-ctx.Done():
+			ctx.pidLock.RUnlock()
+		case <-ctx.cancel.Done():
 			return
 		}
 	}
+}
+
+func (ctx *CWSPtracerCtx) startScanProcfs() {
+	ctx.wg.Add(1)
+	go func() {
+		defer ctx.wg.Done()
+
+		// introduce a delay before starting to scan procfs to let the tracer event first
+		time.Sleep(2 * time.Second)
+
+		ctx.scanProcfs()
+	}()
 }

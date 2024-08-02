@@ -52,6 +52,17 @@ func TestParseRegisterState(t *testing.T) {
 				Precise:  false,
 			},
 		},
+		{
+			name:  "PreciseScalarWithValue",
+			input: "R1_w=Pscalar(umax=60,var_off=(0x0;0x3c))",
+			expected: &RegisterState{
+				Register: 1,
+				Live:     "written",
+				Type:     "scalar",
+				Value:    "[0, 60 (0x3C)]",
+				Precise:  true,
+			},
+		},
 	}
 
 	for _, tt := range tests {
