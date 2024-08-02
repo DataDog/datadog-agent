@@ -26,6 +26,13 @@ const (
 	TransportHTTP Transport = "HTTP"
 	// TransportTCP indicates logs-agent is using TCP transport
 	TransportTCP Transport = "TCP"
+
+	// StatusNotStarted means that the logs agent is not started
+	StatusNotStarted = 0
+	// StatusRunning means that the logs agent is running and fully operational
+	StatusRunning = 1
+	// StatusCollectionNotStarted means that the logs agent has not started collecting logs
+	StatusCollectionNotStarted = 2
 )
 
 var (
@@ -69,15 +76,16 @@ type Integration struct {
 
 // Status provides some information about logs-agent.
 type Status struct {
-	IsRunning        bool              `json:"is_running"`
-	Endpoints        []string          `json:"endpoints"`
-	StatusMetrics    map[string]string `json:"metrics"`
-	ProcessFileStats map[string]uint64 `json:"process_file_stats"`
-	Integrations     []Integration     `json:"integrations"`
-	Tailers          []Tailer          `json:"tailers"`
-	Errors           []string          `json:"errors"`
-	Warnings         []string          `json:"warnings"`
-	UseHTTP          bool              `json:"use_http"`
+	IsRunning           bool              `json:"is_running"`
+	WaitingForSDSConfig bool              `json:"waiting_for_sds_config"`
+	Endpoints           []string          `json:"endpoints"`
+	StatusMetrics       map[string]string `json:"metrics"`
+	ProcessFileStats    map[string]uint64 `json:"process_file_stats"`
+	Integrations        []Integration     `json:"integrations"`
+	Tailers             []Tailer          `json:"tailers"`
+	Errors              []string          `json:"errors"`
+	Warnings            []string          `json:"warnings"`
+	UseHTTP             bool              `json:"use_http"`
 }
 
 // SetCurrentTransport sets the current transport used by the log agent.
@@ -97,7 +105,7 @@ func GetCurrentTransport() Transport {
 }
 
 // Init instantiates the builder that builds the status on the fly.
-func Init(isRunning *atomic.Bool, endpoints *config.Endpoints, sources *sources.LogSources, tracker *tailers.TailerTracker, logExpVars *expvar.Map) {
+func Init(isRunning *atomic.Uint32, endpoints *config.Endpoints, sources *sources.LogSources, tracker *tailers.TailerTracker, logExpVars *expvar.Map) {
 	globalsLock.Lock()
 	defer globalsLock.Unlock()
 
@@ -123,7 +131,8 @@ func Get(verbose bool) Status {
 
 	if builder == nil {
 		return Status{
-			IsRunning: false,
+			IsRunning:           false,
+			WaitingForSDSConfig: false,
 		}
 	}
 	return builder.BuildStatus(verbose)
