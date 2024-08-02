@@ -6,7 +6,7 @@
 //go:build test
 // +build test
 
-package agent
+package agentimpl
 
 import (
 	"context"
