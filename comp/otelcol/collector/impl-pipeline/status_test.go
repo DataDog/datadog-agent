@@ -13,12 +13,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestStatusOut(t *testing.T) {
 	collector := collectorImpl{
-		config: configmock.New(t),
+		config: config.Mock(t),
 	}
 
 	tests := []struct {
