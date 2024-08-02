@@ -286,11 +286,17 @@ namespace Datadog.CustomActions
                 return;
             }
 
-            // If the account name looks like a gMSA account, but wasn't detected as one
-            if (ddAgentUserName.EndsWith("$") && !isServiceAccount)
+            // If the account name looks like a gMSA account, but wasn't detected as one.
+            // Only look for $ at the end of the account name if it's a domain account, because
+            // normal account names can end with $. In the case of a domain account that ends
+            // in $ that is NOT intended to be a gMSA account, the user must provide a password.
+            if (isDomainController || isDomainAccount)
             {
-                throw new InvalidAgentUserConfigurationException(
-                    $"The provided account '{ddAgentUserName}' ends with '$' but is not recognized as a valid gMSA account. Please ensure the username is correct and this host is a member of PrincipalsAllowedToRetrieveManagedPassword.");
+                if (ddAgentUserName.EndsWith("$") && !isServiceAccount)
+                {
+                    throw new InvalidAgentUserConfigurationException(
+                        $"The provided account '{ddAgentUserName}' ends with '$' but is not recognized as a valid gMSA account. Please ensure the username is correct and this host is a member of PrincipalsAllowedToRetrieveManagedPassword. If the account is a normal account, please provide a password.");
+                }
             }
 
             if (isDomainController)
