@@ -597,7 +597,7 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo
 				{
 					key:     dotnetProfilingLdPreloadKey,
 					valFunc: dotnetProfilingLdPreloadEnvValFunc,
-					isEligibleToInject: func(c corev1.Container) bool {
+					isEligibleToInject: func(_ corev1.Container) bool {
 						// N.B. Always disabled for now until we have a better mechanism to inject
 						//      this safely.
 						return false

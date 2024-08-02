@@ -51,12 +51,12 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID) (eva
 
 	case "os":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return runtime.GOOS },
+			EvalFnc: func(_ *eval.Context) string { return runtime.GOOS },
 			Field:   field,
 		}, nil
 	case "os.id", "os.platform_id", "os.version_id":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return runtime.GOOS },
+			EvalFnc: func(_ *eval.Context) string { return runtime.GOOS },
 			Field:   field,
 		}, nil
 

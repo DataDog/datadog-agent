@@ -74,10 +74,10 @@ func newRunner(lc fx.Lifecycle, deps dependencies) runner.Component {
 	if deps.Config.GetBool("enable_metadata_collection") {
 		// We rely on FX to start and stop the metadata runner
 		lc.Append(fx.Hook{
-			OnStart: func(ctx context.Context) error {
+			OnStart: func(_ context.Context) error {
 				return r.start()
 			},
-			OnStop: func(ctx context.Context) error {
+			OnStop: func(_ context.Context) error {
 				return r.stop()
 			},
 		})

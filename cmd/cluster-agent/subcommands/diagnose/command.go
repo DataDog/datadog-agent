@@ -29,7 +29,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "diagnose",
 		Short: "Execute some connectivity diagnosis on your system",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(run,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
