@@ -131,44 +131,33 @@ func getBasenameKFilters(eventType model.EventType, field string, approvers rule
 	return kfilters, nil
 }
 
-func basenameKFilterGetter(event model.EventType) kfiltersGetter {
+func fimKFiltersGetter(event model.EventType, fields []eval.Field) kfiltersGetter {
 	return func(approvers rules.Approvers) (ActiveKFilters, error) {
-		basenameKFilters, err := getBasenameKFilters(event, "file", approvers)
-		if err != nil {
-			return nil, err
+		var kfilters []activeKFilter
+		for _, field := range fields {
+			kfilter, err := getBasenameKFilters(event, field, approvers)
+			if err != nil {
+				return nil, err
+			}
+			kfilters = append(kfilters, kfilter...)
 		}
-		return newActiveKFilters(basenameKFilters...), nil
-	}
-}
-
-func basenameskfiltersGetter(event model.EventType, field1, field2 string) kfiltersGetter {
-	return func(approvers rules.Approvers) (ActiveKFilters, error) {
-		basenameKFilters, err := getBasenameKFilters(event, field1, approvers)
-		if err != nil {
-			return nil, err
-		}
-		basenameKFilters2, err := getBasenameKFilters(event, field2, approvers)
-		if err != nil {
-			return nil, err
-		}
-		basenameKFilters = append(basenameKFilters, basenameKFilters2...)
-		return newActiveKFilters(basenameKFilters...), nil
+		return newActiveKFilters(kfilters...), nil
 	}
 }
 
 func init() {
-	KFilterGetters["chmod"] = basenameKFilterGetter(model.FileChmodEventType)
-	KFilterGetters["chown"] = basenameKFilterGetter(model.FileChownEventType)
-	KFilterGetters["link"] = basenameskfiltersGetter(model.FileLinkEventType, "file", "file.destination")
-	KFilterGetters["mkdir"] = basenameKFilterGetter(model.FileMkdirEventType)
-	KFilterGetters["open"] = openOnNewApprovers
-	KFilterGetters["rename"] = basenameskfiltersGetter(model.FileRenameEventType, "file", "file.destination")
-	KFilterGetters["rmdir"] = basenameKFilterGetter(model.FileRmdirEventType)
-	KFilterGetters["unlink"] = basenameKFilterGetter(model.FileUnlinkEventType)
-	KFilterGetters["utimes"] = basenameKFilterGetter(model.FileUtimesEventType)
-	KFilterGetters["mmap"] = mmapKFilters
-	KFilterGetters["mprotect"] = mprotectKFilters
-	KFilterGetters["splice"] = spliceKFilters
-	KFilterGetters["chdir"] = basenameKFilterGetter(model.FileChdirEventType)
-	KFilterGetters["bpf"] = bpfKFilters
+	KFilterGetters["chmod"] = fimKFiltersGetter(model.FileChmodEventType, []eval.Field{"file"})
+	KFilterGetters["chown"] = fimKFiltersGetter(model.FileChownEventType, []eval.Field{"file"})
+	KFilterGetters["link"] = fimKFiltersGetter(model.FileLinkEventType, []eval.Field{"file", "file.destination"})
+	KFilterGetters["mkdir"] = fimKFiltersGetter(model.FileMkdirEventType, []eval.Field{"file"})
+	KFilterGetters["open"] = openKFiltersGetter
+	KFilterGetters["rename"] = fimKFiltersGetter(model.FileRenameEventType, []eval.Field{"file", "file.destination"})
+	KFilterGetters["rmdir"] = fimKFiltersGetter(model.FileRmdirEventType, []eval.Field{"file"})
+	KFilterGetters["unlink"] = fimKFiltersGetter(model.FileUnlinkEventType, []eval.Field{"file"})
+	KFilterGetters["utimes"] = fimKFiltersGetter(model.FileUtimesEventType, []eval.Field{"file"})
+	KFilterGetters["mmap"] = mmapKFiltersGetter
+	KFilterGetters["mprotect"] = mprotectKFiltersGetter
+	KFilterGetters["splice"] = spliceKFiltersGetter
+	KFilterGetters["chdir"] = fimKFiltersGetter(model.FileChdirEventType, []eval.Field{"file"})
+	KFilterGetters["bpf"] = bpfKFiltersGetter
 }

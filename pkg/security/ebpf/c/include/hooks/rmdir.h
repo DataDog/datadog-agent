@@ -58,8 +58,11 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
         key = syscall->rmdir.file.path_key;
 
         syscall->rmdir.dentry = dentry;
-        if (filter_syscall(syscall, rmdir_approvers)) {
-            return mark_as_discarded(syscall);
+        syscall->policy = fetch_policy(EVENT_RMDIR);
+
+        if (approve_syscall(syscall, rmdir_approvers) == DISCARDED) {
+            // do not pop, we want to invalidate the inode even if the syscall is discarded
+            return 0;
         }
 
         break;
@@ -77,9 +80,11 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
         key = syscall->unlink.file.path_key;
 
         syscall->unlink.dentry = dentry;
-        syscall->policy = fetch_policy(EVENT_RMDIR);
-        if (filter_syscall(syscall, rmdir_approvers)) {
-            return mark_as_discarded(syscall);
+        syscall->policy = fetch_policy(EVENT_UNLINK);
+
+        if (approve_syscall(syscall, rmdir_approvers) == DISCARDED) {
+            // do not pop, we want to invalidate the inode even if the syscall is discarded
+            return 0;
         }
 
         break;
@@ -90,7 +95,7 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
     if (dentry != NULL) {
         syscall->resolver.key = key;
         syscall->resolver.dentry = dentry;
-        syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? syscall->type : 0;
+        syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
         syscall->resolver.callback = DR_SECURITY_INODE_RMDIR_CALLBACK_KPROBE_KEY;
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
@@ -112,7 +117,8 @@ int tail_call_target_dr_security_inode_rmdir_callback(ctx_t *ctx) {
 
     if (syscall->resolver.ret == DENTRY_DISCARDED) {
         monitor_discarded(EVENT_RMDIR);
-        return mark_as_discarded(syscall);
+        // do not pop, we want to invalidate the inode even if the syscall is discarded
+        syscall->state = DISCARDED;
     }
     return 0;
 }
@@ -127,8 +133,7 @@ int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
         return 0;
     }
 
-    int pass_to_userspace = !syscall->discarded && is_event_enabled(EVENT_RMDIR);
-    if (pass_to_userspace) {
+    if (syscall->state != DISCARDED && is_event_enabled(EVENT_RMDIR)) {
         struct rmdir_event_t event = {
             .syscall.retval = retval,
             .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,

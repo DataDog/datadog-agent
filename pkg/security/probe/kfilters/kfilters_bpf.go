@@ -66,6 +66,23 @@ type entryKey struct {
 	key       interface{}
 }
 
+func makeEntryKey(tableName string, tableKey interface{}) entryKey {
+	mb, ok := tableKey.(encoding.BinaryMarshaler)
+	if !ok {
+		return entryKey{
+			tableName: tableName,
+			key:       tableKey,
+		}
+	}
+
+	data, _ := mb.MarshalBinary()
+
+	return entryKey{
+		tableName: tableName,
+		key:       hex.EncodeToString(data),
+	}
+}
+
 type arrayEntry struct {
 	tableName string
 	index     interface{}
@@ -74,10 +91,7 @@ type arrayEntry struct {
 }
 
 func (e *arrayEntry) Key() interface{} {
-	return entryKey{
-		tableName: e.tableName,
-		key:       e.index,
-	}
+	return makeEntryKey(e.tableName, e.index)
 }
 
 func (e *arrayEntry) GetTableName() string {
@@ -107,20 +121,7 @@ type eventMaskEntry struct {
 }
 
 func (e *eventMaskEntry) Key() interface{} {
-	mb, ok := e.tableKey.(encoding.BinaryMarshaler)
-	if !ok {
-		return entryKey{
-			tableName: e.tableName,
-			key:       e.tableKey,
-		}
-	}
-
-	data, _ := mb.MarshalBinary()
-
-	return entryKey{
-		tableName: e.tableName,
-		key:       hex.EncodeToString(data),
-	}
+	return makeEntryKey(e.tableName, e.tableKey)
 }
 
 func (e *eventMaskEntry) GetTableName() string {
@@ -153,4 +154,34 @@ func (e *eventMaskEntry) Apply(manager *manager.Manager) error {
 		return table.Delete(e.tableKey)
 	}
 	return table.Put(e.tableKey, eventMask)
+}
+
+type hashEntry struct {
+	tableName string
+	tableKey  interface{}
+	value     interface{}
+}
+
+func (e *hashEntry) Key() interface{} {
+	return makeEntryKey(e.tableName, e.tableKey)
+}
+
+func (e *hashEntry) GetTableName() string {
+	return e.tableName
+}
+
+func (e *hashEntry) Remove(manager *manager.Manager) error {
+	table, err := managerhelper.Map(manager, e.tableName)
+	if err != nil {
+		return err
+	}
+	return table.Delete(e.tableKey)
+}
+
+func (e *hashEntry) Apply(manager *manager.Manager) error {
+	table, err := managerhelper.Map(manager, e.tableName)
+	if err != nil {
+		return err
+	}
+	return table.Put(e.tableKey, e.value)
 }

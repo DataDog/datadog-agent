@@ -51,13 +51,13 @@ int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr)
         return 0;
     }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        monitor_discarded(EVENT_MMAP);
+    if (approve_syscall(syscall, mmap_approvers)) {
         return 0;
     }
 
-    if (filter_syscall(syscall, mmap_approvers)) {
-        return mark_as_discarded(syscall);
+    if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        monitor_discarded(EVENT_MMAP);
+        return 0;
     }
 
     if (retval != -1) {
@@ -105,9 +105,9 @@ int hook_security_mmap_file(ctx_t *ctx) {
 
     syscall->resolver.key = syscall->mmap.file.path_key;
     syscall->resolver.dentry = syscall->mmap.dentry;
-    syscall->resolver.discarder_type = syscall->policy.mode != NO_FILTER ? EVENT_MMAP : 0;
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
+    syscall->resolver.discarder_event_type = dentry_resolver_discarder_event_type(syscall);
 
     resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
 
