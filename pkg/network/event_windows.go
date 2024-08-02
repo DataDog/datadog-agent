@@ -57,12 +57,12 @@ func isTCPFlowEstablished(flow *driver.PerFlowData) bool {
 	return false
 }
 
-func convertV4Addr(addr [16]uint8) util.Address {
+func convertV4Addr(addr [16]byte) util.Address {
 	// We only read the first 4 bytes for v4 address
-	return util.Address{Addr: netip.AddrFrom4([4]byte(addr))}
+	return util.Address{Addr: netip.AddrFrom4([4]byte(addr[:]))}
 }
 
-func convertV6Addr(addr [16]uint8) util.Address {
+func convertV6Addr(addr [16]byte) util.Address {
 	// We read all 16 bytes for v6 address
 	return util.Address{Addr: netip.AddrFrom16(addr)}
 }
