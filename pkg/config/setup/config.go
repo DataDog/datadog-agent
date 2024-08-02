@@ -2087,7 +2087,7 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
 		}
 
-		secretResolver.SubscribeToChanges(func(handle, settingOrigin string, settingPath []string, oldValue, newValue any) {
+		secretResolver.SubscribeToChanges(func(handle, settingOrigin string, settingPath []string, _, newValue any) {
 			if origin != settingOrigin {
 				return
 			}

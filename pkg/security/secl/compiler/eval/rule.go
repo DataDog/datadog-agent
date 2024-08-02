@@ -206,7 +206,7 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 
 	// direct value, no bool evaluator, wrap value
 	if evalBool.EvalFnc == nil {
-		evalBool.EvalFnc = func(ctx *Context) bool {
+		evalBool.EvalFnc = func(_ *Context) bool {
 			return evalBool.Value
 		}
 	}
@@ -289,7 +289,7 @@ func (r *Rule) genPartials(field Field) error {
 	}
 
 	if pEvalBool.EvalFnc == nil {
-		pEvalBool.EvalFnc = func(ctx *Context) bool {
+		pEvalBool.EvalFnc = func(_ *Context) bool {
 			return pEvalBool.Value
 		}
 	}

@@ -122,7 +122,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "start",
 		Short: "Start the Cluster Agent",
 		Long:  `Runs Datadog Cluster agent in the foreground`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			// TODO: once the cluster-agent is represented as a component, and
 			// not a function (start), this will use `fxutil.Run` instead of
 			// `fxutil.OneShot`.

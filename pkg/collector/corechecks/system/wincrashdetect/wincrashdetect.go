@@ -114,7 +114,7 @@ func (wcd *WinCrashDetect) Run() error {
 	return nil
 }
 
-func formatTitle(c *probe.WinCrashStatus) string { //nolint:revive // TODO fix revive unused-parameter
+func formatTitle(_ *probe.WinCrashStatus) string {
 	return "A Windows system crash was detected"
 }
 

@@ -101,7 +101,7 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 		Short: "Run a specific check and print the results. Choose from: " + strings.Join(allowlist, ", "),
 
 		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.checkName = args[0]
 
 			if !slices.Contains(allowlist, cliParams.checkName) {

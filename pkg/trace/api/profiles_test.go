@@ -151,7 +151,7 @@ func TestProfilingEndpoints(t *testing.T) {
 func TestProfileProxyHandler(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		var called bool
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
 			v := req.Header.Get("X-Datadog-Additional-Tags")
 			tags := strings.Split(v, ",")
 			m := make(map[string]string)
@@ -185,7 +185,7 @@ func TestProfileProxyHandler(t *testing.T) {
 	})
 
 	t.Run("proxy_code", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusAccepted)
 		}))
 		conf := newTestReceiverConfig()
@@ -201,7 +201,7 @@ func TestProfileProxyHandler(t *testing.T) {
 
 	t.Run("ok_fargate", func(t *testing.T) {
 		var called bool
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
 			v := req.Header.Get("X-Datadog-Additional-Tags")
 			if !strings.Contains(v, "orchestrator:fargate_orchestrator") {
 				t.Fatalf("invalid X-Datadog-Additional-Tags header, fargate env should contain '%s' tag: %q", "orchestrator", v)
@@ -249,7 +249,7 @@ func TestProfileProxyHandler(t *testing.T) {
 
 	t.Run("multiple_targets", func(t *testing.T) {
 		called := make(map[string]bool)
-		handler := func(w http.ResponseWriter, req *http.Request) {
+		handler := func(_ http.ResponseWriter, req *http.Request) {
 			called[fmt.Sprintf("http://%s|%s", req.Host, req.Header.Get("DD-API-KEY"))] = true
 		}
 		srv1 := httptest.NewServer(http.HandlerFunc(handler))
@@ -283,7 +283,7 @@ func TestProfileProxyHandler(t *testing.T) {
 
 	t.Run("lambda_function", func(t *testing.T) {
 		var called bool
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
 			v := req.Header.Get("X-Datadog-Additional-Tags")
 			if !strings.Contains(v, "functionname:my-function-name") || !strings.Contains(v, "_dd.origin:lambda") {
 				t.Fatalf("invalid X-Datadog-Additional-Tags header, fargate env should contain '%s' tag: %q", "orchestrator", v)

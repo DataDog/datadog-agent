@@ -40,7 +40,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		GlobalParams: globalParams,
 	}
 	oneShotRunE := func(callback interface{}) func(cmd *cobra.Command, args []string) error {
-		return func(cmd *cobra.Command, args []string) error {
+		return func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 			cliParams.GlobalParams = globalParams
 

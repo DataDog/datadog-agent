@@ -542,7 +542,7 @@ func TestAggregationVersionData(t *testing.T) {
 		msw := &mockStatsWriter{}
 		a.writer = msw
 		cfg := config.New()
-		cfg.ContainerTags = func(cid string) ([]string, error) {
+		cfg.ContainerTags = func(_ string) ([]string, error) {
 			return []string{"git.commit.sha:sha-from-container-tags", "image_tag:image-tag-from-container-tags"}, nil
 		}
 		a.conf = cfg
@@ -608,7 +608,7 @@ func TestAggregationVersionData(t *testing.T) {
 		msw := &mockStatsWriter{}
 		a.writer = msw
 		cfg := config.New()
-		cfg.ContainerTags = func(cid string) ([]string, error) {
+		cfg.ContainerTags = func(_ string) ([]string, error) {
 			return []string{"git.commit.sha:overrideThisSha", "image_tag:overrideThisImageTag"}, nil
 		}
 		a.conf = cfg

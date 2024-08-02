@@ -18,7 +18,7 @@ import (
 func TestReplacer(t *testing.T) {
 	assert := assert.New(t)
 
-	t.Run("traces", func(t *testing.T) {
+	t.Run("traces", func(_ *testing.T) {
 		for _, tt := range []struct {
 			rules     [][3]string
 			got, want map[string]string
@@ -83,7 +83,7 @@ func TestReplacer(t *testing.T) {
 		}
 	})
 
-	t.Run("stats", func(t *testing.T) {
+	t.Run("stats", func(_ *testing.T) {
 		for _, tt := range []struct {
 			rules     [][3]string
 			got, want *pb.ClientGroupedStats
