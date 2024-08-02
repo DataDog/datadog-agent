@@ -60,7 +60,7 @@ func TestConfigRetriverAutoscalingValuesFollower(t *testing.T) {
 		map[string]state.RawConfig{
 			"foo1": buildAutoscalingValuesRawConfig(t, 1, value1),
 		},
-		func(configKey string, applyState state.ApplyStatus) {
+		func(_ string, applyState state.ApplyStatus) {
 			stateCallbackCalled++
 			assert.Equal(t, applyState, state.ApplyStatus{
 				State: state.ApplyStateUnacknowledged,
@@ -194,7 +194,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 			"foo1": buildAutoscalingValuesRawConfig(t, 1, value1),
 			"foo2": buildAutoscalingValuesRawConfig(t, 2, value2, value3),
 		},
-		func(configKey string, applyState state.ApplyStatus) {
+		func(_ string, applyState state.ApplyStatus) {
 			stateCallbackCalled++
 			assert.Equal(t, applyState, state.ApplyStatus{
 				State: state.ApplyStateAcknowledged,
@@ -287,7 +287,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 			"foo1": buildAutoscalingValuesRawConfig(t, 10, value1),
 			"foo2": buildAutoscalingValuesRawConfig(t, 20, value2, value3),
 		},
-		func(configKey string, applyState state.ApplyStatus) {
+		func(_ string, applyState state.ApplyStatus) {
 			stateCallbackCalled++
 			assert.Equal(t, applyState, state.ApplyStatus{
 				State: state.ApplyStateAcknowledged,
@@ -349,7 +349,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 		map[string]state.RawConfig{
 			"foo1": buildRawConfig(t, data.ProductContainerAutoscalingValues, 11, []byte(`{"foo"}`)),
 		},
-		func(configKey string, applyState state.ApplyStatus) {
+		func(_ string, applyState state.ApplyStatus) {
 			stateCallbackCalled++
 			assert.Equal(t, applyState, state.ApplyStatus{
 				State: state.ApplyStateError,
@@ -411,7 +411,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 		map[string]state.RawConfig{
 			"foo2": buildAutoscalingValuesRawConfig(t, 21, value2),
 		},
-		func(configKey string, applyState state.ApplyStatus) {
+		func(_ string, applyState state.ApplyStatus) {
 			stateCallbackCalled++
 			assert.Equal(t, applyState, state.ApplyStatus{
 				State: state.ApplyStateAcknowledged,

@@ -22,7 +22,7 @@ type provides struct {
 	Comp resources.Component
 }
 
-func newResourcesProvider(log log.Component, config config.Component) provides { //nolint:revive // TODO fix revive unused-parameter
+func newResourcesProvider(_ log.Component, _ config.Component) provides {
 	return provides{
 		// We return a dummy Component
 		Comp: &resourcesImpl{},

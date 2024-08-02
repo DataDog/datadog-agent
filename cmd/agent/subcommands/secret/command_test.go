@@ -21,7 +21,7 @@ func TestCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"secret"},
 		showSecretInfo,
-		func(coreParams core.BundleParams, secretParams secrets.Params) {
+		func(_ core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, false, secretParams.Enabled)
 		})
 }
@@ -31,7 +31,7 @@ func TestRefreshCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"secret", "refresh"},
 		secretRefresh,
-		func(coreParams core.BundleParams, secretParams secrets.Params) {
+		func(_ core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, false, secretParams.Enabled)
 		})
 }

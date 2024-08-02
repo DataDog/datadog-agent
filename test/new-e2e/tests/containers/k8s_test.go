@@ -300,7 +300,10 @@ func (suite *k8sSuite) testAgentCLI() {
 			if !assert.NoError(c, err) {
 				return
 			}
-			assert.Contains(c, stdout, "container.memory.usage        gauge")
+			matched, err := regexp.MatchString(`container\.memory\.usage\s+gauge\s+\d+\s+\d+`, stdout)
+			if assert.NoError(c, err) {
+				assert.Truef(c, matched, "Output of `agent check -r container` doesn’t contain the expected metric")
+			}
 		}, 2*time.Minute, 1*time.Second)
 	})
 

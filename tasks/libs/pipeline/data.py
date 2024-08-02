@@ -123,6 +123,10 @@ infra_failure_logs = [
 
 
 def get_infra_failure_info(job_log: str):
+    # No Gitlab trace means infra failure from Gitlab
+    if not job_log:
+        return FailedJobReason.GITLAB
+
     for regex, type in infra_failure_logs:
         if regex.search(job_log):
             return type

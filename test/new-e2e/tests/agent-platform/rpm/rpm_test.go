@@ -138,7 +138,7 @@ func (is *rpmTestSuite) TestRpm() {
 	_, err = fileManager.WriteFile("/etc/yum.repos.d/datadog.repo", []byte(fileContent))
 	require.NoError(is.T(), err)
 
-	is.T().Run("install the RPM package", func(t *testing.T) {
+	is.T().Run("install the RPM package", func(*testing.T) {
 		VMclient.Host.MustExecute("sudo yum makecache -y")
 		_, err := VMclient.Host.Execute("sudo yum install -y datadog-agent")
 
