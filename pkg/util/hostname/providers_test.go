@@ -87,7 +87,7 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 
 	if tc.FQDN || tc.FQDNEC2 {
 		// making isOSHostnameUsable return true
-		osHostnameUsable = func(ctx context.Context) bool { return true }
+		osHostnameUsable = func(context.Context) bool { return true }
 		config.Datadog().SetWithoutSource("hostname_fqdn", true)
 		if !tc.FQDNEC2 {
 			fqdnHostname = func() (string, error) { return "hostname-from-fqdn", nil }
@@ -100,7 +100,7 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 
 	if tc.OS || tc.OSEC2 {
 		// making isOSHostnameUsable return true
-		osHostnameUsable = func(ctx context.Context) bool { return true }
+		osHostnameUsable = func(context.Context) bool { return true }
 		if !tc.OSEC2 {
 			osHostname = func() (string, error) { return "hostname-from-os", nil }
 		} else {

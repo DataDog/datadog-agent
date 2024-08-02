@@ -77,7 +77,7 @@ func runAgentSidekicks(ag component) error {
 
 	api.AttachEndpoint(api.Endpoint{
 		Pattern: "/config/set",
-		Handler: func(r *api.HTTPReceiver) http.Handler {
+		Handler: func(_ *api.HTTPReceiver) http.Handler {
 			return ag.config.SetHandler()
 		},
 	})

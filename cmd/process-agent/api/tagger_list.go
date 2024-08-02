@@ -14,7 +14,7 @@ import (
 )
 
 //nolint:revive // TODO(PROC) Fix revive linter
-func getTaggerList(deps APIServerDeps, w http.ResponseWriter, r *http.Request) {
+func getTaggerList(deps APIServerDeps, w http.ResponseWriter, _ *http.Request) {
 	response := tagger.List()
 
 	jsonTags, err := json.Marshal(response)

@@ -59,8 +59,8 @@ func getLogDateFormat(cfg pkgconfigmodel.Reader) string {
 	return logDateFormat
 }
 
-func createQuoteMsgFormatter(params string) seelog.FormatterFunc { //nolint:revive // TODO fix revive unused-parameter
-	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+func createQuoteMsgFormatter(_ string) seelog.FormatterFunc {
+	return func(message string, _ seelog.LogLevel, _ seelog.LogContextInterface) interface{} {
 		return strconv.Quote(message)
 	}
 }
@@ -345,13 +345,13 @@ func createSyslogHeaderFormatter(params string) seelog.FormatterFunc {
 	appName := filepath.Base(os.Args[0])
 
 	if rfc { // RFC 5424
-		return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+		return func(_ string, level seelog.LogLevel, _ seelog.LogContextInterface) interface{} {
 			return fmt.Sprintf("<%d>1 %s %d - -", facility*8+levelToSyslogSeverity[level], appName, pid)
 		}
 	}
 
 	// otherwise old-school logging
-	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+	return func(_ string, level seelog.LogLevel, _ seelog.LogContextInterface) interface{} {
 		return fmt.Sprintf("<%d>%s[%d]:", facility*8+levelToSyslogSeverity[level], appName, pid)
 	}
 }
@@ -408,7 +408,7 @@ func getSyslogConnection(uri *url.URL, secure bool) (net.Conn, error) {
 }
 
 // ReceiveMessage process current log message
-func (s *SyslogReceiver) ReceiveMessage(message string, level seelog.LogLevel, context seelog.LogContextInterface) error { //nolint:revive // TODO fix revive unused-parameter
+func (s *SyslogReceiver) ReceiveMessage(message string, _ seelog.LogLevel, _ seelog.LogContextInterface) error {
 	if !s.enabled {
 		return nil
 	}
@@ -485,8 +485,8 @@ func (s *SyslogReceiver) Close() error {
 	return nil
 }
 
-func parseShortFilePath(params string) seelog.FormatterFunc { //nolint:revive // TODO fix revive unused-parameter
-	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+func parseShortFilePath(_ string) seelog.FormatterFunc {
+	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		return extractShortPathFromFullPath(context.FullPath())
 	}
 }
@@ -513,8 +513,8 @@ func extractShortPathFromFullPath(fullPath string) string {
 	return shortPath
 }
 
-func createExtraJSONContext(params string) seelog.FormatterFunc { //nolint:revive // TODO fix revive unused-parameter
-	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+func createExtraJSONContext(_ string) seelog.FormatterFunc {
+	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		contextList, ok := context.CustomContext().([]interface{})
 		if len(contextList) == 0 || !ok {
 			return ""
@@ -523,8 +523,8 @@ func createExtraJSONContext(params string) seelog.FormatterFunc { //nolint:reviv
 	}
 }
 
-func createExtraTextContext(params string) seelog.FormatterFunc { //nolint:revive // TODO fix revive unused-parameter
-	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+func createExtraTextContext(_ string) seelog.FormatterFunc {
+	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		contextList, ok := context.CustomContext().([]interface{})
 		if len(contextList) == 0 || !ok {
 			return ""

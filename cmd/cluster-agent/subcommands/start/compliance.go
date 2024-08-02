@@ -119,7 +119,7 @@ func startCompliance(senderManager sender.SenderManager, wmeta workloadmeta.Comp
 }
 
 func wrapKubernetesClient(apiCl *apiserver.APIClient, isLeader func() bool) compliance.KubernetesProvider {
-	return func(ctx context.Context) (dynamic.Interface, discovery.DiscoveryInterface, error) {
+	return func(_ context.Context) (dynamic.Interface, discovery.DiscoveryInterface, error) {
 		if isLeader() {
 			return apiCl.DynamicCl, apiCl.Cl.Discovery(), nil
 		}

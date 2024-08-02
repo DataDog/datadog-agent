@@ -97,7 +97,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					},
 				},
 			},
-			want: func(t assert.TestingT, fields fields, got []*Policy, msgs ...interface{}) bool {
+			want: func(t assert.TestingT, _ fields, got []*Policy, _ ...interface{}) bool {
 				expectedLoadedPolicies := []*Policy{
 					{
 						Name:   DefaultPolicyName,
@@ -152,7 +152,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 
 				return assert.Equalf(t, expectedLoadedPolicies, got, "The loaded policies do not match the expected")
 			},
-			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool {
+			wantErr: func(t assert.TestingT, err *multierror.Error, _ ...interface{}) bool {
 				return assert.Nil(t, err, "Expected no errors but got %+v", err)
 			},
 		},
@@ -198,7 +198,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					},
 				},
 			},
-			want: func(t assert.TestingT, fields fields, got []*Policy, msgs ...interface{}) bool {
+			want: func(t assert.TestingT, _ fields, got []*Policy, _ ...interface{}) bool {
 				expectedLoadedPolicies := []*Policy{
 					{
 						Name:   "myRC.policy",
@@ -235,7 +235,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 				assert.Equalf(t, 0, defaultPolicyCount, "The count of default policies do not match")
 				return assert.Equalf(t, expectedLoadedPolicies, got, "The loaded policies do not match the expected")
 			},
-			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool {
+			wantErr: func(t assert.TestingT, err *multierror.Error, _ ...interface{}) bool {
 				return assert.Nil(t, err, "Expected no errors but got %+v", err)
 			},
 		},
@@ -273,7 +273,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					},
 				},
 			},
-			want: func(t assert.TestingT, fields fields, got []*Policy, msgs ...interface{}) bool {
+			want: func(t assert.TestingT, _ fields, got []*Policy, _ ...interface{}) bool {
 				expectedLoadedPolicies := []*Policy{
 					{
 						Name:    "myLocal.policy",
@@ -298,7 +298,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 				assert.Equalf(t, 0, defaultPolicyCount, "The count of default policies do not match")
 				return assert.Equalf(t, expectedLoadedPolicies, got, "The loaded policies do not match the expected")
 			},
-			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool {
+			wantErr: func(t assert.TestingT, err *multierror.Error, _ ...interface{}) bool {
 				return assert.Equal(t, err, &multierror.Error{Errors: []error{
 					&ErrPolicyLoad{Name: "myRC.policy", Err: fmt.Errorf(`yaml: unmarshal error`)},
 				}}, "Expected no errors but got %+v", err)
@@ -338,7 +338,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					},
 				},
 			},
-			want: func(t assert.TestingT, fields fields, got []*Policy, msgs ...interface{}) bool {
+			want: func(t assert.TestingT, _ fields, got []*Policy, _ ...interface{}) bool {
 				expectedLoadedPolicies := []*Policy{
 					{
 						Name:    "myLocal.policy",
@@ -360,7 +360,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 
 				return assert.Equalf(t, expectedLoadedPolicies, got, "The loaded policies do not match the expected")
 			},
-			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool {
+			wantErr: func(t assert.TestingT, err *multierror.Error, _ ...interface{}) bool {
 				return assert.Equal(t, err, &multierror.Error{
 					Errors: []error{
 						&ErrPolicyLoad{Name: "myRC.policy", Err: fmt.Errorf(`EOF`)},
@@ -402,7 +402,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 					},
 				},
 			},
-			want: func(t assert.TestingT, fields fields, got []*Policy, msgs ...interface{}) bool {
+			want: func(t assert.TestingT, _ fields, got []*Policy, _ ...interface{}) bool {
 				expectedLoadedPolicies := []*Policy{
 					{
 						Name:   "myRC.policy",
@@ -429,7 +429,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 
 				return assert.Equalf(t, expectedLoadedPolicies, got, "The loaded policies do not match the expected")
 			},
-			wantErr: func(t assert.TestingT, err *multierror.Error, msgs ...interface{}) bool {
+			wantErr: func(t assert.TestingT, err *multierror.Error, _ ...interface{}) bool {
 				return assert.Nil(t, err, "Expected no errors but got %+v", err)
 			},
 		},

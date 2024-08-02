@@ -13,8 +13,10 @@ import (
 	"testing"
 	"time"
 
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/stretchr/testify/assert"
+
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 )
@@ -29,11 +31,11 @@ func TestValidArgumentAndReturnValue(t *testing.T) {
 	assertNoCtorError(t, opt)
 
 	// constructor of 1 composite argument and 1 composite struct return value is okay
-	opt = ProvideComponentConstructor(func(reqs requires1) provides1 { return provides1{} })
+	opt = ProvideComponentConstructor(func(requires1) provides1 { return provides1{} })
 	assertNoCtorError(t, opt)
 
 	// constructor of 1 composite argument and 2 return values (2nd is error) is okay
-	opt = ProvideComponentConstructor(func(reqs requires1) (provides1, error) { return provides1{}, nil })
+	opt = ProvideComponentConstructor(func(requires1) (provides1, error) { return provides1{}, nil })
 	assertNoCtorError(t, opt)
 }
 
@@ -44,13 +46,13 @@ func TestInvalidArgumentOrReturnValue(t *testing.T) {
 	errOpt = ProvideComponentConstructor(func() {})
 	assertIsSingleError(t, errOpt, "argument must be a function with 0 or 1 arguments, and 1 or 2 return values")
 
-	errOpt = ProvideComponentConstructor(func(comp FirstComp) SecondComp { return &secondImpl{} })
+	errOpt = ProvideComponentConstructor(func(FirstComp) SecondComp { return &secondImpl{} })
 	assertIsSingleError(t, errOpt, `constructor must either take 0 arguments, or 1 "requires" struct`)
 
 	errOpt = ProvideComponentConstructor(func() (FirstComp, SecondComp) { return &firstImpl{}, &secondImpl{} })
 	assertIsSingleError(t, errOpt, "second return value must be error, got fxutil.SecondComp")
 
-	errOpt = ProvideComponentConstructor(func(reqs requires1, reqs2 requires2) FirstComp { return &firstImpl{} })
+	errOpt = ProvideComponentConstructor(func(requires1, requires2) FirstComp { return &firstImpl{} })
 	assertIsSingleError(t, errOpt, "argument must be a function with 0 or 1 arguments, and 1 or 2 return values")
 }
 
@@ -69,7 +71,7 @@ func TestGetConstructorTypes(t *testing.T) {
 	require.Equal(t, expect, ctorTypes.outFx.String())
 
 	// constructor needs a `requires` struct and returns 1 component interface
-	ctorTypes, err = getConstructorTypes(reflect.TypeOf(func(reqs FirstComp) SecondComp { return &secondImpl{} }))
+	ctorTypes, err = getConstructorTypes(reflect.TypeOf(func(_ FirstComp) SecondComp { return &secondImpl{} }))
 	require.NoError(t, err)
 
 	expect = `struct { FirstComp fxutil.FirstComp }`
@@ -95,7 +97,7 @@ func TestGetConstructorTypes(t *testing.T) {
 	require.Equal(t, expect, ctorTypes.outFx.String())
 
 	// constructor needs a `requiresLc` struct and returns 1 component interface
-	ctorTypes, err = getConstructorTypes(reflect.TypeOf(func(reqs requiresLc) SecondComp { return &secondImpl{} }))
+	ctorTypes, err = getConstructorTypes(reflect.TypeOf(func(_ requiresLc) SecondComp { return &secondImpl{} }))
 	require.NoError(t, err)
 
 	expect = `fxutil.requiresLc`
@@ -111,7 +113,7 @@ func TestGetConstructorTypes(t *testing.T) {
 func TestConstructCompdefIn(t *testing.T) {
 	// the required type `requires3` contains an embedded compdef.In, which doesn't have any
 	// effect and works just as well as if it weren't there
-	ctorTypes, err := getConstructorTypes(reflect.TypeOf(func(reqs requires3) provides1 {
+	ctorTypes, err := getConstructorTypes(reflect.TypeOf(func(_ requires3) provides1 {
 		return provides1{
 			First: &firstImpl{},
 		}
@@ -154,7 +156,7 @@ func TestConstructorErrors(t *testing.T) {
 		{
 			// it is an error to have provides5 (with compdef.Out) as an input parameter
 			name: "input has embed Out",
-			ctor: reflect.TypeOf(func(p provides5) FirstComp {
+			ctor: reflect.TypeOf(func(_ provides5) FirstComp {
 				return &firstImpl{}
 			}),
 			errMsg: "invalid embedded field: compdef.Out",
@@ -162,7 +164,7 @@ func TestConstructorErrors(t *testing.T) {
 		{
 			// it is an error to have requires1 (with compdef.In) as a return value
 			name: "output has embed In",
-			ctor: reflect.TypeOf(func(reqs requires1) requires3 {
+			ctor: reflect.TypeOf(func(requires1) requires3 {
 				return requires3{Second: &secondImpl{}}
 			}),
 			errMsg: "invalid embedded field: compdef.In",
@@ -170,20 +172,20 @@ func TestConstructorErrors(t *testing.T) {
 		{
 			// it is an error to have requiresLc (with compdef.Lifecycle) as a return value
 			name: "output has Lifecycle",
-			ctor: reflect.TypeOf(func(reqs requires1) requiresLc {
+			ctor: reflect.TypeOf(func(requires1) requiresLc {
 				return requiresLc{}
 			}),
 			errMsg: "invalid embedded field: compdef.Lifecycle",
 		},
 		{
 			name: "output is fx-aware",
-			ctor: reflect.TypeOf(func(reqs requires1) fxAwareProvides {
+			ctor: reflect.TypeOf(func(requires1) fxAwareProvides {
 				return fxAwareProvides{B: &bananaImpl{}}
 			}),
 		},
 		{
 			name: "input is fx-aware",
-			ctor: reflect.TypeOf(func(reqs fxAwareReqs) provides1 {
+			ctor: reflect.TypeOf(func(_ fxAwareReqs) provides1 {
 				return provides1{First: &firstImpl{}}
 			}),
 		},
@@ -385,7 +387,7 @@ func TestFxCanUseTwice(t *testing.T) {
 
 func TestFxCompdefIn(t *testing.T) {
 	// plain component constructor, uses compdef.In embed field
-	NewAgentComponent := func(reqs requires3) Banana {
+	NewAgentComponent := func(_ requires3) Banana {
 		return &bananaImpl{}
 	}
 	// define an entry point that uses the component
@@ -411,7 +413,7 @@ func TestFxLifecycle(t *testing.T) {
 		})
 		return providesService{First: &firstImpl{}}
 	}
-	start := func(one FirstComp) {
+	start := func(_ FirstComp) {
 		counter += 2
 	}
 	module := Component(ProvideComponentConstructor(NewAgentComponent))
@@ -444,7 +446,7 @@ func TestFxReturnAnError(t *testing.T) {
 		}, fmt.Errorf("fail construction")
 	}
 	// define an entry point that uses the component
-	start := func(second SecondComp) {
+	start := func(_ SecondComp) {
 		require.Fail(t, "should not reach this point because constructor failed")
 	}
 	// ProvideComponentConstructor adds fx to plain constructor
@@ -462,7 +464,7 @@ func TestFxShutdowner(t *testing.T) {
 	}
 
 	// define an entry point that waits momentarily then shuts down the application
-	entrypoint := func(first FirstComp) {
+	entrypoint := func(FirstComp) {
 		time.AfterFunc(100*time.Millisecond, func() {
 			shutdown.Shutdown()
 		})

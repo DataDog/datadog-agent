@@ -326,7 +326,7 @@ func TestCopyConfig(t *testing.T) {
 	config.Set("foo", "bar", SourceFile)
 	config.BindEnv("xyz", "XXYYZZ")
 	config.SetKnown("tyu")
-	config.OnUpdate(func(key string, _, _ any) {})
+	config.OnUpdate(func(_ string, _, _ any) {})
 
 	backup := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 	backup.CopyConfig(config)
