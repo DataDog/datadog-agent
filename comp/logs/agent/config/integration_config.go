@@ -22,7 +22,6 @@ const (
 	DockerType        = "docker"
 	ContainerdType    = "containerd"
 	JournaldType      = "journald"
-	IntegrationType   = "integration"
 	WindowsEventType  = "windows_event"
 	StringChannelType = "string_channel"
 

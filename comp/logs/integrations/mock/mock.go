@@ -11,27 +11,19 @@ import (
 )
 
 type mockIntegrations struct {
-	logChan chan integrations.IntegrationLog
 }
 
 // Subscribe returns an integrationLog channel
 func (l *mockIntegrations) Subscribe() chan integrations.IntegrationLog {
-	return l.logChan
+	return make(chan integrations.IntegrationLog)
 }
 
-// SendLog sends a log to the log channel
-func (l *mockIntegrations) SendLog(log, integrationID string) {
-	integrationLog := integrations.IntegrationLog{
-		Log:           log,
-		IntegrationID: integrationID,
-	}
+// SendLog does nothing
+func (l *mockIntegrations) SendLog(_, _ string) {
 
-	l.logChan <- integrationLog
 }
 
 // Mock returns a mock for integrations component.
 func Mock() integrations.Component {
-	return &mockIntegrations{
-		logChan: make(chan integrations.IntegrationLog),
-	}
+	return &mockIntegrations{}
 }
