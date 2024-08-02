@@ -31,13 +31,6 @@ type packageTestsWithSkipedFlavors struct {
 	skippedFlavors []e2eos.Descriptor
 }
 
-type testPackageConfig struct {
-	name           string
-	defaultVersion string
-	registry       string
-	auth           string
-}
-
 var (
 	amd64Flavors = []e2eos.Descriptor{
 		e2eos.Ubuntu2204,
@@ -60,17 +53,6 @@ var (
 		{t: testUpgradeScenario},
 	}
 )
-
-var packagesConfig = []testPackageConfig{
-	{name: "datadog-installer", defaultVersion: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", auth: "ecr"},
-	{name: "datadog-agent", defaultVersion: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", auth: "ecr"},
-	{name: "datadog-apm-inject", defaultVersion: "latest"},
-	{name: "datadog-apm-library-java", defaultVersion: "latest"},
-	{name: "datadog-apm-library-ruby", defaultVersion: "latest"},
-	{name: "datadog-apm-library-js", defaultVersion: "latest"},
-	{name: "datadog-apm-library-dotnet", defaultVersion: "latest"},
-	{name: "datadog-apm-library-python", defaultVersion: "latest"},
-}
 
 func shouldSkip(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
 	for _, f := range flavors {
@@ -179,7 +161,7 @@ func (s *packageBaseSuite) RunInstallScriptProdOci(params ...string) error {
 }
 
 func (s *packageBaseSuite) RunInstallScriptWithError(params ...string) error {
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://install.datadoghq.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(installScriptEnv(s.arch)))
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://install.datadoghq.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(InstallScriptEnv(s.arch)))
 	return err
 }
 
@@ -234,44 +216,4 @@ func (s *packageBaseSuite) setupFakeIntake() {
 	s.Env().RemoteHost.MustExecute(`printf "[Service]\nEnvironmentFile=-/etc/environment\n" | sudo tee /etc/systemd/system/datadog-agent-trace.service.d/fake-intake.conf`)
 	s.Env().RemoteHost.MustExecute(`printf "[Service]\nEnvironmentFile=-/etc/environment\n" | sudo tee /etc/systemd/system/datadog-agent-trace.service.d/fake-intake.conf`)
 	s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reload")
-}
-
-func installScriptPackageManagerEnv(env map[string]string, arch e2eos.Architecture) {
-	apiKey := os.Getenv("DD_API_KEY")
-	if apiKey == "" {
-		apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
-	}
-	env["DD_API_KEY"] = apiKey
-	env["DD_SITE"] = "datadoghq.com"
-	// Install Script env variables
-	env["DD_INSTALLER"] = "true"
-	env["TESTING_KEYS_URL"] = "keys.datadoghq.com"
-	env["TESTING_APT_URL"] = "apttesting.datad0g.com"
-	env["TESTING_APT_REPO_VERSION"] = fmt.Sprintf("pipeline-%s-a7-%s 7", os.Getenv("E2E_PIPELINE_ID"), arch)
-	env["TESTING_YUM_URL"] = "yumtesting.datad0g.com"
-	env["TESTING_YUM_VERSION_PATH"] = fmt.Sprintf("testing/pipeline-%s-a7/7", os.Getenv("E2E_PIPELINE_ID"))
-
-}
-
-func installScriptInstallerEnv(env map[string]string) {
-	for _, pkg := range packagesConfig {
-		name := strings.ToUpper(strings.ReplaceAll(pkg.name, "-", "_"))
-		image := strings.TrimPrefix(name, "DATADOG_") + "_PACKAGE"
-		if pkg.registry != "" {
-			env[fmt.Sprintf("DD_INSTALLER_REGISTRY_URL_%s", image)] = pkg.registry
-		}
-		if pkg.auth != "" {
-			env[fmt.Sprintf("DD_INSTALLER_REGISTRY_AUTH_%s", image)] = pkg.auth
-		}
-		if pkg.defaultVersion != "" && pkg.defaultVersion != "latest" {
-			env[fmt.Sprintf("DD_INSTALLER_DEFAULT_PKG_VERSION_%s", name)] = pkg.defaultVersion
-		}
-	}
-}
-
-func installScriptEnv(arch e2eos.Architecture) map[string]string {
-	env := map[string]string{}
-	installScriptPackageManagerEnv(env, arch)
-	installScriptInstallerEnv(env)
-	return env
 }
