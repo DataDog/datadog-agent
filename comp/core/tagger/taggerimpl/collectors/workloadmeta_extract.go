@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
@@ -114,8 +113,6 @@ var (
 	highCardOrchestratorLabels = map[string]string{
 		"io.rancher.container.name": tags.RancherContainer,
 	}
-
-	handledKubernetesMetadataResources = []string{"namespaces", "nodes"}
 )
 
 func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle) {
@@ -156,7 +153,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 			case workloadmeta.KindProcess:
 				// tagInfos = append(tagInfos, c.handleProcess(ev)...) No tags for now
 			case workloadmeta.KindKubernetesDeployment:
-				// tagInfos = append(tagInfos, c.handleDeployment(ev)...) No tags for now
+				tagInfos = append(tagInfos, c.handleKubeDeployment(ev)...)
 			default:
 				log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 			}
@@ -357,6 +354,23 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 		k8smetadata.AddMetadataAsTags(name, value, c.nsAnnotationsAsTags, c.globNsAnnotations, tagList)
 	}
 
+	// pod annotations and labels as tags
+	labelsAsTags := c.k8sResourcesLabelsAsTags["pods"]
+	annotationsAsTags := c.k8sResourcesAnnotationsAsTags["pods"]
+
+	if len(labelsAsTags)+len(annotationsAsTags) > 0 {
+		globLabels := c.globK8sResourceLabels["pods"]
+		globAnnotations := c.globK8sResourceAnnotations["pods"]
+
+		for name, value := range pod.Labels {
+			k8smetadata.AddMetadataAsTags(name, value, labelsAsTags, globLabels, tagList)
+		}
+
+		for name, value := range pod.Annotations {
+			k8smetadata.AddMetadataAsTags(name, value, annotationsAsTags, globAnnotations, tagList)
+		}
+	}
+
 	kubeServiceDisabled := false
 	for _, disabledTag := range config.Datadog().GetStringSlice("kubernetes_ad_tags_disabled") {
 		if disabledTag == "kube_service" {
@@ -512,21 +526,75 @@ func (c *WorkloadMetaCollector) handleGardenContainer(container *workloadmeta.Co
 	}
 }
 
-func (c *WorkloadMetaCollector) handleKubeMetadata(ev workloadmeta.Event) []*types.TagInfo {
-	kubeMetadata := ev.Entity.(*workloadmeta.KubernetesMetadata)
+func (c *WorkloadMetaCollector) handleKubeDeployment(ev workloadmeta.Event) []*types.TagInfo {
+	deployment := ev.Entity.(*workloadmeta.KubernetesDeployment)
 
-	resource := kubeMetadata.GVR.Resource
+	groupResource := "deployments.apps"
 
-	if !slices.Contains(handledKubernetesMetadataResources, resource) {
+	labelsAsTags := c.k8sResourcesLabelsAsTags[groupResource]
+	annotationsAsTags := c.k8sResourcesAnnotationsAsTags[groupResource]
+
+	if len(labelsAsTags)+len(annotationsAsTags) == 0 {
 		return nil
 	}
 
+	globLabels := c.globK8sResourceLabels[groupResource]
+	globAnnotations := c.globK8sResourceAnnotations[groupResource]
+
 	tagList := taglist.NewTagList()
 
-	switch resource {
-	case "nodes":
-		// No tags for nodes
-	case "namespaces":
+	for name, value := range deployment.Labels {
+		k8smetadata.AddMetadataAsTags(name, value, labelsAsTags, globLabels, tagList)
+	}
+
+	for name, value := range deployment.Annotations {
+		k8smetadata.AddMetadataAsTags(name, value, annotationsAsTags, globAnnotations, tagList)
+	}
+
+	low, orch, high, standard := tagList.Compute()
+
+	if len(low)+len(orch)+len(high)+len(standard) == 0 {
+		return nil
+	}
+
+	tagInfos := []*types.TagInfo{
+		{
+			Source:               deploymentSource,
+			Entity:               buildTaggerEntityID(deployment.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
+	}
+
+	return tagInfos
+}
+
+func (c *WorkloadMetaCollector) handleKubeMetadata(ev workloadmeta.Event) []*types.TagInfo {
+	kubeMetadata := ev.Entity.(*workloadmeta.KubernetesMetadata)
+
+	tagList := taglist.NewTagList()
+
+	// Generic resource annotations and labels as tags
+	groupResource := kubeMetadata.GVR.GroupResource().String()
+
+	labelsAsTags := c.k8sResourcesLabelsAsTags[groupResource]
+	annotationsAsTags := c.k8sResourcesAnnotationsAsTags[groupResource]
+
+	globLabels := c.globK8sResourceLabels[groupResource]
+	globAnnotations := c.globK8sResourceAnnotations[groupResource]
+
+	for name, value := range kubeMetadata.Labels {
+		k8smetadata.AddMetadataAsTags(name, value, labelsAsTags, globLabels, tagList)
+	}
+
+	for name, value := range kubeMetadata.Annotations {
+		k8smetadata.AddMetadataAsTags(name, value, annotationsAsTags, globAnnotations, tagList)
+	}
+
+	// Namespace annotations and labels as tags
+	if kubeMetadata.GVR.Resource == "namespaces" {
 		for name, value := range kubeMetadata.Labels {
 			k8smetadata.AddMetadataAsTags(name, value, c.nsLabelsAsTags, c.globNsLabels, tagList)
 		}
@@ -537,6 +605,11 @@ func (c *WorkloadMetaCollector) handleKubeMetadata(ev workloadmeta.Event) []*typ
 	}
 
 	low, orch, high, standard := tagList.Compute()
+
+	if len(low)+len(orch)+len(high)+len(standard) == 0 {
+		return nil
+	}
+
 	tagInfos := []*types.TagInfo{
 		{
 			Source:               kubeMetadataSource,

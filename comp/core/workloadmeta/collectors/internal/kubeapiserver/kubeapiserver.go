@@ -82,11 +82,16 @@ func resourcesWithMetadataCollectionEnabled(cfg config.Reader) []string {
 func resourcesWithRequiredMetadataCollection(cfg config.Reader) []string {
 	res := []string{"nodes"} // nodes are always needed
 
+	// namespace labels/annotations as tags
 	namespaceLabelsAsTagsEnabled := len(cfg.GetStringMapString("kubernetes_namespace_labels_as_tags")) > 0
 	namespaceAnnotationsAsTagsEnabled := len(cfg.GetStringMapString("kubernetes_namespace_annotations_as_tags")) > 0
 	if namespaceLabelsAsTagsEnabled || namespaceAnnotationsAsTagsEnabled {
 		res = append(res, "namespaces")
 	}
+
+	// generic kube resources tagging based on annotations and/or labels
+	res = append(res, retrieveRequestedResourcesFromConfig(cfg, "kubernetes_resources_labels_as_tags")...)
+	res = append(res, retrieveRequestedResourcesFromConfig(cfg, "kubernetes_resources_annotations_as_tags")...)
 
 	return res
 }

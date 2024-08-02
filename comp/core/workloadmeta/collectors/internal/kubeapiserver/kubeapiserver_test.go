@@ -404,6 +404,18 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 			expectedResources: []string{"//nodes", "apps//deployments", "apps/v1/daemonsets"},
 		},
 		{
+			name: "with generic resource tagging based on annotations and/or labels configured",
+			cfg: map[string]interface{}{
+				"language_detection.enabled":                       false,
+				"language_detection.reporting.enabled":             false,
+				"cluster_agent.kube_metadata_collection.enabled":   false,
+				"cluster_agent.kube_metadata_collection.resources": "",
+				"kubernetes_resources_labels_as_tags":              "{\"deployments.apps\":{\"x-team\":\"team\"}}",
+				"kubernetes_resources_annotations_as_tags":         "{\"namespaces\":{\"x-team\":\"team\"}}",
+			},
+			expectedResources: []string{"apps//deployments", "//nodes", "//namespaces"},
+		},
+		{
 			name: "deployments needed for language detection should be excluded from metadata collection",
 			cfg: map[string]interface{}{
 				"language_detection.enabled":                       true,
