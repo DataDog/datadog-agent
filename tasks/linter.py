@@ -341,16 +341,26 @@ def ssm_parameters(ctx, mode="all", folders=None):
 
 
 class SSMParameterCall:
-    def __init__(self, file, line_nb, with_wrapper=False, with_env_var=False, not_standard=False):
+    def __init__(self, file, line_nb, with_wrapper=False, with_env_var=False, standard=True):
+        """
+        Initialize an SSMParameterCall instance.
+
+        Args:
+            file (str): The name of the file where the SSM parameter call is located.
+            line_nb (int): The line number in the file where the SSM parameter call is located.
+            with_wrapper (bool, optional): If the call is using the wrapper. Defaults to False.
+            with_env_var (bool, optional): If the call is using an environment variable defined in .gitlab-ci.yml. Defaults to False.
+            not_standard (bool, optional): If the call is standard (matching either "aws ssm get-parameter --name" or "aws_ssm_get_wrapper"). Defaults to True.
+        """
         self.file = file
         self.line_nb = line_nb
         self.with_wrapper = with_wrapper
         self.with_env_var = with_env_var
-        self.not_standard = not_standard
+        self.standard = standard
 
     def __str__(self):
         message = ""
-        if not self.with_wrapper or self.not_standard:
+        if not self.with_wrapper or not self.standard:
             message += "Please use the dedicated `aws_ssm_get_wrapper.(sh|ps1)`."
         if not self.with_env_var:
             message += " Save your parameter name as environment variable in .gitlab-ci.yml file."
@@ -383,7 +393,7 @@ def list_get_parameter_calls(file):
                     if m and not (param.startswith("$") or "os.environ" in param):
                         calls.append(SSMParameterCall(file, nb, with_wrapper=True))
                     if not m:
-                        calls.append(SSMParameterCall(file, nb, not_standard=True))
+                        calls.append(SSMParameterCall(file, nb, standard=False))
         except UnicodeDecodeError:
             pass
     return calls

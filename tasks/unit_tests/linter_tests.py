@@ -65,7 +65,7 @@ class TestIsGetParameterCall(unittest.TestCase):
         self.assertEqual(3, len(matched))
         self.assertTrue(matched[0].with_wrapper)
         self.assertFalse(matched[0].with_env_var)
-        self.assertTrue(matched[1].not_standard)
+        self.assertFalse(matched[1].standard)
         self.assertTrue(matched[2].with_wrapper)
         self.assertFalse(matched[2].with_env_var)
 
