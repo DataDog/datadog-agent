@@ -488,6 +488,8 @@ namespace Datadog.CustomActions.Native
 
         public bool IsServiceAccount(SecurityIdentifier securityIdentifier)
         {
+            // NetIsServiceAccount returns true if NetQueryServiceAccount returns MsaInfoInstalled,
+            // this is the same behavior as the Test-ServiceAccount cmdlet in PowerShell.
             NetIsServiceAccount(null, securityIdentifier.Translate(typeof(NTAccount)).Value, out var isServiceAccount);
             isServiceAccount |= securityIdentifier.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
                                 securityIdentifier.IsWellKnown(WellKnownSidType.LocalServiceSid) ||
