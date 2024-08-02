@@ -295,6 +295,62 @@ func TestTextStripURLPassword(t *testing.T) {
 		`Connection dropped : ftp://user:********@host:port`)
 }
 
+func TestTextStripLogPassword(t *testing.T) {
+	testcases := []struct {
+		name string
+		log  string
+		want string
+	}{
+		{
+			name: "logged uppercase (eg. Password=)",
+			log:  `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: Username=userme Password=$AeVtn8*gbyaf!hnUHx^L."`,
+			want: `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: Username=userme Password=********"`,
+		},
+		{
+			name: "logged lowercase (eg. password=)",
+			log:  `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: username=userme password=$AeVtn8*gbyaf!hnUHx^L."`,
+			want: `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: username=userme password=********"`,
+		},
+		{
+			name: "logged with whitespace (eg. password =)",
+			log:  `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: username = userme password = $AeVtn8*gbyaf!hnUHx^L."`,
+			want: `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: username = userme password = ********"`,
+		},
+		{
+			name: "logged as json (eg. \"Password\":)",
+			log:  `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: {"username": "userme",  "password": "$AeVtn8*gbyaf!hnUHx^L."}"`,
+			want: `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: {"username": "userme",  "password": "********"}"`,
+		},
+		{
+			name: "logged PSWD (eg. PSWD=)",
+			log:  `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: USER=userme PSWD=$AeVtn8*gbyaf!hnUHx^L."`,
+			want: `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: USER=userme PSWD=********"`,
+		},
+		{
+			name: "already scrubbed log (eg. password=********)",
+			log:  `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: username=userme password=********"`,
+			want: `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: username=userme password=********"`,
+		},
+		{
+			name: "already scrubbed YAML (eg. password: ********)",
+			log: `dd_url: https://app.datadoghq.com
+api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+proxy: http://user:password@host:port
+password: foo`,
+			want: `dd_url: https://app.datadoghq.com
+api_key: "***************************aaaaa"
+proxy: http://user:********@host:port
+password: "********"`,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			assertClean(t, tc.log, tc.want)
+		})
+	}
+}
+
 func TestDockerSelfInspectApiKey(t *testing.T) {
 	assertClean(t,
 		`
