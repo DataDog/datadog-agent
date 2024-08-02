@@ -39,7 +39,7 @@ func eventTypesFromFields(model Model, state *State) ([]EventType, error) {
 			return nil, err
 		}
 
-		if eventType != "*" {
+		if eventType != "" {
 			events[eventType] = true
 		}
 	}

@@ -21,7 +21,7 @@ struct syscall_context_t {
 
 struct span_context_t {
     u64 span_id;
-    u64 trace_id;
+    u64 trace_id[2];
 };
 
 struct process_context_t {
@@ -34,14 +34,7 @@ struct process_context_t {
 
 typedef char container_id_t[CONTAINER_ID_LEN];
 
-struct cgroup_context_t {
-    u64 cgroup_flags;
-};
-
-struct container_context_t {
-    container_id_t container_id;
-    struct cgroup_context_t cgroup_context;
-};
+typedef char cgroup_prefix_t[256];
 
 struct ktimeval {
     long tv_sec;
@@ -64,6 +57,16 @@ struct file_t {
     u32 dev;
     u32 flags;
     struct file_metadata_t metadata;
+};
+
+struct cgroup_context_t {
+    u64 cgroup_flags;
+    struct path_key_t cgroup_file;
+};
+
+struct container_context_t {
+    container_id_t container_id;
+    struct cgroup_context_t cgroup_context;
 };
 
 #endif

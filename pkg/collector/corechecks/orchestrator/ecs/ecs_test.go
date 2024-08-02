@@ -153,7 +153,6 @@ func testECS(v4 bool, t *testing.T) {
 func prepareTest(v4 bool, env string) (*Check, *fakeWorkloadmetaStore, *fakeSender) {
 	orchConfig := oconfig.NewDefaultOrchestratorConfig()
 	orchConfig.OrchestrationCollectionEnabled = true
-	orchConfig.OrchestrationECSCollectionEnabled = true
 
 	store := &fakeWorkloadmetaStore{
 		EnableV4: v4,

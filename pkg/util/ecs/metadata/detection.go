@@ -14,7 +14,10 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"runtime"
 	"time"
+
+	"github.com/hashicorp/go-version"
 
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
@@ -24,6 +27,14 @@ import (
 
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	v3or4 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
+)
+
+const (
+	// MinimumECSAgentVersionForMetadataV4OnLinux is the minimum ECS agent version required to use the metadata v4 endpoint on Linux
+	// https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-metadata-endpoint-v4.html
+	MinimumECSAgentVersionForMetadataV4OnLinux = "1.39.0"
+	// MinimumECSAgentVersionForMetadataV4OnWindows is the minimum ECS agent version required to use the metadata v4 endpoint on Windows
+	MinimumECSAgentVersionForMetadataV4OnWindows = "1.54.0"
 )
 
 func detectAgentV1URL() (string, error) {
@@ -136,4 +147,30 @@ func getAgentV4URLFromEnv() (string, error) {
 		return "", fmt.Errorf("Could not initialize client: missing metadata v4 URL")
 	}
 	return agentURL, nil
+}
+
+// IsMetadataV4Available checks if the ECS agent version is compatible with the metadata v4 endpoint
+func IsMetadataV4Available(ecsAgentVersion string) (bool, error) {
+	// Agent is deployed directly on EC2 running in ECS
+	currentECSAgentVersion, err := version.NewVersion(ecsAgentVersion)
+	if err != nil {
+		return false, err
+	}
+
+	minimumECSAgentVersion := MinimumECSAgentVersionForMetadataV4OnLinux
+	if runtime.GOOS == "windows" {
+		minimumECSAgentVersion = MinimumECSAgentVersionForMetadataV4OnWindows
+	}
+
+	expectedMinimumECSAgentVersion, err := version.NewVersion(minimumECSAgentVersion)
+	if err != nil {
+		return false, err
+	}
+
+	if currentECSAgentVersion.LessThan(expectedMinimumECSAgentVersion) {
+		log.Debugf("ECS agent version %s is less than the minimum required version %s", currentECSAgentVersion, expectedMinimumECSAgentVersion)
+		return false, nil
+	}
+
+	return true, nil
 }
