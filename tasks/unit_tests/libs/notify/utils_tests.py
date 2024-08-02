@@ -8,29 +8,29 @@ from tasks.libs.notify.utils import get_ci_visibility_job_url
 class TestGetCiVisibilityJobUrl(TestCase):
     def test_simple_prefix(self):
         url = get_ci_visibility_job_url("my-job")
-        job_name_query = quote("my\\-job*")
-        expected = f'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{job_name_query}&agg_m=count'
+        query = quote(r"@ci.job.name:my\-job*")
+        expected = f'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20{query}&agg_m=count'
 
         self.assertEqual(url, expected)
 
     def test_simple_full(self):
         url = get_ci_visibility_job_url("my-job", prefix=False)
-        job_name_query = quote('"my-job"')
-        expected = f'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{job_name_query}&agg_m=count'
+        query = quote('@ci.job.name:"my-job"')
+        expected = f'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20{query}&agg_m=count'
 
         self.assertEqual(url, expected)
 
     def test_prefix(self):
         url = get_ci_visibility_job_url('my-job: ["hello"]')
-        job_name_query = quote(r'my\-job\:\ \[\"hello\"\]*')
-        expected = f'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{job_name_query}&agg_m=count'
+        query = quote(r'@ci.job.name:my\-job\:\ \[\"hello\"\]*')
+        expected = f'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20{query}&agg_m=count'
 
         self.assertEqual(url, expected)
 
     def test_full(self):
         url = get_ci_visibility_job_url('my-job: ["hello"]', prefix=False)
-        job_name_query = quote(r'my\-job\:\ \[\"hello\"\]')
-        expected = f'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{job_name_query}&agg_m=count'
+        query = quote(r'@ci.job.name:my\-job\:\ \[\"hello\"\]')
+        expected = f'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20{query}&agg_m=count'
 
         self.assertEqual(url, expected)
 
