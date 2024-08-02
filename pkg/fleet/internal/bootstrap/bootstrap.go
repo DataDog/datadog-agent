@@ -8,6 +8,7 @@ package bootstrap
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"os"
@@ -64,7 +65,16 @@ func install(ctx context.Context, env *env.Env, url string, experiment bool) err
 // 4. Create an installer executor from the extract layer.
 func downloadInstaller(ctx context.Context, env *env.Env, url string, tmpDir string) (*exec.InstallerExec, error) {
 	// 1. Download the installer package from the registry.
-	downloader := oci.NewDownloader(env, http.DefaultClient)
+
+	// Disable HTTP/2. From documentation:
+	// Programs that must disable HTTP/2 can do so by setting
+	// [Transport.TLSNextProto] (for clients) to a non-nil, empty map
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) http.RoundTripper)
+	httpClient := http.DefaultClient
+	httpClient.Transport = transport
+
+	downloader := oci.NewDownloader(env, httpClient)
 	downloadedPackage, err := downloader.Download(ctx, url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download installer package: %w", err)

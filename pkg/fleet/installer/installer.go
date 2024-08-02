@@ -8,6 +8,7 @@ package installer
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/http"
@@ -84,9 +85,18 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
+
+	// Disable HTTP/2. From documentation:
+	// Programs that must disable HTTP/2 can do so by setting
+	// [Transport.TLSNextProto] (for clients) to a non-nil, empty map
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) http.RoundTripper)
+	httpClient := http.DefaultClient
+	httpClient.Transport = transport
+
 	return &installerImpl{
 		db:           db,
-		downloader:   oci.NewDownloader(env, http.DefaultClient),
+		downloader:   oci.NewDownloader(env, httpClient),
 		repositories: repository.NewRepositories(paths.PackagesPath, paths.LocksPack),
 		configsDir:   paths.DefaultConfigsDir,
 		tmpDirPath:   paths.TmpDirPath,
