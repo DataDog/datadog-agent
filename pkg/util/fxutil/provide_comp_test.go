@@ -500,10 +500,10 @@ func TestFxValueGroups(t *testing.T) {
 	// NOTE: These three functions are non-fx constructors, and all need to be upgraded with
 	// ProviderComponentConstructor in order for their value groups to be collected
 	v1Ctor := func() stringProvider {
-		return NewStringProvider("abc")
+		return newStringProvider("abc")
 	}
 	v2Ctor := func() stringProvider {
-		return NewStringProvider("def")
+		return newStringProvider("def")
 	}
 	collectionCtor := func(deps depsCollection) collectionProvides {
 		texts := []string{}
@@ -739,7 +739,7 @@ func (v *textStringer) String() string {
 	return v.text
 }
 
-func NewStringProvider(text string) stringProvider {
+func newStringProvider(text string) stringProvider {
 	return stringProvider{
 		Str: &textStringer{
 			text: text,
