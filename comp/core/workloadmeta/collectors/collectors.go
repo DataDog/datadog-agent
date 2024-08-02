@@ -22,7 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubelet"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubemetadata"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/podman"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/processcollector"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/process"
+	remoteprocesscollector "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/processcollector"
 	remoteworkloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -41,9 +42,10 @@ func GetCatalog() fx.Option {
 		kubelet.GetFxOptions(),
 		kubemetadata.GetFxOptions(),
 		podman.GetFxOptions(),
+		process.GetFxOptions(),
 		remoteworkloadmeta.GetFxOptions(),
 		remoteWorkloadmetaParams(),
-		processcollector.GetFxOptions(),
+		remoteprocesscollector.GetFxOptions(),
 		host.GetFxOptions(),
 	}
 
