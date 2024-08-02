@@ -96,7 +96,7 @@ func (c *ContainerCheck) ShouldSaveLastRun() bool { return true }
 // stats for each container.
 //
 //nolint:revive // TODO(PROC) Fix revive linter
-func (c *ContainerCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
+func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (RunResult, error) {
 	c.Lock()
 	defer c.Unlock()
 	startTime := time.Now()

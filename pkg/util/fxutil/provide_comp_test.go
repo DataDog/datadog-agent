@@ -464,7 +464,7 @@ func TestFxShutdowner(t *testing.T) {
 	}
 
 	// define an entry point that waits momentarily then shuts down the application
-	entrypoint := func(first FirstComp) {
+	entrypoint := func(FirstComp) {
 		time.AfterFunc(100*time.Millisecond, func() {
 			shutdown.Shutdown()
 		})
