@@ -5,7 +5,7 @@
 
 //go:build otlp && test
 
-package collector
+package collectorimpl
 
 import (
 	"bytes"
