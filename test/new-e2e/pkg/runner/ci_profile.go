@@ -41,8 +41,6 @@ func NewCIProfile() (Profile, error) {
 	// TODO move to job script
 	os.Setenv("PULUMI_CONFIG_PASSPHRASE", passVal)
 
-	// Test early create resources
-
 	// Building name prefix
 	jobID := os.Getenv("CI_JOB_ID")
 	projectID := os.Getenv("CI_PROJECT_ID")
