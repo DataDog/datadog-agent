@@ -198,7 +198,15 @@ func Run(ctx *pulumi.Context, env *environments.Host, runParams RunParams) error
 	}
 
 	if params.installDocker {
-		dockerManager, err := docker.NewManager(&awsEnv, host)
+		// install the ECR credentials helper
+		// required to get pipeline agent images or other internally hosted images
+		installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
+		if err != nil {
+			return err
+		}
+
+		dockerManager, err := docker.NewManager(&awsEnv, host, utils.PulumiDependsOn(installEcrCredsHelperCmd))
+
 		if err != nil {
 			return err
 		}
