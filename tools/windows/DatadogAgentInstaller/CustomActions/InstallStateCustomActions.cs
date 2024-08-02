@@ -4,6 +4,7 @@ using Datadog.CustomActions.Native;
 using Microsoft.Deployment.WindowsInstaller;
 using Microsoft.Win32;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Security.Principal;
 using ServiceController = Datadog.CustomActions.Native.ServiceController;
@@ -20,6 +21,26 @@ namespace Datadog.CustomActions
         private readonly IServiceController _serviceController;
 
         private readonly INativeMethods _nativeMethods;
+
+        public static Dictionary<string, string> PathsToRemoveOnUninstall()
+        {
+            var pathPropertyMap = new Dictionary<string, string>();
+            var paths = new List<string>
+            {
+                "bin\\agent",
+                "embedded3",
+                // embedded2 only exists in Agent 6, so an error will be logged, but install will continue
+                "embedded2",
+            };
+            for (var i = 0; i < paths.Count; i++)
+            {
+                // property names are a maximum of 72 characters (can't find a source for this, but can verify in Property table schema in Orca)
+                // WixRemoveFolderEx creates properties like PROJECTLOCATION_0 so mimic that here.
+                // include lowercase letters so the property isn't made public.
+                pathPropertyMap.Add($"dd_PROJECTLOCATION_{i}", paths[i]);
+            }
+            return pathPropertyMap;
+        }
 
         public InstallStateCustomActions(
             ISession session,
@@ -179,10 +200,10 @@ namespace Datadog.CustomActions
                 // We cannot throw an exception here because the installer will fail. This case can happen, for example,
                 // if the cleanup script deleted the registry keys before running the uninstaller.
             }
-            _session["PROJECTLOCATION_binagent"] = Path.Combine(installDir, "bin", "agent");
-            _session["PROJECTLOCATION_embedded3"] = Path.Combine(installDir, "embedded3");
-            // embedded2 only exists in Agent 6, so an error will be logged, but install will continue
-            _session["PROJECTLOCATION_embedded2"] = Path.Combine(installDir, "embedded2");
+            foreach (var entry in PathsToRemoveOnUninstall())
+            {
+                _session[entry.Key] = Path.Combine(installDir, entry.Value);
+            }
         }
 
         /// <summary>

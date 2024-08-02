@@ -1,8 +1,8 @@
 using Datadog.CustomActions.Extensions;
-using Microsoft.Deployment.WindowsInstaller;
-using System.IO;
-using System;
 using Datadog.CustomActions.Interfaces;
+using Microsoft.Deployment.WindowsInstaller;
+using System;
+using System.IO;
 
 namespace Datadog.CustomActions
 {
