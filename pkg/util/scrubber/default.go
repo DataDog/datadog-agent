@@ -102,7 +102,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	// replace all alphanum + special chars except quotes and semicolon
 	passwordReplacer := Replacer{
 		// see test cases for match patterns
-		Regex: regexp.MustCompile(`(?i)(\"?(?:pass(?:word)?|pswd|pwd)\"?)( = |=|: \"?)([0-9A-Za-z#!$%&()*+,\-./:<=>?@[\\\]^_{|}~]+)`),
+		Regex: regexp.MustCompile(`(?i)(\"?(?:pass(?:word)?|pswd|pwd)\"?)((?:=| = |: )\"?)([0-9A-Za-z#!$%&()*+,\-./:<=>?@[\\\]^_{|}~]+)`),
 		Repl:  []byte(`$1$2********`),
 	}
 	tokenReplacer := matchYAMLKeyEnding(
