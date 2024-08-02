@@ -1,4 +1,5 @@
 import sys
+import platform
 
 from invoke import Exit, task
 
@@ -48,6 +49,7 @@ def install_tools(ctx):
                     for tool in tools:
                         ctx.run(f"go install {tool}")
 
+    install_protoc(ctx)
 
 @task
 def install_shellcheck(ctx, version="0.8.0", destination="/usr/local/bin"):
@@ -69,6 +71,34 @@ def install_shellcheck(ctx, version="0.8.0", destination="/usr/local/bin"):
     )
     ctx.run(f"cp \"/tmp/shellcheck-v{version}/shellcheck\" {destination}")
     ctx.run(f"rm -rf \"/tmp/shellcheck-v{version}\"")
+
+@task
+def install_protoc(ctx, version="26.1", destination="~/go/bin"):
+    """
+    Installs the requested version of protoc in the specified folder (by default /usr/local/bin).
+    Required generate the golang code based on .prod (inv generate-protobuf).
+    """
+
+    if sys.platform == 'win32':
+        print("protoc is not supported on Windows")
+        raise Exit(code=1)
+    if sys.platform.startswith('darwin'):
+        platform_os = "osx"
+    if sys.platform.startswith('linux'):
+        platform_os = "linux"
+
+    if platform.machine().lower() == "aarch64":
+        platform_arch = "aarch_64"
+    if platform.machine().lower() == "amd64":
+        platform_arch = "x86_64"
+
+    # Url example: https://github.com/protocolbuffers/protobuf/releases/download/v27.3/protoc-27.3-linux-x86_64.zip
+    ctx.run(
+        f"wget -qO /tmp/protoc.zip \"https://github.com/protocolbuffers/protobuf/releases/download/v{version}/protoc-{version}-{platform_os}-{platform_arch}.zip\""
+    )
+
+    ctx.run(f"unzip -qq /tmp/protoc.zip -d /tmp/protoc && rm /tmp/protoc.zip")
+    ctx.run(f"cp -rf /tmp/protoc/bin/protoc {destination}/protoc && rm -rf /tmp/protoc")
 
 
 @task
