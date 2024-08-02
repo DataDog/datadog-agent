@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
@@ -27,7 +28,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -106,6 +110,7 @@ func RunKernelAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		authtokenimpl.Module(), // We need to think about this one
 
 		// Sending metrics to the backend
+		// Do we need this many forwarders to send data to the backen?
 		forwarder.Bundle(),
 		fx.Provide(defaultforwarder.NewParams),
 		compressionimpl.Module(),
@@ -121,6 +126,14 @@ func RunKernelAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
 			return demuxInstance.Serializer()
 		}),
+
+		// Autodiscovery
+		// Do we really need autodiscovery for the Logs Agent?
+		autodiscoveryimpl.Module(),
+		fx.Provide(tagger.NewTaggerParamsForCoreAgent),
+		taggerimpl.Module(),
+		workloadmetafx.Module(),
+		// Can the tagger works without the workloadmeta?
 
 		// Healthprobe
 		fx.Provide(func(config config.Component) healthprobe.Options {
