@@ -90,11 +90,11 @@ func newConfigSync(deps dependencies, agentIPCPort int, configRefreshIntervalSec
 
 	// start and stop the routine in fx hooks
 	deps.Lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
+		OnStart: func(_ context.Context) error {
 			go configSync.runWithInterval(configRefreshInterval)
 			return nil
 		},
-		OnStop: func(ctx context.Context) error {
+		OnStop: func(_ context.Context) error {
 			cancel()
 			return nil
 		},

@@ -86,8 +86,11 @@ func (l language) ctrLibVersionAnnotationExtractor(ctr, registry string) annotat
 	}
 }
 
-func (l language) libConfigAnnotationKey() string {
-	return fmt.Sprintf(common.LibConfigV1AnnotKeyFormat, l)
+func (l language) libConfigAnnotationExtractor() annotationExtractor[common.LibConfig] {
+	return annotationExtractor[common.LibConfig]{
+		key: fmt.Sprintf(common.LibConfigV1AnnotKeyFormat, l),
+		do:  parseConfigJSON,
+	}
 }
 
 // supportedLanguages defines a list of the languages that we will attempt

@@ -23,6 +23,8 @@ import (
 type CGroupContextSerializer struct {
 	// CGroup ID
 	ID string `json:"id,omitempty"`
+	// CGroup manager
+	Manager string `json:"manager,omitempty"`
 }
 
 // ContainerContextSerializer serializes a container context to JSON
@@ -190,15 +192,6 @@ type DNSEventSerializer struct {
 	ID uint16 `json:"id"`
 	// question is a DNS question for the DNS request
 	Question DNSQuestionSerializer `json:"question"`
-}
-
-// DDContextSerializer serializes a span context to JSON
-// easyjson:json
-type DDContextSerializer struct {
-	// Span ID used for APM correlation
-	SpanID uint64 `json:"span_id,omitempty"`
-	// Trace ID used for APM correlation
-	TraceID uint64 `json:"trace_id,omitempty"`
 }
 
 // ExitEventSerializer serializes an exit event to JSON

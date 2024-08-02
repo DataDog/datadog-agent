@@ -50,7 +50,7 @@ func TestResolveImageName(t *testing.T) {
 			expected: imageName,
 		},
 	} {
-		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
+		t.Run(fmt.Sprintf("case %d", i), func(*testing.T) {
 			name, err := globalDockerUtil.ResolveImageName(ctx, tc.input)
 			assert.Equal(tc.expected, name, "test %s failed", i)
 			assert.Nil(err, "test %s failed", i)
@@ -111,7 +111,7 @@ func TestResolveImageNameFromContainer(t *testing.T) {
 			expectedImage: imageName,
 		},
 	} {
-		t.Run(fmt.Sprintf("case %s", tc.name), func(t *testing.T) {
+		t.Run(fmt.Sprintf("case %s", tc.name), func(*testing.T) {
 			result, err := globalDockerUtil.ResolveImageNameFromContainer(ctx, tc.input)
 			assert.Equal(tc.expectedImage, result, "%s test failed; expected %s but got %s", tc.name, tc.expectedImage, result)
 			assert.Nil(err, "%s test failed; expected nil error but got %s", tc.name, err)

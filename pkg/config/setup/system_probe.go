@@ -30,6 +30,7 @@ const (
 	wcdNS                        = "windows_crash_detection"
 	pngNS                        = "ping"
 	tracerouteNS                 = "traceroute"
+	discoveryNS                  = "discovery"
 	defaultConnsMessageBatchSize = 600
 
 	// defaultServiceMonitoringJavaAgentArgs is default arguments that are passing to the injected java USM agent
@@ -180,6 +181,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	cfg.BindEnvAndSetDefault(join(spNS, "max_tracked_connections"), 65536)
 	cfg.BindEnv(join(spNS, "max_closed_connections_buffered"))
+	cfg.BindEnv(join(netNS, "max_failed_connections_buffered"))
 	cfg.BindEnvAndSetDefault(join(spNS, "closed_connection_flush_threshold"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "closed_channel_size"), 500)
 	cfg.BindEnvAndSetDefault(join(spNS, "max_connection_state_buffered"), 75000)
@@ -382,6 +384,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	// CCM config
 	cfg.BindEnvAndSetDefault(join(ccmNS, "enabled"), false)
+
+	// Discovery config
+	cfg.BindEnvAndSetDefault(join(discoveryNS, "enabled"), false)
 
 	initCWSSystemProbeConfig(cfg)
 }

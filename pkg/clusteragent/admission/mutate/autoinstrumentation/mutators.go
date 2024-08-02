@@ -137,13 +137,7 @@ type configKeyEnvVarMutator struct {
 
 func (c configKeyEnvVarMutator) mutatePod(pod *corev1.Pod) error {
 	if config.Datadog().IsSet(c.configKey) {
-		if c.getVal == nil {
-			c.getVal = config.Datadog().GetString
-		}
-		_ = common.InjectEnv(pod, corev1.EnvVar{
-			Name:  c.envKey,
-			Value: c.getVal(c.configKey),
-		})
+		_ = common.InjectEnv(pod, corev1.EnvVar{Name: c.envKey, Value: c.getVal(c.configKey)})
 	}
 
 	return nil

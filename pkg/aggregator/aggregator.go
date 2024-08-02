@@ -494,7 +494,7 @@ func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.S
 // The parameter `before` is used as an end interval while retrieving series and sketches
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
 func (agg *BufferedAggregator) getSeriesAndSketches(
-	before time.Time,
+	_ time.Time,
 	seriesSink metrics.SerieSink,
 	sketchesSink metrics.SketchesSink,
 ) {

@@ -8,7 +8,7 @@
 package autoinstrumentation
 
 import (
-	"fmt"
+	"errors"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -22,30 +22,22 @@ type annotationExtractor[T any] struct {
 	do  func(string) (T, error)
 }
 
-// forKey creates a new annotationExtractor for the given key, copying
-// the callback function.
-func (e annotationExtractor[T]) forKey(key string) annotationExtractor[T] {
-	return annotationExtractor[T]{
-		key: key,
-		do:  e.do,
-	}
+var errAnnotationNotFound = errors.New("annotation not found")
+
+func isErrAnnotationNotFound(err error) bool {
+	return errors.Is(err, errAnnotationNotFound)
 }
 
 // extract extracts annotation data from the kubernetes Object.
-func (e annotationExtractor[T]) extract(o metav1.Object) (T, bool, error) {
-	if e.key == "" {
-		var empty T
-		return empty, false, fmt.Errorf("no key specified for extractor")
-	}
-
+func (e annotationExtractor[T]) extract(o metav1.Object) (T, error) {
 	if val, found := o.GetAnnotations()[e.key]; found {
 		log.Debugf("Found annotation for %s=%s Single Step Instrumentation.", e.key, val)
 		out, err := e.do(val)
-		return out, true, err
+		return out, err
 	}
 
 	var empty T
-	return empty, false, nil
+	return empty, errAnnotationNotFound
 }
 
 func infallibleFn[T any](f func(string) T) func(string) (T, error) {

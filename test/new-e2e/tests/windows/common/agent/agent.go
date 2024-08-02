@@ -35,9 +35,9 @@ const (
 	DefaultAgentUserName = `ddagentuser`
 )
 
-// getCodeSignatureThumbprints returns the allowed code detached thumbprint used for
+// GetCodeSignatureThumbprints returns the allowed code detached thumbprint used for
 // Windows signing
-func getCodeSignatureThumbprints() map[string]struct{} {
+func GetCodeSignatureThumbprints() map[string]struct{} {
 	return map[string]struct{}{
 		// Non-EV Valid From: May 2023; To: May 2025
 		"B03F29CC07566505A718583E9270A6EE17678742": {},
@@ -114,7 +114,7 @@ func HasValidDatadogCodeSignature(host *components.RemoteHost, path string) erro
 		return fmt.Errorf("signature status is not valid: %s", sig.StatusMessage)
 	}
 
-	if _, ok := getCodeSignatureThumbprints()[strings.ToUpper(sig.SignerCertificate.Thumbprint)]; !ok {
+	if _, ok := GetCodeSignatureThumbprints()[strings.ToUpper(sig.SignerCertificate.Thumbprint)]; !ok {
 		return fmt.Errorf("signature thumbprint is not valid: %s", sig.SignerCertificate.Thumbprint)
 	}
 	return nil

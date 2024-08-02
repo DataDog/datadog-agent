@@ -43,37 +43,23 @@ func (basicLibConfigInjector) mutatePod(pod *corev1.Pod) error {
 	return nil
 }
 
-type libConfigInjector struct {
-	configInjected *language
-}
-
-var libConfigAnnotationExtractor = annotationExtractor[common.LibConfig]{
-	do: func(in string) (common.LibConfig, error) {
-		var c common.LibConfig
-		return c, json.Unmarshal([]byte(in), &c)
-	},
-}
+type libConfigInjector struct{}
 
 func (l *libConfigInjector) podMutator(lang language) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
-
-		libConfig, found, err := libConfigAnnotationExtractor.
-			forKey(lang.libConfigAnnotationKey()).
-			extract(pod)
-
-		if !found {
-			return nil
-		}
-
+		c, err := lang.libConfigAnnotationExtractor().extract(pod)
 		if err != nil {
+			if isErrAnnotationNotFound(err) {
+				return nil
+			}
+
 			return err
 		}
 
-		for _, env := range libConfig.ToEnvs() {
+		for _, env := range c.ToEnvs() {
 			_ = mutatecommon.InjectEnv(pod, env)
 		}
 
-		l.configInjected = &lang
 		return nil
 	})
 }
@@ -81,4 +67,9 @@ func (l *libConfigInjector) podMutator(lang language) podMutator {
 // injectLibConfig injects additional library configuration extracted from pod annotations
 func injectLibConfig(pod *corev1.Pod, lang language) error {
 	return (&libConfigInjector{}).podMutator(lang).mutatePod(pod)
+}
+
+func parseConfigJSON(in string) (common.LibConfig, error) {
+	var c common.LibConfig
+	return c, json.Unmarshal([]byte(in), &c)
 }

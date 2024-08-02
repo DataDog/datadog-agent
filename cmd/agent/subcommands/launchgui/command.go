@@ -34,7 +34,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "launch-gui",
 		Short: "starts the Datadog Agent GUI",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(launchGui,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),

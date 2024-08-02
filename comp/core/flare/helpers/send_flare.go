@@ -114,7 +114,7 @@ func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname stri
 func readAndPostFlareFile(archivePath, caseID, email, hostname, url string, source FlareSource, client *http.Client, apiKey string) (*http.Response, error) {
 	// Having resolved the POST URL, we do not expect to see further redirects, so do not
 	// handle them.
-	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+	client.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
 

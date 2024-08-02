@@ -140,7 +140,7 @@ func (t *Tagger) Start(ctx context.Context) error {
 		t.ctx,
 		t.options.Target,
 		grpc.WithTransportCredentials(creds),
-		grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
+		grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
 			return net.Dial("tcp", url)
 		}),
 	)

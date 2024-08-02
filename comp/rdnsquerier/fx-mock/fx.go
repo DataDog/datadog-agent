@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package fxmock provides the fxmock module for the rdnsquerier component
-package fxmock
+// Package fx provides the fxmock module for the rdnsquerier component
+package fx
 
 import (
 	rdnsqueriermock "github.com/DataDog/datadog-agent/comp/rdnsquerier/mock"

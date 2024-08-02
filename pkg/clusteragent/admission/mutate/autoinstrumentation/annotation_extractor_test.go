@@ -77,14 +77,15 @@ func TestAnnotationExtractor(t *testing.T) {
 	for _, tt := range testData {
 		t.Run(tt.name, func(t *testing.T) {
 			pod := common.FakePodSpec{Annotations: tt.annotations}.Create()
-			data, ok, err := tt.extractor.extract(pod)
+			data, err := tt.extractor.extract(pod)
 			if tt.err {
 				require.Error(t, err)
+			} else if !tt.ok {
+				require.True(t, isErrAnnotationNotFound(err))
 			} else {
 				require.NoError(t, err)
 			}
 
-			require.Equal(t, tt.ok, ok)
 			require.Equal(t, tt.out, data)
 		})
 	}

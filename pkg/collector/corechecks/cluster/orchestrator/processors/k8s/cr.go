@@ -91,6 +91,6 @@ func (cr *CRHandlers) ResourceVersion(ctx processors.ProcessorContext, resource,
 func (cr *CRHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*unstructured.Unstructured)
 	annotations := r.GetAnnotations()
-	redact.RemoveLastAppliedConfigurationAnnotation(annotations)
+	redact.RemoveSensitiveAnnotations(annotations)
 	r.SetAnnotations(annotations)
 }

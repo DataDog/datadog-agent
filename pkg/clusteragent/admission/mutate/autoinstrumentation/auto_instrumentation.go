@@ -180,8 +180,17 @@ func (w *Webhook) inject(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool,
 		return false, nil
 	}
 
-	injectSecurityClientLibraryConfig(pod)
-	injectProfilingClientLibraryConfig(pod)
+	for _, mutator := range securityClientLibraryConfigMutators() {
+		if err := mutator.mutatePod(pod); err != nil {
+			return false, fmt.Errorf("error mutating pod for security client: %w", err)
+		}
+	}
+
+	for _, mutator := range profilingClientLibraryConfigMutators() {
+		if err := mutator.mutatePod(pod); err != nil {
+			return false, fmt.Errorf("error mutating pod for profiling client: %w", err)
+		}
+	}
 
 	// Inject env variables used for Onboarding KPIs propagation
 	var injectionType string
@@ -208,11 +217,11 @@ func (w *Webhook) inject(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool,
 // * <unset> - product disactivated but can be activated remotely
 // * true - product activated, not overridable remotely
 // * false - product disactivated, not overridable remotely
-func injectSecurityClientLibraryConfig(pod *corev1.Pod) {
+func securityClientLibraryConfigMutators() []podMutator {
 	boolVal := func(key string) string {
 		return strconv.FormatBool(config.Datadog().GetBool(key))
 	}
-	for _, mutator := range []podMutator{
+	return []podMutator{
 		configKeyEnvVarMutator{
 			envKey:    "DD_APPSEC_ENABLED",
 			configKey: "admission_controller.auto_instrumentation.asm.enabled",
@@ -228,8 +237,6 @@ func injectSecurityClientLibraryConfig(pod *corev1.Pod) {
 			configKey: "admission_controller.auto_instrumentation.asm_sca.enabled",
 			getVal:    boolVal,
 		},
-	} {
-		_ = mutator.mutatePod(pod)
 	}
 }
 
@@ -238,11 +245,14 @@ func injectSecurityClientLibraryConfig(pod *corev1.Pod) {
 // * "true" - profiling activated unconditionally, not overridable remotely
 // * "false" - profiling deactivated, not overridable remotely
 // * "auto" - profiling activates per-process heuristically, not overridable remotely
-func injectProfilingClientLibraryConfig(pod *corev1.Pod) {
-	_ = configKeyEnvVarMutator{
-		envKey:    "DD_PROFILING_ENABLED",
-		configKey: "admission_controller.auto_instrumentation.profiling.enabled",
-	}.mutatePod(pod)
+func profilingClientLibraryConfigMutators() []podMutator {
+	return []podMutator{
+		configKeyEnvVarMutator{
+			envKey:    "DD_PROFILING_ENABLED",
+			configKey: "admission_controller.auto_instrumentation.profiling.enabled",
+			getVal:    config.Datadog().GetString,
+		},
+	}
 }
 
 func injectApmTelemetryConfig(pod *corev1.Pod) {
@@ -382,20 +392,25 @@ func (w *Webhook) getAutoDetectedLibraries(pod *corev1.Pod) []libInfo {
 
 func (w *Webhook) extractLibrariesFromAnnotations(pod *corev1.Pod) []libInfo {
 	var (
-		libList []libInfo
-		extract = func(e annotationExtractor[libInfo]) {
-			if i, ok, _ := e.extract(pod); ok {
+		libList        []libInfo
+		extractLibInfo = func(e annotationExtractor[libInfo]) {
+			i, err := e.extract(pod)
+			if err != nil {
+				if !isErrAnnotationNotFound(err) {
+					log.Warnf("error extracting annotation for key %s", e.key)
+				}
+			} else {
 				libList = append(libList, i)
 			}
 		}
 	)
 
 	for _, l := range supportedLanguages {
-		extract(l.customLibAnnotationExtractor())
-		extract(l.libVersionAnnotationExtractor(w.containerRegistry))
+		extractLibInfo(l.customLibAnnotationExtractor())
+		extractLibInfo(l.libVersionAnnotationExtractor(w.containerRegistry))
 		for _, ctr := range pod.Spec.Containers {
-			extract(l.ctrCustomLibAnnotationExtractor(ctr.Name))
-			extract(l.ctrLibVersionAnnotationExtractor(ctr.Name, w.containerRegistry))
+			extractLibInfo(l.ctrCustomLibAnnotationExtractor(ctr.Name))
+			extractLibInfo(l.ctrLibVersionAnnotationExtractor(ctr.Name, w.containerRegistry))
 		}
 	}
 
@@ -403,7 +418,6 @@ func (w *Webhook) extractLibrariesFromAnnotations(pod *corev1.Pod) []libInfo {
 }
 
 func (w *Webhook) initContainerMutators() []containerMutator {
-	log.Debug("initContainerMutators")
 	return []containerMutator{
 		containerResourceRequirements{w.initResourceRequirements},
 		containerSecurityContext{w.initSecurityContext},

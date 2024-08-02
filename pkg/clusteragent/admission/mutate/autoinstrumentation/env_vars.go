@@ -9,8 +9,8 @@ package autoinstrumentation
 
 import (
 	"fmt"
+	"slices"
 
-	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -46,6 +46,7 @@ const (
 	dotnetProfilingLdPreloadKey   = "LD_PRELOAD"
 	dotnetProfilingLdPreloadValue = "/datadog-lib/continuousprofiler/Datadog.Linux.ApiWrapper.x64.so"
 
+  // PHP config
 	phpPathValue = "/datadog-lib"
 
 	// Ruby config
@@ -80,15 +81,15 @@ type envVar struct {
 	isEligibleToInject func(*corev1.Container) bool
 }
 
-var _ containerMutator = (*envVar)(nil)
-
 // mutateContainer implements containerMutator for envVar.
 func (e envVar) mutateContainer(c *corev1.Container) error {
 	if e.isEligibleToInject != nil && !e.isEligibleToInject(c) {
 		return nil
 	}
 
-	index := mutatecommon.EnvIndex(c.Env, e.key)
+	index := slices.IndexFunc(c.Env, func(ev corev1.EnvVar) bool {
+		return ev.Name == e.key
+	})
 	if index < 0 {
 		c.Env = append(c.Env, corev1.EnvVar{
 			Name:  e.key,

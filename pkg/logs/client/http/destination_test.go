@@ -50,7 +50,7 @@ func TestBuildURLShouldReturnAddressForVersion2(t *testing.T) {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func TestDestinationSend200(t *testing.T) {
+func TestDestinationSend200(_ *testing.T) {
 	cfg := getNewConfig()
 	server := NewTestServer(200, cfg)
 	input := make(chan *message.Payload)
@@ -78,7 +78,7 @@ func TestNoRetries(t *testing.T) {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func testNoRetry(t *testing.T, statusCode int) {
+func testNoRetry(_ *testing.T, statusCode int) {
 	cfg := getNewConfig()
 	server := NewTestServer(statusCode, cfg)
 	input := make(chan *message.Payload)
