@@ -20,10 +20,11 @@ type activeKFilter interface {
 	GetTableName() string
 }
 
-type activeKFilters map[interface{}]activeKFilter
+// ActiveKFilters defines kfilter map
+type ActiveKFilters map[interface{}]activeKFilter
 
-func newActiveKFilters(kfilters ...activeKFilter) (ak activeKFilters) {
-	ak = make(map[interface{}]activeKFilter)
+func newActiveKFilters(kfilters ...activeKFilter) (ak ActiveKFilters) {
+	ak = make(ActiveKFilters)
 	for _, kfilter := range kfilters {
 		if kfilter != nil {
 			ak.Add(kfilter)
@@ -32,12 +33,14 @@ func newActiveKFilters(kfilters ...activeKFilter) (ak activeKFilters) {
 	return
 }
 
-func (ak activeKFilters) HasKey(key interface{}) bool {
+// HasKey returns if a filter exists
+func (ak ActiveKFilters) HasKey(key interface{}) bool {
 	_, found := ak[key]
 	return found
 }
 
-func (ak activeKFilters) Sub(ak2 activeKFilters) {
+// Sub remove filters of the given filters
+func (ak ActiveKFilters) Sub(ak2 ActiveKFilters) {
 	for key := range ak {
 		if _, found := ak2[key]; found {
 			delete(ak, key)
@@ -45,11 +48,13 @@ func (ak activeKFilters) Sub(ak2 activeKFilters) {
 	}
 }
 
-func (ak activeKFilters) Add(a activeKFilter) {
+// Add a filter
+func (ak ActiveKFilters) Add(a activeKFilter) {
 	ak[a.Key()] = a
 }
 
-func (ak activeKFilters) Remove(a activeKFilter) {
+// Remove a filter
+func (ak ActiveKFilters) Remove(a activeKFilter) {
 	delete(ak, a.Key())
 }
 
