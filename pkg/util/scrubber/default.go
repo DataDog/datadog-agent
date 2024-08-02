@@ -94,11 +94,17 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		Regex: regexp.MustCompile(`(?i)([a-z][a-z0-9+-.]+://|\b)([^:]+):([^\s|"]+)@`),
 		Repl:  []byte(`$1$2:********@`),
 	}
-	passwordReplacer := matchYAMLKeyPart(
+	yamlPasswordReplacer := matchYAMLKeyPart(
 		`(pass(word)?|pwd)`,
 		[]string{"pass", "pwd"},
 		[]byte(`$1 "********"`),
 	)
+	// replace all alphanum + special chars except quotes and semicolon
+	passwordReplacer := Replacer{
+		// see test cases for match patterns
+		Regex: regexp.MustCompile(`(?i)(\"?(?:pass(?:word)?|pswd|pwd)\"?)( = |=|: \"?)([0-9A-Za-z#!$%&()*+,\-./:<=>?@[\\\]^_{|}~]+)`),
+		Repl:  []byte(`$1$2********`),
+	}
 	tokenReplacer := matchYAMLKeyEnding(
 		`token`,
 		[]string{"token"},
@@ -169,6 +175,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, appKeyReplacer)
 	scrubber.AddReplacer(SingleLine, rcAppKeyReplacer)
 	scrubber.AddReplacer(SingleLine, uriPasswordReplacer)
+	scrubber.AddReplacer(SingleLine, yamlPasswordReplacer)
 	scrubber.AddReplacer(SingleLine, passwordReplacer)
 	scrubber.AddReplacer(SingleLine, tokenReplacer)
 	scrubber.AddReplacer(SingleLine, snmpReplacer)
