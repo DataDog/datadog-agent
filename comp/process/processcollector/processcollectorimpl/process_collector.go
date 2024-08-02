@@ -49,10 +49,12 @@ type collector struct {
 	containerProvider proccontainers.ContainerProvider
 }
 
+// Provides contains the output of NewComponent
 type Provides struct {
 	CollectorProvider workloadmeta.CollectorProvider
 }
 
+// Requires contains the dependencies for the local process collector.
 type Requires struct {
 	Log            logComponent.Component
 	Config         config.Component
