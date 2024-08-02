@@ -361,9 +361,13 @@ namespace WixSetup.Datadog_Agent
                 new DirFiles($@"{InstallerSource}\*.json"),
                 new DirFiles($@"{InstallerSource}\*.txt"),
                 new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3"),
-                // Recursively delete/backup all files/folders in PROJECTLOCATION, they will be restored
-                // on rollback. By default WindowsInstller only removes the files it tracks, and embedded3 isn't tracked
-                new RemoveFolderEx { On = InstallEvent.uninstall, Property = "PROJECTLOCATION" }
+                // Recursively delete/backup all files/folders in these paths, they will be restored
+                // on rollback. By default WindowsInstller only removes the files it tracks, and these paths
+                // may contain untracked files.
+                // These properties are set in the ReadInstallState custom action.
+                new RemoveFolderEx { On = InstallEvent.uninstall, Property = "PROJECTLOCATION_binagent" },
+                new RemoveFolderEx { On = InstallEvent.uninstall, Property = "PROJECTLOCATION_embedded2" },
+                new RemoveFolderEx { On = InstallEvent.uninstall, Property = "PROJECTLOCATION_embedded3" }
             );
             if (_agentPython.IncludePython2)
             {

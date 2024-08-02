@@ -1,10 +1,11 @@
-using System;
-using System.Security.Principal;
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Microsoft.Deployment.WindowsInstaller;
 using Microsoft.Win32;
+using System;
+using System.IO;
+using System.Security.Principal;
 using ServiceController = Datadog.CustomActions.Native.ServiceController;
 
 namespace Datadog.CustomActions
@@ -128,6 +129,7 @@ namespace Datadog.CustomActions
 
                 GetWindowsBuildVersion();
                 SetDDDriverRollback();
+                SetRemoveFolderExProperties();
             }
             catch (Exception e)
             {
@@ -136,6 +138,51 @@ namespace Datadog.CustomActions
             }
 
             return ActionResult.Success;
+        }
+
+        /// <summary>
+        /// Sets the properties used by the WiX util RemoveFolderEx to cleanup non-tracked paths.
+        ///
+        /// https://wixtoolset.org/docs/v3/xsd/util/removefolderex/
+        /// </summary>
+        /// <remarks>
+        /// RemoveFolderEx only takes a property as input, not IDs or paths, meaning we can't
+        /// pass something like $PROJECTLOCATION\bin\agent in WiX. Instead, we have to set
+        /// the properties in a custom action.
+        ///
+        /// The RemoveFolderEx elements in WiX are configured to only run at uninstall time,
+        /// so the properties values are only relevant then. However, the WixRemoveFolderEx
+        /// custom action will fail fast if any of the properties are empty. So we must always
+        /// provide a value to the properties to prevent an error in the log and to accomodate other
+        /// uses of RemoveFolderEx that run at other times (at time of writing there are none).
+        /// Though this error does not stop the installer, it will ignore it and continue.
+        ///
+        /// RemoveFolderEx handles rollback and will restore any file paths that it deletes.
+        ///
+        /// We specify specific subdirectories under PROJECTLOCATION instead of specifying PROJECTLOCATION
+        /// itself to reduce the impact when the Agent is erroneously installed to an existing directory.
+        ///
+        /// This action copies PROJECTLOCATION and thus changes to PROJECTLOCATION will not be reflected
+        /// in these properties. This should not be an issue since PROJECTLOCATION should not change during
+        /// uninstallation.
+        /// </remarks>
+        private void SetRemoveFolderExProperties()
+        {
+            var installDir = _session["PROJECTLOCATION"];
+            if (string.IsNullOrEmpty(installDir))
+            {
+                if (!string.IsNullOrEmpty(_session["REMOVE"]))
+                {
+                    _session.Log("PROJECTLOCATION is not set, cannot set RemoveFolderEx properties, some files may be left behind in the installation directory.");
+                }
+                return;
+                // We cannot throw an exception here because the installer will fail. This case can happen, for example,
+                // if the cleanup script deleted the registry keys before running the uninstaller.
+            }
+            _session["PROJECTLOCATION_binagent"] = Path.Combine(installDir, "bin", "agent");
+            _session["PROJECTLOCATION_embedded3"] = Path.Combine(installDir, "embedded3");
+            // embedded2 only exists in Agent 6, so an error will be logged, but install will continue
+            _session["PROJECTLOCATION_embedded2"] = Path.Combine(installDir, "embedded2");
         }
 
         /// <summary>

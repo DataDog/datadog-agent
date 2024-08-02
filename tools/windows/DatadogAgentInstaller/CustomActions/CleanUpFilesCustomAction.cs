@@ -14,8 +14,10 @@ namespace Datadog.CustomActions
             var applicationDataLocation = session.Property("APPLICATIONDATADIRECTORY");
             var toDelete = new[]
             {
+                // may contain python files created outside of install
                 Path.Combine(projectLocation, "embedded2"),
                 Path.Combine(projectLocation, "embedded3"),
+                // installation specific files
                 Path.Combine(applicationDataLocation, "install_info"),
                 Path.Combine(applicationDataLocation, "auth_token")
             };
