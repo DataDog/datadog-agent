@@ -103,7 +103,7 @@ def validate_manifest(manifest) -> list:  # return list of components to remove,
                 for module in component.values():
                     if module.find(OCB_VERSION) == -1:
                         raise YAMLValidationError(
-                            f"Extension {module}) in manifest does not match required OCB version ({OCB_VERSION})"
+                            f"Component {module}) in manifest does not match required OCB version ({OCB_VERSION})"
                         )
 
     # validate mandatory components are present
