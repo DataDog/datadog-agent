@@ -62,7 +62,7 @@ func GetHostname(hostname **C.char) {
 // GetHostTags exposes the tags of the agent host to Python checks.
 //
 //export GetHostTags
-func GetHostTags(hostTags **C.char) {
+func GetHostTags(_hostTags **C.char) {
 	test := hosttags.Get(context.Background(), true, config.Datadog())
 	log.Info("natasha testing GetHostTags function 1")
 	log.Infof("natasha testing GetHostTags function 2 %v", test)
