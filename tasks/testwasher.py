@@ -8,8 +8,9 @@ import yaml
 from invoke import task
 
 from tasks.libs.ciproviders.gitlab_api import (
-    generate_gitlab_full_configuration,
+    get_full_gitlab_ci_configuration,
 )
+from tasks.libs.common.utils import gitlab_section
 from tasks.test_core import ModuleTestResult
 
 
@@ -170,17 +171,15 @@ class TestWasher:
         return test_family
 
 
-@task()
-def generate_flake_finder_pipeline(_, n=3):
+@task
+def generate_flake_finder_pipeline(ctx, n=3):
     """
     Generate a child pipeline where jobs marked with SHOULD_RUN_IN_FLAKES_FINDER are run n times
     """
 
     # Read gitlab config
-    config = generate_gitlab_full_configuration(".gitlab-ci.yml", {}, return_dump=False, apply_postprocessing=True)
+    config = get_full_gitlab_ci_configuration(ctx, ".gitlab-ci.yml")
 
-    for job in config:
-        print(job)
     # Lets keep only variables and jobs with flake finder variable
     kept_job = {}
     for job, job_details in config.items():
@@ -195,27 +194,25 @@ def generate_flake_finder_pipeline(_, n=3):
                 continue
             kept_job[job] = job_details
 
-    # Remove needs, rules and retry from the jobs
-    for job in kept_job:
-        if 'needs' in kept_job[job]:
-            del kept_job[job]["needs"]
-        if 'rules' in kept_job[job]:
-            del kept_job[job]["rules"]
-        if 'retry' in kept_job[job]:
-            del kept_job[job]["retry"]
+    deps_job = copy.deepcopy(config["go_e2e_deps"])
+
+    # Remove needs, rules, extends and retry from the jobs
+    for job in [deps_job] + list(kept_job.values()):
+        _clean_job(job)
 
     new_jobs = {}
+    new_jobs["go_e2e_deps"] = deps_job
     new_jobs['variables'] = copy.deepcopy(config['variables'])
     new_jobs['variables']['PARENT_PIPELINE_ID'] = 'undefined'
     new_jobs['variables']['PARENT_COMMIT_SHA'] = 'undefined'
-    new_jobs['stages'] = [f'flake-finder-{i}' for i in range(n)]
+    new_jobs['stages'] = [deps_job["stage"]] + [f'flake-finder-{i}' for i in range(n)]
 
     # Create n jobs with the same configuration
     for job in kept_job:
         for i in range(n):
             new_job = copy.deepcopy(kept_job[job])
             new_job["stage"] = f"flake-finder-{i}"
-            new_job["dependencies"] = []
+            new_job["dependencies"] = ["go_e2e_deps"]
             if 'variables' in new_job:
                 if (
                     'E2E_PIPELINE_ID' in new_job['variables']
@@ -228,9 +225,21 @@ def generate_flake_finder_pipeline(_, n=3):
                 ):
                     new_job['variables']['E2E_COMMIT_SHA'] = "$PARENT_COMMIT_SHA"
             new_job["rules"] = [{"when": "always"}]
+            new_job["needs"] = ["go_e2e_deps"]
             new_jobs[f"{job}-{i}"] = new_job
 
     with open("flake-finder-gitlab-ci.yml", "w") as f:
         f.write(yaml.safe_dump(new_jobs))
 
-    print("New Gitlab-ci.yml:", yaml.safe_dump(new_jobs))
+    with gitlab_section("Flake finder generated pipeline", collapsed=True):
+        print(yaml.safe_dump(new_jobs))
+
+
+def _clean_job(job):
+    """
+    Remove the needs, rules, extends and retry from the job
+    """
+    for step in ('needs', 'rules', 'extends', 'retry'):
+        if step in job:
+            del job[step]
+    return job

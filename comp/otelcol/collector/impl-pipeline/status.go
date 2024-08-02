@@ -5,7 +5,7 @@
 
 //go:build otlp
 
-package collector
+package collectorimpl
 
 import (
 	"embed"

@@ -8,9 +8,14 @@ from datetime import datetime, timezone
 from invoke.context import Context
 from invoke.exceptions import UnexpectedExit
 
-from tasks.libs.ciproviders.gitlab_api import BASE_URL
+from tasks.libs.ciproviders.gitlab_api import BASE_URL, get_pipeline
 from tasks.libs.common.datadog_api import create_count, send_metrics
-from tasks.libs.notify.utils import AWS_S3_CP_CMD, PROJECT_NAME, PROJECT_TITLE, get_ci_visibility_job_url
+from tasks.libs.notify.utils import (
+    AWS_S3_CP_CMD,
+    CHANNEL_BROADCAST,
+    PROJECT_NAME,
+    get_ci_visibility_job_url,
+)
 from tasks.libs.pipeline.data import get_failed_jobs
 from tasks.libs.pipeline.notifications import (
     get_pr_from_commit,
@@ -126,7 +131,7 @@ class ConsecutiveJobAlert:
         # Find initial PR
         initial_pr_sha = next(iter(self.failures.values()))[0].commit
         initial_pr_title = ctx.run(f'git show -s --format=%s {initial_pr_sha}', hide=True).stdout.strip()
-        initial_pr_info = get_pr_from_commit(initial_pr_title, PROJECT_TITLE)
+        initial_pr_info = get_pr_from_commit(initial_pr_title, PROJECT_NAME)
         if initial_pr_info:
             pr_id, pr_url = initial_pr_info
             initial_pr = f'<{pr_url}|#{pr_id}>'
@@ -182,7 +187,7 @@ def update_statistics(job_executions: PipelineRuns):
     cumulative_alerts = {}
 
     # Update statistics and collect consecutive failed jobs
-    failed_jobs = get_failed_jobs(PROJECT_NAME, os.environ["CI_PIPELINE_ID"])
+    failed_jobs = get_failed_jobs(get_pipeline(PROJECT_NAME, os.environ["CI_PIPELINE_ID"]))
     commit_sha = os.getenv("CI_COMMIT_SHA")
     failed_dict = {job.name: ExecutionsJobInfo(job.id, True, commit_sha) for job in failed_jobs.all_failures()}
 
@@ -223,8 +228,6 @@ def update_statistics(job_executions: PipelineRuns):
 
 def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
     def send_alert(channel, consecutive: ConsecutiveJobAlert, cumulative: CumulativeJobAlert):
-        nonlocal metrics
-
         message = consecutive.message(ctx) + cumulative.message()
         message = message.strip()
 
@@ -232,7 +235,7 @@ def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
             send_slack_message(channel, message)
 
             # Create metrics for consecutive and cumulative alerts
-            metrics += [
+            return [
                 create_count(
                     metric_name=f"datadog.ci.failed_job_alerts.{alert_type}",
                     timestamp=timestamp,
@@ -244,6 +247,8 @@ def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
                 for team in channel_owners(channel)
                 if len(failures) > 0
             ]
+
+        return []
 
     metrics = []
     timestamp = int(datetime.now(timezone.utc).timestamp())
@@ -257,12 +262,12 @@ def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
         cumulative = CumulativeJobAlert(
             {name: jobs for (name, jobs) in alert_jobs["cumulative"].items() if name in partition[channel]}
         )
-        send_alert(channel, consecutive, cumulative)
+        metrics.extend(send_alert(channel, consecutive, cumulative))
 
-    # Send all alerts to #agent-platform-ops
+    # Send all alerts to CHANNEL_BROADCAST
     consecutive = ConsecutiveJobAlert(alert_jobs["consecutive"])
     cumulative = CumulativeJobAlert(alert_jobs["cumulative"])
-    send_alert('#agent-platform-ops', consecutive, cumulative)
+    metrics.extend(send_alert(CHANNEL_BROADCAST, consecutive, cumulative))
 
     if metrics:
         send_metrics(metrics)

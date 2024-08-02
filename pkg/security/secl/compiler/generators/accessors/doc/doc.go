@@ -101,6 +101,11 @@ func GenerateDocJSON(module *common.Module, seclModelPath, outputPath string) er
 			continue
 		}
 
+		// we currently don't want to publicly document the on-demand event type
+		if field.Event == "ondemand" {
+			continue
+		}
+
 		var propertyKey string
 		var propertySuffix string
 		var propertyDefinition string
@@ -159,11 +164,26 @@ func GenerateDocJSON(module *common.Module, seclModelPath, outputPath string) er
 			propertyDefinition = propertyDoc.Doc
 		}
 
-		kinds[field.Event] = append(kinds[field.Event], eventTypeProperty{
-			Name:        name,
-			Definition:  propertyDefinition,
-			PropertyKey: propertyKey,
-		})
+		if len(field.RestrictedTo) > 0 {
+			for _, evt := range field.RestrictedTo {
+				kinds[evt] = append(kinds[evt], eventTypeProperty{
+					Name:        name,
+					Definition:  propertyDefinition,
+					PropertyKey: propertyKey,
+				})
+			}
+		} else {
+			eventType := field.Event
+			if eventType == "" {
+				eventType = "*"
+			}
+
+			kinds[eventType] = append(kinds[eventType], eventTypeProperty{
+				Name:        name,
+				Definition:  propertyDefinition,
+				PropertyKey: propertyKey,
+			})
+		}
 	}
 
 	eventTypes := make([]eventType, 0)

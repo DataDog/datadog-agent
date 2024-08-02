@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package workloadmeta
+package workloadmetaimpl
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -131,23 +131,7 @@ func NewWorkloadMeta(deps dependencies) Provider {
 	}
 }
 
-// NewWorkloadMetaOptional creates a new optional workloadmeta component.
-func NewWorkloadMetaOptional(deps dependencies) OptionalProvider {
-	if deps.Params.NoInstance {
-		return OptionalProvider{
-			Comp: optional.NewNoneOption[wmdef.Component](),
-		}
-	}
-	c := NewWorkloadMeta(deps)
-
-	return OptionalProvider{
-		Comp:          optional.NewOption(c.Comp),
-		FlareProvider: c.FlareProvider,
-		Endpoint:      c.Endpoint,
-	}
-}
-
-func (wm *workloadmeta) writeResponse(w http.ResponseWriter, r *http.Request) {
+func (w *workloadmeta) writeResponse(writer http.ResponseWriter, r *http.Request) {
 	verbose := false
 	params := r.URL.Query()
 	if v, ok := params["verbose"]; ok {
@@ -156,12 +140,12 @@ func (wm *workloadmeta) writeResponse(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	response := wm.Dump(verbose)
+	response := w.Dump(verbose)
 	jsonDump, err := json.Marshal(response)
 	if err != nil {
-		httputils.SetJSONError(w, wm.log.Errorf("Unable to marshal workload list response: %v", err), 500)
+		httputils.SetJSONError(writer, w.log.Errorf("Unable to marshal workload list response: %v", err), 500)
 		return
 	}
 
-	w.Write(jsonDump)
+	writer.Write(jsonDump)
 }

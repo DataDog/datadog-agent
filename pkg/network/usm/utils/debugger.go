@@ -34,11 +34,30 @@ type TracedProgram struct {
 	PIDs        []uint32
 }
 
+// BlockedProcess represents an active uprobe-based program and its blocked PIDs.
+type BlockedProcess struct {
+	ProgramType     string
+	PathIdentifiers []PathIdentifierWithSamplePath
+}
+
+// PathIdentifierWithSamplePath extends `PathIdentifier` to have a sample path.
+type PathIdentifierWithSamplePath struct {
+	PathIdentifier
+	SamplePath string
+}
+
 // TracedProgramsEndpoint generates a summary of all active uprobe-based
 // programs along with their file paths and PIDs.
 // This is used for debugging purposes only.
 func TracedProgramsEndpoint(w http.ResponseWriter, _ *http.Request) {
 	otherutils.WriteAsJSON(w, debugger.GetTracedPrograms())
+}
+
+// BlockedPathIDEndpoint generates a summary of all blocked uprobe-based
+// programs that are blocked in the registry along with their device and inode numbers, and sample path.
+// This is used for debugging purposes only.
+func BlockedPathIDEndpoint(w http.ResponseWriter, _ *http.Request) {
+	otherutils.WriteAsJSON(w, debugger.GetAllBlockedPathIDs())
 }
 
 var debugger *tlsDebugger
@@ -104,6 +123,25 @@ func (d *tlsDebugger) GetTracedPrograms() []TracedProgram {
 	return all
 }
 
+// GetAllBlockedPathIDs returns a list of BlockedProcess blocked process for each `FileRegistry` instance.
+func (d *tlsDebugger) GetAllBlockedPathIDs() []BlockedProcess {
+	all := make([]BlockedProcess, 0, len(d.registries))
+
+	// Iterate over each `FileRegistry` instance:
+	// Examples of this would be: "shared_libraries", "istio", "goTLS" etc
+	for _, registry := range d.registries {
+		blockedPathIdentifiers := d.GetBlockedPathIDsWithSamplePath(registry.telemetry.programName)
+		if len(blockedPathIdentifiers) > 0 {
+			all = append(all, BlockedProcess{
+				ProgramType:     registry.telemetry.programName,
+				PathIdentifiers: blockedPathIdentifiers,
+			})
+		}
+	}
+
+	return all
+}
+
 // GetBlockedPathIDs returns a list of PathIdentifiers blocked in the
 // registry for the specified program type.
 func (d *tlsDebugger) GetBlockedPathIDs(programType string) []PathIdentifier {
@@ -119,6 +157,36 @@ func (d *tlsDebugger) GetBlockedPathIDs(programType string) []PathIdentifier {
 		defer registry.m.Unlock()
 
 		return registry.blocklistByID.Keys()
+	}
+
+	return nil
+}
+
+// GetBlockedPathIDsWithSamplePath returns a list of PathIdentifiers with a matching sample path blocked in the
+// registry for the specified program type.
+func (d *tlsDebugger) GetBlockedPathIDsWithSamplePath(programType string) []PathIdentifierWithSamplePath {
+	d.mux.Lock()
+	defer d.mux.Unlock()
+
+	for _, registry := range d.registries {
+		if registry.telemetry.programName != programType {
+			continue
+		}
+
+		registry.m.Lock()
+		defer registry.m.Unlock()
+
+		blockedIDsWithSampleFile := make([]PathIdentifierWithSamplePath, 0, len(registry.blocklistByID.Keys()))
+		for _, pathIdentifier := range registry.blocklistByID.Keys() {
+			samplePath, ok := registry.blocklistByID.Get(pathIdentifier)
+			if ok {
+				blockedIDsWithSampleFile = append(blockedIDsWithSampleFile, PathIdentifierWithSamplePath{
+					PathIdentifier: pathIdentifier,
+					SamplePath:     samplePath})
+			}
+		}
+
+		return blockedIDsWithSampleFile
 	}
 
 	return nil
@@ -215,6 +283,15 @@ func init() {
 	debugger = &tlsDebugger{
 		attachers: make(map[string]Attacher),
 	}
+}
+
+// GetBlockedPathIDsList returns a list of PathIdentifiers blocked in the
+// registry for the all programs type.
+func GetBlockedPathIDsList() []BlockedProcess {
+	if debugger == nil {
+		return nil
+	}
+	return debugger.GetAllBlockedPathIDs()
 }
 
 // GetTracedProgramList returns a list of traced programs.

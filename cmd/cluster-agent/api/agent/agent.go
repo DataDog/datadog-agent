@@ -163,11 +163,17 @@ func makeFlare(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 
 //nolint:revive // TODO(CINT) Fix revive linter
 func getConfigCheck(w http.ResponseWriter, r *http.Request, ac autodiscovery.Component) {
-	verbose := r.URL.Query().Get("verbose") == "true"
-	noColor := r.URL.Query().Get("nocolor") == "true"
-	bytes := ac.GetConfigCheck(verbose, noColor)
+	w.Header().Set("Content-Type", "application/json")
 
-	w.Write(bytes)
+	configCheck := ac.GetConfigCheck()
+
+	configCheckBytes, err := json.Marshal(configCheck)
+	if err != nil {
+		httputils.SetJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
+		return
+	}
+
+	w.Write(configCheckBytes)
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter

@@ -21,6 +21,7 @@ import (
 	basecmd "sigs.k8s.io/custom-metrics-apiserver/pkg/cmd"
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 
+	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	generatedopenapi "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics/api/generated/openapi"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics"
@@ -47,7 +48,7 @@ const (
 )
 
 // RunServer creates and start a k8s custom metrics API server
-func RunServer(ctx context.Context, apiCl *as.APIClient) error {
+func RunServer(ctx context.Context, apiCl *as.APIClient, datadogCl datadogclient.Component) error {
 	defer clearServerResources()
 	if apiCl == nil {
 		return fmt.Errorf("unable to run server with nil APIClient")
@@ -71,7 +72,7 @@ func RunServer(ctx context.Context, apiCl *as.APIClient) error {
 		return err
 	}
 
-	provider, err := cmd.makeProviderOrDie(ctx, apiCl)
+	provider, err := cmd.makeProviderOrDie(ctx, apiCl, datadogCl)
 	if err != nil {
 		return err
 	}
@@ -92,7 +93,7 @@ func RunServer(ctx context.Context, apiCl *as.APIClient) error {
 	return server.GenericAPIServer.PrepareRun().Run(ctx.Done())
 }
 
-func (a *DatadogMetricsAdapter) makeProviderOrDie(ctx context.Context, apiCl *as.APIClient) (provider.ExternalMetricsProvider, error) {
+func (a *DatadogMetricsAdapter) makeProviderOrDie(ctx context.Context, apiCl *as.APIClient, datadogCl datadogclient.Component) (provider.ExternalMetricsProvider, error) {
 	client, err := a.DynamicClient()
 	if err != nil {
 		log.Infof("Unable to construct dynamic client: %v", err)
@@ -106,7 +107,7 @@ func (a *DatadogMetricsAdapter) makeProviderOrDie(ctx context.Context, apiCl *as
 	}
 
 	if config.Datadog().GetBool("external_metrics_provider.use_datadogmetric_crd") {
-		return externalmetrics.NewDatadogMetricProvider(ctx, apiCl)
+		return externalmetrics.NewDatadogMetricProvider(ctx, apiCl, datadogCl)
 	}
 
 	datadogHPAConfigMap := custommetrics.GetConfigmapName()

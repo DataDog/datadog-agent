@@ -23,7 +23,6 @@ import (
 )
 
 const (
-	previousVersionLink   = "previous"
 	stableVersionLink     = "stable"
 	experimentVersionLink = "experiment"
 )

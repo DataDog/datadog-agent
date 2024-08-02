@@ -3,13 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package impl defines the OpenTelemetry Extension implementation.
-package impl
+// Package extensionimpl defines the OpenTelemetry Extension implementation.
+package extensionimpl
 
 import (
 	"testing"
 
-	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
+	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/confighttp"
@@ -17,11 +17,11 @@ import (
 )
 
 func getTestConfig(t *testing.T) *Config {
-	conv, err := converter.NewConverter()
+	conv, err := configstore.NewConfigStore()
 	require.NoError(t, err)
 
 	return &Config{
-		Converter: conv,
+		ConfigStore: conv,
 		HTTPConfig: &confighttp.ServerConfig{
 			Endpoint: "localhost:0",
 		},

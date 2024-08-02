@@ -72,6 +72,9 @@ var (
 	}
 
 	lowCardOrchestratorEnvKeys = map[string]string{
+		"DD_GIT_COMMIT_SHA":     tags.GitCommitSha,
+		"DD_GIT_REPOSITORY_URL": tags.GitRepository,
+
 		"MARATHON_APP_ID": tags.MarathonApp,
 
 		"CHRONOS_JOB_NAME":  tags.ChronosJob,
@@ -831,24 +834,5 @@ func parseContainerADTagsLabels(tags *taglist.TagList, labelValue string) {
 			continue
 		}
 		tags.AddHigh(tagParts[0], tagParts[1])
-	}
-}
-
-//lint:ignore U1000 Ignore unused function until the collector is implemented
-func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.TagInfo {
-	process := ev.Entity.(*workloadmeta.Process)
-	tagList := taglist.NewTagList()
-	if process.Language != nil {
-		tagList.AddLow(tags.Language, string(process.Language.Name))
-	}
-	low, orch, high, standard := tagList.Compute()
-	return []*types.TagInfo{{
-		Source:               processSource,
-		Entity:               buildTaggerEntityID(process.EntityID),
-		HighCardTags:         high,
-		OrchestratorCardTags: orch,
-		LowCardTags:          low,
-		StandardTags:         standard,
-	},
 	}
 }

@@ -100,6 +100,8 @@ func origTypeToBasicType(kind string) string {
 	switch kind {
 	case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64":
 		return "int"
+	case "containerutils.ContainerID", "containerutils.CGroupID":
+		return "string"
 	}
 	return kind
 }
@@ -138,7 +140,7 @@ func qualifiedType(module *common.Module, kind string) string {
 }
 
 // handleBasic adds fields of "basic" type to list of exposed SECL fields of the module
-func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefix, prefix, kind, event, opOverrides, commentText, containerStructName string, iterator *common.StructField, isArray bool) {
+func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefix, prefix, kind, event string, restrictedTo []string, opOverrides, commentText, containerStructName string, iterator *common.StructField, isArray bool) {
 	if verbose {
 		fmt.Printf("handleBasic name: %s, kind: %s, alias: %s, isArray: %v\n", name, kind, alias, isArray)
 	}
@@ -153,20 +155,21 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 
 	basicType := origTypeToBasicType(kind)
 	newStructField := &common.StructField{
-		Name:        name,
-		BasicType:   basicType,
-		ReturnType:  basicType,
-		IsArray:     strings.HasPrefix(kind, "[]") || isArray,
-		Event:       event,
-		OrigType:    kind,
-		Iterator:    iterator,
-		CommentText: commentText,
-		OpOverrides: opOverrides,
-		Struct:      containerStructName,
-		Alias:       alias,
-		AliasPrefix: aliasPrefix,
-		GettersOnly: field.gettersOnly,
-		Ref:         field.ref,
+		Name:         name,
+		BasicType:    basicType,
+		ReturnType:   basicType,
+		IsArray:      strings.HasPrefix(kind, "[]") || isArray,
+		Event:        event,
+		OrigType:     kind,
+		Iterator:     iterator,
+		CommentText:  commentText,
+		OpOverrides:  opOverrides,
+		Struct:       containerStructName,
+		Alias:        alias,
+		AliasPrefix:  aliasPrefix,
+		GettersOnly:  field.gettersOnly,
+		Ref:          field.ref,
+		RestrictedTo: restrictedTo,
 	}
 
 	module.Fields[alias] = newStructField
@@ -181,21 +184,22 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 		alias = alias + ".length"
 
 		newStructField := &common.StructField{
-			Name:        name,
-			BasicType:   "int",
-			ReturnType:  "int",
-			OrigType:    "int",
-			IsArray:     isArray,
-			IsLength:    true,
-			Event:       event,
-			Iterator:    iterator,
-			CommentText: doc.SECLDocForLength,
-			OpOverrides: opOverrides,
-			Struct:      "string",
-			Alias:       alias,
-			AliasPrefix: aliasPrefix,
-			GettersOnly: field.gettersOnly,
-			Ref:         field.ref,
+			Name:         name,
+			BasicType:    "int",
+			ReturnType:   "int",
+			OrigType:     "int",
+			IsArray:      isArray,
+			IsLength:     true,
+			Event:        event,
+			Iterator:     iterator,
+			CommentText:  doc.SECLDocForLength,
+			OpOverrides:  opOverrides,
+			Struct:       "string",
+			Alias:        alias,
+			AliasPrefix:  aliasPrefix,
+			GettersOnly:  field.gettersOnly,
+			Ref:          field.ref,
+			RestrictedTo: restrictedTo,
 		}
 
 		module.Fields[alias] = newStructField
@@ -209,7 +213,7 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 }
 
 // handleEmbedded adds embedded fields to list of exposed SECL fields of the module
-func handleEmbedded(module *common.Module, name, prefix, event string, fieldTypeExpr ast.Expr) {
+func handleEmbedded(module *common.Module, name, prefix, event string, restrictedTo []string, fieldTypeExpr ast.Expr) {
 	if verbose {
 		log.Printf("handleEmbedded name: %s", name)
 	}
@@ -227,11 +231,12 @@ func handleEmbedded(module *common.Module, name, prefix, event string, fieldType
 		OrigType:      qualifiedType(module, fieldType),
 		IsOrigTypePtr: isPointer,
 		IsArray:       isArray,
+		RestrictedTo:  restrictedTo,
 	}
 }
 
 // handleNonEmbedded adds non-embedded fields to list of all possible (but not necessarily exposed) SECL fields of the module
-func handleNonEmbedded(module *common.Module, field seclField, prefixedFieldName, event, fieldType string, isPointer, isArray bool) {
+func handleNonEmbedded(module *common.Module, field seclField, prefixedFieldName, event string, restrictedTo []string, fieldType string, isPointer, isArray bool) {
 	module.AllFields[prefixedFieldName] = &common.StructField{
 		Name:          prefixedFieldName,
 		Event:         event,
@@ -239,11 +244,12 @@ func handleNonEmbedded(module *common.Module, field seclField, prefixedFieldName
 		IsOrigTypePtr: isPointer,
 		IsArray:       isArray,
 		Check:         field.check,
+		RestrictedTo:  restrictedTo,
 	}
 }
 
 // handleIterator adds iterator to list of exposed SECL iterators of the module
-func handleIterator(module *common.Module, field seclField, fieldType, iterator, aliasPrefix, prefixedFieldName, event, fieldCommentText, opOverrides string, isPointer, isArray bool) *common.StructField {
+func handleIterator(module *common.Module, field seclField, fieldType, iterator, aliasPrefix, prefixedFieldName, event string, restrictedTo []string, fieldCommentText, opOverrides string, isPointer, isArray bool) *common.StructField {
 	alias := field.name
 	if aliasPrefix != "" {
 		alias = aliasPrefix + "." + field.name
@@ -263,13 +269,14 @@ func handleIterator(module *common.Module, field seclField, fieldType, iterator,
 		SkipADResolution: field.skipADResolution,
 		Check:            field.check,
 		Ref:              field.ref,
+		RestrictedTo:     restrictedTo,
 	}
 
 	return module.Iterators[alias]
 }
 
 // handleFieldWithHandler adds non-embedded fields with handlers to list of exposed SECL fields and event types of the module
-func handleFieldWithHandler(module *common.Module, field seclField, aliasPrefix, prefix, prefixedFieldName, fieldType, containerStructName, event, fieldCommentText, opOverrides, handler string, isPointer, isArray bool, fieldIterator *common.StructField) {
+func handleFieldWithHandler(module *common.Module, field seclField, aliasPrefix, prefix, prefixedFieldName, fieldType, containerStructName, event string, restrictedTo []string, fieldCommentText, opOverrides, handler string, isPointer, isArray bool, fieldIterator *common.StructField) {
 	alias := field.name
 
 	if aliasPrefix != "" {
@@ -302,6 +309,7 @@ func handleFieldWithHandler(module *common.Module, field seclField, aliasPrefix,
 		AliasPrefix:      aliasPrefix,
 		GettersOnly:      field.gettersOnly,
 		Ref:              field.ref,
+		RestrictedTo:     restrictedTo,
 	}
 
 	module.Fields[alias] = newStructField
@@ -425,7 +433,7 @@ func parseFieldDef(def string) (seclField, error) {
 }
 
 // handleSpecRecursive is a recursive function that walks through the fields of a module
-func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interface{}, prefix, aliasPrefix, event string, iterator *common.StructField, dejavu map[string]bool) {
+func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interface{}, prefix, aliasPrefix, event string, restrictedTo []string, iterator *common.StructField, dejavu map[string]bool) {
 	if verbose {
 		fmt.Printf("handleSpec spec: %+v, prefix: %s, aliasPrefix %s, event %s, iterator %+v\n", spec, prefix, aliasPrefix, event, iterator)
 	}
@@ -440,6 +448,8 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 		log.Printf("Don't know what to do with %s (%s)", typeSpec.Name, spew.Sdump(typeSpec))
 		return
 	}
+
+	prevrestrictedTo := restrictedTo
 
 	for _, field := range structType.Fields.List {
 		fieldCommentText := field.Comment.Text()
@@ -456,9 +466,11 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 				module.EventTypes[e] = common.NewEventTypeMetada()
 				dejavu = make(map[string]bool) // clear dejavu map when it's a new event type
 			}
-			if e != "*" {
-				module.EventTypes[e].Doc = fieldCommentText
-			}
+			module.EventTypes[e].Doc = fieldCommentText
+		}
+
+		if e, ok := tag.Lookup("restricted_to"); ok {
+			restrictedTo = strings.Split(e, ",")
 		}
 
 		if isEmbedded := len(field.Names) == 0; isEmbedded { // embedded as in a struct embedded in another struct
@@ -481,8 +493,8 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 
 				embedded := astFiles.LookupSymbol(ident.Name)
 				if embedded != nil {
-					handleEmbedded(module, ident.Name, prefix, event, field.Type)
-					handleSpecRecursive(module, astFiles, embedded.Decl, name, aliasPrefix, event, fieldIterator, dejavu)
+					handleEmbedded(module, ident.Name, prefix, event, restrictedTo, field.Type)
+					handleSpecRecursive(module, astFiles, embedded.Decl, name, aliasPrefix, event, restrictedTo, fieldIterator, dejavu)
 				} else {
 					log.Printf("failed to resolve symbol for identifier %+v in %s", ident.Name, pkgname)
 				}
@@ -518,14 +530,14 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 			}
 
 			for _, seclField := range fields {
-				handleNonEmbedded(module, seclField, prefixedFieldName, event, fieldType, isPointer, isArray)
+				handleNonEmbedded(module, seclField, prefixedFieldName, event, restrictedTo, fieldType, isPointer, isArray)
 
 				if seclFieldIterator := seclField.iterator; seclFieldIterator != "" {
-					fieldIterator = handleIterator(module, seclField, fieldType, seclFieldIterator, aliasPrefix, prefixedFieldName, event, fieldCommentText, opOverrides, isPointer, isArray)
+					fieldIterator = handleIterator(module, seclField, fieldType, seclFieldIterator, aliasPrefix, prefixedFieldName, event, restrictedTo, fieldCommentText, opOverrides, isPointer, isArray)
 				}
 
 				if handler := seclField.handler; handler != "" {
-					handleFieldWithHandler(module, seclField, aliasPrefix, prefix, prefixedFieldName, fieldType, seclField.containerStructName, event, fieldCommentText, opOverrides, handler, isPointer, isArray, fieldIterator)
+					handleFieldWithHandler(module, seclField, aliasPrefix, prefix, prefixedFieldName, fieldType, seclField.containerStructName, event, restrictedTo, fieldCommentText, opOverrides, handler, isPointer, isArray, fieldIterator)
 
 					delete(dejavu, fieldBasename)
 					continue
@@ -549,7 +561,7 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 
 				alias := seclField.name
 				if isBasicType(fieldType) {
-					handleBasic(module, seclField, fieldBasename, alias, aliasPrefix, prefix, fieldType, event, opOverrides, fieldCommentText, seclField.containerStructName, fieldIterator, isArray)
+					handleBasic(module, seclField, fieldBasename, alias, aliasPrefix, prefix, fieldType, event, restrictedTo, opOverrides, fieldCommentText, seclField.containerStructName, fieldIterator, isArray)
 				} else {
 					spec := astFiles.LookupSymbol(fieldType)
 					if spec != nil {
@@ -563,7 +575,7 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 							newAliasPrefix = aliasPrefix + "." + alias
 						}
 
-						handleSpecRecursive(module, astFiles, spec.Decl, newPrefix, newAliasPrefix, event, fieldIterator, dejavu)
+						handleSpecRecursive(module, astFiles, spec.Decl, newPrefix, newAliasPrefix, event, restrictedTo, fieldIterator, dejavu)
 					} else {
 						log.Printf("failed to resolve symbol for type %+v in %s", fieldType, pkgname)
 					}
@@ -574,14 +586,14 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 				}
 			}
 			for _, seclField := range gettersOnlyFields {
-				handleNonEmbedded(module, seclField, prefixedFieldName, event, fieldType, isPointer, isArray)
+				handleNonEmbedded(module, seclField, prefixedFieldName, event, restrictedTo, fieldType, isPointer, isArray)
 
 				if seclFieldIterator := seclField.iterator; seclFieldIterator != "" {
-					fieldIterator = handleIterator(module, seclField, fieldType, seclFieldIterator, aliasPrefix, prefixedFieldName, event, fieldCommentText, opOverrides, isPointer, isArray)
+					fieldIterator = handleIterator(module, seclField, fieldType, seclFieldIterator, aliasPrefix, prefixedFieldName, event, restrictedTo, fieldCommentText, opOverrides, isPointer, isArray)
 				}
 
 				if handler := seclField.handler; handler != "" {
-					handleFieldWithHandler(module, seclField, aliasPrefix, prefix, prefixedFieldName, fieldType, seclField.containerStructName, event, fieldCommentText, opOverrides, handler, isPointer, isArray, fieldIterator)
+					handleFieldWithHandler(module, seclField, aliasPrefix, prefix, prefixedFieldName, fieldType, seclField.containerStructName, event, restrictedTo, fieldCommentText, opOverrides, handler, isPointer, isArray, fieldIterator)
 
 					delete(dejavu, fieldBasename)
 					continue
@@ -599,7 +611,7 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 
 				alias := seclField.name
 				if isBasicTypeForGettersOnly(fieldType) {
-					handleBasic(module, seclField, fieldBasename, alias, aliasPrefix, prefix, fieldType, event, opOverrides, fieldCommentText, seclField.containerStructName, fieldIterator, isArray)
+					handleBasic(module, seclField, fieldBasename, alias, aliasPrefix, prefix, fieldType, event, restrictedTo, opOverrides, fieldCommentText, seclField.containerStructName, fieldIterator, isArray)
 				} else {
 					spec := astFiles.LookupSymbol(fieldType)
 					if spec != nil {
@@ -613,7 +625,7 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 							newAliasPrefix = aliasPrefix + "." + alias
 						}
 
-						handleSpecRecursive(module, astFiles, spec.Decl, newPrefix, newAliasPrefix, event, fieldIterator, dejavu)
+						handleSpecRecursive(module, astFiles, spec.Decl, newPrefix, newAliasPrefix, event, restrictedTo, fieldIterator, dejavu)
 					} else {
 						log.Printf("failed to resolve symbol for type %+v in %s", fieldType, pkgname)
 					}
@@ -624,6 +636,8 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 				}
 			}
 		}
+
+		restrictedTo = prevrestrictedTo
 	}
 }
 
@@ -716,7 +730,7 @@ func parseFile(modelFile string, typesFile string, pkgName string) (*common.Modu
 	}
 
 	for _, spec := range astFiles.GetSpecs() {
-		handleSpecRecursive(module, astFiles, spec, "", "", "", nil, make(map[string]bool))
+		handleSpecRecursive(module, astFiles, spec, "", "", "", nil, nil, make(map[string]bool))
 	}
 
 	return module, nil
@@ -952,12 +966,19 @@ func getHandlers(allFields map[string]*common.StructField) map[string]string {
 					handlers[handler] = fmt.Sprintf("{ return int(%s) }", name)
 				}
 			} else {
-				handlers[handler] = fmt.Sprintf("{ return %s }", name)
+				handlers[handler] = fmt.Sprintf("{ return %s(%s) }", returnType, name)
 			}
 		}
 	}
 
 	return handlers
+}
+
+func getFieldRestrictions(field *common.StructField) string {
+	if len(field.RestrictedTo) == 0 {
+		return "nil"
+	}
+	return fmt.Sprintf(`[]eval.EventType{"%s"}`, strings.Join(field.RestrictedTo, `", "`))
 }
 
 var funcMap = map[string]interface{}{
@@ -974,6 +995,7 @@ var funcMap = map[string]interface{}{
 	"GetDefaultValueOfType":    getDefaultValueOfType,
 	"NeedScrubbed":             needScrubbed,
 	"AddSuffixToFuncPrototype": addSuffixToFuncPrototype,
+	"GetFieldRestrictions":     getFieldRestrictions,
 }
 
 //go:embed accessors.tmpl

@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package impl defines the OpenTelemetry Extension implementation.
-package impl
+// Package extensionimpl defines the OpenTelemetry Extension implementation.
+package extensionimpl
 
 import (
 	"errors"
 	"fmt"
 
+	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/def"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/confmap"
@@ -31,7 +32,7 @@ var (
 type Config struct {
 	HTTPConfig *confighttp.ServerConfig `mapstructure:",squash"`
 
-	Converter confmap.Converter
+	ConfigStore configstore.Component
 }
 
 var _ component.Config = (*Config)(nil)

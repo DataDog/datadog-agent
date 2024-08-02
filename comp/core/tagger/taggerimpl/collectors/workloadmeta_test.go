@@ -17,7 +17,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -65,7 +66,7 @@ func TestHandleKubePod(t *testing.T) {
 	}
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
@@ -870,7 +871,7 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 	}
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
@@ -1013,7 +1014,7 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 	}
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
@@ -1136,7 +1137,7 @@ func TestHandleKubeMetadata(t *testing.T) {
 	taggerEntityID := fmt.Sprintf("kubernetes_metadata://%s", kubeMetadataEntityID.ID)
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
@@ -1186,7 +1187,7 @@ func TestHandleKubeMetadata(t *testing.T) {
 						"namespace_security": "critical",
 					},
 				},
-				GVR: schema.GroupVersionResource{
+				GVR: &schema.GroupVersionResource{
 					Version:  "v1",
 					Resource: "namespaces",
 				},
@@ -1239,7 +1240,7 @@ func TestHandleECSTask(t *testing.T) {
 	taggerEntityID := fmt.Sprintf("container_id://%s", containerID)
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmetafxmock.MockModule(),
@@ -1395,6 +1396,8 @@ func TestHandleContainer(t *testing.T) {
 		env           = "production"
 		svc           = "datadog-agent"
 		version       = "7.32.0"
+		repositoryURL = "https://github.com/DataDog/datadog-agent"
+		commitSHA     = "ce12f4c957dc5083c390205da435ebf54b9f7dac"
 	)
 
 	standardTags := []string{
@@ -1475,6 +1478,10 @@ func TestHandleContainer(t *testing.T) {
 					"DD_ENV":     env,
 					"DD_SERVICE": svc,
 					"DD_VERSION": version,
+
+					// source code integration
+					"DD_GIT_REPOSITORY_URL": repositoryURL,
+					"DD_GIT_COMMIT_SHA":     commitSHA,
 				},
 			},
 			envAsTags: map[string]string{
@@ -1491,6 +1498,8 @@ func TestHandleContainer(t *testing.T) {
 					OrchestratorCardTags: []string{},
 					LowCardTags: append([]string{
 						"owner_team:container-integrations",
+						fmt.Sprintf("git.repository_url:%s", repositoryURL),
+						fmt.Sprintf("git.commit.sha:%s", commitSHA),
 					}, standardTags...),
 					StandardTags: standardTags,
 				},
@@ -2044,7 +2053,7 @@ func TestHandleDelete(t *testing.T) {
 	containerTaggerEntityID := fmt.Sprintf("container_id://%s", containerID)
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmetafxmock.MockModule(),
@@ -2120,7 +2129,7 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 	collectorCh := make(chan []*types.TagInfo, 10)
 
 	fakeStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmetafxmock.MockModule(),

@@ -13,7 +13,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 )
@@ -288,6 +288,16 @@ func (f *domainForwarder) sendHTTPTransactions(t transaction.Transaction) {
 				return
 			}
 		}
+	}
+
+	// Check for primary/secondary only transactions and compare with our own MRF state.
+	if (t.GetKind() == transaction.Series || t.GetKind() == transaction.Sketches) && t.GetDestination() == transaction.PrimaryOnly && f.isMRF {
+		f.log.Debugf("Transaction for domain %v is marked as primary only, but the forwarder is in MRF mode; dropping transaction.", t.GetTarget())
+		return
+	}
+	if (t.GetKind() == transaction.Series || t.GetKind() == transaction.Sketches) && t.GetDestination() == transaction.SecondaryOnly && !f.isMRF {
+		f.log.Debugf("Transaction for domain %v is marked as secondary only, but the forwarder is not in MRF mode; dropping transaction.", t.GetTarget())
+		return
 	}
 
 	// We don't want to block the collector if the highPrio queue is full

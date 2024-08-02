@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -80,7 +81,7 @@ func newProcess(ps *ProcessSerializer) model.Process {
 		p.ExitTime = ps.ExitTime.GetInnerTime()
 	}
 	if ps.Container != nil {
-		p.ContainerID = ps.Container.ID
+		p.ContainerID = containerutils.ContainerID(ps.Container.ID)
 	}
 
 	// TODO: credentials
