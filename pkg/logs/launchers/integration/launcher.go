@@ -9,6 +9,7 @@ package integration
 import (
 	"os"
 	"strings"
+	"time"
 
 	ddLog "github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -25,28 +26,45 @@ import (
 // Launcher checks for launcher integrations, creates files for integrations to
 // write logs to, then creates file sources for the file launcher to tail
 type Launcher struct {
-	sources              *sources.LogSources
-	addedSources         chan *sources.LogSource
-	stop                 chan struct{}
-	runPath              string
-	integrationsLogsChan chan integrations.IntegrationLog
-	integrationToFile    map[string]string
-	logFileMaxSize       int64
+	sources                   *sources.LogSources
+	addedSources              chan *sources.LogSource
+	stop                      chan struct{}
+	runPath                   string
+	integrationsLogsChan      chan integrations.IntegrationLog
+	integrationNameToFile     map[string]*FileInfo
+	fileSizeMax               int64
+	combinedUsageMax          int64
+	combinedUsageSize         int64
+	leastRecentlyModifiedTime time.Time
+	leastRecentlyModifiedFile *FileInfo
 	// writeLogToFile is used as a function pointer so it can be overridden in
 	// testing to make deterministic tests
-	writeFunction func(filepath, log string) error
+	writeLogToFileFunction func(filepath, log string) error
+}
+
+// Information about each file is needed in order to keep track of the combined
+// overall disk usage by the logs files
+type FileInfo struct {
+	filename     string
+	lastModified time.Time
+	size         int64
 }
 
 // NewLauncher returns a new launcher
 func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.Component) *Launcher {
 	return &Launcher{
-		sources:              sources,
-		runPath:              pkgConfig.Datadog().GetString("logs_config.run_path"),
-		logFileMaxSize:       pkgConfig.Datadog().GetInt64("logs_config.integrations_logs_files_max_size"),
-		stop:                 make(chan struct{}),
-		integrationsLogsChan: integrationsLogsComp.Subscribe(),
-		integrationToFile:    make(map[string]string),
-		writeFunction:        writeLogToFile,
+		sources:               sources,
+		runPath:               pkgConfig.Datadog().GetString("logs_config.run_path"),
+		fileSizeMax:           pkgConfig.Datadog().GetInt64("logs_config.integrations_logs_files_max_size") * 1024 * 1024,
+		combinedUsageMax:      pkgConfig.Datadog().GetInt64("logs_config.integrations_logs_total_usage") * 1024 * 1024,
+		combinedUsageSize:     0,
+		stop:                  make(chan struct{}),
+		integrationsLogsChan:  integrationsLogsComp.Subscribe(),
+		integrationNameToFile: make(map[string]*FileInfo),
+		// Set the initial least recently modified time to the largest possible
+		// value, used for the first comparison
+		leastRecentlyModifiedTime: time.Unix(1<<63-62135596801, 999999999),
+		writeLogToFileFunction:    writeLogToFile,
 	}
 }
 
@@ -79,30 +97,84 @@ func (s *Launcher) run() {
 			s.sources.AddSource(filetypeSource)
 
 			// file to write the incoming logs to
-			s.integrationToFile[source.Name] = filepath
+			fileInfo := &FileInfo{
+				filename:     filepath,
+				lastModified: time.Now(),
+				size:         0,
+			}
+			s.integrationNameToFile[source.Name] = fileInfo
 		case log := <-s.integrationsLogsChan:
 			// Integrations will come in the form of: check_name:instance_config_hash
 			integrationSplit := strings.Split(log.IntegrationID, ":")
 			integrationName := integrationSplit[0]
-			filepath := s.integrationToFile[integrationName]
+			fileToUpdate := s.integrationNameToFile[integrationName]
 
-			err := s.ensureFileSize(filepath)
-			if err != nil {
-				ddLog.Warn("Failed to get file size: ", err)
-				continue
+			// Ensure the individual file doesn't exceed integrations_logs_files_max_size
+			logSize := int64(len(log.Log))
+			if fileToUpdate.size+logSize > s.fileSizeMax {
+				s.combinedUsageSize -= fileToUpdate.size
+				err := s.deleteAndRemakeFile(fileToUpdate.filename)
+				if err != nil {
+					ddLog.Warn("Failed to get file size: ", err)
+					continue
+				}
 			}
 
-			err = s.writeFunction(filepath, log.Log)
+			err := s.writeLogToFileFunction(fileToUpdate.filename, log.Log)
 			if err != nil {
 				ddLog.Warn("Error writing log to file: ", err)
 			}
+
+			// Update information for the modified file
+			fileToUpdate.lastModified = time.Now()
+			fileToUpdate.size = logSize
+
+			// Ensure combined logs usage doesn't exceed integrations_logs_total_usage
+			for s.combinedUsageSize+logSize > s.combinedUsageMax {
+				s.deleteLeastRecentlyModified()
+				s.updateLeastRecentlyModifiedFile()
+			}
+			s.combinedUsageSize += logSize
+
+			// Update leastRecentlyModifiedFile
+			if s.leastRecentlyModifiedFile == fileToUpdate && len(s.integrationNameToFile) > 1 {
+				s.updateLeastRecentlyModifiedFile()
+			}
+
 		case <-s.stop:
 			return
 		}
 	}
 }
 
-// writeLogToFile is used as a function pointer
+// deleteLeastRecentlyModified deletes and remakes the least recently log file
+func (s *Launcher) deleteLeastRecentlyModified() {
+	s.combinedUsageSize -= s.leastRecentlyModifiedFile.size
+	s.deleteAndRemakeFile(s.leastRecentlyModifiedFile.filename)
+
+	s.leastRecentlyModifiedFile.size = 0
+	s.leastRecentlyModifiedFile.lastModified = time.Now()
+}
+
+// updateLeastRecentlyModifiedFile finds the least recently modified file among
+// all the files tracked by the integrations launcher and sets the
+// leastRecentlyModifiedFile to that file
+func (s *Launcher) updateLeastRecentlyModifiedFile() {
+	leastRecentlyModifiedTime := time.Now()
+	var leastRecentlyModifiedFile *FileInfo = nil
+
+	for _, fileInfo := range s.integrationNameToFile {
+		if fileInfo.lastModified.Before(leastRecentlyModifiedTime) {
+			leastRecentlyModifiedFile = fileInfo
+			leastRecentlyModifiedTime = fileInfo.lastModified
+		}
+	}
+
+	s.leastRecentlyModifiedFile = leastRecentlyModifiedFile
+	s.leastRecentlyModifiedTime = leastRecentlyModifiedTime
+}
+
+// writeLogToFile is used as a function pointer that writes a log to a given file
 func writeLogToFile(filepath, log string) error {
 	file, err := os.OpenFile(filepath, os.O_WRONLY, 0644)
 	if err != nil {
@@ -164,34 +236,25 @@ func (s *Launcher) integrationLogFilePath(source sources.LogSource) (string, str
 	return directory, filepath
 }
 
-// ensureFileSize enforces the max file size for files integrations logs
-// files. Files over the set size will be deleted and remade.
-func (s *Launcher) ensureFileSize(filepath string) error {
-	maxFileSizeBytes := s.logFileMaxSize * 1024 * 1024
+// deleteAndRemakeFile deletes log files and creates a new empty file with the
+// same name
+func (s *Launcher) deleteAndRemakeFile(filepath string) error {
+	err := os.Remove(filepath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			ddLog.Warn("File does not exist, creating new one: ", err)
+		} else {
+			ddLog.Warn("Error deleting file: ", err)
+		}
+	} else {
+		ddLog.Info("Successfully deleted oversize log file, creating new one.")
+	}
 
-	fi, err := os.Stat(filepath)
+	file, err := os.Create(filepath)
 	if err != nil {
 		return err
 	}
-
-	if fi.Size() > int64(maxFileSizeBytes) {
-		err := os.Remove(filepath)
-		if err != nil {
-			if os.IsNotExist(err) {
-				ddLog.Warn("File does not exist, creating new one: ", err)
-			} else {
-				ddLog.Warn("Error deleting file: ", err)
-			}
-		} else {
-			ddLog.Info("Successfully deleted oversize log file, creating new one.")
-		}
-
-		file, err := os.Create(filepath)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
-	}
+	defer file.Close()
 
 	return nil
 }
