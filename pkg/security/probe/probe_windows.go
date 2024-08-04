@@ -301,7 +301,7 @@ func (p *WindowsProbe) reconfigureProvider() error {
 		// given the current requirements, I think we can _probably_ just do create_new_file
 		cfg.MatchAnyKeyword = 0x18A0
 
-		fileIds := []uint16{
+		fileIDs := []uint16{
 			idCreate,
 			idCreateNewFile,
 			idCleanup,
@@ -309,19 +309,19 @@ func (p *WindowsProbe) reconfigureProvider() error {
 		}
 
 		if p.isWriteEnabled {
-			fileIds = append(fileIds, idWrite)
+			fileIDs = append(fileIDs, idWrite)
 		}
 		if p.isRenameEnabled {
-			fileIds = append(fileIds, idRename, idRenamePath, idRename29)
+			fileIDs = append(fileIDs, idRename, idRenamePath, idRename29)
 		}
 		if p.isDeleteEnabled {
-			fileIds = append(fileIds, idSetDelete, idDeletePath)
+			fileIDs = append(fileIDs, idSetDelete, idDeletePath)
 		}
 		if p.isChangePermissionEnabled {
-			fileIds = append(fileIds, idObjectPermsChange)
+			fileIDs = append(fileIDs, idObjectPermsChange)
 		}
 
-		cfg.EnabledIDs = fileIds
+		cfg.EnabledIDs = fileIDs
 	})
 
 	p.fimSession.ConfigureProvider(p.regguid, func(cfg *etw.ProviderConfiguration) {

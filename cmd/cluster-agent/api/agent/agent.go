@@ -162,7 +162,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
-func getConfigCheck(w http.ResponseWriter, r *http.Request, ac autodiscovery.Component) {
+func getConfigCheck(w http.ResponseWriter, _ *http.Request, ac autodiscovery.Component) {
 	w.Header().Set("Content-Type", "application/json")
 
 	configCheck := ac.GetConfigCheck()

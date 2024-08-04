@@ -17,7 +17,7 @@ func NewSet() *Set {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (s *Set) addSample(sample *MetricSample, timestamp float64) {
+func (s *Set) addSample(sample *MetricSample, _ float64) {
 	s.values[sample.RawValue] = true
 }
 

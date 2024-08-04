@@ -88,7 +88,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "flare [caseID]",
 		Short: "Collect a flare and send it to Datadog",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 			config := config.NewAgentParams(globalParams.ConfFilePath,
 				config.WithSecurityAgentConfigFilePaths([]string{

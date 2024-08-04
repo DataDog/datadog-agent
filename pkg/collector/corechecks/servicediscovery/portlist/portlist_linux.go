@@ -304,7 +304,7 @@ func (li *linuxImpl) findProcessNames(need map[string]*portMeta) error {
 			return nil
 		}
 
-		_ = dirWalkShallow(mem.B(fdPath), func(fd mem.RO, de fs.DirEntry) error {
+		_ = dirWalkShallow(mem.B(fdPath), func(fd mem.RO, _ fs.DirEntry) error {
 			targetBuf := make([]byte, 64) // plenty big for "socket:[165614651]"
 
 			linkPath := li.readlinkPathBuf[:0]
@@ -355,7 +355,7 @@ func (li *linuxImpl) findProcessNames(need map[string]*portMeta) error {
 }
 
 func (li *linuxImpl) foreachPID(fn func(pidStr mem.RO) error) error {
-	err := dirWalkShallow(mem.S(li.procMountPath), func(name mem.RO, de fs.DirEntry) error {
+	err := dirWalkShallow(mem.S(li.procMountPath), func(name mem.RO, _ fs.DirEntry) error {
 		if !isNumeric(name) {
 			return nil
 		}

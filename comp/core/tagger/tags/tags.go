@@ -46,6 +46,8 @@ const (
 	KubePriorityClass = "kube_priority_class"
 	// KubeQOS is the tag for the Kubernetes QoS (Quality of Service)
 	KubeQOS = "kube_qos"
+	// KubeRuntimeClass is the tag for the Kubernetes runtime class
+	KubeRuntimeClass = "kube_runtime_class"
 	// KubeContainerName is the tag for the Kubernetes container name
 	KubeContainerName = "kube_container_name"
 	// KubeOwnerRefKind is the tag for the Kubernetes owner reference kind

@@ -134,7 +134,7 @@ func (c *collectorTest) waitForContainerUpdate(t *testing.T, cont *workloadmeta.
 	t.Helper()
 
 	c.store.Set(cont)
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+	require.EventuallyWithT(t, func(_ *assert.CollectT) {
 		assert.Contains(t, c.collector.pidToCid, cont.PID)
 	}, 15*time.Second, 1*time.Second)
 }

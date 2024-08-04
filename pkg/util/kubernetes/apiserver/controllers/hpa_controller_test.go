@@ -301,7 +301,7 @@ func TestAutoscalerController(t *testing.T) {
 	}
 
 	datadogClientComp := datadogclientmock.New(t).Comp
-	datadogClientComp.SetQueryMetricsFunc(func(from, to int64, query string) ([]datadog.Series, error) {
+	datadogClientComp.SetQueryMetricsFunc(func(int64, int64, string) ([]datadog.Series, error) {
 		return ddSeries, nil
 	})
 
