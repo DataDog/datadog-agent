@@ -1,6 +1,6 @@
 # ```agent diagnose``` CLI command
 
-```agent diagnose``` command is one of the Agent CLI commands ([agent other commands](https://docs.datadoghq.com/agent/guide/agent-commands/?tab=agentv6v7#other-commands)). It runs internal self-diagnostic tests and outputs their results and if problems are found report them (and in some cases remediation steps). 
+```agent diagnose``` command is one of the Agent CLI commands ([agent other commands](https://docs.datadoghq.com/agent/guide/agent-commands/?tab=agentv6v7#other-commands)). It runs internal self-diagnostic tests and outputs their results and if problems are found report them (and in some cases remediation steps).
 
 ## ```diagnose``` command line options
 List sub-commands:
@@ -35,6 +35,7 @@ Flags:
   -t, --list              list diagnose suites
   -l, --local             force diagnose execution by the command line instead of the agent process (useful when troubleshooting privilege related problems)
   -v, --verbose           verbose output, includes passed diagnoses, and diagnoses description
+  -j, --json              output diagnosis results in JSON format
 ```
 
 ### ```include``` and ```exclude``` options
@@ -47,4 +48,7 @@ List names of all registered diagnose suites. Output also will be filtered if in
 Normally a successful diagnosis is printed as a single dot character. If verbose option is specified successful diagnosis is printed fully. With verbose option diagnosis description is also printed.
 
 ### ```local``` option
-Normally internal diagnose functions will run in the context of agent and other services. It can be overridden via –run-as-user options and if specified diagnose functions will be executed in context of the agent diagnose CLI process if possible.
+Normally, internal diagnose functions run in the context of the Agent and other services. It can be overridden with –run-as-user options, and if specified, diagnose functions are executed in the context of the Agent diagnose CLI process if possible.
+
+## ```json``` option
+If JSON option is specified, the output will be formated as JSON and displayed on stdout.

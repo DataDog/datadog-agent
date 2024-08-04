@@ -92,6 +92,9 @@ type Diagnosis struct {
 	Remediation string
 	// run-time
 	RawError string
+	// Result code
+	ResultCode int
+
 }
 
 // Diagnoses is a collection of Diagnosis
