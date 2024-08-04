@@ -18,7 +18,7 @@ import (
 func ResolveSymlink(linkPath string) (string, error) {
 	targetPath, err := os.Readlink(linkPath)
 	if err != nil {
-		// We receive the Exec event, /proc could be slow to update
+		// If Readlink fails, retry for up to 10 milliseconds in case of transient issues.
 		end := time.Now().Add(10 * time.Millisecond)
 		for end.After(time.Now()) {
 			targetPath, err = os.Readlink(linkPath)
