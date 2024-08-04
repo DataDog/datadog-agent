@@ -193,7 +193,7 @@ func stopOldAgentUnits(ctx context.Context) error {
 }
 
 func chownRecursive(path string, uid int, gid int) error {
-	return filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
+	return filepath.Walk(path, func(p string, _ os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
