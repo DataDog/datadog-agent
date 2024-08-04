@@ -229,6 +229,6 @@ type noopTelemetryCollector struct{}
 func (*noopTelemetryCollector) SendStartupSuccess() {}
 
 //nolint:revive // TODO(TEL) Fix revive linter
-func (*noopTelemetryCollector) SendStartupError(code int, err error) {}
-func (*noopTelemetryCollector) SendFirstTrace()                      {}
-func (*noopTelemetryCollector) SentFirstTrace() bool                 { return true }
+func (*noopTelemetryCollector) SendStartupError(_ int, _ error) {}
+func (*noopTelemetryCollector) SendFirstTrace()                 {}
+func (*noopTelemetryCollector) SentFirstTrace() bool            { return true }

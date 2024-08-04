@@ -279,6 +279,9 @@ variables:
 .if_not_deploy: &if_not_deploy
   if: $DEPLOY_AGENT != "true" && $DDR_WORKFLOW_ID == null
 
+.if_deploy_installer: &if_deploy_installer
+  if: $DEPLOY_INSTALLER == "true" || $DDR_WORKFLOW_ID != null
+
 .if_tagged_commit: &if_tagged_commit
   if: $CI_COMMIT_TAG != null
 
@@ -436,6 +439,9 @@ workflow:
 
 .on_deploy:
   - <<: *if_deploy
+
+.on_deploy_installer:
+  - <<: *if_deploy_installer
 
 .on_deploy_failure:
   - <<: *if_deploy

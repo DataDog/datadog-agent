@@ -221,7 +221,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *tracer.Tracer, c
 				IP:   net.ParseIP(clientHost),
 				Port: 0,
 			},
-			Control: func(network, address string, c syscall.RawConn) error {
+			Control: func(_, _ string, c syscall.RawConn) error {
 				var opErr error
 				err := c.Control(func(fd uintptr) {
 					opErr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT, 1)
@@ -602,7 +602,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		},
 	}
 
-	kafkaTeardown := func(t *testing.T, ctx testContext) {
+	kafkaTeardown := func(_ *testing.T, ctx testContext) {
 		for key, val := range ctx.extras {
 			if strings.HasSuffix(key, "client") {
 				client := val.(*kafka.Client)
@@ -905,7 +905,7 @@ func testMySQLProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		},
 	}
 
-	mysqlTeardown := func(t *testing.T, ctx testContext) {
+	mysqlTeardown := func(_ *testing.T, ctx testContext) {
 		if client, ok := ctx.extras["conn"].(*mysql.Client); ok {
 			defer client.DB.Close()
 			client.DropDB()
@@ -1447,7 +1447,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *tracer.Tracer, clientH
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.validation = validateProtocolConnection(expectedProtocolStack)
-			tt.teardown = func(t *testing.T, ctx testContext) {
+			tt.teardown = func(_ *testing.T, ctx testContext) {
 				if pg, ok := ctx.extras["pg"].(*pgutils.PGClient); ok {
 					defer pg.Close()
 					_ = pg.RunDropQuery()
@@ -1478,7 +1478,7 @@ func testMongoProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		},
 	}
 
-	mongoTeardown := func(t *testing.T, ctx testContext) {
+	mongoTeardown := func(_ *testing.T, ctx testContext) {
 		if client, ok := ctx.extras["client"].(*protocolsmongo.Client); ok {
 			require.NoError(t, client.DeleteDatabases())
 			defer client.Stop()
@@ -1661,7 +1661,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 		},
 	}
 
-	redisTeardown := func(t *testing.T, ctx testContext) {
+	redisTeardown := func(_ *testing.T, ctx testContext) {
 		redis.NewClient(ctx.serverAddress, defaultDialer, withTLS)
 		if client, ok := ctx.extras["client"].(*redis2.Client); ok {
 			timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
@@ -1684,14 +1684,14 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
 			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
+			preTracerSetup: func(_ *testing.T, ctx testContext) {
 				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Ping(timedContext)
 				ctx.extras["client"] = client
 			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
+			postTracerSetup: func(_ *testing.T, ctx testContext) {
 				client := ctx.extras["client"].(*redis2.Client)
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
@@ -1708,7 +1708,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
 			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
+			preTracerSetup: func(_ *testing.T, ctx testContext) {
 				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
@@ -1735,7 +1735,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
 			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
+			preTracerSetup: func(_ *testing.T, ctx testContext) {
 				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
@@ -1778,7 +1778,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
 			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
+			preTracerSetup: func(_ *testing.T, ctx testContext) {
 				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
@@ -1861,7 +1861,7 @@ func testAMQPProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, client
 		}
 	}
 
-	amqpTeardown := func(t *testing.T, ctx testContext) {
+	amqpTeardown := func(_ *testing.T, ctx testContext) {
 		if client, ok := ctx.extras["client"].(*amqp.Client); ok {
 			defer client.Terminate()
 			require.NoError(t, client.DeleteQueues())
@@ -1990,7 +1990,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 	http2TargetAddress := net.JoinHostPort(targetHost, http2Port)
 	http2Server := &nethttp.Server{
 		Addr: ":" + http2Port,
-		Handler: h2c.NewHandler(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
+		Handler: h2c.NewHandler(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, _ *nethttp.Request) {
 			w.WriteHeader(200)
 			w.Write([]byte("test"))
 		}), &http2.Server{}),
@@ -2162,7 +2162,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 				_, err = c.Write(buf.Bytes())
 				require.NoError(t, err)
 			},
-			teardown: func(t *testing.T, ctx testContext) {
+			teardown: func(_ *testing.T, ctx testContext) {
 				if srv, ok := ctx.extras["server"].(*tracertestutil.TCPServer); ok {
 					srv.Shutdown()
 				}
@@ -2230,7 +2230,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 				require.NoError(t, err)
 				require.Equal(t, buf.Len(), n)
 			},
-			teardown: func(t *testing.T, ctx testContext) {
+			teardown: func(_ *testing.T, ctx testContext) {
 				if srv, ok := ctx.extras["server"].(*tracertestutil.TCPServer); ok {
 					srv.Shutdown()
 				}

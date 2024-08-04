@@ -291,7 +291,7 @@ func NewTracer(config *config.Config, _ telemetryComponent.Component) (Tracer, e
 		config.TCPFailedConnectionsEnabled = false
 	}
 	if config.FailedConnectionsSupported() {
-		failedConnConsumer = failure.NewFailedConnConsumer(failedConnsHandler, m)
+		failedConnConsumer = failure.NewFailedConnConsumer(failedConnsHandler, m, config.MaxFailedConnectionsBuffered)
 	}
 
 	tr := &tracer{

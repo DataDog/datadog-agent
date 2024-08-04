@@ -81,7 +81,7 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 		Use:   "check",
 		Short: "Run compliance check(s)",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			checkArgs.args = args
 
 			bundleParams := bundleParamsFactory()

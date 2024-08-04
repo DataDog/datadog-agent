@@ -67,7 +67,7 @@ func TestSender(t *testing.T) {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func TestSenderSingleDestination(t *testing.T) {
+func TestSenderSingleDestination(_ *testing.T) {
 	cfg := getNewConfig()
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
@@ -95,7 +95,7 @@ func TestSenderSingleDestination(t *testing.T) {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func TestSenderDualReliableDestination(t *testing.T) {
+func TestSenderDualReliableDestination(_ *testing.T) {
 	cfg := getNewConfig()
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
@@ -130,7 +130,7 @@ func TestSenderDualReliableDestination(t *testing.T) {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func TestSenderUnreliableAdditionalDestination(t *testing.T) {
+func TestSenderUnreliableAdditionalDestination(_ *testing.T) {
 	cfg := getNewConfig()
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
@@ -211,7 +211,7 @@ func TestSenderUnreliableStopsWhenMainFails(t *testing.T) {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
+func TestSenderReliableContinuseWhenOneFails(_ *testing.T) {
 	cfg := getNewConfig()
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)
@@ -257,7 +257,7 @@ func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
+func TestSenderReliableWhenOneFailsAndRecovers(_ *testing.T) {
 	cfg := getNewConfig()
 	input := make(chan *message.Payload, 1)
 	output := make(chan *message.Payload, 1)

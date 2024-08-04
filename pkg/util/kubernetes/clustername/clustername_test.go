@@ -64,7 +64,7 @@ func TestGetClusterName(t *testing.T) {
 	// Test lowercase
 	wantedClustername := "foo"
 	discoveredClustername := "FoO"
-	dummyFunc := func(c context.Context) (string, error) { return discoveredClustername, nil }
+	dummyFunc := func(context.Context) (string, error) { return discoveredClustername, nil }
 	setProviderCatalog(map[string]Provider{"dummyProvider": dummyFunc})
 	assert.Equal(t, wantedClustername, getClusterName(ctx, newClusterNameData(), "hostname"))
 }

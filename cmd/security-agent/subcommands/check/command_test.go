@@ -26,7 +26,7 @@ func TestCommands(t *testing.T) {
 		{
 			name:     "check",
 			cliInput: []string{"check"},
-			check: func(cliParams *CliParams, params core.BundleParams) {
+			check: func(_ *CliParams, params core.BundleParams) {
 				require.Equal(t, command.LoggerName, params.LoggerName(), "logger name not matching")
 				require.Equal(t, "info", params.LogLevelFn(nil), "params.LogLevelFn not matching")
 			},
@@ -34,7 +34,7 @@ func TestCommands(t *testing.T) {
 		{
 			name:     "verbose",
 			cliInput: []string{"check", "--verbose"},
-			check: func(cliParams *CliParams, params core.BundleParams) {
+			check: func(_ *CliParams, params core.BundleParams) {
 				require.Equal(t, command.LoggerName, params.LoggerName(), "logger name not matching")
 				require.Equal(t, "trace", params.LogLevelFn(nil), "params.LogLevelFn not matching")
 			},

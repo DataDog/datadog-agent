@@ -57,7 +57,7 @@ func (e *redisEncoder) encodeData(connectionData *USMConnectionData[redis.Key, *
 
 	for range connectionData.Data {
 		e.redisAggregationsBuilder.AddAggregations(func(builder *model.DatabaseStatsBuilder) {
-			builder.SetRedis(func(statsBuilder *model.RedisStatsBuilder) {})
+			builder.SetRedis(func(*model.RedisStatsBuilder) {})
 		})
 	}
 

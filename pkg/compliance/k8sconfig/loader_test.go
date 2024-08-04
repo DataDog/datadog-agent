@@ -930,7 +930,7 @@ func TestBottleRocketConfigLoader(t *testing.T) {
 
 func loadTestConfiguration(t *testing.T, hostroot string, table string) *K8sNodeConfig {
 	l := &loader{hostroot: hostroot}
-	_, data := l.load(context.Background(), func(ctx context.Context) []proc {
+	_, data := l.load(context.Background(), func(_ context.Context) []proc {
 		return procTable(table)
 	})
 	jsonData, err := json.Marshal(data)

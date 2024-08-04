@@ -464,6 +464,14 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, ruleDef *RuleDefi
 		return nil, &ErrRuleLoad{Definition: ruleDef, Err: err}
 	}
 
+	// validate event context against event type
+	for _, field := range rule.GetFields() {
+		restrictions := rs.model.GetFieldRestrictions(field)
+		if len(restrictions) > 0 && !slices.Contains(restrictions, eventType) {
+			return nil, &ErrRuleLoad{Definition: ruleDef, Err: &ErrFieldNotAvailable{Field: field, EventType: eventType, RestrictedTo: restrictions}}
+		}
+	}
+
 	// ignore event types not supported
 	if _, exists := rs.opts.EventTypeEnabled["*"]; !exists {
 		if _, exists := rs.opts.EventTypeEnabled[eventType]; !exists {

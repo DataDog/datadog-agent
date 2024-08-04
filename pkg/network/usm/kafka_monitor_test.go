@@ -170,7 +170,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 	serverAddress := net.JoinHostPort(serverHost, port)
 	targetAddress := net.JoinHostPort(targetHost, port)
 
-	dialFn := func(ctx context.Context, network, address string) (net.Conn, error) {
+	dialFn := func(ctx context.Context, _, _ string) (net.Conn, error) {
 		var d net.Dialer
 		return d.DialContext(ctx, "unix", unixPath)
 	}

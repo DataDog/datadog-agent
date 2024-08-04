@@ -79,10 +79,10 @@ func newTrapListener(lc fx.Lifecycle, dep dependencies) (listener.Component, err
 	gosnmpListener.OnNewTrap = trapListener.receiveTrap
 	if config.Enabled {
 		lc.Append(fx.Hook{
-			OnStart: func(ctx context.Context) error {
+			OnStart: func(_ context.Context) error {
 				return trapListener.start()
 			},
-			OnStop: func(ctx context.Context) error {
+			OnStop: func(_ context.Context) error {
 				return trapListener.stop()
 			},
 		})

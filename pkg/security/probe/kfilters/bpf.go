@@ -17,8 +17,7 @@ import (
 
 var bpfCapabilities = Capabilities{
 	"bpf.cmd": {
-		PolicyFlags:     PolicyFlagFlags,
-		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
+		ValueTypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
 }
 

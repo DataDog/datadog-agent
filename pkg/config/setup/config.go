@@ -333,9 +333,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("flare_stripped_keys", []string{})
 	config.BindEnvAndSetDefault("scrubber.additional_keys", []string{})
 
-	config.BindEnvAndSetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
-	config.BindEnvAndSetDefault("histogram_percentiles", []string{"0.95"})
-
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
 	config.BindEnvAndSetDefault("docker_labels_as_tags", map[string]string{})
@@ -692,7 +689,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.webhook_name", "datadog-webhook")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.inject_config.endpoint", "/injectconfig")
-	config.BindEnvAndSetDefault("admission_controller.inject_config.inject_container_name", false)
 	config.BindEnvAndSetDefault("admission_controller.inject_config.mode", "hostip") // possible values: hostip / service / socket
 	config.BindEnvAndSetDefault("admission_controller.inject_config.local_service_name", "datadog")
 	config.BindEnvAndSetDefault("admission_controller.inject_config.socket_path", "/var/run/datadog")
@@ -768,11 +764,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_manifest", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
-	config.BindEnvAndSetDefault("orchestrator_explorer.ecs_collection.enabled", false)
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
-	config.BindEnvAndSetDefault("container_lifecycle.ecs_task_event.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "container_lifecycle.")
 
 	// Container image configuration
@@ -1357,6 +1351,8 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution", false)
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution_prefix", "")
+	config.BindEnvAndSetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
+	config.BindEnvAndSetDefault("histogram_percentiles", []string{"0.95"})
 }
 
 func logsagent(config pkgconfigmodel.Setup) {
@@ -2091,7 +2087,7 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
 		}
 
-		secretResolver.SubscribeToChanges(func(handle, settingOrigin string, settingPath []string, oldValue, newValue any) {
+		secretResolver.SubscribeToChanges(func(handle, settingOrigin string, settingPath []string, _, newValue any) {
 			if origin != settingOrigin {
 				return
 			}

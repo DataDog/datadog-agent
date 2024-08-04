@@ -50,7 +50,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	// All subcommands use the same provided components, with a different
 	// oneShot callback.
 	oneShotRunE := func(callback interface{}) func(cmd *cobra.Command, args []string) error {
-		return func(cmd *cobra.Command, args []string) error {
+		return func(_ *cobra.Command, args []string) error {
 			globalParams := globalParamsGetter()
 
 			cliParams.args = args
