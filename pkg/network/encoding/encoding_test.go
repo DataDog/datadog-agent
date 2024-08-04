@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/sketches-go/ddsketch"
 )
 
 type connTag = uint64
@@ -40,6 +41,8 @@ const (
 	tagOpenSSL connTag = 0x02 // network.ConnTagOpenSSL
 	tagTLS     connTag = 0x10 // network.ConnTagTLS
 )
+
+const RelativeAccuracy = 0.01
 
 func newConfig(t *testing.T) {
 	originalConfig := config.SystemProbe
@@ -978,16 +981,23 @@ func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
 		apiVersion2,
 	)
 
+	latencies, err := ddsketch.NewDefaultDDSketch(RelativeAccuracy)
+	require.NoError(t, err)
+	require.NoError(t, latencies.AddWithCount(0.5, 10))
+
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
 		Kafka: map[kafka.Key]*kafka.RequestStats{
 			kafkaKey: {
-				ErrorCodeToStat: map[int32]*kafka.RequestStat{0: {Count: 10, FirstLatencySample: 5}},
+				ErrorCodeToStat: map[int32]*kafka.RequestStat{0: {Count: 10, Latencies: latencies}},
 			},
 		},
 	}
+
+	marshaledLatencies, err := proto.Marshal(latencies.ToProto())
+	require.NoError(t, err)
 
 	kafkaOut := &model.DataStreamsAggregations{
 		KafkaAggregations: []*model.KafkaAggregation{
@@ -998,7 +1008,7 @@ func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
 				},
 				Topic: topicName,
 				StatsByErrorCode: map[int32]*model.KafkaStats{
-					0: {Count: 10, FirstLatencySample: 5},
+					0: {Count: 10, Latencies: marshaledLatencies},
 				},
 			},
 		},
