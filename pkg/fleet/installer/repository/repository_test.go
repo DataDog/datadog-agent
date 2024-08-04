@@ -24,7 +24,7 @@ func createTestRepository(t *testing.T, dir string, stablePackageName string) *R
 		rootPath:  repositoryPath,
 		locksPath: locksPath,
 	}
-	err := r.Create(testCtx, stablePackageName, stablePackagePath)
+	err := r.Create(stablePackageName, stablePackagePath)
 	assert.NoError(t, err)
 	return &r
 }
@@ -86,7 +86,7 @@ func TestSetExperiment(t *testing.T) {
 	repository := createTestRepository(t, dir, "v1")
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
-	err := repository.SetExperiment(testCtx, "v2", experimentDownloadPackagePath)
+	err := repository.SetExperiment("v2", experimentDownloadPackagePath)
 	assert.NoError(t, err)
 	assert.DirExists(t, path.Join(repository.rootPath, "v2"))
 }
@@ -97,9 +97,9 @@ func TestSetExperimentTwice(t *testing.T) {
 	experiment1DownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 	experiment2DownloadPackagePath := createTestDownloadedPackage(t, dir, "v3")
 
-	err := repository.SetExperiment(testCtx, "v2", experiment1DownloadPackagePath)
+	err := repository.SetExperiment("v2", experiment1DownloadPackagePath)
 	assert.NoError(t, err)
-	err = repository.SetExperiment(testCtx, "v3", experiment2DownloadPackagePath)
+	err = repository.SetExperiment("v3", experiment2DownloadPackagePath)
 	assert.NoError(t, err)
 	assert.DirExists(t, path.Join(repository.rootPath, "v2"))
 }
@@ -111,7 +111,7 @@ func TestSetExperimentBeforeStable(t *testing.T) {
 	}
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
-	err := repository.SetExperiment(testCtx, "v2", experimentDownloadPackagePath)
+	err := repository.SetExperiment("v2", experimentDownloadPackagePath)
 	assert.Error(t, err)
 }
 
@@ -120,9 +120,9 @@ func TestPromoteExperiment(t *testing.T) {
 	repository := createTestRepository(t, dir, "v1")
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
-	err := repository.SetExperiment(testCtx, "v2", experimentDownloadPackagePath)
+	err := repository.SetExperiment("v2", experimentDownloadPackagePath)
 	assert.NoError(t, err)
-	err = repository.PromoteExperiment(testCtx)
+	err = repository.PromoteExperiment()
 	assert.NoError(t, err)
 	assert.NoDirExists(t, path.Join(repository.rootPath, "v1"))
 	assert.DirExists(t, path.Join(repository.rootPath, "v2"))
@@ -132,7 +132,7 @@ func TestPromoteExperimentWithoutExperiment(t *testing.T) {
 	dir := t.TempDir()
 	repository := createTestRepository(t, dir, "v1")
 
-	err := repository.PromoteExperiment(testCtx)
+	err := repository.PromoteExperiment()
 	assert.Error(t, err)
 }
 
@@ -141,9 +141,9 @@ func TestDeleteExperiment(t *testing.T) {
 	repository := createTestRepository(t, dir, "v1")
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
-	err := repository.SetExperiment(testCtx, "v2", experimentDownloadPackagePath)
+	err := repository.SetExperiment("v2", experimentDownloadPackagePath)
 	assert.NoError(t, err)
-	err = repository.DeleteExperiment(testCtx)
+	err = repository.DeleteExperiment()
 	assert.NoError(t, err)
 	assert.NoDirExists(t, path.Join(repository.rootPath, "v2"))
 }
@@ -152,7 +152,7 @@ func TestDeleteExperimentWithoutExperiment(t *testing.T) {
 	dir := t.TempDir()
 	repository := createTestRepository(t, dir, "v1")
 
-	err := repository.DeleteExperiment(testCtx)
+	err := repository.DeleteExperiment()
 	assert.NoError(t, err)
 }
 
@@ -161,7 +161,7 @@ func TestDeleteExperimentWithLockedPackage(t *testing.T) {
 	repository := createTestRepository(t, dir, "v1")
 	experimentDownloadPackagePath := createTestDownloadedPackage(t, dir, "v2")
 
-	err := repository.SetExperiment(testCtx, "v2", experimentDownloadPackagePath)
+	err := repository.SetExperiment("v2", experimentDownloadPackagePath)
 	assert.NoError(t, err)
 
 	// Add a running process... our own! So we're sure it's running.
@@ -184,7 +184,7 @@ func TestDeleteExperimentWithLockedPackage(t *testing.T) {
 	)
 	assert.NoError(t, err)
 
-	err = repository.DeleteExperiment(testCtx)
+	err = repository.DeleteExperiment()
 	assert.NoError(t, err)
 	assert.DirExists(t, path.Join(repository.rootPath, "v2"))
 	assert.DirExists(t, path.Join(repository.locksPath, "v2"))
