@@ -61,18 +61,15 @@ func NewRequestStats() *RequestStats {
 
 // RequestStat stores stats for Kafka requests to a particular key
 type RequestStat struct {
+	// Unlike HTTP, Kafka clients aren't using short-lived TCP connections for each request.
+	// Hence, we don't use the FirstLatencySample optimization here.
 	// this field order is intentional to help the GC pointer tracking
 	Latencies *ddsketch.DDSketch
 	// Note: every time we add a latency value to the DDSketch, it's possible for the sketch to discard that value
 	// (ie if it is outside the range that is tracked by the sketch). For that reason, in order to keep an accurate count
 	// the number of kafka transactions processed, we have our own count field (rather than relying on DDSketch.GetCount())
-	Count int
-	// This field holds the value (in nanoseconds) of the first HTTP request
-	// in this bucket. We do this as optimization to avoid creating sketches with
-	// a single value. This is quite common in the context of HTTP requests without
-	// keep-alives where a short-lived TCP connection is used for a single request.
-	FirstLatencySample float64
-	StaticTags         uint64
+	Count      int
+	StaticTags uint64
 }
 
 func (r *RequestStat) initSketch() (err error) {
@@ -87,14 +84,8 @@ func (r *RequestStat) initSketch() (err error) {
 // newStats is kept as it is, while the method receiver gets mutated
 func (r *RequestStats) CombineWith(newStats *RequestStats) {
 	for statusCode, newRequests := range newStats.ErrorCodeToStat {
-		if newRequests.Count == 0 {
+		if newRequests.Count == 0 || newRequests.Latencies == nil {
 			// Nothing to do in this case
-			continue
-		}
-
-		if newRequests.Latencies == nil {
-			// In this case, newRequests must have only FirstLatencySample, so use it when adding the request
-			r.AddRequest(statusCode, newRequests.Count, newRequests.StaticTags, newRequests.FirstLatencySample)
 			continue
 		}
 
@@ -107,14 +98,6 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 		// We first ensure that the bucket we're merging to have a DDSketch object
 		if stats.Latencies == nil {
 			stats.Latencies = newRequests.Latencies.Copy()
-
-			// If we have a latency sample in this bucket we now add it to the DDSketch
-			if stats.FirstLatencySample != 0 {
-				err := stats.Latencies.AddWithCount(stats.FirstLatencySample, float64(stats.Count))
-				if err != nil {
-					log.Debugf("could not add kafka request latency to ddsketch: %v", err)
-				}
-			}
 		} else {
 			err := stats.Latencies.MergeWith(newRequests.Latencies)
 			if err != nil {
@@ -135,27 +118,16 @@ func (r *RequestStats) AddRequest(errorCode int32, count int, staticTags uint64,
 		stats = &RequestStat{}
 		r.ErrorCodeToStat[errorCode] = stats
 	}
-	originalCount := stats.Count
 	stats.Count += count
 	stats.StaticTags |= staticTags
-
-	if stats.FirstLatencySample == 0 {
-		stats.FirstLatencySample = latency
-		return
-	}
 
 	if stats.Latencies == nil {
 		if err := stats.initSketch(); err != nil {
 			return
 		}
-
-		// Add the deferred latency sample
-		if err := stats.Latencies.AddWithCount(stats.FirstLatencySample, float64(originalCount)); err != nil {
-			log.Debugf("could not add request latency to ddsketch: %v", err)
-		}
 	}
 	if err := stats.Latencies.AddWithCount(latency, float64(count)); err != nil {
-		log.Debugf("could not add request latency to ddsketch: %v", err)
+		log.Errorf("could not add request latency to ddsketch: %v", err)
 	}
 }
 

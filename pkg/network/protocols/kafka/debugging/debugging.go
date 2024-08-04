@@ -68,9 +68,8 @@ func Kafka(stats map[kafka.Key]*kafka.RequestStats) []RequestSummary {
 		for status, stat := range requestStat.ErrorCodeToStat {
 
 			debug.ByStatus[int8(status)] = Stats{
-				Count:              stat.Count,
-				FirstLatencySample: stat.FirstLatencySample,
-				LatencyP50:         protocols.GetSketchQuantile(stat.Latencies, 0.5),
+				Count:      stat.Count,
+				LatencyP50: protocols.GetSketchQuantile(stat.Latencies, 0.5),
 			}
 		}
 
