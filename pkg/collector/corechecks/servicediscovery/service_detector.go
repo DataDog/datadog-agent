@@ -18,20 +18,23 @@ import (
 	agentzap "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 )
 
-type serviceDetector struct {
+// ServiceDetector defines the service detector to get metadata about services.
+type ServiceDetector struct {
 	logger     *zap.Logger
 	langFinder language.Finder
 }
 
-func newServiceDetector() *serviceDetector {
+// NewServiceDetector creates a new ServiceDetector object.
+func NewServiceDetector() *ServiceDetector {
 	logger := zap.New(agentzap.NewZapCore())
-	return &serviceDetector{
+	return &ServiceDetector{
 		logger:     logger,
 		langFinder: language.New(logger),
 	}
 }
 
-type serviceMetadata struct {
+// ServiceMetadata stores metadata about a service.
+type ServiceMetadata struct {
 	Name               string
 	Language           string
 	Type               string
@@ -50,7 +53,8 @@ func fixAdditionalNames(additionalNames []string) []string {
 	return out
 }
 
-func (sd *serviceDetector) Detect(p processInfo) serviceMetadata {
+// Detect gets metadata for a service.
+func (sd *ServiceDetector) Detect(p processInfo) ServiceMetadata {
 	meta, _ := usm.ExtractServiceMetadata(sd.logger, p.CmdLine, p.Env)
 	lang, _ := sd.langFinder.Detect(p.CmdLine, p.Env)
 	svcType := servicetype.Detect(meta.Name, p.Ports)
@@ -63,7 +67,7 @@ func (sd *serviceDetector) Detect(p processInfo) serviceMetadata {
 		name = name + "-" + strings.Join(fixAdditionalNames(meta.AdditionalNames), "-")
 	}
 
-	return serviceMetadata{
+	return ServiceMetadata{
 		Name:               name,
 		Language:           string(lang),
 		Type:               string(svcType),

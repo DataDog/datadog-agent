@@ -20,7 +20,7 @@ const (
 type errWithCode struct {
 	err  error
 	code errCode
-	svc  *serviceMetadata
+	svc  *ServiceMetadata
 }
 
 func (e errWithCode) Error() string {
