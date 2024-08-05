@@ -55,10 +55,11 @@ type ebpfLessTracer struct {
 
 	config *config.Config
 
-	packetSrc *filter.AFPacketSource
-	exit      chan struct{}
-	keyBuf    []byte
-	keyConn   network.ConnectionStats
+	packetSrc   *filter.AFPacketSource
+	exit        chan struct{}
+	keyBuf      []byte
+	scratchConn *network.ConnectionStats
+	layers      *ebpfless.Layers
 
 	udp *udpProcessor
 	tcp *tcpProcessor
@@ -89,6 +90,8 @@ func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
 		packetSrc:    packetSrc,
 		exit:         make(chan struct{}),
 		keyBuf:       make([]byte, network.ConnectionByteKeyMaxLen),
+		scratchConn:  &network.ConnectionStats{},
+		layers:       &ebpfless.Layers{},
 		udp:          &udpProcessor{},
 		tcp:          newTCPProcessor(),
 		conns:        make(map[string]*network.ConnectionStats, cfg.MaxTrackedConnections),
@@ -157,29 +160,28 @@ func (t *ebpfLessTracer) processConnection(
 	tcp *layers.TCP,
 	decoded []gopacket.LayerType,
 ) error {
-	t.keyConn.Source, t.keyConn.Dest = util.Address{}, util.Address{}
-	t.keyConn.SPort, t.keyConn.DPort = 0, 0
-	keyConn := &t.keyConn
+	t.scratchConn.Source, t.scratchConn.Dest = util.Address{}, util.Address{}
+	t.scratchConn.SPort, t.scratchConn.DPort = 0, 0
 	var udpPresent, tcpPresent bool
 	for _, layerType := range decoded {
 		switch layerType {
 		case layers.LayerTypeIPv4:
-			keyConn.Source = util.AddressFromNetIP(ip4.SrcIP)
-			keyConn.Dest = util.AddressFromNetIP(ip4.DstIP)
-			keyConn.Family = network.AFINET
+			t.scratchConn.Source = util.AddressFromNetIP(ip4.SrcIP)
+			t.scratchConn.Dest = util.AddressFromNetIP(ip4.DstIP)
+			t.scratchConn.Family = network.AFINET
 		case layers.LayerTypeIPv6:
-			keyConn.Source = util.AddressFromNetIP(ip6.SrcIP)
-			keyConn.Dest = util.AddressFromNetIP(ip6.DstIP)
-			keyConn.Family = network.AFINET6
+			t.scratchConn.Source = util.AddressFromNetIP(ip6.SrcIP)
+			t.scratchConn.Dest = util.AddressFromNetIP(ip6.DstIP)
+			t.scratchConn.Family = network.AFINET6
 		case layers.LayerTypeTCP:
-			keyConn.SPort = uint16(tcp.SrcPort)
-			keyConn.DPort = uint16(tcp.DstPort)
-			keyConn.Type = network.TCP
+			t.scratchConn.SPort = uint16(tcp.SrcPort)
+			t.scratchConn.DPort = uint16(tcp.DstPort)
+			t.scratchConn.Type = network.TCP
 			tcpPresent = true
 		case layers.LayerTypeUDP:
-			keyConn.SPort = uint16(udp.SrcPort)
-			keyConn.DPort = uint16(udp.DstPort)
-			keyConn.Type = network.UDP
+			t.scratchConn.SPort = uint16(udp.SrcPort)
+			t.scratchConn.DPort = uint16(udp.DstPort)
+			t.scratchConn.Type = network.UDP
 			udpPresent = true
 		}
 	}
@@ -191,31 +193,28 @@ func (t *ebpfLessTracer) processConnection(
 		return nil
 	}
 
-	flipSourceDest(keyConn, pktType)
-	t.determineConnectionDirection(keyConn, pktType)
+	flipSourceDest(t.scratchConn, pktType)
+	t.determineConnectionDirection(t.scratchConn, pktType)
 
 	t.m.Lock()
 	defer t.m.Unlock()
 
-	key := string(keyConn.ByteKey(t.keyBuf))
+	key := string(t.scratchConn.ByteKey(t.keyBuf))
 	conn := t.conns[key]
 	if conn == nil {
 		conn = &network.ConnectionStats{}
-		*conn = *keyConn
+		*conn = *t.scratchConn
 		t.cookieHasher.Hash(conn)
 		conn.Duration = time.Duration(time.Now().UnixNano())
 	}
 
 	var err error
-	ls, err := ebpfless.NewLayers(conn.Family, conn.Type, ip4, ip6, udp, tcp)
-	if err != nil {
-		return fmt.Errorf("error processing connection: error creating Layers: %w", err)
-	}
+	t.layers.Reset(ip4, ip6, udp, tcp)
 	switch conn.Type {
 	case network.UDP:
-		err = t.udp.process(conn, pktType, ls)
+		err = t.udp.process(conn, pktType, t.layers)
 	case network.TCP:
-		err = t.tcp.process(conn, pktType, ls)
+		err = t.tcp.process(conn, pktType, t.layers)
 	default:
 		err = fmt.Errorf("unsupported connection type %d", conn.Type)
 	}
@@ -316,7 +315,9 @@ func (t *ebpfLessTracer) Remove(conn *network.ConnectionStats) error {
 func (t *ebpfLessTracer) GetMap(string) *ebpf.Map { return nil }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
-func (t *ebpfLessTracer) DumpMaps(_ io.Writer, _ ...string) error { return nil }
+func (t *ebpfLessTracer) DumpMaps(_ io.Writer, _ ...string) error {
+	return fmt.Errorf("not implemented")
+}
 
 // Type returns the type of the underlying ebpf ebpfLessTracer that is currently loaded
 func (t *ebpfLessTracer) Type() TracerType {
@@ -324,11 +325,11 @@ func (t *ebpfLessTracer) Type() TracerType {
 }
 
 func (t *ebpfLessTracer) Pause() error {
-	return nil
+	return fmt.Errorf("not implemented")
 }
 
 func (t *ebpfLessTracer) Resume() error {
-	return nil
+	return fmt.Errorf("not implemented")
 }
 
 // Describe returns all descriptions of the collector
@@ -345,7 +346,7 @@ var _ Tracer = &ebpfLessTracer{}
 type udpProcessor struct {
 }
 
-func (u *udpProcessor) process(conn *network.ConnectionStats, pktType uint8, ls ebpfless.Layers) error {
+func (u *udpProcessor) process(conn *network.ConnectionStats, pktType uint8, ls *ebpfless.Layers) error {
 	payloadLen, err := ls.PayloadLen()
 	if err != nil {
 		return err
@@ -381,7 +382,7 @@ func newTCPProcessor() *tcpProcessor {
 	}
 }
 
-func (t *tcpProcessor) process(conn *network.ConnectionStats, pktType uint8, ls ebpfless.Layers) error {
+func (t *tcpProcessor) process(conn *network.ConnectionStats, pktType uint8, ls *ebpfless.Layers) error {
 	payloadLen, err := ls.PayloadLen()
 	if err != nil {
 		return err

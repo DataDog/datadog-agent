@@ -14,8 +14,6 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-
-	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
 var errZeroLengthUDPPacket = errors.New("UDP packet with length 0")
@@ -29,33 +27,12 @@ type Layers struct {
 	TCP *layers.TCP
 }
 
-// NewLayers returns a new instance of `Layers`
-func NewLayers(family network.ConnectionFamily,
-	proto network.ConnectionType,
-	ip4 *layers.IPv4,
-	ip6 *layers.IPv6,
-	udp *layers.UDP,
-	tcp *layers.TCP,
-) (Layers, error) {
-	switch family {
-	case network.AFINET:
-		ip6 = nil
-	case network.AFINET6:
-		ip4 = nil
-	default:
-		return Layers{}, fmt.Errorf("unknown connection family %d", family)
-	}
-
-	switch proto {
-	case network.TCP:
-		udp = nil
-	case network.UDP:
-		tcp = nil
-	default:
-		return Layers{}, fmt.Errorf("unsupported connection type %d", proto)
-	}
-
-	return Layers{ip4, ip6, udp, tcp}, nil
+// Reset resets a Layers object
+func (l *Layers) Reset(ip4 *layers.IPv4, ip6 *layers.IPv6, udp *layers.UDP, tcp *layers.TCP) {
+	l.IP4 = ip4
+	l.IP6 = ip6
+	l.UDP = udp
+	l.TCP = tcp
 }
 
 // PayloadLen returns the length of the application
