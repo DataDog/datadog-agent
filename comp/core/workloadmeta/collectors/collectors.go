@@ -11,18 +11,6 @@ package collectors
 import (
 	"go.uber.org/fx"
 
-	cfcontainer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/container"
-	cfvm "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/vm"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/containerd"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/docker"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/ecs"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/ecsfargate"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/host"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubeapiserver"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubelet"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubemetadata"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/podman"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/processcollector"
 	remoteworkloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -30,22 +18,7 @@ import (
 
 // GetCatalog returns the set of FX options to populate the catalog
 func GetCatalog() fx.Option {
-	options := []fx.Option{
-		cfcontainer.GetFxOptions(),
-		cfvm.GetFxOptions(),
-		containerd.GetFxOptions(),
-		docker.GetFxOptions(),
-		ecs.GetFxOptions(),
-		ecsfargate.GetFxOptions(),
-		kubeapiserver.GetFxOptions(),
-		kubelet.GetFxOptions(),
-		kubemetadata.GetFxOptions(),
-		podman.GetFxOptions(),
-		remoteworkloadmeta.GetFxOptions(),
-		remoteWorkloadmetaParams(),
-		processcollector.GetFxOptions(),
-		host.GetFxOptions(),
-	}
+	options := getCollectorOptions()
 
 	// remove nil options
 	opts := make([]fx.Option, 0, len(options))

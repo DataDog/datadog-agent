@@ -72,7 +72,7 @@ func complianceLoadCommand(globalParams *command.GlobalParams) *cobra.Command {
 		Use:   "load <conf-type>",
 		Short: "Load compliance config",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			loadArgs.confType = args[0]
 			return fxutil.OneShot(loadRun,
 				fx.Supply(loadArgs),
@@ -151,7 +151,7 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 	eventCmd := &cobra.Command{
 		Use:   "event",
 		Short: "Issue logs to test Security Agent compliance events",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(eventRun,
 				fx.Supply(eventArgs),
 				fx.Supply(core.BundleParams{

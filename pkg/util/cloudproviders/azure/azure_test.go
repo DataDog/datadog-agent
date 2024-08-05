@@ -27,11 +27,11 @@ func TestGetAlias(t *testing.T) {
 	expectedVM := "5d33a910-a7a0-4443-9f01-6a807801b29b"
 	responseIdx := 0
 	responses := []func(w http.ResponseWriter, r *http.Request){
-		func(w http.ResponseWriter, r *http.Request) {
+		func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "text/plain")
 			io.WriteString(w, expectedVM)
 		},
-		func(w http.ResponseWriter, r *http.Request) {
+		func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			io.WriteString(w, fmt.Sprintf(`{
 				"name": "vm-name",
@@ -114,11 +114,11 @@ func TestGetNTPHosts(t *testing.T) {
 
 	responseIdx := 0
 	responses := []func(w http.ResponseWriter, r *http.Request){
-		func(w http.ResponseWriter, r *http.Request) {
+		func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "text/plain")
 			io.WriteString(w, "test")
 		},
-		func(w http.ResponseWriter, r *http.Request) {
+		func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			io.WriteString(w, fmt.Sprintf(`{
 				"name": "vm-name",
@@ -145,7 +145,7 @@ func TestGetNTPHosts(t *testing.T) {
 
 func TestGetHostname(t *testing.T) {
 	ctx := context.Background()
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		io.WriteString(w, `{
 			"name": "vm-name",
@@ -181,7 +181,7 @@ func TestGetHostname(t *testing.T) {
 
 func TestGetHostnameKubernetesTag(t *testing.T) {
 	ctx := context.Background()
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		io.WriteString(w, `{
 			"name": "vm-name",
@@ -224,7 +224,7 @@ func TestGetHostnameWithInvalidMetadata(t *testing.T) {
 	styles := []string{"vmid", "name", "name_and_resource_group", "full"}
 
 	for _, response := range []string{"", "!"} {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			io.WriteString(w, fmt.Sprintf(`{
 				"name": "%s",

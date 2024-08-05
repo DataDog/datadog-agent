@@ -62,7 +62,7 @@ func TestConfigRetriverAutoscalingSettingsFollower(t *testing.T) {
 					},
 				}),
 		},
-		func(configKey string, applyState state.ApplyStatus) {
+		func(_ string, applyState state.ApplyStatus) {
 			stateCallbackCalled++
 			assert.Equal(t, applyState, state.ApplyStatus{
 				State: state.ApplyStateUnacknowledged,
@@ -146,7 +146,7 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 			"foo1": buildAutoscalingSettingsRawConfig(t, 1, settingsList1),
 			"foo2": buildAutoscalingSettingsRawConfig(t, 10, settingsList2),
 		},
-		func(configKey string, applyState state.ApplyStatus) {
+		func(_ string, applyState state.ApplyStatus) {
 			stateCallbackCalled++
 			assert.Equal(t, applyState, state.ApplyStatus{
 				State: state.ApplyStateAcknowledged,
@@ -207,7 +207,7 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 			"foo1": buildAutoscalingSettingsRawConfig(t, 1, settingsList1),  // Version unchanged
 			"foo2": buildAutoscalingSettingsRawConfig(t, 11, settingsList2), // New version
 		},
-		func(configKey string, applyState state.ApplyStatus) {
+		func(_ string, applyState state.ApplyStatus) {
 			stateCallbackCalled++
 			assert.Equal(t, applyState, state.ApplyStatus{
 				State: state.ApplyStateAcknowledged,
@@ -249,7 +249,7 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 		map[string]state.RawConfig{
 			"foo2": buildRawConfig(t, data.ProductContainerAutoscalingSettings, 12, []byte(`{"foo"}`)),
 		},
-		func(configKey string, applyState state.ApplyStatus) {
+		func(_ string, applyState state.ApplyStatus) {
 			stateCallbackCalled++
 			assert.Equal(t, applyState, state.ApplyStatus{
 				State: state.ApplyStateError,

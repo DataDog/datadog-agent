@@ -66,7 +66,7 @@ func (r *HTTPReceiver) evpProxyHandler(apiVersion int) http.Handler {
 // evpProxyErrorHandler returns an HTTP handler that will always return
 // http.StatusMethodNotAllowed along with a clarification.
 func evpProxyErrorHandler(message string) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		msg := fmt.Sprintf("EVPProxy is disabled: %v", message)
 		http.Error(w, msg, http.StatusMethodNotAllowed)
 	})

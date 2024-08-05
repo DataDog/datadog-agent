@@ -139,8 +139,6 @@ github.com/DataDog/datadog-agent/pkg/collector/check/id
 github.com/DataDog/datadog-agent/pkg/collector/check/stats
 github.com/DataDog/datadog-agent/pkg/config
 github.com/DataDog/datadog-agent/pkg/config/env
-github.com/DataDog/datadog-agent/pkg/config/logs
-github.com/DataDog/datadog-agent/pkg/config/logs/internal/seelog
 github.com/DataDog/datadog-agent/pkg/config/model
 github.com/DataDog/datadog-agent/pkg/config/remote/data
 github.com/DataDog/datadog-agent/pkg/config/setup
@@ -277,6 +275,8 @@ github.com/DataDog/datadog-agent/pkg/util/kubernetes
 github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername
 github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo
 github.com/DataDog/datadog-agent/pkg/util/log
+github.com/DataDog/datadog-agent/pkg/util/log/setup
+github.com/DataDog/datadog-agent/pkg/util/log/setup/internal/seelog
 github.com/DataDog/datadog-agent/pkg/util/log/zap
 github.com/DataDog/datadog-agent/pkg/util/optional
 github.com/DataDog/datadog-agent/pkg/util/pointer

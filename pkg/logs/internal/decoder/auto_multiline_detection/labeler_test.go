@@ -64,7 +64,7 @@ func TestLabelerDefaultLabel(t *testing.T) {
 
 	labeler := NewLabeler([]Heuristic{
 		&mockHeuristic{
-			processFunc: func(context *messageContext) bool {
+			processFunc: func(*messageContext) bool {
 				return false
 			},
 		},
