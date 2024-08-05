@@ -82,7 +82,7 @@ func MakeCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          os.Args[0],
 		SilenceUsage: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			// Check if we are elevated and elevate if necessary. Elevation is required prior to component initialization
 			// because of restricted permissions to the agent configuration file.
 			err := ensureElevated(systrayParams)

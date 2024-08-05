@@ -21,9 +21,9 @@ import (
 
 	"github.com/cihub/seelog"
 
-	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/logs/internal/seelog"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	seelogCfg "github.com/DataDog/datadog-agent/pkg/util/log/setup/internal/seelog"
 )
 
 // LoggerName specifies the name of an instantiated logger.
@@ -59,8 +59,8 @@ func getLogDateFormat(cfg pkgconfigmodel.Reader) string {
 	return logDateFormat
 }
 
-func createQuoteMsgFormatter(params string) seelog.FormatterFunc { //nolint:revive // TODO fix revive unused-parameter
-	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+func createQuoteMsgFormatter(_ string) seelog.FormatterFunc {
+	return func(message string, _ seelog.LogLevel, _ seelog.LogContextInterface) interface{} {
 		return strconv.Quote(message)
 	}
 }
@@ -93,7 +93,7 @@ func getSyslogTLSKeyPair(cfg pkgconfigmodel.Reader) (*tls.Certificate, error) {
 // a non empty syslogURI will enable syslog, and format them following RFC 5424 if specified
 // you can also specify to log to the console and in JSON format
 func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) error {
-	seelogLogLevel, err := validateLogLevel(logLevel)
+	seelogLogLevel, err := log.ValidateLogLevel(logLevel)
 	if err != nil {
 		return err
 	}
@@ -107,6 +107,34 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	}
 	_ = seelog.ReplaceLogger(loggerInterface)
 	log.SetupLogger(loggerInterface, seelogLogLevel)
+
+	// Registering a callback in case of "log_level" update
+	cfg.OnUpdate(func(setting string, oldValue, newValue any) {
+		if setting != "log_level" || oldValue == newValue {
+			return
+		}
+		level := newValue.(string)
+
+		seelogLogLevel, err := log.ValidateLogLevel(level)
+		if err != nil {
+			log.Warnf("Unable to set new log level: %v", err)
+			return
+		}
+		// We create a new logger to propagate the new log level everywhere seelog is used (including dependencies)
+		seelogConfig.SetLogLevel(seelogLogLevel)
+		configTemplate, err := seelogConfig.Render()
+		if err != nil {
+			return
+		}
+
+		logger, err := seelog.LoggerFromConfigAsString(configTemplate)
+		if err != nil {
+			return
+		}
+		seelog.ReplaceLogger(logger) //nolint:errcheck
+		// We wire the new logger with the Datadog logic
+		log.ChangeLogLevel(logger, seelogLogLevel)
+	})
 	return nil
 }
 
@@ -118,7 +146,7 @@ func SetupJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonForm
 	// The JMX logger always logs at level "info", because JMXFetch does its
 	// own level filtering on and provides all messages to seelog at the info
 	// or error levels, via log.JMXInfo and log.JMXError.
-	seelogLogLevel, err := validateLogLevel("info")
+	seelogLogLevel, err := log.ValidateLogLevel("info")
 	if err != nil {
 		return err
 	}
@@ -137,7 +165,7 @@ func SetupJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonForm
 // SetupDogstatsdLogger sets up a logger with dogstatsd logger name and log level
 // if a non empty logFile is provided, it will also log to the file
 func SetupDogstatsdLogger(logFile string, cfg pkgconfigmodel.Reader) (seelog.LoggerInterface, error) {
-	seelogLogLevel, err := validateLogLevel("info")
+	seelogLogLevel, err := log.ValidateLogLevel("info")
 	if err != nil {
 		return nil, err
 	}
@@ -317,13 +345,13 @@ func createSyslogHeaderFormatter(params string) seelog.FormatterFunc {
 	appName := filepath.Base(os.Args[0])
 
 	if rfc { // RFC 5424
-		return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+		return func(_ string, level seelog.LogLevel, _ seelog.LogContextInterface) interface{} {
 			return fmt.Sprintf("<%d>1 %s %d - -", facility*8+levelToSyslogSeverity[level], appName, pid)
 		}
 	}
 
 	// otherwise old-school logging
-	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+	return func(_ string, level seelog.LogLevel, _ seelog.LogContextInterface) interface{} {
 		return fmt.Sprintf("<%d>%s[%d]:", facility*8+levelToSyslogSeverity[level], appName, pid)
 	}
 }
@@ -380,7 +408,7 @@ func getSyslogConnection(uri *url.URL, secure bool) (net.Conn, error) {
 }
 
 // ReceiveMessage process current log message
-func (s *SyslogReceiver) ReceiveMessage(message string, level seelog.LogLevel, context seelog.LogContextInterface) error { //nolint:revive // TODO fix revive unused-parameter
+func (s *SyslogReceiver) ReceiveMessage(message string, _ seelog.LogLevel, _ seelog.LogContextInterface) error {
 	if !s.enabled {
 		return nil
 	}
@@ -457,8 +485,8 @@ func (s *SyslogReceiver) Close() error {
 	return nil
 }
 
-func parseShortFilePath(params string) seelog.FormatterFunc { //nolint:revive // TODO fix revive unused-parameter
-	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+func parseShortFilePath(_ string) seelog.FormatterFunc {
+	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		return extractShortPathFromFullPath(context.FullPath())
 	}
 }
@@ -485,8 +513,8 @@ func extractShortPathFromFullPath(fullPath string) string {
 	return shortPath
 }
 
-func createExtraJSONContext(params string) seelog.FormatterFunc { //nolint:revive // TODO fix revive unused-parameter
-	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+func createExtraJSONContext(_ string) seelog.FormatterFunc {
+	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		contextList, ok := context.CustomContext().([]interface{})
 		if len(contextList) == 0 || !ok {
 			return ""
@@ -495,8 +523,8 @@ func createExtraJSONContext(params string) seelog.FormatterFunc { //nolint:reviv
 	}
 }
 
-func createExtraTextContext(params string) seelog.FormatterFunc { //nolint:revive // TODO fix revive unused-parameter
-	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
+func createExtraTextContext(_ string) seelog.FormatterFunc {
+	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		contextList, ok := context.CustomContext().([]interface{})
 		if len(contextList) == 0 || !ok {
 			return ""
@@ -553,41 +581,6 @@ func appendFmt(builder *strings.Builder, format contextFormat, s string, buf []b
 	} else {
 		builder.WriteString(s)
 	}
-}
-
-// ChangeLogLevel immediately changes the log level to the given one.
-func ChangeLogLevel(level string) error {
-	seelogLogLevel, err := validateLogLevel(level)
-	if err != nil {
-		return err
-	}
-	// We create a new logger to propagate the new log level everywhere seelog is used (including dependencies)
-	seelogConfig.SetLogLevel(seelogLogLevel)
-	configTemplate, err := seelogConfig.Render()
-	if err != nil {
-		return err
-	}
-
-	logger, err := seelog.LoggerFromConfigAsString(configTemplate)
-	if err != nil {
-		return err
-	}
-	seelog.ReplaceLogger(logger) //nolint:errcheck
-
-	// We wire the new logger with the Datadog logic
-	return log.ChangeLogLevel(logger, seelogLogLevel)
-}
-
-func validateLogLevel(logLevel string) (string, error) {
-	seelogLogLevel := strings.ToLower(logLevel)
-	if seelogLogLevel == "warning" { // Common gotcha when used to agent5
-		seelogLogLevel = "warn"
-	}
-
-	if _, found := seelog.LogLevelFromString(seelogLogLevel); !found {
-		return "", fmt.Errorf("unknown log level: %s", seelogLogLevel)
-	}
-	return seelogLogLevel, nil
 }
 
 func init() {

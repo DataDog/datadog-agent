@@ -224,7 +224,7 @@ func (m *MutableIntVariable) Append(_ *Context, value interface{}) error {
 // GetEvaluator returns the variable SECL evaluator
 func (m *MutableIntVariable) GetEvaluator() interface{} {
 	return &IntEvaluator{
-		EvalFnc: func(ctx *Context) int {
+		EvalFnc: func(*Context) int {
 			return m.Value
 		},
 	}
@@ -243,7 +243,7 @@ type MutableBoolVariable struct {
 // GetEvaluator returns the variable SECL evaluator
 func (m *MutableBoolVariable) GetEvaluator() interface{} {
 	return &BoolEvaluator{
-		EvalFnc: func(ctx *Context) bool {
+		EvalFnc: func(*Context) bool {
 			return m.Value
 		},
 	}
@@ -274,7 +274,7 @@ type MutableStringVariable struct {
 func (m *MutableStringVariable) GetEvaluator() interface{} {
 	return &StringEvaluator{
 		ValueType: VariableValueType,
-		EvalFnc: func(ctx *Context) string {
+		EvalFnc: func(_ *Context) string {
 			return m.Value
 		},
 	}
@@ -337,7 +337,7 @@ func (m *MutableStringArrayVariable) Append(_ *Context, value interface{}) error
 // GetEvaluator returns the variable SECL evaluator
 func (m *MutableStringArrayVariable) GetEvaluator() interface{} {
 	return &StringArrayEvaluator{
-		EvalFnc: func(ctx *Context) []string {
+		EvalFnc: func(*Context) []string {
 			return m.LRU.Keys()
 		},
 	}
@@ -385,7 +385,7 @@ func (m *MutableIntArrayVariable) Append(_ *Context, value interface{}) error {
 // GetEvaluator returns the variable SECL evaluator
 func (m *MutableIntArrayVariable) GetEvaluator() interface{} {
 	return &IntArrayEvaluator{
-		EvalFnc: func(ctx *Context) []int {
+		EvalFnc: func(*Context) []int {
 			return m.Values
 		},
 	}

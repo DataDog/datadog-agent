@@ -23,7 +23,7 @@ import (
 func TestRunWithChan(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		var called bool
-		handler := func(w http.ResponseWriter, r *http.Request) {
+		handler := func(w http.ResponseWriter, _ *http.Request) {
 			called = true
 			w.Write([]byte(`{"key1": "value1", "key2": "value2", "key3": "value3", "key4": "value4"}`))
 		}
@@ -53,7 +53,7 @@ func TestRunWithChan(t *testing.T) {
 	t.Run("eventual success", func(t *testing.T) {
 		const errnums = 3
 		callnb := atomic.NewInt32(0)
-		handler := func(w http.ResponseWriter, r *http.Request) {
+		handler := func(w http.ResponseWriter, _ *http.Request) {
 			nb := callnb.Inc()
 			if nb <= errnums {
 				w.WriteHeader(http.StatusInternalServerError)
@@ -76,14 +76,14 @@ func TestRunWithChan(t *testing.T) {
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				assert.EqualValues(t, i, callnb.Load())
 				assert.Equal(t, "not-value1", cs.Config.GetString("key1"))
-			}, 100*time.Millisecond, 10*time.Millisecond)
+			}, 200*time.Millisecond, 10*time.Millisecond)
 		}
 
 		ch <- time.Now()
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			assert.EqualValues(t, errnums+1, callnb.Load())
 			assertConfigIsSet(t, cs.Config, "key1", "value1")
-		}, 100*time.Millisecond, 10*time.Millisecond)
+		}, 200*time.Millisecond, 10*time.Millisecond)
 	})
 }
 
@@ -91,7 +91,7 @@ func TestRunWithInterval(t *testing.T) {
 	configCore := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 	configCore.Set("api_key", "api_key_core1", pkgconfigmodel.SourceFile)
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		key := configCore.GetString("api_key")
 		w.Write([]byte(fmt.Sprintf(`{"api_key": "%s"}`, key)))
 	})

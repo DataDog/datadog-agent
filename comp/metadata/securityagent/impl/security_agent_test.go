@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package impl implements the securityagent metadata providers interface
-package impl
+// Package securityagentimpl implements the securityagent metadata providers interface
+package securityagentimpl
 
 import (
 	"encoding/json"
@@ -50,7 +50,7 @@ func setupFetcher(t *testing.T) {
 	}
 }
 
-func getSecurityAgentComp(t *testing.T, enableConfig bool) *securityagent {
+func getSecurityAgentComp(t *testing.T, enableConfig bool) *secagent {
 	l := logmock.New(t)
 
 	cfg := fxutil.Test[config.Component](t, config.MockModule())
@@ -68,7 +68,7 @@ func getSecurityAgentComp(t *testing.T, enableConfig bool) *securityagent {
 	}
 
 	comp := NewComponent(r).Comp
-	return comp.(*securityagent)
+	return comp.(*secagent)
 }
 
 func assertPayload(t *testing.T, p *Payload) {

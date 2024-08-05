@@ -20,6 +20,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/atomic"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -29,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/ecs"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -49,6 +51,7 @@ type Check struct {
 	clusterName                string
 	region                     string
 	clusterID                  string
+	systemInfo                 *model.SystemInfo
 }
 
 // Factory creates a new check factory
@@ -103,6 +106,12 @@ func (c *Check) Configure(
 		}
 		c.sender = sender
 	}
+
+	c.systemInfo, err = checks.CollectSystemInfo()
+	if err != nil {
+		log.Warnf("Failed to collect system info: %s", err)
+	}
+
 	return nil
 }
 
@@ -127,6 +136,7 @@ func (c *Check) Run() error {
 				AWSAccountID:      c.awsAccountID,
 				Region:            c.region,
 				ClusterName:       c.clusterName,
+				SystemInfo:        c.systemInfo,
 			},
 			Config:      c.config,
 			MsgGroupRef: c.groupID,

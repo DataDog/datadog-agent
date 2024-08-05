@@ -105,7 +105,7 @@ func (h *Histogram) configure(aggregates []string, percentiles []int) {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (h *Histogram) addSample(sample *MetricSample, timestamp float64) {
+func (h *Histogram) addSample(sample *MetricSample, _ float64) {
 	rate := sample.SampleRate
 	if rate == 0 {
 		rate = 1

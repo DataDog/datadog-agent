@@ -99,7 +99,7 @@ func TestGoogleCloudRun(t *testing.T) {
 	endpointCalled := atomic.NewUint64(0)
 	assert := assert.New(t)
 
-	srv := assertingServer(t, func(req *http.Request, body []byte) error {
+	srv := assertingServer(t, func(req *http.Request, _ []byte) error {
 		assert.Equal("GCP", req.Header.Get("DD-Cloud-Provider"))
 		assert.Equal("GCPCloudRun", req.Header.Get("DD-Cloud-Resource-Type"))
 		assert.Equal("test_service", req.Header.Get("DD-Cloud-Resource-Identifier"))
@@ -123,7 +123,7 @@ func TestAzureAppService(t *testing.T) {
 	endpointCalled := atomic.NewUint64(0)
 	assert := assert.New(t)
 
-	srv := assertingServer(t, func(req *http.Request, body []byte) error {
+	srv := assertingServer(t, func(req *http.Request, _ []byte) error {
 		assert.Equal("Azure", req.Header.Get("DD-Cloud-Provider"))
 		assert.Equal("AzureAppService", req.Header.Get("DD-Cloud-Resource-Type"))
 		assert.Equal("test_app", req.Header.Get("DD-Cloud-Resource-Identifier"))
@@ -150,7 +150,7 @@ func TestAzureContainerApp(t *testing.T) {
 	endpointCalled := atomic.NewUint64(0)
 	assert := assert.New(t)
 
-	srv := assertingServer(t, func(req *http.Request, body []byte) error {
+	srv := assertingServer(t, func(req *http.Request, _ []byte) error {
 		assert.Equal("Azure", req.Header.Get("DD-Cloud-Provider"))
 		assert.Equal("AzureContainerApp", req.Header.Get("DD-Cloud-Resource-Type"))
 		assert.Equal("test_app", req.Header.Get("DD-Cloud-Resource-Identifier"))
@@ -188,7 +188,7 @@ func TestAWSFargate(t *testing.T) {
 	endpointCalled := atomic.NewUint64(0)
 	assert := assert.New(t)
 
-	srv := assertingServer(t, func(req *http.Request, body []byte) error {
+	srv := assertingServer(t, func(req *http.Request, _ []byte) error {
 		assert.Equal("AWS", req.Header.Get("DD-Cloud-Provider"))
 		assert.Equal("AWSFargate", req.Header.Get("DD-Cloud-Resource-Type"))
 		assert.Equal("test_ARN", req.Header.Get("DD-Cloud-Resource-Identifier"))
@@ -199,7 +199,7 @@ func TestAWSFargate(t *testing.T) {
 
 	req, rec := newRequestRecorder(t)
 	cfg := getTestConfig(srv.URL)
-	cfg.ContainerTags = func(cid string) ([]string, error) {
+	cfg.ContainerTags = func(_ string) ([]string, error) {
 		return []string{"task_arn:test_ARN"}, nil
 	}
 	recv := newTestReceiverFromConfig(cfg)
@@ -301,7 +301,7 @@ func TestTelemetryConfig(t *testing.T) {
 	})
 
 	t.Run("fallback-endpoint", func(t *testing.T) {
-		srv := assertingServer(t, func(req *http.Request, body []byte) error { return nil })
+		srv := assertingServer(t, func(_ *http.Request, _ []byte) error { return nil })
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "api_key"
 		cfg.TelemetryConfig.Enabled = true

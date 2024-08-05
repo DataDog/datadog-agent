@@ -129,7 +129,7 @@ type EBPFProbe struct {
 	erpcRequest              *erpc.Request
 	inodeDiscarders          *inodeDiscarders
 	discarderPushedCallbacks []DiscarderPushedCallback
-	approvers                map[eval.EventType]kfilters.ActiveApprovers
+	kfilters                 map[eval.EventType]kfilters.ActiveKFilters
 
 	// Approvers / discarders section
 	discarderPushedCallbacksLock sync.RWMutex
@@ -1104,12 +1104,12 @@ func (p *EBPFProbe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.Po
 
 // SetApprovers applies approvers and removes the unused ones
 func (p *EBPFProbe) SetApprovers(eventType eval.EventType, approvers rules.Approvers) error {
-	handler, exists := kfilters.AllApproversHandlers[eventType]
+	kfiltersGetter, exists := kfilters.KFilterGetters[eventType]
 	if !exists {
 		return nil
 	}
 
-	newApprovers, err := handler(approvers)
+	newKFilters, err := kfiltersGetter(approvers)
 	if err != nil {
 		seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", kfilters.PolicyModeAccept, eventType, err)
 	}
@@ -1120,25 +1120,25 @@ func (p *EBPFProbe) SetApprovers(eventType eval.EventType, approvers rules.Appro
 	}
 	approverAddedMetricCounter := make(map[tag]float64)
 
-	for _, newApprover := range newApprovers {
-		seclog.Tracef("Applying approver %+v for event type %s", newApprover, eventType)
-		if err := newApprover.Apply(p.Manager); err != nil {
+	for _, newKFilter := range newKFilters {
+		seclog.Tracef("Applying kfilter %+v for event type %s", newKFilter, eventType)
+		if err := newKFilter.Apply(p.Manager); err != nil {
 			return err
 		}
 
-		approverType := getApproverType(newApprover.GetTableName())
+		approverType := getApproverType(newKFilter.GetTableName())
 		approverAddedMetricCounter[tag{eventType, approverType}]++
 	}
 
-	if previousApprovers, exist := p.approvers[eventType]; exist {
-		previousApprovers.Sub(newApprovers)
-		for _, previousApprover := range previousApprovers {
-			seclog.Tracef("Removing previous approver %+v for event type %s", previousApprover, eventType)
-			if err := previousApprover.Remove(p.Manager); err != nil {
+	if previousKFilters, exist := p.kfilters[eventType]; exist {
+		previousKFilters.Sub(newKFilters)
+		for _, previousKFilter := range previousKFilters {
+			seclog.Tracef("Removing previous kfilter %+v for event type %s", previousKFilter, eventType)
+			if err := previousKFilter.Remove(p.Manager); err != nil {
 				return err
 			}
 
-			approverType := getApproverType(previousApprover.GetTableName())
+			approverType := getApproverType(previousKFilter.GetTableName())
 			approverAddedMetricCounter[tag{eventType, approverType}]--
 			if approverAddedMetricCounter[tag{eventType, approverType}] <= 0 {
 				delete(approverAddedMetricCounter, tag{eventType, approverType})
@@ -1157,14 +1157,14 @@ func (p *EBPFProbe) SetApprovers(eventType eval.EventType, approvers rules.Appro
 		}
 	}
 
-	p.approvers[eventType] = newApprovers
+	p.kfilters[eventType] = newKFilters
 	return nil
 }
 
-func getApproverType(approverTableName string) string {
+func getApproverType(tableName string) string {
 	approverType := "flag"
 
-	if approverTableName == kfilters.BasenameApproverKernelMapName {
+	if tableName == kfilters.BasenameApproverKernelMapName {
 		approverType = "basename"
 	}
 
@@ -1652,7 +1652,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		opts:                 opts,
 		statsdClient:         opts.StatsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
-		approvers:            make(map[eval.EventType]kfilters.ActiveApprovers),
+		kfilters:             make(map[eval.EventType]kfilters.ActiveKFilters),
 		managerOptions:       ebpf.NewDefaultOptions(),
 		Erpc:                 nerpc,
 		erpcRequest:          erpc.NewERPCRequest(0),

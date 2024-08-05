@@ -13,7 +13,7 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 
-	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/logs/internal/seelog"
+	seelogCfg "github.com/DataDog/datadog-agent/pkg/util/log/setup/internal/seelog"
 )
 
 func TestExtractShortPathFromFullPath(t *testing.T) {

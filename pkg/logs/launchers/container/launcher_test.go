@@ -85,7 +85,7 @@ func TestAddsRemovesSource(t *testing.T) {
 func TestCannotMakeTailer(t *testing.T) {
 	l := NewLauncher(nil, optional.NewNoneOption[workloadmeta.Component]())
 	l.tailerFactory = &testFactory{
-		makeTailer: func(source *sources.LogSource) (tailerfactory.Tailer, error) {
+		makeTailer: func(_ *sources.LogSource) (tailerfactory.Tailer, error) {
 			return nil, errors.New("uhoh")
 		},
 	}

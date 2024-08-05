@@ -71,7 +71,7 @@ func TestProxyResponseValid(t *testing.T) {
 	l, err := net.Listen("tcp", "127.0.0.1:5001")
 	assert.Nil(t, err)
 
-	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintf(w, "ok")
 	}))
 	ts.Listener.Close()
@@ -98,7 +98,7 @@ func TestProxyResponseError(t *testing.T) {
 	l, err := net.Listen("tcp", "127.0.0.1:6001")
 	assert.Nil(t, err)
 
-	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintf(w, "ok")
 	}))
 	ts.Listener.Close()

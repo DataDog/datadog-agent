@@ -75,7 +75,7 @@ func TestGetSecurityCreds(t *testing.T) {
 
 func TestGetInstanceIdentity(t *testing.T) {
 	ctx := context.Background()
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		content, err := os.ReadFile("payloads/instance_indentity.json")
 		require.NoError(t, err, fmt.Sprintf("failed to load json in payloads/instance_indentity.json: %v", err))
@@ -128,7 +128,7 @@ func TestFetchEc2TagsFromIMDS(t *testing.T) {
 
 func TestFetchEc2TagsFromIMDSError(t *testing.T) {
 	ctx := context.Background()
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
 	defer ts.Close()

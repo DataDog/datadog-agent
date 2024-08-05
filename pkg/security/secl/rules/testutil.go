@@ -15,6 +15,8 @@ import (
 
 // AddTestRuleExpr adds a rule expression
 func AddTestRuleExpr(t testing.TB, rs *RuleSet, exprs ...string) {
+	t.Helper()
+
 	var ruleDefs []*RuleDefinition
 
 	for i, expr := range exprs {

@@ -26,7 +26,7 @@ func makeTestServer(t *testing.T, handler func(w http.ResponseWriter, r *http.Re
 
 func TestDoGet(t *testing.T) {
 	t.Run("simple request", func(t *testing.T) {
-		handler := func(w http.ResponseWriter, r *http.Request) {
+		handler := func(w http.ResponseWriter, _ *http.Request) {
 			w.Write([]byte("test"))
 		}
 		server := makeTestServer(t, http.HandlerFunc(handler))
@@ -36,7 +36,7 @@ func TestDoGet(t *testing.T) {
 	})
 
 	t.Run("error response", func(t *testing.T) {
-		handler := func(w http.ResponseWriter, r *http.Request) {
+		handler := func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
 		}
 		server := makeTestServer(t, http.HandlerFunc(handler))
@@ -50,7 +50,7 @@ func TestDoGet(t *testing.T) {
 	})
 
 	t.Run("request error", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
 		server.Close()
 
 		_, err := DoGetWithOptions(server.Client(), server.URL, &ReqOptions{})
@@ -92,7 +92,7 @@ func TestDoGet(t *testing.T) {
 	})
 
 	t.Run("context cancel", func(t *testing.T) {
-		handler := func(w http.ResponseWriter, r *http.Request) {
+		handler := func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}
 		server := makeTestServer(t, http.HandlerFunc(handler))

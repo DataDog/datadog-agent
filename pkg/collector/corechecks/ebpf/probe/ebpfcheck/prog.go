@@ -67,8 +67,8 @@ type ProgInfo struct {
 	XlatedProgInsns      Pointer
 	LoadTime             uint64
 	CreatedByUID         uint32
-	NrMapIds             uint32
-	MapIds               Pointer
+	NrMapIDs             uint32
+	MapIDs               Pointer
 	Name                 ObjName
 	Ifindex              uint32
 	_                    [4]byte /* unsupported bitfield */

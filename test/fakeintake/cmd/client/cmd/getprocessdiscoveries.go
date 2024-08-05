@@ -19,7 +19,7 @@ func NewGetProcessDiscoveriesCommand(cl **client.Client) (cmd *cobra.Command) {
 	cmd = &cobra.Command{
 		Use:   "process-discoveries",
 		Short: "Get process discoveries",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			pd, err := (*cl).GetProcessDiscoveries()
 			if err != nil {
 				return err

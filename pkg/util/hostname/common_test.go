@@ -109,7 +109,7 @@ func TestFromFQDN(t *testing.T) {
 		osHostnameUsable = isOSHostnameUsable
 		fqdnHostname = getSystemFQDN
 	}()
-	osHostnameUsable = func(ctx context.Context) bool { return true }
+	osHostnameUsable = func(context.Context) bool { return true }
 	fqdnHostname = func() (string, error) { return "fqdn-hostname", nil }
 
 	configmock.New(t)
@@ -132,7 +132,7 @@ func TestFromOS(t *testing.T) {
 		// making isOSHostnameUsable return true
 		osHostnameUsable = isOSHostnameUsable
 	}()
-	osHostnameUsable = func(ctx context.Context) bool { return true }
+	osHostnameUsable = func(context.Context) bool { return true }
 	expected, _ := os.Hostname()
 
 	hostname, err := fromOS(context.TODO(), "")

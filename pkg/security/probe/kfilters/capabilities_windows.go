@@ -12,26 +12,22 @@ import (
 func init() {
 	allCapabilities["create"] = Capabilities{
 		"create.file.name": {
-			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType | eval.PatternValueType,
+			ValueTypeBitmask: eval.ScalarValueType | eval.PatternValueType,
 		},
 	}
 	allCapabilities["rename"] = Capabilities{
 		"rename.file.name": {
-			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType | eval.PatternValueType,
+			ValueTypeBitmask: eval.ScalarValueType | eval.PatternValueType,
 		},
 	}
 	allCapabilities["delete"] = Capabilities{
 		"delete.file.name": {
-			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType | eval.PatternValueType,
+			ValueTypeBitmask: eval.ScalarValueType | eval.PatternValueType,
 		},
 	}
 	allCapabilities["write"] = Capabilities{
 		"write.file.name": {
-			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType | eval.PatternValueType,
+			ValueTypeBitmask: eval.ScalarValueType | eval.PatternValueType,
 		},
 	}
 }

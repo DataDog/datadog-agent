@@ -49,8 +49,8 @@ func (o *Opts) WithEventTypeEnabled(eventTypes map[eval.EventType]bool) *Opts {
 }
 
 // WithReservedRuleIDs set reserved rule ids
-func (o *Opts) WithReservedRuleIDs(ruleIds []RuleID) *Opts {
-	o.ReservedRuleIDs = ruleIds
+func (o *Opts) WithReservedRuleIDs(ruleIDs []RuleID) *Opts {
+	o.ReservedRuleIDs = ruleIDs
 	return o
 }
 

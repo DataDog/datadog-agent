@@ -179,9 +179,9 @@ func (lp *languagePatcher) extractOwnerFromEvent(event workloadmeta.Event) (*lan
 		deploymentID := event.Entity.(*workloadmeta.KubernetesDeployment).ID
 
 		// extract deployment name and namespace from entity id
-		deploymentIds := strings.Split(deploymentID, "/")
-		namespace := deploymentIds[0]
-		deploymentName := deploymentIds[1]
+		deploymentIDs := strings.Split(deploymentID, "/")
+		namespace := deploymentIDs[0]
+		deploymentName := deploymentIDs[1]
 
 		// construct namespaced owner reference
 		owner := langUtil.NewNamespacedOwnerReference(

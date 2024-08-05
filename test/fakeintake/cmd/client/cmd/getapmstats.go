@@ -19,7 +19,7 @@ func NewGetAPMStatsCommand(cl **client.Client) (cmd *cobra.Command) {
 	cmd = &cobra.Command{
 		Use:   "apmstats",
 		Short: "Get apm stats",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			stats, err := (*cl).GetAPMStats()
 			if err != nil {
 				return err
