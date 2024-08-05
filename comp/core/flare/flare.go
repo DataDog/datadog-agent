@@ -163,7 +163,7 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 	if fb.IsLocal() {
 		// If we have a ipcError we failed to reach the agent process, else the user requested a local flare
 		// from the CLI.
-		msg := []byte("local flare was requested")
+		msg := []byte(fmt.Sprintf("local flare was requested\nFlare creation time: %s", time.Now().Format(time.RFC3339)))
 		if ipcError != nil {
 			msg = []byte(fmt.Sprintf("unable to contact the agent to retrieve flare: %s", ipcError))
 		}
