@@ -8,13 +8,14 @@ package hostname
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 )
 
 type linuxHostnameSuite struct {
@@ -22,6 +23,7 @@ type linuxHostnameSuite struct {
 }
 
 func TestLinuxHostnameSuite(t *testing.T) {
+	t.Skip("Skipping due to the latest ubuntu AMI disabling IMDSv1 #incident-29343")
 	osOption := awshost.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault))
 	e2e.Run(t, &linuxHostnameSuite{baseHostnameSuite: baseHostnameSuite{osOption: osOption}}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }

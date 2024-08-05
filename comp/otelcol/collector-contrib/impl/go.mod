@@ -15,7 +15,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.55.1
+	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.55.3
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.102.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector v0.102.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/grafanacloudconnector v0.102.0
@@ -330,7 +330,7 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/digitalocean/godo v1.109.0 // indirect
 	github.com/distribution/reference v0.5.0 // indirect
-	github.com/docker/docker v25.0.5+incompatible // indirect
+	github.com/docker/docker v25.0.6+incompatible // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dvsekhvalnov/jose2go v1.6.0 // indirect
