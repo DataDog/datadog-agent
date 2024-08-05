@@ -180,7 +180,7 @@ func TestSpanKindIsConsumerOrProducer(t *testing.T) {
 		{"cLient", true},
 		{"pRoducer", true},
 		{"server", false},
-		{"consumer", false},
+		{"consumer", true},
 		{"internal", false},
 		{"", false},
 	} {
