@@ -79,16 +79,6 @@ func NodeAgentOptions(config configComponent.Component) (Options, error) {
 	}, nil
 }
 
-// NodeAgentOptionsForSecurityResolvers is a legacy function that returns the
-// same options as NodeAgentOptions, but it's used by the tag security resolvers only
-// TODO (component): remove this function once the security resolver migrates to component
-func NodeAgentOptionsForSecurityResolvers() (Options, error) {
-	return Options{
-		Target:       fmt.Sprintf(":%v", config.Datadog().GetInt("cmd_port")),
-		TokenFetcher: func() (string, error) { return security.FetchAuthToken(config.Datadog()) },
-	}, nil
-}
-
 // CLCRunnerOptions returns the tagger options used in the CLC Runner.
 func CLCRunnerOptions(config configComponent.Component) (Options, error) {
 	opts := Options{
