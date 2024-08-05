@@ -14,7 +14,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ../../../../comp/def
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../pkg/config/env
-	github.com/DataDog/datadog-agent/pkg/config/logs => ../../../../pkg/config/logs
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../../../pkg/config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../pkg/config/setup
@@ -28,6 +27,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../pkg/util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../../pkg/util/log
+	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../../pkg/util/optional
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../../pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../../pkg/util/scrubber/
@@ -51,7 +51,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/config/logs v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.0.0-00010101000000-000000000000
 )
 
 require (
@@ -135,6 +135,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240520151616-dc85e6b867a5 // indirect
 	google.golang.org/grpc v1.64.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
+	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

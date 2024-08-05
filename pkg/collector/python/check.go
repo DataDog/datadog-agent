@@ -129,7 +129,7 @@ func (c *PythonCheck) runCheck(commitMetrics bool) error {
 	ctx := context.Background()
 	var err error
 	idStr := string(c.id)
-	pprof.Do(ctx, pprof.Labels("check_id", idStr), func(ctx context.Context) {
+	pprof.Do(ctx, pprof.Labels("check_id", idStr), func(_ context.Context) {
 		err = c.runCheckImpl(commitMetrics)
 	})
 	return err

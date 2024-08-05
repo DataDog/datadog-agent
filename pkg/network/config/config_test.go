@@ -1181,6 +1181,23 @@ func TestMaxClosedConnectionsBuffered(t *testing.T) {
 	})
 }
 
+func TestMaxFailedConnectionsBuffered(t *testing.T) {
+	maxTrackedConnections := New().MaxTrackedConnections
+
+	t.Run("value set", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_NETWORK_CONFIG_MAX_FAILED_CONNECTIONS_BUFFERED", fmt.Sprintf("%d", maxTrackedConnections-1))
+		cfg := New()
+		require.Equal(t, maxTrackedConnections-1, cfg.MaxFailedConnectionsBuffered)
+	})
+
+	t.Run("value not set", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		require.Equal(t, cfg.MaxTrackedConnections, cfg.MaxFailedConnectionsBuffered)
+	})
+}
+
 func TestMaxHTTPStatsBuffered(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
@@ -1396,6 +1413,33 @@ service_monitoring_config:
 
 		cfg := New()
 		assert.True(t, cfg.EnableIstioMonitoring)
+	})
+}
+
+func TestEnvoyPathConfig(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		assert.EqualValues(t, cfg.EnvoyPath, "/bin/envoy")
+	})
+
+	t.Run("via yaml", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  tls:
+    istio:
+      envoy_path: "/test/envoy"
+`)
+		assert.EqualValues(t, "/test/envoy", cfg.EnvoyPath)
+	})
+
+	t.Run("value set through env var", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_ISTIO_ENVOY_PATH", "/test/envoy")
+
+		cfg := New()
+		assert.EqualValues(t, "/test/envoy", cfg.EnvoyPath)
 	})
 }
 

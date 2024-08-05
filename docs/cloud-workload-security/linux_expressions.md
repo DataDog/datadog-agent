@@ -131,15 +131,6 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`event.os`](#event-os-doc) | Operating system of the event |
 | [`event.service`](#event-service-doc) | Service associated with the event |
 | [`event.timestamp`](#event-timestamp-doc) | Timestamp of the event |
-| [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
-| [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
-| [`network.device.ifindex`](#network-device-ifindex-doc) | Interface ifindex |
-| [`network.device.ifname`](#network-device-ifname-doc) | Interface ifname |
-| [`network.l3_protocol`](#network-l3_protocol-doc) | L3 protocol of the network packet |
-| [`network.l4_protocol`](#network-l4_protocol-doc) | L4 protocol of the network packet |
-| [`network.size`](#network-size-doc) | Size in bytes of the network packet |
-| [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
-| [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
 | [`process.ancestors.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`process.ancestors.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
 | [`process.ancestors.args_options`](#common-process-args_options-doc) | Argument of the process as options |
@@ -528,6 +519,15 @@ A DNS request was sent
 | [`dns.question.name`](#dns-question-name-doc) | the queried domain name |
 | [`dns.question.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`dns.question.type`](#dns-question-type-doc) | a two octet code which specifies the DNS question type |
+| [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
+| [`network.device.ifindex`](#network-device-ifindex-doc) | Interface ifindex |
+| [`network.device.ifname`](#network-device-ifname-doc) | Interface ifname |
+| [`network.l3_protocol`](#network-l3_protocol-doc) | L3 protocol of the network packet |
+| [`network.l4_protocol`](#network-l4_protocol-doc) | L4 protocol of the network packet |
+| [`network.size`](#network-size-doc) | Size in bytes of the network packet |
+| [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
 
 ### Event `exec`
 
@@ -720,6 +720,15 @@ An IMDS event was captured
 | [`imds.type`](#imds-type-doc) | the type of IMDS event |
 | [`imds.url`](#imds-url-doc) | the queried IMDS URL |
 | [`imds.user_agent`](#imds-user_agent-doc) | the user agent of the HTTP client |
+| [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
+| [`network.device.ifindex`](#network-device-ifindex-doc) | Interface ifindex |
+| [`network.device.ifname`](#network-device-ifname-doc) | Interface ifname |
+| [`network.l3_protocol`](#network-l3_protocol-doc) | L3 protocol of the network packet |
+| [`network.l4_protocol`](#network-l4_protocol-doc) | L4 protocol of the network packet |
+| [`network.size`](#network-size-doc) | Size in bytes of the network packet |
+| [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
 
 ### Event `link`
 

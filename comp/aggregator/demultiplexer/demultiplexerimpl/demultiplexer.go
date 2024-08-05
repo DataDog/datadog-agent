@@ -86,7 +86,7 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 	demultiplexer := demultiplexer{
 		AgentDemultiplexer: agentDemultiplexer,
 	}
-	deps.Lc.Append(fx.Hook{OnStop: func(ctx context.Context) error {
+	deps.Lc.Append(fx.Hook{OnStop: func(_ context.Context) error {
 		agentDemultiplexer.Stop(true)
 		return nil
 	}})

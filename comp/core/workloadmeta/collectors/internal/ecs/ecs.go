@@ -115,18 +115,33 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		log.Warnf("cannot determine ECS cluster name: %s", err)
 	}
 
-	c.setTaskCollectionParser()
+	c.setTaskCollectionParser(instance.Version)
 
 	return nil
 }
 
-func (c *collector) setTaskCollectionParser() {
-	_, err := ecsmeta.V4FromCurrentTask()
-	if c.taskCollectionEnabled && err == nil {
-		c.taskCollectionParser = c.parseTasksFromV4Endpoint
+func (c *collector) setTaskCollectionParser(version string) {
+	if !c.taskCollectionEnabled {
+		log.Infof("detailed task collection disabled, using metadata v1 endpoint")
+		c.taskCollectionParser = c.parseTasksFromV1Endpoint
 		return
 	}
-	c.taskCollectionParser = c.parseTasksFromV1Endpoint
+
+	ok, err := ecsmeta.IsMetadataV4Available(util.ParseECSAgentVersion(version))
+	if err != nil {
+		log.Warnf("detailed task collection enabled but agent cannot determine if v4 metadata endpoint is available, using metadata v1 endpoint: %s", err.Error())
+		c.taskCollectionParser = c.parseTasksFromV1Endpoint
+		return
+	}
+
+	if !ok {
+		log.Infof("detailed task collection enabled but v4 metadata endpoint is not available, using metadata v1 endpoint")
+		c.taskCollectionParser = c.parseTasksFromV1Endpoint
+		return
+	}
+
+	log.Infof("detailed task collection enabled, using metadata v4 endpoint")
+	c.taskCollectionParser = c.parseTasksFromV4Endpoint
 }
 
 func (c *collector) Pull(ctx context.Context) error {

@@ -319,11 +319,11 @@ Package runner implements a component to generate metadata payload at the right 
 
 ### [comp/metadata/securityagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/securityagent)
 
-Package def is the metadata provider for security-agent process
+Package securityagent is the metadata provider for security-agent process
 
 ### [comp/metadata/systemprobe](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/systemprobe)
 
-Package def is the metadata provider for system-probe process
+Package systemprobe is the metadata provider for system-probe process
 
 ## [comp/ndmtmp](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/ndmtmp) (Component Bundle)
 
@@ -548,7 +548,7 @@ Package trace implements the "trace" bundle, providing components for the Trace 
 
 ### [comp/trace/agent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/agent)
 
-Package traceagent provides the agent component type.
+Package agent provides the trace agent component type.
 
 ### [comp/trace/compression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/compression)
 
@@ -590,6 +590,12 @@ Package telemetry provides the installer telemetry component.
 ### [comp/updater/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/updater)
 
 Package updater is the updater component.
+
+### [comp/autoscaling/datadogclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient)
+
+*Datadog Team*: container-integrations
+
+Package datadogclient provides a client to query the datadog API
 
 ### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
 
