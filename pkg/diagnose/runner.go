@@ -303,13 +303,13 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) (*diagnosis.Diag
 	}
 
 	// Deserialize results
-	var diagnoses *diagnosis.DiagnoseResult
+	var diagnoses diagnosis.DiagnoseResult
 	err = json.Unmarshal(response, &diagnoses)
 	if err != nil {
 		return nil, fmt.Errorf("error while decoding diagnose results returned from Agent: %w", err)
 	}
 
-	return diagnoses, nil
+	return &diagnoses, nil
 }
 
 // RunInCLIProcess run diagnoses in the CLI process.
