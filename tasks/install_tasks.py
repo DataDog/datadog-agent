@@ -6,6 +6,7 @@ from pathlib import Path
 
 from invoke import Exit, task
 
+from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.utils import environ, gitlab_section
 
@@ -100,18 +101,22 @@ def install_protoc(ctx, version="26.1"):
             print("protoc is not supported with this architecture:", platform.machine().lower())
             raise Exit(code=1)
 
-    zip_path = "/tmp/protoc.zip"
-    # Url example: https://github.com/protocolbuffers/protobuf/releases/download/v27.3/protoc-27.3-linux-x86_64.zip
-    ctx.run(
-        f"wget -qO {zip_path} \"https://github.com/protocolbuffers/protobuf/releases/download/v{version}/protoc-{version}-{platform_os}-{platform_arch}.zip\""
-    )
+    # Download the artifact thanks to the Github API class
+    artifact_url = f"https://github.com/protocolbuffers/protobuf/releases/download/v{version}/protoc-{version}-{platform_os}-{platform_arch}.zip"
+    zip_path = "/tmp"
+    zip_name = "protoc"
+    zip_file = ospath.join(zip_path, f"{zip_name}.zip")
+
+    gh = GithubAPI(public_repo=True)
+    # the download_from_url expect to have the path and the name of the file separated and without the extension
+    gh.download_from_url(artifact_url, zip_path, zip_name)
 
     # Unzip it in the target destination
     destination = ospath.join(Path.home(), ".local")
-    with zipfile.ZipFile(zip_path, "r") as zip_ref:
+    with zipfile.ZipFile(zip_file, "r") as zip_ref:
         zip_ref.extract('bin/protoc', path=destination)
     ctx.run(f"chmod +x {destination}/bin/protoc")
-    ctx.run("rm /tmp/protoc.zip")
+    ctx.run(f"rm {zip_file}")
 
 
 @task
