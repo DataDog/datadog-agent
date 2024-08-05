@@ -842,15 +842,14 @@ def generate_complexity_summary_for_pr(ctx: Context, skip_github_comment=False):
 
     pipeline_id = os.getenv("CI_PIPELINE_ID")
 
-    header = "eBPF complexity summary"
-    msg = f"# {header} | {state}\n\n"
-    msg += "## Summary\n\n"
+    msg = f"### Summary result: {state}\n\n"
     msg += f"* Highest complexity change (%): {max_complexity_rel_change * 100:+.2f}%\n"
     msg += f"* Highest complexity change (abs.): {max_complexity_abs_change:+} instructions\n"
     msg += f"* Programs that were above the {threshold_for_max_limit * 100}% limit of instructions and are now below: {programs_now_below_limit}\n"
     msg += f"* Programs that were below the {threshold_for_max_limit * 100}% limit of instructions and are now above: {programs_now_above_limit}\n"
     msg += "\n\n"
 
+    has_any_changes = False
     for group, rows in itertools.groupby(summarized_complexity_changes, key=lambda x: x[0].split("/")[0]):
         if not any(row[-1] for row in rows):
             continue
@@ -862,6 +861,7 @@ def generate_complexity_summary_for_pr(ctx: Context, skip_github_comment=False):
         msg += f"## {group}\n\n"
         msg += tabulate(rows, headers=headers, tablefmt="github")
         msg += "\n\n</details>\n"
+        has_any_changes = True
 
     msg += f"This report was generated based on the complexity data for the current branch {branch_name} (pipeline {pipeline_id}) and the main branch (commit {common_ancestor}). Objects without changes are not reported. Contact [#ebpf-platform](https://dd.enterprise.slack.com/archives/C0424HA1SJK) if you have any questions/feedback."
     msg += "\nTable complexity legend: 🔵 - new; ⚪ - unchanged; 🟢 - reduced; 🔴 - increased"
@@ -869,6 +869,10 @@ def generate_complexity_summary_for_pr(ctx: Context, skip_github_comment=False):
     print(msg)
 
     if skip_github_comment:
+        return
+
+    if not has_any_changes:
+        print("No changes detected, skipping comment")
         return
 
     pr_commenter(ctx, pr_comment_head, msg)
