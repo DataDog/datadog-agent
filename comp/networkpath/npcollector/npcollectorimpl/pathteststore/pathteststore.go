@@ -46,8 +46,8 @@ type Store struct {
 	// are called by different routines.
 	contextsMutex sync.Mutex
 
-	// maxContexts is the maximum number of contexts to keep in the store
-	maxContexts int
+	// contextsLimit is the maximum number of contexts to keep in the store
+	contextsLimit int
 
 	// interval defines how frequently pathtests should run
 	interval time.Duration
@@ -67,13 +67,13 @@ func newPathtestContext(pt *common.Pathtest, runUntilDuration time.Duration) *Pa
 }
 
 // NewPathtestStore creates a new Store
-func NewPathtestStore(pathtestTTL time.Duration, pathtestInterval time.Duration, maxContexts int, logger log.Component) *Store {
+func NewPathtestStore(pathtestTTL time.Duration, pathtestInterval time.Duration, contextsLimit int, logger log.Component) *Store {
 	return &Store{
-		contexts:    make(map[uint64]*PathtestContext),
-		ttl:         pathtestTTL,
-		interval:    pathtestInterval,
-		maxContexts: maxContexts,
-		logger:      logger,
+		contexts:      make(map[uint64]*PathtestContext),
+		ttl:           pathtestTTL,
+		interval:      pathtestInterval,
+		contextsLimit: contextsLimit,
+		logger:        logger,
 	}
 }
 
@@ -123,8 +123,8 @@ func (f *Store) Add(pathtestToAdd *common.Pathtest) {
 	f.contextsMutex.Lock()
 	defer f.contextsMutex.Unlock()
 
-	if len(f.contexts) >= f.maxContexts {
-		f.logger.Warnf("Pathteststore is full, maximum set to: %d, dropping pathtest: %+v", f.maxContexts, pathtestToAdd)
+	if len(f.contexts) >= f.contextsLimit {
+		f.logger.Warnf("Pathteststore is full, maximum set to: %d, dropping pathtest: %+v", f.contextsLimit, pathtestToAdd)
 		return
 	}
 
