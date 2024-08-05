@@ -55,24 +55,30 @@ func newSystemCollector(cache *provider.Cache, wlm optional.Option[workloadmeta.
 	var err error
 	var hostPrefix string
 	var collectorMetadata provider.CollectorMetadata
+	var cf cgroups.ReaderFilter
 
 	procPath := config.Datadog().GetString("container_proc_root")
 	if strings.HasPrefix(procPath, "/host") {
 		hostPrefix = "/host"
 	}
 
-	var w workloadmeta.Component
-	unwrapped, ok := wlm.Get()
-	if ok {
-		w = unwrapped
+	if useTrie := config.Datadog().GetBool("use_improved_cgroup_parser"); useTrie {
+		var w workloadmeta.Component
+		unwrapped, ok := wlm.Get()
+		if ok {
+			w = unwrapped
+		}
+		filter := newContainerFilter(w)
+		go filter.start()
+		cf = filter.ContainerFilter
+	} else {
+		cf = cgroups.ContainerFilter
 	}
-	cf := newContainerFilter(w)
-	go cf.start()
 	reader, err := cgroups.NewReader(
 		cgroups.WithCgroupV1BaseController(cgroupV1BaseController),
 		cgroups.WithProcPath(procPath),
 		cgroups.WithHostPrefix(hostPrefix),
-		cgroups.WithReaderFilter(cf.ContainerFilter),
+		cgroups.WithReaderFilter(cf),
 		cgroups.WithPIDMapper(config.Datadog().GetString("container_pid_mapper")),
 	)
 	if err != nil {
