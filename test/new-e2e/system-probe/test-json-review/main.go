@@ -28,6 +28,7 @@ import (
 
 var flakyTestFile string
 var codeownersFile string
+var testDirRoot string
 
 const (
 	flakyFormat = "FLAKY: %s %s"
@@ -39,6 +40,7 @@ func init() {
 	color.NoColor = false
 	flag.StringVar(&flakyTestFile, "flakes", "", "Path to flaky test file")
 	flag.StringVar(&codeownersFile, "codeowners", "", "Path to CODEOWNERS file")
+	flag.StringVar(&testDirRoot, "test-root", "", "Path to test binaries")
 }
 
 func main() {
@@ -100,9 +102,9 @@ func reviewTests(jsonFile string, flakyFile string, ownersFile string) (*reviewO
 		defer ff.Close()
 	}
 
-	var owners *codeowners
+	var owners *testowners
 	if ownersFile != "" {
-		owners, err = loadCodeowners(ownersFile)
+		owners, err = newTestowners(ownersFile, testDirRoot)
 		if err != nil {
 			return nil, fmt.Errorf("parse codeowners: %s", err)
 		}
@@ -111,7 +113,7 @@ func reviewTests(jsonFile string, flakyFile string, ownersFile string) (*reviewO
 	return reviewTestsReaders(jf, ff, owners)
 }
 
-func reviewTestsReaders(jf io.Reader, ff io.Reader, owners *codeowners) (*reviewOutput, error) {
+func reviewTestsReaders(jf io.Reader, ff io.Reader, owners *testowners) (*reviewOutput, error) {
 	var failedTestsOut, flakyTestsOut, rerunTestsOut strings.Builder
 	var kf *flake.KnownFlakyTests
 	var err error
@@ -150,7 +152,7 @@ func reviewTestsReaders(jf io.Reader, ff io.Reader, owners *codeowners) (*review
 			if res.Action == "fail" {
 				var owner string
 				if owners != nil {
-					owner = owners.matchPackage(ev.Package)
+					owner = owners.matchTest(ev)
 				}
 
 				rerunTestsOut.WriteString(addOwnerInformation(fmt.Sprintf(rerunFormat, ev.Package, ev.Test, ev.Action), owner))
@@ -181,12 +183,12 @@ func reviewTestsReaders(jf io.Reader, ff io.Reader, owners *codeowners) (*review
 		tests := failedTests[pkg]
 		sort.Strings(tests)
 
-		var owner string
-		if owners != nil {
-			owner = owners.matchPackage(pkg)
-		}
-
 		for _, test := range tests {
+			var owner string
+			if owners != nil {
+				owner = owners.matchTest(testEvent{Package: pkg, Test: test})
+			}
+
 			if kf.IsFlaky(pkg, test) {
 				flakyTestsOut.WriteString(addOwnerInformation(fmt.Sprintf(flakyFormat, pkg, test), owner))
 				continue
