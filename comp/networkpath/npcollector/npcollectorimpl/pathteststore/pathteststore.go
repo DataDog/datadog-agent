@@ -55,6 +55,9 @@ type Store struct {
 	// ttl is the duration a Pathtest should run from discovery.
 	// If a Pathtest is added again before the TTL expires, the TTL is reset to this duration.
 	ttl time.Duration
+
+	// lastContextWarning is the last time a warning was logged about the store being full
+	lastContextWarning time.Time
 }
 
 func newPathtestContext(pt *common.Pathtest, runUntilDuration time.Duration) *PathtestContext {
@@ -124,7 +127,11 @@ func (f *Store) Add(pathtestToAdd *common.Pathtest) {
 	defer f.contextsMutex.Unlock()
 
 	if len(f.contexts) >= f.contextsLimit {
-		f.logger.Warnf("Pathteststore is full, maximum set to: %d, dropping pathtest: %+v", f.contextsLimit, pathtestToAdd)
+		// only log if it has been 1 minute since the last warning
+		if time.Since(f.lastContextWarning) >= time.Minute {
+			f.logger.Warnf("Pathteststore is full, maximum set to: %d, dropping pathtest: %+v", f.contextsLimit, pathtestToAdd)
+			f.lastContextWarning = time.Now()
+		}
 		return
 	}
 

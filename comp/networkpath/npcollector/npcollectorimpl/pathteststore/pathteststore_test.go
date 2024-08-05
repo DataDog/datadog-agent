@@ -6,13 +6,18 @@
 package pathteststore
 
 import (
+	"bufio"
+	"bytes"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
+	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // MockTimeNow mocks time.Now
@@ -30,28 +35,82 @@ func setMockTimeNow(newTime time.Time) {
 }
 
 func Test_pathtestStore_add(t *testing.T) {
-	logger := logmock.New(t)
+	testcases := []struct {
+		name             string
+		initialSize      int
+		pathtests        []*common.Pathtest
+		expectedSize     int
+		expectedLogCount int
+		overrideLogTime  bool
+	}{
+		{
+			name:        "Store not full",
+			initialSize: 3,
+			pathtests: []*common.Pathtest{
+				{Hostname: "host1", Port: 53},
+				{Hostname: "host2", Port: 53},
+				{Hostname: "host3", Port: 53},
+			},
+			expectedSize:     3,
+			expectedLogCount: 0,
+			overrideLogTime:  false,
+		},
+		{
+			name:        "Store full, one warning",
+			initialSize: 2,
+			pathtests: []*common.Pathtest{
+				{Hostname: "host1", Port: 53},
+				{Hostname: "host2", Port: 53},
+				{Hostname: "host3", Port: 53},
+				{Hostname: "host4", Port: 53},
+			},
+			expectedSize:     2,
+			expectedLogCount: 1,
+			overrideLogTime:  false,
+		},
+		{
+			name:        "Store full, multiple warnings",
+			initialSize: 2,
+			pathtests: []*common.Pathtest{
+				{Hostname: "host1", Port: 53},
+				{Hostname: "host2", Port: 53},
+				{Hostname: "host3", Port: 53},
+				{Hostname: "host4", Port: 53},
+			},
+			expectedSize:     2,
+			expectedLogCount: 2,
+			overrideLogTime:  true,
+		},
+	}
 
-	// GIVEN
-	store := NewPathtestStore(10*time.Minute, 1*time.Minute, 10, logger)
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			var b bytes.Buffer
+			w := bufio.NewWriter(&b)
+			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			assert.Nil(t, err)
+			utillog.SetupLogger(l, "debug")
 
-	// WHEN
-	pt1 := &common.Pathtest{Hostname: "host1", Port: 53}
-	pt2 := &common.Pathtest{Hostname: "host2", Port: 53}
-	pt3 := &common.Pathtest{Hostname: "host3", Port: 53}
-	store.Add(pt1)
-	store.Add(pt2)
-	store.Add(pt3)
+			store := NewPathtestStore(10*time.Minute, 1*time.Minute, tc.initialSize, l)
 
-	// THEN
-	assert.Equal(t, 3, len(store.contexts))
+			for _, pt := range tc.pathtests {
+				store.Add(pt)
+				if tc.overrideLogTime {
+					store.contextsMutex.Lock()
+					store.lastContextWarning = MockTimeNow().Add(5 * time.Minute)
+					store.contextsMutex.Unlock()
+				}
+			}
 
-	pt1Ctx := store.contexts[pt1.GetHash()]
-	pt2Ctx := store.contexts[pt2.GetHash()]
-	pt3Ctx := store.contexts[pt3.GetHash()]
-	assert.Equal(t, *pt1, *pt1Ctx.Pathtest)
-	assert.Equal(t, *pt2, *pt2Ctx.Pathtest)
-	assert.Equal(t, *pt3, *pt3Ctx.Pathtest)
+			// TEST START/STOP using logs
+			l.Close() // We need to first close the logger to avoid a race-cond between seelog and out test when calling w.Flush()
+			w.Flush()
+			logs := b.String()
+
+			assert.Equal(t, tc.expectedSize, len(store.contexts))
+			assert.Equal(t, tc.expectedLogCount, strings.Count(logs, "Pathteststore is full"), logs)
+		})
+	}
 }
 
 func Test_pathtestStore_add_when_full(t *testing.T) {
