@@ -104,7 +104,7 @@ func SkipIfNotAvailable(t *testing.T) {
 
 		if disableSeccomp {
 			// disable for now as flacky
-			exclude = append(exclude, "TestProcessExit/exit-signaled")
+			//exclude = append(exclude, "TestProcessExit/exit-signaled")
 		}
 
 		if !isAvailable(available, exclude) {
