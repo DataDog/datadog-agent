@@ -37,7 +37,7 @@ import (
 // Controller is an interface implemented by ControllerV1 and ControllerV1beta1.
 type Controller interface {
 	Run(stopCh <-chan struct{})
-	EnabledWebhooks() []MutatingWebhook
+	EnabledMutatingWebhooks() []MutatingWebhook
 }
 
 // NewController returns the adequate implementation of the Controller interface.
@@ -76,7 +76,7 @@ type MutatingWebhook interface {
 	// should be invoked
 	LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector)
 	// MutateFunc returns the function that mutates the resources
-	MutateFunc() admission.WebhookFunc
+	MutateFunc() admission.MutatingWebhookFunc
 }
 
 // mutatingWebhooks returns the list of mutating webhooks. Notice that the order
@@ -119,19 +119,19 @@ func mutatingWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher) []Mu
 // It contains the shared fields and provides shared methods.
 // For the nolint:structcheck see https://github.com/golangci/golangci-lint/issues/537
 type controllerBase struct {
-	clientSet        kubernetes.Interface //nolint:structcheck
-	config           Config
-	secretsLister    corelisters.SecretLister
-	secretsSynced    cache.InformerSynced //nolint:structcheck
-	webhooksSynced   cache.InformerSynced //nolint:structcheck
-	queue            workqueue.RateLimitingInterface
-	isLeaderFunc     func() bool
-	isLeaderNotif    <-chan struct{}
-	mutatingWebhooks []MutatingWebhook
+	clientSet              kubernetes.Interface //nolint:structcheck
+	config                 Config
+	secretsLister          corelisters.SecretLister
+	secretsSynced          cache.InformerSynced //nolint:structcheck
+	mutatingWebhooksSynced cache.InformerSynced //nolint:structcheck
+	queue                  workqueue.RateLimitingInterface
+	isLeaderFunc           func() bool
+	isLeaderNotif          <-chan struct{}
+	mutatingWebhooks       []MutatingWebhook
 }
 
-// EnabledWebhooks returns the list of enabled webhooks.
-func (c *controllerBase) EnabledWebhooks() []MutatingWebhook {
+// EnabledMutatingWebhooks returns the list of enabled mutating webhooks.
+func (c *controllerBase) EnabledMutatingWebhooks() []MutatingWebhook {
 	var res []MutatingWebhook
 
 	for _, webhook := range c.mutatingWebhooks {

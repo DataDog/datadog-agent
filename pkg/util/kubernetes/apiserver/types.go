@@ -13,6 +13,6 @@ type InformerName string
 const (
 	// SecretsInformer holds the name of the informer
 	SecretsInformer InformerName = "v1/secrets"
-	// WebhooksInformer holds the name of the informer
-	WebhooksInformer InformerName = "admissionregistration.k8s.io/v1/mutatingwebhookconfigurations"
+	// MutatingWebhooksInformer holds the name of the mutating webhook informer
+	MutatingWebhooksInformer InformerName = "admissionregistration.k8s.io/v1/mutatingwebhookconfigurations"
 )

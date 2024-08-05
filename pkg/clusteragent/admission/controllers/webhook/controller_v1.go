@@ -35,15 +35,15 @@ import (
 // It uses the admissionregistration/v1 API.
 type ControllerV1 struct {
 	controllerBase
-	webhooksLister   admissionlisters.MutatingWebhookConfigurationLister
-	webhookTemplates []admiv1.MutatingWebhook
+	mutatingWebhooksLister   admissionlisters.MutatingWebhookConfigurationLister
+	mutatingWebhookTemplates []admiv1.MutatingWebhook
 }
 
 // NewControllerV1 returns a new Webhook Controller using admissionregistration/v1.
 func NewControllerV1(
 	client kubernetes.Interface,
 	secretInformer coreinformers.SecretInformer,
-	webhookInformer admissioninformers.MutatingWebhookConfigurationInformer,
+	MutatingWebhookInformer admissioninformers.MutatingWebhookConfigurationInformer,
 	isLeaderFunc func() bool,
 	isLeaderNotif <-chan struct{},
 	config Config,
@@ -55,8 +55,8 @@ func NewControllerV1(
 	controller.config = config
 	controller.secretsLister = secretInformer.Lister()
 	controller.secretsSynced = secretInformer.Informer().HasSynced
-	controller.webhooksLister = webhookInformer.Lister()
-	controller.webhooksSynced = webhookInformer.Informer().HasSynced
+	controller.mutatingWebhooksLister = MutatingWebhookInformer.Lister()
+	controller.mutatingWebhooksSynced = MutatingWebhookInformer.Informer().HasSynced
 	controller.queue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "webhooks")
 	controller.isLeaderFunc = isLeaderFunc
 	controller.isLeaderNotif = isLeaderNotif
@@ -71,9 +71,9 @@ func NewControllerV1(
 		log.Errorf("cannot add event handler to secret informer: %v", err)
 	}
 
-	if _, err := webhookInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := MutatingWebhookInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    controller.handleWebhook,
-		UpdateFunc: controller.handleWebhookUpdate,
+		UpdateFunc: controller.handleMutatingWebhookUpdate,
 		DeleteFunc: controller.handleWebhook,
 	}); err != nil {
 		log.Errorf("cannot add event handler to webhook informer: %v", err)
@@ -90,7 +90,7 @@ func (c *ControllerV1) Run(stopCh <-chan struct{}) {
 	log.Infof("Starting webhook controller for secret %s/%s and webhook %s - Using admissionregistration/v1", c.config.getSecretNs(), c.config.getSecretName(), c.config.getWebhookName())
 	defer log.Infof("Stopping webhook controller for secret %s/%s and webhook %s", c.config.getSecretNs(), c.config.getSecretName(), c.config.getWebhookName())
 
-	if ok := cache.WaitForCacheSync(stopCh, c.secretsSynced, c.webhooksSynced); !ok {
+	if ok := cache.WaitForCacheSync(stopCh, c.secretsSynced, c.mutatingWebhooksSynced); !ok {
 		return
 	}
 
@@ -109,9 +109,9 @@ func (c *ControllerV1) run() {
 	}
 }
 
-// handleWebhookUpdate handles the new Webhook reported in update events.
+// handleMutatingWebhookUpdate handles the new Webhook reported in update events.
 // It can be a callback function for update events.
-func (c *ControllerV1) handleWebhookUpdate(oldObj, newObj interface{}) {
+func (c *ControllerV1) handleMutatingWebhookUpdate(oldObj, newObj interface{}) {
 	if !c.isLeaderFunc() {
 		return
 	}
@@ -142,51 +142,51 @@ func (c *ControllerV1) reconcile() error {
 		return err
 	}
 
-	webhook, err := c.webhooksLister.Get(c.config.getWebhookName())
+	mutatingWebhook, err := c.mutatingWebhooksLister.Get(c.config.getWebhookName())
 	if err != nil {
 		if errors.IsNotFound(err) {
-			log.Infof("Webhook %s was not found, creating it", c.config.getWebhookName())
-			return c.createWebhook(secret)
+			log.Infof("Mutating Webhook %s was not found, creating it", c.config.getWebhookName())
+			return c.createMutatingWebhook(secret)
 		}
 
 		return err
 	}
 
-	log.Debugf("The Webhook %s was found, updating it", c.config.getWebhookName())
+	log.Debugf("Mutating Webhook %s was found, updating it", c.config.getWebhookName())
 
-	return c.updateWebhook(secret, webhook)
+	return c.updateMutatingWebhook(secret, mutatingWebhook)
 }
 
-// createWebhook creates a new MutatingWebhookConfiguration object.
-func (c *ControllerV1) createWebhook(secret *corev1.Secret) error {
+// createMutatingWebhook creates a new MutatingWebhookConfiguration object.
+func (c *ControllerV1) createMutatingWebhook(secret *corev1.Secret) error {
 	webhook := &admiv1.MutatingWebhookConfiguration{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: c.config.getWebhookName(),
 		},
-		Webhooks: c.newWebhooks(secret),
+		Webhooks: c.newMutatingWebhooks(secret),
 	}
 
 	_, err := c.clientSet.AdmissionregistrationV1().MutatingWebhookConfigurations().Create(context.TODO(), webhook, metav1.CreateOptions{})
 	if errors.IsAlreadyExists(err) {
-		log.Infof("Webhook %s already exists", webhook.GetName())
+		log.Infof("Mutating Webhook %s already exists", webhook.GetName())
 		return nil
 	}
 
 	return err
 }
 
-// updateWebhook stores a new configuration in the MutatingWebhookConfiguration object.
-func (c *ControllerV1) updateWebhook(secret *corev1.Secret, webhook *admiv1.MutatingWebhookConfiguration) error {
+// updateMutatingWebhook stores a new configuration in the MutatingWebhookConfiguration object.
+func (c *ControllerV1) updateMutatingWebhook(secret *corev1.Secret, webhook *admiv1.MutatingWebhookConfiguration) error {
 	webhook = webhook.DeepCopy()
-	webhook.Webhooks = c.newWebhooks(secret)
+	webhook.Webhooks = c.newMutatingWebhooks(secret)
 	_, err := c.clientSet.AdmissionregistrationV1().MutatingWebhookConfigurations().Update(context.TODO(), webhook, metav1.UpdateOptions{})
 	return err
 }
 
-// newWebhooks generates MutatingWebhook objects from config templates with updated CABundle from Secret.
-func (c *ControllerV1) newWebhooks(secret *corev1.Secret) []admiv1.MutatingWebhook {
+// newMutatingWebhooks generates MutatingWebhook objects from config templates with updated CABundle from Secret.
+func (c *ControllerV1) newMutatingWebhooks(secret *corev1.Secret) []admiv1.MutatingWebhook {
 	webhooks := []admiv1.MutatingWebhook{}
-	for _, tpl := range c.webhookTemplates {
+	for _, tpl := range c.mutatingWebhookTemplates {
 		tpl.ClientConfig.CABundle = certificate.GetCABundle(secret.Data)
 		webhooks = append(webhooks, tpl)
 	}
@@ -206,7 +206,7 @@ func (c *ControllerV1) generateTemplates() {
 
 		webhooks = append(
 			webhooks,
-			c.getWebhookSkeleton(
+			c.getMutatingWebhookSkeleton(
 				webhook.Name(),
 				webhook.Endpoint(),
 				webhook.Operations(),
@@ -217,10 +217,10 @@ func (c *ControllerV1) generateTemplates() {
 		)
 	}
 
-	c.webhookTemplates = webhooks
+	c.mutatingWebhookTemplates = webhooks
 }
 
-func (c *ControllerV1) getWebhookSkeleton(nameSuffix, path string, operations []admiv1.OperationType, resources []string, namespaceSelector, objectSelector *metav1.LabelSelector) admiv1.MutatingWebhook {
+func (c *ControllerV1) getMutatingWebhookSkeleton(nameSuffix, path string, operations []admiv1.OperationType, resources []string, namespaceSelector, objectSelector *metav1.LabelSelector) admiv1.MutatingWebhook {
 	matchPolicy := admiv1.Exact
 	sideEffects := admiv1.SideEffectClassNone
 	port := c.config.getServicePort()

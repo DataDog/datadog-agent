@@ -150,7 +150,7 @@ func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *
 }
 
 // MutateFunc returns the function that mutates the resources
-func (w *Webhook) MutateFunc() admission.WebhookFunc {
+func (w *Webhook) MutateFunc() admission.MutatingWebhookFunc {
 	return w.injectAutoInstrumentation
 }
 

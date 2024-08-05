@@ -90,10 +90,10 @@ type WebhookForPods struct {
 	endpoint      string
 	resources     []string
 	operations    []admiv1.OperationType
-	admissionFunc admission.WebhookFunc
+	admissionFunc admission.MutatingWebhookFunc
 }
 
-func newWebhookForPods(admissionFunc admission.WebhookFunc) *WebhookForPods {
+func newWebhookForPods(admissionFunc admission.MutatingWebhookFunc) *WebhookForPods {
 	return &WebhookForPods{
 		name: webhookForPodsName,
 		isEnabled: pkgconfigsetup.Datadog().GetBool("admission_controller.cws_instrumentation.enabled") &&
@@ -139,7 +139,7 @@ func (w *WebhookForPods) LabelSelectors(useNamespaceSelector bool) (namespaceSel
 }
 
 // MutateFunc returns the function that mutates the resources
-func (w *WebhookForPods) MutateFunc() admission.WebhookFunc {
+func (w *WebhookForPods) MutateFunc() admission.MutatingWebhookFunc {
 	return w.admissionFunc
 }
 
@@ -150,10 +150,10 @@ type WebhookForCommands struct {
 	endpoint      string
 	resources     []string
 	operations    []admiv1.OperationType
-	admissionFunc admission.WebhookFunc
+	admissionFunc admission.MutatingWebhookFunc
 }
 
-func newWebhookForCommands(admissionFunc admission.WebhookFunc) *WebhookForCommands {
+func newWebhookForCommands(admissionFunc admission.MutatingWebhookFunc) *WebhookForCommands {
 	return &WebhookForCommands{
 		name: webhookForCommandsName,
 		isEnabled: pkgconfigsetup.Datadog().GetBool("admission_controller.cws_instrumentation.enabled") &&
@@ -199,7 +199,7 @@ func (w *WebhookForCommands) LabelSelectors(_ bool) (namespaceSelector *metav1.L
 }
 
 // MutateFunc returns the function that mutates the resources
-func (w *WebhookForCommands) MutateFunc() admission.WebhookFunc {
+func (w *WebhookForCommands) MutateFunc() admission.MutatingWebhookFunc {
 	return w.admissionFunc
 }
 
