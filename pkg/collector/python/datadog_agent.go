@@ -63,14 +63,12 @@ func GetHostname(hostname **C.char) {
 //
 //export GetHostTags
 func GetHostTags(hostTags **C.char) {
-	test := hosttags.Get(context.Background(), true, config.Datadog())
-	log.Info("natasha testing GetHostTags function 1")
-	log.Infof("natasha testing GetHostTags function 2 %v", test)
-	tags, err := json.Marshal(test)
+	tags := hosttags.Get(context.Background(), true, config.Datadog())
+	tagsBytes, err := json.Marshal(tags)
 	if err != nil {
-		log.Infof("natasha testing GetHostTags function 3 %v", err)
+		log.Warnf("Error getting host tags: %v", err)
 	}
-	*hostTags = TrackedCString(string(tags))
+	*hostTags = TrackedCString(string(tagsBytes))
 }
 
 // GetClusterName exposes the current clustername (if it exists) of the agent to Python checks.
