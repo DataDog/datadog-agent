@@ -93,6 +93,8 @@ stages:
   - install_script_testing
   - e2e_pre_test
   - e2e
+  - k8s_e2e
+  - e2e_install_packages
   - kitchen_cleanup
   - functional_test
   - functional_test_cleanup
