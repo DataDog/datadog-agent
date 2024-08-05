@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package config provides configuration management for packages.
-package config
+// Package cdn provides access to the Remote Config CDN.
+package cdn
 
 import (
 	"bytes"
