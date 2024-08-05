@@ -295,7 +295,7 @@ func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInt
 		return nil, err
 	}
 
-	limiter, err := lru.NewWithEvict(1024, func(workloadSelector cgroupModel.WorkloadSelector, count *atomic.Uint64) {
+	limiter, err := lru.NewWithEvict(1024, func(_ cgroupModel.WorkloadSelector, _ *atomic.Uint64) {
 	})
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create dump limiter: %w", err)

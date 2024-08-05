@@ -20,9 +20,7 @@ type SpanConcentratorConfig struct {
 	ComputeStatsBySpanKind bool
 	// BucketInterval the size of our pre-aggregation per bucket
 	BucketInterval int64
-	// PeerTagsAggregation enables/disables stats aggregation for peer entity tags
-	PeerTagsAggregation bool
-	// PeerTags additional tags to use for peer entity stats aggregation
+	// PeerTags additional tags to use for peer entity stats aggregation, nil if disabled
 	PeerTags []string
 }
 
@@ -38,9 +36,8 @@ type SpanConcentrator struct {
 	// It means that we can compute stats only for the last `bufferLen * bsize` and that we
 	// wait such time before flushing the stats.
 	// This only applies to past buckets. Stats buckets in the future are allowed with no restriction.
-	bufferLen           int
-	peerTagKeys         []string // keys for supplementary tags that describe peer.service entities
-	peerTagsAggregation bool     // flag to enable aggregation of peer tags
+	bufferLen   int
+	peerTagKeys []string // keys for supplementary tags that describe peer.service entities, nil if disabled
 
 	// mu protects the buckets field
 	mu      sync.Mutex
@@ -56,11 +53,7 @@ func NewSpanConcentrator(cfg *SpanConcentratorConfig, now time.Time) *SpanConcen
 		bufferLen:              defaultBufferLen,
 		mu:                     sync.Mutex{},
 		buckets:                make(map[int64]*RawBucket),
-		peerTagKeys:            nil,
-		peerTagsAggregation:    cfg.PeerTagsAggregation,
-	}
-	if cfg.PeerTagsAggregation {
-		sc.peerTagKeys = preparePeerTags(append(defaultPeerTags, cfg.PeerTags...)...)
+		peerTagKeys:            cfg.PeerTags,
 	}
 	return sc
 }
@@ -92,7 +85,7 @@ func (sc *SpanConcentrator) addSpan(s *pb.Span, aggKey PayloadAggregationKey, co
 		}
 		sc.buckets[btime] = b
 	}
-	b.HandleSpan(s, weight, isTop, origin, aggKey, sc.peerTagsAggregation, sc.peerTagKeys)
+	b.HandleSpan(s, weight, isTop, origin, aggKey, sc.peerTagKeys)
 }
 
 // AddSpan to the SpanConcentrator, appending the new data to the appropriate internal bucket.

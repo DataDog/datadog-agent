@@ -333,9 +333,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("flare_stripped_keys", []string{})
 	config.BindEnvAndSetDefault("scrubber.additional_keys", []string{})
 
-	config.BindEnvAndSetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
-	config.BindEnvAndSetDefault("histogram_percentiles", []string{"0.95"})
-
 	// Docker
 	config.BindEnvAndSetDefault("docker_query_timeout", int64(5))
 	config.BindEnvAndSetDefault("docker_labels_as_tags", map[string]string{})
@@ -1354,6 +1351,8 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution", false)
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution_prefix", "")
+	config.BindEnvAndSetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
+	config.BindEnvAndSetDefault("histogram_percentiles", []string{"0.95"})
 }
 
 func logsagent(config pkgconfigmodel.Setup) {
@@ -2088,7 +2087,7 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
 		}
 
-		secretResolver.SubscribeToChanges(func(handle, settingOrigin string, settingPath []string, oldValue, newValue any) {
+		secretResolver.SubscribeToChanges(func(handle, settingOrigin string, settingPath []string, _, newValue any) {
 			if origin != settingOrigin {
 				return
 			}

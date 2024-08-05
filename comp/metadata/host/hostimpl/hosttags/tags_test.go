@@ -115,7 +115,7 @@ func TestHostTagsCache(t *testing.T) {
 		return map[string]*providerDef{
 			"foo": {
 				retries: 2,
-				getTags: func(ctx context.Context) ([]string, error) {
+				getTags: func(_ context.Context) ([]string, error) {
 					nbCall++
 					return fooTags, fooErr
 				},

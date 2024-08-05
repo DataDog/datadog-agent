@@ -239,7 +239,7 @@ func (c *commandTestSuite) TestCommand() {
 		Commands(&command.GlobalParams{}),
 		[]string{"flare", "1234"},
 		makeFlare,
-		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+		func(cliParams *cliParams, _ core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, []string{"1234"}, cliParams.args)
 			require.Equal(t, true, secretParams.Enabled)
 		})

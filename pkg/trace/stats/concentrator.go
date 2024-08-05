@@ -6,13 +6,9 @@
 package stats
 
 import (
-	_ "embed"
-	"sort"
 	"strings"
 	"sync"
 	"time"
-
-	"gopkg.in/ini.v1"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -51,53 +47,13 @@ type Concentrator struct {
 	statsd        statsd.ClientInterface
 }
 
-//go:embed peer_tags.ini
-var peerTagFile []byte
-
-var defaultPeerTags = func() []string {
-	var tags []string = []string{"_dd.base_service"}
-
-	cfg, err := ini.Load(peerTagFile)
-	if err != nil {
-		log.Error("Error loading file for peer tags: ", err)
-		return tags
-	}
-	keys := cfg.Section("dd.apm.peer.tags").Keys()
-
-	for _, key := range keys {
-		value := strings.Split(key.Value(), ",")
-		tags = append(tags, value...)
-	}
-
-	sort.Strings(tags)
-
-	return tags
-}()
-
-func preparePeerTags(tags ...string) []string {
-	if len(tags) == 0 {
-		return nil
-	}
-	var deduped []string
-	seen := make(map[string]struct{})
-	for _, t := range tags {
-		if _, ok := seen[t]; !ok {
-			seen[t] = struct{}{}
-			deduped = append(deduped, t)
-		}
-	}
-	sort.Strings(deduped)
-	return deduped
-}
-
 // NewConcentrator initializes a new concentrator ready to be started
 func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, statsd statsd.ClientInterface) *Concentrator {
 	bsize := conf.BucketInterval.Nanoseconds()
 	sc := NewSpanConcentrator(&SpanConcentratorConfig{
 		ComputeStatsBySpanKind: conf.ComputeStatsBySpanKind,
 		BucketInterval:         bsize,
-		PeerTagsAggregation:    conf.PeerServiceAggregation || conf.PeerTagsAggregation,
-		PeerTags:               conf.PeerTags,
+		PeerTags:               conf.ConfiguredPeerTags(),
 	}, now)
 	c := Concentrator{
 		spanConcentrator: sc,

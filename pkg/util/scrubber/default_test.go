@@ -295,6 +295,82 @@ func TestTextStripURLPassword(t *testing.T) {
 		`Connection dropped : ftp://user:********@host:port`)
 }
 
+func TestTextStripLogPassword(t *testing.T) {
+	testcases := []struct {
+		name string
+		log  string
+		want string
+	}{
+		{
+			name: "logged uppercase (eg. Password=)",
+			log:  `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: Username=userme Password=$AeVtn8*gbyaf!hnUHx^L."`,
+			want: `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: Username=userme Password=********"`,
+		},
+		{
+			name: "logged lowercase (eg. password=)",
+			log:  `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: username=userme password=$AeVtn8*gbyaf!hnUHx^L."`,
+			want: `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: username=userme password=********"`,
+		},
+		{
+			name: "logged with whitespace (eg. password =)",
+			log:  `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: username = userme password = $AeVtn8*gbyaf!hnUHx^L."`,
+			want: `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: username = userme password = ********"`,
+		},
+		{
+			name: "logged as json (eg. \"Password\":)",
+			log:  `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: {"username": "userme",  "password": "$AeVtn8*gbyaf!hnUHx^L."}"`,
+			want: `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: {"username": "userme",  "password": "********"}"`,
+		},
+		{
+			name: "logged PSWD (eg. PSWD=)",
+			log:  `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: USER=userme PSWD=$AeVtn8*gbyaf!hnUHx^L."`,
+			want: `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: USER=userme PSWD=********"`,
+		},
+		{
+			name: "already scrubbed log (eg. password=********)",
+			log:  `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: username=userme password=********"`,
+			want: `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: username=userme password=********"`,
+		},
+		{
+			name: "already scrubbed YAML (eg. password: ********)",
+			log: `dd_url: https://app.datadoghq.com
+api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+proxy: http://user:password@host:port
+password: foo`,
+			want: `dd_url: https://app.datadoghq.com
+api_key: "***************************aaaaa"
+proxy: http://user:********@host:port
+password: "********"`,
+		},
+		{
+			name: "real log test 1",
+			log:  `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect to SQL Server, see https://docs.datadoghq.com/database_monitoring/setup_sql_server/troubleshooting#common-driver-issues for more details on how to debug this issue. TCP-connection(OK), Exception: OperationalError(com_error(-2147352567, 'Exception occurred.', (0, 'ADODB.Connection', 'Provider cannot be found. It may not be properly installed.', 'C:\\\\Windows\\\\HELP\\\\ADOIRAMG.CHM', 1240655, -2146824582), None), 'Error opening connection to \"ConnectRetryCount=2;Provider=MSOLEDBSQL;Data Source=fwurgdae532sk1,1433;Initial Catalog=master;User ID=sqlsqlsql;Password=Si5123$#!@as\\\\rrrrg;\"')\ncode=common-driver-issues connection_host=fwurgdae532sk1,1433 connector=adodbapi database=master driver=None host=fwurgdae532sk1,1433", "traceback": "Traceback (most recent call last):\n  File \"C:\\Program Files\\Datadog\\Datadog Agent\\embedded3\\Lib\\site-packages\\datadog_checks\\base\\checks\\base.py\", line 1210, in run\n    initialization()\n  File \"C:\\Program Files\\Datadog\\Datadog Agent\\embedded3\\Lib\\site-packages\\datadog_checks\\sqlserver\\sqlserver.py\", line 238, in set_resolved_hostname\n    self.load_static_information()\n  File \"C:\\Program Files\\Datadog\\Datadog Agent\\embedded3\\Lib\\site-packages\\datadog_checks\\sqlserver\\sqlserver.py\", line 277, in load_static_information\n    with self.connection.open_managed_default_connection():\n  File \"C:\\Program Files\\Datadog\\Datadog Agent\\embedded3\\Lib\\contextlib.py\", line 137, in __enter__\n    return next(self.gen)\n           ^^^^^^^^^^^^^^\n  File \"C:\\Program Files\\Datadog\\Datadog Agent\\embedded3\\Lib\\site-packages\\datadog_checks\\sqlserver\\connection.py\", line 227, in open_managed_default_connection\n    with self._open_managed_db_connections(self.DEFAULT_DB_KEY, key_prefix=key_prefix):\n  File \"C:\\Program Files\\Datadog\\Datadog Agent\\embedded3\\Lib\\contextlib.py\", line 137, in __enter__\n    return next(self.gen)\n           ^^^^^^^^^^^^^^\n  File \"C:\\Program Files\\Datadog\\Datadog Agent\\embedded3\\Lib\\site-packages\\datadog_checks\\sqlserver\\connection.py\", line 232, in _open_managed_db_connections\n    self.open_db_connections(db_key, db_name, key_prefix=key_prefix)\n  File \"C:\\Program Files\\Datadog\\Datadog Agent\\embedded3\\Lib\\site-packages\\datadog_checks\\sqlserver\\connection.py\", line 315, in open_db_connections\n    raise_from(SQLConnectionError(check_err_message), None)\n  File \"<string>\", line 3, in raise_from\ndatadog_checks.sqlserver.connection_errors.SQLConnectionError: Unable to connect to SQL Server, see https://docs.datadoghq.com/database_monitoring/setup_sql_server/troubleshooting#common-driver-issues for more details on how to debug this issue. TCP-connection(OK), Exception: OperationalError(com_error(-2147352567, 'Exception occurred.', (0, 'ADODB.Connection', 'Provider cannot be found. It may not be properly installed.', 'C:\\\\Windows\\\\HELP\\\\ADOIRAMG.CHM', 1240655, -2146824582), None), 'Error opening connection to \"ConnectRetryCount=2;Provider=MSOLEDBSQL;Data Source=fwurgdae532sk1,1433;Initial Catalog=master;User ID=sqlsqlsql;Password=Si5123$#!@as\\\\rrrrg;\"')\ncode=common-driver-issues connection_host=fwurgdae532sk1,1433 connector=adodbapi database=master driver=None host=lukprdsql51,1433\n"}]`,
+			want: `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect to SQL Server, see https://docs.datadoghq.com/database_monitoring/setup_sql_server/troubleshooting#common-driver-issues for more details on how to debug this issue. TCP-connection(OK), Exception: OperationalError(com_error(-2147352567, 'Exception occurred.', (0, 'ADODB.Connection', 'Provider cannot be found. It may not be properly installed.', 'C:\\\\Windows\\\\HELP\\\\ADOIRAMG.CHM', 1240655, -2146824582), None), 'Error opening connection to \"ConnectRetryCount=2;Provider=MSOLEDBSQL;Data Source=fwurgdae532sk1,1433;Initial Catalog=master;User ID=sqlsqlsql;Password=********;\"')\ncode=common-driver-issues connection_host=fwurgdae532sk1,1433 connector=adodbapi database=master driver=None host=fwurgdae532sk1,1433", "traceback": "Traceback (most recent call last):\n  File \"C:\\Program Files\\Datadog\\Datadog Agent\\embedded3\\Lib\\site-packages\\datadog_checks\\base\\checks\\base.py\", line 1210, in run\n    initialization()\n  File \"C:\\Program Files\\Datadog\\Datadog Agent\\embedded3\\Lib\\site-packages\\datadog_checks\\sqlserver\\sqlserver.py\", line 238, in set_resolved_hostname\n    self.load_static_information()\n  File \"C:\\Program Files\\Datadog\\Datadog Agent\\embedded3\\Lib\\site-packages\\datadog_checks\\sqlserver\\sqlserver.py\", line 277, in load_static_information\n    with self.connection.open_managed_default_connection():\n  File \"C:\\Program Files\\Datadog\\Datadog Agent\\embedded3\\Lib\\contextlib.py\", line 137, in __enter__\n    return next(self.gen)\n           ^^^^^^^^^^^^^^\n  File \"C:\\Program Files\\Datadog\\Datadog Agent\\embedded3\\Lib\\site-packages\\datadog_checks\\sqlserver\\connection.py\", line 227, in open_managed_default_connection\n    with self._open_managed_db_connections(self.DEFAULT_DB_KEY, key_prefix=key_prefix):\n  File \"C:\\Program Files\\Datadog\\Datadog Agent\\embedded3\\Lib\\contextlib.py\", line 137, in __enter__\n    return next(self.gen)\n           ^^^^^^^^^^^^^^\n  File \"C:\\Program Files\\Datadog\\Datadog Agent\\embedded3\\Lib\\site-packages\\datadog_checks\\sqlserver\\connection.py\", line 232, in _open_managed_db_connections\n    self.open_db_connections(db_key, db_name, key_prefix=key_prefix)\n  File \"C:\\Program Files\\Datadog\\Datadog Agent\\embedded3\\Lib\\site-packages\\datadog_checks\\sqlserver\\connection.py\", line 315, in open_db_connections\n    raise_from(SQLConnectionError(check_err_message), None)\n  File \"<string>\", line 3, in raise_from\ndatadog_checks.sqlserver.connection_errors.SQLConnectionError: Unable to connect to SQL Server, see https://docs.datadoghq.com/database_monitoring/setup_sql_server/troubleshooting#common-driver-issues for more details on how to debug this issue. TCP-connection(OK), Exception: OperationalError(com_error(-2147352567, 'Exception occurred.', (0, 'ADODB.Connection', 'Provider cannot be found. It may not be properly installed.', 'C:\\\\Windows\\\\HELP\\\\ADOIRAMG.CHM', 1240655, -2146824582), None), 'Error opening connection to \"ConnectRetryCount=2;Provider=MSOLEDBSQL;Data Source=fwurgdae532sk1,1433;Initial Catalog=master;User ID=sqlsqlsql;Password=********;\"')\ncode=common-driver-issues connection_host=fwurgdae532sk1,1433 connector=adodbapi database=master driver=None host=lukprdsql51,1433\n"}]`,
+		},
+		{
+			name: "real log test 2",
+			log:  `2024-03-22 02:00:09 EDT | PROCESS | WARN | (pkg/process/procutil/process_windows.go:603 in ParseCmdLineArgs) | unexpected quotes in string, giving up ( /SQL "\"\OwnerDashboard\"" /SERVER fwurgdae532sk1 /CONNECTION EDWPRD;"\"Data Source=EDWPRD;User ID=qwimMAK;password=quark0n;Persist Security Info=True;Unicode=True;\"" /CONNECTION MRDPRD;"\"Data Source=MRDPRD;User ID=quirmak;password=s3llerj4m;Persist Security Info=True;Unicode=True;\"" /CONNECTION RPTEJMACPRD;"\"Data Source=RPTEJMACPRD;User ID=vwurpe;password=squ1rr3l;Persist Security Info=True;Unicode=True;\"" /CHECKPOINTING OFF /REPORTING E)`,
+			want: `2024-03-22 02:00:09 EDT | PROCESS | WARN | (pkg/process/procutil/process_windows.go:603 in ParseCmdLineArgs) | unexpected quotes in string, giving up ( /SQL "\"\OwnerDashboard\"" /SERVER fwurgdae532sk1 /CONNECTION EDWPRD;"\"Data Source=EDWPRD;User ID=qwimMAK;password=********;Persist Security Info=True;Unicode=True;\"" /CONNECTION MRDPRD;"\"Data Source=MRDPRD;User ID=quirmak;password=********;Persist Security Info=True;Unicode=True;\"" /CONNECTION RPTEJMACPRD;"\"Data Source=RPTEJMACPRD;User ID=vwurpe;password=********;Persist Security Info=True;Unicode=True;\"" /CHECKPOINTING OFF /REPORTING E)`,
+		},
+		{
+			name: "real log test 3",
+			log:  `2024-05-14 00:05:01 BST | PROCESS | WARN | (pkg/process/procutil/process_windows.go:603 in ParseCmdLineArgs) | unexpected quotes in string, giving up (""C:\User\shared\jdk\open-jdk-8-win32\1.8"\bin\javaw"  -Djava.library.path="C:\windows\system32;C:\windows;C:\windows\System32\Wbem;C:\windows\System32\WindowsPowerShell\v1.0\;C:\windows\System32\OpenSSH\;C:\Users\thufpos\AppData\Local\Microsoft\WindowsApps;;C:\User\\pos\licence;C:\User\\pos\shared-obj;C:\User\\pos\jpos-lib"	-Xms512M -Xmx1024M	-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="C:\User\\pos\logs"		-Djavax.net.ssl.trustStore="C:\User\\pos\trust\.mobilePOS.trustStore"	-Djavax.net.ssl.trustStorePassword="QwermiAD#@1sdkjf#$%\\xsdf|f!"	-Denactor.forceAutoGenClassesDeploy="true" -Denactor.autoGenClassesFolder="pos"		-Dhttps.protocols=TLSv1.1,TLSv1.2	-Djdk.tls.client.protocols="TLSv1.1,TLSv1.2"	-cp ";C:\User\\pos\config;C:\User\\pos\ext-lib\*;C:\User\\pos\custom-lib\*;C:\User\\pos\jdbc\*;C:\User\\pos\enactor-lib\*;C:\User\\pos\shared-obj\*;C:\User\\pos\encrypted-lib\*;C:\User\\pos\jpos\*;C:\User\\pos\jpos-lib\*;"	com.enactor.pos.swing.SwingPosApplication		-noDeploy)`,
+			want: `2024-05-14 00:05:01 BST | PROCESS | WARN | (pkg/process/procutil/process_windows.go:603 in ParseCmdLineArgs) | unexpected quotes in string, giving up (""C:\User\shared\jdk\open-jdk-8-win32\1.8"\bin\javaw"  -Djava.library.path="C:\windows\system32;C:\windows;C:\windows\System32\Wbem;C:\windows\System32\WindowsPowerShell\v1.0\;C:\windows\System32\OpenSSH\;C:\Users\thufpos\AppData\Local\Microsoft\WindowsApps;;C:\User\\pos\licence;C:\User\\pos\shared-obj;C:\User\\pos\jpos-lib"	-Xms512M -Xmx1024M	-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="C:\User\\pos\logs"		-Djavax.net.ssl.trustStore="C:\User\\pos\trust\.mobilePOS.trustStore"	-Djavax.net.ssl.trustStorePassword="********"	-Denactor.forceAutoGenClassesDeploy="true" -Denactor.autoGenClassesFolder="pos"		-Dhttps.protocols=TLSv1.1,TLSv1.2	-Djdk.tls.client.protocols="TLSv1.1,TLSv1.2"	-cp ";C:\User\\pos\config;C:\User\\pos\ext-lib\*;C:\User\\pos\custom-lib\*;C:\User\\pos\jdbc\*;C:\User\\pos\enactor-lib\*;C:\User\\pos\shared-obj\*;C:\User\\pos\encrypted-lib\*;C:\User\\pos\jpos\*;C:\User\\pos\jpos-lib\*;"	com.enactor.pos.swing.SwingPosApplication		-noDeploy)`,
+		},
+		{
+			name: "real log test 4",
+			log:  `2024-07-05 14:36:54 CEST | CORE | DEBUG | (pkg/collector/python/datadog_agent.go:135 in LogMessage) | http_check: login (via catalog):ef29cea7c32fc55 | (http_check.py:119) | Connecting to http://catalog.example.com:8080/search-engine/login.do?userName=Morbotron&userPassword=K#2asdfu!23%%x`,
+			want: `2024-07-05 14:36:54 CEST | CORE | DEBUG | (pkg/collector/python/datadog_agent.go:135 in LogMessage) | http_check: login (via catalog):ef29cea7c32fc55 | (http_check.py:119) | Connecting to http://catalog.example.com:8080/search-engine/login.do?userName=Morbotron&userPassword=********`,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			assertClean(t, tc.log, tc.want)
+		})
+	}
+}
+
 func TestDockerSelfInspectApiKey(t *testing.T) {
 	assertClean(t,
 		`

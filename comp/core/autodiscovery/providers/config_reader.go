@@ -96,7 +96,7 @@ func InitConfigFilesReader(paths []string) {
 type FilterFunc func(integration.Config) bool
 
 // GetAll makes ReadConfigFiles return all the configurations found.
-var GetAll FilterFunc = func(c integration.Config) bool { return true }
+var GetAll FilterFunc = func(_ integration.Config) bool { return true }
 
 // WithAdvancedADOnly makes ReadConfigFiles return the configurations with AdvancedADIdentifiers only.
 var WithAdvancedADOnly FilterFunc = func(c integration.Config) bool { return len(c.AdvancedADIdentifiers) > 0 }
