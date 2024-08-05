@@ -813,11 +813,18 @@ def generate_complexity_summary_for_pr(ctx: Context, skip_github_comment=False):
         avg_new_complexity /= len(entries)
         avg_old_complexity /= len(entries)
 
+        has_changes = (
+            avg_new_complexity != avg_old_complexity
+            or highest_new_complexity != highest_old_complexity
+            or lowest_new_complexity != lowest_old_complexity
+        )
+
         row = [
             program,
             _format_change(avg_new_complexity, avg_old_complexity),
             f"{highest_complexity_platform}: {_format_change(highest_new_complexity, highest_old_complexity)}",
             f"{lowest_complexity_platform}: {_format_change(lowest_new_complexity, lowest_old_complexity)}",
+            has_changes,
         ]
         summarized_complexity_changes.append(row)
 
@@ -845,12 +852,18 @@ def generate_complexity_summary_for_pr(ctx: Context, skip_github_comment=False):
     msg += "\n\n"
 
     for group, rows in itertools.groupby(summarized_complexity_changes, key=lambda x: x[0].split("/")[0]):
+        if not any(row[-1] for row in rows):
+            continue
+
+        # Format rows to make it more compact, remove the changes marker and remove the object name
+        rows = [[row[0].split("/")[1]] + row[1:-1] for row in rows]
+
         msg += f"\n<details><summary>{group} details</summary>\n\n"
         msg += f"## {group}\n\n"
         msg += tabulate(rows, headers=headers, tablefmt="github")
         msg += "\n\n</details>\n"
 
-    msg += f"This report was generated based on the complexity data for the current branch {branch_name} (pipeline {pipeline_id}) and the main branch (commit {common_ancestor}). Contact [#ebpf-platform](https://dd.enterprise.slack.com/archives/C0424HA1SJK) if you have any questions/feedback."
+    msg += f"This report was generated based on the complexity data for the current branch {branch_name} (pipeline {pipeline_id}) and the main branch (commit {common_ancestor}). Objects without changes are not reported. Contact [#ebpf-platform](https://dd.enterprise.slack.com/archives/C0424HA1SJK) if you have any questions/feedback."
     msg += "\nTable complexity legend: 🔵 - new; ⚪ - unchanged; 🟢 - reduced; 🔴 - increased"
 
     print(msg)
@@ -879,4 +892,4 @@ def _format_change(new: float, old: float):
         else:
             emoji = "🔴"
 
-    return f"{emoji} {new} ({change_abs:+}, {change_rel_str})"
+    return f"{emoji} {new} ({change_abs:+.1}, {change_rel_str})"
