@@ -1,5 +1,8 @@
+import os.path as ospath
 import platform
 import sys
+import zipfile
+from pathlib import Path
 
 from invoke import Exit, task
 
@@ -74,7 +77,7 @@ def install_shellcheck(ctx, version="0.8.0", destination="/usr/local/bin"):
 
 
 @task
-def install_protoc(ctx, version="26.1", destination="~/go/bin"):
+def install_protoc(ctx, version="26.1"):
     """
     Installs the requested version of protoc in the specified folder (by default /usr/local/bin).
     Required generate the golang code based on .prod (inv generate-protobuf).
@@ -97,13 +100,18 @@ def install_protoc(ctx, version="26.1", destination="~/go/bin"):
             print("protoc is not supported with this architecture:", platform.machine().lower())
             raise Exit(code=1)
 
+    zip_path = "/tmp/protoc.zip"
     # Url example: https://github.com/protocolbuffers/protobuf/releases/download/v27.3/protoc-27.3-linux-x86_64.zip
     ctx.run(
-        f"wget -qO /tmp/protoc.zip \"https://github.com/protocolbuffers/protobuf/releases/download/v{version}/protoc-{version}-{platform_os}-{platform_arch}.zip\""
+        f"wget -qO {zip_path} \"https://github.com/protocolbuffers/protobuf/releases/download/v{version}/protoc-{version}-{platform_os}-{platform_arch}.zip\""
     )
 
-    ctx.run("unzip -qq /tmp/protoc.zip -d /tmp/protoc && rm /tmp/protoc.zip")
-    ctx.run(f"cp -rf /tmp/protoc/bin/protoc {destination}/protoc && rm -rf /tmp/protoc")
+    # Unzip it in the target destination
+    destination = ospath.join(Path.home(), ".local")
+    with zipfile.ZipFile(zip_path, "r") as zip_ref:
+        zip_ref.extract('bin/protoc', path=destination)
+    ctx.run(f"chmod +x {destination}/bin/protoc")
+    ctx.run("rm /tmp/protoc.zip")
 
 
 @task
