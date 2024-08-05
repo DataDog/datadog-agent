@@ -473,8 +473,6 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 					// --------------------------
 					// required fields
 
-					// run-time (pass, fail etc)
-					Result Result `json:"result"`
 					// static-time (meta typically)
 					Name string `json:"name"`
 					// run-time (actual diagnosis consumable by a user)
@@ -493,12 +491,6 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 					RawError string `json:"rawerror,omitempty"`
 				}
 
-				// DiagnoseResult contains the results of the diagnose command
-				type DiagnoseResult struct {
-					Diagnoses []Diagnoses `json:"runs"`
-					Summary   Counters    `json:"summary"`
-				}
-
 				// Diagnoses is a collection of Diagnosis
 				type Diagnoses struct {
 					SuiteName      string      `json:"suite_name"`
@@ -513,6 +505,13 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 					Warnings      int `json:"warnings,omitempty"`
 					UnexpectedErr int `json:"unexpected_error,omitempty"`
 				}
+
+				// DiagnoseResult contains the results of the diagnose command
+				type DiagnoseResult struct {
+					Diagnoses []Diagnoses `json:"runs"`
+					Summary   Counters    `json:"summary"`
+				}
+
 				var have DiagnoseResult
 
 				body, err := io.ReadAll(resp.Body)
