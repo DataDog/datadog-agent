@@ -15,8 +15,6 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -32,10 +30,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
@@ -43,10 +39,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -110,21 +108,20 @@ func RunKernelAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		authtokenimpl.Module(), // We need to think about this one
 
 		// Sending metrics to the backend
-		// Do we need this many forwarders to send data to the backen?
-		forwarder.Bundle(),
 		fx.Provide(defaultforwarder.NewParams),
+		defaultforwarder.Module(),
 		compressionimpl.Module(),
-		demultiplexerimpl.Module(),
+		// Since we do not use the build tag orchestrator, we use the comp/forwarder/orchestrator/orchestratorimpl/forwarder_no_orchestrator.go
 		orchestratorimpl.Module(),
 		fx.Supply(orchestratorimpl.NewDisabledParams()),
-		eventplatformimpl.Module(),
-		eventplatformreceiverimpl.Module(),
-		fx.Supply(eventplatformimpl.NewDisabledParams()),
-		fx.Supply(demultiplexerimpl.NewDefaultParams()),
-		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
-		// already migrated components to request it.
-		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
-			return demuxInstance.Serializer()
+
+		fx.Provide(func(forwarder defaultforwarder.Component, orchestrator orchestrator.Component, compression compression.Component, config config.Component) serializer.MetricSerializer {
+			hostnameDetected, err := hostname.Get(context.TODO())
+			if err != nil {
+				panic(err)
+			}
+
+			return serializer.NewSerializer(forwarder, orchestrator, compression, config, hostnameDetected)
 		}),
 
 		// Autodiscovery
@@ -183,7 +180,7 @@ func Run(ctx context.Context, cliParams *CLIParams, config config.Component, log
 		return
 	}
 
-	return
+	return nil
 }
 
 // handleSignals handles OS signals, and sends a message on stopCh when an interrupt
