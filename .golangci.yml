@@ -149,6 +149,8 @@ linters-settings:
       - name: unexported-return
       - name: unreachable-code
       - name: unused-parameter
+        arguments:
+          - allowRegex: "^_"
       - name: var-declaration
       - name: var-naming
       # non-default rules:
