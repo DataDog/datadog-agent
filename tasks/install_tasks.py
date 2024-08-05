@@ -1,5 +1,5 @@
-import sys
 import platform
+import sys
 
 from invoke import Exit, task
 
@@ -72,6 +72,7 @@ def install_shellcheck(ctx, version="0.8.0", destination="/usr/local/bin"):
     ctx.run(f"cp \"/tmp/shellcheck-v{version}/shellcheck\" {destination}")
     ctx.run(f"rm -rf \"/tmp/shellcheck-v{version}\"")
 
+
 @task
 def install_protoc(ctx, version="26.1", destination="~/go/bin"):
     """
@@ -87,17 +88,21 @@ def install_protoc(ctx, version="26.1", destination="~/go/bin"):
     if sys.platform.startswith('linux'):
         platform_os = "linux"
 
-    if platform.machine().lower() == "aarch64":
-        platform_arch = "aarch_64"
-    if platform.machine().lower() == "amd64":
-        platform_arch = "x86_64"
+    match platform.machine().lower():
+        case "aarch64":
+            platform_arch = "aarch_64"
+        case "arm64":
+            platform_arch = "x86_64"
+        case _:
+            print("protoc is not supported with this architecture:", platform.machine().lower())
+            raise Exit(code=1)
 
     # Url example: https://github.com/protocolbuffers/protobuf/releases/download/v27.3/protoc-27.3-linux-x86_64.zip
     ctx.run(
         f"wget -qO /tmp/protoc.zip \"https://github.com/protocolbuffers/protobuf/releases/download/v{version}/protoc-{version}-{platform_os}-{platform_arch}.zip\""
     )
 
-    ctx.run(f"unzip -qq /tmp/protoc.zip -d /tmp/protoc && rm /tmp/protoc.zip")
+    ctx.run("unzip -qq /tmp/protoc.zip -d /tmp/protoc && rm /tmp/protoc.zip")
     ctx.run(f"cp -rf /tmp/protoc/bin/protoc {destination}/protoc && rm -rf /tmp/protoc")
 
 
