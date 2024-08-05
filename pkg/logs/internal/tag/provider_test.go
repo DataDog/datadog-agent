@@ -15,10 +15,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestProviderExpectedTags(t *testing.T) {
-	m := coreConfig.Mock(t)
+	m := configmock.New(t)
 	clock := clock.NewMock()
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
 	defer fakeTagger.ResetTagger()

@@ -11,14 +11,6 @@ import (
 	"sort"
 )
 
-func minInt(x, y int) int {
-	if x < y {
-		return x
-	}
-
-	return y
-}
-
 // TopRSSProcessGroups returns an ordered slice of the process groups that use the most RSS
 func TopRSSProcessGroups(limit int) (ProcessNameGroups, error) {
 	procs, err := GetProcesses()
@@ -30,5 +22,5 @@ func TopRSSProcessGroups(limit int) (ProcessNameGroups, error) {
 
 	sort.Sort(procGroups)
 
-	return procGroups.ProcessNameGroups[:minInt(limit, len(procGroups.ProcessNameGroups))], nil
+	return procGroups.ProcessNameGroups[:min(limit, len(procGroups.ProcessNameGroups))], nil
 }

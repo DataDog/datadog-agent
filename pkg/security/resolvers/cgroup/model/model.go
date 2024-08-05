@@ -15,6 +15,7 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -83,11 +84,11 @@ func NewCacheEntry(containerID string, cgroupFlags uint64, pids ...uint32) (*Cac
 	newCGroup := CacheEntry{
 		Deleted: atomic.NewBool(false),
 		CGroupContext: model.CGroupContext{
-			CGroupID:    model.GetCgroupFromContainer(model.ContainerID(containerID), model.CGroupFlags(cgroupFlags)),
-			CGroupFlags: model.CGroupFlags(cgroupFlags),
+			CGroupID:    containerutils.GetCgroupFromContainer(containerutils.ContainerID(containerID), containerutils.CGroupFlags(cgroupFlags)),
+			CGroupFlags: containerutils.CGroupFlags(cgroupFlags),
 		},
 		ContainerContext: model.ContainerContext{
-			ContainerID: model.ContainerID(containerID),
+			ContainerID: containerutils.ContainerID(containerID),
 		},
 		PIDs: make(map[uint32]int8, 10),
 	}

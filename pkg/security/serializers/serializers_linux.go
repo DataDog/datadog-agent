@@ -117,6 +117,8 @@ type CredentialsSerializer struct {
 	FSGID int `json:"fsgid"`
 	// Filesystem Group name
 	FSGroup string `json:"fsgroup,omitempty"`
+	// Login UID
+	AUID int `json:"auid"`
 	// Effective Capability set
 	CapEffective []string `json:"cap_effective"`
 	// Permitted Capability set
@@ -704,6 +706,7 @@ func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 		EGroup:       ce.EGroup,
 		FSGID:        int(ce.FSGID),
 		FSGroup:      ce.FSGroup,
+		AUID:         int(ce.AUID),
 		CapEffective: model.KernelCapability(ce.CapEffective).StringArray(),
 		CapPermitted: model.KernelCapability(ce.CapPermitted).StringArray(),
 	}
@@ -1051,12 +1054,20 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 	return &ps
 }
 
+// DDContextSerializer serializes a span context to JSON
+// easyjson:json
+type DDContextSerializer struct {
+	// Span ID used for APM correlation
+	SpanID string `json:"span_id,omitempty"`
+	// Trace ID used for APM correlation
+	TraceID string `json:"trace_id,omitempty"`
+}
+
 func newDDContextSerializer(e *model.Event) *DDContextSerializer {
-	s := &DDContextSerializer{
-		SpanID:  e.SpanContext.SpanID,
-		TraceID: e.SpanContext.TraceID,
-	}
-	if s.SpanID != 0 || s.TraceID != 0 {
+	s := &DDContextSerializer{}
+	if e.SpanContext.SpanID != 0 && (e.SpanContext.TraceID.Hi != 0 || e.SpanContext.TraceID.Lo != 0) {
+		s.SpanID = fmt.Sprint(e.SpanContext.SpanID)
+		s.TraceID = fmt.Sprintf("%x%x", e.SpanContext.TraceID.Hi, e.SpanContext.TraceID.Lo)
 		return s
 	}
 
@@ -1067,15 +1078,14 @@ func newDDContextSerializer(e *model.Event) *DDContextSerializer {
 	for ptr != nil {
 		pce := (*model.ProcessCacheEntry)(ptr)
 
-		if pce.SpanID != 0 || pce.TraceID != 0 {
-			s.SpanID = pce.SpanID
-			s.TraceID = pce.TraceID
+		if pce.SpanID != 0 && (pce.TraceID.Hi != 0 || pce.TraceID.Lo != 0) {
+			s.SpanID = fmt.Sprint(pce.SpanID)
+			s.TraceID = fmt.Sprintf("%x%x", pce.TraceID.Hi, pce.TraceID.Lo)
 			break
 		}
 
 		ptr = it.Next()
 	}
-
 	return s
 }
 
@@ -1150,8 +1160,10 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	}
 
 	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, &event.CGroupContext); cgroupID != "" {
+		manager := event.FieldHandlers.ResolveCGroupManager(event, &event.CGroupContext)
 		s.CGroupContextSerializer = &CGroupContextSerializer{
-			ID: string(event.CGroupContext.CGroupID),
+			ID:      string(event.CGroupContext.CGroupID),
+			Manager: manager,
 		}
 	}
 

@@ -47,6 +47,7 @@ func (h *Host) uploadFixtures() {
 
 // StartExamplePythonApp starts an example Python app
 func (h *Host) StartExamplePythonApp() {
+	h.WaitForTraceAgentSocketReady()
 	env := map[string]string{
 		"DD_SERVICE": "example-python-app",
 		"DD_ENV":     "e2e-installer",
@@ -71,6 +72,7 @@ func (h *Host) CallExamplePythonApp(traceID string) {
 
 // StartExamplePythonAppInDocker starts the example Python app in Docker
 func (h *Host) StartExamplePythonAppInDocker() {
+	h.WaitForTraceAgentSocketReady()
 	h.remote.MustExecute(`sudo docker run --name python-app -d -p 8081:8080 -v /opt/fixtures/http_server.py:/usr/src/app/http_server.py public.ecr.aws/docker/library/python:3.8-slim python /usr/src/app/http_server.py`)
 }
 

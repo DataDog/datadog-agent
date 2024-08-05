@@ -140,7 +140,10 @@ DEFAULT_MODULES = {
     "comp/core/hostname/hostnameinterface": GoModule(
         "comp/core/hostname/hostnameinterface", independent=True, used_by_otel=True
     ),
-    "comp/core/log": GoModule("comp/core/log", independent=True, used_by_otel=True),
+    "comp/core/log/def": GoModule("comp/core/log/def", independent=True, used_by_otel=True),
+    "comp/core/log/impl": GoModule("comp/core/log/impl", independent=True, used_by_otel=True),
+    "comp/core/log/impl-trace": GoModule("comp/core/log/impl-trace", independent=True),
+    "comp/core/log/mock": GoModule("comp/core/log/mock", independent=True, used_by_otel=True),
     "comp/core/secrets": GoModule("comp/core/secrets", independent=True, used_by_otel=True),
     "comp/core/status": GoModule("comp/core/status", independent=True, used_by_otel=True),
     "comp/core/status/statusimpl": GoModule("comp/core/status/statusimpl", independent=True),
@@ -204,7 +207,7 @@ DEFAULT_MODULES = {
     "pkg/api": GoModule("pkg/api", independent=True),
     "pkg/collector/check/defaults": GoModule("pkg/collector/check/defaults", independent=True, used_by_otel=True),
     "pkg/config/env": GoModule("pkg/config/env", independent=True, used_by_otel=True),
-    "pkg/config/logs": GoModule("pkg/config/logs", independent=True, used_by_otel=True),
+    "pkg/config/mock": GoModule("pkg/config/mock", independent=True),
     "pkg/config/model": GoModule("pkg/config/model", independent=True, used_by_otel=True),
     "pkg/config/remote": GoModule("pkg/config/remote", independent=True),
     "pkg/config/setup": GoModule("pkg/config/setup", independent=True, used_by_otel=True),
@@ -256,6 +259,7 @@ DEFAULT_MODULES = {
     "pkg/util/http": GoModule("pkg/util/http", independent=True, used_by_otel=True),
     "pkg/util/json": GoModule("pkg/util/json", independent=True, used_by_otel=True),
     "pkg/util/log": GoModule("pkg/util/log", independent=True, used_by_otel=True),
+    "pkg/util/log/setup": GoModule("pkg/util/log/setup", independent=True, used_by_otel=True),
     "pkg/util/optional": GoModule("pkg/util/optional", independent=True, used_by_otel=True),
     "pkg/util/pointer": GoModule("pkg/util/pointer", independent=True, used_by_otel=True),
     "pkg/util/scrubber": GoModule("pkg/util/scrubber", independent=True, used_by_otel=True),

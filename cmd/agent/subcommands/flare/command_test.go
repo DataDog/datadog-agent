@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -90,7 +91,7 @@ func (c *commandTestSuite) TestReadProfileData() {
 	require.NoError(t, err)
 	port := u.Port()
 
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("expvar_port", port)
 	mockConfig.SetWithoutSource("apm_config.enabled", true)
 	mockConfig.SetWithoutSource("apm_config.debug.port", port)
@@ -158,7 +159,7 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 	require.NoError(t, err)
 	port := u.Port()
 
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("expvar_port", port)
 	mockConfig.SetWithoutSource("apm_config.enabled", true)
 	mockConfig.SetWithoutSource("apm_config.debug.port", 0)
@@ -217,7 +218,7 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 
 func (c *commandTestSuite) TestReadProfileDataErrors() {
 	t := c.T()
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	// setting Core Agent Expvar port to 0 to ensure failing on fetch (using the default value can lead to
 	// successful request when running next to an Agent)
 	mockConfig.SetWithoutSource("expvar_port", 0)
@@ -238,7 +239,7 @@ func (c *commandTestSuite) TestCommand() {
 		Commands(&command.GlobalParams{}),
 		[]string{"flare", "1234"},
 		makeFlare,
-		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+		func(cliParams *cliParams, _ core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, []string{"1234"}, cliParams.args)
 			require.Equal(t, true, secretParams.Enabled)
 		})

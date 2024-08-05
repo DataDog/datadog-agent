@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/api"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -30,7 +30,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "tagger-list",
 		Short: "Print the tagger content of a running agent",
 		Long:  "",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(taggerList,
 				fx.Supply(command.GetCoreBundleParamsForOneShot(globalParams)),
 

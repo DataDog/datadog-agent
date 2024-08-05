@@ -19,8 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
@@ -56,7 +55,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 If no section is specified, this command will display all status sections. 
 If a specific section is provided, such as 'collector', it will only display the status of that section.
 The --list flag can be used to list all available status sections.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 
 			// Prevent autoconfig to run when running status as it logs before logger
@@ -70,7 +69,7 @@ The --list flag can be used to list all available status sections.`,
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-					LogParams:            logimpl.ForOneShot(command.LoggerName, "off", true)}),
+					LogParams:            log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
 			)
 		},

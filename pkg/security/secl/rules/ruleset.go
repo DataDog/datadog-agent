@@ -408,21 +408,16 @@ func (rs *RuleSet) ListFields() []string {
 
 // GetRuleEventType return the rule EventType. Currently rules support only one eventType
 func GetRuleEventType(rule *eval.Rule) (eval.EventType, error) {
-	eventTypes, err := rule.GetEventTypes()
+	eventType, err := rule.GetEventType()
 	if err != nil {
 		return "", err
 	}
 
-	if len(eventTypes) == 0 {
+	if eventType == "" {
 		return "", ErrRuleWithoutEvent
 	}
 
-	// TODO: this contraints could be removed, but currently approver resolution can't handle multiple event type approver
-	if len(eventTypes) > 1 {
-		return "", ErrRuleWithMultipleEvents
-	}
-
-	return eventTypes[0], nil
+	return eventType, nil
 }
 
 // AddRule creates the rule evaluator and adds it to the bucket of its events
@@ -464,6 +459,14 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, ruleDef *RuleDefi
 		return nil, &ErrRuleLoad{Definition: ruleDef, Err: err}
 	}
 
+	// validate event context against event type
+	for _, field := range rule.GetFields() {
+		restrictions := rs.model.GetFieldRestrictions(field)
+		if len(restrictions) > 0 && !slices.Contains(restrictions, eventType) {
+			return nil, &ErrRuleLoad{Definition: ruleDef, Err: &ErrFieldNotAvailable{Field: field, EventType: eventType, RestrictedTo: restrictions}}
+		}
+	}
+
 	// ignore event types not supported
 	if _, exists := rs.opts.EventTypeEnabled["*"]; !exists {
 		if _, exists := rs.opts.EventTypeEnabled[eventType]; !exists {
@@ -490,16 +493,14 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, ruleDef *RuleDefi
 		}
 	}
 
-	for _, event := range rule.GetEvaluator().EventTypes {
-		bucket, exists := rs.eventRuleBuckets[event]
-		if !exists {
-			bucket = &RuleBucket{}
-			rs.eventRuleBuckets[event] = bucket
-		}
+	bucket, exists := rs.eventRuleBuckets[eventType]
+	if !exists {
+		bucket = &RuleBucket{}
+		rs.eventRuleBuckets[eventType] = bucket
+	}
 
-		if err := bucket.AddRule(rule); err != nil {
-			return nil, err
-		}
+	if err := bucket.AddRule(rule); err != nil {
+		return nil, err
 	}
 
 	// Merge the fields of the new rule with the existing list of fields of the ruleset

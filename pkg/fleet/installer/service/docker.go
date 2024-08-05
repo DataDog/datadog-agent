@@ -17,9 +17,11 @@ import (
 	"os/exec"
 	"path"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/shirou/gopsutil/v3/process"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
@@ -176,22 +178,27 @@ func reloadDockerConfig(ctx context.Context) (err error) {
 		log.Warn("docker is inactive, skipping docker reload")
 		return nil
 	}
-	cmdPids := exec.CommandContext(ctx, "pidof", "dockerd")
-	buf := new(bytes.Buffer)
-	bufErr := new(bytes.Buffer)
-	cmdPids.Stdout = buf
-	cmdPids.Stderr = bufErr
-	err = cmdPids.Run()
-	if err != nil {
-		return fmt.Errorf("failed to get docker daemon pid (%s): %s", err.Error(), bufErr.String())
-	}
 
-	cmd := exec.CommandContext(ctx, "kill", "-1", strings.TrimSpace(buf.String())) // Send SIGHUP to the docker daemon
-	bufErr = new(bytes.Buffer)
-	cmd.Stderr = bufErr
-	err = cmd.Run()
+	pids := []int32{}
+	processes, err := process.Processes()
 	if err != nil {
-		return fmt.Errorf("failed to reload docker (%s): %s", err.Error(), bufErr.String())
+		return fmt.Errorf("couldn't get running processes: %s", err.Error())
+	}
+	for _, process := range processes {
+		name, err := process.NameWithContext(ctx)
+		if err != nil {
+			continue // Don't pollute with warning logs
+		}
+		if name == "dockerd" {
+			pids = append(pids, process.Pid)
+		}
+	}
+	span.SetTag("dockerd_count", len(pids))
+	for _, pid := range pids {
+		err = syscall.Kill(int(pid), syscall.SIGHUP)
+		if err != nil {
+			return fmt.Errorf("failed to reload docker daemon (pid %d): %s", pid, err.Error())
+		}
 	}
 	return nil
 }

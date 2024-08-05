@@ -148,7 +148,7 @@ func TestStop(t *testing.T) {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func TestStopCancelsProducers(t *testing.T) {
+func TestStopCancelsProducers(_ *testing.T) {
 	ch := make(chan check.Check)
 	stop := make(chan bool)
 	s := NewScheduler(ch)

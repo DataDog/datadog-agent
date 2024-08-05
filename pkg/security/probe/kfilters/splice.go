@@ -18,21 +18,17 @@ import (
 
 var spliceCapabilities = Capabilities{
 	"splice.file.path": {
-		PolicyFlags:     PolicyFlagBasename,
-		FieldValueTypes: eval.ScalarValueType | eval.PatternValueType,
-		ValidateFnc:     validateBasenameFilter,
+		ValueTypeBitmask: eval.ScalarValueType | eval.PatternValueType,
+		ValidateFnc:      validateBasenameFilter,
 	},
 	"splice.file.name": {
-		PolicyFlags:     PolicyFlagBasename,
-		FieldValueTypes: eval.ScalarValueType,
+		ValueTypeBitmask: eval.ScalarValueType,
 	},
 	"splice.pipe_entry_flag": {
-		PolicyFlags:     PolicyFlagFlags,
-		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
+		ValueTypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
 	"splice.pipe_exit_flag": {
-		PolicyFlags:     PolicyFlagFlags,
-		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
+		ValueTypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
 }
 

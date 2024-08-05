@@ -18,8 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -62,12 +61,12 @@ func listCommands(_ *command.GlobalParams) []*cobra.Command {
 	activityDumpListCmd := &cobra.Command{
 		Use:   "list",
 		Short: "get the list of running activity dumps",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(listActivityDumps,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -84,13 +83,13 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpStopCmd := &cobra.Command{
 		Use:   "stop",
 		Short: "stops the first activity dump that matches the provided selector",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(stopActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -131,13 +130,13 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 	activityDumpGenerateEncodingCmd := &cobra.Command{
 		Use:   "encoding",
 		Short: "encode an activity dump to the requested formats",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(generateEncodingFromActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -192,13 +191,13 @@ func diffCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpDiffCmd := &cobra.Command{
 		Use:   "diff",
 		Short: "compute the diff between two activity dumps",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(diffActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
 		},

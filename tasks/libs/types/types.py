@@ -43,6 +43,7 @@ class Test:
 class FailedJobType(Enum):
     JOB_FAILURE = 1
     INFRA_FAILURE = 2
+    BRIDGE_FAILURE = 3
 
 
 class FailedJobReason(Enum):
@@ -53,6 +54,7 @@ class FailedJobReason(Enum):
     KITCHEN = 7
     EC2_SPOT = 8
     E2E_INFRA_FAILURE = 9
+    FAILED_BRIDGE_JOB = 10
 
     @staticmethod
     def get_infra_failure_mapping():
@@ -106,7 +108,7 @@ class FailedJobs:
 class SlackMessage:
     JOBS_SECTION_HEADER = "Failed jobs:"
     INFRA_SECTION_HEADER = "Infrastructure failures:"
-    TEST_SECTION_HEADER = "Failed unit tests:"
+    TEST_SECTION_HEADER = "Failed tests:"
     MAX_JOBS_PER_TEST = 2
 
     def __init__(self, base: str = "", jobs: FailedJobs = None):
@@ -171,8 +173,3 @@ class SlackMessage:
         if self.coda:
             print(self.coda, file=buffer)
         return buffer.getvalue()
-
-
-class TeamMessage(SlackMessage):
-    JOBS_SECTION_HEADER = "Failed jobs you own:"
-    TEST_SECTION_HEADER = "Failed unit tests you own:"

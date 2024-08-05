@@ -31,6 +31,7 @@ struct dr_erpc_stats_t {
 
 struct dentry_resolver_input_t {
     struct path_key_t key;
+    struct path_key_t original_key;
     struct dentry *dentry;
     u64 discarder_type;
     s64 sysretval;
@@ -38,6 +39,7 @@ struct dentry_resolver_input_t {
     int ret;
     int iteration;
     u32 flags;
+    u64 type;
 };
 
 #endif

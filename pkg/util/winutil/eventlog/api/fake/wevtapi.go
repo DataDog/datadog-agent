@@ -107,9 +107,9 @@ func (api *API) EvtSubscribe(
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtnext
 func (api *API) EvtNext(
 	Session evtapi.EventResultSetHandle,
-	EventsArray []evtapi.EventRecordHandle, //nolint:revive // TODO fix revive unused-parameter
+	_ []evtapi.EventRecordHandle,
 	EventsSize uint,
-	Timeout uint) ([]evtapi.EventRecordHandle, error) { //nolint:revive // TODO fix revive unused-parameter
+	_ uint) ([]evtapi.EventRecordHandle, error) {
 
 	// get subscription
 	sub, err := api.getSubscriptionByHandle(Session)
@@ -230,7 +230,7 @@ func (api *API) EvtRenderEventXml(Fragment evtapi.EventRecordHandle) ([]uint16, 
 // EvtRenderBookmark is a fake of EvtRender with EvtRenderEventBookmark
 // not implemented.
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtrender
-func (api *API) EvtRenderBookmark(Fragment evtapi.EventBookmarkHandle) ([]uint16, error) { //nolint:revive // TODO fix revive unused-parameter
+func (api *API) EvtRenderBookmark(_ evtapi.EventBookmarkHandle) ([]uint16, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
@@ -309,7 +309,7 @@ func (api *API) EvtClearLog(ChannelPath string) error {
 
 // EvtCreateBookmark fake
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtcreatebookmark
-func (api *API) EvtCreateBookmark(BookmarkXML string) (evtapi.EventBookmarkHandle, error) { //nolint:revive // TODO fix revive unused-parameter
+func (api *API) EvtCreateBookmark(_ string) (evtapi.EventBookmarkHandle, error) {
 	var b bookmark
 
 	// TODO: parse Xml to get record ID
@@ -343,13 +343,13 @@ func (api *API) EvtUpdateBookmark(Bookmark evtapi.EventBookmarkHandle, Event evt
 // EvtCreateRenderContext fake
 // not implemented.
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtcreaterendercontext
-func (api *API) EvtCreateRenderContext(ValuePaths []string, Flags uint) (evtapi.EventRenderContextHandle, error) { //nolint:revive // TODO fix revive unused-parameter
+func (api *API) EvtCreateRenderContext(_ []string, _ uint) (evtapi.EventRenderContextHandle, error) {
 	return evtapi.EventRenderContextHandle(0), fmt.Errorf("not implemented")
 }
 
 // EvtRenderEventValues is a fake of EvtRender with EvtRenderEventValues
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtrender
-func (api *API) EvtRenderEventValues(Context evtapi.EventRenderContextHandle, Fragment evtapi.EventRecordHandle) (evtapi.EvtVariantValues, error) { //nolint:revive // TODO fix revive unused-parameter
+func (api *API) EvtRenderEventValues(_ evtapi.EventRenderContextHandle, _ evtapi.EventRecordHandle) (evtapi.EvtVariantValues, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
@@ -357,8 +357,8 @@ func (api *API) EvtRenderEventValues(Context evtapi.EventRenderContextHandle, Fr
 // not implemented.
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtopenpublishermetadata
 func (api *API) EvtOpenPublisherMetadata(
-	PublisherID string, //nolint:revive // TODO fix revive unused-parameter
-	LogFilePath string) (evtapi.EventPublisherMetadataHandle, error) {
+	_ string,
+	_ string) (evtapi.EventPublisherMetadataHandle, error) {
 	return evtapi.EventPublisherMetadataHandle(0), fmt.Errorf("not implemented")
 }
 
@@ -366,11 +366,11 @@ func (api *API) EvtOpenPublisherMetadata(
 // not implemented.
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtformatmessage
 func (api *API) EvtFormatMessage(
-	PublisherMetadata evtapi.EventPublisherMetadataHandle, //nolint:revive // TODO fix revive unused-parameter
-	Event evtapi.EventRecordHandle, //nolint:revive // TODO fix revive unused-parameter
-	MessageID uint, //nolint:revive // TODO fix revive unused-parameter
-	Values evtapi.EvtVariantValues, //nolint:revive // TODO fix revive unused-parameter
-	Flags uint) (string, error) { //nolint:revive // TODO fix revive unused-parameter
+	_ evtapi.EventPublisherMetadataHandle,
+	_ evtapi.EventRecordHandle,
+	_ uint,
+	_ evtapi.EvtVariantValues,
+	_ uint) (string, error) {
 	return "", fmt.Errorf("not implemented")
 }
 
@@ -378,11 +378,11 @@ func (api *API) EvtFormatMessage(
 // not implemented.
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtformatmessage
 func (api *API) EvtOpenSession(
-	Server string, //nolint:revive // TODO fix revive unused-parameter
-	User string, //nolint:revive // TODO fix revive unused-parameter
-	Domain string, //nolint:revive // TODO fix revive unused-parameter
-	Password string, //nolint:revive // TODO fix revive unused-parameter
-	Flags uint, //nolint:revive // TODO fix revive unused-parameter
+	_ string,
+	_ string,
+	_ string,
+	_ string,
+	_ uint,
 ) (evtapi.EventSessionHandle, error) {
 	return evtapi.EventSessionHandle(0), fmt.Errorf("not implemented")
 }

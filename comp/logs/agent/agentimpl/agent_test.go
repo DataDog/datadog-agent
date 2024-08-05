@@ -24,11 +24,13 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	integrationsLogs "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
@@ -59,9 +61,10 @@ type AgentTestSuite struct {
 type testDeps struct {
 	fx.In
 
-	Config         configComponent.Component
-	Log            log.Component
-	InventoryAgent inventoryagent.Component
+	Config           configComponent.Component
+	Log              log.Component
+	InventoryAgent   inventoryagent.Component
+	IntegrationsLogs integrationsLogs.Component
 }
 
 func (suite *AgentTestSuite) SetupTest() {
@@ -109,19 +112,21 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 
 	deps := fxutil.Test[testDeps](suite.T(), fx.Options(
 		fx.Supply(configComponent.Params{}),
-		fx.Supply(logimpl.Params{}),
-		logimpl.MockModule(),
+		fx.Supply(log.Params{}),
+		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
 		configComponent.MockModule(),
 		hostnameimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
 		inventoryagentimpl.MockModule(),
+		integrations.MockModule(),
 	))
 
 	agent := &logAgent{
-		log:            deps.Log,
-		config:         deps.Config,
-		inventoryAgent: deps.InventoryAgent,
-		started:        atomic.NewBool(false),
+		log:              deps.Log,
+		config:           deps.Config,
+		inventoryAgent:   deps.InventoryAgent,
+		started:          atomic.NewBool(false),
+		integrationsLogs: deps.IntegrationsLogs,
 
 		sources:   sources,
 		services:  services,
@@ -272,7 +277,7 @@ func (suite *AgentTestSuite) TestStatusOut() {
 		UseHTTP:      true,
 	}
 
-	logsProvider = func(verbose bool) logsStatus.Status {
+	logsProvider = func(_ bool) logsStatus.Status {
 		return mockResult
 	}
 
@@ -341,7 +346,7 @@ func (suite *AgentTestSuite) TestStatusOut() {
 	}
 
 	for _, test := range tests {
-		suite.T().Run(test.name, func(t *testing.T) {
+		suite.T().Run(test.name, func(_ *testing.T) {
 			test.assertFunc(suite.T())
 		})
 	}
@@ -386,14 +391,15 @@ func (suite *AgentTestSuite) TestFlareProvider() {
 func (suite *AgentTestSuite) createDeps() dependencies {
 	return fxutil.Test[dependencies](suite.T(), fx.Options(
 		fx.Supply(configComponent.Params{}),
-		fx.Supply(logimpl.Params{}),
-		logimpl.MockModule(),
+		fx.Supply(log.Params{}),
+		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
 		configComponent.MockModule(),
 		hostnameimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
 		inventoryagentimpl.MockModule(),
 		workloadmetafxmock.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
+		integrations.MockModule(),
 	))
 }
 
