@@ -593,7 +593,10 @@ require (
 	sigs.k8s.io/yaml v1.4.0
 )
 
-require github.com/lorenzosaino/go-sysctl v0.3.1
+require (
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.0.0-00010101000000-000000000000
+	github.com/lorenzosaino/go-sysctl v0.3.1
+)
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
