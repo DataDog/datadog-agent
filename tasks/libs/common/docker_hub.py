@@ -3,7 +3,7 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry  # type: ignore
 
 
-def get_latest_version(repository, namespace="datadog") -> str:
+def get_latest_version(repository: str, namespace: str = "datadog") -> str:
     session = requests.session()
     retries = Retry(total=3, backoff_factor=1)
     session.mount('https://', HTTPAdapter(max_retries=retries))
