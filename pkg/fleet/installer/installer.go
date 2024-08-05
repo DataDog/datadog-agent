@@ -66,12 +66,12 @@ type Installer interface {
 type installerImpl struct {
 	m sync.Mutex
 
-	db           *db.PackagesDB
-	downloader   *oci.Downloader
-	repositories *repository.Repositories
-	configsDir   string
-	packagesDir  string
-	tmpDirPath   string
+	db         *db.PackagesDB
+	downloader *oci.Downloader
+	packages   *repository.Repositories
+
+	packagesDir    string
+	userConfigsDir string
 }
 
 // NewInstaller returns a new Package Manager.
@@ -85,23 +85,23 @@ func NewInstaller(env *env.Env) (Installer, error) {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
 	return &installerImpl{
-		db:           db,
-		downloader:   oci.NewDownloader(env, http.DefaultClient),
-		repositories: repository.NewRepositories(paths.PackagesPath, paths.LocksPack),
-		configsDir:   paths.DefaultConfigsDir,
-		tmpDirPath:   paths.TmpDirPath,
-		packagesDir:  paths.PackagesPath,
+		db:         db,
+		downloader: oci.NewDownloader(env, http.DefaultClient),
+		packages:   repository.NewRepositories(paths.PackagesPath, paths.LocksPack),
+
+		userConfigsDir: paths.DefaultConfigsDir,
+		packagesDir:    paths.PackagesPath,
 	}, nil
 }
 
 // State returns the state of a package.
 func (i *installerImpl) State(pkg string) (repository.State, error) {
-	return i.repositories.GetPackageState(pkg)
+	return i.packages.GetPackageState(pkg)
 }
 
 // States returns the states of all packages.
 func (i *installerImpl) States() (map[string]repository.State, error) {
-	return i.repositories.GetState()
+	return i.packages.GetState()
 }
 
 // IsInstalled checks if a package is installed.
@@ -162,12 +162,12 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 	if err != nil {
 		return fmt.Errorf("not enough disk space: %w", err)
 	}
-	tmpDir, err := os.MkdirTemp(i.tmpDirPath, fmt.Sprintf("tmp-install-stable-%s-*", pkg.Name)) // * is replaced by a random string
+	tmpDir, err := i.packages.MkdirTemp()
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	configDir := filepath.Join(i.configsDir, pkg.Name)
+	configDir := filepath.Join(i.userConfigsDir, pkg.Name)
 	err = pkg.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not extract package layers: %w", err)
@@ -176,7 +176,7 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 	if err != nil {
 		return fmt.Errorf("could not extract package config layer: %w", err)
 	}
-	err = i.repositories.Create(pkg.Name, pkg.Version, tmpDir)
+	err = i.packages.Create(pkg.Name, pkg.Version, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
@@ -207,12 +207,12 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 	if err != nil {
 		return fmt.Errorf("not enough disk space: %w", err)
 	}
-	tmpDir, err := os.MkdirTemp(i.tmpDirPath, fmt.Sprintf("tmp-install-experiment-%s-*", pkg.Name)) // * is replaced by a random string
+	tmpDir, err := i.packages.MkdirTemp()
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	configDir := filepath.Join(i.configsDir, pkg.Name)
+	configDir := filepath.Join(i.userConfigsDir, pkg.Name)
 	err = pkg.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not extract package layers: %w", err)
@@ -221,7 +221,7 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 	if err != nil {
 		return fmt.Errorf("could not extract package config layer: %w", err)
 	}
-	repository := i.repositories.Get(pkg.Name)
+	repository := i.packages.Get(pkg.Name)
 	err = repository.SetExperiment(pkg.Version, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not set experiment: %w", err)
@@ -234,7 +234,7 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	repository := i.repositories.Get(pkg)
+	repository := i.packages.Get(pkg)
 	if runtime.GOOS != "windows" && pkg == packageDatadogInstaller {
 		// Special case for the Linux installer since `stopExperiment`
 		// will kill the current process, delete the experiment first.
@@ -264,7 +264,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	repository := i.repositories.Get(pkg)
+	repository := i.packages.Get(pkg)
 	err := repository.PromoteExperiment()
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
@@ -314,7 +314,7 @@ func (i *installerImpl) Remove(ctx context.Context, pkg string) error {
 	if err != nil {
 		return fmt.Errorf("could not remove package: %w", err)
 	}
-	err = i.repositories.Delete(ctx, pkg)
+	err = i.packages.Delete(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not delete repository: %w", err)
 	}
@@ -330,7 +330,7 @@ func (i *installerImpl) GarbageCollect(_ context.Context) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	return i.repositories.Cleanup()
+	return i.packages.Cleanup()
 }
 
 // InstrumentAPMInjector instruments the APM injector.
