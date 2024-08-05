@@ -125,8 +125,8 @@ func (s *Launcher) makeFileSource(source *sources.LogSource, filepath string) *s
 		Type:        config.FileType,
 		TailingMode: source.Config.TailingMode,
 		Path:        filepath,
-		Name:        "integrations",
-		Source:      "integrations source",
+		Name:        source.Config.Name,
+		Source:      source.Config.Source,
 		Tags:        source.Config.Tags,
 	})
 
