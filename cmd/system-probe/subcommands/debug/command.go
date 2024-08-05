@@ -43,7 +43,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Print the runtime state of a running system-probe",
 		Long:  ``,
 		Args:  cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 			return fxutil.OneShot(debugRuntime,
 				fx.Supply(cliParams),

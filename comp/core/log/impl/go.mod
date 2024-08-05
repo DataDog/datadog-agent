@@ -24,8 +24,6 @@ replace github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../
 
 replace github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../comp/core/flare/builder
 
-replace github.com/DataDog/datadog-agent/pkg/config/logs => ../../../../pkg/config/logs
-
 replace github.com/DataDog/datadog-agent/pkg/config/env => ../../../../pkg/config/env
 
 replace github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
@@ -39,6 +37,8 @@ replace github.com/DataDog/datadog-agent/comp/core/config => ../../../../comp/co
 replace github.com/DataDog/datadog-agent/comp/core/log/def => ../../../../comp/core/log/def
 
 replace github.com/DataDog/datadog-agent/pkg/util/log => ../../../../pkg/util/log
+
+replace github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../../pkg/util/log/setup
 
 replace github.com/DataDog/datadog-agent/pkg/config/model => ../../../../pkg/config/model
 
@@ -58,8 +58,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/config/logs v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.0.0-00010101000000-000000000000
 )
 
 require (

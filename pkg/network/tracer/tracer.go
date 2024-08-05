@@ -343,10 +343,8 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	}
 
 	if len(p.Tags) > 0 {
-		c.Tags = make(map[*intern.Value]struct{}, len(p.Tags))
-		for _, t := range p.Tags {
-			c.Tags[t] = struct{}{}
-		}
+		c.Tags = make([]*intern.Value, len(p.Tags))
+		copy(c.Tags, p.Tags)
 	}
 
 	if p.ContainerID != nil {

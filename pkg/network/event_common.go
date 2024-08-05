@@ -260,7 +260,7 @@ type ConnectionStats struct {
 	Direction        ConnectionDirection
 	SPortIsEphemeral EphemeralPortType
 	StaticTags       uint64
-	Tags             map[*intern.Value]struct{}
+	Tags             []*intern.Value
 
 	IntraHost bool
 	IsAssured bool
@@ -470,32 +470,16 @@ func (s StatCounters) Add(other StatCounters) StatCounters {
 	}
 }
 
-func maxUint64(a, b uint64) uint64 {
-	if a > b {
-		return a
-	}
-
-	return b
-}
-
-func maxUint32(a, b uint32) uint32 {
-	if a > b {
-		return a
-	}
-
-	return b
-}
-
 // Max returns max(s, other)
 func (s StatCounters) Max(other StatCounters) StatCounters {
 	return StatCounters{
-		RecvBytes:      maxUint64(s.RecvBytes, other.RecvBytes),
-		RecvPackets:    maxUint64(s.RecvPackets, other.RecvPackets),
-		Retransmits:    maxUint32(s.Retransmits, other.Retransmits),
-		SentBytes:      maxUint64(s.SentBytes, other.SentBytes),
-		SentPackets:    maxUint64(s.SentPackets, other.SentPackets),
-		TCPClosed:      maxUint32(s.TCPClosed, other.TCPClosed),
-		TCPEstablished: maxUint32(s.TCPEstablished, other.TCPEstablished),
+		RecvBytes:      max(s.RecvBytes, other.RecvBytes),
+		RecvPackets:    max(s.RecvPackets, other.RecvPackets),
+		Retransmits:    max(s.Retransmits, other.Retransmits),
+		SentBytes:      max(s.SentBytes, other.SentBytes),
+		SentPackets:    max(s.SentPackets, other.SentPackets),
+		TCPClosed:      max(s.TCPClosed, other.TCPClosed),
+		TCPEstablished: max(s.TCPEstablished, other.TCPEstablished),
 	}
 }
 

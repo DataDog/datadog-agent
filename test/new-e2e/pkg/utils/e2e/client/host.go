@@ -150,7 +150,20 @@ func (h *Host) MustExecute(command string, options ...ExecuteOption) string {
 	return stdout
 }
 
-// CopyFile create a sftp session and copy a single file to the remote host through SSH
+// CopyFileFromFS creates a sftp session and copy a single embedded file to the remote host through SSH
+func (h *Host) CopyFileFromFS(fs fs.FS, src, dst string) {
+	h.context.T().Logf("Copying file from local %s to remote %s", src, dst)
+	dst = h.convertPathSeparator(dst)
+	sftpClient := h.getSFTPClient()
+	defer sftpClient.Close()
+	file, err := fs.Open(src)
+	require.NoError(h.context.T(), err)
+	defer file.Close()
+	err = copyFileFromIoReader(sftpClient, file, dst)
+	require.NoError(h.context.T(), err)
+}
+
+// CopyFile creates a sftp session and copy a single file to the remote host through SSH
 func (h *Host) CopyFile(src string, dst string) {
 	h.context.T().Logf("Copying file from local %s to remote %s", src, dst)
 	dst = h.convertPathSeparator(dst)
@@ -429,7 +442,7 @@ func (h *Host) NewHTTPClient() *http.Client {
 
 func (h *Host) newHTTPTransport() *http.Transport {
 	return &http.Transport{
-		DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
+		DialContext: func(_ context.Context, _, addr string) (net.Conn, error) {
 			hostname, port, err := net.SplitHostPort(addr)
 			if err != nil {
 				return nil, err

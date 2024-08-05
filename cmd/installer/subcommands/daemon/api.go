@@ -34,7 +34,7 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 		Use:   "set-catalog catalog",
 		Short: "Sets the catalog to use",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			return experimentFxWrapper(catalog, &cliParams{
 				GlobalParams: *global,
 				catalog:      args[0],
@@ -46,7 +46,7 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 		Aliases: []string{"install"},
 		Short:   "Installs a package to the expected version",
 		Args:    cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			return experimentFxWrapper(install, &cliParams{
 				GlobalParams: *global,
 				pkg:          args[0],
@@ -59,7 +59,7 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 		Aliases: []string{"start"},
 		Short:   "Starts an experiment",
 		Args:    cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			return experimentFxWrapper(start, &cliParams{
 				GlobalParams: *global,
 				pkg:          args[0],
@@ -72,7 +72,7 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 		Aliases: []string{"stop"},
 		Short:   "Stops an experiment",
 		Args:    cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			return experimentFxWrapper(stop, &cliParams{
 				GlobalParams: *global,
 				pkg:          args[0],
@@ -84,7 +84,7 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 		Aliases: []string{"promote"},
 		Short:   "Promotes an experiment",
 		Args:    cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			return experimentFxWrapper(promote, &cliParams{
 				GlobalParams: *global,
 				pkg:          args[0],

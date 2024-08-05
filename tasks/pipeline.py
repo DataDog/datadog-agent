@@ -234,6 +234,7 @@ def run(
     major_versions=None,
     repo_branch="dev",
     deploy=False,
+    deploy_installer=False,
     all_builds=True,
     e2e_tests=True,
     kmt_tests=True,
@@ -243,7 +244,8 @@ def run(
     """
     Run a pipeline on the given git ref (--git-ref <git ref>), or on the current branch if --here is given.
     By default, this pipeline will run all builds & tests, including all kitchen tests, but is not a deploy pipeline.
-    Use --deploy to make this pipeline a deploy pipeline, which will upload artifacts to the staging repositories.
+    Use --deploy to make this pipeline a deploy pipeline for the agent, which will upload artifacts to the staging repositories.
+    Use --deploy-installer to make this pipeline a deploy pipeline for the installer, which will upload artifacts to the staging repositories.
     Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on pipelines on the default branch).
     Use --no-kitchen-tests to not run all kitchen tests on the pipeline.
     Use --e2e-tests to run all e2e tests on the pipeline.
@@ -302,7 +304,7 @@ def run(
     if here:
         git_ref = get_current_branch(ctx)
 
-    if deploy:
+    if deploy or deploy_installer:
         # Check the validity of the deploy pipeline
         check_deploy_pipeline(repo, git_ref, release_version_6, release_version_7, repo_branch)
         # Force all builds and kitchen tests to be run
@@ -343,6 +345,7 @@ def run(
             release_version_7,
             repo_branch,
             deploy=deploy,
+            deploy_installer=deploy_installer,
             all_builds=all_builds,
             e2e_tests=e2e_tests,
             kmt_tests=kmt_tests,

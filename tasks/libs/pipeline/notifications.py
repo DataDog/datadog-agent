@@ -6,6 +6,7 @@ import pathlib
 import re
 import subprocess
 from collections import defaultdict
+from datetime import datetime, timezone
 
 import gitlab
 import yaml
@@ -111,14 +112,22 @@ def find_job_owners(failed_jobs: FailedJobs, owners_file: str = ".gitlab/JOBOWNE
     return owners_to_notify
 
 
-def get_pr_from_commit(commit_title, project_title) -> tuple[str, str] | None:
+def get_pr_from_commit(commit_title: str, project_name: str) -> tuple[str, str] | None:
+    """
+    Tries to find a GitHub PR id within a commit title (eg: "Fix PR (#27584)"),
+    and returns the corresponding PR URL.
+
+    commit_title: the commit title to parse
+    project_name: the GitHub project from which the PR originates, in the "org/repo" format
+    """
+
     parsed_pr_id_found = re.search(r'.*\(#([0-9]*)\)$', commit_title)
     if not parsed_pr_id_found:
         return None
 
     parsed_pr_id = parsed_pr_id_found.group(1)
 
-    return parsed_pr_id, f"{GITHUB_BASE_URL}/{project_title}/pull/{parsed_pr_id}"
+    return parsed_pr_id, f"{GITHUB_BASE_URL}/{project_name}/pull/{parsed_pr_id}"
 
 
 def base_message(project_name: str, pipeline: ProjectPipeline, commit: ProjectCommit, header: str, state: str):
@@ -157,11 +166,12 @@ def email_to_slackid(ctx: Context, email: str) -> str:
 def warn_new_commits(release_managers, team, branch, next_rc):
     from slack_sdk import WebClient
 
+    today = datetime.today()
+    rc_date = datetime(today.year, today.month, today.day, hour=14, minute=0, second=0, tzinfo=timezone.utc)
+    rc_schedule_link = "https://github.com/DataDog/datadog-agent/blob/main/.github/workflows/create_rc_pr.yml#L6"
     message = "Hello :wave:\n"
     message += f":announcement: We detected new commits on the {branch} release branch of `integrations-core`.\n"
-    message += (
-        f"Could you please release and tag your repo to prepare the {next_rc} `datadog-agent` release candidate?\n"
-    )
+    message += f"Could you please release and tag your repo to prepare the {next_rc} `datadog-agent` release candidate planned <{rc_schedule_link}|{rc_date.strftime('%Y-%m-%d %H:%M')}> UTC?\n"
     message += "Thanks in advance!\n"
     message += f"cc {' '.join(release_managers)}"
     client = WebClient(os.environ["SLACK_API_TOKEN"])
