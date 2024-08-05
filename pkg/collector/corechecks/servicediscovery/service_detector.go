@@ -53,6 +53,22 @@ func fixAdditionalNames(additionalNames []string) []string {
 	return out
 }
 
+func makeFinalName(meta usm.ServiceMetadata) string {
+	name := meta.Name
+	if len(meta.AdditionalNames) > 0 {
+		name = name + "-" + strings.Join(fixAdditionalNames(meta.AdditionalNames), "-")
+	}
+
+	return name
+}
+
+// GetServiceName gets the service name based on the command line arguments and
+// the list of environment variables.
+func (sd *ServiceDetector) GetServiceName(cmdline []string, env []string) string {
+	meta, _ := usm.ExtractServiceMetadata(sd.logger, cmdline, env)
+	return makeFinalName(meta)
+}
+
 // Detect gets metadata for a service.
 func (sd *ServiceDetector) Detect(p processInfo) ServiceMetadata {
 	meta, _ := usm.ExtractServiceMetadata(sd.logger, p.CmdLine, p.Env)
@@ -62,13 +78,8 @@ func (sd *ServiceDetector) Detect(p processInfo) ServiceMetadata {
 
 	sd.logger.Debug("name info", zap.String("name", meta.Name), zap.Strings("additional names", meta.AdditionalNames))
 
-	name := meta.Name
-	if len(meta.AdditionalNames) > 0 {
-		name = name + "-" + strings.Join(fixAdditionalNames(meta.AdditionalNames), "-")
-	}
-
 	return ServiceMetadata{
-		Name:               name,
+		Name:               makeFinalName(meta),
 		Language:           string(lang),
 		Type:               string(svcType),
 		APMInstrumentation: string(apmInstr),
