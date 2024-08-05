@@ -92,14 +92,11 @@ def install_protoc(ctx, version="26.1"):
     if sys.platform.startswith('linux'):
         platform_os = "linux"
 
-    match platform.machine().lower():
-        case "aarch64":
-            platform_arch = "aarch_64"
-        case "arm64":
-            platform_arch = "x86_64"
-        case _:
-            print("protoc is not supported with this architecture:", platform.machine().lower())
-            raise Exit(code=1)
+    platform_arch = platform.machine().lower()
+    if platform_arch == "amd64":
+        platform_arch = "x86_64"
+    elif platform_arch == "aarch64":
+        platform_arch = "aarch_64"
 
     # Download the artifact thanks to the Github API class
     artifact_url = f"https://github.com/protocolbuffers/protobuf/releases/download/v{version}/protoc-{version}-{platform_os}-{platform_arch}.zip"
