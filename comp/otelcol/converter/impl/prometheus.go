@@ -18,7 +18,7 @@ var (
 		"config": map[string]any{
 			"scrape_configs": []any{
 				map[string]any{
-					"job_name":        "datadog_otel_agent",
+					"job_name":        "datadog-agent",
 					"scrape_interval": "10s",
 					"static_configs": []any{
 						map[string]any{
@@ -117,7 +117,7 @@ func addPrometheusReceiver(conf *confmap.Conf, comp component) {
 							}
 							if targetString == internalMetricsAddress {
 								if ddExporter := receiverInPipelineWithDatadogExporter(conf, receiver); ddExporter != "" {
-									scrapeConfigMap["job_name"] = "datadog_otel_agent"
+									scrapeConfigMap["job_name"] = "datadog-agent"
 									delete(datadogExportersMap, ddExporter)
 								}
 							}
