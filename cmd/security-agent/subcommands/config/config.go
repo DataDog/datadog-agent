@@ -52,7 +52,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return getSettingsClient(cmd, args)
 			}
 		},
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(
 				showRuntimeConfiguration,
 				fx.Supply(cliParams),
@@ -70,7 +70,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			Use:   "by-source",
 			Short: "Show the runtime configuration by source (ie: default, config file, env vars, ...)",
 			Long:  ``,
-			RunE: func(cmd *cobra.Command, args []string) error {
+			RunE: func(_ *cobra.Command, _ []string) error {
 				return fxutil.OneShot(
 					showRuntimeConfigurationBySource,
 					fx.Supply(cliParams),
@@ -90,7 +90,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			Use:   "list-runtime",
 			Short: "List settings that can be changed at runtime",
 			Long:  ``,
-			RunE: func(cmd *cobra.Command, args []string) error {
+			RunE: func(_ *cobra.Command, _ []string) error {
 				return fxutil.OneShot(
 					listRuntimeConfigurableValue,
 					fx.Supply(cliParams),
@@ -110,7 +110,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			Use:   "set [setting] [value]",
 			Short: "Set, for the current runtime, the value of a given configuration setting",
 			Long:  ``,
-			RunE: func(cmd *cobra.Command, args []string) error {
+			RunE: func(_ *cobra.Command, _ []string) error {
 				return fxutil.OneShot(
 					setConfigValue,
 					fx.Supply(cliParams),
@@ -130,7 +130,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			Use:   "get [setting]",
 			Short: "Get, for the current runtime, the value of a given configuration setting",
 			Long:  ``,
-			RunE: func(cmd *cobra.Command, args []string) error {
+			RunE: func(_ *cobra.Command, _ []string) error {
 				return fxutil.OneShot(
 					getConfigValue,
 					fx.Supply(cliParams),

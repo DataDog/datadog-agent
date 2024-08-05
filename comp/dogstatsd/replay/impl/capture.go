@@ -4,7 +4,7 @@
 // Copyright 2016-2021 Datadog, Inc.
 
 //nolint:revive // TODO(AML) Fix revive linter
-package replay
+package replayimpl
 
 import (
 	"context"

@@ -42,12 +42,12 @@ hosts: [ 0.datadog.pool.ntp.org, 1.datadog.pool.ntp.org, 2.datadog.pool.ntp.org,
 )
 
 //nolint:revive // TODO(PLINT) Fix revive linter
-func testNTPQueryError(host string, opt ntp.QueryOptions) (*ntp.Response, error) {
+func testNTPQueryError(_ string, _ ntp.QueryOptions) (*ntp.Response, error) {
 	return nil, fmt.Errorf("test error from NTP")
 }
 
 //nolint:revive // TODO(PLINT) Fix revive linter
-func testNTPQueryInvalid(host string, opt ntp.QueryOptions) (*ntp.Response, error) {
+func testNTPQueryInvalid(_ string, _ ntp.QueryOptions) (*ntp.Response, error) {
 	return &ntp.Response{
 		ClockOffset: time.Duration(offset) * time.Second,
 		Stratum:     20,
@@ -55,7 +55,7 @@ func testNTPQueryInvalid(host string, opt ntp.QueryOptions) (*ntp.Response, erro
 }
 
 //nolint:revive // TODO(PLINT) Fix revive linter
-func testNTPQuery(host string, opt ntp.QueryOptions) (*ntp.Response, error) {
+func testNTPQuery(_ string, _ ntp.QueryOptions) (*ntp.Response, error) {
 	return &ntp.Response{
 		ClockOffset: time.Duration(offset) * time.Second,
 		Stratum:     1,
@@ -223,7 +223,7 @@ hosts:
 	ntpInitCfg := []byte("")
 
 	offset = 1
-	ntpQuery = func(host string, opt ntp.QueryOptions) (*ntp.Response, error) {
+	ntpQuery = func(host string, _ ntp.QueryOptions) (*ntp.Response, error) {
 		o, _ := strconv.Atoi(host)
 		return &ntp.Response{
 			ClockOffset: time.Duration(o) * time.Second,
@@ -265,7 +265,7 @@ hosts:
 	ntpInitCfg := []byte("")
 
 	offset = 1
-	ntpQuery = func(host string, opt ntp.QueryOptions) (*ntp.Response, error) {
+	ntpQuery = func(host string, _ ntp.QueryOptions) (*ntp.Response, error) {
 		o, _ := strconv.Atoi(host)
 		return &ntp.Response{
 			ClockOffset: time.Duration(o) * time.Second,

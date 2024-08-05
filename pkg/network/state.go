@@ -1050,8 +1050,7 @@ func (ns *networkState) DumpState(clientID string) map[string]interface{} {
 func isDNAT(c *ConnectionStats) bool {
 	return c.Direction == OUTGOING &&
 		c.IPTranslation != nil &&
-		(c.IPTranslation.ReplSrcIP.Compare(c.Dest.Addr) != 0 ||
-			c.IPTranslation.ReplSrcPort != c.DPort)
+		(c.IPTranslation.ReplSrcIP != c.Dest || c.IPTranslation.ReplSrcPort != c.DPort)
 }
 
 func (ns *networkState) determineConnectionIntraHost(connections slice.Chain[ConnectionStats]) {
@@ -1084,12 +1083,19 @@ func (ns *networkState) determineConnectionIntraHost(connections slice.Chain[Con
 		_type        ConnectionType
 	}
 
-	dnats := make(map[dnatKey]struct{}, connections.Len()/2)
+	dnatCount := 0
 	lAddrs := make(map[connKey]struct{}, connections.Len())
 	connections.Iterate(func(_ int, conn *ConnectionStats) {
 		k := newConnKey(conn, false)
 		lAddrs[k] = struct{}{}
 
+		if isDNAT(conn) {
+			dnatCount++
+		}
+	})
+
+	dnats := make(map[dnatKey]struct{}, dnatCount)
+	connections.Iterate(func(_ int, conn *ConnectionStats) {
 		if isDNAT(conn) {
 			dnats[dnatKey{
 				src:   conn.Source,

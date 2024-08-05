@@ -68,7 +68,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/api => ./pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ./pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ./pkg/config/env
-	github.com/DataDog/datadog-agent/pkg/config/logs => ./pkg/config/logs
 	github.com/DataDog/datadog-agent/pkg/config/mock => ./pkg/config/mock/
 	github.com/DataDog/datadog-agent/pkg/config/model => ./pkg/config/model/
 	github.com/DataDog/datadog-agent/pkg/config/remote => ./pkg/config/remote/
@@ -119,6 +118,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/http => ./pkg/util/http/
 	github.com/DataDog/datadog-agent/pkg/util/json => ./pkg/util/json
 	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
+	github.com/DataDog/datadog-agent/pkg/util/log/setup => ./pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/optional => ./pkg/util/optional
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ./pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ./pkg/util/scrubber
@@ -179,7 +179,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
-	github.com/cilium/ebpf v0.15.1-0.20240709101333-5976561b28aa
+	github.com/cilium/ebpf v0.16.0
 	github.com/clbanning/mxj v1.8.4
 	github.com/containerd/containerd v1.7.18
 	github.com/containernetworking/cni v1.2.3
@@ -188,7 +188,7 @@ require (
 	github.com/cri-o/ocicni v0.4.3
 	github.com/cyphar/filepath-securejoin v0.3.1
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
-	github.com/docker/docker v25.0.5+incompatible
+	github.com/docker/docker v25.0.6+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/elastic/go-libaudit/v2 v2.5.0
@@ -251,7 +251,7 @@ require (
 	github.com/prometheus/procfs v0.15.1
 	github.com/richardartoul/molecule v1.0.1-0.20240531184615-7ca0df43c0b3 // indirect
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/samber/lo v1.39.0
+	github.com/samber/lo v1.46.0
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
@@ -581,7 +581,7 @@ require (
 	modernc.org/cc/v3 v3.41.0 // indirect
 	modernc.org/ccgo/v3 v3.16.15 // indirect
 	modernc.org/libc v1.41.0 // indirect
-	modernc.org/mathutil v1.6.0 // indirect
+	modernc.org/mathutil v1.6.0
 	modernc.org/memory v1.7.2 // indirect
 	modernc.org/opt v0.1.3 // indirect
 	modernc.org/sqlite v1.29.5
@@ -596,7 +596,7 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.127
+	github.com/DataDog/agent-payload/v5 v5.0.129
 	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/config v0.56.0-rc.3
@@ -639,7 +639,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/api v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/env v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/config/logs v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.0.0-20240723160440-69ec7b21bb9c
 	github.com/DataDog/datadog-agent/pkg/config/model v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/remote v0.56.0-rc.3
@@ -680,6 +679,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/http v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/json v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v1.0.0
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.56.0-rc.3

@@ -319,21 +319,8 @@ func (p *goTLSProgram) AttachPID(pid uint32) error {
 	pidAsStr := strconv.FormatUint(uint64(pid), 10)
 	exePath := filepath.Join(p.procRoot, pidAsStr, "exe")
 
-	binPath, err := os.Readlink(exePath)
+	binPath, err := utils.ResolveSymlink(exePath)
 	if err != nil {
-		// We receive the Exec event, /proc could be slow to update
-		end := time.Now().Add(10 * time.Millisecond)
-		for end.After(time.Now()) {
-			binPath, err = os.Readlink(exePath)
-			if err == nil {
-				break
-			}
-			time.Sleep(time.Millisecond)
-		}
-	}
-	if err != nil {
-		// we can't access to the binary path here (pid probably ended already)
-		// there are not much we can do, and we don't want to flood the logs
 		return err
 	}
 

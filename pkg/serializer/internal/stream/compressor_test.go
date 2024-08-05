@@ -94,11 +94,11 @@ func TestCompressorAddItemErrCodeWithEmptyCompressor(t *testing.T) {
 
 			// While some of these values may look like they should fit, they currently don't due to a combination
 			// of due to overhead in the payload (header and footer) and the CompressBound calculation
-			t.Run("Edge Case from real world", func(t *testing.T) {
+			t.Run("Edge Case from real world", func(_ *testing.T) {
 				checkAddItemErrCode(2_621_440, 4_194_304, 2_620_896)
 			})
 
-			t.Run("Other values from iterative testing", func(t *testing.T) {
+			t.Run("Other values from iterative testing", func(_ *testing.T) {
 				checkAddItemErrCode(17, 32, 1)
 				checkAddItemErrCode(19, 35, 4)
 				checkAddItemErrCode(23, 43, 12)

@@ -88,7 +88,7 @@ func TestFromContainerInvalidHostname(t *testing.T) {
 	}()
 
 	configIsContainerized = func() bool { return true }
-	configIsFeaturePresent = func(f config.Feature) bool { return true }
+	configIsFeaturePresent = func(config.Feature) bool { return true }
 	kubernetesGetKubeAPIServerHostname = func(context.Context) (string, error) { return "hostname_with_underscore", nil }
 	dockerGetHostname = func(context.Context) (string, error) { return "hostname_with_underscore", nil }
 	kubeletGetHostname = func(context.Context) (string, error) { return "hostname_with_underscore", nil }

@@ -64,18 +64,6 @@ func contains(envs []corev1.EnvVar, name string) bool {
 	return false
 }
 
-// EnvIndex returns the index of env var in an env var list
-// returns -1 if not found
-func EnvIndex(envs []corev1.EnvVar, name string) int {
-	for i := range envs {
-		if envs[i].Name == name {
-			return i
-		}
-	}
-
-	return -1
-}
-
 // InjectEnv injects an env var into a pod template if it doesn't exist
 func InjectEnv(pod *corev1.Pod, env corev1.EnvVar) bool {
 	injected := false

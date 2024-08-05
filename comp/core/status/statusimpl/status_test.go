@@ -1047,7 +1047,7 @@ func TestGetStatusByMultipleSections(t *testing.T) {
 			format:        "json",
 			sections:      []string{"moo_1", "fake_moo_2", "fake_moo_4"},
 			shouldSuccess: false,
-			assertFunc: func(t *testing.T, bytes []byte) {
+			assertFunc: func(t *testing.T, _ []byte) {
 				result := map[string]interface{}{}
 				assert.Equal(t, 0, len(result))
 			},
@@ -1057,7 +1057,7 @@ func TestGetStatusByMultipleSections(t *testing.T) {
 			format:        "json",
 			sections:      []string{"fake_moo_1"},
 			shouldSuccess: false,
-			assertFunc: func(t *testing.T, bytes []byte) {
+			assertFunc: func(t *testing.T, _ []byte) {
 				result := map[string]interface{}{}
 				assert.Equal(t, 0, len(result))
 			},

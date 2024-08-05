@@ -32,7 +32,7 @@ func TestDownloadCommand(t *testing.T) {
 		{
 			name:     "runtime download",
 			cliInput: []string{"download"},
-			check: func(cliParams *downloadPolicyCliParams, params core.BundleParams) {
+			check: func(_ *downloadPolicyCliParams, params core.BundleParams) {
 				// Verify logger defaults
 				require.Equal(t, "SYS-PROBE", params.LoggerName(), "logger name not matching")
 				require.Equal(t, "info", params.LogLevelFn(nil), "log level not matching")

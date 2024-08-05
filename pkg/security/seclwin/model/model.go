@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
+	"modernc.org/mathutil"
 )
 
 // Model describes the data model for the runtime security agent events
@@ -106,8 +107,8 @@ type NetworkContext struct {
 
 // SpanContext describes a span context
 type SpanContext struct {
-	SpanID  uint64 `field:"_"`
-	TraceID uint64 `field:"_"`
+	SpanID  uint64          `field:"-"`
+	TraceID mathutil.Int128 `field:"-"`
 }
 
 // BaseEvent represents an event sent from the kernel
