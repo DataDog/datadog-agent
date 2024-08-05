@@ -15,4 +15,6 @@ type Model interface {
 	GetIterator(field Field) (Iterator, error)
 	// NewEvent returns a new event instance
 	NewEvent() Event
+	// GetFieldRestrictions returns the event type for which the field is available
+	GetFieldRestrictions(field Field) []EventType
 }

@@ -119,7 +119,7 @@ func assertErrorCount(t *testing.T, c check.Check, count int) {
 func TestWorkerInit(t *testing.T) {
 	checksTracker := &tracker.RunningChecksTracker{}
 	pendingChecksChan := make(chan check.Check, 1)
-	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
 	senderManager := aggregator.NewNoOpSenderManager()
 	_, err := NewWorker(senderManager, 1, 2, nil, checksTracker, mockShouldAddStatsFunc)
@@ -139,7 +139,7 @@ func TestWorkerInit(t *testing.T) {
 func TestWorkerInitExpvarStats(t *testing.T) {
 	checksTracker := &tracker.RunningChecksTracker{}
 	pendingChecksChan := make(chan check.Check, 1)
-	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
 	var wg sync.WaitGroup
 
@@ -168,7 +168,7 @@ func TestWorkerInitExpvarStats(t *testing.T) {
 func TestWorkerName(t *testing.T) {
 	checksTracker := &tracker.RunningChecksTracker{}
 	pendingChecksChan := make(chan check.Check, 1)
-	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
 	for _, id := range []int{1, 100, 500} {
 		expectedName := fmt.Sprintf("worker_%d", id)
@@ -188,7 +188,7 @@ func TestWorker(t *testing.T) {
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
-	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
 	testCheck1 := newCheck(t, "testing:123", false, nil)
 	testCheck2 := newCheck(t, "testing2:234", false, nil)
@@ -264,7 +264,7 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
-	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
 	blockingCheck := newCheck(t, "testing:123", false, nil)
 	longRunningCheck := &testCheck{
@@ -334,7 +334,7 @@ func TestWorkerErrorAndWarningHandling(t *testing.T) {
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
-	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
 	config.Datadog().SetWithoutSource("hostname", "myhost")
 
@@ -387,7 +387,7 @@ func TestWorkerConcurrentCheckScheduling(t *testing.T) {
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
-	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
 	config.Datadog().SetWithoutSource("hostname", "myhost")
 
@@ -478,7 +478,7 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
-	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
 	goodCheck := newCheck(t, "goodcheck:123", false, nil)
 	checkWithError := newCheck(t, "check_witherr:123", true, nil)
@@ -561,7 +561,7 @@ func TestWorkerSenderNil(t *testing.T) {
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
-	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
 	pendingChecksChan <- newCheck(t, "goodcheck:123", false, nil)
 	close(pendingChecksChan)
@@ -592,7 +592,7 @@ func TestWorkerServiceCheckSendingLongRunningTasks(t *testing.T) {
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
-	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
 	longRunningCheck := &testCheck{
 		t:           t,

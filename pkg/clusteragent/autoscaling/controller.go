@@ -61,7 +61,7 @@ func NewController(
 	if _, err := mainInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.enqueue,
 		DeleteFunc: c.enqueue,
-		UpdateFunc: func(obj, new interface{}) {
+		UpdateFunc: func(_, new interface{}) {
 			c.enqueue(new)
 		},
 	}); err != nil {

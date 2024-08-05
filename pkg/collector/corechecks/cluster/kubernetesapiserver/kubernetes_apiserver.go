@@ -87,6 +87,7 @@ type KubeASConfig struct {
 	// CollectedEventTypes specifies which events to collect.
 	// Only effective when UnbundleEvents = true
 	CollectedEventTypes []collectedEventType `yaml:"collected_event_types"`
+	FilteringEnabled    bool                 `yaml:"filtering_enabled"`
 }
 
 type collectedEventType struct {
@@ -187,9 +188,9 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 	}
 
 	if k.instance.UnbundleEvents {
-		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, tagger.GetTaggerInstance(), k.instance.CollectedEventTypes, k.instance.BundleUnspecifiedEvents)
+		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, tagger.GetTaggerInstance(), k.instance.CollectedEventTypes, k.instance.BundleUnspecifiedEvents, k.instance.FilteringEnabled)
 	} else {
-		k.eventCollection.Transformer = newBundledTransformer(clusterName, tagger.GetTaggerInstance())
+		k.eventCollection.Transformer = newBundledTransformer(clusterName, tagger.GetTaggerInstance(), k.instance.CollectedEventTypes, k.instance.FilteringEnabled)
 	}
 
 	return nil

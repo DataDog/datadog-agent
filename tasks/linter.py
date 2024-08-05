@@ -192,12 +192,11 @@ def go(
 
     with gitlab_section('Linter execution time'):
         print(color_message('Execution time summary:', 'bold'))
+        for e in execution_times:
+            print(f'- {e.name}: {e.duration:.1f}s')
 
     with gitlab_section('Linter failures'):
         success = process_module_results(flavor=flavor, module_results=lint_results)
-
-        for e in execution_times:
-            print(f'- {e.name}: {e.duration:.1f}s')
 
     if success:
         if not headless_mode:

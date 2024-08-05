@@ -295,7 +295,7 @@ func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInt
 		return nil, err
 	}
 
-	limiter, err := lru.NewWithEvict(1024, func(workloadSelector cgroupModel.WorkloadSelector, count *atomic.Uint64) {
+	limiter, err := lru.NewWithEvict(1024, func(_ cgroupModel.WorkloadSelector, _ *atomic.Uint64) {
 	})
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create dump limiter: %w", err)
@@ -457,7 +457,7 @@ func (adm *ActivityDumpManager) HandleCGroupTracingEvent(event *model.CgroupTrac
 		return
 	}
 
-	if err := adm.startDumpWithConfig(string(event.ContainerContext.ContainerID), event.CGroupFlags, event.ConfigCookie, event.Config); err != nil {
+	if err := adm.startDumpWithConfig(string(event.ContainerContext.ContainerID), uint64(event.CGroupContext.CGroupFlags), event.ConfigCookie, event.Config); err != nil {
 		seclog.Warnf("%v", err)
 	}
 }

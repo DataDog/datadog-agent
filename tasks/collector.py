@@ -116,7 +116,7 @@ def generate(ctx):
             print(f"Removing file: {file_path}")
             os.remove(file_path)
 
-    # Rename package main to package collectorcontrib and ensure license header in comp/otelcol/collector-contrib/impl
+    # Rename package main to package collectorcontribimpl and ensure license header in comp/otelcol/collector-contrib/impl
     for root, _, files in os.walk(impl_path):
         for file in files:
             if file.endswith(".go"):
@@ -129,7 +129,7 @@ def generate(ctx):
                     content = LICENSE_HEADER + "\n" + content
 
                 # Rename package
-                content = content.replace("package main", "package collectorcontrib")
+                content = content.replace("package main", "package collectorcontribimpl")
 
                 with open(file_path, "w") as f:
                     f.write(content)

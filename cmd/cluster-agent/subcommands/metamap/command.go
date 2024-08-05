@@ -40,7 +40,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 One can easily identify which pods are running on which nodes,
 as well as which services are serving the pods. Or the deployment name for the pod`,
 		Example: "datadog-cluster-agent metamap ip-10-0-115-123",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),

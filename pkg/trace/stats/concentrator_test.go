@@ -362,7 +362,7 @@ func TestConcentratorStatsTotals(t *testing.T) {
 	traceutil.ComputeTopLevel(spans)
 	testTrace := toProcessedTrace(spans, "none", "", "", "", "")
 
-	t.Run("ok", func(t *testing.T) {
+	t.Run("ok", func(_ *testing.T) {
 		c.addNow(testTrace, "", nil)
 
 		var duration uint64
@@ -692,7 +692,7 @@ func TestDistributions(t *testing.T) {
 	now := time.Now()
 	testQuantiles := []float64{0.1, 0.5, 0.95, 0.99, 1}
 	t.Run("constant", func(t *testing.T) {
-		constantDistribution := generateDistribution(t, now, func(i int) int64 { return 42 })
+		constantDistribution := generateDistribution(t, now, func(_ int) int64 { return 42 })
 		expectedConstant := []float64{42, 42, 42, 42, 42}
 		for i, q := range testQuantiles {
 			actual, err := constantDistribution.GetValueAtQuantile(q)
@@ -798,7 +798,7 @@ func TestPeerTags(t *testing.T) {
 		Meta:     map[string]string{"span.kind": "client", "db.instance": "i-1234", "db.system": "postgres", "region": "us1"},
 		Metrics:  map[string]float64{"_dd.measured": 1.0},
 	}
-	t.Run("not configured", func(t *testing.T) {
+	t.Run("not configured", func(_ *testing.T) {
 		spans := []*pb.Span{sp, sp2}
 		traceutil.ComputeTopLevel(spans)
 		testTrace := toProcessedTrace(spans, "none", "", "", "", "")
@@ -810,7 +810,7 @@ func TestPeerTags(t *testing.T) {
 			assert.Nil(st.PeerTags)
 		}
 	})
-	t.Run("configured", func(t *testing.T) {
+	t.Run("configured", func(_ *testing.T) {
 		spans := []*pb.Span{sp, sp2}
 		traceutil.ComputeTopLevel(spans)
 		testTrace := toProcessedTrace(spans, "none", "", "", "", "")
@@ -875,7 +875,7 @@ func TestComputeStatsThroughSpanKindCheck(t *testing.T) {
 		Duration: 75,
 		Meta:     map[string]string{"span.kind": "client"},
 	}
-	t.Run("disabled", func(t *testing.T) {
+	t.Run("disabled", func(_ *testing.T) {
 		spans := []*pb.Span{sp, topLevelInternalSpan, measuredInternalSpan, clientSpan}
 		traceutil.ComputeTopLevel(spans)
 		testTrace := toProcessedTrace(spans, "none", "", "", "", "")
@@ -893,7 +893,7 @@ func TestComputeStatsThroughSpanKindCheck(t *testing.T) {
 		}
 		assert.Equal(map[string]struct{}{"http.server.request": {}, "internal.op1": {}, "internal.op2": {}}, opNames)
 	})
-	t.Run("enabled", func(t *testing.T) {
+	t.Run("enabled", func(_ *testing.T) {
 		spans := []*pb.Span{sp, topLevelInternalSpan, measuredInternalSpan, clientSpan}
 		traceutil.ComputeTopLevel(spans)
 		testTrace := toProcessedTrace(spans, "none", "", "", "", "")

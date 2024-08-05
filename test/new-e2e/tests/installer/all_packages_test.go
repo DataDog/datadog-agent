@@ -31,13 +31,6 @@ type packageTestsWithSkipedFlavors struct {
 	skippedFlavors []e2eos.Descriptor
 }
 
-type testPackageConfig struct {
-	name           string
-	defaultVersion string
-	registry       string
-	auth           string
-}
-
 var (
 	amd64Flavors = []e2eos.Descriptor{
 		e2eos.Ubuntu2204,
@@ -192,7 +185,7 @@ func (s *packageBaseSuite) RunInstallScriptProdOci(params ...string) error {
 }
 
 func (s *packageBaseSuite) RunInstallScriptWithError(params ...string) error {
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://install.datadoghq.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(installScriptEnv(s.arch)))
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://install.datadoghq.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(InstallScriptEnv(s.arch)))
 	return err
 }
 
