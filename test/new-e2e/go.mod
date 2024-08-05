@@ -263,4 +263,4 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-require github.com/hairyhenderson/go-codeowners v0.5.0 // indirect
+require github.com/hairyhenderson/go-codeowners v0.5.0
