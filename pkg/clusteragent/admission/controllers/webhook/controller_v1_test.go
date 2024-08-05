@@ -51,7 +51,7 @@ func TestSecretNotFoundV1(t *testing.T) {
 	defer close(stopCh)
 	c := f.run(stopCh)
 
-	_, err := c.webhooksLister.Get(v1Cfg.getWebhookName())
+	_, err := c.mutatingWebhooksLister.Get(v1Cfg.getWebhookName())
 	if !errors.IsNotFound(err) {
 		t.Fatal("Webhook shouldn't be created")
 	}
@@ -79,7 +79,7 @@ func TestCreateWebhookV1(t *testing.T) {
 
 	var webhook *admiv1.MutatingWebhookConfiguration
 	require.Eventually(t, func() bool {
-		webhook, err = c.webhooksLister.Get(v1Cfg.getWebhookName())
+		webhook, err = c.mutatingWebhooksLister.Get(v1Cfg.getWebhookName())
 		return err == nil
 	}, waitFor, tick)
 
@@ -128,7 +128,7 @@ func TestUpdateOutdatedWebhookV1(t *testing.T) {
 
 	var newWebhook *admiv1.MutatingWebhookConfiguration
 	require.Eventually(t, func() bool {
-		newWebhook, err = c.webhooksLister.Get(v1Cfg.getWebhookName())
+		newWebhook, err = c.mutatingWebhooksLister.Get(v1Cfg.getWebhookName())
 		return err == nil && !reflect.DeepEqual(webhook, newWebhook)
 	}, waitFor, tick)
 
@@ -965,7 +965,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			c.mutatingWebhooks = mutatingWebhooks(wmeta, nil)
 			c.generateTemplates()
 
-			assert.EqualValues(t, tt.want(), c.webhookTemplates)
+			assert.EqualValues(t, tt.want(), c.mutatingWebhookTemplates)
 		})
 	}
 }
