@@ -255,6 +255,199 @@ func TestRateLimiter(t *testing.T) {
 	ts.validateMaximum(t, maximumTelemetry)
 }
 
+// Test that the rate limiter throttles the limit down when the error threshold is reached, and throttles the limit back up
+// after a recovery interval when queries are once again successful.
+func TestRateLimiterThrottled(t *testing.T) {
+	overrides := map[string]interface{}{
+		"network_devices.netflow.reverse_dns_enrichment_enabled":       true,
+		"reverse_dns_enrichment.workers":                               2,
+		"reverse_dns_enrichment.cache.max_retries":                     1,
+		"reverse_dns_enrichment.rate_limiter.limit_per_sec":            50,
+		"reverse_dns_enrichment.rate_limiter.limit_throttled_per_sec":  1,
+		"reverse_dns_enrichment.rate_limiter.throttle_error_threshold": 4,
+		"reverse_dns_enrichment.rate_limiter.recovery_intervals":       5,
+		"reverse_dns_enrichment.rate_limiter.recovery_interval":        5 * time.Second,
+	}
+	ts := testSetup(t, overrides, true,
+		map[string]*fakeResults{
+			"192.168.1.30": {errors: []error{
+				&net.DNSError{Err: "test timeout error", IsTimeout: true},
+				&net.DNSError{Err: "test timeout error", IsTimeout: true},
+			}},
+			"192.168.1.31": {errors: []error{
+				&net.DNSError{Err: "test timeout error", IsTimeout: true},
+				&net.DNSError{Err: "test timeout error", IsTimeout: true},
+			}},
+		},
+	)
+
+	var wg sync.WaitGroup
+
+	// Not throttled down yet so these should all complete quickly
+	wg.Add(20)
+	start := time.Now()
+	for i := range 20 {
+		err := ts.rdnsQuerier.GetHostname(
+			[]byte{192, 168, 1, byte(i)},
+			func(string) {
+				assert.FailNow(t, "Sync callback should not be called")
+			},
+			func(hostname string, err error) {
+				assert.NoError(t, err)
+				assert.Equal(t, fmt.Sprintf("fakehostname-192.168.1.%d", i), hostname)
+				wg.Done()
+			},
+		)
+		assert.NoError(t, err)
+	}
+	wg.Wait()
+	duration := time.Since(start)
+	assert.LessOrEqual(t, duration, 2*time.Second) // should all complete in < 1 sec., but allow some buffer for test timing
+
+	expectedTelemetry := ts.makeExpectedTelemetry(map[string]float64{
+		"total":      20.0,
+		"private":    20.0,
+		"chan_added": 20.0,
+		"cache_miss": 20.0,
+		"successful": 20.0,
+	})
+	ts.validateExpected(t, expectedTelemetry)
+	ts.validateExpectedGauge(t, "rate_limiter_limit", 50.0)
+
+	// These queries will get errors, exceeding throttle_error_threshold, which will cause the rate limiter to throttle down
+	wg.Add(2)
+	for i := 30; i < 32; i++ {
+		err := ts.rdnsQuerier.GetHostname(
+			[]byte{192, 168, 1, byte(i)},
+			func(string) {
+				assert.FailNow(t, "Sync callback should not be called")
+			},
+			func(hostname string, err error) {
+				assert.Error(t, err)
+				assert.Equal(t, "", hostname)
+				wg.Done()
+			},
+		)
+		assert.NoError(t, err)
+	}
+	wg.Wait()
+
+	expectedTelemetry = ts.makeExpectedTelemetry(map[string]float64{
+		"total":                  22.0,
+		"private":                22.0,
+		"chan_added":             24.0,
+		"lookup_err_timeout":     4.0,
+		"cache_miss":             22.0,
+		"successful":             20.0,
+		"cache_retry":            2.0,
+		"cache_retries_exceeded": 2.0,
+	})
+	ts.validateExpected(t, expectedTelemetry)
+	ts.validateExpectedGauge(t, "rate_limiter_limit", 1.0)
+
+	// The rate limiter is throttled now, but queries that are cache hits don't make it to the rate limiter so aren't throttled
+	wg.Add(20)
+	start = time.Now()
+	for i := range 20 {
+		err := ts.rdnsQuerier.GetHostname(
+			[]byte{192, 168, 1, byte(i)},
+			func(hostname string) {
+				assert.Equal(t, fmt.Sprintf("fakehostname-192.168.1.%d", i), hostname)
+				wg.Done()
+			},
+			func(string, error) {
+				assert.FailNow(t, "Async callback should not be called")
+			},
+		)
+		assert.NoError(t, err)
+	}
+	wg.Wait()
+	duration = time.Since(start)
+	assert.LessOrEqual(t, duration, 2*time.Second) // should all complete in < 1 sec., but allow some buffer for test timing
+
+	expectedTelemetry = ts.makeExpectedTelemetry(map[string]float64{
+		"total":                  42.0,
+		"private":                42.0,
+		"chan_added":             24.0,
+		"lookup_err_timeout":     4.0,
+		"cache_hit":              20.0,
+		"cache_miss":             22.0,
+		"successful":             20.0,
+		"cache_retry":            2.0,
+		"cache_retries_exceeded": 2.0,
+	})
+	ts.validateExpected(t, expectedTelemetry)
+
+	// Queries that are cache misses will be throttled by the rate limiter
+	wg.Add(6)
+	start = time.Now()
+	for i := 40; i < 46; i++ {
+		err := ts.rdnsQuerier.GetHostname(
+			[]byte{192, 168, 1, byte(i)},
+			func(string) {
+				assert.FailNow(t, "Sync callback should not be called")
+			},
+			func(hostname string, err error) {
+				assert.NoError(t, err)
+				assert.Equal(t, fmt.Sprintf("fakehostname-192.168.1.%d", i), hostname)
+				wg.Done()
+			},
+		)
+		assert.NoError(t, err)
+	}
+	wg.Wait()
+	duration = time.Since(start)
+	assert.GreaterOrEqual(t, duration, 5*time.Second)
+
+	expectedTelemetry = ts.makeExpectedTelemetry(map[string]float64{
+		"total":                  48.0,
+		"private":                48.0,
+		"chan_added":             30.0,
+		"lookup_err_timeout":     4.0,
+		"cache_hit":              20.0,
+		"cache_miss":             28.0,
+		"successful":             26.0,
+		"cache_retry":            2.0,
+		"cache_retries_exceeded": 2.0,
+	})
+	ts.validateExpected(t, expectedTelemetry)
+
+	// The successful queries above should have taken longer than the recovery interval so the rate limiter should have started throttling back up
+	wg.Add(10)
+	start = time.Now()
+	for i := 50; i < 60; i++ {
+		err := ts.rdnsQuerier.GetHostname(
+			[]byte{192, 168, 1, byte(i)},
+			func(string) {
+				assert.FailNow(t, "Sync callback should not be called")
+			},
+			func(hostname string, err error) {
+				assert.NoError(t, err)
+				assert.Equal(t, fmt.Sprintf("fakehostname-192.168.1.%d", i), hostname)
+				wg.Done()
+			},
+		)
+		assert.NoError(t, err)
+	}
+	wg.Wait()
+	duration = time.Since(start)
+	assert.LessOrEqual(t, duration, 2*time.Second) // should all complete in < 1 sec., but allow some buffer for test timing
+
+	expectedTelemetry = ts.makeExpectedTelemetry(map[string]float64{
+		"total":                  58.0,
+		"private":                58.0,
+		"chan_added":             40.0,
+		"lookup_err_timeout":     4.0,
+		"cache_hit":              20.0,
+		"cache_miss":             38.0,
+		"successful":             36.0,
+		"cache_retry":            2.0,
+		"cache_retries_exceeded": 2.0,
+	})
+	ts.validateExpected(t, expectedTelemetry)
+	ts.validateExpectedGauge(t, "rate_limiter_limit", 11.0)
+}
+
 // Test that when the rate limit is exceeded and the channel fills requests are dropped.
 func TestChannelFullRequestsDroppedWhenRateLimited(t *testing.T) {
 	overrides := map[string]interface{}{
@@ -374,7 +567,7 @@ func TestCacheHitInProgress(t *testing.T) {
 func TestRetries(t *testing.T) {
 	overrides := map[string]interface{}{
 		"network_devices.netflow.reverse_dns_enrichment_enabled":           true,
-		"network_devices.netflow.reverse_dns_enrichment_cache_max_retries": 3,
+		"network_devices.netflow.reverse_dns_enrichment.cache.max_retries": 3,
 	}
 	ts := testSetup(t, overrides, true,
 		map[string]*fakeResults{
@@ -665,6 +858,7 @@ func TestCacheExpiration(t *testing.T) {
 		"cache_expired": float64(num),
 	})
 	ts.validateExpected(t, expectedTelemetry)
+	ts.validateExpectedGauge(t, "cache_size", 0.0)
 
 	internalRDNSQuerier := ts.rdnsQuerier.(*rdnsQuerierImpl)
 	assert.NotNil(t, internalRDNSQuerier)
