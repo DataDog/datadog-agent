@@ -18,17 +18,19 @@ import (
 var (
 	// PackagesPath is the path to the packages directory.
 	PackagesPath string
+	// ConfigsPath is the path to the Fleet-managed configuration directory
+	ConfigsPath string
+	// LocksPath is the path to the locks directory.
+	LocksPath string
 
-	// LocksPack is the path to the locks directory.
-	LocksPack string
-
-	// DefaultConfigsDir is the default Agent configuration directory
-	DefaultConfigsDir string
+	// DefaultUserConfigsDir is the default Agent configuration directory
+	DefaultUserConfigsDir string
 )
 
 func init() {
 	datadogInstallerData, _ := winregistry.GetProgramDataDirForProduct("Datadog Installer")
 	PackagesPath = filepath.Join(datadogInstallerData, "packages")
-	LocksPack = filepath.Join(datadogInstallerData, "locks")
-	DefaultConfigsDir, _ = windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
+	ConfigsPath = filepath.Join(datadogInstallerData, "configs")
+	LocksPath = filepath.Join(datadogInstallerData, "locks")
+	DefaultUserConfigsDir, _ = windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
 }

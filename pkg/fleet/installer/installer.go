@@ -69,6 +69,7 @@ type installerImpl struct {
 	db         *db.PackagesDB
 	downloader *oci.Downloader
 	packages   *repository.Repositories
+	configs    *repository.Repositories
 
 	packagesDir    string
 	userConfigsDir string
@@ -76,9 +77,9 @@ type installerImpl struct {
 
 // NewInstaller returns a new Package Manager.
 func NewInstaller(env *env.Env) (Installer, error) {
-	err := ensurePackageDirExists()
+	err := ensureRepositoriesExist()
 	if err != nil {
-		return nil, fmt.Errorf("could not ensure packages directory exists: %w", err)
+		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
 	}
 	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(10*time.Second))
 	if err != nil {
@@ -87,9 +88,10 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	return &installerImpl{
 		db:         db,
 		downloader: oci.NewDownloader(env, http.DefaultClient),
-		packages:   repository.NewRepositories(paths.PackagesPath, paths.LocksPack),
+		packages:   repository.NewRepositories(paths.PackagesPath, paths.LocksPath),
+		configs:    repository.NewRepositories(paths.ConfigsPath, paths.LocksPath),
 
-		userConfigsDir: paths.DefaultConfigsDir,
+		userConfigsDir: paths.DefaultUserConfigsDir,
 		packagesDir:    paths.PackagesPath,
 	}, nil
 }
@@ -138,18 +140,6 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 		span.SetTag(ext.ResourceName, pkg.Name)
 		span.SetTag("package_version", pkg.Version)
 	}
-
-	for _, dependency := range packageDependencies[pkg.Name] {
-		installed, err := i.IsInstalled(ctx, dependency)
-		if err != nil {
-			return fmt.Errorf("could not check if required package %s is installed: %w", dependency, err)
-		}
-		if !installed {
-			// TODO: we should resolve the dependency version & install it instead
-			return fmt.Errorf("required package %s is not installed", dependency)
-		}
-	}
-
 	dbPkg, err := i.db.GetPackage(pkg.Name)
 	if err != nil && !errors.Is(err, db.ErrPackageNotFound) {
 		return fmt.Errorf("could not get package: %w", err)
@@ -180,6 +170,12 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
+	// if configsPath != "" {
+	// 	err = i.configs.Create(pkg.Name, filepath.Base(configsPath), configsPath)
+	// 	if err != nil {
+	// 		return fmt.Errorf("could not create config repository: %w", err)
+	// 	}
+	// }
 	err = i.setupPackage(ctx, pkg.Name, args)
 	if err != nil {
 		return fmt.Errorf("could not setup package: %w", err)
@@ -297,12 +293,16 @@ func (i *installerImpl) Purge(ctx context.Context) {
 		log.Warnf("could not remove installer: %v", err)
 	}
 
+	err = os.RemoveAll(paths.ConfigsPath)
+	if err != nil {
+		log.Warnf("could not delete configs dir: %v", err)
+	}
 	// remove all from disk
 	span, _ := tracer.StartSpanFromContext(ctx, "remove_all")
 	err = os.RemoveAll(paths.PackagesPath)
 	defer span.Finish(tracer.WithError(err))
 	if err != nil {
-		log.Warnf("could not remove path: %v", err)
+		log.Warnf("could not delete packages dir: %v", err)
 	}
 }
 
@@ -465,10 +465,14 @@ func checkAvailableDiskSpace(pkg *oci.DownloadedPackage, path string) error {
 	return nil
 }
 
-func ensurePackageDirExists() error {
+func ensureRepositoriesExist() error {
 	err := os.MkdirAll(paths.PackagesPath, 0755)
 	if err != nil {
 		return fmt.Errorf("error creating packages directory: %w", err)
+	}
+	err = os.MkdirAll(paths.ConfigsPath, 0755)
+	if err != nil {
+		return fmt.Errorf("error creating configs directory: %w", err)
 	}
 	return nil
 }
