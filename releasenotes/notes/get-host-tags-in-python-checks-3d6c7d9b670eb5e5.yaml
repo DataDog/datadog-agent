@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Expose agent's get host tags function to python checks via new `datadog_agent.get_host_tags` method
+    Expose the Agent's get host tags function to python checks using the new `datadog_agent.get_host_tags` method.
