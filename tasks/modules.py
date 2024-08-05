@@ -395,15 +395,40 @@ def go_work(_: Context):
 
 
 @task
-def for_each(ctx: Context, cmd: str, skip_untagged: bool = False):
+def for_each(
+    ctx: Context,
+    cmd: str,
+    skip_untagged: bool = False,
+    ignore_errors: bool = False,
+    use_targets_path: bool = False,
+    use_lint_targets_path: bool = False,
+    skip_condition: bool = False,
+):
     """
     Run the given command in the directory of each module.
     """
+    assert not (
+        use_targets_path and use_lint_targets_path
+    ), "Only one of use_targets_path and use_lint_targets_path can be set"
+
     for mod in DEFAULT_MODULES.values():
         if skip_untagged and not mod.should_tag:
             continue
-        with ctx.cd(mod.full_path()):
-            ctx.run(cmd)
+        if skip_condition and not mod.condition():
+            continue
+
+        targets = [mod.full_path()]
+        if use_targets_path:
+            targets = [os.path.join(mod.full_path(), target) for target in mod.targets]
+        if use_lint_targets_path:
+            targets = [os.path.join(mod.full_path(), target) for target in mod.lint_targets]
+
+        for target in targets:
+            with ctx.cd(target):
+                res = ctx.run(cmd, warn=True)
+                assert res is not None
+                if res.failed and not ignore_errors:
+                    raise Exit(f"Command failed in {target}")
 
 
 @task
