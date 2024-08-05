@@ -190,7 +190,7 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 		socketPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.CallContentSubtype(api.VTProtoCodecName)),
-		grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
+		grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
 			return net.Dial(family, url)
 		}),
 		grpc.WithConnectParams(grpc.ConnectParams{

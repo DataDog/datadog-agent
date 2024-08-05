@@ -19,7 +19,7 @@ func NewGetConnectionsCommand(cl **client.Client) (cmd *cobra.Command) {
 	cmd = &cobra.Command{
 		Use:   "connections",
 		Short: "Get connections",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			conns, err := (*cl).GetConnections()
 			if err != nil {
 				return err

@@ -204,6 +204,9 @@ func TestHandleKubePod(t *testing.T) {
 				// QOS tags
 				QOSClass: "guaranteed",
 
+				// Runtime Class tag
+				RuntimeClass: "myclass",
+
 				// Phase tags
 				Phase: "Running",
 
@@ -235,6 +238,7 @@ func TestHandleKubePod(t *testing.T) {
 						"kube_service:service1",
 						"kube_service:service2",
 						"kube_qos:guaranteed",
+						"kube_runtime_class:myclass",
 						"ns-team:containers",
 						"ns_env:dev",
 						"ns_tier:some_tier",
