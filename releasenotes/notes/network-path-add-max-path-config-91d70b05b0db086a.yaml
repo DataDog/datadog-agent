@@ -8,6 +8,6 @@
 ---
 enhancements:
   - |
-    Adds a default upper limit of 10000 to the number of Network Traffic
-    paths that will be captured at a single time. This limit can be
-    configured by the user to increase or decrease it as needed.
+    Adds a default upper limit of 10000 to the number of network traffic
+    paths that are captured at a single time. The user can increase or 
+    decrease this limit as needed.
