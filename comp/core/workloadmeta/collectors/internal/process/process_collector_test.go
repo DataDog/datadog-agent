@@ -60,8 +60,6 @@ func setUpCollectorTest(t *testing.T, configOverrides map[string]interface{}) co
 		workloadmetafxmock.MockModule(),
 	))
 
-	time.Sleep(time.Second)
-
 	wlmExtractor := processwlm.NewWorkloadMetaExtractor(mockStore.GetConfig())
 	mockProcessData, probe := NewProcessDataWithMockProbe(t)
 	mockProcessData.Register(wlmExtractor)
@@ -263,7 +261,7 @@ func TestProcessCollectorWithoutProcessCheck(t *testing.T) {
 			Cmdline: []string{"proc", "-h", "-v"},
 			Stats:   &procutil.Stats{CreateTime: 1},
 		},
-	}, nil).Maybe()
+	}, nil).Times(1)
 
 	// Testing container id enrichment
 	expectedCid := "container1"
