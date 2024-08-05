@@ -17,36 +17,33 @@ import (
 
 var mprotectCapabilities = Capabilities{
 	"mprotect.req_protection": {
-		PolicyFlags:     PolicyFlagFlags,
-		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
+		ValueTypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
 	"mprotect.vm_protection": {
-		PolicyFlags:     PolicyFlagFlags,
-		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
+		ValueTypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
 }
 
-func mprotectOnNewApprovers(approvers rules.Approvers) (ActiveApprovers, error) {
-	var mprotectApprovers []activeApprover
+func mprotectKFilters(approvers rules.Approvers) (ActiveKFilters, error) {
+	var mprotectKFilters []activeKFilter
 
 	for field, values := range approvers {
 		switch field {
 		case "mprotect.vm_protection":
-			approver, err := approveFlags("mprotect_vm_protection_approvers", intValues[int32](values)...)
+			kfilter, err := getFlagsKFilters("mprotect_vm_protection_approvers", intValues[int32](values)...)
 			if err != nil {
 				return nil, err
 			}
-			mprotectApprovers = append(mprotectApprovers, approver)
+			mprotectKFilters = append(mprotectKFilters, kfilter)
 		case "mprotect.req_protection":
-			approver, err := approveFlags("mprotect_req_protection_approvers", intValues[int32](values)...)
+			kfilter, err := getFlagsKFilters("mprotect_req_protection_approvers", intValues[int32](values)...)
 			if err != nil {
 				return nil, err
 			}
-			mprotectApprovers = append(mprotectApprovers, approver)
-
+			mprotectKFilters = append(mprotectKFilters, kfilter)
 		default:
 			return nil, fmt.Errorf("unknown field '%s'", field)
 		}
 	}
-	return newActiveKFilters(mprotectApprovers...), nil
+	return newActiveKFilters(mprotectKFilters...), nil
 }

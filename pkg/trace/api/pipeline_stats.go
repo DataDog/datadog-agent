@@ -61,7 +61,7 @@ func (r *HTTPReceiver) pipelineStatsProxyHandler() http.Handler {
 }
 
 func pipelineStatsErrorHandler(err error) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		msg := fmt.Sprintf("Pipeline stats forwarder is OFF: %v", err)
 		http.Error(w, msg, http.StatusInternalServerError)
 	})

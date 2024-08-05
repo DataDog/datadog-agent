@@ -41,7 +41,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Restart a given system-probe module",
 		Long:  ``,
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 			return fxutil.OneShot(moduleRestart,
 				fx.Supply(cliParams),

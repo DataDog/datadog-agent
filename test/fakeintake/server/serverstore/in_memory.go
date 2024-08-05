@@ -38,13 +38,14 @@ func newInMemoryStore() *inMemoryStore {
 }
 
 // AppendPayload adds a payload to the store and tries parsing and adding a dumped json to the parsed store
-func (s *inMemoryStore) AppendPayload(route string, data []byte, encoding string, collectTime time.Time) error {
+func (s *inMemoryStore) AppendPayload(route string, data []byte, encoding string, contentType string, collectTime time.Time) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	rawPayload := api.Payload{
-		Timestamp: collectTime,
-		Data:      data,
-		Encoding:  encoding,
+		Timestamp:   collectTime,
+		Data:        data,
+		Encoding:    encoding,
+		ContentType: contentType,
 	}
 	s.rawPayloads[route] = append(s.rawPayloads[route], rawPayload)
 	s.NbPayloads.WithLabelValues(route).Set(float64(len(s.rawPayloads[route])))

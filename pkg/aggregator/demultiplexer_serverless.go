@@ -148,7 +148,7 @@ func (d *ServerlessDemultiplexer) AggregateSample(sample metrics.MetricSample) {
 // In the Serverless Agent, consider using `AggregateSample` instead.
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func (d *ServerlessDemultiplexer) AggregateSamples(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
+func (d *ServerlessDemultiplexer) AggregateSamples(_ TimeSamplerID, samples metrics.MetricSampleBatch) {
 	d.flushLock.Lock()
 	defer d.flushLock.Unlock()
 	d.statsdWorker.samplesChan <- samples
@@ -157,7 +157,7 @@ func (d *ServerlessDemultiplexer) AggregateSamples(shard TimeSamplerID, samples 
 // SendSamplesWithoutAggregation is not supported in the Serverless Agent implementation.
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func (d *ServerlessDemultiplexer) SendSamplesWithoutAggregation(samples metrics.MetricSampleBatch) {
+func (d *ServerlessDemultiplexer) SendSamplesWithoutAggregation(_ metrics.MetricSampleBatch) {
 	panic("not implemented.")
 }
 

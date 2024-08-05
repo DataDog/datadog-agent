@@ -18,7 +18,7 @@ import (
 
 func TestFetchConfig(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		handler := func(w http.ResponseWriter, r *http.Request) {
+		handler := func(w http.ResponseWriter, _ *http.Request) {
 			w.Write([]byte(`{"key1": "value1"}`))
 		}
 
@@ -30,7 +30,7 @@ func TestFetchConfig(t *testing.T) {
 	})
 
 	t.Run("error", func(t *testing.T) {
-		handler := func(w http.ResponseWriter, r *http.Request) {
+		handler := func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 
@@ -41,7 +41,7 @@ func TestFetchConfig(t *testing.T) {
 	})
 
 	t.Run("invalid reply", func(t *testing.T) {
-		handler := func(w http.ResponseWriter, r *http.Request) {
+		handler := func(w http.ResponseWriter, _ *http.Request) {
 			w.Write([]byte("invalid json"))
 		}
 

@@ -190,7 +190,7 @@ func TestNixMissingMountValues(t *testing.T) {
 
 func TestFilterEmptySize(t *testing.T) {
 	// return 0 for every filesystem
-	mockSize := func(mount *mountinfo.Info) (uint64, error) {
+	mockSize := func(_ *mountinfo.Info) (uint64, error) {
 		return 0, nil
 	}
 
@@ -204,7 +204,7 @@ func TestFilterEmptySize(t *testing.T) {
 
 func TestFilterDev(t *testing.T) {
 	// return the same dev id for every filesystem
-	mockDev := func(mount *mountinfo.Info) (uint64, error) {
+	mockDev := func(_ *mountinfo.Info) (uint64, error) {
 		return 1, nil
 	}
 
