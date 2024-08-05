@@ -560,26 +560,42 @@ func TestRuleSetApprovers15(t *testing.T) {
 }
 
 func TestGetRuleEventType(t *testing.T) {
-	rule := eval.NewRule("aaa", `open.file.name == "test"`, &eval.Opts{})
+	t.Run("ok", func(t *testing.T) {
+		rule := eval.NewRule("aaa", `open.file.name == "test"`, &eval.Opts{})
 
-	pc := ast.NewParsingContext()
+		pc := ast.NewParsingContext()
 
-	if err := rule.GenEvaluator(&model.Model{}, pc); err != nil {
-		t.Fatal(err)
-	}
+		if err := rule.GenEvaluator(&model.Model{}, pc); err != nil {
+			t.Fatal(err)
+		}
 
-	eventType, err := GetRuleEventType(rule)
-	if err != nil {
-		t.Fatalf("should get an event type: %s", err)
-	}
+		eventType, err := GetRuleEventType(rule)
+		if err != nil {
+			t.Fatalf("should get an event type: %s", err)
+		}
 
-	event := model.NewFakeEvent()
-	fieldEventType, err := event.GetFieldEventType("open.file.name")
-	if err != nil {
-		t.Fatal("should get a field event type")
-	}
+		event := model.NewFakeEvent()
+		fieldEventType, err := event.GetFieldEventType("open.file.name")
+		if err != nil {
+			t.Fatal("should get a field event type")
+		}
 
-	if eventType != fieldEventType {
-		t.Fatal("unexpected event type")
-	}
+		if eventType != fieldEventType {
+			t.Fatal("unexpected event type")
+		}
+	})
+
+	t.Run("ko", func(t *testing.T) {
+		rule := eval.NewRule("aaa", `open.file.name == "test" && unlink.file.name == "123"`, &eval.Opts{})
+
+		pc := ast.NewParsingContext()
+
+		if err := rule.GenEvaluator(&model.Model{}, pc); err == nil {
+			t.Fatalf("shouldn't get an evaluator, multiple event types: %s", err)
+		}
+
+		if _, err := GetRuleEventType(rule); err == nil {
+			t.Fatalf("shouldn't get an event type: %s", err)
+		}
+	})
 }
