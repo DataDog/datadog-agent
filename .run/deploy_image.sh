@@ -20,7 +20,6 @@ REGION="us-east-1"
 REPOSITORY_NAME="usm-agent"
 
 # Login to Amazon ECR
-echo "hello"
 echo $AWS_ECR_LOGIN_PASSWORD | docker login --username AWS --password-stdin "$AWS_ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com"
 
 # Build and push the Docker image
