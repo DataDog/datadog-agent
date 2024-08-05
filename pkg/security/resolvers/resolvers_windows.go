@@ -9,7 +9,7 @@ package resolvers
 import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
@@ -29,13 +29,13 @@ type Resolvers struct {
 }
 
 // NewResolvers creates a new instance of Resolvers
-func NewResolvers(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, telemetry telemetry.Component) (*Resolvers, error) {
+func NewResolvers(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, tagger tagger.Component) (*Resolvers, error) {
 	processResolver, err := process.NewResolver(config, statsdClient, scrubber, process.NewResolverOpts())
 	if err != nil {
 		return nil, err
 	}
 
-	tagsResolver := tags.NewResolver(config.Probe, telemetry)
+	tagsResolver := tags.NewResolver(config.Probe, tagger)
 
 	userSessionsResolver, err := usersessions.NewResolver(config.RuntimeSecurity)
 	if err != nil {
