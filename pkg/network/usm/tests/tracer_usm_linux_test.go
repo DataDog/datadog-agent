@@ -279,11 +279,6 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *tracer.Tracer, c
 	})
 }
 
-type tlsTestCommand struct {
-	version        uint16
-	openSSLCommand []string
-}
-
 func getFreePort() (port uint16, err error) {
 	var a *net.TCPAddr
 	if a, err = net.ResolveTCPAddr("tcp", "localhost:0"); err == nil {
@@ -309,25 +304,6 @@ func (s *USMSuite) TestTLSClassification() {
 		t.Skip("TLS classification platform not supported")
 	}
 
-	scenarios := []tlsTestCommand{
-		{
-			version:        tls.VersionTLS10,
-			openSSLCommand: []string{"-tls1", "-cipher=DEFAULT@SECLEVEL=0"},
-		},
-		{
-			version:        tls.VersionTLS11,
-			openSSLCommand: []string{"-tls1_1", "-cipher=DEFAULT@SECLEVEL=0"},
-		},
-		{
-			version:        tls.VersionTLS12,
-			openSSLCommand: []string{"-tls1_2"},
-		},
-		{
-			version:        tls.VersionTLS13,
-			openSSLCommand: []string{"-tls1_3"},
-		},
-	}
-
 	port, err := getFreePort()
 	require.NoError(t, err)
 	portAsString := strconv.Itoa(int(port))
@@ -339,15 +315,15 @@ func (s *USMSuite) TestTLSClassification() {
 		postTracerSetup func(t *testing.T)
 		validation      func(t *testing.T, tr *tracer.Tracer)
 	}
-	tests := make([]tlsTest, 0, len(scenarios))
-	for _, scenario := range scenarios {
+	tests := make([]tlsTest, 0)
+	for _, scenario := range []uint16{tls.VersionTLS10, tls.VersionTLS11, tls.VersionTLS12, tls.VersionTLS13} {
 		scenario := scenario
-		if scenario.version == tls.VersionTLS10 || scenario.version == tls.VersionTLS11 {
+		if scenario == tls.VersionTLS10 || scenario == tls.VersionTLS11 {
 			// Only tests for TLS 1.2 and 1.3 are expected to pass until PR#26591 is reintroduced.
 			continue
 		}
 		tests = append(tests, tlsTest{
-			name: strings.Replace(tls.VersionName(scenario.version), " ", "-", 1) + "_docker",
+			name: strings.Replace(tls.VersionName(scenario), " ", "-", 1) + "_docker",
 			postTracerSetup: func(t *testing.T) {
 				srv := testutil.NewTLSServerWithSpecificVersion("localhost:"+portAsString, func(conn net.Conn) {
 					defer conn.Close()
@@ -357,13 +333,13 @@ func (s *USMSuite) TestTLSClassification() {
 						fmt.Printf("Failed to echo data: %v\n", err)
 						return
 					}
-				}, scenario.version)
+				}, scenario)
 				done := make(chan struct{})
 				require.NoError(t, srv.Run(done))
 				t.Cleanup(func() { close(done) })
 				tlsConfig := &tls.Config{
-					MinVersion:         scenario.version,
-					MaxVersion:         scenario.version,
+					MinVersion:         scenario,
+					MaxVersion:         scenario,
 					InsecureSkipVerify: true,
 				}
 				conn, err := net.Dial("tcp", "localhost:"+portAsString)

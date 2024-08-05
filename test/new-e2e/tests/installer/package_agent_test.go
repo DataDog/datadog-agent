@@ -51,6 +51,12 @@ func (s *packageAgentSuite) TestInstall() {
 
 	state.AssertFileExists("/etc/datadog-agent/install_info", 0644, "root", "root")
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
+
+	agentVersion := s.host.AgentStableVersion()
+	agentDir := fmt.Sprintf("/opt/datadog-packages/datadog-agent/%s", agentVersion)
+
+	state.AssertDirExists(agentDir, 0755, "dd-agent", "dd-agent")
+	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", agentDir, "root", "root")
 	// FIXME: this file is either dd-agent or root depending on the OS for some reason
 	// state.AssertFileExists("/etc/datadog-agent/install.json", 0644, "dd-agent", "dd-agent")
 }

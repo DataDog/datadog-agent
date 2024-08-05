@@ -22,6 +22,7 @@ import (
 
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -48,18 +49,22 @@ type store = autoscaling.Store[model.PodAutoscalerInternal]
 type Controller struct {
 	*autoscaling.Controller
 
-	eventRecorder record.EventRecorder
+	clusterID string
+	clock     clock.Clock
 
-	clock clock.Clock
-	store *store
+	eventRecorder record.EventRecorder
+	store         *store
 
 	podWatcher           podWatcher
 	horizontalController *horizontalController
 	verticalController   *verticalController
+
+	localSender sender.Sender
 }
 
 // newController returns a new workload autoscaling controller
 func newController(
+	clusterID string,
 	eventRecorder record.EventRecorder,
 	restMapper apimeta.RESTMapper,
 	scaleClient scaleclient.ScalesGetter,
@@ -68,10 +73,13 @@ func newController(
 	isLeader func() bool,
 	store *store,
 	podWatcher podWatcher,
+	localSender sender.Sender,
 ) (*Controller, error) {
 	c := &Controller{
-		eventRecorder: eventRecorder,
+		clusterID:     clusterID,
 		clock:         clock.RealClock{},
+		eventRecorder: eventRecorder,
+		localSender:   localSender,
 	}
 
 	baseController, err := autoscaling.NewController(controllerID, c, dynamicClient, dynamicInformer, podAutoscalerGVR, isLeader, store)
@@ -88,6 +96,11 @@ func newController(
 	c.verticalController = newVerticalController(c.clock, eventRecorder, dynamicClient, c.podWatcher)
 
 	return c, nil
+}
+
+// PreStart is called before the controller starts
+func (c *Controller) PreStart(ctx context.Context) {
+	startLocalTelemetry(ctx, c.localSender, []string{"kube_cluster_id:" + c.clusterID})
 }
 
 // Process implements the Processor interface (so required to be public)
