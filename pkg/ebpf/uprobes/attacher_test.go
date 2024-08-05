@@ -39,7 +39,7 @@ func TestCanCreateAttacher(t *testing.T) {
 
 func TestAttachPidExcludesInternal(t *testing.T) {
 	exe := "datadog-agent/bin/system-probe"
-	procRoot := createFakeProcFS(t, []FakeProcFSEntry{{pid: 1, cmdline: exe, command: exe, exe: exe}})
+	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: 1, Cmdline: exe, Command: exe, Exe: exe}})
 	config := &AttacherConfig{
 		ExcludeTargets: ExcludeInternal,
 		ProcRoot:       procRoot,
@@ -66,7 +66,7 @@ func TestAttachPidExcludesSelf(t *testing.T) {
 
 func TestGetExecutablePath(t *testing.T) {
 	exe := "/bin/bash"
-	procRoot := createFakeProcFS(t, []FakeProcFSEntry{{pid: 1, cmdline: "", command: exe, exe: exe}})
+	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: 1, Cmdline: "", Command: exe, Exe: exe}})
 	config := &AttacherConfig{
 		ProcRoot: procRoot,
 	}
@@ -109,7 +109,7 @@ ffffe000-fffff000 r-xp 00000000 00:00 0          [vdso]
 
 func TestGetLibrariesFromMapsFile(t *testing.T) {
 	pid := 1
-	procRoot := createFakeProcFS(t, []FakeProcFSEntry{{pid: uint32(pid), maps: mapsFileSample}})
+	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: uint32(pid), Maps: mapsFileSample}})
 	config := &AttacherConfig{
 		ProcRoot: procRoot,
 	}
@@ -297,12 +297,12 @@ func TestSync(t *testing.T) {
 
 	t.Run("DetectsExistingProcesses", func(tt *testing.T) {
 		procs := []FakeProcFSEntry{
-			{pid: 1, cmdline: "/bin/bash", command: "/bin/bash", exe: "/bin/bash"},
-			{pid: 2, cmdline: "/bin/bash", command: "/bin/bash", exe: "/bin/bash"},
-			{pid: 3, cmdline: "/bin/donttrack", command: "/bin/donttrack", exe: "/bin/donttrack"},
-			{pid: uint32(selfPID), cmdline: "datadog-agent/bin/system-probe", command: "sysprobe", exe: "sysprobe"},
+			{Pid: 1, Cmdline: "/bin/bash", Command: "/bin/bash", Exe: "/bin/bash"},
+			{Pid: 2, Cmdline: "/bin/bash", Command: "/bin/bash", Exe: "/bin/bash"},
+			{Pid: 3, Cmdline: "/bin/donttrack", Command: "/bin/donttrack", Exe: "/bin/donttrack"},
+			{Pid: uint32(selfPID), Cmdline: "datadog-agent/bin/system-probe", Command: "sysprobe", Exe: "sysprobe"},
 		}
-		procFS := createFakeProcFS(t, procs)
+		procFS := CreateFakeProcFS(t, procs)
 
 		config := &AttacherConfig{
 			ProcRoot: procFS,
@@ -328,12 +328,12 @@ func TestSync(t *testing.T) {
 
 	t.Run("RemovesDeletedProcesses", func(tt *testing.T) {
 		procs := []FakeProcFSEntry{
-			{pid: 1, cmdline: "/bin/bash", command: "/bin/bash", exe: "/bin/bash"},
-			{pid: 2, cmdline: "/bin/bash", command: "/bin/bash", exe: "/bin/bash"},
-			{pid: 3, cmdline: "/bin/donttrack", command: "/bin/donttrack", exe: "/bin/donttrack"},
-			{pid: uint32(selfPID), cmdline: "datadog-agent/bin/system-probe", command: "sysprobe", exe: "sysprobe"},
+			{Pid: 1, Cmdline: "/bin/bash", Command: "/bin/bash", Exe: "/bin/bash"},
+			{Pid: 2, Cmdline: "/bin/bash", Command: "/bin/bash", Exe: "/bin/bash"},
+			{Pid: 3, Cmdline: "/bin/donttrack", Command: "/bin/donttrack", Exe: "/bin/donttrack"},
+			{Pid: uint32(selfPID), Cmdline: "datadog-agent/bin/system-probe", Command: "sysprobe", Exe: "sysprobe"},
 		}
-		procFS := createFakeProcFS(t, procs)
+		procFS := CreateFakeProcFS(t, procs)
 
 		config := &AttacherConfig{
 			ProcRoot: procFS,
@@ -396,11 +396,11 @@ func TestParseSymbolFromEBPFProbeName(t *testing.T) {
 
 func TestAttachToBinaryAndDetach(t *testing.T) {
 	proc := FakeProcFSEntry{
-		pid:     1,
-		cmdline: "/bin/bash",
-		exe:     "/bin/bash",
+		Pid:     1,
+		Cmdline: "/bin/bash",
+		Exe:     "/bin/bash",
 	}
-	procFS := createFakeProcFS(t, []FakeProcFSEntry{proc})
+	procFS := CreateFakeProcFS(t, []FakeProcFSEntry{proc})
 
 	config := &AttacherConfig{
 		ProcRoot: procFS,
@@ -421,8 +421,8 @@ func TestAttachToBinaryAndDetach(t *testing.T) {
 	require.NotNil(t, ua)
 
 	target := utils.FilePath{
-		HostPath: proc.exe,
-		PID:      proc.pid,
+		HostPath: proc.Exe,
+		PID:      proc.Pid,
 	}
 
 	// Tell the inspector to return a simple symbol
@@ -444,7 +444,7 @@ func TestAttachToBinaryAndDetach(t *testing.T) {
 	}
 	mockMan.On("AddHook", mock.Anything, expectedProbe).Return(nil)
 
-	err = ua.attachToBinary(target, config.Rules, NewProcInfo(procFS, proc.pid))
+	err = ua.attachToBinary(target, config.Rules, NewProcInfo(procFS, proc.Pid))
 	require.NoError(t, err)
 	mockMan.AssertExpectations(t)
 
@@ -457,11 +457,11 @@ func TestAttachToBinaryAndDetach(t *testing.T) {
 
 func TestAttachToBinaryAtReturnLocation(t *testing.T) {
 	proc := FakeProcFSEntry{
-		pid:     1,
-		cmdline: "/bin/bash",
-		exe:     "/bin/bash",
+		Pid:     1,
+		Cmdline: "/bin/bash",
+		Exe:     "/bin/bash",
 	}
-	procFS := createFakeProcFS(t, []FakeProcFSEntry{proc})
+	procFS := CreateFakeProcFS(t, []FakeProcFSEntry{proc})
 
 	config := &AttacherConfig{
 		ProcRoot: procFS,
@@ -482,8 +482,8 @@ func TestAttachToBinaryAtReturnLocation(t *testing.T) {
 	require.NotNil(t, ua)
 
 	target := utils.FilePath{
-		HostPath: proc.exe,
-		PID:      proc.pid,
+		HostPath: proc.Exe,
+		PID:      proc.Pid,
 	}
 
 	// Tell the inspector to return a simple symbol
@@ -508,7 +508,7 @@ func TestAttachToBinaryAtReturnLocation(t *testing.T) {
 		mockMan.On("AddHook", mock.Anything, expectedProbe).Return(nil)
 	}
 
-	err = ua.attachToBinary(target, config.Rules, NewProcInfo(procFS, proc.pid))
+	err = ua.attachToBinary(target, config.Rules, NewProcInfo(procFS, proc.Pid))
 	require.NoError(t, err)
 	inspector.AssertExpectations(t)
 	mockMan.AssertExpectations(t)
@@ -520,12 +520,12 @@ const mapsFileWithSSL = `
 
 func TestAttachToLibrariesOfPid(t *testing.T) {
 	proc := FakeProcFSEntry{
-		pid:     1,
-		cmdline: "/bin/bash",
-		exe:     "/bin/bash",
-		maps:    mapsFileWithSSL,
+		Pid:     1,
+		Cmdline: "/bin/bash",
+		Exe:     "/bin/bash",
+		Maps:    mapsFileWithSSL,
 	}
-	procFS := createFakeProcFS(t, []FakeProcFSEntry{proc})
+	procFS := CreateFakeProcFS(t, []FakeProcFSEntry{proc})
 
 	config := &AttacherConfig{
 		ProcRoot: procFS,
@@ -565,7 +565,7 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 
 	target := utils.FilePath{
 		HostPath: "/usr/lib/libssl.so",
-		PID:      proc.pid,
+		PID:      proc.Pid,
 	}
 
 	// Tell the inspector to return a simple symbol
@@ -587,11 +587,11 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 	mockMan.On("AddHook", mock.Anything, expectedProbe).Return(nil)
 
 	// Tell the registry to expect the process
-	registry.On("Register", target.HostPath, uint32(proc.pid), mock.Anything, mock.Anything).Return(nil)
+	registry.On("Register", target.HostPath, uint32(proc.Pid), mock.Anything, mock.Anything).Return(nil)
 
 	// if this function calls the manager adding a probe with a different name than the one we requested, the test
 	// will fail
-	err = ua.attachToLibrariesOfPID(proc.pid)
+	err = ua.attachToLibrariesOfPID(proc.Pid)
 	require.NoError(t, err)
 
 	// We need to retrieve the calls from the registry and manually call the callback

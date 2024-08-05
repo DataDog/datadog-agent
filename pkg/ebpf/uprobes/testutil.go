@@ -82,38 +82,44 @@ func (m *MockBinaryInspector) Cleanup(fpath utils.FilePath) {
 
 // === Test utils
 type FakeProcFSEntry struct {
-	pid     uint32
-	cmdline string
-	command string
-	exe     string
-	maps    string
+	Pid     uint32
+	Cmdline string
+	Command string
+	Exe     string
+	Maps    string
 }
 
-func createFakeProcFS(t *testing.T, entries []FakeProcFSEntry) string {
+// CreateFakeProcFS creates a fake /proc filesystem with the given entries, useful for testing attachment to processes.
+func CreateFakeProcFS(t *testing.T, entries []FakeProcFSEntry) string {
 	procRoot := t.TempDir()
 
 	for _, entry := range entries {
-		baseDir := filepath.Join(procRoot, strconv.Itoa(int(entry.pid)))
+		baseDir := filepath.Join(procRoot, strconv.Itoa(int(entry.Pid)))
 
-		createFile(t, filepath.Join(baseDir, "cmdline"), entry.cmdline)
-		createFile(t, filepath.Join(baseDir, "comm"), entry.command)
-		createFile(t, filepath.Join(baseDir, "maps"), entry.maps)
-
-		if entry.exe != "" {
-			createSymlink(t, entry.exe, filepath.Join(baseDir, "exe"))
-		}
+		createFile(t, filepath.Join(baseDir, "cmdline"), entry.Cmdline)
+		createFile(t, filepath.Join(baseDir, "comm"), entry.Command)
+		createFile(t, filepath.Join(baseDir, "maps"), entry.Maps)
+		createSymlink(t, entry.Exe, filepath.Join(baseDir, "exe"))
 	}
 
 	return procRoot
 }
 
 func createFile(t *testing.T, path, data string) {
+	if data == "" {
+		return
+	}
+
 	dir := filepath.Dir(path)
 	require.NoError(t, os.MkdirAll(dir, 0775))
 	require.NoError(t, os.WriteFile(path, []byte(data), 0775))
 }
 
 func createSymlink(t *testing.T, target, link string) {
+	if target == "" {
+		return
+	}
+
 	dir := filepath.Dir(link)
 	require.NoError(t, os.MkdirAll(dir, 0775))
 	require.NoError(t, os.Symlink(target, link))
