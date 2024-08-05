@@ -1,3 +1,5 @@
+import os
+import shutil
 import sys
 
 from invoke import Exit, task
@@ -47,6 +49,28 @@ def install_tools(ctx):
                 with ctx.cd(path):
                     for tool in tools:
                         ctx.run(f"go install {tool}")
+        install_custom_golanci_lint(ctx)
+
+
+def install_custom_golanci_lint(ctx):
+    res = ctx.run("golangci-lint custom -v")
+    if res.ok:
+        gopath = os.getenv('GOPATH')
+        gobin = os.getenv('GOBIN')
+
+        if gopath is None and gobin is None:
+            print("Not able to install custom golangci-lint binary. golangci-lint won't work as expected")
+            raise Exit(code=1)
+
+        if gobin is not None and gopath is None:
+            shutil.move(f"{gobin}/golangci-lint", f"{gobin}/golangci-lint-backup")
+            shutil.move("golangci-lint", f"{gobin}/golangci-lint")
+
+        if gopath is not None:
+            shutil.move(f"{gopath}/bin/golangci-lint", f"{gopath}/bin/golangci-lint-backup")
+            shutil.move("golangci-lint", f"{gopath}/bin/golangci-lint")
+
+        print("Installed custom golangci-lint binary successfully")
 
 
 @task
