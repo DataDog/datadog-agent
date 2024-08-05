@@ -892,4 +892,4 @@ def _format_change(new: float, old: float):
         else:
             emoji = "🔴"
 
-    return f"{emoji} {new} ({change_abs:+.1}, {change_rel_str})"
+    return f"{emoji} {new} ({change_abs:+.1f}, {change_rel_str})"
