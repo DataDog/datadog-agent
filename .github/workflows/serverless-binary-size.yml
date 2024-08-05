@@ -2,9 +2,6 @@ name: "Serverless Binary Size"
 
 on:
   pull_request:
-  push:
-    branches:
-      - mq-working-branch-*
 
 env:
   SIZE_ALLOWANCE: fromJSON(1000000) # 1 MB
