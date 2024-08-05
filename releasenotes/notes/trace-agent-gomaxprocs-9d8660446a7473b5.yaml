@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    APM: Fixes issue where the number of HTTP Decoders was incorrectly set if setting GOMAXPROCS to milli-cpu values.
+    APM: Fixes issue where the number of HTTP decoders was incorrectly set if setting GOMAXPROCS to milli-cpu values.
