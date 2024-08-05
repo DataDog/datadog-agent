@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -49,7 +50,7 @@ const inactivityRestartDuration = 20 * time.Minute
 
 var networkTracerModuleConfigNamespaces = []string{"network_config", "service_monitoring_config"}
 
-func createNetworkTracerModule(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], telemetryComponent telemetryComponent.Component) (module.Module, error) {
+func createNetworkTracerModule(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], telemetryComponent telemetryComponent.Component, tagger tagger.Component) (module.Module, error) {
 	ncfg := networkconfig.New()
 
 	// Checking whether the current OS + kernel version is supported by the tracer

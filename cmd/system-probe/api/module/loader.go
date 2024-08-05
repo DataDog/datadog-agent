@@ -16,6 +16,7 @@ import (
 	"github.com/gorilla/mux"
 
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -64,7 +65,7 @@ func withModule(name sysconfigtypes.ModuleName, fn func()) {
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
 // * Register the gRPC server;
-func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []Factory, wmeta optional.Option[workloadmeta.Component], telemetry telemetry.Component) error {
+func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []Factory, wmeta optional.Option[workloadmeta.Component], telemetry telemetry.Component, tagger tagger.Component) error {
 	var enabledModulesFactories []Factory
 	for _, factory := range factories {
 		if !cfg.ModuleIsEnabled(factory.Name) {
@@ -82,7 +83,7 @@ func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []Facto
 		var err error
 		var module Module
 		withModule(factory.Name, func() {
-			module, err = factory.Fn(cfg, wmeta, telemetry)
+			module, err = factory.Fn(cfg, wmeta, telemetry, tagger)
 		})
 
 		// In case a module failed to be started, do not make the whole `system-probe` abort.
@@ -140,7 +141,7 @@ func GetStats() map[string]interface{} {
 }
 
 // RestartModule triggers a module restart
-func RestartModule(factory Factory, wmeta optional.Option[workloadmeta.Component], telemetry telemetry.Component) error {
+func RestartModule(factory Factory, wmeta optional.Option[workloadmeta.Component], telemetry telemetry.Component, tagger tagger.Component) error {
 	l.Lock()
 	defer l.Unlock()
 
@@ -157,7 +158,7 @@ func RestartModule(factory Factory, wmeta optional.Option[workloadmeta.Component
 	var err error
 	withModule(factory.Name, func() {
 		currentModule.Close()
-		newModule, err = factory.Fn(l.cfg, wmeta, telemetry)
+		newModule, err = factory.Fn(l.cfg, wmeta, telemetry, tagger)
 	})
 	if err != nil {
 		l.errors[factory.Name] = err

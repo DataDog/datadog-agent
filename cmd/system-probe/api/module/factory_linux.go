@@ -9,6 +9,7 @@ package module
 
 import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 
@@ -19,6 +20,6 @@ import (
 type Factory struct {
 	Name             sysconfigtypes.ModuleName
 	ConfigNamespaces []string
-	Fn               func(cfg *sysconfigtypes.Config, wmeta optional.Option[workloadmeta.Component], telemetry telemetry.Component) (Module, error)
+	Fn               func(cfg *sysconfigtypes.Config, wmeta optional.Option[workloadmeta.Component], telemetry telemetry.Component, tagger tagger.Component) (Module, error)
 	NeedsEBPF        func() bool
 }
