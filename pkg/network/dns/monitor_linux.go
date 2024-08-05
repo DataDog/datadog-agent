@@ -80,7 +80,9 @@ func NewReverseDNS(cfg *config.Config, _ telemetry.Component) (ReverseDNS, error
 			return nil, fmt.Errorf("error retrieving socket filter")
 		}
 
-		packetSrc.SetEbpf(filter)
+		if err = packetSrc.SetEbpf(filter); err != nil {
+			return nil, fmt.Errorf("could not set file descriptor for eBPF program: %w", err)
+		}
 	}
 
 	snoop, err := newSocketFilterSnooper(cfg, packetSrc)

@@ -106,11 +106,21 @@ func NewAFPacketSource(size int, opts ...interface{}) (*AFPacketSource, error) {
 	return ps, nil
 }
 
-func (p *AFPacketSource) SetEbpf(filter *manager.Probe) {
+func (p *AFPacketSource) SetEbpf(filter *manager.Probe) error {
 	// The underlying socket file descriptor is private, hence the use of reflection
 	// Point socket filter program to the RAW_SOCKET file descriptor
 	// Note the filter attachment itself is triggered by the ebpf.Manager
-	filter.SocketFD = int(reflect.ValueOf(p.TPacket).Elem().FieldByName("fd").Int())
+	f := reflect.ValueOf(p.TPacket).Elem().FieldByName("fd")
+	if !f.IsValid() {
+		return fmt.Errorf("could not find fd field in TPacket object")
+	}
+
+	if !f.CanInt() {
+		return fmt.Errorf("fd TPacket field is not an int")
+	}
+
+	filter.SocketFD = int(f.Int())
+	return nil
 }
 
 func (p *AFPacketSource) SetBPF(filter []bpf.RawInstruction) error {
