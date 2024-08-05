@@ -8,7 +8,6 @@ package stats
 import (
 	"fmt"
 	"math/rand"
-	"sort"
 	"testing"
 	"time"
 
@@ -106,7 +105,7 @@ func assertCountsEqual(t *testing.T, expected []*pb.ClientGroupedStats, actual [
 
 func TestNewConcentratorPeerTags(t *testing.T) {
 	statsd := &statsd.NoOpClient{}
-	t.Run("nothing enabled", func(t *testing.T) {
+	t.Run("no peer tags", func(t *testing.T) {
 		assert := assert.New(t)
 		cfg := config.AgentConfig{
 			BucketInterval: time.Duration(testBucketInterval),
@@ -115,79 +114,9 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 			Hostname:       "hostname",
 		}
 		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-		assert.False(c.peerTagsAggregation)
 		assert.Nil(c.peerTagKeys)
 	})
-	t.Run("deprecated peer service flag set", func(t *testing.T) {
-		assert := assert.New(t)
-		cfg := config.AgentConfig{
-			BucketInterval:         time.Duration(testBucketInterval),
-			AgentVersion:           "0.99.0",
-			DefaultEnv:             "env",
-			Hostname:               "hostname",
-			PeerServiceAggregation: true,
-		}
-		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-		assert.True(c.peerTagsAggregation)
-		assert.Equal(defaultPeerTags, c.peerTagKeys)
-	})
-	t.Run("deprecated peer service flag set + peer tags", func(t *testing.T) {
-		assert := assert.New(t)
-		cfg := config.AgentConfig{
-			BucketInterval:         time.Duration(testBucketInterval),
-			AgentVersion:           "0.99.0",
-			DefaultEnv:             "env",
-			Hostname:               "hostname",
-			PeerServiceAggregation: true,
-			PeerTags:               []string{"zz_tag"},
-		}
-		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-		assert.True(c.peerTagsAggregation)
-		assert.Equal(append(defaultPeerTags, "zz_tag"), c.peerTagKeys)
-	})
-	t.Run("deprecated peer service flag set + new peer tags aggregation flag", func(t *testing.T) {
-		assert := assert.New(t)
-		cfg := config.AgentConfig{
-			BucketInterval:         time.Duration(testBucketInterval),
-			AgentVersion:           "0.99.0",
-			DefaultEnv:             "env",
-			Hostname:               "hostname",
-			PeerServiceAggregation: true,
-			PeerTagsAggregation:    true,
-		}
-		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-		assert.True(c.peerTagsAggregation)
-		assert.Equal(defaultPeerTags, c.peerTagKeys)
-	})
-	t.Run("deprecated peer service flag set + new peer tags aggregation flag + peer tags", func(t *testing.T) {
-		assert := assert.New(t)
-		cfg := config.AgentConfig{
-			BucketInterval:         time.Duration(testBucketInterval),
-			AgentVersion:           "0.99.0",
-			DefaultEnv:             "env",
-			Hostname:               "hostname",
-			PeerServiceAggregation: true,
-			PeerTagsAggregation:    true,
-			PeerTags:               []string{"zz_tag"},
-		}
-		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-		assert.True(c.peerTagsAggregation)
-		assert.Equal(append(defaultPeerTags, "zz_tag"), c.peerTagKeys)
-	})
-	t.Run("new peer tags aggregation flag", func(t *testing.T) {
-		assert := assert.New(t)
-		cfg := config.AgentConfig{
-			BucketInterval:      time.Duration(testBucketInterval),
-			AgentVersion:        "0.99.0",
-			DefaultEnv:          "env",
-			Hostname:            "hostname",
-			PeerTagsAggregation: true,
-		}
-		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-		assert.True(c.peerTagsAggregation)
-		assert.Equal(defaultPeerTags, c.peerTagKeys)
-	})
-	t.Run("new peer tags aggregation flag + peer tags", func(t *testing.T) {
+	t.Run("with peer tags", func(t *testing.T) {
 		assert := assert.New(t)
 		cfg := config.AgentConfig{
 			BucketInterval:      time.Duration(testBucketInterval),
@@ -198,8 +127,7 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 			PeerTags:            []string{"zz_tag"},
 		}
 		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-		assert.True(c.peerTagsAggregation)
-		assert.Equal(append(defaultPeerTags, "zz_tag"), c.peerTagKeys)
+		assert.Equal(cfg.ConfiguredPeerTags(), c.peerTagKeys)
 	})
 }
 
@@ -816,7 +744,6 @@ func TestPeerTags(t *testing.T) {
 		testTrace := toProcessedTrace(spans, "none", "", "", "", "")
 		c := NewTestConcentrator(now)
 		c.peerTagKeys = []string{"db.instance", "db.system", "peer.service"}
-		c.peerTagsAggregation = true
 		c.addNow(testTrace, "", nil)
 		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
 		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
@@ -941,7 +868,6 @@ func TestVersionData(t *testing.T) {
 	traceutil.ComputeTopLevel(spans)
 	testTrace := toProcessedTrace(spans, "none", "", "v1.0.1", "abc", "abc123")
 	c := NewTestConcentrator(now)
-	c.peerTagsAggregation = true
 	c.addNow(testTrace, "", nil)
 	stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
 	assert.Len(stats.Stats[0].Stats[0].Stats, 2)
@@ -1032,82 +958,4 @@ func TestComputeStatsForSpanKind(t *testing.T) {
 	} {
 		assert.Equal(tc.res, computeStatsForSpanKind(tc.s))
 	}
-}
-
-func TestPreparePeerTags(t *testing.T) {
-	type testCase struct {
-		input  []string
-		output []string
-	}
-
-	for _, tc := range []testCase{
-		{
-			input:  nil,
-			output: nil,
-		},
-		{
-			input:  []string{},
-			output: nil,
-		},
-		{
-			input:  []string{"zz_tag", "peer.service", "some.other.tag", "db.name", "db.instance"},
-			output: []string{"db.name", "db.instance", "peer.service", "some.other.tag", "zz_tag"},
-		},
-		{
-			input:  append([]string{"zz_tag"}, defaultPeerTags...),
-			output: append(defaultPeerTags, "zz_tag"),
-		},
-	} {
-		sort.Strings(tc.output)
-		assert.Equal(t, tc.output, preparePeerTags(tc.input...))
-	}
-}
-
-func TestDefaultPeerTags(t *testing.T) {
-	expectedListOfPeerTags := []string{
-		"_dd.base_service",
-		"amqp.destination",
-		"amqp.exchange",
-		"amqp.queue",
-		"aws.queue.name",
-		"aws.s3.bucket",
-		"bucketname",
-		"cassandra.keyspace",
-		"db.cassandra.contact.points",
-		"db.couchbase.seed.nodes",
-		"db.hostname",
-		"db.instance",
-		"db.name",
-		"db.namespace",
-		"db.system",
-		"grpc.host",
-		"hostname",
-		"http.host",
-		"http.server_name",
-		"messaging.destination",
-		"messaging.destination.name",
-		"messaging.kafka.bootstrap.servers",
-		"messaging.rabbitmq.exchange",
-		"messaging.system",
-		"mongodb.db",
-		"msmq.queue.path",
-		"net.peer.name",
-		"network.destination.name",
-		"peer.hostname",
-		"peer.service",
-		"queuename",
-		"rpc.service",
-		"rpc.system",
-		"server.address",
-		"streamname",
-		"tablename",
-		"topicname",
-	}
-	actualListOfPeerTags := defaultPeerTags
-
-	// Sort both arrays for comparison
-	sort.Strings(actualListOfPeerTags)
-	sort.Strings(expectedListOfPeerTags)
-
-	assert.Equal(t, expectedListOfPeerTags, actualListOfPeerTags)
 }
