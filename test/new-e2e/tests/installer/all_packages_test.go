@@ -299,8 +299,6 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(params ...string) string {
 		switch key {
 		case "DD_REMOTE_UPDATES":
 			playbookStringSuffix += fmt.Sprintf("    datadog_remote_updates: %s\n", value)
-			// TODO: remove this when we don't require this setting in the playbook
-			playbookStringSuffix += "    datadog_apm_instrumentation_enabled: \"host\"\n"
 		case "DD_APM_INSTRUMENTATION_ENABLED":
 			playbookStringSuffix += fmt.Sprintf("    datadog_apm_instrumentation_enabled: \"%s\"\n", value)
 		case "DD_APM_INSTRUMENTATION_LIBRARIES":
