@@ -12,14 +12,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Factory encapsulates the initialization of a Module
 type Factory struct {
 	Name             sysconfigtypes.ModuleName
 	ConfigNamespaces []string
-	Fn               func(cfg *sysconfigtypes.Config, wmeta optional.Option[workloadmeta.Component], telemetry telemetry.Component, tagger tagger.Component) (Module, error)
+	Fn               func(cfg *sysconfigtypes.Config, wmeta workloadmeta.Component, telemetry telemetry.Component, tagger tagger.Component) (Module, error)
 	NeedsEBPF        func() bool
 }
