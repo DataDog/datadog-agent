@@ -24,6 +24,7 @@ import (
 	basemetrics "k8s.io/component-base/metrics"
 	"k8s.io/kube-state-metrics/v2/pkg/constant"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
+	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 )
@@ -37,9 +38,8 @@ var descPodLabelsDefaultLabels = []string{"namespace", "pod", "uid"}
 
 // NewExtendedPodFactory returns a new Pod metric family generator factory.
 func NewExtendedPodFactory(client *apiserver.APIClient) customresource.RegistryFactory {
-	return &extendedPodFactory{
-		client: client.Cl,
-	}
+	factory, _ := customresourcestate.NewCustomResourceMetrics(customresourcestate.Resource{})
+	return factory
 }
 
 type extendedPodFactory struct {
@@ -61,7 +61,7 @@ func (f *extendedPodFactory) CreateClient(cfg *rest.Config) (interface{}, error)
 // MetricFamilyGenerators returns the extended pod metric family generators
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (f *extendedPodFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *extendedPodFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 	// At the time of writing this, this is necessary in order for us to have access to the "kubernetes.io/network-bandwidth" resource
 	// type, as the default KSM offering explicitly filters out anything that is prefixed with "kubernetes.io/"
 	// More information can be found here: https://github.com/kubernetes/kube-state-metrics/issues/2027

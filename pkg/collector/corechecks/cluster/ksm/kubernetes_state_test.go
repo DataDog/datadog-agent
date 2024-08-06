@@ -15,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
+	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -112,6 +113,67 @@ func TestProcessMetrics(t *testing.T) {
 					val:      1,
 					tags:     []string{"kube_container_name:kube-state-metrics", "kube_namespace:default", "pod_name:kube-state-metrics-b7fbc487d-4phhj", "node:minikube"},
 					hostname: "minikube",
+				},
+			},
+		},
+		{
+			name: "custom resource state",
+			config: &KSMConfig{
+				LabelsMapper: defaultLabelsMapper(),
+				LabelJoins:   defaultLabelJoins(),
+				CustomResource: customresourcestate.Metrics{
+					Spec: customresourcestate.MetricsSpec{
+						Resources: []customresourcestate.Resource{
+							{
+								GroupVersionKind: customresourcestate.GroupVersionKind{
+									Kind:    "DatadogAgent",
+									Group:   "datadoghq.com",
+									Version: "v1",
+								},
+								Metrics: []customresourcestate.Generator{
+									{
+										Name: "available_agents",
+										Labels: customresourcestate.Labels{
+											CommonLabels: map[string]string{
+												"namespace": "default",
+											},
+										},
+										Each: customresourcestate.Metric{
+											Type: customresourcestate.MetricTypeGauge,
+											Gauge: &customresourcestate.MetricGauge{
+												MetricMeta: customresourcestate.MetricMeta{
+													Path: []string{"status", "agent"},
+												},
+												ValueFrom: []string{"available"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_customresource_available_agents": {
+					{
+						Type: "*unstructured.Unstructured",
+						Name: "kube_customresource_available_agents",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"kube_namespace": "default"},
+								Val:    2,
+							},
+						},
+					},
+				},
+			},
+			metricTransformers: defaultMetricTransformers(),
+			expected: []metricsExpected{
+				{
+					name: "kubernetes_state.customresource.available_agents",
+					val:  2,
+					tags: []string{"kube_namespace:default"},
 				},
 			},
 		},
@@ -1538,9 +1600,9 @@ func TestAllowDeny(t *testing.T) {
 		assert.False(t, allowDenyList.IsIncluded(metric))
 		assert.True(t, allowDenyList.IsExcluded(metric))
 	}
-
+	k := KSMCheck{}
 	// Make sure we don't exclude metrics by mistake
-	for metric := range defaultMetricNamesMapper() {
+	for metric := range k.defaultMetricNamesMapper() {
 		assert.True(t, allowDenyList.IsIncluded(metric))
 		assert.False(t, allowDenyList.IsExcluded(metric))
 	}

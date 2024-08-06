@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	basemetrics "k8s.io/component-base/metrics"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
+	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 
@@ -31,9 +32,8 @@ var descJobLabelsDefaultLabels = []string{"namespace", "job_name"}
 
 // NewExtendedJobFactory returns a new Job metric family generator factory.
 func NewExtendedJobFactory(client *apiserver.APIClient) customresource.RegistryFactory {
-	return &extendedJobFactory{
-		client: client.Cl,
-	}
+	factory, _ := customresourcestate.NewCustomResourceMetrics(customresourcestate.Resource{})
+	return factory
 }
 
 type extendedJobFactory struct {
@@ -55,7 +55,7 @@ func (f *extendedJobFactory) CreateClient(cfg *rest.Config) (interface{}, error)
 // MetricFamilyGenerators returns the extended job metric family generators
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (f *extendedJobFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *extendedJobFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGeneratorWithStability(
 			"kube_job_duration",

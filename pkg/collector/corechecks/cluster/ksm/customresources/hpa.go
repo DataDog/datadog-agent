@@ -28,6 +28,7 @@ import (
 	basemetrics "k8s.io/component-base/metrics"
 
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
+	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 )
@@ -59,9 +60,8 @@ var (
 // NewHorizontalPodAutoscalerV2Beta2Factory returns a new
 // HorizontalPodAutoscaler metric family generator factory.
 func NewHorizontalPodAutoscalerV2Beta2Factory(client *apiserver.APIClient) customresource.RegistryFactory {
-	return &hpav2Factory{
-		client: client.Cl,
-	}
+	factory, _ := customresourcestate.NewCustomResourceMetrics(customresourcestate.Resource{})
+	return factory
 }
 
 type hpav2Factory struct {
@@ -79,7 +79,7 @@ func (f *hpav2Factory) CreateClient(cfg *rest.Config) (interface{}, error) {
 	return f.client, nil
 }
 
-func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *hpav2Factory) MetricFamilyGenerators() []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGeneratorWithStability(
 			"kube_horizontalpodautoscaler_info",
@@ -311,7 +311,7 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 			basemetrics.ALPHA,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
-				annotationKeys, annotationValues := createPrometheusLabelKeysValues("annotation", a.Annotations, allowAnnotationsList)
+				annotationKeys, annotationValues := kubeMapToPrometheusLabels("annotation", a.Annotations)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
@@ -330,7 +330,7 @@ func (f *hpav2Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsL
 			basemetrics.STABLE,
 			"",
 			wrapHPAFunc(func(a *autoscaling.HorizontalPodAutoscaler) *metric.Family {
-				labelKeys, labelValues := createPrometheusLabelKeysValues("label", a.Labels, allowLabelsList)
+				labelKeys, labelValues := kubeMapToPrometheusLabels("label", a.Labels)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{

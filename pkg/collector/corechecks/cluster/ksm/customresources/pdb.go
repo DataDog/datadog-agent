@@ -25,6 +25,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/component-base/metrics"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
+	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 
@@ -41,9 +42,8 @@ var (
 
 // NewPodDisruptionBudgetV1Beta1Factory returns a new PodDisruptionBudgets metric family generator factory.
 func NewPodDisruptionBudgetV1Beta1Factory(client *apiserver.APIClient) customresource.RegistryFactory {
-	return &pdbv1beta1Factory{
-		client: client.Cl,
-	}
+	factory, _ := customresourcestate.NewCustomResourceMetrics(customresourcestate.Resource{})
+	return factory
 }
 
 type pdbv1beta1Factory struct {
@@ -61,7 +61,7 @@ func (f *pdbv1beta1Factory) CreateClient(cfg *rest.Config) (interface{}, error) 
 	return f.client, nil
 }
 
-func (f *pdbv1beta1Factory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *pdbv1beta1Factory) MetricFamilyGenerators() []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGeneratorWithStability(
 			descPodDisruptionBudgetAnnotationsName,
@@ -70,7 +70,7 @@ func (f *pdbv1beta1Factory) MetricFamilyGenerators(allowAnnotationsList, allowLa
 			metrics.ALPHA,
 			"",
 			wrapPodDisruptionBudgetFunc(func(p *policyv1beta1.PodDisruptionBudget) *metric.Family {
-				annotationKeys, annotationValues := createPrometheusLabelKeysValues("annotation", p.Annotations, allowAnnotationsList)
+				annotationKeys, annotationValues := kubeMapToPrometheusLabels("annotation", p.Annotations)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
@@ -89,7 +89,7 @@ func (f *pdbv1beta1Factory) MetricFamilyGenerators(allowAnnotationsList, allowLa
 			metrics.ALPHA,
 			"",
 			wrapPodDisruptionBudgetFunc(func(p *policyv1beta1.PodDisruptionBudget) *metric.Family {
-				labelKeys, labelValues := createPrometheusLabelKeysValues("label", p.Labels, allowLabelsList)
+				labelKeys, labelValues := kubeMapToPrometheusLabels("label", p.Labels)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{

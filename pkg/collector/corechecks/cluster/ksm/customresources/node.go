@@ -20,6 +20,7 @@ import (
 	"k8s.io/component-base/metrics"
 	"k8s.io/kube-state-metrics/v2/pkg/constant"
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
+	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 
@@ -30,9 +31,8 @@ var descNodeLabelsDefaultLabels = []string{"node"}
 
 // NewExtendedNodeFactory returns a new Node metric family generator factory.
 func NewExtendedNodeFactory(client *apiserver.APIClient) customresource.RegistryFactory {
-	return &extendedNodeFactory{
-		client: client.Cl,
-	}
+	factory, _ := customresourcestate.NewCustomResourceMetrics(customresourcestate.Resource{})
+	return factory
 }
 
 type extendedNodeFactory struct {
@@ -54,7 +54,7 @@ func (f *extendedNodeFactory) CreateClient(cfg *rest.Config) (interface{}, error
 // MetricFamilyGenerators returns the extended node metric family generators
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (f *extendedNodeFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *extendedNodeFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 	// At the time of writing this, this is necessary in order for us to have access to the "kubernetes.io/network-bandwidth" resource
 	// type, as the default KSM offering explicitly filters out anything that is prefixed with "kubernetes.io/"
 	// More information can be found here: https://github.com/kubernetes/kube-state-metrics/issues/2027

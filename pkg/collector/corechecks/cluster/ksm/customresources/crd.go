@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	crd "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+
 	//nolint:revive // TODO(CINT) Fix revive linter
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,6 +23,7 @@ import (
 	basemetrics "k8s.io/component-base/metrics"
 
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
+	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 
@@ -39,16 +41,15 @@ var (
 // NewCustomResourceDefinitionFactory returns a new CustomResourceDefinition
 // metric family generator factory.
 func NewCustomResourceDefinitionFactory(client *apiserver.APIClient) customresource.RegistryFactory {
-	return &crdFactory{
-		client: client.CRDInformerClient,
-	}
+	factory, _ := customresourcestate.NewCustomResourceMetrics(customresourcestate.Resource{})
+	return factory
 }
 
 type crdFactory struct {
 	client interface{}
 }
 
-func (f *crdFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *crdFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGeneratorWithStability(
 			descCustomResourceDefinitionAnnotationsName,
@@ -57,7 +58,7 @@ func (f *crdFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 			basemetrics.ALPHA,
 			"",
 			wrapCustomResourceDefinition(func(c *crd.CustomResourceDefinition) *metric.Family {
-				annotationKeys, annotationValues := createPrometheusLabelKeysValues("annotation", c.Annotations, allowAnnotationsList)
+				annotationKeys, annotationValues := kubeMapToPrometheusLabels("annotation", c.Annotations)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
@@ -76,7 +77,7 @@ func (f *crdFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 			basemetrics.ALPHA,
 			"",
 			wrapCustomResourceDefinition(func(c *crd.CustomResourceDefinition) *metric.Family {
-				labelKeys, labelValues := createPrometheusLabelKeysValues("label", c.Labels, allowLabelsList)
+				labelKeys, labelValues := kubeMapToPrometheusLabels("label", c.Labels)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
