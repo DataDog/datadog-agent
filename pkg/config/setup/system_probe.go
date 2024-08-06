@@ -407,7 +407,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	// GPU monitoring
 	cfg.BindEnvAndSetDefault(join(gpuMonitoringNS, "enabled"), false)
-	cfg.BindEnvAndSetDefault(join(gpuMonitoringNS, "manual_probed_binaries"), []string{})
 
 	initCWSSystemProbeConfig(cfg)
 }

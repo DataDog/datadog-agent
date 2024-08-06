@@ -18,7 +18,6 @@ const gpuNS = "gpu_monitoring"
 // Config holds the configuration for the GPU monitoring probe.
 type Config struct {
 	*ebpf.Config
-	manualProbedBinaries []string
 }
 
 func join(pieces ...string) string {
@@ -31,7 +30,6 @@ func NewConfig() *Config {
 	sysconfig.Adjust(cfg)
 
 	return &Config{
-		Config:               ebpf.NewConfig(),
-		manualProbedBinaries: cfg.GetStringSlice(join(gpuNS, "manual_probed_binaries")),
+		Config: ebpf.NewConfig(),
 	}
 }

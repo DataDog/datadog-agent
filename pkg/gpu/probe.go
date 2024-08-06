@@ -37,16 +37,6 @@ const (
 	cudaAllocCacheMap = "cuda_alloc_cache"
 )
 
-var uprobesByLibrary = map[string][]string{
-	"libcudart.so": {
-		"uprobe_cudaLaunchKernel",
-		"uprobe_cudaMalloc",
-		"uretprobe_cudaMalloc",
-		"uprobe_cudaStreamSynchronize",
-		"uprobe_cudaFree",
-	},
-}
-
 // Probe represents the GPU monitoring probe
 type Probe struct {
 	mgr      *ddebpf.Manager
