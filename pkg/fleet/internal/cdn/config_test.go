@@ -12,7 +12,7 @@ import (
 )
 
 func TestConfig(t *testing.T) {
-	baseLayer := Layer{
+	baseLayer := layer{
 		ID: "base",
 		Content: map[interface{}]interface{}{
 			"api_key": "1234",
@@ -22,7 +22,7 @@ func TestConfig(t *testing.T) {
 			},
 		},
 	}
-	overrideLayer := Layer{
+	overrideLayer := layer{
 		ID: "override",
 		Content: map[interface{}]interface{}{
 			"apm": map[interface{}]interface{}{
@@ -31,7 +31,7 @@ func TestConfig(t *testing.T) {
 			},
 		},
 	}
-	config, err := New(baseLayer, overrideLayer)
+	config, err := newConfig(baseLayer, overrideLayer)
 	assert.NoError(t, err)
 	serializedConfig, err := config.Marshal()
 	assert.NoError(t, err)

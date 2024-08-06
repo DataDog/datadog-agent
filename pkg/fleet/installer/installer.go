@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
@@ -66,6 +67,8 @@ type Installer interface {
 type installerImpl struct {
 	m sync.Mutex
 
+	env        *env.Env
+	cdn        *cdn.CDN
 	db         *db.PackagesDB
 	downloader *oci.Downloader
 	packages   *repository.Repositories
@@ -86,6 +89,8 @@ func NewInstaller(env *env.Env) (Installer, error) {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
 	return &installerImpl{
+		env:        env,
+		cdn:        cdn.New(env),
 		db:         db,
 		downloader: oci.NewDownloader(env, http.DefaultClient),
 		packages:   repository.NewRepositories(paths.PackagesPath, paths.LocksPath),
@@ -170,12 +175,10 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
-	// if configsPath != "" {
-	// 	err = i.configs.Create(pkg.Name, filepath.Base(configsPath), configsPath)
-	// 	if err != nil {
-	// 		return fmt.Errorf("could not create config repository: %w", err)
-	// 	}
-	// }
+	err = i.configurePackage(ctx, pkg.Name)
+	if err != nil {
+		return fmt.Errorf("could not configure package: %w", err)
+	}
 	err = i.setupPackage(ctx, pkg.Name, args)
 	if err != nil {
 		return fmt.Errorf("could not setup package: %w", err)
@@ -427,6 +430,19 @@ func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
 		return service.RemoveAPMInjector(ctx)
 	case packageDatadogInstaller:
 		return service.RemoveInstaller(ctx)
+	default:
+		return nil
+	}
+}
+
+func (i *installerImpl) configurePackage(ctx context.Context, pkg string) error {
+	if !i.env.RemotePolicies {
+		return nil
+	}
+
+	switch pkg {
+	case packageDatadogAgent:
+		return service.ConfigureAgent(ctx, i.cdn, i.configs)
 	default:
 		return nil
 	}

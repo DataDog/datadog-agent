@@ -15,6 +15,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
@@ -100,4 +102,9 @@ func RemoveAgent(ctx context.Context) (err error) {
 		span.Finish(tracer.WithError(err))
 	}()
 	return msiexec("stable", "/x", nil)
+}
+
+// ConfigureAgent noop
+func ConfigureAgent(_ context.Context, _ *cdn.CDN, _ *repository.Repositories) error {
+	return nil
 }
