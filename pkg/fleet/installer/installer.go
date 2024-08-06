@@ -332,8 +332,15 @@ func (i *installerImpl) Remove(ctx context.Context, pkg string) error {
 func (i *installerImpl) GarbageCollect(_ context.Context) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-
-	return i.packages.Cleanup()
+	err := i.packages.Cleanup()
+	if err != nil {
+		return fmt.Errorf("could not cleanup packages: %w", err)
+	}
+	err = i.configs.Cleanup()
+	if err != nil {
+		return fmt.Errorf("could not cleanup configs: %w", err)
+	}
+	return nil
 }
 
 // InstrumentAPMInjector instruments the APM injector.
