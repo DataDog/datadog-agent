@@ -237,13 +237,15 @@ func (b *bucket) aggregateStats(p *pb.ClientStatsPayload) {
 			agg.duration += sb.Duration
 
 			// aggregate distributions
-			var err error
-			agg.okDistribution, err = mergeSketch(agg.okDistribution, sb.OkSummary)
-			if err != nil {
+			if sketch, err := mergeSketch(agg.okDistribution, sb.OkSummary); err == nil {
+				agg.okDistribution = sketch
+			} else {
 				log.Error("Unable to merge OK distribution ddsketch: %v", err)
 			}
-			agg.errDistribution, err = mergeSketch(agg.errDistribution, sb.ErrorSummary)
-			if err != nil {
+
+			if sketch, err := mergeSketch(agg.errDistribution, sb.ErrorSummary); err == nil {
+				agg.errDistribution = sketch
+			} else {
 				log.Error("Unable to merge Error distribution ddsketch: %v", err)
 			}
 		}
@@ -375,7 +377,9 @@ func mergeSketch(s1 *ddsketch.DDSketch, raw []byte) (*ddsketch.DDSketch, error) 
 		return s2, nil
 	}
 
-	err = s1.MergeWith(s2)
+	if err = s1.MergeWith(s2); err != nil {
+		return nil, err
+	}
 	return s1, nil
 }
 

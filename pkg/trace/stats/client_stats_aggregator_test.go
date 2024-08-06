@@ -59,19 +59,6 @@ func (w *mockStatsWriter) Reset() []*pb.StatsPayload {
 	return ret
 }
 
-func wrapPayload(p *pb.ClientStatsPayload) *pb.StatsPayload {
-	return wrapPayloads([]*pb.ClientStatsPayload{p})
-}
-
-func wrapPayloads(p []*pb.ClientStatsPayload) *pb.StatsPayload {
-	return &pb.StatsPayload{
-		AgentEnv:       "agentEnv",
-		AgentHostname:  "agentHostname",
-		ClientComputed: true,
-		Stats:          p,
-	}
-}
-
 func payloadWithCounts(ts time.Time, k BucketsAggregationKey, containerID, version, imageTag, gitCommitSha string, hits, errors, duration uint64) *pb.ClientStatsPayload {
 	return &pb.ClientStatsPayload{
 		Env:          "test-env",
@@ -221,33 +208,6 @@ func duplicateStats(insertionTime time.Time, p *pb.ClientStatsPayload, times uin
 				stat.ErrorSummary, _ = proto.Marshal(errSummary.ToProto())
 			}
 
-		}
-	}
-	return p
-}
-
-func agg2Counts(insertionTime time.Time, p *pb.ClientStatsPayload) *pb.ClientStatsPayload {
-	p.Lang = ""
-	p.TracerVersion = ""
-	p.RuntimeID = ""
-	p.Sequence = 0
-	p.Service = ""
-	p.ContainerID = ""
-	for _, s := range p.Stats {
-		s.Start = uint64(alignAggTs(insertionTime).UnixNano())
-		s.Duration = uint64(clientBucketDuration.Nanoseconds())
-		s.AgentTimeShift = 0
-		for _, stat := range s.Stats {
-			if stat == nil {
-				continue
-			}
-			stat.DBType = ""
-			stat.Hits *= 2
-			stat.Errors *= 2
-			stat.Duration *= 2
-			stat.TopLevelHits = 0
-			stat.OkSummary = nil
-			stat.ErrorSummary = nil
 		}
 	}
 	return p
