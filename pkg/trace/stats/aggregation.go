@@ -70,9 +70,9 @@ func getStatusCode(s *pb.Span) uint32 {
 	return uint32(c)
 }
 
-func clientOrProducer(spanKind string) bool {
+func shouldCalculateStatsOnPeerTags(spanKind string) bool {
 	sk := strings.ToLower(spanKind)
-	return sk == "client" || sk == "producer"
+	return sk == "client" || sk == "producer" || sk == "consumer"
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
@@ -98,7 +98,7 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 		},
 	}
 	var peerTags []string
-	if len(peerTagKeys) > 0 && clientOrProducer(agg.SpanKind) {
+	if len(peerTagKeys) > 0 && shouldCalculateStatsOnPeerTags(agg.SpanKind) {
 		peerTags = matchingPeerTags(s, peerTagKeys)
 		agg.PeerTagsHash = peerTagsHash(peerTags)
 	}

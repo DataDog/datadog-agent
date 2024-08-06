@@ -87,6 +87,11 @@ func TestConvert(t *testing.T) {
 			expectedResult: "processors/no-changes/config.yaml",
 		},
 		{
+			name:           "receivers/job-name-change",
+			provided:       "receivers/job-name-change/config.yaml",
+			expectedResult: "receivers/job-name-change/config-result.yaml",
+		},
+		{
 			name:           "receivers/no-changes",
 			provided:       "receivers/no-changes/config.yaml",
 			expectedResult: "receivers/no-changes/config.yaml",

@@ -58,17 +58,17 @@ func Test_telemetrySender(t *testing.T) {
 			PID:     0,
 			CmdLine: nil,
 			Env:     nil,
-			Cwd:     "",
 			Stat: procStat{
 				StartTime: uint64(now.Add(-20 * time.Minute).Unix()),
 			},
 			Ports: nil,
 		},
-		meta: serviceMetadata{
+		meta: ServiceMetadata{
 			Name:               "test-service",
 			Language:           "jvm",
 			Type:               "web_service",
 			APMInstrumentation: "injected",
+			NameSource:         "generated",
 		},
 		LastHeartbeat: now,
 	}
@@ -157,18 +157,17 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 			PID:     0,
 			CmdLine: nil,
 			Env:     nil,
-			Cwd:     "",
 			Stat: procStat{
 				StartTime: uint64(now.Add(-20 * time.Minute).Unix()),
 			},
 			Ports: nil,
 		},
-		meta: serviceMetadata{
+		meta: ServiceMetadata{
 			Name:               "test-service",
 			Language:           "jvm",
 			Type:               "web_service",
 			APMInstrumentation: "injected",
-			FromDDService:      true,
+			NameSource:         "provided",
 		},
 		LastHeartbeat: now,
 	}
