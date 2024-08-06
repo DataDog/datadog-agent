@@ -238,9 +238,17 @@ func ConfigureAgent(ctx context.Context, cdn *cdn.CDN, configs *repository.Repos
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	err = os.WriteFile(filepath.Join(tmpDir, configDatadogYAML), []byte(config.Datadog), 0644)
+	ddAgentUID, ddAgentGID, err := getAgentIDs()
+	if err != nil {
+		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
+	}
+	err = os.WriteFile(filepath.Join(tmpDir, configDatadogYAML), []byte(config.Datadog), 0640)
 	if err != nil {
 		return fmt.Errorf("could not write datadog.yaml: %w", err)
+	}
+	err = os.Chown(filepath.Join(tmpDir, configDatadogYAML), ddAgentUID, ddAgentGID)
+	if err != nil {
+		return fmt.Errorf("could not chown datadog.yaml: %w", err)
 	}
 	err = configs.Create(agentPackage, config.Version, tmpDir)
 	if err != nil {
