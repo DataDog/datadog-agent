@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package main
+package otel
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"

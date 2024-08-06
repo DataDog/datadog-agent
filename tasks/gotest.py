@@ -863,8 +863,22 @@ def lint_go(
     raise Exit("This task is deprecated, please use `inv linter.go`", 1)
 
 
+def rename_package(file_path, old_name, new_name):
+    with open(file_path) as f:
+        content = f.read()
+    # Rename package
+    content = content.replace(old_name, new_name)
+    with open(file_path, "w") as f:
+        f.write(content)
+
+
 @task
 def check_otel_build(ctx):
+    file_path = "test/otel/dependencies.go"
+    package_otel = "package otel"
+    package_main = "package main"
+    rename_package(file_path, package_otel, package_main)
+
     with ctx.cd("test/otel"):
         # Update dependencies to latest local version
         res = ctx.run("go mod tidy")
@@ -875,6 +889,8 @@ def check_otel_build(ctx):
         res = ctx.run("GO111MODULE=on CGO_ENABLED=0 go build -trimpath -o . .", warn=True)
         if res is None or not res.ok:
             raise Exit(f"Error building otel components with datadog-agent dependencies: {res.stderr}")
+
+    rename_package(file_path, package_main, package_otel)
 
 
 @task
