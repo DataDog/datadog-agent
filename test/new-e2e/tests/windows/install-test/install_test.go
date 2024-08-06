@@ -107,6 +107,70 @@ func (s *testInstallSuite) testCodeSignatures(t *Tester, remoteMSIPath string) {
 	})
 }
 
+// TestInstallExistingAltDir installs the agent to an existing directory and
+// checks that the files are not removed
+func TestInstallExistingAltDir(t *testing.T) {
+	s := &testInstallExistingAltDirSuite{}
+	run(t, s)
+}
+
+type testInstallExistingAltDirSuite struct {
+	baseAgentMSISuite
+}
+
+func (s *testInstallExistingAltDirSuite) TestInstallExistingAltDir() {
+	vm := s.Env().RemoteHost
+
+	installPath := `C:\altdir`
+	configRoot := `C:\altconfroot`
+
+	// create the install dir and add some files to it
+	err := vm.MkdirAll(installPath)
+	s.Require().NoError(err)
+	fileData := map[string]string{
+		"file1.txt":         "file1 data",
+		"subdiir/file2.txt": "file2 data",
+	}
+	for file, data := range fileData {
+		parent := filepath.Dir(file)
+		if parent != "" {
+			err := vm.MkdirAll(filepath.Join(installPath, filepath.Dir(file)))
+			s.Require().NoError(err)
+		}
+		_, err = vm.WriteFile(filepath.Join(installPath, file), []byte(data))
+		s.Require().NoError(err)
+	}
+
+	// install the agent
+	_ = s.installAgentPackage(vm, s.AgentPackage,
+		windowsAgent.WithProjectLocation(installPath),
+		windowsAgent.WithApplicationDataDirectory(configRoot),
+	)
+
+	// uninstall the agent
+	s.Require().True(
+		s.uninstallAgent(),
+	)
+
+	// ensure the install dir and files are still there
+	for file, data := range fileData {
+		contents, err := vm.ReadFile(filepath.Join(installPath, file))
+		if s.Assert().NoError(err, "file %s should still exist", file) {
+			assert.Equal(s.T(), string(data), string(contents), "file %s should still have the same contents", file)
+		}
+	}
+	// ensure the agent dirs are gone
+	removedPaths := []string{
+		filepath.Join(installPath, "bin"),
+		filepath.Join(installPath, "embedded2"),
+		filepath.Join(installPath, "embedded3"),
+	}
+	for _, path := range removedPaths {
+		_, err := vm.Lstat(path)
+		s.Require().Error(err, "path %s should be removed", path)
+	}
+}
+
 func TestInstallAltDir(t *testing.T) {
 	s := &testInstallAltDirSuite{}
 	run(t, s)
@@ -140,6 +204,43 @@ func (s *testInstallAltDirSuite) TestInstallAltDir() {
 	}
 
 	s.uninstallAgentAndRunUninstallTests(t)
+}
+
+func TestInstallAltDirAndCorruptForUninstall(t *testing.T) {
+	s := &testInstallAltDirAndCorruptForUninstallSuite{}
+	run(t, s)
+}
+
+type testInstallAltDirAndCorruptForUninstallSuite struct {
+	baseAgentMSISuite
+}
+
+func (s *testInstallAltDirAndCorruptForUninstallSuite) TestInstallAltDirAndCorruptForUninstall() {
+	vm := s.Env().RemoteHost
+
+	installPath := `C:\altdir`
+	configRoot := `C:\altconfroot`
+
+	// install the agent
+	_ = s.installAgentPackage(vm, s.AgentPackage,
+		windowsAgent.WithProjectLocation(installPath),
+		windowsAgent.WithApplicationDataDirectory(configRoot),
+	)
+
+	// remove registry key that contains install info to ensure uninstall succeeds
+	// with a corrupted install
+	err := windowsCommon.DeleteRegistryKey(vm, windowsAgent.RegistryKeyPath)
+	s.Require().NoError(err)
+
+	// uninstall the agent
+	s.Require().True(
+		s.uninstallAgent(),
+	)
+
+	_, err = vm.Lstat(installPath)
+	s.Require().Error(err, "agent install dir should be removed")
+	_, err = vm.Lstat(configRoot)
+	s.Require().NoError(err, "agent config root dir should still exist")
 }
 
 func TestRepair(t *testing.T) {

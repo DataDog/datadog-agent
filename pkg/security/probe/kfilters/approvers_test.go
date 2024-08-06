@@ -33,7 +33,7 @@ func TestApproverAncestors1(t *testing.T) {
 		t.Fatal("no capabilities for open")
 	}
 
-	approvers, err := rs.GetEventApprovers("open", capabilities.GetFieldCapabilities())
+	approvers, err := rs.GetEventTypeApprovers("open", capabilities.GetFieldCapabilities())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestApproverAncestors2(t *testing.T) {
 	if !exists {
 		t.Fatal("no capabilities for open")
 	}
-	approvers, err := rs.GetEventApprovers("open", capabilities.GetFieldCapabilities())
+	approvers, err := rs.GetEventTypeApprovers("open", capabilities.GetFieldCapabilities())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestApproverAncestors2(t *testing.T) {
 	}
 }
 
-func TestApproverAncestors3(t *testing.T) {
+func TestApproverGlob(t *testing.T) {
 	enabled := map[eval.EventType]bool{"*": true}
 
 	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
@@ -74,7 +74,7 @@ func TestApproverAncestors3(t *testing.T) {
 	if !exists {
 		t.Fatal("no capabilities for open")
 	}
-	approvers, err := rs.GetEventApprovers("open", capabilities.GetFieldCapabilities())
+	approvers, err := rs.GetEventTypeApprovers("open", capabilities.GetFieldCapabilities())
 	if err != nil {
 		t.Fatal(err)
 	}

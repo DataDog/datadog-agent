@@ -53,6 +53,7 @@ type Spec struct {
 	Volumes           []VolumeSpec            `json:"volumes,omitempty"`
 	PriorityClassName string                  `json:"priorityClassName,omitempty"`
 	SecurityContext   *PodSecurityContextSpec `json:"securityContext,omitempty"`
+	RuntimeClassName  *string                 `json:"runtimeClassName,omitempty"`
 }
 
 // PodSecurityContextSpec contains fields for unmarshalling a Pod.Spec.SecurityContext
