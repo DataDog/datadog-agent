@@ -169,6 +169,7 @@ func (ac *AttacherConfig) SetDefaults() {
 	}
 }
 
+// Validate checks whether the configuration is valid, returns nil if it is, an error message otherwise
 func (ac *AttacherConfig) Validate() error {
 	var errs []string
 
@@ -178,10 +179,6 @@ func (ac *AttacherConfig) Validate() error {
 
 	if ac.ProcRoot == "" {
 		errs = append(errs, "missing proc root")
-	}
-
-	if len(ac.Rules) == 0 {
-		errs = append(errs, "no rules specified")
 	}
 
 	for _, rule := range ac.Rules {
