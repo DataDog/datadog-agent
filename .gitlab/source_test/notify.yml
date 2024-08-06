@@ -8,7 +8,6 @@ unit_tests_notify:
     - when: always
   script:
     - source /root/.bashrc
-    - set +x
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - !reference [.setup_agent_github_app]
     - inv notify.unit-tests --pipeline-id $CI_PIPELINE_ID --pipeline-url $CI_PIPELINE_URL --branch-name $CI_COMMIT_REF_NAME
