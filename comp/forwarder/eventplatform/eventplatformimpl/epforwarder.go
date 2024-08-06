@@ -41,13 +41,28 @@ func Module() fxutil.Module {
 }
 
 const (
-	eventTypeDBMSamples  = "dbm-samples"
-	eventTypeDBMMetrics  = "dbm-metrics"
-	eventTypeDBMActivity = "dbm-activity"
-	eventTypeDBMMetadata = "dbm-metadata"
+	eventTypeDBMSamples   = "dbm-samples"
+	eventTypeDBMMetrics   = "dbm-metrics"
+	eventTypeDBMActivity  = "dbm-activity"
+	eventTypeDBMMetadata  = "dbm-metadata"
+	eventTypeDBMDeadlocks = "dbm-deadlocks"
 )
 
 var passthroughPipelineDescs = []passthroughPipelineDesc{
+	{
+		eventType:              eventTypeDBMDeadlocks,
+		category:               "DBM",
+		contentType:            logshttp.JSONContentType,
+		endpointsConfigPrefix:  "database_monitoring.deadlocks.", // How to define this on the backend ?
+		hostnameEndpointPrefix: "dbm-metrics-intake.",
+		intakeTrackType:        "databasequery",
+		// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
+		defaultBatchMaxConcurrentSend: 1,
+		defaultBatchMaxContentSize:    10e6, //what is this, make it smaller ?
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		// Low? Even if several hosts shouldnt be too many deedlocks
+		defaultInputChanSize: pkgconfig.DefaultInputChanSize,
+	},
 	{
 		eventType:              eventTypeDBMSamples,
 		category:               "DBM",

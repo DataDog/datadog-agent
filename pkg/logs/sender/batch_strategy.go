@@ -148,7 +148,7 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 	s.buffer.Clear()
 	// Logging specifically for DBM pipelines, which seem to fail to send more often than other pipelines.
 	// pipelineName comes from epforwarder.passthroughPipelineDescs.eventType, and these names are constants in the epforwarder package.
-	if s.pipelineName == "dbm-samples" || s.pipelineName == "dbm-metrics" || s.pipelineName == "dbm-activity" {
+	if s.pipelineName == "dbm-samples" || s.pipelineName == "dbm-metrics" || s.pipelineName == "dbm-activity" || s.pipelineName == "dbm-deadlocks" {
 		log.Debugf("Flushing buffer and sending %d messages for pipeline %s", len(messages), s.pipelineName)
 	}
 	s.sendMessages(messages, outputChan)
