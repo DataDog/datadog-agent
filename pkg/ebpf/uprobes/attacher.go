@@ -92,6 +92,38 @@ func (r *AttachRule) matchesExecutable(path string, procInfo *ProcInfo) bool {
 	return r.canTarget(AttachToExecutable) && (r.ExecutableFilter == nil || r.ExecutableFilter(path, procInfo))
 }
 
+// Vaalidate checks whether the rule is valid, returns nil if it is, an error message otherwise
+func (r *AttachRule) Validate() error {
+	var errs []string
+
+	if r.Targets == 0 {
+		errs = append(errs, "no targets specified")
+	}
+
+	if len(r.ProbesSelector) == 0 {
+		errs = append(errs, "no probes specified")
+	}
+
+	if r.canTarget(AttachToSharedLibraries) && r.LibraryNameRegex == nil {
+		errs = append(errs, "no library name regex specified")
+	}
+
+	for _, selector := range r.ProbesSelector {
+		for _, probeID := range selector.GetProbesIdentificationPairList() {
+			_, _, err := parseSymbolFromEBPFProbeName(probeID.EBPFFuncName)
+			if err != nil {
+				errs = append(errs, fmt.Sprintf("invalid probe name %s: %s", probeID.EBPFFuncName, err))
+			}
+		}
+	}
+
+	if len(errs) == 0 {
+		return nil
+	}
+
+	return errors.New("invalid rule: " + strings.Join(errs, ", "))
+}
+
 // AttacherConfig defines the configuration for the attacher
 type AttacherConfig struct {
 	// Rules defines a series of rules that tell the attacher how to attach the probes
@@ -130,6 +162,35 @@ func (ac *AttacherConfig) SetDefaults() {
 	if ac.EbpfConfig == nil {
 		ac.EbpfConfig = ebpf.NewConfig()
 	}
+}
+
+func (ac *AttacherConfig) Validate() error {
+	var errs []string
+
+	if ac.EbpfConfig == nil {
+		errs = append(errs, "missing ebpf config")
+	}
+
+	if ac.ProcRoot == "" {
+		errs = append(errs, "missing proc root")
+	}
+
+	if len(ac.Rules) == 0 {
+		errs = append(errs, "no rules specified")
+	}
+
+	for _, rule := range ac.Rules {
+		err := rule.Validate()
+		if err != nil {
+			errs = append(errs, err.Error())
+		}
+	}
+
+	if len(errs) == 0 {
+		return nil
+	}
+
+	return errors.New("invalid attacher configuration: " + strings.Join(errs, ", "))
 }
 
 // ProbeManager is an interface that defines the methods that a Manager implements,
@@ -175,6 +236,10 @@ type UprobeAttacher struct {
 // Go functions we need to inspect the binary in a different way)
 func NewUprobeAttacher(name string, config *AttacherConfig, mgr ProbeManager, onAttachCallback AttachCallback, inspector BinaryInspector) (*UprobeAttacher, error) {
 	config.SetDefaults()
+
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid attacher configuration: %w", err)
+	}
 
 	ua := &UprobeAttacher{
 		name:                 name,
