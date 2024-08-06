@@ -25,6 +25,7 @@ import (
 )
 
 // === Mocks
+
 // MockManager is a mock implementation of the manager.Manager interface.
 type MockManager struct {
 	mock.Mock
@@ -48,7 +49,7 @@ func (m *MockManager) GetProbe(probeID manager.ProbeIdentificationPair) (*manage
 	return args.Get(0).(*manager.Probe), args.Bool(1)
 }
 
-// GetProbes is a mock implementation of the manager.Manager.GetProbes method.
+// MockFileRegistry is a mock implementation of the FileRegistry interface.
 type MockFileRegistry struct {
 	mock.Mock
 }
@@ -76,7 +77,7 @@ func (m *MockFileRegistry) GetRegisteredProcesses() map[uint32]struct{} {
 	return args.Get(0).(map[uint32]struct{})
 }
 
-// GetRegisteredPaths is a mock implementation of the FileRegistry.GetRegisteredPaths method.
+// MockBinaryInspector is a mock implementation of the BinaryInspector interface.
 type MockBinaryInspector struct {
 	mock.Mock
 }
@@ -93,6 +94,7 @@ func (m *MockBinaryInspector) Cleanup(fpath utils.FilePath) {
 }
 
 // === Test utils
+
 // FakeProcFSEntry represents a fake /proc filesystem entry for testing purposes.
 type FakeProcFSEntry struct {
 	Pid     uint32
