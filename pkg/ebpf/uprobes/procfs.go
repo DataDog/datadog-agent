@@ -37,13 +37,16 @@ func NewProcInfo(procRoot string, pid uint32) *ProcInfo {
 	}
 }
 
+// Avoid allocations, reuse the error to mark "iteration start" in the loop
+var errIterStart = errors.New("iteration start")
+
 func waitUntilSucceeds[T any](p *ProcInfo, procFile string, readFunc func(string) (T, error)) (T, error) {
 	// Read the exe link
 	pidAsStr := strconv.FormatUint(uint64(p.PID), 10)
 	filePath := filepath.Join(p.procRoot, pidAsStr, procFile)
 
 	var result T
-	err := errors.New("iteration start")
+	err := errIterStart
 	end := time.Now().Add(procFSUpdateTimeout)
 
 	for err != nil && end.After(time.Now()) {
@@ -53,7 +56,7 @@ func waitUntilSucceeds[T any](p *ProcInfo, procFile string, readFunc func(string
 		}
 	}
 
-	return result, nil
+	return result, err
 }
 
 // Exe returns the path to the executable of the process.
@@ -64,6 +67,10 @@ func (p *ProcInfo) Exe() (string, error) {
 		if err != nil {
 			return "", err
 		}
+	}
+
+	if p.exe == "" {
+		return "", errors.New("exe link is empty")
 	}
 
 	return p.exe, nil
