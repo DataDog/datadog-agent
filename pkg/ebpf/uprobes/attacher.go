@@ -344,7 +344,7 @@ func (ua *UprobeAttacher) Start() error {
 			case <-ua.done:
 				return
 			case <-processSync.C:
-				ua.Sync(true)
+				_ = ua.Sync(true)
 			case event, ok := <-sharedLibDataChan:
 				if !ok {
 					return
