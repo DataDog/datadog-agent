@@ -541,6 +541,40 @@ func (adm *ActivityDumpManager) ListActivityDumps(_ *api.ActivityDumpListParams)
 	}, nil
 }
 
+// DumpActivity handles an activity dump request
+func (adm *ActivityDumpManager) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
+	adm.Lock()
+	defer adm.Unlock()
+
+	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
+		ad.Metadata.ContainerID = params.GetContainerID()
+		dumpDuration, _ := time.ParseDuration(params.Timeout)
+		ad.SetTimeout(dumpDuration)
+
+		if params.GetDifferentiateArgs() {
+			ad.Metadata.DifferentiateArgs = true
+			ad.ActivityTree.DifferentiateArgs()
+		}
+	})
+
+	// add local storage requests
+	storageRequests, err := config.ParseStorageRequests(params.GetStorage())
+	if err != nil {
+		errMsg := fmt.Errorf("couldn't start tracing [%s]: %v", newDump.GetSelectorStr(), err)
+		return &api.ActivityDumpMessage{Error: errMsg.Error()}, errMsg
+	}
+	for _, request := range storageRequests {
+		newDump.AddStorageRequest(request)
+	}
+
+	if err = adm.insertActivityDump(newDump); err != nil {
+		errMsg := fmt.Errorf("couldn't start tracing [%s]: %v", newDump.GetSelectorStr(), err)
+		return &api.ActivityDumpMessage{Error: errMsg.Error()}, errMsg
+	}
+
+	return newDump.ToSecurityActivityDumpMessage(), nil
+}
+
 // StopActivityDump stops an active activity dump
 func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
 	adm.Lock()

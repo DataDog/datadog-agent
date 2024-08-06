@@ -63,18 +63,19 @@ issues:
 linters:
   disable-all: true
   enable:
-    - unconvert   # Remove unnecessary type conversions
-    - unused      # Checks Go code for unused constants, variables, functions and types
-    - ineffassign # Detects when assignments to existing variables are not used
-    - misspell    # Finds commonly misspelled English words in comments
-    - gofmt       # Gofmt checks whether code was gofmt-ed
-    - revive      # Revive is a replacement for golint, a coding style checker
-    - errcheck    # errcheck is a program for checking for unchecked errors in go programs.
-    - staticcheck # staticcheck is a go vet on steroids, applying a ton of static analysis checks
-    - govet       # Vet examines Go source code and reports suspicious constructs, such as Printf calls whose arguments do not align with the format string
-    - depguard    # Depguard is useful for preventing specific packages from being used
-    - bodyclose   # checks whether HTTP response body is closed successfully
-    - gosimple    # Linter for Go source code that specializes in simplifying code.
+    - unconvert                 # Remove unnecessary type conversions
+    - unused                    # Checks Go code for unused constants, variables, functions and types
+    - ineffassign               # Detects when assignments to existing variables are not used
+    - misspell                  # Finds commonly misspelled English words in comments
+    - gofmt                     # Gofmt checks whether code was gofmt-ed
+    - revive                    # Revive is a replacement for golint, a coding style checker
+    - errcheck                  # errcheck is a program for checking for unchecked errors in go programs.
+    - staticcheck               # staticcheck is a go vet on steroids, applying a ton of static analysis checks
+    - govet                     # Vet examines Go source code and reports suspicious constructs, such as Printf calls whose arguments do not align with the format string
+    - depguard                  # Depguard is useful for preventing specific packages from being used
+    - bodyclose                 # checks whether HTTP response body is closed successfully
+    - gosimple                  # Linter for Go source code that specializes in simplifying code.
+    - gocheckcompilerdirectives # Checks Go compiler directives syntax
 
 linters-settings:
   depguard:

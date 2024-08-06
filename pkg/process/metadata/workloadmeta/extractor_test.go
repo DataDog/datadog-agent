@@ -107,8 +107,8 @@ func TestExtractor(t *testing.T) {
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
 			ContainerId:  ctrId1,
 		},
-	}, diff.creation)
-	assert.ElementsMatch(t, []*ProcessEntity{}, diff.deletion)
+	}, diff.Creation)
+	assert.ElementsMatch(t, []*ProcessEntity{}, diff.Deletion)
 
 	// Assert that if no process is created or terminated, the cache is not updated nor a diff generated
 	extractor.Extract(map[int32]*procutil.Process{
@@ -156,7 +156,7 @@ func TestExtractor(t *testing.T) {
 
 	diff = <-extractor.ProcessCacheDiff()
 	assert.Equal(t, int32(2), diff.cacheVersion)
-	assert.ElementsMatch(t, []*ProcessEntity{}, diff.creation)
+	assert.ElementsMatch(t, []*ProcessEntity{}, diff.Creation)
 	assert.ElementsMatch(t, []*ProcessEntity{
 		{
 			Pid:          Pid1,
@@ -165,7 +165,7 @@ func TestExtractor(t *testing.T) {
 			Language:     &languagemodels.Language{Name: languagemodels.Java},
 			ContainerId:  ctrId1,
 		},
-	}, diff.deletion)
+	}, diff.Deletion)
 
 	// Process creation generates a cache update and diff event
 	extractor.Extract(map[int32]*procutil.Process{
@@ -202,8 +202,8 @@ func TestExtractor(t *testing.T) {
 			Language:     &languagemodels.Language{Name: languagemodels.Unknown},
 			ContainerId:  ctrId1,
 		},
-	}, diff.creation)
-	assert.ElementsMatch(t, []*ProcessEntity{}, diff.deletion)
+	}, diff.Creation)
+	assert.ElementsMatch(t, []*ProcessEntity{}, diff.Deletion)
 
 	// Process creation and deletion generate a cache update and diff event
 	extractor.Extract(map[int32]*procutil.Process{
@@ -240,7 +240,7 @@ func TestExtractor(t *testing.T) {
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
 			ContainerId:  ctrId2,
 		},
-	}, diff.creation)
+	}, diff.Creation)
 	assert.ElementsMatch(t, []*ProcessEntity{
 		{
 			Pid:          Pid2,
@@ -249,7 +249,7 @@ func TestExtractor(t *testing.T) {
 			Language:     &languagemodels.Language{Name: languagemodels.Python},
 			ContainerId:  ctrId1,
 		},
-	}, diff.deletion)
+	}, diff.Deletion)
 }
 
 func BenchmarkHashProcess(b *testing.B) {
@@ -286,7 +286,7 @@ func TestLateContainerId(t *testing.T) {
 	})
 	assert.EqualValues(t, &ProcessCacheDiff{
 		cacheVersion: 1,
-		creation: []*ProcessEntity{
+		Creation: []*ProcessEntity{
 			{
 				Pid:          proc1.Pid,
 				ContainerId:  "",
@@ -295,7 +295,7 @@ func TestLateContainerId(t *testing.T) {
 				Language:     &languagemodels.Language{Name: languagemodels.Java},
 			},
 		},
-		deletion: []*ProcessEntity{},
+		Deletion: []*ProcessEntity{},
 	}, <-extractor.ProcessCacheDiff())
 
 	var (
@@ -311,7 +311,7 @@ func TestLateContainerId(t *testing.T) {
 	})
 	assert.EqualValues(t, &ProcessCacheDiff{
 		cacheVersion: 2,
-		creation: []*ProcessEntity{
+		Creation: []*ProcessEntity{
 			{
 				Pid:          proc1.Pid,
 				ContainerId:  ctrId1,
@@ -320,6 +320,6 @@ func TestLateContainerId(t *testing.T) {
 				Language:     &languagemodels.Language{Name: languagemodels.Java},
 			},
 		},
-		deletion: []*ProcessEntity{},
+		Deletion: []*ProcessEntity{},
 	}, <-extractor.ProcessCacheDiff())
 }
