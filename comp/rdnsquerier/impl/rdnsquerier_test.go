@@ -928,6 +928,7 @@ func TestCachePersist(t *testing.T) {
 
 	// create new testsetup, validate that the IP address previously queried and cached is still cached
 	ts = testSetup(t, overrides, true, nil)
+	ts.validateExpectedGauge(t, "cache_size", 1.0)
 
 	// cache hit should result in sync callback being called the first time the IP address is queried after
 	// restart because persistent cache should have been loaded

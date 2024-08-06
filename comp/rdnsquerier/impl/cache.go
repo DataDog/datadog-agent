@@ -270,8 +270,11 @@ func (c *cacheImpl) loadPersistentCache() {
 
 	c.mutex.Lock()
 	c.data = persistedMap
-	c.logger.Debugf("Reverse DNS Enrichment cache loaded from persistent storage, cache size=%d", len(c.data))
+	size := len(c.data)
 	c.mutex.Unlock()
+
+	c.internalTelemetry.cacheSize.Set(float64(size))
+	c.logger.Debugf("Reverse DNS Enrichment cache loaded from persistent storage, cache size=%d", size)
 }
 
 func (c *cacheImpl) serializeData(startTime time.Time) (string, int) {
