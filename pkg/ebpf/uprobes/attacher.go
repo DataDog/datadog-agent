@@ -101,10 +101,6 @@ func (r *AttachRule) Validate() error {
 		errs = append(errs, "no targets specified")
 	}
 
-	if len(r.ProbesSelector) == 0 {
-		errs = append(errs, "no probes specified")
-	}
-
 	if r.canTarget(AttachToSharedLibraries) && r.LibraryNameRegex == nil {
 		errs = append(errs, "no library name regex specified")
 	}
