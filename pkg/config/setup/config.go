@@ -967,6 +967,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("skip_ssl_validation", false)
 	config.BindEnvAndSetDefault("sslkeylogfile", "")
 	config.BindEnv("tls_handshake_timeout")
+	config.BindEnv("http_dial_fallback_delay")
 	config.BindEnvAndSetDefault("hostname", "")
 	config.BindEnvAndSetDefault("hostname_file", "")
 	config.BindEnvAndSetDefault("tags", []string{})
@@ -1140,6 +1141,7 @@ func containerSyspath(config pkgconfigmodel.Setup) {
 	config.BindEnv("container_cgroup_root")
 	config.BindEnv("container_pid_mapper")
 	config.BindEnvAndSetDefault("ignore_host_etc", false)
+	config.BindEnvAndSetDefault("use_improved_cgroup_parser", false)
 	config.BindEnvAndSetDefault("proc_root", "/proc")
 }
 

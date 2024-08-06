@@ -22,6 +22,8 @@ The converter will check to see if a prometheus receiver is defined which points
 
 If it finds datadogexporters which are not defined in a pipeline with the prometheus receiver, it adds the prometheus config (name: `prometheus/dd-autoconfigured`), and then create it's own pipeline `metrics/dd-autoconfigured/<dd exporter name>` which contains the prometheus receiver and the datadog exporter.
 
+For any prometheus receiver collecting collector health metrics, and sending these to Datadog, it will update the job name to `datadog-agent`. This ensures the health metrics are tagged by `service:datadog-agent` and differentiable from collector health metrics.
+
 ## Provided and enhanced config
 
 `GetProvidedConf` and `GetEnhancedConf` return the string representation of the user provided and autoconfigured conf respectively. Currently, these APIs have two limitations:
