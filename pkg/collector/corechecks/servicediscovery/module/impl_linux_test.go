@@ -30,21 +30,28 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/comp/core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func setupDiscoveryModule(t *testing.T) string {
 	t.Helper()
 
-	wmeta := optional.NewNoneOption[workloadmeta.Component]()
+	wmeta := fxutil.Test[workloadmeta.Component](t,
+		core.MockBundle(),
+		wmmock.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+	)
 	mux := gorillamux.NewRouter()
 	cfg := &types.Config{
 		Enabled: true,
@@ -390,7 +397,12 @@ func TestDocker(t *testing.T) {
 
 // Check that the cache is cleaned when procceses die.
 func TestCache(t *testing.T) {
-	module, err := NewDiscoveryModule(nil, optional.NewNoneOption[workloadmeta.Component](), nil)
+	wmeta := fxutil.Test[workloadmeta.Component](t,
+		core.MockBundle(),
+		wmmock.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+	)
+	module, err := NewDiscoveryModule(nil, wmeta, nil)
 	require.NoError(t, err)
 	discovery := module.(*discovery)
 
