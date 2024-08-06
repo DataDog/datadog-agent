@@ -264,7 +264,7 @@ func (c *cacheImpl) loadPersistentCache() {
 	persistedMap := make(map[string]*cacheEntry)
 	err = json.Unmarshal([]byte(serializedData), &persistedMap)
 	if err != nil {
-		c.logger.Warnf("couldn't unmarshal cache for cachePersistKey %s: %v", cachePersistKey, err)
+		_ = c.logger.Warnf("couldn't unmarshal cache for cachePersistKey %s: %v", cachePersistKey, err)
 		return
 	}
 
@@ -298,7 +298,7 @@ func (c *cacheImpl) serializeData(startTime time.Time) (string, int) {
 	// to the same cacheEntry objects referenced by c.data.
 	serializedData, err := json.Marshal(mapCopy)
 	if err != nil {
-		c.logger.Warnf("Reverse DNS Enrichment cache persist failed - error marshalling cache: %v", err)
+		_ = c.logger.Warnf("Reverse DNS Enrichment cache persist failed - error marshalling cache: %v", err)
 		return "", 0
 	}
 
@@ -313,7 +313,7 @@ func (c *cacheImpl) persist(startTime time.Time) {
 
 	err := persistentcache.Write(cachePersistKey, serializedData)
 	if err != nil {
-		c.logger.Warnf("Reverse DNS Enrichment cache persist failed - error writing cache: %v", err)
+		_ = c.logger.Warnf("Reverse DNS Enrichment cache persist failed - error writing cache: %v", err)
 	}
 
 	c.logger.Debugf("Reverse DNS Enrichment %d cache entries persisted, execution time=%s", size, time.Since(startTime))
