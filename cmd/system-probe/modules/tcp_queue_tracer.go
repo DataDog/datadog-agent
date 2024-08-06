@@ -29,7 +29,7 @@ import (
 var TCPQueueLength = module.Factory{
 	Name:             config.TCPQueueLengthTracerModule,
 	ConfigNamespaces: []string{},
-	Fn: func(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], _ telemetry.Component) (module.Module, error) {
+	Fn: func(_ *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], _ telemetry.Component) (module.Module, error) {
 		t, err := tcpqueuelength.NewTracer(ebpf.NewConfig())
 		if err != nil {
 			return nil, fmt.Errorf("unable to start the TCP queue length tracer: %w", err)
@@ -53,7 +53,7 @@ type tcpQueueLengthModule struct {
 }
 
 func (t *tcpQueueLengthModule) Register(httpMux *module.Router) error {
-	httpMux.HandleFunc("/check", func(w http.ResponseWriter, req *http.Request) {
+	httpMux.HandleFunc("/check", func(w http.ResponseWriter, _ *http.Request) {
 		t.lastCheck.Store(time.Now().Unix())
 		stats := t.Tracer.GetAndFlush()
 		utils.WriteAsJSON(w, stats)

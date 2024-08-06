@@ -508,14 +508,14 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (s *SpanContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 16 {
+	if len(data) < 24 {
 		return 0, ErrNotEnoughData
 	}
 
 	s.SpanID = binary.NativeEndian.Uint64(data[0:8])
-	s.TraceID = binary.NativeEndian.Uint64(data[8:16])
-
-	return 16, nil
+	s.TraceID.Lo = int64(binary.NativeEndian.Uint64(data[8:16]))
+	s.TraceID.Hi = int64(binary.NativeEndian.Uint64(data[16:24]))
+	return 24, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

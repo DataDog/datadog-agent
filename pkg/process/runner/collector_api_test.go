@@ -71,7 +71,7 @@ func TestSendConnectionsMessage(t *testing.T) {
 	}
 
 	cfg := configmock.New(t)
-	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/connections", req.uri)
@@ -111,7 +111,7 @@ func TestSendContainerMessage(t *testing.T) {
 	}
 
 	cfg := configmock.New(t)
-	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/container", req.uri)
@@ -149,7 +149,7 @@ func TestSendProcMessage(t *testing.T) {
 	}
 
 	cfg := configmock.New(t)
-	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/collector", req.uri)
@@ -190,7 +190,7 @@ func TestSendProcessDiscoveryMessage(t *testing.T) {
 	}
 
 	cfg := configmock.New(t)
-	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v1/discovery", req.uri)
@@ -240,7 +240,7 @@ func TestSendProcessEventMessage(t *testing.T) {
 	}
 
 	cfg := configmock.New(t)
-	runCollectorTest(t, check, &endpointConfig{}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
+	runCollectorTest(t, check, &endpointConfig{}, cfg, func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		assert.Equal(t, "/api/v2/proclcycle", req.uri)
@@ -285,7 +285,7 @@ func TestSendProcMessageWithRetry(t *testing.T) {
 	}
 
 	cfg := configmock.New(t)
-	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, cfg, func(c *CheckRunner, ep *mockEndpoint) {
+	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, cfg, func(_ *CheckRunner, ep *mockEndpoint) {
 		requests := []request{
 			<-ep.Requests,
 			<-ep.Requests,
@@ -324,7 +324,7 @@ func TestRTProcMessageNotRetried(t *testing.T) {
 		data: [][]process.MessageBody{{m}},
 	}
 
-	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, configmock.New(t), func(c *CheckRunner, ep *mockEndpoint) {
+	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, configmock.New(t), func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
 
 		reqBody, err := process.DecodeMessage(req.body)

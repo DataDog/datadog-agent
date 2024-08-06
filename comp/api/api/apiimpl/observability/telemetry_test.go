@@ -59,7 +59,7 @@ func TestTelemetryMiddleware(t *testing.T) {
 			tm := newTelemetryMiddlewareFactory(telemetry, clock)
 			telemetryHandler := tm.Middleware(serverName)
 
-			var tcHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
+			var tcHandler http.HandlerFunc = func(w http.ResponseWriter, _ *http.Request) {
 				clock.Add(tc.duration)
 				w.WriteHeader(tc.code)
 			}
@@ -104,7 +104,7 @@ func TestTelemetryMiddlewareDuration(t *testing.T) {
 	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
 	telemetryHandler := NewTelemetryMiddlewareFactory(telemetry).Middleware("test")
 
-	var tcHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
+	var tcHandler http.HandlerFunc = func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 	server := httptest.NewServer(telemetryHandler(tcHandler))

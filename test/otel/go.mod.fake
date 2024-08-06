@@ -30,7 +30,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/trace/agent/def => ./../../comp/trace/agent/def
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ./../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ./../../pkg/config/env
-	github.com/DataDog/datadog-agent/pkg/config/logs => ./../../pkg/config/logs
+	github.com/DataDog/datadog-agent/pkg/util/log/setup => ./../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/config/model => ./../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ./../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/utils => ./../../pkg/config/utils

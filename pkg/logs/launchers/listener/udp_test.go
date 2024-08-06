@@ -40,7 +40,7 @@ func TestUDPShouldReceiveMessage(t *testing.T) {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func TestUDPShouldStopWhenNotStarted(t *testing.T) {
+func TestUDPShouldStopWhenNotStarted(_ *testing.T) {
 	pp := mock.NewMockProvider()
 	listener := NewUDPListener(pp, sources.NewLogSource("", &config.LogsConfig{Port: udpTestPort}), 9000)
 	// Don't call start, this is similar to if `startNewTailer` fails when start is called (such as if the port is already in use)
