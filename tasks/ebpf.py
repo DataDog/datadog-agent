@@ -872,10 +872,10 @@ def generate_complexity_summary_for_pr(ctx: Context, skip_github_comment=False):
         return
 
     if not has_any_changes:
-        print("No changes detected, skipping comment")
-        return
+        print("No changes detected, deleting comment")
+        msg = ""
 
-    pr_commenter(ctx, pr_comment_head, msg)
+    pr_commenter(ctx, pr_comment_head, msg, delete=True, force_delete=True)
     print("Commented on PR with complexity summary")
 
 
