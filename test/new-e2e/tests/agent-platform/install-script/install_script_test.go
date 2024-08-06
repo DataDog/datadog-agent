@@ -219,7 +219,7 @@ func (is *installScriptSuiteSysVInit) TestInstallAgent() {
 	host := is.Env().RemoteHost
 	client := common.NewDockerTestClient(host, containerName)
 
-	err := client.RunContainer("debian:bookworm")
+	err := client.RunContainer("public.ecr.aws/ubuntu/ubuntu:22.04_stable")
 	require.NoError(is.T(), err)
 	defer client.Cleanup()
 
