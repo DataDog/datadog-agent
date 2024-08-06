@@ -149,6 +149,7 @@ func cmpEvents(a, b *event) bool {
 		cmp.Compare(ap.ServiceName, bp.ServiceName),
 		cmp.Compare(ap.ServiceType, bp.ServiceType),
 		cmp.Compare(ap.ServiceLanguage, bp.ServiceLanguage),
+		cmp.Compare(ap.Ports[0], bp.Ports[0]),
 	}
 	for _, val := range vals {
 		if val != 0 {
