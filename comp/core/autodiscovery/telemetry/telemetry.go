@@ -7,7 +7,7 @@
 package telemetry
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -25,42 +25,50 @@ var (
 	commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
 )
 
-var (
+// Store holds all the telemetry metrics for Autodiscovery.
+type Store struct {
 	// ScheduledConfigs tracks how many configs are scheduled.
-	ScheduledConfigs = telemetry.NewGaugeWithOpts(
-		subsystem,
-		"scheduled_configs",
-		[]string{"provider", "type"},
-		"Number of configs scheduled in Autodiscovery by provider and type.",
-		commonOpts,
-	)
-
+	ScheduledConfigs telemetry.Gauge
 	// WatchedResources tracks how many resources are watched by AD listeners.
-	WatchedResources = telemetry.NewGaugeWithOpts(
-		subsystem,
-		"watched_resources",
-		[]string{"listener", "kind"},
-		"Number of resources watched in Autodiscovery by listener and kind.",
-		commonOpts,
-	)
-
+	WatchedResources telemetry.Gauge
 	// Errors tracks the current number of AD configs with errors by AD providers.
-	Errors = telemetry.NewGaugeWithOpts(
-		subsystem,
-		"errors",
-		[]string{"provider"},
-		"Current number of Autodiscovery configs with errors by provider.",
-		commonOpts,
-	)
-
+	Errors telemetry.Gauge
 	// PollDuration tracks the configs poll duration by AD providers.
-	PollDuration = telemetry.NewHistogramWithOpts(
-		subsystem,
-		"poll_duration",
-		[]string{"provider"},
-		"Poll duration distribution by config provider (in seconds).",
-		// The default prometheus buckets are adapted to measure response time of network services
-		prometheus.DefBuckets,
-		telemetry.Options{NoDoubleUnderscoreSep: true},
-	)
-)
+	PollDuration telemetry.Histogram
+}
+
+// NewStore returns a new Store.
+func NewStore(telemetryComp telemetry.Component) *Store {
+	return &Store{
+		ScheduledConfigs: telemetryComp.NewGaugeWithOpts(
+			subsystem,
+			"scheduled_configs",
+			[]string{"provider", "type"},
+			"Number of configs scheduled in Autodiscovery by provider and type.",
+			commonOpts,
+		),
+		WatchedResources: telemetryComp.NewGaugeWithOpts(
+			subsystem,
+			"watched_resources",
+			[]string{"listener", "kind"},
+			"Number of resources watched in Autodiscovery by listener and kind.",
+			commonOpts,
+		),
+		Errors: telemetryComp.NewGaugeWithOpts(
+			subsystem,
+			"errors",
+			[]string{"provider"},
+			"Current number of Autodiscovery configs with errors by provider.",
+			commonOpts,
+		),
+		PollDuration: telemetryComp.NewHistogramWithOpts(
+			subsystem,
+			"poll_duration",
+			[]string{"provider"},
+			"Poll duration distribution by config provider (in seconds).",
+			// The default prometheus buckets are adapted to measure response time of network services
+			prometheus.DefBuckets,
+			telemetry.Options{NoDoubleUnderscoreSep: true},
+		),
+	}
+}

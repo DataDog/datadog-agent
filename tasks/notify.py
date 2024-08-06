@@ -10,9 +10,8 @@ from invoke.exceptions import Exit
 import tasks.libs.notify.unit_tests as unit_tests_utils
 from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.gitlab_api import (
-    GitlabCIDiff,
-    get_gitlab_ci_configuration,
-    print_gitlab_ci_configuration,
+    MultiGitlabCIDiff,
+    get_all_gitlab_ci_configurations,
 )
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH
@@ -111,7 +110,7 @@ def failure_summary_upload_pipeline_data(ctx):
 
 @task
 def failure_summary_send_notifications(
-    ctx, daily_summary: bool = False, weekly_summary: bool = False, max_length: int = 8
+    ctx, daily_summary: bool = False, weekly_summary: bool = False, max_length: int = 8, dry_run: bool = False
 ):
     """
     Make summaries from data in s3 and send them to slack
@@ -119,10 +118,10 @@ def failure_summary_send_notifications(
 
     assert (
         daily_summary or weekly_summary and not (daily_summary and weekly_summary)
-    ), "Only one of daily or weekly summary can be set"
+    ), "Exactly one of daily or weekly summary must be set"
 
     period = timedelta(days=1) if daily_summary else timedelta(weeks=1)
-    failure_summary.send_summary_messages(ctx, weekly_summary, max_length, period)
+    failure_summary.send_summary_messages(ctx, weekly_summary, max_length, period, dry_run=dry_run)
 
 
 @task
@@ -134,34 +133,6 @@ def unit_tests(ctx, pipeline_id, pipeline_url, branch_name, dry_run=False):
         print(msg)
     else:
         unit_tests_utils.comment_pr(msg, pipeline_id, branch_name, jobs_with_no_tests_run)
-
-
-@task
-def print_gitlab_ci(
-    ctx,
-    input_file: str = '.gitlab-ci.yml',
-    job: str | None = None,
-    sort: bool = False,
-    clean: bool = True,
-    git_ref: str | None = None,
-    ignore_errors: bool = False,
-):
-    """
-    Prints the full gitlab ci configuration.
-
-    - job: If provided, print only one job
-    - clean: Apply post processing to make output more readable (remove extends, flatten lists of lists...)
-    - ignore_errors: If True, ignore errors in the gitlab configuration (only process yaml)
-    - git_ref: If provided, use this git reference to fetch the configuration
-    - NOTE: This requires a full api token access level to the repository
-    """
-
-    yml = get_gitlab_ci_configuration(
-        ctx, input_file, job=job, clean=clean, git_ref=git_ref, ignore_errors=ignore_errors
-    )
-
-    # Print
-    print_gitlab_ci_configuration(yml, sort_jobs=sort)
 
 
 @task
@@ -203,12 +174,12 @@ def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_
         before = ctx.run(f'git merge-base {before} {after or "HEAD"}', hide=True).stdout.strip()
 
         print(f'Getting after changes config ({color_message(after_name, Color.BOLD)})')
-        after_config = get_gitlab_ci_configuration(ctx, git_ref=after)
+        after_config = get_all_gitlab_ci_configurations(ctx, git_ref=after, clean_configs=True)
 
         print(f'Getting before changes config ({color_message(before_name, Color.BOLD)})')
-        before_config = get_gitlab_ci_configuration(ctx, git_ref=before)
+        before_config = get_all_gitlab_ci_configurations(ctx, git_ref=before, clean_configs=True)
 
-        diff = GitlabCIDiff(before_config, after_config)
+        diff = MultiGitlabCIDiff(before_config, after_config)
 
         if not diff:
             print(color_message("No changes in the gitlab-ci configuration", Color.GREEN))

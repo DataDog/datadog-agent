@@ -366,7 +366,7 @@ func (r *defaultResolver) resolveFile(ctx context.Context, rootPath string, spec
 	return
 }
 
-func (r *defaultResolver) resolveFilePath(ctx context.Context, rootPath, path, parser string) (interface{}, error) { //nolint:revive // TODO fix revive unused-parameter
+func (r *defaultResolver) resolveFilePath(_ context.Context, rootPath, path, parser string) (interface{}, error) {
 	path = r.pathNormalize(rootPath, path)
 	file, err := r.getFileMeta(path)
 	if err != nil {
@@ -780,7 +780,7 @@ var rpmDbs = []string{
 	"/var/lib/rpm/Packages",
 }
 
-func (r *defaultResolver) resolvePackage(ctx context.Context, spec InputSpecPackage) (pkg *packageInfo, err error) { //nolint:revive // TODO fix revive unused-parameter
+func (r *defaultResolver) resolvePackage(_ context.Context, spec InputSpecPackage) (pkg *packageInfo, err error) {
 	if len(spec.Names) == 0 {
 		return nil, nil
 	}

@@ -38,16 +38,17 @@ type Telemetry struct {
 }
 
 // createQueryLengthBuckets initializes the query length buckets
-// Bucket 1: <= 34   query length
-// Bucket 2: 35 - 49 query length
-// Bucket 3: 50 - 64 query length
-// Bucket 4: 65 - 79 query length
-// Bucket 5: 80 - 94 query length
-// Bucket 6: 95 - 109 query length
-// Bucket 7: 110 - 124 query length
-// Bucket 8: 125 - 139 query length
-// Bucket 9: 140 - 154 query length
-// Bucket 10: >= 155 query length
+// The buckets are defined relative to a `BufferSize` and a `bucketLength` as follows:
+// Bucket 0: 0 to BufferSize - 2*bucketLength
+// Bucket 1: BufferSize - 2*bucketLength + 1 to BufferSize - bucketLength
+// Bucket 2: BufferSize - bucketLength + 1 to BufferSize
+// Bucket 3: BufferSize + 1 to BufferSize + bucketLength
+// Bucket 4: BufferSize + bucketLength + 1 to BufferSize + 2*bucketLength
+// Bucket 5: BufferSize + 2*bucketLength + 1 to BufferSize + 3*bucketLength
+// Bucket 6: BufferSize + 3*bucketLength + 1 to BufferSize + 4*bucketLength
+// Bucket 7: BufferSize + 4*bucketLength + 1 to BufferSize + 5*bucketLength
+// Bucket 8: BufferSize + 5*bucketLength + 1 to BufferSize + 6*bucketLength
+// Bucket 9: BufferSize + 6*bucketLength + 1 to BufferSize + 7*bucketLength
 func createQueryLengthBuckets(metricGroup *libtelemetry.MetricGroup) [numberOfBuckets]*libtelemetry.Counter {
 	var buckets [numberOfBuckets]*libtelemetry.Counter
 	for i := 0; i < numberOfBuckets; i++ {

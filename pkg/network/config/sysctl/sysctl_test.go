@@ -126,7 +126,7 @@ func TestStickyError(t *testing.T) {
 
 	t.Run("permission denied", func(t *testing.T) {
 		calls := 0
-		s := newSCtl(procRoot, "foo", time.Minute, func(path string) ([]byte, error) {
+		s := newSCtl(procRoot, "foo", time.Minute, func(string) ([]byte, error) {
 			calls++
 			return nil, os.ErrPermission
 		})
@@ -144,7 +144,7 @@ func TestStickyError(t *testing.T) {
 
 	t.Run("non sticky error", func(t *testing.T) {
 		calls := 0
-		s := newSCtl(procRoot, "foo", time.Minute, func(path string) ([]byte, error) {
+		s := newSCtl(procRoot, "foo", time.Minute, func(string) ([]byte, error) {
 			calls++
 			return nil, os.ErrInvalid
 		})

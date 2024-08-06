@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package traceagent provides the agent component type.
-package traceagent
+// Package agent provides the trace agent component type.
+package agent
 
 import (
 	"context"

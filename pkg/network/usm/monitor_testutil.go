@@ -10,12 +10,16 @@ package usm
 import (
 	"io"
 	"testing"
+	"unsafe"
 
 	"github.com/cilium/ebpf"
+	"github.com/stretchr/testify/require"
 
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 )
@@ -101,4 +105,13 @@ func patchProtocolMock(t *testing.T, spec protocolMockSpec) {
 	}
 
 	knownProtocols[0] = p
+}
+
+// SetConnectionProtocol sets the connection protocol for the given connection tuple.
+func (m *Monitor) SetConnectionProtocol(t *testing.T, p netebpf.ProtocolStackWrapper, tup netebpf.ConnTuple) {
+	t.Helper()
+
+	connProtocolMap, _, err := m.ebpfProgram.GetMap(probes.ConnectionProtocolMap)
+	require.NoError(t, err)
+	require.NoError(t, connProtocolMap.Update(unsafe.Pointer(&tup), unsafe.Pointer(&p), ebpf.UpdateAny))
 }

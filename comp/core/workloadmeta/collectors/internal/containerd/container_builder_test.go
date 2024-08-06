@@ -24,7 +24,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -216,7 +217,7 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 	}
 
 	client := fake.MockedContainerdClient{
-		MockInfo: func(namespace string, ctn containerd.Container) (containers.Container, error) {
+		MockInfo: func(string, containerd.Container) (containers.Container, error) {
 			return containers.Container{
 				Labels:    labels,
 				CreatedAt: createdAt,
@@ -226,22 +227,22 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 				},
 			}, nil
 		},
-		MockSpec: func(namespace string, ctn containers.Container) (*oci.Spec, error) {
+		MockSpec: func(string, containers.Container) (*oci.Spec, error) {
 			return &oci.Spec{Hostname: hostName, Process: &specs.Process{Env: envVarStrs}, Linux: &specs.Linux{
 				CgroupsPath: "kubelet-kubepods-burstable-pod99dcb84d2a34f7e338778606703258c4.slice:cri-containerd:ec9ea0ad54dd0d96142d5dbe11eb3f1509e12ba9af739620c7b5ad377ce94602",
 			}}, nil
 		},
-		MockStatus: func(namespace string, ctn containerd.Container) (containerd.ProcessStatus, error) {
+		MockStatus: func(string, containerd.Container) (containerd.ProcessStatus, error) {
 			return containerd.Running, nil
 		},
-		MockTaskPids: func(namespace string, ctn containerd.Container) ([]containerd.ProcessInfo, error) {
+		MockTaskPids: func(string, containerd.Container) ([]containerd.ProcessInfo, error) {
 			return nil, nil
 		},
 	}
 
 	// Create a workload meta global store containing image metadata
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
@@ -264,7 +265,7 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 	workloadmetaStore.Set(imageMetadata)
 
 	for _, test := range tests {
-		t.Run(test.name, func(tt *testing.T) {
+		t.Run(test.name, func(_ *testing.T) {
 			result, err := buildWorkloadMetaContainer(namespace, &test.container, &client, workloadmetaStore)
 			assert.NoError(t, err)
 

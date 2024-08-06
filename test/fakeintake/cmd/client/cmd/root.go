@@ -22,7 +22,7 @@ func NewCommand() (cmd *cobra.Command) {
 		Short:        "fake intake client CLI",
 		Long:         `fakeintakectl is a CLI for interacting with fake intake servers.`,
 		SilenceUsage: true,
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		PersistentPreRunE: func(*cobra.Command, []string) error {
 			cl = client.NewClient(url)
 
 			return cl.GetServerHealth()

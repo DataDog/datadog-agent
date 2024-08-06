@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/impl"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -59,7 +59,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "dogstatsd-replay",
 		Short: "Replay dogstatsd traffic",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(dogstatsdReplay,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -76,7 +76,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func dogstatsdReplay(log log.Component, config config.Component, cliParams *cliParams) error {
+func dogstatsdReplay(_ log.Component, config config.Component, cliParams *cliParams) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

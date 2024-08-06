@@ -19,7 +19,7 @@ func NewGetTracesCommand(cl **client.Client) (cmd *cobra.Command) {
 	cmd = &cobra.Command{
 		Use:   "traces",
 		Short: "Get traces",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			traces, err := (*cl).GetTraces()
 			if err != nil {
 				return err

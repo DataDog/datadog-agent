@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
@@ -27,14 +28,14 @@ type StaticConfigService struct {
 var _ Service = &StaticConfigService{}
 
 // NewStaticConfigListener creates a StaticConfigListener
-func NewStaticConfigListener(Config) (ServiceListener, error) {
+func NewStaticConfigListener(Config, *telemetry.Store) (ServiceListener, error) {
 	return &StaticConfigListener{}, nil
 }
 
 // Listen starts the goroutine to detect checks based on the config
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (l *StaticConfigListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
+func (l *StaticConfigListener) Listen(newSvc chan<- Service, _ chan<- Service) {
 	l.newService = newSvc
 
 	go l.createServices()
@@ -110,19 +111,19 @@ func (s *StaticConfigService) IsReady(context.Context) bool {
 // HasFilter is not supported
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (s *StaticConfigService) HasFilter(filter containers.FilterType) bool {
+func (s *StaticConfigService) HasFilter(_ containers.FilterType) bool {
 	return false
 }
 
 // GetExtraConfig is not supported
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (s *StaticConfigService) GetExtraConfig(key string) (string, error) {
+func (s *StaticConfigService) GetExtraConfig(_ string) (string, error) {
 	return "", ErrNotSupported
 }
 
 // FilterTemplates does nothing.
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (s *StaticConfigService) FilterTemplates(configs map[string]integration.Config) {
+func (s *StaticConfigService) FilterTemplates(_ map[string]integration.Config) {
 }

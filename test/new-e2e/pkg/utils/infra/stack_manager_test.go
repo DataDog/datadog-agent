@@ -59,7 +59,7 @@ func TestStackManager(t *testing.T) {
 		stack, result, err := stackManager.GetStackNoDeleteOnFailure(
 			ctx,
 			stackName,
-			func(ctx *pulumi.Context) error {
+			func(*pulumi.Context) error {
 				return nil
 			},
 			WithLogWriter(mockWriter),
@@ -95,7 +95,7 @@ func TestStackManager(t *testing.T) {
 				stack, result, err := stackManager.GetStackNoDeleteOnFailure(
 					ctx,
 					stackName,
-					func(ctx *pulumi.Context) error {
+					func(*pulumi.Context) error {
 						stackUpCounter++
 						if stackUpCounter > errCount {
 							return nil
@@ -141,7 +141,7 @@ func TestStackManager(t *testing.T) {
 		stack, result, err := stackManager.GetStackNoDeleteOnFailure(
 			ctx,
 			stackName,
-			func(ctx *pulumi.Context) error {
+			func(*pulumi.Context) error {
 				stackUpCounter++
 				return fmt.Errorf("error %d", stackUpCounter)
 			},
@@ -187,7 +187,7 @@ func TestStackManager(t *testing.T) {
 		stack, result, err := stackManager.GetStackNoDeleteOnFailure(
 			ctx,
 			stackName,
-			func(ctx *pulumi.Context) error {
+			func(*pulumi.Context) error {
 				if stackUpCounter == 0 {
 					// sleep only first time to ensure context is cancelled
 					// on timeout

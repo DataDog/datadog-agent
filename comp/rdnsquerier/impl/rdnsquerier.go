@@ -12,7 +12,7 @@ import (
 	"net/netip"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"

@@ -11,7 +11,7 @@ package ptracer
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
+	"fmt"
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
@@ -147,9 +147,8 @@ func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 	}
 
 	if filename == "" { // in this case, dirfd defines directly the file's FD
-		var exists bool
-		if filename, exists = process.Res.Fd[fd]; !exists || filename == "" {
-			return errors.New("can't find related file path")
+		if filename, err = process.GetFilenameFromFd(fd); err != nil || filename == "" {
+			return fmt.Errorf("can't find related file path: %w", err)
 		}
 	} else {
 		filename, err = getFullPathFromFd(process, filename, fd)
@@ -235,7 +234,7 @@ func handleChdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, reg
 
 	dirname, err = getFullPathFromFilename(process, dirname)
 	if err != nil {
-		process.Res.Cwd = ""
+		process.FsRes.Cwd = ""
 		return err
 	}
 
@@ -250,9 +249,9 @@ func handleChdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, reg
 
 func handleFchdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	fd := tracer.ReadArgInt32(regs, 0)
-	dirname, ok := process.Res.Fd[fd]
-	if !ok {
-		process.Res.Cwd = ""
+	dirname, err := process.GetFilenameFromFd(fd)
+	if err != nil {
+		process.FsRes.Cwd = ""
 		return nil
 	}
 
@@ -392,9 +391,9 @@ func handleInitModule(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg
 func handleFInitModule(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	fd := tracer.ReadArgInt32(regs, 0)
 
-	filename, exists := process.Res.Fd[fd]
-	if !exists {
-		return errors.New("FD cache incomplete")
+	filename, err := process.GetFilenameFromFd(fd)
+	if err != nil {
+		return fmt.Errorf("FD cache incomplete: %w", err)
 	}
 
 	args, err := tracer.ReadArgString(process.Pid, regs, 1)
@@ -444,7 +443,7 @@ func handleDeleteModule(tracer *Tracer, process *Process, msg *ebpfless.SyscallM
 
 func handleChdirRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
 	if ret := tracer.ReadRet(regs); msg.Chdir != nil && ret >= 0 {
-		process.Res.Cwd = msg.Chdir.Dir.Filename
+		process.FsRes.Cwd = msg.Chdir.Dir.Filename
 	}
 	return nil
 }

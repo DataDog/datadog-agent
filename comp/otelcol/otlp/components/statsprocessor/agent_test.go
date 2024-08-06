@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/otel/sdk/metric"
@@ -79,22 +80,25 @@ func TestTraceAgent(t *testing.T) {
 
 	a.Ingest(ctx, traces)
 	var stats *pb.StatsPayload
-	timeout := time.After(500 * time.Millisecond)
-loop:
-	for {
+	timeout := time.After(5 * time.Second)
+	var actual []*pb.ClientGroupedStats
+	// Depending on the time bucket boundaries, the stats can come in one or multiple payloads.
+	// Wait until all payloads are received.
+	for len(actual) < traces.SpanCount() {
 		select {
 		case stats = <-out:
 			if len(stats.Stats) != 0 {
-				break loop
+				require.Len(t, stats.Stats, 1)
+				require.Len(t, stats.Stats[0].Stats, 1)
+				assert.Greater(t, len(stats.Stats[0].Stats[0].Stats), 0)
+				actual = append(actual, stats.Stats[0].Stats[0].Stats...)
 			}
 		case <-timeout:
 			t.Fatal("timed out")
 		}
 	}
 
-	require.Len(t, stats.Stats, 1)
-	require.Len(t, stats.Stats[0].Stats, 1)
 	// considering all spans in rspans have distinct aggregations, we should have an equal amount
 	// of groups
-	require.Len(t, stats.Stats[0].Stats[0].Stats, traces.SpanCount())
+	require.Len(t, actual, traces.SpanCount())
 }

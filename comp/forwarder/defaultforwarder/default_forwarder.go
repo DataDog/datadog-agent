@@ -17,7 +17,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -553,7 +553,7 @@ func (f *DefaultForwarder) SubmitSketchSeries(payload transaction.BytesPayloads,
 // SubmitHostMetadata will send a host_metadata tag type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitHostMetadata(payload transaction.BytesPayloads, extra http.Header) error {
 	return f.submitV1IntakeWithTransactionsFactory(payload, transaction.Metadata, extra,
-		func(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, kind transaction.Kind, extra http.Header) []*transaction.HTTPTransaction {
+		func(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, _ transaction.Kind, extra http.Header) []*transaction.HTTPTransaction {
 			// Host metadata contains the API KEY and should not be stored on disk.
 			storableOnDisk := false
 			return f.createAdvancedHTTPTransactions(endpoint, payloads, extra, transaction.TransactionPriorityHigh, transaction.Metadata, storableOnDisk)
@@ -563,7 +563,7 @@ func (f *DefaultForwarder) SubmitHostMetadata(payload transaction.BytesPayloads,
 // SubmitAgentChecksMetadata will send a agentchecks_metadata tag type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitAgentChecksMetadata(payload transaction.BytesPayloads, extra http.Header) error {
 	return f.submitV1IntakeWithTransactionsFactory(payload, transaction.Metadata, extra,
-		func(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, kind transaction.Kind, extra http.Header) []*transaction.HTTPTransaction {
+		func(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, _ transaction.Kind, extra http.Header) []*transaction.HTTPTransaction {
 			// Agentchecks metadata contains the API KEY and should not be stored on disk.
 			storableOnDisk := false
 			return f.createAdvancedHTTPTransactions(endpoint, payloads, extra, transaction.TransactionPriorityNormal, transaction.Metadata, storableOnDisk)
