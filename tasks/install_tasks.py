@@ -53,7 +53,6 @@ def install_tools(ctx):
                     for tool in tools:
                         ctx.run(f"go install {tool}")
 
-    install_protoc(ctx)
 
 @task
 def install_shellcheck(ctx, version="0.8.0", destination="/usr/local/bin"):
