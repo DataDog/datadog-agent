@@ -3759,7 +3759,6 @@ k8s.io/component-base v0.28.6/go.mod h1:Dg62OOG3ALu2P4nAG00UdsuHoNLQJ5VsUZKQlLDc
 k8s.io/cri-api v0.25.5 h1:k/VYZpkDI4VEb5nI4uWE/ZHO08b1D/m5/EXv1weXgtM=
 k8s.io/cri-api v0.25.5/go.mod h1:fg+6ctfBFAUYnKfjmYqUVXwq6A788L0ZvNooI405Nek=
 k8s.io/gengo v0.0.0-20201214224949-b6c5ce23f027/go.mod h1:FiNAH4ZV3gBg2Kwh89tzAEV2be7d5xI0vBa/VySYy3E=
-k8s.io/gengo v0.0.0-20230829151522-9cce18d56c01 h1:pWEwq4Asjm4vjW7vcsmijwBhOr1/shsbSYiWXmNGlks=
 k8s.io/gengo v0.0.0-20230829151522-9cce18d56c01/go.mod h1:FiNAH4ZV3gBg2Kwh89tzAEV2be7d5xI0vBa/VySYy3E=
 k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 h1:PbZJplYddJmSutLN9divJ0qU2nwGuY9ce++qhcsjqU0=
 k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4/go.mod h1:4Bi6QPql/J/LkTDqv7R/cd3hPo4k2DG6Ptcz060Ez5I=
