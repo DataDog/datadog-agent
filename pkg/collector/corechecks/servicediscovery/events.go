@@ -37,6 +37,7 @@ type eventPayload struct {
 	APMInstrumentation  string   `json:"apm_instrumentation"`
 	ServiceNameSource   string   `json:"service_name_source"`
 	Ports               []uint16 `json:"ports"`
+	PID                 int      `json:"pid"`
 }
 
 type event struct {
@@ -69,6 +70,7 @@ func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 			APMInstrumentation:  svc.meta.APMInstrumentation,
 			ServiceNameSource:   svc.meta.NameSource,
 			Ports:               svc.process.Ports,
+			PID:                 svc.process.PID,
 		},
 	}
 }
