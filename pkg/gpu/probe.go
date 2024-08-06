@@ -12,6 +12,7 @@ import (
 	"hash/fnv"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"golang.org/x/exp/maps"
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -50,6 +52,7 @@ type Probe struct {
 	mgr      *ddebpf.Manager
 	cfg      *Config
 	consumer *CudaEventConsumer
+	attacher *uprobes.UprobeAttacher
 }
 
 // NewProbe starts the GPU monitoring probe
@@ -149,37 +152,31 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, telemetryComp
 		EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
 	}
 
-	for library, uprobes := range uprobesByLibrary {
-		locations, err := locateLibrary(library)
-		if err != nil {
-			return nil, fmt.Errorf("error locating library %s: %w", library, err)
-		}
-		locations = append(locations, cfg.manualProbedBinaries...)
-
-		if len(locations) == 0 {
-			log.Warnf("[gpu] could not find any attach point for %s", library)
-			continue
-		}
-
-		for _, uprobe := range uprobes {
-			for _, location := range locations {
-				log.Debugf("[gpu] attaching uprobe %s to library %s at %s", uprobe, library, location)
-
-				uid, err := buildProbeUID(uprobe, location)
-				if err != nil {
-					return nil, fmt.Errorf("error building probe UID for probe=%s, location=%s: %w", uprobe, location, err)
-				}
-
-				probe := &manager.Probe{
-					ProbeIdentificationPair: manager.ProbeIdentificationPair{
-						EBPFFuncName: uprobe,
-						UID:          uid,
+	attachCfg := &uprobes.AttacherConfig{
+		Rules: []*uprobes.AttachRule{
+			{
+				LibraryNameRegex: regexp.MustCompile("libcudart\\.so"),
+				Targets:          uprobes.AttachToExecutable | uprobes.AttachToSharedLibraries,
+				ProbesSelector: []manager.ProbesSelector{
+					&manager.AllOf{
+						Selectors: []manager.ProbesSelector{
+							&manager.ProbeSelector{manager.ProbeIdentificationPair{EBPFFuncName: "uprobe_cudaLaunchKernel"}},
+							&manager.ProbeSelector{manager.ProbeIdentificationPair{EBPFFuncName: "uprobe_cudaMalloc"}},
+							&manager.ProbeSelector{manager.ProbeIdentificationPair{EBPFFuncName: "uretprobe_cudaMalloc"}},
+							&manager.ProbeSelector{manager.ProbeIdentificationPair{EBPFFuncName: "uprobe_cudaStreamSynchronize"}},
+							&manager.ProbeSelector{manager.ProbeIdentificationPair{EBPFFuncName: "uprobe_cudaFree"}},
+						},
 					},
-					BinaryPath: location,
-				}
-				mgr.Probes = append(mgr.Probes, probe)
-			}
-		}
+				},
+			},
+		},
+		EbpfConfig:         cfg.Config,
+		PerformInitialScan: true,
+	}
+
+	attacher, err := uprobes.NewUprobeAttacher("gpu", attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{})
+	if err != nil {
+		return nil, fmt.Errorf("error creating uprobes attacher: %w", err)
 	}
 
 	if err := rlimit.RemoveMemlock(); err != nil {
@@ -187,8 +184,9 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, telemetryComp
 	}
 
 	p := &Probe{
-		mgr: mgr,
-		cfg: cfg,
+		mgr:      mgr,
+		cfg:      cfg,
+		attacher: attacher,
 	}
 
 	p.startEventConsumer()
@@ -201,13 +199,19 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, telemetryComp
 		return nil, fmt.Errorf("failed to start manager: %w", err)
 	}
 
-	log.Infof("[gpu] GPU monitoring probe started, loaded %d probes", len(mgr.Probes))
+	if err := attacher.Start(); err != nil {
+		return nil, fmt.Errorf("error starting uprobes attacher: %w", err)
+	}
 
 	return p, nil
 }
 
 // Close stops the probe
 func (p *Probe) Close() {
+	if p.attacher != nil {
+		p.attacher.Stop()
+	}
+
 	_ = p.mgr.Stop(manager.CleanAll)
 
 	if p.consumer != nil {
@@ -246,9 +250,8 @@ func (p *Probe) startEventConsumer() {
 	rb := &manager.RingBuffer{
 		Map: manager.Map{Name: cudaEventMap},
 		RingBufferOptions: manager.RingBufferOptions{
-			RingBufferSize: 4096,
-			RecordHandler:  handler.RecordHandler,
-			RecordGetter:   handler.RecordGetter,
+			RecordHandler: handler.RecordHandler,
+			RecordGetter:  handler.RecordGetter,
 		},
 	}
 	p.mgr.RingBuffers = append(p.mgr.RingBuffers, rb)
