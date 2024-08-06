@@ -296,7 +296,7 @@ func securityProfileToWorloadPolicyCommands(globalParams *command.GlobalParams) 
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},

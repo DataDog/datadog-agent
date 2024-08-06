@@ -175,7 +175,7 @@ func (wp *WorkloadPolicyProvider) onCGroupCreatedEvent(workload *model.CacheEntr
 			seclog.Errorf("unable to parse the policy file: %v", err)
 		}
 
-		policy.ID = workload.ID
+		//policy.ID = workload.ID
 
 		wp.policies[workload] = policy
 
