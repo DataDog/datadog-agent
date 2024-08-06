@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/ebpfpostgres"
 )
 
 func TestExtractTableFunction(t *testing.T) {
@@ -47,8 +49,8 @@ func TestExtractTableFunction(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			e := NewEventWrapper(&EbpfEvent{
-				Tx: EbpfTx{
+			e := NewEventWrapper(&ebpfpostgres.EbpfEvent{
+				Tx: ebpfpostgres.EbpfTx{
 					Request_fragment:    requestFragment([]byte(tt.query)),
 					Original_query_size: uint32(len(tt.query)),
 				},
@@ -60,8 +62,8 @@ func TestExtractTableFunction(t *testing.T) {
 
 func BenchmarkExtractTableName(b *testing.B) {
 	query := "CREATE TABLE dummy"
-	e := NewEventWrapper(&EbpfEvent{
-		Tx: EbpfTx{
+	e := NewEventWrapper(&ebpfpostgres.EbpfEvent{
+		Tx: ebpfpostgres.EbpfTx{
 			Request_fragment:    requestFragment([]byte(query)),
 			Original_query_size: uint32(len(query)),
 		},
@@ -73,11 +75,11 @@ func BenchmarkExtractTableName(b *testing.B) {
 	}
 }
 
-func requestFragment(fragment []byte) [BufferSize]byte {
-	if len(fragment) >= BufferSize {
-		return *(*[BufferSize]byte)(fragment)
+func requestFragment(fragment []byte) [ebpfpostgres.BufferSize]byte {
+	if len(fragment) >= ebpfpostgres.BufferSize {
+		return *(*[ebpfpostgres.BufferSize]byte)(fragment)
 	}
-	var b [BufferSize]byte
+	var b [ebpfpostgres.BufferSize]byte
 	copy(b[:], fragment)
 	return b
 }

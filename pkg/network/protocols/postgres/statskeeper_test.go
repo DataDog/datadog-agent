@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/ebpfpostgres"
 )
 
 func TestStatKeeperProcess(t *testing.T) {
@@ -21,8 +22,8 @@ func TestStatKeeperProcess(t *testing.T) {
 	s := NewStatkeeper(cfg)
 	for i := 0; i < 20; i++ {
 		s.Process(&EventWrapper{
-			EbpfEvent: &EbpfEvent{
-				Tx: EbpfTx{
+			EbpfEvent: &ebpfpostgres.EbpfEvent{
+				Tx: ebpfpostgres.EbpfTx{
 					Request_started:    1,
 					Response_last_seen: 10,
 				},
