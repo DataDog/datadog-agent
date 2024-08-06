@@ -429,7 +429,7 @@ func (ua *UprobeAttacher) handleLibraryOpen(event *ebpf.DataEvent) error {
 	return ua.AttachLibrary(string(path), libpath.Pid)
 }
 
-func (ua *UprobeAttacher) buildRegisterCallbacks(path string, matchingRules []*AttachRule, procInfo *ProcInfo) (func(utils.FilePath) error, func(utils.FilePath) error) {
+func (ua *UprobeAttacher) buildRegisterCallbacks(matchingRules []*AttachRule, procInfo *ProcInfo) (func(utils.FilePath) error, func(utils.FilePath) error) {
 	registerCB := func(p utils.FilePath) error {
 		err := ua.attachToBinary(p, matchingRules, procInfo)
 		if ua.config.EnableDetailedLogging {
@@ -459,7 +459,7 @@ func (ua *UprobeAttacher) AttachLibrary(path string, pid uint32) error {
 		return ErrNoMatchingRule
 	}
 
-	registerCB, unregisterCB := ua.buildRegisterCallbacks(path, matchingRules, NewProcInfo(ua.config.ProcRoot, pid))
+	registerCB, unregisterCB := ua.buildRegisterCallbacks(matchingRules, NewProcInfo(ua.config.ProcRoot, pid))
 
 	return ua.fileRegistry.Register(path, pid, registerCB, unregisterCB)
 }
@@ -539,7 +539,7 @@ func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) er
 	}
 
 	matchingRules := ua.getRulesForExecutable(binPath, procInfo)
-	registerCB, unregisterCB := ua.buildRegisterCallbacks(binPath, matchingRules, procInfo)
+	registerCB, unregisterCB := ua.buildRegisterCallbacks(matchingRules, procInfo)
 
 	if len(matchingRules) != 0 {
 		err = ua.fileRegistry.Register(binPath, pid, registerCB, unregisterCB)
