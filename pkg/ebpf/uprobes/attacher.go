@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ExcludeMode defines the different optiont to exclude processes from attachment
@@ -146,6 +147,10 @@ type AttacherConfig struct {
 
 	// ProcessMonitorEventStream defines whether the process monitor is using the event stream
 	ProcessMonitorEventStream bool
+
+	// EnableDetailedLogging makes the attacher log why it's attaching or not attaching to a process
+	// This is useful for debugging purposes, do not enable in production.
+	EnableDetailedLogging bool
 }
 
 // SetDefaults configures the AttacherConfig with default values for those fields for which the compiler
@@ -326,6 +331,7 @@ func (ua *UprobeAttacher) Start() error {
 				ua.soWatcher.Stop()
 			}
 			ua.wg.Done()
+			log.Infof("uprobe attacher %s stopped", ua.name)
 		}()
 
 		var sharedLibDataChan <-chan *ebpf.DataEvent
@@ -353,6 +359,7 @@ func (ua *UprobeAttacher) Start() error {
 			}
 		}
 	}()
+	log.Infof("uprobe attacher %s started", ua.name)
 
 	return nil
 }
@@ -425,6 +432,25 @@ func (ua *UprobeAttacher) handleLibraryOpen(event *ebpf.DataEvent) error {
 	return ua.AttachLibrary(string(path), libpath.Pid)
 }
 
+func (ua *UprobeAttacher) buildRegisterCallbacks(path string, matchingRules []*AttachRule, procInfo *ProcInfo) (func(utils.FilePath) error, func(utils.FilePath) error) {
+	registerCB := func(p utils.FilePath) error {
+		err := ua.attachToBinary(p, matchingRules, procInfo)
+		if ua.config.EnableDetailedLogging {
+			log.Debugf("uprobes: attaching to %s (PID %d): err=%v", p.HostPath, procInfo.PID, err)
+		}
+		return err
+	}
+	unregisterCB := func(p utils.FilePath) error {
+		err := ua.detachFromBinary(p)
+		if ua.config.EnableDetailedLogging {
+			log.Debugf("uprobes: detaching from %s: err=%v", p.HostPath, err)
+		}
+		return err
+	}
+
+	return registerCB, unregisterCB
+}
+
 // AttachLibrary attaches the probes to the given library, opened by a given PID
 func (ua *UprobeAttacher) AttachLibrary(path string, pid uint32) error {
 	if (ua.config.ExcludeTargets&ExcludeSelf) != 0 && int(pid) == os.Getpid() {
@@ -436,12 +462,7 @@ func (ua *UprobeAttacher) AttachLibrary(path string, pid uint32) error {
 		return ErrNoMatchingRule
 	}
 
-	registerCB := func(path utils.FilePath) error {
-		return ua.attachToBinary(path, matchingRules, NewProcInfo(ua.config.ProcRoot, pid))
-	}
-	unregisterCB := func(path utils.FilePath) error {
-		return ua.detachFromBinary(path)
-	}
+	registerCB, unregisterCB := ua.buildRegisterCallbacks(path, matchingRules, NewProcInfo(ua.config.ProcRoot, pid))
 
 	return ua.fileRegistry.Register(path, pid, registerCB, unregisterCB)
 }
@@ -519,12 +540,7 @@ func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) er
 	}
 
 	matchingRules := ua.getRulesForExecutable(binPath, procInfo)
-	registerCB := func(path utils.FilePath) error {
-		return ua.attachToBinary(path, matchingRules, procInfo)
-	}
-	unregisterCB := func(path utils.FilePath) error {
-		return ua.detachFromBinary(path)
-	}
+	registerCB, unregisterCB := ua.buildRegisterCallbacks(binPath, matchingRules, procInfo)
 
 	if len(matchingRules) != 0 {
 		err = ua.fileRegistry.Register(binPath, pid, registerCB, unregisterCB)
