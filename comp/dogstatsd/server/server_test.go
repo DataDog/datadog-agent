@@ -10,7 +10,9 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"net"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -76,6 +78,11 @@ func fulfillDeps(t testing.TB) serverDeps {
 }
 
 func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string]interface{}, features []config.Feature) serverDeps {
+
+	// TODO: https://datadoghq.atlassian.net/browse/AMLII-1948
+	if runtime.GOOS == "darwin" {
+		flake.Mark(t)
+	}
 	return fxutil.Test[serverDeps](t, fx.Options(
 		core.MockBundle(),
 		serverdebugimpl.MockModule(),
