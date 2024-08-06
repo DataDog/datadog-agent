@@ -550,10 +550,7 @@ func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) er
 	}
 
 	if attachToLibs && ua.handlesLibraries() {
-		err = ua.attachToLibrariesOfPID(pid)
-		if err != nil {
-			return err
-		}
+		return ua.attachToLibrariesOfPID(pid)
 	}
 
 	return nil
