@@ -69,6 +69,7 @@ func Test_telemetrySender(t *testing.T) {
 			Language:           "jvm",
 			Type:               "web_service",
 			APMInstrumentation: "injected",
+			NameSource:         "generated",
 		},
 		LastHeartbeat: now,
 	}
@@ -168,7 +169,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 			Language:           "jvm",
 			Type:               "web_service",
 			APMInstrumentation: "injected",
-			FromDDService:      true,
+			NameSource:         "provided",
 		},
 		LastHeartbeat: now,
 	}

@@ -29,6 +29,7 @@ func Test_serviceDetector(t *testing.T) {
 		Language:           "python",
 		Type:               "db",
 		APMInstrumentation: "injected",
+		NameSource:         "generated",
 	}
 	got := sd.Detect(pInfo)
 	assert.Equal(t, want, got)
@@ -47,7 +48,7 @@ func Test_serviceDetector(t *testing.T) {
 		Language:           "UNKNOWN",
 		Type:               "web_service",
 		APMInstrumentation: "none",
-		FromDDService:      false,
+		NameSource:         "generated",
 	}
 	gotEmpty := sd.Detect(pInfoEmpty)
 	assert.Equal(t, wantEmpty, gotEmpty)
