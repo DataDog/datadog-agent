@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    For the [Inferred Service Dependencies beta](https://docs.datadoghq.com/tracing/guide/inferred-service-opt-in/?tab=java), add two new `peer.hostname` precursor attributes: `out.host` and `dns.hostname`. This will improve coverage of inferred services which come from some tracer integrations which only place the peer hostname in one of those attributes. 
+    For the [Inferred Service Dependencies beta](https://docs.datadoghq.com/tracing/guide/inferred-service-opt-in/?tab=java), add two new `peer.hostname` precursor attributes, `out.host` and `dns.hostname`. This will improve coverage of inferred services because some tracer integrations only place the peer hostname in one of those attributes. 
