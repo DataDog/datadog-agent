@@ -27,7 +27,7 @@ static inline void load_dim3(__u64 xy, __u64 z, dim3 *dst) {
 }
 
 SEC("uprobe/cudaLaunchKernel")
-int BPF_UPROBE(uprobe_cudaLaunchKernel, const void *func, __u64 grid_xy, __u64 grid_z, __u64 block_xy, __u64 block_z, void **args) {
+int BPF_UPROBE(uprobe__cudaLaunchKernel, const void *func, __u64 grid_xy, __u64 grid_z, __u64 block_xy, __u64 block_z, void **args) {
     cuda_kernel_launch_t launch_data;
     size_t shared_mem = 0;
     __u64 *stream_ptr = 0;
@@ -58,7 +58,7 @@ int BPF_UPROBE(uprobe_cudaLaunchKernel, const void *func, __u64 grid_xy, __u64 g
 }
 
 SEC("uprobe/cudaMalloc")
-int BPF_UPROBE(uprobe_cudaMalloc, void **devPtr, size_t size) {
+int BPF_UPROBE(uprobe__cudaMalloc, void **devPtr, size_t size) {
     __u64 pid_tgid = bpf_get_current_pid_tgid();
     cuda_alloc_request_args_t args = { .devPtr = devPtr, .size = size };
 
@@ -69,7 +69,7 @@ int BPF_UPROBE(uprobe_cudaMalloc, void **devPtr, size_t size) {
 }
 
 SEC("uretprobe/cudaMalloc")
-int BPF_URETPROBE(uretprobe_cudaMalloc) {
+int BPF_URETPROBE(uretprobe__cudaMalloc) {
     __u64 pid_tgid = bpf_get_current_pid_tgid();
     cuda_alloc_request_args_t *args;
     cuda_memory_event_t mem_data;
@@ -104,7 +104,7 @@ int BPF_URETPROBE(uretprobe_cudaMalloc) {
 }
 
 SEC("uprobe/cudaFree")
-int BPF_UPROBE(uprobe_cudaFree, void *mem) {
+int BPF_UPROBE(uprobe__cudaFree, void *mem) {
     cuda_memory_event_t mem_data;
 
     __builtin_memset(&mem_data, 0, sizeof(mem_data));
@@ -123,7 +123,7 @@ int BPF_UPROBE(uprobe_cudaFree, void *mem) {
 }
 
 SEC("uprobe/cudaStreamSynchronize")
-int BPF_UPROBE(uprobe_cudaStreamSynchronize, size_t *stream_ptr) {
+int BPF_UPROBE(uprobe__cudaStreamSynchronize, size_t *stream_ptr) {
     // TODO: Send this on return, not on entry
     cuda_sync_t event;
     size_t stream;

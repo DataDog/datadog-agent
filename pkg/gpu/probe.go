@@ -160,18 +160,19 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, telemetryComp
 				ProbesSelector: []manager.ProbesSelector{
 					&manager.AllOf{
 						Selectors: []manager.ProbesSelector{
-							&manager.ProbeSelector{manager.ProbeIdentificationPair{EBPFFuncName: "uprobe_cudaLaunchKernel"}},
-							&manager.ProbeSelector{manager.ProbeIdentificationPair{EBPFFuncName: "uprobe_cudaMalloc"}},
-							&manager.ProbeSelector{manager.ProbeIdentificationPair{EBPFFuncName: "uretprobe_cudaMalloc"}},
-							&manager.ProbeSelector{manager.ProbeIdentificationPair{EBPFFuncName: "uprobe_cudaStreamSynchronize"}},
-							&manager.ProbeSelector{manager.ProbeIdentificationPair{EBPFFuncName: "uprobe_cudaFree"}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__cudaLaunchKernel"}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__cudaMalloc"}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uretprobe__cudaMalloc"}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__cudaStreamSynchronize"}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__cudaFree"}},
 						},
 					},
 				},
 			},
 		},
-		EbpfConfig:         cfg.Config,
-		PerformInitialScan: true,
+		EbpfConfig:            cfg.Config,
+		PerformInitialScan:    true,
+		EnableDetailedLogging: true,
 	}
 
 	attacher, err := uprobes.NewUprobeAttacher("gpu", attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{})
