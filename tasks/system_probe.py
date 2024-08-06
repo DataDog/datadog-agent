@@ -52,6 +52,7 @@ TEST_PACKAGES_LIST = [
     "./pkg/ebpf/...",
     "./pkg/network/...",
     "./pkg/collector/corechecks/ebpf/...",
+    "./pkg/collector/corechecks/servicediscovery/module/...",
     "./pkg/process/monitor/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)

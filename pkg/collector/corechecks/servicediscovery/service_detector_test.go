@@ -12,7 +12,7 @@ import (
 )
 
 func Test_serviceDetector(t *testing.T) {
-	sd := newServiceDetector()
+	sd := NewServiceDetector()
 
 	// no need to test many cases here, just ensuring the process data is properly passed down is enough.
 	pInfo := processInfo{
@@ -24,7 +24,7 @@ func Test_serviceDetector(t *testing.T) {
 		Ports:   []int{5432},
 	}
 
-	want := serviceMetadata{
+	want := ServiceMetadata{
 		Name:               "my-service",
 		Language:           "python",
 		Type:               "db",
@@ -42,7 +42,7 @@ func Test_serviceDetector(t *testing.T) {
 		Stat:    procStat{},
 		Ports:   nil,
 	}
-	wantEmpty := serviceMetadata{
+	wantEmpty := ServiceMetadata{
 		Name:               "",
 		Language:           "UNKNOWN",
 		Type:               "web_service",
