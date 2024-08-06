@@ -30,13 +30,6 @@ const (
 	oldestBucketStart    = 20 * time.Second
 )
 
-const (
-	// set on a stat payload containing only distributions post aggregation
-	keyDistributions = "distributions"
-	// set on a stat payload containing counts (hit/error/duration) post aggregation
-	keyCounts = "counts"
-)
-
 var (
 	ddsketchMapping, _ = mapping.NewLogarithmicMapping(relativeAccuracy)
 )
@@ -280,13 +273,12 @@ func (b *bucket) aggregationToPayloads() []*pb.ClientStatsPayload {
 				Stats:    groupedStats,
 			}}
 		res = append(res, &pb.ClientStatsPayload{
-			Hostname:         payloadKey.Hostname,
-			Env:              payloadKey.Env,
-			Version:          payloadKey.Version,
-			ImageTag:         payloadKey.ImageTag,
-			GitCommitSha:     payloadKey.GitCommitSha,
-			Stats:            clientBuckets,
-			AgentAggregation: keyCounts, // TODO: the aggregation now contains BOTH counts and distributions
+			Hostname:     payloadKey.Hostname,
+			Env:          payloadKey.Env,
+			Version:      payloadKey.Version,
+			ImageTag:     payloadKey.ImageTag,
+			GitCommitSha: payloadKey.GitCommitSha,
+			Stats:        clientBuckets,
 		})
 	}
 	return res

@@ -133,7 +133,6 @@ func getTestStatsWithStart(t *testing.T, start time.Time, incPeerTags bool) *pb.
 	p.ContainerID = ""
 	p.Sequence = 0
 	p.Service = ""
-	p.AgentAggregation = "counts" // TODO
 	p.Stats = []*pb.ClientStatsBucket{b}
 	return p
 }
@@ -155,30 +154,12 @@ func encodeTestSketch(t *testing.T, s *ddsketch.DDSketch) []byte {
 	return data
 }
 
-func assertDistribPayload(t *testing.T, withCounts, res *pb.StatsPayload) {
-	for j, p := range withCounts.Stats {
-		withCounts.Stats[j].AgentAggregation = keyDistributions
-		for _, s := range p.Stats {
-			for i := range s.Stats {
-				if s.Stats[i] == nil {
-					continue
-				}
-				s.Stats[i].Hits = 0
-				s.Stats[i].Errors = 0
-				s.Stats[i].Duration = 0
-			}
-		}
-	}
-	assert.Equal(t, withCounts.String(), res.String())
-}
-
 func assertAggCountsPayload(t *testing.T, aggCounts *pb.StatsPayload) {
 	for _, p := range aggCounts.Stats {
 		assert.Empty(t, p.Lang)
 		assert.Empty(t, p.TracerVersion)
 		assert.Empty(t, p.RuntimeID)
 		assert.Equal(t, uint64(0), p.Sequence)
-		assert.Equal(t, keyCounts, p.AgentAggregation)
 		for _, s := range p.Stats {
 			for _, b := range s.Stats {
 				assert.Nil(t, b.OkSummary)
@@ -194,7 +175,6 @@ func assertAggStatsPayload(t *testing.T, aggStats *pb.StatsPayload) {
 		assert.Empty(t, p.TracerVersion)
 		assert.Empty(t, p.RuntimeID)
 		assert.Equal(t, uint64(0), p.Sequence)
-		assert.Equal(t, keyCounts, p.AgentAggregation)
 		for _, s := range p.Stats {
 			for _, b := range s.Stats {
 				assert.NotNil(t, b.OkSummary)
@@ -251,7 +231,6 @@ func agg2Counts(insertionTime time.Time, p *pb.ClientStatsPayload) *pb.ClientSta
 	p.TracerVersion = ""
 	p.RuntimeID = ""
 	p.Sequence = 0
-	p.AgentAggregation = "counts"
 	p.Service = ""
 	p.ContainerID = ""
 	for _, s := range p.Stats {
@@ -276,7 +255,6 @@ func agg2Counts(insertionTime time.Time, p *pb.ClientStatsPayload) *pb.ClientSta
 
 func asserEqualPayloads(t *testing.T, p1, p2 *pb.ClientStatsPayload) {
 	assert.Equal(t, p1.Service, p2.Service)
-	assert.Equal(t, p1.AgentAggregation, p2.AgentAggregation)
 	assert.Equal(t, p1.ContainerID, p2.ContainerID)
 	for i, csb := range p1.Stats {
 		assert.Equal(t, csb.Start, p2.Stats[i].Start)
