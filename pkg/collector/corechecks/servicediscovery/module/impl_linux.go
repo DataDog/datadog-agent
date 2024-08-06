@@ -122,10 +122,15 @@ func getSockets(p *process.Process) ([]uint64, error) {
 	return sockets, nil
 }
 
+// socketInfo stores information related to each socket.
+type socketInfo struct {
+	port uint16
+}
+
 // namespaceInfo stores information related to each network namespace.
 type namespaceInfo struct {
-	// listeningSockets maps the socket inode numbers to port numbers for sockets which are listening.
-	listeningSockets map[uint64]uint16
+	// listeningSockets maps socket inode numbers to socket information for listening sockets.
+	listeningSockets map[uint64]socketInfo
 }
 
 // Lifted from pkg/network/proc_net.go
@@ -138,12 +143,12 @@ const (
 )
 
 // addSockets adds only listening sockets to a map to be used for later looksups.
-func addSockets[P procfs.NetTCP | procfs.NetUDP](sockMap map[uint64]uint16, sockets P, state uint64) {
+func addSockets[P procfs.NetTCP | procfs.NetUDP](sockMap map[uint64]socketInfo, sockets P, state uint64) {
 	for _, sock := range sockets {
 		if sock.St != state {
 			continue
 		}
-		sockMap[sock.Inode] = uint16(sock.LocalPort)
+		sockMap[sock.Inode] = socketInfo{port: uint16(sock.LocalPort)}
 	}
 }
 
@@ -175,7 +180,7 @@ func getNsInfo(pid int) (*namespaceInfo, error) {
 		log.Debugf("couldn't snapshot UDP6 sockets: %v", err)
 	}
 
-	listeningSockets := make(map[uint64]uint16)
+	listeningSockets := make(map[uint64]socketInfo)
 
 	addSockets(listeningSockets, TCP, tcpListen)
 	addSockets(listeningSockets, TCP6, tcpListen)
@@ -247,7 +252,8 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	var ports []uint16
 	seenPorts := make(map[uint16]struct{})
 	for _, socket := range sockets {
-		if port, ok := nsInfo.listeningSockets[socket]; ok {
+		if info, ok := nsInfo.listeningSockets[socket]; ok {
+			port := info.port
 			if _, seen := seenPorts[port]; seen {
 				continue
 			}
