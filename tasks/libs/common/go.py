@@ -3,6 +3,8 @@ from __future__ import annotations
 from time import sleep
 from typing import TYPE_CHECKING
 
+from invoke.exceptions import Exit
+
 from tasks.libs.common.utils import timed
 
 if TYPE_CHECKING:
@@ -23,3 +25,5 @@ def download_go_dependencies(ctx: Context, paths: list[str], verbose: bool = Fal
                         sleep(wait)
                         continue
                     break
+                else:
+                    raise Exit(f"Failed downloading {path}", 1)
