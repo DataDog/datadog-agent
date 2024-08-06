@@ -229,7 +229,7 @@ func (c *Check) sendUsageMetrics() {
 	c.sender.Count("datadog.agent.sbom.container_images.running", 1.0, "", nil)
 
 	if c.cfg.GetBool("sbom.host.enabled") {
-		c.sender.Count("datadog.agent.sbom.hosts.running", 1.0, "", []string{runtime.GOOS})
+		c.sender.Count("datadog.agent.sbom.hosts.running", 1.0, "", []string{"os:" + runtime.GOOS})
 	}
 
 	c.sender.Commit()

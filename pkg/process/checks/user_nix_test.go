@@ -15,11 +15,11 @@ import (
 	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestLookupUserWithId(t *testing.T) {
-	cfg := config.Mock(t)
+	cfg := configmock.New(t)
 	cfg.SetWithoutSource("process_config.cache_lookupid", true)
 
 	for _, tc := range []struct {
@@ -90,10 +90,10 @@ func TestLookupUserWithId(t *testing.T) {
 
 func TestLookupIdConfigSetting(t *testing.T) {
 	//nolint:revive // TODO(PROC) Fix revive linter
-	testLookupIdFunc := func(uid string) (*user.User, error) { return &user.User{Name: "jojo"}, nil }
+	testLookupIdFunc := func(_ string) (*user.User, error) { return &user.User{Name: "jojo"}, nil }
 
 	t.Run("enabled", func(t *testing.T) {
-		cfg := config.Mock(t)
+		cfg := configmock.New(t)
 		cfg.SetWithoutSource("process_config.cache_lookupid", true)
 
 		p := NewLookupIDProbe(cfg)
@@ -106,7 +106,7 @@ func TestLookupIdConfigSetting(t *testing.T) {
 	})
 
 	t.Run("disabled", func(t *testing.T) {
-		cfg := config.Mock(t)
+		cfg := configmock.New(t)
 		cfg.SetWithoutSource("process_config.cache_lookupid", false)
 
 		p := NewLookupIDProbe(cfg)

@@ -281,6 +281,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceVarnish,
 		metrics.MetricSourceVault,
 		metrics.MetricSourceVertica,
+		metrics.MetricSourceVllm,
 		metrics.MetricSourceVoltdb,
 		metrics.MetricSourceVsphere,
 		metrics.MetricSourceWin32EventLog,
@@ -288,7 +289,8 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceWindowsService,
 		metrics.MetricSourceWmiCheck,
 		metrics.MetricSourceYarn,
-		metrics.MetricSourceZk:
+		metrics.MetricSourceZk,
+		metrics.MetricSourceAwsNeuron:
 		return 11 // integrationMetrics
 	default:
 		return 0
@@ -844,6 +846,10 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 398
 	case metrics.MetricSourceZenohRouter:
 		return 399
+	case metrics.MetricSourceVllm:
+		return 412
+	case metrics.MetricSourceAwsNeuron:
+		return 413
 	default:
 		return 0
 	}

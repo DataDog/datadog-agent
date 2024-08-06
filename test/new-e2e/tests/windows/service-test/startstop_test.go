@@ -27,7 +27,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -192,7 +191,9 @@ func (s *powerShellServiceCommandSuite) TestHardExitEventLogEntry() {
 	// check the System event log for hard exit messages
 	s.Assert().EventuallyWithT(func(c *assert.CollectT) {
 		entries, err := windowsCommon.GetEventLogErrorAndWarningEntries(host, "System")
-		s.Require().NoError(err, "should get errors and warnings from System event log")
+		if !assert.NoError(c, err, "should get errors and warnings from System event log") {
+			return
+		}
 		for _, displayName := range displayNames {
 			match := fmt.Sprintf("The %s service terminated unexpectedly", displayName)
 			matching := windowsCommon.Filter(entries, func(entry windowsCommon.EventLogEntry) bool {
@@ -221,6 +222,7 @@ type baseStartStopSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
 	startAgentCommand func(host *components.RemoteHost) error
 	stopAgentCommand  func(host *components.RemoteHost) error
+	dumpFolder        string
 }
 
 // TestAgentStartsAllServices tests that starting the agent starts all services (as enabled)
@@ -286,6 +288,18 @@ func (s *baseStartStopSuite) TestAgentStopsAllServices() {
 func (s *baseStartStopSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 
+	// Enable crash dumps
+	s.dumpFolder = `C:\dumps`
+	err := windowsCommon.EnableWERGlobalDumps(s.Env().RemoteHost, s.dumpFolder)
+	s.Require().NoError(err, "should enable WER dumps")
+	env := map[string]string{
+		"GOTRACEBACK": "wer",
+	}
+	for _, svc := range s.expectedUserServices() {
+		err := windowsCommon.SetServiceEnvironment(s.Env().RemoteHost, svc, env)
+		s.Require().NoError(err, "should set environment for %s", svc)
+	}
+
 	// Disable failure actions (auto restart service) so they don't interfere with the tests
 	host := s.Env().RemoteHost
 	for _, serviceName := range s.expectedInstalledServices() {
@@ -322,18 +336,33 @@ func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
 			s.Assert().NoError(err, "should remove %s", entry.Name())
 		}
 	}
+	// Clear dump folder
+	s.T().Logf("Clearing dump folder")
+	err = windowsCommon.CleanDirectory(host, s.dumpFolder)
+	s.Require().NoError(err, "should clean dump folder")
 }
 
 func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 	s.BaseSuite.AfterTest(suiteName, testName)
 
+	outputDir, err := runner.GetTestOutputDir(runner.GetProfile(), s.T())
+	if err != nil {
+		s.T().Fatalf("should get output dir")
+	}
+	s.T().Logf("Output dir: %s", outputDir)
+
+	// look for and download crashdumps
+	dumps, err := windowsCommon.DownloadAllWERDumps(s.Env().RemoteHost, s.dumpFolder, outputDir)
+	s.Assert().NoError(err, "should download crash dumps")
+	if !s.Assert().Empty(dumps, "should not have crash dumps") {
+		s.T().Logf("Found crash dumps:")
+		for _, dump := range dumps {
+			s.T().Logf("  %s", dump)
+		}
+	}
+
 	if s.T().Failed() {
 		// If the test failed, export the event logs for debugging
-		outputDir, err := runner.GetTestOutputDir(runner.GetProfile(), s.T())
-		if err != nil {
-			s.T().Fatalf("should get output dir")
-		}
-		s.T().Logf("Output dir: %s", outputDir)
 		host := s.Env().RemoteHost
 		for _, logName := range []string{"System", "Application"} {
 			// collect the full event log as an evtx file
@@ -390,7 +419,7 @@ func (s *baseStartStopSuite) requireAllServicesState(expected string) {
 
 	if s.T().Failed() {
 		// stop test if not all services are running
-		s.FailNow("not all services are %s", expected)
+		s.FailNowf("not all services are %s", expected)
 	}
 }
 
@@ -400,7 +429,9 @@ func (s *baseStartStopSuite) assertAllServicesState(expected string) {
 	for _, serviceName := range s.expectedInstalledServices() {
 		s.Assert().EventuallyWithT(func(c *assert.CollectT) {
 			status, err := windowsCommon.GetServiceStatus(host, serviceName)
-			require.NoError(c, err)
+			if !assert.NoError(c, err) {
+				return
+			}
 			if !assert.Equal(c, expected, status, "%s should be %s", serviceName, expected) {
 				s.T().Logf("waiting for %s to be %s, status %s", serviceName, expected, status)
 			}
@@ -421,7 +452,9 @@ func (s *baseStartStopSuite) stopAllServices() {
 	for _, serviceName := range s.expectedInstalledServices() {
 		s.Assert().EventuallyWithT(func(c *assert.CollectT) {
 			status, err := windowsCommon.GetServiceStatus(host, serviceName)
-			require.NoError(c, err)
+			if !assert.NoError(c, err) {
+				return
+			}
 			if !assert.Equal(c, "Stopped", status, "%s should be stopped", serviceName) {
 				s.T().Logf("%s still running, sending stop cmd", serviceName)
 				err := windowsCommon.StopService(host, serviceName)

@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
@@ -57,6 +58,7 @@ type Host struct {
 	osFamily             oscomp.Family
 	// as per the documentation of http.Transport: "Transports should be reused instead of created as needed."
 	httpTransport *http.Transport
+	scrubber      *scrubber.Scrubber
 }
 
 // NewHost creates a new ssh client to connect to a remote host with
@@ -89,6 +91,7 @@ func NewHost(context e2e.Context, hostOutput remote.HostOutput) (*Host, error) {
 		buildCommand:         buildCommandFactory(hostOutput.OSFamily),
 		convertPathSeparator: convertPathSeparatorFactory(hostOutput.OSFamily),
 		osFamily:             hostOutput.OSFamily,
+		scrubber:             scrubber.NewWithDefaults(),
 	}
 
 	host.httpTransport = host.newHTTPTransport()
@@ -124,7 +127,8 @@ func (h *Host) Execute(command string, options ...ExecuteOption) (string, error)
 }
 
 func (h *Host) executeAndReconnectOnError(command string) (string, error) {
-	h.context.T().Logf("Executing command...") // don't print the command in case it contains secrets
+	scrubbedCommand := h.scrubber.ScrubLine(command) // scrub the command in case it contains secrets
+	h.context.T().Logf("Executing command `%s`", scrubbedCommand)
 	stdout, err := execute(h.client, command)
 	if err != nil && strings.Contains(err.Error(), "failed to create session:") {
 		err = h.Reconnect()
@@ -146,7 +150,20 @@ func (h *Host) MustExecute(command string, options ...ExecuteOption) string {
 	return stdout
 }
 
-// CopyFile create a sftp session and copy a single file to the remote host through SSH
+// CopyFileFromFS creates a sftp session and copy a single embedded file to the remote host through SSH
+func (h *Host) CopyFileFromFS(fs fs.FS, src, dst string) {
+	h.context.T().Logf("Copying file from local %s to remote %s", src, dst)
+	dst = h.convertPathSeparator(dst)
+	sftpClient := h.getSFTPClient()
+	defer sftpClient.Close()
+	file, err := fs.Open(src)
+	require.NoError(h.context.T(), err)
+	defer file.Close()
+	err = copyFileFromIoReader(sftpClient, file, dst)
+	require.NoError(h.context.T(), err)
+}
+
+// CopyFile creates a sftp session and copy a single file to the remote host through SSH
 func (h *Host) CopyFile(src string, dst string) {
 	h.context.T().Logf("Copying file from local %s to remote %s", src, dst)
 	dst = h.convertPathSeparator(dst)
@@ -425,7 +442,7 @@ func (h *Host) NewHTTPClient() *http.Client {
 
 func (h *Host) newHTTPTransport() *http.Transport {
 	return &http.Transport{
-		DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
+		DialContext: func(_ context.Context, _, addr string) (net.Conn, error) {
 			hostname, port, err := net.SplitHostPort(addr)
 			if err != nil {
 				return nil, err

@@ -32,6 +32,7 @@ type WindowsTraceroute struct {
 // New creates a new instance of WindowsTraceroute
 // based on an input configuration
 func New(cfg Config, _ telemetry.Component) (*WindowsTraceroute, error) {
+	log.Debugf("Creating new traceroute with config: %+v", cfg)
 	return &WindowsTraceroute{
 		cfg: cfg,
 	}, nil

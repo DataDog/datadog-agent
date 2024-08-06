@@ -51,7 +51,7 @@ func TestParseParams(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t1 *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			req, err := http.NewRequestWithContext(context.Background(), "GET", "http://example.com", nil)
 			q := req.URL.Query()
 			for k, v := range tt.params {

@@ -73,7 +73,7 @@ func NewActivityDumpLocalStorage(cfg *config.Config, m *ActivityDumpManager) (Ac
 	}
 
 	var err error
-	adls.localDumps, err = simplelru.NewLRU(cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount, func(name string, files *[]string) {
+	adls.localDumps, err = simplelru.NewLRU(cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount, func(_ string, files *[]string) {
 		if len(*files) == 0 {
 			return
 		}

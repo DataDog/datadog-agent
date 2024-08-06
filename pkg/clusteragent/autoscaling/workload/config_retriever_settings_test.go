@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
+	v1 "k8s.io/api/core/v1"
 	clock "k8s.io/utils/clock/testing"
 
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
@@ -61,7 +62,7 @@ func TestConfigRetriverAutoscalingSettingsFollower(t *testing.T) {
 					},
 				}),
 		},
-		func(configKey string, applyState state.ApplyStatus) {
+		func(_ string, applyState state.ApplyStatus) {
 			stateCallbackCalled++
 			assert.Equal(t, applyState, state.ApplyStatus{
 				State: state.ApplyStateUnacknowledged,
@@ -145,7 +146,7 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 			"foo1": buildAutoscalingSettingsRawConfig(t, 1, settingsList1),
 			"foo2": buildAutoscalingSettingsRawConfig(t, 10, settingsList2),
 		},
-		func(configKey string, applyState state.ApplyStatus) {
+		func(_ string, applyState state.ApplyStatus) {
 			stateCallbackCalled++
 			assert.Equal(t, applyState, state.ApplyStatus{
 				State: state.ApplyStateAcknowledged,
@@ -185,8 +186,17 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 	// Update to existing autoscalingsettings received
 	// Update the settings for object3
 	// Both adding and removing fields
-	object3Spec.Recommender = &datadoghq.DatadogPodAutoscalerRecommender{
-		Name: "some-option",
+	object3Spec.Targets = []datadoghq.DatadogPodAutoscalerTarget{
+		{
+			Type: datadoghq.DatadogPodAutoscalerResourceTargetType,
+			PodResource: &datadoghq.DatadogPodAutoscalerResourceTarget{
+				Name: v1.ResourceCPU,
+				Value: datadoghq.DatadogPodAutoscalerTargetValue{
+					Type:        datadoghq.DatadogPodAutoscalerUtilizationTargetValueType,
+					Utilization: pointer.Ptr[int32](80),
+				},
+			},
+		},
 	}
 	object3Spec.Policy = nil
 
@@ -197,7 +207,7 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 			"foo1": buildAutoscalingSettingsRawConfig(t, 1, settingsList1),  // Version unchanged
 			"foo2": buildAutoscalingSettingsRawConfig(t, 11, settingsList2), // New version
 		},
-		func(configKey string, applyState state.ApplyStatus) {
+		func(_ string, applyState state.ApplyStatus) {
 			stateCallbackCalled++
 			assert.Equal(t, applyState, state.ApplyStatus{
 				State: state.ApplyStateAcknowledged,
@@ -239,7 +249,7 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 		map[string]state.RawConfig{
 			"foo2": buildRawConfig(t, data.ProductContainerAutoscalingSettings, 12, []byte(`{"foo"}`)),
 		},
-		func(configKey string, applyState state.ApplyStatus) {
+		func(_ string, applyState state.ApplyStatus) {
 			stateCallbackCalled++
 			assert.Equal(t, applyState, state.ApplyStatus{
 				State: state.ApplyStateError,

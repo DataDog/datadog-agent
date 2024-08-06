@@ -71,7 +71,7 @@ func TestGetNTPHosts(t *testing.T) {
 	ctx := context.Background()
 	expectedHosts := []string{"ntpupdate.tencentyun.com"}
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		io.WriteString(w, "test")
 	}))

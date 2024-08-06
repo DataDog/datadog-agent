@@ -170,7 +170,7 @@ func (p *probe) Close() {
 	}
 }
 
-func (p *probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, error) { //nolint:revive // TODO fix revive unused-parameter
+func (p *probe) StatsForPIDs(pids []int32, _ time.Time) (map[int32]*Stats, error) {
 	err := p.enumCounters(false, true)
 	if err != nil {
 		return nil, err
@@ -184,7 +184,7 @@ func (p *probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 	return statsToReturn, nil
 }
 
-func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Process, error) { //nolint:revive // TODO fix revive unused-parameter
+func (p *probe) ProcessesByPID(_ time.Time, collectStats bool) (map[int32]*Process, error) {
 	// TODO: reuse PIDs slice across runs
 	pids, err := getPIDs()
 	if err != nil {
@@ -297,7 +297,7 @@ func (p *probe) enumCounters(collectMeta bool, collectStats bool) error {
 	return nil
 }
 
-func (p *probe) StatsWithPermByPID(pids []int32) (map[int32]*StatsWithPerm, error) { //nolint:revive // TODO fix revive unused-parameter
+func (p *probe) StatsWithPermByPID(_ []int32) (map[int32]*StatsWithPerm, error) {
 	return nil, fmt.Errorf("probe(Windows): StatsWithPermByPID is not implemented")
 }
 
@@ -338,7 +338,7 @@ func (p *probe) mapPID(instance string, pid uint64) {
 	p.instanceToPID[instance] = int32(pid)
 }
 
-func (p *probe) setProcParentPID(proc *Process, instance string, pid int32) { //nolint:revive // TODO fix revive unused-parameter
+func (p *probe) setProcParentPID(proc *Process, _ string, pid int32) {
 	proc.Ppid = pid
 }
 
@@ -348,7 +348,7 @@ func (p *probe) mapParentPID(instance string, v uint64) {
 	})
 }
 
-func (p *probe) traceStats(pid int32) bool { //nolint:revive // TODO fix revive unused-parameter
+func (p *probe) traceStats(_ int32) bool {
 	// TODO: in a future PR introduce an Option to configure tracing of stats for individual PIDs
 	return false
 }

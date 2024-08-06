@@ -9,6 +9,8 @@ package npcollectorimpl
 
 import (
 	"fmt"
+	"math/rand"
+	"net"
 	"testing"
 	"time"
 
@@ -43,7 +45,7 @@ var testOptions = fx.Options(
 	eventplatformimpl.MockModule(),
 )
 
-func newTestNpCollector(t *testing.T, agentConfigs map[string]any) (*fxtest.App, *npCollectorImpl) {
+func newTestNpCollector(t fxtest.TB, agentConfigs map[string]any) (*fxtest.App, *npCollectorImpl) {
 	var component npcollector.Component
 	app := fxtest.New(t, fx.Options(
 		testOptions,
@@ -62,15 +64,45 @@ func createConns(numberOfConns int) []*model.Connection {
 	var conns []*model.Connection
 	for i := 0; i < numberOfConns; i++ {
 		conns = append(conns, &model.Connection{
-			Laddr:     &model.Addr{Ip: fmt.Sprintf("127.0.0.%d", i), Port: int32(30000)},
-			Raddr:     &model.Addr{Ip: fmt.Sprintf("127.0.1.%d", i), Port: int32(80)},
+			Laddr:     &model.Addr{Ip: fmt.Sprintf("10.0.0.%d", i), Port: int32(30000)},
+			Raddr:     &model.Addr{Ip: fmt.Sprintf("10.0.1.%d", i), Port: int32(80)},
 			Direction: model.ConnectionDirection_outgoing,
 		})
 	}
 	return conns
 }
 
-func waitForProcessedPathtests(npCollector *npCollectorImpl, timeout time.Duration, processecCount uint64) {
+func createBenchmarkConns(numberOfConns int, tcpPercent int) []*model.Connection {
+	port := rand.Intn(65535-1) + 1
+	connType := model.ConnectionType_udp
+	if rand.Intn(100) < tcpPercent {
+		connType = model.ConnectionType_tcp
+	}
+	var conns []*model.Connection
+	for i := 0; i < numberOfConns; i++ {
+		conns = append(conns, &model.Connection{
+			Laddr:     &model.Addr{Ip: fmt.Sprintf("127.0.0.%d", i), Port: int32(30000)},
+			Raddr:     &model.Addr{Ip: randomPublicIP(), Port: int32(port)},
+			Direction: model.ConnectionDirection_outgoing,
+			Type:      connType,
+		})
+	}
+	return conns
+}
+
+func randomPublicIP() string {
+	var ip string
+	for {
+		ip = fmt.Sprintf("%d.%d.%d.%d", rand.Intn(256), rand.Intn(256), rand.Intn(256), rand.Intn(256))
+		parsedIP := net.ParseIP(ip)
+		if parsedIP != nil && !parsedIP.IsLoopback() && !parsedIP.IsPrivate() {
+			break
+		}
+	}
+	return ip
+}
+
+func waitForProcessedPathtests(npCollector *npCollectorImpl, timeout time.Duration, processedCount uint64) {
 	timeoutChan := time.After(timeout)
 	tick := time.NewTicker(100 * time.Millisecond)
 	defer tick.Stop()
@@ -79,7 +111,7 @@ func waitForProcessedPathtests(npCollector *npCollectorImpl, timeout time.Durati
 		case <-timeoutChan:
 			return
 		case <-tick.C:
-			if npCollector.processedTracerouteCount.Load() >= processecCount {
+			if npCollector.processedTracerouteCount.Load() >= processedCount {
 				return
 			}
 		}

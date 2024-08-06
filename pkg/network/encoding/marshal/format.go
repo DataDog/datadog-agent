@@ -52,7 +52,7 @@ func mergeDynamicTags(dynamicTags ...map[string]struct{}) (out map[string]struct
 // FormatConnection converts a ConnectionStats into an model.Connection
 func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionStats, routes map[string]RouteIdx,
 	httpEncoder *httpEncoder, http2Encoder *http2Encoder, kafkaEncoder *kafkaEncoder, postgresEncoder *postgresEncoder,
-	dnsFormatter *dnsFormatter, ipc ipCache, tagsSet *network.TagsSet) {
+	redisEncoder *redisEncoder, dnsFormatter *dnsFormatter, ipc ipCache, tagsSet *network.TagsSet) {
 
 	builder.SetPid(int32(conn.Pid))
 
@@ -126,6 +126,7 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 
 	staticTags |= kafkaEncoder.WriteKafkaAggregations(conn, builder)
 	staticTags |= postgresEncoder.WritePostgresAggregations(conn, builder)
+	staticTags |= redisEncoder.WriteRedisAggregations(conn, builder)
 
 	conn.StaticTags |= staticTags
 	tags, tagChecksum := formatTags(conn, tagsSet, dynamicTags)
@@ -295,7 +296,7 @@ func formatTags(c network.ConnectionStats, tagsSet *network.TagsSet, connDynamic
 	}
 
 	// other tags, e.g., from process env vars like DD_ENV, etc.
-	for tag := range c.Tags {
+	for _, tag := range c.Tags {
 		t := tag.Get().(string)
 		checksum ^= murmur3.StringSum32(t)
 		tagsIdx = append(tagsIdx, tagsSet.Add(t))

@@ -17,7 +17,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
 
-	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -63,18 +62,6 @@ func contains(envs []corev1.EnvVar, name string) bool {
 		}
 	}
 	return false
-}
-
-// EnvIndex returns the index of env var in an env var list
-// returns -1 if not found
-func EnvIndex(envs []corev1.EnvVar, name string) int {
-	for i := range envs {
-		if envs[i].Name == name {
-			return i
-		}
-	}
-
-	return -1
 }
 
 // InjectEnv injects an env var into a pod template if it doesn't exist
@@ -164,27 +151,9 @@ func containsVolumeMount(volumeMounts []corev1.VolumeMount, element corev1.Volum
 	return false
 }
 
-// ShouldMutatePod returns true if Admission Controller is allowed to mutate the pod
-// via pod label or mutateUnlabelled configuration
-func ShouldMutatePod(pod *corev1.Pod) bool {
-	// If a pod explicitly sets the label admission.datadoghq.com/enabled, make a decision based on its value
-	if val, found := pod.GetLabels()[admCommon.EnabledLabelKey]; found {
-		switch val {
-		case "true":
-			return true
-		case "false":
-			return false
-		default:
-			log.Warnf("Invalid label value '%s=%s' on pod %s should be either 'true' or 'false', ignoring it", admCommon.EnabledLabelKey, val, PodString(pod))
-		}
-	}
-
-	return config.Datadog().GetBool("admission_controller.mutate_unlabelled")
-}
-
 // ContainerRegistry gets the container registry config using the specified
-// config option, and falls back to the default container registry if no webhook-
-// specific container registry is set.
+// config option, and falls back to the default container registry if no
+// webhook-specific container registry is set.
 func ContainerRegistry(specificConfigOpt string) string {
 	if config.Datadog().IsSet(specificConfigOpt) {
 		return config.Datadog().GetString(specificConfigOpt)

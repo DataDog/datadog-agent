@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
@@ -163,14 +164,14 @@ func TestGetHostAliases(t *testing.T) {
 				setupDMIForNotEC2(t)
 			}
 
-			config.Mock(t)
+			configmock.New(t)
 			if tc.disableDMI {
 				config.Datadog().SetWithoutSource("ec2_use_dmi", false)
 			} else {
 				config.Datadog().SetWithoutSource("ec2_use_dmi", true)
 			}
 
-			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "text/plain")
 				var responseCode int
 				if tc.instanceID != "" {
@@ -449,7 +450,7 @@ func TestMetedataRequestWithoutToken(t *testing.T) {
 }
 
 func TestGetNTPHostsFromIMDS(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		io.WriteString(w, "test")
 	}))
@@ -462,7 +463,7 @@ func TestGetNTPHostsFromIMDS(t *testing.T) {
 }
 
 func TestGetNTPHostsDMI(t *testing.T) {
-	config.Mock(t)
+	configmock.New(t)
 	config.Datadog().SetWithoutSource("ec2_use_dmi", true)
 
 	setupDMIForEC2(t)
@@ -474,7 +475,7 @@ func TestGetNTPHostsDMI(t *testing.T) {
 }
 
 func TestGetNTPHostsEC2UUID(t *testing.T) {
-	config.Mock(t)
+	configmock.New(t)
 	config.Datadog().SetWithoutSource("ec2_use_dmi", true)
 
 	dmi.SetupMock(t, "ec2something", "", "", "")
@@ -486,7 +487,7 @@ func TestGetNTPHostsEC2UUID(t *testing.T) {
 }
 
 func TestGetNTPHostsDisabledDMI(t *testing.T) {
-	config.Mock(t)
+	configmock.New(t)
 	config.Datadog().SetWithoutSource("ec2_use_dmi", false)
 
 	// DMI without EC2 UUID
@@ -531,7 +532,7 @@ func TestMetadataSourceIMDS(t *testing.T) {
 	metadataURL = ts.URL
 	tokenURL = ts.URL
 	defer resetPackageVars()
-	config.Mock(t)
+	configmock.New(t)
 	config.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
 	config.Datadog().SetWithoutSource("ec2_prefer_imdsv2", true)
 
@@ -548,7 +549,7 @@ func TestMetadataSourceIMDS(t *testing.T) {
 }
 
 func TestMetadataSourceUUID(t *testing.T) {
-	config.Mock(t)
+	configmock.New(t)
 	config.Datadog().SetWithoutSource("ec2_use_dmi", true)
 
 	ctx := context.Background()
@@ -570,7 +571,7 @@ func TestMetadataSourceUUID(t *testing.T) {
 }
 
 func TestMetadataSourceDMI(t *testing.T) {
-	config.Mock(t)
+	configmock.New(t)
 	config.Datadog().SetWithoutSource("ec2_use_dmi", true)
 
 	ctx := context.Background()
@@ -584,7 +585,7 @@ func TestMetadataSourceDMI(t *testing.T) {
 }
 
 func TestMetadataSourceDMIPreventFallback(t *testing.T) {
-	config.Mock(t)
+	configmock.New(t)
 	config.Datadog().SetWithoutSource("ec2_use_dmi", true)
 
 	ctx := context.Background()

@@ -81,7 +81,7 @@
 # include datadog-agent as a product
 .deploy_installer_deb:
   rules:
-    !reference [.on_deploy]
+    !reference [.on_deploy_installer]
   resource_group: deb_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: deploy_packages
@@ -93,7 +93,7 @@
 
 .deploy_installer_rpm:
   rules:
-    !reference [.on_deploy]
+    !reference [.on_deploy_installer]
   resource_group: rpm_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: deploy_packages
@@ -110,4 +110,3 @@
   variables:
     ARTIFACTS_PREFIX: suse_
     OMNIBUS_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR_SUSE
-

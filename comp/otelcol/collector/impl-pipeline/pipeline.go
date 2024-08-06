@@ -5,15 +5,15 @@
 
 //go:build otlp
 
-// Package collector implements the collector component
-package collector
+// Package collectorimpl implements the collector component
+package collectorimpl
 
 import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	corelog "github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -42,7 +42,7 @@ type Requires struct {
 	Config config.Component
 
 	// Log specifies the logging component.
-	Log corelog.Component
+	Log log.Component
 
 	// Serializer specifies the metrics serializer that is used to export metrics
 	// to Datadog.
@@ -69,7 +69,7 @@ type Provides struct {
 type collectorImpl struct {
 	col            *otlp.Pipeline
 	config         config.Component
-	log            corelog.Component
+	log            log.Component
 	serializer     serializer.MetricSerializer
 	logsAgent      optional.Option[logsagentpipeline.Component]
 	inventoryAgent inventoryagent.Component

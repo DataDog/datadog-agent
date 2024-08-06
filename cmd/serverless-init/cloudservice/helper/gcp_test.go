@@ -26,7 +26,7 @@ func TestGetSingleMetadataMalformedUrl(t *testing.T) {
 }
 
 func TestSingleMetadataTimeout(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(100 * time.Millisecond)
 		w.WriteHeader(200)
 	}))
@@ -38,7 +38,7 @@ func TestSingleMetadataTimeout(t *testing.T) {
 }
 
 func TestSingleMetadataOK(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("1234"))
 	}))
 	defer ts.Close()
@@ -46,7 +46,7 @@ func TestSingleMetadataOK(t *testing.T) {
 }
 
 func TestGetContainerID(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("1234"))
 	}))
 	defer ts.Close()
@@ -58,7 +58,7 @@ func TestGetContainerID(t *testing.T) {
 }
 
 func TestGetRegionUnknown(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("unknown"))
 	}))
 	defer ts.Close()
@@ -70,7 +70,7 @@ func TestGetRegionUnknown(t *testing.T) {
 }
 
 func TestGetRegionOK(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("projects/xxx/regions/us-central1"))
 	}))
 	defer ts.Close()
@@ -82,7 +82,7 @@ func TestGetRegionOK(t *testing.T) {
 }
 
 func TestGetProjectID(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("superproject"))
 	}))
 	defer ts.Close()
@@ -94,15 +94,15 @@ func TestGetProjectID(t *testing.T) {
 }
 
 func TestGetMetaDataComplete(t *testing.T) {
-	tsProjectID := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	tsProjectID := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("superProjectID"))
 	}))
 	defer tsProjectID.Close()
-	tsRegion := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	tsRegion := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("greatRegion"))
 	}))
 	defer tsRegion.Close()
-	tsContainerID := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	tsContainerID := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("acb54"))
 	}))
 	defer tsContainerID.Close()
@@ -121,16 +121,16 @@ func TestGetMetaDataComplete(t *testing.T) {
 }
 
 func TestGetMetaDataIncompleteDueToTimeout(t *testing.T) {
-	tsProjectID := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	tsProjectID := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("superProjectID"))
 	}))
 	defer tsProjectID.Close()
-	tsRegion := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	tsRegion := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(1 * time.Second)
 		w.Write([]byte("greatRegion"))
 	}))
 	defer tsRegion.Close()
-	tsContainerID := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	tsContainerID := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("acb54"))
 	}))
 	defer tsContainerID.Close()

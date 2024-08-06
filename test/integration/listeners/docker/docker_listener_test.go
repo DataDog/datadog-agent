@@ -23,9 +23,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
+	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -39,20 +41,22 @@ import (
 
 type DockerListenerTestSuite struct {
 	suite.Suite
-	compose    utils.ComposeConf
-	listener   listeners.ServiceListener
-	dockerutil *docker.DockerUtil
-	newSvc     chan listeners.Service
-	delSvc     chan listeners.Service
-	stop       chan struct{}
-	m          sync.RWMutex
-	wmeta      workloadmeta.Component
+	compose        utils.ComposeConf
+	listener       listeners.ServiceListener
+	dockerutil     *docker.DockerUtil
+	newSvc         chan listeners.Service
+	delSvc         chan listeners.Service
+	stop           chan struct{}
+	m              sync.RWMutex
+	wmeta          workloadmeta.Component
+	telemetryStore *acTelemetry.Store
 }
 
 type deps struct {
 	fx.In
-	Tagger tagger.Component
-	WMeta  workloadmeta.Component
+	Tagger    tagger.Component
+	WMeta     workloadmeta.Component
+	Telemetry telemetry.Component
 }
 
 func (suite *DockerListenerTestSuite) SetupSuite() {
@@ -87,6 +91,7 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		fx.Supply(tagger.NewTaggerParams()),
 	))
 	suite.wmeta = deps.WMeta
+	suite.telemetryStore = acTelemetry.NewStore(deps.Telemetry)
 	suite.dockerutil, err = docker.GetDockerUtil()
 	require.Nil(suite.T(), err, "can't connect to docker")
 
@@ -101,7 +106,7 @@ func (suite *DockerListenerTestSuite) TearDownSuite() {
 }
 
 func (suite *DockerListenerTestSuite) SetupTest() {
-	dl, err := listeners.NewContainerListener(&config.Listeners{}, optional.NewOption(suite.wmeta))
+	dl, err := listeners.NewContainerListener(&config.Listeners{}, optional.NewOption(suite.wmeta), suite.telemetryStore)
 	if err != nil {
 		panic(err)
 	}

@@ -12,6 +12,7 @@
 #include "ioctl.h"
 #include "iouring.h"
 #include "link.h"
+#include "login_uid.h"
 #include "mkdir.h"
 #include "mmap.h"
 #include "module.h"
