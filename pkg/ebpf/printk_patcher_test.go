@@ -144,7 +144,7 @@ func TestPatchPrintkAllAssets(t *testing.T) {
 
 		progname := strings.TrimSuffix(filepath.Base(path), "-debug.o")
 
-		t.Run(progname, func(tt *testing.T) {
+		t.Run(progname, func(t *testing.T) {
 			spec, err := ebpf.LoadCollectionSpec(path)
 			require.NoError(t, err)
 
