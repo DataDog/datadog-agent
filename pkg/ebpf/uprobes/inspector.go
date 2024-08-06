@@ -102,19 +102,14 @@ func (p *NativeBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolR
 	symbolMapBestEffort, _ := bininspect.GetAllSymbolsByName(elfFile, bestEffortSymbols)
 
 	funcMap := make(map[string]bininspect.FunctionMetadata, len(symbolMap)+len(symbolMapBestEffort))
-	for symbol, sym := range symbolMap {
-		m, err := p.symbolToFuncMetadata(elfFile, sym)
-		if err != nil {
-			return nil, false, fmt.Errorf("failed to convert symbol %v to function metadata: %w", sym, err)
+	for _, symMap := range []map[string]elf.Symbol{symbolMap, symbolMapBestEffort} {
+		for symbol, sym := range symMap {
+			m, err := p.symbolToFuncMetadata(elfFile, sym)
+			if err != nil {
+				return nil, false, fmt.Errorf("failed to convert symbol %v to function metadata: %w", sym, err)
+			}
+			funcMap[symbol] = *m
 		}
-		funcMap[symbol] = *m
-	}
-	for symbol, sym := range symbolMapBestEffort {
-		m, err := p.symbolToFuncMetadata(elfFile, sym)
-		if err != nil {
-			return nil, false, fmt.Errorf("failed to convert symbol %v to function metadata: %w", sym, err)
-		}
-		funcMap[symbol] = *m
 	}
 
 	return funcMap, true, nil
