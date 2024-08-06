@@ -16,7 +16,7 @@ def download_go_dependencies(ctx: Context, paths: list[str], verbose: bool = Fal
         for path in paths:
             with ctx.cd(path):
                 for retry in range(max_retry):
-                    result = ctx.run(f"go mod download{verbosity}")
+                    result = ctx.run(f"go mod download{verbosity}", warn=True)
                     if result.exited is None or result.exited > 0:
                         wait = 10 ** (retry + 1)
                         print(f"[{retry + 1} / {max_retry}] Failed downloading {path}, retrying in {wait} seconds")
