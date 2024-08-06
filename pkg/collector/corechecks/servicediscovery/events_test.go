@@ -64,7 +64,7 @@ func Test_telemetrySender(t *testing.T) {
 			},
 			Ports: nil,
 		},
-		meta: serviceMetadata{
+		meta: ServiceMetadata{
 			Name:               "test-service",
 			Language:           "jvm",
 			Type:               "web_service",
@@ -163,7 +163,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 			},
 			Ports: nil,
 		},
-		meta: serviceMetadata{
+		meta: ServiceMetadata{
 			Name:               "test-service",
 			Language:           "jvm",
 			Type:               "web_service",

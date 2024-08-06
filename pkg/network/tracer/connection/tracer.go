@@ -278,7 +278,12 @@ func NewTracer(config *config.Config, _ telemetryComponent.Component) (Tracer, e
 	m.DumpHandler = dumpMapsHandler
 	ddebpf.AddNameMappings(m, "npm_tracer")
 
-	batchMgr, err := newConnBatchManager(m)
+	numCPUs, err := ebpf.PossibleCPU()
+	if err != nil {
+		return nil, fmt.Errorf("could not determine number of CPUs: %w", err)
+	}
+	extractor := newBatchExtractor(numCPUs)
+	batchMgr, err := newConnBatchManager(m, extractor)
 	if err != nil {
 		return nil, fmt.Errorf("could not create connection batch manager: %w", err)
 	}
