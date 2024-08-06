@@ -118,9 +118,6 @@ func getSockets(p *process.Process) ([]uint64, error) {
 			sockets = append(sockets, sock)
 		}
 	}
-	if len(sockets) <= 0 {
-		return nil, nil
-	}
 
 	return sockets, nil
 }
@@ -224,7 +221,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	if err != nil {
 		return nil
 	}
-	if sockets == nil {
+	if len(sockets) == 0 {
 		return nil
 	}
 
