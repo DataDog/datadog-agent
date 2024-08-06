@@ -12,7 +12,7 @@ import (
 
 	"golang.org/x/time/rate"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
 
 const rateLimiterBurst = 1 // burst of 1 is sufficient since wait() requests permission to perform a single operation

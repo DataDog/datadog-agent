@@ -11,7 +11,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
 
 type querier interface {
