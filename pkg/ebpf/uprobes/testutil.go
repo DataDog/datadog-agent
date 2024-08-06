@@ -25,62 +25,75 @@ import (
 )
 
 // === Mocks
+// MockManager is a mock implementation of the manager.Manager interface.
 type MockManager struct {
 	mock.Mock
 }
 
+// AddHook is a mock implementation of the manager.Manager.AddHook method.
 func (m *MockManager) AddHook(name string, probe *manager.Probe) error {
 	args := m.Called(name, probe)
 	return args.Error(0)
 }
 
+// DetachHook is a mock implementation of the manager.Manager.DetachHook method.
 func (m *MockManager) DetachHook(probeID manager.ProbeIdentificationPair) error {
 	args := m.Called(probeID)
 	return args.Error(0)
 }
 
+// GetProbe is a mock implementation of the manager.Manager.GetProbe method.
 func (m *MockManager) GetProbe(probeID manager.ProbeIdentificationPair) (*manager.Probe, bool) {
 	args := m.Called(probeID)
 	return args.Get(0).(*manager.Probe), args.Bool(1)
 }
 
+// GetProbes is a mock implementation of the manager.Manager.GetProbes method.
 type MockFileRegistry struct {
 	mock.Mock
 }
 
+// Register is a mock implementation of the FileRegistry.Register method.
 func (m *MockFileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB func(utils.FilePath) error) error {
 	args := m.Called(namespacedPath, pid, activationCB, deactivationCB)
 	return args.Error(0)
 }
 
+// Unregister is a mock implementation of the FileRegistry.Unregister method.
 func (m *MockFileRegistry) Unregister(pid uint32) error {
 	args := m.Called(pid)
 	return args.Error(0)
 }
 
+// Clear is a mock implementation of the FileRegistry.Clear method.
 func (m *MockFileRegistry) Clear() {
 	m.Called()
 }
 
+// GetRegisteredProcesses is a mock implementation of the FileRegistry.GetRegisteredProcesses method.
 func (m *MockFileRegistry) GetRegisteredProcesses() map[uint32]struct{} {
 	args := m.Called()
 	return args.Get(0).(map[uint32]struct{})
 }
 
+// GetRegisteredPaths is a mock implementation of the FileRegistry.GetRegisteredPaths method.
 type MockBinaryInspector struct {
 	mock.Mock
 }
 
+// Inspect is a mock implementation of the BinaryInspector.Inspect method.
 func (m *MockBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, bool, error) {
 	args := m.Called(fpath, requests)
 	return args.Get(0).(map[string]bininspect.FunctionMetadata), args.Bool(1), args.Error(2)
 }
 
+// Cleanup is a mock implementation of the BinaryInspector.Cleanup method.
 func (m *MockBinaryInspector) Cleanup(fpath utils.FilePath) {
 	_ = m.Called(fpath)
 }
 
 // === Test utils
+// FakeProcFSEntry represents a fake /proc filesystem entry for testing purposes.
 type FakeProcFSEntry struct {
 	Pid     uint32
 	Cmdline string

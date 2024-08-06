@@ -125,6 +125,7 @@ func (*NativeBinaryInspector) symbolToFuncMetadata(elfFile *elf.File, sym elf.Sy
 	return &bininspect.FunctionMetadata{EntryLocation: uint64(offset)}, nil
 }
 
+// Cleanup is a no-op for the native inspector
 func (*NativeBinaryInspector) Cleanup(_ utils.FilePath) {
 	// Nothing to do here for the native inspector
 }
@@ -169,6 +170,7 @@ func (p *GoBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolReque
 	return inspectionResult.Functions, true, nil
 }
 
+// Cleanup is a no-op for the Go inspector (for now)
 func (*GoBinaryInspector) Cleanup(_ utils.FilePath) {
 	// Nothing to do here for the native inspector
 }
