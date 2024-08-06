@@ -185,11 +185,22 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 	)
 
 	for _, p := range providers {
-		err = p(fb)
-		if err != nil {
-			f.log.Errorf("error calling '%s' for flare creation: %s",
-				runtime.FuncForPC(reflect.ValueOf(p).Pointer()).Name(), // reflect p.Callback function name
-				err)
+		done := make(chan error, 1)
+
+		go func(p types.FlareCallback) {
+			done <- p(fb)
+		}(p)
+
+		select {
+		case err := <-done:
+			if err != nil {
+				f.log.Errorf("error calling '%s' for flare creation: %s",
+					runtime.FuncForPC(reflect.ValueOf(p).Pointer()).Name(), // reflect p.Callback function name
+					err)
+			}
+		case <-time.After(15 * time.Second):
+			f.log.Errorf("error calling '%s' for flare creation: timeout after 10 seconds",
+				runtime.FuncForPC(reflect.ValueOf(p).Pointer()).Name())
 		}
 	}
 
