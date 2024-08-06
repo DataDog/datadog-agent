@@ -514,9 +514,12 @@ func (ua *UprobeAttacher) getExecutablePath(pid uint32) (string, error) {
 	return binPath, nil
 }
 
+const optionAttachToLibs = true
+const optionDontAttachToLibs = false
+
 // AttachPID attaches the corresponding probes to a given pid
 func (ua *UprobeAttacher) AttachPID(pid uint32) error {
-	return ua.AttachPIDWithOptions(pid, true)
+	return ua.AttachPIDWithOptions(pid, optionAttachToLibs)
 }
 
 // AttachPIDWithOptions attaches the corresponding probes to a given pid
