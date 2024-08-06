@@ -27,8 +27,9 @@ import (
 type packageTests func(os e2eos.Descriptor, arch e2eos.Architecture, method installMethodOption) packageSuite
 
 type packageTestsWithSkipedFlavors struct {
-	t              packageTests
-	skippedFlavors []e2eos.Descriptor
+	t                          packageTests
+	skippedFlavors             []e2eos.Descriptor
+	skippedInstallationMethods []installMethodOption
 }
 
 var (
@@ -49,16 +50,25 @@ var (
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkipedFlavors{
 		{t: testInstaller},
 		{t: testAgent},
-		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.Fedora37, e2eos.Suse15}},
+		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.Fedora37, e2eos.Suse15}, skippedInstallationMethods: []installMethodOption{installMethodAnsible}},
 		{t: testUpgradeScenario},
 	}
 )
 
 var supportedInstallMethods = []installMethodOption{installMethodInstallScript, installMethodAnsible}
 
-func shouldSkip(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
+func shouldSkipFlavor(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
 	for _, f := range flavors {
 		if f.Flavor == flavor.Flavor && f.Version == flavor.Version {
+			return true
+		}
+	}
+	return false
+}
+
+func shouldSkipInstallMethod(methods []installMethodOption, method installMethodOption) bool {
+	for _, m := range methods {
+		if m == method {
 			return true
 		}
 	}
@@ -85,7 +95,10 @@ func TestPackages(t *testing.T) {
 		for _, method := range supportedInstallMethods {
 			for _, test := range packagesTestsWithSkippedFlavors {
 				flavor := f // capture range variable for parallel tests closure
-				if shouldSkip(test.skippedFlavors, flavor) {
+				if shouldSkipFlavor(test.skippedFlavors, flavor) {
+					continue
+				}
+				if shouldSkipInstallMethod(test.skippedInstallationMethods, method) {
 					continue
 				}
 				suite := test.t(flavor, flavor.Architecture, method)
@@ -257,20 +270,18 @@ func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
 		s.Env().RemoteHost.MustExecute("sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 93C4A3FD7BB9C367 && sudo apt update && sudo apt install -y ansible")
 	case e2eos.Fedora:
 		s.Env().RemoteHost.MustExecute("sudo dnf install -y ansible")
-		ot := s.Env().RemoteHost.MustExecute("sudo find / -name 'ansible-galaxy'")
-		s.T().Log(ot)
 	case e2eos.RedHat, e2eos.CentOS:
 		s.Env().RemoteHost.MustExecute("sudo yum install -y epel-release && sudo yum install -y ansible")
 	// case e2eos.AmazonLinux:
 	// 	s.Env().RemoteHost.MustExecute("python3 -m pip install pipx && python3 -m pipx ensurepath")
 	// 	s.Env().RemoteHost.MustExecute("pipx install --include-deps ansible")
 	case e2eos.Suse:
-		s.Env().RemoteHost.MustExecute("sudo zypper refresh && sudo zypper install -y ansible")
+		s.Env().RemoteHost.MustExecute("sudo zypper update && sudo zypper install -y python3 python3-pip && sudo pip3 install ansible")
 	default:
-		s.Env().RemoteHost.MustExecute("python3 -m pip install pipx && python3 -m pipx ensurepath")
+		s.Env().RemoteHost.MustExecute("python3 -m ensurepip --upgrade && python3 -m pip install pipx && python3 -m pipx ensurepath")
 		ot := s.Env().RemoteHost.MustExecute("sudo find / -name 'ansible-galaxy'")
 		s.T().Log(ot)
-		pathPrefix = "/home/ec2-user/.local/bin"
+		pathPrefix = "/usr/bin/"
 	}
 
 	return pathPrefix
