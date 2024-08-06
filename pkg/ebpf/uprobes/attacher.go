@@ -93,7 +93,7 @@ func (r *AttachRule) matchesExecutable(path string, procInfo *ProcInfo) bool {
 	return r.canTarget(AttachToExecutable) && (r.ExecutableFilter == nil || r.ExecutableFilter(path, procInfo))
 }
 
-// Vaalidate checks whether the rule is valid, returns nil if it is, an error message otherwise
+// Validate checks whether the rule is valid, returns nil if it is, an error message otherwise
 func (r *AttachRule) Validate() error {
 	var errs []string
 
