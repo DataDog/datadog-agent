@@ -138,7 +138,7 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewEnabledParams(),
+					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
