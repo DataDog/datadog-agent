@@ -53,10 +53,21 @@ func (e *EventWrapper) ConnTuple() types.ConnectionKey {
 	}
 }
 
+// getFragment returns the actual query fragment from the event.
+func getFragment(e *ebpfpostgres.EbpfTx) []byte {
+	if e.Original_query_size == 0 {
+		return nil
+	}
+	if e.Original_query_size > uint32(len(e.Request_fragment)) {
+		return e.Request_fragment[:len(e.Request_fragment)]
+	}
+	return e.Request_fragment[:e.Original_query_size]
+}
+
 // Operation returns the operation of the query (SELECT, INSERT, UPDATE, DROP, etc.)
 func (e *EventWrapper) Operation() Operation {
 	if !e.operationSet {
-		e.operation = FromString(string(bytes.SplitN(e.Tx.GetFragment(), []byte(" "), 2)[0]))
+		e.operation = FromString(string(bytes.SplitN(getFragment(&e.Tx), []byte(" "), 2)[0]))
 		e.operationSet = true
 	}
 	return e.operation
@@ -66,7 +77,7 @@ var re = regexp.MustCompile(`(?i)if\s+exists`)
 
 // extractTableName extracts the table name from the query.
 func (e *EventWrapper) extractTableName() string {
-	fragment := string(e.Tx.GetFragment())
+	fragment := string(getFragment(&e.Tx))
 	// Temp solution for the fact that ObfuscateSQLString does not support "IF EXISTS" or "if exists", so we remove
 	// it from the fragment if found.
 	fragment = re.ReplaceAllString(fragment, "")

@@ -31,13 +31,3 @@ type EbpfTx struct {
 const (
 	BufferSize = 0xa0
 )
-
-func (e *EbpfTx) GetFragment() []byte {
-	if e.Original_query_size == 0 {
-		return nil
-	}
-	if e.Original_query_size > uint32(len(e.Request_fragment)) {
-		return e.Request_fragment[:len(e.Request_fragment)]
-	}
-	return e.Request_fragment[:e.Original_query_size]
-}
