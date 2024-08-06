@@ -260,20 +260,18 @@ func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
 		ot := s.Env().RemoteHost.MustExecute("sudo find / -name 'ansible-galaxy'")
 		s.T().Log(ot)
 	case e2eos.RedHat, e2eos.CentOS:
-		s.Env().RemoteHost.MustExecute("sudo yum install -y ansible")
+		s.Env().RemoteHost.MustExecute("sudo yum install -y epel-release && sudo yum install -y ansible")
 	// case e2eos.AmazonLinux:
 	// 	s.Env().RemoteHost.MustExecute("python3 -m pip install pipx && python3 -m pipx ensurepath")
 	// 	s.Env().RemoteHost.MustExecute("pipx install --include-deps ansible")
 	case e2eos.Suse:
-		s.Env().RemoteHost.MustExecute("sudo zypper install -y ansible")
+		s.Env().RemoteHost.MustExecute("sudo zypper refresh && sudo zypper install -y ansible")
 	default:
 		s.Env().RemoteHost.MustExecute("python3 -m pip install pipx && python3 -m pipx ensurepath")
 		ot := s.Env().RemoteHost.MustExecute("sudo find / -name 'ansible-galaxy'")
 		s.T().Log(ot)
 		pathPrefix = "/home/ec2-user/.local/bin"
 	}
-
-	// Install ansible and the datadog collection
 
 	return pathPrefix
 }
