@@ -17,6 +17,9 @@
 # changing the config of mockery will regenerate the mocks, so owners will have to review anyway
 /.mockery.yaml                          # do not notify anyone
 /.go-version                            @DataDog/agent-shared-components @DataDog/agent-delivery
+# Go linters and pre-commit config
+/.golangci.yml                          @DataDog/agent-devx-loops
+/.pre-commit-config.yaml                @DataDog/agent-devx-loops
 
 /CHANGELOG.rst                          @DataDog/agent-delivery
 /CHANGELOG-DCA.rst                      @DataDog/container-integrations @DataDog/container-platform
@@ -30,14 +33,14 @@
 # Todo: is this file still needed?
 /Makefile.trace                         @DataDog/agent-delivery
 
+/mkdocs.yml                             @DataDog/agent-devx-infra
 /release.json                           @DataDog/agent-delivery @DataDog/agent-metrics-logs @DataDog/windows-kernel-integrations @DataDog/agent-release-management @DataDog/agent-security
 /requirements.txt                       @DataDog/agent-devx-infra
 /pyproject.toml                         @DataDog/agent-devx-infra @DataDog/agent-devx-loops
-/setup.cfg                              @DataDog/agent-devx-infra
 /repository.datadog.yml                 @DataDog/agent-devx-infra
 /generate_tools.go                      @DataDog/agent-devx-infra
 /service.datadog.yaml                   @DataDog/agent-delivery
-/.pre-commit-config.yaml                @DataDog/agent-devx-loops
+/static-analysis.datadog.yaml           @DataDog/software-integrity-and-trust @DataDog/agent-devx-infra
 
 /.circleci/                             @DataDog/agent-devx-infra
 
