@@ -68,8 +68,12 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		if strings.HasSuffix(ddCfg, ".yaml") || strings.HasSuffix(ddCfg, ".yml") {
 			pkgconfig.SetConfigFile(ddCfg)
 		}
+
+		_, err = pkgconfigsetup.LoadWithoutSecret(pkgconfig, nil)
+		if err != nil {
+			return nil, err
+		}
 	}
-	pkgconfigsetup.LoadWithoutSecret(pkgconfig, nil)
 
 	pkgconfig.SetConfigName("OTel")
 	pkgconfig.SetEnvPrefix("DD")

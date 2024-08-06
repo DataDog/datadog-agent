@@ -7,7 +7,6 @@
 package converterimpl
 
 import (
-	"fmt"
 	"strings"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
@@ -111,5 +110,45 @@ func addComponentToPipeline(conf *confmap.Conf, comp component, pipelineName str
 }
 
 func addCoreAgentConfig(conf *confmap.Conf, coreCfg coreconfig.Component) {
-	fmt.Printf("CORE CONFIG IS: %v\n", coreCfg.AllSettings())
+	stringMapConf := conf.ToStringMap()
+	exporters, ok := stringMapConf["exporters"]
+	if !ok {
+		return
+	}
+	exporterMap, ok := exporters.(map[string]any)
+	if !ok {
+		return
+	}
+	datadog, ok := exporterMap["datadog"]
+	if !ok {
+		return
+	}
+	datadogMap, ok := datadog.(map[string]any)
+	if !ok {
+		return
+	}
+	api, ok := datadogMap["api"]
+	if !ok {
+		return
+	}
+	apiMap, ok := api.(map[string]any)
+	if !ok {
+		return
+	}
+
+	apiKey, ok := apiMap["key"]
+	if ok && apiKey != "" {
+		return
+	}
+
+	if coreCfg != nil {
+		apiMap["key"] = coreCfg.Get("api_key")
+
+		apiSite, ok := apiMap["site"]
+		if ok && apiSite == "" {
+			apiMap["site"] = coreCfg.Get("site")
+		}
+	}
+
+	*conf = *confmap.NewFromStringMap(stringMapConf)
 }

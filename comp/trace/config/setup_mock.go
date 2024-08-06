@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
-func setupConfig(deps dependencies, apikey string) (*config.AgentConfig, error) {
+func setupConfig(deps Dependencies, apikey string) (*config.AgentConfig, error) {
 	if apikey != "" {
 		if mock, ok := deps.Config.(corecompcfg.Mock); ok && !mock.IsSet("api_key") {
 			mock.SetWithoutSource("api_key", apikey)
