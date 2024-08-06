@@ -145,7 +145,6 @@ func TestPatchPrintkAllAssets(t *testing.T) {
 		progname := strings.TrimSuffix(filepath.Base(path), "-debug.o")
 
 		t.Run(progname, func(tt *testing.T) {
-			require.True(tt, false) // Remove before merge, just to check what happens on failure.
 			spec, err := ebpf.LoadCollectionSpec(path)
 			require.NoError(t, err)
 

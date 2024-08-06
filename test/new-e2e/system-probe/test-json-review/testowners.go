@@ -144,7 +144,7 @@ func (c *testowners) matchTest(ev testEvent) string {
 	if testFile == "" {
 		testFile = ev.Package // Fallback to package name
 	}
-	fmt.Println(testFile)
+
 	return strings.Join(c.owners.Owners(testFile), " ")
 }
 
