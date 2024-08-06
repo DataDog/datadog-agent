@@ -11,8 +11,16 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
+
+// This is a special metric, it's 1 if the span is top-level, 0 if not.
+const topLevelKey = "_top_level"
+
+// measuredKey is a special metric flag that marks a span for trace metrics calculation.
+const measuredKey = "_dd.measured"
+
+// partialVersionKey is a metric carrying the snapshot seq number in the case the span is a partial snapshot
+const partialVersionKey = "_dd.partial_version"
 
 // SpanConcentratorConfig exposes configuration options for a SpanConcentrator
 type SpanConcentratorConfig struct {
@@ -22,6 +30,65 @@ type SpanConcentratorConfig struct {
 	BucketInterval int64
 	// PeerTags additional tags to use for peer entity stats aggregation, nil if disabled
 	PeerTags []string
+}
+
+// StatSpan holds all the required fields from a span needed to calculate stats
+type StatSpan struct {
+	service  string
+	resource string
+	name     string
+	typ      string
+	error    int32
+	parentID uint64
+	start    int64
+	duration int64
+
+	//Fields below this are derived on creation
+
+	spanKind          string
+	statusCode        uint32
+	isTopLevel        bool
+	isMeasured        bool
+	statableSpanKind  bool
+	isPartialSnapshot bool
+	matchingPeerTags  []string
+}
+
+func NewStatSpan(
+	service, resource, name string,
+	typ string,
+	parentID uint64,
+	start, duration int64,
+	error int32,
+	meta map[string]string,
+	metrics map[string]float64,
+	peerTags []string,
+) *StatSpan {
+	if meta == nil {
+		meta = make(map[string]string)
+	}
+	if metrics == nil {
+		metrics = make(map[string]float64)
+	}
+	partialVersion, hasPartialVersion := metrics[partialVersionKey]
+
+	return &StatSpan{
+		service:           service,
+		resource:          resource,
+		name:              name,
+		typ:               typ,
+		error:             error,
+		parentID:          parentID,
+		start:             start,
+		duration:          duration,
+		spanKind:          meta[tagSpanKind],
+		statusCode:        getStatusCode(meta, metrics),
+		isTopLevel:        metrics[topLevelKey] == 1,
+		isMeasured:        metrics[measuredKey] == 1,
+		statableSpanKind:  computeStatsForSpanKind(meta["span.kind"]),
+		isPartialSnapshot: hasPartialVersion && partialVersion >= 0,
+		matchingPeerTags:  nil,
+	}
 }
 
 // SpanConcentrator produces time bucketed statistics from a stream of raw spans.
@@ -58,18 +125,17 @@ func NewSpanConcentrator(cfg *SpanConcentratorConfig, now time.Time) *SpanConcen
 	return sc
 }
 
-func (sc *SpanConcentrator) addSpan(s *pb.Span, aggKey PayloadAggregationKey, containerID string, containerTags []string, origin string, weight float64) {
+func (sc *SpanConcentrator) addSpan(s *StatSpan, aggKey PayloadAggregationKey, containerID string, containerTags []string, origin string, weight float64) {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
-	isTop := traceutil.HasTopLevel(s)
-	eligibleSpanKind := sc.computeStatsBySpanKind && computeStatsForSpanKind(s)
-	if !(isTop || traceutil.IsMeasured(s) || eligibleSpanKind) {
+	eligibleSpanKind := sc.computeStatsBySpanKind && s.statableSpanKind
+	if !(s.isTopLevel || s.isMeasured || eligibleSpanKind) {
 		return
 	}
-	if traceutil.IsPartialSnapshot(s) {
+	if s.isPartialSnapshot {
 		return
 	}
-	end := s.Start + s.Duration
+	end := s.start + s.duration
 	btime := end - end%sc.bsize
 
 	// If too far in the past, count in the oldest-allowed time bucket instead.
@@ -85,11 +151,11 @@ func (sc *SpanConcentrator) addSpan(s *pb.Span, aggKey PayloadAggregationKey, co
 		}
 		sc.buckets[btime] = b
 	}
-	b.HandleSpan(s, weight, isTop, origin, aggKey, sc.peerTagKeys)
+	b.HandleSpan(s, weight, origin, aggKey, sc.peerTagKeys)
 }
 
 // AddSpan to the SpanConcentrator, appending the new data to the appropriate internal bucket.
-func (sc *SpanConcentrator) AddSpan(s *pb.Span, aggKey PayloadAggregationKey, containerID string, containerTags []string, origin string) {
+func (sc *SpanConcentrator) AddSpan(s *StatSpan, aggKey PayloadAggregationKey, containerID string, containerTags []string, origin string) {
 	sc.addSpan(s, aggKey, containerID, containerTags, origin, 1)
 }
 
