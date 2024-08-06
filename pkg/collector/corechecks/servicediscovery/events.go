@@ -26,16 +26,17 @@ const (
 )
 
 type eventPayload struct {
-	NamingSchemaVersion string `json:"naming_schema_version"`
-	ServiceName         string `json:"service_name"`
-	HostName            string `json:"host_name"`
-	Env                 string `json:"env"`
-	ServiceLanguage     string `json:"service_language"`
-	ServiceType         string `json:"service_type"`
-	StartTime           int64  `json:"start_time"`
-	LastSeen            int64  `json:"last_seen"`
-	APMInstrumentation  string `json:"apm_instrumentation"`
-	ServiceNameSource   string `json:"service_name_source"`
+	NamingSchemaVersion string   `json:"naming_schema_version"`
+	ServiceName         string   `json:"service_name"`
+	HostName            string   `json:"host_name"`
+	Env                 string   `json:"env"`
+	ServiceLanguage     string   `json:"service_language"`
+	ServiceType         string   `json:"service_type"`
+	StartTime           int64    `json:"start_time"`
+	LastSeen            int64    `json:"last_seen"`
+	APMInstrumentation  string   `json:"apm_instrumentation"`
+	ServiceNameSource   string   `json:"service_name_source"`
+	Ports               []uint16 `json:"ports"`
 }
 
 type event struct {
@@ -67,6 +68,7 @@ func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 			LastSeen:            svc.LastHeartbeat.Unix(),
 			APMInstrumentation:  svc.meta.APMInstrumentation,
 			ServiceNameSource:   svc.meta.NameSource,
+			Ports:               svc.process.Ports,
 		},
 	}
 }
