@@ -211,6 +211,7 @@ func (li *linuxImpl) getServiceInfo(p proc, service model.Service) (*serviceInfo
 		Stat: procStat{
 			StartTime: startTimeSecs,
 		},
+		Ports: service.Ports,
 	}
 
 	meta := ServiceMetadata{
