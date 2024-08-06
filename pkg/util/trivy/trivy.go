@@ -10,6 +10,7 @@ package trivy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -103,12 +104,20 @@ func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Optio
 		Parallel:          parallel,
 		SBOMSources:       []string{},
 		DisabledHandlers:  DefaultDisabledHandlers(),
+		WalkOption: artifact.WalkOption{
+			ErrorCallback: func(_ string, err error) error {
+				if errors.Is(err, fs.ErrPermission) || errors.Is(err, os.ErrNotExist) {
+					return nil
+				}
+				return err
+			},
+		},
 	}
 
 	if len(opts.Analyzers) == 1 && opts.Analyzers[0] == OSAnalyzers {
 		option.OnlyDirs = []string{
 			"/etc/*",
-			"/lib/apk/*",
+			"/lib/apk/db/*",
 			"/usr/lib/*",
 			"/usr/lib/sysimage/rpm/*",
 			"/var/lib/dpkg/**",
@@ -160,7 +169,12 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 	if analyzersDisabled(TypeImageConfigSecret) {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeImageConfigSecret)
 	}
-
+	disabledAnalyzers = append(disabledAnalyzers,
+		analyzer.TypeExecutable,
+		analyzer.TypeRedHatContentManifestType,
+		analyzer.TypeRedHatDockerfileType,
+		analyzer.TypeSBOM,
+		analyzer.TypeUbuntuESM)
 	return disabledAnalyzers
 }
 

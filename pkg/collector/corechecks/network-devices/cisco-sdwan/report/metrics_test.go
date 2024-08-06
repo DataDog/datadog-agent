@@ -1183,6 +1183,112 @@ func TestSendHardwareMetrics(t *testing.T) {
 	}
 }
 
+func TestSendCloudApplicationMetrics(t *testing.T) {
+	cloudAppStats := []client.CloudXStatistics{
+		{
+			VmanageSystemIP:  "10.0.0.1",
+			GatewaySystemIP:  "10.0.0.2",
+			EntryTime:        10000,
+			LocalColor:       "mpls",
+			RemoteColor:      "public-internet",
+			Interface:        "-",
+			ExitType:         "Remote",
+			NbarAppGroupName: "app-group",
+			Application:      "test-app",
+			BestPath:         "TRUE",
+			VpnID:            1,
+			Latency:          13,
+			Loss:             0.01,
+			VqeScore:         "8.0",
+		},
+	}
+
+	mockSender := mocksender.NewMockSender("foo")
+	mockSender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+	sender := NewSDWanSender(mockSender, "my-ns")
+
+	// Ensure device tags are correctly sent
+	sender.SetDeviceTags(map[string][]string{
+		"10.0.0.1": {
+			"test:tag",
+			"test2:tag2",
+		},
+		"10.0.0.2": {
+			"test3:tag3",
+			"test4:tag4",
+		},
+	})
+
+	sender.SendCloudApplicationMetrics(cloudAppStats)
+
+	expectedTags := []string{
+		"test:tag",
+		"test2:tag2",
+		"gateway_test3:tag3",
+		"gateway_test4:tag4",
+		"local_color:mpls",
+		"remote_color:public-internet",
+		"interface:-",
+		"exit_type:Remote",
+		"application_group:app-group",
+		"application:test-app",
+		"best_path:TRUE",
+		"vpn_id:1",
+	}
+
+	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"application.latency", 13, "", expectedTags, 10)
+	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"application.loss", 0.01, "", expectedTags, 10)
+	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"application.qoe", 8, "", expectedTags, 10)
+	require.Equal(t, map[string]float64{
+		"application_metrics:test:tag,test2:tag2,gateway_test3:tag3,gateway_test4:tag4,local_color:mpls,remote_color:public-internet,interface:-,exit_type:Remote,application_group:app-group,application:test-app,best_path:TRUE,vpn_id:1": 10000,
+	}, sender.lastTimeSent)
+
+	mockSender.ResetCalls()
+
+	sender.SendCloudApplicationMetrics(cloudAppStats)
+
+	// Assert metrics have not been re-sent
+	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 0)
+	mockSender.AssertNumberOfCalls(t, "CountWithTimestamp", 0)
+	require.Equal(t, map[string]float64{
+		"application_metrics:test:tag,test2:tag2,gateway_test3:tag3,gateway_test4:tag4,local_color:mpls,remote_color:public-internet,interface:-,exit_type:Remote,application_group:app-group,application:test-app,best_path:TRUE,vpn_id:1": 10000,
+	}, sender.lastTimeSent)
+}
+
+func TestSendCloudApplicationMetricsWithInvalidQOE(t *testing.T) {
+	mockSender := mocksender.NewMockSender("foo")
+	mockSender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+	sender := NewSDWanSender(mockSender, "my-ns")
+
+	// Assert QOE not sent if invalid
+	cloudAppStatsInvalidQOE := []client.CloudXStatistics{
+		{
+			VmanageSystemIP:  "10.0.0.1",
+			GatewaySystemIP:  "10.0.0.2",
+			EntryTime:        10000,
+			LocalColor:       "mpls",
+			RemoteColor:      "public-internet",
+			Interface:        "-",
+			ExitType:         "Remote",
+			NbarAppGroupName: "app-group",
+			Application:      "test-app",
+			BestPath:         "TRUE",
+			VpnID:            1,
+			Latency:          13,
+			Loss:             0.01,
+			VqeScore:         "invalid", // invalid
+		},
+	}
+
+	sender.SendCloudApplicationMetrics(cloudAppStatsInvalidQOE)
+
+	mockSender.AssertCalled(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"application.latency", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	mockSender.AssertCalled(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"application.loss", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	mockSender.AssertNotCalled(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"application.qoe", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
 func TestTimestampExpiration(t *testing.T) {
 	TimeNow = mockTimeNow
 	ms := NewSDWanSender(nil, "test-ns")

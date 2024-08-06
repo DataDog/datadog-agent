@@ -318,6 +318,14 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 		ruleID = rule.Definition.GroupID
 	}
 
+	eventActionReports := e.GetActionReports()
+	actionReports := make([]model.ActionReport, 0, len(eventActionReports))
+	for _, ar := range eventActionReports {
+		if ar.IsMatchingRule(rule.ID) {
+			actionReports = append(actionReports, ar)
+		}
+	}
+
 	msg := &pendingMsg{
 		ruleID:        ruleID,
 		backendEvent:  backendEvent,
@@ -326,7 +334,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 		service:       service,
 		sendAfter:     time.Now().Add(retention),
 		tags:          make([]string, 0, 1+len(rule.Tags)+len(eventTags)+1),
-		actionReports: e.GetActionReports(),
+		actionReports: actionReports,
 	}
 
 	msg.tags = append(msg.tags, "rule_id:"+ruleID)

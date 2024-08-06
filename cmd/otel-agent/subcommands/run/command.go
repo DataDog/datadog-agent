@@ -20,9 +20,8 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
-	corelog "github.com/DataDog/datadog-agent/comp/core/log"
-	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log/tracelogimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -56,7 +55,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"go.uber.org/fx"
@@ -67,7 +65,7 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "Starting OpenTelemetry Collector",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			globalParams := globalConfGetter()
 			return runOTelAgentCommand(context.Background(), globalParams)
 		},
@@ -96,7 +94,7 @@ func (o *orchestratorinterfaceimpl) Reset() {
 func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, opts ...fx.Option) error {
 	err := fxutil.Run(
 		forwarder.Bundle(),
-		tracelogimpl.Module(), // cannot have corelogimpl and tracelogimpl at the same time
+		logtracefx.Module(),
 		inventoryagentimpl.Module(),
 		workloadmetafx.Module(),
 		fx.Supply(metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{})),
@@ -132,8 +130,8 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		remotehostnameimpl.Module(),
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 
-		fx.Provide(func(c coreconfig.Component) corelogimpl.Params {
-			return corelogimpl.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
+		fx.Provide(func(_ coreconfig.Component) log.Params {
+			return log.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 		}),
 		logsagentpipelineimpl.Module(),
 		// We create strategy.ZlibStrategy directly to avoid build tags
@@ -146,12 +144,12 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		fx.Provide(func(s *serializer.Serializer) serializer.MetricSerializer {
 			return s
 		}),
-		fx.Provide(func(h serializerexporter.SourceProviderFunc) (string, error) {
+		fx.Provide(func(h serializerexporter.SourceProviderFunc, l log.Component) (string, error) {
 			hn, err := h(context.Background())
 			if err != nil {
 				return "", err
 			}
-			log.Info("Using ", "hostname", hn)
+			l.Info("Using ", "hostname", hn)
 
 			return hn, nil
 		}),
@@ -189,6 +187,6 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 	return nil
 }
 
-func newForwarderParams(config coreconfig.Component, log corelog.Component) defaultforwarder.Params {
-	return defaultforwarder.NewParams(config, log)
+func newForwarderParams(config coreconfig.Component, l log.Component) defaultforwarder.Params {
+	return defaultforwarder.NewParams(config, l)
 }

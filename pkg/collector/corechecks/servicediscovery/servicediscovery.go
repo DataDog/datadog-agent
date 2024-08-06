@@ -36,7 +36,7 @@ const (
 
 type serviceInfo struct {
 	process       processInfo
-	meta          serviceMetadata
+	meta          ServiceMetadata
 	LastHeartbeat time.Time
 }
 

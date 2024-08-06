@@ -2,7 +2,7 @@ receivers:
     prometheus/dd-autoconfigured:
       config:
         scrape_configs:
-          - job_name: 'otelcol'
+          - job_name: 'datadog-agent'
             scrape_interval: 10s
             static_configs:
               - targets: ['0.0.0.0:8888']

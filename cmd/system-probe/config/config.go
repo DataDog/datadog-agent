@@ -41,6 +41,7 @@ const (
 	ComplianceModule             types.ModuleName = "compliance"
 	PingModule                   types.ModuleName = "ping"
 	TracerouteModule             types.ModuleName = "traceroute"
+	DiscoveryModule              types.ModuleName = "discovery"
 )
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -64,7 +65,7 @@ func newSysprobeConfig(configPath string) (*types.Config, error) {
 		aconfig.SystemProbe.AddConfigPath(defaultConfigDir)
 	}
 	// load the configuration
-	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", optional.NewNoneOption[secrets.Component](), aconfig.Datadog().GetEnvVars())
+	err := aconfig.LoadCustom(aconfig.SystemProbe, aconfig.Datadog().GetEnvVars())
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			// special-case permission-denied with a clearer error message
@@ -144,7 +145,9 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(tracerouteNS("enabled")) {
 		c.EnabledModules[TracerouteModule] = struct{}{}
 	}
-
+	if cfg.GetBool(discoveryNS("enabled")) {
+		c.EnabledModules[DiscoveryModule] = struct{}{}
+	}
 	if cfg.GetBool(wcdNS("enabled")) {
 		c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
 	}

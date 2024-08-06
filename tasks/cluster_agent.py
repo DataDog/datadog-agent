@@ -267,21 +267,3 @@ def version(ctx, url_safe=False, git_sha_length=7):
                     (the windows builder and the default ubuntu version have such an incompatibility)
     """
     version_common(ctx, url_safe, git_sha_length)
-
-
-@task
-def update_generated_code(ctx):
-    """
-    Re-generate 'pkg/clusteragent/autoscaling/custommetrics/api/generated/openapi/zz_generated.openapi.go'.
-    """
-    ctx.run("go install -mod=readonly k8s.io/kube-openapi/cmd/openapi-gen")
-    ctx.run(
-        "$GOPATH/bin/openapi-gen \
---logtostderr \
--i k8s.io/metrics/pkg/apis/custom_metrics,k8s.io/metrics/pkg/apis/custom_metrics/v1beta1,k8s.io/metrics/pkg/apis/custom_metrics/v1beta2,k8s.io/metrics/pkg/apis/external_metrics,k8s.io/metrics/pkg/apis/external_metrics/v1beta1,k8s.io/metrics/pkg/apis/metrics,k8s.io/metrics/pkg/apis/metrics/v1beta1,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/api/resource,k8s.io/apimachinery/pkg/version,k8s.io/api/core/v1 \
--h ./tools/boilerplate.go.txt \
--p ./pkg/clusteragent/autoscaling/custommetrics/api/generated/openapi \
--O zz_generated.openapi \
--o ./ \
--r /dev/null"
-    )

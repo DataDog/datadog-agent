@@ -234,12 +234,13 @@ def upload_summary(ctx: Context, pipeline_id: int) -> SummaryData:
     return summary
 
 
-def send_summary_slack_notification(channel: str, stats: list[dict], allow_failure: bool = False):
+def send_summary_slack_notification(
+    channel: str, stats: list[dict], allow_failure: bool = False, dry_run: bool = False
+):
     """
     Send the summary to channel with these job stats
     - stats: Item of the dict returned by SummaryStats.make_stats
     """
-    # Avoid circular dependency
     from slack_sdk import WebClient
 
     # Do not send notification
@@ -259,17 +260,24 @@ def send_summary_slack_notification(channel: str, stats: list[dict], allow_failu
     )
     expected_to_fail = 'They are allowed to fail' if allow_failure else 'They are not expected to fail'
 
+    timestamp_start = int((datetime.now() - delta).timestamp() * 1000)
+    timestamp_end = int(datetime.now().timestamp() * 1000)
+
     message = []
     for stat in stats:
         name = stat['name']
         fail = stat['failures']
-        link = get_ci_visibility_job_url(name, prefix=False, extra_flags=['status:error', '-@error.domain:provider'])
+        link = get_ci_visibility_job_url(
+            name,
+            prefix=False,
+            extra_flags=['status:error', '-@error.domain:provider'],
+            extra_args={'start': timestamp_start, 'end': timestamp_end, 'paused': 'true'},
+        )
         message.append(f"- <{link}|{name}>: *{fail} failures*")
 
-    timestamp_start = int((datetime.now() - delta).timestamp() * 1000)
-    timestamp_end = int(datetime.now().timestamp() * 1000)
-
     header = f'{period} Job Failure Report'
+    if allow_failure:
+        header += ' (:warning: Allowed Failures)'
     description = f'These jobs{you_own} had the most failures in the last {duration}:'
 
     details = f'Click <https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3A%22gitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%22%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40ci.provider.instance%3Agitlab-ci%20%40git.branch%3Amain%20%40ci.status%3Aerror%20%40gitlab.pipeline_source%3A%28push%20OR%20schedule%29%20{not_allowed_query}%40ci.allowed_to_fail%3Atrue&agg_m=count&agg_m_source=base&agg_q=%40ci.job.name&start={timestamp_start}&end={timestamp_end}&agg_q_source=base&agg_t=count&fromUser=false&index=cipipeline&sort_m=count&sort_m_source=base&sort_t=count&top_n=25&top_o=top&viz=toplist&x_missing=true&paused=false|here> for more details.{flaky_tests}\n{NOTIFICATION_DISCLAIMER}'
@@ -291,12 +299,21 @@ def send_summary_slack_notification(channel: str, stats: list[dict], allow_failu
     ]
 
     # Send message
-    client = WebClient(os.environ["SLACK_API_TOKEN"])
-    client.chat_postMessage(channel=channel, blocks=blocks, text=alt_message)
+    if dry_run:
+        print(f'Would send to {channel}:')
+        print(blocks)
+    else:
+        client = WebClient(os.environ["SLACK_API_TOKEN"])
+        client.chat_postMessage(channel=channel, blocks=blocks, text=alt_message)
 
 
 def send_summary_messages(
-    ctx: Context, allow_failure: bool, max_length: int, period: timedelta, jobowners: str = '.gitlab/JOBOWNERS'
+    ctx: Context,
+    allow_failure: bool,
+    max_length: int,
+    period: timedelta,
+    jobowners: str = '.gitlab/JOBOWNERS',
+    dry_run: bool = False,
 ):
     """
     Fetches the summaries for the period and sends messages to all teams having these jobs
@@ -312,7 +329,7 @@ def send_summary_messages(
     error = False
     for channel, stat in team_stats.items():
         try:
-            send_summary_slack_notification(channel=channel, stats=stat, allow_failure=allow_failure)
+            send_summary_slack_notification(channel=channel, stats=stat, allow_failure=allow_failure, dry_run=dry_run)
             print('Notification sent to', channel)
         except Exception:
             print(f"Error sending message to {channel}", file=sys.stderr)

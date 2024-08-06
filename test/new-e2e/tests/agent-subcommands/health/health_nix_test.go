@@ -8,11 +8,12 @@ package health
 import (
 	"testing"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/stretchr/testify/assert"
 )
 
 type linuxHealthSuite struct {
@@ -20,6 +21,7 @@ type linuxHealthSuite struct {
 }
 
 func TestLinuxHealthSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &linuxHealthSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 

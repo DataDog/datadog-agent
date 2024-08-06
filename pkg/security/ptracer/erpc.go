@@ -20,21 +20,19 @@ const (
 )
 
 func registerERPCHandlers(handlers map[int]syscallHandler) []string {
-	fimHandlers := []syscallHandler{
+	erpcHandlers := []syscallHandler{
 		{
-			IDs:        []syscallID{{ID: IoctlNr, Name: "ioctl"}},
+			ID:         syscallID{ID: IoctlNr, Name: "ioctl"},
 			Func:       nil,
 			ShouldSend: nil,
 			RetFunc:    nil,
 		},
 	}
 	syscallList := []string{}
-	for _, h := range fimHandlers {
-		for _, id := range h.IDs {
-			if id.ID >= 0 { // insert only available syscalls
-				handlers[id.ID] = h
-				syscallList = append(syscallList, id.Name)
-			}
+	for _, h := range erpcHandlers {
+		if h.ID.ID >= 0 { // insert only available syscalls
+			handlers[h.ID.ID] = h
+			syscallList = append(syscallList, h.ID.Name)
 		}
 	}
 	return syscallList

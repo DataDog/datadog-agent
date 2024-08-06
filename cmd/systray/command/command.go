@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
@@ -71,18 +71,18 @@ func MakeCommand() *cobra.Command {
 	}
 
 	// log params
-	var logParams logimpl.Params
+	var logParams log.Params
 	if subsystem == "windows" {
-		logParams = logimpl.ForDaemon("TRAY", "system_tray.log_file", logFilePath)
+		logParams = log.ForDaemon("TRAY", "system_tray.log_file", logFilePath)
 	} else if subsystem == "console" {
-		logParams = logimpl.ForOneShot("TRAY", "info", true)
+		logParams = log.ForOneShot("TRAY", "info", true)
 	}
 
 	// root command
 	cmd := &cobra.Command{
 		Use:          os.Args[0],
 		SilenceUsage: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			// Check if we are elevated and elevate if necessary. Elevation is required prior to component initialization
 			// because of restricted permissions to the agent configuration file.
 			err := ensureElevated(systrayParams)

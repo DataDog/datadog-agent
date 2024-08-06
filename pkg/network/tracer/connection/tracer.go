@@ -232,11 +232,6 @@ func NewTracer(config *config.Config, _ telemetryComponent.Component) (Tracer, e
 			boolConst("tcpv6_enabled", config.CollectTCPv6Conns),
 			boolConst("udpv6_enabled", config.CollectUDPv6Conns),
 		},
-		VerifierOptions: ebpf.CollectionOptions{
-			Programs: ebpf.ProgramOptions{
-				LogSize: 10 * 1024 * 1024,
-			},
-		},
 		DefaultKProbeMaxActive: maxActive,
 		BypassEnabled:          config.BypassEnabled,
 	}
@@ -283,7 +278,12 @@ func NewTracer(config *config.Config, _ telemetryComponent.Component) (Tracer, e
 	m.DumpHandler = dumpMapsHandler
 	ddebpf.AddNameMappings(m, "npm_tracer")
 
-	batchMgr, err := newConnBatchManager(m)
+	numCPUs, err := ebpf.PossibleCPU()
+	if err != nil {
+		return nil, fmt.Errorf("could not determine number of CPUs: %w", err)
+	}
+	extractor := newBatchExtractor(numCPUs)
+	batchMgr, err := newConnBatchManager(m, extractor)
 	if err != nil {
 		return nil, fmt.Errorf("could not create connection batch manager: %w", err)
 	}
@@ -296,7 +296,7 @@ func NewTracer(config *config.Config, _ telemetryComponent.Component) (Tracer, e
 		config.TCPFailedConnectionsEnabled = false
 	}
 	if config.FailedConnectionsSupported() {
-		failedConnConsumer = failure.NewFailedConnConsumer(failedConnsHandler, m)
+		failedConnConsumer = failure.NewFailedConnConsumer(failedConnsHandler, m, config.MaxFailedConnectionsBuffered)
 	}
 
 	tr := &tracer{
@@ -421,7 +421,7 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 	// ebpf maps are being iterated over and deleted at the same time.
 	// The iteration can reset when that happens.
 	// See https://justin.azoff.dev/blog/bpf_map_get_next_key-pitfalls/
-	connsByTuple := make(map[netebpf.ConnTuple]struct{})
+	connsByTuple := make(map[netebpf.ConnTuple]uint32)
 
 	// Cached objects
 	conn := new(network.ConnectionStats)
@@ -430,7 +430,7 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 	var tcp4, tcp6, udp4, udp6 float64
 	entries := t.conns.Iterate()
 	for entries.Next(key, stats) {
-		if _, exists := connsByTuple[*key]; exists {
+		if cookie, exists := connsByTuple[*key]; exists && cookie == stats.Cookie {
 			// already seen the connection in current batch processing,
 			// due to race between the iterator and bpf_map_delete
 			ConnTracerTelemetry.iterationDups.Inc()
@@ -438,7 +438,7 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 		}
 
 		populateConnStats(conn, key, stats, t.ch)
-		connsByTuple[*key] = struct{}{}
+		connsByTuple[*key] = stats.Cookie
 
 		isTCP := conn.Type == network.TCP
 		switch conn.Family {

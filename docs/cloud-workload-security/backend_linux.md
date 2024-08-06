@@ -183,6 +183,21 @@ CSM Threats event for Linux systems have the following JSON schema:
             ],
             "description": "BindEventSerializer serializes a bind event to JSON"
         },
+        "CGroupContext": {
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "CGroup ID"
+                },
+                "manager": {
+                    "type": "string",
+                    "description": "CGroup manager"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "CGroupContextSerializer serializes a cgroup context to JSON"
+        },
         "ContainerContext": {
             "properties": {
                 "id": {
@@ -206,11 +221,11 @@ CSM Threats event for Linux systems have the following JSON schema:
         "DDContext": {
             "properties": {
                 "span_id": {
-                    "type": "integer",
+                    "type": "string",
                     "description": "Span ID used for APM correlation"
                 },
                 "trace_id": {
-                    "type": "integer",
+                    "type": "string",
                     "description": "Trace ID used for APM correlation"
                 }
             },
@@ -1271,6 +1286,10 @@ CSM Threats event for Linux systems have the following JSON schema:
                     "type": "string",
                     "description": "Filesystem Group name"
                 },
+                "auid": {
+                    "type": "integer",
+                    "description": "Login UID"
+                },
                 "cap_effective": {
                     "items": {
                         "type": "string"
@@ -1298,6 +1317,7 @@ CSM Threats event for Linux systems have the following JSON schema:
                 "egid",
                 "fsuid",
                 "fsgid",
+                "auid",
                 "cap_effective",
                 "cap_permitted"
             ],
@@ -1626,6 +1646,9 @@ CSM Threats event for Linux systems have the following JSON schema:
         "container": {
             "$ref": "#/$defs/ContainerContext"
         },
+        "cgroup": {
+            "$ref": "#/$defs/CGroupContext"
+        },
         "network": {
             "$ref": "#/$defs/NetworkContext"
         },
@@ -1701,6 +1724,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `exit` | $ref | Please see [ExitEvent](#exitevent) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
 | `container` | $ref | Please see [ContainerContext](#containercontext) |
+| `cgroup` | $ref | Please see [CGroupContext](#cgroupcontext) |
 | `network` | $ref | Please see [NetworkContext](#networkcontext) |
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
 | `security_profile` | $ref | Please see [SecurityProfileContext](#securityprofilecontext) |
@@ -1993,6 +2017,34 @@ CSM Threats event for Linux systems have the following JSON schema:
 | ---------- |
 | [IPPortFamily](#ipportfamily) |
 
+## `CGroupContext`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "id": {
+            "type": "string",
+            "description": "CGroup ID"
+        },
+        "manager": {
+            "type": "string",
+            "description": "CGroup manager"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "CGroupContextSerializer serializes a cgroup context to JSON"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `id` | CGroup ID |
+| `manager` | CGroup manager |
+
+
 ## `ContainerContext`
 
 
@@ -2037,11 +2089,11 @@ CSM Threats event for Linux systems have the following JSON schema:
 {
     "properties": {
         "span_id": {
-            "type": "integer",
+            "type": "string",
             "description": "Span ID used for APM correlation"
         },
         "trace_id": {
-            "type": "integer",
+            "type": "string",
             "description": "Trace ID used for APM correlation"
         }
     },
@@ -3544,6 +3596,10 @@ CSM Threats event for Linux systems have the following JSON schema:
             "type": "string",
             "description": "Filesystem Group name"
         },
+        "auid": {
+            "type": "integer",
+            "description": "Login UID"
+        },
         "cap_effective": {
             "items": {
                 "type": "string"
@@ -3571,6 +3627,7 @@ CSM Threats event for Linux systems have the following JSON schema:
         "egid",
         "fsuid",
         "fsgid",
+        "auid",
         "cap_effective",
         "cap_permitted"
     ],
@@ -3593,6 +3650,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `fsuser` | Filesystem User name |
 | `fsgid` | Filesystem Group ID |
 | `fsgroup` | Filesystem Group name |
+| `auid` | Login UID |
 | `cap_effective` | Effective Capability set |
 | `cap_permitted` | Permitted Capability set |
 | `destination` | Credentials after the operation |

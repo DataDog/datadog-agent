@@ -52,6 +52,8 @@
       - E2E_MSI_TEST: TestSubServicesOpts/all-subservices
       - E2E_MSI_TEST: TestSubServicesOpts/no-subservices
       - E2E_MSI_TEST: TestInstallAltDir
+      - E2E_MSI_TEST: TestInstallExistingAltDir
+      - E2E_MSI_TEST: TestInstallAltDirAndCorruptForUninstall
       - E2E_MSI_TEST: TestInstallFail
 
 .new-e2e_windows_installer_v7_tests:
@@ -73,6 +75,8 @@
       - E2E_MSI_TEST: TestSubServicesOpts/all-subservices
       - E2E_MSI_TEST: TestSubServicesOpts/no-subservices
       - E2E_MSI_TEST: TestInstallAltDir
+      - E2E_MSI_TEST: TestInstallExistingAltDir
+      - E2E_MSI_TEST: TestInstallAltDirAndCorruptForUninstall
       - E2E_MSI_TEST: TestInstallFail
       # These tests are v7 only
       - E2E_MSI_TEST: TestNPMUpgradeToNPM
@@ -88,7 +92,8 @@ new-e2e_windows_powershell_module_test:
   variables:
     TARGETS: ./tests/windows/powershell-module-test
     TEAM: windows-kernel-integrations
-  needs: []
+  needs:
+    - !reference [.needs_new_e2e_template]
 
 # Agent 6
 .new-e2e_windows_a6_x86_64:
@@ -97,7 +102,9 @@ new-e2e_windows_powershell_module_test:
   extends:
     - .new-e2e_windows_msi
     - .new-e2e_agent_a6
-  needs: ["deploy_windows_testing-a6"]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a6
 
 ## full tests
 new-e2e-windows-agent-msi-windows-server-a6-x86_64:
@@ -116,7 +123,9 @@ new-e2e-windows-agent-msi-windows-server-a6-x86_64:
   extends:
     - .new-e2e_windows_msi
     - .new-e2e_agent_a7
-  needs: ["deploy_windows_testing-a7"]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
 
 ## full tests
 new-e2e-windows-agent-msi-windows-server-a7-x86_64:
@@ -127,6 +136,7 @@ new-e2e-windows-agent-msi-windows-server-a7-x86_64:
   rules:
     - !reference [.on_deploy]
     - !reference [.on_windows_installer_changes_or_manual]
+  timeout: 1h15m
 
 new-e2e-windows-agent-domain-tests-a7-x86_64:
   stage: kitchen_testing
@@ -136,10 +146,13 @@ new-e2e-windows-agent-domain-tests-a7-x86_64:
     - .new_e2e_template
     - .new-e2e_windows_domain_test
     - .new-e2e_agent_a7
-  needs: ["deploy_windows_testing-a7"]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
   rules:
     - !reference [.on_deploy]
     - !reference [.on_windows_installer_changes_or_manual]
+  timeout: 1h15
 
 ## single test for PRs
 ## skipped if the full tests are running

@@ -10,13 +10,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -174,7 +176,7 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 	if err != nil {
 		return fmt.Errorf("could not extract package config layer: %w", err)
 	}
-	err = i.repositories.Create(ctx, pkg.Name, pkg.Version, tmpDir)
+	err = i.repositories.Create(pkg.Name, pkg.Version, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
@@ -220,7 +222,7 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 		return fmt.Errorf("could not extract package config layer: %w", err)
 	}
 	repository := i.repositories.Get(pkg.Name)
-	err = repository.SetExperiment(ctx, pkg.Version, tmpDir)
+	err = repository.SetExperiment(pkg.Version, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not set experiment: %w", err)
 	}
@@ -232,15 +234,27 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	err := i.stopExperiment(ctx, pkg)
-	if err != nil {
-		return fmt.Errorf("could not delete experiment: %w", err)
-	}
-
 	repository := i.repositories.Get(pkg)
-	err = repository.DeleteExperiment(ctx)
-	if err != nil {
-		return fmt.Errorf("could not delete experiment: %w", err)
+	if runtime.GOOS != "windows" && pkg == packageDatadogInstaller {
+		// Special case for the Linux installer since `stopExperiment`
+		// will kill the current process, delete the experiment first.
+		err := repository.DeleteExperiment()
+		if err != nil {
+			return fmt.Errorf("could not delete experiment: %w", err)
+		}
+		err = i.stopExperiment(ctx, pkg)
+		if err != nil {
+			return fmt.Errorf("could not stop experiment: %w", err)
+		}
+	} else {
+		err := i.stopExperiment(ctx, pkg)
+		if err != nil {
+			return fmt.Errorf("could not stop experiment: %w", err)
+		}
+		err = repository.DeleteExperiment()
+		if err != nil {
+			return fmt.Errorf("could not delete experiment: %w", err)
+		}
 	}
 	return nil
 }
@@ -251,7 +265,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 	defer i.m.Unlock()
 
 	repository := i.repositories.Get(pkg)
-	err := repository.PromoteExperiment(ctx)
+	err := repository.PromoteExperiment()
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
@@ -312,11 +326,11 @@ func (i *installerImpl) Remove(ctx context.Context, pkg string) error {
 }
 
 // GarbageCollect removes unused packages.
-func (i *installerImpl) GarbageCollect(ctx context.Context) error {
+func (i *installerImpl) GarbageCollect(_ context.Context) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	return i.repositories.Cleanup(ctx)
+	return i.repositories.Cleanup()
 }
 
 // InstrumentAPMInjector instruments the APM injector.

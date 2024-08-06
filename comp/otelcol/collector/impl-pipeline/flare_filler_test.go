@@ -6,8 +6,8 @@
 //go:build test && otlp
 // +build test,otlp
 
-// Package collector implements the collector component
-package collector
+// Package collectorimpl implements the collector component
+package collectorimpl
 
 import (
 	"bytes"

@@ -76,7 +76,7 @@ func clientOrProducer(spanKind string) bool {
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
-func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerTagsAgg bool, peerTagKeys []string) (Aggregation, []string) {
+func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, peerTagKeys []string) (Aggregation, []string) {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
 	var isTraceRoot pb.Trilean
 	if s.ParentID == 0 {
@@ -98,7 +98,7 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 		},
 	}
 	var peerTags []string
-	if clientOrProducer(agg.SpanKind) && enablePeerTagsAgg {
+	if len(peerTagKeys) > 0 && clientOrProducer(agg.SpanKind) {
 		peerTags = matchingPeerTags(s, peerTagKeys)
 		agg.PeerTagsHash = peerTagsHash(peerTags)
 	}

@@ -30,6 +30,7 @@ const (
 	wcdNS                        = "windows_crash_detection"
 	pngNS                        = "ping"
 	tracerouteNS                 = "traceroute"
+	discoveryNS                  = "discovery"
 	defaultConnsMessageBatchSize = 600
 
 	// defaultServiceMonitoringJavaAgentArgs is default arguments that are passing to the injected java USM agent
@@ -51,6 +52,9 @@ const (
 	defaultZypperReposDirSuffix = "/zypp/repos.d"
 
 	defaultOffsetThreshold = 400
+
+	// defaultEnvoyPath is the default path for envoy binary
+	defaultEnvoyPath = "/bin/envoy"
 )
 
 var (
@@ -97,6 +101,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("log_format_json", false)
 	cfg.BindEnvAndSetDefault("log_file_max_size", "10Mb")
 	cfg.BindEnvAndSetDefault("log_file_max_rolls", 1)
+	cfg.BindEnvAndSetDefault("disable_file_logging", false)
+	cfg.BindEnvAndSetDefault("log_format_rfc3339", false)
 
 	// secrets backend
 	cfg.BindEnvAndSetDefault("secret_backend_command", "")
@@ -178,6 +184,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	cfg.BindEnvAndSetDefault(join(spNS, "max_tracked_connections"), 65536)
 	cfg.BindEnv(join(spNS, "max_closed_connections_buffered"))
+	cfg.BindEnv(join(netNS, "max_failed_connections_buffered"))
 	cfg.BindEnvAndSetDefault(join(spNS, "closed_connection_flush_threshold"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "closed_channel_size"), 500)
 	cfg.BindEnvAndSetDefault(join(spNS, "max_connection_state_buffered"), 75000)
@@ -233,7 +240,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http2_monitoring"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_kafka_monitoring"), false)
 	cfg.BindEnv(join(smNS, "enable_postgres_monitoring"))
+	cfg.BindEnv(join(smNS, "enable_redis_monitoring"))
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "enabled"), false)
+	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "envoy_path"), defaultEnvoyPath)
 	cfg.BindEnv(join(smNS, "tls", "nodejs", "enabled"))
 	cfg.BindEnvAndSetDefault(join(smjtNS, "enabled"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "debug"), false)
@@ -249,6 +258,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnv(join(smNS, "max_http_stats_buffered"))
 	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
 	cfg.BindEnv(join(smNS, "max_postgres_stats_buffered"))
+	cfg.BindEnv(join(smNS, "max_redis_stats_buffered"))
 	cfg.BindEnv(join(smNS, "max_concurrent_requests"))
 	cfg.BindEnv(join(smNS, "enable_quantization"))
 	cfg.BindEnv(join(smNS, "enable_connection_rollup"))
@@ -378,6 +388,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	// CCM config
 	cfg.BindEnvAndSetDefault(join(ccmNS, "enabled"), false)
+
+	// Discovery config
+	cfg.BindEnvAndSetDefault(join(discoveryNS, "enabled"), false)
 
 	initCWSSystemProbeConfig(cfg)
 }

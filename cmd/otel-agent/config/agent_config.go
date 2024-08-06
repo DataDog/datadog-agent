@@ -69,8 +69,15 @@ func NewConfigComponent(ctx context.Context, uris []string) (config.Component, e
 	pkgconfig.Set("api_key", apiKey, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("site", site, pkgconfigmodel.SourceLocalConfigProcess)
 
+	pkgconfig.Set("dd_url", ddc.Metrics.Endpoint, pkgconfigmodel.SourceLocalConfigProcess)
+
+	// Log configs
 	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceLocalConfigProcess)
-	pkgconfig.Set("logs_config.use_compression", true, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("logs_config.force_use_http", true, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("logs_config.logs_dd_url", ddc.Logs.Endpoint, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("logs_config.batch_wait", ddc.Logs.BatchWait, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("logs_config.use_compression", ddc.Logs.UseCompression, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("logs_config.compression_level", ddc.Logs.CompressionLevel, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("log_level", sc.Telemetry.Logs.Level, pkgconfigmodel.SourceLocalConfigProcess)
 
 	// APM & OTel trace configs
@@ -78,7 +85,7 @@ func NewConfigComponent(ctx context.Context, uris []string) (config.Component, e
 	pkgconfig.Set("apm_config.apm_non_local_traffic", true, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("otlp_config.traces.span_name_as_resource_name", ddc.Traces.SpanNameAsResourceName, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("otlp_config.traces.span_name_remappings", ddc.Traces.SpanNameRemappings, pkgconfigmodel.SourceLocalConfigProcess)
-	pkgconfig.Set("apm_config.receiver_port", 0, pkgconfigmodel.SourceLocalConfigProcess) // disable HTTP receiver
+	pkgconfig.Set("apm_config.receiver_enabled", false, pkgconfigmodel.SourceLocalConfigProcess) // disable HTTP receiver
 	pkgconfig.Set("apm_config.ignore_resources", ddc.Traces.IgnoreResources, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("apm_config.skip_ssl_validation", ddc.ClientConfig.TLSSetting.InsecureSkipVerify, pkgconfigmodel.SourceLocalConfigProcess)
 	if v := ddc.Traces.TraceBuffer; v > 0 {

@@ -53,7 +53,7 @@ __attribute__((always_inline)) struct cgroup_tracing_event_t *get_cgroup_tracing
     return evt;
 }
 
-__attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTAINER_ID_LEN], u64 now, u64 cookie, struct activity_dump_config *config) {
+__attribute__((always_inline)) bool reserve_traced_cgroup_spot(container_id_t cgroup, u64 now, u64 cookie, struct activity_dump_config *config) {
     // insert dump config defaults
     u32 defaults_key = 0;
     struct activity_dump_config *defaults = bpf_map_lookup_elem(&activity_dump_config_defaults, &defaults_key);
@@ -84,11 +84,11 @@ __attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTA
     return true;
 }
 
-__attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, char cgroup[CONTAINER_ID_LEN]) {
+__attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, container_id_t container_id, struct cgroup_context_t *cgroup) {
     u64 cookie = rand64();
     struct activity_dump_config config = {};
 
-    if (!reserve_traced_cgroup_spot(cgroup, now, cookie, &config)) {
+    if (!reserve_traced_cgroup_spot(container_id, now, cookie, &config)) {
         // we're already tracing too many cgroups concurrently, ignore this one for now
         return 0;
     }
@@ -99,7 +99,12 @@ __attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, char cgr
         // should never happen, ignore
         return 0;
     }
-    copy_container_id(cgroup, evt->container.container_id);
+
+    if (cgroup->cgroup_flags != 0 && ((cgroup->cgroup_flags & 0b111) != CGROUP_MANAGER_SYSTEMD)) {
+        copy_container_id(container_id, evt->container.container_id);
+    }
+
+    evt->container.cgroup_context = *cgroup;
     evt->cookie = cookie;
     evt->config = config;
     send_event_ptr(ctx, EVENT_CGROUP_TRACING, evt);
@@ -108,18 +113,21 @@ __attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, char cgr
     return cookie;
 }
 
-__attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u64 now, u32 pid, char cgroup[CONTAINER_ID_LEN]) {
+__attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u64 now, u32 pid, struct container_context_t *container) {
     // should we start tracing this cgroup ?
-    if (is_cgroup_activity_dumps_enabled() && cgroup[0] != 0) {
+    container_id_t container_id;
+    bpf_probe_read(&container_id, sizeof(container_id), &container->container_id[0]);
+
+    if (is_cgroup_activity_dumps_enabled() && container_id[0] != 0) {
         // is this cgroup traced ?
-        u64 *cookie = bpf_map_lookup_elem(&traced_cgroups, &cgroup[0]);
+        u64 *cookie = bpf_map_lookup_elem(&traced_cgroups, &container_id[0]);
 
         if (cookie) {
             u64 cookie_val = *cookie;
             struct activity_dump_config *config = bpf_map_lookup_elem(&activity_dumps_config, &cookie_val);
             if (config == NULL) {
                 // delete expired cgroup entry
-                bpf_map_delete_elem(&traced_cgroups, &cgroup[0]);
+                bpf_map_delete_elem(&traced_cgroups, &container_id[0]);
                 return 0;
             }
 
@@ -135,7 +143,7 @@ __attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u6
 
             if (now > config->end_timestamp) {
                 // delete expired cgroup entry
-                bpf_map_delete_elem(&traced_cgroups, &cgroup[0]);
+                bpf_map_delete_elem(&traced_cgroups, &container_id[0]);
                 // delete config
                 bpf_map_delete_elem(&activity_dumps_config, &cookie_val);
                 return 0;
@@ -147,11 +155,11 @@ __attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u6
 
         } else {
             // have we seen this cgroup before ?
-            u64 *wait_timeout = bpf_map_lookup_elem(&cgroup_wait_list, &cgroup[0]);
+            u64 *wait_timeout = bpf_map_lookup_elem(&cgroup_wait_list, &container_id[0]);
             if (wait_timeout) {
                 if (now > *wait_timeout) {
                     // delete expired wait_list entry
-                    bpf_map_delete_elem(&cgroup_wait_list, &cgroup[0]);
+                    bpf_map_delete_elem(&cgroup_wait_list, &container_id[0]);
                 }
 
                 // this cgroup is on the wait list, do not start tracing it
@@ -159,7 +167,7 @@ __attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u6
             }
 
             // can we start tracing this cgroup ?
-            u64 cookie_val = trace_new_cgroup(ctx, now, cgroup);
+            u64 cookie_val = trace_new_cgroup(ctx, now, container_id, &container->cgroup_context);
             if (cookie_val == 0) {
                 return 0;
             }
@@ -171,23 +179,22 @@ __attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u6
     return 0;
 }
 
-__attribute__((always_inline)) u64 should_trace_new_process(void *ctx, u64 now, u32 pid, char *cgroup_p) {
-    char container_id[CONTAINER_ID_LEN];
-
-    bpf_probe_read(&container_id, sizeof(container_id), cgroup_p);
-    u64 cookie = should_trace_new_process_cgroup(ctx, now, pid, container_id);
+__attribute__((always_inline)) u64 should_trace_new_process(void *ctx, u64 now, u32 pid, struct container_context_t* container) {
+    u64 cookie = should_trace_new_process_cgroup(ctx, now, pid, container);
 
     return cookie;
 }
 
-__attribute__((always_inline)) void inherit_traced_state(void *ctx, u32 ppid, u32 pid, char *cgroup_p) {
+__attribute__((always_inline)) void inherit_traced_state(void *ctx, u32 ppid, u32 pid, struct container_context_t *container) {
     u64 now = bpf_ktime_get_ns();
 
     // check if the parent is traced, update the child timeout if need be
     u64 *ppid_cookie = bpf_map_lookup_elem(&traced_pids, &ppid);
     if (ppid_cookie == NULL) {
-        // check if the current pid should be traced
-        should_trace_new_process(ctx, now, pid, cgroup_p);
+        // should_trace_new_process seems to check if cgroup needs to be checked which
+        // may make sense in this case as we are inheriting from a traced cgroup, so
+        // it may be ok to not set cgroup flags
+        should_trace_new_process(ctx, now, pid, container);
         return;
     }
 
@@ -352,7 +359,7 @@ __attribute__((always_inline)) u32 is_activity_dump_running(void *ctx, u32 pid, 
 
     struct proc_cache_t *pc = get_proc_cache(pid);
     if (pc) {
-        cookie = should_trace_new_process(ctx, now, pid, pc->container.container_id);
+        cookie = should_trace_new_process(ctx, now, pid, &pc->container);
     }
 
     if (cookie != 0) {

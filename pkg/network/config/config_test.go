@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -282,6 +283,35 @@ service_monitoring_config:
 		cfg := New()
 
 		assert.False(t, cfg.EnablePostgresMonitoring)
+	})
+}
+
+func TestEnableRedisMonitoring(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  enable_redis_monitoring: true
+`)
+
+		assert.True(t, cfg.EnableRedisMonitoring)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_REDIS_MONITORING", "true")
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableRedisMonitoring)
+	})
+
+	t.Run("default", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+
+		assert.False(t, cfg.EnableRedisMonitoring)
 	})
 }
 
@@ -1151,6 +1181,23 @@ func TestMaxClosedConnectionsBuffered(t *testing.T) {
 	})
 }
 
+func TestMaxFailedConnectionsBuffered(t *testing.T) {
+	maxTrackedConnections := New().MaxTrackedConnections
+
+	t.Run("value set", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_NETWORK_CONFIG_MAX_FAILED_CONNECTIONS_BUFFERED", fmt.Sprintf("%d", maxTrackedConnections-1))
+		cfg := New()
+		require.Equal(t, maxTrackedConnections-1, cfg.MaxFailedConnectionsBuffered)
+	})
+
+	t.Run("value not set", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		require.Equal(t, cfg.MaxTrackedConnections, cfg.MaxFailedConnectionsBuffered)
+	})
+}
+
 func TestMaxHTTPStatsBuffered(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
@@ -1273,6 +1320,33 @@ service_monitoring_config:
 	})
 }
 
+func TestMaxRedisStatsBuffered(t *testing.T) {
+	t.Run("value set through env var", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_REDIS_STATS_BUFFERED", "50000")
+
+		cfg := New()
+		assert.Equal(t, 50000, cfg.MaxRedisStatsBuffered)
+	})
+
+	t.Run("value set through yaml", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  max_redis_stats_buffered: 30000
+`)
+
+		assert.Equal(t, 30000, cfg.MaxRedisStatsBuffered)
+	})
+
+	t.Run("default", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+
+		cfg := New()
+		assert.Equal(t, 100000, cfg.MaxRedisStatsBuffered)
+	})
+}
+
 func TestNetworkConfigEnabled(t *testing.T) {
 	ys := true
 
@@ -1339,6 +1413,33 @@ service_monitoring_config:
 
 		cfg := New()
 		assert.True(t, cfg.EnableIstioMonitoring)
+	})
+}
+
+func TestEnvoyPathConfig(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		assert.EqualValues(t, cfg.EnvoyPath, "/bin/envoy")
+	})
+
+	t.Run("via yaml", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  tls:
+    istio:
+      envoy_path: "/test/envoy"
+`)
+		assert.EqualValues(t, "/test/envoy", cfg.EnvoyPath)
+	})
+
+	t.Run("value set through env var", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_ISTIO_ENVOY_PATH", "/test/envoy")
+
+		cfg := New()
+		assert.EqualValues(t, "/test/envoy", cfg.EnvoyPath)
 	})
 }
 
@@ -1697,6 +1798,24 @@ system_probe_config:
   process_service_inference:
     enabled: true`)
 		require.False(t, cfg.GetBool("system_probe_config.process_service_inference.enabled"))
+	})
+
+	t.Run("test platform specific defaults", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		// usm or npm must be enabled for the process_service_inference to be enabled
+		cfg := modelCfgFromYAML(t, `
+service_monitoring_config:
+  enabled: true`)
+		sysconfig.Adjust(cfg)
+
+		var expected bool
+		if runtime.GOOS == "windows" {
+			expected = true
+		} else {
+			expected = false
+		}
+
+		require.Equal(t, expected, cfg.GetBool("system_probe_config.process_service_inference.enabled"))
 	})
 }
 
