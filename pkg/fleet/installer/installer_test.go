@@ -28,14 +28,15 @@ type testPackageManager struct {
 }
 
 func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string, locksPath string) *testPackageManager {
-	repositories := repository.NewRepositories(rootPath, locksPath)
+	packages := repository.NewRepositories(rootPath, locksPath)
 	db, err := db.New(filepath.Join(rootPath, "packages.db"))
 	assert.NoError(t, err)
 	return &testPackageManager{
 		installerImpl{
+			env:            &env.Env{},
 			db:             db,
 			downloader:     oci.NewDownloader(&env.Env{}, s.Client()),
-			packages:       repositories,
+			packages:       packages,
 			userConfigsDir: t.TempDir(),
 			packagesDir:    rootPath,
 		},
