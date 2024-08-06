@@ -48,7 +48,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "dogstatsd-stats",
 		Short: "Print basic statistics on the metrics processed by dogstatsd",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(requestDogstatsdStats,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -65,7 +65,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func requestDogstatsdStats(log log.Component, config config.Component, cliParams *cliParams) error {
+func requestDogstatsdStats(_ log.Component, config config.Component, cliParams *cliParams) error {
 	fmt.Printf("Getting the dogstatsd stats from the agent.\n\n")
 	var e error
 	var s string

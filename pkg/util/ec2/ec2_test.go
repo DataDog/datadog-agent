@@ -171,7 +171,7 @@ func TestGetHostAliases(t *testing.T) {
 				config.Datadog().SetWithoutSource("ec2_use_dmi", true)
 			}
 
-			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "text/plain")
 				var responseCode int
 				if tc.instanceID != "" {
@@ -450,7 +450,7 @@ func TestMetedataRequestWithoutToken(t *testing.T) {
 }
 
 func TestGetNTPHostsFromIMDS(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		io.WriteString(w, "test")
 	}))

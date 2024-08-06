@@ -27,11 +27,7 @@ from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH, GITHUB_REPO_NAME
 from tasks.libs.common.git import get_staged_files
-from tasks.libs.common.utils import (
-    gitlab_section,
-    is_pr_context,
-    running_in_ci,
-)
+from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
 from tasks.libs.types.copyright import CopyrightLinter, LintFailure
 from tasks.modules import GoModule
 from tasks.test_core import ModuleLintResult, process_input_args, process_module_results, test_core
@@ -190,14 +186,14 @@ def go(
         include_sds=include_sds,
     )
 
-    with gitlab_section('Linter execution time'):
-        print(color_message('Execution time summary:', 'bold'))
+    if not headless_mode:
+        with gitlab_section('Linter execution time'):
+            print(color_message('Execution time summary:', 'bold'))
+            for e in execution_times:
+                print(f'- {e.name}: {e.duration:.1f}s')
 
     with gitlab_section('Linter failures'):
         success = process_module_results(flavor=flavor, module_results=lint_results)
-
-        for e in execution_times:
-            print(f'- {e.name}: {e.duration:.1f}s')
 
     if success:
         if not headless_mode:

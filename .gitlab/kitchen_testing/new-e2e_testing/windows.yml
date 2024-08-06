@@ -52,6 +52,8 @@
       - E2E_MSI_TEST: TestSubServicesOpts/all-subservices
       - E2E_MSI_TEST: TestSubServicesOpts/no-subservices
       - E2E_MSI_TEST: TestInstallAltDir
+      - E2E_MSI_TEST: TestInstallExistingAltDir
+      - E2E_MSI_TEST: TestInstallAltDirAndCorruptForUninstall
       - E2E_MSI_TEST: TestInstallFail
 
 .new-e2e_windows_installer_v7_tests:
@@ -73,6 +75,8 @@
       - E2E_MSI_TEST: TestSubServicesOpts/all-subservices
       - E2E_MSI_TEST: TestSubServicesOpts/no-subservices
       - E2E_MSI_TEST: TestInstallAltDir
+      - E2E_MSI_TEST: TestInstallExistingAltDir
+      - E2E_MSI_TEST: TestInstallAltDirAndCorruptForUninstall
       - E2E_MSI_TEST: TestInstallFail
       # These tests are v7 only
       - E2E_MSI_TEST: TestNPMUpgradeToNPM

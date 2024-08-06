@@ -27,10 +27,10 @@ func newOptsWithParams(constants map[string]interface{}, legacyFields map[Field]
 	}
 
 	variables := map[string]VariableValue{
-		"pid": NewIntVariable(func(ctx *Context) int {
+		"pid": NewIntVariable(func(_ *Context) int {
 			return os.Getpid()
 		}, nil),
-		"str": NewStringVariable(func(ctx *Context) string {
+		"str": NewStringVariable(func(_ *Context) string {
 			return "aaa"
 		}, nil),
 	}
@@ -483,10 +483,10 @@ func TestPartial(t *testing.T) {
 
 	variables := make(map[string]VariableValue)
 	variables["var"] = NewBoolVariable(
-		func(ctx *Context) bool {
+		func(_ *Context) bool {
 			return false
 		},
-		func(ctx *Context, value interface{}) error {
+		func(_ *Context, _ interface{}) error {
 			return nil
 		},
 	)

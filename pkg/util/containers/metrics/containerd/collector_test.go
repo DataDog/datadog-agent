@@ -38,16 +38,16 @@ func TestGetContainerIDForPID(t *testing.T) {
 	}
 
 	fakeClient := fake.MockedContainerdClient{
-		MockNamespaces: func(ctx context.Context) ([]string, error) {
+		MockNamespaces: func(context.Context) ([]string, error) {
 			return []string{"ns"}, nil
 		},
-		MockContainers: func(namespace string) ([]containerd.Container, error) {
+		MockContainers: func(string) ([]containerd.Container, error) {
 			return []containerd.Container{
 				mockedContainer{id: "cID1"},
 				mockedContainer{id: "cID2"},
 			}, nil
 		},
-		MockTaskPids: func(namespace string, ctn containerd.Container) ([]containerd.ProcessInfo, error) {
+		MockTaskPids: func(_ string, ctn containerd.Container) ([]containerd.ProcessInfo, error) {
 			return pidMap[ctn.ID()], nil
 		},
 	}
@@ -80,19 +80,19 @@ func TestGetContainerIDForPID(t *testing.T) {
 //   - 2) Define functions like Info, Spec, etc. so they don't return errors.
 func containerdClient(metrics *types.Metric) *fake.MockedContainerdClient {
 	return &fake.MockedContainerdClient{
-		MockTaskMetrics: func(namespace string, ctn containerd.Container) (*types.Metric, error) {
+		MockTaskMetrics: func(string, containerd.Container) (*types.Metric, error) {
 			return metrics, nil
 		},
-		MockContainer: func(namespace string, id string) (containerd.Container, error) {
+		MockContainer: func(string, string) (containerd.Container, error) {
 			return mockedContainer{}, nil
 		},
-		MockInfo: func(namespace string, ctn containerd.Container) (containers.Container, error) {
+		MockInfo: func(string, containerd.Container) (containers.Container, error) {
 			return containers.Container{}, nil
 		},
-		MockSpec: func(namespace string, ctn containers.Container) (*oci.Spec, error) {
+		MockSpec: func(string, containers.Container) (*oci.Spec, error) {
 			return nil, nil
 		},
-		MockTaskPids: func(namespace string, ctn containerd.Container) ([]containerd.ProcessInfo, error) {
+		MockTaskPids: func(string, containerd.Container) ([]containerd.ProcessInfo, error) {
 			return nil, nil
 		},
 	}

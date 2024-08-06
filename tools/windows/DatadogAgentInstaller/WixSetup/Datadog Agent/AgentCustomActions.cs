@@ -97,6 +97,7 @@ namespace WixSetup.Datadog_Agent
                 // any command line values.
                 // Prefer using our CA over RegistrySearch.
                 // It is executed on the Welcome screen of the installer.
+                // Must run before CostInitialize and WixRemoveFoldersEx since it creates properties used by util:RemoveFolderEx
                 When.After,
                 new Step(RunAsAdmin.Id),
                 // Creates properties used by both install+uninstall

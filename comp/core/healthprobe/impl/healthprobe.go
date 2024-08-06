@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package impl implements the healthprobe component interface
-package impl
+// Package healthprobeimpl implements the healthprobe component interface
+package healthprobeimpl
 
 import (
 	"context"
@@ -81,10 +81,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 
 	reqs.Lc.Append(compdef.Hook{
-		OnStart: func(ctx context.Context) error {
+		OnStart: func(_ context.Context) error {
 			return probe.start()
 		},
-		OnStop: func(ctx context.Context) error {
+		OnStop: func(_ context.Context) error {
 			return probe.stop()
 		},
 	})

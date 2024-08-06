@@ -48,7 +48,7 @@ type client struct {
 	parentCollector *streamHandler
 }
 
-func (c *client) StreamEntities(ctx context.Context, opts ...grpc.CallOption) (remote.Stream, error) { //nolint:revive // TODO fix revive unused-parameter
+func (c *client) StreamEntities(ctx context.Context, _ ...grpc.CallOption) (remote.Stream, error) {
 	log.Debug("starting a new stream")
 	streamcl, err := c.cl.StreamEntities(
 		ctx,
