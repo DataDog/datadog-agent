@@ -369,6 +369,10 @@ type aggregatedStats struct {
 }
 
 func mergeSketch(s1 *ddsketch.DDSketch, raw []byte) (*ddsketch.DDSketch, error) {
+	if raw == nil {
+		return nil, nil
+	}
+
 	s2, err := decodeSketch(raw)
 	if err != nil {
 		return s1, err
