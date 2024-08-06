@@ -88,6 +88,10 @@ const (
 
 	// SourceHost represents entities detected by the host such as host tags.
 	SourceHost Source = "host"
+
+	// SourceLocalProcessCollector reprents processes entities detected
+	// by the LocalProcessCollector.
+	SourceLocalProcessCollector Source = "local_process_collector"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -668,6 +672,7 @@ type KubernetesPod struct {
 	IP                         string
 	PriorityClass              string
 	QOSClass                   string
+	RuntimeClass               string
 	KubeServices               []string
 	NamespaceLabels            map[string]string
 	NamespaceAnnotations       map[string]string
@@ -734,6 +739,7 @@ func (p KubernetesPod) String(verbose bool) string {
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Priority Class:", p.PriorityClass)
 		_, _ = fmt.Fprintln(&sb, "QOS Class:", p.QOSClass)
+		_, _ = fmt.Fprintln(&sb, "Runtime Class:", p.RuntimeClass)
 		_, _ = fmt.Fprintln(&sb, "PVCs:", sliceToString(p.PersistentVolumeClaimNames))
 		_, _ = fmt.Fprintln(&sb, "Kube Services:", sliceToString(p.KubeServices))
 		_, _ = fmt.Fprintln(&sb, "Namespace Labels:", mapToString(p.NamespaceLabels))
