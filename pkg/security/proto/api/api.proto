@@ -142,11 +142,10 @@ message StorageRequestParams {
 }
 
 message ActivityDumpParams {
-    string Comm = 1;
-    string Timeout = 2;
-    bool DifferentiateArgs = 4;
-    StorageRequestParams Storage = 5;
-    string ContainerID = 6;
+    string Timeout = 1;
+    bool DifferentiateArgs = 2;
+    StorageRequestParams Storage = 3;
+    string ContainerID = 4;
 }
 
 message MetadataMessage {
