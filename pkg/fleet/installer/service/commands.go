@@ -9,61 +9,38 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os/exec"
+	"strings"
 )
 
 type commandRunner interface {
-	run() error
-	setStderr(stderr *bytes.Buffer)
+	run() ([]byte, error)
 }
 
 type realCmd struct {
 	*exec.Cmd
 }
 
-type mockCmd struct {
-	runFunc    func() error
-	stderrData string
+func (r *realCmd) run() ([]byte, error) {
+	return r.Cmd.CombinedOutput()
 }
 
-func (r *realCmd) run() error {
-	return r.Cmd.Run()
-}
-
-func (r *realCmd) setStderr(stderr *bytes.Buffer) {
-	r.Cmd.Stderr = stderr
-}
-
-func (m *mockCmd) run() error {
-	return m.runFunc()
-}
-
-func (m *mockCmd) setStderr(stderr *bytes.Buffer) {
-	stderr.WriteString(m.stderrData)
-}
-
-func newCommandRunner(ctx context.Context, name string, arg ...string) commandRunner {
-	cmd := exec.CommandContext(ctx, name, arg...)
+func newCommandRunner(ctx context.Context, name string, args ...string) commandRunner {
+	cmd := exec.CommandContext(ctx, name, args...)
 	return &realCmd{Cmd: cmd}
 }
 
 func runCommand(cmdR commandRunner) error {
-	var stderr bytes.Buffer
-	cmdR.setStderr(&stderr)
-
-	err := cmdR.run()
+	output, err := cmdR.run()
 	if err == nil {
 		return nil
 	}
 
-	if _, ok := err.(*exec.ExitError); ok {
-		return fmt.Errorf("command failed: %s", stderr.String())
+	if len(output) == 0 {
+		return fmt.Errorf("command failed: %s", err.Error())
 	}
-	if baseError, ok := err.(*exec.Error); ok {
-		return fmt.Errorf("command failed: %s", baseError.Error())
-	}
-	return fmt.Errorf("command failed: %s", err.Error())
+
+	return fmt.Errorf("command failed: %s \n%s", strings.TrimSpace(string(output)), err.Error())
 }

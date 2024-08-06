@@ -208,6 +208,12 @@ func (s *upgradeScenarioSuite) TestExperimentCurrentVersion() {
 	s.setCatalog(newCatalog)
 	_, err := s.startExperiment(datadogAgent, currentVersion)
 	require.Error(s.T(), err)
+	s.T().Logf("Error: %s", err)
+
+	res, _ := s.Env().RemoteHost.Execute("journalctl -u datadog-agent")
+	res2, _ := s.Env().RemoteHost.Execute("journalctl -u datadog-agent-exp")
+	fmt.Printf("journalctl -u datadog-installer: %s\n", res)
+	fmt.Printf("journalctl -u datadog-installer-exp: %s\n", res2)
 }
 
 func (s *upgradeScenarioSuite) TestStopWithoutExperiment() {
