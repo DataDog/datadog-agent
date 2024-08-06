@@ -7,7 +7,7 @@ If ($lastExitCode -ne "0") {
 }
 # DockerHub login
 $DOCKER_REGISTRY_LOGIN = $(& "C:\mnt\tools\ci\aws_ssm_get_wrapper.ps1" "$Env:DOCKER_REGISTRY_LOGIN_SSM_KEY")
-#$DOCKER_REGISTRY_PWD = $(& "$CI_PROJECT_DIR\tools\ci\aws_ssm_get_wrapper.ps1" "$Env:DOCKER_REGISTRY_LOGIN_SSM_PWD")
+$DOCKER_REGISTRY_PWD = $(& "C:\mnt\tools\ci\aws_ssm_get_wrapper.ps1" "$Env:DOCKER_REGISTRY_PWD_SSM_KEY")
 docker login --username "${DOCKER_REGISTRY_LOGIN}" --password "${DOCKER_REGISTRY_PWD}" "docker.io"
 If ($lastExitCode -ne "0") {
     throw "Previous command returned $lastExitCode"
