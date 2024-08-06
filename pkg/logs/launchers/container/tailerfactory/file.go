@@ -28,7 +28,6 @@ import (
 	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	podmanUtil "github.com/DataDog/datadog-agent/pkg/util/podman"
 )
 
 var podLogsBasePath = "/var/log/pods"
@@ -167,7 +166,7 @@ func (tf *factory) findDockerLogPath(containerID string) string {
 			podmanDBPath := coreConfig.Datadog().GetString("podman_db_path")
 			// User provided a custom podman DB path, they are running rootless containers or modified the root directory.
 			if len(podmanDBPath) > 0 {
-				podmanLogsBasePath = podmanUtil.ExtractPodmanRootDirFromDBPath(podmanDBPath)
+				podmanLogsBasePath = log.ExtractPodmanRootDirFromDBPath(podmanDBPath)
 			}
 			return filepath.Join(
 				podmanLogsBasePath, "storage/overlay-containers", containerID,
