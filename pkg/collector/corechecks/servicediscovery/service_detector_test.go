@@ -20,7 +20,7 @@ func Test_serviceDetector(t *testing.T) {
 		CmdLine: []string{"my-service.py"},
 		Env:     []string{"PATH=testdata/test-bin", "DD_INJECTION_ENABLED=tracer"},
 		Stat:    procStat{},
-		Ports:   []int{5432},
+		Ports:   []uint16{5432},
 	}
 
 	want := ServiceMetadata{
