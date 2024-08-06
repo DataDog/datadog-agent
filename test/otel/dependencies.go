@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+// Package otel contains files for otel integration tests
 package otel
 
 import (
@@ -27,7 +28,7 @@ const (
 
 func _(
 	_ datadogexporter.Config,
-	_ statsprocessor.TraceAgent,
+	_ *statsprocessor.TraceAgent,
 	_ config.Component,
 	_ hostnameinterface.Component,
 	_ log.Component,
@@ -37,7 +38,7 @@ func _(
 	_ model.Config,
 	_ setup.ConfigurationProviders,
 	_ trace.Trace,
-	_ api.OTLPReceiver,
+	_ *api.OTLPReceiver,
 ) {
 }
 
