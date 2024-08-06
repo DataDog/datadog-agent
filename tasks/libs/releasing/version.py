@@ -435,6 +435,5 @@ def get_matching_pattern(ctx, major_version, release=False):
             .stdout.strip()
             .split("\n")
         )
-        semver_tags = sorted(tags, key=cmp_to_key(semver.compare))
-        pattern = semver_tags[-1]
+        pattern = max(tags, key=cmp_to_key(semver.compare))
     return pattern
