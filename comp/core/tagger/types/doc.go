@@ -2,4 +2,6 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
+// Package types defines types used by the Tagger component.
 package types
