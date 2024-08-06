@@ -227,8 +227,9 @@ func (is *installScriptSuiteSysVInit) TestInstallAgent() {
 	host := NewHostFromDocker(remoteHost, containerName)
 
 	// Start docker container
+	dockerImage := "public.ecr.aws/ubuntu/ubuntu:22.04_stable"
 	_, err := remoteHost.Execute(
-		fmt.Sprintf("docker run -d -e DD_HOSTNAME=docker-test --name '%s' debian:bookworm tail -f /dev/null", containerName),
+		fmt.Sprintf("docker run -d -e DD_HOSTNAME=docker-test --name '%s' '%s' tail -f /dev/null", containerName, dockerImage),
 	)
 	require.NoError(is.T(), err)
 	defer remoteHost.Execute(fmt.Sprintf("docker rm -f '%s'", containerName))
