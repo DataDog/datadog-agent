@@ -40,6 +40,7 @@ func _(
 	_ trace.Trace,
 	_ *api.OTLPReceiver,
 ) {
+	main()
 }
 
 func main() {}
