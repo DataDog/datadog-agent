@@ -19,7 +19,6 @@ func Test_serviceDetector(t *testing.T) {
 		PID:     100,
 		CmdLine: []string{"my-service.py"},
 		Env:     []string{"PATH=testdata/test-bin", "DD_INJECTION_ENABLED=tracer"},
-		Cwd:     "",
 		Stat:    procStat{},
 		Ports:   []int{5432},
 	}
@@ -39,7 +38,6 @@ func Test_serviceDetector(t *testing.T) {
 		PID:     0,
 		CmdLine: nil,
 		Env:     nil,
-		Cwd:     "",
 		Stat:    procStat{},
 		Ports:   nil,
 	}
