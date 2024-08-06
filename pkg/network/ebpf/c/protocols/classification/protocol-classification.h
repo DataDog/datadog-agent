@@ -167,7 +167,6 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
 
     const char *buffer = &(usm_ctx->buffer.data[0]);
 
-    // If application-layer is known we don't bother to check for HTTP protocols and skip to the next layers
     protocol_t app_layer_proto = get_protocol_from_stack(protocol_stack, LAYER_APPLICATION);
 
     if ((app_layer_proto == PROTOCOL_UNKNOWN || app_layer_proto == PROTOCOL_POSTGRES) && is_tls(buffer, usm_ctx->buffer.size, skb_info.data_end)) {
