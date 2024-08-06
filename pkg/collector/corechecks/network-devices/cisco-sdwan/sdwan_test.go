@@ -71,6 +71,7 @@ min_collection_interval: 180
 collect_bfd_session_status: true
 collect_hardware_status: true
 collect_cloud_applications_metrics: true
+collect_bgp_neighbor_states: true
 `)
 
 	// Use ID to ensure the mock sender gets registered
@@ -190,6 +191,9 @@ collect_cloud_applications_metrics: true
 	sender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "cisco_sdwan.application.latency", 404, "", tags, ts)
 	sender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "cisco_sdwan.application.loss", 0, "", tags, ts)
 	sender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", "cisco_sdwan.application.qoe", 5, "", tags, ts)
+
+	// Assert BGP neighbor metrics
+	sender.AssertMetric(t, "Gauge", "cisco_sdwan.bgp.neighbor", 1, "", []string{"system_ip:10.10.1.11", "peer_state:established", "remote_as:2024", "neighbor:10.60.1.1", "vpn_id:1", "afi:ipv4-unicast"})
 
 	// Assert metadata
 	// language=json
@@ -423,6 +427,9 @@ collect_cloud_applications_metrics: false
 	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.application.latency", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.application.loss", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	sender.AssertNotCalled(t, "GaugeWithTimestamp", "cisco_sdwan.application.qoe", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+
+	// Assert BGP peer metrics
+	sender.AssertNotCalled(t, "Gauge", "cisco_sdwan.bgp.neighbor", mock.Anything, mock.Anything, mock.Anything)
 
 	sender.AssertNotCalled(t, "EventPlatformEvent", mock.Anything, mock.Anything)
 }
