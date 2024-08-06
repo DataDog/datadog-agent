@@ -10,11 +10,12 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
@@ -111,6 +112,14 @@ func (r *runnerImpl) handleProvider(p MetadataProvider) {
 		case interval = <-intervalChan:
 		case <-r.stopChan:
 			cancel()
+
+			// Wait for the provider to finish to avoid it being interrupted when the agent stops
+			// as that could cause a corruption
+			// Still stop after some max timeout to avoid blocking the agent stop
+			select {
+			case <-intervalChan:
+			case <-time.After(r.config.GetDuration("metadata_provider_stop_timeout")):
+			}
 			return
 		}
 
