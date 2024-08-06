@@ -47,7 +47,7 @@ func merge(base interface{}, override interface{}) (interface{}, error) {
 	return nil, fmt.Errorf("could not merge %T with %T", base, override)
 }
 
-func mergeMap(base map[interface{}]interface{}, override map[interface{}]interface{}) (map[interface{}]interface{}, error) {
+func mergeMap(base, override map[interface{}]interface{}) (map[interface{}]interface{}, error) {
 	merged := make(map[interface{}]interface{})
 	for k, v := range base {
 		merged[k] = v
