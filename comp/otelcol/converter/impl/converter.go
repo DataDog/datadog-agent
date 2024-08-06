@@ -22,6 +22,12 @@ var (
 	_ confmap.Converter = (*ddConverter)(nil)
 )
 
+// Requires defines the converter component required dependencies.
+//
+// An agent core configuration component dep is expected. A nil
+// core config component will prevent enhancing the configuration
+// with core agent config elements if any are missing from the provided
+// OTel configutation.
 type Requires struct {
 	Conf config.Component
 }

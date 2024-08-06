@@ -47,7 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
-	tracecomp "github.com/DataDog/datadog-agent/comp/trace"
+	traceagentfx "github.com/DataDog/datadog-agent/comp/trace/agent/fx"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
 	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
@@ -102,7 +102,6 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		fx.Provide(func(client *metricsclient.StatsdClientWrapper) statsd.Component {
 			return statsd.NewOTelStatsd(client)
 		}),
-		// sysprobeconfig.NoneModule(),
 		fetchonlyimpl.Module(),
 		collectorfx.Module(),
 		collectorcontribFx.Module(),
@@ -164,7 +163,10 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ optional.Option[logsagentpipeline.Component]) {
 		}),
 
-		configsyncimpl.OptionalModule(),
+		configsyncimpl.OptionalModuleWithParams(),
+		fx.Provide(func() configsyncimpl.Params {
+			return configsyncimpl.NewParams(0, true)
+		}),
 		fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
 
 		fx.Provide(tagger.NewTaggerParams),
@@ -178,12 +180,19 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		// ctx is required to be supplied from here, as Windows needs to inject its own context
 		// to allow the agent to work as a service.
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
+
+		// tracecomp.Bundle(),
+		fx.Provide(func(deps traceconfig.Dependencies, _ optional.Option[configsync.Component]) (traceconfig.Component, error) {
+			return traceconfig.NewConfig(deps)
+		}),
+		fx.Supply(traceconfig.Params{FailIfAPIKeyMissing: false}),
+
 		fx.Supply(&traceagentcomp.Params{
 			CPUProfile:  "",
 			MemProfile:  "",
 			PIDFilePath: "",
 		}),
-		tracecomp.Bundle(),
+		traceagentfx.Module(),
 	)
 	if err != nil {
 		return err
