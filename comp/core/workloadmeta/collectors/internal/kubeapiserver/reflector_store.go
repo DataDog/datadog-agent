@@ -47,14 +47,17 @@ type reflectorStore struct {
 func (r *reflectorStore) Add(obj interface{}) error {
 	metaObj := obj.(metav1.Object)
 	producedEntities := r.parser.Parse(obj)
-	r.seen[string(metaObj.GetUID())] = make([]workloadmeta.EntityID, 0, len(producedEntities))
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	r.hasSynced = true
 
+	objUID := string(metaObj.GetUID())
+	r.seen[objUID] = make([]workloadmeta.EntityID, 0, len(producedEntities))
+
 	for _, entity := range producedEntities {
-		r.seen[string(metaObj.GetUID())] = append(r.seen[string(metaObj.GetUID())], entity.GetID())
+		r.seen[objUID] = append(r.seen[objUID], entity.GetID())
 		r.wlmetaStore.Notify([]workloadmeta.CollectorEvent{
 			{
 				Type:   workloadmeta.EventTypeSet,
