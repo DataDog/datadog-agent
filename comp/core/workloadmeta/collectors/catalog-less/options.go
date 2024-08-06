@@ -39,7 +39,7 @@ func getCollectorOptions() []fx.Option {
 		kubemetadata.GetFxOptions(),
 		podman.GetFxOptions(),
 		remoteworkloadmeta.GetFxOptions(),
-		remoteWorkloadmetaParams(),
+		fx.Supply(remoteworkloadmeta.Params{}),
 		processcollector.GetFxOptions(),
 		host.GetFxOptions(),
 	}

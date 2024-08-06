@@ -37,6 +37,8 @@ func remoteWorkloadmetaParams() fx.Option {
 	var filter *workloadmeta.Filter // Nil filter accepts everything
 
 	// Security Agent is only interested in containers
+	// TODO: (components) create a Catalog component, the implementation used by
+	// security-agent can use this filter, instead of needing to chekc agent.flavor
 	if flavor.GetFlavor() == flavor.SecurityAgent {
 		filter = workloadmeta.NewFilterBuilder().AddKind(workloadmeta.KindContainer).Build()
 	}
