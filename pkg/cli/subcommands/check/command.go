@@ -49,7 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -162,7 +162,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				core.Bundle(),
 
 				// workloadmeta setup
-				collectors.GetCatalog(),
+				wmcatalog.GetCatalog(),
 				fx.Provide(defaults.DefaultParams),
 				workloadmetafx.Module(),
 				apiimpl.Module(),

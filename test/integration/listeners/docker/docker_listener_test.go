@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -85,7 +85,7 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 			Features:  []config.Feature{config.Docker},
 		}),
 		fx.Supply(workloadmeta.NewParams()),
-		collectors.GetCatalog(),
+		wmcatalog.GetCatalog(),
 		workloadmetafx.Module(),
 		taggerimpl.Module(),
 		fx.Supply(tagger.NewTaggerParams()),
