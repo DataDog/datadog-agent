@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/ebpfpostgres"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 )
 
@@ -28,16 +28,16 @@ func Test_getBucketIndex(t *testing.T) {
 	testCases := []struct {
 		start, end, expected int
 	}{
-		{0, ebpfpostgres.BufferSize - 2*bucketLength, 0},
-		{ebpfpostgres.BufferSize - 2*bucketLength + 1, ebpfpostgres.BufferSize - bucketLength, 1},
-		{ebpfpostgres.BufferSize - bucketLength + 1, ebpfpostgres.BufferSize, 2},
-		{ebpfpostgres.BufferSize + 1, ebpfpostgres.BufferSize + bucketLength, 3},
-		{ebpfpostgres.BufferSize + bucketLength + 1, ebpfpostgres.BufferSize + 2*bucketLength, 4},
-		{ebpfpostgres.BufferSize + 2*bucketLength + 1, ebpfpostgres.BufferSize + 3*bucketLength, 5},
-		{ebpfpostgres.BufferSize + 3*bucketLength + 1, ebpfpostgres.BufferSize + 4*bucketLength, 6},
-		{ebpfpostgres.BufferSize + 4*bucketLength + 1, ebpfpostgres.BufferSize + 5*bucketLength, 7},
-		{ebpfpostgres.BufferSize + 5*bucketLength + 1, ebpfpostgres.BufferSize + 6*bucketLength, 8},
-		{ebpfpostgres.BufferSize + 6*bucketLength + 1, ebpfpostgres.BufferSize + 7*bucketLength, 9},
+		{0, ebpf.BufferSize - 2*bucketLength, 0},
+		{ebpf.BufferSize - 2*bucketLength + 1, ebpf.BufferSize - bucketLength, 1},
+		{ebpf.BufferSize - bucketLength + 1, ebpf.BufferSize, 2},
+		{ebpf.BufferSize + 1, ebpf.BufferSize + bucketLength, 3},
+		{ebpf.BufferSize + bucketLength + 1, ebpf.BufferSize + 2*bucketLength, 4},
+		{ebpf.BufferSize + 2*bucketLength + 1, ebpf.BufferSize + 3*bucketLength, 5},
+		{ebpf.BufferSize + 3*bucketLength + 1, ebpf.BufferSize + 4*bucketLength, 6},
+		{ebpf.BufferSize + 4*bucketLength + 1, ebpf.BufferSize + 5*bucketLength, 7},
+		{ebpf.BufferSize + 5*bucketLength + 1, ebpf.BufferSize + 6*bucketLength, 8},
+		{ebpf.BufferSize + 6*bucketLength + 1, ebpf.BufferSize + 7*bucketLength, 9},
 	}
 
 	for _, tc := range testCases {
@@ -51,22 +51,22 @@ func TestTelemetry_Count(t *testing.T) {
 	tests := []struct {
 		name              string
 		query             string
-		tx                []*ebpfpostgres.EbpfEvent
+		tx                []*ebpf.EbpfEvent
 		expectedTelemetry telemetryResults
 	}{
 		{
 			name: "exceeded query length bucket for each bucket ones",
-			tx: []*ebpfpostgres.EbpfEvent{
-				createEbpfEvent(ebpfpostgres.BufferSize - 2*bucketLength),
-				createEbpfEvent(ebpfpostgres.BufferSize - bucketLength),
-				createEbpfEvent(ebpfpostgres.BufferSize),
-				createEbpfEvent(ebpfpostgres.BufferSize + 1),
-				createEbpfEvent(ebpfpostgres.BufferSize + bucketLength + 1),
-				createEbpfEvent(ebpfpostgres.BufferSize + 2*bucketLength + 1),
-				createEbpfEvent(ebpfpostgres.BufferSize + 3*bucketLength + 1),
-				createEbpfEvent(ebpfpostgres.BufferSize + 4*bucketLength + 1),
-				createEbpfEvent(ebpfpostgres.BufferSize + 5*bucketLength + 1),
-				createEbpfEvent(ebpfpostgres.BufferSize + 6*bucketLength + 1),
+			tx: []*ebpf.EbpfEvent{
+				createEbpfEvent(ebpf.BufferSize - 2*bucketLength),
+				createEbpfEvent(ebpf.BufferSize - bucketLength),
+				createEbpfEvent(ebpf.BufferSize),
+				createEbpfEvent(ebpf.BufferSize + 1),
+				createEbpfEvent(ebpf.BufferSize + bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 2*bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 3*bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 4*bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 5*bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 6*bucketLength + 1),
 			},
 
 			expectedTelemetry: telemetryResults{
@@ -77,7 +77,7 @@ func TestTelemetry_Count(t *testing.T) {
 		},
 		{
 			name:  "failed operation extraction",
-			tx:    []*ebpfpostgres.EbpfEvent{{}},
+			tx:    []*ebpf.EbpfEvent{{}},
 			query: "CREA TABLE dummy",
 			expectedTelemetry: telemetryResults{
 				failedOperationExtraction: 1,
@@ -86,7 +86,7 @@ func TestTelemetry_Count(t *testing.T) {
 		},
 		{
 			name:  "failed table name extraction",
-			tx:    []*ebpfpostgres.EbpfEvent{{}},
+			tx:    []*ebpf.EbpfEvent{{}},
 			query: "CREATE TABLE",
 			expectedTelemetry: telemetryResults{
 				failedTableNameExtraction: 1,
@@ -95,7 +95,7 @@ func TestTelemetry_Count(t *testing.T) {
 		},
 		{
 			name:  "failed table name and operation extraction",
-			tx:    []*ebpfpostgres.EbpfEvent{{}},
+			tx:    []*ebpf.EbpfEvent{{}},
 			query: "CRE TABLE",
 			expectedTelemetry: telemetryResults{
 				failedTableNameExtraction: 1,
@@ -121,9 +121,9 @@ func TestTelemetry_Count(t *testing.T) {
 	}
 }
 
-func createEbpfEvent(querySize int) *ebpfpostgres.EbpfEvent {
-	return &ebpfpostgres.EbpfEvent{
-		Tx: ebpfpostgres.EbpfTx{
+func createEbpfEvent(querySize int) *ebpf.EbpfEvent {
+	return &ebpf.EbpfEvent{
+		Tx: ebpf.EbpfTx{
 			Original_query_size: uint32(querySize),
 		},
 	}

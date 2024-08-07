@@ -25,9 +25,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/ebpfpostgres"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
@@ -35,7 +35,7 @@ import (
 
 const (
 	postgresPort           = "5432"
-	repeatCount            = ebpfpostgres.BufferSize / len("table_")
+	repeatCount            = ebpf.BufferSize / len("table_")
 	createTableQuery       = "CREATE TABLE dummy (id SERIAL PRIMARY KEY, foo TEXT)"
 	updateSingleValueQuery = "UPDATE dummy SET foo = 'updated' WHERE id = 1"
 	selectAllQuery         = "SELECT * FROM dummy"
@@ -519,17 +519,17 @@ func testDecoding(t *testing.T, isTLS bool) {
 // getTruncatedTableName returns the truncated table name by reducing the operation and extracting the remaining
 // table name by the current max buffer size.
 func getTruncatedTableName(query string, tableNameIndex int) string {
-	return query[tableNameIndex:ebpfpostgres.BufferSize]
+	return query[tableNameIndex:ebpf.BufferSize]
 }
 
 // getPostgresInFlightEntries returns the entries in the in-flight map.
-func getPostgresInFlightEntries(t *testing.T, monitor *Monitor) map[ebpfpostgres.ConnTuple]ebpfpostgres.EbpfTx {
+func getPostgresInFlightEntries(t *testing.T, monitor *Monitor) map[ebpf.ConnTuple]ebpf.EbpfTx {
 	postgresInFlightMap, _, err := monitor.ebpfProgram.GetMap(postgres.InFlightMap)
 	require.NoError(t, err)
 
-	var key ebpfpostgres.ConnTuple
-	var value ebpfpostgres.EbpfTx
-	entries := make(map[ebpfpostgres.ConnTuple]ebpfpostgres.EbpfTx)
+	var key ebpf.ConnTuple
+	var value ebpf.EbpfTx
+	entries := make(map[ebpf.ConnTuple]ebpf.EbpfTx)
 	iter := postgresInFlightMap.Iterate()
 	for iter.Next(&key, &value) {
 		entries[key] = value

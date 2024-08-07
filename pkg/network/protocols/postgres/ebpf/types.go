@@ -5,7 +5,7 @@
 
 //go:build ignore
 
-package ebpfpostgres
+package ebpf
 
 /*
 #include "../../ebpf/c/protocols/postgres/types.h"

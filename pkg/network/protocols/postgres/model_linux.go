@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/go-sqllexer"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/ebpfpostgres"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -24,7 +24,7 @@ import (
 // EventWrapper wraps an ebpf event and provides additional methods to extract information from it.
 // We use this wrapper to avoid recomputing the same values (operation and table name) multiple times.
 type EventWrapper struct {
-	*ebpfpostgres.EbpfEvent
+	*ebpf.EbpfEvent
 
 	operationSet bool
 	operation    Operation
@@ -34,7 +34,7 @@ type EventWrapper struct {
 }
 
 // NewEventWrapper creates a new EventWrapper from an ebpf event.
-func NewEventWrapper(e *ebpfpostgres.EbpfEvent) *EventWrapper {
+func NewEventWrapper(e *ebpf.EbpfEvent) *EventWrapper {
 	return &EventWrapper{
 		EbpfEvent:  e,
 		normalizer: sqllexer.NewNormalizer(sqllexer.WithCollectTables(true)),
@@ -54,7 +54,7 @@ func (e *EventWrapper) ConnTuple() types.ConnectionKey {
 }
 
 // getFragment returns the actual query fragment from the event.
-func getFragment(e *ebpfpostgres.EbpfTx) []byte {
+func getFragment(e *ebpf.EbpfTx) []byte {
 	if e.Original_query_size == 0 {
 		return nil
 	}
