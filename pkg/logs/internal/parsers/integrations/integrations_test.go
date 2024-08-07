@@ -67,13 +67,13 @@ func TestIntegrationsFile(t *testing.T) {
 	assert.Equal(t, []byte(`{"log":"seventh message}`), msg.GetContent())
 	assert.Equal(t, []string{}, msg.ParsingExtra.Tags)
 
-	// Missing closing quotation in ddtags
+	// Empty tag in tags list
 	msg.ParsingExtra.Tags = []string{}
-	logMessage.SetContent([]byte(`{"log":"seventh message, "ddtags":"env:prod}`))
+	logMessage.SetContent([]byte(`{"log":"foo bar", "ddtags":"env:prod,,"}`))
 	msg, err = parser.Parse(logMessage)
-	assert.NotNil(t, err)
-	assert.Equal(t, []byte(`{"log":"seventh message, "ddtags":"env:prod}`), msg.GetContent())
-	assert.Equal(t, []string{}, msg.ParsingExtra.Tags)
+	assert.Nil(t, err)
+	assert.Equal(t, []byte(`{"log":"foo bar"}`), msg.GetContent())
+	assert.Equal(t, []string{"env:prod"}, msg.ParsingExtra.Tags)
 
 	// Test with extra commas
 	logMessage = message.NewMessage([]byte(`{"log":"extra comma",}`), nil, "", 0)

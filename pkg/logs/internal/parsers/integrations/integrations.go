@@ -56,10 +56,7 @@ func (p *integrationFileFormat) Parse(msg *message.Message) (*message.Message, e
 	if len(ddtagsString) > 0 {
 		ddtagsSlice = strings.Split(ddtagsString, ",")
 
-		for i, tag := range ddtagsSlice {
-			ddtagsSlice[i] = strings.TrimSpace(tag)
-		}
-
+		ddtagsSlice = normalizeTags(ddtagsSlice)
 	}
 
 	// append ddtags to message origin tags
@@ -71,6 +68,22 @@ func (p *integrationFileFormat) Parse(msg *message.Message) (*message.Message, e
 	msg.SetContent(modifiedJSON)
 
 	return msg, nil
+}
+
+// normalizeTags removes any whitespace and blank tags from the taglist
+func normalizeTags(tags []string) []string {
+	var normalizedTags []string
+	for i, tag := range tags {
+		tags[i] = strings.TrimSpace(tag)
+	}
+
+	for _, tag := range tags {
+		if len(tag) > 0 {
+			normalizedTags = append(normalizedTags, tag)
+		}
+	}
+
+	return normalizedTags
 }
 
 // SupportsPartialLine implements Parser#SupportsPartialLine
