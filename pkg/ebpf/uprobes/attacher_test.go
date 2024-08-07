@@ -26,7 +26,6 @@ import (
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // === Tests
@@ -288,7 +287,6 @@ func TestMonitor(t *testing.T) {
 
 	cmd, err := fileopener.OpenFromAnotherProcess(t, lib)
 	require.NoError(t, err)
-	log.Errorf("rules:%+v", config.Rules[0])
 	require.Eventually(t, func() bool {
 		return len(mockRegistry.Calls) == 2 // Once for the library, another for the process itself
 	}, 1500*time.Millisecond, 10*time.Millisecond, "received calls %v", mockRegistry.Calls)
