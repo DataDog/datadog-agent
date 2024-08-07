@@ -7,7 +7,6 @@
 package integration
 
 import (
-	"encoding/json"
 	"os"
 	"strings"
 
@@ -35,13 +34,6 @@ type Launcher struct {
 	// writeLogToFile is used as a function pointer so it can be overridden in
 	// testing to make deterministic tests
 	writeFunction func(filepath, log string) error
-}
-
-type LogComponents struct {
-	Message string `json:"message"`
-	Tags    string `json:"ddtags"`
-	Source  string `json:"ddsource"`
-	Service string `json:"ddservice"`
 }
 
 // NewLauncher returns a new launcher
@@ -98,20 +90,7 @@ func (s *Launcher) run() {
 				continue
 			}
 
-			// If the incoming log is JSON formatted, deserialize it and read it into
-			// an object, otherwise write the log directly to disk
-			if isJSON(log.Log) {
-				// TODO Figure out how to set tags, service, and host with logComp
-				logComp, err := s.deserializeLog(log.Log)
-				if err != nil {
-					ddLog.Warn("Unable to unmarshall log into components: ", err)
-				}
-
-				err = s.writeFunction(filepath, logComp.Message)
-			} else {
-				err = s.writeFunction(filepath, log.Log)
-			}
-
+			err = s.writeFunction(filepath, log.Log)
 			if err != nil {
 				ddLog.Warn("Error writing log to file: ", err)
 			}
@@ -119,24 +98,6 @@ func (s *Launcher) run() {
 			return
 		}
 	}
-}
-
-func isJSON(s string) bool {
-	var js map[string]interface{}
-	return json.Unmarshal([]byte(s), &js) == nil
-}
-
-// deserializeLog deserializes an incoming log and extracts the ddtags, ddsource,
-// and ddservice attributes
-func (s *Launcher) deserializeLog(log string) (LogComponents, error) {
-	var components LogComponents
-
-	err := json.Unmarshal([]byte(log), &components)
-	if err != nil {
-		return components, err
-	}
-
-	return components, nil
 }
 
 // writeLogToFile is used as a function pointer
