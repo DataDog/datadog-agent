@@ -147,7 +147,10 @@ func (s *streamHandler) IsEnabled() bool {
 	if flavor.GetFlavor() != flavor.DefaultAgent {
 		return false
 	}
-	return s.Reader.GetBool("language_detection.enabled")
+
+	processChecksInCoreAgent := config.Datadog().GetBool("process_config.run_in_core_agent.enabled")
+
+	return s.Reader.GetBool("language_detection.enabled") && !processChecksInCoreAgent
 }
 
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient {
