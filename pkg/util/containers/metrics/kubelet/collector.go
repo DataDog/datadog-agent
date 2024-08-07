@@ -116,7 +116,7 @@ func (kc *kubeletCollector) ContainerIDForPodUIDAndContName(podUID, contName str
 }
 
 // GetContainerStats returns stats by container ID.
-func (kc *kubeletCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) { //nolint:revive // TODO fix revive unused-parameter
+func (kc *kubeletCollector) GetContainerStats(_, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	currentTime := time.Now()
 
 	containerStats, found, err := kc.statsCache.Get(currentTime, contStatsCachePrefix+containerID, cacheValidity)
@@ -144,7 +144,7 @@ func (kc *kubeletCollector) GetContainerStats(containerNS, containerID string, c
 }
 
 // GetContainerNetworkStats returns network stats by container ID.
-func (kc *kubeletCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) { //nolint:revive // TODO fix revive unused-parameter
+func (kc *kubeletCollector) GetContainerNetworkStats(_, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
 	currentTime := time.Now()
 
 	containerNetworkStats, found, err := kc.statsCache.Get(currentTime, contNetStatsCachePrefix+containerID, cacheValidity)

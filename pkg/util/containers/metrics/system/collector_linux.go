@@ -51,21 +51,34 @@ type systemCollector struct {
 	hostCgroupNamespace bool
 }
 
-func newSystemCollector(cache *provider.Cache, _ optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
+func newSystemCollector(cache *provider.Cache, wlm optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
 	var err error
 	var hostPrefix string
 	var collectorMetadata provider.CollectorMetadata
+	var cf cgroups.ReaderFilter
 
 	procPath := config.Datadog().GetString("container_proc_root")
 	if strings.HasPrefix(procPath, "/host") {
 		hostPrefix = "/host"
 	}
 
+	if useTrie := config.Datadog().GetBool("use_improved_cgroup_parser"); useTrie {
+		var w workloadmeta.Component
+		unwrapped, ok := wlm.Get()
+		if ok {
+			w = unwrapped
+		}
+		filter := newContainerFilter(w)
+		go filter.start()
+		cf = filter.ContainerFilter
+	} else {
+		cf = cgroups.ContainerFilter
+	}
 	reader, err := cgroups.NewReader(
 		cgroups.WithCgroupV1BaseController(cgroupV1BaseController),
 		cgroups.WithProcPath(procPath),
 		cgroups.WithHostPrefix(hostPrefix),
-		cgroups.WithReaderFilter(cgroups.ContainerFilter),
+		cgroups.WithReaderFilter(cf),
 		cgroups.WithPIDMapper(config.Datadog().GetString("container_pid_mapper")),
 	)
 	if err != nil {

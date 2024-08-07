@@ -45,10 +45,10 @@ func SetupAPIServerHandlers(deps APIServerDeps, r *mux.Router) {
 
 	r.HandleFunc("/agent/status", injectDeps(deps, statusHandler)).Methods("GET")
 	r.HandleFunc("/agent/tagger-list", injectDeps(deps, getTaggerList)).Methods("GET")
-	r.HandleFunc("/agent/workload-list/short", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/agent/workload-list/short", func(w http.ResponseWriter, _ *http.Request) {
 		workloadList(w, false, deps.WorkloadMeta)
 	}).Methods("GET")
-	r.HandleFunc("/agent/workload-list/verbose", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/agent/workload-list/verbose", func(w http.ResponseWriter, _ *http.Request) {
 		workloadList(w, true, deps.WorkloadMeta)
 	}).Methods("GET")
 	r.HandleFunc("/check/{check}", checkHandler).Methods("GET")

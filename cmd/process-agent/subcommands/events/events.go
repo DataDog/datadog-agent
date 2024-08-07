@@ -70,7 +70,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	eventsListenCmd := &cobra.Command{
 		Use:   "listen",
 		Short: "Open a session to listen for process lifecycle events. This feature is currently in alpha version and needs root privilege to run.",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(runEventListener,
 				fx.Supply(cliParams, command.GetCoreBundleParamsForOneShot(globalParams)),
 				core.Bundle(),
@@ -84,7 +84,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	eventsPullCmd := &cobra.Command{
 		Use:   "pull",
 		Short: "Periodically pull process lifecycle events. This feature is currently in alpha version and needs root privilege to run.",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(runEventStore,
 				fx.Supply(cliParams, command.GetCoreBundleParamsForOneShot(globalParams)),
 				core.Bundle(),

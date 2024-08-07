@@ -25,7 +25,7 @@ func TestWorker(t *testing.T) {
 	cached := cache.New(3*time.Minute, 30*time.Second)
 	cached.SetDefault("task-cached", struct{}{})
 
-	processFunc := func(ctx context.Context, task v1.Task) (v3or4.Task, error) {
+	processFunc := func(_ context.Context, task v1.Task) (v3or4.Task, error) {
 		switch task.Arn {
 		case "task-error":
 			return v3or4.Task{}, errors.New("task2 error")

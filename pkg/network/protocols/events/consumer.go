@@ -159,7 +159,7 @@ func (c *Consumer[V]) Start() {
 					return
 				}
 
-				c.batchReader.ReadAll(func(cpu int, b *batch) {
+				c.batchReader.ReadAll(func(_ int, b *batch) {
 					c.process(b, true)
 				})
 				log.Debugf("usm events summary: name=%q %s", c.proto, c.metricGroup.Summary())

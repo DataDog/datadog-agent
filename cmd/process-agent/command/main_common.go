@@ -193,11 +193,8 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			return tagger.NewTaggerParams()
 		}),
 
-		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
-		fxutil.FxLoggingOption(),
-
-		// Inject the Lifecycle adapter for non fx-aware components.
-		fxutil.FxLifecycleAdapter(),
+		// Provides specific features to our own fx wrapper (logging, lifecycle, shutdowner)
+		fxutil.FxAgentBase(),
 
 		// Set the pid file path
 		fx.Supply(pidimpl.NewParams(globalParams.PidFilePath)),
@@ -316,7 +313,6 @@ type miscDeps struct {
 // Todo: (Components) WorkloadMeta, remoteTagger
 // Todo: move metadata/workloadmeta/collector to workloadmeta
 func initMisc(deps miscDeps) error {
-
 	if err := ddutil.SetupCoreDump(deps.Config); err != nil {
 		deps.Logger.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
@@ -329,7 +325,6 @@ func initMisc(deps miscDeps) error {
 	appCtx, stopApp := context.WithCancel(context.Background())
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
-
 			if collector.Enabled(deps.Config) {
 				err := processCollectionServer.Start(appCtx, deps.WorkloadMeta)
 				if err != nil {

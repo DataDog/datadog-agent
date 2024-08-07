@@ -52,6 +52,7 @@ type checkCfg struct {
 	CollectDeviceCountersMetrics    *bool  `yaml:"collect_device_counters_metrics"`
 	CollectBFDSessionStatus         *bool  `yaml:"collect_bfd_session_status"`
 	CollectHardwareStatus           *bool  `yaml:"collect_hardware_status"`
+	CollectCloudApplicationsMetrics *bool  `yaml:"collect_cloud_applications_metrics"`
 }
 
 // CiscoSdwanCheck contains the field for the CiscoSdwanCheck
@@ -168,6 +169,15 @@ func (c *CiscoSdwanCheck) Run() error {
 		c.metricsSender.SendHardwareMetrics(hardwareStates)
 	}
 
+	// Disabled  by default
+	if *c.config.CollectCloudApplicationsMetrics {
+		cloudApplications, err := client.GetCloudExpressMetrics()
+		if err != nil {
+			log.Warnf("Error getting cloud application metrics from Cisco SD-WAN API: %s", err)
+		}
+		c.metricsSender.SendCloudApplicationMetrics(cloudApplications)
+	}
+
 	if *c.config.SendNDMMetadata {
 		c.metricsSender.SendMetadata(devicesMetadata, interfacesMetadata, ipAddressesMetadata)
 	}
@@ -206,6 +216,7 @@ func (c *CiscoSdwanCheck) Configure(senderManager sender.SenderManager, integrat
 
 	instanceConfig.CollectBFDSessionStatus = boolPointer(false)
 	instanceConfig.CollectHardwareStatus = boolPointer(false)
+	instanceConfig.CollectCloudApplicationsMetrics = boolPointer(false)
 
 	err = yaml.Unmarshal(rawInstance, &instanceConfig)
 	if err != nil {

@@ -137,12 +137,12 @@ func otelSpanToDDSpan(
 		// When enable_otlp_compute_top_level_by_span_kind is true, compute stats for client-side spans
 		traceutil.SetMeasured(ddspan, true)
 	}
-	if conf.PeerTagsAggregation {
-		peerTagKeys := preparePeerTags(append(defaultPeerTags, conf.PeerTags...)...)
-		for _, peerTagKey := range peerTagKeys {
-			if peerTagVal := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, false, peerTagKey); peerTagVal != "" {
-				traceutil.SetMeta(ddspan, peerTagKey, peerTagVal)
-			}
+	// TODO(knusbaum): Should we be getting the peer tags on every span? This is a somewhat heavy operation requiring merging,
+	// sorting, deduplicating of a list of tags.
+	peerTagKeys := conf.ConfiguredPeerTags()
+	for _, peerTagKey := range peerTagKeys {
+		if peerTagVal := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, false, peerTagKey); peerTagVal != "" {
+			traceutil.SetMeta(ddspan, peerTagKey, peerTagVal)
 		}
 	}
 	return ddspan

@@ -37,7 +37,7 @@ import (
 var ComplianceModule = module.Factory{
 	Name:             config.ComplianceModule,
 	ConfigNamespaces: []string{},
-	Fn: func(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], _ telemetry.Component) (module.Module, error) {
+	Fn: func(_ *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], _ telemetry.Component) (module.Module, error) {
 		return &complianceModule{}, nil
 	},
 	NeedsEBPF: func() bool {

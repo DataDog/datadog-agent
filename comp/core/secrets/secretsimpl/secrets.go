@@ -369,7 +369,7 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 // allowlistPaths restricts what config settings may be updated
 // tests can override this to exercise functionality: by setting this to nil, allow all settings
 // NOTE: Related feature to `authorizedConfigPathsCore` in `comp/api/api/apiimpl/internal/config/endpoint.go`
-var allowlistPaths = map[string]struct{}{"api_key": {}, "app_key": {}}
+var allowlistPaths = map[string]struct{}{"api_key": {}, "app_key": {}, "external_metrics_provider/api_key": {}, "external_metrics_provider/app_key": {}}
 
 // matchesAllowlist returns whether the handle is allowed, by matching all setting paths that
 // handle appears at against the allowlist

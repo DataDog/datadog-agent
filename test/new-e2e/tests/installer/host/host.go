@@ -183,6 +183,12 @@ func (h *Host) InstallerVersion() string {
 	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-installer version"))
 }
 
+// AgentStableVersion returns the stable version of the agent on the host.
+func (h *Host) AgentStableVersion() string {
+	path := strings.TrimSpace(h.remote.MustExecute(`readlink /opt/datadog-packages/datadog-agent/stable`))
+	return filepath.Base(path)
+}
+
 // AssertPackageInstalledByInstaller checks if a package is installed by the installer on the host.
 func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
 	for _, pkg := range pkgs {

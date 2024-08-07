@@ -397,7 +397,7 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 			},
 			Field: field,
 			OpOverrides: &OpOverrides{
-				StringValuesContains: func(a *StringEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
+				StringValuesContains: func(a *StringEvaluator, _ *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
 						EvalFnc: func(ctx *Context) *StringValues {
 							return ctx.Event.(*testEvent).process.orNameValues()
@@ -406,7 +406,7 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 
 					return StringValuesContains(a, &evaluator, state)
 				},
-				StringEquals: func(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEvaluator, error) {
+				StringEquals: func(a *StringEvaluator, _ *StringEvaluator, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
 						EvalFnc: func(ctx *Context) *StringValues {
 							return ctx.Event.(*testEvent).process.orNameValues()
@@ -432,7 +432,7 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 			},
 			Field: field,
 			OpOverrides: &OpOverrides{
-				StringArrayContains: func(a *StringEvaluator, b *StringArrayEvaluator, state *State) (*BoolEvaluator, error) {
+				StringArrayContains: func(_ *StringEvaluator, b *StringArrayEvaluator, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
 						EvalFnc: func(ctx *Context) *StringValues {
 							return ctx.Event.(*testEvent).process.orArrayValues()
@@ -441,7 +441,7 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 
 					return StringArrayMatches(b, &evaluator, state)
 				},
-				StringArrayMatches: func(a *StringArrayEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
+				StringArrayMatches: func(a *StringArrayEvaluator, _ *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
 					evaluator := StringValuesEvaluator{
 						EvalFnc: func(ctx *Context) *StringValues {
 							return ctx.Event.(*testEvent).process.orArrayValues()

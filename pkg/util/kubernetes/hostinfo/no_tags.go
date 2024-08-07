@@ -12,6 +12,6 @@ import "context"
 // GetTags gets the tags from the kubernetes apiserver
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func GetTags(ctx context.Context) ([]string, error) {
+func GetTags(_ context.Context) ([]string, error) {
 	return nil, nil
 }
