@@ -208,6 +208,11 @@ func TestStartAndStopWithoutLibraryWatcher(t *testing.T) {
 }
 
 func TestStartAndStopWithLibraryWatcher(t *testing.T) {
+	if kernel.MustHostVersion() < kernel.VersionCode(4, 6, 0) {
+		t.Skip("Kernel version does not support library watching")
+		return
+	}
+
 	rules := []*AttachRule{{LibraryNameRegex: regexp.MustCompile(`libssl.so`), Targets: AttachToSharedLibraries}}
 	ua, err := NewUprobeAttacher("mock", &AttacherConfig{Rules: rules}, &MockManager{}, nil, nil)
 	require.NoError(t, err)
@@ -253,6 +258,11 @@ func TestRuleMatches(t *testing.T) {
 }
 
 func TestMonitor(t *testing.T) {
+	if kernel.MustHostVersion() < kernel.VersionCode(4, 6, 0) {
+		t.Skip("Kernel version does not support library watching")
+		return
+	}
+
 	config := &AttacherConfig{
 		Rules: []*AttachRule{{
 			LibraryNameRegex: regexp.MustCompile(`libssl.so`),
@@ -611,6 +621,11 @@ type attachedProbe struct {
 }
 
 func TestUprobeAttacher(t *testing.T) {
+	if kernel.MustHostVersion() < kernel.VersionCode(4, 6, 0) {
+		t.Skip("Kernel version does not support library watching")
+		return
+	}
+
 	lib := getLibSSLPath(t)
 	ebpfCfg := ddebpf.NewConfig()
 	require.NotNil(t, ebpfCfg)
