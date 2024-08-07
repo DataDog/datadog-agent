@@ -60,10 +60,6 @@ static __always_inline bool is_valid_tls_version(__u16 version) {
 // - the payload length + the size of the record header is less than the size
 //   of the skb
 static __always_inline bool is_valid_tls_app_data(tls_record_header_t *hdr, __u32 buf_size, __u32 skb_len) {
-    if (hdr->length > TLS_MAX_PAYLOAD_LENGTH) {
-        return false;
-    }
-
     return sizeof(*hdr) + hdr->length <= skb_len;
 }
 
@@ -119,6 +115,10 @@ static __always_inline bool is_tls(const char *buf, __u32 buf_size, __u32 skb_le
         return false;
     }
 
+    // Checking the length in the record header is not greater than the maximum payload length.
+    if (tls_record_header.length > TLS_MAX_PAYLOAD_LENGTH) {
+        return false;
+    }
     switch (tls_record_header.content_type) {
     case TLS_HANDSHAKE:
         return is_tls_handshake(&tls_record_header, buf, buf_size);
