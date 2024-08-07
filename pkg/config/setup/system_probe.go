@@ -14,6 +14,7 @@ import (
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -258,7 +259,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnv(join(smNS, "max_http_stats_buffered"))
 	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
 	cfg.BindEnv(join(smNS, "max_postgres_stats_buffered"))
-	cfg.BindEnvAndSetDefault(join(smNS, "max_postgres_telemetry_buffer"), 160)
+	cfg.BindEnvAndSetDefault(join(smNS, "max_postgres_telemetry_buffer"), ebpf.BufferSize)
 	cfg.BindEnv(join(smNS, "max_redis_stats_buffered"))
 	cfg.BindEnv(join(smNS, "max_concurrent_requests"))
 	cfg.BindEnv(join(smNS, "enable_quantization"))
