@@ -35,8 +35,11 @@ build do
     major_version_arg = "%MAJOR_VERSION%"
     py_runtimes_arg = "%PY_RUNTIMES%"
   else
+    arch = `uname -m`.strip
     major_version_arg = "$MAJOR_VERSION"
     py_runtimes_arg = "$PY_RUNTIMES"
+    env['CGO_CFLAGS'] = "-I#{install_dir}/embedded/include"
+    ENV["CC"] = "#{arch}-unknown-linux-gnu-gcc"
   end
 
   if linux_target?

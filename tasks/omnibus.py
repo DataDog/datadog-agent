@@ -23,9 +23,12 @@ def omnibus_run_task(
     with ctx.cd("omnibus"):
         overrides_cmd = ""
         if base_dir:
-            overrides_cmd = f"--override=base_dir:{base_dir}"
+            overrides_cmd = f"base_dir:{base_dir}"
         if host_distribution:
-            overrides_cmd += f" --override=host_distribution:{host_distribution}"
+            overrides_cmd += f" host_distribution:{host_distribution}"
+        overrides_cmd += ' host:x86_64-unknown-linux-gnu'
+        if overrides_cmd:
+            overrides_cmd = f'--override {overrides_cmd}'
 
         omnibus = "bundle exec omnibus"
         if sys.platform == 'win32':

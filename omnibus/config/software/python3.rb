@@ -40,6 +40,13 @@ if ohai["platform"] != "windows"
     # 2.0 is the license version here, not the python version
     license "Python-2.0"
 
+    patch source: "0001-disable-multiarch.patch"
+
+    # We need to build a native python executable which will be used
+    # when cross compiling python immediatly after.
+    # Since both python version *must* be identical, it's easier to manage
+    # by building the same python version twice.
+
     env = with_standard_compiler_flags(with_embedded_path)
     # Force different defaults for the "optimization settings"
     # This removes the debug symbol generation and doesn't enable all warnings

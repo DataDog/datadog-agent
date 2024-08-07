@@ -1,0 +1,27 @@
+From 738666ffbe14d735fe5445f41d23aae4c9c6b3b8 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
+Date: Thu, 1 Aug 2024 11:59:24 +0200
+Subject: [PATCH] disable tests building
+
+---
+ Makefile.am | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index d60804ee..980d6b84 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -41,8 +41,8 @@ doc =
+ endif
+ 
+ 
+-DIST_SUBDIRS = m4 compat mpi cipher random src doc tests
+-SUBDIRS =         compat mpi cipher random src $(doc) tests
++DIST_SUBDIRS = m4 compat mpi cipher random src doc
++SUBDIRS =         compat mpi cipher random src $(doc)
+ 
+ EXTRA_DIST = autogen.sh autogen.rc README.GIT LICENSES			   \
+ 	     ChangeLog-2011 build-aux/ChangeLog-2011 doc/ChangeLog-2011	   \
+-- 
+2.34.1
+

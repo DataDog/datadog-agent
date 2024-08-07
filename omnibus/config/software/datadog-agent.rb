@@ -46,12 +46,14 @@ build do
     major_version_arg = "%MAJOR_VERSION%"
     py_runtimes_arg = "%PY_RUNTIMES%"
   else
+    arch = `uname -m`.strip
     env = {
         'GOPATH' => gopath.to_path,
         'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
         "Python2_ROOT_DIR" => "#{install_dir}/embedded",
         "Python3_ROOT_DIR" => "#{install_dir}/embedded",
         "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
+        "CC" => "#{arch}-unknown-gnu-linux-gcc",
         "CGO_CFLAGS" => "-I. -I#{install_dir}/embedded/include",
         "CGO_LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
     }
@@ -65,8 +67,7 @@ build do
   end
 
   # include embedded path (mostly for `pkg-config` binary)
-  env = with_embedded_path(env)
-
+  env = with_standard_compiler_flags(with_embedded_path(env))
   # we assume the go deps are already installed before running omnibus
   if windows_target?
     platform = windows_arch_i386? ? "x86" : "x64"
@@ -80,8 +81,9 @@ build do
     command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
     command "inv -e systray.build --major-version #{major_version_arg} --rebuild", env: env
   else
+    arch = `uname -m`.strip
     command "inv -e rtloader.clean"
-    command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0 -I#{install_dir}/embedded/include\" -DCMAKE_C_FLAGS:=\"-I#{install_dir}/embedded/include\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
+    command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0 -I#{install_dir}/embedded/include\" -DCMAKE_C_FLAGS:=\"-I#{install_dir}/embedded/include\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER' --toolchain /opt/cmake/#{arch}-unknown-linux-gnu.toolchain.cmake", :env => env
     command "inv -e rtloader.install"
     bundle_arg = bundled_agents ? bundled_agents.map { |k| "--bundle #{k}" }.join(" ") : "--bundle agent"
 

@@ -23,3 +23,4 @@ test_gitlab_compare_to:
     - !reference [.setup_agent_github_app]
     - pip install -r tasks/requirements.txt
     - inv pipeline.compare-to-itself
+

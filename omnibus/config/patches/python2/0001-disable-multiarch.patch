@@ -1,0 +1,11 @@
+--- a/setup.py	2024-08-02 16:54:59.662444071 +0200
++++ b/setup.py	2024-08-02 16:55:29.130442616 +0200
+@@ -506,7 +506,7 @@
+             add_dir_to_list(self.compiler.include_dirs, '/usr/local/include')
+         if cross_compiling:
+             self.add_gcc_paths()
+-        self.add_multiarch_paths()
++        #self.add_multiarch_paths()
+
+         # Add paths specified in the environment variables LDFLAGS and
+         # CPPFLAGS for header and library files.

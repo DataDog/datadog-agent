@@ -14,37 +14,30 @@
 # limitations under the License.
 #
 
-name "libgcrypt"
-default_version "1.10.2"
+name "systemd"
+default_version "253"
 
+license "GPLv2"
 license "LGPL-2.1"
-license_file "COPYING.LIB"
+license_file "LICENSE.GPL2"
+license_file "LICENSE.LGPL2.1"
 skip_transitive_dependency_licensing true
 
-dependency "libgpg-error"
-
-version("1.10.2") { source sha256: "3b9c02a004b68c256add99701de00b383accccf37177e0d6c58289664cce0c03" }
+version("253") { source sha256: "acbd86d42ebc2b443722cb469ad215a140f504689c7a9133ecf91b235275a491" }
 
 ship_source_offer true
 
-source url: "https://www.gnupg.org/ftp/gcrypt/libgcrypt/libgcrypt-#{version}.tar.bz2"
+source url: "https://github.com/systemd/systemd/archive/refs/tags/v#{version}.tar.gz"
 
-relative_path "libgcrypt-#{version}"
+relative_path "#{name}-#{version}"
 
 build do
   env = with_standard_compiler_flags(with_embedded_path)
 
-  env["CFLAGS"] = "-I#{install_dir}/embedded/include -O1 -D_FORTIFY_SOURCE=1 -fPIC"
-
-  patch source: "0001-disable-tests-building.patch"
-  command 'autoreconf -vif'
-
-  configure_options = [
-    "--enable-maintainer-mode",
-  ]
-
-  configure(*configure_options, env: env)
-
-  make "-j #{workers}", env: env
-  make "install", env: env
+  # We only need the headers for coreos/go-systemd, and building
+  # libsystemd itself would be fairly complicated as our toolchain doesn't
+  # default include `/usr/include` in its default include path, while systemd
+  # definitely need files in /usr/include/sys to build.
+  mkdir "#{install_dir}/embedded/include/systemd"
+  copy "src/systemd/*.h", "#{install_dir}/embedded/include/systemd/"
 end
