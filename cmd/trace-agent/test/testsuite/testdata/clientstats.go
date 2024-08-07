@@ -6,12 +6,18 @@
 package testdata
 
 import (
+	"time"
+
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/mapping"
 	"github.com/DataDog/sketches-go/ddsketch/store"
 	"github.com/golang/protobuf/proto"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+)
+
+const (
+	clientBucketDuration = 10 * time.Second
 )
 
 func getEmptyDDSketch() []byte {
@@ -37,7 +43,7 @@ var ClientStatsTests = []struct {
 			Stats: []*pb.ClientStatsBucket{
 				{
 					Start:    1,
-					Duration: 2,
+					Duration: uint64(clientBucketDuration.Nanoseconds()),
 					Stats: []*pb.ClientGroupedStats{
 						{
 							Service:        "",
@@ -73,7 +79,7 @@ var ClientStatsTests = []struct {
 				Stats: []*pb.ClientStatsBucket{
 					{
 						Start:    0,
-						Duration: 2,
+						Duration: uint64(clientBucketDuration.Nanoseconds()),
 						Stats: []*pb.ClientGroupedStats{
 							{
 								Service:        "unnamed-go-service",
@@ -107,7 +113,7 @@ var ClientStatsTests = []struct {
 			Stats: []*pb.ClientStatsBucket{
 				{
 					Start:    1,
-					Duration: 2,
+					Duration: uint64(clientBucketDuration.Nanoseconds()),
 					Stats: []*pb.ClientGroupedStats{
 						{
 							Service:        "svc",
@@ -136,7 +142,7 @@ var ClientStatsTests = []struct {
 				},
 				{
 					Start:    3,
-					Duration: 4,
+					Duration: uint64(clientBucketDuration.Nanoseconds()),
 					Stats: []*pb.ClientGroupedStats{
 						{
 							Service:      "profiles-db",
@@ -173,7 +179,7 @@ var ClientStatsTests = []struct {
 						Stats: []*pb.ClientStatsBucket{
 							{
 								Start:    0,
-								Duration: 2,
+								Duration: uint64(clientBucketDuration.Nanoseconds()),
 								Stats: []*pb.ClientGroupedStats{
 									{
 										Service:        "svc",
@@ -215,7 +221,7 @@ var ClientStatsTests = []struct {
 						Stats: []*pb.ClientStatsBucket{
 							{
 								Start:    0,
-								Duration: 4,
+								Duration: uint64(clientBucketDuration.Nanoseconds()),
 								Stats: []*pb.ClientGroupedStats{
 									{
 										Service:      "profiles-db",
