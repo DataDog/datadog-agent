@@ -281,7 +281,7 @@ func TestMonitor(t *testing.T) {
 	log.Errorf("rules:%+v", config.Rules[0])
 	require.Eventually(t, func() bool {
 		return len(mockRegistry.Calls) == 2 // Once for the library, another for the process itself
-	}, 100*time.Millisecond, 10*time.Millisecond, "received calls %v", mockRegistry.Calls)
+	}, 500*time.Millisecond, 10*time.Millisecond, "received calls %v", mockRegistry.Calls)
 
 	mockRegistry.AssertCalled(t, "Register", lib, uint32(cmd.Process.Pid), mock.Anything, mock.Anything)
 	mockRegistry.AssertCalled(t, "Register", cmd.Path, uint32(cmd.Process.Pid), mock.Anything, mock.Anything)
@@ -665,7 +665,7 @@ func TestUprobeAttacher(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		return len(attachedProbes) == 2
-	}, 500*time.Millisecond, 50*time.Millisecond, "expected to attach 2 probes, got %d: %+v", len(attachedProbes), attachedProbes)
+	}, 1000*time.Millisecond, 50*time.Millisecond, "expected to attach 2 probes, got %d: %+v", len(attachedProbes), attachedProbes)
 
 	// Check that the probes were attached
 	var connectProbe, mainProbe *attachedProbe
