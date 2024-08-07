@@ -34,12 +34,11 @@ var ClientStatsTests = []struct {
 }{
 	{
 		In: &pb.ClientStatsPayload{
-			Hostname:  "testhost",
-			Env:       "testing",
-			Version:   "0.1-alpha",
-			RuntimeID: "1",
-			Sequence:  2,
-			Service:   "test-service",
+			Hostname:     "testhost",
+			Env:          "testing",
+			Version:      "0.1-alpha",
+			ImageTag:     "image-tag",
+			GitCommitSha: "sha-1",
 			Stats: []*pb.ClientStatsBucket{
 				{
 					Start:    1,
@@ -68,14 +67,11 @@ var ClientStatsTests = []struct {
 			AgentVersion:   "6.0.0",
 			ClientComputed: true,
 			Stats: []*pb.ClientStatsPayload{{
-				Hostname:      "testhost",
-				Env:           "testing",
-				Version:       "0.1-alpha",
-				Lang:          "go",
-				TracerVersion: "0.2.0",
-				RuntimeID:     "1",
-				Sequence:      2,
-				Service:       "test-service",
+				Hostname:     "testhost",
+				Env:          "testing",
+				Version:      "0.1-alpha",
+				ImageTag:     "image-tag",
+				GitCommitSha: "sha-1",
 				Stats: []*pb.ClientStatsBucket{
 					{
 						Start:    0,
@@ -104,12 +100,11 @@ var ClientStatsTests = []struct {
 	},
 	{
 		In: &pb.ClientStatsPayload{
-			Hostname:  "testhost",
-			Env:       "testing",
-			Version:   "0.1-alpha",
-			RuntimeID: "1",
-			Sequence:  2,
-			Service:   "test-service",
+			Hostname:     "testhost",
+			Env:          "testing",
+			Version:      "0.1-alpha",
+			ImageTag:     "image-tag",
+			GitCommitSha: "sha-1",
 			Stats: []*pb.ClientStatsBucket{
 				{
 					Start:    1,
@@ -167,15 +162,11 @@ var ClientStatsTests = []struct {
 				ClientComputed: true,
 				Stats: []*pb.ClientStatsPayload{
 					{
-						Hostname:         "testhost",
-						Env:              "testing",
-						Version:          "0.1-alpha",
-						Lang:             "go",
-						TracerVersion:    "0.2.0",
-						RuntimeID:        "1",
-						Sequence:         2,
-						AgentAggregation: "distributions",
-						Service:          "test-service",
+						Hostname:     "testhost",
+						Env:          "testing",
+						Version:      "0.1-alpha",
+						ImageTag:     "image-tag",
+						GitCommitSha: "sha-1",
 						Stats: []*pb.ClientStatsBucket{
 							{
 								Start:    0,
@@ -209,15 +200,11 @@ var ClientStatsTests = []struct {
 						},
 					},
 					{
-						Hostname:         "testhost",
-						Env:              "testing",
-						Version:          "0.1-alpha",
-						Lang:             "go",
-						TracerVersion:    "0.2.0",
-						RuntimeID:        "1",
-						Sequence:         2,
-						AgentAggregation: "distributions",
-						Service:          "test-service",
+						Hostname:     "testhost",
+						Env:          "testing",
+						Version:      "0.1-alpha",
+						ImageTag:     "image-tag",
+						GitCommitSha: "sha-1",
 						Stats: []*pb.ClientStatsBucket{
 							{
 								Start:    0,
