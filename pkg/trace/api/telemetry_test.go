@@ -431,7 +431,7 @@ func TestActualServer(t *testing.T) {
 	close(done)
 	r.telemetryForwarder.Stop()
 	assert.Equal(uint64(1), endpointCalled.Load())
-	assert.NotContains(string(logs.Bytes()), "ERROR")
+	assert.NotContains(logs.String(), "ERROR")
 }
 
 func TestTelemetryConfig(t *testing.T) {
