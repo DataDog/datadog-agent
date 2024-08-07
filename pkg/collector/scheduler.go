@@ -80,7 +80,6 @@ func InitCheckScheduler(collector optional.Option[collector.Component], senderMa
 
 // Schedule schedules configs to checks
 func (s *CheckScheduler) Schedule(configs []integration.Config) {
-
 	if coll, ok := s.collector.Get(); ok {
 		checks := s.GetChecksFromConfigs(configs, true)
 		for _, c := range checks {

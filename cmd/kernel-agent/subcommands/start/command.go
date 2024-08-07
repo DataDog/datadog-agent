@@ -15,9 +15,13 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
@@ -30,12 +34,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -46,6 +53,21 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/network"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/ntp"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/networkpath"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/cpu"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/load"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/disk"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/io"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/filehandles"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
+	telemetryCheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -136,10 +158,34 @@ func RunKernelAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		// Autodiscovery
 		// Do we really need autodiscovery for the Logs Agent?
 		autodiscoveryimpl.Module(),
-		fx.Provide(tagger.NewTaggerParamsForCoreAgent),
-		taggerimpl.Module(),
-		workloadmetafx.Module(),
+		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
+		// set up by LoadComponents. In order for components to use lifecycle hooks that also depend on this global state, we
+		// have to ensure this code gets run first. Once the common package is made into a component, this can be removed.
+		//
+		// Workloadmeta component needs to be initialized before this hook is executed, and thus is included
+		// in the function args to order the execution. This pattern might be worth revising because it is
+		// error prone.
+		fx.Invoke(func(lc fx.Lifecycle, wmeta workloadmeta.Component, ac autodiscovery.Component, config config.Component) {
+			lc.Append(fx.Hook{
+				OnStart: func(_ context.Context) error {
+					//  setup the AutoConfig instance
+					common.LoadComponents(nil, wmeta, ac, config.GetString("confd_path"))
+					return nil
+				},
+			})
+		}),
+		fx.Provide(tagger.NewTaggerParams),
 		// Can the tagger works without the workloadmeta?
+		taggerimpl.Module(),
+		fx.Provide(workloadmeta.NewParams),
+		workloadmetafx.Module(),
+
+		// Core checks
+		fx.Provide(func(ms serializer.MetricSerializer) optional.Option[serializer.MetricSerializer] {
+			return optional.NewOption[serializer.MetricSerializer](ms)
+		}),
+		collectorimpl.Module(),
+		fx.Supply(optional.NewNoneOption[integrations.Component]()),
 
 		// Healthprobe
 		fx.Provide(func(config config.Component) healthprobe.Options {
@@ -161,6 +207,13 @@ func start(
 	_ inventoryhost.Component,
 	_ runner.Component,
 	_ healthprobe.Component,
+	_ tagger.Component,
+	workloadmeta workloadmeta.Component,
+	telemetry telemetry.Component,
+	collector collector.Component,
+	demultiplexer demultiplexer.Component,
+	logReceiver optional.Option[integrations.Component],
+	ac autodiscovery.Component,
 ) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
@@ -169,6 +222,11 @@ func start(
 
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh, log)
+
+	registerCoreChecks(workloadmeta, telemetry)
+	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver), true)
+
+	ac.LoadAndRun(context.Background())
 
 	err := Run(ctx, cliParams, config, log)
 	if err != nil {
@@ -232,4 +290,22 @@ func StopAgent(cancel context.CancelFunc, log log.Component) {
 
 	log.Info("See ya!")
 	log.Flush()
+}
+
+// registerCoreChecks registers all core checks
+func registerCoreChecks(workloadmeta workloadmeta.Component, telemetry telemetry.Component) {
+	// Required checks
+	corechecks.RegisterCheck(cpu.CheckName, cpu.Factory())
+	corechecks.RegisterCheck(load.CheckName, load.Factory())
+	corechecks.RegisterCheck(memory.CheckName, memory.Factory())
+	corechecks.RegisterCheck(uptime.CheckName, uptime.Factory())
+	corechecks.RegisterCheck(ntp.CheckName, ntp.Factory())
+	corechecks.RegisterCheck(network.CheckName, network.Factory())
+	corechecks.RegisterCheck(snmp.CheckName, snmp.Factory())
+	corechecks.RegisterCheck(io.CheckName, io.Factory())
+	corechecks.RegisterCheck(filehandles.CheckName, filehandles.Factory())
+	corechecks.RegisterCheck(telemetryCheck.CheckName, telemetryCheck.Factory())
+	corechecks.RegisterCheck(networkpath.CheckName, networkpath.Factory(telemetry))
+	corechecks.RegisterCheck(disk.CheckName, io.Factory())
+	corechecks.RegisterCheck(generic.CheckName, generic.Factory(workloadmeta))
 }
