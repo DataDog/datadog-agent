@@ -208,7 +208,7 @@ func TestStartAndStopWithoutLibraryWatcher(t *testing.T) {
 }
 
 func TestStartAndStopWithLibraryWatcher(t *testing.T) {
-	rules := []*AttachRule{{LibraryNameRegex: regexp.MustCompile(`libssl.so`)}}
+	rules := []*AttachRule{{LibraryNameRegex: regexp.MustCompile(`libssl.so`), Targets: AttachToSharedLibraries}}
 	ua, err := NewUprobeAttacher("mock", &AttacherConfig{Rules: rules}, &MockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
@@ -269,6 +269,7 @@ func TestMonitor(t *testing.T) {
 
 	// Tell mockRegistry to return on any calls, we will check the values later
 	mockRegistry.On("Clear").Return()
+	mockRegistry.On("Unregister", mock.Anything).Return()
 	mockRegistry.On("Register", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	lib := getLibSSLPath(t)
 
