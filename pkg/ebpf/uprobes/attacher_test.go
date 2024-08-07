@@ -208,7 +208,7 @@ func TestStartAndStopWithoutLibraryWatcher(t *testing.T) {
 }
 
 func TestStartAndStopWithLibraryWatcher(t *testing.T) {
-	if kernel.MustHostVersion() < kernel.VersionCode(4, 6, 0) {
+	if kernel.MustHostVersion() < MinKernelVersionSharedLibraries {
 		t.Skip("Kernel version does not support library watching")
 		return
 	}
@@ -258,7 +258,7 @@ func TestRuleMatches(t *testing.T) {
 }
 
 func TestMonitor(t *testing.T) {
-	if kernel.MustHostVersion() < kernel.VersionCode(4, 6, 0) {
+	if kernel.MustHostVersion() < MinKernelVersionSharedLibraries {
 		t.Skip("Kernel version does not support library watching")
 		return
 	}
@@ -633,7 +633,7 @@ func stringifyAttachedProbes(probes []attachedProbe) []string {
 }
 
 func TestUprobeAttacher(t *testing.T) {
-	if kernel.MustHostVersion() < kernel.VersionCode(4, 6, 0) {
+	if kernel.MustHostVersion() < MinKernelVersionSharedLibraries {
 		t.Skip("Kernel version does not support library watching")
 		return
 	}

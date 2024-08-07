@@ -30,6 +30,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// MinKernelVersionSharedLibraries is the minimum kernel version required to attach to shared libraries
+var MinKernelVersionSharedLibraries = kernel.VersionCode(4, 10, 0)
+
 // ExcludeMode defines the different optiont to exclude processes from attachment
 type ExcludeMode uint8
 
