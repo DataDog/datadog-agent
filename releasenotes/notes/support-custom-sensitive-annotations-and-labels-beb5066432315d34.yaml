@@ -8,4 +8,6 @@
 ---
 enhancements:
   - |
-    Users can use DD_ORCHESTRATOR_EXPLORER_CUSTOM_SENSITIVE_ANNOTATIONS_LABELS to remove sensitive annotations and labels.
+    Users can use ``DD_ORCHESTRATOR_EXPLORER_CUSTOM_SENSITIVE_ANNOTATIONS_LABELS`` to remove sensitive annotations and labels.
+    For example: ``DD_ORCHESTRATOR_EXPLORER_CUSTOM_SENSITIVE_ANNOTATIONS_LABELS="sensitive-key-1 sensitive-key-2"``.
+    Keys should be separated by spaces. The agent will remove any annotations and labels matching these keys.
