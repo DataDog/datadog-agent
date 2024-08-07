@@ -87,6 +87,7 @@ func (p *GoTLSBinaryInspector) Inspect(fpath utils.FilePath, requests []uprobes.
 	return inspectionResult.Functions, true, nil
 }
 
+// Cleanup removes the inspection result for the binary at the given path from the map.
 func (p *GoTLSBinaryInspector) Cleanup(fpath utils.FilePath) {
 	p.removeInspectionResultFromMap(fpath.ID)
 }
