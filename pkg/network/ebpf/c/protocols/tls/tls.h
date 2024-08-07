@@ -27,7 +27,7 @@ typedef struct {
 
 typedef struct {
     __u8 handshake_type;
-    __u32 length : 24;
+    __u8 length[3];
     __u16 version;
 } __attribute__((packed)) tls_hello_message_t;
 
