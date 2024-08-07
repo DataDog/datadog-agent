@@ -150,6 +150,7 @@ func cmpEvents(a, b *event) bool {
 		cmp.Compare(ap.ServiceType, bp.ServiceType),
 		cmp.Compare(ap.ServiceLanguage, bp.ServiceLanguage),
 		cmp.Compare(ap.Ports[0], bp.Ports[0]),
+		cmp.Compare(ap.PID, bp.PID),
 	}
 	for _, val := range vals {
 		if val != 0 {
@@ -239,6 +240,7 @@ func Test_linuxImpl(t *testing.T) {
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(1 * time.Minute).Unix(),
 						Ports:               []uint16{8080},
+						PID:                 99,
 					},
 				},
 				{
@@ -252,6 +254,7 @@ func Test_linuxImpl(t *testing.T) {
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(20 * time.Minute).Unix(),
 						Ports:               []uint16{8080},
+						PID:                 99,
 					},
 				},
 				{
@@ -265,6 +268,7 @@ func Test_linuxImpl(t *testing.T) {
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(20 * time.Minute).Unix(),
 						Ports:               []uint16{8080},
+						PID:                 99,
 					},
 				},
 			},
@@ -340,7 +344,8 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(1 * time.Minute).Unix(),
-						Ports:               []uint16{8080},
+						Ports:               []uint16{5432},
+						PID:                 101,
 					},
 				},
 				{
@@ -353,20 +358,8 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(1 * time.Minute).Unix(),
-						Ports:               []uint16{5432},
-					},
-				},
-				{
-					RequestType: "heartbeat-service",
-					APIVersion:  "v2",
-					Payload: &eventPayload{
-						NamingSchemaVersion: "1",
-						ServiceName:         "test-service-1",
-						HostName:            host,
-						Env:                 "",
-						StartTime:           calcTime(0).Unix(),
-						LastSeen:            calcTime(20 * time.Minute).Unix(),
 						Ports:               []uint16{8080},
+						PID:                 99,
 					},
 				},
 				{
@@ -380,6 +373,7 @@ func Test_linuxImpl(t *testing.T) {
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(20 * time.Minute).Unix(),
 						Ports:               []uint16{5432},
+						PID:                 101,
 					},
 				},
 				{
@@ -393,6 +387,21 @@ func Test_linuxImpl(t *testing.T) {
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(20 * time.Minute).Unix(),
 						Ports:               []uint16{5432},
+						PID:                 101,
+					},
+				},
+				{
+					RequestType: "heartbeat-service",
+					APIVersion:  "v2",
+					Payload: &eventPayload{
+						NamingSchemaVersion: "1",
+						ServiceName:         "test-service-1",
+						HostName:            host,
+						Env:                 "",
+						StartTime:           calcTime(0).Unix(),
+						LastSeen:            calcTime(20 * time.Minute).Unix(),
+						Ports:               []uint16{8080},
+						PID:                 99,
 					},
 				},
 			},
@@ -463,6 +472,7 @@ func Test_linuxImpl(t *testing.T) {
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(1 * time.Minute).Unix(),
 						Ports:               []uint16{8080},
+						PID:                 99,
 					},
 				},
 				{
@@ -476,6 +486,7 @@ func Test_linuxImpl(t *testing.T) {
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(22 * time.Minute).Unix(),
 						Ports:               []uint16{8080},
+						PID:                 102,
 					},
 				},
 			},
