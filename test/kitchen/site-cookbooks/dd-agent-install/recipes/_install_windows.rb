@@ -20,6 +20,11 @@ if node['dd-agent-install']['enable_testsigning']
   end
 end
 
+## set the FIPS on always for now
+registry_key 'HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy' do
+  values [{ name: 'Enabled', type: :dword, data: 1 }]
+  action :create
+end 
 
 include_recipe 'dd-agent-install::_install_windows_base'
 
