@@ -20,7 +20,7 @@ func TestIntegrationsFile(t *testing.T) {
 	logMessage := message.NewMessage([]byte(`{"log":"first message","time":"2019-06-06T16:35:55.930852911Z"}`), nil, "", 0)
 	msg, err := parser.Parse(logMessage)
 	assert.Nil(t, err)
-	assert.Equal(t, []string(nil), logMessage.GetTags())
+	assert.Equal(t, []string(nil), logMessage.ParsingExtra.Tags)
 	assert.Equal(t, []byte(`{"log":"first message","time":"2019-06-06T16:35:55.930852911Z"}`), msg.GetContent())
 
 	// Submit the log immediately if it's not valid JSON
@@ -34,13 +34,13 @@ func TestIntegrationsFile(t *testing.T) {
 	msg, err = parser.Parse(logMessage)
 	assert.Nil(t, err)
 	assert.Equal(t, []byte(`{"log":"second message"}`), msg.GetContent())
-	assert.Equal(t, []string{"foo:bar", "env:prod"}, msg.GetTags())
+	assert.Equal(t, []string{"foo:bar", "env:prod"}, msg.ParsingExtra.Tags)
 
 	// empty tags
-	msg.SetTags([]string{})
+	msg.ParsingExtra.Tags = []string{}
 	logMessage.SetContent([]byte(`{"log":"second message","ddtags":""}`))
 	msg, err = parser.Parse(logMessage)
 	assert.Nil(t, err)
 	assert.Equal(t, []byte(`{"log":"second message"}`), msg.GetContent())
-	assert.Equal(t, []string{}, msg.GetTags())
+	assert.Equal(t, []string{}, msg.ParsingExtra.Tags)
 }
