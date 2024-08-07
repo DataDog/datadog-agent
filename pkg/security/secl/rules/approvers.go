@@ -68,8 +68,7 @@ func bitmaskCombinations(bitmasks []int) []int {
 	return result
 }
 
-// GetApprovers returns approvers for the given rules
-func GetApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) (Approvers, error) {
+func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) (Approvers, error) {
 	approvers := make(Approvers)
 
 	ctx := eval.NewContext(event)
@@ -97,7 +96,7 @@ func GetApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) 
 
 					if isAnApprover {
 						filterValues = filterValues.Merge(FilterValue{Field: field, Value: value.Value, Type: value.Type})
-					} else if fieldCap.Types&eval.BitmaskValueType == 0 {
+					} else if fieldCap.TypeBitmask&eval.BitmaskValueType == 0 {
 						// if not a bitmask we need to have all the value as approvers
 						// basically a list of values ex: in ["test123", "test456"]
 						continue LOOP

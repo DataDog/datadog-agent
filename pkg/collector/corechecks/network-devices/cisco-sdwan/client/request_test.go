@@ -66,7 +66,7 @@ func TestNewRequest(t *testing.T) {
 
 func TestDoRequest(t *testing.T) {
 	mux := setupCommonServerMux()
-	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, _ int32) {
 		token := r.Header.Get("X-XSRF-TOKEN")
 		// Ensure token is correctly passed as header
 		require.Equal(t, "testtoken", token)
@@ -98,7 +98,7 @@ func TestDoRequest(t *testing.T) {
 
 func TestDoRequestBadRequest(t *testing.T) {
 	mux := setupCommonServerMux()
-	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, _ int32) {
 		token := r.Header.Get("X-XSRF-TOKEN")
 		// Ensure token is correctly passed as header
 		require.Equal(t, "testtoken", token)
@@ -130,7 +130,7 @@ func TestDoRequestBadRequest(t *testing.T) {
 
 func TestDoRequestError(t *testing.T) {
 	mux := setupCommonServerMux()
-	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, _ int32) {
 		token := r.Header.Get("X-XSRF-TOKEN")
 		// Ensure token is correctly passed as header
 		require.Equal(t, "testtoken", token)
@@ -163,7 +163,7 @@ func TestDoRequestError(t *testing.T) {
 
 func TestGetRequest(t *testing.T) {
 	mux := setupCommonServerMux()
-	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, _ int32) {
 		query := r.URL.Query()
 		test := query.Get("test")
 		test2 := query.Get("test2")
@@ -197,7 +197,7 @@ func TestGetRequest(t *testing.T) {
 
 func TestGetRequestRetries(t *testing.T) {
 	mux := setupCommonServerMux()
-	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+	handler := newHandler(func(w http.ResponseWriter, _ *http.Request, _ int32) {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("an error occurred"))
 	})
@@ -260,7 +260,7 @@ func TestGetRequestUnmarshallingError(t *testing.T) {
 func TestGetMoreEntriesMaxPages(t *testing.T) {
 	mux := setupCommonServerMux()
 
-	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+	handler := newHandler(func(w http.ResponseWriter, _ *http.Request, _ int32) {
 		// Always respond saying that more entries are available
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`

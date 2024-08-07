@@ -15,8 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -43,14 +42,14 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		Aliases: []string{"checkconfig"},
 		Short:   "Print all configurations loaded & resolved of a running cluster agent",
 		Long:    ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			globalParams := globalParamsGetter()
 
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
-					LogParams:    logimpl.ForOneShot("CLUSTER", "off", true),
+					LogParams:    log.ForOneShot("CLUSTER", "off", true),
 				}),
 				core.Bundle(),
 			)

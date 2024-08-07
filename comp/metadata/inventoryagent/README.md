@@ -82,8 +82,10 @@ The payload is a JSON dict with the following fields
   - `feature_usm_http2_enabled` - **bool**: True if HTTP2 monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_http2_monitoring` config option in `system-probe.yaml`).
   - `feature_usm_kafka_enabled` - **bool**: True if Kafka monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_kafka_monitoring` config option in `system-probe.yaml`)
   - `feature_usm_postgres_enabled` - **bool**: True if Postgres monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_postgres_monitoring` config option in `system-probe.yaml`)
+  - `feature_usm_redis_enabled` - **bool**: True if Redis monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_redis_monitoring` config option in `system-probe.yaml`)
   - `feature_usm_java_tls_enabled` - **bool**: True if HTTPS monitoring through java TLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.tls.java.enabled` config option in `system-probe.yaml`).
   - `feature_usm_go_tls_enabled` - **bool**: True if HTTPS monitoring through GoTLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.tls.go.enabled` config option in `system-probe.yaml`).
+  - `feature_discovery_enabled` - **bool**: True if discovery module is enabled (see: `discovery.enabled` config option).
   - `feature_dynamic_instrumentation_enabled` - **bool**: True if dynamic instrumentation module is enabled (see: `dynamic_instrumentation.enabled` config option).
   - `feature_logs_enabled` - **bool**: True if the logs collection is enabled (see: `logs_enabled` config option).
   - `feature_cspm_enabled` - **bool**: True if the Cloud Security Posture Management is enabled (see:
@@ -116,6 +118,8 @@ The payload is a JSON dict with the following fields
     Only the settings set by the agent itself are included, and their value might not match what's applyed by the agent because they can be overriden by other sources.
   - `remote_configuration` - **string**: the Agent configuration specified by the Remote Configuration (scrubbed), as a YAML string.
     Only the settings currently used by Remote Configuration are included, and their value might not match what's applyed by the agent because they can be overriden by other sources.
+  - `fleet_policies_configuration` - **string**: the Agent configuration specified by the Fleet Automation Policies (scrubbed), as a YAML string.
+    Only the settings currently used by Fleet Automation Policies are included, and their value might not match what's applyed by the agent since they can be overriden by other sources.
   - `cli_configuration` - **string**: the Agent configuration specified by the CLI (scrubbed), as a YAML string.
     Only the settings set in the CLI are included, they cannot be overriden by any other sources.
   - `source_local_configuration` - **string**: the Agent configuration synchronized from the local Agent process, as a YAML string.

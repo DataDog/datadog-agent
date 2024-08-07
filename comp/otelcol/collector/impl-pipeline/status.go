@@ -5,7 +5,7 @@
 
 //go:build otlp
 
-package collector
+package collectorimpl
 
 import (
 	"embed"
@@ -67,6 +67,6 @@ func (c *collectorImpl) Text(_ bool, buffer io.Writer) error {
 }
 
 // HTML renders the html output
-func (c *collectorImpl) HTML(_ bool, _ io.Writer) error {
-	return nil
+func (c *collectorImpl) HTML(_ bool, buffer io.Writer) error {
+	return status.RenderText(templatesFS, "otlpHTML.tmpl", buffer, c.getStatusInfo())
 }

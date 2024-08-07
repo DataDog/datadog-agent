@@ -10,7 +10,7 @@ import (
 	"sync"
 	time "time"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
 )
 
@@ -46,12 +46,18 @@ type Store struct {
 	// are called by different routines.
 	contextsMutex sync.Mutex
 
+	// contextsLimit is the maximum number of contexts to keep in the store
+	contextsLimit int
+
 	// interval defines how frequently pathtests should run
 	interval time.Duration
 
 	// ttl is the duration a Pathtest should run from discovery.
 	// If a Pathtest is added again before the TTL expires, the TTL is reset to this duration.
 	ttl time.Duration
+
+	// lastContextWarning is the last time a warning was logged about the store being full
+	lastContextWarning time.Time
 }
 
 func newPathtestContext(pt *common.Pathtest, runUntilDuration time.Duration) *PathtestContext {
@@ -64,12 +70,13 @@ func newPathtestContext(pt *common.Pathtest, runUntilDuration time.Duration) *Pa
 }
 
 // NewPathtestStore creates a new Store
-func NewPathtestStore(pathtestTTL time.Duration, pathtestInterval time.Duration, logger log.Component) *Store {
+func NewPathtestStore(pathtestTTL time.Duration, pathtestInterval time.Duration, contextsLimit int, logger log.Component) *Store {
 	return &Store{
-		contexts: make(map[uint64]*PathtestContext),
-		ttl:      pathtestTTL,
-		interval: pathtestInterval,
-		logger:   logger,
+		contexts:      make(map[uint64]*PathtestContext),
+		ttl:           pathtestTTL,
+		interval:      pathtestInterval,
+		contextsLimit: contextsLimit,
+		logger:        logger,
 	}
 }
 
@@ -118,6 +125,15 @@ func (f *Store) Add(pathtestToAdd *common.Pathtest) {
 
 	f.contextsMutex.Lock()
 	defer f.contextsMutex.Unlock()
+
+	if len(f.contexts) >= f.contextsLimit {
+		// only log if it has been 1 minute since the last warning
+		if time.Since(f.lastContextWarning) >= time.Minute {
+			f.logger.Warnf("Pathteststore is full, maximum set to: %d, dropping pathtest: %+v", f.contextsLimit, pathtestToAdd)
+			f.lastContextWarning = time.Now()
+		}
+		return
+	}
 
 	hash := pathtestToAdd.GetHash()
 	pathtestCtx, ok := f.contexts[hash]

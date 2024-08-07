@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,14 +29,14 @@ type EnvironmentService struct {
 var _ Service = &EnvironmentService{}
 
 // NewEnvironmentListener creates an EnvironmentListener
-func NewEnvironmentListener(Config) (ServiceListener, error) {
+func NewEnvironmentListener(Config, *telemetry.Store) (ServiceListener, error) {
 	return &EnvironmentListener{}, nil
 }
 
 // Listen starts the goroutine to detect checks based on environment
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (l *EnvironmentListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
+func (l *EnvironmentListener) Listen(newSvc chan<- Service, _ chan<- Service) {
 	l.newService = newSvc
 
 	// ATM we consider environment as a fixed space
@@ -127,19 +128,19 @@ func (s *EnvironmentService) IsReady(context.Context) bool {
 // HasFilter is not supported
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (s *EnvironmentService) HasFilter(filter containers.FilterType) bool {
+func (s *EnvironmentService) HasFilter(_ containers.FilterType) bool {
 	return false
 }
 
 // GetExtraConfig is not supported
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (s *EnvironmentService) GetExtraConfig(key string) (string, error) {
+func (s *EnvironmentService) GetExtraConfig(_ string) (string, error) {
 	return "", ErrNotSupported
 }
 
 // FilterTemplates does nothing.
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (s *EnvironmentService) FilterTemplates(configs map[string]integration.Config) {
+func (s *EnvironmentService) FilterTemplates(_ map[string]integration.Config) {
 }

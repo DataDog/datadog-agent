@@ -36,7 +36,6 @@ import (
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/security/common/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -57,6 +56,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -129,7 +129,7 @@ type EBPFProbe struct {
 	erpcRequest              *erpc.Request
 	inodeDiscarders          *inodeDiscarders
 	discarderPushedCallbacks []DiscarderPushedCallback
-	approvers                map[eval.EventType]kfilters.ActiveApprovers
+	kfilters                 map[eval.EventType]kfilters.ActiveKFilters
 
 	// Approvers / discarders section
 	discarderPushedCallbacksLock sync.RWMutex
@@ -490,6 +490,7 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 		return 0, err
 	}
 
+	// TODO(lebauce): fix this
 	event.CGroupContext.CGroupID, event.ContainerContext.ContainerID = containerutils.GetCGroupContext(event.ContainerContext.ContainerID, event.CGroupContext.CGroupFlags)
 
 	return read, nil
@@ -522,6 +523,7 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 
 	entry.Process.CGroup.CGroupID, entry.Process.ContainerID = containerutils.GetCGroupContext(ev.ContainerContext.ContainerID, ev.CGroupContext.CGroupFlags)
 	entry.Process.CGroup.CGroupFlags = ev.CGroupContext.CGroupFlags
+	entry.Process.CGroup.CGroupFile = ev.CGroupContext.CGroupFile
 	entry.Source = model.ProcessCacheEntryFromEvent
 
 	return n, nil
@@ -712,6 +714,25 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	}
 
 	switch eventType {
+	case model.CgroupWriteEventType:
+		if _, err = event.CgroupWrite.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
+			return
+		}
+		path, err := p.Resolvers.DentryResolver.Resolve(event.CgroupWrite.File.PathKey, true)
+		if err == nil && path != "" {
+			path = filepath.Dir(string(path))
+			event.ProcessCacheEntry.CGroup.CGroupID = containerutils.CGroupID(path)
+			event.ProcessCacheEntry.Process.CGroup.CGroupID = containerutils.CGroupID(path)
+			containerID, cgroupFlags := containerutils.GetContainerFromCgroup(path)
+			event.ProcessCacheEntry.ContainerID = containerutils.ContainerID(containerID)
+			event.ProcessCacheEntry.Process.ContainerID = containerutils.ContainerID(containerID)
+			event.ProcessCacheEntry.CGroup.CGroupFlags = cgroupFlags
+			event.ProcessCacheEntry.Process.CGroup = event.ProcessCacheEntry.CGroup
+		} else {
+			seclog.Debugf("failed to resolve cgroup file %v", event.CgroupWrite.File)
+		}
+
 	case model.FileMountEventType:
 		if _, err = event.Mount.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)
@@ -866,6 +887,16 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 		defer p.Resolvers.ProcessResolver.UpdateCapset(event.PIDContext.Pid, event)
+	case model.LoginUIDWriteEventType:
+		if event.Error != nil {
+			break
+		}
+
+		if _, err = event.LoginUIDWrite.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode login_uid_write event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		defer p.Resolvers.ProcessResolver.UpdateLoginUID(event.PIDContext.Pid, event)
 	case model.SELinuxEventType:
 		if _, err = event.SELinux.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode selinux event: %s (offset %d, len %d)", err, offset, len(data))
@@ -1073,12 +1104,12 @@ func (p *EBPFProbe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.Po
 
 // SetApprovers applies approvers and removes the unused ones
 func (p *EBPFProbe) SetApprovers(eventType eval.EventType, approvers rules.Approvers) error {
-	handler, exists := kfilters.AllApproversHandlers[eventType]
+	kfiltersGetter, exists := kfilters.KFilterGetters[eventType]
 	if !exists {
 		return nil
 	}
 
-	newApprovers, err := handler(approvers)
+	newKFilters, err := kfiltersGetter(approvers)
 	if err != nil {
 		seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", kfilters.PolicyModeAccept, eventType, err)
 	}
@@ -1089,25 +1120,25 @@ func (p *EBPFProbe) SetApprovers(eventType eval.EventType, approvers rules.Appro
 	}
 	approverAddedMetricCounter := make(map[tag]float64)
 
-	for _, newApprover := range newApprovers {
-		seclog.Tracef("Applying approver %+v for event type %s", newApprover, eventType)
-		if err := newApprover.Apply(p.Manager); err != nil {
+	for _, newKFilter := range newKFilters {
+		seclog.Tracef("Applying kfilter %+v for event type %s", newKFilter, eventType)
+		if err := newKFilter.Apply(p.Manager); err != nil {
 			return err
 		}
 
-		approverType := getApproverType(newApprover.GetTableName())
+		approverType := getApproverType(newKFilter.GetTableName())
 		approverAddedMetricCounter[tag{eventType, approverType}]++
 	}
 
-	if previousApprovers, exist := p.approvers[eventType]; exist {
-		previousApprovers.Sub(newApprovers)
-		for _, previousApprover := range previousApprovers {
-			seclog.Tracef("Removing previous approver %+v for event type %s", previousApprover, eventType)
-			if err := previousApprover.Remove(p.Manager); err != nil {
+	if previousKFilters, exist := p.kfilters[eventType]; exist {
+		previousKFilters.Sub(newKFilters)
+		for _, previousKFilter := range previousKFilters {
+			seclog.Tracef("Removing previous kfilter %+v for event type %s", previousKFilter, eventType)
+			if err := previousKFilter.Remove(p.Manager); err != nil {
 				return err
 			}
 
-			approverType := getApproverType(previousApprover.GetTableName())
+			approverType := getApproverType(previousKFilter.GetTableName())
 			approverAddedMetricCounter[tag{eventType, approverType}]--
 			if approverAddedMetricCounter[tag{eventType, approverType}] <= 0 {
 				delete(approverAddedMetricCounter, tag{eventType, approverType})
@@ -1126,14 +1157,14 @@ func (p *EBPFProbe) SetApprovers(eventType eval.EventType, approvers rules.Appro
 		}
 	}
 
-	p.approvers[eventType] = newApprovers
+	p.kfilters[eventType] = newKFilters
 	return nil
 }
 
-func getApproverType(approverTableName string) string {
+func getApproverType(tableName string) string {
 	approverType := "flag"
 
-	if approverTableName == kfilters.BasenameApproverKernelMapName {
+	if tableName == kfilters.BasenameApproverKernelMapName {
 		approverType = "basename"
 	}
 
@@ -1377,6 +1408,10 @@ func (p *EBPFProbe) Close() error {
 		return err
 	}
 
+	if err := p.Erpc.Close(); err != nil {
+		return err
+	}
+
 	// when we reach this point, we do not generate nor consume events anymore, we can close the resolvers
 	return p.Resolvers.Close()
 }
@@ -1617,7 +1652,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		opts:                 opts,
 		statsdClient:         opts.StatsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
-		approvers:            make(map[eval.EventType]kfilters.ActiveApprovers),
+		kfilters:             make(map[eval.EventType]kfilters.ActiveKFilters),
 		managerOptions:       ebpf.NewDefaultOptions(),
 		Erpc:                 nerpc,
 		erpcRequest:          erpc.NewERPCRequest(0),
@@ -2129,7 +2164,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				return
 			}
 
-			p.processKiller.KillAndReport(action.Kill.Scope, action.Kill.Signal, ev, func(pid uint32, sig uint32) error {
+			p.processKiller.KillAndReport(action.Kill.Scope, action.Kill.Signal, rule, ev, func(pid uint32, sig uint32) error {
 				if p.supportsBPFSendSignal {
 					if err := p.killListMap.Put(uint32(pid), uint32(sig)); err != nil {
 						seclog.Warnf("failed to kill process with eBPF %d: %s", pid, err)

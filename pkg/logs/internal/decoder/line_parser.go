@@ -31,17 +31,17 @@ type LineParser interface {
 // SingleLineParser makes sure that multiple lines from a same content
 // are properly put together.
 type SingleLineParser struct {
-	outputFn func(*message.Message)
-	parser   parsers.Parser
+	lineHandler LineHandler
+	parser      parsers.Parser
 }
 
 // NewSingleLineParser returns a new SingleLineParser.
 func NewSingleLineParser(
-	outputFn func(*message.Message),
+	lineHandler LineHandler,
 	parser parsers.Parser) *SingleLineParser {
 	return &SingleLineParser{
-		outputFn: outputFn,
-		parser:   parser,
+		lineHandler: lineHandler,
+		parser:      parser,
 	}
 }
 
@@ -60,12 +60,12 @@ func (p *SingleLineParser) process(input *message.Message, rawDataLen int) {
 		log.Debug(err)
 	}
 	input.RawDataLen = rawDataLen
-	p.outputFn(input)
+	p.lineHandler.process(input)
 }
 
 // MultiLineParser makes sure that chunked lines are properly put together.
 type MultiLineParser struct {
-	outputFn func(*message.Message)
+	lineHandler LineHandler
 
 	// used to reconstruct the message
 
@@ -83,13 +83,13 @@ type MultiLineParser struct {
 
 // NewMultiLineParser returns a new MultiLineParser.
 func NewMultiLineParser(
-	outputFn func(*message.Message),
+	lineHandler LineHandler,
 	flushTimeout time.Duration,
 	parser parsers.Parser,
 	lineLimit int,
 ) *MultiLineParser {
 	return &MultiLineParser{
-		outputFn:     outputFn,
+		lineHandler:  lineHandler,
 		buffer:       bytes.NewBuffer(nil),
 		bufferedMsg:  nil,
 		flushTimeout: flushTimeout,
@@ -159,6 +159,6 @@ func (p *MultiLineParser) sendLine() {
 	if len(content) > 0 || p.rawDataLen > 0 {
 		p.bufferedMsg.RawDataLen = p.rawDataLen
 		p.bufferedMsg.SetContent(content)
-		p.outputFn(p.bufferedMsg)
+		p.lineHandler.process(p.bufferedMsg)
 	}
 }

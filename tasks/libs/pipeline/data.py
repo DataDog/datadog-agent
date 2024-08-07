@@ -1,7 +1,7 @@
 import re
 from collections import defaultdict
 
-from gitlab.v4.objects import ProjectJob, ProjectPipeline
+from gitlab.v4.objects import ProjectJob, ProjectPipeline, ProjectPipelineBridge
 
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.types.types import FailedJobReason, FailedJobs, FailedJobType
@@ -13,6 +13,9 @@ def get_failed_jobs(pipeline: ProjectPipeline) -> FailedJobs:
     """
     repo = get_gitlab_repo(pipeline.project_id)
     jobs = pipeline.jobs.list(per_page=100, all=True)
+    bridges = pipeline.bridges.list(per_page=100, all=True)
+    # Add bridge jobs to the list of jobs, as they can fail the pipeline
+    jobs.extend(bridges)
 
     # Get instances of failed jobs grouped by name
     failed_jobs = defaultdict(list)
@@ -29,9 +32,10 @@ def get_failed_jobs(pipeline: ProjectPipeline) -> FailedJobs:
         # We truncate the job name to increase readability
         job_name = truncate_job_name(job_name)
         job = jobs[-1]
+        is_standard_job = not isinstance(job, ProjectPipelineBridge)
         # Check the final job in the list: it contains the current status of the job
         # This excludes jobs that were retried and succeeded
-        trace = str(repo.jobs.get(job.id, lazy=True).trace(), 'utf-8')
+        trace = str(repo.jobs.get(job.id, lazy=True).trace(), 'utf-8') if is_standard_job else ""
         failure_type, failure_reason = get_job_failure_context(job, trace)
         final_status = ProjectJob(
             repo.manager,
@@ -40,7 +44,7 @@ def get_failed_jobs(pipeline: ProjectPipeline) -> FailedJobs:
                 "id": job.id,
                 "stage": job.stage,
                 "status": job.status,
-                "tag_list": job.tag_list,
+                "tag_list": job.tag_list if is_standard_job else [],
                 "allow_failure": job.allow_failure,
                 "web_url": job.web_url,
                 "retry_summary": [ijob.status for ijob in jobs],
@@ -120,16 +124,22 @@ infra_failure_logs = [
 
 
 def get_infra_failure_info(job_log: str):
+    # No Gitlab trace means infra failure from Gitlab
+    if not job_log:
+        return FailedJobReason.GITLAB
+
     for regex, type in infra_failure_logs:
         if regex.search(job_log):
             return type
 
 
-def get_job_failure_context(job: ProjectJob, job_log: str):
+def get_job_failure_context(job: ProjectJob | ProjectPipelineBridge, job_log: str):
     """
     Parses job logs (provided as a string), and returns the type of failure (infra or job) as well
     as the precise reason why the job failed.
     """
+    if isinstance(job, ProjectPipelineBridge):
+        return FailedJobType.BRIDGE_FAILURE, FailedJobReason.FAILED_BRIDGE_JOB
 
     infra_failure_reasons = FailedJobReason.get_infra_failure_mapping().keys()
 

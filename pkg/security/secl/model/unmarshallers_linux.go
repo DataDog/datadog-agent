@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
 
 func validateReadSize(size, read int) (int, error) {
@@ -36,13 +37,18 @@ type BinaryUnmarshaler interface {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *CGroupContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 8 {
+	if len(data) < 8+16 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.CGroupFlags = CGroupFlags(binary.NativeEndian.Uint64(data[:8]))
+	e.CGroupFlags = containerutils.CGroupFlags(binary.NativeEndian.Uint64(data[:8]))
 
-	return 8, nil
+	n, err := e.CGroupFile.UnmarshalBinary(data[8:])
+	if err != nil {
+		return 0, err
+	}
+
+	return 8 + n, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -52,7 +58,7 @@ func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 
-	e.ContainerID = ContainerID(id)
+	e.ContainerID = containerutils.ContainerID(id)
 
 	return ContainerIDLen, nil
 }
@@ -138,7 +144,7 @@ func (e *CapsetEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Credentials) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 40 {
+	if len(data) < 48 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -148,9 +154,23 @@ func (e *Credentials) UnmarshalBinary(data []byte) (int, error) {
 	e.EGID = binary.NativeEndian.Uint32(data[12:16])
 	e.FSUID = binary.NativeEndian.Uint32(data[16:20])
 	e.FSGID = binary.NativeEndian.Uint32(data[20:24])
-	e.CapEffective = binary.NativeEndian.Uint64(data[24:32])
-	e.CapPermitted = binary.NativeEndian.Uint64(data[32:40])
-	return 40, nil
+	e.AUID = binary.NativeEndian.Uint32(data[24:28])
+	if binary.NativeEndian.Uint32(data[28:32]) != 1 {
+		e.AUID = AuditUIDUnset
+	}
+	e.CapEffective = binary.NativeEndian.Uint64(data[32:40])
+	e.CapPermitted = binary.NativeEndian.Uint64(data[40:48])
+	return 48, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *LoginUIDWriteEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 4 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.AUID = binary.NativeEndian.Uint32(data[0:4])
+	return 4, nil
 }
 
 func unmarshalTime(data []byte) time.Time {
@@ -204,7 +224,7 @@ func (e *Process) UnmarshalProcEntryBinary(data []byte) (int, error) {
 
 // UnmarshalPidCacheBinary unmarshalls Unmarshal pid_cache_t
 func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
-	const size = 80
+	const size = 88
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -236,7 +256,7 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	const size = 280 // size of struct exec_event_t starting from process_entry_t, inclusive
+	const size = 288 // size of struct exec_event_t starting from process_entry_t, inclusive
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -488,14 +508,14 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (s *SpanContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 16 {
+	if len(data) < 24 {
 		return 0, ErrNotEnoughData
 	}
 
 	s.SpanID = binary.NativeEndian.Uint64(data[0:8])
-	s.TraceID = binary.NativeEndian.Uint64(data[8:16])
-
-	return 16, nil
+	s.TraceID.Lo = int64(binary.NativeEndian.Uint64(data[8:16]))
+	s.TraceID.Hi = int64(binary.NativeEndian.Uint64(data[16:24]))
+	return 24, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -947,8 +967,11 @@ func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 	cursor := read
 
-	e.CGroupFlags = binary.NativeEndian.Uint64(data[cursor : cursor+8])
-	cursor += 8
+	read, err = UnmarshalBinary(data, &e.CGroupContext)
+	if err != nil {
+		return 0, err
+	}
+	cursor += read
 
 	read, err = e.Config.EventUnmarshalBinary(data[cursor:])
 	if err != nil {
@@ -962,6 +985,16 @@ func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	e.ConfigCookie = binary.NativeEndian.Uint64(data[cursor : cursor+8])
 	return cursor + 8, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *CgroupWriteEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.File)
+	if err != nil {
+		return 0, err
+	}
+
+	return read, nil
 }
 
 // EventUnmarshalBinary unmarshals a binary representation of itself

@@ -41,6 +41,12 @@
       echo "Using GitHub App instance 2"
     fi
 
+.setup_agent_github_app:
+  - export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_GITHUB_KEY_SSM_NAME)
+  - export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_GITHUB_APP_ID_SSM_NAME)
+  - export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_GITHUB_INSTALLATION_ID_SSM_NAME)
+  - echo "Using agent GitHub App"
+
 # Install `dd-pkg` and lint packages produced by Omnibus, supports only deb and rpm packages
 .lint_linux_packages:
   - curl -sSL "https://dd-package-tools.s3.amazonaws.com/dd-pkg/${DD_PKG_VERSION}/dd-pkg_Linux_${DD_PKG_ARCH}.tar.gz" | tar -xz -C /usr/local/bin dd-pkg

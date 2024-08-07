@@ -907,16 +907,23 @@ def create_schedule(_, version, freeze_date):
 @task
 def chase_release_managers(_, version):
     url, missing_teams = get_release_page_info(version)
-    GITHUB_SLACK_MAP = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
-    channels = [GITHUB_SLACK_MAP[f"@datadog/{team}"] for team in missing_teams]
-    # Remove duplicates
-    channels = list(set(channels))
-    message = f"Hello :wave:\nCould you please update the `datadog-agent` <release coordination page|{url}> with the RM for your team?\nThanks in advance"
+    github_slack_map = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
+    channels = set()
+
+    for team in missing_teams:
+        channel = github_slack_map.get(f"@datadog/{team}")
+        if channel:
+            channels.add(channel)
+        else:
+            print(color_message(f"Missing slack channel for {team}", Color.RED))
+
+    message = f"Hello :wave:\nCould you please update the `datadog-agent` <{url}|release coordination page> with the RM for your team?\nThanks in advance"
 
     from slack_sdk import WebClient
 
     client = WebClient(os.environ["SLACK_API_TOKEN"])
-    for channel in channels:
+    for channel in sorted(channels):
+        print(f"Sending message to {channel}")
         client.chat_postMessage(channel=channel, text=message)
 
 
@@ -961,8 +968,9 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
             changes = 'true'
             print(f"{repo_name} has new commits since {last_tag_name}", file=sys.stderr)
             if warning_mode:
-                emails = release_manager(repo_name, repo['branch'])
-                warn_new_commits(emails, "agent-integrations", repo['branch'], next_version)
+                team = "agent-integrations"
+                emails = release_manager(next_version.clone(), team)
+                warn_new_commits(emails, team, repo['branch'], next_version)
             else:
                 if repo_name not in ["datadog-agent", "integrations-core"]:
                     with clone(ctx, repo_name, repo['branch'], options="--filter=blob:none --no-checkout"):

@@ -153,7 +153,7 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, 
 // concatenateJsons combines all the test json output files into a single file.
 func concatenateJsons(indir, outdir string) error {
 	testJSONFile := filepath.Join(outdir, "out.json")
-	matches, err := glob(indir, `.*\.json`, func(path string) bool { return true })
+	matches, err := glob(indir, `.*\.json`, func(_ string) bool { return true })
 	if err != nil {
 		return fmt.Errorf("json glob: %s", err)
 	}

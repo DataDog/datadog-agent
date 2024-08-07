@@ -33,14 +33,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
@@ -89,7 +88,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "flare [caseID]",
 		Short: "Collect a flare and send it to Datadog",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 			config := config.NewAgentParams(globalParams.ConfFilePath,
 				config.WithSecurityAgentConfigFilePaths([]string{
@@ -105,7 +104,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams:         config,
 					SecretParams:         secrets.NewEnabledParams(),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-					LogParams:            logimpl.ForOneShot(command.LoggerName, "off", false),
+					LogParams:            log.ForOneShot(command.LoggerName, "off", false),
 				}),
 				fx.Supply(flare.NewLocalParams(
 					commonpath.GetDistPath(),
@@ -116,7 +115,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					commonpath.DefaultStreamlogsLogFile,
 				)),
 				// workloadmeta setup
-				collectors.GetCatalog(),
+				wmcatalog.GetCatalog(),
 				fx.Provide(func() workloadmeta.Params {
 					return workloadmeta.Params{
 						AgentType:  workloadmeta.NodeAgent,

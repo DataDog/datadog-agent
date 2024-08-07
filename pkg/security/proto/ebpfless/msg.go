@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"modernc.org/mathutil"
 )
 
 // Mode defines ptrace mode
@@ -162,6 +163,11 @@ type DupSyscallFakeMsg struct {
 	OldFd int32
 }
 
+// PipeSyscallFakeMsg defines a pipe message
+type PipeSyscallFakeMsg struct {
+	FdsPtr uint64
+}
+
 // ChdirSyscallMsg defines a chdir message
 type ChdirSyscallMsg struct {
 	Dir FileSyscallMsg
@@ -278,7 +284,7 @@ type UnloadModuleSyscallMsg struct {
 // SpanContext stores a span context (if any)
 type SpanContext struct {
 	SpanID  uint64
-	TraceID uint64
+	TraceID mathutil.Int128
 }
 
 // MountSyscallMsg defines a mount message
@@ -326,7 +332,8 @@ type SyscallMsg struct {
 	Umount       *UmountSyscallMsg       `json:",omitempty"`
 
 	// internals
-	Dup *DupSyscallFakeMsg `json:",omitempty"`
+	Dup  *DupSyscallFakeMsg  `json:",omitempty"`
+	Pipe *PipeSyscallFakeMsg `json:",omitempty"`
 }
 
 // String returns string representation
