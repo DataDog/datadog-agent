@@ -55,6 +55,11 @@ func (p *integrationFileFormat) Parse(msg *message.Message) (*message.Message, e
 	var ddtagsSlice []string
 	if len(ddtagsString) > 0 {
 		ddtagsSlice = strings.Split(ddtagsString, ",")
+
+		for i, tag := range ddtagsSlice {
+			ddtagsSlice[i] = strings.TrimSpace(tag)
+		}
+
 	}
 
 	// append ddtags to message origin tags
