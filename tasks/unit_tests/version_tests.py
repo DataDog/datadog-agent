@@ -1,7 +1,7 @@
 import os
 import random
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from invoke import MockContext, Result
 
@@ -292,6 +292,6 @@ class TestGetMatchingPattern(unittest.TestCase):
         self.assertEqual(get_matching_pattern(c, major_version="7", release=True), "7.55.0-rc.11")
 
     def test_on_branch(self):
-        c = MagicMock()
+        c = MockContext(run={})
         self.assertEqual(get_matching_pattern(c, major_version="42", release=False), r"42\.*")
-        c.assert_not_called()
+        c.run.assert_not_called()
