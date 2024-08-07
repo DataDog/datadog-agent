@@ -42,7 +42,7 @@ func NewDecoderFromSourceWithPattern(source *sources.ReplaceableSource, multiLin
 		} else {
 			lineParser = dockerfile.New()
 		}
-	case sources.IntegrationSourcetype:
+	case sources.IntegrationSourceType:
 		lineParser = integrations.New()
 	default:
 		encodingInfo := status.NewMappedInfo("Encoding")

@@ -130,7 +130,7 @@ func (s *Launcher) makeFileSource(source *sources.LogSource, filepath string) *s
 		Tags:        source.Config.Tags,
 	})
 
-	fileSource.SetSourceType(sources.IntegrationSourcetype)
+	fileSource.SetSourceType(sources.IntegrationSourceType)
 	return fileSource
 }
 
