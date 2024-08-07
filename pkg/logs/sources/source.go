@@ -25,7 +25,7 @@ const (
 	DockerSourceType SourceType = "docker"
 	// KubernetesSourceType kubernetes source type
 	KubernetesSourceType SourceType = "kubernetes"
-	// IntegrationsSourceType integrations source type
+	// IntegrationSourceType integration source type
 	IntegrationSourcetype SourceType = "integration"
 )
 
