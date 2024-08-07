@@ -109,7 +109,7 @@ func (a *ClientStatsAggregator) flushOnTime(now time.Time) {
 	flushTs := alignAggTs(now.Add(bucketDuration - oldestBucketStart))
 	for t := a.oldestTs; t.Before(flushTs); t = t.Add(bucketDuration) {
 		if b, ok := a.buckets[t.Unix()]; ok {
-			a.flush(b.flush())
+			a.flush(b.aggregationToPayloads())
 			delete(a.buckets, t.Unix())
 		}
 	}
@@ -118,31 +118,33 @@ func (a *ClientStatsAggregator) flushOnTime(now time.Time) {
 
 func (a *ClientStatsAggregator) flushAll() {
 	for _, b := range a.buckets {
-		a.flush(b.flush())
+		a.flush(b.aggregationToPayloads())
 	}
 }
 
 // getAggregationBucketTime returns unix time at which we aggregate the bucket.
 // We timeshift payloads older than a.oldestTs to a.oldestTs.
 // Payloads in the future are timeshifted to the latest bucket.
-func (a *ClientStatsAggregator) getAggregationBucketTime(now, bs time.Time) (time.Time, bool) {
+func (a *ClientStatsAggregator) getAggregationBucketTime(now, bs time.Time) time.Time {
 	if bs.Before(a.oldestTs) {
-		return a.oldestTs, true
+		return a.oldestTs
 	}
 	if bs.After(now) {
-		return alignAggTs(now), true
+		return alignAggTs(now)
 	}
-	return alignAggTs(bs), false
+	return alignAggTs(bs)
 }
 
+// add takes a new ClientStatsPayload and aggregates its stats in the internal buckets.
 func (a *ClientStatsAggregator) add(now time.Time, p *pb.ClientStatsPayload) {
+	// populate container tags data on the payload
+	a.setVersionDataFromContainerTags(p)
+	// compute the PayloadAggregationKey, common for all buckets within the payload
+	payloadAggKey := newPayloadAggregationKey(p.Env, p.Hostname, p.Version, p.ContainerID, p.GitCommitSha, p.ImageTag)
+
 	for _, clientBucket := range p.Stats {
 		clientBucketStart := time.Unix(0, int64(clientBucket.Start))
-		ts, shifted := a.getAggregationBucketTime(now, clientBucketStart)
-		if shifted {
-			clientBucket.AgentTimeShift = ts.Sub(clientBucketStart).Nanoseconds()
-			clientBucket.Start = uint64(ts.UnixNano())
-		}
+		ts := a.getAggregationBucketTime(now, clientBucketStart)
 		b, ok := a.buckets[ts.Unix()]
 		if !ok {
 			b = &bucket{
@@ -151,8 +153,7 @@ func (a *ClientStatsAggregator) add(now time.Time, p *pb.ClientStatsPayload) {
 			}
 			a.buckets[ts.Unix()] = b
 		}
-		a.setVersionDataFromContainerTags(p)
-		b.aggregateStats(p)
+		b.aggregateStatsBucket(clientBucket, payloadAggKey)
 	}
 }
 
@@ -207,55 +208,47 @@ type bucket struct {
 	agg map[PayloadAggregationKey]map[BucketsAggregationKey]*aggregatedStats
 }
 
-func (b *bucket) aggregateStats(p *pb.ClientStatsPayload) {
-	payloadAggKey := newPayloadAggregationKey(p.Env, p.Hostname, p.Version, p.ContainerID, p.GitCommitSha, p.ImageTag)
+// aggregateStatsBucket takes a ClientStatsBucket and a PayloadAggregationKey, and aggregates all counts
+// and distributions from the ClientGroupedStats inside the bucket.
+func (b *bucket) aggregateStatsBucket(sb *pb.ClientStatsBucket, payloadAggKey PayloadAggregationKey) {
 	payloadAgg, ok := b.agg[payloadAggKey]
 	if !ok {
-		var size int
-		for _, s := range p.Stats {
-			size += len(s.Stats)
-		}
-		payloadAgg = make(map[BucketsAggregationKey]*aggregatedStats, size)
+		payloadAgg = make(map[BucketsAggregationKey]*aggregatedStats, len(sb.Stats))
 		b.agg[payloadAggKey] = payloadAgg
 	}
-	for _, s := range p.Stats {
-		for _, sb := range s.Stats {
-			if sb == nil {
-				continue
-			}
-			aggKey := newBucketAggregationKey(sb)
-			agg, ok := payloadAgg[aggKey]
-			if !ok {
-				agg = &aggregatedStats{}
-				payloadAgg[aggKey] = agg
-				agg.peerTags = sb.PeerTags
-			}
-			// aggregate counts
-			agg.hits += sb.Hits
-			agg.topLevelHits += sb.TopLevelHits
-			agg.errors += sb.Errors
-			agg.duration += sb.Duration
+	for _, gs := range sb.Stats {
+		if gs == nil {
+			continue
+		}
+		aggKey := newBucketAggregationKey(gs)
+		agg, ok := payloadAgg[aggKey]
+		if !ok {
+			agg = &aggregatedStats{}
+			payloadAgg[aggKey] = agg
+			agg.peerTags = gs.PeerTags
+		}
+		// aggregate counts
+		agg.hits += gs.Hits
+		agg.topLevelHits += gs.TopLevelHits
+		agg.errors += gs.Errors
+		agg.duration += gs.Duration
 
-			// aggregate distributions
-			if sketch, err := mergeSketch(agg.okDistribution, sb.OkSummary); err == nil {
-				agg.okDistribution = sketch
-			} else {
-				log.Error("Unable to merge OK distribution ddsketch: %v", err)
-			}
+		// aggregate distributions
+		if sketch, err := mergeSketch(agg.okDistribution, gs.OkSummary); err == nil {
+			agg.okDistribution = sketch
+		} else {
+			log.Error("Unable to merge OK distribution ddsketch: %v", err)
+		}
 
-			if sketch, err := mergeSketch(agg.errDistribution, sb.ErrorSummary); err == nil {
-				agg.errDistribution = sketch
-			} else {
-				log.Error("Unable to merge Error distribution ddsketch: %v", err)
-			}
+		if sketch, err := mergeSketch(agg.errDistribution, gs.ErrorSummary); err == nil {
+			agg.errDistribution = sketch
+		} else {
+			log.Error("Unable to merge Error distribution ddsketch: %v", err)
 		}
 	}
 }
 
-func (b *bucket) flush() []*pb.ClientStatsPayload {
-	return b.aggregationToPayloads()
-}
-
+// aggregationToPayloads converts the contents of the bucket into ClientStatsPayloads
 func (b *bucket) aggregationToPayloads() []*pb.ClientStatsPayload {
 	res := make([]*pb.ClientStatsPayload, 0, len(b.agg))
 	for payloadKey, aggrStats := range b.agg {

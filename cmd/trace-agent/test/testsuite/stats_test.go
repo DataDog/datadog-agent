@@ -76,7 +76,6 @@ func normalizeTimeFields(t *testing.T, p *pb.StatsPayload) *pb.StatsPayload {
 	now := time.Now().UnixNano()
 	for _, s := range p.Stats {
 		for i := range s.Stats {
-			assert.True(t, s.Stats[i].AgentTimeShift > now-100*1e9)
 			s.Stats[i].AgentTimeShift = 0
 			assert.True(t, s.Stats[i].Start >= uint64(now-40*1e9))
 			s.Stats[i].Start = 0
