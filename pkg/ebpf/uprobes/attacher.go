@@ -65,6 +65,18 @@ const (
 	AttachToSharedLibraries
 )
 
+// ProbeOptions is a structure that holds the options for a probe attachment. By default
+// these values will be inferred from the probe name, but the user can override them if needed.
+type ProbeOptions struct {
+	// IsManualReturn indicates that the probe is a manual return probe, which means that the inspector
+	// will find the return locations of the function and attach to them instead of using uretprobes.
+	IsManualReturn bool
+
+	// Symbol is the symbol name to attach the probe to. This is useful when the symbol name is not a valid
+	// C identifier (e.g. Go functions)
+	Symbol string
+}
+
 // AttachRule defines how to attach a certain set of probes. Uprobes can be attached
 // to shared libraries or executables, this structure tells the attacher which ones to
 // select and to which targets to do it.
@@ -78,6 +90,10 @@ type AttachRule struct {
 	// ProbesSelectors defines which probes should be attached and how should we validate
 	// the attachment (e.g., whether we need all probes active or just one of them, or in a best-effort basis)
 	ProbesSelector []manager.ProbesSelector
+	// ProbeOptionsOverride allows the user to override the options for a probe that are inferred from the name
+	// of the probe. This way the user can set options such as manual return detection or symbol names for probes
+	// whose names aren't valid C identifiers.
+	ProbeOptionsOverride map[string]ProbeOptions
 }
 
 // canTarget returns true if the rule matches the given AttachTarget
@@ -91,6 +107,24 @@ func (r *AttachRule) matchesLibrary(path string) bool {
 
 func (r *AttachRule) matchesExecutable(path string, procInfo *ProcInfo) bool {
 	return r.canTarget(AttachToExecutable) && (r.ExecutableFilter == nil || r.ExecutableFilter(path, procInfo))
+}
+
+func (r *AttachRule) getProbeOptions(probeID manager.ProbeIdentificationPair) (ProbeOptions, error) {
+	if r.ProbeOptionsOverride != nil {
+		if options, ok := r.ProbeOptionsOverride[probeID.EBPFFuncName]; ok {
+			return options, nil
+		}
+	}
+
+	symbol, isManualReturn, err := parseSymbolFromEBPFProbeName(probeID.EBPFFuncName)
+	if err != nil {
+		return ProbeOptions{}, err
+	}
+
+	return ProbeOptions{
+		Symbol:         symbol,
+		IsManualReturn: isManualReturn,
+	}, nil
 }
 
 // Validate checks whether the rule is valid, returns nil if it is, an error message otherwise
@@ -107,7 +141,7 @@ func (r *AttachRule) Validate() error {
 
 	for _, selector := range r.ProbesSelector {
 		for _, probeID := range selector.GetProbesIdentificationPairList() {
-			_, _, err := parseSymbolFromEBPFProbeName(probeID.EBPFFuncName)
+			_, err := r.getProbeOptions(probeID)
 			if err != nil {
 				errs = append(errs, fmt.Sprintf("invalid probe name %s: %s", probeID.EBPFFuncName, err))
 			}
@@ -436,7 +470,7 @@ func (ua *UprobeAttacher) buildRegisterCallbacks(matchingRules []*AttachRule, pr
 	unregisterCB := func(p utils.FilePath) error {
 		err := ua.detachFromBinary(p)
 		if ua.config.EnableDetailedLogging {
-			log.Debugf("uprobes: detaching from %s: err=%v", p.HostPath, err)
+			log.Debugf("uprobes: detaching from %s (PID %d): err=%v", p.HostPath, p.PID, err)
 		}
 		return err
 	}
@@ -629,11 +663,11 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 		for _, selector := range rule.ProbesSelector {
 			_, isBestEffort := selector.(*manager.BestEffort)
 			for _, probeID := range selector.GetProbesIdentificationPairList() {
-				symbol, isManualReturn, err := parseSymbolFromEBPFProbeName(probeID.EBPFFuncName)
+				probeOpts, err := rule.getProbeOptions(probeID)
 				if err != nil {
 					return fmt.Errorf("error parsing probe name %s: %w", probeID.EBPFFuncName, err)
 				}
-				data, found := inspectResult[symbol]
+				data, found := inspectResult[probeOpts.Symbol]
 				if !found {
 					if isBestEffort {
 						continue
@@ -641,11 +675,11 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 					// This should not happen, as getAvailableRequestedSymbols should have already
 					// returned an error if mandatory symbols weren't found. However and for safety,
 					// we'll check again and return an error if the symbol is not found.
-					return fmt.Errorf("symbol %s not found in %s", symbol, fpath.HostPath)
+					return fmt.Errorf("symbol %s not found in %s", probeOpts.Symbol, fpath.HostPath)
 				}
 
 				var locationsToAttach []uint64
-				if isManualReturn {
+				if probeOpts.IsManualReturn {
 					locationsToAttach = data.ReturnLocations
 				} else {
 					locationsToAttach = []uint64{data.EntryLocation}
@@ -666,6 +700,7 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 								return fmt.Errorf("cannot attach running probe %v: %w", newProbeID, err)
 							}
 						}
+						log.Debugf("Probe %v already attached to %s", newProbeID, fpath.HostPath)
 						continue
 					}
 
@@ -673,7 +708,7 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 						ProbeIdentificationPair: newProbeID,
 						BinaryPath:              fpath.HostPath,
 						UprobeOffset:            location,
-						HookFuncName:            symbol,
+						HookFuncName:            probeOpts.Symbol,
 					}
 					err = ua.manager.AddHook("", newProbe)
 					if err != nil {
@@ -686,6 +721,14 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 
 					if ua.onAttachCallback != nil {
 						ua.onAttachCallback(newProbe, &fpath)
+					}
+
+					// Update the probe IDs with the new UID, so that the validator can find them
+					// correctly (we're changing UIDs every time)
+					selector.EditProbeIdentificationPair(probeID, newProbeID)
+
+					if ua.config.EnableDetailedLogging {
+						log.Debugf("Attached probe %v to %s (PID %d)", newProbeID, fpath.HostPath, fpath.PID)
 					}
 				}
 
@@ -710,14 +753,14 @@ func (ua *UprobeAttacher) computeSymbolsToRequest(rules []*AttachRule) ([]Symbol
 		for _, selector := range rule.ProbesSelector {
 			_, isBestEffort := selector.(*manager.BestEffort)
 			for _, selector := range selector.GetProbesIdentificationPairList() {
-				symbol, isManualReturn, err := parseSymbolFromEBPFProbeName(selector.EBPFFuncName)
+				opts, err := rule.getProbeOptions(selector)
 				if err != nil {
 					return nil, fmt.Errorf("error parsing probe name %s: %w", selector.EBPFFuncName, err)
 				}
 
 				requests = append(requests, SymbolRequest{
-					Name:                   symbol,
-					IncludeReturnLocations: isManualReturn,
+					Name:                   opts.Symbol,
+					IncludeReturnLocations: opts.IsManualReturn,
 					BestEffort:             isBestEffort,
 				})
 			}
