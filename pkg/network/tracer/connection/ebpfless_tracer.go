@@ -8,7 +8,6 @@
 package connection
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -40,9 +39,6 @@ const (
 )
 
 var (
-	// ErrEbpflessNotSupported is the error returned when the ebpfless tracer is not supported
-	ErrEbpflessNotSupported = errors.New("ebpf-less tracer not supported")
-
 	ebpfLessTracerTelemetry = struct {
 		skippedPackets telemetry.Counter
 	}{
@@ -72,11 +68,7 @@ type ebpfLessTracer struct {
 	ns netns.NsHandle
 }
 
-// NewEbpfLessTracer creates a new ebpfLessTracer instance
-func NewEbpfLessTracer(cfg *config.Config) (Tracer, error) {
-	return newEbpfLessTracer(cfg)
-}
-
+// newEbpfLessTracer creates a new ebpfLessTracer instance
 func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
 	packetSrc, err := filter.NewAFPacketSource(
 		8<<20, // 8 MB total space

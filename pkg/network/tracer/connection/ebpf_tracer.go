@@ -46,11 +46,6 @@ const (
 	connTracerModuleName     = "network_tracer__ebpf"
 )
 
-var (
-	// ErrEbpfTracerNotSupported is the error returned when the eBPF tracer is not supported
-	ErrEbpfTracerNotSupported = fmt.Errorf("ebpf not supported on this platform")
-)
-
 //nolint:revive // TODO(NET) Fix revive linter
 var EbpfTracerTelemetry = struct {
 	connections       telemetry.Gauge
