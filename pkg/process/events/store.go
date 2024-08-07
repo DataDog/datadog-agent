@@ -169,7 +169,7 @@ func (s *RingStore) Push(e *model.ProcessEvent, done chan bool) error {
 }
 
 // Pull returns all events stored in the RingStore
-func (s *RingStore) Pull(ctx context.Context, timeout time.Duration) ([]*model.ProcessEvent, error) { //nolint:revive // TODO fix revive unused-parameter
+func (s *RingStore) Pull(_ context.Context, timeout time.Duration) ([]*model.ProcessEvent, error) {
 	q := &pullRequest{
 		results: make(chan []*model.ProcessEvent),
 	}

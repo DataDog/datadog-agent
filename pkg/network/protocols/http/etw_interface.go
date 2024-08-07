@@ -50,7 +50,7 @@ func NewEtwInterface(c *config.Config) (*EtwInterface, error) {
 		return nil, err
 	}
 
-	ei.session, err = etwcomp.NewSession(etwSessionName, func(cfg *etw.SessionConfiguration) {})
+	ei.session, err = etwcomp.NewSession(etwSessionName, func(_ *etw.SessionConfiguration) {})
 	if err != nil {
 		return nil, err
 	}

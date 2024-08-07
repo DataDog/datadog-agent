@@ -196,7 +196,7 @@ func TestWalkShallow(t *testing.T) {
 	})
 
 	t.Run("err_not_exist", func(t *testing.T) {
-		err := walkShallow(mem.S(filepath.Join(d, "not_exist")), func(name mem.RO, de os.DirEntry) error {
+		err := walkShallow(mem.S(filepath.Join(d, "not_exist")), func(_ mem.RO, _ os.DirEntry) error {
 			return nil
 		})
 		if !os.IsNotExist(err) {

@@ -336,7 +336,7 @@ func testStatsWriter() (*DatadogStatsWriter, *testServer) {
 	cfg := &config.AgentConfig{
 		Endpoints:     []*config.Endpoint{{Host: srv.URL, APIKey: "123"}},
 		StatsWriter:   &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
-		ContainerTags: func(cid string) ([]string, error) { return nil, nil },
+		ContainerTags: func(_ string) ([]string, error) { return nil, nil },
 	}
 	return NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}), srv
 }

@@ -56,7 +56,7 @@ func newBuilder(root string, hostname string, localFlare bool) (*builder, error)
 	otherAPIKeysRx := regexp.MustCompile(`api_key\s*:\s*[a-zA-Z0-9\\\/\^\]\[\(\){}!|%:;"~><=#@$_\-\+]{2,}`)
 	fb.scrubber.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
 		Regex: otherAPIKeysRx,
-		ReplFunc: func(b []byte) []byte {
+		ReplFunc: func(_ []byte) []byte {
 			return []byte("api_key: \"********\"")
 		},
 	})
@@ -268,7 +268,7 @@ func (fb *builder) copyDirTo(shouldScrub bool, srcDir string, destDir string, sh
 	}
 	fb.permsInfos.add(srcDir)
 
-	err = filepath.Walk(srcDir, func(src string, f os.FileInfo, err error) error {
+	err = filepath.Walk(srcDir, func(src string, f os.FileInfo, _ error) error {
 		if f == nil {
 			return nil
 		}
@@ -313,7 +313,7 @@ func (fb *builder) RegisterFilePerm(path string) {
 }
 
 func (fb *builder) RegisterDirPerm(path string) {
-	_ = filepath.Walk(path, func(src string, f os.FileInfo, err error) error {
+	_ = filepath.Walk(path, func(src string, f os.FileInfo, _ error) error {
 		if f != nil {
 			fb.RegisterFilePerm(src)
 		}

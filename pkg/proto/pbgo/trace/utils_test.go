@@ -14,7 +14,7 @@ import (
 func TestShallowCopy(t *testing.T) {
 	// These tests ensure that the ShallowCopy functions for Span and TraceChunk
 	// copy all of the available fields.
-	t.Run("span", func(t *testing.T) {
+	t.Run("span", func(_ *testing.T) {
 		typ := reflect.TypeOf(&Span{})
 		for i := 0; i < typ.Elem().NumField(); i++ {
 			field := typ.Elem().Field(i)
@@ -34,7 +34,7 @@ func TestShallowCopy(t *testing.T) {
 		}
 	})
 
-	t.Run("trace-chunk", func(t *testing.T) {
+	t.Run("trace-chunk", func(_ *testing.T) {
 		typ := reflect.TypeOf(&TraceChunk{})
 		for i := 0; i < typ.Elem().NumField(); i++ {
 			field := typ.Elem().Field(i)
