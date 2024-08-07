@@ -166,6 +166,13 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactor
 						},
 					},
 				},
+				ProbeOptionsOverride: map[string]uprobes.ProbeOptions{
+					connReadProbe:     {IsManualReturn: false, Symbol: bininspect.ReadGoTLSFunc},
+					connReadRetProbe:  {IsManualReturn: true, Symbol: bininspect.ReadGoTLSFunc},
+					connWriteProbe:    {IsManualReturn: false, Symbol: bininspect.WriteGoTLSFunc},
+					connWriteRetProbe: {IsManualReturn: true, Symbol: bininspect.WriteGoTLSFunc},
+					connCloseProbe:    {IsManualReturn: false, Symbol: bininspect.CloseGoTLSFunc},
+				},
 			}},
 			ExcludeTargets:     (uprobes.ExcludeSelf | uprobes.ExcludeInternal),
 			PerformInitialScan: true,
