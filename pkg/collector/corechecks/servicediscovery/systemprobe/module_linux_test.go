@@ -9,8 +9,12 @@ package systemprobe
 
 import (
 	"encoding/json"
+	"fmt"
+	"golang.org/x/sys/unix"
 	"net"
 	"net/http"
+	"os"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -118,4 +122,60 @@ func TestServiceDiscoveryModule_GetProc(t *testing.T) {
 	assert.Equal(t, res.Proc.PID, port.PID)
 	assert.NotEmpty(t, res.Proc.Environ)
 	assert.NotEmpty(t, res.Proc.CWD)
+}
+
+func Test_getInternalEnvs(t *testing.T) {
+	// get the pid of the current process
+	curPid := os.Getpid()
+	// get the envs
+	envs := getInternalEnvs(curPid)
+	// should be nil
+	if envs != nil {
+		t.Error("should not have any envs found")
+	}
+	// write a memory mapped file
+	_, err := memfile("envs", []byte("key1=val1\nkey2=val2\nkey3=val3\n"))
+	if err != nil {
+		t.Fatalf("error writing memfd file: %v", err)
+	}
+	// get the envs
+	envs = getInternalEnvs(curPid)
+	// should be non-nil
+	expected := []string{"key1=val1", "key2=val2", "key3=val3"}
+	if !slices.Equal(envs, expected) {
+		t.Errorf("expected %v, got %v", expected, envs)
+	}
+}
+
+// memfile takes a file name used, and the byte slice
+// containing data the file should contain.
+//
+// name does not need to be unique, as it's used only
+// for debugging purposes.
+//
+// It is up to the caller to close the returned descriptor.
+func memfile(name string, b []byte) (int, error) {
+	fd, err := unix.MemfdCreate(name, 0)
+	if err != nil {
+		return 0, fmt.Errorf("MemfdCreate: %v", err)
+	}
+
+	err = unix.Ftruncate(fd, int64(len(b)))
+	if err != nil {
+		return 0, fmt.Errorf("Ftruncate: %v", err)
+	}
+
+	data, err := unix.Mmap(fd, 0, len(b), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+	if err != nil {
+		return 0, fmt.Errorf("Mmap: %v", err)
+	}
+
+	copy(data, b)
+
+	err = unix.Munmap(data)
+	if err != nil {
+		return 0, fmt.Errorf("Munmap: %v", err)
+	}
+
+	return fd, nil
 }

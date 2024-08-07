@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/prometheus/procfs"
@@ -116,6 +117,8 @@ func (s *serviceDiscovery) handleGetProc(w http.ResponseWriter, req *http.Reques
 		return
 	}
 
+	env = append(env, getInternalEnvs(int(pid))...)
+
 	resp := &model.GetProcResponse{
 		Proc: &model.Proc{
 			PID:     int(pid),
@@ -124,4 +127,32 @@ func (s *serviceDiscovery) handleGetProc(w http.ResponseWriter, req *http.Reques
 		},
 	}
 	utils.WriteAsJSON(w, resp)
+}
+
+func getInternalEnvs(pid int) []string {
+	// add the environment variables in a memory-mapped file in /proc/{PID}/fd/
+	// this file is written by the injector (version 0.17.0 and later)
+	// if the file isn't there, no worries
+	dir := fmt.Sprintf("/proc/%d/fd", pid)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		_ = log.Errorf("failed to read %s: %v", dir, err)
+		return nil
+	}
+	for _, v := range entries {
+		realName, err := os.Readlink(dir + "/" + v.Name())
+		if err != nil {
+			_ = log.Errorf("error reading link %s: %v", v.Name(), err)
+			continue
+		}
+		if strings.HasPrefix(realName, "/memfd:envs") {
+			file, err := os.ReadFile(dir + "/" + v.Name())
+			if err != nil {
+				_ = log.Errorf("error reading file %s: %v", v.Name(), err)
+				continue
+			}
+			return strings.Split(strings.TrimSpace(string(file)), "\n")
+		}
+	}
+	return nil
 }
