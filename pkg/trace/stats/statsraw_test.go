@@ -183,7 +183,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 		sb := NewRawBucket(0, 1e9)
 		var benchStatSpans []*StatSpan
 		for _, s := range benchSpans {
-			benchStatSpans = append(benchStatSpans, makeStatSpan(s, nil))
+			benchStatSpans = append(benchStatSpans, NewStatSpanFromPB(s, nil))
 		}
 		b.ResetTimer()
 		b.ReportAllocs()
@@ -239,7 +239,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 		sb := NewRawBucket(0, 1e9)
 		var benchStatSpans []*StatSpan
 		for _, s := range benchSpans {
-			benchStatSpans = append(benchStatSpans, makeStatSpan(s, peerTags))
+			benchStatSpans = append(benchStatSpans, NewStatSpanFromPB(s, peerTags))
 		}
 		b.ResetTimer()
 		b.ReportAllocs()

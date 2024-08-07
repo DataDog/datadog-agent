@@ -52,6 +52,10 @@ type StatSpan struct {
 	matchingPeerTags  []string
 }
 
+func NewStatSpanFromPB(s *pb.Span, peerTags []string) *StatSpan {
+	return NewStatSpan(s.Service, s.Resource, s.Name, s.Type, s.ParentID, s.Start, s.Duration, s.Error, s.Meta, s.Metrics, peerTags)
+}
+
 func NewStatSpan(
 	service, resource, name string,
 	typ string,
