@@ -61,7 +61,7 @@ func Test_telemetrySender(t *testing.T) {
 			Stat: procStat{
 				StartTime: uint64(now.Add(-20 * time.Minute).Unix()),
 			},
-			Ports: nil,
+			Ports: []uint16{80, 8080},
 		},
 		meta: ServiceMetadata{
 			Name:               "test-service",
@@ -92,6 +92,7 @@ func Test_telemetrySender(t *testing.T) {
 				LastSeen:            1715558400,
 				APMInstrumentation:  "injected",
 				ServiceNameSource:   "generated",
+				Ports:               []uint16{80, 8080},
 			},
 		},
 		{
@@ -108,6 +109,7 @@ func Test_telemetrySender(t *testing.T) {
 				LastSeen:            1715558400,
 				APMInstrumentation:  "injected",
 				ServiceNameSource:   "generated",
+				Ports:               []uint16{80, 8080},
 			},
 		},
 		{
@@ -124,6 +126,7 @@ func Test_telemetrySender(t *testing.T) {
 				LastSeen:            1715558400,
 				APMInstrumentation:  "injected",
 				ServiceNameSource:   "generated",
+				Ports:               []uint16{80, 8080},
 			},
 		},
 	}
