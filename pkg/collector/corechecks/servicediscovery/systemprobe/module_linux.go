@@ -142,7 +142,7 @@ func getInternalEnvs(pid int) []string {
 	for _, v := range entries {
 		realName, err := os.Readlink(dir + "/" + v.Name())
 		if err != nil {
-			_ = log.Errorf("error reading link %s: %v", v.Name(), err)
+			// don't need to report this error, just skip the file
 			continue
 		}
 		if strings.HasPrefix(realName, "/memfd:envs") {
