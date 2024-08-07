@@ -72,14 +72,14 @@ func (s *dummyService) IsReady(context.Context) bool {
 // HasFilter returns false
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func (s *dummyService) HasFilter(filter containers.FilterType) bool {
+func (s *dummyService) HasFilter(_ containers.FilterType) bool {
 	return false
 }
 
 // GetExtraConfig isn't supported
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func (s *dummyService) GetExtraConfig(key string) (string, error) {
+func (s *dummyService) GetExtraConfig(_ string) (string, error) {
 	return "", nil
 }
 

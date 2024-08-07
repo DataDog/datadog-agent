@@ -89,7 +89,7 @@ func TestDockerNetworkExtension(t *testing.T) {
 		},
 	}
 
-	getRoutesFunc = func(procPath string, pid int) ([]system.NetworkRoute, error) {
+	getRoutesFunc = func(_ string, pid int) ([]system.NetworkRoute, error) {
 		return routeForPID[pid], nil
 	}
 

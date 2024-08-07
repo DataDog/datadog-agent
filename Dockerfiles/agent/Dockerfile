@@ -3,10 +3,10 @@ ARG BASE_IMAGE_UBUNTU_NAME=noble
 FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS baseimage
 ARG BASE_IMAGE_UBUNTU_VERSION
 ARG BASE_IMAGE_UBUNTU_NAME
-LABEL baseimage.os "ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
-LABEL baseimage.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
-LABEL org.opencontainers.image.base.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
-LABEL org.opencontainers.image.title "Datadog Agent"
+LABEL baseimage.os="ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
+LABEL baseimage.name="ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
+LABEL org.opencontainers.image.base.name="ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
+LABEL org.opencontainers.image.title="Datadog Agent"
 
 ARG CIBUILD
 # NOTE about APT mirrorlists:
@@ -48,7 +48,7 @@ COPY ${DD_AGENT_ARTIFACT} /
 WORKDIR /output
 
 # Get s6-overlay
-ENV S6_VERSION v2.2.0.3
+ENV S6_VERSION="v2.2.0.3"
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL:+${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/s6-overlay}
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${JUST_CONTAINERS_DOWNLOAD_LOCATION:-https://github.com/just-containers/s6-overlay/releases/download}
 RUN apt install --no-install-recommends -y curl ca-certificates
@@ -109,7 +109,7 @@ COPY install_info etc/datadog-agent/
 ######################################
 
 FROM baseimage AS release
-LABEL maintainer "Datadog <package@datadoghq.com>"
+LABEL maintainer="Datadog <package@datadoghq.com>"
 ARG WITH_JMX
 ARG PYTHON_VERSION
 ARG DD_GIT_REPOSITORY_URL

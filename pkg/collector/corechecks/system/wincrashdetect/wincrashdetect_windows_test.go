@@ -39,7 +39,7 @@ func createSystemProbeListener() (l net.Listener, close func()) {
 	}
 }
 
-func testSetup(t *testing.T) { //nolint:revive // TODO fix revive unused-parameter
+func testSetup(_ *testing.T) {
 	// change the hive to hku for the test
 	hive = registry.CURRENT_USER
 	baseKey = `SOFTWARE\Datadog\unit_test\windows_crash_reporting`
@@ -83,10 +83,10 @@ func TestWinCrashReporting(t *testing.T) {
 	 */
 	var p *probe.WinCrashStatus
 
-	mux.Handle("/windows_crash_detection/check", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+	mux.Handle("/windows_crash_detection/check", http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
 		utils.WriteAsJSON(rw, p)
 	}))
-	mux.Handle("/debug/stats", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+	mux.Handle("/debug/stats", http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 	}))
 	go server.Serve(listener)
 

@@ -27,9 +27,6 @@ var (
 	// ErrRuleWithoutEvent is returned when no event type was inferred from the rule
 	ErrRuleWithoutEvent = errors.New("no event in the rule definition")
 
-	// ErrRuleWithMultipleEvents is returned when multiple event type were inferred from the rule
-	ErrRuleWithMultipleEvents = errors.New("rule with multiple events is not supported")
-
 	// ErrDefinitionIDConflict is returned when multiple rules use the same ID
 	ErrDefinitionIDConflict = errors.New("multiple definition with the same ID")
 

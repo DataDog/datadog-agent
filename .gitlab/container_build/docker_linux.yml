@@ -1,8 +1,6 @@
 ---
 .docker_build_job_definition:
   stage: container_build
-  variables:
-    CI_ENABLE_CONTAINER_IMAGE_BUILDS: "true"
   script:
     - aws s3 sync --only-show-errors $S3_ARTIFACTS_URI $BUILD_CONTEXT
     - TAG_SUFFIX=${TAG_SUFFIX:-}

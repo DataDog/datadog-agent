@@ -21,7 +21,7 @@ func main() {
 	lambda.Start(ddlambda.WrapHandler(handleRequest, nil))
 }
 
-func handleRequest(ctx context.Context, evt events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+func handleRequest(_ context.Context, _ events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	response := events.APIGatewayProxyResponse{
 		StatusCode: 200,
 		Body:       "ok",

@@ -40,7 +40,7 @@ func (l *MockCoreLoader) Name() string {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (l *MockCoreLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
+func (l *MockCoreLoader) Load(_ sender.SenderManager, config integration.Config, _ integration.Data) (check.Check, error) {
 	mockCheck := MockCheck{Name: config.Name, Loader: l.Name()}
 	return &mockCheck, nil
 }
@@ -52,7 +52,7 @@ func (l *MockPythonLoader) Name() string {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (l *MockPythonLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
+func (l *MockPythonLoader) Load(_ sender.SenderManager, config integration.Config, _ integration.Data) (check.Check, error) {
 	mockCheck := MockCheck{Name: config.Name, Loader: l.Name()}
 	return &mockCheck, nil
 }
