@@ -11,21 +11,24 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 )
 
-type datadogclientImplNone struct{}
+// DatadogclientImplNone is a noop datadogclient implementation
+type DatadogclientImplNone struct{}
+
+var _ datadogclient.Component = (*DatadogclientImplNone)(nil) // ensure: DatadogclientImplNone implements the interface
 
 // NewNone creates a new noop datadogclient component
 func NewNone() datadogclient.Component {
-	return &datadogclientImplNone{}
+	return &DatadogclientImplNone{}
 }
 
 // QueryMetrics does nothing for the noop datadogclient implementation
-func (d *datadogclientImplNone) QueryMetrics(from, to int64, query string) ([]datadog.Series, error) {
+func (d *DatadogclientImplNone) QueryMetrics(from, to int64, query string) ([]datadog.Series, error) {
 	// noop
 	return nil, nil
 }
 
 // GetRateLimitStats does nothing for the noop datadogclient implementation
-func (d *datadogclientImplNone) GetRateLimitStats() map[string]datadog.RateLimit {
+func (d *DatadogclientImplNone) GetRateLimitStats() map[string]datadog.RateLimit {
 	// noop
 	return nil
 }
