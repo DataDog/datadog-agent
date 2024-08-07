@@ -422,6 +422,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("network_path.collector.workers", 4)
 	config.BindEnvAndSetDefault("network_path.collector.input_chan_size", 1000)
 	config.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 1000)
+	config.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 10000)
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_ttl", "15m")
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_interval", "5m")
 	config.BindEnvAndSetDefault("network_path.collector.flush_interval", "10s")
@@ -1141,6 +1142,7 @@ func containerSyspath(config pkgconfigmodel.Setup) {
 	config.BindEnv("container_cgroup_root")
 	config.BindEnv("container_pid_mapper")
 	config.BindEnvAndSetDefault("ignore_host_etc", false)
+	config.BindEnvAndSetDefault("use_improved_cgroup_parser", false)
 	config.BindEnvAndSetDefault("proc_root", "/proc")
 }
 

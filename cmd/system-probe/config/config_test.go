@@ -62,7 +62,7 @@ func TestEventMonitor(t *testing.T) {
 			t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(tc.networkEvents))
 			t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", strconv.FormatBool(tc.networkEvents))
 
-			cfg, err := New("/doesnotexist")
+			cfg, err := New("/doesnotexist", "")
 			t.Logf("%+v\n", cfg)
 			require.NoError(t, err)
 			assert.Equal(t, tc.enabled, cfg.ModuleIsEnabled(EventMonitorModule))
@@ -134,6 +134,6 @@ func configurationFromYAML(t *testing.T, yaml string) config.Config {
 	require.Equal(t, len(b), n)
 	f.Sync()
 
-	_, _ = New(f.Name())
+	_, _ = New(f.Name(), "")
 	return config.SystemProbe
 }

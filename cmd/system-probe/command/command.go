@@ -23,6 +23,9 @@ type GlobalParams struct {
 	// ConfFilePath holds the path to the folder containing the configuration
 	// file, to allow overrides from the command line
 	ConfFilePath string
+
+	// FleetPoliciesDirPath holds the path to the folder containing the fleet policies
+	FleetPoliciesDirPath string
 }
 
 // SubcommandFactory is a callable that will return a slice of subcommands.
@@ -44,6 +47,7 @@ Runtime Security Monitoring, Universal Service Monitoring, and others.`,
 	}
 
 	sysprobeCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "config", "c", "", "path to directory containing system-probe.yaml")
+	sysprobeCmd.PersistentFlags().StringVarP(&globalParams.FleetPoliciesDirPath, "fleetcfgpath", "", "", "path to the directory containing fleet policies")
 
 	// github.com/fatih/color sets its global color.NoColor to a default value based on
 	// whether the process is running in a tty.  So, we only want to override that when

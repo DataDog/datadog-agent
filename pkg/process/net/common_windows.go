@@ -22,6 +22,8 @@ const (
 	tracerouteURL        = "http://localhost:3333/" + string(sysconfig.TracerouteModule) + "/traceroute/"
 	netType              = "tcp"
 
+	// discovery* is not used on Windows, the value is added to avoid a compilation error
+	discoveryServicesURL = "http://localhost:3333/" + string(sysconfig.DiscoveryModule) + "/services"
 	// procStatsURL is not used in windows, the value is added to avoid compilation error in windows
 	procStatsURL = "http://localhost:3333/" + string(sysconfig.ProcessModule) + "stats"
 	// pingURL is not used in windows, the value is added to avoid compilation error in windows
