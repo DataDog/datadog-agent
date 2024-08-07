@@ -8,6 +8,6 @@
 ---
 enhancements:
   - |
-    Improve parsing performance for packets coming being read
+    Improve parsing performance for packets coming in that are being read
     in Network Path
 
