@@ -48,7 +48,7 @@ type processInfo struct {
 	CmdLine []string
 	Env     []string
 	Stat    procStat
-	Ports   []int
+	Ports   []uint16
 }
 
 type serviceEvents struct {

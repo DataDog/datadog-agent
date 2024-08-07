@@ -40,7 +40,7 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 func runTraceAgentInfoFct(params *subcommands.GlobalParams, fct interface{}) error {
 	return fxutil.OneShot(fct,
 		config.Module(),
-		fx.Supply(coreconfig.NewAgentParams(params.ConfPath)),
+		fx.Supply(coreconfig.NewAgentParams(params.ConfPath, coreconfig.WithFleetPoliciesDirPath(params.FleetPoliciesDirPath))),
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 		fx.Supply(secrets.NewEnabledParams()),
 		coreconfig.Module(),

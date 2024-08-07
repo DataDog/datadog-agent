@@ -55,13 +55,13 @@ func Test_telemetrySender(t *testing.T) {
 
 	svc := serviceInfo{
 		process: processInfo{
-			PID:     0,
+			PID:     99,
 			CmdLine: nil,
 			Env:     nil,
 			Stat: procStat{
 				StartTime: uint64(now.Add(-20 * time.Minute).Unix()),
 			},
-			Ports: nil,
+			Ports: []uint16{80, 8080},
 		},
 		meta: ServiceMetadata{
 			Name:               "test-service",
@@ -92,6 +92,8 @@ func Test_telemetrySender(t *testing.T) {
 				LastSeen:            1715558400,
 				APMInstrumentation:  "injected",
 				ServiceNameSource:   "generated",
+				Ports:               []uint16{80, 8080},
+				PID:                 99,
 			},
 		},
 		{
@@ -108,6 +110,8 @@ func Test_telemetrySender(t *testing.T) {
 				LastSeen:            1715558400,
 				APMInstrumentation:  "injected",
 				ServiceNameSource:   "generated",
+				Ports:               []uint16{80, 8080},
+				PID:                 99,
 			},
 		},
 		{
@@ -124,6 +128,8 @@ func Test_telemetrySender(t *testing.T) {
 				LastSeen:            1715558400,
 				APMInstrumentation:  "injected",
 				ServiceNameSource:   "generated",
+				Ports:               []uint16{80, 8080},
+				PID:                 99,
 			},
 		},
 	}
@@ -154,7 +160,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 
 	svc := serviceInfo{
 		process: processInfo{
-			PID:     0,
+			PID:     55,
 			CmdLine: nil,
 			Env:     nil,
 			Stat: procStat{
@@ -191,6 +197,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 				LastSeen:            1715558400,
 				APMInstrumentation:  "injected",
 				ServiceNameSource:   "provided",
+				PID:                 55,
 			},
 		},
 		{
@@ -207,6 +214,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 				LastSeen:            1715558400,
 				APMInstrumentation:  "injected",
 				ServiceNameSource:   "provided",
+				PID:                 55,
 			},
 		},
 		{
@@ -223,6 +231,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 				LastSeen:            1715558400,
 				APMInstrumentation:  "injected",
 				ServiceNameSource:   "provided",
+				PID:                 55,
 			},
 		},
 	}

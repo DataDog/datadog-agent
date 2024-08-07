@@ -267,6 +267,7 @@ class TestQueryVersion(unittest.TestCase):
         self.assertEqual(g, "315e3a2")
 
 
+@patch("os.environ", {"BUCKET_BRANCH": "dev"})
 class TestGetMatchingPattern(unittest.TestCase):
     def test_on_patch_release(self):
         c = MockContext(
@@ -291,5 +292,6 @@ class TestGetMatchingPattern(unittest.TestCase):
         self.assertEqual(get_matching_pattern(c, major_version="7", release=True), "7.55.0-rc.11")
 
     def test_on_branch(self):
-        c = MockContext()
+        c = MockContext(run={})
         self.assertEqual(get_matching_pattern(c, major_version="42", release=False), r"42\.*")
+        c.run.assert_not_called()

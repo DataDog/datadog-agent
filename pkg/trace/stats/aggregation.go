@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
@@ -109,6 +110,7 @@ func matchingPeerTags(meta map[string]string, peerTagKeys []string) []string {
 	var pt []string
 	for _, t := range peerTagKeys {
 		if v, ok := meta[t]; ok && v != "" {
+			v = obfuscate.QuantizePeerIPAddresses(v)
 			pt = append(pt, t+":"+v)
 		}
 	}

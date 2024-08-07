@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Add Hostname and ExtraTags to `CollectorECSTask`.

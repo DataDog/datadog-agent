@@ -7,9 +7,8 @@
 package debugging
 
 import (
-	"github.com/DataDog/sketches-go/ddsketch"
-
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -69,7 +68,7 @@ func HTTP(stats map[http.Key]*http.RequestStats, dns map[util.Address][]dns.Host
 			debug.ByStatus[status] = Stats{
 				Count:              stat.Count,
 				FirstLatencySample: stat.FirstLatencySample,
-				LatencyP50:         getSketchQuantile(stat.Latencies, 0.5),
+				LatencyP50:         protocols.GetSketchQuantile(stat.Latencies, 0.5),
 			}
 		}
 
@@ -95,13 +94,4 @@ func getDNS(dnsData map[util.Address][]dns.Hostname, addr util.Address) string {
 	}
 
 	return ""
-}
-
-func getSketchQuantile(sketch *ddsketch.DDSketch, percentile float64) float64 {
-	if sketch == nil {
-		return 0.0
-	}
-
-	val, _ := sketch.GetValueAtQuantile(percentile)
-	return val
 }

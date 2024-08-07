@@ -90,6 +90,34 @@ func TestGrainWithPeerTags(t *testing.T) {
 			},
 		}, aggr)
 	})
+	t.Run("peer ip quantization", func(t *testing.T) {
+		assert := assert.New(t)
+		meta := map[string]string{"span.kind": "client", "server.address": "129.49.218.65"}
+		s := NewStatSpan("thing", "yo", "other", "", 0, 0, 0, 0, meta, nil, []string{"server.address"})
+
+		aggr := NewAggregationFromSpan(s, "", PayloadAggregationKey{
+			Env:         "default",
+			Hostname:    "default",
+			ContainerID: "cid",
+		})
+
+		assert.Equal(Aggregation{
+			PayloadAggregationKey: PayloadAggregationKey{
+				Env:         "default",
+				Hostname:    "default",
+				ContainerID: "cid",
+			},
+			BucketsAggregationKey: BucketsAggregationKey{
+				Service:      "thing",
+				SpanKind:     "client",
+				Name:         "other",
+				Resource:     "yo",
+				PeerTagsHash: 0xad02dc568e7330c5,
+				IsTraceRoot:  pb.Trilean_TRUE,
+			},
+		}, aggr)
+		assert.Equal([]string{"server.address:blocked-ip-address"}, s.matchingPeerTags)
+	})
 	t.Run("all present", func(t *testing.T) {
 		assert := assert.New(t)
 		meta := map[string]string{"span.kind": "client", "peer.service": "aws-dynamodb", "db.instance": "dynamo.test.us1", "db.system": "dynamodb"}

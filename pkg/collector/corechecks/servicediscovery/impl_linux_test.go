@@ -90,24 +90,29 @@ var (
 
 var (
 	portTCP22 = model.Service{
-		PID:  procSSHD.pid,
-		Name: "sshd",
+		PID:   procSSHD.pid,
+		Name:  "sshd",
+		Ports: []uint16{22},
 	}
 	portTCP8080 = model.Service{
-		PID:  procTestService1.pid,
-		Name: "test-service-1",
+		PID:   procTestService1.pid,
+		Name:  "test-service-1",
+		Ports: []uint16{8080},
 	}
 	portTCP8080DifferentPID = model.Service{
-		PID:  procTestService1DifferentPID.pid,
-		Name: "test-service-1",
+		PID:   procTestService1DifferentPID.pid,
+		Name:  "test-service-1",
+		Ports: []uint16{8080},
 	}
 	portTCP8081 = model.Service{
-		PID:  procIgnoreService1.pid,
-		Name: "ignore-1",
+		PID:   procIgnoreService1.pid,
+		Name:  "ignore-1",
+		Ports: []uint16{8081},
 	}
 	portTCP5432 = model.Service{
-		PID:  procTestService1Repeat.pid,
-		Name: "test-service-1",
+		PID:   procTestService1Repeat.pid,
+		Name:  "test-service-1",
+		Ports: []uint16{5432},
 	}
 )
 
@@ -144,6 +149,8 @@ func cmpEvents(a, b *event) bool {
 		cmp.Compare(ap.ServiceName, bp.ServiceName),
 		cmp.Compare(ap.ServiceType, bp.ServiceType),
 		cmp.Compare(ap.ServiceLanguage, bp.ServiceLanguage),
+		cmp.Compare(ap.Ports[0], bp.Ports[0]),
+		cmp.Compare(ap.PID, bp.PID),
 	}
 	for _, val := range vals {
 		if val != 0 {
@@ -232,6 +239,8 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(1 * time.Minute).Unix(),
+						Ports:               []uint16{8080},
+						PID:                 99,
 					},
 				},
 				{
@@ -244,6 +253,8 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(20 * time.Minute).Unix(),
+						Ports:               []uint16{8080},
+						PID:                 99,
 					},
 				},
 				{
@@ -256,6 +267,8 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(20 * time.Minute).Unix(),
+						Ports:               []uint16{8080},
+						PID:                 99,
 					},
 				},
 			},
@@ -331,6 +344,8 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(1 * time.Minute).Unix(),
+						Ports:               []uint16{5432},
+						PID:                 101,
 					},
 				},
 				{
@@ -343,6 +358,8 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(1 * time.Minute).Unix(),
+						Ports:               []uint16{8080},
+						PID:                 99,
 					},
 				},
 				{
@@ -355,18 +372,8 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(20 * time.Minute).Unix(),
-					},
-				},
-				{
-					RequestType: "heartbeat-service",
-					APIVersion:  "v2",
-					Payload: &eventPayload{
-						NamingSchemaVersion: "1",
-						ServiceName:         "test-service-1",
-						HostName:            host,
-						Env:                 "",
-						StartTime:           calcTime(0).Unix(),
-						LastSeen:            calcTime(20 * time.Minute).Unix(),
+						Ports:               []uint16{5432},
+						PID:                 101,
 					},
 				},
 				{
@@ -379,6 +386,22 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(20 * time.Minute).Unix(),
+						Ports:               []uint16{5432},
+						PID:                 101,
+					},
+				},
+				{
+					RequestType: "heartbeat-service",
+					APIVersion:  "v2",
+					Payload: &eventPayload{
+						NamingSchemaVersion: "1",
+						ServiceName:         "test-service-1",
+						HostName:            host,
+						Env:                 "",
+						StartTime:           calcTime(0).Unix(),
+						LastSeen:            calcTime(20 * time.Minute).Unix(),
+						Ports:               []uint16{8080},
+						PID:                 99,
 					},
 				},
 			},
@@ -448,6 +471,8 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(1 * time.Minute).Unix(),
+						Ports:               []uint16{8080},
+						PID:                 99,
 					},
 				},
 				{
@@ -460,6 +485,8 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(22 * time.Minute).Unix(),
+						Ports:               []uint16{8080},
+						PID:                 102,
 					},
 				},
 			},

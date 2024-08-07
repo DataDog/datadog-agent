@@ -15,37 +15,37 @@ func TestDetect(t *testing.T) {
 	data := []struct {
 		name        string
 		serviceName string
-		ports       []int
+		ports       []uint16
 		serviceType servicetype.ServiceType
 	}{
 		{
 			name:        "redis",
 			serviceName: "redis",
-			ports:       []int{9443},
+			ports:       []uint16{9443},
 			serviceType: servicetype.DB,
 		},
 		{
 			name:        "mongo",
 			serviceName: "mongo",
-			ports:       []int{27017, 27018, 27019, 27020},
+			ports:       []uint16{27017, 27018, 27019, 27020},
 			serviceType: servicetype.DB,
 		},
 		{
 			name:        "elastic",
 			serviceName: "elastic",
-			ports:       []int{9200},
+			ports:       []uint16{9200},
 			serviceType: servicetype.Storage,
 		},
 		{
 			name:        "web",
 			serviceName: "apache",
-			ports:       []int{80},
+			ports:       []uint16{80},
 			serviceType: servicetype.FrontEnd,
 		},
 		{
 			name:        "internal",
 			serviceName: "myService",
-			ports:       []int{8080},
+			ports:       []uint16{8080},
 			serviceType: servicetype.WebService,
 		},
 	}
