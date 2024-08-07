@@ -50,10 +50,7 @@ func TestHandleProvider(t *testing.T) {
 }
 
 func TestHandleProviderShortTimeout(t *testing.T) {
-	// runChan is used to signal when the provider is running
-	runChan := make(chan struct{})
 	provider := func(context.Context) time.Duration {
-		close(runChan)
 		time.Sleep(1 * time.Minute) // Long timeout to block
 		return 1 * time.Minute
 	}
@@ -69,9 +66,6 @@ func TestHandleProviderShortTimeout(t *testing.T) {
 	r.config.Set("metadata_provider_stop_timeout", time.Duration(0), model.SourceFile)
 	require.NoError(t, r.start())
 
-	// wait for the provider to run
-	<-runChan
-
 	cerr := make(chan error)
 	go func() {
 		cerr <- r.stop()
@@ -86,13 +80,8 @@ func TestHandleProviderShortTimeout(t *testing.T) {
 }
 
 func TestHandleProviderLongTimeout(t *testing.T) {
-	// c is used to signal when the provider is running
-	runChan := make(chan struct{})
-	// blockChan is used to block the provider
-	blockChan := make(chan struct{})
-	provider := func(context.Context) time.Duration {
-		close(runChan)
-		<-blockChan
+	provider := func(ctx context.Context) time.Duration {
+		<-ctx.Done()
 		return 1 * time.Minute
 	}
 
@@ -107,18 +96,10 @@ func TestHandleProviderLongTimeout(t *testing.T) {
 	r.config.Set("metadata_provider1_stop_timeout", 1*time.Minute, model.SourceFile)
 	require.NoError(t, r.start())
 
-	// wait for the provider to run
-	<-runChan
-
 	cerr := make(chan error)
 	go func() {
 		cerr <- r.stop()
 	}()
-
-	time.AfterFunc(100*time.Millisecond, func() {
-		// unblock the provider
-		close(blockChan)
-	})
 
 	select {
 	case err := <-cerr:
