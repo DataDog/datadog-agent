@@ -18,6 +18,7 @@ import (
 	"github.com/google/gopacket/layers"
 	"go.uber.org/multierr"
 	"golang.org/x/net/ipv4"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -251,7 +252,7 @@ func parseICMP(header *ipv4.Header, payload []byte) (*icmpResponse, error) {
 	// so we can ignore the ICMP packets we don't care about
 	icmpResponse := icmpResponse{}
 
-	if header.Protocol != 1 || header.Version != 4 ||
+	if header.Protocol != unix.IPPROTO_ICMP || header.Version != 4 ||
 		header.Src == nil || header.Dst == nil {
 		log.Errorf("invalid IP header for ICMP packet")
 		return nil, fmt.Errorf("invalid IP header for ICMP packet: %+v", header)
@@ -305,7 +306,7 @@ func parseICMP(header *ipv4.Header, payload []byte) (*icmpResponse, error) {
 func parseTCP(header *ipv4.Header, payload []byte) (*tcpResponse, error) {
 	tcpResponse := tcpResponse{}
 
-	if header.Protocol != 6 || header.Version != 4 ||
+	if header.Protocol != unix.IPPROTO_TCP || header.Version != 4 ||
 		header.Src == nil || header.Dst == nil {
 		log.Errorf("invalid IP header for TCP packet")
 		return nil, fmt.Errorf("invalid IP header for TCP packet: %+v", header)
