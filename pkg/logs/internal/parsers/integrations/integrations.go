@@ -29,7 +29,7 @@ func (p *integrationFileFormat) Parse(msg *message.Message) (*message.Message, e
 	var data map[string]interface{}
 	err := json.Unmarshal(msg.GetContent(), &data)
 	if err != nil {
-		return msg, nil
+		return msg, err
 	}
 
 	// Step 2: Look for the attribute "ddtags" and read its value
@@ -48,7 +48,7 @@ func (p *integrationFileFormat) Parse(msg *message.Message) (*message.Message, e
 	// Step 4: Marshal the modified map back to JSON
 	modifiedJSON, err := json.Marshal(data)
 	if err != nil {
-		return msg, nil
+		return msg, err
 	}
 
 	// Step 5: Convert the ddtagsSlice into a string array
