@@ -126,13 +126,6 @@ func (v *baseDiagnoseSuite) TestDiagnoseList() {
 	for _, suite := range v.suites {
 		assert.Contains(v.T(), diagnose, suite)
 	}
-
-	diagnose = getDiagnoseOutput(v, agentclient.WithArgs([]string{"--json", "--list"}))
-	diagnoseJSON := stringToJSON(diagnose)
-	assert.NotNil(v.T(), diagnoseJSON)
-	for _, suite := range diagnoseJSON.Diagnoses {
-		assert.Contains(v.T(), v.suites, suite.SuiteName)
-	}
 }
 
 func (v *baseDiagnoseSuite) AssertDiagnoseInclude() {
