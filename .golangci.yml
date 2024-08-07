@@ -5,12 +5,12 @@ issues:
 
   # Do not limit the number of times a same issue is reported.
   max-same-issues: 0
-  
+
   exclude-files:
     - pkg/util/cloudproviders/cloudfoundry/bbscache_test.go # implements interface from imported package whose method names fail linting
     - pkg/util/intern/string.go # TODO: fix govet 'unsafeptr' error
     - pkg/serverless/trace/inferredspan/constants.go # TODO: fox revive exported const error
-    
+
   exclude-dirs:
     - pkg/proto/patches
     - tasks/unit_tests/testdata/components_src
@@ -63,18 +63,19 @@ issues:
 linters:
   disable-all: true
   enable:
-    - unconvert   # Remove unnecessary type conversions
-    - unused      # Checks Go code for unused constants, variables, functions and types
-    - ineffassign # Detects when assignments to existing variables are not used
-    - misspell    # Finds commonly misspelled English words in comments
-    - gofmt       # Gofmt checks whether code was gofmt-ed
-    - revive      # Revive is a replacement for golint, a coding style checker
-    - errcheck    # errcheck is a program for checking for unchecked errors in go programs.
-    - staticcheck # staticcheck is a go vet on steroids, applying a ton of static analysis checks
-    - govet       # Vet examines Go source code and reports suspicious constructs, such as Printf calls whose arguments do not align with the format string
-    - depguard    # Depguard is useful for preventing specific packages from being used
-    - bodyclose   # checks whether HTTP response body is closed successfully
-    - gosimple    # Linter for Go source code that specializes in simplifying code.
+    - unconvert                 # Remove unnecessary type conversions
+    - unused                    # Checks Go code for unused constants, variables, functions and types
+    - ineffassign               # Detects when assignments to existing variables are not used
+    - misspell                  # Finds commonly misspelled English words in comments
+    - gofmt                     # Gofmt checks whether code was gofmt-ed
+    - revive                    # Revive is a replacement for golint, a coding style checker
+    - errcheck                  # errcheck is a program for checking for unchecked errors in go programs.
+    - staticcheck               # staticcheck is a go vet on steroids, applying a ton of static analysis checks
+    - govet                     # Vet examines Go source code and reports suspicious constructs, such as Printf calls whose arguments do not align with the format string
+    - depguard                  # Depguard is useful for preventing specific packages from being used
+    - bodyclose                 # checks whether HTTP response body is closed successfully
+    - gosimple                  # Linter for Go source code that specializes in simplifying code.
+    - gocheckcompilerdirectives # Checks Go compiler directives syntax
 
 linters-settings:
   depguard:
@@ -122,11 +123,11 @@ linters-settings:
   revive:
     # in order to change revive config, the default configuration must be explicitly defined
     # https://github.com/mgechev/revive/blob/master/defaults.toml
-    ignoreGeneratedHeader: false
+    #
+    # see https://github.com/golangci/golangci-lint/blob/master/.golangci.reference.yml for the golangci-lint config syntax
+    ignore-generated-header: false
     severity: "warning"
     confidence: 0.8
-    errorCode: 0
-    warningCode: 0
     rules:
       - name: blank-imports
       - name: context-as-argument
@@ -149,6 +150,8 @@ linters-settings:
       - name: unexported-return
       - name: unreachable-code
       - name: unused-parameter
+        arguments:
+          - allowRegex: "^_"
       - name: var-declaration
       - name: var-naming
       # non-default rules:

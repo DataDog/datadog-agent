@@ -71,6 +71,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		LongRunningSpans       bool          `json:"long_running_spans"`
 		EvpProxyAllowedHeaders []string      `json:"evp_proxy_allowed_headers"`
 		Config                 reducedConfig `json:"config"`
+		PeerTags               []string      `json:"peer_tags"`
 	}{
 		Version:                r.conf.AgentVersion,
 		GitCommit:              r.conf.GitCommit,
@@ -95,6 +96,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 			AnalyzedSpansByService: r.conf.AnalyzedSpansByService,
 			Obfuscation:            oconf,
 		},
+		PeerTags: r.conf.ConfiguredPeerTags(),
 	}, "", "\t")
 	if err != nil {
 		panic(fmt.Errorf("Error making /info handler: %v", err))

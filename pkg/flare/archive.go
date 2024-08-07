@@ -21,6 +21,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
+
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -280,10 +282,27 @@ func getDiagnoses(isFlareLocal bool, deps diagnose.SuitesDeps) func() ([]byte, e
 		// that to run more optimally/differently by using existing in-memory objects
 		collector, ok := deps.Collector.Get()
 		if !isFlareLocal && ok {
-			return diagnose.RunStdOutInAgentProcess(w, diagCfg, diagnose.NewSuitesDepsInAgentProcess(collector))
+			diagnoses, err := diagnose.RunInAgentProcess(diagCfg, diagnose.NewSuitesDepsInAgentProcess(collector))
+			if err != nil {
+				return err
+			}
+			return diagnose.RunDiagnoseStdOut(w, diagCfg, diagnoses)
 		}
 		if ac, ok := deps.AC.Get(); ok {
-			return diagnose.RunStdOutInCLIProcess(w, diagCfg, diagnose.NewSuitesDepsInCLIProcess(deps.SenderManager, deps.SecretResolver, deps.WMeta, ac))
+			diagnoseDeps := diagnose.NewSuitesDepsInCLIProcess(deps.SenderManager, deps.SecretResolver, deps.WMeta, ac)
+			diagnoses, err := diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
+			if err != nil && !diagCfg.RunLocal {
+				fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
+				fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
+
+				diagCfg.RunLocal = true
+				diagnoses, err = diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
+				if err != nil {
+					fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
+					return err
+				}
+			}
+			return diagnose.RunDiagnoseStdOut(w, diagCfg, diagnoses)
 		}
 		return fmt.Errorf("collector or autoDiscovery not found")
 	}
