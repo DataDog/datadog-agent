@@ -620,6 +620,18 @@ type attachedProbe struct {
 	fpath *utils.FilePath
 }
 
+func (ap *attachedProbe) String() string {
+	return fmt.Sprintf("attachedProbe{probe: %s, PID: %d, path: %s}", ap.probe.EBPFFuncName, ap.fpath.PID, ap.fpath.HostPath)
+}
+
+func stringifyAttachedProbes(probes []attachedProbe) []string {
+	var result []string
+	for _, ap := range probes {
+		result = append(result, ap.String())
+	}
+	return result
+}
+
 func TestUprobeAttacher(t *testing.T) {
 	if kernel.MustHostVersion() < kernel.VersionCode(4, 6, 0) {
 		t.Skip("Kernel version does not support library watching")
@@ -653,10 +665,17 @@ func TestUprobeAttacher(t *testing.T) {
 				ProbesSelector: []manager.ProbesSelector{
 					&manager.ProbeSelector{ProbeIdentificationPair: mainProbeID},
 				},
+				ProbeOptionsOverride: map[string]ProbeOptions{
+					mainProbeID.EBPFFuncName: {
+						IsManualReturn: false,
+						Symbol:         "main.main",
+					},
+				},
 			},
 		},
-		ExcludeTargets: ExcludeInternal | ExcludeSelf,
-		EbpfConfig:     ebpfCfg,
+		ExcludeTargets:        ExcludeInternal | ExcludeSelf,
+		EbpfConfig:            ebpfCfg,
+		EnableDetailedLogging: true,
 	}
 
 	var attachedProbes []attachedProbe
@@ -678,19 +697,20 @@ func TestUprobeAttacher(t *testing.T) {
 	cmd, err := fileopener.OpenFromAnotherProcess(t, lib)
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool {
-		return len(attachedProbes) == 2
-	}, 1000*time.Millisecond, 50*time.Millisecond, "expected to attach 2 probes, got %d: %+v", len(attachedProbes), attachedProbes)
-
-	// Check that the probes were attached
 	var connectProbe, mainProbe *attachedProbe
-	for _, ap := range attachedProbes {
-		if ap.probe.EBPFFuncName == "uprobe__SSL_connect" {
-			connectProbe = &ap
-		} else if ap.probe.EBPFFuncName == "uprobe__main" {
-			mainProbe = &ap
+	require.Eventually(t, func() bool {
+		// Find the probes we want to attach.
+		// Note that we might attach to other processes, so filter by ours only
+		for _, ap := range attachedProbes {
+			if ap.probe.EBPFFuncName == "uprobe__SSL_connect" && ap.fpath.PID == uint32(cmd.Process.Pid) {
+				connectProbe = &ap
+			} else if ap.probe.EBPFFuncName == "uprobe__main" && ap.fpath.PID == uint32(cmd.Process.Pid) {
+				mainProbe = &ap
+			}
 		}
-	}
+
+		return connectProbe != nil && mainProbe != nil
+	}, 5*time.Second, 50*time.Millisecond, "expected to attach 2 probes, got %d: %v %v", len(attachedProbes), attachedProbes, stringifyAttachedProbes(attachedProbes))
 
 	require.NotNil(t, connectProbe)
 	// Allow suffix, as sometimes the path reported is /proc/<pid>/root/<path>
