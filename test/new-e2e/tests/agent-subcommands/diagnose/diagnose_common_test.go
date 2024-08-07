@@ -21,50 +21,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Diagnosis contains the results of the diagnosis
-type Diagnosis struct {
-	// --------------------------
-	// required fields
-
-	// run-time (pass, fail etc)
-	Result int `json:"result"`
-	// static-time (meta typically)
-	Name string `json:"name"`
-	// run-time (actual diagnosis consumable by a user)
-	Diagnosis string `json:"diagnosis"`
-
-	// --------------------------
-	// optional fields
-
-	// static-time (meta typically)
-	Category string `json:"category,omitempty"`
-	// static-time (meta typically, description of what being tested)
-	Description string `json:"description,omitempty"`
-	// run-time (what can be done of what docs need to be consulted to address the issue)
-	Remediation string `json:"remediation,omitempty"`
-	// run-time
-	RawError string `json:"rawerror,omitempty"`
-}
-
-// DiagnoseResult contains the results of the diagnose command
-type DiagnoseResult struct {
-	Diagnoses []Diagnoses `json:"diagnoses"`
-	Summary   Counters    `json:"summary"`
-}
-
-// Diagnoses is a collection of Diagnosis
-type Diagnoses struct {
-	SuiteName      string      `json:"suite_name"`
-	SuiteDiagnoses []Diagnosis `json:"diagnoses"`
-}
-
-// Counters contains the count of the diagnosis results
-type Counters struct {
+// counters contains the count of the diagnosis results
+type counters struct {
 	Total         int `json:"total,omitempty"`
 	Success       int `json:"success,omitempty"`
 	Fail          int `json:"fail,omitempty"`
 	Warnings      int `json:"warnings,omitempty"`
 	UnexpectedErr int `json:"unexpected_error,omitempty"`
+}
+
+// DiagnoseResult contains the results of the diagnose command
+type diagnoseResult struct {
+	Summary counters `json:"summary"`
 }
 
 type baseDiagnoseSuite struct {
@@ -78,15 +46,6 @@ var commonSuites = []string{
 	"connectivity-datadog-autodiscovery",
 	"connectivity-datadog-core-endpoints",
 	"connectivity-datadog-event-platform",
-}
-
-// type summary represents the number of success, fail, warnings and errors of a diagnose command
-type summary struct {
-	total    int
-	success  int
-	warnings int
-	fail     int
-	errors   int
 }
 
 func getDiagnoseOutput(v *baseDiagnoseSuite, commandArgs ...agentclient.AgentArgsOption) string {
@@ -104,7 +63,7 @@ func (v *baseDiagnoseSuite) TestDiagnoseDefaultConfig() {
 	v.AssertOutputNotError(diagnose)
 
 	diagnose = getDiagnoseOutput(v, agentclient.WithArgs([]string{"--json"}))
-	diagnoseJSON := stringToJSON(diagnose)
+	diagnoseJSON := unmarshalDiagnose(diagnose)
 	assert.NotNil(v.T(), diagnoseJSON)
 	assert.Zero(v.T(), diagnoseJSON.Summary.Fail)
 	assert.Zero(v.T(), diagnoseJSON.Summary.UnexpectedErr)
@@ -115,7 +74,7 @@ func (v *baseDiagnoseSuite) TestDiagnoseLocal() {
 	v.AssertOutputNotError(diagnose)
 
 	diagnose = getDiagnoseOutput(v, agentclient.WithArgs([]string{"--json", "--local"}))
-	diagnoseJSON := stringToJSON(diagnose)
+	diagnoseJSON := unmarshalDiagnose(diagnose)
 	assert.NotNil(v.T(), diagnoseJSON)
 	assert.Zero(v.T(), diagnoseJSON.Summary.Fail)
 	assert.Zero(v.T(), diagnoseJSON.Summary.UnexpectedErr)
@@ -134,9 +93,9 @@ func (v *baseDiagnoseSuite) AssertDiagnoseInclude() {
 	for _, suite := range v.suites {
 		diagnoseInclude := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--include", suite}))
 		resultInclude := getDiagnoseSummary(diagnoseInclude)
-		assert.Less(v.T(), resultInclude.total, diagnoseSummary.total, "Expected number of checks for suite %v to be lower than the total amount of checks (%v) but was %v", suite, diagnoseSummary.total, resultInclude.total)
-		assert.Zero(v.T(), resultInclude.fail)
-		assert.Zero(v.T(), resultInclude.errors)
+		assert.Less(v.T(), resultInclude.Total, diagnoseSummary.Total, "Expected number of checks for suite %v to be lower than the total amount of checks (%v) but was %v", suite, diagnoseSummary.Total, resultInclude.Total)
+		assert.Zero(v.T(), resultInclude.Fail)
+		assert.Zero(v.T(), resultInclude.UnexpectedErr)
 	}
 	// Create an args array to include all suites
 	includeArgs := strings.Split("--include "+strings.Join(v.suites, " --include "), " ")
@@ -148,12 +107,12 @@ func (v *baseDiagnoseSuite) AssertDiagnoseInclude() {
 
 func (v *baseDiagnoseSuite) AssertDiagnoseJSONInclude() {
 	diagnose := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--json"}))
-	diagnoseResult := stringToJSON(diagnose)
+	diagnoseResult := unmarshalDiagnose(diagnose)
 	assert.NotNil(v.T(), diagnoseResult)
 	diagnoseSummary := diagnoseResult.Summary
 	for _, suite := range v.suites {
 		diagnoseInclude := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--json", "--include", suite}))
-		diagnoseIncludeResult := stringToJSON(diagnoseInclude)
+		diagnoseIncludeResult := unmarshalDiagnose(diagnoseInclude)
 		assert.NotNil(v.T(), diagnoseIncludeResult)
 
 		resultInclude := diagnoseIncludeResult.Summary
@@ -168,7 +127,7 @@ func (v *baseDiagnoseSuite) AssertDiagnoseJSONInclude() {
 
 	// Diagnose with all suites included should be equal to diagnose without args
 	diagnoseIncludeEverySuite := getDiagnoseOutput(v, agentclient.WithArgs(includeArgs))
-	diagnoseIncludeEverySuiteResult := stringToJSON(diagnoseIncludeEverySuite)
+	diagnoseIncludeEverySuiteResult := unmarshalDiagnose(diagnoseIncludeEverySuite)
 	assert.NotNil(v.T(), diagnoseIncludeEverySuiteResult)
 	assert.Equal(v.T(), diagnoseIncludeEverySuiteResult.Summary, diagnoseSummary)
 }
@@ -177,8 +136,8 @@ func (v *baseDiagnoseSuite) AssertDiagnoseExclude() {
 	for _, suite := range v.suites {
 		diagnoseExclude := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--exclude", suite}))
 		resultExclude := getDiagnoseSummary(diagnoseExclude)
-		assert.Equal(v.T(), resultExclude.fail, 0)
-		assert.Equal(v.T(), resultExclude.errors, 0)
+		assert.Equal(v.T(), resultExclude.Fail, 0)
+		assert.Equal(v.T(), resultExclude.UnexpectedErr, 0)
 	}
 
 	// Create an args array to exclude all suites
@@ -187,13 +146,13 @@ func (v *baseDiagnoseSuite) AssertDiagnoseExclude() {
 	// Diagnose with all suites excluded should do nothing
 	diagnoseExcludeEverySuite := getDiagnoseOutput(v, agentclient.WithArgs(excludeArgs))
 	summary := getDiagnoseSummary(diagnoseExcludeEverySuite)
-	assert.Equal(v.T(), summary.total, 0)
+	assert.Equal(v.T(), summary.Total, 0)
 }
 
 func (v *baseDiagnoseSuite) AssertDiagnoseJSONExclude() {
 	for _, suite := range v.suites {
 		diagnoseExclude := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--json", "--exclude", suite}))
-		diagnoseExcludeResult := stringToJSON(diagnoseExclude)
+		diagnoseExcludeResult := unmarshalDiagnose(diagnoseExclude)
 		assert.NotNil(v.T(), diagnoseExcludeResult)
 
 		resultExclude := diagnoseExcludeResult.Summary
@@ -207,7 +166,7 @@ func (v *baseDiagnoseSuite) AssertDiagnoseJSONExclude() {
 
 	// Diagnose with all suites excluded should do nothing
 	diagnoseExcludeEverySuite := getDiagnoseOutput(v, agentclient.WithArgs(excludeArgs))
-	diagnoseExcludeEverySuiteResult := stringToJSON(diagnoseExcludeEverySuite)
+	diagnoseExcludeEverySuiteResult := unmarshalDiagnose(diagnoseExcludeEverySuite)
 	assert.NotNil(v.T(), diagnoseExcludeEverySuiteResult)
 	assert.Equal(v.T(), diagnoseExcludeEverySuiteResult.Summary.Total, 0)
 
@@ -219,13 +178,13 @@ func (v *baseDiagnoseSuite) TestDiagnoseVerbose() {
 	re := regexp.MustCompile("PASS")
 	matches := re.FindAllString(diagnose, -1)
 	// Verify that verbose mode display extra information such 'PASS' for successful checks
-	assert.Equal(v.T(), len(matches), summary.total, "Expected to have the same number of 'PASS' as the number of checks (%v), but was %v", summary.total, len(matches))
+	assert.Equal(v.T(), len(matches), summary.Total, "Expected to have the same number of 'PASS' as the number of checks (%v), but was %v", summary.Total, len(matches))
 	assert.Contains(v.T(), diagnose, "connectivity-datadog-core-endpoints")
 }
 
 func (v *baseDiagnoseSuite) TestDiagnoseJSON() {
 	diagnose := getDiagnoseOutput(v, agentclient.WithArgs([]string{"-v", "--json"}))
-	diagnoseResult := stringToJSON(diagnose)
+	diagnoseResult := unmarshalDiagnose(diagnose)
 	assert.NotNil(v.T(), diagnoseResult)
 
 	summary := diagnoseResult.Summary
@@ -253,14 +212,14 @@ func createSummaryRegex() *regexp.Regexp {
 }
 
 // getDiagnoseSummary parses the diagnose output and returns a struct containing number of success, fail, error and warning
-func getDiagnoseSummary(diagnoseOutput string) summary {
+func getDiagnoseSummary(diagnoseOutput string) counters {
 	matches := summaryRE.FindStringSubmatch(diagnoseOutput)
-	return summary{
-		total:    getRegexGroupValue(summaryRE, matches, "total"),
-		success:  getRegexGroupValue(summaryRE, matches, "success"),
-		warnings: getRegexGroupValue(summaryRE, matches, "warning"),
-		fail:     getRegexGroupValue(summaryRE, matches, "fail"),
-		errors:   getRegexGroupValue(summaryRE, matches, "error"),
+	return counters{
+		Total:         getRegexGroupValue(summaryRE, matches, "total"),
+		Success:       getRegexGroupValue(summaryRE, matches, "success"),
+		Warnings:      getRegexGroupValue(summaryRE, matches, "warning"),
+		Fail:          getRegexGroupValue(summaryRE, matches, "fail"),
+		UnexpectedErr: getRegexGroupValue(summaryRE, matches, "error"),
 	}
 }
 
@@ -278,9 +237,9 @@ func getRegexGroupValue(re *regexp.Regexp, matches []string, groupName string) i
 	return val
 }
 
-// stringToJSON converts a diagnose string to a DiagnoseResult struct
-func stringToJSON(s string) *DiagnoseResult {
-	result := &DiagnoseResult{}
+// unmarshalDiagnose converts a diagnose string to a DiagnoseResult struct
+func unmarshalDiagnose(s string) *diagnoseResult {
+	result := &diagnoseResult{}
 	err := json.Unmarshal([]byte(s), result)
 	if err != nil {
 		return nil
