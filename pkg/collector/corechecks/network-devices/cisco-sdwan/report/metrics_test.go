@@ -1289,6 +1289,108 @@ func TestSendCloudApplicationMetricsWithInvalidQOE(t *testing.T) {
 	mockSender.AssertNotCalled(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"application.qoe", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
+func TestSendBGPNeighborMetrics(t *testing.T) {
+	tests := []struct {
+		name           string
+		bgpNeighbor    []client.BGPNeighbor
+		tags           map[string][]string
+		expectedMetric []expectedMetric
+	}{
+		{
+			name: "Report bgp peer status",
+			bgpNeighbor: []client.BGPNeighbor{
+				{
+					VmanageSystemIP: "10.0.0.1",
+					AS:              1,
+					VpnID:           1,
+					State:           "established",
+					PeerAddr:        "10.60.1.11",
+					Afi:             "ipv4-unicast",
+				},
+				{
+					VmanageSystemIP: "10.0.0.2",
+					AS:              2,
+					VpnID:           1,
+					State:           "established",
+					PeerAddr:        "10.60.2.11",
+					Afi:             "ipv4-unicast",
+				},
+			},
+			tags: map[string][]string{
+				"10.0.0.1": {
+					"device_name:10.0.0.1",
+					"device_namespace:cisco-sdwan",
+					"device_vendor:cisco",
+					"hostname:test-device",
+					"system_ip:10.0.0.1",
+					"site_id:100",
+				},
+				"10.0.0.2": {
+					"device_name:10.0.0.2",
+					"device_namespace:cisco-sdwan",
+					"device_vendor:cisco",
+					"hostname:test-vsmart",
+					"system_ip:10.0.0.2",
+					"site_id:102",
+				},
+			},
+			expectedMetric: []expectedMetric{
+				{
+					method: "Gauge",
+					value:  1,
+					name:   ciscoSDWANMetricPrefix + "bgp.neighbor",
+					tags: []string{
+						"device_name:10.0.0.1",
+						"device_namespace:cisco-sdwan",
+						"device_vendor:cisco",
+						"hostname:test-device",
+						"system_ip:10.0.0.1",
+						"site_id:100",
+						"peer_state:established",
+						"remote_as:1",
+						"neighbor:10.60.1.11",
+						"vpn_id:1",
+						"afi:ipv4-unicast",
+					},
+				},
+				{
+					method: "Gauge",
+					value:  1,
+					name:   ciscoSDWANMetricPrefix + "bgp.neighbor",
+					tags: []string{
+						"device_name:10.0.0.2",
+						"device_namespace:cisco-sdwan",
+						"device_vendor:cisco",
+						"hostname:test-vsmart",
+						"system_ip:10.0.0.2",
+						"site_id:102",
+						"peer_state:established",
+						"remote_as:2",
+						"neighbor:10.60.2.11",
+						"vpn_id:1",
+						"afi:ipv4-unicast",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockSender := mocksender.NewMockSender("foo")
+			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+			sender := NewSDWanSender(mockSender, "my-ns")
+			sender.SetDeviceTags(tt.tags)
+			sender.SendBGPNeighborMetrics(tt.bgpNeighbor)
+
+			for _, metric := range tt.expectedMetric {
+				mockSender.AssertMetric(t, metric.method, metric.name, metric.value, "", metric.tags)
+			}
+		})
+	}
+}
+
 func TestTimestampExpiration(t *testing.T) {
 	TimeNow = mockTimeNow
 	ms := NewSDWanSender(nil, "test-ns")
