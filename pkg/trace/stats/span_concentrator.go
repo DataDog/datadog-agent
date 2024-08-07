@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
@@ -52,10 +53,13 @@ type StatSpan struct {
 	matchingPeerTags  []string
 }
 
+// NewStatSpanFromPB is a helper version of NewStatSpan that builds a StatSpan from a pb.Span.
 func NewStatSpanFromPB(s *pb.Span, peerTags []string) *StatSpan {
 	return NewStatSpan(s.Service, s.Resource, s.Name, s.Type, s.ParentID, s.Start, s.Duration, s.Error, s.Meta, s.Metrics, peerTags)
 }
 
+// NewStatSpan builds a StatSpan from all the required fields of a span to calculate stats
+// peerTags is the configured peer tags, this list is compared against the meta to identify matching peer tags
 func NewStatSpan(
 	service, resource, name string,
 	typ string,
@@ -91,6 +95,20 @@ func NewStatSpan(
 		isPartialSnapshot: hasPartialVersion && partialVersion >= 0,
 		matchingPeerTags:  matchingPeerTags(meta, peerTags),
 	}
+}
+
+func matchingPeerTags(meta map[string]string, peerTagKeys []string) []string {
+	if len(peerTagKeys) == 0 {
+		return nil
+	}
+	var pt []string
+	for _, t := range peerTagKeys {
+		if v, ok := meta[t]; ok && v != "" {
+			v = obfuscate.QuantizePeerIPAddresses(v)
+			pt = append(pt, t+":"+v)
+		}
+	}
+	return pt
 }
 
 // SpanConcentrator produces time bucketed statistics from a stream of raw spans.
