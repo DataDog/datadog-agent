@@ -66,7 +66,7 @@ func GetHostTags(hostTags **C.char) {
 	tags := hosttags.Get(context.Background(), true, config.Datadog())
 	tagsBytes, err := json.Marshal(tags)
 	if err != nil {
-		log.Warnf("Error getting host tags: %v", err)
+		log.Warnf("Error getting host tags: %v. Invalid tags: %v", err, tags)
 	}
 	*hostTags = TrackedCString(string(tagsBytes))
 }
