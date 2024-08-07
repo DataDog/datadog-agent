@@ -62,12 +62,11 @@ static __always_inline bool is_valid_tls_app_data(tls_record_header_t *hdr, __u3
         return false;
     }
 
-    __u16 payload_len = bpf_ntohs(hdr->length);
-    if (payload_len > TLS_MAX_PAYLOAD_LENGTH) {
+    if (hdr->length > TLS_MAX_PAYLOAD_LENGTH) {
         return false;
     }
 
-    return sizeof(*hdr) + payload_len <= skb_len;
+    return sizeof(*hdr) + hdr->length <= skb_len;
 }
 
 // is_tls_handshake checks if the given TLS message header is a valid TLS
@@ -93,15 +92,20 @@ static __always_inline bool is_tls(const char *buf, __u32 buf_size, __u32 skb_le
         return false;
     }
 
-    tls_record_header_t *tls_record_header = (tls_record_header_t *)buf;
-    switch (tls_record_header->content_type) {
+    // Copying struct to the stack, to avoid modifying the original buffer that will be used for other classifiers.
+    tls_record_header_t tls_record_header = *(tls_record_header_t *)buf;
+    // Converting the fields to host byte order.
+    tls_record_header.version = bpf_ntohs(tls_record_header.version);
+    tls_record_header.length = bpf_ntohs(tls_record_header.length);
+
+    switch (tls_record_header.content_type) {
     case TLS_HANDSHAKE:
         if (buf_size < sizeof(tls_record_header_t) + sizeof(tls_hello_message_t)) {
             return false;
         }
-        return is_tls_handshake((tls_hello_message_t *)(buf + sizeof(tls_record_header_t)), buf_size);
+        return is_tls_handshake((tls_hello_message_t *)(buf + sizeof(tls_record_header_t)));
     case TLS_APPLICATION_DATA:
-        return is_valid_tls_app_data(tls_record_header, buf_size, skb_len);
+        return is_valid_tls_app_data(&tls_record_header, buf_size, skb_len);
     }
 
     return false;
