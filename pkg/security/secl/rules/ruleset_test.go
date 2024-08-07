@@ -581,12 +581,12 @@ func TestRuleSetApprovers16(t *testing.T) {
 	caps := FieldCapabilities{
 		{
 			Field:        "open.file.path",
-			Types:        eval.ScalarValueType | eval.PatternValueType,
+			TypeBitmask:  eval.ScalarValueType | eval.PatternValueType,
 			FilterWeight: 3,
 		},
 	}
 
-	approvers, _ := rs.GetEventApprovers("open", caps)
+	approvers, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 0 {
 		t.Fatal("shouldn't get an approver")
 	}
@@ -594,16 +594,16 @@ func TestRuleSetApprovers16(t *testing.T) {
 	caps = FieldCapabilities{
 		{
 			Field:        "open.file.oath",
-			Types:        eval.ScalarValueType | eval.PatternValueType,
+			TypeBitmask:  eval.ScalarValueType | eval.PatternValueType,
 			FilterWeight: 3,
 		},
 		{
-			Field: "process.auid",
-			Types: eval.ScalarValueType,
+			Field:       "process.auid",
+			TypeBitmask: eval.ScalarValueType,
 		},
 	}
 
-	approvers, _ = rs.GetEventApprovers("open", caps)
+	approvers, _ = rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 0 {
 		t.Fatal("shouldn't get an approver")
 	}
@@ -625,17 +625,17 @@ func TestRuleSetApprovers16(t *testing.T) {
 	caps = FieldCapabilities{
 		{
 			Field:        "open.file.path",
-			Types:        eval.ScalarValueType | eval.PatternValueType,
+			TypeBitmask:  eval.ScalarValueType | eval.PatternValueType,
 			FilterWeight: 3,
 		},
 		{
-			Field:      "process.auid",
-			Types:      eval.ScalarValueType,
-			FilterMode: ApproverOnly,
+			Field:       "process.auid",
+			TypeBitmask: eval.ScalarValueType,
+			FilterMode:  ApproverOnly,
 		},
 	}
 
-	approvers, _ = rs.GetEventApprovers("open", caps)
+	approvers, _ = rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 2 || len(approvers["open.file.path"]) != 1 || len(approvers["process.auid"]) != 1 {
 		t.Fatalf("should get an approver`: %v", approvers)
 	}
