@@ -106,6 +106,7 @@ class TestCompareToItself(unittest.TestCase):
             "git remote set-url origin https://x-access-token:zidane@github.com/DataDog/datadog-agent.git": Result(),
             "git config --global user.name 'github-actions[bot]'": Result(),
             "git config --global user.email 'github-app[bot]@users.noreply.github.com'": Result(),
+            "git commit -m 'Compare to itself' --allow-empty": Result(),
             "git push origin compare/Football/900284400": Result(),
             "git commit -am 'Compare to itself'": Result(),
             "git checkout Football": Result(),
