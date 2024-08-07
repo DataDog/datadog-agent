@@ -53,5 +53,5 @@ func (v *linuxDiagnoseSuite) TestDiagnoseInclude() {
 }
 
 func (v *linuxDiagnoseSuite) TestDiagnoseExclude() {
-	v.AssertDiagnoseInclude()
+	v.AssertDiagnoseExclude()
 }

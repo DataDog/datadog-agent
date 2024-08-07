@@ -41,5 +41,5 @@ func (v *windowsDiagnoseSuite) TestDiagnoseInclude() {
 }
 
 func (v *windowsDiagnoseSuite) TestDiagnoseExclude() {
-	v.AssertDiagnoseInclude()
+	v.AssertDiagnoseExclude()
 }
