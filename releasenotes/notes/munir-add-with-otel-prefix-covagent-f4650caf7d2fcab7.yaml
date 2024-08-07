@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    Ensures host metrics and a subset of kafka metrics submitted via OTLP are prefixed with `otel.`. This avoids conflicts with Datadog Agent metrics.
