@@ -186,12 +186,12 @@ func (v *vmSuite) setupTestHost() {
 	vm := v.Env().RemoteHost
 
 	// Install powershell-yaml
-	vm.MustExecute("Install-PackageProvider NuGet -Force")
-	vm.MustExecute("Set-PSRepository PSGallery -InstallationPolicy Trusted")
-	vm.MustExecute("Install-Module powershell-yaml -Repository PSGallery")
+	vm.MustExecute("$ErrorActionPreference='stop'; Install-PackageProvider NuGet -Force")
+	vm.MustExecute("$ErrorActionPreference='stop'; Set-PSRepository PSGallery -InstallationPolicy Trusted")
+	vm.MustExecute("$ErrorActionPreference='stop'; Install-Module powershell-yaml -Repository PSGallery")
 }
 
 func (v *vmSuite) getConfiguredValue(applicationDataDirectory, keyName string) (string, error) {
 	vm := v.Env().RemoteHost
-	return vm.Execute(fmt.Sprintf("$(Get-Content -path '%s\\datadog.yaml' | ConvertFrom-Yaml).%s", applicationDataDirectory, keyName))
+	return vm.Execute(fmt.Sprintf("$ErrorActionPreference='stop'; $(Get-Content -path '%s\\datadog.yaml' | ConvertFrom-Yaml).%s", applicationDataDirectory, keyName))
 }
