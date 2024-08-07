@@ -218,7 +218,6 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 		s.logger.Errorf("%s", err)
 		return
 	}
-	path.Source.ContainerID = ptest.Pathtest.SourceContainerID
 	path.Namespace = s.networkDevicesNamespace
 
 	s.sendTelemetry(path, startTime, ptest)
