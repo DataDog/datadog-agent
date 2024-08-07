@@ -43,8 +43,9 @@ func OptionalModule() fxutil.Module {
 	)
 }
 
-// OptionalModule defines the fx options for this component, but requires additionally
-// specifying custom Params from the fx App, to be passed to the constructor.
+// OptionalModuleWithParams defines the fx options for this component, but
+// requires additionally specifying custom Params from the fx App, to be
+// passed to the constructor.
 func OptionalModuleWithParams() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newOptionalConfigSync),
