@@ -124,6 +124,44 @@ func TestServiceDiscoveryModule_GetProc(t *testing.T) {
 	assert.NotEmpty(t, res.Proc.CWD)
 }
 
+func TestServiceDiscoveryModule_GetProc_withEnvs(t *testing.T) {
+	url := setupServiceDiscoveryModule(t)
+	port := startServerAndGetPort(t, url)
+	require.NotNil(t, port, "could not find http server port")
+	require.NotEmpty(t, port.PID, "could not get port pid")
+
+	// write a memory mapped file
+	_, err := memfile("envs", []byte("key1=val1\nkey2=val2\nkey3=val3\n"))
+	if err != nil {
+		t.Fatalf("error writing memfd file: %v", err)
+	}
+
+	req, err := http.NewRequest("GET", url+"/service_discovery/procs/"+strconv.Itoa(port.PID), nil)
+	require.NoError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	res := &model.GetProcResponse{}
+	err = json.NewDecoder(resp.Body).Decode(res)
+	require.NoError(t, err)
+	require.NotNil(t, res)
+
+	assert.Equal(t, res.Proc.PID, port.PID)
+	assert.NotEmpty(t, res.Proc.Environ)
+	assert.NotEmpty(t, res.Proc.CWD)
+	
+	// make sure the key/value pairs are in Environ
+	numEnvs := len(res.Proc.Environ)
+	if numEnvs < 3 {
+		t.Fatalf("got length of %d for res.Proc.Environ, expect at least 3", numEnvs)
+	}
+	if !slices.Equal(res.Proc.Environ[numEnvs-3:], []string{"key1=val1","key2=val2","key3=val3"}) {
+		t.Error("expected memory mapped envs to be at the end of res.Proc.Environ")
+	}
+}
+
 func Test_getInternalEnvs(t *testing.T) {
 	// get the pid of the current process
 	curPid := os.Getpid()
