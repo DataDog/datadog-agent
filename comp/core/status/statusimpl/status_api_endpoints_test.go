@@ -146,7 +146,7 @@ func TestStatusAPIEndpoints(t *testing.T) {
 				return status
 			}(),
 			expectedCode: http.StatusOK,
-			additionalTests: func(t *testing.T, rr *httptest.ResponseRecorder) {
+			additionalTests: func(_ *testing.T, _ *httptest.ResponseRecorder) {
 			},
 		},
 		{

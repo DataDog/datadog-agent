@@ -46,7 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
@@ -116,7 +116,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			cliParams.jmxLogLevel = "debug"
 		}
 		params := core.BundleParams{
-			ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
+			ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 			SecretParams: secrets.NewEnabledParams(),
 			LogParams:    log.ForOneShot(command.LoggerName, cliParams.jmxLogLevel, false)}
 		if cliParams.logFile != "" {
@@ -133,7 +133,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return diagnoseSenderManager.LazyGetSenderManager()
 			}),
 			// workloadmeta setup
-			collectors.GetCatalog(),
+			wmcatalog.GetCatalog(),
 			fx.Supply(workloadmeta.Params{
 				InitHelper: common.GetWorkloadmetaInit(),
 			}),
@@ -170,7 +170,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "collect",
 		Short: "Start the collection of metrics based on your current configuration and display them in the console.",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			cliParams.command = "collect"
 			disableCmdPort()
 			return runOneShot(runJmxCommandConsole)
@@ -184,7 +184,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "everything",
 		Short: "List every attributes available that has a type supported by JMXFetch.",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			cliParams.command = "list_everything"
 			disableCmdPort()
 			return runOneShot(runJmxCommandConsole)
@@ -195,7 +195,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "matching",
 		Short: "List attributes that match at least one of your instances configuration.",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			cliParams.command = "list_matching_attributes"
 			disableCmdPort()
 			return runOneShot(runJmxCommandConsole)
@@ -206,7 +206,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "with-metrics",
 		Short: "List attributes and metrics data that match at least one of your instances configuration.",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			cliParams.command = "list_with_metrics"
 			disableCmdPort()
 			return runOneShot(runJmxCommandConsole)
@@ -217,7 +217,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "with-rate-metrics",
 		Short: "List attributes and metrics data that match at least one of your instances configuration, including rates and counters.",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			cliParams.command = "list_with_rate_metrics"
 			disableCmdPort()
 			return runOneShot(runJmxCommandConsole)
@@ -228,7 +228,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "limited",
 		Short: "List attributes that do match one of your instances configuration but that are not being collected because it would exceed the number of metrics that can be collected.",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			cliParams.command = "list_limited_attributes"
 			disableCmdPort()
 			return runOneShot(runJmxCommandConsole)
@@ -239,7 +239,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "collected",
 		Short: "List attributes that will actually be collected by your current instances configuration.",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			cliParams.command = "list_collected_attributes"
 			disableCmdPort()
 			return runOneShot(runJmxCommandConsole)
@@ -250,7 +250,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "not-matching",
 		Short: "List attributes that don’t match any of your instances configuration.",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			cliParams.command = "list_not_matching_attributes"
 			disableCmdPort()
 			return runOneShot(runJmxCommandConsole)

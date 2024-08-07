@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package agent defines the tracer agent.
-package agent
+// Package agentimpl defines the tracer agent.
+package agentimpl
 
 import (
 	"testing"

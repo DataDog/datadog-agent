@@ -49,6 +49,7 @@ enum event_type
     EVENT_IMDS,
     EVENT_ON_DEMAND,
     EVENT_LOGIN_UID_WRITE,
+    EVENT_CGROUP_WRITE,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events
@@ -164,6 +165,7 @@ enum dr_kprobe_progs
     DR_RENAME_CALLBACK_KPROBE_KEY,
     DR_SELINUX_CALLBACK_KPROBE_KEY,
     DR_CHDIR_CALLBACK_KPROBE_KEY,
+    DR_CGROUP_WRITE_CALLBACK_KPROBE_KEY,
 };
 
 enum dr_tracepoint_progs
@@ -175,6 +177,7 @@ enum dr_tracepoint_progs
     DR_LINK_DST_CALLBACK_TRACEPOINT_KEY,
     DR_RENAME_CALLBACK_TRACEPOINT_KEY,
     DR_CHDIR_CALLBACK_TRACEPOINT_KEY,
+    DR_CGROUP_WRITE_CALLBACK_TRACEPOINT_KEY
 };
 
 enum erpc_op

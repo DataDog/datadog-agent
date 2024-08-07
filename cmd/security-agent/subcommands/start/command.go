@@ -47,7 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
@@ -94,15 +94,15 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			// the service initialization in ../../main_windows.go
 			return fxutil.OneShot(start,
 				fx.Supply(core.BundleParams{
-					ConfigParams:         config.NewSecurityAgentParams(params.ConfigFilePaths),
-					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
+					ConfigParams:         config.NewSecurityAgentParams(params.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams:         secrets.NewEnabledParams(),
 					LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", setup.DefaultSecurityAgentLogFile),
 				}),
 				core.Bundle(),
 				dogstatsd.ClientBundle,
 				// workloadmeta setup
-				collectors.GetCatalog(),
+				wmcatalog.GetCatalog(),
 				workloadmetafx.Module(),
 				fx.Provide(func(config config.Component) workloadmeta.Params {
 					catalog := workloadmeta.NodeAgent

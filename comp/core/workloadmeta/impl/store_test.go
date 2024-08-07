@@ -5,7 +5,7 @@
 
 //go:build test
 
-package workloadmeta
+package workloadmetaimpl
 
 import (
 	"reflect"

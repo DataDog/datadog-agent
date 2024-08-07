@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// go:build test
+//go:build test
 
 package npcollectorimpl
 
@@ -148,13 +148,13 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
             "ttl": 0,
             "ip_address": "1.1.1.1",
             "hostname": "hop_1",
-            "success": false
+            "reachable": false
         },
         {
             "ttl": 0,
             "ip_address": "1.1.1.2",
             "hostname": "hop_2",
-            "success": false
+            "reachable": false
         }
     ]
 }
@@ -180,13 +180,13 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
             "ttl": 0,
             "ip_address": "1.1.1.3",
             "hostname": "hop_1",
-            "success": false
+            "reachable": false
         },
         {
             "ttl": 0,
             "ip_address": "1.1.1.4",
             "hostname": "hop_2",
-            "success": false
+            "reachable": false
         }
     ]
 }
@@ -293,16 +293,18 @@ func Test_newNpCollectorImpl_defaultConfigs(t *testing.T) {
 	assert.Equal(t, 4, npCollector.workers)
 	assert.Equal(t, 1000, cap(npCollector.pathtestInputChan))
 	assert.Equal(t, 1000, cap(npCollector.pathtestProcessingChan))
+	assert.Equal(t, 10000, npCollector.collectorConfigs.pathtestContextsLimit)
 	assert.Equal(t, "default", npCollector.networkDevicesNamespace)
 }
 
 func Test_newNpCollectorImpl_overrideConfigs(t *testing.T) {
 	agentConfigs := map[string]any{
-		"network_path.connections_monitoring.enabled": true,
-		"network_path.collector.workers":              2,
-		"network_path.collector.input_chan_size":      300,
-		"network_path.collector.processing_chan_size": 400,
-		"network_devices.namespace":                   "ns1",
+		"network_path.connections_monitoring.enabled":    true,
+		"network_path.collector.workers":                 2,
+		"network_path.collector.input_chan_size":         300,
+		"network_path.collector.processing_chan_size":    400,
+		"network_path.collector.pathtest_contexts_limit": 500,
+		"network_devices.namespace":                      "ns1",
 	}
 
 	_, npCollector := newTestNpCollector(t, agentConfigs)
@@ -311,6 +313,7 @@ func Test_newNpCollectorImpl_overrideConfigs(t *testing.T) {
 	assert.Equal(t, 2, npCollector.workers)
 	assert.Equal(t, 300, cap(npCollector.pathtestInputChan))
 	assert.Equal(t, 400, cap(npCollector.pathtestProcessingChan))
+	assert.Equal(t, 500, npCollector.collectorConfigs.pathtestContextsLimit)
 	assert.Equal(t, "ns1", npCollector.networkDevicesNamespace)
 }
 

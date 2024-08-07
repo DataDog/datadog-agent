@@ -125,7 +125,7 @@ func TestSendAPMStats(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		var called int
-		srv, port := withHandler(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		srv, port := withHandler(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
 			require.Equal(t, req.URL.Path, "/v0.6/stats")
 			in := &pb.ClientStatsPayload{}
 			in.Reset()

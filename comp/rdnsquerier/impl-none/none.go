@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package rdnsquerierimplnone provides the noop rdnsquerier component
-package rdnsquerierimplnone
+// Package rdnsquerierimpl provides the noop rdnsquerier component
+package rdnsquerierimpl
 
 import (
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"

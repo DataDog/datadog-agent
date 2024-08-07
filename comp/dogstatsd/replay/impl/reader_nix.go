@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package replay
+package replayimpl
 
 import (
 	"os"

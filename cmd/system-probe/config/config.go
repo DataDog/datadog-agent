@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"runtime"
 	"strings"
 
@@ -41,14 +42,15 @@ const (
 	ComplianceModule             types.ModuleName = "compliance"
 	PingModule                   types.ModuleName = "ping"
 	TracerouteModule             types.ModuleName = "traceroute"
+	DiscoveryModule              types.ModuleName = "discovery"
 )
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
-func New(configPath string) (*types.Config, error) {
-	return newSysprobeConfig(configPath)
+func New(configPath string, fleetPoliciesDirPath string) (*types.Config, error) {
+	return newSysprobeConfig(configPath, fleetPoliciesDirPath)
 }
 
-func newSysprobeConfig(configPath string) (*types.Config, error) {
+func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.Config, error) {
 	aconfig.SystemProbe.SetConfigName("system-probe")
 	// set the paths where a config file is expected
 	if len(configPath) != 0 {
@@ -79,6 +81,15 @@ func newSysprobeConfig(configPath string) (*types.Config, error) {
 			return nil, fmt.Errorf("unable to load system-probe config file: %w", err)
 		}
 	}
+
+	// Load the remote configuration
+	if fleetPoliciesDirPath != "" {
+		err := aconfig.SystemProbe.MergeFleetPolicy(path.Join(fleetPoliciesDirPath, "system-probe.yaml"))
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return load()
 }
 
@@ -144,7 +155,9 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(tracerouteNS("enabled")) {
 		c.EnabledModules[TracerouteModule] = struct{}{}
 	}
-
+	if cfg.GetBool(discoveryNS("enabled")) {
+		c.EnabledModules[DiscoveryModule] = struct{}{}
+	}
 	if cfg.GetBool(wcdNS("enabled")) {
 		c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
 	}

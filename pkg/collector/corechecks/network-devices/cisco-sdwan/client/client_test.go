@@ -191,7 +191,7 @@ func TestGetDevicesCounters(t *testing.T) {
 func TestGetVEdgeInterfaces(t *testing.T) {
 	mux := setupCommonServerMux()
 
-	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, _ int32) {
 		query := r.URL.Query()
 		count := query.Get("count")
 
@@ -227,7 +227,7 @@ func TestGetVEdgeInterfaces(t *testing.T) {
 func TestGetCEdgeInterfaces(t *testing.T) {
 	mux := setupCommonServerMux()
 
-	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, _ int32) {
 		query := r.URL.Query()
 		count := query.Get("count")
 
@@ -264,7 +264,7 @@ func TestGetInterfacesMetrics(t *testing.T) {
 	timeNow = mockTimeNow
 	mux := setupCommonServerMux()
 
-	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, _ int32) {
 		query := r.URL.Query()
 		count := query.Get("count")
 		timeZone := query.Get("timeZone")
@@ -313,7 +313,7 @@ func TestGetDeviceHardwareMetrics(t *testing.T) {
 	timeNow = mockTimeNow
 	mux := setupCommonServerMux()
 
-	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, _ int32) {
 		query := r.URL.Query()
 		count := query.Get("count")
 		timeZone := query.Get("timeZone")
@@ -356,7 +356,7 @@ func TestGetApplicationAwareRoutingMetrics(t *testing.T) {
 	timeNow = mockTimeNow
 	mux := setupCommonServerMux()
 
-	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, _ int32) {
 		query := r.URL.Query()
 		count := query.Get("count")
 		timeZone := query.Get("timeZone")
@@ -401,7 +401,7 @@ func TestGetApplicationAwareRoutingMetrics(t *testing.T) {
 func TestGetControlConnectionsState(t *testing.T) {
 	mux := setupCommonServerMux()
 
-	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, _ int32) {
 		query := r.URL.Query()
 		count := query.Get("count")
 
@@ -437,7 +437,7 @@ func TestGetControlConnectionsState(t *testing.T) {
 func TestGetOMPPeersState(t *testing.T) {
 	mux := setupCommonServerMux()
 
-	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, _ int32) {
 		query := r.URL.Query()
 		count := query.Get("count")
 
@@ -472,7 +472,7 @@ func TestGetOMPPeersState(t *testing.T) {
 func TestGetBFDSessionsState(t *testing.T) {
 	mux := setupCommonServerMux()
 
-	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, _ int32) {
 		query := r.URL.Query()
 		count := query.Get("count")
 
@@ -507,7 +507,7 @@ func TestGetBFDSessionsState(t *testing.T) {
 func TestGetHardwareStates(t *testing.T) {
 	mux := setupCommonServerMux()
 
-	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, _ int32) {
 		query := r.URL.Query()
 		count := query.Get("count")
 
@@ -543,7 +543,7 @@ func TestGetCloudExpressMetrics(t *testing.T) {
 	timeNow = mockTimeNow
 	mux := setupCommonServerMux()
 
-	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, _ int32) {
 		query := r.URL.Query()
 		count := query.Get("count")
 		timeZone := query.Get("timeZone")
@@ -591,7 +591,7 @@ func TestGetCloudExpressMetrics(t *testing.T) {
 func TestGetBGPNeighbors(t *testing.T) {
 	mux := setupCommonServerMux()
 
-	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, _ int32) {
 		query := r.URL.Query()
 		count := query.Get("count")
 

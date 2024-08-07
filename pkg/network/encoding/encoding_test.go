@@ -805,7 +805,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 		},
 	}
 
-	encodeAndDecodeHTTP := func(c *network.Connections) *model.HTTPAggregations {
+	encodeAndDecodeHTTP := func(*network.Connections) *model.HTTPAggregations {
 		blobWriter := getBlobWriter(t, assert.New(t), in, "application/protobuf")
 
 		unmarshaler := unmarshal.GetUnmarshaler("application/protobuf")
@@ -871,7 +871,7 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 		},
 	}
 
-	encodeAndDecodeHTTP2 := func(c *network.Connections) *model.HTTP2Aggregations {
+	encodeAndDecodeHTTP2 := func(*network.Connections) *model.HTTP2Aggregations {
 		blobWriter := getBlobWriter(t, assert.New(t), in, "application/protobuf")
 
 		unmarshaler := unmarshal.GetUnmarshaler("application/protobuf")
@@ -984,7 +984,7 @@ func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
 		},
 		Kafka: map[kafka.Key]*kafka.RequestStats{
 			kafkaKey: {
-				ErrorCodeToStat: map[int32]*kafka.RequestStat{0: {Count: 10}},
+				ErrorCodeToStat: map[int32]*kafka.RequestStat{0: {Count: 10, FirstLatencySample: 5}},
 			},
 		},
 	}
@@ -998,7 +998,7 @@ func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
 				},
 				Topic: topicName,
 				StatsByErrorCode: map[int32]*model.KafkaStats{
-					0: {Count: 10},
+					0: {Count: 10, FirstLatencySample: 5},
 				},
 			},
 		},
