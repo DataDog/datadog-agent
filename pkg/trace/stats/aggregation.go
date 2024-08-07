@@ -75,7 +75,7 @@ func shouldCalculateStatsOnPeerTags(spanKind string) bool {
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
-func NewAggregationFromSpan(s *StatSpan, origin string, aggKey PayloadAggregationKey, peerTagKeys []string) Aggregation {
+func NewAggregationFromSpan(s *StatSpan, origin string, aggKey PayloadAggregationKey) Aggregation {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
 	var isTraceRoot pb.Trilean
 	if s.parentID == 0 {
@@ -96,19 +96,19 @@ func NewAggregationFromSpan(s *StatSpan, origin string, aggKey PayloadAggregatio
 			IsTraceRoot: isTraceRoot,
 		},
 	}
-	if len(peerTagKeys) > 0 && shouldCalculateStatsOnPeerTags(agg.SpanKind) {
+	if len(s.matchingPeerTags) > 0 && shouldCalculateStatsOnPeerTags(agg.SpanKind) {
 		agg.PeerTagsHash = peerTagsHash(s.matchingPeerTags)
 	}
 	return agg
 }
 
-func matchingPeerTags(s *pb.Span, peerTagKeys []string) []string {
+func matchingPeerTags(meta map[string]string, peerTagKeys []string) []string {
 	if len(peerTagKeys) == 0 {
 		return nil
 	}
 	var pt []string
 	for _, t := range peerTagKeys {
-		if v, ok := s.Meta[t]; ok && v != "" {
+		if v, ok := meta[t]; ok && v != "" {
 			pt = append(pt, t+":"+v)
 		}
 	}

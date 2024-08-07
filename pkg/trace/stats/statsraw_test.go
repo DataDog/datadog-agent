@@ -17,12 +17,12 @@ import (
 
 func TestGrain(t *testing.T) {
 	assert := assert.New(t)
-	s := pb.Span{Service: "thing", Name: "other", Resource: "yo"}
-	aggr, _ := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
+	s := StatSpan{service: "thing", name: "other", resource: "yo"}
+	aggr := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
 		Env:         "default",
 		Hostname:    "default",
 		ContainerID: "cid",
-	}, nil)
+	})
 	assert.Equal(Aggregation{
 		PayloadAggregationKey: PayloadAggregationKey{
 			Env:         "default",
@@ -41,17 +41,12 @@ func TestGrain(t *testing.T) {
 func TestGrainWithPeerTags(t *testing.T) {
 	t.Run("none present", func(t *testing.T) {
 		assert := assert.New(t)
-		s := pb.Span{
-			Service:  "thing",
-			Name:     "other",
-			Resource: "yo",
-			Meta:     map[string]string{"span.kind": "client"},
-		}
-		aggr, et := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
+		s := NewStatSpan("thing", "yo", "other", "", 0, 0, 0, 0, map[string]string{"span.kind": "client"}, nil, []string{"aws.s3.bucket", "db.instance", "db.system", "peer.service"})
+		aggr := NewAggregationFromSpan(s, "", PayloadAggregationKey{
 			Env:         "default",
 			Hostname:    "default",
 			ContainerID: "cid",
-		}, []string{"aws.s3.bucket", "db.instance", "db.system", "peer.service"})
+		})
 
 		assert.Equal(Aggregation{
 			PayloadAggregationKey: PayloadAggregationKey{
@@ -67,21 +62,17 @@ func TestGrainWithPeerTags(t *testing.T) {
 				IsTraceRoot: pb.Trilean_TRUE,
 			},
 		}, aggr)
-		assert.Nil(et)
 	})
 	t.Run("partially present", func(t *testing.T) {
 		assert := assert.New(t)
-		s := pb.Span{
-			Service:  "thing",
-			Name:     "other",
-			Resource: "yo",
-			Meta:     map[string]string{"span.kind": "client", "peer.service": "aws-s3", "aws.s3.bucket": "bucket-a"},
-		}
-		aggr, et := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
+		meta := map[string]string{"span.kind": "client", "peer.service": "aws-s3", "aws.s3.bucket": "bucket-a"}
+		s := NewStatSpan("thing", "yo", "other", "", 0, 0, 0, 0, meta, nil, []string{"aws.s3.bucket", "db.instance", "db.system", "peer.service"})
+
+		aggr := NewAggregationFromSpan(s, "", PayloadAggregationKey{
 			Env:         "default",
 			Hostname:    "default",
 			ContainerID: "cid",
-		}, []string{"aws.s3.bucket", "db.instance", "db.system", "peer.service"})
+		})
 
 		assert.Equal(Aggregation{
 			PayloadAggregationKey: PayloadAggregationKey{
@@ -98,21 +89,17 @@ func TestGrainWithPeerTags(t *testing.T) {
 				IsTraceRoot:  pb.Trilean_TRUE,
 			},
 		}, aggr)
-		assert.Equal([]string{"aws.s3.bucket:bucket-a", "peer.service:aws-s3"}, et)
 	})
 	t.Run("all present", func(t *testing.T) {
 		assert := assert.New(t)
-		s := pb.Span{
-			Service:  "thing",
-			Name:     "other",
-			Resource: "yo",
-			Meta:     map[string]string{"span.kind": "client", "peer.service": "aws-dynamodb", "db.instance": "dynamo.test.us1", "db.system": "dynamodb"},
-		}
-		aggr, et := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
+		meta := map[string]string{"span.kind": "client", "peer.service": "aws-dynamodb", "db.instance": "dynamo.test.us1", "db.system": "dynamodb"}
+		s := NewStatSpan("thing", "yo", "other", "", 0, 0, 0, 0, meta, nil, []string{"aws.s3.bucket", "db.instance", "db.system", "peer.service"})
+
+		aggr := NewAggregationFromSpan(s, "", PayloadAggregationKey{
 			Env:         "default",
 			Hostname:    "default",
 			ContainerID: "cid",
-		}, []string{"db.instance", "db.system", "peer.service"})
+		})
 
 		assert.Equal(Aggregation{
 			PayloadAggregationKey: PayloadAggregationKey{
@@ -129,19 +116,22 @@ func TestGrainWithPeerTags(t *testing.T) {
 				IsTraceRoot:  pb.Trilean_TRUE,
 			},
 		}, aggr)
-		assert.Equal([]string{"db.instance:dynamo.test.us1", "db.system:dynamodb", "peer.service:aws-dynamodb"}, et)
+		assert.Equal([]string{"db.instance:dynamo.test.us1", "db.system:dynamodb", "peer.service:aws-dynamodb"}, s.matchingPeerTags)
 	})
 }
 
 func TestGrainWithSynthetics(t *testing.T) {
 	assert := assert.New(t)
-	s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{tagStatusCode: "418"}}
-	aggr, _ := NewAggregationFromSpan(&s, "synthetics-browser", PayloadAggregationKey{
+	meta := map[string]string{tagStatusCode: "418"}
+	s := NewStatSpan("thing", "yo", "other", "", 0, 0, 0, 0, meta, nil, nil)
+
+	aggr := NewAggregationFromSpan(s, "synthetics-browser", PayloadAggregationKey{
 		Hostname:    "host-id",
 		Version:     "v0",
 		Env:         "default",
 		ContainerID: "cid",
-	}, nil)
+	})
+
 	assert.Equal(Aggregation{
 		PayloadAggregationKey: PayloadAggregationKey{
 			Hostname:    "host-id",
@@ -163,11 +153,15 @@ func TestGrainWithSynthetics(t *testing.T) {
 func BenchmarkHandleSpanRandom(b *testing.B) {
 	b.Run("no_peer_tags", func(b *testing.B) {
 		sb := NewRawBucket(0, 1e9)
+		var benchStatSpans []*StatSpan
+		for _, s := range benchSpans {
+			benchStatSpans = append(benchStatSpans, makeStatSpan(s, nil))
+		}
 		b.ResetTimer()
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
-			for _, span := range benchSpans {
-				sb.HandleSpan(span, 1, true, "", PayloadAggregationKey{"a", "b", "c", "d", "", ""}, nil)
+			for _, span := range benchStatSpans {
+				sb.HandleSpan(span, 1, "", PayloadAggregationKey{"a", "b", "c", "d", "", ""})
 			}
 		}
 	})
@@ -215,11 +209,15 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 	}
 	b.Run("peer_tags", func(b *testing.B) {
 		sb := NewRawBucket(0, 1e9)
+		var benchStatSpans []*StatSpan
+		for _, s := range benchSpans {
+			benchStatSpans = append(benchStatSpans, makeStatSpan(s, peerTags))
+		}
 		b.ResetTimer()
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
-			for _, span := range benchSpans {
-				sb.HandleSpan(span, 1, true, "", PayloadAggregationKey{"a", "b", "c", "d", "", ""}, peerTags)
+			for _, span := range benchStatSpans {
+				sb.HandleSpan(span, 1, "", PayloadAggregationKey{"a", "b", "c", "d", "", ""})
 			}
 		}
 	})

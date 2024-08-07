@@ -45,6 +45,7 @@ type Concentrator struct {
 	agentHostname string
 	agentVersion  string
 	statsd        statsd.ClientInterface
+	peerTagKeys   []string
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
@@ -53,7 +54,6 @@ func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, sta
 	sc := NewSpanConcentrator(&SpanConcentratorConfig{
 		ComputeStatsBySpanKind: conf.ComputeStatsBySpanKind,
 		BucketInterval:         bsize,
-		PeerTags:               conf.ConfiguredPeerTags(),
 	}, now)
 	c := Concentrator{
 		spanConcentrator: sc,
@@ -64,6 +64,7 @@ func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, sta
 		agentVersion:     conf.AgentVersion,
 		statsd:           statsd,
 		bsize:            bsize,
+		peerTagKeys:      conf.ConfiguredPeerTags(),
 	}
 	return &c
 }
@@ -168,7 +169,8 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string, 
 		ImageTag:     pt.ImageTag,
 	}
 	for _, s := range pt.TraceChunk.Spans {
-		c.spanConcentrator.addSpan(s, aggKey, containerID, containerTags, pt.TraceChunk.Origin, weight)
+		statSpan := NewStatSpan(s.Service, s.Resource, s.Name, s.Type, s.ParentID, s.Start, s.Duration, s.Error, s.Meta, s.Metrics, c.peerTagKeys)
+		c.spanConcentrator.addSpan(statSpan, aggKey, containerID, containerTags, pt.TraceChunk.Origin, weight)
 	}
 }
 

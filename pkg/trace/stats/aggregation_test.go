@@ -13,6 +13,10 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 )
 
+func makeStatSpan(s *pb.Span, peerTags []string) *StatSpan {
+	return NewStatSpan(s.Service, s.Resource, s.Name, s.Type, s.ParentID, s.Start, s.Duration, s.Error, s.Meta, s.Metrics, peerTags)
+}
+
 func TestGetStatusCode(t *testing.T) {
 	for _, tt := range []struct {
 		in  *pb.Span
@@ -48,7 +52,7 @@ func TestGetStatusCode(t *testing.T) {
 			0,
 		},
 	} {
-		if got := getStatusCode(tt.in); got != tt.out {
+		if got := getStatusCode(tt.in.Meta, tt.in.Metrics); got != tt.out {
 			t.Fatalf("Expected %d, got %d", tt.out, got)
 		}
 	}
@@ -159,11 +163,11 @@ func TestNewAggregation(t *testing.T) {
 			[]string{"peer.service:remote-service"},
 		},
 	} {
-		agg, et := NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, tt.peerTags)
+		statSpan := makeStatSpan(tt.in, tt.peerTags)
+		agg := NewAggregationFromSpan(statSpan, "", PayloadAggregationKey{})
 		assert.Equal(t, tt.resAgg.Service, agg.Service, tt.name)
 		assert.Equal(t, tt.resAgg.SpanKind, agg.SpanKind, tt.name)
 		assert.Equal(t, tt.resAgg.PeerTagsHash, agg.PeerTagsHash, tt.name)
-		assert.Equal(t, tt.resPeerTags, et, tt.name)
 	}
 }
 
@@ -210,7 +214,7 @@ func TestIsRootSpan(t *testing.T) {
 			pb.Trilean_FALSE,
 		},
 	} {
-		agg, _ := NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, []string{})
+		agg := NewAggregationFromSpan(makeStatSpan(tt.in, nil), "", PayloadAggregationKey{})
 		assert.Equal(t, tt.isTraceRoot, agg.IsTraceRoot)
 	}
 }

@@ -114,7 +114,7 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 			Hostname:       "hostname",
 		}
 		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-		assert.Nil(c.spanConcentrator.peerTagKeys)
+		assert.Nil(c.peerTagKeys)
 	})
 	t.Run("with peer tags", func(t *testing.T) {
 		assert := assert.New(t)
@@ -127,7 +127,7 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 			PeerTags:            []string{"zz_tag"},
 		}
 		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-		assert.Equal(cfg.ConfiguredPeerTags(), c.spanConcentrator.peerTagKeys)
+		assert.Equal(cfg.ConfiguredPeerTags(), c.peerTagKeys)
 	})
 }
 
@@ -743,7 +743,7 @@ func TestPeerTags(t *testing.T) {
 		traceutil.ComputeTopLevel(spans)
 		testTrace := toProcessedTrace(spans, "none", "", "", "", "")
 		c := NewTestConcentrator(now)
-		c.spanConcentrator.peerTagKeys = []string{"db.instance", "db.system", "peer.service"}
+		c.peerTagKeys = []string{"db.instance", "db.system", "peer.service"}
 		c.addNow(testTrace, "", nil)
 		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
 		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
@@ -882,80 +882,80 @@ func TestComputeStatsForSpanKind(t *testing.T) {
 	assert := assert.New(t)
 
 	type testCase struct {
-		s   *pb.Span
-		res bool
+		kind string
+		res  bool
 	}
 
 	for _, tc := range []testCase{
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "server"}},
+			"server",
 			true,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "consumer"}},
+			"consumer",
 			true,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "client"}},
+			"client",
 			true,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "producer"}},
+			"producer",
 			true,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "internal"}},
+			"internal",
 			false,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "SERVER"}},
+			"SERVER",
 			true,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "CONSUMER"}},
+			"CONSUMER",
 			true,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "CLIENT"}},
+			"CLIENT",
 			true,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "PRODUCER"}},
+			"PRODUCER",
 			true,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "INTERNAL"}},
+			"INTERNAL",
 			false,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "SErVER"}},
+			"SErVER",
 			true,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "COnSUMER"}},
+			"COnSUMER",
 			true,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "CLiENT"}},
+			"CLiENT",
 			true,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "PRoDUCER"}},
+			"PRoDUCER",
 			true,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": "INtERNAL"}},
+			"INtERNAL",
 			false,
 		},
 		{
-			&pb.Span{Meta: map[string]string{"span.kind": ""}},
+			"",
 			false,
 		},
 		{
-			&pb.Span{Meta: map[string]string{}},
+			"",
 			false,
 		},
 	} {
-		assert.Equal(tc.res, computeStatsForSpanKind(tc.s))
+		assert.Equal(tc.res, computeStatsForSpanKind(tc.kind))
 	}
 }
