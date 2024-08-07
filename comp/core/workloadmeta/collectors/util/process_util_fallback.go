@@ -5,20 +5,11 @@
 
 //go:build !linux
 
-// Package process implements the local process collector for Workloadmeta.
-package process
-
-import (
-	"go.uber.org/fx"
-)
-
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return nil
-}
+package util
 
 // LocalProcessCollectorIsEnabled returns whether the local process collector is enabled
-// based on agent flavor and config values. Always returns false outside of Linux.
+// based on agent flavor and config values. This prevents any conflict between the collectors
+// and unnecessary data collection. Always returns false outside of linux.
 func LocalProcessCollectorIsEnabled() bool {
 	return false
 }

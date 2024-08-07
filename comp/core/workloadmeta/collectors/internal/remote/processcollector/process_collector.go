@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/grpclog"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -148,9 +149,9 @@ func (s *streamHandler) IsEnabled() bool {
 		return false
 	}
 
-	processChecksInCoreAgent := config.Datadog().GetBool("process_config.run_in_core_agent.enabled")
+	localCollectorEnabled := util.LocalProcessCollectorIsEnabled()
 
-	return s.Reader.GetBool("language_detection.enabled") && !processChecksInCoreAgent
+	return s.Reader.GetBool("language_detection.enabled") && !localCollectorEnabled
 }
 
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient {

@@ -21,14 +21,12 @@ func (s *languageDetectionSuite) installPython() {
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionCoreAgent() {
-	s.T().Skip("Skipping test as this feature is not currently usable")
 	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(coreConfigStr))))
 	s.runPython()
 	s.checkDetectedLanguage("python3", "python", "local_process_collector")
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionCoreAgentNoCheck() {
-	s.T().Skip("Skipping test as this feature is not currently usable")
 	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(coreConfigNoCheckStr))))
 	s.runPython()
 	s.checkDetectedLanguage("python3", "python", "local_process_collector")
