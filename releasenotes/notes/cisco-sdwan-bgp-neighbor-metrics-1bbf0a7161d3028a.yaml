@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    [NDM] Add option to collect BGP neighbors metrics from Cisco SD-WAN.
+    [NDM] Adds the option to collect BGP neighbors metrics from Cisco SD-WAN.
