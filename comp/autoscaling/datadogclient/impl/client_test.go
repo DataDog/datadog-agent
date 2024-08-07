@@ -107,6 +107,6 @@ func TestExternalMetricsProviderEndpointAndRefresh(t *testing.T) {
 	cfg.Set("external_metrics_provider.enabled", false, pkgconfigmodel.SourceLocalConfigProcess)
 	noopProvides, err := NewComponent(Requires{Config: cfg, Log: logger})
 	assert.NoError(t, err)
-	_, ok = noopProvides.Comp.(*DatadogclientImplNone)
+	_, ok = noopProvides.Comp.(*ImplNone)
 	assert.True(t, ok)
 }

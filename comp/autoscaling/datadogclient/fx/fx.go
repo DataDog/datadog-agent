@@ -21,7 +21,7 @@ func Module() fxutil.Module {
 			datadogclientimpl.NewComponent,
 		),
 		fx.Provide(func(c datadogclient.Component) optional.Option[datadogclient.Component] {
-			if _, ok := c.(*datadogclientimpl.DatadogclientImplNone); ok {
+			if _, ok := c.(*datadogclientimpl.ImplNone); ok {
 				return optional.NewNoneOption[datadogclient.Component]()
 			}
 			return optional.NewOption[datadogclient.Component](c)
