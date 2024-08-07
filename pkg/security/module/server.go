@@ -82,8 +82,8 @@ func (p *pendingMsg) ToJSON() ([]byte, bool, error) {
 		return nil, false, err
 	}
 
-	data := append(p.eventJSON[:len(p.eventJSON)-1], ',')
-	data = append(data, backendEventJSON[1:]...)
+	data := append(backendEventJSON[:len(backendEventJSON)-1], ',')
+	data = append(data, p.eventJSON[1:]...)
 
 	return data, fullyResolved, nil
 }
