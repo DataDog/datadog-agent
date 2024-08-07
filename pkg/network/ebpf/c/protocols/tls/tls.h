@@ -89,14 +89,17 @@ static __always_inline bool is_tls_handshake(tls_hello_message_t *msg) {
 // - TLS Handshake record headers
 // - TLS Application Data record headers
 static __always_inline bool is_tls(const char *buf, __u32 buf_size, __u32 skb_len) {
-    if (buf_size < (sizeof(tls_record_header_t) + sizeof(tls_hello_message_t))) {
+    if (buf_size < sizeof(tls_record_header_t)) {
         return false;
     }
 
     tls_record_header_t *tls_record_header = (tls_record_header_t *)buf;
     switch (tls_record_header->content_type) {
     case TLS_HANDSHAKE:
-        return is_tls_handshake((tls_hello_message_t *)(buf + sizeof(tls_record_header_t)));
+        if (buf_size < sizeof(tls_record_header_t) + sizeof(tls_hello_message_t)) {
+            return false;
+        }
+        return is_tls_handshake((tls_hello_message_t *)(buf + sizeof(tls_record_header_t)), buf_size);
     case TLS_APPLICATION_DATA:
         return is_valid_tls_app_data(tls_record_header, buf_size, skb_len);
     }
