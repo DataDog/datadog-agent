@@ -637,6 +637,9 @@ func parseSymbolFromEBPFProbeName(probeName string) (symbol string, isManualRetu
 	return
 }
 
+// attachToBinary attaches the probes to the given binary. Important: it does not perform any cleanup on failure.
+// This is to match the behavior of the FileRegistry, which will call the deactivation callback on failure of the registration
+// callback.
 func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*AttachRule, procInfo *ProcInfo) error {
 	if ua.config.ExcludeTargets&ExcludeBuildkit != 0 && isBuildKit(procInfo) {
 		return fmt.Errorf("process %d is buildkitd, skipping", fpath.PID)
@@ -712,7 +715,6 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 					}
 					err = ua.manager.AddHook("", newProbe)
 					if err != nil {
-						ua.inspector.Cleanup(fpath)
 						return fmt.Errorf("error attaching probe %+v: %w", newProbe, err)
 					}
 
@@ -737,7 +739,6 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 			manager, ok := ua.manager.(*manager.Manager)
 			if ok {
 				if err := selector.RunValidator(manager); err != nil {
-					ua.inspector.Cleanup(fpath)
 					return fmt.Errorf("error validating probes: %w", err)
 				}
 			}
