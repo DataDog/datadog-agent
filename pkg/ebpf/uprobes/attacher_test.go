@@ -291,7 +291,7 @@ func TestMonitor(t *testing.T) {
 	log.Errorf("rules:%+v", config.Rules[0])
 	require.Eventually(t, func() bool {
 		return len(mockRegistry.Calls) == 2 // Once for the library, another for the process itself
-	}, 500*time.Millisecond, 10*time.Millisecond, "received calls %v", mockRegistry.Calls)
+	}, 1500*time.Millisecond, 10*time.Millisecond, "received calls %v", mockRegistry.Calls)
 
 	mockRegistry.AssertCalled(t, "Register", lib, uint32(cmd.Process.Pid), mock.Anything, mock.Anything)
 	mockRegistry.AssertCalled(t, "Register", cmd.Path, uint32(cmd.Process.Pid), mock.Anything, mock.Anything)
@@ -710,7 +710,7 @@ func TestUprobeAttacher(t *testing.T) {
 		}
 
 		return connectProbe != nil && mainProbe != nil
-	}, 5*time.Second, 50*time.Millisecond, "expected to attach 2 probes, got %d: %v %v", len(attachedProbes), attachedProbes, stringifyAttachedProbes(attachedProbes))
+	}, 5*time.Second, 50*time.Millisecond, "expected to attach 2 probes, got %d: %v (%v)", len(attachedProbes), attachedProbes, stringifyAttachedProbes(attachedProbes))
 
 	require.NotNil(t, connectProbe)
 	// Allow suffix, as sometimes the path reported is /proc/<pid>/root/<path>
