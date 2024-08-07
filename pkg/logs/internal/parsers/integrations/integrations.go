@@ -59,7 +59,7 @@ func (p *integrationFileFormat) Parse(msg *message.Message) (*message.Message, e
 	// append ddtags to message origin tags
 	// set content to modifiedJSON
 	if len(ddtagsSlice) > 0 {
-		msg.Origin.SetTags(ddtagsSlice)
+		msg.SetTags(ddtagsSlice)
 	}
 	msg.SetContent(modifiedJSON)
 

@@ -91,6 +91,7 @@ type MessageContent struct { //nolint:revive
 	// structured content
 	structuredContent StructuredContent
 	State             MessageContentState
+	Tags              []string
 }
 
 // MessageContentState is used to represent the MessageContent state.
@@ -106,6 +107,16 @@ const (
 	// StateEncoded means the MessageContent passed through the encoder (e.g. json encoder, proto encoder, ...)
 	StateEncoded
 )
+
+// SetTags sets the tags for the message content
+func (m *MessageContent) SetTags(tags []string) {
+	m.Tags = tags
+}
+
+// GetTags returns the tags set in the log
+func (m *MessageContent) GetTags() []string {
+	return m.Tags
+}
 
 // GetContent returns the bytes array containing only the message content
 // E.g. from a structured log:
