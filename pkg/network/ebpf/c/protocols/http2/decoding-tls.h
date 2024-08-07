@@ -132,6 +132,7 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
     pktbuf_t pkt = pktbuf_from_tls(ctx, &dispatcher_args_copy);
 
     eos_parser(pkt, &dispatcher_args_copy, &dispatcher_args_copy.tup);
+    http2_batch_flush(ctx);
 
     return 0;
 }
@@ -150,6 +151,7 @@ int uprobe__http2_tls_termination(struct pt_regs *ctx) {
     bpf_map_delete_elem(&tls_http2_iterations, &args->tup);
 
     terminated_http2_batch_enqueue(&args->tup);
+    terminated_http2_batch_flush(ctx);
     // Deleting the entry for the original tuple.
     bpf_map_delete_elem(&http2_remainder, &args->tup);
     bpf_map_delete_elem(&http2_dynamic_counter_table, &args->tup);
