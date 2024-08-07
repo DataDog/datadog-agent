@@ -119,7 +119,12 @@ func (p *GoTLSBinaryInspector) removeInspectionResultFromMap(binID utils.PathIde
 		Ino:      binID.Inode,
 	}
 	if err := p.offsetsDataMap.Delete(unsafe.Pointer(key)); err != nil {
-		log.Errorf("could not remove inspection result from map for ino %v: %s", binID, err)
+		// Ignore errors for non-existing keys: if the inspect process fails, we won't have added the key to the map
+		// but the deactivation callback (which calls Cleanup and thus this method) will still be called. So it's normal
+		// to not find the key in the map. We report other errors though.
+		if !errors.Is(err, unix.ENOENT) {
+			log.Errorf("could not remove binary inspection result from map for binID %v: %v", binID, err)
+		}
 	}
 }
 
