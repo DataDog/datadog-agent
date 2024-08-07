@@ -160,15 +160,16 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 		return "", err
 	}
 
+	msg := fmt.Sprintf("Flare creation time: %s", time.Now().Format(time.RFC3339))
 	if fb.IsLocal() {
 		// If we have a ipcError we failed to reach the agent process, else the user requested a local flare
 		// from the CLI.
-		msg := []byte(fmt.Sprintf("local flare was requested\nFlare creation time: %s", time.Now().Format(time.RFC3339)))
+		msg = fmt.Sprintf("%s\nlocal flare was requested", msg)
 		if ipcError != nil {
-			msg = []byte(fmt.Sprintf("unable to contact the agent to retrieve flare: %s", ipcError))
+			msg = fmt.Sprintf("%s\nunable to contact the agent to retrieve flare: %s", msg, ipcError)
 		}
-		fb.AddFile("local", msg) //nolint:errcheck
 	}
+	fb.AddFile("local", []byte(msg)) //nolint:errcheck
 
 	for name, data := range pdata {
 		fb.AddFileWithoutScrubbing(filepath.Join("profiles", name), data) //nolint:errcheck
