@@ -16,24 +16,15 @@ import (
 )
 
 type commandRunner interface {
-	run() ([]byte, error)
+	runWithError() error
 }
 
 type realCmd struct {
 	*exec.Cmd
 }
 
-func (r *realCmd) run() ([]byte, error) {
-	return r.Cmd.CombinedOutput()
-}
-
-func newCommandRunner(ctx context.Context, name string, args ...string) commandRunner {
-	cmd := exec.CommandContext(ctx, name, args...)
-	return &realCmd{Cmd: cmd}
-}
-
-func runCommand(cmdR commandRunner) error {
-	output, err := cmdR.run()
+func (r *realCmd) runWithError() error {
+	output, err := r.Cmd.CombinedOutput()
 	if err == nil {
 		return nil
 	}
@@ -43,4 +34,9 @@ func runCommand(cmdR commandRunner) error {
 	}
 
 	return fmt.Errorf("command failed: %s \n%s", strings.TrimSpace(string(output)), err.Error())
+}
+
+func newCommandRunner(ctx context.Context, name string, args ...string) commandRunner {
+	cmd := exec.CommandContext(ctx, name, args...)
+	return &realCmd{Cmd: cmd}
 }

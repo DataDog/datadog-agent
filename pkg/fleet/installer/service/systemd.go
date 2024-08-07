@@ -36,7 +36,7 @@ func startUnit(ctx context.Context, unit string, args ...string) error {
 	defer span.Finish()
 	span.SetTag("unit", unit)
 	args = append([]string{"start", unit}, args...)
-	return runCommand(newCommandRunner(ctx, "systemctl", args...))
+	return newCommandRunner(ctx, "systemctl", args...).runWithError()
 }
 
 func enableUnit(ctx context.Context, unit string) error {
