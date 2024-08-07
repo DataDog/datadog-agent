@@ -142,7 +142,7 @@ func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) 
 		// discarder discovery.
 		// ex: open.file.name != "" && process.auid == 1000 # this rule avoid open.file.path discarder discovery, but with a ApproverOnly on process.auid the problem disappear
 		//     open.file.filename == "/etc/passwd"
-		if bestFilterMode == ApproverOnly {
+		if bestFilterMode == ApproverOnlyMode {
 			rule.NoDiscarder = true
 		}
 

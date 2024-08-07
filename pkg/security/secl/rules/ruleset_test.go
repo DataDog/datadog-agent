@@ -631,7 +631,7 @@ func TestRuleSetApprovers16(t *testing.T) {
 		{
 			Field:       "process.auid",
 			TypeBitmask: eval.ScalarValueType,
-			FilterMode:  ApproverOnly,
+			FilterMode:  ApproverOnlyMode,
 		},
 	}
 

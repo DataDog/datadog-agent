@@ -134,7 +134,7 @@ func Test_checkPoliciesLoaded(t *testing.T) {
 						"Field": "open.file.path",
 						"Value": "/etc/gshadow",
 						"Type": "scalar",
-						"Mode:" 0
+						"Mode": 0
 					},
 					{
 						"Field": "open.file.path",

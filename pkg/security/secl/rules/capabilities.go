@@ -15,9 +15,9 @@ type FilterMode int
 
 const (
 	// NormalMode enabled approver and discarder
-	Normal FilterMode = iota
-	// ApproverOnly not used to generate a discarder
-	ApproverOnly
+	NormalMode FilterMode = iota
+	// ApproverOnlyMode not used to generate a discarder
+	ApproverOnlyMode
 )
 
 // FieldCapabilities holds a list of field capabilities
