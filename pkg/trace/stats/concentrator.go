@@ -169,7 +169,7 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string, 
 		ImageTag:     pt.ImageTag,
 	}
 	for _, s := range pt.TraceChunk.Spans {
-		statSpan := NewStatSpan(s.Service, s.Resource, s.Name, s.Type, s.ParentID, s.Start, s.Duration, s.Error, s.Meta, s.Metrics, c.peerTagKeys)
+		statSpan := NewStatSpanFromPB(s, c.peerTagKeys)
 		c.spanConcentrator.addSpan(statSpan, aggKey, containerID, containerTags, pt.TraceChunk.Origin, weight)
 	}
 }
