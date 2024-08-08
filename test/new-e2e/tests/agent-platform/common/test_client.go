@@ -178,7 +178,7 @@ func (c *TestClient) GetAgentVersion() (string, error) {
 
 // ExecuteWithRetry execute the command with retry
 func (c *TestClient) ExecuteWithRetry(cmd string) (string, error) {
-	return execWithRetry(func() (string, error) { return c.Host.Execute(cmd) })
+	return execWithRetry(func(cmd string) (string, error) { return c.Host.Execute(cmd) }, cmd)
 }
 
 // NewWindowsTestClient create a TestClient for Windows VM
@@ -312,7 +312,7 @@ func (c *DockerTestClient) Execute(command string) (output string, err error) {
 
 // ExecuteWithRetry execute the command with retry
 func (c *DockerTestClient) ExecuteWithRetry(cmd string) (output string, err error) {
-	return execWithRetry(func() (string, error) { return c.Execute(cmd) })
+	return execWithRetry(c.Execute, cmd)
 }
 
 // InstallWithInstallScript tries to run the install script on the docker host.
@@ -354,15 +354,17 @@ func (c *DockerTestClient) InstallWithInstallScript(t *testing.T) {
 	})
 }
 
-func execWithRetry(exec func() (string, error)) (string, error) {
+func execWithRetry(exec func(string) (string, error), cmd string) (string, error) {
 	var err error
 	var output string
+	maxTries := 5
 
-	for try := 0; try < 5; try++ {
-		output, err = exec()
+	for try := 0; try < maxTries; try++ {
+		output, err = exec(cmd)
 		if err == nil {
 			break
 		}
+		fmt.Printf("(attempt %d of %d) error while executing %q: %v\n", try+1, maxTries, cmd, err)
 		time.Sleep(time.Duration(math.Pow(2, float64(try))) * time.Second)
 	}
 
