@@ -176,24 +176,26 @@ func TestNewAggregation(t *testing.T) {
 	}
 }
 
-func TestSpanKindIsConsumerOrProducer(t *testing.T) {
+func TestPeerTagsToAggregateForSpan(t *testing.T) {
+	allPeerTags := []string{"server.addres", "_dd.base_service"}
 	type testCase struct {
-		input string
-		res   bool
+		input       string
+		peerTagKeys []string
 	}
 	for _, tc := range []testCase{
-		{"client", true},
-		{"producer", true},
-		{"CLIENT", true},
-		{"PRODUCER", true},
-		{"cLient", true},
-		{"pRoducer", true},
-		{"server", false},
-		{"consumer", true},
-		{"internal", false},
-		{"", false},
+		{"client", allPeerTags},
+		{"producer", allPeerTags},
+		{"CLIENT", allPeerTags},
+		{"PRODUCER", allPeerTags},
+		{"cLient", allPeerTags},
+		{"pRoducer", allPeerTags},
+		{"server", nil},
+		{"consumer", allPeerTags},
+		{"internal", nil},
+		{"", nil},
 	} {
-		assert.Equal(t, tc.res, shouldCalculateStatsOnPeerTags(tc.input))
+
+		assert.Equal(t, tc.peerTagKeys, peerTagKeysToAggregateForSpan(tc.input, "", allPeerTags))
 	}
 }
 

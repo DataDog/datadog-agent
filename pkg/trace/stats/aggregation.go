@@ -17,9 +17,10 @@ import (
 )
 
 const (
-	tagStatusCode = "http.status_code"
-	tagSynthetics = "synthetics"
-	tagSpanKind   = "span.kind"
+	tagStatusCode  = "http.status_code"
+	tagSynthetics  = "synthetics"
+	tagSpanKind    = "span.kind"
+	tagBaseService = "_dd.base_service"
 )
 
 // Aggregation contains all the dimension on which we aggregate statistics.
@@ -69,11 +70,6 @@ func getStatusCode(meta map[string]string, metrics map[string]float64) uint32 {
 	return uint32(c)
 }
 
-func shouldCalculateStatsOnPeerTags(spanKind string) bool {
-	sk := strings.ToLower(spanKind)
-	return sk == "client" || sk == "producer" || sk == "consumer"
-}
-
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
 func NewAggregationFromSpan(s *StatSpan, origin string, aggKey PayloadAggregationKey) Aggregation {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
@@ -86,18 +82,16 @@ func NewAggregationFromSpan(s *StatSpan, origin string, aggKey PayloadAggregatio
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:    s.resource,
-			Service:     s.service,
-			Name:        s.name,
-			SpanKind:    s.spanKind,
-			Type:        s.typ,
-			StatusCode:  s.statusCode,
-			Synthetics:  synthetics,
-			IsTraceRoot: isTraceRoot,
+			Resource:     s.resource,
+			Service:      s.service,
+			Name:         s.name,
+			SpanKind:     s.spanKind,
+			Type:         s.typ,
+			StatusCode:   s.statusCode,
+			Synthetics:   synthetics,
+			IsTraceRoot:  isTraceRoot,
+			PeerTagsHash: peerTagsHash(s.matchingPeerTags),
 		},
-	}
-	if len(s.matchingPeerTags) > 0 && shouldCalculateStatsOnPeerTags(agg.SpanKind) {
-		agg.PeerTagsHash = peerTagsHash(s.matchingPeerTags)
 	}
 	return agg
 }

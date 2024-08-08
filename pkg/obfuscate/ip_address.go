@@ -39,6 +39,8 @@ var allowedIPAddresses = map[string]bool{
 	// link-local cloud provider metadata server addresses
 	"169.254.169.254": true,
 	"fd00:ec2::254":   true,
+	// ECS task metadata
+	"169.254.170.2": true,
 }
 
 func splitPrefix(raw string) (prefix, after string) {

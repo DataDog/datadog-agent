@@ -59,6 +59,15 @@ var (
 			Starttime: procLaunchedClicks,
 		},
 	}
+	procPythonService = testProc{
+		pid:     500,
+		cmdline: []string{"python"},
+		env:     []string{},
+		cwd:     "",
+		stat: procfs.ProcStat{
+			Starttime: procLaunchedClicks,
+		},
+	}
 	procIgnoreService1 = testProc{
 		pid:     100,
 		cmdline: []string{"ignore-1"},
@@ -108,6 +117,11 @@ var (
 		PID:   procIgnoreService1.pid,
 		Name:  "ignore-1",
 		Ports: []uint16{8081},
+	}
+	portTCP5000 = model.Service{
+		PID:   procPythonService.pid,
+		Name:  "python-service",
+		Ports: []uint16{5000},
 	}
 	portTCP5432 = model.Service{
 		PID:   procTestService1Repeat.pid,
@@ -184,9 +198,11 @@ func Test_linuxImpl(t *testing.T) {
 						procSSHD,
 						procIgnoreService1,
 						procTestService1,
+						procPythonService,
 					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
+						portTCP5000,
 						portTCP8080,
 						portTCP8081,
 					}},
@@ -197,9 +213,11 @@ func Test_linuxImpl(t *testing.T) {
 						procSSHD,
 						procIgnoreService1,
 						procTestService1,
+						procPythonService,
 					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
+						portTCP5000,
 						portTCP8080,
 						portTCP8081,
 					}},
@@ -210,9 +228,11 @@ func Test_linuxImpl(t *testing.T) {
 						procSSHD,
 						procIgnoreService1,
 						procTestService1,
+						procPythonService,
 					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
+						portTCP5000,
 						portTCP8080,
 						portTCP8081,
 					}},
@@ -221,9 +241,11 @@ func Test_linuxImpl(t *testing.T) {
 				{
 					aliveProcs: []testProc{
 						procSSHD,
+						procPythonService,
 					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
+						portTCP5000,
 					}},
 					time: calcTime(21 * time.Minute),
 				},
@@ -235,6 +257,7 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -249,6 +272,7 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -263,12 +287,45 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(20 * time.Minute).Unix(),
 						Ports:               []uint16{8080},
 						PID:                 99,
+					},
+				},
+				{
+					RequestType: "start-service",
+					APIVersion:  "v2",
+					Payload: &eventPayload{
+						NamingSchemaVersion: "1",
+						ServiceName:         "python-service",
+						ServiceType:         "web_service",
+						HostName:            host,
+						Env:                 "",
+						StartTime:           calcTime(0).Unix(),
+						LastSeen:            calcTime(1 * time.Minute).Unix(),
+						Ports:               []uint16{5000},
+						PID:                 500,
+						ServiceLanguage:     "python",
+					},
+				},
+				{
+					RequestType: "heartbeat-service",
+					APIVersion:  "v2",
+					Payload: &eventPayload{
+						NamingSchemaVersion: "1",
+						ServiceName:         "python-service",
+						ServiceType:         "web_service",
+						HostName:            host,
+						Env:                 "",
+						StartTime:           calcTime(0).Unix(),
+						LastSeen:            calcTime(20 * time.Minute).Unix(),
+						Ports:               []uint16{5000},
+						PID:                 500,
+						ServiceLanguage:     "python",
 					},
 				},
 			},
@@ -340,6 +397,7 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "db",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -354,6 +412,7 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -368,6 +427,7 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "db",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -382,6 +442,7 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "db",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -396,6 +457,7 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -467,6 +529,7 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -481,6 +544,7 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),

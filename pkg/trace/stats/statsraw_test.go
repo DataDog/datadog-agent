@@ -64,6 +64,19 @@ func TestGrainWithPeerTags(t *testing.T) {
 			},
 		}, aggr)
 	})
+	t.Run("service override", func(t *testing.T) {
+		for _, spanKind := range []string{"client", "internal"} {
+			t.Run(spanKind, func(t *testing.T) {
+				assert := assert.New(t)
+				s, _ := sc.NewStatSpan("thing", "yo", "other", "", 0, 0, 0, 0, map[string]string{"span.kind": spanKind, "_dd.base_service": "the-real-base", "server.address": "foo"}, map[string]float64{measuredKey: 1}, []string{"_dd.base_service", "server.address"})
+				if spanKind == "client" {
+					assert.Equal([]string{"_dd.base_service:the-real-base", "server.address:foo"}, s.matchingPeerTags)
+				} else {
+					assert.Equal([]string{"_dd.base_service:the-real-base"}, s.matchingPeerTags)
+				}
+			})
+		}
+	})
 	t.Run("partially present", func(t *testing.T) {
 		assert := assert.New(t)
 		meta := map[string]string{"span.kind": "client", "peer.service": "aws-s3", "aws.s3.bucket": "bucket-a"}

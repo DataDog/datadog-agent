@@ -102,7 +102,7 @@ func (wcr *WinCrashReporter) CheckForCrash() (*probe.WinCrashStatus, error) {
 		return nil, nil
 	}
 	sysProbeUtil, err := process_net.GetRemoteSystemProbeUtil(
-		dd_config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
+		dd_config.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 	if err != nil {
 		return nil, wcr.handleStartupError(err)
 	}

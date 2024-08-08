@@ -56,13 +56,32 @@ func matchingPeerTags(meta map[string]string, peerTagKeys []string) []string {
 		return nil
 	}
 	var pt []string
-	for _, t := range peerTagKeys {
+	for _, t := range peerTagKeysToAggregateForSpan(meta[tagSpanKind], meta[tagBaseService], peerTagKeys) {
 		if v, ok := meta[t]; ok && v != "" {
 			v = obfuscate.QuantizePeerIPAddresses(v)
 			pt = append(pt, t+":"+v)
 		}
 	}
 	return pt
+}
+
+// peerTagKeysToAggregateForSpan returns the set of peerTagKeys to use for stats aggregation for the given
+// span.kind and _dd.base_service
+func peerTagKeysToAggregateForSpan(spanKind string, baseService string, peerTagKeys []string) []string {
+	if len(peerTagKeys) == 0 {
+		return nil
+	}
+	spanKind = strings.ToLower(spanKind)
+	if (spanKind == "" || spanKind == "internal") && baseService != "" {
+		// it's a service override on an internal span so it comes from custom instrumentation and does not represent
+		// a client|producer|consumer span which is talking to a peer entity
+		// in this case only the base service tag is relevant for stats aggregation
+		return []string{tagBaseService}
+	}
+	if spanKind == "client" || spanKind == "producer" || spanKind == "consumer" {
+		return peerTagKeys
+	}
+	return nil
 }
 
 // SpanConcentrator produces time bucketed statistics from a stream of raw spans.

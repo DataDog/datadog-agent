@@ -248,8 +248,8 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 		agentCollectors["trace"] = serviceProfileCollector(tcpGet("apm_config.debug.port"), traceCpusec)
 	}
 
-	if pkgconfig.SystemProbe.GetBool("system_probe_config.enabled") {
-		probeUtil, probeUtilErr := net.GetRemoteSystemProbeUtil(pkgconfig.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
+	if pkgconfig.SystemProbe().GetBool("system_probe_config.enabled") {
+		probeUtil, probeUtilErr := net.GetRemoteSystemProbeUtil(pkgconfig.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 
 		if !errors.Is(probeUtilErr, net.ErrNotImplemented) {
 			sysProbeGet := func() pprofGetter {

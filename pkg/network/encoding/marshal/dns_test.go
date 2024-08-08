@@ -50,8 +50,8 @@ func TestFormatConnectionDNS(t *testing.T) {
 	}
 
 	t.Run("DNS with collect_domains_enabled=true,enable_dns_by_querytype=false", func(t *testing.T) {
-		config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", true)
-		config.SystemProbe.SetWithoutSource("network_config.enable_dns_by_querytype", false)
+		config.SystemProbe().SetWithoutSource("system_probe_config.collect_dns_domains", true)
+		config.SystemProbe().SetWithoutSource("network_config.enable_dns_by_querytype", false)
 
 		ipc := make(ipCache)
 		formatter := newDNSFormatter(payload, ipc)
@@ -80,8 +80,8 @@ func TestFormatConnectionDNS(t *testing.T) {
 	})
 
 	t.Run("DNS with collect_domains_enabled=true,enable_dns_by_querytype=true", func(t *testing.T) {
-		config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", true)
-		config.SystemProbe.SetWithoutSource("network_config.enable_dns_by_querytype", true)
+		config.SystemProbe().SetWithoutSource("system_probe_config.collect_dns_domains", true)
+		config.SystemProbe().SetWithoutSource("network_config.enable_dns_by_querytype", true)
 
 		ipc := make(ipCache)
 		formatter := newDNSFormatter(payload, ipc)
