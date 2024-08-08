@@ -303,8 +303,8 @@ func (c *DockerTestClient) Cleanup() error {
 // Execute runs commands on a Docker remote host
 func (c *DockerTestClient) Execute(command string) (output string, err error) {
 	return c.host.Execute(
-		// Run command on container via docker exec,
-		// wrap in a shell call to achieve similar behavior to remote hosts
+		// Run command on container via docker exec and wrap with sh -c
+		// to provide a similar interface to remote host's execute
 		fmt.Sprintf("docker exec %s sh -c '%s'", c.containerName, command),
 	)
 }
