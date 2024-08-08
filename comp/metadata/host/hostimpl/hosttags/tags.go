@@ -136,6 +136,7 @@ func Get(ctx context.Context, cached bool, conf config.Reader) *Tags {
 
 	gceTags := []string{}
 	providers := getProvidersDefinitionsFunc(conf)
+	log.Infof("natasha debugging providers: %v", providers)
 	for {
 		for name, provider := range providers {
 			provider.retries--
