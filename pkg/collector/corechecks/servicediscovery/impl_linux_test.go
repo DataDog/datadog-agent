@@ -257,6 +257,7 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -271,6 +272,7 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -285,6 +287,7 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -299,6 +302,7 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "python-service",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -314,6 +318,7 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "python-service",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -392,6 +397,7 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "db",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -406,6 +412,7 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -420,6 +427,7 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "db",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -434,6 +442,7 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "db",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -448,6 +457,7 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -519,6 +529,7 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -533,6 +544,7 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
