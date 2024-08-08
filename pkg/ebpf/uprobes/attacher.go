@@ -30,9 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// MinKernelVersionSharedLibraries is the minimum kernel version required to attach to shared libraries
-var MinKernelVersionSharedLibraries = kernel.VersionCode(4, 10, 0)
-
 // ExcludeMode defines the different optiont to exclude processes from attachment
 type ExcludeMode uint8
 
@@ -287,10 +284,6 @@ func NewUprobeAttacher(name string, config *AttacherConfig, mgr ProbeManager, on
 		inspector:            inspector,
 	}
 
-	if ua.handlesLibraries() {
-		ua.soWatcher = sharedlibraries.NewEBPFProgram(config.EbpfConfig)
-	}
-
 	utils.AddAttacher(name, ua)
 
 	return ua, nil
@@ -309,7 +302,7 @@ func (ua *UprobeAttacher) handlesLibraries() bool {
 
 	result := false
 	for _, rule := range ua.config.Rules {
-		if rule.LibraryNameRegex != nil {
+		if rule.canTarget(AttachToSharedLibraries) {
 			result = true
 			break
 		}
@@ -336,7 +329,13 @@ func (ua *UprobeAttacher) Start() error {
 	cleanupExec := procMonitor.SubscribeExec(ua.handleProcessStart)
 	cleanupExit := procMonitor.SubscribeExit(ua.handleProcessExit)
 
-	if ua.soWatcher != nil {
+	if ua.handlesLibraries() {
+		if !sharedlibraries.IsSupported(ua.config.EbpfConfig) {
+			return errors.New("shared libraries tracing not supported for this platform")
+		}
+
+		ua.soWatcher = sharedlibraries.NewEBPFProgram(ua.config.EbpfConfig)
+
 		err := ua.soWatcher.Init()
 		if err != nil {
 			return fmt.Errorf("error initializing shared library program: %w", err)

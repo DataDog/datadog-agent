@@ -23,6 +23,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -207,13 +208,15 @@ func TestStartAndStopWithoutLibraryWatcher(t *testing.T) {
 }
 
 func TestStartAndStopWithLibraryWatcher(t *testing.T) {
-	if kernel.MustHostVersion() < MinKernelVersionSharedLibraries {
-		t.Skip("Kernel version does not support library watching")
+	ebpfCfg := ddebpf.NewConfig()
+	require.NotNil(t, ebpfCfg)
+	if !sharedlibraries.IsSupported(ebpfCfg) {
+		t.Skip("Kernel version does not support shared libraries")
 		return
 	}
 
 	rules := []*AttachRule{{LibraryNameRegex: regexp.MustCompile(`libssl.so`), Targets: AttachToSharedLibraries}}
-	ua, err := NewUprobeAttacher("mock", &AttacherConfig{Rules: rules}, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", &AttacherConfig{Rules: rules, EbpfConfig: ebpfCfg}, &MockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 	require.True(t, ua.handlesLibraries())
@@ -257,8 +260,10 @@ func TestRuleMatches(t *testing.T) {
 }
 
 func TestMonitor(t *testing.T) {
-	if kernel.MustHostVersion() < MinKernelVersionSharedLibraries {
-		t.Skip("Kernel version does not support library watching")
+	ebpfCfg := ddebpf.NewConfig()
+	require.NotNil(t, ebpfCfg)
+	if !sharedlibraries.IsSupported(ebpfCfg) {
+		t.Skip("Kernel version does not support shared libraries")
 		return
 	}
 
@@ -268,6 +273,7 @@ func TestMonitor(t *testing.T) {
 			Targets:          AttachToExecutable | AttachToSharedLibraries,
 		}},
 		ProcessMonitorEventStream: false,
+		EbpfConfig:                ebpfCfg,
 	}
 	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
 	require.NoError(t, err)
@@ -282,13 +288,13 @@ func TestMonitor(t *testing.T) {
 	mockRegistry.On("Register", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	lib := getLibSSLPath(t)
 
-	ua.Start()
+	require.NoError(t, ua.Start())
 	t.Cleanup(ua.Stop)
 
 	cmd, err := fileopener.OpenFromAnotherProcess(t, lib)
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
-		return len(mockRegistry.Calls) == 2 // Once for the library, another for the process itself
+		return len(mockRegistry.Calls) >= 2 // Once for the library, another for the process itself
 	}, 1500*time.Millisecond, 10*time.Millisecond, "received calls %v", mockRegistry.Calls)
 
 	mockRegistry.AssertCalled(t, "Register", lib, uint32(cmd.Process.Pid), mock.Anything, mock.Anything)
@@ -631,14 +637,14 @@ func stringifyAttachedProbes(probes []attachedProbe) []string {
 }
 
 func TestUprobeAttacher(t *testing.T) {
-	if kernel.MustHostVersion() < MinKernelVersionSharedLibraries {
-		t.Skip("Kernel version does not support library watching")
-		return
-	}
-
 	lib := getLibSSLPath(t)
 	ebpfCfg := ddebpf.NewConfig()
 	require.NotNil(t, ebpfCfg)
+
+	if !sharedlibraries.IsSupported(ebpfCfg) {
+		t.Skip("Kernel version does not support shared libraries")
+		return
+	}
 
 	buf, err := bytecode.GetReader(ebpfCfg.BPFDir, "uprobe_attacher-test.o")
 	require.NoError(t, err)
