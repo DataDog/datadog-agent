@@ -24,6 +24,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			ConfFilePath:         globalParams.ConfFilePath,
 			ExtraConfFilePath:    globalParams.ExtraConfFilePath,
 			SysProbeConfFilePath: globalParams.SysProbeConfFilePath,
+			FleetPoliciesDirPath: globalParams.FleetPoliciesDirPath,
 		}
 	},
 		"processchecks",

@@ -2602,14 +2602,14 @@ core,golang.org/x/crypto/ssh,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All
 core,golang.org/x/crypto/ssh/agent,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/ssh/internal/bcrypt_pbkdf,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/ssh/knownhosts,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/constraints,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/maps,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/mmap,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/slices,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/slog,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/slog/internal,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/slog/internal/buffer,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/typeparams,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/exp/constraints,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/maps,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/mmap,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/slices,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/slog,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/slog/internal,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/slog/internal/buffer,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/typeparams,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright 2009 The Go Authors
 core,golang.org/x/lint,BSD-3-Clause,Copyright (c) 2013 The Go Authors. All rights reserved
 core,golang.org/x/lint/golint,BSD-3-Clause,Copyright (c) 2013 The Go Authors. All rights reserved
 core,golang.org/x/net/bpf,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -2649,15 +2649,15 @@ core,golang.org/x/oauth2/jwt,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All
 core,golang.org/x/sync/errgroup,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/sync/semaphore,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/sync/singleflight,BSD-3-Clause,Copyright 2009 The Go Authors
-core,golang.org/x/sys/cpu,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/execabs,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/plan9,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/unix,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/windows,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/windows/registry,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/windows/svc,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/windows/svc/eventlog,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/windows/svc/mgr,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/sys/cpu,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/execabs,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/plan9,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/unix,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/windows,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/windows/registry,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/windows/svc,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/windows/svc/eventlog,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/windows/svc/mgr,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/term,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/text/cases,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/text/encoding,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved

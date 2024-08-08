@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -99,23 +100,15 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 	}
 	var peerTags []string
 	if len(peerTagKeys) > 0 && shouldCalculateStatsOnPeerTags(agg.SpanKind) {
-		peerTags = matchingPeerTags(s, peerTagKeys)
+		for _, t := range peerTagKeys {
+			if v, ok := s.Meta[t]; ok && v != "" {
+				v = obfuscate.QuantizePeerIPAddresses(v)
+				peerTags = append(peerTags, t+":"+v)
+			}
+		}
 		agg.PeerTagsHash = peerTagsHash(peerTags)
 	}
 	return agg, peerTags
-}
-
-func matchingPeerTags(s *pb.Span, peerTagKeys []string) []string {
-	if len(peerTagKeys) == 0 {
-		return nil
-	}
-	var pt []string
-	for _, t := range peerTagKeys {
-		if v, ok := s.Meta[t]; ok && v != "" {
-			pt = append(pt, t+":"+v)
-		}
-	}
-	return pt
 }
 
 func peerTagsHash(tags []string) uint64 {

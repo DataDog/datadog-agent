@@ -53,6 +53,7 @@ type checkCfg struct {
 	CollectBFDSessionStatus         *bool  `yaml:"collect_bfd_session_status"`
 	CollectHardwareStatus           *bool  `yaml:"collect_hardware_status"`
 	CollectCloudApplicationsMetrics *bool  `yaml:"collect_cloud_applications_metrics"`
+	CollectBGPNeighborStates        *bool  `yaml:"collect_bgp_neighbor_states"`
 }
 
 // CiscoSdwanCheck contains the field for the CiscoSdwanCheck
@@ -178,6 +179,15 @@ func (c *CiscoSdwanCheck) Run() error {
 		c.metricsSender.SendCloudApplicationMetrics(cloudApplications)
 	}
 
+	// Disabled  by default
+	if *c.config.CollectBGPNeighborStates {
+		bgpNeighbors, err := client.GetBGPNeighbors()
+		if err != nil {
+			log.Warnf("Error getting BGP neighbors from Cisco SD-WAN API: %s", err)
+		}
+		c.metricsSender.SendBGPNeighborMetrics(bgpNeighbors)
+	}
+
 	if *c.config.SendNDMMetadata {
 		c.metricsSender.SendMetadata(devicesMetadata, interfacesMetadata, ipAddressesMetadata)
 	}
@@ -217,6 +227,7 @@ func (c *CiscoSdwanCheck) Configure(senderManager sender.SenderManager, integrat
 	instanceConfig.CollectBFDSessionStatus = boolPointer(false)
 	instanceConfig.CollectHardwareStatus = boolPointer(false)
 	instanceConfig.CollectCloudApplicationsMetrics = boolPointer(false)
+	instanceConfig.CollectBGPNeighborStates = boolPointer(false)
 
 	err = yaml.Unmarshal(rawInstance, &instanceConfig)
 	if err != nil {
