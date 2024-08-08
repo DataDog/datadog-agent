@@ -12,10 +12,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-import vscode
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks import vscode
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.status import Status
 from tasks.libs.common.utils import running_in_pyapp
