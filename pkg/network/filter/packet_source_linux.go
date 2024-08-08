@@ -5,7 +5,7 @@
 
 //go:build linux
 
-//nolint:revive // TODO(NET) Fix revive linter
+// Package filter exposes interfaces and implementations for packet capture
 package filter
 
 import (
@@ -106,6 +106,7 @@ func NewAFPacketSource(size int, opts ...interface{}) (*AFPacketSource, error) {
 	return ps, nil
 }
 
+// SetEbpf attaches an eBPF socket filter to the AFPacketSource
 func (p *AFPacketSource) SetEbpf(filter *manager.Probe) error {
 	// The underlying socket file descriptor is private, hence the use of reflection
 	// Point socket filter program to the RAW_SOCKET file descriptor
@@ -123,6 +124,7 @@ func (p *AFPacketSource) SetEbpf(filter *manager.Probe) error {
 	return nil
 }
 
+// SetBPF attaches a (classic) BPF socket filter to the AFPacketSource
 func (p *AFPacketSource) SetBPF(filter []bpf.RawInstruction) error {
 	return p.TPacket.SetBPF(filter)
 }

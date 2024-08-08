@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//nolint:revive // TODO(NET) Fix revive linter
+// Package filter exposes interfaces and implementations for packet capture
 package filter
 
 import (

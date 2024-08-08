@@ -110,10 +110,8 @@ func adjustNetwork(cfg config.Config) {
 	if ebpflessEnabled {
 		const notSupportedEbpfless = "not supported when ebpf-less is enabled"
 		disableConfigs = append(disableConfigs, []struct{ key, reason string }{
-			{spNS("enable_conntrack_all_namespaces"), notSupportedEbpfless},
 			{netNS("enable_protocol_classification"), notSupportedEbpfless},
-			{evNS("network_process", "enabled"), notSupportedEbpfless},
-			{netNS("enable_root_netns"), notSupportedEbpfless}}...,
+			{evNS("network_process", "enabled"), notSupportedEbpfless}}...,
 		)
 	}
 

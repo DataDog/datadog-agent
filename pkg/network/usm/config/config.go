@@ -22,7 +22,7 @@ import (
 // MinimumKernelVersion indicates the minimum kernel version required for HTTP monitoring
 var MinimumKernelVersion kernel.Version
 
-// ErrNotSupported is the error returned USM is not supported on this platform
+// ErrNotSupported is the error returned if USM is not supported on this platform
 var ErrNotSupported = errors.New("Universal Service Monitoring (USM) is not supported")
 
 func init() {
