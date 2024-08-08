@@ -92,6 +92,9 @@ func updateWithRPMDB(cacheKeys map[string]signingKey) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "/usr/bin/rpm", "-qa", "gpg-pubkey*")
+	cmd.Cancel = func() error {
+		return cmd.Process.Signal(os.Interrupt)
+	}
 	output, err := cmd.CombinedOutput()
 	if err != nil || ctx.Err() != nil {
 		if ctx.Err() != nil {
@@ -103,6 +106,9 @@ func updateWithRPMDB(cacheKeys map[string]signingKey) error {
 	for scanner.Scan() {
 		publicKey := scanner.Text()
 		rpmCmd := exec.CommandContext(ctx, "/usr/bin/rpm", "-qi", publicKey, "--qf", "'%{PUBKEYS}\n'")
+		rpmCmd.Cancel = func() error {
+			return cmd.Process.Signal(os.Interrupt)
+		}
 		rpmKey, err := rpmCmd.CombinedOutput()
 		if err != nil || ctx.Err() != nil {
 			if ctx.Err() != nil {
