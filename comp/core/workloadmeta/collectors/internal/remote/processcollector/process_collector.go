@@ -48,7 +48,7 @@ type client struct {
 	parentCollector *streamHandler
 }
 
-func (c *client) StreamEntities(ctx context.Context, _ ...grpc.CallOption) (remote.Stream, error) {
+func (c *client) StreamEntities(ctx context.Context) (remote.Stream, error) {
 	log.Debug("starting a new stream")
 	streamcl, err := c.cl.StreamEntities(
 		ctx,
