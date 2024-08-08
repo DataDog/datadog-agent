@@ -69,6 +69,25 @@ func TestGrainWithPeerTags(t *testing.T) {
 		}, aggr)
 		assert.Nil(et)
 	})
+	t.Run("service override", func(t *testing.T) {
+		for _, spanKind := range []string{"client", "internal"} {
+			t.Run(spanKind, func(t *testing.T) {
+				assert := assert.New(t)
+				s := pb.Span{
+					Service:  "override",
+					Name:     "other",
+					Resource: "yo",
+					Meta:     map[string]string{"span.kind": spanKind, "_dd.base_service": "the-real-base", "server.address": "foo"},
+				}
+				_, et := NewAggregationFromSpan(&s, "", PayloadAggregationKey{}, []string{"_dd.base_service", "server.address"})
+				if spanKind == "client" {
+					assert.Equal([]string{"_dd.base_service:the-real-base", "server.address:foo"}, et)
+				} else {
+					assert.Equal([]string{"_dd.base_service:the-real-base"}, et)
+				}
+			})
+		}
+	})
 	t.Run("partially present", func(t *testing.T) {
 		assert := assert.New(t)
 		s := pb.Span{

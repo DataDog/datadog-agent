@@ -19,9 +19,10 @@ import (
 )
 
 const (
-	tagStatusCode = "http.status_code"
-	tagSynthetics = "synthetics"
-	tagSpanKind   = "span.kind"
+	tagStatusCode  = "http.status_code"
+	tagSynthetics  = "synthetics"
+	tagSpanKind    = "span.kind"
+	tagBaseService = "_dd.base_service"
 )
 
 // Aggregation contains all the dimension on which we aggregate statistics.
@@ -71,9 +72,23 @@ func getStatusCode(s *pb.Span) uint32 {
 	return uint32(c)
 }
 
-func shouldCalculateStatsOnPeerTags(spanKind string) bool {
-	sk := strings.ToLower(spanKind)
-	return sk == "client" || sk == "producer" || sk == "consumer"
+// peerTagKeysToAggregateForSpan returns the set of peerTagKeys to use for stats aggregation for the given
+// span.kind and _dd.base_service
+func peerTagKeysToAggregateForSpan(spanKind string, baseService string, peerTagKeys []string) []string {
+	if len(peerTagKeys) == 0 {
+		return nil
+	}
+	spanKind = strings.ToLower(spanKind)
+	if (spanKind == "" || spanKind == "internal") && baseService != "" {
+		// it's a service override on an internal span so it comes from custom instrumentation and does not represent
+		// a client|producer|consumer span which is talking to a peer entity
+		// in this case only the base service tag is relevant for stats aggregation
+		return []string{tagBaseService}
+	}
+	if spanKind == "client" || spanKind == "producer" || spanKind == "consumer" {
+		return peerTagKeys
+	}
+	return nil
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
@@ -99,15 +114,13 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 		},
 	}
 	var peerTags []string
-	if len(peerTagKeys) > 0 && shouldCalculateStatsOnPeerTags(agg.SpanKind) {
-		for _, t := range peerTagKeys {
-			if v, ok := s.Meta[t]; ok && v != "" {
-				v = obfuscate.QuantizePeerIPAddresses(v)
-				peerTags = append(peerTags, t+":"+v)
-			}
+	for _, t := range peerTagKeysToAggregateForSpan(agg.SpanKind, s.Meta[tagBaseService], peerTagKeys) {
+		if v, ok := s.Meta[t]; ok && v != "" {
+			v = obfuscate.QuantizePeerIPAddresses(v)
+			peerTags = append(peerTags, t+":"+v)
 		}
-		agg.PeerTagsHash = peerTagsHash(peerTags)
 	}
+	agg.PeerTagsHash = peerTagsHash(peerTags)
 	return agg, peerTags
 }
 
