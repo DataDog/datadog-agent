@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    For internal service overrides, aggregate APM stats only on `_dd.base_service`, excluding all other peer tags.
+    APM stats for internal service overrides are now aggregated by the `_dd.base_service` tag only, enhancing visibility into specific base services.
