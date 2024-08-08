@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
@@ -50,7 +51,7 @@ func (s awsStore) get(key StoreKey) (string, error) {
 			return "", ParameterNotFoundError{key: key}
 		}
 
-		return "", fmt.Errorf("failed to get SSM parameter '%s', err: %w", awsKey, err)
+		return "", common.InternalError{Err: fmt.Errorf("failed to get SSM parameter '%s', err: %w", awsKey, err)}
 	}
 
 	return *output.Parameter.Value, nil

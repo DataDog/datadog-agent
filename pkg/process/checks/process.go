@@ -164,7 +164,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 	p.extractors = append(p.extractors, p.serviceExtractor)
 
 	if !oneShot && workloadmeta.Enabled(p.config) {
-		p.workloadMetaExtractor = workloadmeta.NewWorkloadMetaExtractor(ddconfig.SystemProbe)
+		p.workloadMetaExtractor = workloadmeta.NewWorkloadMetaExtractor(ddconfig.SystemProbe())
 		p.workloadMetaServer = workloadmeta.NewGRPCServer(p.config, p.workloadMetaExtractor)
 		err = p.workloadMetaServer.Start()
 		if err != nil {

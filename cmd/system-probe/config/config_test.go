@@ -12,7 +12,6 @@ import (
 	"os"
 	"runtime"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,17 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-func newConfig(t *testing.T) {
-	originalConfig := config.SystemProbe
-	t.Cleanup(func() {
-		config.SystemProbe = originalConfig
-	})
-	config.SystemProbe = config.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
-	config.InitSystemProbeConfig(config.SystemProbe)
-}
-
 func TestEventMonitor(t *testing.T) {
-	newConfig(t)
+	config.MockSystemProbe(t)
 
 	for i, tc := range []struct {
 		cws, fim, processEvents, networkEvents bool
@@ -77,8 +67,7 @@ func TestEventStreamEnabledForSupportedKernelsWindowsUnsupported(t *testing.T) {
 		}
 		config.ResetSystemProbeConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
-
-		cfg := config.SystemProbe
+		cfg := config.SystemProbe()
 		Adjust(cfg)
 
 		require.False(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
@@ -89,8 +78,7 @@ func TestEventStreamEnabledForSupportedKernelsWindowsUnsupported(t *testing.T) {
 		}
 		config.ResetSystemProbeConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
-
-		cfg := config.SystemProbe
+		cfg := config.SystemProbe()
 		Adjust(cfg)
 
 		require.False(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
@@ -110,16 +98,12 @@ discovery:
 	t.Run("via ENV variable", func(t *testing.T) {
 		config.ResetSystemProbeConfig(t)
 		t.Setenv("DD_DISCOVERY_ENABLED", "true")
-		cfg := config.SystemProbe
-
-		assert.True(t, cfg.GetBool(discoveryNS("enabled")))
+		assert.True(t, config.SystemProbe().GetBool(discoveryNS("enabled")))
 	})
 
 	t.Run("default", func(t *testing.T) {
 		config.ResetSystemProbeConfig(t)
-		cfg := config.SystemProbe
-
-		assert.False(t, cfg.GetBool(discoveryNS("enabled")))
+		assert.False(t, config.SystemProbe().GetBool(discoveryNS("enabled")))
 	})
 }
 
@@ -135,5 +119,5 @@ func configurationFromYAML(t *testing.T, yaml string) config.Config {
 	f.Sync()
 
 	_, _ = New(f.Name(), "")
-	return config.SystemProbe
+	return config.SystemProbe()
 }

@@ -73,7 +73,7 @@ func getComplianceFiles(fb flaretypes.FlareBuilder) error {
 }
 
 func getRuntimeFiles(fb flaretypes.FlareBuilder) error {
-	runtimeDir := config.SystemProbe.GetString("runtime_security_config.policies.dir")
+	runtimeDir := config.SystemProbe().GetString("runtime_security_config.policies.dir")
 
 	return fb.CopyDirTo(runtimeDir, "runtime-security.d", func(path string) bool {
 		f, err := os.Lstat(path)

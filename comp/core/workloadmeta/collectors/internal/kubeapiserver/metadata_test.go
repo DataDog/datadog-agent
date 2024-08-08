@@ -180,12 +180,10 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 				require.Errorf(tt, err, "should have failed to create parser")
 			} else {
 				require.NoErrorf(tt, err, "should have not failed to create parser")
-				parsedEntities := parser.Parse(test.partialObjectMetadata)
-				for _, entity := range parsedEntities {
-					storedMetadata, ok := entity.(*workloadmeta.KubernetesMetadata)
-					require.True(t, ok)
-					assert.Equal(t, test.expected, storedMetadata)
-				}
+				entity := parser.Parse(test.partialObjectMetadata)
+				storedMetadata, ok := entity.(*workloadmeta.KubernetesMetadata)
+				require.True(t, ok)
+				assert.Equal(t, test.expected, storedMetadata)
 			}
 		})
 	}

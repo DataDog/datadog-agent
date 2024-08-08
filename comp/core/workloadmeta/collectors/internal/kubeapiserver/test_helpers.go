@@ -10,7 +10,6 @@ package kubeapiserver
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"testing"
 	"time"
 
@@ -166,9 +165,4 @@ func testCollectMetadataEvent(t *testing.T, createObjects func() []runtime.Objec
 	assert.Equal(t, expected, actual)
 	close(stopStore)
 	wlm.Unsubscribe(ch)
-}
-
-// sameInMemory returns true if the two variables refer to the same data in memory
-func sameInMemory(x, y interface{}) bool {
-	return reflect.ValueOf(x).Pointer() == reflect.ValueOf(y).Pointer()
 }

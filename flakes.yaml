@@ -12,10 +12,6 @@ test/new-e2e/tests/containers:
   - TestEKSSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
   - TestKindSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
   - TestECSSuite
-  - TestEKSSuite/Test00UpAndRunning/agent_pods_are_ready_and_not_restarting
-  - TestEKSSuite/TestZZUpAndRunning/agent_pods_are_ready_and_not_restarting
-  - TestKindSuite/Test00UpAndRunning/agent_pods_are_ready_and_not_restarting
-  - TestKindSuite/TestZZUpAndRunning/agent_pods_are_ready_and_not_restarting
 
 test/new-e2e/tests/installer:
   - TestPackages/upgrade_scenario_ubuntu_22_04_x86_64/TestUpgradeSuccessful

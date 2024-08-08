@@ -107,7 +107,7 @@ const (
 // datadog is the global configuration object
 var (
 	datadog     pkgconfigmodel.Config
-	SystemProbe pkgconfigmodel.Config
+	systemProbe pkgconfigmodel.Config
 )
 
 // Datadog returns the current agent configuration
@@ -120,6 +120,18 @@ func Datadog() pkgconfigmodel.Config {
 // legacy converter and mock have been migrated we will remove this function.
 func SetDatadog(cfg pkgconfigmodel.Config) {
 	datadog = cfg
+}
+
+// SystemProbe returns the current SystemProbe configuration
+func SystemProbe() pkgconfigmodel.Config {
+	return systemProbe
+}
+
+// SetSystemProbe sets the the reference to the systemProbe configuration.
+// This is currently used by the config mocks and should not be user anywhere else. Once the mocks have been migrated we
+// will remove this function.
+func SetSystemProbe(cfg pkgconfigmodel.Config) {
+	systemProbe = cfg
 }
 
 // Variables to initialize at build time
@@ -239,7 +251,7 @@ func init() {
 	osinit()
 	// Configure Datadog global configuration
 	datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	SystemProbe = pkgconfigmodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
+	systemProbe = pkgconfigmodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
 
 	// Configuration defaults
 	initConfig()

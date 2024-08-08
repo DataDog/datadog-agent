@@ -34,8 +34,8 @@ type Config struct {
 func NewConfig() *Config {
 	return &Config{
 		// event server
-		SocketPath:       coreconfig.SystemProbe.GetString(join(evNS, "socket")),
-		EventServerBurst: coreconfig.SystemProbe.GetInt(join(evNS, "event_server.burst")),
+		SocketPath:       coreconfig.SystemProbe().GetString(join(evNS, "socket")),
+		EventServerBurst: coreconfig.SystemProbe().GetInt(join(evNS, "event_server.burst")),
 
 		// consumers
 		ProcessConsumerEnabled: getBool("process.enabled"),
@@ -54,9 +54,9 @@ func getAllKeys(key string) (string, string) {
 
 func getBool(key string) bool {
 	deprecatedKey, newKey := getAllKeys(key)
-	if coreconfig.SystemProbe.IsSet(deprecatedKey) {
+	if coreconfig.SystemProbe().IsSet(deprecatedKey) {
 		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
-		return coreconfig.SystemProbe.GetBool(deprecatedKey)
+		return coreconfig.SystemProbe().GetBool(deprecatedKey)
 	}
-	return coreconfig.SystemProbe.GetBool(newKey)
+	return coreconfig.SystemProbe().GetBool(newKey)
 }
