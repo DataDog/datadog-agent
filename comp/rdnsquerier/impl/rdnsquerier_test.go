@@ -867,11 +867,10 @@ func TestCacheExpiration(t *testing.T) {
 	assert.Equal(t, 0, len(internalCache.data))
 }
 
-// Test that the cache is persisted periodically and that it is loaded and used when the agent starts.
+// Test that the cache is persisted and that it is loaded and used when the agent starts.
 func TestCachePersist(t *testing.T) {
 	overrides := map[string]interface{}{
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
-		"reverse_dns_enrichment.cache.persist_interval":          time.Duration(100) * time.Millisecond,
 		"run_path": t.TempDir(),
 	}
 
@@ -920,9 +919,6 @@ func TestCachePersist(t *testing.T) {
 	})
 	ts.validateExpected(t, expectedTelemetry)
 
-	// sleep long enough for the persist interval to trigger
-	time.Sleep(2 * time.Second)
-
 	// stop the original test setup
 	assert.NoError(t, ts.lc.Stop(ts.ctx))
 
@@ -950,6 +946,43 @@ func TestCachePersist(t *testing.T) {
 		"total":     1.0,
 		"private":   1.0,
 		"cache_hit": 1.0,
+	})
+	ts.validateExpected(t, expectedTelemetry)
+
+	// stop the second test setup
+	assert.NoError(t, ts.lc.Stop(ts.ctx))
+
+	// create new testsetup with shorter entryTTL, validate that the IP address previously
+	// cached has new shorter expiration time
+	overrides["reverse_dns_enrichment.cache.entry_ttl"] = time.Duration(100) * time.Millisecond
+	ts = testSetup(t, overrides, true, nil)
+	ts.validateExpectedGauge(t, "cache_size", 1.0)
+
+	time.Sleep(200 * time.Millisecond)
+
+	// cache_hit_expired should result in async callback being called
+	wg.Add(1)
+	err = ts.rdnsQuerier.GetHostname(
+		[]byte{192, 168, 1, 100},
+		func(_ string) {
+			assert.FailNow(t, "Sync callback should not be called")
+		},
+		func(hostname string, err error) {
+			assert.NoError(t, err)
+			assert.Equal(t, "fakehostname-192.168.1.100", hostname)
+			wg.Done()
+		},
+	)
+	assert.NoError(t, err)
+	wg.Wait()
+
+	expectedTelemetry = ts.makeExpectedTelemetry(map[string]float64{
+		"total":             1.0,
+		"private":           1.0,
+		"chan_added":        1.0,
+		"successful":        1.0,
+		"cache_hit_expired": 1.0,
+		"cache_miss":        1.0,
 	})
 	ts.validateExpected(t, expectedTelemetry)
 }

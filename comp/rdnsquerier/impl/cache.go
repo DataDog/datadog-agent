@@ -268,9 +268,23 @@ func (c *cacheImpl) loadPersistentCache() {
 		return
 	}
 
+	now := time.Now()
+	for ip, entry := range persistedMap {
+		// remove expired entries
+		if entry.ExpirationTime.Before(now) {
+			delete(c.data, ip)
+		}
+
+		// Adjust ExpirationTime for entries that are too far in the future, which can occur if entryTTL
+		// was decreased since the cache was persisted.
+		if entry.ExpirationTime.After(now.Add(c.config.cache.entryTTL)) {
+			entry.ExpirationTime = now.Add(c.config.cache.entryTTL)
+		}
+	}
+	size := len(persistedMap)
+
 	c.mutex.Lock()
 	c.data = persistedMap
-	size := len(c.data)
 	c.mutex.Unlock()
 
 	c.internalTelemetry.cacheSize.Set(float64(size))
