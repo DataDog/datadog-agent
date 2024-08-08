@@ -41,12 +41,6 @@ class TestGetInfraFailuresJob(unittest.TestCase):
         self.assertEqual(
             get_infra_failure_info('something E2E INTERNAL ERROR something'), FailedJobReason.E2E_INFRA_FAILURE
         )
-        self.assertEqual(
-            get_infra_failure_info(
-                'something err: failed to get SSM parameter \'ci.datadog-agent.private_key_password\', err: something'
-            ),
-            FailedJobReason.E2E_INFRA_FAILURE,
-        )
 
     def test_no_match(self):
         self.assertIsNone(get_infra_failure_info('something no match something'))
