@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Allow tags to be parsed from integrations logs.
+    Introduces a parser to extract tags from integration logs and attach them to outgoing logs.
