@@ -41,7 +41,7 @@ func New(cfg Config, _ telemetry.Component) (*WindowsTraceroute, error) {
 // Run executes a traceroute
 func (w *WindowsTraceroute) Run(_ context.Context) (payload.NetworkPath, error) {
 	tu, err := net.GetRemoteSystemProbeUtil(
-		dd_config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
+		dd_config.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 	if err != nil {
 		log.Warnf("could not initialize system-probe connection: %s", err.Error())
 		return payload.NetworkPath{}, err
