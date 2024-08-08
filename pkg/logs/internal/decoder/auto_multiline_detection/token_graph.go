@@ -6,17 +6,17 @@
 // Package automultilinedetection contains auto multiline detection and aggregation logic.
 package automultilinedetection
 
-// TokenGraph is a graph of tokens that model the relationship between any two tokens.
-// It is used to calculate the probability of a sequence of tokens.
+// TokenGraph is a directed cyclic graph of tokens that model the relationship between any two tokens.
+// It is used to calculate the probability of an unknown sequence of tokens being represented by the graph.
 type TokenGraph struct {
-	adjacencys         [][]bool
+	adjacencies        [][]bool
 	minimumTokenLength int
 }
 
 // NewTokenGraph returns a new TokenGraph.
 func NewTokenGraph(minimumTokenLength int, inputData [][]Token) *TokenGraph {
 	g := &TokenGraph{
-		adjacencys:         make([][]bool, end),
+		adjacencies:        make([][]bool, end),
 		minimumTokenLength: minimumTokenLength,
 	}
 	for _, tokens := range inputData {
@@ -29,28 +29,32 @@ func NewTokenGraph(minimumTokenLength int, inputData [][]Token) *TokenGraph {
 func (m *TokenGraph) add(tokens []Token) {
 	lastToken := tokens[0]
 	for _, token := range tokens[1:] {
-		if m.adjacencys[lastToken] == nil {
-			m.adjacencys[lastToken] = make([]bool, end)
+		if m.adjacencies[lastToken] == nil {
+			m.adjacencies[lastToken] = make([]bool, end)
 		}
-		m.adjacencys[lastToken][token] = true
+		m.adjacencies[lastToken][token] = true
 		lastToken = token
 	}
 }
 
-// MatchProbability returns the probability of a sequence of tokens.
+// MatchProbability returns the probability of a sequence of tokens being represented by the graph.
 func (m *TokenGraph) MatchProbability(tokens []Token) float64 {
+	if len(tokens) < 2 {
+		return 0
+	}
+
 	out := make([]byte, len(tokens)-1)
 
 	lastToken := tokens[0]
 	for i, token := range tokens[1:] {
-		if m.adjacencys[lastToken] != nil && m.adjacencys[lastToken][token] {
+		if m.adjacencies[lastToken] != nil && m.adjacencies[lastToken][token] {
 			out[i] = 1
 		}
 		lastToken = token
 	}
 
-	// Trim leading and trailing un matched tokens
-	trimmed := trimStateSet(out)
+	// Trim leading and trailing unmatched tokens
+	trimmed := trimUnmatchedTokens(out)
 
 	// Reject sequences of tokens that are less than the minimum token length.
 	if len(trimmed) < m.minimumTokenLength {
@@ -59,11 +63,11 @@ func (m *TokenGraph) MatchProbability(tokens []Token) float64 {
 	return avg(trimmed)
 }
 
-// trimStateSet trims the leading and trailing zeros from a byte slice.
-// leading and trailing zeros represent tokens that were not matched
-// in the graph. Since timestamps are usually continuous, removing
-// leading and trailing unmatched tokens can improve results.
-func trimStateSet(states []byte) []byte {
+// trimUnmatchedTokens trims the leading and trailing zeros from a byte slice.
+// Leading and trailing zeros represent tokens that were not matched
+// in the graph. Since timestamps are usually contiguous, removing
+// leading and trailing unmatched tokens will improve results.
+func trimUnmatchedTokens(states []byte) []byte {
 	start := 0
 	for i, n := range states {
 		if n != 0 {
