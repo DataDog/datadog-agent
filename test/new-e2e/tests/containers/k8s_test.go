@@ -1015,7 +1015,6 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 				"/opt/datadog-packages/datadog-apm-inject",
 				"/opt/datadog/apm/library",
 			}, volumeMounts["datadog-auto-instrumentation"])
-			suite.Equal("/datadog-lib", volumeMounts["datadog-auto-instrumentation"])
 		}
 	}
 
