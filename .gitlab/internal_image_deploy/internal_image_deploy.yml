@@ -86,13 +86,7 @@ docker_trigger_internal-ot:
       --variable TMPL_SRC_REPO
       --variable RELEASE_STAGING
       --variable RELEASE_PROD
-      --variable DYNAMIC_BUILD_RENDER_RULES
-      --variable APPS
-      --variable BAZEL_TARGET
-      --variable DDR
-      --variable DDR_WORKFLOW_ID
-      --variable TARGET_ENV
-      --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+      --variable DYNAMIC_BUILD_RENDER_RULES"
 
 docker_trigger_cluster_agent_internal:
   stage: internal_image_deploy
@@ -133,13 +127,7 @@ docker_trigger_cluster_agent_internal:
       --variable TMPL_SRC_REPO
       --variable RELEASE_STAGING
       --variable RELEASE_PROD
-      --variable DYNAMIC_BUILD_RENDER_RULES
-      --variable APPS
-      --variable BAZEL_TARGET
-      --variable DDR
-      --variable DDR_WORKFLOW_ID
-      --variable TARGET_ENV
-      --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+      --variable DYNAMIC_BUILD_RENDER_RULES"
 
 docker_trigger_cws_instrumentation_internal:
   stage: internal_image_deploy
@@ -180,10 +168,4 @@ docker_trigger_cws_instrumentation_internal:
       --variable TMPL_SRC_REPO
       --variable RELEASE_STAGING
       --variable RELEASE_PROD
-      --variable DYNAMIC_BUILD_RENDER_RULES
-      --variable APPS
-      --variable BAZEL_TARGET
-      --variable DDR
-      --variable DDR_WORKFLOW_ID
-      --variable TARGET_ENV
-      --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+      --variable DYNAMIC_BUILD_RENDER_RULES"
