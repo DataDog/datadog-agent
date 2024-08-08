@@ -71,7 +71,7 @@ func Test_findInArgs(t *testing.T) {
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := findInArgs(d.args)
+			result := FindInArgs(d.args)
 			if result != d.lang {
 				t.Errorf("got %v, want %v", result, d.lang)
 			}

@@ -15,6 +15,8 @@ const (
 	errorCodeProcfs              errCode = "procfs"
 	errorCodePortPoller          errCode = "port_poller"
 	errorCodeRepeatedServiceName errCode = "repeated_service_name"
+	errorCodeSystemProbeConn     errCode = "system_probe_conn"
+	errorCodeSystemProbeServices errCode = "system_probe_services"
 )
 
 type errWithCode struct {

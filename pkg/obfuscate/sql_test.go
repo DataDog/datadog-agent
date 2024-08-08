@@ -2389,6 +2389,20 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 				Procedures: []string{},
 			},
 		},
+		{
+			name:     "PostgreSQL Select Only",
+			query:    `SELECT * FROM ONLY users WHERE id = 1`,
+			expected: `SELECT * FROM ONLY users WHERE id = ?`,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
 	}
 
 	for _, tt := range tests {

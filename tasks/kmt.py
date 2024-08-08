@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import itertools
 import json
 import os
@@ -42,6 +43,7 @@ from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.utils import get_build_flags
 from tasks.libs.pipeline.tools import loop_status
 from tasks.libs.releasing.version import VERSION_RE, check_version
@@ -2103,3 +2105,35 @@ def install_ddagent(
 
     if layout is not None:
         build_layout(ctx, domains, layout, verbose)
+
+
+@task
+def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path):
+    gitlab = get_gitlab_repo()
+    dest_path = Path(dest_path)
+
+    # We can't get all the pipelines associated with a commit directly, so we get it by the commit statuses
+    commit_statuses = gitlab.commits.get(commit, lazy=True).statuses.list(all=True)
+    pipeline_ids = {status.pipeline_id for status in commit_statuses if 'pipeline_id' in status.asdict()}
+    print(f"Found pipelines {pipeline_ids}")
+
+    for pipeline_id in pipeline_ids:
+        pipeline = gitlab.pipelines.get(pipeline_id)
+        if pipeline.source != "push":
+            print(f"Ignoring pipeline {pipeline_id}, only using push pipelines")
+            continue
+
+        _, test_jobs = get_all_jobs_for_pipeline(pipeline_id)
+        for job in test_jobs:
+            complexity_name = f"verifier-complexity-{job.arch}-{job.distro}-{job.component}"
+            complexity_data_fname = f"test/kitchen/{complexity_name}.tar.gz"
+            data = job.artifact_file_binary(complexity_data_fname, ignore_not_found=True)
+            if data is None:
+                print(f"Complexity data not found for {job.name} - filename {complexity_data_fname} not found")
+                continue
+
+            tar = tarfile.open(fileobj=io.BytesIO(data))
+            job_folder = dest_path / complexity_name
+            job_folder.mkdir(parents=True, exist_ok=True)
+            tar.extractall(dest_path / job_folder)
+            print(f"Extracted complexity data for {job.name} successfully, filename {complexity_data_fname}")

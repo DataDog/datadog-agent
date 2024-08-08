@@ -447,6 +447,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 		me := opts.MapSpecEditors[probes.ConntrackMap]
 		me.Type = ebpf.LRUHash
 		me.EditorFlag |= manager.EditType
+		opts.MapSpecEditors[probes.ConntrackMap] = me
 	}
 
 	err = mgr.InitWithOptions(buf, &opts)

@@ -77,7 +77,7 @@ func complianceLoadCommand(globalParams *command.GlobalParams) *cobra.Command {
 			return fxutil.OneShot(loadRun,
 				fx.Supply(loadArgs),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
 				}),
@@ -155,7 +155,7 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 			return fxutil.OneShot(eventRun,
 				fx.Supply(eventArgs),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
 				}),

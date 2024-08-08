@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
@@ -42,21 +43,21 @@ func (s awsStore) get(key StoreKey) (string, error) {
 	}
 
 	awsKey := strings.ToLower(s.prefix + string(key))
-	withDecription := true
-	output, err := ssmClient.GetParameter(context.Background(), &ssm.GetParameterInput{Name: &awsKey, WithDecryption: &withDecription})
+	withDecryption := true
+	output, err := ssmClient.GetParameter(context.Background(), &ssm.GetParameterInput{Name: &awsKey, WithDecryption: &withDecryption})
 	if err != nil {
 		var notFoundError *ssmTypes.ParameterNotFound
 		if errors.As(err, &notFoundError) {
 			return "", ParameterNotFoundError{key: key}
 		}
 
-		return "", fmt.Errorf("failed to get SSM parameter '%s', err: %w", awsKey, err)
+		return "", common.InternalError{Err: fmt.Errorf("failed to get SSM parameter '%s', err: %w", awsKey, err)}
 	}
 
 	return *output.Parameter.Value, nil
 }
 
-// AWSoverrides is a map of StoreKey to StoreKey used to override key only in AWS store
+// awsOverrides is a map of StoreKey to StoreKey used to override key only in AWS store
 var awsOverrides = map[StoreKey]StoreKey{
 	APIKey: "api_key_2",
 	APPKey: "app_key_2",

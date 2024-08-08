@@ -37,6 +37,186 @@ import (
 
 const commonRegistry = "gcr.io/datadoghq"
 
+func TestInjectAutoInstruConfigV2(t *testing.T) {
+	c := configmock.New(t)
+	tests := []struct {
+		name                  string
+		pod                   *corev1.Pod
+		expectedInjectorImage string
+		libsToInject          []libInfo
+		wantErr               bool
+		config                func()
+	}{
+		{
+			name: "no libs, no injection",
+			pod:  common.FakePod("java-pod"),
+		},
+		{
+			name:                  "nominal case: java",
+			pod:                   common.FakePod("java-pod"),
+			expectedInjectorImage: commonRegistry + "/apm-inject:0",
+			libsToInject: []libInfo{
+				java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+			},
+		},
+		{
+			name:                  "nominal case: java & python",
+			pod:                   common.FakePod("java-pod"),
+			expectedInjectorImage: commonRegistry + "/apm-inject:0",
+			libsToInject: []libInfo{
+				java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+				python.libInfo("", "gcr.io/datadoghq/dd-lib-python-init:v1"),
+			},
+		},
+		{
+			name: "java + injector-tag-override",
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
+					"admission.datadoghq.com/apm-inject.version": "v0",
+				},
+			}.Create(),
+			expectedInjectorImage: commonRegistry + "/apm-inject:v0",
+			libsToInject: []libInfo{
+				java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+			},
+		},
+		{
+			name: "java + injector-image-override",
+			pod: common.FakePodSpec{
+				Annotations: map[string]string{
+					"admission.datadoghq.com/apm-inject.custom-image": "docker.io/library/apm-inject-package:v27",
+				},
+			}.Create(),
+			expectedInjectorImage: "docker.io/library/apm-inject-package:v27",
+			libsToInject: []libInfo{
+				java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+			},
+		},
+		{
+			name:                  "config injector-image-override",
+			pod:                   common.FakePod("java-pod"),
+			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0.16-1",
+			libsToInject: []libInfo{
+				java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+			},
+			config: func() {
+				c.SetWithoutSource("apm_config.instrumentation.injector_image_tag", "0.16-1")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wmeta := fxutil.Test[workloadmeta.Component](
+				t,
+				core.MockBundle(),
+				workloadmetafxmock.MockModule(),
+				fx.Supply(workloadmeta.NewParams()),
+			)
+
+			c = configmock.New(t)
+			c.SetWithoutSource("apm_config.instrumentation.version", "v2")
+			if tt.config != nil {
+				tt.config()
+			}
+
+			webhook := mustWebhook(t, wmeta)
+			require.Equal(t, instrumentationV2, webhook.version)
+			require.True(t, webhook.version.usesInjector())
+
+			err := webhook.injectAutoInstruConfig(tt.pod, tt.libsToInject, false, "")
+			if tt.wantErr {
+				require.Error(t, err, "expected injectAutoInstruConfig to error")
+			} else {
+				require.NoError(t, err, "expected injectAutoInstruConfig to succeed")
+			}
+
+			if err != nil {
+				return
+			}
+
+			envsByName := map[string]corev1.EnvVar{}
+			for _, env := range tt.pod.Spec.Containers[0].Env {
+				envsByName[env.Name] = env
+			}
+
+			requireEnv := func(t *testing.T, key string, ok bool, value string) {
+				t.Helper()
+				val, exists := envsByName[key]
+				require.Equal(t, ok, exists, "expected env %v to be %v", key, ok)
+				require.Equal(t, value, val.Value, "expected env %v = %v", key, val)
+			}
+
+			for _, env := range injectAllEnvs() {
+				requireEnv(t, env.Name, false, "")
+			}
+
+			if len(tt.libsToInject) == 0 {
+				require.Zero(t, len(tt.pod.Spec.InitContainers), "no libs, no init containers")
+				requireEnv(t, "LD_PRELOAD", false, "")
+				return
+			}
+
+			require.Equal(t, volumeName, tt.pod.Spec.Volumes[0].Name,
+				"expected datadog volume to be injected")
+
+			require.Equal(t, len(tt.libsToInject)+1, len(tt.pod.Spec.InitContainers),
+				"expected there to be one more than the number of libs to inject for init containers")
+
+			for i, c := range tt.pod.Spec.InitContainers {
+
+				var injectorMountPath string
+
+				if i == 0 { // check init container
+					require.Equal(t, "datadog-init-apm-inject", c.Name,
+						"expected the first init container to be apm-inject")
+					require.Equal(t, tt.expectedInjectorImage, c.Image,
+						"expected the container image to be %s", tt.expectedInjectorImage)
+					injectorMountPath = c.VolumeMounts[0].MountPath
+				} else { // lib volumes for each of the rest of the containers
+					lib := tt.libsToInject[i-1]
+					require.Equal(t, lib.image, c.Image)
+					require.Equal(t, "opt/datadog/apm/library/"+string(lib.lang), c.VolumeMounts[0].SubPath,
+						"expected a language specific sub-path for the volume mount for lang %s",
+						lib.lang)
+					require.Equal(t, "opt/datadog-packages/datadog-apm-inject", c.VolumeMounts[1].SubPath,
+						"expected injector volume mount for lang %s",
+						lib.lang)
+					injectorMountPath = c.VolumeMounts[1].MountPath
+				}
+
+				// each of the init containers writes a timestamp to their given volume mount path
+				require.Equal(t, 1, len(c.Args), "expected container args")
+				_, suffix, found := strings.Cut(c.Args[0], "&&")
+				require.True(t, found, "expected container args separated by &&")
+				echoDate, toFile, found := strings.Cut(suffix, ">>")
+				require.True(t, found, "expected container args with piping redirection")
+				require.Equal(t, "echo $(date +%s)", strings.TrimSpace(echoDate), "expected container args with date")
+				require.Equal(t, injectorMountPath+"/c-init-time."+c.Name, strings.TrimSpace(toFile),
+					"expected to write to file based on the container name")
+			}
+
+			// two volume mounts
+			mounts := tt.pod.Spec.Containers[0].VolumeMounts
+			require.Equal(t, 2, len(mounts), "expected 2 volume mounts in the application container")
+			require.Equal(t, corev1.VolumeMount{
+				Name:      volumeName,
+				MountPath: "/opt/datadog-packages/datadog-apm-inject",
+				SubPath:   "opt/datadog-packages/datadog-apm-inject",
+				ReadOnly:  true,
+			}, mounts[0], "expected first container volume mount to be the injector")
+			require.Equal(t, corev1.VolumeMount{
+				Name:      volumeName,
+				MountPath: "/opt/datadog/apm/library",
+				SubPath:   "opt/datadog/apm/library",
+			}, mounts[1], "expected the second container volume mount to be the language libraries")
+
+			requireEnv(t, "LD_PRELOAD", true, "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so")
+			requireEnv(t, "DD_INJECT_SENDER_TYPE", true, "k8s")
+		})
+	}
+}
+
 func TestInjectAutoInstruConfig(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -246,6 +426,8 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			c := configmock.New(t)
+			c.SetWithoutSource("apm_config.instrumentation.version", "v1")
 
 			webhook := mustWebhook(t, wmeta)
 			err := webhook.injectAutoInstruConfig(tt.pod, tt.libsToInject, false, "")
@@ -912,9 +1094,10 @@ func TestInjectLibInitContainer(t *testing.T) {
 				return
 			}
 
+			// N.B. this is a bit hacky but consistent.
 			wh.initSecurityContext = tt.secCtx
 
-			c := tt.lang.libInfo("", tt.image).initContainers()[0]
+			c := tt.lang.libInfo("", tt.image).initContainers(wh.version)[0]
 			c.Mutators = wh.initContainerMutators()
 			err = c.mutatePod(tt.pod)
 			if (err != nil) != tt.wantErr {
@@ -2590,6 +2773,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			wmeta := common.FakeStoreWithDeployment(t, tt.langDetectionDeployments)
 
 			mockConfig = configmock.New(t)
+			mockConfig.SetWithoutSource("apm_config.instrumentation.version", "v1")
 			if tt.setupConfig != nil {
 				for _, f := range tt.setupConfig {
 					f()

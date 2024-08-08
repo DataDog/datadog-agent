@@ -26,6 +26,28 @@ func TestSuffixTrieInsertAndGet(t *testing.T) {
 	assert.False(t, ok, "should return false if path is unknown")
 }
 
+func TestSuffixTrieInsertAndGet_EmptyKey(t *testing.T) {
+	trie := NewSuffixTrie[string]()
+	cid := "kubepods-podea2e69b4_0bd4_48f0_b75f_cc7c79111027.slice/cri-containerd-7ee34913fbefa6a0dbbdf1bbc302cc29a1bde3b83b8b9f2252a4d4360c373848.scope"
+	cgp := "kubepods-podea2e69b4_0bd4_48f0_b75f_cc7c79111027.slice/cri-containerd-7ee34913fbefa6a0dbbdf1bbc302cc29a1bde3b83b8b9f2252a4d4360c373848.scope"
+	cgroupPath := "/host/sys/fs/cgroup/cpuset/kubepods.slice/kubepods-podea2e69b4_0bd4_48f0_b75f_cc7c79111027.slice/cri-containerd-7ee34913fbefa6a0dbbdf1bbc302cc29a1bde3b83b8b9f2252a4d4360c373848.scope"
+	cid2 := "kubepods-pod5a9426d5_65f3_45cb_b8e3_ea5f687030ef.slice/cri-containerd-b07c21533237150ce3fa84817e79d6def7c742c840cd3982881a37b593446fdc.scope"
+	cgp2 := "kubepods-pod5a9426d5_65f3_45cb_b8e3_ea5f687030ef.slice/cri-containerd-b07c21533237150ce3fa84817e79d6def7c742c840cd3982881a37b593446fdc.scope"
+	cgroupPath2 := "/host/sys/fs/cgroup/cpuset/kubepods.slice/kubepods-pod5a9426d5_65f3_45cb_b8e3_ea5f687030ef.slice/cri-containerd-b07c21533237150ce3fa84817e79d6def7c742c840cd3982881a37b593446fdc.scope"
+	trie.Insert(cgp, &cid)
+	trie.Insert(cgp2, &cid2)
+	trie.Insert("", &cid)
+	storedCid, ok := trie.Get(cgroupPath)
+	storedCid2, ok2 := trie.Get(cgroupPath2)
+	assert.Equal(t, &cid, storedCid, "should return correct container id")
+	assert.Equal(t, &cid2, storedCid2, "should return correct container id (second)")
+	assert.True(t, ok, "should return true if path is known")
+	assert.True(t, ok2, "should return true if path is known")
+
+	_, ok = trie.Get("unknown/path")
+	assert.False(t, ok, "should return false if path is unknown")
+}
+
 func TestSuffixTrieDelete_EmptyKey(t *testing.T) {
 	trie := NewSuffixTrie[string]()
 	trie.Delete("")
