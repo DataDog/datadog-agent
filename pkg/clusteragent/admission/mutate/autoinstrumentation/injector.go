@@ -38,6 +38,11 @@ var v2VolumeMountLibrary = sourceVolume.mount(corev1.VolumeMount{
 	SubPath:   "opt/datadog/apm/library",
 })
 
+var volumeMountETCLDPreload = sourceVolume.mount(corev1.VolumeMount{
+	MountPath: "/etc/ld.so.preload",
+	SubPath: "opt/datadog-packages/datadog-apm-inject/stable/inject/ld.so.preload",
+})
+
 type injector struct {
 	image      string
 	registry   string
@@ -76,7 +81,10 @@ func (i *injector) requirements() libRequirement {
 	return libRequirement{
 		initContainers: []initContainer{i.initContainer()},
 		volumes:        []volume{sourceVolume},
-		volumeMounts:   []volumeMount{v2VolumeMountInjector.readOnly().prepended()},
+		volumeMounts:   []volumeMount{
+			volumeMountETCLDPreload.readOnly().prepended(),
+			v2VolumeMountInjector.readOnly().prepended(),
+		},
 		envVars: []envVar{
 			{
 				key: "LD_PRELOAD",
