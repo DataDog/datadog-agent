@@ -64,7 +64,7 @@ func makeFinalName(meta usm.ServiceMetadata) string {
 
 // GetServiceName gets the service name based on the command line arguments and
 // the list of environment variables.
-func (sd *ServiceDetector) GetServiceName(cmdline []string, env []string) string {
+func (sd *ServiceDetector) GetServiceName(cmdline []string, env map[string]string) string {
 	meta, _ := usm.ExtractServiceMetadata(sd.logger, cmdline, env)
 	return makeFinalName(meta)
 }
