@@ -75,12 +75,9 @@ type volume struct {
 
 var _ podMutator = (*volume)(nil)
 
-func (v volume) mount(mount corev1.VolumeMount, prepend bool) volumeMount {
+func (v volume) mount(mount corev1.VolumeMount) volumeMount {
 	mount.Name = v.Name
-	return volumeMount{
-		VolumeMount: mount,
-		Prepend:     prepend,
-	}
+	return volumeMount{VolumeMount: mount}
 }
 
 // mutatePod implements podMutator for volume.
@@ -119,6 +116,18 @@ func (v volumeMount) mutateContainer(c *corev1.Container) error {
 
 	c.VolumeMounts = appendOrPrepend(mnt, c.VolumeMounts, v.Prepend)
 	return nil
+}
+
+func (v volumeMount) readOnly() volumeMount {
+	m := v.VolumeMount
+	m.ReadOnly = true
+	return volumeMount{m, v.Prepend}
+}
+
+func (v volumeMount) prepended() volumeMount {
+	v2 := v
+	v2.Prepend = true
+	return v2
 }
 
 func appendOrPrepend[T any](item T, toList []T, prepend bool) []T {
