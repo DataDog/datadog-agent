@@ -18,7 +18,6 @@ var winDotExec = []string{".com", ".exe", ".bat", ".cmd", ".vbs", ".vbe", ".js",
 func (ds *DataScrubber) stripArguments(cmdline []string) []string {
 
 	argLength := len(cmdline)
-
 	strCmdline := (cmdline[0] + " ")
 
 	// case 1: Process a cmdline with multiple strings and use extensionParser() to format and search the command.
@@ -39,7 +38,6 @@ func (ds *DataScrubber) stripArguments(cmdline []string) []string {
 	// case 3: Uses quotesFinder() to search for any existing pair of double quotes ("") existing in the string as characters and return the content between them.
 
 	strippedCmdline := findEmbeddedQuotes(strCmdline)
-
 	return []string{strings.TrimSuffix(strippedCmdline, " ")}
 
 }
@@ -67,9 +65,7 @@ func extensionParser(cmdline string, winDotExec []string) string {
 func findEmbeddedQuotes(cmdline string) string {
 
 	var strippedCmdline string
-
 	firstQuoteRemoved := cmdline[1:]
-
 	splittedCmdline := strings.Split(firstQuoteRemoved, "\"")
 
 	if len(splittedCmdline) >= 1 {
