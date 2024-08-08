@@ -308,7 +308,6 @@ func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq
 
 func (c *Controller) createPodAutoscaler(ctx context.Context, podAutoscalerInternal model.PodAutoscalerInternal) error {
 	log.Infof("Creating PodAutoscaler Spec: %s/%s", podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name())
-	autoscalerStatus := podAutoscalerInternal.BuildStatus(metav1.NewTime(c.clock.Now()), nil)
 	autoscalerObj := &datadoghq.DatadogPodAutoscaler{
 		TypeMeta: podAutoscalerMeta,
 		ObjectMeta: metav1.ObjectMeta{
@@ -316,7 +315,7 @@ func (c *Controller) createPodAutoscaler(ctx context.Context, podAutoscalerInter
 			Name:      podAutoscalerInternal.Name(),
 		},
 		Spec:   *podAutoscalerInternal.Spec().DeepCopy(),
-		Status: autoscalerStatus,
+		Status: podAutoscalerInternal.BuildStatus(metav1.NewTime(c.clock.Now()), nil),
 	}
 	trackPodAutoscalerStatus(autoscalerObj)
 

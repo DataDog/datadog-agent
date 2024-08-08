@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	subsystem              = "workload_autoscaling"
+	subsystem              = "autoscaling_workload"
 	aliveTelemetryInterval = 5 * time.Minute
 )
 
@@ -100,6 +100,7 @@ func trackPodAutoscalerStatus(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
 func startLocalTelemetry(ctx context.Context, sender sender.Sender, tags []string) {
 	submit := func() {
 		sender.Gauge("datadog.cluster_agent.autoscaling.workload.running", 1, "", tags)
+		sender.Commit()
 	}
 
 	go func() {
