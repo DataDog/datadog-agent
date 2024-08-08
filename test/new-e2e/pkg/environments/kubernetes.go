@@ -14,5 +14,6 @@ type Kubernetes struct {
 	// Components
 	KubernetesCluster *components.KubernetesCluster
 	FakeIntake        *components.FakeIntake
-	Agent             *components.KubernetesAgent
+	// TODO: add KubernetesOTelAgent here
+	Agent *components.KubernetesAgent
 }
