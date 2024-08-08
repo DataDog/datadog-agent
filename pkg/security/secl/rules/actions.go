@@ -33,8 +33,8 @@ type ActionDefinition struct {
 	Hash     *HashDefinition     `yaml:"hash"`
 
 	// internal
-	InternalCallback *InternalCallbackDefinition
-	FilterEvaluator  *eval.RuleEvaluator
+	InternalCallback *InternalCallbackDefinition `yaml:"-"`
+	FilterEvaluator  *eval.RuleEvaluator         `yaml:"-"`
 }
 
 // Check returns an error if the action in invalid
@@ -122,8 +122,8 @@ type InternalCallbackDefinition struct{}
 
 // KillDefinition describes the 'kill' section of a rule action
 type KillDefinition struct {
-	Signal string `yaml:"signal"`
-	Scope  string `yaml:"scope"`
+	Signal string `yaml:"signal,omitempty"`
+	Scope  string `yaml:"scope,omitempty"`
 }
 
 // CoreDumpDefinition describes the 'coredump' action

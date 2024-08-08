@@ -108,3 +108,112 @@ func PathPatternMatch(pattern string, path string, opts PathPatternMatchOpts) bo
 
 	return false
 }
+
+// PathPatternBuilder pattern builder for files
+func PathPatternBuilder(pattern string, path string, opts PathPatternMatchOpts) (string, bool) {
+	lenMax := len(pattern)
+	if l := len(path); l > lenMax {
+		lenMax = l
+	}
+
+	var (
+		i, j                                 = 0, 0
+		wildcardCount, nodeCount, suffixNode = 0, 0, 0
+		offsetPattern, offsetPath, size      = 0, 0, 0
+		patternLen, pathLen                  = len(pattern), len(path)
+		wildcard                             bool
+		result                               = make([]byte, lenMax)
+
+		computeNode = func() bool {
+			if wildcard {
+				wildcardCount++
+				if wildcardCount > opts.WildcardLimit {
+					return false
+				}
+				if nodeCount < opts.PrefixNodeRequired {
+					return false
+				}
+				if opts.NodeSizeLimit != 0 && j-offsetPath < opts.NodeSizeLimit {
+					return false
+				}
+
+				result[size], result[size+1] = '/', '*'
+				size += 2
+
+				offsetPattern, suffixNode = i, 0
+			} else {
+				copy(result[size:], pattern[offsetPattern:i])
+				size += i - offsetPattern
+				offsetPattern = i
+				suffixNode++
+			}
+
+			offsetPath = j
+
+			if i > 0 {
+				nodeCount++
+			}
+			return true
+		}
+	)
+
+	if patternLen > 0 && pattern[0] != '/' {
+		return "", false
+	}
+
+	if pathLen > 0 && path[0] != '/' {
+		return "", false
+	}
+
+	for i < len(pattern) && j < len(path) {
+		pn, ph := pattern[i], path[j]
+		if pn == '/' && ph == '/' {
+			if !computeNode() {
+				return "", false
+			}
+			wildcard = false
+
+			i++
+			j++
+			continue
+		}
+
+		if pn != ph {
+			wildcard = true
+		}
+		if pn != '/' {
+			i++
+		}
+		if ph != '/' {
+			j++
+		}
+	}
+
+	if patternLen != i || pathLen != j {
+		wildcard = true
+	}
+
+	for i < patternLen {
+		if pattern[i] == '/' {
+			return "", false
+		}
+		i++
+	}
+
+	for j < pathLen {
+		if path[j] == '/' {
+			return "", false
+		}
+		j++
+	}
+
+	if !computeNode() {
+		return "", false
+	}
+
+	if opts.SuffixNodeRequired == 0 || suffixNode >= opts.SuffixNodeRequired {
+		return string(result[:size]), true
+	}
+
+	return "", false
+}
