@@ -44,9 +44,10 @@ func newMock(deps testDependencies) telemetry.Mock {
 
 	telemetry := &telemetryImplMock{
 		telemetryImpl{
-			mutex:         &mutex,
-			registry:      reg,
-			meterProvider: provider,
+			mutex:           &mutex,
+			registry:        reg,
+			meterProvider:   provider,
+			defaultRegistry: prometheus.NewRegistry(),
 		},
 	}
 
