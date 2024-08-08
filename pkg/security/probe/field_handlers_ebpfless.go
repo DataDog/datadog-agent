@@ -152,6 +152,11 @@ func (fh *EBPFLessFieldHandlers) ResolveCGroupID(_ *model.Event, _ *model.CGroup
 	return ""
 }
 
+// ResolveCGroupManager resolves the manager of the cgroup
+func (fh *EBPFLessFieldHandlers) ResolveCGroupManager(_ *model.Event, _ *model.CGroupContext) string {
+	return ""
+}
+
 // ResolveContainerContext retrieve the ContainerContext of the event
 func (fh *EBPFLessFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
 	return ev.ContainerContext, ev.ContainerContext != nil

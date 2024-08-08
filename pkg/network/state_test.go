@@ -756,7 +756,7 @@ func TestLastStatsForClosedConnection(t *testing.T) {
 	assert.Equal(t, conn2.Monotonic.Retransmits, conns[0].Monotonic.Retransmits)
 }
 
-func TestRaceConditions(t *testing.T) { //nolint:revive // TODO fix revive unused-parameter
+func TestRaceConditions(_ *testing.T) {
 	nClients := 10
 
 	// Generate random conns
@@ -2859,8 +2859,8 @@ func TestDNSPIDCollision(t *testing.T) {
 		},
 	}
 
-	config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", true)
-	config.SystemProbe.SetWithoutSource("network_config.enable_dns_by_querytype", false)
+	config.SystemProbe().SetWithoutSource("system_probe_config.collect_dns_domains", true)
+	config.SystemProbe().SetWithoutSource("network_config.enable_dns_by_querytype", false)
 
 	state := newDefaultState()
 	state.RegisterClient("foo")

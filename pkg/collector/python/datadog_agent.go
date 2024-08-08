@@ -15,6 +15,7 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -56,6 +57,18 @@ func GetHostname(hostname **C.char) {
 	}
 	// hostname will be free by rtloader when it's done with it
 	*hostname = TrackedCString(goHostname)
+}
+
+// GetHostTags exposes the tags of the agent host to Python checks.
+//
+//export GetHostTags
+func GetHostTags(hostTags **C.char) {
+	tags := hosttags.Get(context.Background(), true, config.Datadog())
+	tagsBytes, err := json.Marshal(tags)
+	if err != nil {
+		log.Warnf("Error getting host tags: %v. Invalid tags: %v", err, tags)
+	}
+	*hostTags = TrackedCString(string(tagsBytes))
 }
 
 // GetClusterName exposes the current clustername (if it exists) of the agent to Python checks.
@@ -199,6 +212,28 @@ func ReadPersistentCache(key *C.char) *C.char {
 		return nil
 	}
 	return TrackedCString(data)
+}
+
+// SendLog submits a log for one check instance.
+// Indirectly used by the C function `send_log` that's mapped to `datadog_agent.send_log`.
+//
+//export SendLog
+func SendLog(logLine, checkID *C.char) {
+	line := C.GoString(logLine)
+	cid := C.GoString(checkID)
+
+	cc, err := getCheckContext()
+	if err != nil {
+		log.Errorf("Log submission failed: %s", err)
+	}
+
+	lr, ok := cc.logReceiver.Get()
+	if !ok {
+		log.Error("Log submission failed: no receiver")
+		return
+	}
+
+	lr.SendLog(line, cid)
 }
 
 var (

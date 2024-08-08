@@ -52,6 +52,7 @@ TEST_PACKAGES_LIST = [
     "./pkg/ebpf/...",
     "./pkg/network/...",
     "./pkg/collector/corechecks/ebpf/...",
+    "./pkg/collector/corechecks/servicediscovery/module/...",
     "./pkg/process/monitor/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
@@ -443,6 +444,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
                 "pkg/network/ebpf/c/prebuilt/offset-guess.h",
                 "pkg/network/ebpf/c/protocols/classification/defs.h",
             ],
+            "pkg/network/protocols/ebpf_types.go": [
+                "pkg/network/ebpf/c/protocols/classification/defs.h",
+            ],
             "pkg/network/protocols/http/gotls/go_tls_types.go": [
                 "pkg/network/ebpf/c/protocols/tls/go-tls-types.h",
             ],
@@ -460,7 +464,7 @@ def ninja_cgo_type_files(nw: NinjaWriter):
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/kafka/types.h",
             ],
-            "pkg/network/protocols/postgres/types.go": [
+            "pkg/network/protocols/postgres/ebpf/types.go": [
                 "pkg/network/ebpf/c/protocols/postgres/types.h",
             ],
             "pkg/network/protocols/redis/types.go": [
@@ -483,6 +487,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             ],
             "pkg/collector/corechecks/ebpf/probe/ebpfcheck/c_types.go": [
                 "pkg/collector/corechecks/ebpf/c/runtime/ebpf-kern-user.h"
+            ],
+            "pkg/collector/corechecks/ebpf/probe/oomkill/c_types.go": [
+                "pkg/collector/corechecks/ebpf/c/runtime/oom-kill-kern-user.h",
             ],
             "pkg/ebpf/types.go": [
                 "pkg/ebpf/c/lock_contention.h",

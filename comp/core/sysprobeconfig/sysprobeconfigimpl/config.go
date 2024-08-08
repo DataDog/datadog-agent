@@ -55,7 +55,7 @@ func (d dependencies) getParams() *Params {
 }
 
 func setupConfig(deps sysprobeconfigDependencies) (*sysconfigtypes.Config, error) {
-	return sysconfig.New(deps.getParams().sysProbeConfFilePath)
+	return sysconfig.New(deps.getParams().sysProbeConfFilePath, deps.getParams().fleetPoliciesDirPath)
 }
 
 func newConfig(deps dependencies) (sysprobeconfig.Component, error) {
@@ -64,7 +64,7 @@ func newConfig(deps dependencies) (sysprobeconfig.Component, error) {
 		return nil, err
 	}
 
-	return &cfg{Config: config.SystemProbe, syscfg: syscfg}, nil
+	return &cfg{Config: config.SystemProbe(), syscfg: syscfg}, nil
 }
 
 func (c *cfg) Warnings() *config.Warnings {

@@ -43,13 +43,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Print the runtime state of a running system-probe",
 		Long:  ``,
 		Args:  cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 			return fxutil.OneShot(debugRuntime,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath)),
+					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:            log.ForOneShot("SYS-PROBE", "off", false),
 				}),
 				// no need to provide sysprobe logger since ForOneShot ignores config values

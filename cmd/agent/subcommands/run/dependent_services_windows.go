@@ -44,8 +44,8 @@ var subservices = []Servicedef{
 			"process_config.process_collection.enabled":   config.Datadog(),
 			"process_config.container_collection.enabled": config.Datadog(),
 			"process_config.process_discovery.enabled":    config.Datadog(),
-			"network_config.enabled":                      config.SystemProbe,
-			"system_probe_config.enabled":                 config.SystemProbe,
+			"network_config.enabled":                      config.SystemProbe(),
+			"system_probe_config.enabled":                 config.SystemProbe(),
 		},
 		serviceName: "datadog-process-agent",
 		serviceInit: processInit,
@@ -53,10 +53,10 @@ var subservices = []Servicedef{
 	{
 		name: "sysprobe",
 		configKeys: map[string]config.Config{
-			"network_config.enabled":          config.SystemProbe,
-			"system_probe_config.enabled":     config.SystemProbe,
-			"windows_crash_detection.enabled": config.SystemProbe,
-			"runtime_security_config.enabled": config.SystemProbe,
+			"network_config.enabled":          config.SystemProbe(),
+			"system_probe_config.enabled":     config.SystemProbe(),
+			"windows_crash_detection.enabled": config.SystemProbe(),
+			"runtime_security_config.enabled": config.SystemProbe(),
 		},
 		serviceName: "datadog-system-probe",
 		serviceInit: sysprobeInit,
@@ -64,7 +64,7 @@ var subservices = []Servicedef{
 	{
 		name: "cws",
 		configKeys: map[string]config.Config{
-			"runtime_security_config.enabled": config.SystemProbe,
+			"runtime_security_config.enabled": config.SystemProbe(),
 		},
 		serviceName: "datadog-security-agent",
 		serviceInit: securityInit,

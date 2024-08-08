@@ -48,7 +48,7 @@ type config struct {
 }
 
 func testConfig() *config {
-	cfg := aconfig.SystemProbe
+	cfg := aconfig.SystemProbe()
 	sysconfig.Adjust(cfg)
 
 	return &config{

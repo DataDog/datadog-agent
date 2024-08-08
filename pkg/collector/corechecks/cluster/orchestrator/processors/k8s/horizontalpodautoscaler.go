@@ -95,5 +95,5 @@ func (h *HorizontalPodAutoscalerHandlers) ResourceVersion(ctx processors.Process
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *HorizontalPodAutoscalerHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*v2.HorizontalPodAutoscaler)
-	redact.RemoveSensitiveAnnotations(r.Annotations)
+	redact.RemoveSensitiveAnnotationsAndLabels(r.Annotations, r.Labels)
 }

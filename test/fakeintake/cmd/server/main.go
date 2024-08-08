@@ -28,7 +28,6 @@ func main() {
 	fiOptions := []fakeintake.Option{
 		fakeintake.WithPort(*portPtr),
 		fakeintake.WithReadyChannel(ready),
-		fakeintake.WithStoreDriver(os.Getenv("STORAGE_DRIVER")),
 	}
 	if *dddevForward {
 		fiOptions = append(fiOptions, fakeintake.WithDDDevForward())

@@ -9,8 +9,8 @@
 //
 // ---------------------------------------------------
 
-// Package impl provides the implementation of the agenttelemetry component.
-package impl
+// Package agenttelemetryimpl provides the implementation of the agenttelemetry component.
+package agenttelemetryimpl
 
 import (
 	"bytes"
@@ -149,10 +149,10 @@ func NewComponent(req Requires) agenttelemetry.Component {
 	if a.enabled {
 		// Instruct FX to start and stop the agent telemetry
 		req.Lifecycle.Append(compdef.Hook{
-			OnStart: func(ctx context.Context) error {
+			OnStart: func(_ context.Context) error {
 				return a.start()
 			},
-			OnStop: func(ctx context.Context) error {
+			OnStop: func(_ context.Context) error {
 				return a.stop()
 			},
 		})

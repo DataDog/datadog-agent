@@ -8,6 +8,10 @@
 package workload
 
 import (
+	"context"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	workqueuetelemetry "github.com/DataDog/datadog-agent/pkg/util/workqueue/telemetry"
@@ -16,7 +20,8 @@ import (
 )
 
 const (
-	subsystem = "autoscaling"
+	subsystem              = "workload_autoscaling"
+	aliveTelemetryInterval = 5 * time.Minute
 )
 
 var (
@@ -87,8 +92,29 @@ func trackPodAutoscalerStatus(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
 	for _, condition := range podAutoscaler.Status.Conditions {
 		if condition.Status == corev1.ConditionTrue {
 			autoscalingStatusConditions.Set(1.0, podAutoscaler.Namespace, podAutoscaler.Name, string(condition.Type), le.JoinLeaderValue)
-		} else {
 			autoscalingStatusConditions.Set(0.0, podAutoscaler.Namespace, podAutoscaler.Name, string(condition.Type), le.JoinLeaderValue)
 		}
 	}
+}
+
+func startLocalTelemetry(ctx context.Context, sender sender.Sender, tags []string) {
+	submit := func() {
+		sender.Gauge("datadog.cluster_agent.autoscaling.workload.running", 1, "", tags)
+	}
+
+	go func() {
+		ticker := time.NewTicker(aliveTelemetryInterval)
+		defer ticker.Stop()
+
+		// Submit once immediately and then every ticker
+		submit()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				submit()
+			}
+		}
+	}()
 }

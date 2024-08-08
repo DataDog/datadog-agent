@@ -456,6 +456,16 @@ DATADOG_AGENT_RTLOADER_API void set_headers_cb(rtloader_t *, cb_headers_t);
 */
 DATADOG_AGENT_RTLOADER_API void set_get_hostname_cb(rtloader_t *, cb_get_hostname_t);
 
+/*! \fn void set_get_host_tags_cb(rtloader_t *, cb_get_host_tags_t)
+    \brief Sets a callback to be used by rtloader to collect the host tags from the agent.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_get_host_tags_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_get_host_tags_cb(rtloader_t *, cb_get_host_tags_t);
+
 /*! \fn void set_get_clustername_cb(rtloader_t *, cb_get_clustername_t)
     \brief Sets a callback to be used by rtloader to collect the K8s clustername from the
     agent.
@@ -488,6 +498,17 @@ DATADOG_AGENT_RTLOADER_API void set_tracemalloc_enabled_cb(rtloader_t *, cb_trac
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
 DATADOG_AGENT_RTLOADER_API void set_log_cb(rtloader_t *, cb_log_t);
+
+/*! \fn void set_send_log_cb(rtloader_t *, cb_send_log_t)
+    \brief Sets a callback to be used by rtloader to allow for submitting a log for a given
+    check instance.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_send_log_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_send_log_cb(rtloader_t *, cb_send_log_t);
 
 /*! \fn void set_set_check_metadata_cb(rtloader_t *, cb_set_check_metadata_t)
     \brief Sets a callback to be used by rtloader to allow setting metadata for a given
