@@ -46,6 +46,7 @@ func getCollectorOptions() []fx.Option {
 		podman.GetFxOptions(),
 		remoteworkloadmeta.GetFxOptions(),
 		remoteprocesscollector.GetFxOptions(),
+		remoteWorkloadmetaParams(),
 		host.GetFxOptions(),
 		process.GetFxOptions(),
 	}
