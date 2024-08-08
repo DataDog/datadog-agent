@@ -59,8 +59,8 @@ func (p *integrationFileFormat) Parse(msg *message.Message) (*message.Message, e
 		ddtagsSlice = normalizeTags(ddtagsSlice)
 	}
 
-	// append ddtags to message origin tags
-	// set content to modifiedJSON
+	// ParsingExtra holds extra fields picked up while parsing, such as tags. The
+	// tags are stored here and applied later in the file tailer.
 	if len(ddtagsSlice) > 0 {
 		msg.ParsingExtra.Tags = ddtagsSlice
 	}
