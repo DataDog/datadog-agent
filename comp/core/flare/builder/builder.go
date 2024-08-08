@@ -45,7 +45,7 @@ type FlareBuilder interface {
 	//   params: A variadic parameter list that provides the values to be inserted into the format string.
 	//
 	// Usage example:
-	//   effect.AddLog("Processing completed in %d ms", elapsedTime)
+	//   Log("Processing completed in %d ms", elapsedTime)
 	Log(format string, params ...interface{}) error
 
 	// AddFile creates a new file in the flare with the content.
