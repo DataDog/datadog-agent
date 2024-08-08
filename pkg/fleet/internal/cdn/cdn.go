@@ -9,6 +9,7 @@ package cdn
 import (
 	"context"
 	"crypto/sha256"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
@@ -66,7 +67,7 @@ func getFakeCDNConfig(_ context.Context) (Config, error) {
 	hash := sha256.New()
 	hash.Write(serializedConfig)
 	return Config{
-		Version: string(hash.Sum(nil)),
+		Version: fmt.Sprintf("%x", hash.Sum(nil)),
 		Datadog: serializedConfig,
 	}, nil
 }
