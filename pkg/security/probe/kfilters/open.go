@@ -31,21 +31,21 @@ var openCapabilities = Capabilities{
 	},
 }
 
-func openOnNewApprovers(approvers rules.Approvers) (ActiveApprovers, error) {
-	openApprovers, err := onNewBasenameApprovers(model.FileOpenEventType, "file", approvers)
+func openOnNewApprovers(approvers rules.Approvers) (ActiveKFilters, error) {
+	openKFilters, err := getBasenameKFilters(model.FileOpenEventType, "file", approvers)
 	if err != nil {
 		return nil, err
 	}
 
 	for field, values := range approvers {
 		switch field {
-		case "open.file.name", "open.file.path": // already handled by onNewBasenameApprovers
+		case "open.file.name", "open.file.path": // already handled by getBasenameKFilters
 		case "open.flags":
-			activeApprover, err := approveFlags("open_flags_approvers", intValues[int32](values)...)
+			kfilter, err := getFlagsKFilters("open_flags_approvers", intValues[int32](values)...)
 			if err != nil {
 				return nil, err
 			}
-			openApprovers = append(openApprovers, activeApprover)
+			openKFilters = append(openKFilters, kfilter)
 
 		default:
 			return nil, fmt.Errorf("unknown field '%s'", field)
@@ -53,5 +53,5 @@ func openOnNewApprovers(approvers rules.Approvers) (ActiveApprovers, error) {
 
 	}
 
-	return newActiveKFilters(openApprovers...), nil
+	return newActiveKFilters(openKFilters...), nil
 }

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix `container.net.*` metrics accuracy on Linux. Currently `container.net.*` metrics are always emitted with high cardinality tags while the values may not represent actual container-level values but POD-level values (multiple containers in a pod) or host-level values (containers running in host network). With this bug fix, the `container.net.*` metrics aren't emitted for containers running in host network and a single timeseries is emitted by pods when running multiple containers. Finally, in non-Kubernetes environments, if multiple containers share the same network namespace, `container.net.*` metrics won't be emitted.

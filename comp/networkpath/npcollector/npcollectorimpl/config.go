@@ -16,6 +16,7 @@ type collectorConfigs struct {
 	workers                      int
 	pathtestInputChanSize        int
 	pathtestProcessingChanSize   int
+	pathtestContextsLimit        int
 	pathtestTTL                  time.Duration
 	pathtestInterval             time.Duration
 	flushInterval                time.Duration
@@ -28,6 +29,7 @@ func newConfig(agentConfig config.Component) *collectorConfigs {
 		workers:                      agentConfig.GetInt("network_path.collector.workers"),
 		pathtestInputChanSize:        agentConfig.GetInt("network_path.collector.input_chan_size"),
 		pathtestProcessingChanSize:   agentConfig.GetInt("network_path.collector.processing_chan_size"),
+		pathtestContextsLimit:        agentConfig.GetInt("network_path.collector.pathtest_contexts_limit"),
 		pathtestTTL:                  agentConfig.GetDuration("network_path.collector.pathtest_ttl"),
 		pathtestInterval:             agentConfig.GetDuration("network_path.collector.pathtest_interval"),
 		flushInterval:                agentConfig.GetDuration("network_path.collector.flush_interval"),

@@ -8,6 +8,8 @@ package protocols
 
 import (
 	"math"
+
+	"github.com/DataDog/sketches-go/ddsketch"
 )
 
 // below is copied from pkg/trace/stats/statsraw.go
@@ -22,4 +24,14 @@ func NSTimestampToFloat(ns uint64) float64 {
 	// https://en.wikipedia.org/wiki/Double-precision_floating-point_format
 	b &= 0xfffff80000000000
 	return math.Float64frombits(b)
+}
+
+// GetSketchQuantile returns the value at the given percentile in the sketch
+func GetSketchQuantile(sketch *ddsketch.DDSketch, percentile float64) float64 {
+	if sketch == nil {
+		return 0.0
+	}
+
+	val, _ := sketch.GetValueAtQuantile(percentile)
+	return val
 }
