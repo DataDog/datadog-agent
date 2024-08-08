@@ -10,11 +10,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -178,4 +179,17 @@ func (i *InstallerExec) States() (map[string]repository.State, error) {
 	states, err := repositories.GetState()
 	log.Debugf("repositories states: %v", states)
 	return states, err
+}
+
+func (iCmd *installerCmd) Run() error {
+	output, err := iCmd.CombinedOutput()
+	if err == nil {
+		return nil
+	}
+
+	if len(output) == 0 {
+		return fmt.Errorf("install failed: %s", err.Error())
+	}
+
+	return fmt.Errorf("install failed: %s \n%s", strings.TrimSpace(string(output)), err.Error())
 }
