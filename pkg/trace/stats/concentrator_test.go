@@ -959,3 +959,74 @@ func TestComputeStatsForSpanKind(t *testing.T) {
 		assert.Equal(tc.res, computeStatsForSpanKind(tc.kind))
 	}
 }
+
+// BenchmarkConcentrator measures the performance of adding spans to the concentrator
+// Half of provided spans will not need stats calculation (this is to ensure improvements that reduce cost of unmeasured spans are included)
+func BenchmarkConcentrator(b *testing.B) {
+	cfg := &config.AgentConfig{
+		BucketInterval:         10 * time.Second,
+		AgentVersion:           "0.99.0",
+		DefaultEnv:             "env",
+		Hostname:               "hostname",
+		ComputeStatsBySpanKind: true,
+	}
+	sp := &pb.Span{
+		ParentID: 0,
+		SpanID:   1,
+		Service:  "myservice",
+		Name:     "http.server.request",
+		Resource: "GET /users",
+		Duration: 500,
+	}
+	unmeasuredSpan := &pb.Span{
+		ParentID: 1,
+		SpanID:   555, // technically this isn't okay but it's fine for this test
+		Service:  "myservice",
+		Name:     "MyInternalSpan",
+		Resource: "someWork",
+		Duration: 345,
+	}
+	// Even though span.kind = internal is an ineligible case, we should still compute stats based on the top_level flag.
+	// This is a case that should rarely (if ever) come up in practice though.
+	topLevelInternalSpan := &pb.Span{
+		ParentID: sp.SpanID,
+		SpanID:   2,
+		Service:  "myservice",
+		Name:     "internal.op1",
+		Resource: "compute_1",
+		Duration: 25,
+		Metrics:  map[string]float64{"_top_level": 1.0},
+		Meta:     map[string]string{"span.kind": "internal"},
+	}
+	// Even though span.kind = internal is an ineligible case, we should still compute stats based on the measured flag.
+	measuredInternalSpan := &pb.Span{
+		ParentID: sp.SpanID,
+		SpanID:   3,
+		Service:  "myservice",
+		Name:     "internal.op2",
+		Resource: "compute_2",
+		Duration: 25,
+		Metrics:  map[string]float64{"_dd.measured": 1.0},
+		Meta:     map[string]string{"span.kind": "internal"},
+	}
+	// client is an eligible span.kind for stats computation.
+	clientSpan := &pb.Span{
+		ParentID: sp.SpanID,
+		SpanID:   4,
+		Service:  "myservice",
+		Name:     "postgres.query",
+		Resource: "SELECT user_id from users WHERE user_name = ?",
+		Duration: 75,
+		Meta:     map[string]string{"span.kind": "client"},
+	}
+	spans := []*pb.Span{sp, unmeasuredSpan, unmeasuredSpan, unmeasuredSpan, unmeasuredSpan, topLevelInternalSpan, measuredInternalSpan, clientSpan}
+	traceutil.ComputeTopLevel(spans)
+	testTrace := toProcessedTrace(spans, "none", "", "", "", "")
+	// Ignore the overhead of flushing and we finish within a single bucket so no need to "start"
+	c := NewTestConcentratorWithCfg(time.Now(), cfg)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		c.addNow(testTrace, "", nil)
+	}
+}
