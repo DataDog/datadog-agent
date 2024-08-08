@@ -11,7 +11,6 @@ import (
 	"context"
 	"fmt"
 
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,7 +25,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
-	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -307,14 +305,7 @@ func (c *Controller) createPodAutoscaler(ctx context.Context, podAutoscalerInter
 		Spec:   *podAutoscalerInternal.Spec().DeepCopy(),
 		Status: autoscalerStatus,
 	}
-
-	for _, condition := range autoscalerStatus.Conditions {
-		if condition.Status == corev1.ConditionTrue {
-			autoscalingStatusConditions.Set(1.0, podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), string(condition.Type), condition.Reason, condition.Message, le.JoinLeaderValue)
-		} else {
-			autoscalingStatusConditions.Set(0.0, podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), string(condition.Type), condition.Reason, condition.Message, le.JoinLeaderValue)
-		}
-	}
+	trackPodAutoscalerStatus(autoscalerObj)
 
 	obj, err := autoscaling.ToUnstructured(autoscalerObj)
 	if err != nil {
@@ -353,14 +344,6 @@ func (c *Controller) updatePodAutoscalerSpec(ctx context.Context, podAutoscalerI
 func (c *Controller) updatePodAutoscalerStatus(ctx context.Context, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
 	newStatus := podAutoscalerInternal.BuildStatus(metav1.NewTime(c.clock.Now()), &podAutoscaler.Status)
 
-	for _, condition := range newStatus.Conditions {
-		if condition.Status == corev1.ConditionTrue {
-			autoscalingStatusConditions.Set(1.0, podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), string(condition.Type), condition.Reason, condition.Message)
-		} else {
-			autoscalingStatusConditions.Set(0.0, podAutoscalerInternal.Namespace(), podAutoscalerInternal.Name(), string(condition.Type), condition.Reason, condition.Message)
-		}
-	}
-
 	if autoscaling.Semantic.DeepEqual(podAutoscaler.Status, newStatus) {
 		return nil
 	}
@@ -371,6 +354,7 @@ func (c *Controller) updatePodAutoscalerStatus(ctx context.Context, podAutoscale
 		ObjectMeta: podAutoscaler.ObjectMeta,
 		Status:     newStatus,
 	}
+	trackPodAutoscalerStatus(autoscalerObj)
 
 	obj, err := autoscaling.ToUnstructured(autoscalerObj)
 	if err != nil {

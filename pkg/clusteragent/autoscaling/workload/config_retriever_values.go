@@ -83,35 +83,41 @@ func (p autoscalingValuesProcessor) processValues(values *kubeAutoscaling.Worklo
 
 	podAutoscaler.UpdateFromValues(scalingValues)
 
+	// Emit telemetry for received values
+	// Horizontal value
 	telemetryHorizontalScaleReceivedRecommendations.Set(
 		float64(scalingValues.Horizontal.Replicas),
 		podAutoscaler.Namespace(),
-		values.Name,
+		podAutoscaler.Spec().TargetRef.Name,
 		podAutoscaler.Name(),
+		string(scalingValues.Horizontal.Source),
 		le.JoinLeaderValue,
 	)
 
-	for _, resource := range scalingValues.Vertical.ContainerResources {
-		for requestName, requestValue := range resource.Requests {
+	// Vertical values
+	for _, containerResources := range scalingValues.Vertical.ContainerResources {
+		for resource, value := range containerResources.Requests {
 			telemetryVerticalScaleReceivedRecommendationsRequests.Set(
-				requestValue.AsApproximateFloat64(),
+				value.AsApproximateFloat64(),
 				podAutoscaler.Namespace(),
-				resource.Name,
+				podAutoscaler.Spec().TargetRef.Name,
 				podAutoscaler.Name(),
 				string(scalingValues.Vertical.Source),
-				string(requestName),
+				containerResources.Name,
+				string(resource),
 				le.JoinLeaderValue,
 			)
 		}
 
-		for limitName, limitValue := range resource.Limits {
+		for resource, value := range containerResources.Limits {
 			telemetryVerticalScaleReceivedRecommendationsLimits.Set(
-				limitValue.AsApproximateFloat64(),
+				value.AsApproximateFloat64(),
 				podAutoscaler.Namespace(),
-				resource.Name,
+				podAutoscaler.Spec().TargetRef.Name,
 				podAutoscaler.Name(),
 				string(scalingValues.Vertical.Source),
-				string(limitName),
+				containerResources.Name,
+				string(resource),
 				le.JoinLeaderValue,
 			)
 		}

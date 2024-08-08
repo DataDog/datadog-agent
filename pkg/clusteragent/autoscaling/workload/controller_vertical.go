@@ -66,25 +66,10 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 		return autoscaling.NoRequeue, nil
 	}
 
-	telemetryVerticalScaleAttempts.Inc(
-		autoscalerInternal.Namespace(),
-		autoscalerInternal.Spec().TargetRef.Name,
-		autoscalerInternal.Name(),
-		string(scalingValues.Vertical.Source),
-		le.JoinLeaderValue,
-	)
-
 	recomendationID := scalingValues.Vertical.ResourcesHash
 	targetGVK, err := autoscalerInternal.TargetGVK()
 	if err != nil {
 		autoscalerInternal.SetError(err)
-		telemetryVerticalScaleErrors.Inc(
-			autoscalerInternal.Namespace(),
-			autoscalerInternal.Spec().TargetRef.Name,
-			autoscalerInternal.Name(),
-			string(scalingValues.Vertical.Source),
-			le.JoinLeaderValue,
-		)
 		return autoscaling.NoRequeue, err
 	}
 
@@ -132,32 +117,6 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	if autoscalerInternal.VerticalLastAction() != nil && autoscalerInternal.VerticalLastAction().Time.Add(rolloutCheckRequeueDelay).After(u.clock.Now()) {
 		log.Debugf("Last action was done less than %s ago for autoscaler: %s, skipping", rolloutCheckRequeueDelay.String(), autoscalerInternal.ID())
 		return autoscaling.ProcessResult{Requeue: true, RequeueAfter: rolloutCheckRequeueDelay}, nil
-	}
-
-	for _, resource := range scalingValues.Vertical.ContainerResources {
-		for requestName, requestValue := range resource.Requests {
-			telemetryVerticalScaleAppliedRecommendationsRequests.Set(
-				requestValue.AsApproximateFloat64(),
-				autoscalerInternal.Namespace(),
-				resource.Name,
-				autoscalerInternal.Name(),
-				string(scalingValues.Vertical.Source),
-				string(requestName),
-				le.JoinLeaderValue,
-			)
-		}
-
-		for limitName, limitValue := range resource.Limits {
-			telemetryVerticalScaleAppliedRecommendationsLimits.Set(
-				limitValue.AsApproximateFloat64(),
-				autoscalerInternal.Namespace(),
-				resource.Name,
-				autoscalerInternal.Name(),
-				string(scalingValues.Vertical.Source),
-				string(limitName),
-				le.JoinLeaderValue,
-			)
-		}
 	}
 
 	switch targetGVK.Kind {
@@ -221,7 +180,7 @@ func (u *verticalController) syncDeploymentKind(
 	_, err = u.dynamicClient.Resource(gvr).Namespace(target.Namespace).Patch(ctx, target.Name, types.StrategicMergePatchType, patchData, metav1.PatchOptions{})
 	if err != nil {
 		err = fmt.Errorf("failed to trigger rollout for gvk: %s, name: %s, err: %v", targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name, err)
-		rolloutTriggered.Inc(target.Kind, target.Name, target.Namespace, "error", le.JoinLeaderValue)
+		telemetryVerticalRolloutTriggered.Inc(target.Namespace, target.Name, autoscalerInternal.Name(), "error", le.JoinLeaderValue)
 		autoscalerInternal.UpdateFromVerticalAction(nil, err)
 		u.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.FailedTriggerRolloutEventReason, err.Error())
 
@@ -230,7 +189,7 @@ func (u *verticalController) syncDeploymentKind(
 
 	// Propagating information about the rollout
 	log.Infof("Successfully triggered rollout for autoscaler: %s, gvk: %s, name: %s", autoscalerInternal.ID(), targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name)
-	rolloutTriggered.Inc(target.Kind, target.Name, target.Namespace, "success", le.JoinLeaderValue)
+	telemetryVerticalRolloutTriggered.Inc(target.Namespace, target.Name, autoscalerInternal.Name(), "ok", le.JoinLeaderValue)
 	u.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeNormal, model.SuccessfulTriggerRolloutEventReason, "Successfully triggered rollout on target:%s/%s", targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name)
 
 	autoscalerInternal.UpdateFromVerticalAction(&datadoghq.DatadogPodAutoscalerVerticalAction{

@@ -130,26 +130,29 @@ func (hr *horizontalController) performScaling(ctx context.Context, podAutoscale
 	}
 
 	scale.Spec.Replicas = horizontalAction.ToReplicas
-	telemetryHorizontalScaleAttempts.Inc(scale.Namespace, scale.Name, podAutoscaler.Name, le.JoinLeaderValue)
 	_, err = hr.scaler.update(ctx, gr, scale)
 	if err != nil {
 		err = fmt.Errorf("failed to scale target: %s/%s to %d replicas, err: %w", scale.Namespace, scale.Name, horizontalAction.ToReplicas, err)
 		hr.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.FailedScaleEventReason, err.Error())
-		telemetryHorizontalScaleErrors.Inc(scale.Namespace, scale.Name, podAutoscaler.Name, le.JoinLeaderValue)
 		autoscalerInternal.UpdateFromHorizontalAction(nil, err)
+
+		telemetryHorizontalScaleActions.Inc(scale.Namespace, scale.Name, podAutoscaler.Name, string(scalingValues.Horizontal.Source), "error", le.JoinLeaderValue)
 		return autoscaling.Requeue, err
 	}
 
-	log.Debugf("Scaled target: %s/%s from %d replicas to %d replicas", scale.Namespace, scale.Name, horizontalAction.FromReplicas, horizontalAction.ToReplicas)
-	autoscalerInternal.UpdateFromHorizontalAction(horizontalAction, nil)
-	hr.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeNormal, model.SuccessfulScaleEventReason, "Scaled target: %s/%s from %d replicas to %d replicas", scale.Namespace, scale.Name, horizontalAction.FromReplicas, horizontalAction.ToReplicas)
+	telemetryHorizontalScaleActions.Inc(scale.Namespace, scale.Name, podAutoscaler.Name, string(scalingValues.Horizontal.Source), "ok", le.JoinLeaderValue)
 	telemetryHorizontalScaleAppliedRecommendations.Set(
 		float64(horizontalAction.ToReplicas),
 		scale.Namespace,
 		scale.Name,
 		podAutoscaler.Name,
+		string(scalingValues.Horizontal.Source),
 		le.JoinLeaderValue,
 	)
+
+	log.Debugf("Scaled target: %s/%s from %d replicas to %d replicas", scale.Namespace, scale.Name, horizontalAction.FromReplicas, horizontalAction.ToReplicas)
+	autoscalerInternal.UpdateFromHorizontalAction(horizontalAction, nil)
+	hr.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeNormal, model.SuccessfulScaleEventReason, "Scaled target: %s/%s from %d replicas to %d replicas", scale.Namespace, scale.Name, horizontalAction.FromReplicas, horizontalAction.ToReplicas)
 	if nextEvalAfter > 0 {
 		return autoscaling.Requeue.After(nextEvalAfter), nil
 	}
