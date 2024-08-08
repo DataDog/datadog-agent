@@ -60,7 +60,7 @@ var (
 	emittedEvents = telemetry.NewCounterWithOpts(
 		CheckName,
 		"emitted_events",
-		[]string{"kind", "type", "source"},
+		[]string{"kind", "type", "source", "is_bundled"},
 		"Number of events emitted by the check.",
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)

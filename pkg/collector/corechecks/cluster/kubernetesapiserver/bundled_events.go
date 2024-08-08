@@ -85,6 +85,7 @@ func (c *bundledTransformer) Transform(events []*v1.Event) ([]event.Event, []err
 			id.kind,
 			id.evType,
 			getEventSource(bundle.reportingController, bundle.component),
+			"true",
 		)
 
 		datadogEvs = append(datadogEvs, datadogEv)

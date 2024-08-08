@@ -91,6 +91,7 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 			involvedObject.Kind,
 			ev.Type,
 			source,
+			"false",
 		)
 
 		event := event.Event{
