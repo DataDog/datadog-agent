@@ -12,7 +12,6 @@ import (
 )
 
 func TestStripArguments(t *testing.T) {
-
 	testCases := []struct {
 		cmdline []string
 		want    []string
