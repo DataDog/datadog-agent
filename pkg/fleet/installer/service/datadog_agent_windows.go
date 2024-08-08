@@ -11,7 +11,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -32,11 +31,6 @@ func msiexec(target, operation string, args []string) (err error) {
 		return fmt.Errorf("too many MSIs in package")
 	} else if len(msis) == 0 {
 		return fmt.Errorf("no MSIs in package")
-	}
-
-	tmpDir, err := os.MkdirTemp("", fmt.Sprintf("install-%s-*", filepath.Base(msis[0])))
-	if err != nil {
-		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 
 	cmd := exec.Command("msiexec", append([]string{operation, msis[0], "/qn", "MSIFASTINSTALL=7"}, args...)...)
