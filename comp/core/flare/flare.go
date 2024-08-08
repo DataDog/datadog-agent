@@ -160,7 +160,7 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 		return "", err
 	}
 
-	fb.Log("Flare creation time: %s", time.Now().Format(time.RFC3339)) //nolint:errcheck
+	fb.Logf("Flare creation time: %s", time.Now().Format(time.RFC3339)) //nolint:errcheck
 	if fb.IsLocal() {
 		// If we have a ipcError we failed to reach the agent process, else the user requested a local flare
 		// from the CLI.

@@ -37,7 +37,7 @@ type FlareBuilder interface {
 	// directly from the CLI process and will not contains any runtime informations.
 	IsLocal() bool
 
-	// Log adds a formatted log entry to the flare file associated with this effect.
+	// Logf adds a formatted log entry to the flare file associated with this effect.
 	// The log entry is created using the specified format and optional parameters.
 	//
 	// Parameters:
@@ -45,8 +45,8 @@ type FlareBuilder interface {
 	//   params: A variadic parameter list that provides the values to be inserted into the format string.
 	//
 	// Usage example:
-	//   Log("Processing completed in %d ms", elapsedTime)
-	Log(format string, params ...interface{}) error
+	//   Logf("Processing completed in %d ms", elapsedTime)
+	Logf(format string, params ...interface{}) error
 
 	// AddFile creates a new file in the flare with the content.
 	//

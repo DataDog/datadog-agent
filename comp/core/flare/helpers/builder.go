@@ -174,7 +174,7 @@ func (fb *builder) logError(format string, params ...interface{}) error {
 	return err
 }
 
-func (fb *builder) Log(format string, params ...interface{}) error {
+func (fb *builder) Logf(format string, params ...interface{}) error {
 	_, err := fb.logFile.WriteString(fmt.Sprintf(format, params...) + "\n")
 	if err != nil {
 		return fb.logError("error writing log: %v", err)
