@@ -256,12 +256,12 @@ func (r *Runner) processTCPResults(res *tcp.Results, hname string, destinationHo
 
 	for i, hop := range res.Hops {
 		ttl := i + 1
-		isSuccess := false
+		isReachable := false
 		hopname := fmt.Sprintf("unknown_hop_%d", ttl)
 		hostname := hopname
 
 		if !hop.IP.Equal(net.IP{}) {
-			isSuccess = true
+			isReachable = true
 			hopname = hop.IP.String()
 			hostname = getHostname(hop.IP.String())
 		}
@@ -271,7 +271,7 @@ func (r *Runner) processTCPResults(res *tcp.Results, hname string, destinationHo
 			IPAddress: hopname,
 			Hostname:  hostname,
 			RTT:       float64(hop.RTT.Microseconds()) / float64(1000),
-			Success:   isSuccess,
+			Reachable: isReachable,
 		}
 		traceroutePath.Hops = append(traceroutePath.Hops, npHop)
 	}
@@ -370,7 +370,7 @@ func (r *Runner) processUDPResults(res *results.Results, hname string, destinati
 			}
 			edgeLabel += fmt.Sprintf("\n%d.%d ms", int(cur.probe.RttUsec/1000), int(cur.probe.RttUsec%1000))
 
-			isSuccess := cur.probe.Received != nil
+			isReachable := cur.probe.Received != nil
 			ip := cur.node
 			durationMs := float64(cur.probe.RttUsec) / 1000
 
@@ -379,7 +379,7 @@ func (r *Runner) processUDPResults(res *results.Results, hname string, destinati
 				IPAddress: ip,
 				Hostname:  getHostname(cur.node),
 				RTT:       durationMs,
-				Success:   isSuccess,
+				Reachable: isReachable,
 			}
 			traceroutePath.Hops = append(traceroutePath.Hops, hop)
 		}

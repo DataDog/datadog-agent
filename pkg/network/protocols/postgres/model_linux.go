@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/go-sqllexer"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -23,7 +24,7 @@ import (
 // EventWrapper wraps an ebpf event and provides additional methods to extract information from it.
 // We use this wrapper to avoid recomputing the same values (operation and table name) multiple times.
 type EventWrapper struct {
-	*EbpfEvent
+	*ebpf.EbpfEvent
 
 	operationSet bool
 	operation    Operation
@@ -33,7 +34,7 @@ type EventWrapper struct {
 }
 
 // NewEventWrapper creates a new EventWrapper from an ebpf event.
-func NewEventWrapper(e *EbpfEvent) *EventWrapper {
+func NewEventWrapper(e *ebpf.EbpfEvent) *EventWrapper {
 	return &EventWrapper{
 		EbpfEvent:  e,
 		normalizer: sqllexer.NewNormalizer(sqllexer.WithCollectTables(true)),
@@ -53,7 +54,7 @@ func (e *EventWrapper) ConnTuple() types.ConnectionKey {
 }
 
 // getFragment returns the actual query fragment from the event.
-func (e *EbpfTx) getFragment() []byte {
+func getFragment(e *ebpf.EbpfTx) []byte {
 	if e.Original_query_size == 0 {
 		return nil
 	}
@@ -66,7 +67,7 @@ func (e *EbpfTx) getFragment() []byte {
 // Operation returns the operation of the query (SELECT, INSERT, UPDATE, DROP, etc.)
 func (e *EventWrapper) Operation() Operation {
 	if !e.operationSet {
-		e.operation = FromString(string(bytes.SplitN(e.Tx.getFragment(), []byte(" "), 2)[0]))
+		e.operation = FromString(string(bytes.SplitN(getFragment(&e.Tx), []byte(" "), 2)[0]))
 		e.operationSet = true
 	}
 	return e.operation
@@ -76,7 +77,7 @@ var re = regexp.MustCompile(`(?i)if\s+exists`)
 
 // extractTableName extracts the table name from the query.
 func (e *EventWrapper) extractTableName() string {
-	fragment := string(e.Tx.getFragment())
+	fragment := string(getFragment(&e.Tx))
 	// Temp solution for the fact that ObfuscateSQLString does not support "IF EXISTS" or "if exists", so we remove
 	// it from the fragment if found.
 	fragment = re.ReplaceAllString(fragment, "")

@@ -14,7 +14,6 @@ include:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
-    - python3 -m pip install -r tasks/libs/requirements-github.txt
     - set +x
     - export VERSION=$(inv agent.version --url-safe)-1
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"

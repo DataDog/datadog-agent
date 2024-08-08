@@ -114,7 +114,7 @@ receivers:
         enable_http2: true
         follow_redirects: true
         honor_timestamps: true
-        job_name: otel-collector
+        job_name: datadog-agent
         metrics_path: /metrics
         scheme: http
         scrape_interval: 5s
