@@ -198,7 +198,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 
 			// two volume mounts
 			mounts := tt.pod.Spec.Containers[0].VolumeMounts
-			require.Equal(t, 2, len(mounts), "expected 2 volume mounts in the application container")
+			require.Equal(t, 3, len(mounts), "expected 3 volume mounts in the application container")
 			require.Equal(t, corev1.VolumeMount{
 				Name:      volumeName,
 				MountPath: "/opt/datadog-packages/datadog-apm-inject",
@@ -207,9 +207,15 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			}, mounts[0], "expected first container volume mount to be the injector")
 			require.Equal(t, corev1.VolumeMount{
 				Name:      volumeName,
+				MountPath: "/etc/ld.so.preload",
+				SubPath:   "opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
+				ReadOnly:  true,
+			}, mounts[1], "expected first container volume mount to be the injector")
+			require.Equal(t, corev1.VolumeMount{
+				Name:      volumeName,
 				MountPath: "/opt/datadog/apm/library",
 				SubPath:   "opt/datadog/apm/library",
-			}, mounts[1], "expected the second container volume mount to be the language libraries")
+			}, mounts[2], "expected the second container volume mount to be the language libraries")
 
 			requireEnv(t, "LD_PRELOAD", true, "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so")
 			requireEnv(t, "DD_INJECT_SENDER_TYPE", true, "k8s")
