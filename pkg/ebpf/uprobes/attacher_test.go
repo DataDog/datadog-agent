@@ -220,10 +220,10 @@ func TestStartAndStopWithLibraryWatcher(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 	require.True(t, ua.handlesLibraries())
-	require.NotNil(t, ua.soWatcher)
 
 	err = ua.Start()
 	require.NoError(t, err)
+	require.NotNil(t, ua.soWatcher)
 
 	ua.Stop()
 }
