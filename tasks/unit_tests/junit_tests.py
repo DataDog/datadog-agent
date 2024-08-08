@@ -145,3 +145,19 @@ class TestJUnitUploadFromTGZ(unittest.TestCase):
         junit.junit_upload_from_tgz("tasks/unit_tests/testdata/testjunit-tests_deb-x64-py3.tgz")
         mock_popen.assert_called()
         self.assertEqual(mock_popen.call_count, 30)
+
+    @patch.dict("os.environ", {"CI_PIPELINE_ID": "1664"})
+    @patch("builtins.print")
+    @patch("tasks.libs.common.junit_upload_core.get_gitlab_repo")
+    @patch("tasks.libs.common.junit_upload_core.Popen")
+    def test_kmt(self, mock_popen, mock_gitlab, mock_print):
+        mock_instance = MagicMock()
+        mock_instance.communicate.return_value = (b"stdout", b"")
+        mock_popen.return_value = mock_instance
+        mock_project = MagicMock()
+        mock_project.pipelines.get.return_value = MagicMock()
+        mock_gitlab.return_value = mock_project
+        junit.junit_upload_from_tgz("tasks/unit_tests/testdata/kmt_tarball/testjunit-kmt.tar.gz")
+        mock_popen.assert_called()
+        self.assertEqual(mock_popen.call_count, 5)
+        mock_print.assert_any_call("[INFO] Found 3 flaky tests.")
