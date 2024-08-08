@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
-// This is a special metric, it's 1 if the span is top-level, 0 if not.
+// topLevelKey is a special metric, it's 1 if the span is top-level, 0 if not.
 const topLevelKey = "_top_level"
 
 // measuredKey is a special metric flag that marks a span for trace metrics calculation.
@@ -44,57 +44,10 @@ type StatSpan struct {
 
 	//Fields below this are derived on creation
 
-	spanKind          string
-	statusCode        uint32
-	isTopLevel        bool
-	isMeasured        bool
-	statableSpanKind  bool
-	isPartialSnapshot bool
-	matchingPeerTags  []string
-}
-
-// NewStatSpanFromPB is a helper version of NewStatSpan that builds a StatSpan from a pb.Span.
-func NewStatSpanFromPB(s *pb.Span, peerTags []string) *StatSpan {
-	return NewStatSpan(s.Service, s.Resource, s.Name, s.Type, s.ParentID, s.Start, s.Duration, s.Error, s.Meta, s.Metrics, peerTags)
-}
-
-// NewStatSpan builds a StatSpan from all the required fields of a span to calculate stats
-// peerTags is the configured peer tags, this list is compared against the meta to identify matching peer tags
-func NewStatSpan(
-	service, resource, name string,
-	typ string,
-	parentID uint64,
-	start, duration int64,
-	error int32,
-	meta map[string]string,
-	metrics map[string]float64,
-	peerTags []string,
-) *StatSpan {
-	if meta == nil {
-		meta = make(map[string]string)
-	}
-	if metrics == nil {
-		metrics = make(map[string]float64)
-	}
-	partialVersion, hasPartialVersion := metrics[partialVersionKey]
-
-	return &StatSpan{
-		service:           service,
-		resource:          resource,
-		name:              name,
-		typ:               typ,
-		error:             error,
-		parentID:          parentID,
-		start:             start,
-		duration:          duration,
-		spanKind:          meta[tagSpanKind],
-		statusCode:        getStatusCode(meta, metrics),
-		isTopLevel:        metrics[topLevelKey] == 1,
-		isMeasured:        metrics[measuredKey] == 1,
-		statableSpanKind:  computeStatsForSpanKind(meta["span.kind"]),
-		isPartialSnapshot: hasPartialVersion && partialVersion >= 0,
-		matchingPeerTags:  matchingPeerTags(meta, peerTags),
-	}
+	spanKind         string
+	statusCode       uint32
+	isTopLevel       bool
+	matchingPeerTags []string
 }
 
 func matchingPeerTags(meta map[string]string, peerTagKeys []string) []string {
@@ -143,16 +96,57 @@ func NewSpanConcentrator(cfg *SpanConcentratorConfig, now time.Time) *SpanConcen
 	return sc
 }
 
+// NewStatSpanFromPB is a helper version of NewStatSpan that builds a StatSpan from a pb.Span.
+func (sc *SpanConcentrator) NewStatSpanFromPB(s *pb.Span, peerTags []string) (statSpan *StatSpan, ok bool) {
+	return sc.NewStatSpan(s.Service, s.Resource, s.Name, s.Type, s.ParentID, s.Start, s.Duration, s.Error, s.Meta, s.Metrics, peerTags)
+}
+
+// NewStatSpan builds a StatSpan from the required fields for stats calculation
+// peerTags is the configured list of peer tags to look for
+// returns (nil,false) if the provided fields indicate a span should not have stats calculated
+func (sc *SpanConcentrator) NewStatSpan(
+	service, resource, name string,
+	typ string,
+	parentID uint64,
+	start, duration int64,
+	error int32,
+	meta map[string]string,
+	metrics map[string]float64,
+	peerTags []string,
+) (statSpan *StatSpan, ok bool) {
+	if meta == nil {
+		meta = make(map[string]string)
+	}
+	if metrics == nil {
+		metrics = make(map[string]float64)
+	}
+	partialVersion, hasPartialVersion := metrics[partialVersionKey]
+	eligibleSpanKind := sc.computeStatsBySpanKind && computeStatsForSpanKind(meta["span.kind"])
+	if !(metrics[topLevelKey] == 1 || metrics[measuredKey] == 1 || eligibleSpanKind) {
+		return nil, false
+	}
+	if hasPartialVersion && partialVersion >= 0 {
+		return nil, false
+	}
+	return &StatSpan{
+		service:          service,
+		resource:         resource,
+		name:             name,
+		typ:              typ,
+		error:            error,
+		parentID:         parentID,
+		start:            start,
+		duration:         duration,
+		spanKind:         meta[tagSpanKind],
+		statusCode:       getStatusCode(meta, metrics),
+		isTopLevel:       metrics[topLevelKey] == 1,
+		matchingPeerTags: matchingPeerTags(meta, peerTags),
+	}, true
+}
+
 func (sc *SpanConcentrator) addSpan(s *StatSpan, aggKey PayloadAggregationKey, containerID string, containerTags []string, origin string, weight float64) {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
-	eligibleSpanKind := sc.computeStatsBySpanKind && s.statableSpanKind
-	if !(s.isTopLevel || s.isMeasured || eligibleSpanKind) {
-		return
-	}
-	if s.isPartialSnapshot {
-		return
-	}
 	end := s.start + s.duration
 	btime := end - end%sc.bsize
 
