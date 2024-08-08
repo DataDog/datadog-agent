@@ -7,7 +7,6 @@
 package automultilinedetection
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -61,7 +60,6 @@ var knownTimestampFormats = []string{
 	"05/09/2024*08:22:14*612",
 	"04/23/24 04:34:22 +0000",
 	"2024/04/25 14:57:42",
-	"11:42:35",
 	"11:42:35.173",
 	"11:42:35,173",
 	"23/Apr 11:42:35,173",
@@ -82,7 +80,9 @@ var staticTokenGraph = makeStaticTokenGraph()
 
 // minimumTokenLength is the minimum number of tokens needed to evaluate a timestamp probability.
 // This is not configurable because it has a large impact of the relative accuracy of the heuristic.
-// This value was chosen after evaluating the knownTimestampFormats and accuracy tests in timestamp_detector_test.go.
+// For example, a string 12:30:2017 is tokenized to 5 tokens DD:DD:DDDD which can easily be confused
+// with other non timestamp string. Enforcing more tokens to determine a likely timetamp decreases
+// the likelihood of a false positive. 8 was chosen by iterative testing using the tests in timestamp_detector_test.go.
 var minimumTokenLength = 8
 
 func makeStaticTokenGraph() *TokenGraph {
@@ -101,10 +101,10 @@ type TimestampDetector struct {
 }
 
 // NewTimestampDetector returns a new Timestamp detection heuristic.
-func NewTimestampDetector() *TimestampDetector {
+func NewTimestampDetector(matchThreshold float64) *TimestampDetector {
 	return &TimestampDetector{
 		tokenGraph:     staticTokenGraph,
-		matchThreshold: config.Datadog().GetFloat64("logs_config.timestamp_detector.match_threshold"),
+		matchThreshold: matchThreshold,
 	}
 }
 
