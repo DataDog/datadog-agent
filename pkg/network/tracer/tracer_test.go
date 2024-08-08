@@ -1049,7 +1049,6 @@ func (s *TracerSuite) TestTCPEstablished() {
 	t := s.T()
 	// Ensure closed connections are flushed as soon as possible
 	cfg := testConfig()
-	500 * time.Millisecond
 
 	tr := setupTracer(t, cfg)
 
