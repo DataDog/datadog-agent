@@ -987,9 +987,9 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 		suite.Equal("/var/run/datadog", hostPathVolumes["datadog"].Path)
 	}
 
-	volumeMounts := make(map[string]string)
+	volumeMounts := make(map[string][]string)
 	for _, volumeMount := range pod.Spec.Containers[0].VolumeMounts {
-		volumeMounts[volumeMount.Name] = volumeMount.MountPath
+		volumeMounts[volumeMount.Name] = append(volumeMounts[volumeMount.Name], volumeMount.MountPath)
 	}
 
 	if suite.Contains(volumeMounts, "datadog") {
@@ -1011,6 +1011,10 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 		}
 		suite.Contains(emptyDirVolumes, "datadog-auto-instrumentation")
 		if suite.Contains(volumeMounts, "datadog-auto-instrumentation") {
+			suite.Equal([]string{
+				"/opt/datadog-packages/datadog-apm-inject",
+				"/opt/datadog/apm/library",
+			}, volumeMounts["datadog-auto-instrumentation"])
 			suite.Equal("/datadog-lib", volumeMounts["datadog-auto-instrumentation"])
 		}
 	}
