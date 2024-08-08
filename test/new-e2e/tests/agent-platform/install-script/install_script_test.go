@@ -228,9 +228,10 @@ func (is *installScriptSuiteSysVInit) TestInstallAgent() {
 	_, err = client.ExecuteWithRetry("apt-get update && apt-get install -y curl sudo")
 	require.NoError(is.T(), err)
 
-	// We can't easily reuse the rest of the helpers that assume everything runs directly on the host
+	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(*flavor))
+
+	// We can't easily reuse the the helpers that assume everything runs directly on the host
 	// We run a few selected sanity checks here instead (sufficient for this platform anyway)
-	client.InstallWithInstallScript(is.T())
 	is.T().Run("datadog-agent service running", func(tt *testing.T) {
 		_, err := client.Execute("service datadog-agent status")
 		require.NoError(tt, err, "datadog-agent service should be running")

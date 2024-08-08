@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"os"
 	"strings"
 	"time"
 
@@ -279,8 +278,8 @@ type DockerTestClient struct {
 }
 
 // NewDockerTestClient creates a client to help write tests that run on a docker container
-func NewDockerTestClient(host *components.RemoteHost, containerName string) DockerTestClient {
-	return DockerTestClient{
+func NewDockerTestClient(host *components.RemoteHost, containerName string) *DockerTestClient {
+	return &DockerTestClient{
 		host:          host,
 		containerName: containerName,
 	}
@@ -313,45 +312,6 @@ func (c *DockerTestClient) Execute(command string) (output string, err error) {
 // ExecuteWithRetry execute the command with retry
 func (c *DockerTestClient) ExecuteWithRetry(cmd string) (output string, err error) {
 	return execWithRetry(c.Execute, cmd)
-}
-
-// InstallWithInstallScript tries to run the install script on the docker host.
-// It makes the test fail if the installation fails
-func (c *DockerTestClient) InstallWithInstallScript(t *testing.T) {
-	pipelineID := os.Getenv("E2E_PIPELINE_ID")
-	majorVersion := "7"
-	commandLine := ""
-
-	if pipelineID != "" {
-		testEnvVars := []string{}
-		testEnvVars = append(testEnvVars, "TESTING_APT_URL=apttesting.datad0g.com")
-		// apt testing repo
-		// TESTING_APT_REPO_VERSION="pipeline-xxxxx-ay y"
-		testEnvVars = append(testEnvVars, fmt.Sprintf(`TESTING_APT_REPO_VERSION="pipeline-%v-a%v-%s %v"`, pipelineID, majorVersion, "x86_64", majorVersion))
-		testEnvVars = append(testEnvVars, "TESTING_YUM_URL=yumtesting.datad0g.com")
-		// yum testing repo
-		// TESTING_YUM_VERSION_PATH="testing/pipeline-xxxxx-ay/y"
-		testEnvVars = append(testEnvVars, fmt.Sprintf(`TESTING_YUM_VERSION_PATH="testing/pipeline-%v-a%v/%v"`, pipelineID, majorVersion, majorVersion))
-		commandLine = strings.Join(testEnvVars, " ")
-	}
-
-	apikey := "aaaaaaaaaa"
-	// Disable the telemetry to avoid 403 errors
-	commandLine += " DD_INSTRUMENTATION_TELEMETRY_ENABLED=false "
-
-	t.Run("Installing the agent", func(tt *testing.T) {
-		var downloadCmd string
-		source := "S3"
-		downloadCmd = fmt.Sprintf(`curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent%v.sh > installscript.sh`, majorVersion)
-
-		_, err := c.ExecuteWithRetry(downloadCmd)
-		require.NoError(tt, err, "failed to download install script from %s: ", source, err)
-
-		cmd := fmt.Sprintf(`DD_API_KEY="%s" %v DD_SITE="datadoghq.eu" bash installscript.sh`, apikey, commandLine)
-		output, err := c.ExecuteWithRetry(cmd)
-		tt.Log(output)
-		require.NoError(tt, err, "agent installation should not return any error: ", err)
-	})
 }
 
 func execWithRetry(exec func(string) (string, error), cmd string) (string, error) {

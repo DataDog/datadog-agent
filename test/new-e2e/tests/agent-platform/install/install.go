@@ -13,12 +13,16 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
 )
 
+// ExecutorWithRetry represents a type that can execute a command and return its output
+type ExecutorWithRetry interface {
+	ExecuteWithRetry(command string) (output string, err error)
+}
+
 // Unix install the agent from install script, by default will install the agent 7 build corresponding to the CI if running in the CI, else the latest Agent 7 version
-func Unix(t *testing.T, client *common.TestClient, options ...installparams.Option) {
+func Unix(t *testing.T, client ExecutorWithRetry, options ...installparams.Option) {
 	params := installparams.NewParams(options...)
 	commandLine := ""
 
@@ -56,17 +60,17 @@ func Unix(t *testing.T, client *common.TestClient, options ...installparams.Opti
 	}
 
 	t.Run("Installing the agent", func(tt *testing.T) {
-		var downdloadCmd string
+		var downloadCmd string
 		var source string
 		if params.MajorVersion != "5" {
 			source = "S3"
-			downdloadCmd = fmt.Sprintf(`curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent%v.sh > installscript.sh`, params.MajorVersion)
+			downloadCmd = fmt.Sprintf(`curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent%v.sh > installscript.sh`, params.MajorVersion)
 		} else {
 			source = "dd-agent repository"
-			downdloadCmd = "curl -L https://raw.githubusercontent.com/DataDog/dd-agent/master/packaging/datadog-agent/source/install_agent.sh > installscript.sh"
+			downloadCmd = "curl -L https://raw.githubusercontent.com/DataDog/dd-agent/master/packaging/datadog-agent/source/install_agent.sh > installscript.sh"
 		}
 
-		_, err := client.ExecuteWithRetry(downdloadCmd)
+		_, err := client.ExecuteWithRetry(downloadCmd)
 		require.NoError(tt, err, "failed to download install script from %s: ", source, err)
 
 		cmd := fmt.Sprintf(`DD_API_KEY="%s" %v DD_SITE="datadoghq.eu" bash installscript.sh`, apikey, commandLine)
