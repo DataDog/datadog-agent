@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux && !windows
-
 package model
+
+import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 
 var (
 	errorConstants = map[string]int{}
@@ -16,7 +16,22 @@ var (
 	addressFamilyConstants = map[string]uint16{}
 )
 
-func initVMConstants()               {}
+var (
+	// vmConstants on darwin are used by some dd-go tests, so we need them on darwin as well
+	vmConstants = map[string]uint64{
+		"VM_NONE":  0x0,
+		"VM_READ":  0x1,
+		"VM_WRITE": 0x2,
+		"VM_EXEC":  0x4,
+	}
+)
+
+func initVMConstants() {
+	for k, v := range vmConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+	}
+}
+
 func initBPFCmdConstants()           {}
 func initBPFHelperFuncConstants()    {}
 func initBPFMapTypeConstants()       {}
