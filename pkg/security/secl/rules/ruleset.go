@@ -567,24 +567,24 @@ func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) 
 			continue
 		}
 
-		eventApprovers, err := rs.GetEventApprovers(eventType, caps)
-		if err != nil || len(eventApprovers) == 0 {
+		eventTypeApprovers, err := rs.GetEventTypeApprovers(eventType, caps)
+		if err != nil || len(eventTypeApprovers) == 0 {
 			continue
 		}
-		approvers[eventType] = eventApprovers
+		approvers[eventType] = eventTypeApprovers
 	}
 
 	return approvers, nil
 }
 
-// GetEventApprovers returns approvers for the given event type and the fields
-func (rs *RuleSet) GetEventApprovers(eventType eval.EventType, fieldCaps FieldCapabilities) (Approvers, error) {
+// GetEventTypeApprovers returns approvers for the given event type and the fields
+func (rs *RuleSet) GetEventTypeApprovers(eventType eval.EventType, fieldCaps FieldCapabilities) (Approvers, error) {
 	bucket, exists := rs.eventRuleBuckets[eventType]
 	if !exists {
 		return nil, ErrNoEventTypeBucket{EventType: eventType}
 	}
 
-	return GetApprovers(bucket.rules, rs.newFakeEvent(), fieldCaps)
+	return getApprovers(bucket.rules, rs.newFakeEvent(), fieldCaps)
 }
 
 // GetFieldValues returns all the values of the given field

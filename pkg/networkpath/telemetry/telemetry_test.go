@@ -86,7 +86,7 @@ func TestSubmitNetworkPathTelemetry(t *testing.T) {
 				Protocol:    payload.ProtocolUDP,
 				Hops: []payload.NetworkPathHop{
 					{Hostname: "hop_1", IPAddress: "1.1.1.1"},
-					{Hostname: "hop_2", IPAddress: "1.1.1.2", Success: true},
+					{Hostname: "hop_2", IPAddress: "1.1.1.2", Reachable: true},
 				},
 			},
 			checkDuration: 10 * time.Second,

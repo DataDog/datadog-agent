@@ -48,7 +48,7 @@ func collectProcess(pid int32) (*ProcProcess, error) {
 	}, nil
 }
 
-func collectProcesses(traceePID int32, cache map[int32]int64) ([]*ProcProcess, []int32, error) {
+func collectProcesses(traceePIDs []int, cache map[int32]int64) ([]*ProcProcess, []int32, error) {
 	pids, err := process.Pids()
 	if err != nil {
 		return nil, nil, err
@@ -74,17 +74,17 @@ func collectProcesses(traceePID int32, cache map[int32]int64) ([]*ProcProcess, [
 	}
 
 	toIgnore := func(proc *ProcProcess) bool {
-		var deja []int32
+		var dejaVu []int32
 
 		// loop to check if proc is not a child of the tracee
 		for {
 			// protection against infinite loop
-			if slices.Contains(deja, proc.Pid) {
+			if slices.Contains(dejaVu, proc.Pid) {
 				return true
 			}
-			deja = append(deja, proc.Pid)
+			dejaVu = append(dejaVu, proc.Pid)
 
-			if proc.Pid == traceePID {
+			if slices.Contains(traceePIDs, int(proc.Pid)) {
 				return true
 			}
 
@@ -287,35 +287,33 @@ func (ctx *CWSPtracerCtx) scanProcfs() {
 		select {
 		case <-ticker.C:
 			ctx.pidLock.RLock()
-			for _, pid := range ctx.PIDs {
-				add, del, err := collectProcesses(int32(pid), cache)
-				if err != nil {
-					logger.Errorf("unable to collect processes: %v", err)
-					continue
-				}
+			add, del, err := collectProcesses(ctx.PIDs, cache)
+			if err != nil {
+				logger.Errorf("unable to collect processes: %v", err)
+				continue
+			}
 
-				for _, proc := range add {
-					if msg, err := procToMsg(proc); err == nil {
-						_ = ctx.sendMsg(msg)
-					}
-					cache[proc.Pid] = proc.CreateTime
-				}
-
-				// cleanup
-				for _, pid := range del {
-					delete(cache, pid)
-
-					msg := &ebpfless.Message{
-						Type: ebpfless.MessageTypeSyscall,
-						Syscall: &ebpfless.SyscallMsg{
-							Type:      ebpfless.SyscallTypeExit,
-							PID:       uint32(pid),
-							Timestamp: uint64(time.Now().UnixNano()),
-							Exit:      &ebpfless.ExitSyscallMsg{},
-						},
-					}
+			for _, proc := range add {
+				if msg, err := procToMsg(proc); err == nil {
 					_ = ctx.sendMsg(msg)
 				}
+				cache[proc.Pid] = proc.CreateTime
+			}
+
+			// cleanup
+			for _, pid := range del {
+				delete(cache, pid)
+
+				msg := &ebpfless.Message{
+					Type: ebpfless.MessageTypeSyscall,
+					Syscall: &ebpfless.SyscallMsg{
+						Type:      ebpfless.SyscallTypeExit,
+						PID:       uint32(pid),
+						Timestamp: uint64(time.Now().UnixNano()),
+						Exit:      &ebpfless.ExitSyscallMsg{},
+					},
+				}
+				_ = ctx.sendMsg(msg)
 			}
 			ctx.pidLock.RUnlock()
 		case <-ctx.cancel.Done():

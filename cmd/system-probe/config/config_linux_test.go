@@ -35,7 +35,7 @@ func TestNetworkProcessEventMonitoring(t *testing.T) {
 			defer os.Unsetenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED")
 			defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLED")
 
-			cfg, err := New("")
+			cfg, err := New("", "")
 			require.NoError(t, err)
 			assert.Equal(t, te.enabled, cfg.ModuleIsEnabled(EventMonitorModule))
 		})
@@ -48,12 +48,12 @@ func TestDynamicInstrumentation(t *testing.T) {
 	os.Setenv("DD_DYNAMIC_INSTRUMENTATION_ENABLED", "true")
 	defer os.Unsetenv("DD_DYNAMIC_INSTRUMENTATION_ENABLED")
 
-	cfg, err := New("")
+	cfg, err := New("", "")
 	require.NoError(t, err)
 	assert.Equal(t, true, cfg.ModuleIsEnabled(DynamicInstrumentationModule))
 
 	os.Unsetenv("DD_DYNAMIC_INSTRUMENTATION_ENABLED")
-	cfg, err = New("")
+	cfg, err = New("", "")
 	require.NoError(t, err)
 	assert.Equal(t, false, cfg.ModuleIsEnabled(DynamicInstrumentationModule))
 
@@ -94,7 +94,7 @@ func TestNPMEnabled(t *testing.T) {
 			t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", strconv.FormatBool(te.npm))
 			t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", strconv.FormatBool(te.usm))
 			t.Setenv("DD_CCM_NETWORK_CONFIG_ENABLED", strconv.FormatBool(te.ccm))
-			cfg, err := New("")
+			cfg, err := New("", "")
 			require.NoError(t, err)
 			assert.Equal(t, te.npmEnabled, cfg.ModuleIsEnabled(NetworkTracerModule), "unexpected network tracer module enablement: npm: %v, usm: %v, ccm: %v", te.npm, te.usm, te.ccm)
 		})

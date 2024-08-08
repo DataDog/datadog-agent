@@ -68,8 +68,7 @@ func bitmaskCombinations(bitmasks []int) []int {
 	return result
 }
 
-// GetApprovers returns approvers for the given rules
-func GetApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) (Approvers, error) {
+func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) (Approvers, error) {
 	approvers := make(Approvers)
 
 	ctx := eval.NewContext(event)

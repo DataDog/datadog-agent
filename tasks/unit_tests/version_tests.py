@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from invoke import MockContext, Result
 
-from tasks.libs.releasing.version import query_version
+from tasks.libs.releasing.version import get_matching_pattern, query_version
 from tasks.libs.types.version import Version
 
 
@@ -233,7 +233,7 @@ class TestQueryVersion(unittest.TestCase):
         c = MockContext(
             run={
                 "git rev-parse --abbrev-ref HEAD": Result("main"),
-                rf"git tag --list --merged main | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$' | sort -rV | head -1": Result(
+                rf"git tag --list --merged main | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$'": Result(
                     "7.55.0-devel"
                 ),
                 'git describe --tags --candidates=50 --match "7.55.0-devel" --abbrev=7': Result(
@@ -252,7 +252,7 @@ class TestQueryVersion(unittest.TestCase):
         c = MockContext(
             run={
                 "git rev-parse --abbrev-ref HEAD": Result("7.55.x"),
-                rf"git tag --list --merged 7.55.x | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$' | sort -rV | head -1": Result(
+                rf"git tag --list --merged 7.55.x | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$'": Result(
                     "7.55.0-devel"
                 ),
                 'git describe --tags --candidates=50 --match "7.55.0-devel" --abbrev=7': Result(
@@ -265,3 +265,33 @@ class TestQueryVersion(unittest.TestCase):
         self.assertEqual(p, "devel")
         self.assertEqual(c, 543)
         self.assertEqual(g, "315e3a2")
+
+
+@patch("os.environ", {"BUCKET_BRANCH": "dev"})
+class TestGetMatchingPattern(unittest.TestCase):
+    def test_on_patch_release(self):
+        c = MockContext(
+            run={
+                "git rev-parse --abbrev-ref HEAD": Result("7.55.x"),
+                r"git tag --list --merged 7.55.x | grep -E '^7\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$'": Result(
+                    '7.15.0-devel\n7.15.0-rc.2\n7.15.0-rc.4\n7.15.0-rc.5\n7.15.0-rc.6\n7.15.0-rc.7\n7.15.0-rc.8\n7.15.0-rc.9\n7.16.0\n7.16.0-rc.1\n7.16.0-rc.2\n7.16.0-rc.3\n7.16.0-rc.4\n7.16.0-rc.5\n7.16.0-rc.6\n7.16.0-rc.7\n7.16.0-rc.8\n7.16.0-rc.9\n7.17.0-devel\n7.17.0-rc.1\n7.17.0-rc.2\n7.17.0-rc.3\n7.17.0-rc.4\n7.18.0-devel\n7.18.0-rc.1\n7.18.0-rc.2\n7.18.0-rc.3\n7.18.0-rc.4\n7.18.0-rc.5\n7.18.0-rc.6\n7.19.0-devel\n7.19.0-rc.1\n7.19.0-rc.2\n7.19.0-rc.3\n7.19.0-rc.4\n7.19.0-rc.5\n7.20.0-devel\n7.20.0-rc.1\n7.20.0-rc.2\n7.20.0-rc.3\n7.20.0-rc.4\n7.20.0-rc.5\n7.20.0-rc.6\n7.20.0-rc.7\n7.21.0-devel\n7.21.0-rc.1\n7.21.0-rc.2\n7.21.0-rc.3\n7.22.0-devel\n7.22.0-rc.1\n7.22.0-rc.2\n7.22.0-rc.3\n7.22.0-rc.4\n7.22.0-rc.5\n7.22.0-rc.6\n7.23.0-devel\n7.23.0-rc.1\n7.23.0-rc.2\n7.23.0-rc.3\n7.24.0-devel\n7.24.0-rc.1\n7.24.0-rc.2\n7.24.0-rc.3\n7.24.0-rc.4\n7.24.0-rc.5\n7.25.0-devel\n7.25.0-rc.1\n7.25.0-rc.2\n7.25.0-rc.3\n7.25.0-rc.4\n7.25.0-rc.5\n7.25.0-rc.6\n7.26.0-devel\n7.26.0-rc.1\n7.26.0-rc.2\n7.26.0-rc.3\n7.27.0-devel\n7.27.0-rc.1\n7.27.0-rc.2\n7.27.0-rc.3\n7.27.0-rc.4\n7.27.0-rc.5\n7.27.0-rc.6\n7.28.0-devel\n7.28.0-rc.1\n7.28.0-rc.2\n7.28.0-rc.3\n7.29.0-devel\n7.29.0-rc.1\n7.29.0-rc.2\n7.29.0-rc.3\n7.29.0-rc.4\n7.29.0-rc.5\n7.29.0-rc.6\n7.30.0-devel\n7.30.0-rc.1\n7.30.0-rc.2\n7.30.0-rc.3\n7.30.0-rc.4\n7.30.0-rc.5\n7.30.0-rc.6\n7.30.0-rc.7\n7.31.0-devel\n7.31.0-rc.1\n7.31.0-rc.2\n7.31.0-rc.3\n7.31.0-rc.4\n7.31.0-rc.5\n7.31.0-rc.6\n7.31.0-rc.7\n7.31.0-rc.8\n7.32.0-devel\n7.32.0-rc.1\n7.32.0-rc.2\n7.32.0-rc.3\n7.32.0-rc.4\n7.32.0-rc.5\n7.32.0-rc.6\n7.33.0-devel\n7.33.0-rc.1\n7.33.0-rc.2\n7.33.0-rc.3\n7.33.0-rc.4\n7.33.0-rc.4-dbm-beta-0.1\n7.34.0-devel\n7.34.0-rc.1\n7.34.0-rc.2\n7.34.0-rc.3\n7.34.0-rc.4\n7.35.0-devel\n7.35.0-rc.1\n7.35.0-rc.2\n7.35.0-rc.3\n7.35.0-rc.4\n7.36.0-devel\n7.36.0-rc.1\n7.36.0-rc.2\n7.36.0-rc.3\n7.36.0-rc.4\n7.37.0-devel\n7.37.0-rc.1\n7.37.0-rc.2\n7.37.0-rc.3\n7.38.0-devel\n7.38.0-rc.1\n7.38.0-rc.2\n7.38.0-rc.3\n7.39.0-devel\n7.39.0-rc.1\n7.39.0-rc.2\n7.39.0-rc.3\n7.40.0-devel\n7.40.0-rc.1\n7.40.0-rc.2\n7.41.0-devel\n7.41.0-rc.1\n7.41.0-rc.2\n7.41.0-rc.3\n7.42.0-devel\n7.42.0-rc.1\n7.42.0-rc.2\n7.42.0-rc.3\n7.43.0-devel\n7.43.0-rc.1\n7.43.0-rc.2\n7.43.0-rc.3\n7.44.0-devel\n7.44.0-rc.1\n7.44.0-rc.2\n7.44.0-rc.3\n7.44.0-rc.4\n7.45.0-devel\n7.45.0-rc.1\n7.45.0-rc.2\n7.45.0-rc.3\n7.46.0-devel\n7.46.0-rc.1\n7.46.0-rc.2\n7.47.0-devel\n7.47.0-rc.1\n7.47.0-rc.2\n7.47.0-rc.3\n7.48.0-devel\n7.48.0-rc.0\n7.48.0-rc.1\n7.48.0-rc.2\n7.49.0-devel\n7.49.0-rc.1\n7.49.0-rc.2\n7.50.0-devel\n7.50.0-rc.1\n7.50.0-rc.2\n7.50.0-rc.3\n7.50.0-rc.4\n7.51.0-devel\n7.51.0-rc.1\n7.51.0-rc.2\n7.52.0-devel\n7.52.0-rc.1\n7.52.0-rc.2\n7.52.0-rc.3\n7.53.0-devel\n7.53.0-rc.1\n7.53.0-rc.2\n7.54.0-devel\n7.54.0-rc.1\n7.54.0-rc.2\n7.55.0\n7.55.0-devel\n7.55.0-rc.1\n7.55.0-rc.10\n7.55.0-rc.11\n7.55.0-rc.2\n7.55.0-rc.3\n7.55.0-rc.4\n7.55.0-rc.5\n7.55.0-rc.6\n7.55.0-rc.7\n7.55.0-rc.8\n7.55.0-rc.9'
+                ),
+            }
+        )
+        self.assertEqual(get_matching_pattern(c, major_version="7", release=True), "7.55.0")
+
+    def test_on_release(self):
+        c = MockContext(
+            run={
+                "git rev-parse --abbrev-ref HEAD": Result("7.55.x"),
+                r"git tag --list --merged 7.55.x | grep -E '^7\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$'": Result(
+                    '7.15.0-devel\n7.15.0-rc.2\n7.15.0-rc.4\n7.15.0-rc.5\n7.15.0-rc.6\n7.15.0-rc.7\n7.15.0-rc.8\n7.15.0-rc.9\n7.16.0\n7.16.0-rc.1\n7.16.0-rc.2\n7.16.0-rc.3\n7.16.0-rc.4\n7.16.0-rc.5\n7.16.0-rc.6\n7.16.0-rc.7\n7.16.0-rc.8\n7.16.0-rc.9\n7.17.0-devel\n7.17.0-rc.1\n7.17.0-rc.2\n7.17.0-rc.3\n7.17.0-rc.4\n7.18.0-devel\n7.18.0-rc.1\n7.18.0-rc.2\n7.18.0-rc.3\n7.18.0-rc.4\n7.18.0-rc.5\n7.18.0-rc.6\n7.19.0-devel\n7.19.0-rc.1\n7.19.0-rc.2\n7.19.0-rc.3\n7.19.0-rc.4\n7.19.0-rc.5\n7.20.0-devel\n7.20.0-rc.1\n7.20.0-rc.2\n7.20.0-rc.3\n7.20.0-rc.4\n7.20.0-rc.5\n7.20.0-rc.6\n7.20.0-rc.7\n7.21.0-devel\n7.21.0-rc.1\n7.21.0-rc.2\n7.21.0-rc.3\n7.22.0-devel\n7.22.0-rc.1\n7.22.0-rc.2\n7.22.0-rc.3\n7.22.0-rc.4\n7.22.0-rc.5\n7.22.0-rc.6\n7.23.0-devel\n7.23.0-rc.1\n7.23.0-rc.2\n7.23.0-rc.3\n7.24.0-devel\n7.24.0-rc.1\n7.24.0-rc.2\n7.24.0-rc.3\n7.24.0-rc.4\n7.24.0-rc.5\n7.25.0-devel\n7.25.0-rc.1\n7.25.0-rc.2\n7.25.0-rc.3\n7.25.0-rc.4\n7.25.0-rc.5\n7.25.0-rc.6\n7.26.0-devel\n7.26.0-rc.1\n7.26.0-rc.2\n7.26.0-rc.3\n7.27.0-devel\n7.27.0-rc.1\n7.27.0-rc.2\n7.27.0-rc.3\n7.27.0-rc.4\n7.27.0-rc.5\n7.27.0-rc.6\n7.28.0-devel\n7.28.0-rc.1\n7.28.0-rc.2\n7.28.0-rc.3\n7.29.0-devel\n7.29.0-rc.1\n7.29.0-rc.2\n7.29.0-rc.3\n7.29.0-rc.4\n7.29.0-rc.5\n7.29.0-rc.6\n7.30.0-devel\n7.30.0-rc.1\n7.30.0-rc.2\n7.30.0-rc.3\n7.30.0-rc.4\n7.30.0-rc.5\n7.30.0-rc.6\n7.30.0-rc.7\n7.31.0-devel\n7.31.0-rc.1\n7.31.0-rc.2\n7.31.0-rc.3\n7.31.0-rc.4\n7.31.0-rc.5\n7.31.0-rc.6\n7.31.0-rc.7\n7.31.0-rc.8\n7.32.0-devel\n7.32.0-rc.1\n7.32.0-rc.2\n7.32.0-rc.3\n7.32.0-rc.4\n7.32.0-rc.5\n7.32.0-rc.6\n7.33.0-devel\n7.33.0-rc.1\n7.33.0-rc.2\n7.33.0-rc.3\n7.33.0-rc.4\n7.33.0-rc.4-dbm-beta-0.1\n7.34.0-devel\n7.34.0-rc.1\n7.34.0-rc.2\n7.34.0-rc.3\n7.34.0-rc.4\n7.35.0-devel\n7.35.0-rc.1\n7.35.0-rc.2\n7.35.0-rc.3\n7.35.0-rc.4\n7.36.0-devel\n7.36.0-rc.1\n7.36.0-rc.2\n7.36.0-rc.3\n7.36.0-rc.4\n7.37.0-devel\n7.37.0-rc.1\n7.37.0-rc.2\n7.37.0-rc.3\n7.38.0-devel\n7.38.0-rc.1\n7.38.0-rc.2\n7.38.0-rc.3\n7.39.0-devel\n7.39.0-rc.1\n7.39.0-rc.2\n7.39.0-rc.3\n7.40.0-devel\n7.40.0-rc.1\n7.40.0-rc.2\n7.41.0-devel\n7.41.0-rc.1\n7.41.0-rc.2\n7.41.0-rc.3\n7.42.0-devel\n7.42.0-rc.1\n7.42.0-rc.2\n7.42.0-rc.3\n7.43.0-devel\n7.43.0-rc.1\n7.43.0-rc.2\n7.43.0-rc.3\n7.44.0-devel\n7.44.0-rc.1\n7.44.0-rc.2\n7.44.0-rc.3\n7.44.0-rc.4\n7.45.0-devel\n7.45.0-rc.1\n7.45.0-rc.2\n7.45.0-rc.3\n7.46.0-devel\n7.46.0-rc.1\n7.46.0-rc.2\n7.47.0-devel\n7.47.0-rc.1\n7.47.0-rc.2\n7.47.0-rc.3\n7.48.0-devel\n7.48.0-rc.0\n7.48.0-rc.1\n7.48.0-rc.2\n7.49.0-devel\n7.49.0-rc.1\n7.49.0-rc.2\n7.50.0-devel\n7.50.0-rc.1\n7.50.0-rc.2\n7.50.0-rc.3\n7.50.0-rc.4\n7.51.0-devel\n7.51.0-rc.1\n7.51.0-rc.2\n7.52.0-devel\n7.52.0-rc.1\n7.52.0-rc.2\n7.52.0-rc.3\n7.53.0-devel\n7.53.0-rc.1\n7.53.0-rc.2\n7.54.0-devel\n7.54.0-rc.1\n7.54.0-rc.2\n7.55.0-devel\n7.55.0-rc.1\n7.55.0-rc.10\n7.55.0-rc.11\n7.55.0-rc.2\n7.55.0-rc.3\n7.55.0-rc.4\n7.55.0-rc.5\n7.55.0-rc.6\n7.55.0-rc.7\n7.55.0-rc.8\n7.55.0-rc.9'
+                ),
+            }
+        )
+        self.assertEqual(get_matching_pattern(c, major_version="7", release=True), "7.55.0-rc.11")
+
+    def test_on_branch(self):
+        c = MockContext(run={})
+        self.assertEqual(get_matching_pattern(c, major_version="42", release=False), r"42\.*")
+        c.run.assert_not_called()
