@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	dto "github.com/prometheus/client_model/go"
 )
@@ -128,9 +129,13 @@ func createAtel(
 
 // NewComponent creates a new agent telemetry component.
 func NewComponent(req Requires) agenttelemetry.Component {
+	if !pkgconfigsetup.IsAgentTelemetryEnabled(req.Config) {
+		return &atel{enabled: false}
+	}
+
 	sender, err := createSender(req.Config, req.Log)
 	if err != nil {
-		return &atel{}
+		return &atel{enabled: false}
 	}
 
 	runner := newRunnerImpl()
@@ -145,9 +150,8 @@ func NewComponent(req Requires) agenttelemetry.Component {
 		runner,
 	)
 
-	// If agent telemetry is enabled, add the start and stop hooks
+	// If agent telemetry is enabled and configured properly add the start and stop hooks
 	if a.enabled {
-		// Instruct FX to start and stop the agent telemetry
 		req.Lifecycle.Append(compdef.Hook{
 			OnStart: func(_ context.Context) error {
 				return a.start()

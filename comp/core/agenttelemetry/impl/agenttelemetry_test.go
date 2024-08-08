@@ -25,7 +25,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -113,6 +115,40 @@ func newStatusMock() statusMock {
 	return statusMock{}
 }
 
+// logger mock (currently used for trapping logged errors)
+type logMock struct {
+	loggedErr bool
+}
+
+func (l *logMock) Trace(v ...interface{})                      {} //nolint:revive
+func (l *logMock) Tracef(format string, params ...interface{}) {} //nolint:revive
+func (l *logMock) Debug(v ...interface{})                      {} //nolint:revive
+func (l *logMock) Debugf(format string, params ...interface{}) {} //nolint:revive
+func (l *logMock) Info(v ...interface{})                       {} //nolint:revive
+func (l *logMock) Infof(format string, params ...interface{})  {} //nolint:revive
+func (l *logMock) Warn(v ...interface{}) error { //nolint:revive
+	return nil
+}
+func (l *logMock) Warnf(format string, params ...interface{}) error { //nolint:revive
+	return nil
+}
+func (l *logMock) Error(v ...interface{}) error { //nolint:revive
+	l.loggedErr = true
+	return nil
+}
+func (l *logMock) Errorf(format string, params ...interface{}) error { //nolint:revive
+	l.loggedErr = true
+	return nil
+}
+func (l *logMock) Critical(v ...interface{}) error { //nolint:revive
+	return nil
+}
+func (l *logMock) Criticalf(format string, params ...interface{}) error { //nolint:revive
+	return nil
+}
+func (l *logMock) Flush() {} //nolint:revive
+
+// utilities
 func convertYamlStrToMap(t *testing.T, cfgStr string) map[string]any {
 	var c map[string]any
 	err := yaml.Unmarshal([]byte(cfgStr), &c)
@@ -188,7 +224,35 @@ func getTestAtel(t *testing.T,
 	return atel
 }
 
+func getTestAtelComponent(t *testing.T,
+	log log.Component,
+	confOverrides map[string]any) agenttelemetry.Component {
+
+	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	cfg := fxutil.Test[config.Component](t, config.MockModule(),
+		fx.Replace(config.MockParams{Overrides: confOverrides}))
+	status := fxutil.Test[status.Component](t,
+		func() fxutil.Module {
+			return fxutil.Component(
+				fx.Provide(newStatusMock),
+				fx.Provide(func(s statusMock) status.Component { return s }))
+		}())
+
+	req := Requires{
+		Log:       log,
+		Config:    cfg,
+		Telemetry: tel,
+		Status:    status,
+	}
+	return NewComponent(req)
+}
+
 func getCommonOverrideConfig(enabled bool, site string) map[string]any {
+	if site == "" {
+		return map[string]any{
+			"agent_telemetry.enabled": enabled,
+		}
+	}
 	return map[string]any{
 		"agent_telemetry.enabled": enabled,
 		"site":                    site,
@@ -205,6 +269,49 @@ func TestDisable(t *testing.T) {
 	o := getCommonOverrideConfig(false, "foo.bar")
 	a := getTestAtel(t, nil, o, nil, nil, nil)
 	assert.False(t, a.enabled)
+}
+
+// Test top-level component that it will not trigger creation log error
+// when agent telemetry is disabled
+func TestDisableNoErrorLog(t *testing.T) {
+	o := getCommonOverrideConfig(false, "")
+	l := &logMock{}
+	getTestAtelComponent(t, l, o)
+	assert.False(t, l.loggedErr)
+}
+
+func TestDisableIfFipsEnabled(t *testing.T) {
+	o := map[string]any{
+		"agent_telemetry.enabled": true,
+		"site":                    "foo.bar",
+		"fips.enabled":            true}
+	a := getTestAtel(t, nil, o, nil, nil, nil)
+	assert.False(t, a.enabled)
+}
+
+func TestEnableIfFipsDisabled(t *testing.T) {
+	o := map[string]any{
+		"agent_telemetry.enabled": true,
+		"site":                    "foo.bar",
+		"fips.enabled":            false}
+	a := getTestAtel(t, nil, o, nil, nil, nil)
+	assert.True(t, a.enabled)
+}
+
+func TestDisableIfGovCloud(t *testing.T) {
+	o := map[string]any{
+		"agent_telemetry.enabled": true,
+		"site":                    "ddog-gov.com"}
+	a := getTestAtel(t, nil, o, nil, nil, nil)
+	assert.False(t, a.enabled)
+}
+
+func TestEnableIfNotGovCloud(t *testing.T) {
+	o := map[string]any{
+		"agent_telemetry.enabled": true,
+		"site":                    "datadoghq.eu"}
+	a := getTestAtel(t, nil, o, nil, nil, nil)
+	assert.True(t, a.enabled)
 }
 
 func TestDisableByDefault(t *testing.T) {
