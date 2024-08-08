@@ -51,22 +51,22 @@ func New(configPath string, fleetPoliciesDirPath string) (*types.Config, error) 
 }
 
 func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.Config, error) {
-	aconfig.SystemProbe.SetConfigName("system-probe")
+	aconfig.SystemProbe().SetConfigName("system-probe")
 	// set the paths where a config file is expected
 	if len(configPath) != 0 {
 		// if the configuration file path was supplied on the command line,
 		// add that first, so it's first in line
-		aconfig.SystemProbe.AddConfigPath(configPath)
+		aconfig.SystemProbe().AddConfigPath(configPath)
 		// If they set a config file directly, let's try to honor that
 		if strings.HasSuffix(configPath, ".yaml") {
-			aconfig.SystemProbe.SetConfigFile(configPath)
+			aconfig.SystemProbe().SetConfigFile(configPath)
 		}
 	} else {
 		// only add default if a custom configPath was not supplied
-		aconfig.SystemProbe.AddConfigPath(defaultConfigDir)
+		aconfig.SystemProbe().AddConfigPath(defaultConfigDir)
 	}
 	// load the configuration
-	err := aconfig.LoadCustom(aconfig.SystemProbe, aconfig.Datadog().GetEnvVars())
+	err := aconfig.LoadCustom(aconfig.SystemProbe(), aconfig.Datadog().GetEnvVars())
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			// special-case permission-denied with a clearer error message
@@ -84,7 +84,7 @@ func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.C
 
 	// Load the remote configuration
 	if fleetPoliciesDirPath != "" {
-		err := aconfig.SystemProbe.MergeFleetPolicy(path.Join(fleetPoliciesDirPath, "system-probe.yaml"))
+		err := aconfig.SystemProbe().MergeFleetPolicy(path.Join(fleetPoliciesDirPath, "system-probe.yaml"))
 		if err != nil {
 			return nil, err
 		}
@@ -94,7 +94,7 @@ func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.C
 }
 
 func load() (*types.Config, error) {
-	cfg := aconfig.SystemProbe
+	cfg := aconfig.SystemProbe()
 	Adjust(cfg)
 
 	c := &types.Config{
@@ -183,7 +183,7 @@ func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
 		aconfig.Datadog().SetConfigFile(configFile)
 	}
 	// load the configuration
-	_, err := aconfig.LoadDatadogCustom(aconfig.Datadog(), "datadog.yaml", optional.NewNoneOption[secrets.Component](), aconfig.SystemProbe.GetEnvVars())
+	_, err := aconfig.LoadDatadogCustom(aconfig.Datadog(), "datadog.yaml", optional.NewNoneOption[secrets.Component](), aconfig.SystemProbe().GetEnvVars())
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
 	if err != nil && !errors.As(err, &e) {

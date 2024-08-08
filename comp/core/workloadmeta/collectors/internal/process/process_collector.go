@@ -50,7 +50,7 @@ type collector struct {
 // NewCollector returns a new local process collector provider and an error.
 // Currently, this is only used on Linux when language detection and run in core agent are enabled.
 func NewCollector() (workloadmeta.CollectorProvider, error) {
-	wlmExtractor := processwlm.GetSharedWorkloadMetaExtractor(config.SystemProbe)
+	wlmExtractor := processwlm.GetSharedWorkloadMetaExtractor(config.SystemProbe())
 	processData := NewProcessData()
 	processData.Register(wlmExtractor)
 

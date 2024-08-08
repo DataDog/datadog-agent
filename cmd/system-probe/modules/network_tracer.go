@@ -148,7 +148,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/http_monitoring", func(w http.ResponseWriter, req *http.Request) {
-		if !coreconfig.SystemProbe.GetBool("service_monitoring_config.enable_http_monitoring") {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_http_monitoring") {
 			writeDisabledProtocolMessage("http", w)
 			return
 		}
@@ -164,7 +164,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/kafka_monitoring", func(w http.ResponseWriter, req *http.Request) {
-		if !coreconfig.SystemProbe.GetBool("service_monitoring_config.enable_kafka_monitoring") {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_kafka_monitoring") {
 			writeDisabledProtocolMessage("kafka", w)
 			return
 		}
@@ -180,7 +180,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/postgres_monitoring", func(w http.ResponseWriter, req *http.Request) {
-		if !coreconfig.SystemProbe.GetBool("service_monitoring_config.enable_postgres_monitoring") {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_postgres_monitoring") {
 			writeDisabledProtocolMessage("postgres", w)
 			return
 		}
@@ -196,7 +196,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/redis_monitoring", func(w http.ResponseWriter, req *http.Request) {
-		if !coreconfig.SystemProbe.GetBool("service_monitoring_config.enable_redis_monitoring") {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_redis_monitoring") {
 			writeDisabledProtocolMessage("redis", w)
 			return
 		}
@@ -212,7 +212,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/http2_monitoring", func(w http.ResponseWriter, req *http.Request) {
-		if !coreconfig.SystemProbe.GetBool("service_monitoring_config.enable_http2_monitoring") {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_http2_monitoring") {
 			writeDisabledProtocolMessage("http2", w)
 			return
 		}

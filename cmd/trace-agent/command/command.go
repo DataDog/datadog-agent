@@ -37,9 +37,10 @@ func MakeRootCommand() *cobra.Command {
 func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 	globalConfGetter := func() *subcommands.GlobalParams {
 		return &subcommands.GlobalParams{
-			ConfPath:   globalParams.ConfPath,
-			ConfigName: globalParams.ConfigName,
-			LoggerName: LoggerName,
+			ConfPath:             globalParams.ConfPath,
+			ConfigName:           globalParams.ConfigName,
+			LoggerName:           LoggerName,
+			FleetPoliciesDirPath: globalParams.FleetPoliciesDirPath,
 		}
 	}
 	commands := []*cobra.Command{
@@ -60,6 +61,7 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 	}
 
 	traceAgentCmd.PersistentFlags().StringVarP(&globalParams.ConfPath, "config", "c", defaultConfigPath, "path to directory containing datadog.yaml")
+	traceAgentCmd.PersistentFlags().StringVarP(&globalParams.FleetPoliciesDirPath, "fleetcfgpath", "", "", "path to the directory containing fleet policies")
 
 	return &traceAgentCmd
 }
