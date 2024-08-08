@@ -163,6 +163,11 @@ func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, 
 
 //nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) SampleSession() error {
+	activeSessionHistory := c.config.QuerySamples.ActiveSessionHistory
+	if activeSessionHistory && c.lastSampleId == 0 {
+		err := getWrapper(c, &c.lastSampleId, "SELECT /* DD */ MAX(sample_id) FROM v$active_session_history")
+		return err
+	}
 	start := time.Now()
 	copy(c.lastOracleActivityRows, []OracleActivityRow{})
 
@@ -170,7 +175,10 @@ func (c *Check) SampleSession() error {
 	sessionSamples := []OracleActivityRowDB{}
 	var activityQuery string
 	maxSQLTextLength := c.sqlSubstringLength
-	if c.hostingType == selfManaged && !c.config.QuerySamples.ForceDirectQuery {
+
+	if activeSessionHistory {
+		activityQuery = activityQueryActiveSessionHistory
+	} else if c.hostingType == selfManaged && !c.config.QuerySamples.ForceDirectQuery {
 		if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
 			activityQuery = activityQueryOnView12
 		} else {
@@ -180,7 +188,7 @@ func (c *Check) SampleSession() error {
 		activityQuery = activityQueryDirect
 	}
 
-	if !c.config.QuerySamples.IncludeAllSessions {
+	if !c.config.QuerySamples.IncludeAllSessions && !activeSessionHistory {
 		activityQuery = fmt.Sprintf("%s %s", activityQuery, ` AND (
 	NOT (state = 'WAITING' AND wait_class = 'Idle')
 	OR state = 'WAITING' AND event = 'fbar timer' AND type = 'USER'
@@ -188,7 +196,12 @@ func (c *Check) SampleSession() error {
 AND status = 'ACTIVE'`)
 	}
 
-	err := selectWrapper(c, &sessionSamples, activityQuery, maxSQLTextLength, maxSQLTextLength)
+	var err error
+	if activeSessionHistory {
+		err = selectWrapper(c, &sessionSamples, activityQuery, maxSQLTextLength, c.lastSampleId)
+	} else {
+		err = selectWrapper(c, &sessionSamples, activityQuery, maxSQLTextLength, maxSQLTextLength)
+	}
 
 	if err != nil {
 		if strings.Contains(err.Error(), "ORA-06502") {
@@ -382,6 +395,13 @@ AND status = 'ACTIVE'`)
 		sessionRows = append(sessionRows, sessionRow)
 	}
 
+	var collection_interval float64
+	if activeSessionHistory {
+		collection_interval = 1
+	} else {
+		collection_interval = c.checkInterval
+	}
+
 	payload := ActivitySnapshot{
 		Metadata: Metadata{
 			Timestamp:      float64(c.clock.Now().UnixMilli()),
@@ -390,7 +410,7 @@ AND status = 'ACTIVE'`)
 			DBMType:        "activity",
 			DDAgentVersion: c.agentVersion,
 		},
-		CollectionInterval: c.checkInterval,
+		CollectionInterval: collection_interval,
 		Tags:               c.tags,
 		OracleActivityRows: sessionRows,
 	}
