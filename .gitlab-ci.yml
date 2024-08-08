@@ -21,7 +21,9 @@ include:
   - .gitlab/deps_build/deps_build.yml
   - .gitlab/deps_fetch/deps_fetch.yml
   - .gitlab/dev_container_deploy/include.yml
-  - .gitlab/e2e/include.yml
+  - .gitlab/e2e/e2e.yml
+  - .gitlab/e2e_k8s/e2e_k8s.yml
+  - .gitlab/e2e_install_packages/include.yml
   - .gitlab/e2e_pre_test/e2e_pre_test.yml
   - .gitlab/functional_test/include.yml
   - .gitlab/functional_test_cleanup/functional_test_cleanup.yml
@@ -93,7 +95,7 @@ stages:
   - install_script_testing
   - e2e_pre_test
   - e2e
-  - k8s_e2e
+  - e2e_k8s
   - e2e_install_packages
   - kitchen_cleanup
   - functional_test

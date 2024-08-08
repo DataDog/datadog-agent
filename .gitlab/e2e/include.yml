@@ -1,9 +1,0 @@
-
----
-# e2e stage
-# Contains jobs which run new e2e tests for the Agent
-
-include:
-  - .gitlab/e2e/e2e.yml
-  - .gitlab/e2e/k8s_e2e.yml
-  - .gitlab/e2e/install_packages/include.yml
