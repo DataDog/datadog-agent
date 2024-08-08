@@ -103,7 +103,8 @@ func Get(ctx context.Context, cached bool, conf config.Reader) *Tags {
 	if cached {
 		if x, found := cache.Cache.Get(tagsCacheKey); found {
 			tags := x.(*Tags)
-			return tags
+			fmt.Printf("natasha debugging tags: %v\n", tags)
+			//return tags
 		}
 	}
 
@@ -113,6 +114,7 @@ func Get(ctx context.Context, cached bool, conf config.Reader) *Tags {
 	}
 
 	configTags := configUtils.GetConfiguredTags(conf, false)
+	fmt.Printf("natasha debugging configTags: %v\n", configTags)
 	hostTags := make([]string, 0, len(configTags))
 	hostTags = appendToHostTags(hostTags, configTags)
 
@@ -147,6 +149,7 @@ func Get(ctx context.Context, cached bool, conf config.Reader) *Tags {
 					gceTags = appendToHostTags(gceTags, tags)
 				} else {
 					hostTags = appendToHostTags(hostTags, tags)
+					fmt.Printf("natasha debugging provider tags: %v\n", tags)
 				}
 
 				delete(providers, name)
