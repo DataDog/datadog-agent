@@ -993,7 +993,7 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 	}
 
 	if suite.Contains(volumeMounts, "datadog") {
-		suite.Equal("/var/run/datadog", volumeMounts["datadog"])
+		suite.ElementsMatch([]string{"/var/run/datadog"}, volumeMounts["datadog"])
 	}
 
 	switch language {
@@ -1011,7 +1011,7 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 		}
 		suite.Contains(emptyDirVolumes, "datadog-auto-instrumentation")
 		if suite.Contains(volumeMounts, "datadog-auto-instrumentation") {
-			suite.Equal([]string{
+			suite.ElementsMatch([]string{
 				"/opt/datadog-packages/datadog-apm-inject",
 				"/opt/datadog/apm/library",
 			}, volumeMounts["datadog-auto-instrumentation"])
