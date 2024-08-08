@@ -321,7 +321,7 @@ func join(pieces ...string) string {
 
 // New creates a config for the network tracer
 func New() *Config {
-	cfg := ddconfig.SystemProbe
+	cfg := ddconfig.SystemProbe()
 	sysconfig.Adjust(cfg)
 
 	c := &Config{

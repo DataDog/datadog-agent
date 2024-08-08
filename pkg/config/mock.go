@@ -49,22 +49,22 @@ func MockSystemProbe(t testing.TB) model.Config {
 		defer m.Unlock()
 		if isSystemProbeConfigMocked {
 			// The configuration is already mocked.
-			return &mockConfig{SystemProbe}
+			return &mockConfig{pkgconfigsetup.SystemProbe()}
 		}
 
 		isSystemProbeConfigMocked = true
-		originalConfig := SystemProbe
+		originalConfig := pkgconfigsetup.SystemProbe()
 		t.Cleanup(func() {
 			m.Lock()
 			defer m.Unlock()
 			isSystemProbeConfigMocked = false
-			SystemProbe = originalConfig
+			pkgconfigsetup.SetSystemProbe(originalConfig)
 		})
 	}
 
 	// Configure Datadog global configuration
-	SystemProbe = NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
+	pkgconfigsetup.SetSystemProbe(NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")))
 	// Configuration defaults
-	pkgconfigsetup.InitSystemProbeConfig(SystemProbe)
-	return &mockConfig{SystemProbe}
+	pkgconfigsetup.InitSystemProbeConfig(pkgconfigsetup.SystemProbe())
+	return &mockConfig{pkgconfigsetup.SystemProbe()}
 }

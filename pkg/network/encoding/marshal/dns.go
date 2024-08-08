@@ -28,8 +28,8 @@ func newDNSFormatter(conns *network.Connections, ipc ipCache) *dnsFormatter {
 		conns:             conns,
 		ipc:               ipc,
 		domainSet:         make(map[string]int),
-		queryTypeEnabled:  config.SystemProbe.GetBool("network_config.enable_dns_by_querytype"),
-		dnsDomainsEnabled: config.SystemProbe.GetBool("system_probe_config.collect_dns_domains"),
+		queryTypeEnabled:  config.SystemProbe().GetBool("network_config.enable_dns_by_querytype"),
+		dnsDomainsEnabled: config.SystemProbe().GetBool("system_probe_config.collect_dns_domains"),
 	}
 }
 
