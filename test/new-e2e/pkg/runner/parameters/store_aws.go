@@ -42,8 +42,8 @@ func (s awsStore) get(key StoreKey) (string, error) {
 	}
 
 	awsKey := strings.ToLower(s.prefix + string(key))
-	withDecription := true
-	output, err := ssmClient.GetParameter(context.Background(), &ssm.GetParameterInput{Name: &awsKey, WithDecryption: &withDecription})
+	withDecryption := true
+	output, err := ssmClient.GetParameter(context.Background(), &ssm.GetParameterInput{Name: &awsKey, WithDecryption: &withDecryption})
 	if err != nil {
 		var notFoundError *ssmTypes.ParameterNotFound
 		if errors.As(err, &notFoundError) {
@@ -56,7 +56,7 @@ func (s awsStore) get(key StoreKey) (string, error) {
 	return *output.Parameter.Value, nil
 }
 
-// AWSoverrides is a map of StoreKey to StoreKey used to override key only in AWS store
+// awsOverrides is a map of StoreKey to StoreKey used to override key only in AWS store
 var awsOverrides = map[StoreKey]StoreKey{
 	APIKey: "api_key_2",
 	APPKey: "app_key_2",
