@@ -95,5 +95,5 @@ func (h *LimitRangeHandlers) ResourceVersion(ctx processors.ProcessorContext, re
 //nolint:revive
 func (h *LimitRangeHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*corev1.LimitRange)
-	redact.RemoveSensitiveAnnotations(r.Annotations)
+	redact.RemoveSensitiveAnnotationsAndLabels(r.Annotations, r.Labels)
 }

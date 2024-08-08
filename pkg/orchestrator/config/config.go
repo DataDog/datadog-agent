@@ -98,6 +98,10 @@ func (oc *OrchestratorConfig) Load() error {
 		oc.Scrubber.AddCustomSensitiveWords(config.Datadog().GetStringSlice(k))
 	}
 
+	if k := OrchestratorNSKey("custom_sensitive_annotations_labels"); config.Datadog().IsSet(k) {
+		redact.UpdateSensitiveAnnotationsAndLabels(config.Datadog().GetStringSlice(k))
+	}
+
 	// The maximum number of resources per message and the maximum message size.
 	// Note: Only change if the defaults are causing issues.
 	setBoundedConfigIntValue(OrchestratorNSKey("max_per_message"), maxMessageBatch, func(v int) { oc.MaxPerMessage = v })
