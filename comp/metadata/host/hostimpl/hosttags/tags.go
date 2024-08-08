@@ -142,6 +142,7 @@ func Get(ctx context.Context, cached bool, conf config.Reader) *Tags {
 			provider.retries--
 			providerCacheKey := cache.BuildAgentKey("provider-" + name)
 			tags, err := provider.getTags(ctx)
+			log.Infof("natasha debugging provider tags for provider %s: %v", name, tags)
 			if err == nil {
 				cache.Cache.Set(providerCacheKey, tags, cache.NoExpiration)
 
@@ -150,7 +151,6 @@ func Get(ctx context.Context, cached bool, conf config.Reader) *Tags {
 					gceTags = appendToHostTags(gceTags, tags)
 				} else {
 					hostTags = appendToHostTags(hostTags, tags)
-					log.Infof("natasha debugging provider tags: %v", tags)
 				}
 
 				delete(providers, name)

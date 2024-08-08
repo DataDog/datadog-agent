@@ -63,6 +63,7 @@ func fetchEc2TagsFromIMDS(ctx context.Context) ([]string, error) {
 
 	// keysStr is a newline-separated list of strings containing tag keys
 	keys := strings.Split(keysStr, "\n")
+	log.Infof("natasha testing ec2 tags in fetchEc2TagsFromIMDS keys: %v", keys)
 
 	tags := make([]string, 0, len(keys))
 	for _, key := range keys {
@@ -160,6 +161,7 @@ func fetchTagsFromCache(ctx context.Context) ([]string, error) {
 	}
 
 	tags, err := fetchTags(ctx)
+	log.Infof("natasha testing ec2 tags in fetchTagsFromCache. tags: %v", tags)
 	if err != nil {
 		if ec2Tags, found := cache.Cache.Get(tagsCacheKey); found {
 			log.Infof("unable to get tags from aws, returning cached tags: %s", err)
@@ -177,6 +179,7 @@ func fetchTagsFromCache(ctx context.Context) ([]string, error) {
 // GetTags grabs the host tags from the EC2 api
 func GetTags(ctx context.Context) ([]string, error) {
 	tags, err := fetchTagsFromCache(ctx)
+	log.Infof("natasha testing ec2 tags in GetTags. tags: %v", tags)
 	if err != nil {
 		log.Warn(err.Error())
 	}
