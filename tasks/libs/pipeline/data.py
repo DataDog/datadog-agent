@@ -120,6 +120,10 @@ infra_failure_logs = [
         re.compile(r'E2E INTERNAL ERROR'),
         FailedJobReason.E2E_INFRA_FAILURE,
     ),
+    (
+        re.compile(r"err: failed to get SSM parameter '.*'"),
+        FailedJobReason.E2E_INFRA_FAILURE,
+    ),
 ]
 
 
