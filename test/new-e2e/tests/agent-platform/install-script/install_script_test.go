@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"unicode"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -50,7 +51,7 @@ func TestInstallScript(t *testing.T) {
 
 	osVersions := []string{}
 	// Splitting an empty string results in a slice with a single empty string which wouldn't be useful
-	if *osVersion != "" {
+	if strings.TrimFunc(*osVersion, unicode.IsSpace) != "" {
 		osVersions = strings.Split(*osVersion, ",")
 	}
 	cwsSupportedOsVersionList := strings.Split(*cwsSupportedOsVersion, ",")
