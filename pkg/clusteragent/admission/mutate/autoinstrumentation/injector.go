@@ -15,6 +15,16 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+const (
+	injectPackageDir   = "opt/datadog-packages/datadog-apm-inject"
+	libraryPackagesDir = "opt/datadog/apm/library"
+	pathToLauncher     = "/stable/inject/launcher.preload.so"
+)
+
+func asAbs(path string) string {
+	return "/" + path
+}
+
 var sourceVolume = volume{
 	Volume: corev1.Volume{
 		Name: volumeName,
@@ -29,18 +39,18 @@ var v1VolumeMount = sourceVolume.mount(corev1.VolumeMount{
 })
 
 var v2VolumeMountInjector = sourceVolume.mount(corev1.VolumeMount{
-	MountPath: "/opt/datadog-packages/datadog-apm-inject",
-	SubPath:   "opt/datadog-packages/datadog-apm-inject",
+	MountPath: asAbs(injectPackageDir),
+	SubPath:   injectPackageDir,
 })
 
 var v2VolumeMountLibrary = sourceVolume.mount(corev1.VolumeMount{
-	MountPath: "/opt/datadog/apm/library",
-	SubPath:   "opt/datadog/apm/library",
+	MountPath: asAbs(libraryPackagesDir),
+	SubPath:   libraryPackagesDir,
 })
 
 var volumeMountETCLDPreload = sourceVolume.mount(corev1.VolumeMount{
 	MountPath: "/etc/ld.so.preload",
-	SubPath: "opt/datadog-packages/datadog-apm-inject/stable/inject/ld.so.preload",
+	SubPath:   injectPackageDir + pathToLauncher,
 })
 
 type injector struct {
@@ -81,22 +91,18 @@ func (i *injector) requirements() libRequirement {
 	return libRequirement{
 		initContainers: []initContainer{i.initContainer()},
 		volumes:        []volume{sourceVolume},
-		volumeMounts:   []volumeMount{
+		volumeMounts: []volumeMount{
 			volumeMountETCLDPreload.readOnly().prepended(),
 			v2VolumeMountInjector.readOnly().prepended(),
 		},
 		envVars: []envVar{
 			{
-				key: "LD_PRELOAD",
-				valFunc: identityValFunc(
-					"/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
-				),
+				key:     "LD_PRELOAD",
+				valFunc: identityValFunc(asAbs(injectPackageDir + pathToLauncher)),
 			},
 			{
-				key: "DD_INJECT_SENDER_TYPE",
-				valFunc: identityValFunc(
-					"k8s",
-				),
+				key:     "DD_INJECT_SENDER_TYPE",
+				valFunc: identityValFunc("k8s"),
 			},
 			{
 				key:     "DD_INJECT_START_TIME",

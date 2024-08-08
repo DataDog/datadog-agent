@@ -208,7 +208,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			require.Equal(t, corev1.VolumeMount{
 				Name:      volumeName,
 				MountPath: "/etc/ld.so.preload",
-				SubPath:   "opt/datadog-packages/datadog-apm-inject/stable/inject/ld.so.preload",
+				SubPath:   "opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
 				ReadOnly:  true,
 			}, mounts[1], "expected first container volume mount to be the injector")
 			require.Equal(t, corev1.VolumeMount{
