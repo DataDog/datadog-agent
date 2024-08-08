@@ -178,18 +178,7 @@ func (c *TestClient) GetAgentVersion() (string, error) {
 
 // ExecuteWithRetry execute the command with retry
 func (c *TestClient) ExecuteWithRetry(cmd string) (string, error) {
-	var err error
-	var output string
-
-	for try := 0; try < 5; try++ {
-		output, err = c.Host.Execute(cmd)
-		if err == nil {
-			break
-		}
-		time.Sleep(time.Duration(math.Pow(2, float64(try))) * time.Second)
-	}
-
-	return output, err
+	return execWithRetry(func() (string, error) { return c.Host.Execute(cmd) })
 }
 
 // NewWindowsTestClient create a TestClient for Windows VM
@@ -322,16 +311,8 @@ func (c *DockerTestClient) Execute(command string) (output string, err error) {
 }
 
 // ExecuteWithRetry execute the command with retry
-func (c *DockerTestClient) ExecuteWithRetry(command string) (output string, err error) {
-	for try := 0; try < 5; try++ {
-		output, err = c.Execute(command)
-		if err == nil {
-			break
-		}
-		time.Sleep(time.Duration(math.Pow(2, float64(try))) * time.Second)
-	}
-
-	return output, err
+func (c *DockerTestClient) ExecuteWithRetry(cmd string) (output string, err error) {
+	return execWithRetry(func() (string, error) { return c.Execute(cmd) })
 }
 
 // InstallWithInstallScript tries to run the install script on the docker host.
@@ -371,4 +352,19 @@ func (c *DockerTestClient) InstallWithInstallScript(t *testing.T) {
 		tt.Log(output)
 		require.NoError(tt, err, "agent installation should not return any error: ", err)
 	})
+}
+
+func execWithRetry(exec func() (string, error)) (string, error) {
+	var err error
+	var output string
+
+	for try := 0; try < 5; try++ {
+		output, err = exec()
+		if err == nil {
+			break
+		}
+		time.Sleep(time.Duration(math.Pow(2, float64(try))) * time.Second)
+	}
+
+	return output, err
 }
