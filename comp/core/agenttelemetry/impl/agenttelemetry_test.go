@@ -30,6 +30,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -98,56 +99,6 @@ func newRunnerMock() runner {
 	return &runnerMock{}
 }
 
-// Status component currently has mock but it appears to be not compatible with fx  fx fails
-type statusMock struct {
-}
-
-func (s statusMock) GetStatus(string, bool, ...string) ([]byte, error) {
-	return []byte{}, nil
-}
-func (s statusMock) GetStatusBySections([]string, string, bool) ([]byte, error) {
-	return []byte{}, nil
-}
-func (s statusMock) GetSections() []string {
-	return []string{}
-}
-func newStatusMock() statusMock {
-	return statusMock{}
-}
-
-// logger mock (currently used for trapping logged errors)
-type logMock struct {
-	loggedErr bool
-}
-
-func (l *logMock) Trace(v ...interface{})                      {} //nolint:revive
-func (l *logMock) Tracef(format string, params ...interface{}) {} //nolint:revive
-func (l *logMock) Debug(v ...interface{})                      {} //nolint:revive
-func (l *logMock) Debugf(format string, params ...interface{}) {} //nolint:revive
-func (l *logMock) Info(v ...interface{})                       {} //nolint:revive
-func (l *logMock) Infof(format string, params ...interface{})  {} //nolint:revive
-func (l *logMock) Warn(v ...interface{}) error { //nolint:revive
-	return nil
-}
-func (l *logMock) Warnf(format string, params ...interface{}) error { //nolint:revive
-	return nil
-}
-func (l *logMock) Error(v ...interface{}) error { //nolint:revive
-	l.loggedErr = true
-	return nil
-}
-func (l *logMock) Errorf(format string, params ...interface{}) error { //nolint:revive
-	l.loggedErr = true
-	return nil
-}
-func (l *logMock) Critical(v ...interface{}) error { //nolint:revive
-	return nil
-}
-func (l *logMock) Criticalf(format string, params ...interface{}) error { //nolint:revive
-	return nil
-}
-func (l *logMock) Flush() {} //nolint:revive
-
 // utilities
 func convertYamlStrToMap(t *testing.T, cfgStr string) map[string]any {
 	var c map[string]any
@@ -179,16 +130,33 @@ func makeStableMetricMap(metrics []*dto.Metric) map[string]*dto.Metric {
 	return metricMap
 }
 
+func makeTelMock(t *testing.T) telemetry.Component {
+	return fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+}
+
+func makeCfgMock(t *testing.T, confOverrides map[string]any) config.Component {
+	return fxutil.Test[config.Component](t, config.MockModule(),
+		fx.Replace(config.MockParams{Overrides: confOverrides}))
+}
+
+func makeLogMock(t *testing.T) log.Component {
+	return logmock.New(t)
+}
+
+func makeStatusMock(t *testing.T) status.Component {
+	return fxutil.Test[status.Mock](t, fx.Options(statusimpl.MockModule()))
+}
+
 // aggregator mock function
 func getTestAtel(t *testing.T,
 	tel telemetry.Component,
-	confOverrides map[string]any,
+	ovrrd map[string]any,
 	sndr sender,
 	client client,
 	runner runner) *atel {
 
 	if tel == nil {
-		tel = fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+		tel = makeTelMock(t)
 	}
 
 	if client == nil {
@@ -199,15 +167,8 @@ func getTestAtel(t *testing.T,
 		runner = newRunnerMock()
 	}
 
-	cfg := fxutil.Test[config.Component](t, config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: confOverrides}))
-	log := logmock.New(t)
-	status := fxutil.Test[status.Component](t,
-		func() fxutil.Module {
-			return fxutil.Component(
-				fx.Provide(newStatusMock),
-				fx.Provide(func(s statusMock) status.Component { return s }))
-		}())
+	cfg := makeCfgMock(t, ovrrd)
+	log := makeLogMock(t)
 
 	var err error
 	if sndr == nil {
@@ -215,7 +176,7 @@ func getTestAtel(t *testing.T,
 	}
 	assert.NoError(t, err)
 
-	atel := createAtel(cfg, log, tel, status, sndr, runner)
+	atel := createAtel(cfg, log, tel, makeStatusMock(t), sndr, runner)
 	if atel == nil {
 		err = fmt.Errorf("failed to create atel")
 	}
@@ -224,27 +185,13 @@ func getTestAtel(t *testing.T,
 	return atel
 }
 
-func getTestAtelComponent(t *testing.T,
-	log log.Component,
-	confOverrides map[string]any) agenttelemetry.Component {
-
-	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
-	cfg := fxutil.Test[config.Component](t, config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: confOverrides}))
-	status := fxutil.Test[status.Component](t,
-		func() fxutil.Module {
-			return fxutil.Component(
-				fx.Provide(newStatusMock),
-				fx.Provide(func(s statusMock) status.Component { return s }))
-		}())
-
-	req := Requires{
-		Log:       log,
-		Config:    cfg,
-		Telemetry: tel,
-		Status:    status,
-	}
-	return NewComponent(req)
+func getTestAtelComponent(t *testing.T, log log.Component, ovrrd map[string]any) agenttelemetry.Component {
+	return NewComponent(Requires{
+		Log:       makeLogMock(t),
+		Config:    makeCfgMock(t, ovrrd),
+		Telemetry: makeTelMock(t),
+		Status:    makeStatusMock(t),
+	})
 }
 
 func getCommonOverrideConfig(enabled bool, site string) map[string]any {
@@ -275,9 +222,9 @@ func TestDisable(t *testing.T) {
 // when agent telemetry is disabled
 func TestDisableNoErrorLog(t *testing.T) {
 	o := getCommonOverrideConfig(false, "")
-	l := &logMock{}
+	l := logmock.New(t)
 	getTestAtelComponent(t, l, o)
-	assert.False(t, l.loggedErr)
+	assert.Zero(t, l.(*logmock.Mock).ErrorCount)
 }
 
 func TestDisableIfFipsEnabled(t *testing.T) {

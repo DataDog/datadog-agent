@@ -20,6 +20,100 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
+// logger mock (currently used for trapping logged errors)
+type Mock struct {
+	w             *pkglog.Wrapper
+	TraceCount    int
+	DebugCount    int
+	InfoCount     int
+	WarnCount     int
+	ErrorCount    int
+	CriticalCount int
+}
+
+//nolint:revive
+func (m *Mock) Trace(v ...interface{}) {
+	m.TraceCount++
+	m.w.Trace(v...)
+}
+
+//nolint:revive
+func (m *Mock) Tracef(format string, params ...interface{}) {
+	m.TraceCount++
+	m.w.Tracef(format, params...)
+}
+
+//nolint:revive
+func (m *Mock) Debug(v ...interface{}) {
+	m.DebugCount++
+	m.w.Debug(v...)
+}
+
+//nolint:revive
+func (m *Mock) Debugf(format string, params ...interface{}) {
+	m.DebugCount++
+	m.w.Debugf(format, params...)
+}
+
+//nolint:revive
+func (m *Mock) Info(v ...interface{}) {
+	m.InfoCount++
+	m.w.Info(v...)
+}
+
+//nolint:revive
+func (m *Mock) Infof(format string, params ...interface{}) {
+	m.InfoCount++
+	m.w.Infof(format, params...)
+}
+
+//nolint:revive
+func (m *Mock) Warn(v ...interface{}) error {
+	m.WarnCount++
+	m.w.Warn(v...)
+	return nil
+}
+
+//nolint:revive
+func (m *Mock) Warnf(format string, params ...interface{}) error {
+	m.WarnCount++
+	m.w.Warnf(format, params...)
+	return nil
+}
+
+//nolint:revive
+func (m *Mock) Error(v ...interface{}) error {
+	m.ErrorCount++
+	m.w.Error(v...)
+	return nil
+}
+
+//nolint:revive
+func (m *Mock) Errorf(format string, params ...interface{}) error {
+	m.ErrorCount++
+	m.w.Errorf(format, params...)
+	return nil
+}
+
+//nolint:revive
+func (m *Mock) Critical(v ...interface{}) error {
+	m.CriticalCount++
+	m.w.Critical(v...)
+	return nil
+}
+
+//nolint:revive
+func (m *Mock) Criticalf(format string, params ...interface{}) error {
+	m.CriticalCount++
+	m.w.Criticalf(format, params...)
+	return nil
+}
+
+//nolint:revive
+func (m *Mock) Flush() {
+	m.w.Flush()
+}
+
 // tbWriter is an implementation of io.Writer that sends lines to
 // testing.TB#Log.
 type tbWriter struct {
@@ -52,5 +146,11 @@ func New(t testing.TB) log.Component {
 	// install the logger into pkg/util/log
 	pkglog.ChangeLogLevel(iface, "debug")
 
-	return pkglog.NewWrapper(2)
+	return newMock()
+}
+
+func newMock() log.Component {
+	return &Mock{
+		w: pkglog.NewWrapper(2),
+	}
 }
