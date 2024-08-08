@@ -16,6 +16,7 @@ import (
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
+	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/wconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -369,27 +371,57 @@ func securityProfileToWorloadPolicyCommands(globalParams *command.GlobalParams) 
 }
 
 func securityProfileToWorkloadPolicy(_ log.Component, _ config.Component, _ secrets.Component, args *securityProfileToWorloadPolicyCliParams) error {
-	pp, err := profile.LoadProtoFromFile(args.input)
+
+	pps, err := profile.LoadProtoFromFiles(args.input)
 	if err != nil {
 		return err
 	}
+	var mergedRules []*rules.RuleDefinition
+	switch pps.(type) {
+	case *proto.SecurityProfile:
+		sp := profile.NewSecurityProfile(model.WorkloadSelector{}, nil, nil)
+		sp.LoadFromProto(pps.(*proto.SecurityProfile), profile.LoadOpts{})
 
-	sp := profile.NewSecurityProfile(model.WorkloadSelector{}, nil, nil)
-	sp.LoadFromProto(pp, profile.LoadOpts{})
+		opts := profile.SECLRuleOpts{
+			EnableKill: args.kill,
+			AllowList:  args.allowlist,
+			Lineage:    args.lineage,
+			Service:    args.service,
+			ImageName:  args.imageName,
+			ImageTag:   args.imageTag,
+			FIM:        args.fim,
+		}
 
-	opts := profile.SECLRuleOpts{
-		EnableKill: args.kill,
-		AllowList:  args.allowlist,
-		Lineage:    args.lineage,
-		Service:    args.service,
-		ImageName:  args.imageName,
-		ImageTag:   args.imageTag,
-		FIM:        args.fim,
-	}
+		rules, err := sp.ToSECLRules(opts)
+		if err != nil {
+			return err
+		}
+		mergedRules = rules
+	case []*proto.SecurityProfile: // the provided path is a directory containing several profiles
 
-	rules, err := sp.ToSECLRules(opts)
-	if err != nil {
-		return err
+		for _, pp := range pps.([]*proto.SecurityProfile) {
+
+			sp := profile.NewSecurityProfile(model.WorkloadSelector{}, nil, nil)
+			sp.LoadFromProto(pp, profile.LoadOpts{})
+
+			opts := profile.SECLRuleOpts{
+				EnableKill: args.kill,
+				AllowList:  args.allowlist,
+				Lineage:    args.lineage,
+				Service:    args.service,
+				ImageName:  args.imageName,
+				ImageTag:   args.imageTag,
+				FIM:        args.fim,
+			}
+
+			rules, err := sp.ToSECLRules(opts)
+			if err != nil {
+				return err
+			}
+
+			mergedRules = append(mergedRules, rules...)
+
+		}
 	}
 
 	wp := wconfig.WorkloadPolicy{
@@ -397,7 +429,7 @@ func securityProfileToWorkloadPolicy(_ log.Component, _ config.Component, _ secr
 		Name: "workload",
 		Kind: "secl",
 		SECLPolicy: wconfig.SECLPolicy{
-			Rules: rules,
+			Rules: mergedRules,
 		},
 	}
 

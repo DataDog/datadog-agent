@@ -14,6 +14,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"path/filepath"
 	"slices"
 	"sync"
 	"time"
@@ -29,6 +30,7 @@ import (
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 // EventTypeState defines an event type state
@@ -188,6 +190,51 @@ func (p *SecurityProfile) IsEventTypeValid(evtType model.EventType) bool {
 // NewProcessNodeCallback is a callback function used to propagate the fact that a new process node was added to the activity tree
 func (p *SecurityProfile) NewProcessNodeCallback(_ *activity_tree.ProcessNode) {
 	// TODO: debounce and regenerate profile filters & programs
+}
+
+// LoadProtoFromFiles loads proto profile from a directory or a file
+func LoadProtoFromFiles(path string) (interface{}, error) {
+
+	fileInfo, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		return nil, fmt.Errorf("The path %s does not exist.\n", path)
+	} else if err != nil {
+		return nil, fmt.Errorf("Error checking the path: %s\n", err)
+	}
+
+	if fileInfo.IsDir() {
+		dir, err := os.Open(path)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to open directory: %s", err)
+		}
+		defer dir.Close()
+
+		// Read the directory contents
+		files, err := dir.Readdir(-1)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to read directory: %s", err)
+		}
+
+		// Iterate through the files
+		pps := []*proto.SecurityProfile{}
+
+		for _, file := range files {
+			pp, err := LoadProtoFromFile(filepath.Join(path, file.Name()))
+
+			if err != nil {
+
+				log.Debugf("Error while decoding one of the profiles: %w", err)
+			} else {
+				pps = append(pps, pp)
+
+			}
+		}
+
+		return pps, nil
+
+	} else { // it's a file
+		return LoadProtoFromFile(path)
+	}
 }
 
 // LoadProtoFromFile loads proto profile from file
