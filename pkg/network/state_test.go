@@ -2859,8 +2859,8 @@ func TestDNSPIDCollision(t *testing.T) {
 		},
 	}
 
-	config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", true)
-	config.SystemProbe.SetWithoutSource("network_config.enable_dns_by_querytype", false)
+	config.SystemProbe().SetWithoutSource("system_probe_config.collect_dns_domains", true)
+	config.SystemProbe().SetWithoutSource("network_config.enable_dns_by_querytype", false)
 
 	state := newDefaultState()
 	state.RegisterClient("foo")

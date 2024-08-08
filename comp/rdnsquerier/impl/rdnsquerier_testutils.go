@@ -44,7 +44,7 @@ type testState struct {
 }
 
 func testSetup(t *testing.T, overrides map[string]interface{}, start bool) *testState {
-	lc := compdef.NewTestLifecycle()
+	lc := compdef.NewTestLifecycle(t)
 
 	config := fxutil.Test[config.Component](t, fx.Options(
 		config.MockModule(),

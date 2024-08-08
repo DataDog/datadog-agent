@@ -59,7 +59,7 @@ type client struct {
 	filter *workloadmeta.Filter
 }
 
-func (c *client) StreamEntities(ctx context.Context, _ ...grpc.CallOption) (remote.Stream, error) {
+func (c *client) StreamEntities(ctx context.Context) (remote.Stream, error) {
 	protoFilter, err := proto.ProtobufFilterFromWorkloadmetaFilter(c.filter)
 	if err != nil {
 		return nil, err

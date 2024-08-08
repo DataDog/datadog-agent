@@ -252,7 +252,7 @@ var (
 
 // LoadWithoutSecret Alias using Datadog config
 func LoadWithoutSecret() (*model.Warnings, error) {
-	return pkgconfigsetup.LoadDatadogCustom(Datadog(), "datadog.yaml", optional.NewNoneOption[secrets.Component](), SystemProbe.GetEnvVars())
+	return pkgconfigsetup.LoadDatadogCustom(Datadog(), "datadog.yaml", optional.NewNoneOption[secrets.Component](), SystemProbe().GetEnvVars())
 }
 
 // GetProcessAPIAddressPort Alias using Datadog config

@@ -13,6 +13,7 @@ import (
 
 	"github.com/prometheus/procfs"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -193,6 +194,13 @@ func (li *linuxImpl) aliveProcs() (map[int]proc, error) {
 }
 
 func (li *linuxImpl) getServiceInfo(p proc, service model.Service) (*serviceInfo, error) {
+	cmdline, err := p.CmdLine()
+	if err != nil {
+		return nil, err
+	}
+
+	lang := language.FindInArgs(cmdline)
+
 	stat, err := p.Stat()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read /proc/{pid}/stat: %w", err)
@@ -218,8 +226,9 @@ func (li *linuxImpl) getServiceInfo(p proc, service model.Service) (*serviceInfo
 	serviceType := servicetype.Detect(service.Name, service.Ports)
 
 	meta := ServiceMetadata{
-		Name: service.Name,
-		Type: string(serviceType),
+		Name:     service.Name,
+		Language: string(lang),
+		Type:     string(serviceType),
 	}
 
 	return &serviceInfo{
@@ -269,6 +278,6 @@ type systemProbeClient interface {
 
 func getSysProbeClient() (systemProbeClient, error) {
 	return processnet.GetRemoteSystemProbeUtil(
-		ddconfig.SystemProbe.GetString("system_probe_config.sysprobe_socket"),
+		ddconfig.SystemProbe().GetString("system_probe_config.sysprobe_socket"),
 	)
 }

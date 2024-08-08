@@ -1750,8 +1750,7 @@ service_monitoring_config:
 		aconfig.ResetSystemProbeConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")
 		t.Setenv("DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED", "true")
-
-		cfg := aconfig.SystemProbe
+		cfg := aconfig.SystemProbe()
 		sysconfig.Adjust(cfg)
 
 		require.True(t, cfg.GetBool("system_probe_config.process_service_inference.enabled"))
@@ -1862,8 +1861,7 @@ service_monitoring_config:
 		aconfig.ResetSystemProbeConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")
 		t.Setenv("DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME", "true")
-
-		cfg := aconfig.SystemProbe
+		cfg := aconfig.SystemProbe()
 		sysconfig.Adjust(cfg)
 
 		require.True(t, cfg.GetBool("system_probe_config.process_service_inference.use_windows_service_name"))
@@ -1966,7 +1964,7 @@ func modelCfgFromYAML(t *testing.T, yaml string) model.Config {
 	_, err = sysconfig.New(f.Name(), "")
 
 	require.NoError(t, err)
-	cfg := aconfig.SystemProbe
+	cfg := aconfig.SystemProbe()
 	sysconfig.Adjust(cfg)
 
 	return cfg
