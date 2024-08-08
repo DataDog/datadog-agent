@@ -101,8 +101,6 @@ lint_macos:
 .tests_macos_gitlab:
   stage: source_test
   allow_failure: true
-  rules:
-    !reference [.manual]
   extends: .macos_gitlab
   needs: ["setup_agent_version"]
   variables:
@@ -130,4 +128,6 @@ tests_macos_gitlab_amd64:
 
 tests_macos_gitlab_arm64:
   extends: .tests_macos_gitlab
+  rules:
+    !reference [.manual]
   tags: ["macos:monterey-arm64", "specific:true"]
