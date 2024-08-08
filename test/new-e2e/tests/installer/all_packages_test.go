@@ -270,9 +270,9 @@ func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
 		s.Env().RemoteHost.MustExecute("sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 93C4A3FD7BB9C367 && sudo apt update && sudo apt install -y ansible")
 	case e2eos.Fedora:
 		s.Env().RemoteHost.MustExecute("sudo dnf install -y ansible")
-	case e2eos.RedHat, e2eos.CentOS:
+	case e2eos.CentOS:
 		s.Env().RemoteHost.MustExecute("sudo yum install -y epel-release && sudo yum install -y ansible")
-	case e2eos.AmazonLinux:
+	case e2eos.AmazonLinux, e2eos.RedHat:
 		s.Env().RemoteHost.MustExecute("sudo yum install -y python python-pip && yes | pip install ansible")
 		pathPrefix = "/home/ec2-user/.local/bin/"
 	case e2eos.Suse:
