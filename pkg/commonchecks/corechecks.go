@@ -58,7 +58,7 @@ func RegisterChecks(store workloadmeta.Component, cfg config.Component, telemetr
 	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.Factory())
 	corecheckLoader.RegisterCheck(memory.CheckName, memory.Factory())
 	corecheckLoader.RegisterCheck(uptime.CheckName, uptime.Factory())
-	corecheckLoader.RegisterCheck(telemetryCheck.CheckName, telemetryCheck.Factory())
+	corecheckLoader.RegisterCheck(telemetryCheck.CheckName, telemetryCheck.Factory(telemetry))
 	corecheckLoader.RegisterCheck(ntp.CheckName, ntp.Factory())
 	corecheckLoader.RegisterCheck(snmp.CheckName, snmp.Factory())
 	corecheckLoader.RegisterCheck(networkpath.CheckName, networkpath.Factory(telemetry))
