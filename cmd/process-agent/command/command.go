@@ -47,6 +47,9 @@ type GlobalParams struct {
 	// configuration file, to allow overrides from the command line
 	SysProbeConfFilePath string
 
+	// FleetPoliciesDirPath holds the path to the folder containing the fleet policies
+	FleetPoliciesDirPath string
+
 	// PidFilePath specifies the path to the pid file
 	PidFilePath string
 
@@ -84,6 +87,7 @@ func MakeCommand(subcommandFactories []SubcommandFactory, winParams bool, rootCm
 	}
 
 	rootCmd.PersistentFlags().StringVar(&globalParams.ConfFilePath, flags.CfgPath, flags.DefaultConfPath, "Path to datadog.yaml config")
+	rootCmd.PersistentFlags().StringVar(&globalParams.FleetPoliciesDirPath, flags.FleetCfgPath, "", "Path to the directory containing fleet policies")
 
 	if flags.DefaultSysProbeConfPath != "" {
 		rootCmd.PersistentFlags().StringVar(&globalParams.SysProbeConfFilePath, flags.SysProbeConfig, flags.DefaultSysProbeConfPath, "Path to system-probe.yaml config")

@@ -39,7 +39,7 @@ type ServiceMetadata struct {
 	Language           string
 	Type               string
 	APMInstrumentation string
-	FromDDService      bool
+	NameSource         string
 }
 
 func fixAdditionalNames(additionalNames []string) []string {
@@ -78,11 +78,16 @@ func (sd *ServiceDetector) Detect(p processInfo) ServiceMetadata {
 
 	sd.logger.Debug("name info", zap.String("name", meta.Name), zap.Strings("additional names", meta.AdditionalNames))
 
+	nameSource := "generated"
+	if meta.FromDDService {
+		nameSource = "provided"
+	}
+
 	return ServiceMetadata{
 		Name:               makeFinalName(meta),
 		Language:           string(lang),
 		Type:               string(svcType),
 		APMInstrumentation: string(apmInstr),
-		FromDDService:      meta.FromDDService,
+		NameSource:         nameSource,
 	}
 }

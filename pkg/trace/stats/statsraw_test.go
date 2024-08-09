@@ -69,6 +69,25 @@ func TestGrainWithPeerTags(t *testing.T) {
 		}, aggr)
 		assert.Nil(et)
 	})
+	t.Run("service override", func(t *testing.T) {
+		for _, spanKind := range []string{"client", "internal"} {
+			t.Run(spanKind, func(t *testing.T) {
+				assert := assert.New(t)
+				s := pb.Span{
+					Service:  "override",
+					Name:     "other",
+					Resource: "yo",
+					Meta:     map[string]string{"span.kind": spanKind, "_dd.base_service": "the-real-base", "server.address": "foo"},
+				}
+				_, et := NewAggregationFromSpan(&s, "", PayloadAggregationKey{}, []string{"_dd.base_service", "server.address"})
+				if spanKind == "client" {
+					assert.Equal([]string{"_dd.base_service:the-real-base", "server.address:foo"}, et)
+				} else {
+					assert.Equal([]string{"_dd.base_service:the-real-base"}, et)
+				}
+			})
+		}
+	})
 	t.Run("partially present", func(t *testing.T) {
 		assert := assert.New(t)
 		s := pb.Span{
@@ -99,6 +118,37 @@ func TestGrainWithPeerTags(t *testing.T) {
 			},
 		}, aggr)
 		assert.Equal([]string{"aws.s3.bucket:bucket-a", "peer.service:aws-s3"}, et)
+	})
+	t.Run("peer ip quantization", func(t *testing.T) {
+		assert := assert.New(t)
+		s := pb.Span{
+			Service:  "thing",
+			Name:     "other",
+			Resource: "yo",
+			Meta:     map[string]string{"span.kind": "client", "server.address": "129.49.218.65"},
+		}
+		aggr, et := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
+			Env:         "default",
+			Hostname:    "default",
+			ContainerID: "cid",
+		}, []string{"server.address"})
+
+		assert.Equal(Aggregation{
+			PayloadAggregationKey: PayloadAggregationKey{
+				Env:         "default",
+				Hostname:    "default",
+				ContainerID: "cid",
+			},
+			BucketsAggregationKey: BucketsAggregationKey{
+				Service:      "thing",
+				SpanKind:     "client",
+				Name:         "other",
+				Resource:     "yo",
+				PeerTagsHash: 0xad02dc568e7330c5,
+				IsTraceRoot:  pb.Trilean_TRUE,
+			},
+		}, aggr)
+		assert.Equal([]string{"server.address:blocked-ip-address"}, et)
 	})
 	t.Run("all present", func(t *testing.T) {
 		assert := assert.New(t)

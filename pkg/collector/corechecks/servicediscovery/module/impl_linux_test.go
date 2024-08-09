@@ -171,11 +171,13 @@ func TestBasic(t *testing.T) {
 
 	var expectedPIDs []int
 	var unexpectedPIDs []int
+	expectedPorts := make(map[int]int)
 
 	var startTCP = func(proto string) {
 		f, server := startTCPServer(t, proto)
 		cmd := startProcessWithFile(t, f)
 		expectedPIDs = append(expectedPIDs, cmd.Process.Pid)
+		expectedPorts[cmd.Process.Pid] = server.Port
 
 		f, _ = startTCPClient(t, proto, server)
 		cmd = startProcessWithFile(t, f)
@@ -186,6 +188,7 @@ func TestBasic(t *testing.T) {
 		f, server := startUDPServer(t, proto)
 		cmd := startProcessWithFile(t, f)
 		expectedPIDs = append(expectedPIDs, cmd.Process.Pid)
+		expectedPorts[cmd.Process.Pid] = server.Port
 
 		f, _ = startUDPClient(t, proto, server)
 		cmd = startProcessWithFile(t, f)
@@ -207,6 +210,54 @@ func TestBasic(t *testing.T) {
 			assert.NotContains(collect, portMap, pid)
 		}
 	}, 30*time.Second, 100*time.Millisecond)
+
+	serviceMap := getServicesMap(t, url)
+	for _, pid := range expectedPIDs {
+		require.Contains(t, serviceMap[pid].Ports, uint16(expectedPorts[pid]))
+	}
+}
+
+// Check that we get all listening ports for a process
+func TestPorts(t *testing.T) {
+	url := setupDiscoveryModule(t)
+
+	var expectedPorts []uint16
+	var unexpectedPorts []uint16
+
+	var startTCP = func(proto string) {
+		serverf, server := startTCPServer(t, proto)
+		t.Cleanup(func() { serverf.Close() })
+		clientf, client := startTCPClient(t, proto, server)
+		t.Cleanup(func() { clientf.Close() })
+
+		expectedPorts = append(expectedPorts, uint16(server.Port))
+		unexpectedPorts = append(unexpectedPorts, uint16(client.Port))
+	}
+
+	var startUDP = func(proto string) {
+		serverf, server := startUDPServer(t, proto)
+		t.Cleanup(func() { _ = serverf.Close() })
+		clientf, client := startUDPClient(t, proto, server)
+		t.Cleanup(func() { clientf.Close() })
+
+		expectedPorts = append(expectedPorts, uint16(server.Port))
+		unexpectedPorts = append(unexpectedPorts, uint16(client.Port))
+	}
+
+	startTCP("tcp4")
+	startTCP("tcp6")
+	startUDP("udp4")
+	startUDP("udp6")
+
+	serviceMap := getServicesMap(t, url)
+	pid := os.Getpid()
+	require.Contains(t, serviceMap, pid)
+	for _, port := range expectedPorts {
+		assert.Contains(t, serviceMap[pid].Ports, port)
+	}
+	for _, port := range unexpectedPorts {
+		assert.NotContains(t, serviceMap[pid].Ports, port)
+	}
 }
 
 func TestServiceName(t *testing.T) {
@@ -256,6 +307,8 @@ func TestNamespaces(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
 	t.Cleanup(func() { cancel() })
 
+	expectedPorts := make(map[int]int)
+
 	var pids []int
 	for i := 0; i < 3; i++ {
 		ns, err := netns.New()
@@ -264,6 +317,7 @@ func TestNamespaces(t *testing.T) {
 
 		listener, err := net.Listen("tcp", "")
 		require.NoError(t, err)
+		port := listener.Addr().(*net.TCPAddr).Port
 		f, err := listener.(*net.TCPListener).File()
 		listener.Close()
 
@@ -279,6 +333,7 @@ func TestNamespaces(t *testing.T) {
 		ns.Close()
 
 		pids = append(pids, cmd.Process.Pid)
+		expectedPorts[cmd.Process.Pid] = port
 	}
 
 	netns.Set(origNs)
@@ -290,6 +345,11 @@ func TestNamespaces(t *testing.T) {
 			assert.Contains(collect, portMap, pid)
 		}
 	}, 30*time.Second, 100*time.Millisecond)
+
+	serviceMap := getServicesMap(t, url)
+	for _, pid := range pids {
+		require.Contains(t, serviceMap[pid].Ports, uint16(expectedPorts[pid]))
+	}
 }
 
 // Check that we are able to find services inside Docker containers.
@@ -325,6 +385,7 @@ func TestDocker(t *testing.T) {
 	portMap := getServicesMap(t, url)
 
 	require.Contains(t, portMap, pid1111)
+	require.Contains(t, portMap[pid1111].Ports, uint16(1234))
 }
 
 // Check that the cache is cleaned when procceses die.

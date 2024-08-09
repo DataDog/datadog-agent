@@ -55,20 +55,20 @@ func Test_telemetrySender(t *testing.T) {
 
 	svc := serviceInfo{
 		process: processInfo{
-			PID:     0,
+			PID:     99,
 			CmdLine: nil,
 			Env:     nil,
-			Cwd:     "",
 			Stat: procStat{
 				StartTime: uint64(now.Add(-20 * time.Minute).Unix()),
 			},
-			Ports: nil,
+			Ports: []uint16{80, 8080},
 		},
 		meta: ServiceMetadata{
 			Name:               "test-service",
 			Language:           "jvm",
 			Type:               "web_service",
 			APMInstrumentation: "injected",
+			NameSource:         "generated",
 		},
 		LastHeartbeat: now,
 	}
@@ -92,6 +92,8 @@ func Test_telemetrySender(t *testing.T) {
 				LastSeen:            1715558400,
 				APMInstrumentation:  "injected",
 				ServiceNameSource:   "generated",
+				Ports:               []uint16{80, 8080},
+				PID:                 99,
 			},
 		},
 		{
@@ -108,6 +110,8 @@ func Test_telemetrySender(t *testing.T) {
 				LastSeen:            1715558400,
 				APMInstrumentation:  "injected",
 				ServiceNameSource:   "generated",
+				Ports:               []uint16{80, 8080},
+				PID:                 99,
 			},
 		},
 		{
@@ -124,6 +128,8 @@ func Test_telemetrySender(t *testing.T) {
 				LastSeen:            1715558400,
 				APMInstrumentation:  "injected",
 				ServiceNameSource:   "generated",
+				Ports:               []uint16{80, 8080},
+				PID:                 99,
 			},
 		},
 	}
@@ -154,10 +160,9 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 
 	svc := serviceInfo{
 		process: processInfo{
-			PID:     0,
+			PID:     55,
 			CmdLine: nil,
 			Env:     nil,
-			Cwd:     "",
 			Stat: procStat{
 				StartTime: uint64(now.Add(-20 * time.Minute).Unix()),
 			},
@@ -168,7 +173,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 			Language:           "jvm",
 			Type:               "web_service",
 			APMInstrumentation: "injected",
-			FromDDService:      true,
+			NameSource:         "provided",
 		},
 		LastHeartbeat: now,
 	}
@@ -192,6 +197,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 				LastSeen:            1715558400,
 				APMInstrumentation:  "injected",
 				ServiceNameSource:   "provided",
+				PID:                 55,
 			},
 		},
 		{
@@ -208,6 +214,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 				LastSeen:            1715558400,
 				APMInstrumentation:  "injected",
 				ServiceNameSource:   "provided",
+				PID:                 55,
 			},
 		},
 		{
@@ -224,6 +231,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 				LastSeen:            1715558400,
 				APMInstrumentation:  "injected",
 				ServiceNameSource:   "provided",
+				PID:                 55,
 			},
 		},
 	}

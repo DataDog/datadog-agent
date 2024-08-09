@@ -27,7 +27,7 @@ type NetworkPathHop struct {
 	IPAddress string  `json:"ip_address"`
 	Hostname  string  `json:"hostname,omitempty"`
 	RTT       float64 `json:"rtt,omitempty"`
-	Success   bool    `json:"success"`
+	Reachable bool    `json:"reachable"`
 }
 
 // NetworkPathSource encapsulates information

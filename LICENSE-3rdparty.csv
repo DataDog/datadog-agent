@@ -2602,14 +2602,14 @@ core,golang.org/x/crypto/ssh,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All
 core,golang.org/x/crypto/ssh/agent,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/ssh/internal/bcrypt_pbkdf,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/ssh/knownhosts,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/constraints,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/maps,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/mmap,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/slices,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/slog,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/slog/internal,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/slog/internal/buffer,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/typeparams,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/exp/constraints,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/maps,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/mmap,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/slices,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/slog,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/slog/internal,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/slog/internal/buffer,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/typeparams,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright 2009 The Go Authors
 core,golang.org/x/lint,BSD-3-Clause,Copyright (c) 2013 The Go Authors. All rights reserved
 core,golang.org/x/lint/golint,BSD-3-Clause,Copyright (c) 2013 The Go Authors. All rights reserved
 core,golang.org/x/net/bpf,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -2649,15 +2649,15 @@ core,golang.org/x/oauth2/jwt,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All
 core,golang.org/x/sync/errgroup,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/sync/semaphore,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/sync/singleflight,BSD-3-Clause,Copyright 2009 The Go Authors
-core,golang.org/x/sys/cpu,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/execabs,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/plan9,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/unix,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/windows,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/windows/registry,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/windows/svc,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/windows/svc/eventlog,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/windows/svc/mgr,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/sys/cpu,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/execabs,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/plan9,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/unix,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/windows,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/windows/registry,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/windows/svc,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/windows/svc/eventlog,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/windows/svc/mgr,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/term,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/text/cases,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/text/encoding,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -3622,13 +3622,6 @@ core,k8s.io/component-base/version,Apache-2.0,Copyright 2014 The Kubernetes Auth
 core,k8s.io/cri-api/pkg/apis/runtime/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/cri-api/pkg/apis/runtime/v1alpha2,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/cri-api/pkg/apis/testing,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/gengo/args,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/gengo/examples/defaulter-gen/generators,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/gengo/examples/set-gen/sets,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/gengo/generator,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/gengo/namer,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/gengo/parser,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/gengo/types,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/klog,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/klog/v2,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/klog/v2/internal/buffer,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -3646,16 +3639,12 @@ core,k8s.io/kube-aggregator/pkg/apis/apiregistration/v1,Apache-2.0,Copyright 201
 core,k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/scheme,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/kube-openapi/cmd/openapi-gen,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/kube-openapi/cmd/openapi-gen/args,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/builder,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/builder3,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/builder3/util,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/cached,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/common,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/common/restfuladapter,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/kube-openapi/pkg/generators,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/kube-openapi/pkg/generators/rules,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/handler,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/handler3,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/internal,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -3666,7 +3655,6 @@ core,k8s.io/kube-openapi/pkg/schemamutation,Apache-2.0,Copyright 2014 The Kubern
 core,k8s.io/kube-openapi/pkg/spec3,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/util,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/util/proto,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/kube-openapi/pkg/util/sets,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/validation/errors,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/validation/spec,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/validation/strfmt,Apache-2.0,Copyright 2014 The Kubernetes Authors.

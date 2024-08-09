@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/portlist"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -48,9 +47,8 @@ type processInfo struct {
 	PID     int
 	CmdLine []string
 	Env     []string
-	Cwd     string
 	Stat    procStat
-	Ports   []int
+	Ports   []uint16
 }
 
 type serviceEvents struct {
@@ -61,7 +59,6 @@ type serviceEvents struct {
 
 type discoveredServices struct {
 	aliveProcsCount int
-	openPorts       portlist.List
 
 	ignoreProcs     map[int]bool
 	potentials      map[int]*serviceInfo
@@ -119,7 +116,7 @@ func newCheck() check.Check {
 
 // Configure parses the check configuration and initializes the check
 func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instanceConfig, initConfig integration.Data, source string) error {
-	if !pkgconfig.Datadog().GetBool("service_discovery.enabled") {
+	if !pkgconfig.SystemProbe().GetBool("discovery.enabled") {
 		return errors.New("service discovery is disabled")
 	}
 	if newOSImpl == nil {
@@ -165,12 +162,11 @@ func (c *Check) Run() error {
 		return err
 	}
 
-	log.Debugf("aliveProcs: %d | ignoreProcs: %d | runningServices: %d | potentials: %d | openPorts: %s",
+	log.Debugf("aliveProcs: %d | ignoreProcs: %d | runningServices: %d | potentials: %d",
 		disc.aliveProcsCount,
 		len(disc.ignoreProcs),
 		len(disc.runningServices),
 		len(disc.potentials),
-		disc.openPorts.String(),
 	)
 	metricDiscoveredServices.Set(float64(len(disc.runningServices)))
 

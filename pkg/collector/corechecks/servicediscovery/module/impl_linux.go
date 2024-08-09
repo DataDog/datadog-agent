@@ -122,10 +122,15 @@ func getSockets(p *process.Process) ([]uint64, error) {
 	return sockets, nil
 }
 
+// socketInfo stores information related to each socket.
+type socketInfo struct {
+	port uint16
+}
+
 // namespaceInfo stores information related to each network namespace.
 type namespaceInfo struct {
-	// listeningSockets stores the socket inode numbers for sockets which are listening.
-	listeningSockets map[uint64]struct{}
+	// listeningSockets maps socket inode numbers to socket information for listening sockets.
+	listeningSockets map[uint64]socketInfo
 }
 
 // Lifted from pkg/network/proc_net.go
@@ -137,13 +142,13 @@ const (
 	udpListen        = tcpClose
 )
 
-// addSockets adds only listening sockets to a map (set) to be used for later looksups.
-func addSockets[P procfs.NetTCP | procfs.NetUDP](sockMap map[uint64]struct{}, sockets P, state uint64) {
+// addSockets adds only listening sockets to a map to be used for later looksups.
+func addSockets[P procfs.NetTCP | procfs.NetUDP](sockMap map[uint64]socketInfo, sockets P, state uint64) {
 	for _, sock := range sockets {
 		if sock.St != state {
 			continue
 		}
-		sockMap[sock.Inode] = struct{}{}
+		sockMap[sock.Inode] = socketInfo{port: uint16(sock.LocalPort)}
 	}
 }
 
@@ -175,7 +180,7 @@ func getNsInfo(pid int) (*namespaceInfo, error) {
 		log.Debugf("couldn't snapshot UDP6 sockets: %v", err)
 	}
 
-	listeningSockets := make(map[uint64]struct{})
+	listeningSockets := make(map[uint64]socketInfo)
 
 	addSockets(listeningSockets, TCP, tcpListen)
 	addSockets(listeningSockets, TCP6, tcpListen)
@@ -244,15 +249,21 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		context.netNsInfo[ns] = nsInfo
 	}
 
-	haveListeningSocket := false
+	var ports []uint16
+	seenPorts := make(map[uint16]struct{})
 	for _, socket := range sockets {
-		if _, ok := nsInfo.listeningSockets[socket]; ok {
-			haveListeningSocket = true
-			break
+		if info, ok := nsInfo.listeningSockets[socket]; ok {
+			port := info.port
+			if _, seen := seenPorts[port]; seen {
+				continue
+			}
+
+			ports = append(ports, port)
+			seenPorts[port] = struct{}{}
 		}
 	}
 
-	if !haveListeningSocket {
+	if len(ports) == 0 {
 		return nil
 	}
 
@@ -269,8 +280,9 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	}
 
 	return &model.Service{
-		PID:  int(pid),
-		Name: serviceName,
+		PID:   int(pid),
+		Name:  serviceName,
+		Ports: ports,
 	}
 }
 
