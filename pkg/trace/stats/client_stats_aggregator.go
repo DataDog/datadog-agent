@@ -309,14 +309,12 @@ func (b *bucket) aggregationToPayloads() []*pb.ClientStatsPayload {
 }
 
 func exporGroupedStats(aggrKey BucketsAggregationKey, stats *aggregatedStats) (*pb.ClientGroupedStats, error) {
-	var (
-		// if the raw sketches are still present (only one payload received), we use them directly.
-		// Otherwise the aggregated DDSketches are serialized.
-		okSummary  []byte = stats.okDistributionRaw
-		errSummary []byte = stats.errDistributionRaw
-		err        error
-	)
+	// if the raw sketches are still present (only one payload received), we use them directly.
+	// Otherwise the aggregated DDSketches are serialized.
+	okSummary := stats.okDistributionRaw
+	errSummary := stats.errDistributionRaw
 
+	var err error
 	if stats.okDistribution != nil {
 		msg := stats.okDistribution.ToProto()
 		okSummary, err = proto.Marshal(msg)
