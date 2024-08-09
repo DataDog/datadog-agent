@@ -138,7 +138,7 @@ require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/CycloneDX/cyclonedx-go v0.8.0
+	github.com/CycloneDX/cyclonedx-go v0.9.0
 	github.com/DataDog/appsec-internal-go v1.6.0
 	github.com/DataDog/datadog-agent/pkg/gohai v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.56.0-rc.3
