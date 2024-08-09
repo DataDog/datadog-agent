@@ -822,8 +822,8 @@ def generate_complexity_summary_for_pr(ctx: Context, skip_github_comment=False):
         row = [
             program,
             _format_change(avg_new_complexity, avg_old_complexity),
-            f"{highest_complexity_platform}\n{_format_change(highest_new_complexity, highest_old_complexity)}",
-            f"{lowest_complexity_platform}\n{_format_change(lowest_new_complexity, lowest_old_complexity)}",
+            f"{highest_complexity_platform}: {_format_change(highest_new_complexity, highest_old_complexity)}",
+            f"{lowest_complexity_platform}: {_format_change(lowest_new_complexity, lowest_old_complexity)}",
             has_changes,
         ]
         summarized_complexity_changes.append(row)
