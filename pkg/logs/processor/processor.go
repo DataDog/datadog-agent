@@ -6,6 +6,7 @@
 package processor
 
 import (
+	"bytes"
 	"context"
 	"sync"
 
@@ -154,6 +155,14 @@ func (p *Processor) processMessage(msg *message.Message) {
 	}
 }
 
+func checkPatternHint(rule *config.ProcessingRule, content []byte) bool {
+	if len(rule.PatternHint) == 0 {
+		return true
+	}
+
+	return bytes.Contains(content, rule.PatternHintBytes)
+}
+
 // applyRedactingRules returns given a message if we should process it or not,
 // it applies the change directly on the Message content.
 func (p *Processor) applyRedactingRules(msg *message.Message) bool {
@@ -167,16 +176,18 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 		switch rule.Type {
 		case config.ExcludeAtMatch:
 			// if this message matches, we ignore it
-			if rule.Regex.Match(content) {
+			if checkPatternHint(rule, content) && rule.Regex.Match(content) {
 				return false
 			}
 		case config.IncludeAtMatch:
 			// if this message doesn't match, we ignore it
-			if !rule.Regex.Match(content) {
+			if !(checkPatternHint(rule, content) && rule.Regex.Match(content)) {
 				return false
 			}
 		case config.MaskSequences:
-			content = rule.Regex.ReplaceAll(content, rule.Placeholder)
+			if checkPatternHint(rule, content) {
+				content = rule.Regex.ReplaceAll(content, rule.Placeholder)
+			}
 		}
 	}
 
