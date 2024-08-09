@@ -14,16 +14,17 @@ import (
 	"github.com/google/gopacket/layers"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/filter"
 )
 
-var _ packetSource = &windowsPacketSource{}
+var _ filter.PacketSource = &windowsPacketSource{}
 
 type windowsPacketSource struct {
 	di *dnsDriver
 }
 
 // newWindowsPacketSource constructs a new packet source
-func newWindowsPacketSource(telemetrycomp telemetry.Component) (packetSource, error) {
+func newWindowsPacketSource(telemetrycomp telemetry.Component) (filter.PacketSource, error) {
 	di, err := newDriver(telemetrycomp)
 	if err != nil {
 		return nil, err
@@ -31,7 +32,7 @@ func newWindowsPacketSource(telemetrycomp telemetry.Component) (packetSource, er
 	return &windowsPacketSource{di: di}, nil
 }
 
-func (p *windowsPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, time.Time) error) error {
+func (p *windowsPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, filter.PacketInfo, time.Time) error) error {
 	for {
 		didReadPacket, err := p.di.ReadDNSPacket(visit)
 		if err != nil {
@@ -50,7 +51,7 @@ func (p *windowsPacketSource) VisitPackets(exit <-chan struct{}, visit func([]by
 	}
 }
 
-func (p *windowsPacketSource) PacketType() gopacket.LayerType {
+func (p *windowsPacketSource) LayerType() gopacket.LayerType {
 	return layers.LayerTypeIPv4
 }
 

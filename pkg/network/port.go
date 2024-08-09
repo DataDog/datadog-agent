@@ -30,8 +30,8 @@ var statusMap = map[ConnectionType]int64{
 	UDP: tcpClose,
 }
 
-// ReadInitialState reads the /proc filesystem and determines which ports are being listened on
-func ReadInitialState(procRoot string, protocol ConnectionType, collectIPv6 bool) (map[PortMapping]uint32, error) {
+// ReadListeningPorts reads the /proc filesystem and determines which ports are being listened on
+func ReadListeningPorts(procRoot string, protocol ConnectionType, collectIPv6 bool) (map[PortMapping]uint32, error) {
 	start := time.Now()
 	defer func() {
 		log.Debugf("Read initial %s pid->port mapping in %s", protocol.String(), time.Since(start))
