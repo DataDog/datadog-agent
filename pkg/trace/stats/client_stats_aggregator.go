@@ -223,15 +223,44 @@ func (b *bucket) aggregateStatsBucket(sb *pb.ClientStatsBucket, payloadAggKey Pa
 		aggKey := newBucketAggregationKey(gs)
 		agg, ok := payloadAgg[aggKey]
 		if !ok {
-			agg = &aggregatedStats{}
+			agg = &aggregatedStats{
+				hits:               gs.Hits,
+				topLevelHits:       gs.TopLevelHits,
+				errors:             gs.Errors,
+				duration:           gs.Duration,
+				peerTags:           gs.PeerTags,
+				okDistributionRaw:  gs.OkSummary,    // store encoded version only
+				errDistributionRaw: gs.ErrorSummary, // store encoded version only
+			}
 			payloadAgg[aggKey] = agg
-			agg.peerTags = gs.PeerTags
+			continue
 		}
+
 		// aggregate counts
 		agg.hits += gs.Hits
 		agg.topLevelHits += gs.TopLevelHits
 		agg.errors += gs.Errors
 		agg.duration += gs.Duration
+
+		// Decode, if needed, the raw ddsketches from the first payload that reached the bucket
+		if agg.okDistributionRaw != nil {
+			sketch, err := decodeSketch(agg.okDistributionRaw)
+			if err != nil {
+				log.Error("Unable to decode OK distribution ddsketch: %v", err)
+			} else {
+				agg.okDistribution = normalizeSketch(sketch)
+			}
+			agg.okDistributionRaw = nil
+		}
+		if agg.errDistributionRaw != nil {
+			sketch, err := decodeSketch(agg.errDistributionRaw)
+			if err != nil {
+				log.Error("Unable to decode Error distribution ddsketch: %v", err)
+			} else {
+				agg.errDistribution = normalizeSketch(sketch)
+			}
+			agg.errDistributionRaw = nil
+		}
 
 		// aggregate distributions
 		if sketch, err := mergeSketch(agg.okDistribution, gs.OkSummary); err == nil {
@@ -281,8 +310,10 @@ func (b *bucket) aggregationToPayloads() []*pb.ClientStatsPayload {
 
 func exporGroupedStats(aggrKey BucketsAggregationKey, stats *aggregatedStats) (*pb.ClientGroupedStats, error) {
 	var (
-		okSummary  []byte
-		errSummary []byte
+		// if the raw sketches are still present (only one payload received), we use them directly.
+		// Otherwise the aggregated DDSketches are serialized.
+		okSummary  []byte = stats.okDistributionRaw
+		errSummary []byte = stats.errDistributionRaw
 		err        error
 	)
 
@@ -349,15 +380,23 @@ func newBucketAggregationKey(b *pb.ClientGroupedStats) BucketsAggregationKey {
 
 // aggregatedStats holds aggregated counts and distributions
 type aggregatedStats struct {
+	// aggregated counts
 	hits, topLevelHits, errors, duration uint64
 	peerTags                             []string
 
+	// aggregated DDSketches
 	okDistribution, errDistribution *ddsketch.DDSketch
+
+	// raw (encoded) DDSketches. Only present if a single payload is received on the active bucket,
+	// allowing the bucket to not decode the sketch. If a second payload matches the bucket,
+	// sketches will be decoded and stored in the okDistribution and errDistribution fields.
+	okDistributionRaw, errDistributionRaw []byte
 }
 
+// mergeSketch take an existing DDSketch, and merges a second one, decoding its contents
 func mergeSketch(s1 *ddsketch.DDSketch, raw []byte) (*ddsketch.DDSketch, error) {
 	if raw == nil {
-		return nil, nil
+		return s1, nil
 	}
 
 	s2, err := decodeSketch(raw)
