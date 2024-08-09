@@ -302,12 +302,8 @@ func (t *Tracer) storeClosedConnection(cs *network.ConnectionStats) {
 		return
 	}
 
-	cs.IPTranslation = t.conntracker.GetTranslationForConn(cs)
+	cs.IPTranslation = t.conntracker.GetAndDeleteTranslationForConn(cs)
 	t.connVia(cs)
-	if cs.IPTranslation != nil {
-		t.conntracker.DeleteTranslation(cs)
-	}
-
 	t.addProcessInfo(cs)
 
 	tracerTelemetry.closedConns.IncWithTags(cs.Type.Tags())

@@ -229,6 +229,14 @@ func (e *ebpfConntracker) GetType() string {
 }
 
 func (e *ebpfConntracker) GetTranslationForConn(stats *network.ConnectionStats) *network.IPTranslation {
+	return e.getTranslation(stats, e.get)
+}
+
+func (e *ebpfConntracker) GetAndDeleteTranslationForConn(stats *network.ConnectionStats) *network.IPTranslation {
+	return e.getTranslation(stats, e.getAndDelete)
+}
+
+func (e *ebpfConntracker) getTranslation(stats *network.ConnectionStats, getFunc func(*netebpf.ConntrackTuple) *netebpf.ConntrackTuple) *network.IPTranslation {
 	start := time.Now()
 	src := tuplePool.Get()
 	defer tuplePool.Put(src)
@@ -243,7 +251,7 @@ func (e *ebpfConntracker) GetTranslationForConn(stats *network.ConnectionStats) 
 	if log.ShouldLog(seelog.TraceLvl) {
 		log.Tracef("looking up in conntrack (tuple): %s", src)
 	}
-	dst := e.get(src)
+	dst := getFunc(src)
 
 	if dst == nil && stats.NetNS != e.rootNS {
 		// Perform another lookup, this time using the connection namespace
@@ -251,7 +259,7 @@ func (e *ebpfConntracker) GetTranslationForConn(stats *network.ConnectionStats) 
 		if log.ShouldLog(seelog.TraceLvl) {
 			log.Tracef("looking up in conntrack (tuple,netns): %s", src)
 		}
-		dst = e.get(src)
+		dst = getFunc(src)
 	}
 
 	if dst == nil {
@@ -274,14 +282,30 @@ func (*ebpfConntracker) IsSampling() bool {
 }
 
 func (e *ebpfConntracker) get(src *netebpf.ConntrackTuple) *netebpf.ConntrackTuple {
+	return lookupEntry(src, e.ctMap.Lookup)
+}
+
+func (e *ebpfConntracker) getAndDelete(src *netebpf.ConntrackTuple) *netebpf.ConntrackTuple {
+	start := time.Now()
+	dst := lookupEntry(src, e.ctMap.LookupAndDelete)
+	if dst != nil {
+		conntrackerTelemetry.unregistersTotal.Inc()
+	}
+
+	conntrackerTelemetry.unregistersDuration.Observe(float64(time.Since(start).Nanoseconds()))
+	return dst
+}
+
+func lookupEntry(src *netebpf.ConntrackTuple, mapLookup func(key, valueOut *netebpf.ConntrackTuple) error) *netebpf.ConntrackTuple {
 	dst := tuplePool.Get()
-	if err := e.ctMap.Lookup(src, dst); err != nil {
+	if err := mapLookup(src, dst); err != nil {
 		if !errors.Is(err, ebpf.ErrKeyNotExist) {
 			log.Warnf("error looking up connection in ebpf conntrack map: %s", err)
 		}
 		tuplePool.Put(dst)
 		return nil
 	}
+
 	return dst
 }
 
