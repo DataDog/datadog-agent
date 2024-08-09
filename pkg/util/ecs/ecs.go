@@ -14,11 +14,10 @@ import (
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 )
 
-type ecsProvider struct{}
-
 var metaV1 v1.Client
 var err error
 
+// GetECSAgentVersion fetches the ECS Agent Version if running in ECS
 func GetECSAgentVersion(ctx context.Context) string {
 	metaV1, err = metadata.V1()
 	if err != nil {
