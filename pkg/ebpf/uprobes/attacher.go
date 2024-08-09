@@ -687,9 +687,10 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 					if isBestEffort {
 						continue
 					}
-					// This should not happen, as getAvailableRequestedSymbols should have already
-					// returned an error if mandatory symbols weren't found. However and for safety,
-					// we'll check again and return an error if the symbol is not found.
+					// This should not happen, as Inspect should have already
+					// returned an error if mandatory symbols weren't found.
+					// However and for safety, we'll check again and return an
+					// error if the symbol is not found.
 					return fmt.Errorf("symbol %s not found in %s", probeOpts.Symbol, fpath.HostPath)
 				}
 

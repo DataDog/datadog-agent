@@ -17,7 +17,7 @@ and which probes to attach to them. Example usage:
 
 	mgr := manager.Manager{}
 
-	attacherCfg := &AttacherConfig{
+	attacherCfg := AttacherConfig{
 		Rules: []*AttachRule{
 			{
 				LibraryNameRegex: regexp.MustCompile(`libssl.so`),
@@ -53,6 +53,8 @@ pkg/network/usm/sharedlibraries.
     initial filtering is performed there.
 
   - If multiple rules match a binary file, and we fail to attach the required probes for one of them,
-    the whole attach operation will be considered as failed, and the probes will be detached.
+    the whole attach operation will be considered as failed, and the probes will be detached. If you want
+    to control which probes are optional and which are mandatory, you can use the manager.AllOf/manager.BestEffort
+    selectors in a single rule.
 */
 package uprobes
