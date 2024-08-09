@@ -275,6 +275,13 @@ func (c *collector) parsePodContainers(
 			containerState.FinishedAt = st.FinishedAt
 		}
 
+		// Kubelet considers containers without probe to be ready
+		if container.Ready {
+			containerState.Health = workloadmeta.ContainerHealthHealthy
+		} else {
+			containerState.Health = workloadmeta.ContainerHealthUnhealthy
+		}
+
 		podContainers = append(podContainers, podContainer)
 		events = append(events, workloadmeta.CollectorEvent{
 			Source: workloadmeta.SourceNodeOrchestrator,
