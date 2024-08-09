@@ -224,7 +224,7 @@ func TestDisableNoErrorLog(t *testing.T) {
 	o := getCommonOverrideConfig(false, "")
 	l := logmock.New(t)
 	getTestAtelComponent(t, l, o)
-	assert.Zero(t, l.(*logmock.Mock).ErrorCount)
+	assert.Zero(t, l.(*logmock.Mock).ErrorCount.Load())
 }
 
 func TestDisableIfFipsEnabled(t *testing.T) {
