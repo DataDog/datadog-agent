@@ -6,6 +6,8 @@
 package testsuite
 
 import (
+	"cmp"
+	"slices"
 	"testing"
 	"time"
 
@@ -54,6 +56,25 @@ func TestClientStats(t *testing.T) {
 						continue
 					}
 					assert.Equalf(t, len(res), len(tt.Out), "res had so many elements: %d\ntt has:%d", len(res), len(tt.Out))
+
+					// sort internal slices for testing ease
+					for _, r := range res {
+						for _, p := range r.Stats {
+							sortBuckets(p.Stats)
+							for _, b := range p.Stats {
+								sortStats(b.Stats)
+							}
+						}
+					}
+					for _, r := range tt.Out {
+						for _, p := range r.Stats {
+							sortBuckets(p.Stats)
+							for _, b := range p.Stats {
+								sortStats(b.Stats)
+							}
+						}
+					}
+
 					actual := []protoiface.MessageV1{}
 					expected := []protoiface.MessageV1{}
 					for _, msg := range res {
@@ -70,6 +91,24 @@ func TestClientStats(t *testing.T) {
 			}
 		})
 	}
+}
+
+func sortBuckets(buckets []*pb.ClientStatsBucket) {
+	slices.SortFunc(buckets, func(a, b *pb.ClientStatsBucket) int {
+		return cmp.Compare(a.Start, b.Start)
+	})
+}
+
+func sortStats(stats []*pb.ClientGroupedStats) {
+	slices.SortFunc(stats, func(a, b *pb.ClientGroupedStats) int {
+		if n := cmp.Compare(a.Service, b.Service); n != 0 {
+			return n
+		}
+		if n := cmp.Compare(a.Name, b.Name); n != 0 {
+			return n
+		}
+		return cmp.Compare(a.Resource, b.Resource)
+	})
 }
 
 func normalizeTimeFields(t *testing.T, p *pb.StatsPayload) *pb.StatsPayload {
