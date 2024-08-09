@@ -20,6 +20,7 @@ const (
 	envAPIKey                = "DD_API_KEY"
 	envSite                  = "DD_SITE"
 	envRemoteUpdates         = "DD_REMOTE_UPDATES"
+	envRemotePolicies        = "DD_REMOTE_POLICIES"
 	envRegistryURL           = "DD_INSTALLER_REGISTRY_URL"
 	envRegistryAuth          = "DD_INSTALLER_REGISTRY_AUTH"
 	envDefaultPackageVersion = "DD_INSTALLER_DEFAULT_PKG_VERSION"
@@ -56,9 +57,10 @@ type ApmLibVersion string
 
 // Env contains the configuration for the installer.
 type Env struct {
-	APIKey        string
-	Site          string
-	RemoteUpdates bool
+	APIKey         string
+	Site           string
+	RemoteUpdates  bool
+	RemotePolicies bool
 
 	RegistryOverride            string
 	RegistryAuthOverride        string
@@ -79,9 +81,10 @@ type Env struct {
 // FromEnv returns an Env struct with values from the environment.
 func FromEnv() *Env {
 	return &Env{
-		APIKey:        getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
-		Site:          getEnvOrDefault(envSite, defaultEnv.Site),
-		RemoteUpdates: os.Getenv(envRemoteUpdates) == "true",
+		APIKey:         getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
+		Site:           getEnvOrDefault(envSite, defaultEnv.Site),
+		RemoteUpdates:  os.Getenv(envRemoteUpdates) == "true",
+		RemotePolicies: os.Getenv(envRemotePolicies) == "true",
 
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
 		RegistryAuthOverride:        getEnvOrDefault(envRegistryAuth, defaultEnv.RegistryAuthOverride),

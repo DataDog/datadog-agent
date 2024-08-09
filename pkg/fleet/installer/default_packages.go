@@ -35,8 +35,6 @@ var PackagesList = []Package{
 	{Name: "datadog-agent", version: agentVersion, released: false, releasedWithRemoteUpdates: true},
 }
 
-var packageDependencies = map[string][]string{}
-
 var apmPackageDefaultVersions = map[string]string{
 	"datadog-apm-library-java":   "1",
 	"datadog-apm-library-ruby":   "2",

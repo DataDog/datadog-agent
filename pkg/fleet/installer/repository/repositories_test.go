@@ -6,6 +6,8 @@
 package repository
 
 import (
+	"os"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -58,4 +60,18 @@ func TestRepositoriesReopen(t *testing.T) {
 	assert.Len(t, state, 2)
 	assert.Equal(t, state["repo1"], State{Stable: "v1"})
 	assert.Equal(t, state["repo2"], State{Stable: "v1"})
+}
+
+func TestLoadRepositories(t *testing.T) {
+	rootDir := t.TempDir()
+	runDir := t.TempDir()
+
+	os.Mkdir(path.Join(rootDir, "datadog-agent"), 0755)
+	os.Mkdir(path.Join(rootDir, tempDirPrefix+"2394812349"), 0755)
+
+	repositories, err := NewRepositories(rootDir, runDir).loadRepositories()
+	assert.NoError(t, err)
+	assert.Len(t, repositories, 1)
+	assert.Contains(t, repositories, "datadog-agent")
+	assert.NotContains(t, repositories, tempDirPrefix+"2394812349")
 }

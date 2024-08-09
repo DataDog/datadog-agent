@@ -11,12 +11,14 @@ package service
 import (
 	"context"
 	"fmt"
+	"os/exec"
+	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-	"os"
-	"os/exec"
-	"path/filepath"
 )
 
 func msiexec(target, operation string, args []string) (err error) {
@@ -31,13 +33,7 @@ func msiexec(target, operation string, args []string) (err error) {
 		return fmt.Errorf("no MSIs in package")
 	}
 
-	tmpDir, err := os.MkdirTemp(paths.TmpDirPath, fmt.Sprintf("install-%s-*", filepath.Base(msis[0])))
-	if err != nil {
-		return fmt.Errorf("could not create temporary directory: %w", err)
-	}
-
-	logPath := filepath.Join(tmpDir, "install.log")
-	cmd := exec.Command("msiexec", append([]string{operation, msis[0], "/qn", "/l", logPath, "MSIFASTINSTALL=7"}, args...)...)
+	cmd := exec.Command("msiexec", append([]string{operation, msis[0], "/qn", "MSIFASTINSTALL=7"}, args...)...)
 	return cmd.Run()
 }
 
@@ -99,4 +95,9 @@ func RemoveAgent(ctx context.Context) (err error) {
 		span.Finish(tracer.WithError(err))
 	}()
 	return msiexec("stable", "/x", nil)
+}
+
+// ConfigureAgent noop
+func ConfigureAgent(_ context.Context, _ *cdn.CDN, _ *repository.Repositories) error {
+	return nil
 }
