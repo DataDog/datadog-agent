@@ -20,6 +20,8 @@ import (
 	"os/exec"
 	"sync"
 	"syscall"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // GetSubprocessOutput runs the subprocess and returns the output
@@ -70,8 +72,7 @@ func GetSubprocessOutput(argv **C.char, env **C.char, cStdout **C.char, cStderr 
 
 	err = cmd.Start()
 	if err != nil {
-		*exception = TrackedCString(fmt.Sprintf("internal error starting subprocess: %v", err))
-		return
+		log.Errorf("internal error starting subprocess: %v", err)
 	}
 
 	// Wait for the pipes to be closed *before* waiting for the cmd to exit, as per os.exec docs
