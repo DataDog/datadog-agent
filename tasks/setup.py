@@ -230,40 +230,46 @@ def setup_vscode(ctx) -> SetupResult:
 def install_go_tools(ctx) -> SetupResult:
     print(color_message("Installing go tools...", Color.BLUE))
     status = Status.OK
+    message = ""
 
     try:
         from tasks import install_tools
 
         install_tools(ctx)
     except Exception:
+        message = "Go tools setup failed: {e}"
         status = Status.FAIL
 
-    return SetupResult("Install Go tools", status)
+    return SetupResult("Install Go tools", status, message)
 
 
 def install_protoc(ctx) -> SetupResult:
     print(color_message("Installing protoc...", Color.BLUE))
     status = Status.OK
+    message = ""
 
     try:
         from tasks import install_protoc
 
         install_protoc(ctx)
-    except Exception:
+    except Exception as e:
+        message = f'Protoc setup failed: {e}'
         status = Status.FAIL
 
-    return SetupResult("Install protoc", status)
+    return SetupResult("Install protoc", status, message)
 
 
 def download_go_tools(ctx) -> SetupResult:
     print(color_message("Downloading go tools...", Color.BLUE))
     status = Status.OK
+    message = ""
 
     try:
         from tasks import download_tools
 
         download_tools(ctx)
-    except Exception:
+    except Exception as e:
+        message = f'Download Go tools failed: {e}'
         status = Status.FAIL
 
-    return SetupResult("Download Go tools", status)
+    return SetupResult("Download Go tools", status, message)

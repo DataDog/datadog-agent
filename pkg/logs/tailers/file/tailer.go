@@ -350,6 +350,7 @@ func (t *Tailer) forwardMessages() {
 			tags = append(tags, message.TruncatedTag)
 		}
 
+		tags = append(tags, output.ParsingExtra.Tags...)
 		origin.SetTags(tags)
 		// Ignore empty lines once the registry offset is updated
 		if len(output.GetContent()) == 0 {

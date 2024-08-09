@@ -12,8 +12,9 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 
-	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/golang/protobuf/proto"
+
+	"github.com/DataDog/sketches-go/ddsketch"
 )
 
 const (
@@ -154,34 +155,34 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]*pb.ClientStatsBucket {
 }
 
 // HandleSpan adds the span to this bucket stats, aggregated with the finest grain matching given aggregators
-func (sb *RawBucket) HandleSpan(s *pb.Span, weight float64, isTop bool, origin string, aggKey PayloadAggregationKey, peerTagKeys []string) {
+func (sb *RawBucket) HandleSpan(s *StatSpan, weight float64, origin string, aggKey PayloadAggregationKey) {
 	if aggKey.Env == "" {
 		panic("env should never be empty")
 	}
-	aggr, peerTags := NewAggregationFromSpan(s, origin, aggKey, peerTagKeys)
-	sb.add(s, weight, isTop, aggr, peerTags)
+	aggr := NewAggregationFromSpan(s, origin, aggKey)
+	sb.add(s, weight, aggr)
 }
 
-func (sb *RawBucket) add(s *pb.Span, weight float64, isTop bool, aggr Aggregation, peerTags []string) {
+func (sb *RawBucket) add(s *StatSpan, weight float64, aggr Aggregation) {
 	var gs *groupedStats
 	var ok bool
 
 	if gs, ok = sb.data[aggr]; !ok {
 		gs = newGroupedStats()
-		gs.peerTags = peerTags
+		gs.peerTags = s.matchingPeerTags
 		sb.data[aggr] = gs
 	}
-	if isTop {
+	if s.isTopLevel {
 		gs.topLevelHits += weight
 	}
 	gs.hits += weight
-	if s.Error != 0 {
+	if s.error != 0 {
 		gs.errors += weight
 	}
-	gs.duration += float64(s.Duration) * weight
+	gs.duration += float64(s.duration) * weight
 	// alter resolution of duration distro
-	trundur := nsTimestampToFloat(s.Duration)
-	if s.Error != 0 {
+	trundur := nsTimestampToFloat(s.duration)
+	if s.error != 0 {
 		if err := gs.errDistribution.Add(trundur); err != nil {
 			log.Debugf("Error adding error distribution stats: %v", err)
 		}

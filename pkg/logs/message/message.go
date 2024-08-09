@@ -171,7 +171,9 @@ type ParsingExtra struct {
 	// Used by docker parsers to transmit an offset.
 	Timestamp   string
 	IsPartial   bool
+	IsPartial   bool
 	IsTruncated bool
+	Tags        []string
 }
 
 // ServerlessExtra ships extra information from logs processing in serverless envs.

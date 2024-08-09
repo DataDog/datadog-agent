@@ -88,6 +88,7 @@ func MakeCommand(subcommandFactories []SubcommandFactory, winParams bool, rootCm
 
 	rootCmd.PersistentFlags().StringVar(&globalParams.ConfFilePath, flags.CfgPath, flags.DefaultConfPath, "Path to datadog.yaml config")
 	rootCmd.PersistentFlags().StringVar(&globalParams.FleetPoliciesDirPath, flags.FleetCfgPath, "", "Path to the directory containing fleet policies")
+	_ = rootCmd.PersistentFlags().MarkHidden(flags.FleetCfgPath)
 
 	if flags.DefaultSysProbeConfPath != "" {
 		rootCmd.PersistentFlags().StringVar(&globalParams.SysProbeConfFilePath, flags.SysProbeConfig, flags.DefaultSysProbeConfPath, "Path to system-probe.yaml config")

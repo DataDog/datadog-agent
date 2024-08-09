@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -26,6 +27,10 @@ import (
 func init() {
 	newOSImpl = newLinuxImpl
 }
+
+const (
+	maxCommandLine = 200
+)
 
 var ignoreCfgLinux = []string{
 	"sshd",
@@ -50,6 +55,8 @@ type linuxImpl struct {
 	ignoreProcs       map[int]bool
 	aliveServices     map[int]*serviceInfo
 	potentialServices map[int]*serviceInfo
+
+	scrubber *procutil.DataScrubber
 }
 
 func newLinuxImpl(ignoreCfg map[string]bool) (osImpl, error) {
@@ -74,6 +81,7 @@ func newLinuxImpl(ignoreCfg map[string]bool) (osImpl, error) {
 		ignoreProcs:       make(map[int]bool),
 		aliveServices:     make(map[int]*serviceInfo),
 		potentialServices: make(map[int]*serviceInfo),
+		scrubber:          procutil.NewDefaultDataScrubber(),
 	}, nil
 }
 
@@ -193,6 +201,50 @@ func (li *linuxImpl) aliveProcs() (map[int]proc, error) {
 	return procMap, nil
 }
 
+// countAndAddElements is a helper for truncateCmdline used to be able to
+// pre-calculate the size of the output slice to improve performance.
+func countAndAddElements(cmdline []string, inElements int) (int, []string) {
+	var out []string
+
+	if inElements != 0 {
+		out = make([]string, 0, inElements)
+	}
+
+	elements := 0
+	total := 0
+	for _, arg := range cmdline {
+		if total >= maxCommandLine {
+			break
+		}
+
+		this := len(arg)
+		if this == 0 {
+			// To avoid ending up with a large array with empty strings
+			continue
+		}
+
+		if total+this > maxCommandLine {
+			this = maxCommandLine - total
+		}
+
+		if inElements != 0 {
+			out = append(out, arg[:this])
+		}
+
+		elements++
+		total += this
+	}
+
+	return elements, out
+}
+
+// truncateCmdline truncates the command line length to maxCommandLine.
+func truncateCmdline(cmdline []string) []string {
+	elements, _ := countAndAddElements(cmdline, 0)
+	_, out := countAndAddElements(cmdline, elements)
+	return out
+}
+
 func (li *linuxImpl) getServiceInfo(p proc, service model.Service) (*serviceInfo, error) {
 	cmdline, err := p.CmdLine()
 	if err != nil {
@@ -215,12 +267,16 @@ func (li *linuxImpl) getServiceInfo(p proc, service model.Service) (*serviceInfo
 	// divide Starttime by 100 to go from clicks since boot to seconds since boot
 	startTimeSecs := li.bootTime + (stat.Starttime / 100)
 
+	cmdline, _ = li.scrubber.ScrubCommand(cmdline)
+	cmdline = truncateCmdline(cmdline)
+
 	pInfo := processInfo{
 		PID: p.PID(),
 		Stat: procStat{
 			StartTime: startTimeSecs,
 		},
-		Ports: service.Ports,
+		Ports:   service.Ports,
+		CmdLine: cmdline,
 	}
 
 	serviceType := servicetype.Detect(service.Name, service.Ports)
