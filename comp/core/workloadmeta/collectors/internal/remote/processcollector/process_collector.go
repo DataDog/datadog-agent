@@ -149,9 +149,7 @@ func (s *streamHandler) IsEnabled() bool {
 		return false
 	}
 
-	localCollectorEnabled := util.LocalProcessCollectorIsEnabled()
-
-	return s.Reader.GetBool("language_detection.enabled") && !localCollectorEnabled
+	return s.Reader.GetBool("language_detection.enabled") && !util.LocalProcessCollectorIsEnabled()
 }
 
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient {

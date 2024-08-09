@@ -16,9 +16,3 @@ import (
 func GetFxOptions() fx.Option {
 	return nil
 }
-
-// LocalProcessCollectorIsEnabled returns whether the local process collector is enabled
-// based on agent flavor and config values. Always returns false outside of Linux.
-func LocalProcessCollectorIsEnabled() bool {
-	return false
-}

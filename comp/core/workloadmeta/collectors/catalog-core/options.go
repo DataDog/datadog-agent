@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// TODO: (components) Move remote-only to its own catalog, similar to how catalog-less works
-// Depend on this catalog-remote using fx, instead of build tags
-
 //go:build !remotewmonly
 
 // Package catalog is a wrapper that loads the available workloadmeta
