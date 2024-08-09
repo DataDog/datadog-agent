@@ -822,8 +822,8 @@ def generate_complexity_summary_for_pr(ctx: Context, skip_github_comment=False):
         row = [
             program,
             _format_change(avg_new_complexity, avg_old_complexity),
-            f"{highest_complexity_platform}: {_format_change(highest_new_complexity, highest_old_complexity)}",
-            f"{lowest_complexity_platform}: {_format_change(lowest_new_complexity, lowest_old_complexity)}",
+            f"{highest_complexity_platform}\n{_format_change(highest_new_complexity, highest_old_complexity)}",
+            f"{lowest_complexity_platform}\n{_format_change(lowest_new_complexity, lowest_old_complexity)}",
             has_changes,
         ]
         summarized_complexity_changes.append(row)
@@ -863,8 +863,8 @@ def generate_complexity_summary_for_pr(ctx: Context, skip_github_comment=False):
         msg += "\n\n</details>\n"
         has_any_changes = True
 
-    msg += f"This report was generated based on the complexity data for the current branch {branch_name} (pipeline {pipeline_id}) and the main branch (commit {common_ancestor}). Objects without changes are not reported. Contact [#ebpf-platform](https://dd.enterprise.slack.com/archives/C0424HA1SJK) if you have any questions/feedback."
-    msg += "\nTable complexity legend: 🔵 - new; ⚪ - unchanged; 🟢 - reduced; 🔴 - increased"
+    msg += f"\n\nThis report was generated based on the complexity data for the current branch {branch_name} (pipeline [https://gitlab.ddbuild.io/DataDog/datadog-agent/-/pipelines/{pipeline_id}]{pipeline_id}) and the main branch (commit {common_ancestor}). Objects without changes are not reported. Contact [#ebpf-platform](https://dd.enterprise.slack.com/archives/C0424HA1SJK) if you have any questions/feedback."
+    msg += "\n\nTable complexity legend: 🔵 - new; ⚪ - unchanged; 🟢 - reduced; 🔴 - increased"
 
     print(msg)
 
@@ -888,7 +888,7 @@ def _format_change(new: float, old: float):
         emoji = "🔵"
     else:
         change_rel = change_abs / old
-        change_rel_str = f"{change_rel * 100:+.2%}"
+        change_rel_str = f"{change_rel:+.2%}"
 
         if change_rel == 0:
             emoji = "⚪"
@@ -897,4 +897,4 @@ def _format_change(new: float, old: float):
         else:
             emoji = "🔴"
 
-    return f"{emoji} {new} ({change_abs:+.1f}, {change_rel_str})"
+    return f"{emoji} {new:.1f} ({change_abs:+.1f}, {change_rel_str})"
