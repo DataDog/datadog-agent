@@ -906,9 +906,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnv("evp_proxy_config.max_payload_size")
 	config.BindEnv("evp_proxy_config.receiver_timeout")
 
-	// command line options
-	config.SetKnown("cmd.check.fullsketches")
-
 	// Windows Performance Counter refresh interval in seconds (introduced in 7.40, narrowed down
 	// in 7.42). Additional information can be found where it is used (refreshPdhObjectCache())
 	// The refresh can be disabled by setting the interval to 0.

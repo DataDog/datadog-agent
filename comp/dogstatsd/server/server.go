@@ -30,6 +30,7 @@ import (
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -182,6 +183,11 @@ func initTelemetry() {
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 func newServer(deps dependencies) provides {
+	if len(deps.Params.SocketPath) != 0 {
+		// We overwrite the socket path with the value receive from the CLI
+		deps.Config.Set("dogstatsd_socket", deps.Params.SocketPath, model.SourceCLI)
+	}
+
 	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
 
 	if deps.Config.GetBool("use_dogstatsd") {
