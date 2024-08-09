@@ -9,5 +9,5 @@
 features:
   - |
     Added config option ``logs_config.tag_truncated_logs``.  When
-    enabled file logs will come with a tag ``truncated:true`` if 
-    they were truncated by the agent. 
+    enabled, file logs will come with a tag ``truncated:true`` if 
+    they were truncated by the Agent. 
