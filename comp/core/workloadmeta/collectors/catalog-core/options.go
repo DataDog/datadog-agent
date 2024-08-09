@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !remotewmonly
-
 // Package catalog is a wrapper that loads the available workloadmeta
 // collectors. It exists as a shorthand for importing all packages manually in
 // all of the agents.
