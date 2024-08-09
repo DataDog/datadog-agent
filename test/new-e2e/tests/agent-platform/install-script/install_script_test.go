@@ -44,24 +44,25 @@ type installScriptSuite struct {
 }
 
 func TestInstallScript(t *testing.T) {
+	if *platform == "docker" {
+		DockerTest(t)
+		return
+	}
+
 	platformJSON := map[string]map[string]map[string]string{}
 
 	err := json.Unmarshal(platforms.Content, &platformJSON)
 	require.NoErrorf(t, err, "failed to umarshall platform file: %v", err)
 
-	osVersions := []string{}
 	// Splitting an empty string results in a slice with a single empty string which wouldn't be useful
-	if strings.TrimFunc(*osVersion, unicode.IsSpace) != "" {
-		osVersions = strings.Split(*osVersion, ",")
+	// and result in no tests being run; let's fail the test to make it obvious
+	if strings.TrimFunc(*osVersion, unicode.IsSpace) == "" {
+		t.Fatal("expecting some value to be passed for --osversion on test invocation, got none")
 	}
+	osVersions := strings.Split(*osVersion, ",")
 	cwsSupportedOsVersionList := strings.Split(*cwsSupportedOsVersion, ",")
 
 	t.Log("Parsed platform json file: ", platformJSON)
-
-	if *platform == "docker" {
-		DockerTest(t)
-		return
-	}
 
 	for _, osVers := range osVersions {
 		osVers := osVers
