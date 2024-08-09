@@ -106,7 +106,7 @@ type SpanConcentrator struct {
 // NewSpanConcentrator builds a new SpanConcentrator object
 func NewSpanConcentrator(cfg *SpanConcentratorConfig, now time.Time) *SpanConcentrator {
 	sc := &SpanConcentrator{
-		computeStatsBySpanKind: false,
+		computeStatsBySpanKind: cfg.ComputeStatsBySpanKind,
 		bsize:                  cfg.BucketInterval,
 		oldestTs:               alignTs(now.UnixNano(), cfg.BucketInterval),
 		bufferLen:              defaultBufferLen,
