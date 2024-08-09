@@ -131,7 +131,7 @@ func (g *gatewayLookup) LookupWithIPs(source util.Address, dest util.Address, ne
 
 	// if there is no gateway, we don't need to add subnet info
 	// for gateway resolution in the backend
-	if r.Gateway.IsZero() || r.Gateway.IsUnspecified() {
+	if !r.Gateway.IsValid() || r.Gateway.IsUnspecified() {
 		return nil
 	}
 

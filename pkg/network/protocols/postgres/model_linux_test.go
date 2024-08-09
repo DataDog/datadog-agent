@@ -77,7 +77,7 @@ func BenchmarkExtractTableName(b *testing.B) {
 
 func requestFragment(fragment []byte) [ebpf.BufferSize]byte {
 	if len(fragment) >= ebpf.BufferSize {
-		return *(*[ebpf.BufferSize]byte)(fragment)
+		return [ebpf.BufferSize]byte(fragment)
 	}
 	var b [ebpf.BufferSize]byte
 	copy(b[:], fragment)
