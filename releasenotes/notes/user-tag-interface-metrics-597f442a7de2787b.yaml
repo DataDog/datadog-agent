@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Add a new tag to interface metrics that will allow them to be tagged by user tags.
+    Add the ability to tag interface metrics with user-defined tags.
