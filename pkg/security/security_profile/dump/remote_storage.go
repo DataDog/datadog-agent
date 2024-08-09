@@ -11,13 +11,13 @@ package dump
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
 	"strings"
 
-	"github.com/mailru/easyjson/jwriter"
 	"go.uber.org/atomic"
 
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -96,11 +96,7 @@ func (storage *ActivityDumpRemoteStorage) writeEventMetadata(writer *multipart.W
 	ad.DDTags = strings.Join(ad.Tags, ",")
 
 	// marshal event metadata
-	w := &jwriter.Writer{
-		Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
-	}
-	ad.MarshalEasyJSON(w)
-	metadata, err := w.BuildBytes()
+	metadata, err := json.Marshal(ad.ActivityDumpHeader)
 	if err != nil {
 		return fmt.Errorf("couldn't marshall event metadata")
 	}

@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component, types []collectedEventType, bundleUnspecifiedEvents bool) eventTransformer {
+func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component, types []collectedEventType, bundleUnspecifiedEvents bool, filteringEnabled bool) eventTransformer {
 	collectedTypes := make([]collectedEventType, 0, len(types))
 	for _, f := range types {
 		if f.Kind == "" && f.Source == "" {
@@ -32,7 +32,7 @@ func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component
 
 	var t eventTransformer = noopEventTransformer{}
 	if bundleUnspecifiedEvents {
-		t = newBundledTransformer(clusterName, taggerInstance)
+		t = newBundledTransformer(clusterName, taggerInstance, collectedTypes, false)
 	}
 
 	return &unbundledTransformer{
@@ -41,6 +41,7 @@ func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component
 		taggerInstance:          taggerInstance,
 		bundledTransformer:      t,
 		bundleUnspecifiedEvents: bundleUnspecifiedEvents,
+		filteringEnabled:        filteringEnabled,
 	}
 }
 
@@ -50,6 +51,7 @@ type unbundledTransformer struct {
 	taggerInstance          tagger.Component
 	bundledTransformer      eventTransformer
 	bundleUnspecifiedEvents bool
+	filteringEnabled        bool
 }
 
 func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []error) {
@@ -71,7 +73,8 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 			source,
 		)
 
-		if !c.shouldCollect(ev) {
+		isCollected := (c.filteringEnabled && shouldCollectByDefault(ev)) || c.shouldCollect(ev)
+		if !isCollected {
 			if c.bundleUnspecifiedEvents {
 				eventsToBundle = append(eventsToBundle, ev)
 			}
@@ -166,27 +169,5 @@ func (c *unbundledTransformer) getTagsFromTagger(obj v1.ObjectReference, tagsAcc
 }
 
 func (c *unbundledTransformer) shouldCollect(ev *v1.Event) bool {
-	involvedObject := ev.InvolvedObject
-
-	for _, f := range c.collectedTypes {
-		if f.Kind != "" && f.Kind != involvedObject.Kind {
-			continue
-		}
-
-		if f.Source != "" && f.Source != ev.Source.Component {
-			continue
-		}
-
-		if len(f.Reasons) == 0 {
-			return true
-		}
-
-		for _, r := range f.Reasons {
-			if ev.Reason == r {
-				return true
-			}
-		}
-	}
-
-	return false
+	return shouldCollect(ev, c.collectedTypes)
 }

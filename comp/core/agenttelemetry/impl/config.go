@@ -9,7 +9,7 @@
 //
 // ---------------------------------------------------
 
-package impl
+package agenttelemetryimpl
 
 import (
 	"fmt"

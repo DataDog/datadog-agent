@@ -16,34 +16,13 @@ var allCapabilities = make(map[eval.EventType]Capabilities)
 
 // Capability represents the type of values we are able to filter kernel side
 type Capability struct {
-	PolicyFlags     PolicyFlag
-	FieldValueTypes eval.FieldValueType
-	ValidateFnc     func(value rules.FilterValue) bool
-	FilterWeight    int
+	ValueTypeBitmask eval.FieldValueType
+	ValidateFnc      func(value rules.FilterValue) bool
+	FilterWeight     int
 }
 
 // Capabilities represents the filtering capabilities for a set of fields
 type Capabilities map[eval.Field]Capability
-
-// GetFlags returns the policy flags for the set of capabilities
-func (caps Capabilities) GetFlags() PolicyFlag {
-	var flags PolicyFlag
-	for _, cap := range caps {
-		flags |= cap.PolicyFlags
-	}
-	return flags
-}
-
-// GetFields returns the fields associated with a set of capabilities
-func (caps Capabilities) GetFields() []eval.Field {
-	var fields []eval.Field
-
-	for field := range caps {
-		fields = append(fields, field)
-	}
-
-	return fields
-}
 
 // GetFieldCapabilities returns the field capabilities for a set of capabilities
 func (caps Capabilities) GetFieldCapabilities() rules.FieldCapabilities {
@@ -52,7 +31,7 @@ func (caps Capabilities) GetFieldCapabilities() rules.FieldCapabilities {
 	for field, cap := range caps {
 		fcs = append(fcs, rules.FieldCapability{
 			Field:        field,
-			Types:        cap.FieldValueTypes,
+			TypeBitmask:  cap.ValueTypeBitmask,
 			ValidateFnc:  cap.ValidateFnc,
 			FilterWeight: cap.FilterWeight,
 		})

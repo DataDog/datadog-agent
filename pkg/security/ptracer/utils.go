@@ -180,11 +180,12 @@ func getFullPathFromFd(process *Process, filename string, fd int32) (string, err
 				return "", errors.New("fillProcessCwd failed")
 			}
 		} else { // if using another dir, prefix it, we should have it in cache
-			if path, exists := process.FdRes.Fd[fd]; exists {
-				filename = filepath.Join(path, filename)
-			} else {
-				return "", errors.New("process FD cache incomplete during path resolution")
+			path, err := process.GetFilenameFromFd(fd)
+			if err != nil {
+				return "", fmt.Errorf("process FD cache incomplete during path resolution: %w", err)
 			}
+
+			filename = filepath.Join(path, filename)
 		}
 	}
 	return filename, nil

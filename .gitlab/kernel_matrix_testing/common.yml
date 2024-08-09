@@ -54,7 +54,7 @@
   # Collect only from specific platforms to avoid high memory usage
   - PLATFORMS_FOR_COMPLEXITY_COLLECTION="amazon_5.4 debian_10 ubuntu_18.04 centos_8 opensuse_15.3 suse_12.5 fedora_38"
   - |
-    if ( [ "${TEST_SET}" = "no_usm" ] || [ "${TEST_SET}" = "all_tests" ] ) && echo "${PLATFORMS_FOR_COMPLEXITY_COLLECTION}" | grep -qw "${TAG}" ; then
+    if [ "${TEST_SET}" = "no_usm" ] && echo "${PLATFORMS_FOR_COMPLEXITY_COLLECTION}" | grep -qw "${TAG}" ; then
       export COLLECT_COMPLEXITY=yes
     fi
   - echo "COLLECT_COMPLEXITY=${COLLECT_COMPLEXITY}"
@@ -268,3 +268,54 @@
     reports:
       annotations:
         - $EXTERNAL_LINKS_PATH
+
+notify_ebpf_complexity_changes:
+  stage: notify
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  tags: ["arch:amd64"]
+  rules:
+    - !reference [.on_system_probe_or_e2e_changes_or_manual]
+    - !reference [.on_security_agent_changes_or_manual]
+    - !reference [.except_mergequeue]
+    - !reference [.except_main_or_release_branch]
+    - !reference [.except_no_tests_no_deploy]
+  needs:
+    # We need to specify the jobs that generate complexity explicitly, else we hit the limit of "needs"
+    # Important: the list of platforms should match the one in .define_if_collect_complexity
+    - job: "kmt_run_sysprobe_tests_x64"
+      optional: true
+      parallel:
+        matrix:
+          - TAG:
+              - amazon_5.4
+              - debian_10
+              - ubuntu_18.04
+              - centos_8
+              - opensuse_15.3
+              - suse_12.5
+              - fedora_38
+            TEST_SET: no_usm
+    - job: "kmt_run_sysprobe_tests_arm64"
+      optional: true
+      parallel:
+        matrix:
+          - TAG:
+              - amazon_5.4
+              - debian_10
+              - ubuntu_18.04
+              - centos_8
+              - opensuse_15.3
+              - suse_12.5
+              - fedora_38
+            TEST_SET: no_usm
+  allow_failure: true
+  before_script:
+    - python3 -m pip install tabulate  # Required for printing the tables
+    - python3 -m pip install -r tasks/libs/requirements-github.txt
+    - |
+      export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_APP_KEY_SSM_NAME | base64)
+      export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_INTEGRATION_ID_SSM_NAME)
+      export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_INSTALLATION_ID_SSM_NAME)
+      export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME)
+  script:
+    - inv -e ebpf.generate-complexity-summary-for-pr

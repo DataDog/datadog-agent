@@ -117,7 +117,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 		hostnameinterface.MockModule(),
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 
-		fx.Provide(func(c coreconfig.Component) logdef.Params {
+		fx.Provide(func(_ coreconfig.Component) logdef.Params {
 			return logdef.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 		}),
 		logsagentpipelineimpl.Module(),

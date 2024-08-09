@@ -169,7 +169,8 @@ func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 // Rule describes a rule of a ruleset
 type Rule struct {
 	*eval.Rule
-	Definition *RuleDefinition
+	Definition  *RuleDefinition
+	NoDiscarder bool
 }
 
 // RuleSetListener describes the methods implemented by an object used to be
@@ -408,21 +409,16 @@ func (rs *RuleSet) ListFields() []string {
 
 // GetRuleEventType return the rule EventType. Currently rules support only one eventType
 func GetRuleEventType(rule *eval.Rule) (eval.EventType, error) {
-	eventTypes, err := rule.GetEventTypes()
+	eventType, err := rule.GetEventType()
 	if err != nil {
 		return "", err
 	}
 
-	if len(eventTypes) == 0 {
+	if eventType == "" {
 		return "", ErrRuleWithoutEvent
 	}
 
-	// TODO: this contraints could be removed, but currently approver resolution can't handle multiple event type approver
-	if len(eventTypes) > 1 {
-		return "", ErrRuleWithMultipleEvents
-	}
-
-	return eventTypes[0], nil
+	return eventType, nil
 }
 
 // AddRule creates the rule evaluator and adds it to the bucket of its events
@@ -464,6 +460,14 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, ruleDef *RuleDefi
 		return nil, &ErrRuleLoad{Definition: ruleDef, Err: err}
 	}
 
+	// validate event context against event type
+	for _, field := range rule.GetFields() {
+		restrictions := rs.model.GetFieldRestrictions(field)
+		if len(restrictions) > 0 && !slices.Contains(restrictions, eventType) {
+			return nil, &ErrRuleLoad{Definition: ruleDef, Err: &ErrFieldNotAvailable{Field: field, EventType: eventType, RestrictedTo: restrictions}}
+		}
+	}
+
 	// ignore event types not supported
 	if _, exists := rs.opts.EventTypeEnabled["*"]; !exists {
 		if _, exists := rs.opts.EventTypeEnabled[eventType]; !exists {
@@ -490,16 +494,14 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, ruleDef *RuleDefi
 		}
 	}
 
-	for _, event := range rule.GetEvaluator().EventTypes {
-		bucket, exists := rs.eventRuleBuckets[event]
-		if !exists {
-			bucket = &RuleBucket{}
-			rs.eventRuleBuckets[event] = bucket
-		}
+	bucket, exists := rs.eventRuleBuckets[eventType]
+	if !exists {
+		bucket = &RuleBucket{}
+		rs.eventRuleBuckets[eventType] = bucket
+	}
 
-		if err := bucket.AddRule(rule); err != nil {
-			return nil, err
-		}
+	if err := bucket.AddRule(rule); err != nil {
+		return nil, err
 	}
 
 	// Merge the fields of the new rule with the existing list of fields of the ruleset
@@ -566,24 +568,24 @@ func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) 
 			continue
 		}
 
-		eventApprovers, err := rs.GetEventApprovers(eventType, caps)
-		if err != nil || len(eventApprovers) == 0 {
+		eventTypeApprovers, err := rs.GetEventTypeApprovers(eventType, caps)
+		if err != nil || len(eventTypeApprovers) == 0 {
 			continue
 		}
-		approvers[eventType] = eventApprovers
+		approvers[eventType] = eventTypeApprovers
 	}
 
 	return approvers, nil
 }
 
-// GetEventApprovers returns approvers for the given event type and the fields
-func (rs *RuleSet) GetEventApprovers(eventType eval.EventType, fieldCaps FieldCapabilities) (Approvers, error) {
+// GetEventTypeApprovers returns approvers for the given event type and the fields
+func (rs *RuleSet) GetEventTypeApprovers(eventType eval.EventType, fieldCaps FieldCapabilities) (Approvers, error) {
 	bucket, exists := rs.eventRuleBuckets[eventType]
 	if !exists {
 		return nil, ErrNoEventTypeBucket{EventType: eventType}
 	}
 
-	return GetApprovers(bucket.rules, rs.newFakeEvent(), fieldCaps)
+	return getApprovers(bucket.rules, rs.newFakeEvent(), fieldCaps)
 }
 
 // GetFieldValues returns all the values of the given field
@@ -602,13 +604,22 @@ func (rs *RuleSet) GetFieldValues(field eval.Field) []eval.FieldValue {
 
 // IsDiscarder partially evaluates an Event against a field
 func IsDiscarder(ctx *eval.Context, field eval.Field, rules []*Rule) (bool, error) {
+	var isDiscarder bool
+
 	for _, rule := range rules {
+		// ignore rule that can't generate discarders
+		if rule.NoDiscarder {
+			continue
+		}
+
 		isTrue, err := rule.PartialEval(ctx, field)
 		if err != nil || isTrue {
 			return false, err
 		}
+
+		isDiscarder = true
 	}
-	return true, nil
+	return isDiscarder, nil
 }
 
 // IsDiscarder partially evaluates an Event against a field

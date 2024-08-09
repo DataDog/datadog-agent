@@ -116,7 +116,7 @@ func (c *Check) Run() error {
 	)
 
 	var taskEventsCh chan workloadmeta.EventBundle
-	if ddConfig.Datadog().GetBool("container_lifecycle.ecs_task_event.enabled") {
+	if ddConfig.Datadog().GetBool("ecs_task_collection_enabled") {
 
 		taskFilter := workloadmeta.NewFilterBuilder().
 			SetSource(workloadmeta.SourceNodeOrchestrator).
@@ -185,7 +185,7 @@ func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
 
 // sendFargateTaskEvent sends Fargate task lifecycle event at the end of the check
 func (c *Check) sendFargateTaskEvent() {
-	if !ddConfig.Datadog().GetBool("container_lifecycle.ecs_task_event.enabled") ||
+	if !ddConfig.Datadog().GetBool("ecs_task_collection_enabled") ||
 		!ddConfig.IsECSFargate() {
 		return
 	}

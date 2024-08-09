@@ -70,7 +70,7 @@ func TestDNSNameEncoding(t *testing.T) {
 		ip := conn.Raddr.Ip
 		dnsParsed[ip] = &model.DNSEntry{}
 		model.IterateDNSV2(conns.EncodedDnsLookups, ip,
-			func(i, total int, entry int32) bool {
+			func(_, total int, entry int32) bool {
 				host, e := conns.GetDNSNameByOffset(entry)
 				assert.Nil(t, e)
 				assert.Equal(t, total, len(dns[ip].Names))

@@ -42,7 +42,7 @@ func TestNotStarted(t *testing.T) {
 	// IP address in private range
 	err := ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
-		func(hostname string) {
+		func(_ string) {
 			assert.FailNow(t, "Callback should not be called when rdnsquerier is not started")
 		},
 	)
@@ -77,7 +77,7 @@ func TestNormalOperations(t *testing.T) {
 	// Invalid IP address
 	err := ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{1, 2, 3},
-		func(hostname string) {
+		func(_ string) {
 			assert.FailNow(t, "Callback should not be called for invalid IP address")
 		},
 	)
@@ -86,7 +86,7 @@ func TestNormalOperations(t *testing.T) {
 	// IP address not in private range
 	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{8, 8, 8, 8},
-		func(hostname string) {
+		func(_ string) {
 			assert.FailNow(t, "Callback should not be called for IP address not in private range")
 		},
 	)

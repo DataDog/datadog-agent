@@ -10,6 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
 var (
@@ -24,9 +26,6 @@ var (
 
 	// ErrRuleWithoutEvent is returned when no event type was inferred from the rule
 	ErrRuleWithoutEvent = errors.New("no event in the rule definition")
-
-	// ErrRuleWithMultipleEvents is returned when multiple event type were inferred from the rule
-	ErrRuleWithMultipleEvents = errors.New("rule with multiple events is not supported")
 
 	// ErrDefinitionIDConflict is returned when multiple rules use the same ID
 	ErrDefinitionIDConflict = errors.New("multiple definition with the same ID")
@@ -151,7 +150,7 @@ func (e ErrRuleLoad) Type() RuleLoadErrType {
 	}
 
 	switch e.Err.(type) {
-	case *ErrFieldTypeUnknown, *ErrValueTypeUnknown, *ErrRuleSyntax:
+	case *ErrFieldTypeUnknown, *ErrValueTypeUnknown, *ErrRuleSyntax, *ErrFieldNotAvailable:
 		return SyntaxErrType
 	}
 
@@ -175,4 +174,15 @@ type ErrActionFilter struct {
 
 func (e ErrActionFilter) Error() string {
 	return fmt.Sprintf("filter `%s` error: %s", e.Expression, e.Err)
+}
+
+// ErrFieldNotAvailable is returned when a field is not available
+type ErrFieldNotAvailable struct {
+	Field        eval.Field
+	EventType    eval.EventType
+	RestrictedTo []eval.EventType
+}
+
+func (e *ErrFieldNotAvailable) Error() string {
+	return fmt.Sprintf("field `%s` not available for event type `%v`, available for `%v`", e.Field, e.EventType, e.RestrictedTo)
 }

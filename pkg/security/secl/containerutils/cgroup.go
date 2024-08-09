@@ -3,19 +3,25 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:generate stringer -type=CGroupManager -linecomment -output cgroup_strings.go
+
+// Package containerutils holds multiple utils functions around Container IDs and their patterns
 package containerutils
 
 import (
 	"strings"
 )
 
+// CGroupManager holds the manager of the cgroup lifecycle
+type CGroupManager uint64
+
 // CGroup managers
 const (
-	CGroupManagerDocker uint64 = iota + 1
-	CGroupManagerCRIO
-	CGroupManagerPodman
-	CGroupManagerCRI
-	CGroupManagerSystemd
+	CGroupManagerDocker  CGroupManager = iota + 1 // docker
+	CGroupManagerCRIO                             // cri-o
+	CGroupManagerPodman                           // podman
+	CGroupManagerCRI                              // containerd
+	CGroupManagerSystemd                          // systemd
 )
 
 const (
@@ -30,12 +36,22 @@ const (
 )
 
 // RuntimePrefixes holds the cgroup prefixed used by the different runtimes
-var RuntimePrefixes = map[string]uint64{
+var RuntimePrefixes = map[string]CGroupManager{
 	"docker/":         CGroupManagerDocker, // On Amazon Linux 2 with Docker, 'docker' is the folder name and not a prefix
 	"docker-":         CGroupManagerDocker,
 	"cri-containerd-": CGroupManagerCRI,
 	"crio-":           CGroupManagerCRIO,
 	"libpod-":         CGroupManagerPodman,
+}
+
+// GetCGroupManager extracts the cgroup manager from a cgroup name
+func GetCGroupManager(cgroup string) (string, CGroupFlags) {
+	for runtimePrefix, runtimeFlag := range RuntimePrefixes {
+		if strings.HasPrefix(cgroup, runtimePrefix) {
+			return cgroup[:len(runtimePrefix)], CGroupFlags(runtimeFlag)
+		}
+	}
+	return cgroup, 0
 }
 
 // GetContainerFromCgroup extracts the container ID from a cgroup name
@@ -45,15 +61,15 @@ func GetContainerFromCgroup(cgroup string) (string, CGroupFlags) {
 			return cgroup[len(runtimePrefix):], CGroupFlags(runtimeFlag)
 		}
 	}
-	return cgroup, 0
+	return "", 0
 }
 
 // GetCgroupFromContainer infers the container runtime from a cgroup name
 func GetCgroupFromContainer(id ContainerID, flags CGroupFlags) CGroupID {
 	for runtimePrefix, runtimeFlag := range RuntimePrefixes {
-		if uint64(flags)&0b111 == runtimeFlag {
+		if uint64(flags)&0b111 == uint64(runtimeFlag) {
 			return CGroupID(runtimePrefix + string(id))
 		}
 	}
-	return CGroupID(id)
+	return CGroupID("")
 }

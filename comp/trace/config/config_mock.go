@@ -16,7 +16,7 @@ import (
 
 // newMock exported mock builder to allow modifying mocks that might be
 // supplied in tests and used for dep injection.
-func newMock(deps dependencies, t testing.TB) (Component, error) { //nolint:revive // TODO fix revive unused-parameter
+func newMock(deps dependencies, _ testing.TB) (Component, error) {
 	traceCfg, err := setupConfig(deps, "apikey")
 	if err != nil {
 		return nil, err

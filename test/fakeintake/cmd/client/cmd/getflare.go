@@ -18,7 +18,7 @@ func NewGetFlareCommand(cl **client.Client) (cmd *cobra.Command) {
 	cmd = &cobra.Command{
 		Use:   "flare",
 		Short: "Get flare",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			flare, err := (*cl).GetLatestFlare()
 			if err != nil {
 				return err

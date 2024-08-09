@@ -49,10 +49,10 @@ func SubmitNetworkPathTelemetry(sender metricsender.MetricSender, path payload.N
 	sender.Gauge("datadog.network_path.path.monitored", float64(1), newTags)
 	if len(path.Hops) > 0 {
 		lastHop := path.Hops[len(path.Hops)-1]
-		if lastHop.Success {
+		if lastHop.Reachable {
 			sender.Gauge("datadog.network_path.path.hops", float64(len(path.Hops)), newTags)
 		}
-		sender.Gauge("datadog.network_path.path.reachable", float64(utils.BoolToFloat64(lastHop.Success)), newTags)
-		sender.Gauge("datadog.network_path.path.unreachable", float64(utils.BoolToFloat64(!lastHop.Success)), newTags)
+		sender.Gauge("datadog.network_path.path.reachable", float64(utils.BoolToFloat64(lastHop.Reachable)), newTags)
+		sender.Gauge("datadog.network_path.path.unreachable", float64(utils.BoolToFloat64(!lastHop.Reachable)), newTags)
 	}
 }

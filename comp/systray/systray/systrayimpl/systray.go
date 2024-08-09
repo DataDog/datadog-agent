@@ -327,7 +327,7 @@ func createNotifyIcon(s *systrayImpl, mw *walk.MainWindow) (ni *walk.NotifyIcon,
 	}
 
 	// When the left mouse button is pressed, bring up our balloon.
-	ni.MouseDown().Attach(func(x, y int, button walk.MouseButton) {
+	ni.MouseDown().Attach(func(_, _ int, button walk.MouseButton) {
 		if button != walk.LeftButton {
 			return
 		}

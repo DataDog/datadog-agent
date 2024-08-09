@@ -103,6 +103,36 @@ func (_m *SecurityModuleClientWrapper) DumpProcessCache(withArgs bool) (string, 
 	return r0, r1
 }
 
+// GenerateActivityDump provides a mock function with given fields: request
+func (_m *SecurityModuleClientWrapper) GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
+	ret := _m.Called(request)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GenerateActivityDump")
+	}
+
+	var r0 *api.ActivityDumpMessage
+	var r1 error
+	if rf, ok := ret.Get(0).(func(*api.ActivityDumpParams) (*api.ActivityDumpMessage, error)); ok {
+		return rf(request)
+	}
+	if rf, ok := ret.Get(0).(func(*api.ActivityDumpParams) *api.ActivityDumpMessage); ok {
+		r0 = rf(request)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.ActivityDumpMessage)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(*api.ActivityDumpParams) error); ok {
+		r1 = rf(request)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GenerateEncoding provides a mock function with given fields: request
 func (_m *SecurityModuleClientWrapper) GenerateEncoding(request *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
 	ret := _m.Called(request)

@@ -42,15 +42,23 @@ func TestGetOwnerNameAndKind(t *testing.T) {
 			wantFound:    false,
 		},
 		{
-			name:         "Pod with replicaset parent, and no deployment grandparent",
-			pod:          common.FakePodWithParent("default", nil, nil, nil, "replicaset", "dummy-rs"),
+			name: "Pod with replicaset parent, and no deployment grandparent",
+			pod: common.FakePodSpec{
+				NS:         "default",
+				ParentKind: "replicaset",
+				ParentName: "dummy-rs",
+			}.Create(),
 			expectedName: "dummy-rs",
 			expectedKind: "ReplicaSet",
 			wantFound:    true,
 		},
 		{
-			name:         "Pod with replicaset parent, and deployment grandparent",
-			pod:          common.FakePodWithParent("default", nil, nil, nil, "replicaset", "dummy-rs-12344"),
+			name: "Pod with replicaset parent, and deployment grandparent",
+			pod: common.FakePodSpec{
+				NS:         "default",
+				ParentKind: "replicaset",
+				ParentName: "dummy-rs-12344",
+			}.Create(),
 			expectedName: "dummy-rs",
 			expectedKind: "Deployment",
 			wantFound:    true,

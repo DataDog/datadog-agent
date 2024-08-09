@@ -39,7 +39,9 @@ func (c *mockConfig) SetKnown(key string) {
 	c.Config.SetKnown(key)
 }
 
-// MockSystemProbe is creating and returning a mock system-probe config
+// MockSystemProbe is creating and returning a mock system-probe Config
+//
+// This method is deprecated and will soon be removed. Use pkg/config/mock.NewSystemProbe instead.
 func MockSystemProbe(t testing.TB) model.Config {
 	// We only check isSystemProbeConfigMocked when registering a cleanup function. 'isSystemProbeConfigMocked'
 	// avoids nested calls to Mock to reset the config to a blank state. This way we have only one mock per test and
@@ -49,22 +51,22 @@ func MockSystemProbe(t testing.TB) model.Config {
 		defer m.Unlock()
 		if isSystemProbeConfigMocked {
 			// The configuration is already mocked.
-			return &mockConfig{SystemProbe}
+			return &mockConfig{pkgconfigsetup.SystemProbe()}
 		}
 
 		isSystemProbeConfigMocked = true
-		originalConfig := SystemProbe
+		originalConfig := pkgconfigsetup.SystemProbe()
 		t.Cleanup(func() {
 			m.Lock()
 			defer m.Unlock()
 			isSystemProbeConfigMocked = false
-			SystemProbe = originalConfig
+			pkgconfigsetup.SetSystemProbe(originalConfig)
 		})
 	}
 
 	// Configure Datadog global configuration
-	SystemProbe = NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
+	pkgconfigsetup.SetSystemProbe(NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")))
 	// Configuration defaults
-	pkgconfigsetup.InitSystemProbeConfig(SystemProbe)
-	return &mockConfig{SystemProbe}
+	pkgconfigsetup.InitSystemProbeConfig(pkgconfigsetup.SystemProbe())
+	return &mockConfig{pkgconfigsetup.SystemProbe()}
 }

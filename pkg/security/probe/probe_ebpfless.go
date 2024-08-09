@@ -10,6 +10,7 @@ package probe
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -37,7 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 const (
@@ -399,7 +399,7 @@ func (p *EBPFLessProbe) readMsg(conn net.Conn, msg *ebpfless.Message) error {
 		return errors.New("not enough data")
 	}
 
-	size := native.Endian.Uint32(sizeBuf)
+	size := binary.NativeEndian.Uint32(sizeBuf)
 	if size > maxMessageSize {
 		return fmt.Errorf("data overflow the max size: %d", size)
 	}

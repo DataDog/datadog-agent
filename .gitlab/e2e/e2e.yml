@@ -365,8 +365,18 @@ new-e2e-installer:
     - deploy_rpm_testing-a7_x64
     - deploy_suse_rpm_testing_arm64-a7
     - deploy_suse_rpm_testing_x64-a7
+    - deploy_windows_testing-a7
     - qa_installer_oci
     - qa_agent_oci
+  before_script:
+    # CURRENT_AGENT_VERSION is used to verify the installed agent version
+    # Must run before new_e2e_template changes the aws profile
+    # Note: this is similar to the WINDOWS_AGENT_VERSION in new-e2e_windows_msi but this job is running cross platforms
+    # Note 2: new_e2e_template does not define AGENT_MAJOR_VERSION, so define it as 7 below.
+    - export CURRENT_AGENT_VERSION=$(invoke agent.version --major-version 7)
+    - export STABLE_AGENT_VERSION_PACKAGE=$(curl -sS https://hub.docker.com/v2/namespaces/datadog/repositories/agent-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
+    - export STABLE_INSTALLER_VERSION_PACKAGE=$(curl -sS https://hub.docker.com/v2/namespaces/datadog/repositories/installer-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
+    - !reference [.new_e2e_template, before_script]
   variables:
     TARGETS: ./tests/installer
     TEAM: fleet
