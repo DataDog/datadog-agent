@@ -114,7 +114,8 @@ new-e2e-windows-agent-msi-windows-server-a6-x86_64:
     - .new-e2e_windows_installer_v6_tests
   rules:
     - !reference [.on_deploy]
-    - !reference [.on_windows_installer_changes_or_manual]
+    - !reference [.on_e2e_or_windows_installer_changes]
+    - !reference [.manual]
 
 # Agent 7
 .new-e2e_windows_a7_x86_64:
@@ -135,7 +136,8 @@ new-e2e-windows-agent-msi-windows-server-a7-x86_64:
     - .new-e2e_windows_installer_v7_tests
   rules:
     - !reference [.on_deploy]
-    - !reference [.on_windows_installer_changes_or_manual]
+    - !reference [.on_e2e_or_windows_installer_changes]
+    - !reference [.manual]
   timeout: 1h15m
 
 new-e2e-windows-agent-domain-tests-a7-x86_64:
@@ -151,7 +153,8 @@ new-e2e-windows-agent-domain-tests-a7-x86_64:
     - deploy_windows_testing-a7
   rules:
     - !reference [.on_deploy]
-    - !reference [.on_windows_installer_changes_or_manual]
+    - !reference [.on_e2e_or_windows_installer_changes]
+    - !reference [.manual]
   timeout: 1h15
 
 ## single test for PRs
