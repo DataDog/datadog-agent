@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -51,7 +50,6 @@ type event struct {
 type telemetrySender struct {
 	sender   sender.Sender
 	hostname hostname.Component
-	scrubber *procutil.DataScrubber
 }
 
 func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
@@ -83,7 +81,6 @@ func newTelemetrySender(sender sender.Sender) *telemetrySender {
 	return &telemetrySender{
 		sender:   sender,
 		hostname: hostnameimpl.NewHostnameService(),
-		scrubber: procutil.NewDefaultDataScrubber(),
 	}
 }
 
