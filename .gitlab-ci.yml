@@ -821,6 +821,7 @@ workflow:
         - comp/core/autodiscovery/listeners/**/*
         - comp/core/autodiscovery/providers/**/*
         - comp/languagedetection/**/*
+        - pkg/clusteragent/admission/mutate/**/*
         - pkg/collector/corechecks/cluster/**/*
         - pkg/collector/corechecks/containers/**/*
         - pkg/collector/corechecks/containerimage/**/*
