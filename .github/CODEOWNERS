@@ -206,6 +206,7 @@
 /cmd/installer/                         @DataDog/fleet @DataDog/windows-agent
 
 /dev/                                   @DataDog/agent-devx-loops
+/deva/                                  @DataDog/agent-devx-loops
 /devenv/                                @DataDog/agent-devx-loops
 
 /Dockerfiles/                            @DataDog/container-integrations
