@@ -40,7 +40,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.50.7
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/docker/cli v24.0.7+incompatible
-	github.com/docker/docker v25.0.6+incompatible
+	github.com/docker/docker v27.1.1+incompatible
 	github.com/fatih/color v1.16.0
 	github.com/google/uuid v1.6.0
 	github.com/kr/pretty v0.3.1
@@ -264,3 +264,5 @@ require (
 )
 
 require github.com/hairyhenderson/go-codeowners v0.5.0
+
+require github.com/moby/docker-image-spec v1.3.1 // indirect
