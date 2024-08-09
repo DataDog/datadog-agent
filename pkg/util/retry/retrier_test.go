@@ -209,6 +209,7 @@ func TestRetryDelayNotElapsed(t *testing.T) {
 	err = mocked.TriggerRetry()
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "try delay not elapsed yet")
+	assert.True(t, IsScheduled(err))
 }
 
 func TestRetryDelayRecover(t *testing.T) {
