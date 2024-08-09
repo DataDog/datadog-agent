@@ -93,3 +93,18 @@ func extractFile(targetPath string, reader io.Reader, mode fs.FileMode) error {
 	}
 	return nil
 }
+
+// Clean remove all files and directories in the destination path but not the destination path itself
+func Clean(destinationPath string) error {
+	files, err := os.ReadDir(destinationPath)
+	if err != nil {
+		return fmt.Errorf("could not list files in %s: %w", destinationPath, err)
+	}
+	for _, file := range files {
+		err := os.RemoveAll(filepath.Join(destinationPath, file.Name()))
+		if err != nil {
+			return fmt.Errorf("could not remove %s: %w", file.Name(), err)
+		}
+	}
+	return nil
+}

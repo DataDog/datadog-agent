@@ -283,7 +283,6 @@ func TestFuzzCountFields(t *testing.T) {
 		msw := &mockStatsWriter{}
 		a.writer = msw
 		// Ensure that peer tags aggregation is on. Some tests may expect non-empty values the peer tags.
-		a.peerTagsAggregation = true
 		payloadTime := time.Now().Truncate(bucketDuration)
 		merge1 := getTestStatsWithStart(payloadTime)
 
@@ -408,27 +407,27 @@ func TestCountAggregation(t *testing.T) {
 }
 
 func TestCountAggregationPeerTags(t *testing.T) {
-	peerTags := []string{"db.instance:a", "db.system:b", "peer.service:remote-service"}
 	type tt struct {
-		k                 BucketsAggregationKey
-		res               *proto.ClientGroupedStats
-		name              string
-		enablePeerTagsAgg bool
+		k        BucketsAggregationKey
+		res      *proto.ClientGroupedStats
+		name     string
+		peerTags []string
 	}
 	// The fnv64a hash of the peerTags var.
 	peerTagsHash := uint64(8580633704111928789)
+	peerTags := []string{"db.instance:a", "db.system:b", "peer.service:remote-service"}
 	tts := []tt{
 		{
 			BucketsAggregationKey{Service: "s", Name: "test.op"},
 			&proto.ClientGroupedStats{Service: "s", Name: "test.op"},
 			"peer tags aggregation disabled",
-			false,
+			nil,
 		},
 		{
 			BucketsAggregationKey{Service: "s", PeerTagsHash: peerTagsHash},
 			&proto.ClientGroupedStats{Service: "s", PeerTags: peerTags},
 			"peer tags aggregation enabled",
-			true,
+			peerTags,
 		},
 	}
 	for _, tc := range tts {
@@ -437,15 +436,14 @@ func TestCountAggregationPeerTags(t *testing.T) {
 			a := newTestAggregator()
 			msw := &mockStatsWriter{}
 			a.writer = msw
-			a.peerTagsAggregation = tc.enablePeerTagsAgg
 			testTime := time.Unix(time.Now().Unix(), 0)
 
 			c1 := payloadWithCounts(testTime, tc.k, "", "test-version", "", "", 11, 7, 100)
 			c2 := payloadWithCounts(testTime, tc.k, "", "test-version", "", "", 27, 2, 300)
 			c3 := payloadWithCounts(testTime, tc.k, "", "test-version", "", "", 5, 10, 3)
-			c1.Stats[0].Stats[0].PeerTags = peerTags
-			c2.Stats[0].Stats[0].PeerTags = peerTags
-			c3.Stats[0].Stats[0].PeerTags = peerTags
+			c1.Stats[0].Stats[0].PeerTags = tc.peerTags
+			c2.Stats[0].Stats[0].PeerTags = tc.peerTags
+			c3.Stats[0].Stats[0].PeerTags = tc.peerTags
 			keyDefault := BucketsAggregationKey{}
 			cDefault := payloadWithCounts(testTime, keyDefault, "", "test-version", "", "", 0, 2, 4)
 
@@ -665,65 +663,13 @@ func TestNewBucketAggregationKeyPeerTags(t *testing.T) {
 	peerTagsHash := uint64(3430395298086625290)
 	t.Run("disabled", func(t *testing.T) {
 		assert := assert.New(t)
-		r := newBucketAggregationKey(&proto.ClientGroupedStats{Service: "a", PeerTags: []string{"peer.service:remote-service"}}, false)
+		r := newBucketAggregationKey(&proto.ClientGroupedStats{Service: "a"})
 		assert.Equal(BucketsAggregationKey{Service: "a"}, r)
 	})
 	t.Run("enabled", func(t *testing.T) {
 		assert := assert.New(t)
-		r := newBucketAggregationKey(&proto.ClientGroupedStats{Service: "a", PeerTags: []string{"peer.service:remote-service"}}, true)
+		r := newBucketAggregationKey(&proto.ClientGroupedStats{Service: "a", PeerTags: []string{"peer.service:remote-service"}})
 		assert.Equal(BucketsAggregationKey{Service: "a", PeerTagsHash: peerTagsHash}, r)
-	})
-}
-
-func TestNewClientStatsAggregatorPeerAggregation(t *testing.T) {
-	statsd := &statsd.NoOpClient{}
-	t.Run("nothing enabled", func(t *testing.T) {
-		assert := assert.New(t)
-		cfg := config.AgentConfig{
-			BucketInterval: time.Duration(testBucketInterval),
-			AgentVersion:   "0.99.0",
-			DefaultEnv:     "env",
-			Hostname:       "hostname",
-		}
-		a := NewClientStatsAggregator(&cfg, nil, statsd)
-		assert.False(a.peerTagsAggregation)
-	})
-	t.Run("deprecated peer service flag set", func(t *testing.T) {
-		assert := assert.New(t)
-		cfg := config.AgentConfig{
-			BucketInterval:         time.Duration(testBucketInterval),
-			AgentVersion:           "0.99.0",
-			DefaultEnv:             "env",
-			Hostname:               "hostname",
-			PeerServiceAggregation: true,
-		}
-		a := NewClientStatsAggregator(&cfg, nil, statsd)
-		assert.True(a.peerTagsAggregation)
-	})
-	t.Run("peer tags aggregation flag", func(t *testing.T) {
-		assert := assert.New(t)
-		cfg := config.AgentConfig{
-			BucketInterval:      time.Duration(testBucketInterval),
-			AgentVersion:        "0.99.0",
-			DefaultEnv:          "env",
-			Hostname:            "hostname",
-			PeerTagsAggregation: true,
-		}
-		a := NewClientStatsAggregator(&cfg, nil, statsd)
-		assert.True(a.peerTagsAggregation)
-	})
-	t.Run("deprecated peer service flag set + new peer tags aggregation flag", func(t *testing.T) {
-		assert := assert.New(t)
-		cfg := config.AgentConfig{
-			BucketInterval:         time.Duration(testBucketInterval),
-			AgentVersion:           "0.99.0",
-			DefaultEnv:             "env",
-			Hostname:               "hostname",
-			PeerServiceAggregation: true,
-			PeerTagsAggregation:    true,
-		}
-		a := NewClientStatsAggregator(&cfg, nil, statsd)
-		assert.True(a.peerTagsAggregation)
 	})
 }
 

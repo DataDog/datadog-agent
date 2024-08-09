@@ -82,8 +82,8 @@ func (p *pendingMsg) ToJSON() ([]byte, bool, error) {
 		return nil, false, err
 	}
 
-	data := append(p.eventJSON[:len(p.eventJSON)-1], ',')
-	data = append(data, backendEventJSON[1:]...)
+	data := append(backendEventJSON[:len(backendEventJSON)-1], ',')
+	data = append(data, p.eventJSON[1:]...)
 
 	return data, fullyResolved, nil
 }
@@ -508,7 +508,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 	}
 
 	if as.msgSender == nil {
-		if pkgconfig.SystemProbe.GetBool("runtime_security_config.direct_send_from_system_probe") {
+		if pkgconfig.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe") {
 			msgSender, err := NewDirectMsgSender(stopper)
 			if err != nil {
 				log.Errorf("failed to setup direct reporter: %v", err)

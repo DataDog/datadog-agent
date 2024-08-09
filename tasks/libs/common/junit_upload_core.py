@@ -370,7 +370,7 @@ def repack_macos_junit_tar(workflow_conclusion, infile, outfile):
 
         # write the proper job url and job name
         with open(os.path.join(tempd, JOB_ENV_FILE_NAME), "w") as fp:
-            fp.write(f'CI_JOB_URL={os.environ.get("CI_JOB_URL", "")}')
+            fp.write(f'CI_JOB_URL={os.environ.get("CI_JOB_URL", "")}\n')
             fp.write(f'CI_JOB_NAME={os.environ.get("CI_JOB_NAME", "")}')
 
         # pack all files to a new tarball

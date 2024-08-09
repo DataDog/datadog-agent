@@ -133,19 +133,22 @@ func Test_checkPoliciesLoaded(t *testing.T) {
 					{
 						"Field": "open.file.path",
 						"Value": "/etc/gshadow",
-						"Type": "scalar"
+						"Type": "scalar",
+						"Mode": 0
 					},
 					{
 						"Field": "open.file.path",
 						"Value": "/etc/shadow",
-						"Type": "scalar"
+						"Type": "scalar",
+						"Mode": 0
 					}
 				],
 				"open.flags": [
 					{
 						"Field": "open.flags",
 						"Value": 64,
-						"Type": "scalar"
+						"Type": "scalar",
+						"Mode": 0
 					}
 				]
 			}
