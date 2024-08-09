@@ -32,6 +32,7 @@ var PackagesList = []Package{
 	{Name: "datadog-apm-library-js", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-apm-library-dotnet", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-apm-library-python", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+	{Name: "datadog-apm-library-php", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-agent", version: agentVersion, released: false, releasedWithRemoteUpdates: true},
 }
 
@@ -43,6 +44,7 @@ var apmPackageDefaultVersions = map[string]string{
 	"datadog-apm-library-js":     "5",
 	"datadog-apm-library-dotnet": "2",
 	"datadog-apm-library-python": "2",
+	"datadog-apm-library-php":    "1",
 }
 
 // DefaultPackages resolves the default packages URLs to install based on the environment.
