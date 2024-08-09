@@ -201,14 +201,19 @@ func (li *linuxImpl) aliveProcs() (map[int]proc, error) {
 	return procMap, nil
 }
 
-// truncateCmdline truncates the command line length to maxCommandLine.
-func truncateCmdline(cmdline []string) []string {
+// countAndAddElements is a helper for truncateCmdline used to be able to
+// pre-calculate the size of the output slice to improve performance.
+func countAndAddElements(cmdline []string, inElements int) (int, []string) {
 	var out []string
-	total := 0
-	max := maxCommandLine
 
+	if inElements != 0 {
+		out = make([]string, 0, inElements)
+	}
+
+	elements := 0
+	total := 0
 	for _, arg := range cmdline {
-		if total >= max {
+		if total >= maxCommandLine {
 			break
 		}
 
@@ -218,14 +223,25 @@ func truncateCmdline(cmdline []string) []string {
 			continue
 		}
 
-		if total+this > max {
-			this = max - total
+		if total+this > maxCommandLine {
+			this = maxCommandLine - total
 		}
 
-		out = append(out, arg[:this])
+		if inElements != 0 {
+			out = append(out, arg[:this])
+		}
+
+		elements++
 		total += this
 	}
 
+	return elements, out
+}
+
+// truncateCmdline truncates the command line length to maxCommandLine.
+func truncateCmdline(cmdline []string) []string {
+	elements, _ := countAndAddElements(cmdline, 0)
+	_, out := countAndAddElements(cmdline, elements)
 	return out
 }
 
