@@ -750,8 +750,8 @@ github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950 h1:2imDajw3V85w1iqH
 github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950/go.mod h1:FU+7qU8DeQQgSZDmmThMJi93kPkLFgy0oVAcLxurjIk=
 github.com/DataDog/watermarkpodautoscaler v0.6.1 h1:KEj10Cm8wO/36lEOgqjgDfIMMpMPReY/+bDacWe7Adw=
 github.com/DataDog/watermarkpodautoscaler v0.6.1/go.mod h1:iaEXqganxe2zHi3pyJFuf59X8srmGFoikPtjWxMW9mU=
-github.com/DataDog/zstd v1.5.5 h1:oWf5W7GtOLgp6bciQYDmhHHjdhYkALu6S/5Ni9ZgSvQ=
-github.com/DataDog/zstd v1.5.5/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
+github.com/DataDog/zstd v1.5.6 h1:LbEglqepa/ipmmQJUDnSsfvA8e8IStVcGaFWDuxvGOY=
+github.com/DataDog/zstd v1.5.6/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
 github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f h1:5Vuo4niPKFkfwW55jV4vY0ih3VQ9RaQqeqY67fvRn8A=
 github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f/go.mod h1:oXfOhM/Kr8OvqS6tVqJwxPBornV0yrx3bc+l0BDr7PQ=
 github.com/Datadog/dublin-traceroute v0.0.1 h1:xh5xfA25gjrpRK72lQotL79S4vAvxpc4UOQdR22p2IY=
