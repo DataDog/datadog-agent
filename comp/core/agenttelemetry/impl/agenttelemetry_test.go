@@ -187,7 +187,7 @@ func getTestAtel(t *testing.T,
 
 func getTestAtelComponent(t *testing.T, log log.Component, ovrrd map[string]any) agenttelemetry.Component {
 	return NewComponent(Requires{
-		Log:       makeLogMock(t),
+		Log:       log,
 		Config:    makeCfgMock(t, ovrrd),
 		Telemetry: makeTelMock(t),
 		Status:    makeStatusMock(t),

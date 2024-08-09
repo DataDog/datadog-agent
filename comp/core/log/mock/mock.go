@@ -20,7 +20,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
-// logger mock (currently used for trapping logged errors)
+// Mock for additional interecpting and analyzing the log messages
 type Mock struct {
 	w             *pkglog.Wrapper
 	TraceCount    int
