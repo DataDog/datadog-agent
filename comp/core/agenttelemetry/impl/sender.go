@@ -174,9 +174,6 @@ func newSenderImpl(
 
 	// build endpoint URL
 	endpointHost := utils.GetMainEndpoint(cfgComp, telemetryEndpointPrefix, "agent_telemetry.dd_url")
-	if len(endpointHost) == 0 {
-		return nil, fmt.Errorf("site or dd_url had not been setup")
-	}
 	endpointURL, err := url.JoinPath(endpointHost, "/api/v2/apmtelemetry")
 	if err != nil {
 		return nil, fmt.Errorf("failed to form agent telemetry endpoint URL from configuration: %v", err)

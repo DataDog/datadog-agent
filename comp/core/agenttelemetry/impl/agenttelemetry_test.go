@@ -25,7 +25,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -185,15 +184,6 @@ func getTestAtel(t *testing.T,
 	return atel
 }
 
-func getTestAtelComponent(t *testing.T, log log.Component, ovrrd map[string]any) agenttelemetry.Component {
-	return NewComponent(Requires{
-		Log:       log,
-		Config:    makeCfgMock(t, ovrrd),
-		Telemetry: makeTelMock(t),
-		Status:    makeStatusMock(t),
-	})
-}
-
 func getCommonOverrideConfig(enabled bool, site string) map[string]any {
 	if site == "" {
 		return map[string]any{
@@ -216,15 +206,6 @@ func TestDisable(t *testing.T) {
 	o := getCommonOverrideConfig(false, "foo.bar")
 	a := getTestAtel(t, nil, o, nil, nil, nil)
 	assert.False(t, a.enabled)
-}
-
-// Test top-level component that it will not trigger creation log error
-// when agent telemetry is disabled
-func TestDisableNoErrorLog(t *testing.T) {
-	o := getCommonOverrideConfig(false, "")
-	l := logmock.New(t)
-	getTestAtelComponent(t, l, o)
-	assert.Zero(t, l.(*logmock.Mock).ErrorCount.Load())
 }
 
 func TestDisableIfFipsEnabled(t *testing.T) {

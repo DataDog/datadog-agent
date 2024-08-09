@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	dto "github.com/prometheus/client_model/go"
 )
@@ -115,6 +114,18 @@ func createAtel(
 		return &atel{}
 	}
 
+	if sender == nil {
+		sender, err = createSender(cfgComp, logComp)
+		if err != nil {
+			logComp.Errorf("Failed to create agent telemetry sender: %s", err.Error())
+			return &atel{}
+		}
+	}
+
+	if runner == nil {
+		runner = newRunnerImpl()
+	}
+
 	return &atel{
 		enabled:    true,
 		cfgComp:    cfgComp,
@@ -129,25 +140,14 @@ func createAtel(
 
 // NewComponent creates a new agent telemetry component.
 func NewComponent(req Requires) agenttelemetry.Component {
-	if !pkgconfigsetup.IsAgentTelemetryEnabled(req.Config) {
-		return &atel{enabled: false}
-	}
-
-	sender, err := createSender(req.Config, req.Log)
-	if err != nil {
-		return &atel{enabled: false}
-	}
-
-	runner := newRunnerImpl()
-
 	// Wire up the agent telemetry provider (TODO: use FX for sender, client and runner?)
 	a := createAtel(
 		req.Config,
 		req.Log,
 		req.Telemetry,
 		req.Status,
-		sender,
-		runner,
+		nil,
+		nil,
 	)
 
 	// If agent telemetry is enabled and configured properly add the start and stop hooks
