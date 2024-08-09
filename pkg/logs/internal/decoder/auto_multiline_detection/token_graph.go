@@ -62,9 +62,8 @@ func (m *TokenGraph) MatchProbability(tokens []Token) MatchContext {
 	}
 
 	// At this point we have a sequence of 1 and 0 where 1 represents a valid transition between tokens (a match).
-	// However a match could occur anywhere in the input so we need to find the subsequence that will produce
-	// best probability when taking the average of the 1 and 0 sequence - this is likely a match.
-	// Using a modified max subsequence is an optimization to find the subsequence that will produce the highest average.
+	// However a sequecne of matchs could occur anywhere in the input so we need to find the subsequence that will produce
+	// best probability when taking the average of the 1 and 0 sequence.
 	start, end := maxSubsequence(out)
 	subSeq := out[start:end]
 
