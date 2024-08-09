@@ -442,7 +442,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory 
 					LibraryNameRegex: regexp.MustCompile(`libgnutls.so`),
 				},
 			}
-			attacherConfig := &uprobes.AttacherConfig{
+			attacherConfig := uprobes.AttacherConfig{
 				ProcRoot:           procRoot,
 				Rules:              rules,
 				ExcludeTargets:     uprobes.ExcludeSelf | uprobes.ExcludeInternal | uprobes.ExcludeBuildkit | uprobes.ExcludeContainerdTmp,

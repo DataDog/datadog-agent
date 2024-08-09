@@ -101,7 +101,7 @@ func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
 		ExcludeTargets: uprobes.ExcludeSelf | uprobes.ExcludeInternal,
 	}
 
-	attacher, err := uprobes.NewUprobeAttacher("istio", &attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{})
+	attacher, err := uprobes.NewUprobeAttacher("istio", attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{})
 	if err != nil {
 		log.Errorf("Cannot create uprobe attacher: %v", err)
 	}

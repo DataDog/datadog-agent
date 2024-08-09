@@ -148,7 +148,7 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactor
 			return nil, errors.New("goTLS support requires runtime-compilation or CO-RE to be enabled")
 		}
 
-		attacherCfg := &uprobes.AttacherConfig{
+		attacherCfg := uprobes.AttacherConfig{
 			EbpfConfig: &c.Config,
 			Rules: []*uprobes.AttachRule{{
 				Targets: uprobes.AttachToExecutable,
