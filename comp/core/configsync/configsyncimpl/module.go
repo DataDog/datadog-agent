@@ -105,6 +105,7 @@ func newConfigSync(deps dependencies, agentIPCPort int, configRefreshIntervalSec
 			select {
 			case <-ctx.Done(): //context cancelled
 				// TODO: this component should return an error
+				cancel()
 				return nil
 			case <-time.After(deps.SyncParams.SyncDelay):
 			}

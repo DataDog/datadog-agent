@@ -142,10 +142,13 @@ func addCoreAgentConfig(conf *confmap.Conf, coreCfg coreconfig.Component) {
 	}
 
 	apiKey, ok := apiMap["key"]
-	if ok && apiKey != "" {
-		match, _ := regexp.MatchString(secretRegex, apiKey.(string))
-		if !match {
-			return
+	if ok {
+		key, ok := apiKey.(string)
+		if ok && key != "" {
+			match, _ := regexp.MatchString(secretRegex, apiKey.(string))
+			if !match {
+				return
+			}
 		}
 	}
 
