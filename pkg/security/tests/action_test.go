@@ -188,3 +188,112 @@ func TestActionKill(t *testing.T) {
 		assert.NoError(t, err)
 	})
 }
+
+func TestActionKillRuleSpecific(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if !ebpfLessEnabled {
+		checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
+			return !kv.SupportBPFSendSignal() && config.IsContainerized()
+		})
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "kill_action_kill",
+			Expression: `process.file.name == "syscall_tester" && open.file.path == "{{.Root}}/test-kill-action-kill"`,
+			Actions: []*rules.ActionDefinition{
+				{
+					Kill: &rules.KillDefinition{
+						Signal: "SIGKILL",
+					},
+				},
+			},
+		},
+		{
+			ID:         "kill_action_no_kill",
+			Expression: `process.file.name == "syscall_tester" && open.file.path == "{{.Root}}/test-kill-action-kill"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testFile, _, err := test.Path("test-kill-action-kill")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile)
+
+	err = test.GetEventSent(t, func() error {
+		ch := make(chan bool, 1)
+
+		go func() {
+			timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			cmd := exec.CommandContext(timeoutCtx, syscallTester, "open", testFile, ";", "sleep", "1", ";", "open", testFile, ";", "sleep", "5")
+			_ = cmd.Run()
+
+			ch <- true
+		}()
+
+		select {
+		case <-ch:
+		case <-time.After(time.Second * 3):
+			t.Error("signal timeout")
+		}
+		return nil
+	}, func(rule *rules.Rule, event *model.Event) bool {
+		return true
+	}, time.Second*5, "kill_action_kill")
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = retry.Do(func() error {
+		msg := test.msgSender.getMsg("kill_action_kill")
+		if msg == nil {
+			return errors.New("not found")
+		}
+		validateMessageSchema(t, string(msg.Data))
+
+		jsonPathValidation(test, msg.Data, func(testMod *testModule, obj interface{}) {
+			if _, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.signal="sigkill")]`); err != nil {
+				t.Error(err)
+			}
+			if _, err = jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.exited_at=~/20.*/)]`); err != nil {
+				t.Error(err)
+			}
+		})
+
+		return nil
+	}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+	assert.NoError(t, err)
+
+	err = retry.Do(func() error {
+		msg := test.msgSender.getMsg("kill_action_no_kill")
+		if msg == nil {
+			return errors.New("not found")
+		}
+		validateMessageSchema(t, string(msg.Data))
+
+		jsonPathValidation(test, msg.Data, func(testMod *testModule, obj interface{}) {
+			if _, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions`); err == nil {
+				t.Error(errors.New("unexpected rule action"))
+			}
+		})
+
+		return nil
+	}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+	assert.NoError(t, err)
+}

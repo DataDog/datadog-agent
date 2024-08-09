@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2021 Datadog, Inc.
 
-// Package implnoop implements a no-op version of the component
-package implnoop
+// Package replayimpl implements a no-op version of the component
+package replayimpl
 
 import (
 	"sync"

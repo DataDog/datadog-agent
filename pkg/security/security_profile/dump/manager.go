@@ -295,7 +295,7 @@ func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInt
 		return nil, err
 	}
 
-	limiter, err := lru.NewWithEvict(1024, func(workloadSelector cgroupModel.WorkloadSelector, count *atomic.Uint64) {
+	limiter, err := lru.NewWithEvict(1024, func(_ cgroupModel.WorkloadSelector, _ *atomic.Uint64) {
 	})
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create dump limiter: %w", err)
@@ -457,7 +457,7 @@ func (adm *ActivityDumpManager) HandleCGroupTracingEvent(event *model.CgroupTrac
 		return
 	}
 
-	if err := adm.startDumpWithConfig(string(event.ContainerContext.ContainerID), event.CGroupFlags, event.ConfigCookie, event.Config); err != nil {
+	if err := adm.startDumpWithConfig(string(event.ContainerContext.ContainerID), uint64(event.CGroupContext.CGroupFlags), event.ConfigCookie, event.Config); err != nil {
 		seclog.Warnf("%v", err)
 	}
 }
@@ -539,6 +539,40 @@ func (adm *ActivityDumpManager) ListActivityDumps(_ *api.ActivityDumpListParams)
 	return &api.ActivityDumpListMessage{
 		Dumps: activeDumps,
 	}, nil
+}
+
+// DumpActivity handles an activity dump request
+func (adm *ActivityDumpManager) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
+	adm.Lock()
+	defer adm.Unlock()
+
+	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
+		ad.Metadata.ContainerID = params.GetContainerID()
+		dumpDuration, _ := time.ParseDuration(params.Timeout)
+		ad.SetTimeout(dumpDuration)
+
+		if params.GetDifferentiateArgs() {
+			ad.Metadata.DifferentiateArgs = true
+			ad.ActivityTree.DifferentiateArgs()
+		}
+	})
+
+	// add local storage requests
+	storageRequests, err := config.ParseStorageRequests(params.GetStorage())
+	if err != nil {
+		errMsg := fmt.Errorf("couldn't start tracing [%s]: %v", newDump.GetSelectorStr(), err)
+		return &api.ActivityDumpMessage{Error: errMsg.Error()}, errMsg
+	}
+	for _, request := range storageRequests {
+		newDump.AddStorageRequest(request)
+	}
+
+	if err = adm.insertActivityDump(newDump); err != nil {
+		errMsg := fmt.Errorf("couldn't start tracing [%s]: %v", newDump.GetSelectorStr(), err)
+		return &api.ActivityDumpMessage{Error: errMsg.Error()}, errMsg
+	}
+
+	return newDump.ToSecurityActivityDumpMessage(), nil
 }
 
 // StopActivityDump stops an active activity dump

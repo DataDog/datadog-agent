@@ -29,8 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
-	"github.com/DataDog/datadog-agent/comp/core/agenttelemetry"
-	"github.com/DataDog/datadog-agent/comp/core/agenttelemetry/agenttelemetryimpl"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 
 	// checks implemented as components
 
@@ -56,8 +56,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/gui/guiimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/process"
@@ -77,7 +76,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -97,6 +96,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs"
 	"github.com/DataDog/datadog-agent/comp/logs/adscheduler/adschedulerimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -178,10 +178,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				ddruntime.SetMaxProcs()
 			}),
 			fx.Supply(core.BundleParams{
-				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath)),
+				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
 				SecretParams:         secrets.NewEnabledParams(),
-				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-				LogParams:            logimpl.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
+				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
+				LogParams:            log.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
 			}),
 			fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 			getSharedFxOption(),
@@ -235,6 +235,7 @@ func run(log log.Component,
 	_ inventoryotel.Component,
 	_ secrets.Component,
 	invChecks inventorychecks.Component,
+	logReceiver optional.Option[integrations.Component],
 	_ netflowServer.Component,
 	_ snmptrapsServer.Component,
 	_ langDetectionCl.Component,
@@ -255,7 +256,7 @@ func run(log log.Component,
 	_ agenttelemetry.Component,
 ) error {
 	defer func() {
-		stopAgent(agentAPI)
+		stopAgent()
 	}()
 
 	// Setup a channel to catch OS signals
@@ -310,6 +311,7 @@ func run(log log.Component,
 		demultiplexer,
 		agentAPI,
 		invChecks,
+		logReceiver,
 		statusComponent,
 		collector,
 		cfg,
@@ -347,7 +349,7 @@ func getSharedFxOption() fx.Option {
 		}),
 
 		// workloadmeta setup
-		collectors.GetCatalog(),
+		wmcatalog.GetCatalog(),
 		fx.Provide(defaults.DefaultParams),
 		workloadmetafx.Module(),
 		fx.Supply(
@@ -444,6 +446,9 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(ms serializer.MetricSerializer) optional.Option[serializer.MetricSerializer] {
 			return optional.NewOption[serializer.MetricSerializer](ms)
 		}),
+		fx.Provide(func(logReceiver integrations.Component) optional.Option[integrations.Component] {
+			return optional.NewOption[integrations.Component](logReceiver)
+		}),
 		ndmtmp.Bundle(),
 		netflow.Bundle(),
 		rdnsquerierfx.Module(),
@@ -480,7 +485,7 @@ func getSharedFxOption() fx.Option {
 			}
 		}),
 		settingsimpl.Module(),
-		agenttelemetryimpl.Module(),
+		agenttelemetryfx.Module(),
 		networkpath.Bundle(),
 	)
 }
@@ -502,8 +507,9 @@ func startAgent(
 	_ serializer.MetricSerializer,
 	_ otelcollector.Component,
 	demultiplexer demultiplexer.Component,
-	agentAPI internalAPI.Component,
+	_ internalAPI.Component,
 	invChecks inventorychecks.Component,
+	logReceiver optional.Option[integrations.Component],
 	_ status.Component,
 	collector collector.Component,
 	cfg config.Component,
@@ -561,11 +567,6 @@ func startAgent(
 		}
 	}
 
-	// start the cmd HTTP server
-	if err = agentAPI.StartServer(); err != nil {
-		return log.Errorf("Error while starting api server, exiting: %v", err)
-	}
-
 	// start clc runner server
 	// only start when the cluster agent is enabled and a cluster check runner host is enabled
 	if pkgconfig.Datadog().GetBool("cluster_agent.enabled") && pkgconfig.Datadog().GetBool("clc_runner_enabled") {
@@ -599,7 +600,7 @@ func startAgent(
 
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta, cfg, telemetry)
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
+	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
@@ -616,12 +617,12 @@ func startAgent(
 }
 
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
-func StopAgentWithDefaults(agentAPI internalAPI.Component) {
-	stopAgent(agentAPI)
+func StopAgentWithDefaults() {
+	stopAgent()
 }
 
 // stopAgent Tears down the agent process
-func stopAgent(agentAPI internalAPI.Component) {
+func stopAgent() {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
@@ -631,7 +632,6 @@ func stopAgent(agentAPI internalAPI.Component) {
 		pkglog.Warnf("Some components were unhealthy: %v", health.Unhealthy)
 	}
 
-	agentAPI.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmxfetch.StopJmxfetch()
 

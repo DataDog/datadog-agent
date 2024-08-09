@@ -19,7 +19,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -56,7 +57,7 @@ func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRe
 			"language_detection.reporting.buffer_period": "50ms",
 		}}),
 		telemetryimpl.MockModule(),
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmetafxmock.MockModule(),
 	))
@@ -95,9 +96,7 @@ func TestClientEnabled(t *testing.T) {
 			func(t *testing.T) {
 				deps := fxutil.Test[dependencies](t, fx.Options(
 					config.MockModule(),
-					fx.Provide(func(secretResolver secrets.Component) optional.Option[secrets.Component] {
-						return optional.NewOption[secrets.Component](secretResolver)
-					}),
+					fxutil.ProvideOptional[secrets.Component](),
 					fx.Replace(config.MockParams{Overrides: map[string]interface{}{
 						"language_detection.enabled":           testCase.languageDetectionEnabled,
 						"language_detection.reporting.enabled": testCase.languageDetectionReportingEnabled,
@@ -105,7 +104,7 @@ func TestClientEnabled(t *testing.T) {
 					}}),
 					secretsimpl.MockModule(),
 					telemetryimpl.MockModule(),
-					logimpl.MockModule(),
+					fx.Provide(func() log.Component { return logmock.New(t) }),
 					fx.Supply(workloadmeta.NewParams()),
 					workloadmetafxmock.MockModule(),
 				))

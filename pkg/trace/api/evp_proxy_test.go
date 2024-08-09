@@ -449,7 +449,7 @@ func TestE2E(t *testing.T) {
 		conf.Site = "us3.datadoghq.com"
 		conf.Endpoints[0].APIKey = "test_api_key"
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Write([]byte(`OK`))
 		}))
 
@@ -471,7 +471,7 @@ func TestE2E(t *testing.T) {
 		conf.Endpoints[0].APIKey = "test_api_key"
 		conf.EVPProxy.ReceiverTimeout = 1 // in seconds
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			time.Sleep(2 * time.Second)
 			w.Write([]byte(`OK`))
 		}))

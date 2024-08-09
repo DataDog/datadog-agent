@@ -3,34 +3,48 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package impl defines the OpenTelemetry Extension implementation.
-package impl
+// Package extensionimpl defines the OpenTelemetry Extension implementation.
+package extensionimpl
 
 import (
 	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 
+	collectorcontribimpl "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl"
 	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl"
 	extension "github.com/DataDog/datadog-agent/comp/otelcol/extension/def"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
+	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
 )
 
-var testOtelConfig = &otelcol.Config{}
+var cpSettings = otelcol.ConfigProviderSettings{
+	ResolverSettings: confmap.ResolverSettings{
+		URIs: []string{filepath.Join("testdata", "config.yaml")},
+		ProviderFactories: []confmap.ProviderFactory{
+			fileprovider.NewFactory(),
+			yamlprovider.NewFactory(),
+		},
+	},
+}
 
 func getExtensionTestConfig(t *testing.T) *Config {
 	cf, err := configstore.NewConfigStore()
 	assert.NoError(t, err)
 
-	cf.AddEnhancedConf(testOtelConfig)
-	cf.AddProvidedConf(testOtelConfig)
+	factories, err := collectorcontribimpl.NewComponent().OTelComponentFactories()
+	assert.NoError(t, err)
 
+	cf.AddConfigs(cpSettings, cpSettings, factories)
 	return &Config{
 		HTTPConfig: &confighttp.ServerConfig{
 			Endpoint: "localhost:0",

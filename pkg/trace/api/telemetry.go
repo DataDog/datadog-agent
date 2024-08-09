@@ -201,7 +201,7 @@ func (r *HTTPReceiver) telemetryForwarderHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		// Read at most maxInflightBytes since we're going to throw out the result anyway if it's bigger
-		body, err := io.ReadAll(io.LimitReader(r.Body, forwarder.maxInflightBytes))
+		body, err := io.ReadAll(io.LimitReader(r.Body, forwarder.maxInflightBytes+1))
 		if err != nil {
 			writeEmptyJSON(w, http.StatusInternalServerError)
 			return
@@ -212,9 +212,15 @@ func (r *HTTPReceiver) telemetryForwarderHandler() http.Handler {
 			return
 		}
 
+		newReq, err := http.NewRequestWithContext(forwarder.cancelCtx, r.Method, r.URL.String(), bytes.NewBuffer(body))
+		if err != nil {
+			writeEmptyJSON(w, http.StatusInternalServerError)
+			return
+		}
+		newReq.Header = r.Header.Clone()
 		select {
 		case forwarder.forwardedReqChan <- forwardedRequest{
-			req:  r.Clone(forwarder.cancelCtx),
+			req:  newReq,
 			body: body,
 		}:
 			writeEmptyJSON(w, http.StatusOK)
@@ -314,6 +320,9 @@ func (f *TelemetryForwarder) forwardTelemetry(req forwardedRequest) {
 		newReq.Body = io.NopCloser(bytes.NewReader(req.body))
 
 		if resp, err := f.forwardTelemetryEndpoint(newReq, e); err == nil {
+			if !(200 <= resp.StatusCode && resp.StatusCode < 300) {
+				f.logger.Error("Received unexpected status code %v", resp.StatusCode)
+			}
 			io.Copy(io.Discard, resp.Body) // nolint:errcheck
 			resp.Body.Close()
 		} else {

@@ -22,7 +22,7 @@ import (
 )
 
 func TestReadSecrets(t *testing.T) {
-	newKubeClientFunc := func(timeout time.Duration) (kubernetes.Interface, error) {
+	newKubeClientFunc := func(_ time.Duration) (kubernetes.Interface, error) {
 		return fake.NewSimpleClientset(&v1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "some_name",

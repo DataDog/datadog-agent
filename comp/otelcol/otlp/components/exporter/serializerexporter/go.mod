@@ -8,7 +8,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../../../core/config
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../../core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../../core/flare/types
-	github.com/DataDog/datadog-agent/comp/core/log => ../../../../../core/log
+	github.com/DataDog/datadog-agent/comp/core/log/def => ../../../../../core/log/def
+	github.com/DataDog/datadog-agent/comp/core/log/mock => ../../../../../core/log/mock
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../../../core/secrets
 	github.com/DataDog/datadog-agent/comp/core/status => ../../../../../core/status
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../../core/telemetry
@@ -19,7 +20,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../../../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../../../pkg/config/env
-	github.com/DataDog/datadog-agent/pkg/config/logs => ../../../../../../pkg/config/logs
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../../../pkg/config/utils
@@ -45,6 +45,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../../../../../pkg/util/http/
 	github.com/DataDog/datadog-agent/pkg/util/json => ../../../../../../pkg/util/json/
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../../../../pkg/util/log/
+	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../../../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../../../../pkg/util/optional/
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../../../../pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../../../../pkg/util/scrubber/
@@ -63,9 +64,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/serializer v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/tagset v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.14.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.14.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.18.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.18.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.18.0
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.104.0
 	github.com/stretchr/testify v1.9.0
@@ -89,7 +90,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/comp/core/log v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/core/log/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.56.0-rc.3 // indirect
@@ -200,13 +201,13 @@ require (
 	go.uber.org/dig v1.17.1 // indirect
 	go.uber.org/fx v1.18.2 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
-	golang.org/x/mod v0.17.0 // indirect
-	golang.org/x/net v0.26.0 // indirect
-	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/sys v0.21.0 // indirect
+	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
+	golang.org/x/mod v0.20.0 // indirect
+	golang.org/x/net v0.27.0 // indirect
+	golang.org/x/sync v0.8.0 // indirect
+	golang.org/x/sys v0.23.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
-	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
+	golang.org/x/tools v0.23.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240520151616-dc85e6b867a5 // indirect
 	google.golang.org/grpc v1.64.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect

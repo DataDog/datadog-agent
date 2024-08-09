@@ -151,7 +151,7 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 			le.reportLeaderMetric(identity == le.HolderIdentity)
 			log.Infof("New leader %q", identity)
 		},
-		OnStartedLeading: func(ctx context.Context) {
+		OnStartedLeading: func(context.Context) {
 			le.updateLeaderIdentity(le.HolderIdentity)
 			le.reportLeaderMetric(true)
 			le.notify()

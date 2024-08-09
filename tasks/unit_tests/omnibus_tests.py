@@ -4,7 +4,7 @@ import unittest
 from unittest import mock
 
 from invoke.context import MockContext
-from invoke.exceptions import UnexpectedExit
+from invoke.exceptions import Exit, UnexpectedExit
 from invoke.runners import Result
 
 from tasks import omnibus
@@ -175,3 +175,31 @@ class TestOmnibusCache(unittest.TestCase):
         self.assertRunLines(['bundle exec omnibus build agent'])
         commands = _run_calls_to_string(self.mock_ctx.run.mock_calls)
         self.assertNotIn('omnibus-git-cache', commands)
+
+
+class TestOmnibusInstall(unittest.TestCase):
+    def setUp(self):
+        self.mock_ctx = MockContextRaising(run={})
+
+    def test_success(self):
+        self.mock_ctx.set_result_for('run', 'bundle install', Result())
+        omnibus.bundle_install_omnibus(self.mock_ctx)
+        self.assertEqual(len(self.mock_ctx.run.mock_calls), 1)
+
+    def test_failure(self):
+        self.mock_ctx.set_result_for('run', 'bundle install', Result(exited=1))
+        with self.assertRaises(UnexpectedExit):
+            omnibus.bundle_install_omnibus(self.mock_ctx)
+        self.assertEqual(len(self.mock_ctx.run.mock_calls), 1)
+
+    def test_transient(self):
+        self.mock_ctx = MockContextRaising(run=[Result(exited=1, stderr='Net::HTTPNotFound: something'), Result()])
+        omnibus.bundle_install_omnibus(self.mock_ctx)
+        self.assertEqual(len(self.mock_ctx.run.mock_calls), 2)
+
+    def test_transient_repeated(self):
+        self.mock_ctx.set_result_for('run', 'bundle install', Result(exited=1, stderr='Net::HTTPNotFound: something'))
+        max_try = 2
+        with self.assertRaises(Exit):
+            omnibus.bundle_install_omnibus(self.mock_ctx)
+        self.assertEqual(len(self.mock_ctx.run.mock_calls), max_try)

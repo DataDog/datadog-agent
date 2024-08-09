@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -79,7 +80,7 @@ func (p *ProcessKiller) HandleProcessExited(event *model.Event) {
 }
 
 // KillAndReport kill and report
-func (p *ProcessKiller) KillAndReport(scope string, signal string, ev *model.Event, killFnc func(pid uint32, sig uint32) error) {
+func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.Rule, ev *model.Event, killFnc func(pid uint32, sig uint32) error) {
 	entry, exists := ev.ResolveProcessCacheEntry()
 	if !exists {
 		return
@@ -122,6 +123,7 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, ev *model.Eve
 		CreatedAt:  ev.ProcessContext.ExecTime,
 		DetectedAt: ev.ResolveEventTime(),
 		KilledAt:   killedAt,
+		Rule:       rule,
 	}
 	ev.ActionReports = append(ev.ActionReports, report)
 	p.pendingReports = append(p.pendingReports, report)

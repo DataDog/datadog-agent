@@ -127,7 +127,19 @@ func FetchAndFilterLogs(t *testing.T, fakeIntake *components.FakeIntake, service
 	}
 
 	if len(names) == 0 {
-		return nil, fmt.Errorf("no service %s found", service)
+		return nil, fmt.Errorf("the fake intake has no logs for any services")
+	}
+
+	var contains bool
+	for _, v := range names {
+		if v == service {
+			contains = true
+		}
+	}
+	if !contains {
+		return nil,
+			fmt.Errorf("the fake intake has no logs for service '%s'. Only found logs for the following services %v",
+				service, names)
 	}
 
 	logs, err := client.FilterLogs(service, fi.WithMessageMatching(content))

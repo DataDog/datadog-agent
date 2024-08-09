@@ -86,12 +86,18 @@ type Config struct {
 	// EnablePostgresMonitoring specifies whether the tracer should monitor Postgres traffic.
 	EnablePostgresMonitoring bool
 
+	// EnableRedisMonitoring specifies whether the tracer should monitor Redis traffic.
+	EnableRedisMonitoring bool
+
 	// EnableNativeTLSMonitoring specifies whether the USM should monitor HTTPS traffic via native libraries.
 	// Supported libraries: OpenSSL, GnuTLS, LibCrypto.
 	EnableNativeTLSMonitoring bool
 
 	// EnableIstioMonitoring specifies whether USM should monitor Istio traffic
 	EnableIstioMonitoring bool
+
+	// EnvoyPath specifies the envoy path to be used for Istio monitoring
+	EnvoyPath string
 
 	// EnableNodeJSMonitoring specifies whether USM should monitor NodeJS TLS traffic
 	EnableNodeJSMonitoring bool
@@ -151,16 +157,16 @@ type Config struct {
 	// tcp_close is not intercepted for some reason.
 	TCPConnTimeout time.Duration
 
-	// TCPClosedTimeout represents the maximum amount of time a closed TCP connection can remain buffered in eBPF before
-	// being marked as idle and flushed to the perf ring.
-	TCPClosedTimeout time.Duration
-
 	// MaxTrackedConnections specifies the maximum number of connections we can track. This determines the size of the eBPF Maps
 	MaxTrackedConnections uint32
 
 	// MaxClosedConnectionsBuffered represents the maximum number of closed connections we'll buffer in memory. These closed connections
 	// get flushed on every client request (default 30s check interval)
 	MaxClosedConnectionsBuffered uint32
+
+	// MaxFailedConnectionsBuffered represents the maximum number of failed connections we'll buffer in memory. These connections will be
+	// removed from memory as they are matched to closed connections
+	MaxFailedConnectionsBuffered uint32
 
 	// ClosedConnectionFlushThreshold represents the number of closed connections stored before signalling
 	// the agent to flush the connections.  This value only valid on Windows
@@ -185,6 +191,10 @@ type Config struct {
 	// MaxPostgresStatsBuffered represents the maximum number of Postgres stats we'll buffer in memory. These stats
 	// get flushed on every client request (default 30s check interval)
 	MaxPostgresStatsBuffered int
+
+	// MaxRedisStatsBuffered represents the maximum number of Redis stats we'll buffer in memory. These stats
+	// get flushed on every client request (default 30s check interval)
+	MaxRedisStatsBuffered int
 
 	// MaxConnectionsStateBuffered represents the maximum number of state objects that we'll store in memory. These state objects store
 	// the stats for a connection so we can accurately determine traffic change between client requests.
@@ -307,7 +317,7 @@ func join(pieces ...string) string {
 
 // New creates a config for the network tracer
 func New() *Config {
-	cfg := ddconfig.SystemProbe
+	cfg := ddconfig.SystemProbe()
 	sysconfig.Adjust(cfg)
 
 	c := &Config{
@@ -319,7 +329,6 @@ func New() *Config {
 		CollectTCPv4Conns: cfg.GetBool(join(netNS, "collect_tcp_v4")),
 		CollectTCPv6Conns: cfg.GetBool(join(netNS, "collect_tcp_v6")),
 		TCPConnTimeout:    2 * time.Minute,
-		TCPClosedTimeout:  1 * time.Second,
 
 		CollectUDPv4Conns: cfg.GetBool(join(netNS, "collect_udp_v4")),
 		CollectUDPv6Conns: cfg.GetBool(join(netNS, "collect_udp_v6")),
@@ -333,6 +342,7 @@ func New() *Config {
 		TCPFailedConnectionsEnabled:    cfg.GetBool(join(netNS, "enable_tcp_failed_connections")),
 		MaxTrackedConnections:          uint32(cfg.GetInt64(join(spNS, "max_tracked_connections"))),
 		MaxClosedConnectionsBuffered:   uint32(cfg.GetInt64(join(spNS, "max_closed_connections_buffered"))),
+		MaxFailedConnectionsBuffered:   uint32(cfg.GetInt64(join(netNS, "max_failed_connections_buffered"))),
 		ClosedConnectionFlushThreshold: cfg.GetInt(join(spNS, "closed_connection_flush_threshold")),
 		ClosedChannelSize:              cfg.GetInt(join(spNS, "closed_channel_size")),
 		MaxConnectionsStateBuffered:    cfg.GetInt(join(spNS, "max_connection_state_buffered")),
@@ -354,13 +364,16 @@ func New() *Config {
 		EnableHTTP2Monitoring:     cfg.GetBool(join(smNS, "enable_http2_monitoring")),
 		EnableKafkaMonitoring:     cfg.GetBool(join(smNS, "enable_kafka_monitoring")),
 		EnablePostgresMonitoring:  cfg.GetBool(join(smNS, "enable_postgres_monitoring")),
+		EnableRedisMonitoring:     cfg.GetBool(join(smNS, "enable_redis_monitoring")),
 		EnableNativeTLSMonitoring: cfg.GetBool(join(smNS, "tls", "native", "enabled")),
 		EnableIstioMonitoring:     cfg.GetBool(join(smNS, "tls", "istio", "enabled")),
+		EnvoyPath:                 cfg.GetString(join(smNS, "tls", "istio", "envoy_path")),
 		EnableNodeJSMonitoring:    cfg.GetBool(join(smNS, "tls", "nodejs", "enabled")),
 		MaxUSMConcurrentRequests:  uint32(cfg.GetInt(join(smNS, "max_concurrent_requests"))),
 		MaxHTTPStatsBuffered:      cfg.GetInt(join(smNS, "max_http_stats_buffered")),
 		MaxKafkaStatsBuffered:     cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
 		MaxPostgresStatsBuffered:  cfg.GetInt(join(smNS, "max_postgres_stats_buffered")),
+		MaxRedisStatsBuffered:     cfg.GetInt(join(smNS, "max_redis_stats_buffered")),
 
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(smNS, "max_tracked_http_connections")),
 		HTTPNotificationThreshold: cfg.GetInt64(join(smNS, "http_notification_threshold")),

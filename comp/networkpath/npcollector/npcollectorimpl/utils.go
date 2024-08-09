@@ -9,6 +9,7 @@ import (
 	"net"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
 func shouldScheduleNetworkPathForConn(conn *model.Connection) bool {
@@ -20,4 +21,13 @@ func shouldScheduleNetworkPathForConn(conn *model.Connection) bool {
 		return false
 	}
 	return conn.Family == model.ConnectionFamily_v4
+}
+
+func convertProtocol(connType model.ConnectionType) payload.Protocol {
+	if connType == model.ConnectionType_tcp {
+		return payload.ProtocolTCP
+	} else if connType == model.ConnectionType_udp {
+		return payload.ProtocolUDP
+	}
+	return ""
 }

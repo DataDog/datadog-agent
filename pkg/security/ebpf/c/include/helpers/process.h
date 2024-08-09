@@ -13,7 +13,7 @@ static __attribute__((always_inline)) void send_signal(u32 pid) {
     if (is_send_signal_available()) {
         u32 *sig = bpf_map_lookup_elem(&kill_list, &pid);
         if ((sig != NULL && *sig != 0)) {
-#ifdef DEBUG
+#if defined(DEBUG_SEND_SIGNAL)
             bpf_printk("Sending signal %d to pid %d\n", *sig, pid);
 #endif
             bpf_send_signal(*sig);

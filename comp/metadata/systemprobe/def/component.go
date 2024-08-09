@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package def is the metadata provider for system-probe process
-package def
+// Package systemprobe is the metadata provider for system-probe process
+package systemprobe
 
 // team: agent-shared-components
 

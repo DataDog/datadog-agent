@@ -141,24 +141,18 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 		return fmt.Sprintf("produce%d_fetch%d", produce, fetch)
 	}
 
-	t.Run("without TLS", func(t *testing.T) {
-		for _, version := range versions {
-			t.Run(versionName(version), func(t *testing.T) {
-				s.testKafkaProtocolParsing(t, false, version)
-			})
-		}
-	})
-
-	t.Run("with TLS", func(t *testing.T) {
-		if !gotlsutils.GoTLSSupported(t, config.New()) {
-			t.Skip("GoTLS not supported for this setup")
-		}
-		for _, version := range versions {
-			t.Run(versionName(version), func(t *testing.T) {
-				s.testKafkaProtocolParsing(t, true, version)
-			})
-		}
-	})
+	for mode, name := range map[bool]string{false: "without TLS", true: "with TLS"} {
+		t.Run(name, func(t *testing.T) {
+			if mode && !gotlsutils.GoTLSSupported(t, config.New()) {
+				t.Skip("GoTLS not supported for this setup")
+			}
+			for _, version := range versions {
+				t.Run(versionName(version), func(t *testing.T) {
+					s.testKafkaProtocolParsing(t, mode, version)
+				})
+			}
+		})
+	}
 }
 
 func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls bool, version *kversion.Versions) {
@@ -176,7 +170,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 	serverAddress := net.JoinHostPort(serverHost, port)
 	targetAddress := net.JoinHostPort(targetHost, port)
 
-	dialFn := func(ctx context.Context, network, address string) (net.Conn, error) {
+	dialFn := func(ctx context.Context, _, _ string) (net.Conn, error) {
 		var d net.Dialer
 		return d.DialContext(ctx, "unix", unixPath)
 	}
@@ -532,7 +526,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 	cfg := getDefaultTestConfiguration(tls)
 	monitor := newKafkaMonitor(t, cfg)
 	if tls && cfg.EnableGoTLSSupport {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -781,6 +775,9 @@ func (can *CannedClientServer) runClient(msgs []Message) {
 	conn, err := net.Dial("unix", can.unixPath)
 	require.NoError(can.t, err)
 	can.t.Cleanup(func() { _ = conn.Close() })
+
+	// Safety measure to avoid blocking forever in the case of bugs.
+	conn.SetDeadline(time.Now().Add(30 * time.Second))
 
 	reader := bufio.NewReader(conn)
 	for _, msg := range msgs {
@@ -1136,7 +1133,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 
 	monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
 	if tls {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyPid)
+		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyPid, utils.ManualTracingFallbackEnabled)
 	}
 
 	for _, tt := range tests {
@@ -1343,7 +1340,7 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 
 	monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
 	if tls {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyPid)
+		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyPid, utils.ManualTracingFallbackEnabled)
 	}
 
 	for _, tt := range tests {
@@ -1445,7 +1442,7 @@ func (i *PrintableInt) Add(other int) {
 
 func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount int, topicName string, validation kafkaParsingValidation, errorCode int32) map[kafka.Key]*kafka.RequestStats {
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		protocolStats := monitor.GetProtocolStats()
 		kafkaProtocolStats, exists := protocolStats[protocols.Kafka]
 		// We might not have kafka stats, and it might be the expected case (to capture 0).
@@ -1465,12 +1462,16 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 			validateProduceFetchCount(collect, kafkaStats, topicName, validation, errorCode)
 		}
 	}, time.Second*5, time.Millisecond*10)
+	if t.Failed() {
+		ebpftest.DumpMapsTestHelper(t, monitor.ebpfProgram.Manager.Manager.DumpMaps, "kafka_in_flight", "kafka_batches", "kafka_response", "kafka_telemetry")
+		t.FailNow()
+	}
 	return kafkaStats
 }
 
 func getAndValidateKafkaStatsWithErrorCodes(t *testing.T, monitor *Monitor, expectedStatsCount int, topicName string, validation kafkaParsingValidationWithErrorCodes) map[kafka.Key]*kafka.RequestStats {
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		protocolStats := monitor.GetProtocolStats()
 		kafkaProtocolStats, exists := protocolStats[protocols.Kafka]
 		// We might not have kafka stats, and it might be the expected case (to capture 0).
@@ -1490,6 +1491,10 @@ func getAndValidateKafkaStatsWithErrorCodes(t *testing.T, monitor *Monitor, expe
 			validateProduceFetchCountWithErrorCodes(collect, kafkaStats, topicName, validation)
 		}
 	}, time.Second*5, time.Millisecond*10)
+	if t.Failed() {
+		ebpftest.DumpMapsTestHelper(t, monitor.ebpfProgram.Manager.Manager.DumpMaps, "kafka_in_flight", "kafka_batches", "kafka_response", "kafka_telemetry")
+		t.FailNow()
+	}
 	return kafkaStats
 }
 
@@ -1519,6 +1524,7 @@ func validateProduceFetchCount(t *assert.CollectT, kafkaStats map[kafka.Key]*kaf
 			numberOfProduceRequests += kafkaStat.ErrorCodeToStat[errorCode].Count
 		case kafka.FetchAPIKey:
 			assert.Equal(t, uint16(validation.expectedAPIVersionFetch), kafkaKey.RequestVersion)
+			assert.Greater(t, kafkaStat.ErrorCodeToStat[errorCode].FirstLatencySample, float64(1))
 			numberOfFetchRequests += kafkaStat.ErrorCodeToStat[errorCode].Count
 		default:
 			assert.FailNow(t, "Expecting only produce or fetch kafka requests")

@@ -7,7 +7,6 @@
 package diagnose
 
 import (
-	"slices"
 	"testing"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
@@ -24,7 +23,10 @@ type linuxDiagnoseSuite struct {
 
 func TestLinuxDiagnoseSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxDiagnoseSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
+	var suite linuxDiagnoseSuite
+	suite.suites = append(suite.suites, commonSuites...)
+	suite.suites = append(suite.suites, "port-conflict")
+	e2e.Run(t, &suite, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
 func (v *linuxDiagnoseSuite) TestDiagnoseOtherCmdPort() {
@@ -47,15 +49,11 @@ func (v *linuxDiagnoseSuite) TestDiagnoseLocalFallback() {
 }
 
 func (v *linuxDiagnoseSuite) TestDiagnoseInclude() {
-	if !slices.Contains(allSuites, "port-conflict") {
-		allSuites = append(allSuites, "port-conflict")
-	}
 	v.AssertDiagnoseInclude()
+	v.AssertDiagnoseJSONInclude()
 }
 
 func (v *linuxDiagnoseSuite) TestDiagnoseExclude() {
-	if !slices.Contains(allSuites, "port-conflict") {
-		allSuites = append(allSuites, "port-conflict")
-	}
-	v.AssertDiagnoseInclude()
+	v.AssertDiagnoseExclude()
+	v.AssertDiagnoseJSONExclude()
 }

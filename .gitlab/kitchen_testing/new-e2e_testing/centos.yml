@@ -8,7 +8,9 @@
     E2E_OSVERS: "centos-79,rhel-86"
     E2E_CWS_SUPPORTED_OSVERS: "centos-79,rhel-86"
     E2E_BRANCH_OSVERS: "centos-79"
-  needs: ["deploy_rpm_testing-a6_x64"]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_rpm_testing-a6_x64
 
 .new-e2e_centos_a7_x86_64:
   variables:
@@ -16,7 +18,9 @@
     E2E_OSVERS: "centos-79,rhel-86"
     E2E_CWS_SUPPORTED_OSVERS: "centos-79,rhel-86"
     E2E_BRANCH_OSVERS: "centos-79"
-  needs: ["deploy_rpm_testing-a7_x64"]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_rpm_testing-a7_x64
 
 .new-e2e_centos-fips_a7_x86_64:
   variables:
@@ -24,7 +28,9 @@
     E2E_OSVERS: "rhel-86-fips"
     E2E_CWS_SUPPORTED_OSVERS: "rhel-86-fips"
     E2E_BRANCH_OSVERS: "rhel-86-fips"
-  needs: ["deploy_rpm_testing-a7_x64"]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_rpm_testing-a7_x64
 
 .new-e2e_centos-fips_a6_x86_64:
   variables:
@@ -32,7 +38,9 @@
     E2E_OSVERS: "rhel-86-fips"
     E2E_CWS_SUPPORTED_OSVERS: "rhel-86-fips"
     E2E_BRANCH_OSVERS: "rhel-86-fips"
-  needs: ["deploy_rpm_testing-a6_x64"]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_rpm_testing-a6_x64
 
 .new-e2e_centos6_a7_x86_64:
   variables:
@@ -40,7 +48,9 @@
     E2E_OSVERS: "centos-610"
     E2E_BRANCH_OSVERS: "centos-610"
     E2E_OVERRIDE_INSTANCE_TYPE: "t2.medium" # CentOS 6 does not support ENA, so we cannot use t3 instances
-  needs: ["deploy_rpm_testing-a7_x64"]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_rpm_testing-a7_x64
 
 new-e2e-agent-platform-install-script-centos-a6-x86_64:
   stage: kitchen_testing

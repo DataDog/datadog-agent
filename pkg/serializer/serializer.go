@@ -387,7 +387,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 func (s *Serializer) getFailoverAllowlist() (bool, map[string]struct{}) {
 	failoverActive := s.config.GetBool("multi_region_failover.enabled") && s.config.GetBool("multi_region_failover.failover_metrics")
 	var allowlist map[string]struct{}
-	if failoverActive {
+	if failoverActive && s.config.IsSet("multi_region_failover.metric_allowlist") {
 		rawList := s.config.GetStringSlice("multi_region_failover.metric_allowlist")
 		allowlist = make(map[string]struct{}, len(rawList))
 		for _, allowed := range rawList {

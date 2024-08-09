@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/vishvananda/netns"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	eventmonitortestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil"
@@ -35,6 +36,22 @@ func getProcessMonitor(t *testing.T) *ProcessMonitor {
 	return pm
 }
 
+func waitForProcessMonitor(t *testing.T, pm *ProcessMonitor) {
+	execCounter := atomic.NewInt32(0)
+	execCallback := func(_ uint32) { execCounter.Inc() }
+	registerCallback(t, pm, true, (*ProcessCallback)(&execCallback))
+
+	exitCounter := atomic.NewInt32(0)
+	// Sanity subscribing a callback.
+	exitCallback := func(_ uint32) { exitCounter.Inc() }
+	registerCallback(t, pm, false, (*ProcessCallback)(&exitCallback))
+
+	require.Eventually(t, func() bool {
+		_ = exec.Command("/bin/echo").Run()
+		return execCounter.Load() > 0 && exitCounter.Load() > 0
+	}, 10*time.Second, time.Millisecond*200)
+}
+
 func initializePM(t *testing.T, pm *ProcessMonitor, useEventStream bool) {
 	require.NoError(t, pm.Initialize(useEventStream))
 	if useEventStream {
@@ -46,7 +63,7 @@ func initializePM(t *testing.T, pm *ProcessMonitor, useEventStream bool) {
 			log.Info("process monitoring test consumer initialized")
 		})
 	}
-	time.Sleep(time.Millisecond * 500)
+	waitForProcessMonitor(t, pm)
 }
 
 func registerCallback(t *testing.T, pm *ProcessMonitor, isExec bool, callback *ProcessCallback) func() {
@@ -181,24 +198,24 @@ func (s *processMonitorSuite) TestProcessRegisterMultipleCallbacks() {
 	cmd := exec.Command("/bin/sleep", "1")
 	require.NoError(t, cmd.Run())
 	require.Eventuallyf(t, func() bool {
+		// Instead of breaking immediately when we don't find the event, we want logs to be printed for all iterations.
+		found := true
 		for i := 0; i < iterations; i++ {
 			execCountersMutexes[i].RLock()
 			if _, captured := execCounters[i][uint32(cmd.Process.Pid)]; !captured {
-				execCountersMutexes[i].RUnlock()
 				t.Logf("iter %d didn't capture exec event", i)
-				return false
+				found = false
 			}
 			execCountersMutexes[i].RUnlock()
 
 			exitCountersMutexes[i].RLock()
 			if _, captured := exitCounters[i][uint32(cmd.Process.Pid)]; !captured {
-				exitCountersMutexes[i].RUnlock()
 				t.Logf("iter %d didn't capture exit event", i)
-				return false
+				found = false
 			}
 			exitCountersMutexes[i].RUnlock()
 		}
-		return true
+		return found
 	}, time.Second, time.Millisecond*200, "at least of the callbacks didn't capture events")
 
 	require.GreaterOrEqual(t, pm.tel.events.Get(), pm.tel.exec.Get(), "events is not >= than exec")

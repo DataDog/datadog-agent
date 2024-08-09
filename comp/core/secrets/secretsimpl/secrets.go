@@ -104,6 +104,8 @@ type secretResolver struct {
 
 	// Telemetry
 	tlmSecretBackendElapsed telemetry.Gauge
+	tlmSecretUnmarshalError telemetry.Counter
+	tlmSecretResolveError   telemetry.Counter
 }
 
 var _ secrets.Component = (*secretResolver)(nil)
@@ -114,6 +116,8 @@ func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 		origin:                  make(handleToContext),
 		enabled:                 true,
 		tlmSecretBackendElapsed: telemetry.NewGauge("secret_backend", "elapsed_ms", []string{"command", "exit_code"}, "Elapsed time of secret backend invocation"),
+		tlmSecretUnmarshalError: telemetry.NewCounter("secret_backend", "unmarshal_errors_count", []string{}, "Count of errors when unmarshalling the output of the secret binary"),
+		tlmSecretResolveError:   telemetry.NewCounter("secret_backend", "resolve_errors_count", []string{"error_kind", "handle"}, "Count of errors when resolving a secret"),
 	}
 }
 
@@ -365,7 +369,7 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 // allowlistPaths restricts what config settings may be updated
 // tests can override this to exercise functionality: by setting this to nil, allow all settings
 // NOTE: Related feature to `authorizedConfigPathsCore` in `comp/api/api/apiimpl/internal/config/endpoint.go`
-var allowlistPaths = map[string]struct{}{"api_key": {}}
+var allowlistPaths = map[string]struct{}{"api_key": {}, "app_key": {}, "external_metrics_provider/api_key": {}, "external_metrics_provider/app_key": {}}
 
 // matchesAllowlist returns whether the handle is allowed, by matching all setting paths that
 // handle appears at against the allowlist

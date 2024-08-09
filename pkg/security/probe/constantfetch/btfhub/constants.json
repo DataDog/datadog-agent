@@ -11838,6 +11838,20 @@
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
+			"uname_release": "4.14.348-265.565.amzn2.aarch64",
+			"cindex": 3
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
+			"uname_release": "4.14.349-266.564.amzn2.aarch64",
+			"cindex": 3
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
 			"uname_release": "4.14.77-80.57.amzn2.aarch64",
 			"cindex": 4
 		},
@@ -12615,6 +12629,20 @@
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "x86_64",
+			"uname_release": "4.14.348-265.565.amzn2.x86_64",
+			"cindex": 8
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.349-266.564.amzn2.x86_64",
+			"cindex": 8
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
 			"uname_release": "4.14.42-61.37.amzn2.x86_64",
 			"cindex": 9
 		},
@@ -13302,6 +13330,20 @@
 			"version": "2018",
 			"arch": "x86_64",
 			"uname_release": "4.14.348-187.562.amzn1.x86_64",
+			"cindex": 15
+		},
+		{
+			"distrib": "amzn",
+			"version": "2018",
+			"arch": "x86_64",
+			"uname_release": "4.14.348-187.565.amzn1.x86_64",
+			"cindex": 15
+		},
+		{
+			"distrib": "amzn",
+			"version": "2018",
+			"arch": "x86_64",
+			"uname_release": "4.14.349-188.564.amzn1.x86_64",
 			"cindex": 15
 		},
 		{
@@ -14701,6 +14743,20 @@
 			"distrib": "debian",
 			"version": "10",
 			"arch": "arm64",
+			"uname_release": "4.19.0-27-arm64",
+			"cindex": 48
+		},
+		{
+			"distrib": "debian",
+			"version": "10",
+			"arch": "arm64",
+			"uname_release": "4.19.0-27-rt-arm64",
+			"cindex": 49
+		},
+		{
+			"distrib": "debian",
+			"version": "10",
+			"arch": "arm64",
 			"uname_release": "4.19.0-3-arm64",
 			"cindex": 42
 		},
@@ -15402,6 +15458,27 @@
 			"version": "10",
 			"arch": "x86_64",
 			"uname_release": "4.19.0-26-rt-amd64",
+			"cindex": 62
+		},
+		{
+			"distrib": "debian",
+			"version": "10",
+			"arch": "x86_64",
+			"uname_release": "4.19.0-27-amd64",
+			"cindex": 61
+		},
+		{
+			"distrib": "debian",
+			"version": "10",
+			"arch": "x86_64",
+			"uname_release": "4.19.0-27-cloud-amd64",
+			"cindex": 61
+		},
+		{
+			"distrib": "debian",
+			"version": "10",
+			"arch": "x86_64",
+			"uname_release": "4.19.0-27-rt-amd64",
 			"cindex": 62
 		},
 		{

@@ -23,6 +23,7 @@ import (
 type GlobalParams struct {
 	ConfigFilePaths      []string
 	SysProbeConfFilePath string
+	FleetPoliciesDirPath string
 
 	// NoColor is a flag to disable color output
 	NoColor bool
@@ -53,7 +54,7 @@ func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
 		Long: `
 Datadog Security Agent takes care of running compliance and security checks.`,
 		SilenceUsage: true, // don't print usage on errors
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 			if globalParams.NoColor {
 				color.NoColor = true
 			}
@@ -68,6 +69,7 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&globalParams.ConfigFilePaths, "cfgpath", "c", defaultSecurityAgentConfigFilePaths, "paths to yaml configuration files")
 	SecurityAgentCmd.PersistentFlags().StringVar(&globalParams.SysProbeConfFilePath, "sysprobe-config", defaultSysProbeConfPath, "path to system-probe.yaml config")
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&globalParams.NoColor, "no-color", "n", false, "disable color output")
+	SecurityAgentCmd.PersistentFlags().StringVar(&globalParams.FleetPoliciesDirPath, "fleetcfgpath", "", "path to the directory containing fleet policies")
 
 	for _, factory := range subcommandFactories {
 		for _, subcmd := range factory(&globalParams) {

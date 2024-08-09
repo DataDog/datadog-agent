@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:generate go run golang.org/x/tools/cmd/stringer@latest -output event_common_string.go -type=ConnectionType,ConnectionFamily,ConnectionDirection,EphemeralPortType -linecomment
+
 package network
 
 import (
@@ -19,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -40,85 +43,64 @@ const (
 	UDP ConnectionType = 1
 )
 
-func (c ConnectionType) String() string {
-	if c == TCP {
-		return "TCP"
+var (
+	tcpLabels = map[string]string{"ip_proto": TCP.String()}
+	udpLabels = map[string]string{"ip_proto": UDP.String()}
+)
+
+// Tags returns `ip_proto` tags for use in hot-path telemetry
+func (c ConnectionType) Tags() map[string]string {
+	switch c {
+	case TCP:
+		return tcpLabels
+	case UDP:
+		return udpLabels
+	default:
+		return nil
 	}
-	return "UDP"
 }
 
 const (
 	// AFINET represents v4 connections
-	AFINET ConnectionFamily = 0
+	AFINET ConnectionFamily = 0 // v4
 
 	// AFINET6 represents v6 connections
-	AFINET6 ConnectionFamily = 1
+	AFINET6 ConnectionFamily = 1 // v6
 )
 
 // ConnectionFamily will be either v4 or v6
 type ConnectionFamily uint8
-
-func (c ConnectionFamily) String() string {
-	if c == AFINET {
-		return "v4"
-	}
-	return "v6"
-}
 
 // ConnectionDirection indicates if the connection is incoming to the host or outbound
 type ConnectionDirection uint8
 
 const (
 	// INCOMING represents connections inbound to the host
-	INCOMING ConnectionDirection = 1
+	INCOMING ConnectionDirection = 1 // incoming
 
 	// OUTGOING represents outbound connections from the host
-	OUTGOING ConnectionDirection = 2
+	OUTGOING ConnectionDirection = 2 // outgoing
 
 	// LOCAL represents connections that don't leave the host
-	LOCAL ConnectionDirection = 3
+	LOCAL ConnectionDirection = 3 // local
 
 	// NONE represents connections that have no direction (udp, for example)
-	NONE ConnectionDirection = 4
+	NONE ConnectionDirection = 4 // none
 )
-
-func (d ConnectionDirection) String() string {
-	switch d {
-	case OUTGOING:
-		return "outgoing"
-	case LOCAL:
-		return "local"
-	case NONE:
-		return "none"
-	default:
-		return "incoming"
-	}
-}
 
 // EphemeralPortType will be either EphemeralUnknown, EphemeralTrue, EphemeralFalse
 type EphemeralPortType uint8
 
 const (
 	// EphemeralUnknown indicates inability to determine whether the port is in the ephemeral range or not
-	EphemeralUnknown EphemeralPortType = 0
+	EphemeralUnknown EphemeralPortType = 0 // unspecified
 
 	// EphemeralTrue means the port has been detected to be in the configured ephemeral range
-	EphemeralTrue EphemeralPortType = 1
+	EphemeralTrue EphemeralPortType = 1 // ephemeral
 
 	// EphemeralFalse means the port has been detected to not be in the configured ephemeral range
-	EphemeralFalse EphemeralPortType = 2
+	EphemeralFalse EphemeralPortType = 2 // not ephemeral
 )
-
-func (e EphemeralPortType) String() string {
-	switch e {
-	case EphemeralTrue:
-		return "ephemeral"
-	case EphemeralFalse:
-		return "not ephemeral"
-	default:
-		return "unspecified"
-	}
-}
 
 // BufferedData encapsulates data whose underlying memory can be recycled
 type BufferedData struct {
@@ -139,6 +121,7 @@ type Connections struct {
 	HTTP2                       map[http.Key]*http.RequestStats
 	Kafka                       map[kafka.Key]*kafka.RequestStats
 	Postgres                    map[postgres.Key]*postgres.RequestStat
+	Redis                       map[redis.Key]*redis.RequestStat
 }
 
 // NewConnections create a new Connections object
@@ -274,7 +257,7 @@ type ConnectionStats struct {
 	Direction        ConnectionDirection
 	SPortIsEphemeral EphemeralPortType
 	StaticTags       uint64
-	Tags             map[*intern.Value]struct{}
+	Tags             []*intern.Value
 
 	IntraHost bool
 	IsAssured bool
@@ -317,6 +300,17 @@ func (c ConnectionStats) String() string {
 // IsExpired returns whether the connection is expired according to the provided time and timeout.
 func (c ConnectionStats) IsExpired(now uint64, timeout uint64) bool {
 	return c.LastUpdateEpoch+timeout <= now
+}
+
+// IsEmpty returns whether the connection has any statistics
+func (c ConnectionStats) IsEmpty() bool {
+	// TODO why does this not include TCPEstablished and TCPClosed?
+	return c.Monotonic.RecvBytes == 0 &&
+		c.Monotonic.RecvPackets == 0 &&
+		c.Monotonic.SentBytes == 0 &&
+		c.Monotonic.SentPackets == 0 &&
+		c.Monotonic.Retransmits == 0 &&
+		len(c.TCPFailures) == 0
 }
 
 // ByteKey returns a unique key for this connection represented as a byte slice
@@ -475,32 +469,16 @@ func (s StatCounters) Add(other StatCounters) StatCounters {
 	}
 }
 
-func maxUint64(a, b uint64) uint64 {
-	if a > b {
-		return a
-	}
-
-	return b
-}
-
-func maxUint32(a, b uint32) uint32 {
-	if a > b {
-		return a
-	}
-
-	return b
-}
-
 // Max returns max(s, other)
 func (s StatCounters) Max(other StatCounters) StatCounters {
 	return StatCounters{
-		RecvBytes:      maxUint64(s.RecvBytes, other.RecvBytes),
-		RecvPackets:    maxUint64(s.RecvPackets, other.RecvPackets),
-		Retransmits:    maxUint32(s.Retransmits, other.Retransmits),
-		SentBytes:      maxUint64(s.SentBytes, other.SentBytes),
-		SentPackets:    maxUint64(s.SentPackets, other.SentPackets),
-		TCPClosed:      maxUint32(s.TCPClosed, other.TCPClosed),
-		TCPEstablished: maxUint32(s.TCPEstablished, other.TCPEstablished),
+		RecvBytes:      max(s.RecvBytes, other.RecvBytes),
+		RecvPackets:    max(s.RecvPackets, other.RecvPackets),
+		Retransmits:    max(s.Retransmits, other.Retransmits),
+		SentBytes:      max(s.SentBytes, other.SentBytes),
+		SentPackets:    max(s.SentPackets, other.SentPackets),
+		TCPClosed:      max(s.TCPClosed, other.TCPClosed),
+		TCPEstablished: max(s.TCPEstablished, other.TCPEstablished),
 	}
 }
 

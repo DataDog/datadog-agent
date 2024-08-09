@@ -138,7 +138,7 @@ This procedure ensures you not only get the correct version of `invoke`, but als
 
 ### Golang
 
-You must [install Golang](https://golang.org/doc/install) version `1.22.5` or
+You must [install Golang](https://golang.org/doc/install) version `1.22.6` or
 higher. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
 cannot use any additional tool it might need.
 
@@ -259,6 +259,13 @@ pre-commit run ruff --all-files  # run ruff on all files
 
 See `pre-commit run --help` for further options.
 
+### Creating a Visual Studio Code settings file
+
+To configure your IDE to work with `datadog-agent` repository, specify build tags in `.vscode/settings`. Run the following command to create the file:
+```
+inv setup.vscode-settings
+```
+
 ### Setting up Visual Studio Code Dev Container
 
 [Microsoft Visual Studio Code](https://code.visualstudio.com/download) with the [devcontainer plugin](https://code.visualstudio.com/docs/remote/containers) allow to use a container as remote development environment in vscode. It simplify and isolate
@@ -280,3 +287,5 @@ To configure the vscode editor to use a container as remote development environm
 [Microsoft Visual Studio Code](https://code.visualstudio.com/download) is recommended as it's lightweight and versatile.
 
 Building on Windows requires multiple 3rd-party software to be installed. To avoid the complexity, Datadog recommends to make the code change in VS Code, and then do the build in Docker image. For complete information, see [Build the Agent packages](https://github.com/DataDog/datadog-agent/blob/main/docs/dev/agent_omnibus.md)
+
+

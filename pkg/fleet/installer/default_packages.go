@@ -6,6 +6,7 @@
 package installer
 
 import (
+	"regexp"
 	"slices"
 	"strings"
 
@@ -35,6 +36,14 @@ var PackagesList = []Package{
 }
 
 var packageDependencies = map[string][]string{}
+
+var apmPackageDefaultVersions = map[string]string{
+	"datadog-apm-library-java":   "1",
+	"datadog-apm-library-ruby":   "2",
+	"datadog-apm-library-js":     "5",
+	"datadog-apm-library-dotnet": "2",
+	"datadog-apm-library-python": "2",
+}
 
 // DefaultPackages resolves the default packages URLs to install based on the environment.
 func DefaultPackages(env *env.Env) []string {
@@ -92,12 +101,24 @@ func apmLanguageEnabled(p Package, e *env.Env) bool {
 	return false
 }
 
+var fullSemverRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+`)
+
 func apmLanguageVersion(p Package, e *env.Env) string {
-	if apmLibVersion, ok := e.ApmLibraries[packageToLanguage(p.Name)]; ok {
-		return apmLibVersion.AsVersionTag()
-		// TODO(paullgdc): Emit a warning here if APM packages are not pinned to at least a major
+	version := "latest"
+	if defaultVersion, ok := apmPackageDefaultVersions[p.Name]; ok {
+		version = defaultVersion
 	}
-	return "latest"
+
+	apmLibVersion := e.ApmLibraries[packageToLanguage(p.Name)]
+	if apmLibVersion == "" {
+		return version
+	}
+
+	versionTag, _ := strings.CutPrefix(string(apmLibVersion), "v")
+	if fullSemverRe.MatchString(versionTag) {
+		return versionTag + "-1"
+	}
+	return versionTag
 }
 
 func packageToLanguage(packageName string) env.ApmLibLanguage {

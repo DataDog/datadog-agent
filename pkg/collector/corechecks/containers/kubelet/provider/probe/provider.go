@@ -83,7 +83,7 @@ func (p *Provider) proberProbeTotal(metricFam *prom.MetricFamily, sender sender.
 			return
 		}
 
-		cID := common.GetContainerID(p.store, metric.Metric, p.filter)
+		cID, _ := common.GetContainerID(p.store, metric.Metric, p.filter)
 		if cID == "" {
 			return
 		}

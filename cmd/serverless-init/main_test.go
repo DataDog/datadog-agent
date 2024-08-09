@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -27,7 +27,7 @@ func TestTagsSetup(t *testing.T) {
 	// TODO: Fix and re-enable flaky test
 	t.Skip()
 
-	config.Mock(t)
+	configmock.New(t)
 
 	ddTagsEnv := "key1:value1 key2:value2 key3:value3:4"
 	ddExtraTagsEnv := "key22:value22 key23:value23"

@@ -77,6 +77,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// CWS - SBOM
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.workloads_cache_size", 10)
+	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.host.enabled", false)
 
 	// CWS - Security Profiles
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.enabled", true)

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Remove the original pod annotation on consul

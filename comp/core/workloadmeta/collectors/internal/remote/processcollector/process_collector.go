@@ -48,7 +48,7 @@ type client struct {
 	parentCollector *streamHandler
 }
 
-func (c *client) StreamEntities(ctx context.Context, opts ...grpc.CallOption) (remote.Stream, error) { //nolint:revive // TODO fix revive unused-parameter
+func (c *client) StreamEntities(ctx context.Context) (remote.Stream, error) {
 	log.Debug("starting a new stream")
 	streamcl, err := c.cl.StreamEntities(
 		ctx,
@@ -74,8 +74,8 @@ type streamHandler struct {
 	config.Reader
 }
 
-// WorkloadmetaEventFromProcessEventSet converts the given ProcessEventSet into a workloadmeta.Event
-func WorkloadmetaEventFromProcessEventSet(protoEvent *pbgo.ProcessEventSet) (workloadmeta.Event, error) {
+// workloadmetaEventFromProcessEventSet converts the given ProcessEventSet into a workloadmeta.Event
+func workloadmetaEventFromProcessEventSet(protoEvent *pbgo.ProcessEventSet) (workloadmeta.Event, error) {
 	if protoEvent == nil {
 		return workloadmeta.Event{}, nil
 	}
@@ -95,8 +95,8 @@ func WorkloadmetaEventFromProcessEventSet(protoEvent *pbgo.ProcessEventSet) (wor
 	}, nil
 }
 
-// WorkloadmetaEventFromProcessEventUnset converts the given ProcessEventSet into a workloadmeta.Event
-func WorkloadmetaEventFromProcessEventUnset(protoEvent *pbgo.ProcessEventUnset) (workloadmeta.Event, error) {
+// workloadmetaEventFromProcessEventUnset converts the given ProcessEventSet into a workloadmeta.Event
+func workloadmetaEventFromProcessEventUnset(protoEvent *pbgo.ProcessEventUnset) (workloadmeta.Event, error) {
 	if protoEvent == nil {
 		return workloadmeta.Event{}, nil
 	}
@@ -163,8 +163,8 @@ func (s *streamHandler) HandleResponse(store workloadmeta.Component, resp interf
 	}
 
 	collectorEvents := make([]workloadmeta.CollectorEvent, 0, len(response.SetEvents)+len(response.UnsetEvents))
-	collectorEvents = handleEvents(collectorEvents, response.UnsetEvents, WorkloadmetaEventFromProcessEventUnset)
-	collectorEvents = handleEvents(collectorEvents, response.SetEvents, WorkloadmetaEventFromProcessEventSet)
+	collectorEvents = handleEvents(collectorEvents, response.UnsetEvents, workloadmetaEventFromProcessEventUnset)
+	collectorEvents = handleEvents(collectorEvents, response.SetEvents, workloadmetaEventFromProcessEventSet)
 	s.populateMissingContainerID(collectorEvents, store)
 	log.Tracef("collected [%d] events", len(collectorEvents))
 	return collectorEvents, nil

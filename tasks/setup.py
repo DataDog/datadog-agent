@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 import re
 import sys
+import traceback
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -14,6 +15,7 @@ from typing import TYPE_CHECKING
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks import vscode
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.status import Status
 from tasks.libs.common.utils import running_in_pyapp
@@ -32,7 +34,7 @@ class SetupResult:
 
 
 @task(default=True)
-def setup(ctx):
+def setup(ctx, vscode=False):
     """
     Set up your environment
     """
@@ -43,8 +45,16 @@ def setup(ctx):
         update_python_dependencies,
         download_go_tools,
         install_go_tools,
+        install_protoc,
         enable_pre_commit,
     ]
+
+    if vscode:
+        setup_functions.append(setup_vscode)
+    else:
+        print(
+            f'{color_message("warning:", Color.ORANGE)} Skipping vscode setup, run `inv setup --vscode` to setup vscode as well'
+        )
 
     results = []
 
@@ -202,6 +212,21 @@ def enable_pre_commit(ctx) -> SetupResult:
     return SetupResult("Enable pre-commit", status, message)
 
 
+def setup_vscode(ctx) -> SetupResult:
+    print(color_message("Setting up VS Code...", Color.BLUE))
+
+    try:
+        vscode.setup(ctx, force=True)
+        message = "VS Code setup completed."
+        status = Status.OK
+    except Exception:
+        trace = traceback.format_exc()
+        message = f'VS Code setup failed:\n{trace}'
+        status = Status.FAIL
+
+    return SetupResult("Setup vscode", status, message)
+
+
 def install_go_tools(ctx) -> SetupResult:
     print(color_message("Installing go tools...", Color.BLUE))
     status = Status.OK
@@ -214,6 +239,20 @@ def install_go_tools(ctx) -> SetupResult:
         status = Status.FAIL
 
     return SetupResult("Install Go tools", status)
+
+
+def install_protoc(ctx) -> SetupResult:
+    print(color_message("Installing protoc...", Color.BLUE))
+    status = Status.OK
+
+    try:
+        from tasks import install_protoc
+
+        install_protoc(ctx)
+    except Exception:
+        status = Status.FAIL
+
+    return SetupResult("Install protoc", status)
 
 
 def download_go_tools(ctx) -> SetupResult:

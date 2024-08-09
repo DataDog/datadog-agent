@@ -45,12 +45,12 @@ type SysProbeListener struct {
 
 // NewListener returns a new SysProbeListener to listen for process events
 func NewListener(handler EventHandler) (*SysProbeListener, error) {
-	socketPath := ddconfig.SystemProbe.GetString("event_monitoring_config.socket")
+	socketPath := ddconfig.SystemProbe().GetString("event_monitoring_config.socket")
 	if socketPath == "" {
 		return nil, errors.New("event_monitoring_config.socket must be set")
 	}
 
-	conn, err := grpc.Dial(socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) { //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
+	conn, err := grpc.Dial(socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) { //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
 		return net.Dial("unix", url)
 	}))
 	if err != nil {

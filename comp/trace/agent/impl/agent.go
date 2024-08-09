@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package agent defines the tracer agent.
-package agent
+// Package agentimpl defines the tracer agent.
+package agentimpl
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/debug"
 	"runtime/pprof"
 	"strconv"
 	"sync"
@@ -29,8 +30,10 @@ import (
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	agentrt "github.com/DataDog/datadog-agent/pkg/runtime"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
@@ -118,6 +121,9 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		return nil, err
 	}
 	setupShutdown(ctx, deps.Shutdowner, statsdCl)
+
+	prepGoRuntime(tracecfg)
+
 	c.Agent = pkgagent.NewAgent(
 		ctx,
 		c.config.Object(),
@@ -133,6 +139,49 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		OnStop:  func(_ context.Context) error { return stop(c) },
 	})
 	return c, nil
+}
+
+func prepGoRuntime(tracecfg *tracecfg.AgentConfig) {
+	cgsetprocs := agentrt.SetMaxProcs()
+	if !cgsetprocs {
+		if mp, ok := os.LookupEnv("GOMAXPROCS"); ok {
+			log.Infof("GOMAXPROCS manually set to %v", mp)
+		} else if tracecfg.MaxCPU > 0 {
+			allowedCores := int(tracecfg.MaxCPU / 100)
+			if allowedCores < 1 {
+				allowedCores = 1
+			}
+			if allowedCores < runtime.GOMAXPROCS(0) {
+				log.Infof("apm_config.max_cpu is less than current GOMAXPROCS. Setting GOMAXPROCS to (%v) %d\n", allowedCores, allowedCores)
+				runtime.GOMAXPROCS(int(allowedCores))
+			}
+		} else {
+			log.Infof("apm_config.max_cpu is disabled. leaving GOMAXPROCS at current value.")
+		}
+	}
+	log.Infof("Trace Agent final GOMAXPROCS: %v", runtime.GOMAXPROCS(0))
+
+	cgmem, err := agentrt.SetGoMemLimit(coreconfig.IsContainerized())
+	if err != nil {
+		log.Infof("Couldn't set Go memory limit from cgroup: %s", err)
+	}
+	if cgmem == 0 {
+		// memory limit not set from cgroups
+		if lim, ok := os.LookupEnv("GOMEMLIMIT"); ok {
+			log.Infof("GOMEMLIMIT manually set to: %v", lim)
+		} else if tracecfg.MaxMemory > 0 {
+			// We have apm_config.max_memory, and no cgroup memory limit is in place.
+			// log.Infof("apm_config.max_memory: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024))
+			finalmem := int64(tracecfg.MaxMemory * 0.9)
+			debug.SetMemoryLimit(finalmem)
+			log.Infof("apm_config.max_memory set to: %vMiB. Setting GOMEMLIMIT to 90%% of max: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024), finalmem/(1024*1024))
+		} else {
+			// There are no memory constraints
+			log.Infof("GOMEMLIMIT unconstrained.")
+		}
+	} else {
+		log.Infof("Memory constrained by cgroup. GOMEMLIMIT is: %vMiB", cgmem/(1024*1024))
+	}
 }
 
 func start(ag component) error {
@@ -179,7 +228,10 @@ func setupMetrics(statsd statsd.Component, cfg config.Component, telemetryCollec
 		return nil, fmt.Errorf("cannot configure dogstatsd: %v", err)
 	}
 
-	_ = client.Count("datadog.trace_agent.started", 1, nil, 1)
+	err = client.Count("datadog.trace_agent.started", 1, nil, 1)
+	if err != nil {
+		log.Error("Failed to emit datadog.trace_agent.started metric: ", err)
+	}
 	return client, nil
 }
 

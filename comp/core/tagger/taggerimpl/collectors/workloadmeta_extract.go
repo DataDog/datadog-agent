@@ -342,6 +342,7 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 	tagList.AddLow(tags.PodPhase, strings.ToLower(pod.Phase))
 	tagList.AddLow(tags.KubePriorityClass, pod.PriorityClass)
 	tagList.AddLow(tags.KubeQOS, pod.QOSClass)
+	tagList.AddLow(tags.KubeRuntimeClass, pod.RuntimeClass)
 
 	c.extractTagsFromPodLabels(pod, tagList)
 
@@ -834,24 +835,5 @@ func parseContainerADTagsLabels(tags *taglist.TagList, labelValue string) {
 			continue
 		}
 		tags.AddHigh(tagParts[0], tagParts[1])
-	}
-}
-
-//lint:ignore U1000 Ignore unused function until the collector is implemented
-func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.TagInfo {
-	process := ev.Entity.(*workloadmeta.Process)
-	tagList := taglist.NewTagList()
-	if process.Language != nil {
-		tagList.AddLow(tags.Language, string(process.Language.Name))
-	}
-	low, orch, high, standard := tagList.Compute()
-	return []*types.TagInfo{{
-		Source:               processSource,
-		Entity:               buildTaggerEntityID(process.EntityID),
-		HighCardTags:         high,
-		OrchestratorCardTags: orch,
-		LowCardTags:          low,
-		StandardTags:         standard,
-	},
 	}
 }

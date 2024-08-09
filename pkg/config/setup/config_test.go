@@ -25,6 +25,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 func unsetEnvForTest(t *testing.T, env string) {
@@ -246,7 +247,7 @@ func TestProxy(t *testing.T) {
 		},
 		{
 			name: "from configuration",
-			setup: func(t *testing.T, config pkgconfigmodel.Config) {
+			setup: func(_ *testing.T, config pkgconfigmodel.Config) {
 				config.SetWithoutSource("proxy", expectedProxy)
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
@@ -256,7 +257,7 @@ func TestProxy(t *testing.T) {
 		},
 		{
 			name: "from UNIX env only upper case",
-			setup: func(t *testing.T, config pkgconfigmodel.Config) {
+			setup: func(t *testing.T, _ pkgconfigmodel.Config) {
 				t.Setenv("HTTP_PROXY", "http_url")
 				t.Setenv("HTTPS_PROXY", "https_url")
 				t.Setenv("NO_PROXY", "a,b,c") // comma-separated list
@@ -268,7 +269,7 @@ func TestProxy(t *testing.T) {
 		},
 		{
 			name: "from env only lower case",
-			setup: func(t *testing.T, config pkgconfigmodel.Config) {
+			setup: func(t *testing.T, _ pkgconfigmodel.Config) {
 				t.Setenv("http_proxy", "http_url")
 				t.Setenv("https_proxy", "https_url")
 				t.Setenv("no_proxy", "a,b,c") // comma-separated list
@@ -280,7 +281,7 @@ func TestProxy(t *testing.T) {
 		},
 		{
 			name: "from DD env vars only",
-			setup: func(t *testing.T, config pkgconfigmodel.Config) {
+			setup: func(t *testing.T, _ pkgconfigmodel.Config) {
 				t.Setenv("DD_PROXY_HTTP", "http_url")
 				t.Setenv("DD_PROXY_HTTPS", "https_url")
 				t.Setenv("DD_PROXY_NO_PROXY", "a b c") // space-separated list
@@ -292,7 +293,7 @@ func TestProxy(t *testing.T) {
 		},
 		{
 			name: "from DD env vars precedence over UNIX env vars",
-			setup: func(t *testing.T, config pkgconfigmodel.Config) {
+			setup: func(t *testing.T, _ pkgconfigmodel.Config) {
 				t.Setenv("DD_PROXY_HTTP", "dd_http_url")
 				t.Setenv("DD_PROXY_HTTPS", "dd_https_url")
 				t.Setenv("DD_PROXY_NO_PROXY", "a b c")
@@ -370,7 +371,7 @@ func TestProxy(t *testing.T) {
 		},
 		{
 			name: "proxy withou no_proxy",
-			setup: func(t *testing.T, config pkgconfigmodel.Config) {
+			setup: func(t *testing.T, _ pkgconfigmodel.Config) {
 				t.Setenv("DD_PROXY_HTTP", "http_url")
 				t.Setenv("DD_PROXY_HTTPS", "https_url")
 			},
@@ -387,7 +388,7 @@ func TestProxy(t *testing.T) {
 		},
 		{
 			name:  "empty config with use_proxy_for_cloud_metadata",
-			setup: func(t *testing.T, config pkgconfigmodel.Config) {},
+			setup: func(*testing.T, pkgconfigmodel.Config) {},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.Equal(t,
 					&pkgconfigmodel.Proxy{
@@ -401,7 +402,7 @@ func TestProxy(t *testing.T) {
 		},
 		{
 			name: "use proxy for cloud metadata",
-			setup: func(t *testing.T, config pkgconfigmodel.Config) {
+			setup: func(t *testing.T, _ pkgconfigmodel.Config) {
 				t.Setenv("DD_PROXY_HTTP", "http_url")
 				t.Setenv("DD_PROXY_HTTPS", "https_url")
 				t.Setenv("DD_PROXY_NO_PROXY", "a b c")
@@ -456,14 +457,14 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 	}{
 		{
 			name:  "auto discovery is disabled by default",
-			setup: func(t *testing.T, config pkgconfigmodel.Config) {},
+			setup: func(_ *testing.T, _ pkgconfigmodel.Config) {},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.False(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
 			},
 		},
 		{
 			name: "default auto discovery configuration is enabled from DD env vars",
-			setup: func(t *testing.T, config pkgconfigmodel.Config) {
+			setup: func(t *testing.T, _ pkgconfigmodel.Config) {
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_ENABLED", "true")
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
@@ -476,7 +477,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 		},
 		{
 			name: "auto discovery query timeout, region and discovery interval are set from DD env vars",
-			setup: func(t *testing.T, config pkgconfigmodel.Config) {
+			setup: func(t *testing.T, _ pkgconfigmodel.Config) {
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_ENABLED", "true")
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_DISCOVERY_INTERVAL", "15")
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_QUERY_TIMEOUT", "1")
@@ -492,7 +493,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 		},
 		{
 			name: "auto discovery tag configuration set through DD env vars",
-			setup: func(t *testing.T, config pkgconfigmodel.Config) {
+			setup: func(t *testing.T, _ pkgconfigmodel.Config) {
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_ENABLED", "true")
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_TAGS", "foo:bar other:tag")
 			},
@@ -505,7 +506,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 		},
 		{
 			name: "default auto discovery is enabled from configuration",
-			setup: func(t *testing.T, config pkgconfigmodel.Config) {
+			setup: func(_ *testing.T, config pkgconfigmodel.Config) {
 				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.enabled", true)
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
@@ -517,7 +518,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 		},
 		{
 			name: "auto discovery interval and tags are set from configuration",
-			setup: func(t *testing.T, config pkgconfigmodel.Config) {
+			setup: func(_ *testing.T, config pkgconfigmodel.Config) {
 				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.enabled", true)
 				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.discovery_interval", 10)
 				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.query_timeout", 4)
@@ -1398,7 +1399,7 @@ use_proxy_for_cloud_metadata: true
 
 	mockresolver := resolver.(secrets.Mock)
 	mockresolver.SetBackendCommand("command")
-	mockresolver.SetFetchHookFunc(func(handles []string) (map[string]string, error) {
+	mockresolver.SetFetchHookFunc(func(_ []string) (map[string]string, error) {
 		return map[string]string{
 			"some_url": "first_value",
 			"diff_url": "second_value",
@@ -1501,4 +1502,36 @@ func TestAgentConfigInit(t *testing.T) {
 	assert.True(t, conf.IsKnown("forwarder_timeout"))
 	assert.True(t, conf.IsKnown("sbom.enabled"))
 	assert.True(t, conf.IsKnown("inventories_enabled"))
+}
+
+func TestENVAdditionalKeysToScrubber(t *testing.T) {
+	// Test that the scrubber is correctly configured with the expected keys
+	cfg := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	data := `scrubber.additional_keys:
+- yet_another_key
+flare_stripped_keys:
+- some_other_key`
+
+	path := t.TempDir()
+	configPath := filepath.Join(path, "empty_conf.yaml")
+	err := os.WriteFile(configPath, []byte(data), 0o600)
+	require.NoError(t, err)
+	cfg.SetConfigFile(configPath)
+
+	_, err = LoadDatadogCustom(cfg, "test", optional.NewNoneOption[secrets.Component](), []string{})
+	require.NoError(t, err)
+
+	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+some_other_key: 'bbbb'
+app_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccc'
+yet_another_key: 'dddd'`
+
+	scrubbed, err := scrubber.ScrubYamlString(stringToScrub)
+	assert.Nil(t, err)
+	expected := `api_key: '***************************aaaaa'
+some_other_key: "********"
+app_key: '***********************************acccc'
+yet_another_key: "********"`
+	assert.YAMLEq(t, expected, scrubbed)
 }

@@ -72,8 +72,8 @@ github.com/DataDog/datadog-agent/comp/core/flare/builder
 github.com/DataDog/datadog-agent/comp/core/flare/types
 github.com/DataDog/datadog-agent/comp/core/hostname
 github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface
-github.com/DataDog/datadog-agent/comp/core/log
-github.com/DataDog/datadog-agent/comp/core/log/logimpl
+github.com/DataDog/datadog-agent/comp/core/log/def
+github.com/DataDog/datadog-agent/comp/core/log/impl
 github.com/DataDog/datadog-agent/comp/core/secrets
 github.com/DataDog/datadog-agent/comp/core/status
 github.com/DataDog/datadog-agent/comp/core/tagger
@@ -108,6 +108,7 @@ github.com/DataDog/datadog-agent/comp/logs/agent
 github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl
 github.com/DataDog/datadog-agent/comp/logs/agent/config
 github.com/DataDog/datadog-agent/comp/logs/agent/flare
+github.com/DataDog/datadog-agent/comp/logs/integrations/def
 github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags
 github.com/DataDog/datadog-agent/comp/metadata/inventoryagent
 github.com/DataDog/datadog-agent/comp/otelcol/otlp
@@ -138,8 +139,6 @@ github.com/DataDog/datadog-agent/pkg/collector/check/id
 github.com/DataDog/datadog-agent/pkg/collector/check/stats
 github.com/DataDog/datadog-agent/pkg/config
 github.com/DataDog/datadog-agent/pkg/config/env
-github.com/DataDog/datadog-agent/pkg/config/logs
-github.com/DataDog/datadog-agent/pkg/config/logs/internal/seelog
 github.com/DataDog/datadog-agent/pkg/config/model
 github.com/DataDog/datadog-agent/pkg/config/remote/data
 github.com/DataDog/datadog-agent/pkg/config/setup
@@ -155,6 +154,7 @@ github.com/DataDog/datadog-agent/pkg/logs/client/http
 github.com/DataDog/datadog-agent/pkg/logs/client/tcp
 github.com/DataDog/datadog-agent/pkg/logs/diagnostic
 github.com/DataDog/datadog-agent/pkg/logs/internal/decoder
+github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection
 github.com/DataDog/datadog-agent/pkg/logs/internal/framer
 github.com/DataDog/datadog-agent/pkg/logs/internal/parsers
 github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerfile
@@ -275,6 +275,8 @@ github.com/DataDog/datadog-agent/pkg/util/kubernetes
 github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername
 github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo
 github.com/DataDog/datadog-agent/pkg/util/log
+github.com/DataDog/datadog-agent/pkg/util/log/setup
+github.com/DataDog/datadog-agent/pkg/util/log/setup/internal/seelog
 github.com/DataDog/datadog-agent/pkg/util/log/zap
 github.com/DataDog/datadog-agent/pkg/util/optional
 github.com/DataDog/datadog-agent/pkg/util/pointer
@@ -824,6 +826,7 @@ google.golang.org/grpc/backoff
 google.golang.org/grpc/balancer
 google.golang.org/grpc/balancer/base
 google.golang.org/grpc/balancer/grpclb/state
+google.golang.org/grpc/balancer/pickfirst
 google.golang.org/grpc/balancer/roundrobin
 google.golang.org/grpc/binarylog/grpc_binarylog_v1
 google.golang.org/grpc/channelz
@@ -846,7 +849,6 @@ google.golang.org/grpc/internal/channelz
 google.golang.org/grpc/internal/credentials
 google.golang.org/grpc/internal/envconfig
 google.golang.org/grpc/internal/grpclog
-google.golang.org/grpc/internal/grpcrand
 google.golang.org/grpc/internal/grpcsync
 google.golang.org/grpc/internal/grpcutil
 google.golang.org/grpc/internal/idle

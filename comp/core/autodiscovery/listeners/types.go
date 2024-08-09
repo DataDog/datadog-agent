@@ -8,7 +8,9 @@ package listeners
 import (
 	"context"
 	"errors"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -60,7 +62,7 @@ type Config interface {
 }
 
 // ServiceListenerFactory builds a service listener
-type ServiceListenerFactory func(Config) (ServiceListener, error)
+type ServiceListenerFactory func(Config, *telemetry.Store) (ServiceListener, error)
 
 // Register registers a service listener factory
 func Register(name string,

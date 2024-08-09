@@ -170,7 +170,7 @@ func (c *Check) SampleSession() error {
 	sessionSamples := []OracleActivityRowDB{}
 	var activityQuery string
 	maxSQLTextLength := c.sqlSubstringLength
-	if c.hostingType == selfManaged {
+	if c.hostingType == selfManaged && !c.config.QuerySamples.ForceDirectQuery {
 		if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
 			activityQuery = activityQueryOnView12
 		} else {
@@ -180,8 +180,12 @@ func (c *Check) SampleSession() error {
 		activityQuery = activityQueryDirect
 	}
 
-	if c.config.QuerySamples.IncludeAllSessions {
-		activityQuery = fmt.Sprintf("%s %s", activityQuery, " OR 1=1")
+	if !c.config.QuerySamples.IncludeAllSessions {
+		activityQuery = fmt.Sprintf("%s %s", activityQuery, ` AND (
+	NOT (state = 'WAITING' AND wait_class = 'Idle')
+	OR state = 'WAITING' AND event = 'fbar timer' AND type = 'USER'
+)
+AND status = 'ACTIVE'`)
 	}
 
 	err := selectWrapper(c, &sessionSamples, activityQuery, maxSQLTextLength, maxSQLTextLength)
@@ -380,7 +384,7 @@ func (c *Check) SampleSession() error {
 
 	payload := ActivitySnapshot{
 		Metadata: Metadata{
-			Timestamp:      float64(time.Now().UnixMilli()),
+			Timestamp:      float64(c.clock.Now().UnixMilli()),
 			Host:           c.dbHostname,
 			Source:         common.IntegrationName,
 			DBMType:        "activity",

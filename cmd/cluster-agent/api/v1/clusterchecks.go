@@ -148,7 +148,7 @@ func getState(sc clusteragent.ServerContext) func(w http.ResponseWriter, r *http
 		return clusterChecksDisabledHandler
 	}
 
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		// No redirection for this one, internal endpoint
 		response, err := sc.ClusterCheckHandler.GetState()
 		if err != nil {

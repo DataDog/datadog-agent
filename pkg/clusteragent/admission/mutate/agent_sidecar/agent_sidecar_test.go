@@ -17,7 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -339,7 +339,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(tt *testing.T) {
-			mockConfig := config.Mock(t)
+			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", test.provider)
 			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", test.profilesJSON)
 
@@ -396,7 +396,7 @@ func TestDefaultSidecarTemplateAgentImage(t *testing.T) {
 			name:              "setting custom registry, image and tag",
 			containerRegistry: "my-registry",
 			setConfig: func() {
-				mockConfig := config.Mock(t)
+				mockConfig := configmock.New(t)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.container_registry", "my-registry")
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.image_name", "my-image")
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.image_tag", "my-tag")
@@ -425,7 +425,7 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 		{
 			name: "cluster agent not enabled",
 			setConfig: func() {
-				mockConfig := config.Mock(t)
+				mockConfig := configmock.New(t)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", false)
 			},
 			expectedEnvVars: []corev1.EnvVar{
@@ -444,7 +444,7 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 		{
 			name: "cluster agent enabled with default values",
 			setConfig: func() {
-				mockConfig := config.Mock(t)
+				mockConfig := configmock.New(t)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", true)
 			},
 			expectedEnvVars: []corev1.EnvVar{
@@ -480,7 +480,7 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 		{
 			name: "cluster agent enabled with language derection enabled",
 			setConfig: func() {
-				mockConfig := config.Mock(t)
+				mockConfig := configmock.New(t)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", true)
 				mockConfig.SetWithoutSource("language_detection.enabled", true)
 			},
@@ -517,7 +517,7 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 		{
 			name: "cluster agent enabled with custom values",
 			setConfig: func() {
-				mockConfig := config.Mock(t)
+				mockConfig := configmock.New(t)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", true)
 				mockConfig.SetWithoutSource("cluster_agent.cmd_port", 12345)
 				mockConfig.SetWithoutSource("cluster_agent.kubernetes_service_name", "test-service-name")

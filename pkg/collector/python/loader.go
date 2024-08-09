@@ -15,19 +15,20 @@ import (
 	"sync"
 	"unsafe"
 
+	"github.com/mohae/deepcopy"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
-
-	//nolint:revive // TODO(AML) Fix revive linter
 	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/version"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 /*
@@ -58,8 +59,8 @@ const (
 )
 
 func init() {
-	factory := func(senderManager sender.SenderManager) (check.Loader, error) {
-		return NewPythonCheckLoader(senderManager)
+	factory := func(senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component]) (check.Loader, error) {
+		return NewPythonCheckLoader(senderManager, logReceiver)
 	}
 	loaders.RegisterLoader(20, factory)
 
@@ -86,8 +87,8 @@ func init() {
 type PythonCheckLoader struct{}
 
 // NewPythonCheckLoader creates an instance of the Python checks loader
-func NewPythonCheckLoader(senderManager sender.SenderManager) (*PythonCheckLoader, error) {
-	initializeCheckContext(senderManager)
+func NewPythonCheckLoader(senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component]) (*PythonCheckLoader, error) {
+	initializeCheckContext(senderManager, logReceiver)
 	return &PythonCheckLoader{}, nil
 }
 
@@ -235,14 +236,7 @@ func expvarConfigureErrors() interface{} {
 	statsLock.RLock()
 	defer statsLock.RUnlock()
 
-	configureErrorsCopy := map[string][]string{}
-	for k, v := range configureErrors {
-		errors := []string{}
-		errors = append(errors, v...)
-		configureErrorsCopy[k] = errors
-	}
-
-	return configureErrorsCopy
+	return deepcopy.Copy(configureErrors)
 }
 
 func addExpvarConfigureError(check string, errMsg string) {
@@ -262,14 +256,7 @@ func expvarPy3Warnings() interface{} {
 	statsLock.RLock()
 	defer statsLock.RUnlock()
 
-	py3WarningsCopy := map[string][]string{}
-	for k, v := range py3Warnings {
-		warnings := []string{}
-		warnings = append(warnings, v...)
-		py3WarningsCopy[k] = warnings
-	}
-
-	return py3WarningsCopy
+	return deepcopy.Copy(py3Warnings)
 }
 
 // reportPy3Warnings runs the a7 linter and exports the result in both expvar

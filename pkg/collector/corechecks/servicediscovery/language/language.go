@@ -128,7 +128,7 @@ type Finder struct {
 }
 
 func (lf Finder) findLang(pi ProcessInfo) Language {
-	lang := findInArgs(pi.Args)
+	lang := FindInArgs(pi.Args)
 	lf.Logger.Debug("language found", zap.Any("lang", lang))
 
 	// if we can't figure out a language from the command line, try alternate methods
@@ -145,7 +145,8 @@ func (lf Finder) findLang(pi ProcessInfo) Language {
 	return lang
 }
 
-func findInArgs(args []string) Language {
+// FindInArgs trys to detect the language only using the provided command line arguments.
+func FindInArgs(args []string) Language {
 	// empty slice passed in
 	if len(args) == 0 {
 		return ""

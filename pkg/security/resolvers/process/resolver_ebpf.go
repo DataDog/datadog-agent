@@ -28,9 +28,9 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/shirou/gopsutil/v3/process"
 	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/security/common/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
@@ -41,6 +41,7 @@ import (
 	spath "github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -351,10 +352,25 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	entry.FileEvent.MountOrigin = model.MountOriginProcfs
 	entry.FileEvent.MountSource = model.MountSourceSnapshot
 
-	var id model.CGroupID
+	var id containerutils.CGroupID
 	id, entry.Process.ContainerID = containerutils.GetCGroupContext(containerID, containerFlags)
 	entry.Process.CGroup.CGroupID = id
 	entry.Process.CGroup.CGroupFlags = containerFlags
+	var fileStats unix.Statx_t
+
+	taskPath := utils.CgroupTaskPath(pid, pid)
+	if err := unix.Statx(unix.AT_FDCWD, taskPath, 0, unix.STATX_ALL, &fileStats); err == nil {
+		entry.Process.CGroup.CGroupFile.MountID = uint32(fileStats.Mnt_id)
+		entry.Process.CGroup.CGroupFile.Inode = fileStats.Ino
+	} else {
+		// Get the file fields of the cgroup file
+		info, err := p.retrieveExecFileFields(taskPath)
+		if err != nil {
+			seclog.Debugf("snapshot failed for %d: couldn't retrieve inode info: %s", proc.Pid, err)
+		} else {
+			entry.Process.CGroup.CGroupFile.MountID = info.MountID
+		}
+	}
 
 	if entry.FileEvent.IsFileless() {
 		entry.FileEvent.Filesystem = model.TmpFS
@@ -383,6 +399,12 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 		entry.Credentials.EGID = uint32(filledProc.Gids[1])
 		entry.Credentials.FSGID = uint32(filledProc.Gids[3])
 	}
+	// fetch login_uid
+	entry.Credentials.AUID, err = utils.GetLoginUID(uint32(proc.Pid))
+	if err != nil {
+		return fmt.Errorf("snapshot failed for %d: couldn't get login UID: %w", proc.Pid, err)
+	}
+
 	entry.Credentials.CapEffective, entry.Credentials.CapPermitted, err = utils.CapEffCapEprm(uint32(proc.Pid))
 	if err != nil {
 		return fmt.Errorf("snapshot failed for %d: couldn't parse kernel capabilities: %w", proc.Pid, err)
@@ -846,7 +868,7 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64) *mod
 		containerID, containerFlags, err := p.containerResolver.GetContainerContext(pid)
 		if err == nil {
 			entry.CGroup.CGroupFlags = containerFlags
-			entry.CGroup.CGroupID = model.GetCgroupFromContainer(containerID, containerFlags)
+			entry.CGroup.CGroupID = containerutils.GetCgroupFromContainer(containerID, containerFlags)
 		}
 	}
 
@@ -1073,6 +1095,20 @@ func (p *EBPFResolver) UpdateCapset(pid uint32, e *model.Event) {
 	}
 }
 
+// UpdateLoginUID updates the AUID of the provided pid
+func (p *EBPFResolver) UpdateLoginUID(pid uint32, e *model.Event) {
+	if e.ProcessContext.Pid != e.ProcessContext.Tid {
+		return
+	}
+
+	p.Lock()
+	defer p.Unlock()
+	entry := p.entryCache[pid]
+	if entry != nil {
+		entry.Credentials.AUID = e.LoginUIDWrite.AUID
+	}
+}
+
 // UpdateAWSSecurityCredentials updates the list of AWS Security Credentials
 func (p *EBPFResolver) UpdateAWSSecurityCredentials(pid uint32, e *model.Event) {
 	if len(e.IMDS.AWS.SecurityCredentials.AccessKeyID) == 0 {
@@ -1232,7 +1268,7 @@ func (p *EBPFResolver) syncCache(proc *process.Process, filledProc *utils.Filled
 	bootTime := p.timeResolver.GetBootTime()
 
 	// insert new entry in kernel maps
-	procCacheEntryB := make([]byte, 232)
+	procCacheEntryB := make([]byte, 248)
 	_, err := entry.Process.MarshalProcCache(procCacheEntryB, bootTime)
 	if err != nil {
 		seclog.Errorf("couldn't marshal proc_cache entry: %s", err)
@@ -1241,7 +1277,7 @@ func (p *EBPFResolver) syncCache(proc *process.Process, filledProc *utils.Filled
 			seclog.Errorf("couldn't push proc_cache entry to kernel space: %s", err)
 		}
 	}
-	pidCacheEntryB := make([]byte, 80)
+	pidCacheEntryB := make([]byte, 88)
 	_, err = entry.Process.MarshalPidCache(pidCacheEntryB, bootTime)
 	if err != nil {
 		seclog.Errorf("couldn't marshal pid_cache entry: %s", err)

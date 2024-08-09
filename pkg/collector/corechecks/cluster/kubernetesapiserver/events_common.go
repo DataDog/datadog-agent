@@ -118,6 +118,113 @@ const defaultEventSource = "kubernetes"
 // kubernetesEventSource is the name of the source for kubernetes events
 const kubernetesEventSource = "kubernetes"
 
+// customEventSourceSuffix is the suffix that will be added to the event source type when
+// filtering is enabled and the event does not exist within integrationToCollectedEventTypes.
+const customEventSourceSuffix = "custom"
+
+var integrationToCollectedEventTypes = map[string][]collectedEventType{
+	"kubernetes": {
+		{
+			Kind:    "Pod",
+			Reasons: []string{"Failed", "BackOff", "Unhealthy", "FailedScheduling", "FailedMount", "FailedAttachVolume"},
+		},
+		{
+			Kind:    "Node",
+			Reasons: []string{"TerminatingEvictedPod", "NodeNotReady", "Rebooted", "HostPortConflict"},
+		},
+		{
+			Kind:    "CronJob",
+			Reasons: []string{"SawCompletedJob"},
+		},
+	},
+	"kube_scheduler": {
+		{
+			Kind:    "Pod",
+			Reasons: []string{"Failed", "BackOff", "Unhealthy", "FailedScheduling", "FailedMount", "FailedAttachVolume"},
+		},
+		{
+			Kind:    "Node",
+			Reasons: []string{"TerminatingEvictedPod", "NodeNotReady", "Rebooted", "HostPortConflict"},
+		},
+		{
+			Kind:    "CronJob",
+			Reasons: []string{"SawCompletedJob"},
+		},
+	},
+	"kubernetes controller manager": {
+		{
+			Kind:    "Pod",
+			Reasons: []string{"Failed", "BackOff", "Unhealthy", "FailedScheduling", "FailedMount", "FailedAttachVolume"},
+		},
+		{
+			Kind:    "Node",
+			Reasons: []string{"TerminatingEvictedPod", "NodeNotReady", "Rebooted", "HostPortConflict"},
+		},
+		{
+			Kind:    "CronJob",
+			Reasons: []string{"SawCompletedJob"},
+		},
+	},
+	"karpenter": {
+		{
+			Source: "karpenter",
+			Reasons: []string{
+				"DisruptionBlocked",
+				"DisruptionLaunching",
+				"DisruptionTerminating",
+				"DisruptionWaitingReadiness",
+				"FailedDraining",
+				"InstanceTerminating",
+				"SpotInterrupted",
+				"SpotRebalanceRecommendation",
+				"TerminatingOnInterruption",
+			},
+		},
+	},
+	"datadog-operator": {
+		{
+			Source: "datadog-operator",
+		},
+	},
+	"amazon elb": {
+		{
+			Source: "amazon elb",
+		},
+	},
+	"cilium": {
+		{
+			Source: "cilium",
+		},
+	},
+	"fluxcd": {
+		{
+			Source: "fluxcd",
+		},
+	},
+	"kubernetes cluster autoscaler": {
+		{
+
+			Source: "kubernetes cluster autoscaler",
+		},
+	},
+	"spark": {
+		{
+			Source: "spark",
+		},
+	},
+	"vault": {
+
+		{
+			Source: "vault",
+		},
+	},
+	"default": {
+		{
+			Reasons: []string{"BackOff"}, // Change tracking consumes all CLB events
+		},
+	},
+}
+
 // getDDAlertType converts kubernetes event types into datadog alert types
 func getDDAlertType(k8sType string) event.AlertType {
 	switch k8sType {
@@ -289,4 +396,37 @@ func getEventSource(controllerName string, sourceComponent string) string {
 		return v
 	}
 	return defaultEventSource
+}
+
+func shouldCollectByDefault(ev *v1.Event) bool {
+	if v, ok := integrationToCollectedEventTypes[getEventSource(ev.ReportingController, ev.Source.Component)]; ok {
+		return shouldCollect(ev, append(v, integrationToCollectedEventTypes["default"]...))
+	}
+	return shouldCollect(ev, integrationToCollectedEventTypes["default"])
+}
+
+func shouldCollect(ev *v1.Event, collectedTypes []collectedEventType) bool {
+	involvedObject := ev.InvolvedObject
+
+	for _, f := range collectedTypes {
+		if f.Kind != "" && f.Kind != involvedObject.Kind {
+			continue
+		}
+
+		if f.Source != "" && f.Source != ev.Source.Component {
+			continue
+		}
+
+		if len(f.Reasons) == 0 {
+			return true
+		}
+
+		for _, r := range f.Reasons {
+			if ev.Reason == r {
+				return true
+			}
+		}
+	}
+
+	return false
 }

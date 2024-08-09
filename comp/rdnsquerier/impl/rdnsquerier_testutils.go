@@ -17,8 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -44,14 +44,14 @@ type testState struct {
 }
 
 func testSetup(t *testing.T, overrides map[string]interface{}, start bool) *testState {
-	lc := compdef.NewTestLifecycle()
+	lc := compdef.NewTestLifecycle(t)
 
 	config := fxutil.Test[config.Component](t, fx.Options(
 		config.MockModule(),
 		fx.Replace(config.MockParams{Overrides: overrides}),
 	))
 
-	logComp := fxutil.Test[log.Component](t, logimpl.MockModule())
+	logComp := logmock.New(t)
 	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 
 	requires := Requires{

@@ -1681,7 +1681,7 @@ func BenchmarkThroughput(b *testing.B) {
 	log.SetLogger(log.NoopLogger) // disable logging
 
 	folder := filepath.Join(env, "benchmarks")
-	filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
+	filepath.Walk(folder, func(path string, info os.FileInfo, _ error) error {
 		ext := filepath.Ext(path)
 		if ext != ".msgp" {
 			return nil
@@ -2128,7 +2128,7 @@ func TestSpanSampling(t *testing.T) {
 					},
 				},
 			},
-			checks: func(t *testing.T, payload *pb.TracerPayload, chunks []*pb.TraceChunk) {
+			checks: func(t *testing.T, _ *pb.TracerPayload, chunks []*pb.TraceChunk) {
 				assert.Len(t, chunks, 1)
 				chunk := chunks[0]
 				// The span sampler kept the chunk.
@@ -2172,7 +2172,7 @@ func TestSpanSampling(t *testing.T) {
 					},
 				},
 			},
-			checks: func(t *testing.T, payload *pb.TracerPayload, chunks []*pb.TraceChunk) {
+			checks: func(t *testing.T, _ *pb.TracerPayload, chunks []*pb.TraceChunk) {
 				assert.Len(t, chunks, 1)
 				chunk := chunks[0]
 				// The span sampler kept the chunk.
@@ -2216,7 +2216,7 @@ func TestSpanSampling(t *testing.T) {
 					},
 				},
 			},
-			checks: func(t *testing.T, payload *pb.TracerPayload, chunks []*pb.TraceChunk) {
+			checks: func(t *testing.T, _ *pb.TracerPayload, chunks []*pb.TraceChunk) {
 				assert.Len(t, chunks, 1)
 				chunk := chunks[0]
 				// The span sampler kept the chunk.
@@ -2558,7 +2558,7 @@ func TestProcessedTrace(t *testing.T) {
 		}
 		chunk := testutil.TraceChunkWithSpan(root)
 		cfg := config.New()
-		cfg.ContainerTags = func(cid string) ([]string, error) {
+		cfg.ContainerTags = func(_ string) ([]string, error) {
 			return nil, nil
 		}
 		// Only fill out the relevant fields for processedTrace().

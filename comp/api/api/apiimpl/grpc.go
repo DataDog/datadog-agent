@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type server struct {
+type grpcServer struct {
 	pb.UnimplementedAgentServer
 }
 
@@ -50,7 +50,7 @@ type serverSecure struct {
 	pidMap             pidmap.Component
 }
 
-func (s *server) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.HostnameReply, error) {
+func (s *grpcServer) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.HostnameReply, error) {
 	h, err := hostname.Get(ctx)
 	if err != nil {
 		return &pb.HostnameReply{}, err
@@ -62,7 +62,7 @@ func (s *server) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.Ho
 // override of the AuthFunc registered with the unary interceptor.
 //
 // see: https://godoc.org/github.com/grpc-ecosystem/go-grpc-middleware/auth#ServiceAuthFuncOverride
-func (s *server) AuthFuncOverride(ctx context.Context, _ string) (context.Context, error) {
+func (s *grpcServer) AuthFuncOverride(ctx context.Context, _ string) (context.Context, error) {
 	return ctx, nil
 }
 

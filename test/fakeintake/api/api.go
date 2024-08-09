@@ -10,9 +10,10 @@ import "time"
 
 //nolint:revive // TODO(APL) Fix revive linter
 type Payload struct {
-	Timestamp time.Time `json:"timestamp"`
-	Data      []byte    `json:"data"`
-	Encoding  string    `json:"encoding"`
+	Timestamp   time.Time `json:"timestamp"`
+	Data        []byte    `json:"data"`
+	Encoding    string    `json:"encoding"`
+	ContentType string    `json:"content_type"`
 }
 
 //nolint:revive // TODO(APL) Fix revive linter

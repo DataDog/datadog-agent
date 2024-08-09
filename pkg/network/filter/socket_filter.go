@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 type headlessSocketFilter struct {
@@ -63,6 +62,6 @@ func HeadlessSocketFilter(cfg *config.Config, filter *manager.Probe) (closeFn fu
 
 func htons(a uint16) uint16 {
 	var arr [2]byte
-	native.Endian.PutUint16(arr[:], a)
+	binary.NativeEndian.PutUint16(arr[:], a)
 	return binary.BigEndian.Uint16(arr[:])
 }

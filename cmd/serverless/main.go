@@ -253,6 +253,9 @@ func setupLambdaAgentOverrides() {
 	flavor.SetFlavor(flavor.ServerlessAgent)
 	config.Datadog().Set("use_v2_api.series", false, model.SourceAgentRuntime)
 
+	// TODO(duncanista): figure out how this is used and if it's necessary for Serverless
+	config.Datadog().Set("dogstatsd_socket", "", model.SourceAgentRuntime)
+
 	// Disable remote configuration for now as it just spams the debug logs
 	// and provides no value.
 	os.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "false")
@@ -397,7 +400,7 @@ func setupLogger() {
 	}
 
 	if logLevel := os.Getenv(logLevelEnvVar); len(logLevel) > 0 {
-		if err := config.ChangeLogLevel(logLevel); err != nil {
+		if err := configUtils.SetLogLevel(logLevel, config.Datadog(), model.SourceAgentRuntime); err != nil {
 			log.Errorf("While changing the loglevel: %s", err)
 		}
 	}

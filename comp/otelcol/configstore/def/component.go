@@ -15,8 +15,7 @@ import (
 
 // Component provides functions to store and expose the provided and enhanced configs.
 type Component interface {
-	AddProvidedConf(*otelcol.Config)
-	AddEnhancedConf(*otelcol.Config)
+	AddConfigs(otelcol.ConfigProviderSettings, otelcol.ConfigProviderSettings, otelcol.Factories) error
 	GetProvidedConf() (*confmap.Conf, error)
 	GetEnhancedConf() (*confmap.Conf, error)
 	GetProvidedConfAsString() (string, error)
