@@ -381,6 +381,7 @@ def build_functional_tests(
     env["CGO_ENABLED"] = "1"
 
     build_tags = build_tags.split(",")
+    build_tags.append("test")
     if not is_windows:
         build_tags.append("linux_bpf")
         build_tags.append("trivy")

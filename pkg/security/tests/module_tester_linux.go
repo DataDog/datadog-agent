@@ -32,11 +32,14 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -60,7 +63,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 var (
@@ -790,7 +792,12 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 		emopts.ProbeOpts.TagsResolver = NewFakeResolverDifferentImageNames()
 	}
 	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
-	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, optional.NewNoneOption[workloadmeta.Component](), telemetry)
+	wmeta := fxutil.Test[workloadmeta.Component](t,
+		core.MockBundle(),
+		wmmock.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+	)
+	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, wmeta, telemetry)
 	if err != nil {
 		return nil, err
 	}
