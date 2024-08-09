@@ -5,8 +5,6 @@
 
 //go:build linux
 
-//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
-
 // Package dump holds dump related files
 package dump
 
@@ -18,6 +16,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
@@ -66,24 +65,34 @@ const (
 // ActivityDump holds the activity tree for the workload defined by the provided list of tags. The encoding described by
 // the `msg` annotation is used to generate the activity dump file while the encoding described by the `json` annotation
 // is used to generate the activity dump metadata sent to the event platform.
-// easyjson:json
 type ActivityDump struct {
 	sync.Mutex
+
+	ActivityDumpHeader
+
 	state    ActivityDumpStatus
 	adm      *ActivityDumpManager
 	selector *cgroupModel.WorkloadSelector
 
 	countedByLimiter bool
 
-	// standard attributes used by the intake
-	Host    string   `json:"host,omitempty"`
-	Service string   `json:"service,omitempty"`
-	Source  string   `json:"ddsource,omitempty"`
-	Tags    []string `json:"-"`
-	DDTags  string   `json:"ddtags,omitempty"`
+	Tags            []string
+	ActivityTree    *activity_tree.ActivityTree
+	StorageRequests map[config.StorageFormat][]config.StorageRequest
 
-	ActivityTree    *activity_tree.ActivityTree                      `json:"-"`
-	StorageRequests map[config.StorageFormat][]config.StorageRequest `json:"-"`
+	// Load config
+	LoadConfig       *model.ActivityDumpLoadConfig
+	LoadConfigCookie uint64
+}
+
+// ActivityDumpHeader holds the header of an activity dump
+type ActivityDumpHeader struct {
+	// standard attributes used by the intake
+	Host    string `json:"host,omitempty"`
+	Service string `json:"service,omitempty"`
+	Source  string `json:"ddsource,omitempty"`
+
+	DDTags string `json:"ddtags,omitempty"`
 
 	// Dump metadata
 	mtdt.Metadata
@@ -92,10 +101,6 @@ type ActivityDump struct {
 	// this is a hack used to provide this global list to the backend in the JSON header
 	// instead of in the protobuf payload.
 	DNSNames *utils.StringKeys `json:"dns_names"`
-
-	// Load config
-	LoadConfig       *model.ActivityDumpLoadConfig `json:"-"`
-	LoadConfigCookie uint64                        `json:"-"`
 }
 
 // NewActivityDumpLoadConfig returns a new instance of ActivityDumpLoadConfig
@@ -116,8 +121,10 @@ func NewActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, wai
 // NewEmptyActivityDump returns a new zero-like instance of an ActivityDump
 func NewEmptyActivityDump(pathsReducer *activity_tree.PathsReducer) *ActivityDump {
 	ad := &ActivityDump{
+		ActivityDumpHeader: ActivityDumpHeader{
+			DNSNames: utils.NewStringKeys(nil),
+		},
 		StorageRequests: make(map[config.StorageFormat][]config.StorageRequest),
-		DNSNames:        utils.NewStringKeys(nil),
 	}
 	ad.ActivityTree = activity_tree.NewActivityTree(ad, pathsReducer, "activity_dump")
 	return ad
@@ -458,7 +465,19 @@ func (ad *ActivityDump) finalize(releaseTracedCgroupSpot bool) {
 
 	// add the container ID in a tag
 	if len(ad.ContainerID) > 0 {
-		ad.Tags = append(ad.Tags, "container_id:"+ad.ContainerID)
+		// check if we already have a container_id tag, and display the stack trace if it's the case
+		for _, tag := range ad.Tags {
+			if strings.HasPrefix(tag, "container_id:") {
+				seclog.Errorf("container_id tag already present in tags (is finalize called multiple times?): %v + %s", ad.Tags, ad.ContainerID)
+				seclog.Errorf("stack trace: %s", string(debug.Stack()))
+			}
+		}
+
+		// make sure we are not adding the same tag twice
+		newTag := fmt.Sprintf("container_id:%s", ad.ContainerID)
+		if !slices.Contains(ad.Tags, newTag) {
+			ad.Tags = append(ad.Tags, newTag)
+		}
 	}
 
 	// scrub processes and retain args envs now

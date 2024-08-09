@@ -11,6 +11,7 @@ package ptracer
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -34,9 +35,22 @@ type FdResources struct {
 	FileHandleCache map[fileHandleKey]*fileHandleVal
 }
 
+func (f *FdResources) clone() *FdResources {
+	return &FdResources{
+		Fd:              maps.Clone(f.Fd),
+		FileHandleCache: maps.Clone(f.FileHandleCache),
+	}
+}
+
 // FSResources defines shared process resources
 type FSResources struct {
 	Cwd string
+}
+
+func (f *FSResources) clone() *FSResources {
+	return &FSResources{
+		Cwd: f.Cwd,
+	}
 }
 
 // Process represents a process context
@@ -63,9 +77,14 @@ func NewProcess(pid int) *Process {
 }
 
 var errPipeFd = errors.New("pipe fd")
+var errNegativeFd = errors.New("negative fd")
 
 // GetFilenameFromFd returns the filename for the given fd
 func (p *Process) GetFilenameFromFd(fd int32) (string, error) {
+	if fd < 0 {
+		return "", errNegativeFd
+	}
+
 	raw, err := p.getFilenameFromFdRaw(fd)
 	if err != nil {
 		return "", err
@@ -132,11 +151,16 @@ func (tc *ProcessCache) shareResources(process *Process, ppid int, cloneFlags ui
 	if cloneFlags&unix.CLONE_THREAD != 0 {
 		process.Tgid = parent.Tgid
 	}
+
 	if cloneFlags&unix.CLONE_FILES != 0 {
 		process.FdRes = parent.FdRes
+	} else {
+		process.FdRes = parent.FdRes.clone()
 	}
 	if cloneFlags&unix.CLONE_FS != 0 {
 		process.FsRes = parent.FsRes
+	} else {
+		process.FsRes = parent.FsRes.clone()
 	}
 
 	// re-add to update the caches

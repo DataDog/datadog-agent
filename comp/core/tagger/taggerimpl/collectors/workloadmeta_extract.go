@@ -342,6 +342,7 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 	tagList.AddLow(tags.PodPhase, strings.ToLower(pod.Phase))
 	tagList.AddLow(tags.KubePriorityClass, pod.PriorityClass)
 	tagList.AddLow(tags.KubeQOS, pod.QOSClass)
+	tagList.AddLow(tags.KubeRuntimeClass, pod.RuntimeClass)
 
 	c.extractTagsFromPodLabels(pod, tagList)
 

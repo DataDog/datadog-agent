@@ -1,4 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using Datadog.CustomActions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Rollback;
@@ -72,6 +75,8 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction RestoreDaclRollback { get; }
 
+        public ManagedAction DDCreateFolders { get; }
+
         /// <summary>
         /// Registers and sequences our custom actions
         /// </summary>
@@ -97,6 +102,7 @@ namespace WixSetup.Datadog_Agent
                 // any command line values.
                 // Prefer using our CA over RegistrySearch.
                 // It is executed on the Welcome screen of the installer.
+                // Must run before CostInitialize and WixRemoveFoldersEx since it creates properties used by util:RemoveFolderEx
                 When.After,
                 new Step(RunAsAdmin.Id),
                 // Creates properties used by both install+uninstall
@@ -544,6 +550,22 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }.SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
+            DDCreateFolders = new CustomAction<ConfigCustomActions>(
+                    new Id(nameof(DDCreateFolders)),
+                    ConfigCustomActions.DDCreateFolders,
+                    Return.check,
+                    When.Before,
+                    Step.CreateFolders,
+                    // Run only on FirstInstall.
+                    // In Upgrade/Repair the directory has already been
+                    // created and configured, and this action could leave the directory
+                    // without access for ddagentuser if the installer rolls back.
+                    Conditions.FirstInstall
+                    )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }.SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
         }
     }
 }

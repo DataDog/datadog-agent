@@ -18,7 +18,7 @@ import (
 )
 
 func TestNetworkProcessEventMonitoring(t *testing.T) {
-	newConfig(t)
+	config.MockSystemProbe(t)
 
 	for i, te := range []struct {
 		network, netProcEvents bool
@@ -35,7 +35,7 @@ func TestNetworkProcessEventMonitoring(t *testing.T) {
 			defer os.Unsetenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED")
 			defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLED")
 
-			cfg, err := New("")
+			cfg, err := New("", "")
 			require.NoError(t, err)
 			assert.Equal(t, te.enabled, cfg.ModuleIsEnabled(EventMonitorModule))
 		})
@@ -44,16 +44,16 @@ func TestNetworkProcessEventMonitoring(t *testing.T) {
 }
 
 func TestDynamicInstrumentation(t *testing.T) {
-	newConfig(t)
+	config.MockSystemProbe(t)
 	os.Setenv("DD_DYNAMIC_INSTRUMENTATION_ENABLED", "true")
 	defer os.Unsetenv("DD_DYNAMIC_INSTRUMENTATION_ENABLED")
 
-	cfg, err := New("")
+	cfg, err := New("", "")
 	require.NoError(t, err)
 	assert.Equal(t, true, cfg.ModuleIsEnabled(DynamicInstrumentationModule))
 
 	os.Unsetenv("DD_DYNAMIC_INSTRUMENTATION_ENABLED")
-	cfg, err = New("")
+	cfg, err = New("", "")
 	require.NoError(t, err)
 	assert.Equal(t, false, cfg.ModuleIsEnabled(DynamicInstrumentationModule))
 
@@ -62,8 +62,7 @@ func TestDynamicInstrumentation(t *testing.T) {
 func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 	config.ResetSystemProbeConfig(t)
 	t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
-
-	cfg := config.SystemProbe
+	cfg := config.SystemProbe()
 	Adjust(cfg)
 
 	if ProcessEventDataStreamSupported() {
@@ -88,13 +87,13 @@ func TestNPMEnabled(t *testing.T) {
 		{true, true, true, true},
 	}
 
-	newConfig(t)
+	config.MockSystemProbe(t)
 	for _, te := range tests {
 		t.Run("", func(t *testing.T) {
 			t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", strconv.FormatBool(te.npm))
 			t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", strconv.FormatBool(te.usm))
 			t.Setenv("DD_CCM_NETWORK_CONFIG_ENABLED", strconv.FormatBool(te.ccm))
-			cfg, err := New("")
+			cfg, err := New("", "")
 			require.NoError(t, err)
 			assert.Equal(t, te.npmEnabled, cfg.ModuleIsEnabled(NetworkTracerModule), "unexpected network tracer module enablement: npm: %v, usm: %v, ccm: %v", te.npm, te.usm, te.ccm)
 		})

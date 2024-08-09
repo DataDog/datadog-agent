@@ -39,7 +39,7 @@ func createSystemProbeListener() (l net.Listener, close func()) {
 	}
 }
 
-func testSetup(t *testing.T) { //nolint:revive // TODO fix revive unused-parameter
+func testSetup(_ *testing.T) {
 	// change the hive to hku for the test
 	hive = registry.CURRENT_USER
 	baseKey = `SOFTWARE\Datadog\unit_test\windows_crash_reporting`
@@ -61,7 +61,7 @@ func TestWinCrashReporting(t *testing.T) {
 	listener, closefunc := createSystemProbeListener()
 	defer closefunc()
 
-	config.InitSystemProbeConfig(config.SystemProbe)
+	config.InitSystemProbeConfig(config.SystemProbe())
 
 	mux := http.NewServeMux()
 	server := http.Server{
@@ -70,7 +70,7 @@ func TestWinCrashReporting(t *testing.T) {
 	defer server.Close()
 
 	sock := fmt.Sprintf("localhost:%d", listener.Addr().(*net.TCPAddr).Port)
-	config.SystemProbe.SetWithoutSource("system_probe_config.sysprobe_socket", sock)
+	config.SystemProbe().SetWithoutSource("system_probe_config.sysprobe_socket", sock)
 
 	/*
 	 * the underlying system probe connector is a singleton.  Therefore, we can't set up different
@@ -83,10 +83,10 @@ func TestWinCrashReporting(t *testing.T) {
 	 */
 	var p *probe.WinCrashStatus
 
-	mux.Handle("/windows_crash_detection/check", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+	mux.Handle("/windows_crash_detection/check", http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
 		utils.WriteAsJSON(rw, p)
 	}))
-	mux.Handle("/debug/stats", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+	mux.Handle("/debug/stats", http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 	}))
 	go server.Serve(listener)
 

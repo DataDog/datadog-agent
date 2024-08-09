@@ -33,20 +33,19 @@ const (
 // OrchestratorConfig is the global config for the Orchestrator related packages. This information
 // is sourced from config files and the environment variables.
 type OrchestratorConfig struct {
-	CollectorDiscoveryEnabled         bool
-	OrchestrationCollectionEnabled    bool
-	KubeClusterName                   string
-	IsScrubbingEnabled                bool
-	Scrubber                          *redact.DataScrubber
-	OrchestratorEndpoints             []apicfg.Endpoint
-	MaxPerMessage                     int
-	MaxWeightPerMessageBytes          int
-	PodQueueBytes                     int // The total number of bytes that can be enqueued for delivery to the orchestrator endpoint
-	ExtraTags                         []string
-	IsManifestCollectionEnabled       bool
-	BufferedManifestEnabled           bool
-	ManifestBufferFlushInterval       time.Duration
-	OrchestrationECSCollectionEnabled bool
+	CollectorDiscoveryEnabled      bool
+	OrchestrationCollectionEnabled bool
+	KubeClusterName                string
+	IsScrubbingEnabled             bool
+	Scrubber                       *redact.DataScrubber
+	OrchestratorEndpoints          []apicfg.Endpoint
+	MaxPerMessage                  int
+	MaxWeightPerMessageBytes       int
+	PodQueueBytes                  int // The total number of bytes that can be enqueued for delivery to the orchestrator endpoint
+	ExtraTags                      []string
+	IsManifestCollectionEnabled    bool
+	BufferedManifestEnabled        bool
+	ManifestBufferFlushInterval    time.Duration
 }
 
 // NewDefaultOrchestratorConfig returns an NewDefaultOrchestratorConfig using a configuration file. It can be nil
@@ -99,6 +98,10 @@ func (oc *OrchestratorConfig) Load() error {
 		oc.Scrubber.AddCustomSensitiveWords(config.Datadog().GetStringSlice(k))
 	}
 
+	if k := OrchestratorNSKey("custom_sensitive_annotations_labels"); config.Datadog().IsSet(k) {
+		redact.UpdateSensitiveAnnotationsAndLabels(config.Datadog().GetStringSlice(k))
+	}
+
 	// The maximum number of resources per message and the maximum message size.
 	// Note: Only change if the defaults are causing issues.
 	setBoundedConfigIntValue(OrchestratorNSKey("max_per_message"), maxMessageBatch, func(v int) { oc.MaxPerMessage = v })
@@ -119,7 +122,6 @@ func (oc *OrchestratorConfig) Load() error {
 	oc.IsManifestCollectionEnabled = config.Datadog().GetBool(OrchestratorNSKey("manifest_collection.enabled"))
 	oc.BufferedManifestEnabled = config.Datadog().GetBool(OrchestratorNSKey("manifest_collection.buffer_manifest"))
 	oc.ManifestBufferFlushInterval = config.Datadog().GetDuration(OrchestratorNSKey("manifest_collection.buffer_flush_interval"))
-	oc.OrchestrationECSCollectionEnabled = config.Datadog().GetBool(OrchestratorNSKey("ecs_collection.enabled"))
 
 	return nil
 }
@@ -201,7 +203,7 @@ func IsOrchestratorECSExplorerEnabled() bool {
 		return false
 	}
 
-	if !config.Datadog().GetBool(OrchestratorNSKey("ecs_collection.enabled")) {
+	if !config.Datadog().GetBool("ecs_task_collection_enabled") {
 		return false
 	}
 

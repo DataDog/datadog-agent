@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 	"time"
@@ -163,7 +164,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 	p.extractors = append(p.extractors, p.serviceExtractor)
 
 	if !oneShot && workloadmeta.Enabled(p.config) {
-		p.workloadMetaExtractor = workloadmeta.NewWorkloadMetaExtractor(ddconfig.SystemProbe)
+		p.workloadMetaExtractor = workloadmeta.NewWorkloadMetaExtractor(ddconfig.SystemProbe())
 		p.workloadMetaServer = workloadmeta.NewGRPCServer(p.config, p.workloadMetaExtractor)
 		err = p.workloadMetaServer.Start()
 		if err != nil {
@@ -371,6 +372,19 @@ func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
 func (p *ProcessCheck) Run(nextGroupID func() int32, options *RunOptions) (RunResult, error) {
 	if options == nil {
 		return p.run(nextGroupID(), false)
+	}
+
+	// For no chunking, set max batch size to max value to ensure one chunk
+	if options.NoChunking {
+		oldMaxBatchSize := p.maxBatchSize
+		oldMaxBatchBytes := p.maxBatchBytes
+		p.maxBatchSize = math.MaxInt
+		p.maxBatchBytes = math.MaxInt
+
+		defer func() {
+			p.maxBatchSize = oldMaxBatchSize
+			p.maxBatchBytes = oldMaxBatchBytes
+		}()
 	}
 
 	if options.RunStandard {

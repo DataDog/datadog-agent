@@ -72,7 +72,7 @@ func (s *TracerSuite) TestTCPRemoveEntries() {
 	config.TCPConnTimeout = 100 * time.Millisecond
 	tr := setupTracer(t, config)
 	// Create a dummy TCP Server
-	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+	server := tracertestutil.NewTCPServer(func(_ net.Conn) {
 	})
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
@@ -434,7 +434,7 @@ func (s *TracerSuite) TestConntrackExpiration() {
 		if !assert.True(collect, ok, "connection not found") {
 			return
 		}
-		assert.NotNil(collect, tr.conntracker.GetTranslationForConn(*conn), "connection does not have NAT translation")
+		assert.NotNil(collect, tr.conntracker.GetTranslationForConn(conn), "connection does not have NAT translation")
 	}, 3*time.Second, 100*time.Millisecond, "failed to find connection translation")
 
 	// This will force the connection to be expired next time we call getConnections, but
@@ -443,7 +443,7 @@ func (s *TracerSuite) TestConntrackExpiration() {
 	tr.config.TCPConnTimeout = time.Duration(-1)
 	_ = getConnections(t, tr)
 
-	assert.NotNil(t, tr.conntracker.GetTranslationForConn(*conn), "translation should not have been deleted")
+	assert.NotNil(t, tr.conntracker.GetTranslationForConn(conn), "translation should not have been deleted")
 
 	// delete the connection from system conntrack
 	cmd := exec.Command("conntrack", "-D", "-s", c.LocalAddr().(*net.TCPAddr).IP.String(), "-d", c.RemoteAddr().(*net.TCPAddr).IP.String(), "-p", "tcp")
@@ -451,7 +451,7 @@ func (s *TracerSuite) TestConntrackExpiration() {
 	require.NoError(t, err, "conntrack delete failed, output: %s", out)
 	_ = getConnections(t, tr)
 
-	assert.Nil(t, tr.conntracker.GetTranslationForConn(*conn), "translation should have been deleted")
+	assert.Nil(t, tr.conntracker.GetTranslationForConn(conn), "translation should have been deleted")
 
 	// write newline so server connections will exit
 	_, err = c.Write([]byte("\n"))
@@ -493,7 +493,7 @@ func (s *TracerSuite) TestConntrackDelays() {
 	require.Eventually(t, func() bool {
 		connections := getConnections(t, tr)
 		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		return ok && tr.conntracker.GetTranslationForConn(*conn) != nil
+		return ok && tr.conntracker.GetTranslationForConn(conn) != nil
 	}, 3*time.Second, 100*time.Millisecond, "failed to find connection with translation")
 
 	// write newline so server connections will exit
@@ -542,7 +542,7 @@ func (s *TracerSuite) TestTranslationBindingRegression() {
 		Type:   network.TCP,
 	}
 	require.Eventually(t, func() bool {
-		return tr.conntracker.GetTranslationForConn(cs) != nil
+		return tr.conntracker.GetTranslationForConn(&cs) != nil
 	}, 3*time.Second, 100*time.Millisecond, "timed out waiting for conntrack update")
 
 	// Assert that the connection to 2.2.2.2 has an IPTranslation object bound to it
@@ -833,7 +833,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 	// run tcp server in test1 net namespace
 	var server *tracertestutil.TCPServer
 	err = kernel.WithNS(test1Ns, func() error {
-		server = tracertestutil.NewTCPServerOnAddress("2.2.2.2:0", func(c net.Conn) {})
+		server = tracertestutil.NewTCPServerOnAddress("2.2.2.2:0", func(_ net.Conn) {})
 		return server.Run()
 	})
 	require.NoError(t, err)
@@ -928,7 +928,7 @@ func (s *TracerSuite) TestConnectionAssured() {
 	tr := setupTracer(t, cfg)
 	server := &UDPServer{
 		network: "udp4",
-		onMessage: func(b []byte, n int) []byte {
+		onMessage: func([]byte, int) []byte {
 			return genPayload(serverMessageSize)
 		},
 	}
@@ -970,7 +970,7 @@ func (s *TracerSuite) TestConnectionNotAssured() {
 
 	server := &UDPServer{
 		network: "udp4",
-		onMessage: func(b []byte, n int) []byte {
+		onMessage: func([]byte, int) []byte {
 			return nil
 		},
 	}
@@ -1315,7 +1315,7 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 		return &UDPServer{
 			network: udpnet,
 			lc: &net.ListenConfig{
-				Control: func(network, address string, c syscall.RawConn) error {
+				Control: func(_, _ string, c syscall.RawConn) error {
 					var opErr error
 					err := c.Control(func(fd uintptr) {
 						opErr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT, 1)
@@ -1327,7 +1327,7 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 				},
 			},
 			address: fmt.Sprintf("%s:%d", ip, port),
-			onMessage: func(buf []byte, n int) []byte {
+			onMessage: func(_ []byte, _ int) []byte {
 				return genPayload(serverMessageSize)
 			},
 		}
@@ -1535,7 +1535,7 @@ func (s *TracerSuite) TestSendfileRegression() {
 				var rcvd int64
 				server := &UDPServer{
 					network: "udp" + strings.TrimPrefix(family.String(), "v"),
-					onMessage: func(b []byte, n int) []byte {
+					onMessage: func(_ []byte, n int) []byte {
 						rcvd = rcvd + int64(n)
 						return nil
 					},
@@ -1927,7 +1927,7 @@ func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 	server := &UDPServer{
 		network: "udp",
 		address: "localhost:8125",
-		onMessage: func(b []byte, n int) []byte {
+		onMessage: func(b []byte, _ int) []byte {
 			return b
 		},
 	}

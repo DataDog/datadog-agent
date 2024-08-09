@@ -39,6 +39,9 @@ func (t *TaskHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourc
 		GroupId:      pctx.MsgGroupID,
 		GroupSize:    int32(groupSize),
 		Tasks:        models,
+		Info:         pctx.SystemInfo,
+		HostName:     pctx.Hostname,
+		Tags:         pctx.Cfg.ExtraTags,
 	}
 }
 

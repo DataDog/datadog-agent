@@ -119,7 +119,7 @@ func (p *FileRemovalPolicy) getFolderPathForDomain(domainName string) (string, e
 }
 
 func (p *FileRemovalPolicy) removeUnknownDomain(folderPath string) ([]string, error) {
-	files, err := p.removeRetryFiles(folderPath, func(filename string) bool { return true })
+	files, err := p.removeRetryFiles(folderPath, func(_ string) bool { return true })
 
 	// Try to remove the folder if it is empty
 	_ = os.Remove(folderPath)

@@ -31,3 +31,10 @@ func RegistryKeyExists(host *components.RemoteHost, path string) (bool, error) {
 	}
 	return strings.EqualFold(strings.TrimSpace(out), "True"), nil
 }
+
+// DeleteRegistryKey deletes a registry key on the remote host
+func DeleteRegistryKey(host *components.RemoteHost, path string) error {
+	cmd := fmt.Sprintf("Remove-Item -Path '%s' -Recurse -Force", path)
+	_, err := host.Execute(cmd)
+	return err
+}

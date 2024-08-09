@@ -222,7 +222,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 // start starts the tracer. This function is present to separate
 // the creation from the start of the tracer for tests
 func (t *Tracer) start() error {
-	err := t.ebpfTracer.Start(t.storeClosedConnections)
+	err := t.ebpfTracer.Start(t.storeClosedConnection)
 	if err != nil {
 		t.Stop()
 		return fmt.Errorf("could not start ebpf tracer: %s", err)
@@ -290,37 +290,30 @@ func newReverseDNS(c *config.Config, telemetrycomp telemetryComponent.Component)
 	return rdns
 }
 
-// storeClosedConnections is triggered when:
+// storeClosedConnection is triggered when:
 // * the current closed connection batch fills up
 // * the client asks for the current connections
 // this function is responsible for storing the closed connections in the state and
 // matching failed connections to closed connections
-func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
-	var rejected int
-	for i := range connections {
-		cs := &connections[i]
-		cs.IsClosed = true
-		if t.shouldSkipConnection(cs) {
-			connections[rejected], connections[i] = connections[i], connections[rejected]
-			rejected++
-			tracerTelemetry.skippedConns.IncWithTags(cs.Type.Tags())
-			continue
-		}
-
-		cs.IPTranslation = t.conntracker.GetTranslationForConn(*cs)
-		t.connVia(cs)
-		if cs.IPTranslation != nil {
-			t.conntracker.DeleteTranslation(*cs)
-		}
-
-		t.addProcessInfo(cs)
-
-		tracerTelemetry.closedConns.IncWithTags(cs.Type.Tags())
-		t.ebpfTracer.GetFailedConnections().MatchFailedConn(cs)
+func (t *Tracer) storeClosedConnection(cs *network.ConnectionStats) {
+	cs.IsClosed = true
+	if t.shouldSkipConnection(cs) {
+		tracerTelemetry.skippedConns.IncWithTags(cs.Type.Tags())
+		return
 	}
 
-	connections = connections[rejected:]
-	t.state.StoreClosedConnections(connections)
+	cs.IPTranslation = t.conntracker.GetTranslationForConn(cs)
+	t.connVia(cs)
+	if cs.IPTranslation != nil {
+		t.conntracker.DeleteTranslation(cs)
+	}
+
+	t.addProcessInfo(cs)
+
+	tracerTelemetry.closedConns.IncWithTags(cs.Type.Tags())
+	t.ebpfTracer.GetFailedConnections().MatchFailedConn(cs)
+
+	t.state.StoreClosedConnection(cs)
 }
 
 func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
@@ -341,10 +334,8 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	}
 
 	if len(p.Tags) > 0 {
-		c.Tags = make(map[*intern.Value]struct{}, len(p.Tags))
-		for _, t := range p.Tags {
-			c.Tags[t] = struct{}{}
-		}
+		c.Tags = make([]*intern.Value, len(p.Tags))
+		copy(c.Tags, p.Tags)
 	}
 
 	if p.ContainerID != nil {
@@ -544,7 +535,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 
 	activeConnections = activeBuffer.Connections()
 	for i := range activeConnections {
-		activeConnections[i].IPTranslation = t.conntracker.GetTranslationForConn(activeConnections[i])
+		activeConnections[i].IPTranslation = t.conntracker.GetTranslationForConn(&activeConnections[i])
 		// do gateway resolution only on active connections outside
 		// the map iteration loop to not add to connections while
 		// iterating (leads to ever-increasing connections in the map,
@@ -597,7 +588,7 @@ func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 		}
 
 		// Delete conntrack entry for this connection
-		t.conntracker.DeleteTranslation(*entry)
+		t.conntracker.DeleteTranslation(entry)
 
 		// Append the connection key to the keys to remove from the userspace state
 		toRemove = append(toRemove, entry)

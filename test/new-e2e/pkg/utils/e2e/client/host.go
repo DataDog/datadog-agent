@@ -150,7 +150,20 @@ func (h *Host) MustExecute(command string, options ...ExecuteOption) string {
 	return stdout
 }
 
-// CopyFile create a sftp session and copy a single file to the remote host through SSH
+// CopyFileFromFS creates a sftp session and copy a single embedded file to the remote host through SSH
+func (h *Host) CopyFileFromFS(fs fs.FS, src, dst string) {
+	h.context.T().Logf("Copying file from local %s to remote %s", src, dst)
+	dst = h.convertPathSeparator(dst)
+	sftpClient := h.getSFTPClient()
+	defer sftpClient.Close()
+	file, err := fs.Open(src)
+	require.NoError(h.context.T(), err)
+	defer file.Close()
+	err = copyFileFromIoReader(sftpClient, file, dst)
+	require.NoError(h.context.T(), err)
+}
+
+// CopyFile creates a sftp session and copy a single file to the remote host through SSH
 func (h *Host) CopyFile(src string, dst string) {
 	h.context.T().Logf("Copying file from local %s to remote %s", src, dst)
 	dst = h.convertPathSeparator(dst)
@@ -429,7 +442,7 @@ func (h *Host) NewHTTPClient() *http.Client {
 
 func (h *Host) newHTTPTransport() *http.Transport {
 	return &http.Transport{
-		DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
+		DialContext: func(_ context.Context, _, addr string) (net.Conn, error) {
 			hostname, port, err := net.SplitHostPort(addr)
 			if err != nil {
 				return nil, err
@@ -476,6 +489,23 @@ func buildCommandFactory(osFamily oscomp.Family) buildCommandFn {
 
 func buildCommandOnWindows(h *Host, command string, envVar EnvVar) string {
 	cmd := ""
+
+	// Set $ErrorActionPreference to 'Stop' to cause PowerShell to stop on an erorr instead
+	// of the default 'Continue' behavior.
+	// This also ensures that Execute() will return an error when the command fails.
+	//
+	// For example, if the command is (Get-Service -Name ddnpm).Status and the service does not exist,
+	// then by default the command will print an error but the exit code will be 0 and Execute() will not return an error.
+	// By setting $ErrorActionPreference to 'Stop', Execute() will return an error as one would expect.
+	//
+	// Thus, we default to 'Stop' to make sure that an error is raised when the command fails instead of failing silently.
+	// Commands that this causes issues for will be immediately noticed and can be adjusted as needed, instead of
+	// silent errors going unnoticed and affecting test results.
+	//
+	// To ignore errors, prefix command with $ErrorActionPreference='Continue' or use -ErrorAction Continue
+	// https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_preference_variables#erroractionpreference
+	cmd += "$ErrorActionPreference='Stop'; "
+
 	envVarSave := map[string]string{}
 	for envName, envValue := range envVar {
 		previousEnvVar, err := h.executeAndReconnectOnError(fmt.Sprintf("$env:%s", envName))

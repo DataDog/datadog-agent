@@ -22,7 +22,7 @@ func RegisterProvider(name string,
 	providerCatalog map[string]ConfigProviderFactory) {
 	RegisterProviderWithComponents(
 		name,
-		func(providerConfig *config.ConfigurationProviders, wmeta workloadmeta.Component, telemetryStore *telemetry.Store) (ConfigProvider, error) {
+		func(providerConfig *config.ConfigurationProviders, _ workloadmeta.Component, telemetryStore *telemetry.Store) (ConfigProvider, error) {
 			return factory(providerConfig, telemetryStore)
 		},
 		providerCatalog,
