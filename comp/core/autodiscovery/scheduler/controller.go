@@ -9,11 +9,12 @@ import (
 	"sync"
 	"time"
 
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/workqueue"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/util/workqueue"
 )
 
 const (
@@ -39,6 +40,12 @@ type Controller struct {
 	// a workqueue to process the config events
 	queue workqueue.DelayingInterface
 
+	// serverScheduleChannel is the channel we use to schedule configuration changes over gRPC
+	serverScheduleChannel chan *integration.Config
+
+	// serverUnScheduleChannel is the channel we use to unschedule configuration changes over gRPC
+	// serverUnScheduleChannel chan *integration.Config
+
 	started     bool
 	stopChannel chan struct{}
 }
@@ -53,8 +60,10 @@ func NewController() *Controller {
 		queue: workqueue.NewDelayingQueueWithConfig(workqueue.DelayingQueueConfig{
 			Name: "ADSchedulerController",
 		}),
-		stopChannel:      make(chan struct{}),
-		configStateStore: NewConfigStateStore(),
+		stopChannel:           make(chan struct{}),
+		configStateStore:      NewConfigStateStore(),
+		serverScheduleChannel: make(chan *integration.Config),
+		// serverUnScheduleChannel: make(chan *integration.Config),
 	}
 	schedulerController.start()
 	return &schedulerController
@@ -130,6 +139,10 @@ func (ms *Controller) ApplyChanges(changes integration.ConfigChanges) {
 	}
 }
 
+func (ms *Controller) GetServerChannel() chan *integration.Config {
+	return ms.serverScheduleChannel
+}
+
 func (ms *Controller) worker() {
 	for ms.processNextWorkItem() {
 	}
@@ -172,6 +185,7 @@ func (ms *Controller) processNextWorkItem() bool {
 		if desiredState == Scheduled {
 			//to be scheduled
 			scheduler.Schedule(([]integration.Config{*desiredConfigState.config})) // TODO: check status of action
+			ms.serverScheduleChannel <- desiredConfigState.config
 		} else {
 			//to be unscheduled
 			scheduler.Unschedule(([]integration.Config{*desiredConfigState.config})) // TODO: check status of action
@@ -197,6 +211,7 @@ func (ms *Controller) Stop() {
 		scheduler.Stop()
 	}
 	close(ms.stopChannel)
+	close(ms.serverScheduleChannel)
 	ms.queue.ShutDown()
 	ms.started = false
 	ms.scheduledConfigs = make(map[Digest]*integration.Config)

@@ -3,17 +3,32 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+//nolint:revive // TODO Fix revive linter
 package start
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
+	"errors"
+	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
+	"strings"
 	"syscall"
+	"time"
 
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+
+	grpc_runtime "github.com/grpc-ecosystem/grpc-gateway/runtime"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -23,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	acServer "github.com/DataDog/datadog-agent/comp/core/autodiscovery/server"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
@@ -53,6 +69,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
@@ -68,9 +86,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
 	telemetryCheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -228,7 +249,7 @@ func start(
 
 	ac.LoadAndRun(context.Background())
 
-	err := Run(ctx, cliParams, config, log)
+	err := Run(ctx, cliParams, config, log, ac)
 	if err != nil {
 		return err
 	}
@@ -240,7 +261,7 @@ func start(
 }
 
 // Run starts the kernel agent server
-func Run(ctx context.Context, cliParams *CLIParams, config config.Component, log log.Component) (err error) {
+func Run(ctx context.Context, cliParams *CLIParams, config config.Component, log log.Component, ac autodiscovery.Component) (err error) {
 	if len(cliParams.confPath) == 0 {
 		log.Infof("Config will be read from env variables")
 	}
@@ -250,7 +271,166 @@ func Run(ctx context.Context, cliParams *CLIParams, config config.Component, log
 		return
 	}
 
+	err = util.CreateAndSetAuthToken(config)
+	if err != nil {
+		return err
+	}
+
+	apiAddr, err := getIPCAddressPort(config)
+	if err != nil {
+		return fmt.Errorf("unable to get IPC address and port: %v", err)
+	}
+
+	tlsKeyPair, tlsCertPool, err := initializeTLS(log, []string{apiAddr}...)
+	if err != nil {
+		return fmt.Errorf("unable to initialize TLS: %v", err)
+	}
+
+	// tls.Config is written to when serving, so it has to be cloned for each server
+	tlsConfig := func() *tls.Config {
+		return &tls.Config{
+			Certificates: []tls.Certificate{*tlsKeyPair},
+			NextProtos:   []string{"h2"},
+			MinVersion:   tls.VersionTLS12,
+		}
+	}
+
+	// start the server
+	if err := startServer(
+		apiAddr,
+		tlsConfig(),
+		tlsCertPool,
+		log,
+		config,
+		ac,
+	); err != nil {
+		return fmt.Errorf("unable to start API server: %v", err)
+	}
+
 	return nil
+}
+
+func startServer(
+	cmdAddr string,
+	tlsConfig *tls.Config,
+	tlsCertPool *x509.CertPool,
+	log log.Component,
+	config config.Component,
+	ac autodiscovery.Component,
+) (err error) {
+	// get the transport we're going to use under HTTP
+	cmdListener, err := net.Listen("tcp", cmdAddr)
+	if err != nil {
+		return fmt.Errorf("unable to listen to the given address: %v", err)
+	}
+
+	// gRPC server
+	authInterceptor := grpcutil.AuthInterceptor(parseToken)
+	opts := []grpc.ServerOption{
+		grpc.Creds(credentials.NewClientTLSFromCert(tlsCertPool, cmdAddr)),
+		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
+		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
+	}
+
+	s := grpc.NewServer(opts...)
+	pb.RegisterAgentSecureServer(s, &serverSecure{
+		autoDiscoveryServer: acServer.NewServer(ac),
+	})
+
+	dcreds := credentials.NewTLS(&tls.Config{
+		ServerName: cmdAddr,
+		RootCAs:    tlsCertPool,
+	})
+	dopts := []grpc.DialOption{grpc.WithTransportCredentials(dcreds)}
+
+	// starting grpc gateway
+	ctx := context.Background()
+	gwmux := grpc_runtime.NewServeMux()
+
+	err = pb.RegisterAgentSecureHandlerFromEndpoint(
+		ctx, gwmux, cmdAddr, dopts)
+	if err != nil {
+		return fmt.Errorf("error registering agent secure handler from endpoint %s: %v", cmdAddr, err)
+	}
+
+	cmdMux := http.NewServeMux()
+	cmdMux.Handle("/", gwmux)
+
+	srv := grpcutil.NewMuxedGRPCServer(
+		cmdAddr,
+		tlsConfig,
+		s,
+		grpcutil.TimeoutHandlerFunc(cmdMux, time.Duration(config.GetInt64("server_timeout"))*time.Second),
+	)
+
+	tlsListener := tls.NewListener(cmdListener, srv.TLSConfig)
+
+	go srv.Serve(tlsListener) //nolint:errcheck
+
+	log.Infof("Started HTTP server on %s", cmdListener.Addr().String())
+
+	return nil
+}
+
+func parseToken(token string) (interface{}, error) {
+	if token != util.GetAuthToken() {
+		return struct{}{}, errors.New("Invalid session token")
+	}
+
+	// Currently this empty struct doesn't add any information
+	// to the context, but we could potentially add some custom
+	// type.
+	return struct{}{}, nil
+}
+
+// getIPCAddressPort returns a listening connection
+func getIPCAddressPort(config config.Component) (string, error) {
+	address, err := setup.GetIPCAddress(config)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%v:%v", address, config.GetInt("cmd_port")), nil
+}
+
+func buildSelfSignedKeyPair(additionalHostIdentities ...string) ([]byte, []byte) {
+	hosts := []string{"127.0.0.1", "localhost", "::1"}
+	hosts = append(hosts, additionalHostIdentities...)
+	_, rootCertPEM, rootKey, err := security.GenerateRootCert(hosts, 2048)
+	if err != nil {
+		return nil, nil
+	}
+
+	// PEM encode the private key
+	rootKeyPEM := pem.EncodeToMemory(&pem.Block{
+		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(rootKey),
+	})
+
+	// Create and return TLS private cert and key
+	return rootCertPEM, rootKeyPEM
+}
+
+func initializeTLS(log log.Component, additionalHostIdentities ...string) (*tls.Certificate, *x509.CertPool, error) {
+	// print the caller to identify what is calling this function
+	if _, file, line, ok := runtime.Caller(1); ok {
+		log.Infof("[%s:%d] Initializing TLS certificates for hosts %v", file, line, strings.Join(additionalHostIdentities, ", "))
+	}
+
+	cert, key := buildSelfSignedKeyPair(additionalHostIdentities...)
+	if cert == nil {
+		return nil, nil, errors.New("unable to generate certificate")
+	}
+	pair, err := tls.X509KeyPair(cert, key)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to generate TLS key pair: %v", err)
+	}
+
+	tlsCertPool := x509.NewCertPool()
+	ok := tlsCertPool.AppendCertsFromPEM(cert)
+	if !ok {
+		return nil, nil, fmt.Errorf("unable to add new certificate to pool")
+	}
+
+	return &pair, tlsCertPool, nil
 }
 
 // handleSignals handles OS signals, and sends a message on stopCh when an interrupt

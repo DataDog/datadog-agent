@@ -381,6 +381,10 @@ func (ac *AutoConfig) Stop() {
 	}
 }
 
+func (ac *AutoConfig) GetServerChannel() chan *integration.Config {
+	return ac.schedulerController.GetServerChannel()
+}
+
 // AddConfigProvider adds a new configuration provider to AutoConfig.
 // Callers must pass a flag to indicate whether the configuration provider
 // expects to be polled and at which interval or it's fine for it to be invoked only once in the
