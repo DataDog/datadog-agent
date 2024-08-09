@@ -63,6 +63,9 @@ func (lp *LifecycleProcessor) startExecutionSpan(event interface{}, rawPayload [
 			inferredSpan.Span.TraceID = traceContext.TraceID
 			inferredSpan.Span.ParentID = traceContext.ParentID
 		}
+		if traceContext.TraceIDUpper64Hex != "" {
+			lp.requestHandler.SetMetaTag(ddTraceIDUpper64BitsHeader, traceContext.TraceIDUpper64Hex)
+		}
 	} else {
 		executionContext.TraceID = 0
 		executionContext.parentID = 0

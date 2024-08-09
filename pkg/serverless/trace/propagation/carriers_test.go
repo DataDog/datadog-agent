@@ -735,3 +735,67 @@ func TestHeadersCarrier(t *testing.T) {
 		})
 	}
 }
+
+func Test_stringToDdSpanId(t *testing.T) {
+	type args struct {
+		execArn          string
+		stateName        string
+		stateEnteredTime string
+	}
+	tests := []struct {
+		name string
+		args args
+		want uint64
+	}{
+		{"first Test Case",
+			args{
+				"arn:aws:states:sa-east-1:601427271234:express:DatadogStateMachine:acaf1a67-336a-e854-1599-2a627eb2dd8a:c8baf081-31f1-464d-971f-70cb17d01111",
+				"step-one",
+				"2022-12-08T21:08:19.224Z",
+			},
+			4340734536022949921,
+		},
+		{
+			"second Test Case",
+			args{
+				"arn:aws:states:sa-east-1:601427271234:express:DatadogStateMachine:acaf1a67-336a-e854-1599-2a627eb2dd8a:c8baf081-31f1-464d-971f-70cb17d01111",
+				"step-one",
+				"2022-12-08T21:08:19.224Y",
+			},
+			981693280319792699,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equalf(t, tt.want, stringToDdSpanID(tt.args.execArn, tt.args.stateName, tt.args.stateEnteredTime), "stringToDdSpanID(%v, %v, %v)", tt.args.execArn, tt.args.stateName, tt.args.stateEnteredTime)
+		})
+	}
+}
+
+func Test_stringToDdTraceIds(t *testing.T) {
+	type args struct {
+		toHash string
+	}
+	tests := []struct {
+		name               string
+		args               args
+		expectedLower64    uint64
+		expectedUpper64Hex string
+	}{
+		{
+			"first Test Case",
+			args{
+				"arn:aws:states:sa-east-1:425362996713:stateMachine:MyStateMachine-b276uka1j",
+			},
+			1680583253837593461,
+			"60ee1db79e4803f8",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, got1 := stringToDdTraceIDs(tt.args.toHash)
+			assert.Equalf(t, tt.expectedLower64, got, "stringToDdTraceIDs(%v)", tt.args.toHash)
+			assert.Equalf(t, tt.expectedUpper64Hex, got1, "stringToDdTraceIDs(%v)", tt.args.toHash)
+		})
+	}
+}
