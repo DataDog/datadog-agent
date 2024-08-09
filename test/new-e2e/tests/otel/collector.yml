@@ -1,0 +1,44 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+exporters:
+  datadog:
+    traces:
+      span_name_as_resource_name: true
+    hostname: "otelcol-docker"
+    api:
+      key: ${DD_API_KEY}
+processors:
+  batch:
+  # using the sampler
+  probabilistic_sampler:
+    sampling_percentage: 30
+connectors:
+  # Use datadog connector to compute stats for pre-sampled traces
+  datadog/connector:
+    traces:
+      span_name_as_resource_name: true
+      compute_stats_by_span_kind: true
+      peer_tags_aggregation: true
+service:
+  pipelines:
+    traces: # this pipeline computes APM stats
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [datadog/connector]
+    traces/sampling: # this pipeline uses sampling and sends traces
+      receivers: [otlp]
+      processors: [probabilistic_sampler,batch]
+      exporters: [datadog]
+    metrics:
+      receivers: [otlp, datadog/connector]
+      processors: [batch]
+      exporters: [datadog]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [datadog]
