@@ -11,6 +11,21 @@ import (
 	"strings"
 )
 
+var (
+	defaultSensitiveWords = []string{
+		"*password*", "*passwd*", "*mysql_pwd*",
+		"*access_token*", "*auth_token*",
+		"*api_key*", "*apikey*",
+		"*secret*", "*credentials*", "stripetoken",
+		// windows arguments
+		"/p", "/rp",
+	}
+
+	// note the `/` at the beginning of the regex.  it's not an escape or a typo
+	// it's for handling parameters like `/p` and `/rp` in windows
+	forbiddenSymbolsRegex = "[^/a-zA-Z0-9_*]"
+)
+
 var winDotExec = []string{".com", ".exe", ".bat", ".cmd", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".psc1", ".ps1"}
 
 // If the command doesn't identify the extension and cannot split the exec command from the args, it will return the existing characters until the first empty space occurrence.

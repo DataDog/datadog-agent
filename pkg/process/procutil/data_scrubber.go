@@ -14,14 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	defaultSensitiveWords = []string{
-		"*password*", "*passwd*", "*mysql_pwd*",
-		"*access_token*", "*auth_token*",
-		"*api_key*", "*apikey*",
-		"*secret*", "*credentials*", "stripetoken"}
-)
-
 const (
 	defaultCacheMaxCycles = 25
 )
