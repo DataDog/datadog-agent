@@ -183,9 +183,8 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 
 	d.sender.Gauge(deviceReachableMetric, utils.BoolToFloat64(deviceReachable), tags)
 	d.sender.Gauge(deviceUnreachableMetric, utils.BoolToFloat64(!deviceReachable), tags)
-
 	if values != nil {
-		d.sender.ReportMetrics(d.config.Metrics, values, tags)
+		d.sender.ReportMetrics(d.config.Metrics, values, tags, d.config.DeviceID)
 	}
 
 	// Get a system appropriate ping check
