@@ -165,7 +165,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 
 		configsyncimpl.OptionalModuleWithParams(),
 		fx.Provide(func() configsyncimpl.Params {
-			return configsyncimpl.NewParams(0, true)
+			return configsyncimpl.NewParams(params.SyncTO, params.SyncDelay, true)
 		}),
 		fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
 

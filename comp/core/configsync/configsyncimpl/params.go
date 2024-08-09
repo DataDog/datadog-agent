@@ -11,13 +11,15 @@ import "time"
 // Params defines the parameters for the configsync component.
 type Params struct {
 	SyncTO     time.Duration
+	SyncDelay  time.Duration
 	SyncOnInit bool
 }
 
 // NewParams creates a new instance of Params
-func NewParams(to time.Duration, sync bool) Params {
+func NewParams(to time.Duration, delay time.Duration, sync bool) Params {
 	params := Params{
 		SyncTO:     to,
+		SyncDelay:  delay,
 		SyncOnInit: sync,
 	}
 	return params
