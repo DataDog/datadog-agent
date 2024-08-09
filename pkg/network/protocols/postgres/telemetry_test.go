@@ -47,10 +47,14 @@ func Test_getBucketIndex(t *testing.T) {
 	}
 }
 
+// telemetryTestBufferSize serves as example configuration for the telemetry buffer size.
+const telemetryTestBufferSize = 2 * ebpf.BufferSize
+
 func TestTelemetry_Count(t *testing.T) {
 	tests := []struct {
 		name              string
 		query             string
+		telemetryConfig   CountOptions
 		tx                []*ebpf.EbpfEvent
 		expectedTelemetry telemetryResults
 	}{
@@ -67,6 +71,28 @@ func TestTelemetry_Count(t *testing.T) {
 				createEbpfEvent(ebpf.BufferSize + 4*bucketLength + 1),
 				createEbpfEvent(ebpf.BufferSize + 5*bucketLength + 1),
 				createEbpfEvent(ebpf.BufferSize + 6*bucketLength + 1),
+			},
+
+			expectedTelemetry: telemetryResults{
+				queryLength:               [bucketLength]int64{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+				failedOperationExtraction: 10,
+				failedTableNameExtraction: 10,
+			},
+		},
+		{
+			name:            "exceeded query length bucket for each bucket ones with telemetry config",
+			telemetryConfig: CountOptions{TelemetryBufferSize: telemetryTestBufferSize},
+			tx: []*ebpf.EbpfEvent{
+				createEbpfEvent(telemetryTestBufferSize - 2*bucketLength),
+				createEbpfEvent(telemetryTestBufferSize - bucketLength),
+				createEbpfEvent(telemetryTestBufferSize),
+				createEbpfEvent(telemetryTestBufferSize + 1),
+				createEbpfEvent(telemetryTestBufferSize + bucketLength + 1),
+				createEbpfEvent(telemetryTestBufferSize + 2*bucketLength + 1),
+				createEbpfEvent(telemetryTestBufferSize + 3*bucketLength + 1),
+				createEbpfEvent(telemetryTestBufferSize + 4*bucketLength + 1),
+				createEbpfEvent(telemetryTestBufferSize + 5*bucketLength + 1),
+				createEbpfEvent(telemetryTestBufferSize + 6*bucketLength + 1),
 			},
 
 			expectedTelemetry: telemetryResults{
@@ -114,7 +140,7 @@ func TestTelemetry_Count(t *testing.T) {
 			}
 			for _, tx := range tt.tx {
 				ep := NewEventWrapper(tx)
-				tel.Count(tx, ep)
+				tel.Count(tx, ep, tt.telemetryConfig)
 			}
 			verifyTelemetry(t, tel, tt.expectedTelemetry)
 		})
