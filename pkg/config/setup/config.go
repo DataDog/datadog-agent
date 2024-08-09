@@ -535,6 +535,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("ecs_collect_resource_tags_ec2", false)
 	config.BindEnvAndSetDefault("ecs_resource_tags_replace_colon", false)
 	config.BindEnvAndSetDefault("ecs_metadata_timeout", 500) // value in milliseconds
+	config.BindEnvAndSetDefault("ecs_metadata_retry_initial_interval", 100*time.Millisecond)
+	config.BindEnvAndSetDefault("ecs_metadata_retry_max_elapsed_time", 3000*time.Millisecond)
+	config.BindEnvAndSetDefault("ecs_metadata_retry_timeout_factor", 3)
 	config.BindEnvAndSetDefault("ecs_task_collection_enabled", false)
 	config.BindEnvAndSetDefault("ecs_task_cache_ttl", 3*time.Minute)
 	config.BindEnvAndSetDefault("ecs_task_collection_rate", 35)
