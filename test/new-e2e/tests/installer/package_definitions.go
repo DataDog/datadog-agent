@@ -8,11 +8,12 @@ package installer
 
 import (
 	"fmt"
+	"os"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
-	"os"
-	"strings"
 )
 
 // TestPackageConfig is a struct that regroups the fields necessary to install a package from an OCI Registry

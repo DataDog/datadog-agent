@@ -35,9 +35,9 @@ type packageAgentSuite struct {
 	packageBaseSuite
 }
 
-func testAgent(os e2eos.Descriptor, arch e2eos.Architecture) packageSuite {
+func testAgent(os e2eos.Descriptor, arch e2eos.Architecture, method installMethodOption) packageSuite {
 	return &packageAgentSuite{
-		packageBaseSuite: newPackageSuite("agent", os, arch, awshost.WithoutFakeIntake()),
+		packageBaseSuite: newPackageSuite("agent", os, arch, method, awshost.WithoutFakeIntake()),
 	}
 }
 
