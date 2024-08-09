@@ -73,7 +73,16 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 			source,
 		)
 
-		isCollected := (c.filteringEnabled && shouldCollectByDefault(ev)) || c.shouldCollect(ev)
+		collectedByDefault := false
+		if c.filteringEnabled {
+			if !shouldCollectByDefault(ev) {
+				source = fmt.Sprintf("%s_%s", source, customEventSourceSuffix)
+			} else {
+				collectedByDefault = true
+			}
+		}
+
+		isCollected := collectedByDefault || c.shouldCollect(ev)
 		if !isCollected {
 			if c.bundleUnspecifiedEvents {
 				eventsToBundle = append(eventsToBundle, ev)
@@ -91,6 +100,7 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 			involvedObject.Kind,
 			ev.Type,
 			source,
+			"false",
 		)
 
 		var timestamp int64

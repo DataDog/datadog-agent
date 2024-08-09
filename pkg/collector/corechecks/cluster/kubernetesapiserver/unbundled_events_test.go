@@ -660,6 +660,7 @@ func TestUnbundledEventsTransformFiltering(t *testing.T) {
 		name                   string
 		bundleUnspecifedEvents bool
 		filteringEnabled       bool
+		customFilter           []collectedEventType
 		expected               []event.Event
 	}{
 		{
@@ -689,6 +690,68 @@ func TestUnbundledEventsTransformFiltering(t *testing.T) {
 					AlertType:      event.AlertTypeWarning,
 					AggregationKey: "kubernetes_apiserver:17f2bab8-d051-4861-bc87-db3ba75dd6f6",
 					SourceTypeName: "kubernetes",
+					EventType:      "kubernetes_apiserver",
+				},
+			},
+		},
+		{
+			name:                   "default filtering enabled with custom filter, bundle unspecified events disabled",
+			bundleUnspecifedEvents: false,
+			filteringEnabled:       true,
+			customFilter: []collectedEventType{
+				{
+					Kind:    "Pod",
+					Source:  "kubelet",
+					Reasons: []string{"Pulled"},
+				},
+			},
+			expected: []event.Event{
+				{
+					Title:    "Pod default/wartortle-8fff95dbb-tsc7v: Failed",
+					Text:     "All containers terminated",
+					Ts:       ts.Time.Unix(),
+					Priority: event.PriorityNormal,
+					Host:     "test-host-test-cluster",
+					Tags: []string{
+						"event_reason:Failed",
+						"kube_kind:Pod",
+						"kube_name:wartortle-8fff95dbb-tsc7v",
+						"kube_namespace:default",
+						"kubernetes_kind:Pod",
+						"name:wartortle-8fff95dbb-tsc7v",
+						"namespace:default",
+						"pod_name:wartortle-8fff95dbb-tsc7v",
+						"orchestrator:kubernetes",
+						"reporting_controller:",
+						"source_component:kubelet",
+					},
+					AlertType:      event.AlertTypeWarning,
+					AggregationKey: "kubernetes_apiserver:17f2bab8-d051-4861-bc87-db3ba75dd6f6",
+					SourceTypeName: "kubernetes",
+					EventType:      "kubernetes_apiserver",
+				},
+				{
+					Title:    "Pod default/wartortle-8fff95dbb-tsc7v: Pulled",
+					Text:     "Successfully pulled image \"pokemon/squirtle:latest\" in 1.263s (1.263s including waiting)",
+					Ts:       ts.Time.Unix(),
+					Priority: event.PriorityNormal,
+					Host:     "test-host-test-cluster",
+					Tags: []string{
+						"event_reason:Pulled",
+						"kube_kind:Pod",
+						"kube_name:wartortle-8fff95dbb-tsc7v",
+						"kube_namespace:default",
+						"kubernetes_kind:Pod",
+						"name:wartortle-8fff95dbb-tsc7v",
+						"namespace:default",
+						"pod_name:wartortle-8fff95dbb-tsc7v",
+						"orchestrator:kubernetes",
+						"reporting_controller:",
+						"source_component:kubelet",
+					},
+					AlertType:      event.AlertTypeWarning,
+					AggregationKey: "kubernetes_apiserver:17f2bab8-d051-4861-bc87-db3ba75dd6f6",
+					SourceTypeName: "kubernetes_custom",
 					EventType:      "kubernetes_apiserver",
 				},
 			},
