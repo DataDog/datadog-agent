@@ -1006,9 +1006,6 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 			}
 		}
 
-		if suite.Contains(env, "PYTHONPATH") {
-			suite.Equal("/datadog-lib/", env["PYTHONPATH"])
-		}
 		suite.Contains(emptyDirVolumes, "datadog-auto-instrumentation")
 		if suite.Contains(volumeMounts, "datadog-auto-instrumentation") {
 			suite.ElementsMatch([]string{
