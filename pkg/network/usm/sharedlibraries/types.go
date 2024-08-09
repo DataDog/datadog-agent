@@ -12,8 +12,8 @@ package sharedlibraries
 */
 import "C"
 
-type libPath C.lib_path_t
+type LibPath C.lib_path_t
 
 const (
-	libPathMaxSize = C.LIB_PATH_MAX_SIZE
+	LibPathMaxSize = C.LIB_PATH_MAX_SIZE
 )

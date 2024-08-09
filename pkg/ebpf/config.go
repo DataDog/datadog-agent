@@ -75,6 +75,10 @@ type Config struct {
 
 	// AttachKprobesWithKprobeEventsABI uses the kprobe_events ABI to attach kprobes rather than the newer perf ABI.
 	AttachKprobesWithKprobeEventsABI bool
+
+	// BypassEnabled is used in tests only.
+	// It enables a ebpf-manager feature to bypass programs on-demand for controlled visibility.
+	BypassEnabled bool
 }
 
 func key(pieces ...string) string {

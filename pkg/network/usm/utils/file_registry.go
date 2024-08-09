@@ -118,7 +118,7 @@ var (
 // If no current registration exists for the given `PathIdentifier`, we execute
 // its *activation* callback. Otherwise, we increment the reference counter for
 // the existing registration if and only if `pid` is new;
-func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB callback) error {
+func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB func(FilePath) error) error {
 	if activationCB == nil || deactivationCB == nil {
 		return errCallbackIsMissing
 	}
