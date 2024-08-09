@@ -8,4 +8,7 @@ package server
 //nolint:revive // TODO(AML) Fix revive linter
 type Params struct {
 	Serverless bool
+
+	// SocketPath is the path to the UDP socket to use
+	SocketPath string
 }
