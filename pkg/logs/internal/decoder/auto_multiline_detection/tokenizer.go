@@ -124,7 +124,7 @@ func (t *Tokenizer) tokenize(input []byte) ([]Token, []int) {
 	tokens := make([]Token, 0, len(input))
 	indicies := make([]int, 0, len(input))
 	if len(input) == 0 {
-		return tokens, nil
+		return tokens, indicies
 	}
 
 	idx := 0
