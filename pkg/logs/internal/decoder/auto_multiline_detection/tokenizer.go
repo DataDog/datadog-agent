@@ -111,18 +111,23 @@ func (t *Tokenizer) Process(context *messageContext) bool {
 	if maxBytes > t.maxEvalBytes {
 		maxBytes = t.maxEvalBytes
 	}
-	context.tokens = t.tokenize(context.rawMessage[:maxBytes])
+	tokens, indicies := t.tokenize(context.rawMessage[:maxBytes])
+	context.tokens = tokens
+	context.tokenIndicies = indicies
 	return true
 }
 
 // tokenize converts a byte slice to a list of tokens.
-func (t *Tokenizer) tokenize(input []byte) []Token {
+// This function return the slice of tokens, and a slice of indices where each token starts.
+func (t *Tokenizer) tokenize(input []byte) ([]Token, []int) {
 	// len(tokens) will always be <= len(input)
 	tokens := make([]Token, 0, len(input))
+	indicies := make([]int, 0, len(input))
 	if len(input) == 0 {
-		return tokens
+		return tokens, nil
 	}
 
+	idx := 0
 	run := 0
 	lastToken := getToken(input[0])
 	t.strBuf.Reset()
@@ -139,11 +144,13 @@ func (t *Tokenizer) tokenize(input []byte) []Token {
 			if t.strBuf.Len() == 1 {
 				if specialToken := getSpecialShortToken(t.strBuf.Bytes()[0]); specialToken != end {
 					tokens = append(tokens, specialToken)
+					indicies = append(indicies, idx)
 					return
 				}
 			} else if t.strBuf.Len() > 1 { // Only test special long tokens if buffer is > 1 token
 				if specialToken := getSpecialLongToken(t.strBuf.String()); specialToken != end {
 					tokens = append(tokens, specialToken)
+					indicies = append(indicies, idx-run)
 					return
 				}
 			}
@@ -151,6 +158,7 @@ func (t *Tokenizer) tokenize(input []byte) []Token {
 
 		// Check for char or digit runs
 		if lastToken == c1 || lastToken == d1 {
+			indicies = append(indicies, idx-run)
 			// Limit max run size
 			if run >= maxRun {
 				run = maxRun - 1
@@ -158,6 +166,7 @@ func (t *Tokenizer) tokenize(input []byte) []Token {
 			tokens = append(tokens, lastToken+Token(run))
 		} else {
 			tokens = append(tokens, lastToken)
+			indicies = append(indicies, idx-run)
 		}
 	}
 
@@ -175,12 +184,13 @@ func (t *Tokenizer) tokenize(input []byte) []Token {
 			t.strBuf.WriteByte(char)
 		}
 		lastToken = currentToken
+		idx++
 	}
 
 	// Flush any remaining buffered tokens
 	insertToken()
 
-	return tokens
+	return tokens, indicies
 }
 
 // getToken returns a single token from a single byte.

@@ -13,6 +13,12 @@ type TokenGraph struct {
 	minimumTokenLength int
 }
 
+type matchContext struct {
+	probability float64
+	start       int
+	end         int
+}
+
 // NewTokenGraph returns a new TokenGraph.
 func NewTokenGraph(minimumTokenLength int, inputData [][]Token) *TokenGraph {
 	g := &TokenGraph{
@@ -38,9 +44,9 @@ func (m *TokenGraph) add(tokens []Token) {
 }
 
 // MatchProbability returns the probability of a sequence of tokens being represented by the graph.
-func (m *TokenGraph) MatchProbability(tokens []Token) float64 {
+func (m *TokenGraph) MatchProbability(tokens []Token) matchContext {
 	if len(tokens) < 2 {
-		return 0
+		return matchContext{}
 	}
 
 	out := make([]byte, len(tokens)-1)
@@ -53,38 +59,55 @@ func (m *TokenGraph) MatchProbability(tokens []Token) float64 {
 		lastToken = token
 	}
 
-	// Trim leading and trailing unmatched tokens
-	trimmed := trimUnmatchedTokens(out)
+	start, end := maxSubsequence(out)
+	subSeq := out[start:end]
 
 	// Reject sequences of tokens that are less than the minimum token length.
-	if len(trimmed) < m.minimumTokenLength {
-		return 0
+	if len(subSeq) < m.minimumTokenLength {
+		return matchContext{}
 	}
-	return avg(trimmed)
+
+	return matchContext{
+		probability: avg(subSeq),
+		start:       start,
+		end:         end,
+	}
 }
 
-// trimUnmatchedTokens trims the leading and trailing zeros from a byte slice.
-// Leading and trailing zeros represent tokens that were not matched
-// in the graph. Since timestamps are usually contiguous, removing
-// leading and trailing unmatched tokens will improve results.
-func trimUnmatchedTokens(states []byte) []byte {
+// maxSubsequence is a modified Kadane’s Algorithm.
+// The input sequence of 1 and 0 is evaluated as 1 and -1 to compute the max sum.
+// The idea is to find the subsequence that will produce the highest average
+// when taking the average of the 1 and 0 sequence.
+func maxSubsequence(arr []byte) (int, int) {
+	v := int(arr[0])
+	if v == 0 {
+		v = -1
+	}
+	maxSum := v
+	currentSum := v
 	start := 0
-	for i, n := range states {
-		if n != 0 {
-			start = i
-			break
+	end := 0
+	tempStart := 0
+
+	for i := 1; i < len(arr); i++ {
+		v := int(arr[i])
+		if v == 0 {
+			v = -1
+		}
+		if v > currentSum+v {
+			currentSum = v
+			tempStart = i
+		} else {
+			currentSum += v
+		}
+
+		if currentSum > maxSum {
+			maxSum = currentSum
+			start = tempStart
+			end = i
 		}
 	}
-
-	end := len(states)
-	for i := len(states) - 1; i >= 0; i-- {
-		if states[i] != 0 {
-			end = i + 1
-			break
-		}
-	}
-
-	return states[start:end]
+	return start, end + 1
 }
 
 func avg(states []byte) float64 {

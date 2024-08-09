@@ -8,6 +8,7 @@ package automultilinedetection
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,9 +28,11 @@ var inputs = []testInput{
 	// Likely contain timestamps for aggregation
 	{startGroup, "2021-03-28 13:45:30 App started successfully"},
 	{startGroup, "13:45:30 2021-03-28 "},
+	{startGroup, "foo bar 13:45:30 2021-03-28 "},
 	{startGroup, "2023-03-28T14:33:53.743350Z App started successfully"},
 	{startGroup, "2023-03-27 12:34:56 INFO App started successfully"},
 	{startGroup, "2023-03.28T14-33:53-7430Z App started successfully"},
+	{startGroup, "Datadog Agent 2023-03.28T14-33:53-7430Z App started successfully"},
 	{startGroup, "[2023-03-27 12:34:56] [INFO] App started successfully"},
 	{startGroup, "9/28/2022 2:23:15 PM"},
 	{startGroup, "2024-05-15 17:04:12,369 - root - DEBUG -"},
@@ -75,9 +78,39 @@ func TestCorrectLabelIsAssigned(t *testing.T) {
 
 		assert.True(t, tokenizer.Process(context))
 		assert.True(t, timestampDetector.Process(context))
-		assert.Equal(t, testInput.label, context.label, fmt.Sprintf("input: %s had the wrong label with probability: %f", testInput.input, timestampDetector.tokenGraph.MatchProbability(context.tokens)))
+		match := timestampDetector.tokenGraph.MatchProbability(context.tokens)
+		assert.Equal(t, testInput.label, context.label, fmt.Sprintf("input: %s had the wrong label with probability: %f", testInput.input, match.probability))
 
-		// Uncomment to dump the match probability for each test case - useuful for tuning accuracy
-		// fmt.Printf("%.2f\t\t\t\t%v\n", timestampDetector.tokenGraph.MatchProbability(context.tokens), testInput.input)
+		// To assist with debugging and tuning - this prints the probability and an underline of where the input was matched
+		printMatchUnderline(context, testInput.input, match)
 	}
+}
+
+func printMatchUnderline(context *messageContext, input string, match matchContext) {
+	maxLen := config.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
+	fmt.Printf("%.2f\t\t%v\n", match.probability, input)
+
+	if match.start == match.end {
+		return
+	}
+
+	evalStr := input
+	if len(input) > maxLen {
+		evalStr = input[:maxLen]
+	}
+	dbgStr := ""
+	printChar := " "
+	last := context.tokenIndicies[0]
+	for i, idx := range context.tokenIndicies {
+		dbgStr += strings.Repeat(printChar, idx-last)
+		if i == match.start {
+			printChar = "^"
+		}
+		if i == match.end+1 {
+			printChar = " "
+		}
+		last = idx
+	}
+	dbgStr += strings.Repeat(printChar, len(evalStr)-last)
+	fmt.Printf("\t\t\t%v\n", dbgStr)
 }

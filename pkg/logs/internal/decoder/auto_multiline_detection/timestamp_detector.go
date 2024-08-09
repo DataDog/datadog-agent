@@ -87,7 +87,8 @@ func makeStaticTokenGraph() *TokenGraph {
 	tokenizer := NewTokenizer(100) // 100 is arbitrary, anything larger than the longest knownTimestampFormat is fine.
 	inputData := make([][]Token, len(knownTimestampFormats))
 	for i, format := range knownTimestampFormats {
-		inputData[i] = tokenizer.tokenize([]byte(format))
+		tokens, _ := tokenizer.tokenize([]byte(format))
+		inputData[i] = tokens
 	}
 	return NewTokenGraph(minimumTokenLength, inputData)
 }
@@ -113,8 +114,7 @@ func (t *TimestampDetector) Process(context *messageContext) bool {
 		return true
 	}
 
-	probability := t.tokenGraph.MatchProbability(context.tokens)
-	if probability > t.matchThreshold {
+	if t.tokenGraph.MatchProbability(context.tokens).probability > t.matchThreshold {
 		context.label = startGroup
 	}
 
