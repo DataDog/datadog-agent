@@ -241,6 +241,11 @@ func StopInstallerExperiment(ctx context.Context) error {
 	return startUnit(ctx, installerUnit)
 }
 
+// PromoteInstallerExperiment promotes the installer experiment
+func PromoteInstallerExperiment(ctx context.Context) error {
+	return StopInstallerExperiment(ctx)
+}
+
 // addSystemDRuntimeConfigOverride removes RuntimeConfig from the agent unit
 // to avoid folder deletion on agent stop
 func addSystemDRuntimeConfigOverride(ctx context.Context) (err error) {

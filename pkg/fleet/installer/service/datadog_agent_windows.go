@@ -10,36 +10,13 @@ package service
 
 import (
 	"context"
-	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-	"os"
-	"os/exec"
-	"path/filepath"
 )
 
-func msiexec(target, operation string, args []string) (err error) {
-	updaterPath := filepath.Join(paths.PackagesPath, "datadog-agent", target)
-	msis, err := filepath.Glob(filepath.Join(updaterPath, "datadog-agent-*-1-x86_64.msi"))
-	if err != nil {
-		return err
-	}
-	if len(msis) > 1 {
-		return fmt.Errorf("too many MSIs in package")
-	} else if len(msis) == 0 {
-		return fmt.Errorf("no MSIs in package")
-	}
-
-	tmpDir, err := os.MkdirTemp(paths.TmpDirPath, fmt.Sprintf("install-%s-*", filepath.Base(msis[0])))
-	if err != nil {
-		return fmt.Errorf("could not create temporary directory: %w", err)
-	}
-
-	logPath := filepath.Join(tmpDir, "install.log")
-	cmd := exec.Command("msiexec", append([]string{operation, msis[0], "/qn", "/l", logPath, "MSIFASTINSTALL=7"}, args...)...)
-	return cmd.Run()
-}
+const (
+	datadogAgent = "datadog-agent"
+)
 
 // SetupAgent installs and starts the agent
 func SetupAgent(ctx context.Context, args []string) (err error) {
@@ -50,7 +27,8 @@ func SetupAgent(ctx context.Context, args []string) (err error) {
 		}
 		span.Finish(tracer.WithError(err))
 	}()
-	return msiexec("stable", "/i", args)
+	err = msiexec("stable", datadogAgent, "/i", args)
+	return err
 }
 
 // StartAgentExperiment starts the agent experiment
@@ -62,7 +40,8 @@ func StartAgentExperiment(ctx context.Context) (err error) {
 		}
 		span.Finish(tracer.WithError(err))
 	}()
-	return msiexec("experiment", "/i", nil)
+	err = msiexec("experiment", datadogAgent, "/i", nil)
+	return err
 }
 
 // StopAgentExperiment stops the agent experiment
@@ -74,13 +53,14 @@ func StopAgentExperiment(ctx context.Context) (err error) {
 		}
 		span.Finish(tracer.WithError(err))
 	}()
-	err = msiexec("experiment", "/x", nil)
+	err = msiexec("experiment", datadogAgent, "/x", nil)
 	if err != nil {
 		return err
 	}
 
 	// TODO: Need args here to restore DDAGENTUSER
-	return msiexec("stable", "/i", nil)
+	err = msiexec("stable", datadogAgent, "/i", nil)
+	return err
 }
 
 // PromoteAgentExperiment promotes the agent experiment
@@ -98,5 +78,6 @@ func RemoveAgent(ctx context.Context) (err error) {
 		}
 		span.Finish(tracer.WithError(err))
 	}()
-	return msiexec("stable", "/x", nil)
+	err = msiexec("stable", datadogAgent, "/x", nil)
+	return err
 }
