@@ -175,9 +175,14 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			return err
 		}
 
+		if params.eksInitOnly {
+			return nil
+		}
+
 		kubeConfig, err := cluster.GetKubeconfig(ctx, &eks.ClusterGetKubeconfigArgs{
 			ProfileName: pulumi.String(awsEnv.Profile()),
 		})
+
 		if err != nil {
 			return err
 		}

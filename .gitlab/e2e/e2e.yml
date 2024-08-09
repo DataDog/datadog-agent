@@ -174,9 +174,23 @@ new-e2e-containers:
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:20.04"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22.04"
       - EXTRA_PARAMS: --run TestEKSSuite
+        E2E_PRE_INITIALIZED: "true"
       - EXTRA_PARAMS: --run TestECSSuite
       - EXTRA_PARAMS: --run TestDockerSuite
       - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS|Docker)Suite"
+
+new-e2e-containers-eks-init:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+  rules:
+    - !reference [.on_container_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+    EXTRA_PARAMS: --run TestEKSSuite
+    E2E_INIT_ONLY: "true"
 
 new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64
@@ -266,7 +280,34 @@ new-e2e-npm-docker:
   variables:
     TARGETS: ./tests/npm
     TEAM: network-performance-monitoring
-    EXTRA_PARAMS: --run "Test(ECSVM|EC2VMContainerized|EKSVM)Suite"
+    EXTRA_PARAMS: --run "Test(ECSVM|EC2VMContainerized)Suite"
+
+
+new-e2e-npm-eks-init:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+  rules:
+    - !reference [.on_npm_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/npm
+    TEAM: network-performance-monitoring
+    EXTRA_PARAMS: --run "TestEKSVMSuite"
+    E2E_INIT_ONLY: "true"
+
+new-e2e-npm-eks:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_npm_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - qa_agent
+  variables:
+    TARGETS: ./tests/npm
+    TEAM: network-performance-monitoring
+    EXTRA_PARAMS: --run "TestEKSVMSuite"
+    E2E_PRE_INITIALIZED: "true"
 
 new-e2e-aml:
   extends: .new_e2e_template
