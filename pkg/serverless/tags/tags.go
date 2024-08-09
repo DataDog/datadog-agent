@@ -31,8 +31,9 @@ const (
 	InitType = "AWS_LAMBDA_INITIALIZATION_TYPE"
 
 	// Environment variables for Source Code Integration
-	GitCommitShaEnvVar  = "DD_GIT_COMMIT_SHA"
-	GitRepositoryEnvVar = "DD_GIT_REPOSITORY_URL"
+	GitMetadataEnabledEnvVar = "DD_TRACE_GIT_METADATA_ENABLED"
+	GitCommitShaEnvVar       = "DD_GIT_COMMIT_SHA"
+	GitRepositoryEnvVar      = "DD_GIT_REPOSITORY_URL"
 
 	// FunctionARNKey is the tag key for a function's arn
 	FunctionARNKey = "function_arn"
@@ -104,8 +105,11 @@ func BuildTagMap(arn string, configTags []string) map[string]string {
 	tags = setIfNotEmpty(tags, EnvKey, os.Getenv(envEnvVar))
 	tags = setIfNotEmpty(tags, VersionKey, os.Getenv(versionEnvVar))
 	tags = setIfNotEmpty(tags, ServiceKey, os.Getenv(serviceEnvVar))
-	tags = setIfNotEmpty(tags, GitCommitShaKey, os.Getenv(GitCommitShaEnvVar))
-	tags = setIfNotEmpty(tags, GitRepositoryKey, os.Getenv(GitRepositoryEnvVar))
+
+	if os.Getenv(GitMetadataEnabledEnvVar) != "false" {
+		tags = setIfNotEmpty(tags, GitCommitShaKey, os.Getenv(GitCommitShaEnvVar))
+		tags = setIfNotEmpty(tags, GitRepositoryKey, os.Getenv(GitRepositoryEnvVar))
+	}
 
 	tags = MergeWithOverwrite(tags, ArrayToMap(configTags))
 
