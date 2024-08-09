@@ -1,8 +1,8 @@
+using Datadog.CustomActions.Interfaces;
+using Microsoft.Deployment.WindowsInstaller;
 using System;
 using System.Diagnostics;
 using System.Security.Principal;
-using Datadog.CustomActions.Interfaces;
-using Microsoft.Deployment.WindowsInstaller;
 
 namespace Datadog.CustomActions
 {
@@ -10,7 +10,6 @@ namespace Datadog.CustomActions
     {
         const string Error = "The Datadog Agent installer must be run by a user that is a member of the Administrator group.";
 
-        [CustomAction]
         public static ActionResult EnsureAdminCaller(Session session)
         {
             if (!new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator))
