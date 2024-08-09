@@ -4126,11 +4126,14 @@ api_key:
     # throttle_error_threshold: 10
 
     ## @param recovery_intervals - integer - optional - default: 5
-    ## The number of intervals over which to throttle the rate limit back to limit_per_sec after being throttled.
+    ## The number of intervals over which to increase the rate limit back to limit_per_sec when lookups are again successful after being throttled due to errors.
     # recovery_intervals: 5
 
     ## @param recovery_interval - duration - optional - default: 5s
-    ## The interval between incrementally increasing the rate limit back to limit_per_sec after being throttled.
+    ## The interval between incrementally increasing the rate limit back to limit_per_sec when lookups are again successful after being throttled due to errors.
+    ## The rate limit will be increased by (limit_per_sec - limit_throttled_per_sec) / recovery_intervals every recovery_interval, until it reaches
+    ## limit_per_sec.  For example, with limit_per_sec=1000, limit_throttled_per_sec=1, recovery_intervals=5, recovery_interval=5s, the limit will
+    ## be increased by 200 every 5 seconds until reaching 1000.
     # recovery_interval: 5s
 
 {{end -}}
