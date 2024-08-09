@@ -24,6 +24,10 @@ if DEFINED USE_S3_CACHING set OMNIBUS_ARGS=%OMNIBUS_ARGS% %USE_S3_CACHING%
 SET PATH=%PATH%;%GOPATH%/bin
 set AGENT_MSI_OUTDIR=\omnibus-ruby\pkg\
 
+set REPO_ROOT=%~p0\..\..
+pushd .
+cd %REPO_ROOT% || exit /b 101
+
 @echo GOPATH %GOPATH%
 @echo PATH %PATH%
 @echo VSTUDIO_ROOT %VSTUDIO_ROOT%
