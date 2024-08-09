@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -23,6 +24,7 @@ const (
 	eventTypeStartService     = "start-service"
 	eventTypeEndService       = "end-service"
 	eventTypeHeartbeatService = "heartbeat-service"
+	maxCommandLine            = 200
 )
 
 type eventPayload struct {
@@ -38,6 +40,7 @@ type eventPayload struct {
 	ServiceNameSource   string   `json:"service_name_source"`
 	Ports               []uint16 `json:"ports"`
 	PID                 int      `json:"pid"`
+	CommandLine         []string `json:"command_line"`
 }
 
 type event struct {
@@ -49,6 +52,35 @@ type event struct {
 type telemetrySender struct {
 	sender   sender.Sender
 	hostname hostname.Component
+	scrubber *procutil.DataScrubber
+}
+
+// truncateCmdline truncates the command line length to maxCommandLine.
+func truncateCmdline(cmdline []string) []string {
+	var out []string
+	total := 0
+	max := maxCommandLine
+
+	for _, arg := range cmdline {
+		if total >= max {
+			break
+		}
+
+		this := len(arg)
+		if this == 0 {
+			// To avoid ending up with a large array with empty strings
+			continue
+		}
+
+		if total+this > max {
+			this = max - total
+		}
+
+		out = append(out, arg[:this])
+		total += this
+	}
+
+	return out
 }
 
 func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
@@ -71,6 +103,7 @@ func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 			ServiceNameSource:   svc.meta.NameSource,
 			Ports:               svc.process.Ports,
 			PID:                 svc.process.PID,
+			CommandLine:         svc.process.CmdLine,
 		},
 	}
 }
@@ -79,6 +112,7 @@ func newTelemetrySender(sender sender.Sender) *telemetrySender {
 	return &telemetrySender{
 		sender:   sender,
 		hostname: hostnameimpl.NewHostnameService(),
+		scrubber: procutil.NewDefaultDataScrubber(),
 	}
 }
 
