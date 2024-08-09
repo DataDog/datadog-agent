@@ -23,7 +23,7 @@
     - ${CI_PROJECT_DIR}/tools/ci/retry.sh go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
     - OUTPUT_DIR="/tmp/oci_output"
     - mkdir -p ${OUTPUT_DIR}
-    - export PACKAGE_VERSION=${PACKAGE_VERSION/.git/-git}
+    - export PACKAGE_VERSION=$(echo $PACKAGE_VERSION | sed 's/.git/-git/')
     - echo "Packaging OCI image for version $PACKAGE_VERSION"
     # Copy existing OCI (like the Windows one) to the output dir directly to be merged.
     - |
