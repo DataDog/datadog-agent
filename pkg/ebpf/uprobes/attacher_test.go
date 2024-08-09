@@ -32,7 +32,7 @@ import (
 // === Tests
 
 func TestCanCreateAttacher(t *testing.T) {
-	ua, err := NewUprobeAttacher("mock", &AttacherConfig{}, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", AttacherConfig{}, &MockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 }
@@ -40,7 +40,7 @@ func TestCanCreateAttacher(t *testing.T) {
 func TestAttachPidExcludesInternal(t *testing.T) {
 	exe := "datadog-agent/bin/system-probe"
 	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: 1, Cmdline: exe, Command: exe, Exe: exe}})
-	config := &AttacherConfig{
+	config := AttacherConfig{
 		ExcludeTargets: ExcludeInternal,
 		ProcRoot:       procRoot,
 	}
@@ -53,7 +53,7 @@ func TestAttachPidExcludesInternal(t *testing.T) {
 }
 
 func TestAttachPidExcludesSelf(t *testing.T) {
-	config := &AttacherConfig{
+	config := AttacherConfig{
 		ExcludeTargets: ExcludeSelf,
 	}
 	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
@@ -67,7 +67,7 @@ func TestAttachPidExcludesSelf(t *testing.T) {
 func TestGetExecutablePath(t *testing.T) {
 	exe := "/bin/bash"
 	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: 1, Cmdline: "", Command: exe, Exe: exe}})
-	config := &AttacherConfig{
+	config := AttacherConfig{
 		ProcRoot: procRoot,
 	}
 	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
@@ -110,7 +110,7 @@ ffffe000-fffff000 r-xp 00000000 00:00 0          [vdso]
 func TestGetLibrariesFromMapsFile(t *testing.T) {
 	pid := 1
 	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: uint32(pid), Maps: mapsFileSample}})
-	config := &AttacherConfig{
+	config := AttacherConfig{
 		ProcRoot: procRoot,
 	}
 	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
@@ -125,7 +125,7 @@ func TestGetLibrariesFromMapsFile(t *testing.T) {
 }
 
 func TestComputeRequestedSymbols(t *testing.T) {
-	ua, err := NewUprobeAttacher("mock", &AttacherConfig{}, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", AttacherConfig{}, &MockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -197,7 +197,7 @@ func TestComputeRequestedSymbols(t *testing.T) {
 }
 
 func TestStartAndStopWithoutLibraryWatcher(t *testing.T) {
-	ua, err := NewUprobeAttacher("mock", &AttacherConfig{}, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", AttacherConfig{}, &MockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -216,7 +216,7 @@ func TestStartAndStopWithLibraryWatcher(t *testing.T) {
 	}
 
 	rules := []*AttachRule{{LibraryNameRegex: regexp.MustCompile(`libssl.so`), Targets: AttachToSharedLibraries}}
-	ua, err := NewUprobeAttacher("mock", &AttacherConfig{Rules: rules, EbpfConfig: ebpfCfg}, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", AttacherConfig{Rules: rules, EbpfConfig: ebpfCfg}, &MockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 	require.True(t, ua.handlesLibraries())
@@ -267,7 +267,7 @@ func TestMonitor(t *testing.T) {
 		return
 	}
 
-	config := &AttacherConfig{
+	config := AttacherConfig{
 		Rules: []*AttachRule{{
 			LibraryNameRegex: regexp.MustCompile(`libssl.so`),
 			Targets:          AttachToExecutable | AttachToSharedLibraries,
@@ -319,7 +319,7 @@ func TestSync(t *testing.T) {
 		}
 		procFS := CreateFakeProcFS(t, procs)
 
-		config := &AttacherConfig{
+		config := AttacherConfig{
 			ProcRoot: procFS,
 			Rules:    rules,
 		}
@@ -350,7 +350,7 @@ func TestSync(t *testing.T) {
 		}
 		procFS := CreateFakeProcFS(t, procs)
 
-		config := &AttacherConfig{
+		config := AttacherConfig{
 			ProcRoot: procFS,
 			Rules:    rules,
 		}
@@ -417,7 +417,7 @@ func TestAttachToBinaryAndDetach(t *testing.T) {
 	}
 	procFS := CreateFakeProcFS(t, []FakeProcFSEntry{proc})
 
-	config := &AttacherConfig{
+	config := AttacherConfig{
 		ProcRoot: procFS,
 		Rules: []*AttachRule{
 			{
@@ -478,7 +478,7 @@ func TestAttachToBinaryAtReturnLocation(t *testing.T) {
 	}
 	procFS := CreateFakeProcFS(t, []FakeProcFSEntry{proc})
 
-	config := &AttacherConfig{
+	config := AttacherConfig{
 		ProcRoot: procFS,
 		Rules: []*AttachRule{
 			{
@@ -542,7 +542,7 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 	}
 	procFS := CreateFakeProcFS(t, []FakeProcFSEntry{proc})
 
-	config := &AttacherConfig{
+	config := AttacherConfig{
 		ProcRoot: procFS,
 		Rules: []*AttachRule{
 			{
@@ -655,7 +655,7 @@ func TestUprobeAttacher(t *testing.T) {
 
 	mgr := manager.Manager{}
 
-	attacherCfg := &AttacherConfig{
+	attacherCfg := AttacherConfig{
 		Rules: []*AttachRule{
 			{
 				LibraryNameRegex: regexp.MustCompile(`libssl.so`),
