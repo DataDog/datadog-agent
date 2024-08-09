@@ -17,45 +17,53 @@ var (
 	ErrImageIsSha256 = errors.New("invalid image name (is a sha256)")
 )
 
+type StructImageName struct {
+	Long     string
+	Registry string
+	Short    string
+	Tag      string
+	Digest   string
+}
+
 // SplitImageName splits a valid image name (from ResolveImageName) and returns:
 //   - the "long image name" with registry and prefix, without tag
 //   - the registry
 //   - the "short image name", without registry, prefix nor tag
 //   - the image tag if present
 //   - an error if parsing failed
-func SplitImageName(image string) (string, string, string, string, error) {
+func SplitImageName(image string) (s StructImageName, err error) {
 	// See TestSplitImageName for supported formats (number 6 will surprise you!)
 	if image == "" {
-		return "", "", "", "", ErrEmptyImage
+		return StructImageName{}, ErrEmptyImage
 	}
 	if strings.HasPrefix(image, "sha256:") {
-		return "", "", "", "", ErrImageIsSha256
+		return StructImageName{}, ErrImageIsSha256
 	}
-	long := image
-	if pos := strings.LastIndex(long, "@sha"); pos > 0 {
+	s.Long = image
+	if pos := strings.LastIndex(s.Long, "@sha"); pos > 0 {
 		// Remove @sha suffix when orchestrator is sha-pinning
-		long = long[0:pos]
+		s.Long = s.Long[0:pos]
+		s.Digest = image[pos+1:]
 	}
 
-	var registry, short, tag string
-	lastColon := strings.LastIndex(long, ":")
-	lastSlash := strings.LastIndex(long, "/")
-	firstSlash := strings.Index(long, "/")
+	lastColon := strings.LastIndex(s.Long, ":")
+	lastSlash := strings.LastIndex(s.Long, "/")
+	firstSlash := strings.Index(s.Long, "/")
 
 	if lastColon > -1 && lastColon > lastSlash {
 		// We have a tag
-		tag = long[lastColon+1:]
-		long = long[:lastColon]
+		s.Tag = s.Long[lastColon+1:]
+		s.Long = s.Long[:lastColon]
 	}
 	if lastSlash > -1 {
 		// we have a prefix / registry
-		short = long[lastSlash+1:]
+		s.Short = s.Long[lastSlash+1:]
 	} else {
-		short = long
+		s.Short = s.Long
 	}
 	if firstSlash > -1 && firstSlash != lastSlash {
 		// we have a registry
-		registry = long[:firstSlash]
+		s.Registry = s.Long[:firstSlash]
 	}
-	return long, registry, short, tag, nil
+	return s, nil
 }
