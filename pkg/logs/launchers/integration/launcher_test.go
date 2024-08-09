@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	integrationsMock "github.com/DataDog/datadog-agent/comp/logs/integrations/mock"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	auditor "github.com/DataDog/datadog-agent/pkg/logs/auditor/mock"
@@ -58,6 +58,7 @@ func (suite *LauncherTestSuite) SetupTest() {
 	suite.source = sources.NewLogSource("", &config.LogsConfig{Type: config.IntegrationType, Path: suite.testPath})
 	suite.s = NewLauncher(nil, suite.integrationsComp)
 	status.InitStatus(pkgConfig.Datadog(), util.CreateSources([]*sources.LogSource{suite.source}))
+	suite.s.logFileMaxSize = 1
 	suite.s.runPath = suite.testDir
 }
 
@@ -109,6 +110,38 @@ func (suite *LauncherTestSuite) TestWriteLogToFile() {
 
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), logText, string(fileContents))
+}
+
+// TestEnsureFileSize tests that ensureFileSize enforces the correct file sizes for launcher files
+func (suite *LauncherTestSuite) TestEnsureFileSize() {
+	filename := "testfile.log"
+	file, err := os.Create(filename)
+	assert.Nil(suite.T(), err)
+
+	defer os.Remove(filename)
+	defer file.Close()
+
+	info, err := os.Stat(filename)
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), int64(0), info.Size(), "Newly created file size not zero")
+
+	// Write data the file and make sure ensureFileSize deletes the file for being too large
+	data := make([]byte, 2*1024*1024)
+	_, err = file.Write(data)
+	assert.Nil(suite.T(), err)
+	err = file.Sync()
+	assert.Nil(suite.T(), err)
+
+	info, err = file.Stat()
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), int64(2*1024*1024), info.Size())
+
+	err = suite.s.ensureFileSize(filename)
+	assert.Nil(suite.T(), err)
+
+	info, err = os.Stat(filename)
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), int64(0), info.Size())
 }
 
 func TestLauncherTestSuite(t *testing.T) {
