@@ -182,14 +182,16 @@ func (i *InstallerExec) States() (map[string]repository.State, error) {
 }
 
 func (iCmd *installerCmd) Run() error {
-	output, err := iCmd.CombinedOutput()
+	var errBuf bytes.Buffer
+	iCmd.Stderr = &errBuf
+	err := iCmd.Cmd.Run()
 	if err == nil {
 		return nil
 	}
 
-	if len(output) == 0 {
+	if len(errBuf.Bytes()) == 0 {
 		return fmt.Errorf("install failed: %s", err.Error())
 	}
 
-	return fmt.Errorf("install failed: %s \n%s", strings.TrimSpace(string(output)), err.Error())
+	return fmt.Errorf("install failed: %s \n%s", strings.TrimSpace(errBuf.String()), err.Error())
 }

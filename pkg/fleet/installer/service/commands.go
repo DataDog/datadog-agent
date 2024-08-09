@@ -9,6 +9,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os/exec"
@@ -24,16 +25,18 @@ type realCmd struct {
 }
 
 func (r *realCmd) runWithError() error {
-	output, err := r.Cmd.CombinedOutput()
+	var errBuf bytes.Buffer
+	r.Stderr = &errBuf
+	err := r.Cmd.Run()
 	if err == nil {
 		return nil
 	}
 
-	if len(output) == 0 {
+	if len(errBuf.Bytes()) == 0 {
 		return fmt.Errorf("command failed: %s", err.Error())
 	}
 
-	return fmt.Errorf("command failed: %s \n%s", strings.TrimSpace(string(output)), err.Error())
+	return fmt.Errorf("command failed: %s \n%s", strings.TrimSpace(errBuf.String()), err.Error())
 }
 
 func newCommandRunner(ctx context.Context, name string, args ...string) commandRunner {
