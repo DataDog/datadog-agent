@@ -1,0 +1,378 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/DataDog/datadog-agent/tree/main/pkg/security/secl/rules",
+  "$defs": {
+    "ActionDefinition": {
+      "oneOf": [
+        {
+          "required": [
+            "set"
+          ],
+          "title": "SetAction"
+        },
+        {
+          "required": [
+            "kill"
+          ],
+          "title": "KillAction"
+        },
+        {
+          "required": [
+            "coredump"
+          ],
+          "title": "CoreDumpAction"
+        },
+        {
+          "required": [
+            "hash"
+          ],
+          "title": "HashAction"
+        }
+      ],
+      "properties": {
+        "filter": {
+          "type": "string"
+        },
+        "set": {
+          "$ref": "#/$defs/SetDefinition"
+        },
+        "kill": {
+          "$ref": "#/$defs/KillDefinition"
+        },
+        "coredump": {
+          "$ref": "#/$defs/CoreDumpDefinition"
+        },
+        "hash": {
+          "$ref": "#/$defs/HashDefinition"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "CoreDumpDefinition": {
+      "anyOf": [
+        {
+          "required": [
+            "process"
+          ],
+          "title": "CoreDumpWithProcess"
+        },
+        {
+          "required": [
+            "mount"
+          ],
+          "title": "CoreDumpWithMount"
+        },
+        {
+          "required": [
+            "dentry"
+          ],
+          "title": "CoreDumpWithDentry"
+        }
+      ],
+      "properties": {
+        "process": {
+          "type": "boolean"
+        },
+        "mount": {
+          "type": "boolean"
+        },
+        "dentry": {
+          "type": "boolean"
+        },
+        "no_compression": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "HashDefinition": {
+      "properties": {},
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "HookPointArg": {
+      "properties": {
+        "n": {
+          "type": "integer",
+          "description": "Zero-based argument index"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "uint",
+            "null-terminated-string"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "n",
+        "kind"
+      ]
+    },
+    "KillDefinition": {
+      "properties": {
+        "signal": {
+          "type": "string",
+          "description": "A valid signal name",
+          "examples": [
+            "SIGKILL",
+            "SIGTERM"
+          ]
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "process",
+            "container"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "signal"
+      ]
+    },
+    "MacroDefinition": {
+      "oneOf": [
+        {
+          "required": [
+            "expression"
+          ],
+          "title": "MacroWithExpression"
+        },
+        {
+          "required": [
+            "values"
+          ],
+          "title": "MacroWithValues"
+        }
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "expression": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "agent_version": {
+          "type": "string"
+        },
+        "filters": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "values": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "combine": {
+          "type": "string",
+          "enum": [
+            "merge",
+            "override"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id"
+      ]
+    },
+    "OnDemandHookPoint": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "syscall": {
+          "type": "boolean"
+        },
+        "args": {
+          "items": {
+            "$ref": "#/$defs/HookPointArg"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ]
+    },
+    "OverrideOptions": {
+      "properties": {
+        "fields": {
+          "items": {
+            "type": "string",
+            "enum": [
+              "all",
+              "expression",
+              "actions",
+              "every",
+              "tags"
+            ]
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "fields"
+      ]
+    },
+    "RuleDefinition": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "expression": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "tags": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "agent_version": {
+          "type": "string"
+        },
+        "filters": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "disabled": {
+          "type": "boolean"
+        },
+        "combine": {
+          "type": "string",
+          "enum": [
+            "override"
+          ]
+        },
+        "override_options": {
+          "$ref": "#/$defs/OverrideOptions"
+        },
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/ActionDefinition"
+          },
+          "type": "array"
+        },
+        "every": {
+          "type": "string",
+          "format": "duration"
+        },
+        "silent": {
+          "type": "boolean"
+        },
+        "group_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id"
+      ]
+    },
+    "SetDefinition": {
+      "oneOf": [
+        {
+          "required": [
+            "value"
+          ],
+          "title": "SetWithValue"
+        },
+        {
+          "required": [
+            "field"
+          ],
+          "title": "SetWithField"
+        }
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": true,
+        "field": {
+          "type": "string"
+        },
+        "append": {
+          "type": "boolean"
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "process",
+            "container"
+          ]
+        },
+        "size": {
+          "type": "integer"
+        },
+        "ttl": {
+          "type": "string",
+          "format": "duration"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ]
+    }
+  },
+  "properties": {
+    "version": {
+      "type": "string"
+    },
+    "macros": {
+      "items": {
+        "$ref": "#/$defs/MacroDefinition"
+      },
+      "type": "array"
+    },
+    "rules": {
+      "items": {
+        "$ref": "#/$defs/RuleDefinition"
+      },
+      "type": "array"
+    },
+    "hooks": {
+      "items": {
+        "$ref": "#/$defs/OnDemandHookPoint"
+      },
+      "type": "array"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+    "version",
+    "rules"
+  ]
+}
