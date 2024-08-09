@@ -10,8 +10,6 @@ package catalog
 
 import (
 	"go.uber.org/fx"
-
-	remoteworkloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/workloadmeta"
 )
 
 // GetCatalog returns the set of FX options to populate the catalog
@@ -26,13 +24,4 @@ func GetCatalog() fx.Option {
 		}
 	}
 	return fx.Options(opts...)
-}
-
-// TODO: (components) Move remote-only to its own catalog, similar to how catalog-less works
-// Depend on this catalog-remote using fx, instead of build tags
-
-func remoteWorkloadmetaParams() fx.Option {
-	return fx.Provide(func() remoteworkloadmeta.Params {
-		return remoteworkloadmeta.Params{} // Nil filter accepts everything
-	})
 }

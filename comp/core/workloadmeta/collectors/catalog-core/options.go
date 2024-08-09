@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/podman"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/process"
 	remoteprocesscollector "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/processcollector"
-	remoteworkloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/workloadmeta"
 )
 
 func getCollectorOptions() []fx.Option {
@@ -41,9 +40,7 @@ func getCollectorOptions() []fx.Option {
 		kubelet.GetFxOptions(),
 		kubemetadata.GetFxOptions(),
 		podman.GetFxOptions(),
-		remoteworkloadmeta.GetFxOptions(),
 		remoteprocesscollector.GetFxOptions(),
-		remoteWorkloadmetaParams(),
 		host.GetFxOptions(),
 		process.GetFxOptions(),
 	}
