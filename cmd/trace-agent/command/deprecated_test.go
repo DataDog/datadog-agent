@@ -45,6 +45,41 @@ func TestFixDeprecatedFlags(t *testing.T) {
 			},
 		},
 		{
+			cli: "--pid pidfile",
+			expectArgs: []string{
+				"--pidfile",
+				"pidfile",
+			},
+		},
+		{
+			cli: "-cpuprofile file",
+			expectArgs: []string{
+				"--cpu-profile",
+				"file",
+			},
+		},
+		{
+			cli: "--cpuprofile file",
+			expectArgs: []string{
+				"--cpu-profile",
+				"file",
+			},
+		},
+		{
+			cli: "-memprofile file",
+			expectArgs: []string{
+				"--mem-profile",
+				"file",
+			},
+		},
+		{
+			cli: "--memprofile file",
+			expectArgs: []string{
+				"--mem-profile",
+				"file",
+			},
+		},
+		{
 			cli: "-info",
 			expectArgs: []string{
 				"info",

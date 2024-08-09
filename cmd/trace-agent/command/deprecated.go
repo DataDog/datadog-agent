@@ -32,9 +32,12 @@ func FixDeprecatedFlags(args []string, w io.Writer) []string {
 		"-info":     replaceInfo,
 		"--info":    replaceInfo,
 		"-pid":      replacePid,
+		"--pid":     replacePid,
 		// Profiling flags
-		"-cpuprofile": replaceCPUProfile,
-		"-memprofile": replaceMemProfile,
+		"-cpuprofile":  replaceCpuProfile,
+		"--cpuprofile": replaceCpuProfile,
+		"-memprofile":  replaceMemProfile,
+		"--memprofile": replaceMemProfile,
 		// Windows flags
 		"-start-service": cli.ReplaceFlagPosix,
 		"-stop-service":  cli.ReplaceFlagPosix,
