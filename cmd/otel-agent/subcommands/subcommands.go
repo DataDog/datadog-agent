@@ -6,7 +6,10 @@
 // Package subcommands contains the subcommands of the otel-agent.
 package subcommands
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 // GlobalParams contains the values of agent-global Cobra flags.
 //
@@ -18,6 +21,8 @@ type GlobalParams struct {
 	CoreConfPath string
 	ConfigName   string
 	LoggerName   string
+	SyncDelay    time.Duration
+	SyncTO       time.Duration
 }
 
 // Set is called by Cobra when a flag is set.
