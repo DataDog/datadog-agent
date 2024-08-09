@@ -91,5 +91,9 @@ func setupConfig(config pkgconfigmodel.Config, deps configDependencies) (*pkgcon
 		}
 	}
 
+	for k, v := range p.cliOverride {
+		config.Set(k, v, pkgconfigmodel.SourceCLI)
+	}
+
 	return warnings, nil
 }
