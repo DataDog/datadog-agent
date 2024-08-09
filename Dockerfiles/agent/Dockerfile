@@ -139,7 +139,7 @@ RUN apt full-upgrade -y \
   # this can be removed
   # Install libssl-dev as it's required by some Python checks and we rely on system version
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser
+  && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser libgoogle-perftools-dev libjemalloc-dev
 
 # Install openjdk-11-jre-headless on jmx flavor
 RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
@@ -155,6 +155,10 @@ RUN ln -sf /opt/datadog-agent/embedded/ssl /etc/ssl
 
 # Copy agent from extract stage
 COPY --from=extract /output/ /
+
+# Copy libjemalloc compiled with je_cv_madv_free=no
+COPY libjemalloc.so.2 /lib/libjemalloc_profile.so
+COPY libjemalloc_arm.so.2 /lib/libjemalloc_arm_profile.so
 
 # S6 entrypoint, service definitions, healthcheck probe
 COPY s6-services /etc/services.d/
