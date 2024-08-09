@@ -148,6 +148,7 @@ variables:
   ## comment out both lines below (S3_OMNIBUS_CACHE_BUCKET and USE_S3_CACHING) to allow
   ## build to succeed with S3 caching disabled.
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
+  S3_OMNIBUS_GIT_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-git-cache-build-stable
   USE_S3_CACHING: --omnibus-s3-cache
   OMNIBUS_GIT_CACHE_DIR: /tmp/omnibus-git-cache
   ## comment out the line below to disable integration wheels cache
