@@ -2499,3 +2499,12 @@ func GetRemoteConfigurationAllowedIntegrations(cfg pkgconfigmodel.Reader) map[st
 
 	return allowMap
 }
+
+// IsAgentTelemetryEnabled returns true if Agent Telemetry ise enabled
+func IsAgentTelemetryEnabled(cfg pkgconfigmodel.Reader) bool {
+	// Disable Agent Telemetry for GovCloud
+	if cfg.GetBool("fips.enabled") || cfg.GetString("site") == "ddog-gov.com" {
+		return false
+	}
+	return cfg.GetBool("agent_telemetry.enabled")
+}
