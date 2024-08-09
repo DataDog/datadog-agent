@@ -649,6 +649,102 @@ func TestRuleSetApprovers16(t *testing.T) {
 	}
 }
 
+func TestRuleSetApprovers17(t *testing.T) {
+	exprs := []string{
+		`open.file.path in ["/etc/passwd", "/etc/shadow"] && open.file.path != ~"/var/*"`,
+		`open.file.path == "/var/lib/httpd"`,
+	}
+
+	rs := newRuleSet()
+	AddTestRuleExpr(t, rs, exprs...)
+
+	caps := FieldCapabilities{
+		{
+			Field:        "open.file.path",
+			TypeBitmask:  eval.ScalarValueType | eval.GlobValueType,
+			FilterWeight: 3,
+		},
+	}
+
+	approvers, _ := rs.GetEventTypeApprovers("open", caps)
+	if len(approvers) != 1 || len(approvers["open.file.path"]) != 3 {
+		t.Fatalf("should get an approver for `open.file.path`: %v", approvers)
+	}
+}
+
+func TestRuleSetApprovers18(t *testing.T) {
+	exprs := []string{
+		`open.file.path in ["/etc/passwd", "/etc/shadow"] && open.file.path != ~"/var/*"`,
+		`open.flags == O_RDONLY`,
+	}
+
+	rs := newRuleSet()
+	AddTestRuleExpr(t, rs, exprs...)
+
+	caps := FieldCapabilities{
+		{
+			Field:        "open.file.path",
+			TypeBitmask:  eval.ScalarValueType | eval.GlobValueType,
+			FilterWeight: 3,
+		},
+		{
+			Field:       "open.flags",
+			TypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
+		},
+	}
+
+	approvers, _ := rs.GetEventTypeApprovers("open", caps)
+	if len(approvers) != 2 || len(approvers["open.file.path"]) != 2 || len(approvers["open.flags"]) != 1 {
+		t.Fatalf("should get approvers: %v", approvers)
+	}
+}
+
+func TestRuleSetApprovers19(t *testing.T) {
+	exprs := []string{
+		`open.file.path in ["/etc/passwd", "/etc/shadow"] && open.file.path != ~"/var/*"`,
+		`open.flags == O_RDONLY`,
+	}
+
+	rs := newRuleSet()
+	AddTestRuleExpr(t, rs, exprs...)
+
+	caps := FieldCapabilities{
+		{
+			Field:        "open.file.path",
+			TypeBitmask:  eval.ScalarValueType | eval.GlobValueType,
+			FilterWeight: 3,
+		},
+	}
+
+	approvers, _ := rs.GetEventTypeApprovers("open", caps)
+	if len(approvers) != 0 {
+		t.Fatal("shouldn't get an approver")
+	}
+}
+
+func TestRuleSetApprovers20(t *testing.T) {
+	exprs := []string{
+		`open.file.path in ["/etc/passwd", "/etc/shadow"] && open.file.path != ~"/var/*"`,
+		`unlink.file.name == "test"`,
+	}
+
+	rs := newRuleSet()
+	AddTestRuleExpr(t, rs, exprs...)
+
+	caps := FieldCapabilities{
+		{
+			Field:        "open.file.path",
+			TypeBitmask:  eval.ScalarValueType | eval.GlobValueType,
+			FilterWeight: 3,
+		},
+	}
+
+	approvers, _ := rs.GetEventTypeApprovers("open", caps)
+	if len(approvers) != 1 || len(approvers["open.file.path"]) != 2 {
+		t.Fatalf("should get approvers: %v", approvers)
+	}
+}
+
 func TestGetRuleEventType(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		rule := eval.NewRule("aaa", `open.file.name == "test"`, &eval.Opts{})

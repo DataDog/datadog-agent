@@ -68,6 +68,29 @@ func bitmaskCombinations(bitmasks []int) []int {
 	return result
 }
 
+//  1. all the rule for a given event type has to have approvers
+//     with:
+//     * caps: open.file.name # only able to apply approver for open.file.name, not for open.flags
+//     ok:
+//     * open.file.name == "123" && process.uid == 33
+//     * open.file.name == "567" && process.gid == 55
+//     ko:
+//     * open.file.name == "123" && process.uid == 33
+//     * open.flags == O_RDONLY
+//     reason:
+//     * We can let pass only the event for the `open.file.name` of the first rule as the second one has to be evaluated on all the open events.
+//
+//  2. all the approver values has to be captured and used by the in-kernel filtering mechanism
+//     ex:
+//     * open.file.name in ["123", "456"] && process.uid == 33
+//     * open.file.name == "567" && process.gid == 55
+//     => approver("123", "456", "567")
+//
+//  3. non approver values can co-exists with approver value in the same rule
+//     ex:
+//     * open.file.name in ["123", "456"] && open.file.name != "4.*" && open.file.name != "888"
+//     reason:
+//     * event will be approved kernel side and will be rejected userspace side
 func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) (Approvers, error) {
 	approvers := make(Approvers)
 
@@ -82,7 +105,6 @@ func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) 
 			bestFilterMode   FilterMode
 		)
 
-	LOOP:
 		for _, fieldCap := range fieldCaps {
 			field := fieldCap.Field
 
@@ -99,10 +121,6 @@ func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) 
 
 					if isAnApprover {
 						filterValues = filterValues.Merge(FilterValue{Field: field, Value: value.Value, Type: value.Type, Mode: fieldCap.FilterMode})
-					} else if fieldCap.TypeBitmask&eval.BitmaskValueType == 0 {
-						// if not a bitmask we need to have all the value as approvers
-						// basically a list of values ex: in ["test123", "test456"]
-						continue LOOP
 					}
 				case eval.BitmaskValueType:
 					bitmasks = append(bitmasks, value.Value.(int))
