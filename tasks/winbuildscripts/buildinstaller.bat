@@ -22,11 +22,7 @@ if DEFINED GOMODCACHE set OMNIBUS_ARGS=%OMNIBUS_ARGS% --go-mod-cache %GOMODCACHE
 if DEFINED USE_S3_CACHING set OMNIBUS_ARGS=%OMNIBUS_ARGS% %USE_S3_CACHING%
 
 SET PATH=%PATH%;%GOPATH%/bin
-set AGENT_MSI_OUTDIR=\omnibus-ruby\pkg\
-
-set REPO_ROOT=%~p0\..\..
-pushd .
-cd %REPO_ROOT% || exit /b 101
+REM AGENT_MSI_OUTDIR is always overridden in msi.py
 
 @echo GOPATH %GOPATH%
 @echo PATH %PATH%
@@ -39,6 +35,8 @@ pip3 install -r requirements.txt
 inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --release-version %RELEASE_VERSION% || exit /b 1
 inv -e msi.build-installer || exit /b 2
 
+REM Set REPO_ROOT only here, otherwise it interferes with the Omnibus build
+set REPO_ROOT=%~p0\..\..
 Powershell -C "./tasks/winbuildscripts/Generate-OCIPackage.ps1 datadog-installer"
 
 REM show output package directories (for debugging)
