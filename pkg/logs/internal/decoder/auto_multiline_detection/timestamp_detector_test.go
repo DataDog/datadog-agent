@@ -27,8 +27,8 @@ type testInput struct {
 var inputs = []testInput{
 	// Likely contain timestamps for aggregation
 	{startGroup, "2021-03-28 13:45:30 App started successfully"},
-	{startGroup, "13:45:30 2021-03-28 "},
-	{startGroup, "foo bar 13:45:30 2021-03-28 "},
+	{startGroup, "13:45:30 2021-03-28"},
+	{startGroup, "foo bar 13:45:30 2021-03-28"},
 	{startGroup, "2023-03-28T14:33:53.743350Z App started successfully"},
 	{startGroup, "2023-03-27 12:34:56 INFO App started successfully"},
 	{startGroup, "2023-03.28T14-33:53-7430Z App started successfully"},
@@ -86,7 +86,7 @@ func TestCorrectLabelIsAssigned(t *testing.T) {
 	}
 }
 
-func printMatchUnderline(context *messageContext, input string, match matchContext) {
+func printMatchUnderline(context *messageContext, input string, match MatchContext) {
 	maxLen := config.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
 	fmt.Printf("%.2f\t\t%v\n", match.probability, input)
 

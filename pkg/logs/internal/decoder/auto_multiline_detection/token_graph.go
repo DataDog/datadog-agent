@@ -13,10 +13,12 @@ type TokenGraph struct {
 	minimumTokenLength int
 }
 
-type matchContext struct {
+// MatchContext is the context of a match.
+type MatchContext struct {
 	probability float64
-	start       int
-	end         int
+	// start and end are the indices of the token subsequence that produced the highest probability.
+	start int
+	end   int
 }
 
 // NewTokenGraph returns a new TokenGraph.
@@ -44,9 +46,9 @@ func (m *TokenGraph) add(tokens []Token) {
 }
 
 // MatchProbability returns the probability of a sequence of tokens being represented by the graph.
-func (m *TokenGraph) MatchProbability(tokens []Token) matchContext {
+func (m *TokenGraph) MatchProbability(tokens []Token) MatchContext {
 	if len(tokens) < 2 {
-		return matchContext{}
+		return MatchContext{}
 	}
 
 	out := make([]byte, len(tokens)-1)
@@ -59,15 +61,19 @@ func (m *TokenGraph) MatchProbability(tokens []Token) matchContext {
 		lastToken = token
 	}
 
+	// At this point we have a sequence of 1 and 0 where 1 represents a valid transition between tokens (a match).
+	// However a match could occur anywhere in the input so we need to find the subsequence that will produce
+	// best probability when taking the average of the 1 and 0 sequence - this is likely a match.
+	// Using a modified max subsequence is an optimization to find the subsequence that will produce the highest average.
 	start, end := maxSubsequence(out)
 	subSeq := out[start:end]
 
 	// Reject sequences of tokens that are less than the minimum token length.
 	if len(subSeq) < m.minimumTokenLength {
-		return matchContext{}
+		return MatchContext{}
 	}
 
-	return matchContext{
+	return MatchContext{
 		probability: avg(subSeq),
 		start:       start,
 		end:         end,
