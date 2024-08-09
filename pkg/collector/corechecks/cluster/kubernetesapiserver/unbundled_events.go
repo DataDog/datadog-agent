@@ -103,13 +103,20 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 			"false",
 		)
 
+		var timestamp int64
+		if ev.FirstTimestamp.IsZero() {
+			timestamp = int64(ev.EventTime.Unix())
+		} else {
+			timestamp = int64(ev.FirstTimestamp.Unix())
+		}
+
 		event := event.Event{
 			Title:          fmt.Sprintf("%s: %s", readableKey, ev.Reason),
 			Priority:       event.PriorityNormal,
 			Host:           hostInfo.hostname,
 			SourceTypeName: source,
 			EventType:      CheckName,
-			Ts:             int64(ev.LastTimestamp.Unix()),
+			Ts:             timestamp,
 			Tags:           tags,
 			AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", involvedObject.UID),
 			AlertType:      getDDAlertType(ev.Type),
