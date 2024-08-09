@@ -54,7 +54,7 @@ type Profile interface {
 	// Since one Workspace supports one single program and we have one program per stack,
 	// the path should be unique for each stack.
 	GetWorkspacePath(stackName string) string
-	// ParamStore() returns the normal parameter store
+	// ParamStore returns the normal parameter store
 	ParamStore() parameters.Store
 	// SecretStore returns the secure parameter store
 	SecretStore() parameters.Store
