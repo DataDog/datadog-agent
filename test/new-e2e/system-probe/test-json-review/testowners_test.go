@@ -26,6 +26,7 @@ pkg/other/thing.go @other
 /pkg/multiteam/*others @otherteam
 /pkg/multiteam2/ @mainteam
 /pkg/multiteam2/*others @otherteam
+/pkg/multiple/ @oneteam @twoteam
 /test/new-e2e/system-probe/test-json-review/ @testowners_general
 /test/new-e2e/system-probe/test-json-review/testowners_test.go @testowners_specific
 `
@@ -40,6 +41,7 @@ func TestMatchPackage(t *testing.T) {
 	require.Equal(t, "@networks", c.matchTest(testEvent{Package: "pkg/network/another/file/"}))
 	require.Equal(t, "@wildcard", c.matchTest(testEvent{Package: "pkg/wildcard/nested"}))
 	require.Equal(t, "@mainteam", c.matchTest(testEvent{Package: "pkg/multiteam/something"}))
+	require.Equal(t, "@oneteam @twoteam", c.matchTest(testEvent{Package: "pkg/multiple/something"}))
 	require.Equal(t, "@mainteam", c.matchTest(testEvent{Package: "pkg/multiteam2/something"}))
 }
 
