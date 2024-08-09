@@ -1,14 +1,3 @@
-extensions:
-  health_check:
-    endpoint: localhost:13133
-  pprof:
-    endpoint: localhost:1777
-  zpages:
-    endpoint: localhost:55679
-  datadog:
-    endpoint: localhost:7777
-
-
 receivers:
   otlp:
     protocols:
@@ -16,18 +5,6 @@ receivers:
         endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
-    # Collect own metrics
-  prometheus:
-    config:
-      scrape_configs:
-        - job_name: 'otel-collector'
-          scrape_interval: 10s
-          static_configs:
-            - targets: ['0.0.0.0:8888']
-          metric_relabel_configs:
-            - source_labels: [__name__]
-              regex: ".*grpc_io.*"
-              action: drop
 exporters:
   datadog:
     traces:
@@ -36,7 +13,6 @@ exporters:
     api:
       key: ${DD_API_KEY}
 processors:
-  infraattributes:
   batch:
   # using the sampler
   probabilistic_sampler:
@@ -49,7 +25,6 @@ connectors:
       compute_stats_by_span_kind: true
       peer_tags_aggregation: true
 service:
-  extensions: [health_check, pprof, zpages, datadog]
   pipelines:
     traces: # this pipeline computes APM stats
       receivers: [otlp]
@@ -57,13 +32,13 @@ service:
       exporters: [datadog/connector]
     traces/sampling: # this pipeline uses sampling and sends traces
       receivers: [otlp]
-      processors: [probabilistic_sampler, infraattributes,batch]
+      processors: [probabilistic_sampler,batch]
       exporters: [datadog]
     metrics:
-      receivers: [otlp, datadog/connector, prometheus]
-      processors: [infraattributes,batch]
+      receivers: [otlp, datadog/connector]
+      processors: [batch]
       exporters: [datadog]
     logs:
       receivers: [otlp]
-      processors: [infraattributes, batch]
+      processors: [batch]
       exporters: [datadog]

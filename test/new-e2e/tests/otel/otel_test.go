@@ -144,7 +144,7 @@ func (s *linuxTestSuite) TestOTelFlare() {
 	assert.True(s.T(), otelFlareFolder)
 	otelResponseContent, err := flare.GetFileContent(otelResponse)
 	assert.NoError(s.T(), err)
-	expectedContents := []string{"otel-agent", "datadog:", "health_check:", "pprof:", "zpages:", "infraattributes:", "prometheus:", "key: '[REDACTED]'"}
+	expectedContents := []string{"otel-agent", "datadog/dd-autoconfigured:", "health_check/dd-autoconfigured:", "pprof/dd-autoconfigured:", "zpages/dd-autoconfigured:", "infraattributes/dd-autoconfigured:", "prometheus/dd-autoconfigured:", "key: '[REDACTED]'"}
 	for _, expected := range expectedContents {
 		assert.Contains(s.T(), otelResponseContent, expected)
 	}
