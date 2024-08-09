@@ -19,14 +19,13 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	localkubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/local/kubernetes"
+	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
 	flareHelpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-subcommands/flare"
 )
 
@@ -37,12 +36,11 @@ type linuxTestSuite struct {
 //go:embed collector.yml
 var collectorConfig string
 
-func TestOtel(t *testing.T) {
-	fmt.Println("config", collectorConfig)
-	e2e.Run(t, &linuxTestSuite{}, e2e.WithProvisioner(localkubernetes.Provisioner(localkubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(collectorConfig)))))
+func TestOTel(t *testing.T) {
+	e2e.Run(t, &linuxTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithoutDualShipping(), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(collectorConfig)))))
 }
 
-func (s *linuxTestSuite) TestOtelAgentInstalled() {
+func (s *linuxTestSuite) TestOTelAgentInstalled() {
 	agent := s.getAgentPod()
 	assert.Contains(s.T(), agent.ObjectMeta.String(), "otel-agent")
 }
@@ -118,8 +116,6 @@ func (s *linuxTestSuite) TestOTLPLogs() {
 
 func (s *linuxTestSuite) TestOTelFlare() {
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-	// TODO: remove this prefix when localkubernetes is removed
-	localFlarePrefix := "kind-control-plane-sliu-e2e-linu/"
 
 	s.T().Log("Starting flare")
 	agent := s.getAgentPod()
@@ -131,13 +127,14 @@ func (s *linuxTestSuite) TestOTelFlare() {
 	s.T().Log("Getting latest flare")
 	flare, err := s.Env().FakeIntake.Client().GetLatestFlare()
 	assert.NoError(s.T(), err, "Failed to get latest flare")
-	flareHelpers.AssertFoldersExist(s.T(), flare, []string{localFlarePrefix + "otel", localFlarePrefix + "otel/otel-flare"})
-	flareHelpers.AssertFilesExist(s.T(), flare, []string{localFlarePrefix + "otel/otel-response.json"})
-	flareHelpers.AssertFileContains(s.T(), flare, localFlarePrefix+"otel/otel-response.json", "otel-agent", "datadog:", "health_check:", "pprof:", "zpages:", "infraattributes:", "prometheus:", "key: '[REDACTED]'")
+	s.T().Log(flare.GetFilenames())
+	flareHelpers.AssertFoldersExist(s.T(), flare, []string{"otel", "otel/otel-flare"})
+	flareHelpers.AssertFilesExist(s.T(), flare, []string{"otel/otel-response.json"})
+	flareHelpers.AssertFileContains(s.T(), flare, "otel/otel-response.json", "otel-agent", "datadog:", "health_check:", "pprof:", "zpages:", "infraattributes:", "prometheus:", "key: '[REDACTED]'")
 }
 
 func (s *linuxTestSuite) getAgentPod() corev1.Pod {
-	res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), v1.ListOptions{
+	res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
 	})
 	assert.NoError(s.T(), err)
@@ -146,7 +143,7 @@ func (s *linuxTestSuite) getAgentPod() corev1.Pod {
 }
 
 func (s *linuxTestSuite) createTelemetrygenJob(ctx context.Context, telemetry string, options []string) {
-	var ttlSecondsAfterFinished int32 = 0
+	var ttlSecondsAfterFinished int32 = 0 //nolint:revive // We want to see this is explicitly set to 0
 	var backOffLimit int32 = 4
 
 	otlpEndpoint := fmt.Sprintf("%v:4317", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"])
