@@ -21,7 +21,7 @@
             "ubuntu-22-04": "ami-02e99c6973f5a184a",
             "ubuntu-23-04": "ami-09c5d86a379ab69a5",
             "ubuntu-23-10": "ami-0949b45ef274e55a1",
-            "ubuntu-24-04": "ami-0bfc0c74356d9b384"
+            "ubuntu-24-04": "ami-07f82d1e244e51c3e"
         },
         "arm64": {
             "ubuntu-18-04": "ami-002c0df0f55a14f82",
@@ -31,7 +31,7 @@
             "ubuntu-22-04": "ami-0f1d4680f8b775120",
             "ubuntu-23-04": "ami-05fab5da2d7fe0b0b",
             "ubuntu-23-10": "ami-0dea732dd5f1da0a8",
-            "ubuntu-24-04": "ami-0e879a1b306fffb22"
+            "ubuntu-24-04": "ami-0d1359a3d568f2397"
         }
     },
     "amazonlinux": {
