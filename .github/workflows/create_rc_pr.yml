@@ -13,7 +13,6 @@ env:
 jobs:
     create_rc_pr:
         runs-on: ubuntu-latest
-
         steps:
             - name: Checkout repository
               uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
@@ -44,7 +43,7 @@ jobs:
             - name: Checkout release branch
               uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
               with:
-                ref: ${{ env.RELEASE_BRANCH }}
+                ref: nschweitzer/add_git_config
                 fetch-depth: 0
 
             - name: Check for changes since last RC
@@ -53,10 +52,10 @@ jobs:
                 ATLASSIAN_USERNAME: ${{ secrets.ATLASSIAN_USERNAME }}
                 ATLASSIAN_PASSWORD: ${{ secrets.ATLASSIAN_PASSWORD }}
               run: |
-                echo "CHANGES=$(inv -e release.check-for-changes -r ${{ env.RELEASE_BRANCH }} ${{ env.WARNING }})" >> $GITHUB_OUTPUT
+                echo "DD_CHANGES=$(inv -e release.check-for-changes -r ${{ env.RELEASE_BRANCH }} ${{ env.WARNING }})" >> $GITHUB_ENV
 
             - name: Create RC PR
-              if: ${{ steps.check_for_changes.outputs.CHANGES == 'true'}}
+              if: ${{ env.DD_CHANGES == '1' }}
               run: |
                 git config user.name "github-actions[bot]"
                 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
