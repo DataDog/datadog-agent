@@ -28,9 +28,9 @@ static __always_inline void http_begin_request(http_transaction_t *http, http_me
 
 static __always_inline void http_begin_response(http_transaction_t *http, const char *buffer) {
     u16 status_code = 0;
-    status_code += (buffer[HTTP_STATUS_OFFSET+0]-'0') * 100;
-    status_code += (buffer[HTTP_STATUS_OFFSET+1]-'0') * 10;
-    status_code += (buffer[HTTP_STATUS_OFFSET+2]-'0') * 1;
+    status_code += (buffer[HTTP_STATUS_OFFSET + 0] - '0') * 100;
+    status_code += (buffer[HTTP_STATUS_OFFSET + 1] - '0') * 10;
+    status_code += (buffer[HTTP_STATUS_OFFSET + 2] - '0') * 1;
     http->response_status_code = status_code;
     log_debug("http_begin_response: htx=%p status=%d", http, status_code);
 }
@@ -50,35 +50,38 @@ static __always_inline void http_batch_enqueue_wrapper(conn_tuple_t *tuple, http
 static __always_inline void http_parse_data(char const *p, http_packet_t *packet_type, http_method_t *method) {
     if ((p[0] == 'H') && (p[1] == 'T') && (p[2] == 'T') && (p[3] == 'P')) {
         *packet_type = HTTP_RESPONSE;
-    } else if ((p[0] == 'G') && (p[1] == 'E') && (p[2] == 'T') && (p[3]  == ' ') && (p[4] == '/')) {
+    } else if ((p[0] == 'G') && (p[1] == 'E') && (p[2] == 'T') && (p[3] == ' ') && (p[4] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_GET;
-    } else if ((p[0] == 'P') && (p[1] == 'O') && (p[2] == 'S') && (p[3] == 'T') && (p[4]  == ' ') && (p[5] == '/')) {
+    } else if ((p[0] == 'P') && (p[1] == 'O') && (p[2] == 'S') && (p[3] == 'T') && (p[4] == ' ') && (p[5] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_POST;
-    } else if ((p[0] == 'P') && (p[1] == 'U') && (p[2] == 'T') && (p[3]  == ' ') && (p[4] == '/')) {
+    } else if ((p[0] == 'P') && (p[1] == 'U') && (p[2] == 'T') && (p[3] == ' ') && (p[4] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_PUT;
-    } else if ((p[0] == 'D') && (p[1] == 'E') && (p[2] == 'L') && (p[3] == 'E') && (p[4] == 'T') && (p[5] == 'E') && (p[6]  == ' ') && (p[7] == '/')) {
+    } else if ((p[0] == 'D') && (p[1] == 'E') && (p[2] == 'L') && (p[3] == 'E') && (p[4] == 'T') && (p[5] == 'E') && (p[6] == ' ') && (p[7] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_DELETE;
-    } else if ((p[0] == 'H') && (p[1] == 'E') && (p[2] == 'A') && (p[3] == 'D') && (p[4]  == ' ') && (p[5] == '/')) {
+    } else if ((p[0] == 'H') && (p[1] == 'E') && (p[2] == 'A') && (p[3] == 'D') && (p[4] == ' ') && (p[5] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_HEAD;
-    } else if ((p[0] == 'O') && (p[1] == 'P') && (p[2] == 'T') && (p[3] == 'I') && (p[4] == 'O') && (p[5] == 'N') && (p[6] == 'S') && (p[7]  == ' ') && ((p[8] == '/') || (p[8] == '*'))) {
+    } else if ((p[0] == 'H') && (p[1] == 'O') && (p[2] == 'N') && (p[3] == 'K') && (p[4] == '0') && (p[5] == '/')) {
+        *packet_type = HTTP_REQUEST;
+        *method = HTTP_HEAD;
+    } else if ((p[0] == 'O') && (p[1] == 'P') && (p[2] == 'T') && (p[3] == 'I') && (p[4] == 'O') && (p[5] == 'N') && (p[6] == 'S') && (p[7] == ' ') && ((p[8] == '/') || (p[8] == '*'))) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_OPTIONS;
-    } else if ((p[0] == 'P') && (p[1] == 'A') && (p[2] == 'T') && (p[3] == 'C') && (p[4] == 'H') && (p[5]  == ' ') && (p[6] == '/')) {
+    } else if ((p[0] == 'P') && (p[1] == 'A') && (p[2] == 'T') && (p[3] == 'C') && (p[4] == 'H') && (p[5] == ' ') && (p[6] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_PATCH;
-    } else if ((p[0] == 'T') && (p[1] == 'R') && (p[2] == 'A') && (p[3] == 'C') && (p[4] == 'E') && (p[5]  == ' ') && (p[6] == '/')) {
+    } else if ((p[0] == 'T') && (p[1] == 'R') && (p[2] == 'A') && (p[3] == 'C') && (p[4] == 'E') && (p[5] == ' ') && (p[6] == '/')) {
         *packet_type = HTTP_REQUEST;
         *method = HTTP_TRACE;
     }
 }
 
 static __always_inline bool http_closed(skb_info_t *skb_info) {
-    return (skb_info && skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST));
+    return (skb_info && skb_info->tcp_flags & (TCPHDR_FIN | TCPHDR_RST));
 }
 
 // this is merely added here to improve readibility of code.
@@ -173,8 +176,6 @@ static __always_inline http_transaction_t *http_fetch_state(conn_tuple_t *tuple,
     return bpf_map_lookup_elem(&http_in_flight, tuple);
 }
 
-
-
 // Returns true if the given http transaction should be flushed to the user mode.
 // We flush a transaction if:
 //   1. We got a new request (packet_type == HTTP_REQUEST) and previously (in the given transaction) we had either a
@@ -183,7 +184,7 @@ static __always_inline http_transaction_t *http_fetch_state(conn_tuple_t *tuple,
 //   2. We got a new response (packet_type == HTTP_RESPONSE) and the given transaction already contains a response
 static __always_inline bool http_should_flush_previous_state(http_transaction_t *http, http_packet_t packet_type) {
     return (packet_type == HTTP_REQUEST && (http->request_started || http->response_status_code)) ||
-        (packet_type == HTTP_RESPONSE && http->response_status_code);
+           (packet_type == HTTP_RESPONSE && http->response_status_code);
 }
 
 // http_process is responsible for parsing traffic and emitting events
@@ -240,14 +241,14 @@ static __always_inline bool http_allow_packet(conn_tuple_t *tuple, skb_info_t *s
     if (empty_payload) {
         // if the payload data is empty or encrypted packet, we only
         // process it if the packet represents a TCP termination
-        return skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST);
+        return skb_info->tcp_flags & (TCPHDR_FIN | TCPHDR_RST);
     }
 
     return true;
 }
 
 SEC("socket/http_filter")
-int socket__http_filter(struct __sk_buff* skb) {
+int socket__http_filter(struct __sk_buff *skb) {
     skb_info_t skb_info;
     http_event_t event;
     bpf_memset(&event, 0, sizeof(http_event_t));
@@ -296,7 +297,7 @@ int uprobe__http_termination(struct pt_regs *ctx) {
     http_event_t event;
     bpf_memset(&event, 0, sizeof(http_event_t));
     bpf_memcpy(&event.tuple, &args->tup, sizeof(conn_tuple_t));
-    skb_info_t skb_info = {0};
+    skb_info_t skb_info = { 0 };
     skb_info.tcp_flags |= TCPHDR_FIN;
     http_process(&event, &skb_info, NO_TAGS);
     http_batch_flush(ctx);
