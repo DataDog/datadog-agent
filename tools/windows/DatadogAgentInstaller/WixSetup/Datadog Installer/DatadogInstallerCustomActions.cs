@@ -8,7 +8,8 @@ namespace WixSetup.Datadog_Installer
         public ManagedAction RunAsAdmin { get; }
         public ManagedAction ReadConfig { get; }
         public ManagedAction WriteConfig { get; }
-        public ManagedAction ReadWindowsVersion { get; }
+        public ManagedAction ReadInstallState { get; }
+        public ManagedAction WriteInstallState { get; }
         public ManagedAction OpenMsiLog { get; }
 
         public DatadogInstallerCustomActions()
@@ -23,9 +24,9 @@ namespace WixSetup.Datadog_Installer
                 Sequence.InstallExecuteSequence | Sequence.InstallUISequence
             );
 
-            ReadWindowsVersion = new CustomAction<CustomActions>(
-                new Id(nameof(ReadWindowsVersion)),
-                CustomActions.ReadWindowsVersion,
+            ReadInstallState = new CustomAction<CustomActions>(
+                new Id(nameof(ReadInstallState)),
+                CustomActions.ReadInstallState,
                 Return.check,
                 When.After,
                 new Step(RunAsAdmin.Id),
@@ -76,6 +77,22 @@ namespace WixSetup.Datadog_Installer
                 // Not run in a sequence, run from button on fatalError dialog
                 Sequence = Sequence.NotInSequence
             };
+
+            WriteInstallState = new CustomAction<CustomActions>(
+                    new Id(nameof(WriteInstallState)),
+                    CustomActions.WriteInstallState,
+                    Return.check,
+                    When.Before,
+                    Step.StartServices,
+                    // Run unless we are being uninstalled.
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties("DDAGENTUSER_PROCESSED_DOMAIN=[DDAGENTUSER_PROCESSED_DOMAIN], " +
+                               "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME]");
         }
     }
 }

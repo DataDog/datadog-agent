@@ -1,3 +1,4 @@
+using Datadog.CustomActions;
 using Microsoft.Deployment.WindowsInstaller;
 
 namespace Datadog.AgentCustomActions
@@ -37,13 +38,13 @@ namespace Datadog.AgentCustomActions
         [CustomAction]
         public static ActionResult ReadInstallState(Session session)
         {
-            return Datadog.CustomActions.InstallStateCustomActions.ReadInstallState(session);
+            return new ReadInstallStateCA(new SessionWrapper(session)).ReadInstallState();
         }
 
         [CustomAction]
         public static ActionResult WriteInstallState(Session session)
         {
-            return Datadog.CustomActions.InstallStateCustomActions.WriteInstallState(session);
+            return new WriteInstallStateCA(new SessionWrapper(session)).WriteInstallState();
         }
 
         [CustomAction]
@@ -163,7 +164,7 @@ namespace Datadog.AgentCustomActions
         [CustomAction]
         public static ActionResult UninstallWriteInstallState(Session session)
         {
-            return Datadog.CustomActions.InstallStateCustomActions.UninstallWriteInstallState(session);
+            return new WriteInstallStateCA(new SessionWrapper(session)).UninstallWriteInstallState();
         }
 
         [CustomAction]

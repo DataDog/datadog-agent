@@ -1,3 +1,4 @@
+using Datadog.CustomActions;
 using Microsoft.Deployment.WindowsInstaller;
 
 namespace Datadog.InstallerCustomActions
@@ -24,9 +25,15 @@ namespace Datadog.InstallerCustomActions
         }
 
         [CustomAction]
-        public static ActionResult ReadWindowsVersion(Session session)
+        public static ActionResult ReadInstallState(Session session)
         {
-            return Datadog.CustomActions.InstallStateCustomActions.ReadWindowsVersion(session);
+            return new ReadInstallStateCA(new SessionWrapper(session)).ReadInstallState();
+        }
+
+        [CustomAction]
+        public static ActionResult WriteInstallState(Session session)
+        {
+            return new WriteInstallStateCA(new SessionWrapper(session)).WriteInstallState();
         }
 
         [CustomAction]
