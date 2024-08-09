@@ -13,7 +13,7 @@ import (
 	ddLog "github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
@@ -125,8 +125,8 @@ func (s *Launcher) makeFileSource(source *sources.LogSource, filepath string) *s
 		Type:        config.FileType,
 		TailingMode: source.Config.TailingMode,
 		Path:        filepath,
-		Name:        "integrations",
-		Source:      "integrations source",
+		Name:        source.Config.Name,
+		Source:      source.Config.Source,
 		Tags:        source.Config.Tags,
 	})
 
@@ -154,10 +154,10 @@ func (s *Launcher) createFile(source *sources.LogSource) (string, error) {
 
 // integrationLogFilePath returns a directory and file to use for an integration log file
 func (s *Launcher) integrationLogFilePath(source sources.LogSource) (string, string) {
-	fileName := source.Name + ".log"
+	fileName := source.Config.Name + ".log"
 	directoryComponents := []string{s.runPath, "integrations", source.Config.Service}
 	directory := strings.Join(directoryComponents, "/")
-	filepath := strings.Join([]string{directory, fileName}, "")
+	filepath := strings.Join([]string{directory, fileName}, "/")
 
 	return directory, filepath
 }
