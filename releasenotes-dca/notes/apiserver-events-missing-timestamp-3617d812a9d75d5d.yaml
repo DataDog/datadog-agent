@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    Fixes a rare bug where some kubernetes events would be emitted
+    Fixes a rare bug where some Kubernetes events would be emitted
     without a timestamp and would be dropped upstream as a result.
