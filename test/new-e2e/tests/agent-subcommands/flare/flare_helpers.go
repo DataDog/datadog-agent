@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// AssertFilesExist verifies that all files in filenames exist in the flare archive
-func AssertFilesExist(t *testing.T, flare flare.Flare, filenames []string) {
+// assertFilesExist verifies that all files in filenames exist in the flare archive
+func assertFilesExist(t *testing.T, flare flare.Flare, filenames []string) {
 	t.Helper()
 
 	verifyAssertionsOnFilesList(t, flare, filenames, fileExists)
@@ -30,8 +30,8 @@ func fileExists(t *testing.T, flare flare.Flare, filename string) {
 	}
 }
 
-// AssertFoldersExist verifies that all files in filenames exist in the flare archive and are folders
-func AssertFoldersExist(t *testing.T, flare flare.Flare, filenames []string) {
+// assertFoldersExist verifies that all files in filenames exist in the flare archive and are folders
+func assertFoldersExist(t *testing.T, flare flare.Flare, filenames []string) {
 	t.Helper()
 
 	verifyAssertionsOnFilesList(t, flare, filenames, folderExists)
@@ -131,8 +131,8 @@ func isDir(flare flare.Flare, filename string) bool {
 	return fileInfo.IsDir()
 }
 
-// AssertFileContains verifies that `filename` contains every string in `expectedContents`
-func AssertFileContains(t *testing.T, flare flare.Flare, filename string, expectedContents ...string) {
+// assertFileContains verifies that `filename` contains every string in `expectedContents`
+func assertFileContains(t *testing.T, flare flare.Flare, filename string, expectedContents ...string) {
 	t.Helper()
 
 	fileContent, err := flare.GetFileContent(filename)

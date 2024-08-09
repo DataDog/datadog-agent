@@ -11,6 +11,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -26,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
-	flareHelpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-subcommands/flare"
 )
 
 type linuxTestSuite struct {
@@ -127,10 +127,27 @@ func (s *linuxTestSuite) TestOTelFlare() {
 	s.T().Log("Getting latest flare")
 	flare, err := s.Env().FakeIntake.Client().GetLatestFlare()
 	assert.NoError(s.T(), err, "Failed to get latest flare")
-	s.T().Log(flare.GetFilenames())
-	flareHelpers.AssertFoldersExist(s.T(), flare, []string{"otel", "otel/otel-flare"})
-	flareHelpers.AssertFilesExist(s.T(), flare, []string{"otel/otel-response.json"})
-	flareHelpers.AssertFileContains(s.T(), flare, "otel/otel-response.json", "otel-agent", "datadog:", "health_check:", "pprof:", "zpages:", "infraattributes:", "prometheus:", "key: '[REDACTED]'")
+	otelFolder, otelFlareFolder := false, false
+	var otelResponse string
+	for _, filename := range flare.GetFilenames() {
+		if strings.Contains(filename, "/otel/") {
+			otelFolder = true
+		}
+		if strings.Contains(filename, "/otel/otel-flare/") {
+			otelFlareFolder = true
+		}
+		if strings.Contains(filename, "otel/otel-response.json") {
+			otelResponse = filename
+		}
+	}
+	assert.True(s.T(), otelFolder)
+	assert.True(s.T(), otelFlareFolder)
+	otelResponseContent, err := flare.GetFileContent(otelResponse)
+	assert.NoError(s.T(), err)
+	expectedContents := []string{"otel-agent", "datadog:", "health_check:", "pprof:", "zpages:", "infraattributes:", "prometheus:", "key: '[REDACTED]'"}
+	for _, expected := range expectedContents {
+		assert.Contains(s.T(), otelResponseContent, expected)
+	}
 }
 
 func (s *linuxTestSuite) getAgentPod() corev1.Pod {
