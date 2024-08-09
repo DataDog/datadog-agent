@@ -1,3 +1,5 @@
+// This program is used to test the UprobeAttacher object, it defines two simple probes that attach
+// to userspace functions.
 #include "kconfig.h"
 #include "ktypes.h"
 #include "bpf_metadata.h"
