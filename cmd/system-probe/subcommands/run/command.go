@@ -30,7 +30,10 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/configsync"
+	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -125,6 +128,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 				}),
 				settingsimpl.Module(),
+				fetchonlyimpl.Module(),
+				configsyncimpl.OptionalModule(),
+				// Force the instantiation of the component
+				fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
 			)
 		},
 	}
@@ -281,6 +288,10 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 			}
 		}),
 		settingsimpl.Module(),
+		fetchonlyimpl.Module(),
+		configsyncimpl.OptionalModule(),
+		// Force the instantiation of the component
+		fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
 	)
 }
 
