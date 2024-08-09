@@ -29,6 +29,7 @@ type MultiLineHandler struct {
 	flushTimer        *time.Timer
 	lineLimit         int
 	shouldTruncate    bool
+	isBufferTruncated bool
 	linesLen          int
 	status            string
 	timestamp         string
@@ -111,6 +112,7 @@ func (h *MultiLineHandler) process(msg *message.Message) {
 		// the new line is just a remainder,
 		// adding the truncated flag at the beginning of the content
 		h.buffer.Write(message.TruncatedFlag)
+		h.isBufferTruncated = true
 	}
 
 	h.buffer.Write(msg.GetContent())
@@ -119,6 +121,7 @@ func (h *MultiLineHandler) process(msg *message.Message) {
 		// the multiline message is too long, it needs to be cut off and send,
 		// adding the truncated flag the end of the content
 		h.buffer.Write(message.TruncatedFlag)
+		h.isBufferTruncated = true
 		h.sendBuffer()
 		h.shouldTruncate = true
 	}
@@ -141,6 +144,7 @@ func (h *MultiLineHandler) sendBuffer() {
 		h.linesLen = 0
 		h.linesCombined = 0
 		h.shouldTruncate = false
+		h.isBufferTruncated = false
 	}()
 
 	data := bytes.TrimSpace(h.buffer.Bytes())
@@ -156,7 +160,8 @@ func (h *MultiLineHandler) sendBuffer() {
 				telemetry.GetStatsTelemetryProvider().Count(linesCombinedTelemetryMetricName, float64(linesCombined), []string{})
 			}
 		}
-
-		h.outputFn(message.NewRawMessage(content, h.status, h.linesLen, h.timestamp))
+		msg := message.NewRawMessage(content, h.status, h.linesLen, h.timestamp)
+		msg.ParsingExtra.IsTruncated = h.isBufferTruncated
+		h.outputFn(msg)
 	}
 }
