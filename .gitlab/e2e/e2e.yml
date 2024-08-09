@@ -413,7 +413,7 @@ new-e2e-otel:
   needs:
     - !reference [.needs_new_e2e_template]
     - qa_dca
-    - qa_agent_ot
+    - qa_agent
   variables:
     TARGETS: ./tests/otel
     TEAM: otel
