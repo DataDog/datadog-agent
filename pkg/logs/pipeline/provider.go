@@ -28,8 +28,9 @@ import (
 type Provider interface {
 	Start()
 	Stop()
-	ReconfigureSDSStandardRules(standardRules []byte) error
-	ReconfigureSDSAgentConfig(config []byte) error
+	ReconfigureSDSStandardRules(standardRules []byte) (bool, error)
+	ReconfigureSDSAgentConfig(config []byte) (bool, error)
+	StopSDSProcessing() error
 	NextPipelineChan() chan *message.Message
 	// Flush flushes all pipeline contained in this Provider
 	Flush(ctx context.Context)
@@ -111,8 +112,9 @@ func (p *provider) Stop() {
 	p.outputChan = nil
 }
 
-func (p *provider) reconfigureSDS(config []byte, orderType sds.ReconfigureOrderType) error {
-	var responses []chan error
+// return true if all processor SDS scanners are active.
+func (p *provider) reconfigureSDS(config []byte, orderType sds.ReconfigureOrderType) (bool, error) {
+	var responses []chan sds.ReconfigureResponse
 
 	// send a reconfiguration order to every running pipeline
 
@@ -120,7 +122,7 @@ func (p *provider) reconfigureSDS(config []byte, orderType sds.ReconfigureOrderT
 		order := sds.ReconfigureOrder{
 			Type:         orderType,
 			Config:       config,
-			ResponseChan: make(chan error),
+			ResponseChan: make(chan sds.ReconfigureResponse),
 		}
 		responses = append(responses, order.ResponseChan)
 
@@ -131,26 +133,41 @@ func (p *provider) reconfigureSDS(config []byte, orderType sds.ReconfigureOrderT
 	// reports if at least one error occurred
 
 	var rerr error
+	allScannersActive := true
 	for _, response := range responses {
-		err := <-response
-		if err != nil {
-			rerr = multierror.Append(rerr, err)
+		resp := <-response
+
+		if !resp.IsActive {
+			allScannersActive = false
 		}
+
+		if resp.Err != nil {
+			rerr = multierror.Append(rerr, resp.Err)
+		}
+
 		close(response)
 	}
 
-	return rerr
+	return allScannersActive, rerr
 }
 
 // ReconfigureSDSStandardRules stores the SDS standard rules for the given provider.
-func (p *provider) ReconfigureSDSStandardRules(standardRules []byte) error {
+func (p *provider) ReconfigureSDSStandardRules(standardRules []byte) (bool, error) {
 	return p.reconfigureSDS(standardRules, sds.StandardRules)
 }
 
 // ReconfigureSDSAgentConfig reconfigures the pipeline with the given
 // configuration received through Remote Configuration.
-func (p *provider) ReconfigureSDSAgentConfig(config []byte) error {
+// Return true if all SDS scanners are active after applying this configuration.
+func (p *provider) ReconfigureSDSAgentConfig(config []byte) (bool, error) {
 	return p.reconfigureSDS(config, sds.AgentConfig)
+}
+
+// StopSDSProcessing reconfigures the pipeline removing the SDS scanning
+// from the processing steps.
+func (p *provider) StopSDSProcessing() error {
+	_, err := p.reconfigureSDS(nil, sds.StopProcessing)
+	return err
 }
 
 // NextPipelineChan returns the next pipeline input channel
