@@ -71,6 +71,7 @@ type ECSCollectorRunConfig struct {
 	Region            string
 	ClusterName       string
 	SystemInfo        *model.SystemInfo
+	HostName          string
 }
 
 // CollectorRunConfig is the configuration used to initialize or run the

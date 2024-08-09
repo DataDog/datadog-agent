@@ -21,7 +21,7 @@ import (
 
 // NeedsEBPF returns `true` if the network-tracer requires eBPF
 func NeedsEBPF() bool {
-	return !coreconfig.SystemProbe.GetBool("network_config.enable_ebpfless")
+	return !coreconfig.SystemProbe().GetBool("network_config.enable_ebpfless")
 }
 
 // IsTracerSupportedByOS returns whether the current kernel version supports tracer functionality

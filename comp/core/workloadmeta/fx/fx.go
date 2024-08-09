@@ -20,7 +20,7 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(
+		fxutil.ProvideComponentConstructor(
 			workloadmeta.NewWorkloadMeta,
 		),
 		fx.Provide(func(wmeta wmdef.Component) optional.Option[wmdef.Component] {

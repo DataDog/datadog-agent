@@ -118,6 +118,10 @@ const defaultEventSource = "kubernetes"
 // kubernetesEventSource is the name of the source for kubernetes events
 const kubernetesEventSource = "kubernetes"
 
+// customEventSourceSuffix is the suffix that will be added to the event source type when
+// filtering is enabled and the event does not exist within integrationToCollectedEventTypes.
+const customEventSourceSuffix = "custom"
+
 var integrationToCollectedEventTypes = map[string][]collectedEventType{
 	"kubernetes": {
 		{

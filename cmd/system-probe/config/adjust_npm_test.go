@@ -29,7 +29,7 @@ func TestAdjustConnectionRollup(t *testing.T) {
 	for _, te := range tests {
 		t.Run(fmt.Sprintf("npm_enabled_%t_usm_enabled_%t", te.npmEnabled, te.usmEnabled), func(t *testing.T) {
 			config.ResetSystemProbeConfig(t)
-			cfg := config.SystemProbe
+			cfg := config.SystemProbe()
 			cfg.Set(netNS("enable_connection_rollup"), te.npmEnabled, model.SourceUnknown)
 			cfg.Set(smNS("enable_connection_rollup"), te.usmEnabled, model.SourceUnknown)
 			Adjust(cfg)

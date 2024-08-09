@@ -12,10 +12,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-import vscode
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks import vscode
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.status import Status
 from tasks.libs.common.utils import running_in_pyapp
@@ -45,6 +45,7 @@ def setup(ctx, vscode=False):
         update_python_dependencies,
         download_go_tools,
         install_go_tools,
+        install_protoc,
         enable_pre_commit,
     ]
 
@@ -238,6 +239,20 @@ def install_go_tools(ctx) -> SetupResult:
         status = Status.FAIL
 
     return SetupResult("Install Go tools", status)
+
+
+def install_protoc(ctx) -> SetupResult:
+    print(color_message("Installing protoc...", Color.BLUE))
+    status = Status.OK
+
+    try:
+        from tasks import install_protoc
+
+        install_protoc(ctx)
+    except Exception:
+        status = Status.FAIL
+
+    return SetupResult("Install protoc", status)
 
 
 def download_go_tools(ctx) -> SetupResult:

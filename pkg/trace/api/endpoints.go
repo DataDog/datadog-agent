@@ -101,7 +101,7 @@ var endpoints = []Endpoint{
 	{
 		Pattern: "/telemetry/proxy/",
 		Handler: func(r *HTTPReceiver) http.Handler {
-			return http.StripPrefix("/telemetry/proxy", r.telemetryProxyHandler())
+			return http.StripPrefix("/telemetry/proxy", r.telemetryForwarderHandler())
 		},
 		IsEnabled: func(cfg *config.AgentConfig) bool { return cfg.TelemetryConfig.Enabled },
 	},

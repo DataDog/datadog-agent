@@ -82,8 +82,8 @@ func (p *pendingMsg) ToJSON() ([]byte, bool, error) {
 		return nil, false, err
 	}
 
-	data := append(p.eventJSON[:len(p.eventJSON)-1], ',')
-	data = append(data, backendEventJSON[1:]...)
+	data := append(backendEventJSON[:len(backendEventJSON)-1], ',')
+	data = append(data, p.eventJSON[1:]...)
 
 	return data, fullyResolved, nil
 }
@@ -280,10 +280,10 @@ func (a *APIServer) GetConfig(_ context.Context, _ *api.GetConfigParams) (*api.S
 // SendEvent forwards events sent by the runtime security module to Datadog
 func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func() []string, service string) {
 	backendEvent := events.BackendEvent{
-		Title: rule.Definition.Description,
+		Title: rule.Def.Description,
 		AgentContext: events.AgentContext{
-			RuleID:      rule.Definition.ID,
-			RuleVersion: rule.Definition.Version,
+			RuleID:      rule.Def.ID,
+			RuleVersion: rule.Def.Version,
 			Version:     version.AgentVersion,
 			OS:          runtime.GOOS,
 			Arch:        utils.RuntimeArch(),
@@ -291,9 +291,9 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 		},
 	}
 
-	if policy := rule.Definition.Policy; policy != nil {
+	if policy := rule.Policy; policy != nil {
 		backendEvent.AgentContext.PolicyName = policy.Name
-		backendEvent.AgentContext.PolicyVersion = policy.Version
+		backendEvent.AgentContext.PolicyVersion = policy.Def.Version
 	}
 
 	eventJSON, err := marshalEvent(e, rule.Opts)
@@ -313,9 +313,9 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 	// get type tags + container tags if already resolved, see ResolveContainerTags
 	eventTags := e.GetTags()
 
-	ruleID := rule.Definition.ID
-	if rule.Definition.GroupID != "" {
-		ruleID = rule.Definition.GroupID
+	ruleID := rule.Def.ID
+	if rule.Def.GroupID != "" {
+		ruleID = rule.Def.GroupID
 	}
 
 	eventActionReports := e.GetActionReports()
@@ -508,7 +508,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 	}
 
 	if as.msgSender == nil {
-		if pkgconfig.SystemProbe.GetBool("runtime_security_config.direct_send_from_system_probe") {
+		if pkgconfig.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe") {
 			msgSender, err := NewDirectMsgSender(stopper)
 			if err != nil {
 				log.Errorf("failed to setup direct reporter: %v", err)

@@ -291,7 +291,7 @@ func boolConst(name string, value bool) manager.ConstantEditor {
 	return c
 }
 
-func (t *ebpfTracer) Start(callback func([]network.ConnectionStats)) (err error) {
+func (t *ebpfTracer) Start(callback func(*network.ConnectionStats)) (err error) {
 	defer func() {
 		if err != nil {
 			t.Stop()

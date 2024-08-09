@@ -149,6 +149,7 @@ func (sb *systemprobe) getConfigLayers() map[string]interface{} {
 		model.SourceAgentRuntime:       "agent_runtime_configuration",
 		model.SourceLocalConfigProcess: "source_local_configuration",
 		model.SourceRC:                 "remote_configuration",
+		model.SourceFleetPolicies:      "fleet_policies_configuration",
 		model.SourceCLI:                "cli_configuration",
 		model.SourceProvided:           "provided_configuration",
 	}

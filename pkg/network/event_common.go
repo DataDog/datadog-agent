@@ -305,6 +305,17 @@ func (c ConnectionStats) IsExpired(now uint64, timeout uint64) bool {
 	return c.LastUpdateEpoch+timeout <= now
 }
 
+// IsEmpty returns whether the connection has any statistics
+func (c ConnectionStats) IsEmpty() bool {
+	// TODO why does this not include TCPEstablished and TCPClosed?
+	return c.Monotonic.RecvBytes == 0 &&
+		c.Monotonic.RecvPackets == 0 &&
+		c.Monotonic.SentBytes == 0 &&
+		c.Monotonic.SentPackets == 0 &&
+		c.Monotonic.Retransmits == 0 &&
+		len(c.TCPFailures) == 0
+}
+
 // ByteKey returns a unique key for this connection represented as a byte slice
 // It's as following:
 //

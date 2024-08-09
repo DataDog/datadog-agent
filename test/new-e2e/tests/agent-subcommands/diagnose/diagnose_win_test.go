@@ -38,8 +38,10 @@ func (v *windowsDiagnoseSuite) TestDiagnoseOtherCmdPort() {
 
 func (v *windowsDiagnoseSuite) TestDiagnoseInclude() {
 	v.AssertDiagnoseInclude()
+	v.AssertDiagnoseJSONInclude()
 }
 
 func (v *windowsDiagnoseSuite) TestDiagnoseExclude() {
-	v.AssertDiagnoseInclude()
+	v.AssertDiagnoseExclude()
+	v.AssertDiagnoseJSONExclude()
 }

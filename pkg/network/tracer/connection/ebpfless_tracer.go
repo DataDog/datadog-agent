@@ -100,7 +100,7 @@ func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
 }
 
 // Start begins collecting network connection data.
-func (t *ebpfLessTracer) Start(func([]network.ConnectionStats)) error {
+func (t *ebpfLessTracer) Start(func(*network.ConnectionStats)) error {
 	if err := t.boundPorts.Start(); err != nil {
 		return fmt.Errorf("could not update bound ports: %w", err)
 	}
@@ -313,7 +313,7 @@ func (t *ebpfLessTracer) DumpMaps(_ io.Writer, _ ...string) error {
 
 // Type returns the type of the underlying ebpf ebpfLessTracer that is currently loaded
 func (t *ebpfLessTracer) Type() TracerType {
-	return TracerTypeEpfless
+	return TracerTypeEbpfless
 }
 
 func (t *ebpfLessTracer) Pause() error {

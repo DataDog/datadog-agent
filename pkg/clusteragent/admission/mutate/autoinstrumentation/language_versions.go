@@ -134,9 +134,9 @@ type libInfo struct {
 	image   string
 }
 
-func (i libInfo) podMutator(ics []containerMutator, ms []podMutator) podMutator {
+func (i libInfo) podMutator(v version, ics []containerMutator, ms []podMutator) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
-		reqs, ok := i.libRequirement()
+		reqs, ok := i.libRequirement(v)
 		if !ok {
 			return fmt.Errorf(
 				"language %q is not supported. Supported languages are %v",
@@ -161,42 +161,65 @@ func (i libInfo) podMutator(ics []containerMutator, ms []podMutator) podMutator 
 	})
 }
 
-var sourceVolume = volume{
-	Volume: corev1.Volume{
-		Name: volumeName,
-		VolumeSource: corev1.VolumeSource{
-			EmptyDir: &corev1.EmptyDirVolumeSource{},
-		},
-	},
-}
-
-var v1VolumeMount = sourceVolume.mount(
-	corev1.VolumeMount{MountPath: mountPath},
-	false,
-)
-
 // initContainers is which initContainers we are injecting
 // into the pod that runs for this language.
-func (i libInfo) initContainers() []initContainer {
+func (i libInfo) initContainers(v version) []initContainer {
+	var (
+		args, command []string
+		mounts        []corev1.VolumeMount
+		cName         = initContainerName(i.lang)
+	)
+
+	if v.usesInjector() {
+		mounts = []corev1.VolumeMount{
+			// we use the library mount on its lang-based sub-path
+			{
+				MountPath: v1VolumeMount.MountPath,
+				SubPath:   v2VolumeMountLibrary.SubPath + "/" + string(i.lang),
+				Name:      sourceVolume.Name,
+			},
+			// injector mount for the timestamps
+			v2VolumeMountInjector.VolumeMount,
+		}
+		tsFilePath := v2VolumeMountInjector.MountPath + "/c-init-time." + cName
+		command = []string{"/bin/sh", "-c", "--"}
+		args = []string{
+			fmt.Sprintf(
+				`sh copy-lib.sh %s && echo $(date +%%s) >> %s`,
+				mounts[0].MountPath, tsFilePath,
+			),
+		}
+	} else {
+		mounts = []corev1.VolumeMount{v1VolumeMount.VolumeMount}
+		command = []string{"sh", "copy-lib.sh", mounts[0].MountPath}
+	}
+
 	return []initContainer{
 		{
 			Container: corev1.Container{
-				Name:    initContainerName(i.lang),
-				Image:   i.image,
-				Command: []string{"sh", "copy-lib.sh", mountPath},
-				VolumeMounts: []corev1.VolumeMount{
-					v1VolumeMount.VolumeMount,
-				},
+				Name:         cName,
+				Image:        i.image,
+				Command:      command,
+				Args:         args,
+				VolumeMounts: mounts,
 			},
 		},
 	}
 }
 
-func (i libInfo) volumeMount() volumeMount {
+func (i libInfo) volumeMount(v version) volumeMount {
+	if v.usesInjector() {
+		return v2VolumeMountLibrary
+	}
+
 	return v1VolumeMount
 }
 
-func (i libInfo) envVars() []envVar {
+func (i libInfo) envVars(v version) []envVar {
+	if v.usesInjector() {
+		return nil
+	}
+
 	switch i.lang {
 	case java:
 		return []envVar{
@@ -263,15 +286,15 @@ func (i libInfo) envVars() []envVar {
 	}
 }
 
-func (i libInfo) libRequirement() (libRequirement, bool) {
+func (i libInfo) libRequirement(v version) (libRequirement, bool) {
 	if !i.lang.isSupported() {
 		return libRequirement{}, false
 	}
 
 	return libRequirement{
-		envVars:        i.envVars(),
-		initContainers: i.initContainers(),
-		volumeMounts:   []volumeMount{i.volumeMount()},
+		envVars:        i.envVars(v),
+		initContainers: i.initContainers(v),
+		volumeMounts:   []volumeMount{i.volumeMount(v)},
 		volumes:        []volume{sourceVolume},
 	}, true
 }
