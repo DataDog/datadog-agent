@@ -12,10 +12,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 const (
@@ -54,13 +52,13 @@ type PayloadAggregationKey struct {
 	ImageTag     string
 }
 
-func getStatusCode(s *pb.Span) uint32 {
-	code, ok := traceutil.GetMetric(s, tagStatusCode)
+func getStatusCode(meta map[string]string, metrics map[string]float64) uint32 {
+	code, ok := metrics[tagStatusCode]
 	if ok {
 		// only 7.39.0+, for lesser versions, always use Meta
 		return uint32(code)
 	}
-	strC := traceutil.GetMetaDefault(s, tagStatusCode, "")
+	strC := meta[tagStatusCode]
 	if strC == "" {
 		return 0
 	}
@@ -72,30 +70,11 @@ func getStatusCode(s *pb.Span) uint32 {
 	return uint32(c)
 }
 
-// peerTagKeysToAggregateForSpan returns the set of peerTagKeys to use for stats aggregation for the given
-// span.kind and _dd.base_service
-func peerTagKeysToAggregateForSpan(spanKind string, baseService string, peerTagKeys []string) []string {
-	if len(peerTagKeys) == 0 {
-		return nil
-	}
-	spanKind = strings.ToLower(spanKind)
-	if (spanKind == "" || spanKind == "internal") && baseService != "" {
-		// it's a service override on an internal span so it comes from custom instrumentation and does not represent
-		// a client|producer|consumer span which is talking to a peer entity
-		// in this case only the base service tag is relevant for stats aggregation
-		return []string{tagBaseService}
-	}
-	if spanKind == "client" || spanKind == "producer" || spanKind == "consumer" {
-		return peerTagKeys
-	}
-	return nil
-}
-
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
-func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, peerTagKeys []string) (Aggregation, []string) {
+func NewAggregationFromSpan(s *StatSpan, origin string, aggKey PayloadAggregationKey) Aggregation {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
 	var isTraceRoot pb.Trilean
-	if s.ParentID == 0 {
+	if s.parentID == 0 {
 		isTraceRoot = pb.Trilean_TRUE
 	} else {
 		isTraceRoot = pb.Trilean_FALSE
@@ -103,25 +82,18 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:    s.Resource,
-			Service:     s.Service,
-			Name:        s.Name,
-			SpanKind:    s.Meta[tagSpanKind],
-			Type:        s.Type,
-			StatusCode:  getStatusCode(s),
-			Synthetics:  synthetics,
-			IsTraceRoot: isTraceRoot,
+			Resource:     s.resource,
+			Service:      s.service,
+			Name:         s.name,
+			SpanKind:     s.spanKind,
+			Type:         s.typ,
+			StatusCode:   s.statusCode,
+			Synthetics:   synthetics,
+			IsTraceRoot:  isTraceRoot,
+			PeerTagsHash: peerTagsHash(s.matchingPeerTags),
 		},
 	}
-	var peerTags []string
-	for _, t := range peerTagKeysToAggregateForSpan(agg.SpanKind, s.Meta[tagBaseService], peerTagKeys) {
-		if v, ok := s.Meta[t]; ok && v != "" {
-			v = obfuscate.QuantizePeerIPAddresses(v)
-			peerTags = append(peerTags, t+":"+v)
-		}
-	}
-	agg.PeerTagsHash = peerTagsHash(peerTags)
-	return agg, peerTags
+	return agg
 }
 
 func peerTagsHash(tags []string) uint64 {

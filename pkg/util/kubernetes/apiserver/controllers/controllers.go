@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const autoscalerNowHandleMsgEvent = "Autoscaler is now handled by the Cluster-Agent"
@@ -72,7 +73,7 @@ type ControllerContext struct {
 	IsLeaderFunc           func() bool
 	EventRecorder          record.EventRecorder
 	WorkloadMeta           workloadmeta.Component
-	DatadogClient          datadogclient.Component
+	DatadogClient          optional.Option[datadogclient.Component]
 	StopCh                 chan struct{}
 }
 
@@ -139,15 +140,16 @@ func startMetadataController(ctx *ControllerContext, _ chan error) {
 // The synchronization of the informers is handled by the controller.
 func startAutoscalersController(ctx *ControllerContext, c chan error) {
 	var err error
-	if ctx.DatadogClient == nil {
-		c <- fmt.Errorf("datadog client is nil")
+	dc, ok := ctx.DatadogClient.Get()
+	if !ok {
+		c <- fmt.Errorf("datadog client is not initialized")
 		return
 	}
 	autoscalersController, err := newAutoscalersController(
 		ctx.Client,
 		ctx.EventRecorder,
 		ctx.IsLeaderFunc,
-		ctx.DatadogClient,
+		dc,
 	)
 	if err != nil {
 		c <- err
