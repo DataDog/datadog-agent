@@ -190,8 +190,8 @@ func (iCmd *installerCmd) Run() error {
 	}
 
 	if len(errBuf.Bytes()) == 0 {
-		return fmt.Errorf("install failed: %s", err.Error())
+		return fmt.Errorf("run failed: %s", err.Error())
 	}
 
-	return fmt.Errorf("install failed: %s \n%s", strings.TrimSpace(errBuf.String()), err.Error())
+	return fmt.Errorf("run failed: %s \n%s", strings.TrimSpace(errBuf.String()), err.Error())
 }
