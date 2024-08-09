@@ -4,9 +4,10 @@ installer namespaced tasks
 
 import os
 
-from invoke import task
+from invoke import Context, task
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.libs.common import docker_hub
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 
 BIN_PATH = os.path.join(".", "bin", "installer")
@@ -53,3 +54,11 @@ def build(
     cmd += f"-o {updater_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags} {strip_flags}\" {REPO_PATH}/cmd/installer"
 
     ctx.run(cmd, env=env)
+
+
+@task
+def latest_package_version(_: Context):
+    """
+    Return the latest stable installer version package published
+    """
+    print(docker_hub.get_latest_version("installer-package"))

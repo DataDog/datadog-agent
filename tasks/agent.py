@@ -11,13 +11,14 @@ import shutil
 import sys
 import tempfile
 
-from invoke import task
+from invoke import Context, task
 from invoke.exceptions import Exit, ParseError
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
+from tasks.libs.common import docker_hub
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -788,6 +789,14 @@ def version(
         version = re.sub('-', '~', version)
         version = re.sub(r'[^a-zA-Z0-9\.\+\:\~]+', '_', version)
     print(version)
+
+
+@task
+def latest_package_version(_: Context):
+    """
+    Return the latest stable agent version package published
+    """
+    print(docker_hub.get_latest_version("agent-package"))
 
 
 @task
