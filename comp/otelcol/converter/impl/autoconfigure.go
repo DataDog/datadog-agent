@@ -7,12 +7,15 @@
 package converterimpl
 
 import (
+	"regexp"
 	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
 )
 
 var ddAutoconfiguredSuffix = "dd-autoconfigured"
+
+const secretRegex = "ENC\\[.*\\][ \t]*$"
 
 type component struct {
 	Type         string
@@ -140,7 +143,10 @@ func addCoreAgentConfig(conf *confmap.Conf, coreCfg coreconfig.Component) {
 
 	apiKey, ok := apiMap["key"]
 	if ok && apiKey != "" {
-		return
+		match, _ := regexp.MatchString(secretRegex, apiKey.(string))
+		if !match {
+			return
+		}
 	}
 
 	if coreCfg != nil {
