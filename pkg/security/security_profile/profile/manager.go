@@ -771,6 +771,10 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	globalEventTypeProfilState := profile.GetGlobalEventTypeState(event.GetEventType())
 	if globalEventTypeProfilState == model.UnstableEventType {
 		m.incrementEventFilteringStat(event.GetEventType(), model.UnstableEventType, NA)
+		// The anomaly flag can be set in kernel space by our eBPF programs (currently applies only to syscalls), reset
+		// the anomaly flag if the user space profile considers it to not be an anomaly. Here, when a version is unstable,
+		// we don't want to generate anomalies for this profile anymore.
+		event.ResetAnomalyDetectionEvent()
 		return
 	}
 
@@ -782,6 +786,13 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	case model.NoProfile, model.ProfileAtMaxSize, model.UnstableEventType:
 		// an error occurred or we are in unstable state
 		// do not link the profile to avoid sending anomalies
+
+		// The anomaly flag can be set in kernel space by our eBPF programs (currently applies only to syscalls), reset
+		// the anomaly flag if the user space profile considers it to not be an anomaly.
+		// We can also get a syscall anomaly detection kernel space for runc, which is ignored in the activity tree
+		// (i.e. tryAutolearn returns NoProfile) because "runc" can't be a root node.
+		event.ResetAnomalyDetectionEvent()
+
 		return
 	case model.AutoLearning, model.WorkloadWarmup:
 		// the event was either already in the profile, or has just been inserted
@@ -802,12 +813,20 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 		if err != nil {
 			// ignore, evaluation failed
 			m.incrementEventFilteringStat(event.GetEventType(), model.NoProfile, NA)
+
+			// The anomaly flag can be set in kernel space by our eBPF programs (currently applies only to syscalls), reset
+			// the anomaly flag if the user space profile considers it to not be an anomaly.
+			event.ResetAnomalyDetectionEvent()
 			return
 		}
 		FillProfileContextFromProfile(&event.SecurityProfileContext, profile, imageTag, profileState)
 		if found {
 			event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
 			m.incrementEventFilteringStat(event.GetEventType(), profileState, InProfile)
+
+			// The anomaly flag can be set in kernel space by our eBPF programs (currently applies only to syscalls), reset
+			// the anomaly flag if the user space profile considers it to not be an anomaly.
+			event.ResetAnomalyDetectionEvent()
 		} else {
 			m.incrementEventFilteringStat(event.GetEventType(), profileState, NotInProfile)
 			if m.canGenerateAnomaliesFor(event) {
@@ -855,11 +874,19 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, ctx *Ver
 		globalEventTypeState := profile.GetGlobalEventTypeState(event.GetEventType())
 		if globalEventTypeState == model.StableEventType && m.canGenerateAnomaliesFor(event) {
 			event.AddToFlags(model.EventFlagsAnomalyDetectionEvent)
+		} else {
+			// The anomaly flag can be set in kernel space by our eBPF programs (currently applies only to syscalls), reset
+			// the anomaly flag if the user space profile considers it to not be an anomaly: there is a new entry and no
+			// previous version is in stable state.
+			event.ResetAnomalyDetectionEvent()
 		}
 
 		m.incrementEventFilteringStat(event.GetEventType(), profileState, NotInProfile)
 	} else { // no newEntry
 		m.incrementEventFilteringStat(event.GetEventType(), profileState, InProfile)
+		// The anomaly flag can be set in kernel space by our eBPF programs (currently applies only to syscalls), reset
+		// the anomaly flag if the user space profile considers it to not be an anomaly
+		event.ResetAnomalyDetectionEvent()
 	}
 	return profileState
 }
