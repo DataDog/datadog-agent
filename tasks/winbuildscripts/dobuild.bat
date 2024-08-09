@@ -58,7 +58,7 @@ if "%OMNIBUS_TARGET%" == "main" (
 
 REM Build the OCI package for the Agent 7 only.
 if %MAJOR_VERSION% == 7 (
-    Powershell -C "./tasks/winbuildscripts/Generate-OCIPackage.ps1 --package datadog-agent"
+    Powershell -C "./tasks/winbuildscripts/Generate-OCIPackage.ps1 datadog-agent"
 )
 
 popd
