@@ -28,6 +28,10 @@ func init() {
 	newOSImpl = newLinuxImpl
 }
 
+const (
+	maxCommandLine = 200
+)
+
 var ignoreCfgLinux = []string{
 	"sshd",
 	"dhclient",
@@ -195,6 +199,34 @@ func (li *linuxImpl) aliveProcs() (map[int]proc, error) {
 		procMap[v.PID()] = v
 	}
 	return procMap, nil
+}
+
+// truncateCmdline truncates the command line length to maxCommandLine.
+func truncateCmdline(cmdline []string) []string {
+	var out []string
+	total := 0
+	max := maxCommandLine
+
+	for _, arg := range cmdline {
+		if total >= max {
+			break
+		}
+
+		this := len(arg)
+		if this == 0 {
+			// To avoid ending up with a large array with empty strings
+			continue
+		}
+
+		if total+this > max {
+			this = max - total
+		}
+
+		out = append(out, arg[:this])
+		total += this
+	}
+
+	return out
 }
 
 func (li *linuxImpl) getServiceInfo(p proc, service model.Service) (*serviceInfo, error) {
