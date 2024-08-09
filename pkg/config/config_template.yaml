@@ -4067,11 +4067,11 @@ api_key:
 # reverse_dns_enrichment:
 
   ## @param workers - integer - optional - default: 10
-  ## The number of concurrent workers used perform reverse DNS lookups.
+  ## The number of concurrent workers used to perform reverse DNS lookups.
   # workers: 10
 
   ## @param chan_size - integer - optional - default: 5000
-  ## The size of the channel used to send reverse DNS lookups requests to the workers.
+  ## The size of the channel used to send reverse DNS lookup requests to the workers.
   # chan_size: 5000
 
   ## @param cache - custom object - optional
@@ -4092,7 +4092,7 @@ api_key:
     # clean_interval: 2h
 
     ## @param persist_interval - duration - optional - default: 2h
-    ## An interval that specifies how often the cache is persisted to disk so the cache can be reloaded when the agent is upgraded or restarted.
+    ## An interval that specifies how often the cache is persisted to disk so the cache can be reloaded when the Agent is upgraded or restarted.
     # persist_interval: 2h
 
     ## @param max_retries - integer - optional - default: 10
