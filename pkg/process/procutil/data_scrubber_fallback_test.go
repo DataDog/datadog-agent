@@ -14,31 +14,31 @@ import (
 func TestStripArguments(t *testing.T) {
 	testCases := []struct {
 		cmdline []string
-		want    []string
+		expected    []string
 	}{
 		{
 			cmdline: []string{"agent", "-password", "1234"},
-			want:    []string{"agent"},
+			expected:    []string{"agent"},
 		},
 		{
 			cmdline: []string{"fitz", "-consul_token", "1234567890"},
-			want:    []string{"fitz"},
+			expected:    []string{"fitz"},
 		},
 		{
 			cmdline: []string{"fitz", "--consul_token", "1234567890"},
-			want:    []string{"fitz"},
+			expected:    []string{"fitz"},
 		},
 		{
 			cmdline: []string{"python ~/test/run.py -open_password=admin -consul_token 2345 -blocked_from_yamt=1234 &"},
-			want:    []string{"python"},
+			expected:    []string{"python"},
 		},
 		{
 			cmdline: []string{"java -password      1234"},
-			want:    []string{"java"},
+			expected:    []string{"java"},
 		},
 		{
 			cmdline: []string{"agent password:1234"},
-			want:    []string{"agent"},
+			expected:    []string{"agent"},
 		},
 	}
 
@@ -47,8 +47,8 @@ func TestStripArguments(t *testing.T) {
 
 	for _, tc := range testCases {
 		cmdline := scrubber.stripArguments(tc.cmdline)
-		if got := cmdline; got[0] != tc.want[0] {
-			t.Errorf("got %s; want %s", got, tc.want)
+		if got := cmdline; got[0] != tc.expected[0] {
+			t.Errorf("got %s; expected %s", got, tc.expected)
 		}
 	}
 }
