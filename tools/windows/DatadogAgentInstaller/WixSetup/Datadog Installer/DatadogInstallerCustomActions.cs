@@ -11,6 +11,7 @@ namespace WixSetup.Datadog_Installer
         public ManagedAction ReadInstallState { get; }
         public ManagedAction WriteInstallState { get; }
         public ManagedAction OpenMsiLog { get; }
+        public ManagedAction ProcessDdAgentUserCredentials { get; }
 
         public DatadogInstallerCustomActions()
         {
@@ -36,6 +37,23 @@ namespace WixSetup.Datadog_Installer
             {
                 Execute = Execute.firstSequence
             };
+
+            ProcessDdAgentUserCredentials = new CustomAction<CustomActions>(
+                    new Id(nameof(ProcessDdAgentUserCredentials)),
+                    CustomActions.ProcessDdAgentUserCredentials,
+                    Return.check,
+                    // Run at end of "config phase", right before the "make changes" phase.
+                    // Ensure no actions that modify the input properties are run after this action.
+                    When.Before,
+                    Step.InstallInitialize,
+                    // Run unless we are being uninstalled.
+                    // This CA produces properties used for services, accounts, and permissions.
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                )
+                .SetProperties("DDAGENTUSER_NAME=[DDAGENTUSER_NAME], " +
+                               "DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD], " +
+                               "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME]")
+                .HideTarget(true);
 
             ReadConfig = new CustomAction<CustomActions>(
                 new Id(nameof(ReadConfig)),
