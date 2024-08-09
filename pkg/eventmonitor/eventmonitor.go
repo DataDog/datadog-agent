@@ -53,12 +53,13 @@ type EventMonitor struct {
 	GRPCServer   *grpc.Server
 
 	// internals
-	ctx            context.Context
-	cancelFnc      context.CancelFunc
-	sendStatsChan  chan chan bool
-	eventConsumers []EventConsumerInterface
-	netListener    net.Listener
-	wg             sync.WaitGroup
+	ctx                   context.Context
+	cancelFnc             context.CancelFunc
+	sendStatsChan         chan chan bool
+	eventConsumers        []EventConsumerInterface
+	startedEventConsumers []EventConsumerInterface
+	netListener           net.Listener
+	wg                    sync.WaitGroup
 }
 
 var _ module.Module = &EventMonitor{}
@@ -133,17 +134,20 @@ func (m *EventMonitor) Start() error {
 	}
 
 	// start event consumers
+	m.startedEventConsumers = make([]EventConsumerInterface, 0, len(m.eventConsumers))
 	for _, em := range m.eventConsumers {
 		if err := em.Start(); err != nil {
 			log.Errorf("unable to start %s event consumer: %v", em.ID(), err)
+			continue
 		}
+		m.startedEventConsumers = append(m.startedEventConsumers, em)
 	}
 
 	if err := m.Probe.Start(); err != nil {
 		return err
 	}
 
-	for _, em := range m.eventConsumers {
+	for _, em := range m.startedEventConsumers {
 		if ppsem, ok := em.(EventConsumerPostProbeStartHandler); ok {
 			if err := ppsem.PostProbeStart(); err != nil {
 				log.Errorf("after probe start callback of %s failed: %v", em.ID(), err)
@@ -163,7 +167,7 @@ func (m *EventMonitor) Close() {
 	m.Probe.Stop()
 
 	// stop event consumers
-	for _, em := range m.eventConsumers {
+	for _, em := range m.startedEventConsumers {
 		em.Stop()
 	}
 
