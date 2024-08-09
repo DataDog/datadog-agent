@@ -35,6 +35,8 @@ pip3 install -r requirements.txt
 inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --release-version %RELEASE_VERSION% || exit /b 1
 inv -e msi.build-installer || exit /b 2
 
+Powershell -C "./tasks/winbuildscripts/Generate-OCIPackage.ps1 --package datadog-installer"
+
 REM show output package directories (for debugging)
 dir \omnibus-ruby\pkg\
 
