@@ -10,8 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"go.uber.org/atomic"
-
 	"github.com/cihub/seelog"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -21,100 +19,6 @@ import (
 	// pkg/util/log
 	_ "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
-
-// Mock for additional interecpting and analyzing the log messages
-type Mock struct {
-	w             *pkglog.Wrapper
-	TraceCount    *atomic.Int32
-	DebugCount    *atomic.Int32
-	InfoCount     *atomic.Int32
-	WarnCount     *atomic.Int32
-	ErrorCount    *atomic.Int32
-	CriticalCount *atomic.Int32
-}
-
-//nolint:revive
-func (m *Mock) Trace(v ...interface{}) {
-	m.TraceCount.Inc()
-	m.w.Trace(v...)
-}
-
-//nolint:revive
-func (m *Mock) Tracef(format string, params ...interface{}) {
-	m.TraceCount.Inc()
-	m.w.Tracef(format, params...)
-}
-
-//nolint:revive
-func (m *Mock) Debug(v ...interface{}) {
-	m.DebugCount.Inc()
-	m.w.Debug(v...)
-}
-
-//nolint:revive
-func (m *Mock) Debugf(format string, params ...interface{}) {
-	m.DebugCount.Inc()
-	m.w.Debugf(format, params...)
-}
-
-//nolint:revive
-func (m *Mock) Info(v ...interface{}) {
-	m.InfoCount.Inc()
-	m.w.Info(v...)
-}
-
-//nolint:revive
-func (m *Mock) Infof(format string, params ...interface{}) {
-	m.InfoCount.Inc()
-	m.w.Infof(format, params...)
-}
-
-//nolint:revive
-func (m *Mock) Warn(v ...interface{}) error {
-	m.WarnCount.Inc()
-	m.w.Warn(v...)
-	return nil
-}
-
-//nolint:revive
-func (m *Mock) Warnf(format string, params ...interface{}) error {
-	m.WarnCount.Inc()
-	m.w.Warnf(format, params...)
-	return nil
-}
-
-//nolint:revive
-func (m *Mock) Error(v ...interface{}) error {
-	m.ErrorCount.Inc()
-	m.w.Error(v...)
-	return nil
-}
-
-//nolint:revive
-func (m *Mock) Errorf(format string, params ...interface{}) error {
-	m.ErrorCount.Inc()
-	m.w.Errorf(format, params...)
-	return nil
-}
-
-//nolint:revive
-func (m *Mock) Critical(v ...interface{}) error {
-	m.CriticalCount.Inc()
-	m.w.Critical(v...)
-	return nil
-}
-
-//nolint:revive
-func (m *Mock) Criticalf(format string, params ...interface{}) error {
-	m.CriticalCount.Inc()
-	m.w.Criticalf(format, params...)
-	return nil
-}
-
-//nolint:revive
-func (m *Mock) Flush() {
-	m.w.Flush()
-}
 
 // tbWriter is an implementation of io.Writer that sends lines to
 // testing.TB#Log.
@@ -148,17 +52,5 @@ func New(t testing.TB) log.Component {
 	// install the logger into pkg/util/log
 	pkglog.ChangeLogLevel(iface, "debug")
 
-	return newMock()
-}
-
-func newMock() log.Component {
-	return &Mock{
-		w:             pkglog.NewWrapper(2),
-		TraceCount:    atomic.NewInt32(0),
-		DebugCount:    atomic.NewInt32(0),
-		InfoCount:     atomic.NewInt32(0),
-		WarnCount:     atomic.NewInt32(0),
-		ErrorCount:    atomic.NewInt32(0),
-		CriticalCount: atomic.NewInt32(0),
-	}
+	return pkglog.NewWrapper(2)
 }
