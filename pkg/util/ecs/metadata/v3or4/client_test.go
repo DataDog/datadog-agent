@@ -10,7 +10,9 @@ package v3or4
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -32,6 +34,54 @@ func TestGetV4TaskWithTags(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, expected, task)
+}
+
+func TestGetV4TaskWithTagsWithoutRetryWithDelay(t *testing.T) {
+	testDataPath := "./testdata/task_with_tags.json"
+	dummyECS, err := testutil.NewDummyECS(
+		testutil.FileHandlerOption("/v4/1234-1/taskWithTags", testDataPath),
+		testutil.FileHandlerDelayOption("/v4/1234-1/taskWithTags", 1500*time.Millisecond),
+	)
+	require.NoError(t, err)
+	ts := dummyECS.Start()
+
+	client := NewClient(fmt.Sprintf("%s/v4/1234-1", ts.URL), "v4")
+	task, err := client.GetTaskWithTags(context.Background())
+
+	ts.Close()
+
+	// default timeout is 500ms while the delay is 1.5s
+	require.True(t, os.IsTimeout(err))
+	require.Nil(t, task)
+	require.Equal(t, 1, dummyECS.RequestCount)
+}
+
+func TestGetV4TaskWithTagsWithRetryWithDelay(t *testing.T) {
+	testDataPath := "./testdata/task_with_tags.json"
+	dummyECS, err := testutil.NewDummyECS(
+		testutil.FileHandlerOption("/v4/1234-1/taskWithTags", testDataPath),
+		testutil.FileHandlerDelayOption("/v4/1234-1/taskWithTags", 1500*time.Millisecond),
+	)
+	require.NoError(t, err)
+	ts := dummyECS.Start()
+
+	c := NewClient(
+		fmt.Sprintf("%s/v4/1234-1", ts.URL),
+		"v4",
+		WithTryOption(100*time.Millisecond, 2*time.Second, func(d time.Duration) time.Duration { return 2 * d }),
+	)
+
+	task, err := c.GetTaskWithTags(context.Background())
+
+	ts.Close()
+
+	require.NoError(t, err)
+	require.Equal(t, expected, task)
+	// 3 requests: 1 initial request + 2 retries and server delay is 1.5s
+	// 1st request failed: request timeout is 500ms
+	// 2nd request failed: request timeout is 1s
+	// 3rd request succeed: request timeout is 2s
+	require.Equal(t, 3, dummyECS.RequestCount)
 }
 
 // expected is an expected Task from ./testdata/task.json

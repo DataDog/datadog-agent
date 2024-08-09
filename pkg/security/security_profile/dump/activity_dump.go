@@ -446,6 +446,10 @@ func (ad *ActivityDump) Finalize(releaseTracedCgroupSpot bool) {
 // finalize (thread unsafe) finalizes an active dump: envs and args are scrubbed, tags, service and container ID are set. If a cgroup
 // spot can be released, the dump will be fully stopped.
 func (ad *ActivityDump) finalize(releaseTracedCgroupSpot bool) {
+	if ad.state == Stopped {
+		return
+	}
+
 	ad.Metadata.End = time.Now()
 	ad.adm.lastStoppedDumpTime = ad.Metadata.End
 

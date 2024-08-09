@@ -248,16 +248,6 @@ Package orchestrator implements the orchestrator forwarder component.
 
 Package orchestratorinterface defines the interface for the orchestrator forwarder component.
 
-## [comp/languagedetection](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection) (Component Bundle)
-
-*Datadog Team*: container-platform
-
-Package languagedetection implements the "languagedetection" bundle
-
-### [comp/languagedetection/client](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection/client)
-
-Package client implements a component to send process metadata to the Cluster-Agent
-
 ## [comp/logs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs) (Component Bundle)
 
 *Datadog Team*: agent-metrics-logs
@@ -602,6 +592,12 @@ Package datadogclient provides a client to query the datadog API
 *Datadog Team*: windows-agent
 
 Package etw provides an ETW tracing interface
+
+### [comp/languagedetection/client](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection/client)
+
+*Datadog Team*: container-platform
+
+Package client implements a component to send process metadata to the Cluster-Agent
 
 ### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
 

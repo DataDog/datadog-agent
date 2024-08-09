@@ -18,6 +18,7 @@ import (
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	scaleclient "k8s.io/client-go/scale"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/clock"
 
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
@@ -82,7 +83,15 @@ func newController(
 		localSender:   localSender,
 	}
 
-	baseController, err := autoscaling.NewController(controllerID, c, dynamicClient, dynamicInformer, podAutoscalerGVR, isLeader, store)
+	autoscalingWorkqueue := workqueue.NewRateLimitingQueueWithConfig(
+		workqueue.DefaultItemBasedRateLimiter(),
+		workqueue.RateLimitingQueueConfig{
+			Name:            subsystem,
+			MetricsProvider: autoscalingQueueMetricsProvider,
+		},
+	)
+
+	baseController, err := autoscaling.NewController(controllerID, c, dynamicClient, dynamicInformer, podAutoscalerGVR, isLeader, store, autoscalingWorkqueue)
 	if err != nil {
 		return nil, err
 	}
@@ -308,6 +317,7 @@ func (c *Controller) createPodAutoscaler(ctx context.Context, podAutoscalerInter
 		Spec:   *podAutoscalerInternal.Spec().DeepCopy(),
 		Status: podAutoscalerInternal.BuildStatus(metav1.NewTime(c.clock.Now()), nil),
 	}
+	trackPodAutoscalerStatus(autoscalerObj)
 
 	obj, err := autoscaling.ToUnstructured(autoscalerObj)
 	if err != nil {
@@ -345,6 +355,7 @@ func (c *Controller) updatePodAutoscalerSpec(ctx context.Context, podAutoscalerI
 
 func (c *Controller) updatePodAutoscalerStatus(ctx context.Context, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
 	newStatus := podAutoscalerInternal.BuildStatus(metav1.NewTime(c.clock.Now()), &podAutoscaler.Status)
+
 	if autoscaling.Semantic.DeepEqual(podAutoscaler.Status, newStatus) {
 		return nil
 	}
@@ -355,6 +366,7 @@ func (c *Controller) updatePodAutoscalerStatus(ctx context.Context, podAutoscale
 		ObjectMeta: podAutoscaler.ObjectMeta,
 		Status:     newStatus,
 	}
+	trackPodAutoscalerStatus(autoscalerObj)
 
 	obj, err := autoscaling.ToUnstructured(autoscalerObj)
 	if err != nil {
