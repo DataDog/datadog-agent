@@ -32,7 +32,7 @@ const (
 	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypeFentry
 	//nolint:revive // TODO(NET) Fix revive linter
-	TracerTypeEpfless
+	TracerTypeEbpfless
 )
 
 const (
