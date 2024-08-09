@@ -109,6 +109,8 @@ func (r *AttachRule) matchesExecutable(path string, procInfo *ProcInfo) bool {
 	return r.canTarget(AttachToExecutable) && (r.ExecutableFilter == nil || r.ExecutableFilter(path, procInfo))
 }
 
+// getProbeOptions returns the options for a given probe, checking if we have specific overrides
+// in this rule and, if not, using the options inferred from the probe name.
 func (r *AttachRule) getProbeOptions(probeID manager.ProbeIdentificationPair) (ProbeOptions, error) {
 	if r.ProbeOptionsOverride != nil {
 		if options, ok := r.ProbeOptionsOverride[probeID.EBPFFuncName]; ok {
@@ -262,10 +264,12 @@ type UprobeAttacher struct {
 	handlesLibrariesCached *bool
 }
 
-// NewUprobeAttacher creates a new UprobeAttacher. Receives as arguments
-// the name of the attacher, the configuration, the probe manage (ebpf.Manager usually), a callback to be called
-// whenever a probe is attached (optional, can be nil), and the binary inspector to be used (e.g., to attach to
-// Go functions we need to inspect the binary in a different way)
+// NewUprobeAttacher creates a new UprobeAttacher. Receives as arguments the
+// name of the attacher, the configuration, the probe manager (ebpf.Manager
+// usually), a callback to be called whenever a probe is attached (optional, can
+// be nil), and the binary inspector to be used (e.g., while we usually want
+// NativeBinaryInspector here, we might want the GoBinaryInspector to attach to
+// Go functions in a different way)
 func NewUprobeAttacher(name string, config *AttacherConfig, mgr ProbeManager, onAttachCallback AttachCallback, inspector BinaryInspector) (*UprobeAttacher, error) {
 	config.SetDefaults()
 
@@ -295,6 +299,8 @@ func (ua *UprobeAttacher) SetRegistry(registry FileRegistry) {
 	ua.fileRegistry = registry
 }
 
+// handlesLibraries returns whether the attacher has rules configured to attach to shared libraries.
+// It caches the result to avoid recalculating it every time we are attaching to a PID.
 func (ua *UprobeAttacher) handlesLibraries() bool {
 	if ua.handlesLibrariesCached != nil {
 		return *ua.handlesLibrariesCached
