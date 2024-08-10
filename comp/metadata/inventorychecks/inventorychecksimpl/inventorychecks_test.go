@@ -174,7 +174,7 @@ func TestGetPayload(t *testing.T) {
 			ic.Set("check1_instance1", "check_provided_key2", "Hi")
 			ic.Set("non_running_checkid", "check_provided_key1", "this_should_not_be_kept")
 
-			p := ic.getPayload().(*Payload)
+			p := ic.getPayloadWithConfigs().(*Payload)
 
 			assert.Equal(t, "test-hostname", p.Hostname)
 
