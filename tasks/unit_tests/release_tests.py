@@ -849,7 +849,7 @@ class TestCheckForChanges(unittest.TestCase):
                 'git ls-remote --sort=creatordate -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
                     "this1s4c0mmit0        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t0        refs/tags/7.55.0-rc.1^{}"
                 ),
-                 'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-software omnibus-software': Result(
+                'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-software omnibus-software': Result(
                     ""
                 ),
                 'rm -rf omnibus-software': Result(""),
