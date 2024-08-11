@@ -116,7 +116,7 @@ class TestGetLastTag(unittest.TestCase):
     def test_ordered(self):
         c = MockContext(
             run={
-                'git ls-remote -t https://github.com/DataDog/woof "7.56.*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/woof "7.56.*"': Result(
                     "e1b8e9163203b7446c74fac0b8d4153eb24227a0	refs/tags/7.56.0-rc.1\n7c6777bb7add533a789c69293b59e3261711d330	refs/tags/7.56.0-rc.2\n2b8b710b322feb03148f871a77ab92163a0a12de	refs/tags/7.56.0-rc.3"
                 )
             }
@@ -127,7 +127,7 @@ class TestGetLastTag(unittest.TestCase):
     def test_non_ordered(self):
         c = MockContext(
             run={
-                'git ls-remote -t https://github.com/DataDog/woof "7.56.*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/woof "7.56.*"': Result(
                     "e1b8e9163203b7446c74fac0b8d4153eb24227a0	refs/tags/7.56.0-rc.1\n7c6777bb7add533a789c69293b59e3261711d330	refs/tags/7.56.0-rc.11\n2b8b710b322feb03148f871a77ab92163a0a12de	refs/tags/7.56.0-rc.3"
                 )
             }
@@ -138,7 +138,7 @@ class TestGetLastTag(unittest.TestCase):
     def test_suffix_lower(self):
         c = MockContext(
             run={
-                'git ls-remote -t https://github.com/DataDog/woof "7.56.*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/woof "7.56.*"': Result(
                     "e1b8e9163203b7446c74fac0b8d4153eb24227a0	refs/tags/7.56.0-rc.1\n7c6777bb7add533a789c69293b59e3261711d330	refs/tags/7.56.0-rc.2^{}\n2b8b710b322feb03148f871a77ab92163a0a12de	refs/tags/7.56.0-rc.3"
                 )
             }
@@ -149,7 +149,7 @@ class TestGetLastTag(unittest.TestCase):
     def test_suffix_equal(self):
         c = MockContext(
             run={
-                'git ls-remote -t https://github.com/DataDog/woof "7.56.*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/woof "7.56.*"': Result(
                     "e1b8e9163203b7446c74fac0b8d4153eb24227a0	refs/tags/7.56.0-rc.1\n7c6777bb7add533a789c69293b59e3261711d330	refs/tags/7.56.0-rc.3^{}\n2b8b710b322feb03148f871a77ab92163a0a12de	refs/tags/7.56.0-rc.3"
                 )
             }
@@ -160,7 +160,7 @@ class TestGetLastTag(unittest.TestCase):
     def test_suffix_greater(self):
         c = MockContext(
             run={
-                'git ls-remote -t https://github.com/DataDog/woof "7.56.*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/woof "7.56.*"': Result(
                     "e1b8e9163203b7446c74fac0b8d4153eb24227a0	refs/tags/7.56.0-rc.1\n7c6777bb7add533a789c69293b59e3261711d330	refs/tags/7.56.0-rc.4^{}\n2b8b710b322feb03148f871a77ab92163a0a12de	refs/tags/7.56.0-rc.3"
                 )
             }

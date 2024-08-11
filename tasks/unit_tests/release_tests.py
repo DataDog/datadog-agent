@@ -712,31 +712,31 @@ class TestCheckForChanges(unittest.TestCase):
                 'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/main"': Result(
                     "4n0th3rc0mm1t0        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
                     "this1s4c0mmit0        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t0        refs/tags/7.55.0-rc.1^{}"
                 ),
                 'git ls-remote -h https://github.com/DataDog/omnibus-ruby "refs/heads/main"': Result(
                     "4n0th3rc0mm1t1        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/omnibus-ruby "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/omnibus-ruby "7.55.0*"': Result(
                     "this1s4c0mmit1        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t1        refs/tags/7.55.0-rc.1^{}"
                 ),
                 'git ls-remote -h https://github.com/DataDog/datadog-agent-macos-build "refs/heads/main"': Result(
                     "4n0th3rc0mm1t2        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/datadog-agent-macos-build "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/datadog-agent-macos-build "7.55.0*"': Result(
                     "this1s4c0mmit2        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t2        refs/tags/7.55.0-rc.1^{}"
                 ),
                 'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t3        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/integrations-core "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/integrations-core "7.55.0*"': Result(
                     "this1s4c0mmit3        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t3        refs/tags/7.55.0-rc.1^{}"
                 ),
                 'git ls-remote -h https://github.com/DataDog/datadog-agent "refs/heads/main"': Result(
                     "4n0th3rc0mm1t4        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/datadog-agent "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/datadog-agent "7.55.0*"': Result(
                     "this1s4c0mmit4        refs/tags/7.55.0-devel\n4n0th3rc0mm1t4        refs/tags/7.55.0-devel^{}"
                 ),
             },
@@ -769,7 +769,7 @@ class TestCheckForChanges(unittest.TestCase):
                 'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/main"': Result(
                     "4n0th3rc0mm1t9        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
                     "this1s4c0mmit0        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t0        refs/tags/7.55.0-rc.1^{}"
                 ),
                 'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-software omnibus-software': Result(
@@ -779,7 +779,7 @@ class TestCheckForChanges(unittest.TestCase):
                 'git ls-remote -h https://github.com/DataDog/omnibus-ruby "refs/heads/main"': Result(
                     "4n0th3rc0mm1t1        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/omnibus-ruby "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/omnibus-ruby "7.55.0*"': Result(
                     "this1s4c0mmit1        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t1        refs/tags/7.55.0-rc.1^{}"
                 ),
                 'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-ruby omnibus-ruby': Result(
@@ -789,7 +789,7 @@ class TestCheckForChanges(unittest.TestCase):
                 'git ls-remote -h https://github.com/DataDog/datadog-agent-macos-build "refs/heads/main"': Result(
                     "4n0th3rc0mm1t2        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/datadog-agent-macos-build "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/datadog-agent-macos-build "7.55.0*"': Result(
                     "this1s4c0mmit2        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t2        refs/tags/7.55.0-rc.1^{}"
                 ),
                 'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/datadog-agent-macos-build datadog-agent-macos-build': Result(
@@ -799,13 +799,13 @@ class TestCheckForChanges(unittest.TestCase):
                 'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t3        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/integrations-core "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/integrations-core "7.55.0*"': Result(
                     "this1s4c0mmit3        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t3        refs/tags/7.55.0-rc.1^{}"
                 ),
                 'git ls-remote -h https://github.com/DataDog/datadog-agent "refs/heads/main"': Result(
                     "4n0th3rc0mm1t4        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/datadog-agent "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/datadog-agent "7.55.0*"': Result(
                     "this1s4c0mmit4        refs/tags/7.55.0-devel\n4n0th3rc0mm1t4        refs/tags/7.55.0-devel^{}"
                 ),
                 'git tag 7.55.0-rc.2': Result(""),
@@ -846,17 +846,17 @@ class TestCheckForChanges(unittest.TestCase):
                 'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/main"': Result(
                     "4n0th3rc0mm1t9        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
                     "this1s4c0mmit0        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t0        refs/tags/7.55.0-rc.1^{}"
                 ),
-                'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-software omnibus-software': Result(
+                 'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-software omnibus-software': Result(
                     ""
                 ),
                 'rm -rf omnibus-software': Result(""),
                 'git ls-remote -h https://github.com/DataDog/omnibus-ruby "refs/heads/main"': Result(
                     "4n0th3rc0mm1t8        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/omnibus-ruby "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/omnibus-ruby "7.55.0*"': Result(
                     "this1s4c0mmit1        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t1        refs/tags/7.55.0-rc.1^{}"
                 ),
                 'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-ruby omnibus-ruby': Result(
@@ -866,7 +866,7 @@ class TestCheckForChanges(unittest.TestCase):
                 'git ls-remote -h https://github.com/DataDog/datadog-agent-macos-build "refs/heads/main"': Result(
                     "4n0th3rc0mm1t7        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/datadog-agent-macos-build "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/datadog-agent-macos-build "7.55.0*"': Result(
                     "this1s4c0mmit2        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t2        refs/tags/7.55.0-rc.1^{}"
                 ),
                 'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/datadog-agent-macos-build datadog-agent-macos-build': Result(
@@ -876,13 +876,13 @@ class TestCheckForChanges(unittest.TestCase):
                 'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t6        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/integrations-core "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/integrations-core "7.55.0*"': Result(
                     "this1s4c0mmit3        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t3        refs/tags/7.55.0-rc.1^{}"
                 ),
                 'git ls-remote -h https://github.com/DataDog/datadog-agent "refs/heads/main"': Result(
                     "4n0th3rc0mm1t5        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/datadog-agent "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/datadog-agent "7.55.0*"': Result(
                     "this1s4c0mmit4        refs/tags/7.55.0-devel\n4n0th3rc0mm1t4        refs/tags/7.55.0-devel^{}"
                 ),
                 'git tag 7.55.0-rc.2': Result(""),
@@ -928,31 +928,31 @@ class TestCheckForChanges(unittest.TestCase):
                 'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/main"': Result(
                     "4n0th3rc0mm1t0        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
                     "this1s4c0mmit0        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t0        refs/tags/7.55.0-rc.1^{}"
                 ),
                 'git ls-remote -h https://github.com/DataDog/omnibus-ruby "refs/heads/main"': Result(
                     "4n0th3rc0mm1t1        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/omnibus-ruby "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/omnibus-ruby "7.55.0*"': Result(
                     "this1s4c0mmit1        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t1        refs/tags/7.55.0-rc.1^{}"
                 ),
                 'git ls-remote -h https://github.com/DataDog/datadog-agent-macos-build "refs/heads/main"': Result(
                     "4n0th3rc0mm1t2        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/datadog-agent-macos-build "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/datadog-agent-macos-build "7.55.0*"': Result(
                     "this1s4c0mmit2        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t2        refs/tags/7.55.0-rc.2^{}"
                 ),
                 'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t3        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/integrations-core "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/integrations-core "7.55.0*"': Result(
                     "this1s4c0mmit3        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t3        refs/tags/7.55.0-rc.1^{}"
                 ),
                 'git ls-remote -h https://github.com/DataDog/datadog-agent "refs/heads/main"': Result(
                     "4n0th3rc0mm1t4        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/datadog-agent "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/datadog-agent "7.55.0*"': Result(
                     "this1s4c0mmit4        refs/tags/7.55.0-devel\n4n0th3rc0mm1t4        refs/tags/7.55.0-devel^{}"
                 ),
             },
@@ -994,7 +994,7 @@ class TestCheckForChanges(unittest.TestCase):
                 'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t0        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
                     "this1s4c0mmit0        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t0        refs/tags/7.55.0-rc.1^{}"
                 ),
                 'git clone -b 7.55.x --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-software omnibus-software': Result(
@@ -1004,7 +1004,7 @@ class TestCheckForChanges(unittest.TestCase):
                 'git ls-remote -h https://github.com/DataDog/omnibus-ruby "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t9        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/omnibus-ruby "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/omnibus-ruby "7.55.0*"': Result(
                     "this1s4c0mmit1        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t1        refs/tags/7.55.0-rc.1^{}"
                 ),
                 'git clone -b 7.55.x --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-ruby omnibus-ruby': Result(
@@ -1014,7 +1014,7 @@ class TestCheckForChanges(unittest.TestCase):
                 'git ls-remote -h https://github.com/DataDog/datadog-agent-macos-build "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t2        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/datadog-agent-macos-build "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/datadog-agent-macos-build "7.55.0*"': Result(
                     "this1s4c0mmit2        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t2        refs/tags/7.55.0-rc.1^{}"
                 ),
                 'git clone -b 7.55.x --filter=blob:none --no-checkout https://github.com/DataDog/datadog-agent-macos-build datadog-agent-macos-build': Result(
@@ -1024,13 +1024,13 @@ class TestCheckForChanges(unittest.TestCase):
                 'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t3        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/integrations-core "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/integrations-core "7.55.0*"': Result(
                     "this1s4c0mmit3        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t3        refs/tags/7.55.0-rc.1^{}"
                 ),
                 'git ls-remote -h https://github.com/DataDog/datadog-agent "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t4        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/datadog-agent "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/datadog-agent "7.55.0*"': Result(
                     "this1s4c0mmit4        refs/tags/7.55.0-devel\n4n0th3rc0mm1t4        refs/tags/7.55.0-devel^{}"
                 ),
                 'git tag 7.55.0-rc.2': Result(""),
@@ -1067,7 +1067,7 @@ class TestCheckForChanges(unittest.TestCase):
                 'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t3        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/integrations-core "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/integrations-core "7.55.0*"': Result(
                     "this1s4c0mmit3        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t3        refs/tags/7.55.0-rc.1^{}"
                 ),
             },
@@ -1097,7 +1097,7 @@ class TestCheckForChanges(unittest.TestCase):
                 'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t3        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/integrations-core "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/integrations-core "7.55.0*"': Result(
                     "this1s4c0mmit3        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t3        refs/tags/7.55.0-rc.1^{}"
                 ),
             },
@@ -1127,7 +1127,7 @@ class TestCheckForChanges(unittest.TestCase):
                 'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t9        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/integrations-core "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/integrations-core "7.55.0*"': Result(
                     "this1s4c0mmit3        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t3        refs/tags/7.55.0-rc.1^{}"
                 ),
             },
@@ -1162,7 +1162,7 @@ class TestCheckForChanges(unittest.TestCase):
                 'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
                     "4n0th3rc0mm1t9        refs/heads/main"
                 ),
-                'git ls-remote -t https://github.com/DataDog/integrations-core "7.55.0*"': Result(
+                'git ls-remote --sort=creatordate -t https://github.com/DataDog/integrations-core "7.55.0*"': Result(
                     "this1s4c0mmit3        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t3        refs/tags/7.55.0-rc.1^{}"
                 ),
             },

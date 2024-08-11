@@ -169,7 +169,7 @@ def get_last_tag(ctx, repo, pattern):
     import semver
 
     tags = ctx.run(
-        rf'git ls-remote -t https://github.com/DataDog/{repo} "{pattern}"',
+        rf'git ls-remote --sort=creatordate -t https://github.com/DataDog/{repo} "{pattern}"',
         hide=True,
     ).stdout.strip()
     if not tags:
@@ -181,7 +181,7 @@ def get_last_tag(ctx, repo, pattern):
             code=1,
         )
 
-    tags_without_suffix = [line for line in tags.splitlines() if not line.endswith("^{}")]
+    tags_without_suffix = [line for line in tags.splitlines() if not line.endswith("^{}")][-5:]
     last_tag = max(tags_without_suffix, key=lambda x: cmp_to_key(semver.compare)(x.split('/')[-1]))
     last_tag_commit, last_tag_name = last_tag.split()
     tags_with_suffix = [line for line in tags.splitlines() if line.endswith("^{}")]
