@@ -21,6 +21,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
+	postgresebpf "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -42,8 +43,8 @@ const (
 type protocol struct {
 	cfg            *config.Config
 	telemetry      *Telemetry
-	eventsConsumer *events.Consumer[EbpfEvent]
-	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
+	eventsConsumer *events.Consumer[postgresebpf.EbpfEvent]
+	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, postgresebpf.EbpfTx]
 	statskeeper    *StatKeeper
 }
 
@@ -171,7 +172,7 @@ func (p *protocol) Stop(*manager.Manager) {
 func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 	if mapName == InFlightMap { // maps/postgres_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value EbpfTx
 		var key netebpf.ConnTuple
-		var value EbpfTx
+		var value postgresebpf.EbpfTx
 		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
 		iter := currentMap.Iterate()
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
@@ -195,7 +196,7 @@ func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 	return true
 }
 
-func (p *protocol) processPostgres(events []EbpfEvent) {
+func (p *protocol) processPostgres(events []postgresebpf.EbpfEvent) {
 	for i := range events {
 		tx := &events[i]
 		eventWrapper := NewEventWrapper(tx)
@@ -210,7 +211,7 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 		log.Errorf("error getting %s map: %s", InFlightMap, err)
 		return
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, EbpfTx](postgresInflight, 1024)
+	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, postgresebpf.EbpfTx](postgresInflight, 1024)
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
@@ -218,7 +219,7 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 
 	// Clean up idle connections. We currently use the same TTL as HTTP, but we plan to rename this variable to be more generic.
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val EbpfTx) bool {
+	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val postgresebpf.EbpfTx) bool {
 		if updated := int64(val.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}

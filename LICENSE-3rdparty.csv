@@ -2569,8 +2569,8 @@ core,go4.org/intern,BSD-3-Clause,"Copyright (c) 2020, Brad Fitzpatrick"
 core,go4.org/mem,Apache-2.0,Copyright 2020 The Go4 AUTHORS
 core,go4.org/netipx,BSD-3-Clause,Alex Willmer <alex@moreati.org.uk> | Copyright (c) 2020 The Inet.af AUTHORS. All rights reserved | Matt Layher <mdlayher@gmail.com> | Tailscale Inc. | Tobias Klauser <tklauser@distanz.ch>
 core,go4.org/unsafe/assume-no-moving-gc,BSD-3-Clause,"Copyright (c) 2020, Brad Fitzpatrick"
-core,golang.org/x/arch/arm64/arm64asm,BSD-3-Clause,Copyright (c) 2015 The Go Authors. All rights reserved
-core,golang.org/x/arch/x86/x86asm,BSD-3-Clause,Copyright (c) 2015 The Go Authors. All rights reserved
+core,golang.org/x/arch/arm64/arm64asm,BSD-3-Clause,Copyright 2015 The Go Authors
+core,golang.org/x/arch/x86/x86asm,BSD-3-Clause,Copyright 2015 The Go Authors
 core,golang.org/x/crypto/argon2,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/bcrypt,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/blake2b,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -2602,14 +2602,14 @@ core,golang.org/x/crypto/ssh,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All
 core,golang.org/x/crypto/ssh/agent,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/ssh/internal/bcrypt_pbkdf,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/ssh/knownhosts,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/constraints,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/maps,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/mmap,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/slices,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/slog,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/slog/internal,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/slog/internal/buffer,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/exp/typeparams,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/exp/constraints,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/maps,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/mmap,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/slices,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/slog,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/slog/internal,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/slog/internal/buffer,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/exp/typeparams,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright 2009 The Go Authors
 core,golang.org/x/lint,BSD-3-Clause,Copyright (c) 2013 The Go Authors. All rights reserved
 core,golang.org/x/lint/golint,BSD-3-Clause,Copyright (c) 2013 The Go Authors. All rights reserved
 core,golang.org/x/net/bpf,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -2646,18 +2646,18 @@ core,golang.org/x/oauth2/google/internal/stsexchange,BSD-3-Clause,Copyright (c) 
 core,golang.org/x/oauth2/internal,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/oauth2/jws,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/oauth2/jwt,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sync/errgroup,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sync/semaphore,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sync/singleflight,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/cpu,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/execabs,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/plan9,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/unix,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/windows,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/windows/registry,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/windows/svc,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/windows/svc/eventlog,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/sys/windows/svc/mgr,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/sync/errgroup,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sync/semaphore,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sync/singleflight,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/cpu,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/execabs,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/plan9,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/unix,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/windows,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/windows/registry,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/windows/svc,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/windows/svc/eventlog,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/sys/windows/svc/mgr,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/term,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/text/cases,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/text/encoding,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -2691,8 +2691,8 @@ core,golang.org/x/text/transform,BSD-3-Clause,Copyright (c) 2009 The Go Authors.
 core,golang.org/x/text/unicode/bidi,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/text/unicode/norm,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/text/width,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/time/rate,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang/go,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
+core,golang.org/x/time/rate,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang/go,BSD-Source-Code,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,gomodules.xyz/jsonpatch/v2,Apache-2.0,Copyright (c) 2015 The Authors
 core,gonum.org/v1/gonum/blas,BSD-3-Clause,Alexander Egurnov <alexander.egurnov@gmail.com> | Andrei Blinnikov <goofinator@mail.ru> | Andrew Brampton <brampton@gmail.com> | Bailey Lissington <lissington4@gmail.com> | Bill Gray <wgray@gogray.com> | Bill Noon <noon.bill@gmail.com> | Brendan Tracey <tracey.brendan@gmail.com> | Brent Pedersen <bpederse@gmail.com> | Bulat Khasanov <afti@yandex.ru> | Chad Kunde <kunde21@gmail.com> | Chan Kwan Yin <sofe2038@gmail.com> | Chih-Wei Chang <bert.cwchang@gmail.com> | Chong-Yeol Nah <nahchongyeol@gmail.com> | Chris Tessum <ctessum@gmail.com> | Christophe Meessen <christophe.meessen@gmail.com> | Christopher Waldon <christopher.waldon.dev@gmail.com> | Clayton Northey <clayton.northey@gmail.com> | Copyright ©2013 The Gonum Authors. All rights reserved | Dan Kortschak <dan.kortschak@adelaide.edu.au> <dan@kortschak.io> | Dan Lorenc <lorenc.d@gmail.com> | Daniel Fireman <danielfireman@gmail.com> | Dario Heinisch <dario.heinisch@gmail.com> | David Kleiven <davidkleiven446@gmail.com> | David Samborski <bloggingarrow@gmail.com> | Davor Kapsa <davor.kapsa@gmail.com> | DeepMind Technologies | Delaney Gillilan <delaneygillilan@gmail.com> | Dezmond Goff <goff.dezmond@gmail.com> | Dong-hee Na <donghee.na92@gmail.com> | Dustin Spicuzza <dustin@virtualroadside.com> | Egon Elbre <egonelbre@gmail.com> | Ekaterina Efimova <katerina.efimova@gmail.com> | Eng Zer Jun <engzerjun@gmail.com> | Ethan Burns <burns.ethan@gmail.com> | Ethan Reesor <ethan.reesor@gmail.com> | Evert Lammerts <evert.lammerts@gmail.com> | Evgeny Savinov <notime.sea@gmail.com> | Fabian Wickborn <fabian@wickborn.net> | Facundo Gaich <facugaich@gmail.com> | Fazlul Shahriar <fshahriar@gmail.com> | Francesc Campoy <campoy@golang.org> | Google Inc | Gustaf Johansson <gustaf@pinon.se> | Hossein Zolfi <hossein.zolfi@gmail.com> | Iakov Davydov <iakov.davydov@unil.ch> | Igor Mikushkin <igor.mikushkin@gmail.com> | Iskander Sharipov <quasilyte@gmail.com> | Jalem Raj Rohit <jrajrohit33@gmail.com> | James Bell <james@stellentus.com> | James Bowman <james.edward.bowman@gmail.com> | James Holmes <32bitkid@gmail.com> | Janne Snabb <snabb@epipe.com> | Jeremy Atkinson <jchatkinson@gmail.com> | Jes Cok <xigua67damn@gmail.com> | Jinesi Yelizati <i63888888@163.com> | Jon Richards <noj.richards@gmail.com> | Jonas Kahler <jonas@derkahler.de> | Jonas Schulze <jonas.schulze@ovgu.de> | Jonathan Bluett-Duncan <jbluettduncan@gmail.com> | Jonathan J Lawlor <jonathan.lawlor@gmail.com> | Jonathan Reiter <jonreiter@gmail.com> | Jonathan Schroeder <jd.schroeder@gmail.com> | Joost van Amersfoort <git@joo.st> | Jordan Stoker <jordan_stoker@hotmail.com> | Joseph Watson <jtwatson@linux-consulting.us> | Josh Wilson <josh.craig.wilson@gmail.com> | Julien Roland <juroland@gmail.com> | Kai Trukenmüller <ktye78@gmail.com> | Kent English <kent.english@gmail.com> | Kevin C. Zimmerman <kevinczimmerman@gmail.com> | Kirill Motkov <motkov.kirill@gmail.com> | Konstantin Shaposhnikov <k.shaposhnikov@gmail.com> | Leonid Kneller <recondite.matter@gmail.com> | Lyron Winderbaum <lyron.winderbaum@student.adelaide.edu.au> <armadilloa16@gmail.com> <lyron.winderbaum@uwa.edu.au> | Marco Leogrande <dark.knight.ita@gmail.com> | Mark Canning <argusdusty@gmail.com> | Mark Skilbeck <markskilbeck@gmail.com> | Martin Diz <github@martindiz.com.ar> | Matthew Connelly <matthew.b.connelly@gmail.com> | Matthieu Di Mercurio <matthieu.dimercurio@gmail.com> | Max Halford <maxhalford25@gmail.com> | Maxim Sergeev <gudvinr@gmail.com> | Microsoft Corporation | MinJae Kwon <k239507@gmail.com> | Nathan Edwards <etaoinshrdluwho@gmail.com> | Nick Potts <nick@the-potts.com> | Nils Wogatzky <odog@netcologne.de> | Olivier Wulveryck <olivier.wulveryck@gmail.com> | Or Rikon <rikonor@gmail.com> | Patricio Whittingslow <graded.sp@gmail.com> | Patrick DeVivo <patrick@tickgit.com> | Pontus Melke <pontusmelke@gmail.com> | Renee French | Rishi Desai <desai.rishi1@gmail.com> | Robin Eklind <r.eklind.87@gmail.com> | Roger Welin <roger.welin@icloud.com> | Roman Werpachowski <roman.werpachowski@gmail.com> | Rondall Jones <rejones7@gmail.com> | Sam Zaydel <szaydel@gmail.com> | Samuel Kelemen <Samuel@Kelemen.us> | Saran Ahluwalia <ahlusar.ahluwalia@gmail.com> | Scott Holden <scott@sshconnection.com> | Scott Kiesel <kiesel.scott@gmail.com> | Sebastien Binet <seb.binet@gmail.com> | Shawn Smith <shawnpsmith@gmail.com> | Sintela Ltd | Spencer Lyon <spencerlyon2@gmail.com> | Steve McCoy <mccoyst@gmail.com> | Taesu Pyo <pyotaesu@gmail.com> | Takeshi Yoneda <cz.rk.t0415y.g@gmail.com> | Tamir Hyman <hyman.tamir@gmail.com> | The University of Adelaide | The University of Minnesota | The University of Washington | Thomas Berg <tomfuture@gmail.com> | Tobin Harding <me@tobin.cc> | Valentin Deleplace <deleplace2015@gmail.com> | Vincent Thiery <vjmthiery@gmail.com> | Vladimír Chalupecký <vladimir.chalupecky@gmail.com> | Will Tekulve <tekulve.will@gmail.com> | Yasuhiro Matsumoto <mattn.jp@gmail.com> | Yevgeniy Vahlis <evahlis@gmail.com> | Yucheng Zhu <zyctc000@gmail.com> | Yunomi <ynmtywn@gmail.com> | Zoe Juozapaitis | antichris <chris@u-d13.com> | source{d} <hello@sourced.tech>
 core,gonum.org/v1/gonum/blas/blas64,BSD-3-Clause,Alexander Egurnov <alexander.egurnov@gmail.com> | Andrei Blinnikov <goofinator@mail.ru> | Andrew Brampton <brampton@gmail.com> | Bailey Lissington <lissington4@gmail.com> | Bill Gray <wgray@gogray.com> | Bill Noon <noon.bill@gmail.com> | Brendan Tracey <tracey.brendan@gmail.com> | Brent Pedersen <bpederse@gmail.com> | Bulat Khasanov <afti@yandex.ru> | Chad Kunde <kunde21@gmail.com> | Chan Kwan Yin <sofe2038@gmail.com> | Chih-Wei Chang <bert.cwchang@gmail.com> | Chong-Yeol Nah <nahchongyeol@gmail.com> | Chris Tessum <ctessum@gmail.com> | Christophe Meessen <christophe.meessen@gmail.com> | Christopher Waldon <christopher.waldon.dev@gmail.com> | Clayton Northey <clayton.northey@gmail.com> | Copyright ©2013 The Gonum Authors. All rights reserved | Dan Kortschak <dan.kortschak@adelaide.edu.au> <dan@kortschak.io> | Dan Lorenc <lorenc.d@gmail.com> | Daniel Fireman <danielfireman@gmail.com> | Dario Heinisch <dario.heinisch@gmail.com> | David Kleiven <davidkleiven446@gmail.com> | David Samborski <bloggingarrow@gmail.com> | Davor Kapsa <davor.kapsa@gmail.com> | DeepMind Technologies | Delaney Gillilan <delaneygillilan@gmail.com> | Dezmond Goff <goff.dezmond@gmail.com> | Dong-hee Na <donghee.na92@gmail.com> | Dustin Spicuzza <dustin@virtualroadside.com> | Egon Elbre <egonelbre@gmail.com> | Ekaterina Efimova <katerina.efimova@gmail.com> | Eng Zer Jun <engzerjun@gmail.com> | Ethan Burns <burns.ethan@gmail.com> | Ethan Reesor <ethan.reesor@gmail.com> | Evert Lammerts <evert.lammerts@gmail.com> | Evgeny Savinov <notime.sea@gmail.com> | Fabian Wickborn <fabian@wickborn.net> | Facundo Gaich <facugaich@gmail.com> | Fazlul Shahriar <fshahriar@gmail.com> | Francesc Campoy <campoy@golang.org> | Google Inc | Gustaf Johansson <gustaf@pinon.se> | Hossein Zolfi <hossein.zolfi@gmail.com> | Iakov Davydov <iakov.davydov@unil.ch> | Igor Mikushkin <igor.mikushkin@gmail.com> | Iskander Sharipov <quasilyte@gmail.com> | Jalem Raj Rohit <jrajrohit33@gmail.com> | James Bell <james@stellentus.com> | James Bowman <james.edward.bowman@gmail.com> | James Holmes <32bitkid@gmail.com> | Janne Snabb <snabb@epipe.com> | Jeremy Atkinson <jchatkinson@gmail.com> | Jes Cok <xigua67damn@gmail.com> | Jinesi Yelizati <i63888888@163.com> | Jon Richards <noj.richards@gmail.com> | Jonas Kahler <jonas@derkahler.de> | Jonas Schulze <jonas.schulze@ovgu.de> | Jonathan Bluett-Duncan <jbluettduncan@gmail.com> | Jonathan J Lawlor <jonathan.lawlor@gmail.com> | Jonathan Reiter <jonreiter@gmail.com> | Jonathan Schroeder <jd.schroeder@gmail.com> | Joost van Amersfoort <git@joo.st> | Jordan Stoker <jordan_stoker@hotmail.com> | Joseph Watson <jtwatson@linux-consulting.us> | Josh Wilson <josh.craig.wilson@gmail.com> | Julien Roland <juroland@gmail.com> | Kai Trukenmüller <ktye78@gmail.com> | Kent English <kent.english@gmail.com> | Kevin C. Zimmerman <kevinczimmerman@gmail.com> | Kirill Motkov <motkov.kirill@gmail.com> | Konstantin Shaposhnikov <k.shaposhnikov@gmail.com> | Leonid Kneller <recondite.matter@gmail.com> | Lyron Winderbaum <lyron.winderbaum@student.adelaide.edu.au> <armadilloa16@gmail.com> <lyron.winderbaum@uwa.edu.au> | Marco Leogrande <dark.knight.ita@gmail.com> | Mark Canning <argusdusty@gmail.com> | Mark Skilbeck <markskilbeck@gmail.com> | Martin Diz <github@martindiz.com.ar> | Matthew Connelly <matthew.b.connelly@gmail.com> | Matthieu Di Mercurio <matthieu.dimercurio@gmail.com> | Max Halford <maxhalford25@gmail.com> | Maxim Sergeev <gudvinr@gmail.com> | Microsoft Corporation | MinJae Kwon <k239507@gmail.com> | Nathan Edwards <etaoinshrdluwho@gmail.com> | Nick Potts <nick@the-potts.com> | Nils Wogatzky <odog@netcologne.de> | Olivier Wulveryck <olivier.wulveryck@gmail.com> | Or Rikon <rikonor@gmail.com> | Patricio Whittingslow <graded.sp@gmail.com> | Patrick DeVivo <patrick@tickgit.com> | Pontus Melke <pontusmelke@gmail.com> | Renee French | Rishi Desai <desai.rishi1@gmail.com> | Robin Eklind <r.eklind.87@gmail.com> | Roger Welin <roger.welin@icloud.com> | Roman Werpachowski <roman.werpachowski@gmail.com> | Rondall Jones <rejones7@gmail.com> | Sam Zaydel <szaydel@gmail.com> | Samuel Kelemen <Samuel@Kelemen.us> | Saran Ahluwalia <ahlusar.ahluwalia@gmail.com> | Scott Holden <scott@sshconnection.com> | Scott Kiesel <kiesel.scott@gmail.com> | Sebastien Binet <seb.binet@gmail.com> | Shawn Smith <shawnpsmith@gmail.com> | Sintela Ltd | Spencer Lyon <spencerlyon2@gmail.com> | Steve McCoy <mccoyst@gmail.com> | Taesu Pyo <pyotaesu@gmail.com> | Takeshi Yoneda <cz.rk.t0415y.g@gmail.com> | Tamir Hyman <hyman.tamir@gmail.com> | The University of Adelaide | The University of Minnesota | The University of Washington | Thomas Berg <tomfuture@gmail.com> | Tobin Harding <me@tobin.cc> | Valentin Deleplace <deleplace2015@gmail.com> | Vincent Thiery <vjmthiery@gmail.com> | Vladimír Chalupecký <vladimir.chalupecky@gmail.com> | Will Tekulve <tekulve.will@gmail.com> | Yasuhiro Matsumoto <mattn.jp@gmail.com> | Yevgeniy Vahlis <evahlis@gmail.com> | Yucheng Zhu <zyctc000@gmail.com> | Yunomi <ynmtywn@gmail.com> | Zoe Juozapaitis | antichris <chris@u-d13.com> | source{d} <hello@sourced.tech>
@@ -3622,13 +3622,6 @@ core,k8s.io/component-base/version,Apache-2.0,Copyright 2014 The Kubernetes Auth
 core,k8s.io/cri-api/pkg/apis/runtime/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/cri-api/pkg/apis/runtime/v1alpha2,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/cri-api/pkg/apis/testing,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/gengo/args,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/gengo/examples/defaulter-gen/generators,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/gengo/examples/set-gen/sets,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/gengo/generator,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/gengo/namer,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/gengo/parser,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/gengo/types,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/klog,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/klog/v2,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/klog/v2/internal/buffer,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -3646,16 +3639,12 @@ core,k8s.io/kube-aggregator/pkg/apis/apiregistration/v1,Apache-2.0,Copyright 201
 core,k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/scheme,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/kube-openapi/cmd/openapi-gen,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/kube-openapi/cmd/openapi-gen/args,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/builder,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/builder3,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/builder3/util,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/cached,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/common,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/common/restfuladapter,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/kube-openapi/pkg/generators,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/kube-openapi/pkg/generators/rules,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/handler,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/handler3,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/internal,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -3666,7 +3655,6 @@ core,k8s.io/kube-openapi/pkg/schemamutation,Apache-2.0,Copyright 2014 The Kubern
 core,k8s.io/kube-openapi/pkg/spec3,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/util,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/util/proto,Apache-2.0,Copyright 2014 The Kubernetes Authors.
-core,k8s.io/kube-openapi/pkg/util/sets,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/validation/errors,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/validation/spec,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-openapi/pkg/validation/strfmt,Apache-2.0,Copyright 2014 The Kubernetes Authors.

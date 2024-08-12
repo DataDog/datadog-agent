@@ -66,7 +66,7 @@ const (
 // Tracer is the common interface implemented by all connection tracers.
 type Tracer interface {
 	// Start begins collecting network connection data.
-	Start(func([]network.ConnectionStats)) error
+	Start(func(*network.ConnectionStats)) error
 	// Stop halts all network data collection.
 	Stop()
 	// GetConnections returns the list of currently active connections, using the buffer provided.
@@ -278,7 +278,12 @@ func NewTracer(config *config.Config, _ telemetryComponent.Component) (Tracer, e
 	m.DumpHandler = dumpMapsHandler
 	ddebpf.AddNameMappings(m, "npm_tracer")
 
-	batchMgr, err := newConnBatchManager(m)
+	numCPUs, err := ebpf.PossibleCPU()
+	if err != nil {
+		return nil, fmt.Errorf("could not determine number of CPUs: %w", err)
+	}
+	extractor := newBatchExtractor(numCPUs)
+	batchMgr, err := newConnBatchManager(m, extractor)
 	if err != nil {
 		return nil, fmt.Errorf("could not create connection batch manager: %w", err)
 	}
@@ -338,7 +343,7 @@ func boolConst(name string, value bool) manager.ConstantEditor {
 	return c
 }
 
-func (t *tracer) Start(callback func([]network.ConnectionStats)) (err error) {
+func (t *tracer) Start(callback func(*network.ConnectionStats)) (err error) {
 	defer func() {
 		if err != nil {
 			t.Stop()

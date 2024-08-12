@@ -624,6 +624,29 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
         rj = _load_release_json()
         rj["current_milestone"] = f"{next}"
         _save_release_json(rj)
+        # Commit release.json
+        ctx.run("git add release.json")
+        ok = try_git_command(ctx, f"git commit -m 'Update release.json with current milestone to {next}'")
+
+        if not ok:
+            raise Exit(
+                color_message(
+                    f"Could not create commit. Please commit manually and push the commit to the {milestone_branch} branch.",
+                    "red",
+                ),
+                code=1,
+            )
+
+        res = ctx.run(f"git push --set-upstream {upstream} {milestone_branch}", warn=True)
+        if res.exited is None or res.exited > 0:
+            raise Exit(
+                color_message(
+                    f"Could not push branch {milestone_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {release_branch}.",
+                    "red",
+                ),
+                code=1,
+            )
+
         create_release_pr(
             f"[release] Update current milestone to {next}",
             "main",
@@ -907,16 +930,23 @@ def create_schedule(_, version, freeze_date):
 @task
 def chase_release_managers(_, version):
     url, missing_teams = get_release_page_info(version)
-    GITHUB_SLACK_MAP = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
-    channels = [GITHUB_SLACK_MAP[f"@datadog/{team}"] for team in missing_teams]
-    # Remove duplicates
-    channels = list(set(channels))
-    message = f"Hello :wave:\nCould you please update the `datadog-agent` <release coordination page|{url}> with the RM for your team?\nThanks in advance"
+    github_slack_map = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
+    channels = set()
+
+    for team in missing_teams:
+        channel = github_slack_map.get(f"@datadog/{team}")
+        if channel:
+            channels.add(channel)
+        else:
+            print(color_message(f"Missing slack channel for {team}", Color.RED))
+
+    message = f"Hello :wave:\nCould you please update the `datadog-agent` <{url}|release coordination page> with the RM for your team?\nThanks in advance"
 
     from slack_sdk import WebClient
 
     client = WebClient(os.environ["SLACK_API_TOKEN"])
-    for channel in channels:
+    for channel in sorted(channels):
+        print(f"Sending message to {channel}")
         client.chat_postMessage(channel=channel, text=message)
 
 

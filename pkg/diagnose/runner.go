@@ -32,15 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose/ports"
 )
 
-// Overall running statistics
-type counters struct {
-	total         int
-	success       int
-	fail          int
-	warnings      int
-	unexpectedErr int
-}
-
 // diagnose suite filter
 type diagSuiteFilter struct {
 	include []*regexp.Regexp
@@ -48,50 +39,21 @@ type diagSuiteFilter struct {
 }
 
 // Output summary
-func (c *counters) summary(w io.Writer) {
-	fmt.Fprintf(w, "-------------------------\n  Total:%d", c.total)
-	if c.success > 0 {
-		fmt.Fprintf(w, ", Success:%d", c.success)
+func summary(w io.Writer, c diagnosis.Counters) {
+	fmt.Fprintf(w, "-------------------------\n  Total:%d", c.Total)
+	if c.Success > 0 {
+		fmt.Fprintf(w, ", Success:%d", c.Success)
 	}
-	if c.fail > 0 {
-		fmt.Fprintf(w, ", Fail:%d", c.fail)
+	if c.Fail > 0 {
+		fmt.Fprintf(w, ", Fail:%d", c.Fail)
 	}
-	if c.warnings > 0 {
-		fmt.Fprintf(w, ", Warning:%d", c.warnings)
+	if c.Warnings > 0 {
+		fmt.Fprintf(w, ", Warning:%d", c.Warnings)
 	}
-	if c.unexpectedErr > 0 {
-		fmt.Fprintf(w, ", Error:%d", c.unexpectedErr)
+	if c.UnexpectedErr > 0 {
+		fmt.Fprintf(w, ", Error:%d", c.UnexpectedErr)
 	}
 	fmt.Fprint(w, "\n")
-}
-
-func (c *counters) increment(r diagnosis.Result) {
-	c.total++
-
-	if r == diagnosis.DiagnosisSuccess {
-		c.success++
-	} else if r == diagnosis.DiagnosisFail {
-		c.fail++
-	} else if r == diagnosis.DiagnosisWarning {
-		c.warnings++
-	} else if r == diagnosis.DiagnosisUnexpectedError {
-		c.unexpectedErr++
-	}
-}
-
-func getDiagnosisResultForOutput(r diagnosis.Result) string {
-	var result string
-	if r == diagnosis.DiagnosisSuccess {
-		result = color.GreenString("PASS")
-	} else if r == diagnosis.DiagnosisFail {
-		result = color.RedString("FAIL")
-	} else if r == diagnosis.DiagnosisWarning {
-		result = color.YellowString("WARNING")
-	} else { // if d.Result == diagnosis.DiagnosisUnexpectedError
-		result = color.HiRedString("UNEXPECTED ERROR")
-	}
-
-	return result
 }
 
 func outputDiagnosis(w io.Writer, cfg diagnosis.Config, result string, diagnosisIdx int, d diagnosis.Diagnosis) {
@@ -277,28 +239,36 @@ func ListStdOut(w io.Writer, diagCfg diagnosis.Config) {
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for structural output
-func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config, suites []diagnosis.Suite) ([]diagnosis.Diagnoses, error) {
+func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config, suites []diagnosis.Suite) (*diagnosis.DiagnoseResult, error) {
 	suites, err := getSortedAndFilteredDiagnoseSuites(diagCfg, suites, func(suite diagnosis.Suite) string { return suite.SuitName })
 	if err != nil {
 		return nil, err
 	}
 
 	var suitesDiagnoses []diagnosis.Diagnoses
+	var count diagnosis.Counters
 	for _, ds := range suites {
 		// Run particular diagnose
 		diagnoses := getSuiteDiagnoses(ds)
 		if len(diagnoses) > 0 {
+			for _, d := range diagnoses {
+				count.Increment(d.Result)
+			}
 			suitesDiagnoses = append(suitesDiagnoses, diagnosis.Diagnoses{
 				SuiteName:      ds.SuitName,
 				SuiteDiagnoses: diagnoses,
 			})
 		}
 	}
+	diagnoseResult := &diagnosis.DiagnoseResult{
+		Diagnoses: suitesDiagnoses,
+		Summary:   count,
+	}
 
-	return suitesDiagnoses, nil
+	return diagnoseResult, nil
 }
 
-func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
+func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) (*diagnosis.DiagnoseResult, error) {
 	// Get client to Agent's RPC call
 	c := util.GetClient(false)
 	ipcAddress, err := pkgconfig.GetIPCAddress()
@@ -332,42 +302,42 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 	}
 
 	// Deserialize results
-	var diagnoses []diagnosis.Diagnoses
-	err = json.NewDecoder(bytes.NewReader(response)).Decode(&diagnoses)
+	var diagnoses diagnosis.DiagnoseResult
+	err = json.Unmarshal(response, &diagnoses)
 	if err != nil {
 		return nil, fmt.Errorf("error while decoding diagnose results returned from Agent: %w", err)
 	}
 
-	return diagnoses, nil
+	return &diagnoses, nil
 }
 
 // RunInCLIProcess run diagnoses in the CLI process.
-func RunInCLIProcess(diagCfg diagnosis.Config, deps SuitesDepsInCLIProcess) ([]diagnosis.Diagnoses, error) {
-	return run(diagCfg, func() []diagnosis.Suite {
+func RunInCLIProcess(diagCfg diagnosis.Config, deps SuitesDepsInCLIProcess) (*diagnosis.DiagnoseResult, error) {
+	return RunDiagnose(diagCfg, func() []diagnosis.Suite {
 		return buildSuites(diagCfg, func() []diagnosis.Diagnosis {
 			return diagnoseChecksInCLIProcess(diagCfg, deps.senderManager, deps.logReceiver, deps.secretResolver, deps.wmeta, deps.AC)
 		})
 	})
 }
 
-// Run runs diagnoses.
-func run(diagCfg diagnosis.Config, getSuites func() []diagnosis.Suite) ([]diagnosis.Diagnoses, error) {
+// RunDiagnose runs diagnoses.
+func RunDiagnose(diagCfg diagnosis.Config, getSuites func() []diagnosis.Suite) (*diagnosis.DiagnoseResult, error) {
 	// Make remote call to get diagnoses
 	if !diagCfg.RunLocal {
 		return requestDiagnosesFromAgentProcess(diagCfg)
 	}
 
 	// Collect local diagnoses
-	diagnoses, err := getDiagnosesFromCurrentProcess(diagCfg, getSuites())
+	diagnoseResult, err := getDiagnosesFromCurrentProcess(diagCfg, getSuites())
 	if err != nil {
 		return nil, err
 	}
 
-	return diagnoses, nil
+	return diagnoseResult, nil
 }
 
 // RunInAgentProcess runs diagnoses in the Agent process.
-func RunInAgentProcess(diagCfg diagnosis.Config, deps SuitesDepsInAgentProcess) ([]diagnosis.Diagnoses, error) {
+func RunInAgentProcess(diagCfg diagnosis.Config, deps SuitesDepsInAgentProcess) (*diagnosis.DiagnoseResult, error) {
 	// Collect local diagnoses
 	suites := buildSuites(diagCfg, func() []diagnosis.Diagnosis {
 		return diagnoseChecksInAgentProcess(deps.collector)
@@ -376,61 +346,43 @@ func RunInAgentProcess(diagCfg diagnosis.Config, deps SuitesDepsInAgentProcess) 
 	return getDiagnosesFromCurrentProcess(diagCfg, suites)
 }
 
-// RunStdOutInAgentProcess enumerates registered Diagnose suites and get their diagnoses
-// for human consumption
-func RunStdOutInAgentProcess(w io.Writer, diagCfg diagnosis.Config, deps SuitesDepsInAgentProcess) error {
-	return runStdOut(w, diagCfg, func(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
-		return RunInAgentProcess(diagCfg, deps)
-	})
+// RunLocalCheck runs locally the checks created by the registries.
+func RunLocalCheck(diagCfg diagnosis.Config, registries ...func(*diagnosis.Catalog)) (*diagnosis.DiagnoseResult, error) {
+	suites := buildCustomSuites(registries...)
+	return getDiagnosesFromCurrentProcess(diagCfg, suites)
 }
 
-// RunStdOutInCLIProcess enumerates registered Diagnose suites and get their diagnoses
-// for human consumption
-func RunStdOutInCLIProcess(w io.Writer, diagCfg diagnosis.Config, deps SuitesDepsInCLIProcess) error {
-	return runStdOut(w, diagCfg, func(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
-		return RunInCLIProcess(diagCfg, deps)
-	})
+// RunDiagnoseStdOut runs the diagnose and outputs the results to the writer.
+func RunDiagnoseStdOut(w io.Writer, diagCfg diagnosis.Config, diagnoses *diagnosis.DiagnoseResult) error {
+	if diagCfg.JSONOutput {
+		return runStdOutJSON(w, diagnoses)
+	}
+	return runStdOut(w, diagCfg, diagnoses)
 }
 
-// RunStdOutLocalCheck runs locally the checks created by the registries.
-func RunStdOutLocalCheck(w io.Writer, verbose bool, registries ...func(*diagnosis.Catalog)) error {
-	diagCfg := diagnosis.Config{Verbose: verbose, RunLocal: true}
-	return runStdOut(w, diagCfg, func(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
-		suites := buildCustomSuites(registries...)
+func runStdOutJSON(w io.Writer, diagnoseResult *diagnosis.DiagnoseResult) error {
+	diagJSON, err := json.MarshalIndent(diagnoseResult, "", "  ")
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{"error": fmt.Sprintf("marshalling diagnose results to JSON: %s", err)})
+		fmt.Fprintln(w, string(body))
+		return err
+	}
+	fmt.Fprintln(w, string(diagJSON))
 
-		return getDiagnosesFromCurrentProcess(diagCfg, suites)
-	})
+	return nil
 }
 
-func runStdOut(w io.Writer, diagCfg diagnosis.Config, run func(diagnosis.Config) ([]diagnosis.Diagnoses, error)) error {
+func runStdOut(w io.Writer, diagCfg diagnosis.Config, diagnoseResult *diagnosis.DiagnoseResult) error {
 	if w != color.Output {
 		color.NoColor = true
 	}
 
 	fmt.Fprintf(w, "=== Starting diagnose ===\n")
 
-	diagnoses, err := run(diagCfg)
-	if err != nil && !diagCfg.RunLocal {
-		fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
-		fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
-
-		// attempt to do so locally
-		diagCfg.RunLocal = true
-		diagnoses, err = run(diagCfg)
-	}
-
-	if err != nil {
-		fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
-		return err
-	}
-
-	var c counters
-
 	lastDot := false
-	for _, ds := range diagnoses {
+	for _, ds := range diagnoseResult.Diagnoses {
 		suiteAlreadyReported := false
 		for _, d := range ds.SuiteDiagnoses {
-			c.increment(d.Result)
 
 			if d.Result == diagnosis.DiagnosisSuccess && !diagCfg.Verbose {
 				outputDot(w, &lastDot)
@@ -440,12 +392,12 @@ func runStdOut(w io.Writer, diagCfg diagnosis.Config, run func(diagnosis.Config)
 			outputSuiteIfNeeded(w, ds.SuiteName, &suiteAlreadyReported)
 
 			outputNewLineIfNeeded(w, &lastDot)
-			outputDiagnosis(w, diagCfg, getDiagnosisResultForOutput(d.Result), c.total, d)
+			outputDiagnosis(w, diagCfg, d.Result.ToString(true), diagnoseResult.Summary.Total, d)
 		}
 	}
 
 	outputNewLineIfNeeded(w, &lastDot)
-	c.summary(w)
+	summary(w, diagnoseResult.Summary)
 
 	return nil
 }

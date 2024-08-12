@@ -12,7 +12,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 
@@ -28,7 +27,7 @@ func stopUnit(ctx context.Context, unit string, args ...string) error {
 	defer span.Finish()
 	span.SetTag("unit", unit)
 	args = append([]string{"stop", unit}, args...)
-	return exec.CommandContext(ctx, "systemctl", args...).Run()
+	return newCommandRunner(ctx, "systemctl", args...).runWithError()
 }
 
 func startUnit(ctx context.Context, unit string, args ...string) error {
@@ -36,21 +35,21 @@ func startUnit(ctx context.Context, unit string, args ...string) error {
 	defer span.Finish()
 	span.SetTag("unit", unit)
 	args = append([]string{"start", unit}, args...)
-	return exec.CommandContext(ctx, "systemctl", args...).Run()
+	return newCommandRunner(ctx, "systemctl", args...).runWithError()
 }
 
 func enableUnit(ctx context.Context, unit string) error {
 	span, _ := tracer.StartSpanFromContext(ctx, "enable_unit")
 	defer span.Finish()
 	span.SetTag("unit", unit)
-	return exec.CommandContext(ctx, "systemctl", "enable", unit).Run()
+	return newCommandRunner(ctx, "systemctl", "enable", unit).runWithError()
 }
 
 func disableUnit(ctx context.Context, unit string) error {
 	span, _ := tracer.StartSpanFromContext(ctx, "disable_unit")
 	defer span.Finish()
 	span.SetTag("unit", unit)
-	return exec.CommandContext(ctx, "systemctl", "disable", unit).Run()
+	return newCommandRunner(ctx, "systemctl", "disable", unit).runWithError()
 }
 
 func loadUnit(ctx context.Context, unit string) error {
@@ -75,7 +74,7 @@ func removeUnit(ctx context.Context, unit string) error {
 func systemdReload(ctx context.Context) error {
 	span, _ := tracer.StartSpanFromContext(ctx, "systemd_reload")
 	defer span.Finish()
-	return exec.CommandContext(ctx, "systemctl", "daemon-reload").Run()
+	return newCommandRunner(ctx, "systemctl", "daemon-reload").runWithError()
 }
 
 // isSystemdRunning checks if systemd is running using the documented way
