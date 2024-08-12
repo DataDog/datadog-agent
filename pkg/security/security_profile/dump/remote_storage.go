@@ -20,6 +20,8 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -27,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	ddhttputil "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type tooLargeEntityStatsEntry struct {
@@ -176,7 +177,7 @@ func (storage *ActivityDumpRemoteStorage) sendToEndpoint(url string, apiKey stri
 		}
 		storage.tooLargeEntities[entry].Inc()
 	}
-	return fmt.Errorf(resp.Status)
+	return fmt.Errorf("%s", resp.Status)
 }
 
 // Persist saves the provided buffer to the persistent storage

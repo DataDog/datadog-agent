@@ -436,6 +436,39 @@ issues:
     - path: comp/core/sysprobeconfig/sysprobeconfigimpl/config.go
       linters:
         - pkgconfigusage
+    - path: comp/core/workloadmeta/collectors/internal/docker/docker.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/workloadmeta/collectors/internal/docker/image_sbom_trivy.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/workloadmeta/collectors/internal/containerd/containerd.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/workloadmeta/collectors/internal/containerd/image_sbom_trivy.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/workloadmeta/collectors/internal/containerd/network_linux.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/workloadmeta/collectors/internal/ecs/ecs.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/workloadmeta/collectors/internal/ecsfargate/ecsfargate.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/workloadmeta/collectors/internal/podman/podman.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/workloadmeta/collectors/internal/process/process_collector.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/workloadmeta/collectors/util/process_util_linux.go
+      linters:
+        - pkgconfigusage
+    - path: comp/dogstatsd/listeners/ratelimit/cgroup_memory_usage_linux.g
+      linters:
+        - pkgconfigusage
 linters:
   disable-all: true
   enable:
