@@ -37,6 +37,7 @@ func TestMaxSubsequence(t *testing.T) {
 		input    []int
 		expected []int
 	}{
+		{[]int{}, []int{}},
 		{[]int{1, 1, 1, 1, 1}, []int{1, 1, 1, 1, 1}},
 		{[]int{-1, -1, 1, -1, -1}, []int{1}},
 		{[]int{-1, 1, 1}, []int{1, 1}},
