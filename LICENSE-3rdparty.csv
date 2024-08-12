@@ -2571,37 +2571,37 @@ core,go4.org/netipx,BSD-3-Clause,Alex Willmer <alex@moreati.org.uk> | Copyright 
 core,go4.org/unsafe/assume-no-moving-gc,BSD-3-Clause,"Copyright (c) 2020, Brad Fitzpatrick"
 core,golang.org/x/arch/arm64/arm64asm,BSD-3-Clause,Copyright 2015 The Go Authors
 core,golang.org/x/arch/x86/x86asm,BSD-3-Clause,Copyright 2015 The Go Authors
-core,golang.org/x/crypto/argon2,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/bcrypt,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/blake2b,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/blowfish,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/cast5,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/chacha20,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/crypto/argon2,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/bcrypt,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/blake2b,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/blowfish,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/cast5,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/chacha20,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/chacha20poly1305,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/cryptobyte,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/cryptobyte/asn1,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/curve25519,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/hkdf,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/internal/alias,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/internal/poly1305,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/nacl/secretbox,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/ocsp,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/openpgp,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/openpgp/armor,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/openpgp/elgamal,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/openpgp/errors,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/openpgp/packet,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/openpgp/s2k,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/pbkdf2,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/pkcs12,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/pkcs12/internal/rc2,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/salsa20/salsa,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/scrypt,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/sha3,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/ssh,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/ssh/agent,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/ssh/internal/bcrypt_pbkdf,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/ssh/knownhosts,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/crypto/cryptobyte,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/cryptobyte/asn1,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/curve25519,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/hkdf,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/internal/alias,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/internal/poly1305,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/nacl/secretbox,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/ocsp,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/openpgp,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/openpgp/armor,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/openpgp/elgamal,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/openpgp/errors,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/openpgp/packet,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/openpgp/s2k,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/pbkdf2,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/pkcs12,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/pkcs12/internal/rc2,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/salsa20/salsa,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/scrypt,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/sha3,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/ssh,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/ssh/agent,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/ssh/internal/bcrypt_pbkdf,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/ssh/knownhosts,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/constraints,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/maps,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/mmap,BSD-3-Clause,Copyright 2009 The Go Authors
@@ -2612,29 +2612,29 @@ core,golang.org/x/exp/slog/internal/buffer,BSD-3-Clause,Copyright 2009 The Go Au
 core,golang.org/x/exp/typeparams,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright 2009 The Go Authors
 core,golang.org/x/lint,BSD-3-Clause,Copyright (c) 2013 The Go Authors. All rights reserved
 core,golang.org/x/lint/golint,BSD-3-Clause,Copyright (c) 2013 The Go Authors. All rights reserved
-core,golang.org/x/net/bpf,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/context,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/html,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/html/atom,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/html/charset,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/http/httpguts,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/http/httpproxy,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/http2,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/http2/h2c,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/http2/hpack,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/icmp,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/idna,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/internal/iana,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/internal/socket,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/internal/socks,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/internal/timeseries,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/ipv4,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/ipv6,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/netutil,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/proxy,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/publicsuffix,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/trace,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/net/websocket,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/net/bpf,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/context,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/html,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/html/atom,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/html/charset,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/http/httpguts,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/http/httpproxy,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/http2,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/http2/h2c,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/http2/hpack,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/icmp,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/idna,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/internal/iana,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/internal/socket,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/internal/socks,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/internal/timeseries,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/ipv4,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/ipv6,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/netutil,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/proxy,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/publicsuffix,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/trace,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/net/websocket,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/oauth2,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/oauth2/authhandler,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/oauth2/clientcredentials,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -2658,39 +2658,39 @@ core,golang.org/x/sys/windows/registry,BSD-3-Clause,Copyright 2009 The Go Author
 core,golang.org/x/sys/windows/svc,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/sys/windows/svc/eventlog,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/sys/windows/svc/mgr,BSD-3-Clause,Copyright 2009 The Go Authors
-core,golang.org/x/term,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/cases,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/encoding,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/encoding/charmap,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/encoding/htmlindex,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/encoding/ianaindex,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/encoding/internal,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/encoding/internal/identifier,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/encoding/japanese,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/encoding/korean,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/encoding/simplifiedchinese,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/encoding/traditionalchinese,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/encoding/unicode,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/feature/plural,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/internal,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/internal/catmsg,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/internal/format,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/internal/language,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/internal/language/compact,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/internal/number,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/internal/stringset,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/internal/tag,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/internal/utf8internal,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/language,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/message,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/message/catalog,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/runes,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/secure/bidirule,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/secure/precis,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/transform,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/unicode/bidi,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/unicode/norm,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/text/width,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/term,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/cases,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/encoding,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/encoding/charmap,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/encoding/htmlindex,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/encoding/ianaindex,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/encoding/internal,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/encoding/internal/identifier,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/encoding/japanese,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/encoding/korean,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/encoding/simplifiedchinese,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/encoding/traditionalchinese,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/encoding/unicode,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/feature/plural,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/internal,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/internal/catmsg,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/internal/format,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/internal/language,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/internal/language/compact,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/internal/number,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/internal/stringset,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/internal/tag,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/internal/utf8internal,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/language,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/message,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/message/catalog,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/runes,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/secure/bidirule,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/secure/precis,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/transform,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/unicode/bidi,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/unicode/norm,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/text/width,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/time/rate,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang/go,BSD-Source-Code,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,gomodules.xyz/jsonpatch/v2,Apache-2.0,Copyright (c) 2015 The Authors
