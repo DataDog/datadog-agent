@@ -13,10 +13,14 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
+
+	"go.uber.org/atomic"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -38,11 +42,22 @@ const (
 
 var traceTypes = []string{"enter", "exit"}
 
+var progSingleton *EbpfProgram
+var progSingletonOnce sync.Once
+
+type LibraryCallback func(LibPath)
+
 // EbpfProgram represents the shared libraries eBPF program.
 type EbpfProgram struct {
 	cfg         *ddebpf.Config
 	perfHandler *ddebpf.PerfHandler
+	initOnce    sync.Once
+	refcount    atomic.Int32
 	*ddebpf.Manager
+	callbacksMutex sync.RWMutex
+	callbacks      map[*LibraryCallback]struct{}
+	wg             sync.WaitGroup
+	done           chan struct{}
 }
 
 // IsSupported returns true if the shared libraries monitoring is supported on the current system.
@@ -61,8 +76,16 @@ func IsSupported(cfg *ddebpf.Config) bool {
 	return kversion >= kernel.VersionCode(4, 14, 0)
 }
 
-// NewEBPFProgram creates a new EBPFProgram to monitor shared libraries
-func NewEBPFProgram(c *ddebpf.Config) *EbpfProgram {
+// NewEBPFProgram returns an instance of the shared libraries eBPF program singleton
+func NewEBPFProgram(cfg *ddebpf.Config) *EbpfProgram {
+	progSingletonOnce.Do(func() {
+		progSingleton = newEBPFProgram(cfg)
+	})
+	progSingleton.refcount.Inc()
+	return progSingleton
+}
+
+func newEBPFProgram(c *ddebpf.Config) *EbpfProgram {
 	perfHandler := ddebpf.NewPerfHandler(100)
 	pm := &manager.PerfMap{
 		Map: manager.Map{
@@ -101,41 +124,122 @@ func NewEBPFProgram(c *ddebpf.Config) *EbpfProgram {
 
 // Init initializes the eBPF program.
 func (e *EbpfProgram) Init() error {
-	var err error
-	if e.cfg.EnableCORE {
-		err = e.initCORE()
-		if err == nil {
-			return nil
+	var initErr error
+	e.initOnce.Do(func() {
+		var err error
+		if e.cfg.EnableCORE {
+			err = e.initCORE()
+			if err == nil {
+				return
+			}
+
+			if !e.cfg.AllowRuntimeCompiledFallback && !e.cfg.AllowPrecompiledFallback {
+				initErr = fmt.Errorf("co-re load failed: %w", err)
+				return
+			}
+			log.Warnf("co-re load failed. attempting fallback: %s", err)
 		}
 
-		if !e.cfg.AllowRuntimeCompiledFallback && !e.cfg.AllowPrecompiledFallback {
-			return fmt.Errorf("co-re load failed: %w", err)
+		if e.cfg.EnableRuntimeCompiler || (err != nil && e.cfg.AllowRuntimeCompiledFallback) {
+			err = e.initRuntimeCompiler()
+			if err == nil {
+				return
+			}
+
+			if !e.cfg.AllowPrecompiledFallback {
+				initErr = fmt.Errorf("runtime compilation failed: %w", err)
+				return
+			}
+			log.Warnf("runtime compilation failed: attempting fallback: %s", err)
 		}
-		log.Warnf("co-re load failed. attempting fallback: %s", err)
+
+		if err := e.initPrebuilt(); err != nil {
+			initErr = fmt.Errorf("prebuilt load failed: %w", err)
+			return
+		}
+
+		initErr = e.start()
+		return
+	})
+
+	return initErr
+}
+
+func (e *EbpfProgram) start() error {
+	err := e.Manager.Start()
+	if err != nil {
+		return fmt.Errorf("cannot init manager: %w", err)
 	}
 
-	if e.cfg.EnableRuntimeCompiler || (err != nil && e.cfg.AllowRuntimeCompiledFallback) {
-		err = e.initRuntimeCompiler()
-		if err == nil {
-			return nil
-		}
+	e.wg.Add(1)
+	go func() {
+		defer e.wg.Done()
 
-		if !e.cfg.AllowPrecompiledFallback {
-			return fmt.Errorf("runtime compilation failed: %w", err)
+		dataChan := e.getPerfHandler().DataChannel()
+		lostChan := e.getPerfHandler().LostChannel()
+		for {
+			select {
+			case <-e.done:
+				return
+			case event, ok := <-dataChan:
+				if !ok {
+					return
+				}
+				e.handleEvent(event)
+			case <-lostChan:
+				// Nothing to do in this case
+				break
+			}
 		}
-		log.Warnf("runtime compilation failed: attempting fallback: %s", err)
+	}()
+
+	return nil
+}
+
+func (e *EbpfProgram) handleEvent(event *ebpf.DataEvent) {
+	e.callbacksMutex.RLock()
+	defer func() {
+		event.Done()
+		e.callbacksMutex.RUnlock()
+	}()
+
+	libpath := ToLibPath(event.Data)
+	for callback := range e.callbacks {
+		// Not using a callback runner for now, as we don't have a lot of callbacks
+		(*callback)(libpath)
 	}
 
-	return e.initPrebuilt()
+}
+
+func (e *EbpfProgram) Subscribe(callback LibraryCallback) func() {
+	e.callbacksMutex.Lock()
+	e.callbacks[&callback] = struct{}{}
+	e.callbacksMutex.Unlock()
+
+	// UnSubscribe()
+	return func() {
+		e.callbacksMutex.Lock()
+		delete(e.callbacks, &callback)
+		e.callbacksMutex.Unlock()
+	}
 }
 
 // GetPerfHandler returns the perf handler
-func (e *EbpfProgram) GetPerfHandler() *ddebpf.PerfHandler {
+func (e *EbpfProgram) getPerfHandler() *ddebpf.PerfHandler {
 	return e.perfHandler
 }
 
 // Stop stops the eBPF program
 func (e *EbpfProgram) Stop() {
+	if e.refcount.Dec() != 0 {
+		if e.refcount.Load() < 0 {
+			e.refcount.Swap(0)
+		}
+		return
+	}
+
+	log.Info("shared libraries monitor stopping due to a refcount of 0")
+
 	ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
 	e.Manager.Stop(manager.CleanAll) //nolint:errcheck
 	e.perfHandler.Stop()
