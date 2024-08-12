@@ -10,6 +10,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
+// FilterMode defines a filter mode
+type FilterMode int
+
+const (
+	// NormalMode enabled approver and discarder
+	NormalMode FilterMode = iota
+	// ApproverOnlyMode not used to generate a discarder
+	ApproverOnlyMode
+)
+
 // FieldCapabilities holds a list of field capabilities
 type FieldCapabilities []FieldCapability
 
@@ -19,6 +29,7 @@ type FieldCapability struct {
 	TypeBitmask  eval.FieldValueType
 	ValidateFnc  func(FilterValue) bool
 	FilterWeight int
+	FilterMode   FilterMode
 }
 
 // GetFields returns all the fields of FieldCapabilities

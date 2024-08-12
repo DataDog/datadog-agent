@@ -55,6 +55,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -1544,7 +1545,7 @@ func (p *EBPFProbe) applyDefaultFilterPolicies() {
 
 func isKillActionPresent(rs *rules.RuleSet) bool {
 	for _, rule := range rs.GetRules() {
-		for _, action := range rule.Definition.Actions {
+		for _, action := range rule.Def.Actions {
 			if action.Kill != nil {
 				return true
 			}
@@ -2144,27 +2145,27 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 	ev := ctx.Event.(*model.Event)
 
-	for _, action := range rule.Definition.Actions {
+	for _, action := range rule.Actions {
 		if !action.IsAccepted(ctx) {
 			continue
 		}
 
 		switch {
-		case action.InternalCallback != nil && rule.ID == events.RefreshUserCacheRuleID:
+		case action.InternalCallback != nil && rule.ID == bundled.RefreshUserCacheRuleID:
 			_ = p.RefreshUserCache(string(ev.ContainerContext.ContainerID))
 
-		case action.InternalCallback != nil && rule.ID == events.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && len(ev.ContainerContext.ContainerID) > 0:
+		case action.InternalCallback != nil && rule.ID == bundled.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && len(ev.ContainerContext.ContainerID) > 0:
 			if err := p.Resolvers.SBOMResolver.RefreshSBOM(string(ev.ContainerContext.ContainerID)); err != nil {
 				seclog.Warnf("failed to refresh SBOM for container %s, triggered by %s: %s", ev.ContainerContext.ContainerID, ev.ProcessContext.Comm, err)
 			}
 
-		case action.Kill != nil:
+		case action.Def.Kill != nil:
 			// do not handle kill action on event with error
 			if ev.Error != nil {
 				return
 			}
 
-			p.processKiller.KillAndReport(action.Kill.Scope, action.Kill.Signal, rule, ev, func(pid uint32, sig uint32) error {
+			p.processKiller.KillAndReport(action.Def.Kill.Scope, action.Def.Kill.Signal, rule, ev, func(pid uint32, sig uint32) error {
 				if p.supportsBPFSendSignal {
 					if err := p.killListMap.Put(uint32(pid), uint32(sig)); err != nil {
 						seclog.Warnf("failed to kill process with eBPF %d: %s", pid, err)
@@ -2172,15 +2173,15 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				}
 				return p.processKiller.KillFromUserspace(pid, sig, ev)
 			})
-		case action.CoreDump != nil:
+		case action.Def.CoreDump != nil:
 			if p.config.RuntimeSecurity.InternalMonitoringEnabled {
-				dump := NewCoreDump(action.CoreDump, p.Resolvers, serializers.NewEventSerializer(ev, nil))
+				dump := NewCoreDump(action.Def.CoreDump, p.Resolvers, serializers.NewEventSerializer(ev, nil))
 				rule := events.NewCustomRule(events.InternalCoreDumpRuleID, events.InternalCoreDumpRuleDesc)
 				event := events.NewCustomEvent(model.UnknownEventType, dump)
 
 				p.probe.DispatchCustomEvent(rule, event)
 			}
-		case action.Hash != nil:
+		case action.Def.Hash != nil:
 			// force the resolution as it will force the hash resolution as well
 			ev.ResolveFields()
 		}

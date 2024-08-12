@@ -10,6 +10,7 @@ package postgres
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -22,7 +23,7 @@ const (
 	// We add 1 in order to include BufferSize as the upper boundary of the third bucket.
 	// Then the first three buckets will include query lengths shorter or equal to BufferSize,
 	// and the rest will include sizes equal to or above the buffer size.
-	firstBucketLowerBoundary = BufferSize - numberOfBucketsSmallerThanMaxBufferSize*bucketLength + 1
+	firstBucketLowerBoundary = ebpf.BufferSize - numberOfBucketsSmallerThanMaxBufferSize*bucketLength + 1
 )
 
 // Telemetry is a struct to hold the telemetry for the postgres protocol
@@ -76,7 +77,7 @@ func getBucketIndex(querySize int) int {
 }
 
 // Count increments the telemetry counters based on the event data
-func (t *Telemetry) Count(tx *EbpfEvent, eventWrapper *EventWrapper) {
+func (t *Telemetry) Count(tx *ebpf.EbpfEvent, eventWrapper *EventWrapper) {
 	querySize := int(tx.Tx.Original_query_size)
 
 	bucketIndex := getBucketIndex(querySize)

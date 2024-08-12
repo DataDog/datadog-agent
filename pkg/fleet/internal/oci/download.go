@@ -304,8 +304,12 @@ func isStreamResetError(err error) bool {
 		return false
 	}
 	serr := http2.StreamError{}
-	if !errors.As(err, &serr) {
-		return false
+	if errors.As(err, &serr) {
+		return serr.Code == http2.ErrCodeInternal
 	}
-	return serr.Code == http2.ErrCodeInternal
+	serrp := &http2.StreamError{}
+	if errors.As(err, &serrp) {
+		return serrp.Code == http2.ErrCodeInternal
+	}
+	return false
 }

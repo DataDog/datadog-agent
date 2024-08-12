@@ -10,6 +10,9 @@ type Params struct {
 	// sysProbeConfFilePath is the path at which to look for configuration, usually
 	// given by the --sysprobecfgpath command-line flag.
 	sysProbeConfFilePath string
+
+	// fleetPoliciesDirPath is the path at which to look for remote configuration files
+	fleetPoliciesDirPath string
 }
 
 // NewParams creates a new instance of Params
@@ -25,5 +28,12 @@ func NewParams(options ...func(*Params)) Params {
 func WithSysProbeConfFilePath(confFilePath string) func(*Params) {
 	return func(b *Params) {
 		b.sysProbeConfFilePath = confFilePath
+	}
+}
+
+// WithFleetPoliciesDirPath specifies the path to the remote config directory
+func WithFleetPoliciesDirPath(fleetPoliciesDirPath string) func(*Params) {
+	return func(b *Params) {
+		b.fleetPoliciesDirPath = fleetPoliciesDirPath
 	}
 }
