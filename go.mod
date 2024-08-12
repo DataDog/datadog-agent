@@ -293,7 +293,7 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.52.0 // indirect
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.5.3
-	go.uber.org/dig v1.17.1
+	go.uber.org/dig v1.18.0
 	go.uber.org/fx v1.18.2
 	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.27.0
