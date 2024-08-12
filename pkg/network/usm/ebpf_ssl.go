@@ -55,6 +55,9 @@ const (
 	gnutlsRecordSendRetprobe    = "uretprobe__gnutls_record_send"
 	gnutlsByeProbe              = "uprobe__gnutls_bye"
 	gnutlsDeinitProbe           = "uprobe__gnutls_deinit"
+
+	// UsmTLSAttacherName holds the name used for the uprobe attacher of tls programs. Used for tests.
+	UsmTLSAttacherName = "usm_tls"
 )
 
 var openSSLProbes = []manager.ProbesSelector{
@@ -450,7 +453,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory 
 				PerformInitialScan: true,
 			}
 
-			attacher, err = uprobes.NewUprobeAttacher("usm_tls", attacherConfig, m, nil, &uprobes.NativeBinaryInspector{})
+			attacher, err = uprobes.NewUprobeAttacher(UsmTLSAttacherName, attacherConfig, m, nil, &uprobes.NativeBinaryInspector{})
 			if err != nil {
 				return nil, fmt.Errorf("error initializing uprobes attacher: %s", err)
 			}
