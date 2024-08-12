@@ -1609,8 +1609,8 @@ def explain_ci_failure(_, pipeline: str):
         failreasons[failed_job.name] = failreason
 
     # Check setup-env jobs that failed, they are infra failures for all related test jobs
-    for job in failed_setup_jobs:
-        for test_job in job.associated_test_jobs:
+    for setup_job in failed_setup_jobs:
+        for test_job in setup_job.associated_test_jobs:
             failreasons[test_job.name] = infrafail
             failed_jobs.append(test_job)
 
@@ -1634,8 +1634,8 @@ def explain_ci_failure(_, pipeline: str):
             if test_job.component != component or test_job.vmset != vmset:
                 continue
 
-            failreason = failreasons.get(job.name, ok)
-            distros[test_job.distro][job.arch] = failreason
+            failreason = failreasons.get(test_job.name, ok)
+            distros[test_job.distro][test_job.arch] = failreason
             if failreason == testfail:
                 distro_arch_with_test_failures.append((test_job.distro, test_job.arch))
 
