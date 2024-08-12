@@ -18,7 +18,7 @@ import (
 var DefaultLogFilePath = "c:\\programdata\\datadog\\logs\\trace-agent.log"
 
 // defaultDDAgentBin specifies the default path to the main agent executable.
-var defaultDDAgentBin = "c:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"
+var defaultDDAgentBin = filepath.Join(setup.InstallPath, "bin\\agent.exe")
 
 // defaultReceiverSocket specifies the default Unix Domain Socket to receive traces.
 const defaultReceiverSocket = ""
@@ -28,9 +28,8 @@ func init() {
 	if err == nil {
 		DefaultLogFilePath = filepath.Join(pd, "logs", "trace-agent.log")
 	}
-	_here, err := executable.Folder()
-	if err == nil {
-		defaultDDAgentBin = filepath.Join(_here, "..", "agent.exe")
+	installDir, err := winutil.GetProgramFilesDirForProduct("DataDog Agent")
+	if err != nil {
+		defaultDDAgentBin = path.Join(installDir, "bin", "agent.exe")
 	}
-
 }
