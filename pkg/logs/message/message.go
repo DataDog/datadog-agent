@@ -20,7 +20,7 @@ import (
 var TruncatedFlag = []byte("...TRUNCATED...")
 
 // TruncatedTag is added to truncated log messages (if enabled).
-var TruncatedTag = "truncated:true"
+const TruncatedTag = "truncated:true"
 
 // EscapedLineFeed is used to escape new line character
 // for multiline message.

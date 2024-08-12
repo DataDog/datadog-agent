@@ -344,7 +344,10 @@ func (t *Tailer) forwardMessages() {
 		origin := message.NewOrigin(t.file.Source.UnderlyingSource())
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
-		tags := append(t.tags, t.tagProvider.GetTags()...)
+
+		tags := make([]string, len(t.tags))
+		copy(tags, t.tags)
+		tags = append(tags, t.tagProvider.GetTags()...)
 
 		if output.ParsingExtra.IsTruncated && coreConfig.Datadog().GetBool("logs_config.tag_truncated_logs") {
 			tags = append(tags, message.TruncatedTag)
