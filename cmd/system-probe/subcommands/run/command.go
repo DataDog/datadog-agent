@@ -87,7 +87,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(run,
 				fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
-				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath))),
+				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))),
 				fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 				fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion}),
 				fx.Supply(optional.NewNoneOption[secrets.Component]()),
@@ -114,7 +114,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 					return settings.Params{
 						Settings: map[string]settings.RuntimeSetting{
-							"log_level":                       &commonsettings.LogLevelRuntimeSetting{ConfigKey: configPrefix + "log_level"},
+							"log_level":                       commonsettings.NewLogLevelRuntimeSetting(),
 							"runtime_mutex_profile_fraction":  &commonsettings.RuntimeMutexProfileFraction{ConfigPrefix: configPrefix},
 							"runtime_block_profile_rate":      &commonsettings.RuntimeBlockProfileRate{ConfigPrefix: configPrefix},
 							"internal_profiling_goroutines":   profilingGoRoutines,
@@ -270,7 +270,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 
 			return settings.Params{
 				Settings: map[string]settings.RuntimeSetting{
-					"log_level":                       &commonsettings.LogLevelRuntimeSetting{ConfigKey: configPrefix + "log_level"},
+					"log_level":                       commonsettings.NewLogLevelRuntimeSetting(),
 					"runtime_mutex_profile_fraction":  &commonsettings.RuntimeMutexProfileFraction{ConfigPrefix: configPrefix},
 					"runtime_block_profile_rate":      &commonsettings.RuntimeBlockProfileRate{ConfigPrefix: configPrefix},
 					"internal_profiling_goroutines":   profilingGoRoutines,

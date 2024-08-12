@@ -7,6 +7,7 @@
 package debugging
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -29,7 +30,9 @@ type Address struct {
 
 // Stats consolidates request count and latency information for a certain status code
 type Stats struct {
-	Count int
+	Count              int
+	FirstLatencySample float64
+	LatencyP50         float64
 }
 
 // Kafka returns a debug-friendly representation of map[kafka.Key]kafka.RequestStats
@@ -65,7 +68,9 @@ func Kafka(stats map[kafka.Key]*kafka.RequestStats) []RequestSummary {
 		for status, stat := range requestStat.ErrorCodeToStat {
 
 			debug.ByStatus[int8(status)] = Stats{
-				Count: stat.Count,
+				Count:              stat.Count,
+				FirstLatencySample: stat.FirstLatencySample,
+				LatencyP50:         protocols.GetSketchQuantile(stat.Latencies, 0.5),
 			}
 		}
 

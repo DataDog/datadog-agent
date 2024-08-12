@@ -23,7 +23,7 @@ var EventMonitor = module.Factory{
 	ConfigNamespaces: eventMonitorModuleConfigNamespaces,
 	Fn:               createEventMonitorModule,
 	NeedsEBPF: func() bool {
-		return !coreconfig.SystemProbe.GetBool("runtime_security_config.ebpfless.enabled")
+		return !coreconfig.SystemProbe().GetBool("runtime_security_config.ebpfless.enabled")
 	},
 }
 

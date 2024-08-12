@@ -87,7 +87,7 @@ func key(pieces ...string) string {
 
 // NewConfig creates a config with ebpf-related settings
 func NewConfig() *Config {
-	cfg := aconfig.SystemProbe
+	cfg := aconfig.SystemProbe()
 	sysconfig.Adjust(cfg)
 
 	c := &Config{

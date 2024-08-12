@@ -322,7 +322,7 @@ func dumpK8sClusterState(ctx context.Context, kubeconfig *clientcmdapi.Config, o
 				logs, err := k8sClient.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{
 					Container: containerStatus.Name,
 					Previous:  true,
-					TailLines: pointer.Ptr(int64(100)),
+					// TailLines: pointer.Ptr(int64(100)),
 				}).Stream(ctx)
 				if err != nil {
 					fmt.Fprintf(out, "Failed to get logs: %v\n", err)

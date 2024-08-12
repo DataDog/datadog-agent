@@ -32,33 +32,30 @@ var spliceCapabilities = Capabilities{
 	},
 }
 
-func spliceOnNewApprovers(approvers rules.Approvers) (ActiveApprovers, error) {
-	spliceApprovers, err := onNewBasenameApprovers(model.SpliceEventType, "file", approvers)
+func spliceKFilters(approvers rules.Approvers) (ActiveKFilters, error) {
+	spliceKFilters, err := getBasenameKFilters(model.SpliceEventType, "file", approvers)
 	if err != nil {
 		return nil, err
 	}
 
 	for field, values := range approvers {
 		switch field {
-		case "splice.file.name", "splice.file.path": // already handled by onNewBasenameApprovers
+		case "splice.file.name", "splice.file.path": // already handled by getBasenameKFilters
 		case "splice.pipe_entry_flag":
-			var approver activeApprover
-			approver, err = approveFlags("splice_entry_flags_approvers", intValues[int32](values)...)
+			kfilter, err := getFlagsKFilters("splice_entry_flags_approvers", intValues[int32](values)...)
 			if err != nil {
 				return nil, err
 			}
-			spliceApprovers = append(spliceApprovers, approver)
+			spliceKFilters = append(spliceKFilters, kfilter)
 		case "splice.pipe_exit_flag":
-			var approver activeApprover
-			approver, err = approveFlags("splice_exit_flags_approvers", intValues[int32](values)...)
+			kfilter, err := getFlagsKFilters("splice_exit_flags_approvers", intValues[int32](values)...)
 			if err != nil {
 				return nil, err
 			}
-			spliceApprovers = append(spliceApprovers, approver)
-
+			spliceKFilters = append(spliceKFilters, kfilter)
 		default:
 			return nil, fmt.Errorf("unknown field '%s'", field)
 		}
 	}
-	return newActiveKFilters(spliceApprovers...), nil
+	return newActiveKFilters(spliceKFilters...), nil
 }
