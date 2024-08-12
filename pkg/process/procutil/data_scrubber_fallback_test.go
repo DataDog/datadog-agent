@@ -9,46 +9,53 @@ package procutil
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestStripArguments(t *testing.T) {
-	testCases := []struct {
-		cmdline []string
-		expected    []string
+	for _, tc := range []struct {
+		name     string
+		cmdline  []string
+		expected string
 	}{
 		{
-			cmdline: []string{"agent", "-password", "1234"},
-			expected:    []string{"agent"},
+			name: "With OS parse",
+			cmdline:  []string{"agent", "-password", "1234"},
+			expected: "agent",
 		},
 		{
-			cmdline: []string{"fitz", "-consul_token", "1234567890"},
-			expected:    []string{"fitz"},
+			name: "Without OS parse",
+			cmdline:  []string{"python ~/test/run.py -open_password=admin -consul_token 2345 -blocked_from_yamt=1234 &"},
+			expected: "python",
 		},
 		{
-			cmdline: []string{"fitz", "--consul_token", "1234567890"},
-			expected:    []string{"fitz"},
+			name: "Main case with whitespace",
+			cmdline:  []string{"java   -password      1234"},
+			expected: "java",
 		},
 		{
-			cmdline: []string{"python ~/test/run.py -open_password=admin -consul_token 2345 -blocked_from_yamt=1234 &"},
-			expected:    []string{"python"},
+			name: "Optional dash args",
+			cmdline:  []string{"agent password:1234"},
+			expected: "agent",
 		},
 		{
-			cmdline: []string{"java -password      1234"},
-			expected:    []string{"java"},
+			name: "Single dash args",
+			cmdline:  []string{"agent -password:1234"},
+			expected: "agent",
 		},
 		{
-			cmdline: []string{"agent password:1234"},
-			expected:    []string{"agent"},
+			name: "Double dash args",
+			cmdline:  []string{"agent --password:1234"},
+			expected: "agent",
 		},
-	}
+	} {
+		scrubber := setupDataScrubber(t)
+		scrubber.StripAllArguments = true
 
-	scrubber := setupDataScrubber(t)
-	scrubber.StripAllArguments = true
-
-	for _, tc := range testCases {
-		cmdline := scrubber.stripArguments(tc.cmdline)
-		if got := cmdline; got[0] != tc.expected[0] {
-			t.Errorf("got %s; expected %s", got, tc.expected)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			cmdline := scrubber.stripArguments(tc.cmdline)
+			assert.Equal(t, cmdline[0], tc.expected)
+		})
 	}
 }

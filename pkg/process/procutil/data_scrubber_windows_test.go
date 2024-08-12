@@ -9,127 +9,169 @@ package procutil
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestStripArguments(t *testing.T) {
-	testCases := []struct {
-		cmdline []string
-		expected    []string
+	for _, tc := range []struct {
+		name     string
+		cmdline  []string
+		expected string
 	}{
-		// Main cases samples
 		{
-			cmdline: []string{"python ~/test/run.py --password=1234 -password 1234 -open_password=admin -consul_token 2345 -blocked_from_yaml=1234 &"},
-			expected: []string{"python"},
+			name:     "Main case",
+			cmdline:  []string{"python ~/test/run.py --password=1234 -password 1234 -open_password=admin -consul_token 2345 -blocked_from_yaml=1234 &"},
+			expected: "python",
 		},
 		{
-			cmdline: []string{"java -password      1234"},
-			expected: []string{"java"},
+			name:     "Main case with whitespace",
+			cmdline:  []string{"java -password      1234"},
+			expected: "java",
 		},
 		{
-			cmdline: []string{"agent password:1234"},
-			expected: []string{"agent"},
+			name:     "Single dash args",
+			cmdline:  []string{"agent password:1234"},
+			expected: "agent",
 		},
 		{
-			cmdline: []string{"agent", "-password", "1234"},
-			expected: []string{"agent"},
+			name:     "Main case with OS parse",
+			cmdline:  []string{"agent", "-password", "1234"},
+			expected: "agent",
 		},
 		{
-			cmdline: []string{"C:\\Program Files\\Datadog\\agent.com"},
-			expected: []string{"C:\\Program Files\\Datadog\\agent.com"},
+			name:     "Windows case",
+			cmdline:  []string{"C:\\Program Files\\Datadog\\agent.com"},
+			expected: "C:\\Program Files\\Datadog\\agent.com",
 		},
 		{
-			cmdline: []string{"C:\\Program Files\\Datadog\\agent.exe check process"},
-			expected: []string{"C:\\Program Files\\Datadog\\agent.exe"},
+			name:     "Windows with args",
+			cmdline:  []string{"C:\\Program Files\\Datadog\\agent.exe check process"},
+			expected: "C:\\Program Files\\Datadog\\agent.exe",
 		},
 		{
-			cmdline: []string{"C:\\Program Files\\Datadog\\agent.bat", "check", "process"},
-			expected: []string{"C:\\Program Files\\Datadog\\agent.bat"},
+			name:     "Windows with OS parse",
+			cmdline:  []string{"C:\\Program Files\\Datadog\\agent.bat", "check", "process"},
+			expected: "C:\\Program Files\\Datadog\\agent.bat",
 		},
 		{
-			cmdline: []string{"\"C:\\Program Files\\Datadog\\agent.cmd\" check process"},
-			expected: []string{"C:\\Program Files\\Datadog\\agent.cmd"},
-		},
-		// String matching extension structure
-		{
-			cmdline: []string{"C:\\Program File\\Datexedog\\agent.exe check process"},
-			expected: []string{"C:\\Program File\\Datexedog\\agent.exe"},
-		},
-		// Mixed Variables
-		{
-			cmdline: []string{"C:\\Program Files\\agent.vbs check process"},
-			expected: []string{"C:\\Program Files\\agent.vbs"},
+			name:     "Windows with paired quotes and .cmd extension",
+			cmdline:  []string{"\"C:\\Program Files\\Datadog\\agent.cmd\" check process"},
+			expected: "C:\\Program Files\\Datadog\\agent.cmd",
 		},
 		{
-			cmdline: []string{"C:\\Program Files\\Datadog\\agent.js", "check", "process"},
-			expected: []string{"C:\\Program Files\\Datadog\\agent.js"},
+			name:     "Windows with js extension with OS parse",
+			cmdline:  []string{"C:\\Program Files\\Datadog\\agent.js", "check", "process"},
+			expected: "C:\\Program Files\\Datadog\\agent.js",
 		},
 		{
-			cmdline: []string{"C:\\Program Files\\Datadog\\agent.jse check process"},
-			expected: []string{"C:\\Program Files\\Datadog\\agent.jse"},
+			name:     "Windows with paired quotes",
+			cmdline:  []string{"\"C:\\Program Files\\agent\" check process"},
+			expected: "C:\\Program Files\\agent",
 		},
 		{
-			cmdline: []string{"\"C:\\Program Files\\Datadog\\agent.wsf\" check process"},
-			expected: []string{"C:\\Program Files\\Datadog\\agent.wsf"},
+			name:     "Empty string",
+			cmdline:  []string{""},
+			expected: "",
 		},
-		{
-			cmdline: []string{"C:\\Program Files\\Datadog\\agent.wsh check process"},
-			expected: []string{"C:\\Program Files\\Datadog\\agent.wsh"},
-		},
-		{
-			cmdline: []string{"\"C:\\Program Files\\Datadog\\agent.psc1\" check process"},
-			expected: []string{"C:\\Program Files\\Datadog\\agent.psc1"},
-		},
-		{
-			cmdline: []string{"\"C:\\Program Files\\agent\" check process"},
-			expected: []string{"C:\\Program Files\\agent"},
-		},
-	}
+	} {
 
-	scrubber := setupDataScrubber(t)
-	scrubber.StripAllArguments = true
+		scrubber := setupDataScrubber(t)
+		scrubber.StripAllArguments = true
 
-	for _, tc := range testCases {
-		cmdline := scrubber.stripArguments(tc.cmdline)
-		if got := cmdline; got[0] != tc.expected[0] {
-			t.Errorf("got %s; expected %s", got, tc.expected)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			cmdline := scrubber.stripArguments(tc.cmdline)
+			assert.Equal(t, cmdline[0], tc.expected)
+		})
 	}
 }
 
 func TestFindEmbeddedQuotes(t *testing.T) {
-	testCases := []struct {
-		cmdline string
-		expected    string
+	for _, tc := range []struct {
+		name     string
+		cmdline  string
+		expected string
 	}{
 		{
-			cmdline: "\"C:\\Program Files\\Datadog\\agent.cmd\" check process ",
-			expected:    "C:\\Program Files\\Datadog\\agent.cmd",
+			name:     "Paired quotes",
+			cmdline:  "\"C:\\Program Files\\Datadog\\agent.cmd\" check process ",
+			expected: "C:\\Program Files\\Datadog\\agent.cmd",
 		},
-	}
+		{
+			name:     "One quote",
+			cmdline:  "\"C:\\Program Files\\Datadog\\agent.cmd check process ",
+			expected: "\"C:\\Program Files\\Datadog\\agent.cmd check process ",
+		},
+		{
+			name:     "Empty string",
+			cmdline:  "",
+			expected: "",
+		},
+	} {
 
-	for _, tc := range testCases {
-		cmdline := findEmbeddedQuotes(tc.cmdline)
-		if got := cmdline; got[0] != tc.expected[0] {
-			t.Errorf("got %s; expected %s", got, tc.expected)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			actual := findEmbeddedQuotes(tc.cmdline)
+			assert.Equal(t, actual, tc.expected)
+		})
 	}
 }
 
 func TestExtensionParser(t *testing.T) {
-	testCases := []struct {
-		cmdline string
-		expected    string
+	for _, tc := range []struct {
+		name     string
+		cmdline  string
+		expected string
 	}{
 		{
-			cmdline: "python ~/test/run.py --password=1234 -password 1234 -open_password=admin -consul_token 2345 -blocked_from_yaml=1234 & ",
-			expected:    "python",
+			name:     "Extension not in first token",
+			cmdline:  "python ~/test/run.py --password=1234 -password 1234 -open_password=admin -consul_token 2345 -blocked_from_yaml=1234 & ",
+			expected: "python",
 		},
-	}
+		{
+			name:     "Extension in first token",
+			cmdline:  "C:\\Program Files\\Datadog\\agent.cmd check process",
+			expected: "C:\\Program Files\\Datadog\\agent.cmd",
+		},
+		{
+			name:     "Multiple extensions",
+			cmdline:  "C:\\Program Files\\Datadog\\agent.exec.process.cmd check process",
+			expected: "C:\\Program Files\\Datadog\\agent.exec.process.cmd",
+		},
+		{
+			name:     "Misformed extension",
+			cmdline:  "C:\\Program File\\Datexedog\\agent.exe check process",
+			expected: "C:\\Program File\\Datexedog\\agent.exe",
+		},
+		{
+			name:     "Windows vbs extension",
+			cmdline:  "C:\\Program Files\\agent.vbs check process",
+			expected: "C:\\Program Files\\agent.vbs",
+		},
+		{
+			name:     "Windows jse extension",
+			cmdline:  "C:\\Program Files\\Datadog\\agent.jse check process",
+			expected: "C:\\Program Files\\Datadog\\agent.jse",
+		},
+		{
+			name:     "Windows wsf extension",
+			cmdline:  "\"C:\\Program Files\\Datadog\\agent.wsf\" check process",
+			expected: "C:\\Program Files\\Datadog\\agent.wsf",
+		},
+		{
+			name:     "Windows wsh extension",
+			cmdline:  "C:\\Program Files\\Datadog\\agent.wsh check process",
+			expected: "C:\\Program Files\\Datadog\\agent.wsh",
+		},
+		{
+			name:     "Windows psc1 extension",
+			cmdline:  "\"C:\\Program Files\\Datadog\\agent.psc1\" check process",
+			expected: "C:\\Program Files\\Datadog\\agent.psc1",
+		},
+	} {
 
-	for _, tc := range testCases {
-		cmdline := extensionParser(tc.cmdline, winDotExec)
-		if got := cmdline; got[0] != tc.expected[0] {
-			t.Errorf("got %s; expected %s", got, tc.expected)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			actual := extensionParser(tc.cmdline, winDotExec)
+			assert.Equal(t, actual, tc.expected)
+		})
 	}
 }

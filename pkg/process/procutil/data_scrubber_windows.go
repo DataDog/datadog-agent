@@ -28,64 +28,59 @@ var (
 
 var winDotExec = []string{".com", ".exe", ".bat", ".cmd", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".psc1", ".ps1"}
 
-// If the command doesn't identify the extension and cannot split the exec command from the args, it will return the existing characters until the first empty space occurrence.
-
+// stripArguments identifies windows extension and extracts command. Otherwise, returns the first element of the cmdline before first space.
 func (ds *DataScrubber) stripArguments(cmdline []string) []string {
-
-	argLength := len(cmdline)
 	strCmdline := (cmdline[0] + " ")
 
-	// case 1: Process a cmdline with multiple strings and use extensionParser() to format and search the command.
-	if argLength > 1 && !strings.HasPrefix(strCmdline, "\"") {
+	// Case 1: OS has already completed splitting as there is one token per element.
+	if len(cmdline) > 1 {
+		return []string{strings.TrimSuffix(cmdline[0], " ")}
+	}
+
+	// Case 2: One string for cmdline, use extensionParser() to find first token.
+	if len(cmdline) == 1 && !strings.HasPrefix(strCmdline, "\"") {
 		strippedCmdline := extensionParser(strCmdline, winDotExec)
 
 		return []string{strings.TrimSuffix(strippedCmdline, " ")}
 	}
 
-	// case 2: Uses extensionParser() to format and search the command.
-	if argLength == 1 && !strings.HasPrefix(strCmdline, "\"") {
-		strippedCmdline := extensionParser(strCmdline, winDotExec)
-
-		return []string{strings.TrimSuffix(strippedCmdline, " ")}
-
-	}
-
-	// case 3: Uses quotesFinder() to search for any existing pair of double quotes ("") existing in the string as characters and return the content between them.
-
+	// Case 2b: One string for cmdline and first token wrapped in quotes, use findEmbeddedQuotes() to find content between quotes.
 	strippedCmdline := findEmbeddedQuotes(strCmdline)
 	return []string{strings.TrimSuffix(strippedCmdline, " ")}
-
 }
 
-// Iterate through the cmdline to identify any match with any item of winDotExec[n] and remove the characters after any occurrence.
-
+// extensionParser returns cmdline with characters after any occurance of substrings in winDotExec removed.
 func extensionParser(cmdline string, winDotExec []string) string {
 	var processedCmdline string
 	for _, c := range winDotExec {
-		if i := strings.Index(cmdline, c+" "); i != -1 {
+		// Add space to searched extension to ensure we are matching last extension (possible to have multiple periods in one filename).
+		searchStr := c + " "
+
+		if i := strings.Index(cmdline, searchStr); i != -1 {
 			processedCmdline = cmdline[:i+len(c)]
 			return processedCmdline
 		}
 	}
 
-	if len(cmdline) >= 1 {
-		processedCmdline = strings.Split(cmdline, " ")[0]
+	if len(cmdline) > 0 {
+		processedCmdline = strings.SplitN(cmdline, " ", 2)[0]
 	}
 
 	return processedCmdline
 }
 
-// This function looks for the first pair of "" embedded in the string as a character and retrieves the content on it. Example: Input="\"C:\\Program Files\\Datadog\\agent.vbe\" check process" check process" Output="C:\\Program Files\\Datadog\\agent.vbe"
-
+// findEmbeddedQuotes returns the content between the first pair of double quotes in cmdline.
+// If there is no pair of double quotes found, function returns original cmdline.
+// Example: Input="\"C:\\Program Files\\Datadog\\agent.vbe\" check process" check process" Output="C:\\Program Files\\Datadog\\agent.vbe"
 func findEmbeddedQuotes(cmdline string) string {
-
-	var strippedCmdline string
-	firstQuoteRemoved := cmdline[1:]
-	splittedCmdline := strings.Split(firstQuoteRemoved, "\"")
-
-	if len(splittedCmdline) >= 1 {
-		strippedCmdline = splittedCmdline[0]
+	if len(cmdline) == 0 {
+		return cmdline
 	}
 
-	return strippedCmdline
+	strippedCmdline := strings.SplitN(cmdline, "\"", 3)
+	if len(strippedCmdline) < 3 {
+		return cmdline
+	}
+
+	return strippedCmdline[1]
 }

@@ -11,6 +11,17 @@ import (
 	"strings"
 )
 
+var (
+	defaultSensitiveWords = []string{
+		"*password*", "*passwd*", "*mysql_pwd*",
+		"*access_token*", "*auth_token*",
+		"*api_key*", "*apikey*",
+		"*secret*", "*credentials*", "stripetoken",
+	}
+
+	forbiddenSymbolsRegex = "[^a-zA-Z0-9_*]"
+)
+
 func (ds *DataScrubber) stripArguments(cmdline []string) []string {
 	// We will sometimes see the entire command line come in via the first element -- splitting guarantees removal
 	// of arguments in these cases.
