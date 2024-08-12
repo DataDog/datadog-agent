@@ -64,6 +64,23 @@ func TestGrainWithPeerTags(t *testing.T) {
 			},
 		}, aggr)
 	})
+	t.Run("computeBySpanKind config", func(t *testing.T) {
+		for _, spanKindEnabled := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%t", spanKindEnabled), func(t *testing.T) {
+				assert := assert.New(t)
+				sci := NewSpanConcentrator(&SpanConcentratorConfig{
+					ComputeStatsBySpanKind: spanKindEnabled,
+					BucketInterval:         (time.Duration(10) * time.Second).Nanoseconds(),
+				}, time.Now().Add(-time.Minute))
+				s, _ := sci.NewStatSpan("thing", "yo", "other", "", 0, 0, 0, 0, map[string]string{"span.kind": "client", "server.address": "foo"}, nil, []string{"_dd.base_service", "server.address"})
+				if spanKindEnabled {
+					assert.Equal([]string{"server.address:foo"}, s.matchingPeerTags)
+				} else {
+					assert.Nil(s)
+				}
+			})
+		}
+	})
 	t.Run("service override", func(t *testing.T) {
 		for _, spanKind := range []string{"client", "internal"} {
 			t.Run(spanKind, func(t *testing.T) {
