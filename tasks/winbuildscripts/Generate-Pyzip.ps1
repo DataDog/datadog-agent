@@ -1,7 +1,7 @@
 param (
     [Parameter(Mandatory=$true)][string]$Version,
     [Parameter(Mandatory=$false)][string]$md5sum,
-    [Parameter(Mandatory=$false)][string]$OutDir,
+    [Parameter(Mandatory=$false)][string]$OutDir
 )
 # https://www.python.org/ftp/python/2.7.17/python-2.7.17.amd64.msi
 # https://www.python.org/ftp/python/2.7.17/python-2.7.17.msi
