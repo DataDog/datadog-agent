@@ -375,8 +375,10 @@ func newTCPProcessor() *tcpProcessor {
 }
 
 func (t *tcpProcessor) process(conn *network.ConnectionStats, pktType uint8, ls *ebpfless.Layers) error {
+
 	payloadLen, err := ls.PayloadLen()
 	if err != nil {
+		log.Errorf("error getting payload length: %s", err)
 		return err
 	}
 
@@ -417,5 +419,6 @@ func (t *tcpProcessor) process(conn *network.ConnectionStats, pktType uint8, ls 
 		return fmt.Sprintf("ack_seq=%+v", c)
 	})
 	t.conns[key] = c
+	log.Warnf("PCONN: %+v", conn)
 	return nil
 }

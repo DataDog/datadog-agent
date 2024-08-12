@@ -38,7 +38,7 @@ func (l *Layers) Reset(ip4 *layers.IPv4, ip6 *layers.IPv6, udp *layers.UDP, tcp 
 // PayloadLen returns the length of the application
 // payload given the set of layers in `Layers`
 func (l Layers) PayloadLen() (uint16, error) {
-	if l.UDP != nil {
+	if len(l.UDP.Payload) > 0 || len(l.UDP.Contents) > 0 {
 		if l.UDP.Length == 0 {
 			return 0, errZeroLengthUDPPacket
 		}
