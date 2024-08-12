@@ -134,10 +134,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			}),
 			// workloadmeta setup
 			wmcatalog.GetCatalog(),
-			fx.Supply(workloadmeta.Params{
+			workloadmetafx.Module(workloadmeta.Params{
 				InitHelper: common.GetWorkloadmetaInit(),
 			}),
-			workloadmetafx.Module(),
 			apiimpl.Module(),
 			authtokenimpl.Module(),
 			// The jmx command do not have settings that change are runtime

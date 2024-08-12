@@ -118,14 +118,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				)),
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
-				fx.Provide(func() workloadmeta.Params {
-					return workloadmeta.Params{
-						AgentType:  workloadmeta.NodeAgent,
-						InitHelper: common.GetWorkloadmetaInit(),
-						NoInstance: !cliParams.forceLocal, //if forceLocal is true, we want to run workloadmeta
-					}
+				workloadmetafx.Module(workloadmeta.Params{
+					AgentType:  workloadmeta.NodeAgent,
+					InitHelper: common.GetWorkloadmetaInit(),
+					NoInstance: !cliParams.forceLocal, //if forceLocal is true, we want to run workloadmeta
 				}),
-				workloadmetafx.Module(),
 				taggerimpl.OptionalModule(),
 				autodiscoveryimpl.OptionalModule(), // if forceLocal is true, we will start autodiscovery (loadComponents) later
 				flare.Module(),
