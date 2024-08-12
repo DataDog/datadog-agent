@@ -61,7 +61,7 @@ func (gl *GoCheckLoader) Load(senderManger sender.SenderManager, config integrat
 	factory, found := catalog[config.Name]
 	if !found {
 		msg := fmt.Sprintf("Check %s not found in Catalog", config.Name)
-		return c, fmt.Errorf(msg)
+		return c, fmt.Errorf("%s", msg)
 	}
 
 	c = factory()
@@ -71,7 +71,7 @@ func (gl *GoCheckLoader) Load(senderManger sender.SenderManager, config integrat
 		}
 		log.Errorf("core.loader: could not configure check %s: %s", c, err)
 		msg := fmt.Sprintf("Could not configure check %s: %s", c, err)
-		return c, fmt.Errorf(msg)
+		return c, fmt.Errorf("%s", msg)
 	}
 
 	return c, nil

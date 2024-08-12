@@ -37,7 +37,7 @@ func (rc *runtimeSettingsHTTPClient) doGet(url string, formatError bool) (string
 		_ = json.Unmarshal(r, &errMap)
 		// If the error has been marshalled into a json object, check it and return it properly
 		if e, found := errMap["error"]; found {
-			return "", fmt.Errorf(e)
+			return "", fmt.Errorf("%s", e)
 		}
 		if formatError {
 			return "", fmt.Errorf("Could not reach %s: %v \nMake sure the %s is running before requesting the runtime configuration and contact support if you continue having issues", rc.targetProcessName, err, rc.targetProcessName)
@@ -130,7 +130,7 @@ func (rc *runtimeSettingsHTTPClient) Set(key string, value string) (bool, error)
 		_ = json.Unmarshal(r, &errMap)
 		// If the error has been marshalled into a json object, check it and return it properly
 		if e, found := errMap["error"]; found {
-			return false, fmt.Errorf(e)
+			return false, fmt.Errorf("%s", e)
 		}
 		return false, err
 	}

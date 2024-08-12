@@ -79,7 +79,7 @@ func debugRuntime(sysprobeconfig sysprobeconfig.Component, cliParams *cliParams)
 		_ = json.Unmarshal(r, &errMap)
 		// If the error has been marshalled into a json object, check it and return it properly
 		if e, found := errMap["error"]; found {
-			return fmt.Errorf(e)
+			return fmt.Errorf("%s", e)
 		}
 
 		return fmt.Errorf("Could not reach system-probe: %s\nMake sure system-probe is running before running this command and contact support if you continue having issues", err)

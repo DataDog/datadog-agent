@@ -99,7 +99,7 @@ func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 		// invalid value
 		e := "windows_counter_refresh_interval cannot be a negative number"
 		log.Errorf(e)
-		return false, fmt.Errorf(e)
+		return false, fmt.Errorf("%s", e)
 	}
 
 	// Only refresh at most every refresh_interval seconds
@@ -133,7 +133,7 @@ func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 	if r != PDH_MORE_DATA {
 		e := fmt.Sprintf("Failed to refresh performance counters (%#x)", r)
 		log.Errorf(e)
-		return false, fmt.Errorf(e)
+		return false, fmt.Errorf("%s", e)
 	}
 
 	// refresh successful

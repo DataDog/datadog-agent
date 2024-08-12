@@ -153,7 +153,7 @@ func rebalance(_ log.Component, config config.Component, cliParams *cliParams) e
 		json.Unmarshal(r, &errMap) //nolint:errcheck
 		// If the error has been marshalled into a json object, check it and return it properly
 		if e, found := errMap["error"]; found {
-			err = fmt.Errorf(e)
+			err = fmt.Errorf("%s", e)
 		}
 
 		fmt.Printf(`
@@ -196,7 +196,7 @@ func isolate(_ log.Component, config config.Component, cliParams *cliParams) err
 		json.Unmarshal(r, &errMap) //nolint:errcheck
 		// If the error has been marshalled into a json object, check it and return it properly
 		if e, found := errMap["error"]; found {
-			err = fmt.Errorf(e)
+			err = fmt.Errorf("%s", e)
 		}
 
 		fmt.Printf(`

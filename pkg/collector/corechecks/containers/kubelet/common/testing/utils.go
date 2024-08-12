@@ -147,7 +147,7 @@ func CreateKubeletMock(response EndpointResponse, endpoint string) (*mock.Kubele
 	if response.filename != "" {
 		content, err = os.ReadFile(response.filename)
 		if err != nil {
-			return nil, fmt.Errorf(fmt.Sprintf("unable to read test file at: %s, Err: %v", response.filename, err))
+			return nil, fmt.Errorf("unable to read test file at: %s, Err: %v", response.filename, err)
 		}
 	}
 	kubeletMock.MockReplies[endpoint] = &mock.HTTPReplyMock{
@@ -166,12 +166,12 @@ func StorePopulatedFromFile(store workloadmetamock.Mock, filename string, podUti
 
 	podList, err := os.ReadFile(filename)
 	if err != nil {
-		return fmt.Errorf(fmt.Sprintf("unable to load pod list, Err: %v", err))
+		return fmt.Errorf("unable to load pod list, Err: %v", err)
 	}
 	var pods *kubelet.PodList
 	err = json.Unmarshal(podList, &pods)
 	if err != nil {
-		return fmt.Errorf(fmt.Sprintf("unable to load pod list, Err: %v", err))
+		return fmt.Errorf("unable to load pod list, Err: %v", err)
 	}
 
 	for _, pod := range pods.Items {

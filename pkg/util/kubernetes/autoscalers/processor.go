@@ -237,7 +237,7 @@ func makeChunks(batch []string) (chunks [][]string) {
 		uriLength = uriLength + tempSize
 		beyond, err := isURLBeyondLimits(uriLength, len(tempBucket))
 		if err != nil {
-			log.Errorf(fmt.Sprintf("%s: %s", err.Error(), val))
+			log.Errorf("%s: %s", err.Error(), val)
 			continue
 		}
 		if beyond {

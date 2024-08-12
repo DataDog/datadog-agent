@@ -88,7 +88,7 @@ func requestDogstatsdStats(_ log.Component, config config.Component, cliParams *
 		json.Unmarshal(r, &errMap) //nolint:errcheck
 		// If the error has been marshalled into a json object, check it and return it properly
 		if err, found := errMap["error"]; found {
-			e = fmt.Errorf(err)
+			e = fmt.Errorf("%s", err)
 		}
 
 		if len(errMap["error_type"]) > 0 {

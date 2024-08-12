@@ -258,7 +258,7 @@ func addExpvarPythonInitErrors(msg string) error {
 	defer pyInitLock.Unlock()
 
 	pyInitErrors = append(pyInitErrors, msg)
-	return fmt.Errorf(msg)
+	return fmt.Errorf("%s", msg)
 }
 
 func sendTelemetry(pythonVersion string) {

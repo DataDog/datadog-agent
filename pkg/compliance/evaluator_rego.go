@@ -117,7 +117,7 @@ func newCheckEventFromRegoResult(data interface{}, rule *Rule, resolvedInputs Re
 		if errMsg == "" {
 			errMsg = "unknown"
 		}
-		errReason = fmt.Errorf(errMsg)
+		errReason = fmt.Errorf("%s", errMsg)
 	default:
 		errReason = fmt.Errorf("rego result invalid: bad status %q", status)
 	}

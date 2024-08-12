@@ -149,13 +149,13 @@ func (c *collector) stream(ctx context.Context) {
 		case ev := <-c.containerEventsCh:
 			err := c.handleContainerEvent(ctx, ev)
 			if err != nil {
-				log.Warnf(err.Error())
+				log.Warnf("%s", err.Error())
 			}
 
 		case ev := <-c.imageEventsCh:
 			err := c.handleImageEvent(ctx, ev, nil)
 			if err != nil {
-				log.Warnf(err.Error())
+				log.Warnf("%s", err.Error())
 			}
 
 		case <-ctx.Done():
@@ -195,7 +195,7 @@ func (c *collector) generateEventsFromContainerList(ctx context.Context, filter 
 			Action:      events.ActionStart,
 		})
 		if err != nil {
-			log.Warnf(err.Error())
+			log.Warnf("%s", err.Error())
 			continue
 		}
 
@@ -220,7 +220,7 @@ func (c *collector) generateEventsFromImageList(ctx context.Context) error {
 	for _, img := range images {
 		imgMetadata, err := c.getImageMetadata(ctx, img.ID, nil)
 		if err != nil {
-			log.Warnf(err.Error())
+			log.Warnf("%s", err.Error())
 			continue
 		}
 
