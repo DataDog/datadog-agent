@@ -5,12 +5,13 @@ if not exist c:\mnt\ goto nomntdir
 @echo RELEASE_VERSION %RELEASE_VERSION%
 
 set BUILD_ROOT=c:\buildroot
-mkdir %BUILD_ROOT%\datadog-agent
-if not exist %BUILD_ROOT%\datadog-agent exit /b 2
-cd %BUILD_ROOT%\datadog-agent || exit /b 3
+set REPO_ROOT=%BUILD_ROOT%\datadog-agent
+mkdir %REPO_ROOT%
+if not exist %REPO_ROOT% exit /b 2
+cd %REPO_ROOT% || exit /b 3
 xcopy /e/s/h/q c:\mnt\*.* || exit /b 4
 
-call %BUILD_ROOT%\tasks\winbuildscripts\extract-modcache.bat %BUILD_ROOT%\datadog-agent modcache
+call %BUILD_ROOT%\tasks\winbuildscripts\extract-modcache.bat %REPO_ROOT% modcache
 
 set OMNIBUS_BUILD=omnibus.build
 @rem OMNIBUS_TARGET is also used in the C# code to only produce the .cmd for the Datadog Installer (instead of for both the Agent installer and the Datadog installer).
@@ -35,18 +36,16 @@ pip3 install -r requirements.txt
 inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --release-version %RELEASE_VERSION% || exit /b 1
 inv -e msi.build-installer || exit /b 2
 
-REM Set REPO_ROOT only here, otherwise it interferes with the Omnibus build
-set REPO_ROOT=%~p0\..\..
 Powershell -C "./tasks/winbuildscripts/Generate-OCIPackage.ps1 datadog-installer"
 
 REM show output package directories (for debugging)
 dir \omnibus-ruby\pkg\
 
-dir %BUILD_ROOT%\datadog-agent\omnibus\pkg\
+dir %REPO_ROOT%\omnibus\pkg\
 
 REM copy resulting packages to expected location for collection by gitlab.
 if not exist c:\mnt\omnibus\pkg\ mkdir c:\mnt\omnibus\pkg\ || exit /b 5
-copy %BUILD_ROOT%\datadog-agent\omnibus\pkg\* c:\mnt\omnibus\pkg\ || exit /b 6
+copy %REPO_ROOT%\omnibus\pkg\* c:\mnt\omnibus\pkg\ || exit /b 6
 
 REM show output binary directories (for debugging)
 dir C:\opt\datadog-installer\
