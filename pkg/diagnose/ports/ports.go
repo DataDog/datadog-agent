@@ -19,7 +19,7 @@ import (
 var agentNames = map[string]struct{}{
 	"datadog-agent": {}, "agent": {}, "trace-agent": {},
 	"process-agent": {}, "system-probe": {}, "security-agent": {},
-	"dogstatsd": {},
+	"dogstatsd": {}, "agent.exe": {},
 }
 
 // DiagnosePortSuite displays information about the ports used in the agent configuration
@@ -74,6 +74,16 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 
 		// if the port is used by a process that is not run by the same user as the agent, we cannot retrieve the proc id
 		if port.Pid == 0 {
+			diagnoses = append(diagnoses, diagnosis.Diagnosis{
+				Name:      key,
+				Result:    diagnosis.DiagnosisFail,
+				Diagnosis: fmt.Sprintf("Required port %d is already used by an another process.", value),
+			})
+			continue
+		}
+
+		// on windows, if the port is used by a process that is not 'agent.exe', we cannot retrieve the proc name
+		if port.Process == "" && port.Pid != 0 {
 			diagnoses = append(diagnoses, diagnosis.Diagnosis{
 				Name:      key,
 				Result:    diagnosis.DiagnosisFail,
