@@ -51,3 +51,28 @@ generate_minimized_btfs_arm64:
   extends: .generate_minimized_btfs_common
   variables:
     ARCH: arm64
+
+generate_windows_embedded_python:
+  rules:
+    !reference [.manual]
+  stage: package_deps_build
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  variables:
+    ARCH: "x64"
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - artifacts/
+  script:
+    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
+    - $ErrorActionPreference = "Stop"
+    - if (Test-Path artifacts) { remove-item -recurse -force artifacts }
+    - mkdir artifacts -Force
+    - >
+      docker run --rm
+      -v "$(Get-Location):c:\mnt"
+      -e GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}
+      486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      Powershell
+      -C "c:\mnt\tasks\winbuildscripts\generate-pyzip.ps1 -Version 3.12.4 -OutDir c:\mnt\artifacts"
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
