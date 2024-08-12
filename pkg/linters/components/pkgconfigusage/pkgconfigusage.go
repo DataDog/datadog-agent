@@ -14,6 +14,9 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
+// We can replace during tests
+var componentPath = "github.com/DataDog/datadog-agent/comp"
+
 func init() {
 	register.Plugin("pkgconfigusage", New)
 }
@@ -49,7 +52,7 @@ func (f *pkgconfigUsagePlugin) run(pass *analysis.Pass) (interface{}, error) {
 			continue
 		}
 
-		if strings.Contains(pass.Pkg.Path(), "github.com/DataDog/datadog-agent/comp") {
+		if strings.Contains(pass.Pkg.Path(), componentPath) {
 			for _, imp := range file.Imports {
 				if imp.Path.Value == fmt.Sprintf("\"%s\"", "github.com/DataDog/datadog-agent/pkg/config") {
 					pass.Report(analysis.Diagnostic{

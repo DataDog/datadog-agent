@@ -428,7 +428,7 @@
 /pkg/util/trie                          @DataDog/container-integrations
 /pkg/languagedetection                  @DataDog/processes @DataDog/universal-service-monitoring
 /pkg/linters/                           @DataDog/agent-devx-loops
-/pkg/linters/pkgConfigComponents        @DataDog/agent-shared-components
+/pkg/linters/components/                @DataDog/agent-shared-components
 /pkg/logs/                              @DataDog/agent-metrics-logs
 /pkg/logs/launchers/windowsevent        @DataDog/agent-metrics-logs @DataDog/windows-agent
 /pkg/logs/tailers/windowsevent          @DataDog/agent-metrics-logs @DataDog/windows-agent
