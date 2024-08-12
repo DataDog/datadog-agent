@@ -55,7 +55,7 @@ generate_minimized_btfs_arm64:
 generate_windows_embedded_python:
   rules:
     !reference [.manual]
-  dependencies: []
+  needs: []
   stage: package_deps_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
   variables:
