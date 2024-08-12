@@ -24,7 +24,7 @@ import (
 
 // LogParams represents the parameters for streaming logs
 type LogParams struct {
-	// Output represents the output file path to write the log stream to.
+	// FilePath represents the output file path to write the log stream to.
 	FilePath string
 
 	// Duration represents the duration of the log stream.

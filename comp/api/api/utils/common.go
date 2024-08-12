@@ -20,7 +20,7 @@ import (
 
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 
-	"github.com/DataDog/datadog-agent/pkg/api/util"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	grpccontext "github.com/DataDog/datadog-agent/pkg/util/grpc/context"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -39,17 +39,17 @@ func GetConnection(r *http.Request) net.Conn {
 
 // StreamRequest sends a request to the given url for the given duration
 func StreamRequest(url string, body []byte, duration time.Duration, onChunk func([]byte)) error {
-	c := util.GetClient(false)
+	c := apiutil.GetClient(false)
 	if duration != 0 {
 		c.Timeout = duration
 	}
 	// Set session token
-	e := util.SetAuthToken(pkgconfig.Datadog())
+	e := apiutil.SetAuthToken(pkgconfig.Datadog())
 	if e != nil {
 		return e
 	}
 
-	e = util.DoPostChunked(c, url, "application/json", bytes.NewBuffer(body), onChunk)
+	e = apiutil.DoPostChunked(c, url, "application/json", bytes.NewBuffer(body), onChunk)
 
 	if e == io.EOF {
 		return nil

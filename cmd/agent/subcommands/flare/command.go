@@ -109,9 +109,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 					LogParams:            logimpl.ForOneShot(command.LoggerName, "off", false),
 				}),
-				fx.Provide(func(c config.Component) coresetting.Params {
-					return coresetting.Params{}
-				}),
+				fx.Supply(coresetting.Params{}),
 				fx.Supply(flare.NewLocalParams(
 					commonpath.GetDistPath(),
 					commonpath.PyChecksPath,
