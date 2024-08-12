@@ -273,7 +273,7 @@ func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
 	case e2eos.Ubuntu:
 		s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt install -y ansible")
 	case e2eos.Debian:
-		s.Env().RemoteHost.MustExecute("sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 93C4A3FD7BB9C367 && sudo apt update && sudo apt install -y ansible")
+		s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt install -y ansible")
 	case e2eos.Fedora:
 		s.Env().RemoteHost.MustExecute("sudo dnf install -y ansible")
 	case e2eos.CentOS:

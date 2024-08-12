@@ -25,16 +25,6 @@ func (s *packageInstallerSuite) TestInstall() {
 	s.RunInstallScript("DD_NO_AGENT_INSTALL=true")
 	defer s.Purge()
 
-	ot, _ := s.Env().RemoteHost.Execute("which datadog-installer")
-	s.T().Log(ot)
-	ot, _ = s.Env().RemoteHost.Execute("sudo which datadog-installer")
-	s.T().Log(ot)
-	ot, _ = s.Env().RemoteHost.Execute("which datadog-bootstrap")
-	s.T().Log(ot)
-	ot, _ = s.Env().RemoteHost.Execute("sudo which datadog-bootstrap")
-	s.T().Log(ot)
-	// s.T().Log(err)
-
 	bootstraperVersion := s.host.BootstraperVersion()
 	installerVersion := s.host.InstallerVersion()
 	assert.Equal(s.T(), bootstraperVersion, installerVersion)
