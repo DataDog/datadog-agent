@@ -125,6 +125,12 @@ func TestExtensionParser(t *testing.T) {
 			expectedFound: false,
 		},
 		{
+			name:          "Extension at end of line",
+			cmdline:       "C:\\Program Files\\Datadog\\agent.com",
+			expected:      "C:\\Program Files\\Datadog\\agent.com",
+			expectedFound: true,
+		},
+		{
 			name:          "Extension in first token",
 			cmdline:       "C:\\Program Files\\Datadog\\agent.cmd check process",
 			expected:      "C:\\Program Files\\Datadog\\agent.cmd",
