@@ -22,6 +22,7 @@ const (
 	ProcStatPath           = "/proc/stat"
 	ProcUptimePath         = "/proc/uptime"
 	ProcNetDevPath         = "/proc/net/dev"
+	ProcSysFsFilenrPath    = "/proc/sys/fs/file-nr"
 	lambdaNetworkInterface = "vinternal_1"
 )
 
@@ -191,6 +192,41 @@ func getNetworkData(path string) (*NetworkData, error) {
 			return &NetworkData{
 				RxBytes: rxBytes,
 				TxBytes: txBytes,
+			}, nil
+		}
+	}
+
+}
+
+type FileDescriptorData struct {
+	AllocatedFileHandles float64
+	UnusedFileHandles    float64
+	MaximumFileHandles   float64
+}
+
+// GetNetworkData collects bytes sent and received by the function
+func GetFileDescriptorData() (*FileDescriptorData, error) {
+	return getFileDescriptorData(ProcSysFsFilenrPath)
+}
+
+func getFileDescriptorData(path string) (*FileDescriptorData, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var allocatedFileHandles, unusedFileHandles, maximumFileHandles float64
+	for {
+		_, err = fmt.Fscanln(file, &allocatedFileHandles, &unusedFileHandles, &maximumFileHandles)
+		if errors.Is(err, io.EOF) {
+			return nil, fmt.Errorf("file descriptor data not found in file '%s'", path)
+		}
+		if err == nil {
+			return &FileDescriptorData{
+				AllocatedFileHandles: allocatedFileHandles,
+				UnusedFileHandles:    unusedFileHandles,
+				MaximumFileHandles:   maximumFileHandles,
 			}, nil
 		}
 	}
