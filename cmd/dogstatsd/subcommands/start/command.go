@@ -134,7 +134,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		fx.Provide(defaultforwarder.NewParams),
 		// workloadmeta setup
 		wmcatalog.GetCatalog(),
-		fx.Provide(func(config config.Component) workloadmeta.Params {
+		workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
 			catalog := workloadmeta.NodeAgent
 			instantiate := config.GetBool("dogstatsd_origin_detection")
 
@@ -144,7 +144,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 				NoInstance: !instantiate,
 			}
 		}),
-		workloadmetafx.Module(),
+
 		compressionimpl.Module(),
 		demultiplexerimpl.Module(),
 		secretsimpl.Module(),
