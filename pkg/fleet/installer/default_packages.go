@@ -88,16 +88,18 @@ func apmInjectEnabled(_ Package, e *env.Env) bool {
 	return false
 }
 
+// apmLanguageEnabled returns true if the package should be installed
+// Note: the PHP tracer is in beta and isn't included in the "all" or default languages
 func apmLanguageEnabled(p Package, e *env.Env) bool {
 	if _, ok := e.ApmLibraries[packageToLanguage(p.Name)]; ok {
 		return true
 	}
-	if _, ok := e.ApmLibraries["all"]; ok {
+	if _, ok := e.ApmLibraries["all"]; ok && p.Name != "datadog-apm-library-php" {
 		return true
 	}
 	// If the ApmLibraries env is left empty but apm injection is
 	// enabled, we install all languages
-	if len(e.ApmLibraries) == 0 && apmInjectEnabled(p, e) {
+	if len(e.ApmLibraries) == 0 && apmInjectEnabled(p, e) && p.Name != "datadog-apm-library-php" {
 		return true
 	}
 	return false
