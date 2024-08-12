@@ -185,6 +185,8 @@ fi
 create_dependencies_file()
 {
     echo "Creating dependencies file"
+    $INSTALL_DIR/embedded/bin/pip freeze | grep '^datadog-' > $INSTALL_DIR/agent_datadog_requirements.txt
+    $INSTALL_DIR/embedded/bin/pip freeze | grep -v '^datadog-' > $INSTALL_DIR/agent_python_requirements.txt
 }
 
 create_dependencies_file
