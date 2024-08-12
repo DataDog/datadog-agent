@@ -137,9 +137,6 @@ build do
             command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.installed_by_pkg.txt"
             command "find . -path './embedded/lib/python*/site-packages/*' >> #{install_dir}/embedded/.installed_by_pkg.txt", cwd: install_dir
 
-            command "echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > #{install_dir}/embedded/.pkg_requirements.txt"
-            command "#{install_dir}/embedded/bin/pip freeze > #{install_dir}/embedded/.pkg_requirements.txt"
-
             # removing the doc from the embedded folder to reduce package size by ~3MB
             delete "#{install_dir}/embedded/share/doc"
 
