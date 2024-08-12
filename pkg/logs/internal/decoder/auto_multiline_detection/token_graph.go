@@ -51,21 +51,23 @@ func (m *TokenGraph) MatchProbability(tokens []Token) MatchContext {
 		return MatchContext{}
 	}
 
-	out := make([]byte, len(tokens)-1)
+	matches := make([]int, len(tokens)-1)
 
 	lastToken := tokens[0]
 	for i, token := range tokens[1:] {
 		if m.adjacencies[lastToken] != nil && m.adjacencies[lastToken][token] {
-			out[i] = 1
+			matches[i] = 1
+		} else {
+			matches[i] = -1
 		}
 		lastToken = token
 	}
 
-	// At this point we have a sequence of 1 and 0 where 1 represents a valid transition between tokens (a match).
+	// At this point we have a sequence of 1 and -1 where 1 represents a valid transition between tokens (a match).
 	// However a sequecne of matchs could occur anywhere in the input so we need to find the subsequence that will produce
-	// best probability when taking the average of the 1 and 0 sequence.
-	start, end := maxSubsequence(out)
-	subSeq := out[start:end]
+	// best probability when taking the average of the 1 and -1 sequence.
+	start, end := maxSubsequence(matches)
+	subSeq := matches[start:end]
 
 	// Reject sequences of tokens that are less than the minimum token length.
 	if len(subSeq) < m.minimumTokenLength {
@@ -79,26 +81,16 @@ func (m *TokenGraph) MatchProbability(tokens []Token) MatchContext {
 	}
 }
 
-// maxSubsequence is a modified Kadane’s Algorithm.
-// The input sequence of 1 and 0 is evaluated as 1 and -1 to compute the max sum.
-// The idea is to find the subsequence that will produce the highest average
-// when taking the average of the 1 and 0 sequence.
-func maxSubsequence(arr []byte) (int, int) {
-	v := int(arr[0])
-	if v == 0 {
-		v = -1
-	}
-	maxSum := v
-	currentSum := v
+// maxSubsequence is a modified Kadane’s Algorithm that returns the start and end indices of the largest subsequence
+func maxSubsequence(arr []int) (int, int) {
+	maxSum := arr[0]
+	currentSum := arr[0]
 	start := 0
 	end := 0
 	tempStart := 0
 
 	for i := 1; i < len(arr); i++ {
-		v := int(arr[i])
-		if v == 0 {
-			v = -1
-		}
+		v := arr[i]
 		if v > currentSum+v {
 			currentSum = v
 			tempStart = i
@@ -115,7 +107,7 @@ func maxSubsequence(arr []byte) (int, int) {
 	return start, end + 1
 }
 
-func avg(states []byte) float64 {
+func avg(states []int) float64 {
 	sum := float64(0)
 	for _, n := range states {
 		sum += float64(n)

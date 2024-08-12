@@ -47,6 +47,9 @@ var inputs = []testInput{
 	{startGroup, "127.0.0.1 - - [17/May/2024:13:51:52 +0000] \"GET /probe?debug=1 HTTP/1.1\" 200 0	"},
 	{startGroup, "nova-api.log.1.2017-05-16_13:53:08 2017-05-16 00:00:00.008 25746 INFO nova.osapi"},
 
+	// A case where the timestamp has a non-matching token in the midddle of it.
+	{startGroup, "acb def 10:10:10 foo 2024-05-15 hijk lmop"},
+
 	// Likely do not contain timestamps for aggreagtion
 	{aggregate, "12:30:2017 - info App started successfully"},
 	{aggregate, "12:30:20 - info App started successfully"},
@@ -64,6 +67,8 @@ var inputs = []testInput{
 	{aggregate, "'/conf.d/..data/foobar_lifecycle.yaml' "},
 	{aggregate, "commit: a2de9888a8f1fc289547f77d4834e669bf993e7e"},
 	{aggregate, " auth.handler: auth handler stopped"},
+	{aggregate, "10:10:10 foo :10: bar 10:10"},
+	{aggregate, "1234-1234-1234-123-21-1"},
 }
 
 func TestCorrectLabelIsAssigned(t *testing.T) {

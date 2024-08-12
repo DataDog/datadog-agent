@@ -20,13 +20,13 @@ func TestMatchEmpty(t *testing.T) {
 func TestExpectedMatch(t *testing.T) {
 	graph := NewTokenGraph(0, [][]Token{{1, 2, 3}})
 	assert.Equal(t, float64(1), graph.MatchProbability([]Token{1, 2, 3}).probability, "Input should match exactly")
-	assert.Equal(t, float64(0), graph.MatchProbability([]Token{3, 2, 1}).probability, "Backwards input should not match because the graph is directed")
-	assert.Equal(t, float64(0), graph.MatchProbability([]Token{4, 5, 6}).probability, "Unknown input should not match")
+	assert.Equal(t, float64(-1), graph.MatchProbability([]Token{3, 2, 1}).probability, "Backwards input should not match because the graph is directed")
+	assert.Equal(t, float64(-1), graph.MatchProbability([]Token{4, 5, 6}).probability, "Unknown input should not match")
 
 	graph = NewTokenGraph(0, [][]Token{{1, 2, 3}, {3, 2, 1}})
 	assert.Equal(t, float64(1), graph.MatchProbability([]Token{1, 2, 3}).probability, "Input should match exactly")
 	assert.Equal(t, float64(1), graph.MatchProbability([]Token{3, 2, 1}).probability, "Backwards input should match")
-	assert.Equal(t, float64(0), graph.MatchProbability([]Token{4, 5, 6}).probability, "Unknown input should not match")
+	assert.Equal(t, float64(-1), graph.MatchProbability([]Token{4, 5, 6}).probability, "Unknown input should not match")
 
 	graph = NewTokenGraph(0, [][]Token{{1, 2, 3, 4, 5, 6}})
 	assert.Equal(t, float64(1), graph.MatchProbability([]Token{7, 2, 3, 4, 5, 8}).probability, "Input should match because unmatch tokens are trimmed")
@@ -34,17 +34,17 @@ func TestExpectedMatch(t *testing.T) {
 
 func TestMaxSubsequence(t *testing.T) {
 	tests := []struct {
-		input    []byte
-		expected []byte
+		input    []int
+		expected []int
 	}{
-		{[]byte{1, 1, 1, 1, 1}, []byte{1, 1, 1, 1, 1}},
-		{[]byte{0, 0, 1, 0, 0}, []byte{1}},
-		{[]byte{0, 1, 1}, []byte{1, 1}},
-		{[]byte{1, 1, 0}, []byte{1, 1}},
-		{[]byte{0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 1, 1}, []byte{1, 1, 1, 1}},
-		{[]byte{0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 1, 1}, []byte{1, 1, 1, 0, 0, 0, 1, 1, 1, 1}},
-		{[]byte{1, 1, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1}, []byte{1, 1, 1}},
-		{[]byte{1, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1}, []byte{1, 0, 1, 1, 1}},
+		{[]int{1, 1, 1, 1, 1}, []int{1, 1, 1, 1, 1}},
+		{[]int{-1, -1, 1, -1, -1}, []int{1}},
+		{[]int{-1, 1, 1}, []int{1, 1}},
+		{[]int{1, 1, -1}, []int{1, 1}},
+		{[]int{-1, 1, 1, 1, -1, -1, -1, -1, 1, 1, 1, 1, -1, -1, -1, 1, 1}, []int{1, 1, 1, 1}},
+		{[]int{-1, 1, 1, 1, -1, -1, -1, 1, 1, 1, 1, -1, -1, -1, 1, 1}, []int{1, 1, 1, -1, -1, -1, 1, 1, 1, 1}},
+		{[]int{1, 1, 1, -1, -1, -1, -1, 1, -1, 1, 1, 1}, []int{1, 1, 1}},
+		{[]int{1, -1, 1, 1, 1, -1, -1, -1, -1, 1, 1, 1}, []int{1, -1, 1, 1, 1}},
 	}
 
 	for _, test := range tests {
