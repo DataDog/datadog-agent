@@ -990,7 +990,7 @@ func (s *tlsSuite) TestNodeJSTLS() {
 	cfg.EnableNodeJSMonitoring = true
 
 	usmMonitor := setupUSMTLSMonitor(t, cfg)
-	utils.WaitForProgramsToBeTraced(t, "nodejs", int(nodeJSPID), utils.ManualTracingFallbackEnabled)
+	utils.WaitForProgramsToBeTraced(t, NodeJsAttacherName, int(nodeJSPID), utils.ManualTracingFallbackEnabled)
 
 	// This maps will keep track of whether the tracer saw this request already or not
 	client, requestFn := simpleGetRequestsGenerator(t, fmt.Sprintf("localhost:%s", serverPort))

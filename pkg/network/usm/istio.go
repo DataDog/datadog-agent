@@ -20,6 +20,8 @@ import (
 const (
 	istioSslReadRetprobe  = "istio_uretprobe__SSL_read"
 	istioSslWriteRetprobe = "istio_uretprobe__SSL_write"
+
+	IstioAttacherName = "istio"
 )
 
 var istioProbes = []manager.ProbesSelector{
@@ -101,7 +103,7 @@ func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
 		ExcludeTargets: uprobes.ExcludeSelf | uprobes.ExcludeInternal,
 	}
 
-	attacher, err := uprobes.NewUprobeAttacher("istio", attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{})
+	attacher, err := uprobes.NewUprobeAttacher(IstioAttacherName, attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{})
 	if err != nil {
 		log.Errorf("Cannot create uprobe attacher: %v", err)
 	}

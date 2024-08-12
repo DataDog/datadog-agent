@@ -483,7 +483,12 @@ func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Optio
 
 // PreStart is called before the start of the provided eBPF manager.
 func (o *sslProgram) PreStart(*manager.Manager) error {
-	o.attacher.Start()
+	if o.attacher != nil {
+		err := o.attacher.Start()
+		if err != nil {
+			return err
+		}
+	}
 	o.istioMonitor.Start()
 	o.nodeJSMonitor.Start()
 	return nil
@@ -496,7 +501,9 @@ func (o *sslProgram) PostStart(*manager.Manager) error {
 
 // Stop stops the program.
 func (o *sslProgram) Stop(*manager.Manager) {
-	o.attacher.Stop()
+	if o.attacher != nil {
+		o.attacher.Stop()
+	}
 	o.istioMonitor.Stop()
 	o.nodeJSMonitor.Stop()
 }
