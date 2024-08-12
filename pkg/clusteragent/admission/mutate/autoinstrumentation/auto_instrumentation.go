@@ -185,8 +185,8 @@ func (w *Webhook) inject(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool,
 		}
 	}
 
-	libsToInject, autoDetected := w.extractLibInfo(pod)
-	if len(libsToInject) == 0 {
+	extractedLibInfo := w.extractLibInfo(pod)
+	if len(extractedLibInfo.libs) == 0 {
 		return false, nil
 	}
 
@@ -202,19 +202,7 @@ func (w *Webhook) inject(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool,
 		}
 	}
 
-	// Inject env variables used for Onboarding KPIs propagation
-	var injectionType string
-	if w.isEnabledInNamespace(pod.Namespace) {
-		// if Single Step Instrumentation is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_single_step
-		_ = mutatecommon.InjectEnv(pod, singleStepInstrumentationInstallTypeEnvVar)
-		injectionType = singleStepInstrumentationInstallType
-	} else {
-		// if local library injection is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_lib_injection
-		_ = mutatecommon.InjectEnv(pod, localLibraryInstrumentationInstallTypeEnvVar)
-		injectionType = localLibraryInstrumentationInstallType
-	}
-
-	if err := w.injectAutoInstruConfig(pod, libsToInject, autoDetected, injectionType); err != nil {
+	if err := w.injectAutoInstruConfig(pod, extractedLibInfo); err != nil {
 		log.Errorf("failed to inject auto instrumentation configurations: %v", err)
 		return false, errors.New(metrics.ConfigInjectionError)
 	}
@@ -308,15 +296,47 @@ func getPinnedLibraries(registry string) []libInfo {
 	return res
 }
 
-// getLibrariesLanguageDetection runs process language auto-detection and returns languages to inject for APM Instrumentation.
-// The languages information is available in workloadmeta-store and attached on the pod's owner.
-func (w *Webhook) getLibrariesLanguageDetection(pod *corev1.Pod) []libInfo {
-	if config.Datadog().GetBool("admission_controller.auto_instrumentation.inject_auto_detected_libraries") {
-		// Use libraries returned by language detection for APM Instrumentation
-		return w.getAutoDetectedLibraries(pod)
-	}
+type libInfoLanguageDetection struct {
+	libs    []libInfo
+	enabled bool
 
-	return nil
+	injected bool
+}
+
+func (l *libInfoLanguageDetection) podMutator(v version) podMutator {
+	return podMutatorFunc(func(pod *corev1.Pod) error {
+		if l == nil || len(l.libs) == 0 || !v.usesInjector() || l.injected {
+			return nil
+		}
+
+		var libs []string
+		for _, lib := range l.libs {
+			libs = append(libs, string(lib.lang))
+		}
+
+		_ = mutatecommon.InjectEnv(pod, corev1.EnvVar{
+			Name:  "DD_INSTRUMENTATION_LANGUAGES_DETECTED",
+			Value: strings.Join(libs, ","),
+		})
+		_ = mutatecommon.InjectEnv(pod, corev1.EnvVar{
+			Name:  "DD_INSTRUMENTATION_LANGUAGE_DETECTION_ENABLED",
+			Value: strconv.FormatBool(l.enabled),
+		})
+
+		return nil
+	})
+}
+
+// getLibrariesLanguageDetection runs process language auto-detection and returns languages
+// to inject for APM Instrumentation.
+//
+// The languages information is available in workloadmeta-store
+// and attached on the pod's owner.
+func (w *Webhook) getLibrariesLanguageDetection(pod *corev1.Pod) libInfoLanguageDetection {
+	return libInfoLanguageDetection{
+		libs:    w.getAutoDetectedLibraries(pod),
+		enabled: config.Datadog().GetBool("admission_controller.auto_instrumentation.inject_auto_detected_libraries"),
+	}
 }
 
 // getAllLatestLibraries returns all supported by APM Instrumentation tracing libraries
@@ -329,16 +349,61 @@ func (w *Webhook) getAllLatestLibraries() []libInfo {
 	return libsToInject
 }
 
-// extractLibInfo returns the language, the image,
-// and a boolean indicating whether the library should be injected into the pod
-func (w *Webhook) extractLibInfo(pod *corev1.Pod) ([]libInfo, bool) {
+type libInfoSource int
+
+const (
+	libInfoSourceNone libInfoSource = iota
+	libInfoSourceLibInjection
+	libInfoSourceSingleStepInstrumentation
+	libInfoSourceSingleStepLangaugeDetection
+)
+
+func (s libInfoSource) injectionType() string {
+	switch s {
+	case libInfoSourceSingleStepInstrumentation, libInfoSourceSingleStepLangaugeDetection:
+		return singleStepInstrumentationInstallType
+	case libInfoSourceLibInjection:
+		return localLibraryInstrumentationInstallType
+	default:
+		return "unknown"
+	}
+}
+
+func (s libInfoSource) autodetected() bool {
+	return s == libInfoSourceSingleStepLangaugeDetection
+}
+
+func (s libInfoSource) mutatePod(pod *corev1.Pod) error {
+	_ = mutatecommon.InjectEnv(pod, corev1.EnvVar{
+		Name:  instrumentationInstallTypeEnvVarName,
+		Value: s.injectionType(),
+	})
+	return nil
+}
+
+type extractedPodLibInfo struct {
+	// libs are the libraries we are going to attempt to inject into the given pod.
+	libs []libInfo
+	// languageDetection is set when we ran/used the language-detection annotation.
+	languageDetection *libInfoLanguageDetection
+	// source is where we got the data from, used for telemetry later.
+	source libInfoSource
+}
+
+// extractLibInfo metadata about what library information we should be
+// injecting into the pod and where it came from.
+func (w *Webhook) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
+
 	// If the pod is "injectable" and annotated with libraries to inject, use those.
 	if w.isPodEligible(pod) {
 		// The library version specified via annotation on the Pod takes precedence
 		// over libraries injected with Single Step Instrumentation
 		libs := w.extractLibrariesFromAnnotations(pod)
 		if len(libs) > 0 {
-			return libs, false
+			return extractedPodLibInfo{
+				libs:   libs,
+				source: libInfoSourceLibInjection,
+			}
 		}
 	}
 
@@ -346,18 +411,30 @@ func (w *Webhook) extractLibInfo(pod *corev1.Pod) ([]libInfo, bool) {
 	//
 	// 1. We check for pinned libraries in the config
 	// 2. We check for language detection (if enabled)
+	//    If lang-detection is not enabled, we propagate the
 	// 3. We fall back to "latest"
 	if w.isEnabledInNamespace(pod.Namespace) {
 		if len(w.pinnedLibraries) > 0 {
-			return w.pinnedLibraries, false
+			return extractedPodLibInfo{
+				libs:   w.pinnedLibraries,
+				source: libInfoSourceSingleStepInstrumentation,
+			}
 		}
 
 		detected := w.getLibrariesLanguageDetection(pod)
-		if len(detected) > 0 {
-			return detected, true
+		if detected.enabled && len(detected.libs) > 0 {
+			return extractedPodLibInfo{
+				libs:              detected.libs,
+				languageDetection: &detected,
+				source:            libInfoSourceSingleStepLangaugeDetection,
+			}
 		}
 
-		return w.getAllLatestLibraries(), false
+		return extractedPodLibInfo{
+			libs:              w.getAllLatestLibraries(),
+			languageDetection: &detected,
+			source:            libInfoSourceSingleStepInstrumentation,
+		}
 	}
 
 	// Get libraries to inject for Remote Instrumentation
@@ -370,10 +447,16 @@ func (w *Webhook) extractLibInfo(pod *corev1.Pod) ([]libInfo, bool) {
 		if version != "latest" {
 			log.Warnf("Ignoring version %q. To inject all libs, the only supported version is latest for now", version)
 		}
-		return w.getAllLatestLibraries(), false
+
+		return extractedPodLibInfo{
+			libs:   w.getAllLatestLibraries(),
+			source: libInfoSourceLibInjection,
+		}
 	}
 
-	return nil, false
+	return extractedPodLibInfo{
+		source: libInfoSourceNone,
+	}
 }
 
 // getAutoDetectedLibraries constructs the libraries to be injected if the languages
@@ -434,7 +517,7 @@ func (w *Webhook) initContainerMutators() []containerMutator {
 	}
 }
 
-func (w *Webhook) newInjector(startTime time.Time, pod *corev1.Pod) *injector {
+func (w *Webhook) newInjector(startTime time.Time, pod *corev1.Pod) podMutator {
 	var opts []injectorOption
 	for _, e := range []annotationExtractor[injectorOption]{
 		injectorVersionAnnotationExtractor,
@@ -450,25 +533,35 @@ func (w *Webhook) newInjector(startTime time.Time, pod *corev1.Pod) *injector {
 		opts = append(opts, opt)
 	}
 
-	return newInjector(startTime, w.containerRegistry, w.injectorImageTag, opts...)
+	return newInjector(startTime, w.containerRegistry, w.injectorImageTag, opts...).
+		podMutator(w.version)
 }
 
-func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo, autoDetected bool, injectionType string) error {
-	if len(libsToInject) == 0 {
+func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, config extractedPodLibInfo) error {
+	if len(config.libs) == 0 {
 		return nil
 	}
-
-	// inject the env for the pod.
-	_ = mutatecommon.InjectEnv(pod, localLibraryInstrumentationInstallTypeEnvVar)
 
 	var (
 		lastError             error
 		configInjector        = &libConfigInjector{}
 		initContainerMutators = w.initContainerMutators()
-		apmInjector           = w.newInjector(time.Now(), pod)
+		injector              = w.newInjector(time.Now(), pod)
+
+		injectionType = config.source.injectionType()
+		autoDetected  = config.source.autodetected()
+
+		detectedLangsMutator = config.languageDetection.podMutator(w.version)
 	)
 
-	for _, lib := range libsToInject {
+	// Inject env variables used for Onboarding KPIs propagation...
+	// if Single Step Instrumentation is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_single_step
+	// if local library injection is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_lib_injection
+	if err := config.source.mutatePod(pod); err != nil {
+		return err
+	}
+
+	for _, lib := range config.libs {
 		injected := false
 		langStr := string(lib.lang)
 		defer func() {
@@ -477,7 +570,8 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo
 
 		if err := lib.podMutator(w.version, initContainerMutators, []podMutator{
 			configInjector.podMutator(lib.lang),
-			apmInjector.podMutator(w.version),
+			injector,
+			detectedLangsMutator,
 		}).mutatePod(pod); err != nil {
 			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
 			lastError = err
