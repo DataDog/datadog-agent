@@ -8,37 +8,31 @@ package telemetry
 import (
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestCheck(t *testing.T) {
-	telemetryMock := fxutil.Test[telemetryComponent.Mock](t, telemetryimpl.MockModule())
-	telemetryMock.Reset()
+	reg := prometheus.NewRegistry()
 
 	func() {
-		gauge := telemetryMock.NewGaugeWithOpts("test", "gauge", []string{"foo"}, "", telemetryComponent.Options{
-			DefaultMetric: true,
-		})
+		gauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{Subsystem: "test", Name: "_gauge"}, []string{"foo"})
+		gauge.WithLabelValues("bar").Set(1.0)
+		gauge.WithLabelValues("baz").Set(2.0)
+		reg.MustRegister(gauge)
 
-		gauge.WithTags(map[string]string{"foo": "bar"}).Set(1.0)
-		gauge.WithTags(map[string]string{"foo": "baz"}).Set(2.0)
-
-		count := telemetryMock.NewCounterWithOpts("test", "counter", []string{}, "", telemetryComponent.Options{
-			DefaultMetric: true,
-		})
+		count := prometheus.NewCounter(prometheus.CounterOpts{Subsystem: "test", Name: "_counter"})
 		count.Add(4.0)
+		reg.MustRegister(count)
 	}()
 
 	sm := mocksender.CreateDefaultDemultiplexer()
 
-	c := &checkImpl{CheckBase: corechecks.NewCheckBase(CheckName), telemetry: telemetryMock}
+	c := &checkImpl{CheckBase: corechecks.NewCheckBase(CheckName)}
 	c.Configure(sm, integration.FakeConfigHash, nil, nil, "test")
 
 	s := mocksender.NewMockSenderWithSenderManager(c.ID(), sm)
@@ -47,7 +41,7 @@ func TestCheck(t *testing.T) {
 	s.On("MonotonicCountWithFlushFirstValue", "datadog.agent.test.counter", 4.0, "", []string{}, true).Return().Times(1)
 	s.On("Commit").Return().Times(1)
 
-	mfs, err := telemetryMock.Gather(true)
+	mfs, err := reg.Gather()
 	require.Nil(t, err)
 
 	c.handleMetricFamilies(mfs, s)
