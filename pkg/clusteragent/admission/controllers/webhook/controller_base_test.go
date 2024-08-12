@@ -24,7 +24,7 @@ import (
 
 func TestNewController(t *testing.T) {
 	client := fake.NewSimpleClientset()
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	factory := informers.NewSharedInformerFactory(client, time.Duration(0))
 
 	// V1
