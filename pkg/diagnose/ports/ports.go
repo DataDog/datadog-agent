@@ -87,7 +87,7 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 			diagnoses = append(diagnoses, diagnosis.Diagnosis{
 				Name:      key,
 				Result:    diagnosis.DiagnosisFail,
-				Diagnosis: fmt.Sprintf("Required port %d is already used by an another process.", value),
+				Diagnosis: fmt.Sprintf("Required port %d is already used by an another process (PID=%d).", value, port.Pid),
 			})
 			continue
 		}
