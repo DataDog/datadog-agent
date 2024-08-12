@@ -1,4 +1,5 @@
-import os.path as ospath
+import os
+import shutil
 import platform
 import sys
 import zipfile
@@ -53,6 +54,28 @@ def install_tools(ctx: Context, max_retry: int = 3):
                 with ctx.cd(path):
                     for tool in tools:
                         run_command_with_retry(ctx, f"go install {tool}", max_retry=max_retry)
+        install_custom_golanci_lint(ctx)
+
+
+def install_custom_golanci_lint(ctx):
+    res = ctx.run("golangci-lint custom -v")
+    if res.ok:
+        gopath = os.getenv('GOPATH')
+        gobin = os.getenv('GOBIN')
+
+        if gopath is None and gobin is None:
+            print("Not able to install custom golangci-lint binary. golangci-lint won't work as expected")
+            raise Exit(code=1)
+
+        if gobin is not None and gopath is None:
+            shutil.move(f"{gobin}/golangci-lint", f"{gobin}/golangci-lint-backup")
+            shutil.move("golangci-lint", f"{gobin}/golangci-lint")
+
+        if gopath is not None:
+            shutil.move(f"{gopath}/bin/golangci-lint", f"{gopath}/bin/golangci-lint-backup")
+            shutil.move("golangci-lint", f"{gopath}/bin/golangci-lint")
+
+        print("Installed custom golangci-lint binary successfully")
 
 
 @task
@@ -102,14 +125,14 @@ def install_protoc(ctx, version="26.1"):
     artifact_url = f"https://github.com/protocolbuffers/protobuf/releases/download/v{version}/protoc-{version}-{platform_os}-{platform_arch}.zip"
     zip_path = "/tmp"
     zip_name = "protoc"
-    zip_file = ospath.join(zip_path, f"{zip_name}.zip")
+    zip_file = os.path.join(zip_path, f"{zip_name}.zip")
 
     gh = GithubAPI(public_repo=True)
     # the download_from_url expect to have the path and the name of the file separated and without the extension
     gh.download_from_url(artifact_url, zip_path, zip_name)
 
     # Unzip it in the target destination
-    destination = ospath.join(Path.home(), ".local")
+    destination = os.path.join(Path.home(), ".local")
     with zipfile.ZipFile(zip_file, "r") as zip_ref:
         zip_ref.extract('bin/protoc', path=destination)
     ctx.run(f"chmod +x {destination}/bin/protoc")

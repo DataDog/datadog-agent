@@ -76,6 +76,7 @@ linters:
     - bodyclose                 # checks whether HTTP response body is closed successfully
     - gosimple                  # Linter for Go source code that specializes in simplifying code.
     - gocheckcompilerdirectives # Checks Go compiler directives syntax
+    - pkgconfigusage            # Linter for checking usage of pkgconfig inside components folder
 
 linters-settings:
   depguard:
@@ -156,3 +157,7 @@ linters-settings:
       - name: var-naming
       # non-default rules:
       - name: duplicated-imports
+  custom:
+    pkgconfigusage:
+      type: "module"
+      description: "Check usage of pkgconfig in components folder"
