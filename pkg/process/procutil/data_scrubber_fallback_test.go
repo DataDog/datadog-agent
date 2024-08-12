@@ -20,32 +20,32 @@ func TestStripArguments(t *testing.T) {
 		expected string
 	}{
 		{
-			name: "With OS parse",
+			name:     "OS parse",
 			cmdline:  []string{"agent", "-password", "1234"},
 			expected: "agent",
 		},
 		{
-			name: "Without OS parse",
+			name:     "No OS parse",
 			cmdline:  []string{"python ~/test/run.py -open_password=admin -consul_token 2345 -blocked_from_yamt=1234 &"},
 			expected: "python",
 		},
 		{
-			name: "Main case with whitespace",
+			name:     "No OS parse + whitespace",
 			cmdline:  []string{"java   -password      1234"},
 			expected: "java",
 		},
 		{
-			name: "Optional dash args",
+			name:     "Optional dash args",
 			cmdline:  []string{"agent password:1234"},
 			expected: "agent",
 		},
 		{
-			name: "Single dash args",
+			name:     "Single dash args",
 			cmdline:  []string{"agent -password:1234"},
 			expected: "agent",
 		},
 		{
-			name: "Double dash args",
+			name:     "Double dash args",
 			cmdline:  []string{"agent --password:1234"},
 			expected: "agent",
 		},
@@ -54,8 +54,8 @@ func TestStripArguments(t *testing.T) {
 		scrubber.StripAllArguments = true
 
 		t.Run(tc.name, func(t *testing.T) {
-			cmdline := scrubber.stripArguments(tc.cmdline)
-			assert.Equal(t, cmdline[0], tc.expected)
+			actual := scrubber.stripArguments(tc.cmdline)
+			assert.Equal(t, actual[0], tc.expected)
 		})
 	}
 }
