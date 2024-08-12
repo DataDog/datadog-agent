@@ -214,10 +214,6 @@ package :xz do
   compression_level COMPRESSION_LEVEL
 end
 
-pre_upgrade do
-  command "echo 'Starting the pre-upgrade process...'"
-end
-
 # ------------------------------------
 # Dependencies
 # ------------------------------------
