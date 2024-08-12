@@ -44,6 +44,7 @@ from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+from tasks.libs.common.git import get_current_branch
 from tasks.libs.common.utils import get_build_flags
 from tasks.libs.pipeline.tools import loop_status
 from tasks.libs.releasing.version import VERSION_RE, check_version
@@ -1565,12 +1566,25 @@ def validate_platform_info(ctx: Context):
 
 
 @task
-def explain_ci_failure(_, pipeline: str):
+def explain_ci_failure(ctx: Context, pipeline: str | None = None):
     """Show a summary of KMT failures in the given pipeline."""
     if tabulate is None:
         raise Exit("tabulate module is not installed, please install it to continue")
 
-    info(f"[+] retrieving all CI jobs for pipeline {pipeline}")
+    gitlab = get_gitlab_repo()
+
+    if pipeline is None:
+        branch = get_current_branch(ctx)
+        info(f"[+] searching for the latest pipeline for this branch ({branch})")
+        pipelines = cast(list[Any], gitlab.pipelines.list(ref=branch, per_page=1))
+        if len(pipelines) != 1:
+            raise Exit(f"[!] Could not find a pipeline for branch {branch}")
+        pipeline = cast(str, pipelines[0].id)
+
+    pipeline_data = gitlab.pipelines.get(pipeline)
+    info(
+        f"[+] retrieving all CI jobs for pipeline {pipeline} ({pipeline_data.web_url}), {pipeline_data.status}, created {pipeline_data.created_at} last updated {pipeline_data.updated_at}"
+    )
     setup_jobs, test_jobs = get_all_jobs_for_pipeline(pipeline)
 
     failed_setup_jobs = [j for j in setup_jobs if j.status == "failed"]
