@@ -1082,7 +1082,7 @@ func (p *EBPFProbe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eva
 }
 
 // ApplyFilterPolicy is called when a passing policy for an event type is applied
-func (p *EBPFProbe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.PolicyMode, flags kfilters.PolicyFlag) error {
+func (p *EBPFProbe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.PolicyMode) error {
 	seclog.Infof("Setting in-kernel filter policy to `%s` for `%s`", mode, eventType)
 	table, err := managerhelper.Map(p.Manager, "filter_policy")
 	if err != nil {
@@ -1094,10 +1094,7 @@ func (p *EBPFProbe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.Po
 		return errors.New("unable to parse the eval event type")
 	}
 
-	policy := &kfilters.FilterPolicy{
-		Mode:  mode,
-		Flags: flags,
-	}
+	policy := &kfilters.FilterPolicy{Mode: mode}
 
 	return table.Put(ebpf.Uint32MapItem(et), policy)
 }
@@ -1531,7 +1528,7 @@ func (p *EBPFProbe) applyDefaultFilterPolicies() {
 			mode = kfilters.PolicyModeDeny
 		}
 
-		if err := p.ApplyFilterPolicy(eventType.String(), mode, math.MaxUint8); err != nil {
+		if err := p.ApplyFilterPolicy(eventType.String(), mode); err != nil {
 			seclog.Debugf("unable to apply to filter policy `%s` for `%s`", eventType, mode)
 		}
 	}
@@ -1562,7 +1559,7 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 	}
 
 	for eventType, report := range ars.Policies {
-		if err := p.ApplyFilterPolicy(eventType, report.Mode, report.Flags); err != nil {
+		if err := p.ApplyFilterPolicy(eventType, report.Mode); err != nil {
 			return nil, err
 		}
 		if err := p.SetApprovers(eventType, report.Approvers); err != nil {

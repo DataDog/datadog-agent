@@ -7,7 +7,6 @@
 
 struct policy_t {
     char mode;
-    char flags;
 };
 
 // Approvers
