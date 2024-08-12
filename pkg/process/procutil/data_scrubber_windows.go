@@ -32,9 +32,9 @@ var winDotExec = []string{".com", ".exe", ".bat", ".cmd", ".vbs", ".vbe", ".js",
 func (ds *DataScrubber) stripArguments(cmdline []string) []string {
 	strCmdline := cmdline[0]
 
-	// Case 1: OS has already completed splitting as there is one token per element.
+	// Case 1: OS has already completed splitting as there is one token per element, we return first token.
 	if len(cmdline) > 1 {
-		return cmdline
+		return []string{strCmdline}
 	}
 
 	// Case 2: One string for cmdline, use extensionParser() to find first token.
