@@ -70,7 +70,7 @@ notify_github:
       changes:
         paths:
           - '**/*.go'
-        compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+        compare_to: 7.57.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
       when: on_success
     - when: never
   needs:
@@ -102,7 +102,7 @@ notify_gitlab_ci_changes:
         paths:
           - .gitlab-ci.yml
           - .gitlab/**/*.yml
-        compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+        compare_to: 7.57.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   before_script:
     # Get main history
     - git fetch origin main
