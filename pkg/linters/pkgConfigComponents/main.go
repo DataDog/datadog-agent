@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+// Package pkgconfigusage provides a linter for ensuring pkg/config is not used inside comp folder
+package pkgconfigusage
 
 import (
 	"fmt"
@@ -20,10 +21,12 @@ func init() {
 type pkgconfigUsagePlugin struct {
 }
 
-func New(settings any) (register.LinterPlugin, error) {
+// New returns a new config linter plugin
+func New(any) (register.LinterPlugin, error) {
 	return &pkgconfigUsagePlugin{}, nil
 }
 
+// BuildAnalyzers returns the analyzers for the plugin
 func (f *pkgconfigUsagePlugin) BuildAnalyzers() ([]*analysis.Analyzer, error) {
 	return []*analysis.Analyzer{
 		{
@@ -34,13 +37,13 @@ func (f *pkgconfigUsagePlugin) BuildAnalyzers() ([]*analysis.Analyzer, error) {
 	}, nil
 }
 
+// GetLoadMode returns the load mode for the plugin
 func (f *pkgconfigUsagePlugin) GetLoadMode() string {
 	return register.LoadModeSyntax
 }
 
 func (f *pkgconfigUsagePlugin) run(pass *analysis.Pass) (interface{}, error) {
 	for _, file := range pass.Files {
-		// pos := pass.Fset.Position(file.Pos())
 
 		if file.Imports == nil {
 			continue
