@@ -324,7 +324,7 @@ func execWithRetry(exec func(string) (string, error), cmd string) (string, error
 		if err == nil {
 			break
 		}
-		fmt.Printf("(attempt %d of %d) error while executing %q: %v\n", try+1, maxTries, cmd, err)
+		fmt.Printf("(attempt %d of %d) error while executing command in host: %v\n", try+1, maxTries, err)
 		time.Sleep(time.Duration(math.Pow(2, float64(try))) * time.Second)
 	}
 
