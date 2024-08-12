@@ -182,4 +182,11 @@ else
     echo "No datadog.yaml file detected, not starting the agent"
 fi
 
+create_dependencies_file()
+{
+    echo "Creating dependencies file"
+}
+
+create_dependencies_file
+
 exit 0
