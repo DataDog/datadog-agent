@@ -624,6 +624,29 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
         rj = _load_release_json()
         rj["current_milestone"] = f"{next}"
         _save_release_json(rj)
+        # Commit release.json
+        ctx.run("git add release.json")
+        ok = try_git_command(ctx, f"git commit -m 'Update release.json with current milestone to {next}'")
+
+        if not ok:
+            raise Exit(
+                color_message(
+                    f"Could not create commit. Please commit manually and push the commit to the {milestone_branch} branch.",
+                    "red",
+                ),
+                code=1,
+            )
+
+        res = ctx.run(f"git push --set-upstream {upstream} {milestone_branch}", warn=True)
+        if res.exited is None or res.exited > 0:
+            raise Exit(
+                color_message(
+                    f"Could not push branch {milestone_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {release_branch}.",
+                    "red",
+                ),
+                code=1,
+            )
+
         create_release_pr(
             f"[release] Update current milestone to {next}",
             "main",

@@ -19,9 +19,10 @@ type (
 )
 
 var (
-	timeType       = reflect.TypeOf(time.Time{})
-	portSliceType  = reflect.TypeOf([]ContainerPort{})
-	mergerInstance = merger{}
+	timeType            = reflect.TypeOf(time.Time{})
+	portSliceType       = reflect.TypeOf([]ContainerPort{})
+	containerHealthType = reflect.TypeOf(ContainerHealthUnknown)
+	mergerInstance      = merger{}
 )
 
 func (merger) Transformer(typ reflect.Type) func(dst, src reflect.Value) error {
@@ -30,6 +31,24 @@ func (merger) Transformer(typ reflect.Type) func(dst, src reflect.Value) error {
 		return timeMerge
 	case portSliceType:
 		return portSliceMerge
+	// Even though Health is string alias, the matching only matches actual Health
+	case containerHealthType:
+		return healthMerge
+	}
+
+	return nil
+}
+
+func healthMerge(dst, src reflect.Value) error {
+	if !dst.CanSet() {
+		return nil
+	}
+
+	srcHealth := src.Interface().(ContainerHealth)
+	dstHealth := dst.Interface().(ContainerHealth)
+
+	if srcHealth != "" && srcHealth != ContainerHealthUnknown && (dstHealth == "" || dstHealth == ContainerHealthUnknown) {
+		dst.Set(src)
 	}
 
 	return nil
