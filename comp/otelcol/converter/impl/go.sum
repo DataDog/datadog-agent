@@ -21,8 +21,6 @@ github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2/go.mod h1:wP83
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/Code-Hex/go-generics-cache v1.3.1 h1:i8rLwyhoyhaerr7JpjtYjJZUcCbWOdiYO3fZXLiEC4g=
 github.com/Code-Hex/go-generics-cache v1.3.1/go.mod h1:qxcC9kRVrct9rHeiYpFWSoW1vxyillCVzX13KZG8dl4=
-github.com/DataDog/datadog-agent/comp/otelcol/configstore/def v0.56.0-rc.3 h1:ZBv2Wc+4TzY6tvrAN/vy4UzDsVaE7IJ3iuavqN15EhY=
-github.com/DataDog/datadog-agent/comp/otelcol/configstore/def v0.56.0-rc.3/go.mod h1:VdqDpLvx5JKfQgdteVTMYrQrdFUCTVgFMrIowr6h6V0=
 github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl v0.56.0-rc.3 h1:+b2GvmoH0QUrpYLoofrPyA12Qc4F0JQ/woTu/d2V16Y=
 github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl v0.56.0-rc.3/go.mod h1:VK2+s06vYhzNu3Jgo0ecoLEGMYtZM2dB7NC4bskowt4=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.24.0 h1:N4xzkSD2BkRwEZSPf3C2eUZxjS5trpo4gOwRh8mu+BA=
