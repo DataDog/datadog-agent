@@ -12,7 +12,7 @@ import (
 
 var (
 	// Type is the OpenTelemetry type for the extenstion
-	Type = component.MustNewType("datadog")
+	Type = component.MustNewType("ddflareextension")
 )
 
 const (

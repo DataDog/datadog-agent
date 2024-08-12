@@ -50,8 +50,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl => ./comp/otelcol/configstore/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def => ./comp/otelcol/converter/def
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl => ./comp/otelcol/converter/impl
-	github.com/DataDog/datadog-agent/comp/otelcol/extension/def => ./comp/otelcol/extension/def
-	github.com/DataDog/datadog-agent/comp/otelcol/extension/impl => ./comp/otelcol/extension/impl
+	github.com/DataDog/datadog-agent/comp/otelcol/extension/def => ./comp/otelcol/ddflareextension/def/
+	github.com/DataDog/datadog-agent/comp/otelcol/extension/impl => ./comp/otelcol/ddflareextension/impl/
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ./comp/otelcol/logsagentpipeline
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl => ./comp/otelcol/logsagentpipeline/logsagentpipelineimpl
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter => ./comp/otelcol/otlp/components/exporter/datadogexporter
