@@ -289,6 +289,8 @@ func (e *ebpfConntracker) getAndDelete(src *netebpf.ConntrackTuple) *netebpf.Con
 	start := time.Now()
 	dst := lookupEntry(src, e.ctMap.LookupAndDelete)
 	if dst != nil {
+		// delete the reply side
+		e.delete(dst)
 		conntrackerTelemetry.unregistersTotal.Inc()
 	}
 
