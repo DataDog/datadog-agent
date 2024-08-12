@@ -7,8 +7,8 @@
 package extensionfx
 
 import (
-	extension "github.com/DataDog/datadog-agent/comp/otelcol/extension/def"
-	extensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/extension/impl"
+	extension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
+	extensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

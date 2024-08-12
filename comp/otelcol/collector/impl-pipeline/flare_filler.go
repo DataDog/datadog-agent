@@ -20,7 +20,7 @@ import (
 	"time"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	extension "github.com/DataDog/datadog-agent/comp/otelcol/extension/def"
+	extension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gocolly/colly/v2"
 )

@@ -6,13 +6,14 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../../collector-contrib/def/
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl => ../../collector-contrib/impl/
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def => ../def
-	github.com/DataDog/datadog-agent/comp/otelcol/extension/impl => ../../extension/impl/
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def => ../../ddflareextension/def/
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl => ../../ddflareextension/impl/
 
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/otelcol/extension/impl v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.0.0-00010101000000-000000000000
 	github.com/stretchr/testify v1.9.0
 	go.opentelemetry.io/collector/confmap v0.104.0
 	go.opentelemetry.io/collector/confmap/converter/expandconverter v0.104.0
@@ -27,7 +28,7 @@ require (
 require (
 	cloud.google.com/go/compute/metadata v0.3.0 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/comp/otelcol/extension/def v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.56.0-rc.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

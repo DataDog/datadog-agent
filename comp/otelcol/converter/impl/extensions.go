@@ -7,7 +7,7 @@
 package converterimpl
 
 import (
-	ddextension "github.com/DataDog/datadog-agent/comp/otelcol/extension/impl"
+	ddextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl"
 	"go.opentelemetry.io/collector/confmap"
 )
 

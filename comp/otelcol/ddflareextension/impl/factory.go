@@ -11,7 +11,7 @@ import (
 	"fmt"
 
 	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/def"
-	"github.com/DataDog/datadog-agent/comp/otelcol/extension/impl/internal/metadata"
+	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/extension"

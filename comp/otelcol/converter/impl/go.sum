@@ -25,8 +25,6 @@ github.com/DataDog/datadog-agent/comp/otelcol/configstore/def v0.56.0-rc.3 h1:ZB
 github.com/DataDog/datadog-agent/comp/otelcol/configstore/def v0.56.0-rc.3/go.mod h1:VdqDpLvx5JKfQgdteVTMYrQrdFUCTVgFMrIowr6h6V0=
 github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl v0.56.0-rc.3 h1:+b2GvmoH0QUrpYLoofrPyA12Qc4F0JQ/woTu/d2V16Y=
 github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl v0.56.0-rc.3/go.mod h1:VK2+s06vYhzNu3Jgo0ecoLEGMYtZM2dB7NC4bskowt4=
-github.com/DataDog/datadog-agent/comp/otelcol/extension/def v0.56.0-rc.3 h1:Jb6fr4yJ/FmWBENr0xLCFeO8vcVxA0ywrU8XfAObMaw=
-github.com/DataDog/datadog-agent/comp/otelcol/extension/def v0.56.0-rc.3/go.mod h1:4Y/9C1wjOUvUCKDFupdmklyITp2PQLs7EqKweM/JnCs=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.24.0 h1:N4xzkSD2BkRwEZSPf3C2eUZxjS5trpo4gOwRh8mu+BA=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.24.0/go.mod h1:p2puVVSKjQ84Qb1gzw2XHLs34WQyHTYFZLaVxypAFYs=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=

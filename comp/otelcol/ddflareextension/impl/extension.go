@@ -17,8 +17,8 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.uber.org/zap"
 
-	extensionDef "github.com/DataDog/datadog-agent/comp/otelcol/extension/def"
-	"github.com/DataDog/datadog-agent/comp/otelcol/extension/impl/internal/metadata"
+	extensionDef "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
+	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
 )
 
 // Type exports the internal metadata type for easy reference

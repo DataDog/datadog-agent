@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl"
-	"github.com/DataDog/datadog-agent/comp/otelcol/extension/impl/internal/metadata"
+	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/extension"
