@@ -469,6 +469,102 @@ issues:
     - path: comp/dogstatsd/listeners/ratelimit/cgroup_memory_usage_linux.g
       linters:
         - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/cloudfoundry_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/consul_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/endpointschecks_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/etcd_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/kube_endpoints_file_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/kube_endpoints_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/kube_services_file_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/kube_services_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/prometheus_pods_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/prometheus_services_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/zookeeper_nop.go	
+      linters:
+        - pkgconfigusage
+    - path: comp/otelcol/otlp/no_otlp.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/cloudfoundry_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/consul_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/etcd_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/kube_endpoints_file_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/kube_endpoints_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/kube_services_file_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/kube_services_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/prometheus_services_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/zookeeper_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/cloudfoundry_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/endpointschecks_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/kube_endpoints_file_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/kube_endpoints_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/kube_services_file_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/kube_services_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/prometheus_pods_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/core/autodiscovery/providers/prometheus_services_nop.go
+      linters:
+        - pkgconfigusage
+    - path: comp/systray/systray/systrayimpl/doflare.go
+      linters:
+        - pkgconfigusage
+    - path: comp/dogstatsd/listeners/named_pipe_windows.go
+      linters:
+        - pkgconfigusage
+    - path: comp/dogstatsd/packets/packet_manager_windows.go
+      linters:
+        - pkgconfigusage
 linters:
   disable-all: true
   enable:
