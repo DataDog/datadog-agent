@@ -95,7 +95,7 @@ elseif ($maj -eq "3") {
 
     try {
         $installedPythonVersion = python --version
-        $installedPythonVersion = [regex]::match($installedPythonVersion,'Python (\d.\d.\d)').Groups[1].Value
+        $installedPythonVersion = [regex]::match($installedPythonVersion,'Python (\d+.\d+.\d+)').Groups[1].Value
         $installedMaj, $installedMin, $installedPatch = $installedPythonVersion.Split(".")
 
         Write-Host -ForegroundColor Green "Detected installed Python $installedMaj $installedMin $installedPatch"
