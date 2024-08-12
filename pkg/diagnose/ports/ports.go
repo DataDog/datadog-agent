@@ -19,7 +19,7 @@ import (
 var agentNames = map[string]struct{}{
 	"datadog-agent": {}, "agent": {}, "trace-agent": {},
 	"process-agent": {}, "system-probe": {}, "security-agent": {},
-	"dogstatsd": {}, "agent.exe": {},
+	"dogstatsd": {}, "agent.exe": {}, "process-agent.exe": {}, "trace-agent.exe": {},
 }
 
 // DiagnosePortSuite displays information about the ports used in the agent configuration
