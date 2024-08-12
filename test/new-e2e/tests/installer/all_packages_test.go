@@ -212,7 +212,8 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		// /home/ubuntu/.local/bin/ansible-galaxy collection install datadog.dd
 		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-galaxy collection install datadog.dd", ansiblePrefix))
 		// Write the playbook
-		playbookPath := s.writeAnsiblePlaybook(params...)
+		env := InstallScriptEnv(s.arch)
+		playbookPath := s.writeAnsiblePlaybook(env, params...)
 
 		// Run the playbook
 		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-playbook %s", ansiblePrefix, playbookPath))
@@ -290,7 +291,7 @@ func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
 	return pathPrefix
 }
 
-func (s *packageBaseSuite) writeAnsiblePlaybook(params ...string) string {
+func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ...string) string {
 	playbookPath := "/tmp/datadog-agent-playbook.yml"
 	playbookStringPrefix := `
 - hosts: localhost
@@ -305,8 +306,14 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(params ...string) string {
     datadog_api_key: "abcdef"
     datadog_site: "datadoghq.com"
 `
+	mergedParams := make([]string, len(params))
+	copy(mergedParams, params)
+	for k, v := range env {
+		mergedParams = append(mergedParams, fmt.Sprintf("%s=%s", k, v))
+	}
+
 	environments := []string{}
-	for _, param := range params {
+	for _, param := range mergedParams {
 		key, value := strings.Split(param, "=")[0], strings.Split(param, "=")[1]
 		switch key {
 		case "DD_REMOTE_UPDATES":
@@ -315,6 +322,8 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(params ...string) string {
 			playbookStringSuffix += fmt.Sprintf("    datadog_apm_instrumentation_enabled: \"%s\"\n", value)
 		case "DD_APM_INSTRUMENTATION_LIBRARIES":
 			playbookStringSuffix += fmt.Sprintf("    datadog_apm_instrumentation_libraries: [%s]\n", value)
+		case "DD_INSTALLER":
+			playbookStringSuffix += fmt.Sprintf("    datadog_installer_enabled: %s\n", value)
 		default:
 			environments = append(environments, fmt.Sprintf("%s: %s ", key, value))
 		}
