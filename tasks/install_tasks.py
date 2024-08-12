@@ -10,7 +10,7 @@ from invoke import Context, Exit, task
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.retry import run_command_with_retry
-from tasks.libs.common.utils import environ, gitlab_section
+from tasks.libs.common.utils import bin_name, environ, gitlab_section
 
 TOOL_LIST = [
     'github.com/frapposelli/wwhrd',
@@ -64,17 +64,22 @@ def install_custom_golanci_lint(ctx):
         gopath = os.getenv('GOPATH')
         gobin = os.getenv('GOBIN')
 
+        golintci_binary = bin_name('golangci-lint')
+        golintci_lint_backup_binary = bin_name('golangci-lint-backup')
+
         if gopath is None and gobin is None:
             print("Not able to install custom golangci-lint binary. golangci-lint won't work as expected")
             raise Exit(code=1)
 
         if gobin is not None and gopath is None:
-            shutil.move(f"{gobin}/golangci-lint", f"{gobin}/golangci-lint-backup")
-            shutil.move("golangci-lint", f"{gobin}/golangci-lint")
+            shutil.move(Path(f"{gobin}") / golintci_binary, Path(f"{gobin}") / golintci_lint_backup_binary)
+            shutil.move(golintci_binary, Path(f"{gobin}") / golintci_binary)
 
         if gopath is not None:
-            shutil.move(f"{gopath}/bin/golangci-lint", f"{gopath}/bin/golangci-lint-backup")
-            shutil.move("golangci-lint", f"{gopath}/bin/golangci-lint")
+            shutil.move(
+                Path(f"{gopath}") / "bin" / golintci_binary, Path(f"{gopath}") / "bin" / golintci_lint_backup_binary
+            )
+            shutil.move(golintci_binary, Path(f"{gopath}") / "bin" / golintci_binary)
 
         print("Installed custom golangci-lint binary successfully")
 
