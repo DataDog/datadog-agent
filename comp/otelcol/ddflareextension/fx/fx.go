@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package extensionfx provides fx access for the provider component
+// Package ddflareextensionfx provides fx access for the provider component
 package ddflareextensionfx
 
 import (
