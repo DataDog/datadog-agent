@@ -161,8 +161,12 @@ remove_apm_remote_config()
 create_new_dependencies_file()
 {
     echo "Creating new dependencies file"
-    find $INSTALL_DIR -depth -path "$INSTALL_DIR/embedded/lib/python3.*/site-packages/datadog_*" -iname "__about__.py" | xargs --no-run-if-empty -I '{}' sh -c 'dir_name=$(basename $(dirname "{}") | tr "_" "-");version=$(grep "^__version__ = " "{}" | sed -E "s/^__version__ = [\"\x27]([^\"\x27]+)[\"\x27]/\1/");echo "datadog-$dir_name==$version"' > $INSTALL_DIR/new_datadog_requirements.txt
-    chown -R dd-agent:dd-agent ${INSTALL_DIR}/new_agent_requirements.txt
+    find "$INSTALL_DIR" -depth -path "$INSTALL_DIR/embedded/lib/python3.*/site-packages/datadog_*" -iname "__about__.py" | xargs --no-run-if-empty -I '{}' sh -c '
+        dir_name=$(basename "$(dirname "{}")" | tr "_" "-")
+        version=$(grep "^__version__ = " "{}" | sed -E "s/^__version__ = [\"\x27]([^\"\x27]+)[\"\x27]/\1/")
+        echo "datadog-$dir_name==$version"
+    ' > "$INSTALL_DIR/new_datadog_requirements.txt"
+    chown -R dd-agent:dd-agent ${INSTALL_DIR}/new_datadog_requirements.txt
 }
 
 stop_agent
