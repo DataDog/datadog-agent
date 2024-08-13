@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import tempfile
+import time
 from collections import defaultdict
 from datetime import date
 from time import sleep
@@ -619,7 +620,7 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
 
     with ctx.cd(f"{base_directory}/{UNFREEZE_REPO_AGENT}"):
         # Step 2.0 - Create milestone update
-        milestone_branch = "release_milestone"
+        milestone_branch = f"release_milestone-{int(time.time())}"
         ctx.run(f"git switch -c {milestone_branch}")
         rj = _load_release_json()
         rj["current_milestone"] = f"{next}"
