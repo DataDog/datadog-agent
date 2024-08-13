@@ -9,6 +9,7 @@ package gpu
 
 import (
 	"fmt"
+	"time"
 
 	"gopkg.in/yaml.v2"
 
@@ -107,7 +108,7 @@ func (m *Check) Run() error {
 				EventType:      "gpu-kernel",
 				Title:          fmt.Sprintf("GPU Kernel launch %d", span.AvgThreadCount),
 				Text:           fmt.Sprintf("Start at %d, end %d", span.Start, span.End),
-				// Ts:             int64(span.Start / uint64(time.Second)),
+				Ts:             int64(span.Start / uint64(time.Second)),
 			}
 			fmt.Printf("spanev: %v\n", event)
 			sender.Event(event)
@@ -121,7 +122,7 @@ func (m *Check) Run() error {
 				EventType:      "gpu-memory",
 				Title:          fmt.Sprintf("GPU mem alloc size %d", span.Size),
 				Text:           fmt.Sprintf("Start at %d, end %d", span.Start, span.End),
-				// Ts:             int64(span.Start / uint64(time.Second)),
+				Ts:             int64(span.Start / uint64(time.Second)),
 			}
 			fmt.Printf("memev: %v\n", event)
 			sender.Event(event)
