@@ -91,7 +91,7 @@ func envsToMap(envs ...string) map[string]string {
 func getEnvs(proc *process.Process) (map[string]string, error) {
 	envs, err := proc.Environ()
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 
 	envs = append(envs, getInjectedEnvs(proc)...)
