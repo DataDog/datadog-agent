@@ -98,6 +98,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	// APM & OTel trace configs
 	pkgconfig.Set("apm_config.enabled", true, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("apm_config.apm_non_local_traffic", true, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("apm_config.debug.port", 5012+1, pkgconfigmodel.SourceLocalConfigProcess) // 5012 is for trace-agent
 	pkgconfig.Set("otlp_config.traces.span_name_as_resource_name", ddc.Traces.SpanNameAsResourceName, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("otlp_config.traces.span_name_remappings", ddc.Traces.SpanNameRemappings, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("apm_config.receiver_enabled", false, pkgconfigmodel.SourceLocalConfigProcess) // disable HTTP receiver
