@@ -91,7 +91,7 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, telemetryComp
 		EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
 	}
 
-	attachCfg := &uprobes.AttacherConfig{
+	attachCfg := uprobes.AttacherConfig{
 		Rules: []*uprobes.AttachRule{
 			{
 				LibraryNameRegex: regexp.MustCompile("libcudart\\.so"),
