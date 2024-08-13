@@ -113,95 +113,80 @@ func TestFindEmbeddedQuotes(t *testing.T) {
 
 func TestExtensionParser(t *testing.T) {
 	for _, tc := range []struct {
-		name          string
-		cmdline       string
-		expected      string
-		expectedFound bool
+		name     string
+		cmdline  string
+		expected string
 	}{
 		{
-			name:          "Extension not found",
-			cmdline:       "python ~/test/run.py --password=1234 -password 1234 -open_password=admin -consul_token 2345 -blocked_from_yaml=1234 & ",
-			expected:      "python ~/test/run.py --password=1234 -password 1234 -open_password=admin -consul_token 2345 -blocked_from_yaml=1234 & ",
-			expectedFound: false,
+			name:     "Extension not found",
+			cmdline:  "python ~/test/run.py --password=1234 -password 1234 -open_password=admin -consul_token 2345 -blocked_from_yaml=1234 & ",
+			expected: "",
 		},
 		{
-			name:          "Extension at end of line",
-			cmdline:       "C:\\Program Files\\Datadog\\agent.com",
-			expected:      "C:\\Program Files\\Datadog\\agent.com",
-			expectedFound: true,
+			name:     "Extension at end of line",
+			cmdline:  "C:\\Program Files\\Datadog\\agent.com",
+			expected: "C:\\Program Files\\Datadog\\agent.com",
 		},
 		{
-			name:          "Extension in first token",
-			cmdline:       "C:\\Program Files\\Datadog\\agent.cmd check process",
-			expected:      "C:\\Program Files\\Datadog\\agent.cmd",
-			expectedFound: true,
+			name:     "Extension in first token",
+			cmdline:  "C:\\Program Files\\Datadog\\agent.cmd check process",
+			expected: "C:\\Program Files\\Datadog\\agent.cmd",
 		},
 		{
-			name:          "Multiple extensions",
-			cmdline:       "C:\\Program Files\\Datadog\\agent.exec.process.cmd check process",
-			expected:      "C:\\Program Files\\Datadog\\agent.exec.process.cmd",
-			expectedFound: true,
+			name:     "Multiple extensions",
+			cmdline:  "C:\\Program Files\\Datadog\\agent.exec.process.cmd check process",
+			expected: "C:\\Program Files\\Datadog\\agent.exec.process.cmd",
 		},
 		{
-			name:          "Misformed extension",
-			cmdline:       "C:\\Program File\\Datexedog\\agent.exe check process",
-			expected:      "C:\\Program File\\Datexedog\\agent.exe",
-			expectedFound: true,
+			name:     "Misformed extension",
+			cmdline:  "C:\\Program File\\Datexedog\\agent.exe check process",
+			expected: "C:\\Program File\\Datexedog\\agent.exe",
 		},
 		{
-			name:          "vbs extension",
-			cmdline:       "C:\\Program Files\\agent.vbs check process",
-			expected:      "C:\\Program Files\\agent.vbs",
-			expectedFound: true,
+			name:     "vbs extension",
+			cmdline:  "C:\\Program Files\\agent.vbs check process",
+			expected: "C:\\Program Files\\agent.vbs",
 		},
 		{
-			name:          "jse extension",
-			cmdline:       "C:\\Program Files\\Datadog\\agent.jse check process",
-			expected:      "C:\\Program Files\\Datadog\\agent.jse",
-			expectedFound: true,
+			name:     "jse extension",
+			cmdline:  "C:\\Program Files\\Datadog\\agent.jse check process",
+			expected: "C:\\Program Files\\Datadog\\agent.jse",
 		},
 		{
-			name:          "wsf extension",
-			cmdline:       "C:\\Program Files\\Datadog\\agent.wsf check process",
-			expected:      "C:\\Program Files\\Datadog\\agent.wsf",
-			expectedFound: true,
+			name:     "wsf extension",
+			cmdline:  "C:\\Program Files\\Datadog\\agent.wsf check process",
+			expected: "C:\\Program Files\\Datadog\\agent.wsf",
 		},
 		{
-			name:          "wsh extension",
-			cmdline:       "C:\\Program Files\\Datadog\\agent.wsh check process",
-			expected:      "C:\\Program Files\\Datadog\\agent.wsh",
-			expectedFound: true,
+			name:     "wsh extension",
+			cmdline:  "C:\\Program Files\\Datadog\\agent.wsh check process",
+			expected: "C:\\Program Files\\Datadog\\agent.wsh",
 		},
 		{
-			name:          "psc1 extension",
-			cmdline:       "C:\\Program Files\\Datadog\\agent.psc1 check process",
-			expected:      "C:\\Program Files\\Datadog\\agent.psc1",
-			expectedFound: true,
+			name:     "psc1 extension",
+			cmdline:  "C:\\Program Files\\Datadog\\agent.psc1 check process",
+			expected: "C:\\Program Files\\Datadog\\agent.psc1",
 		},
 		{
-			name:          "bat extension",
-			cmdline:       "C:\\Program Files\\Datadog\\agent.bat check process",
-			expected:      "C:\\Program Files\\Datadog\\agent.bat",
-			expectedFound: true,
+			name:     "bat extension",
+			cmdline:  "C:\\Program Files\\Datadog\\agent.bat check process",
+			expected: "C:\\Program Files\\Datadog\\agent.bat",
 		},
 		{
-			name:          "js extension",
-			cmdline:       "C:\\Program Files\\Datadog\\agent.js check process",
-			expected:      "C:\\Program Files\\Datadog\\agent.js",
-			expectedFound: true,
+			name:     "js extension",
+			cmdline:  "C:\\Program Files\\Datadog\\agent.js check process",
+			expected: "C:\\Program Files\\Datadog\\agent.js",
 		},
 		{
-			name:          "com extension",
-			cmdline:       "C:\\Program Files\\Datadog\\agent.com check process",
-			expected:      "C:\\Program Files\\Datadog\\agent.com",
-			expectedFound: true,
+			name:     "com extension",
+			cmdline:  "C:\\Program Files\\Datadog\\agent.com check process",
+			expected: "C:\\Program Files\\Datadog\\agent.com",
 		},
 	} {
 
 		t.Run(tc.name, func(t *testing.T) {
-			actual, actualFound := extensionParser(tc.cmdline, winDotExec)
+			actual := extensionParser(tc.cmdline, executibleExtensions)
 			assert.Equal(t, tc.expected, actual)
-			assert.Equal(t, tc.expectedFound, actualFound)
 		})
 	}
 }

@@ -22,11 +22,12 @@ var (
 	forbiddenSymbolsRegex = "[^a-zA-Z0-9_*]"
 )
 
+// stripArguments removes all arguments given a command line.
 func (ds *DataScrubber) stripArguments(cmdline []string) []string {
 	// We will sometimes see the entire command line come in via the first element -- splitting guarantees removal
 	// of arguments in these cases.
 	if len(cmdline) > 0 {
-		return []string{strings.Split(cmdline[0], " ")[0]}
+		return []string{strings.SplitN(cmdline[0], " ", 2)[0]}
 	}
 	return cmdline
 }
