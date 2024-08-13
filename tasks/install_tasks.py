@@ -95,7 +95,7 @@ def install_protoc(ctx, version="26.1"):
     platform_arch = platform.machine().lower()
     if platform_arch == "amd64":
         platform_arch = "x86_64"
-    elif platform_arch == "aarch64":
+    elif platform_arch in {"aarch64", "arm64"}:
         platform_arch = "aarch_64"
 
     # Download the artifact thanks to the Github API class

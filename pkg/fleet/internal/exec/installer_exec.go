@@ -180,3 +180,18 @@ func (i *InstallerExec) States() (map[string]repository.State, error) {
 	log.Debugf("repositories states: %v", states)
 	return states, err
 }
+
+func (iCmd *installerCmd) Run() error {
+	var errBuf bytes.Buffer
+	iCmd.Stderr = &errBuf
+	err := iCmd.Cmd.Run()
+	if err == nil {
+		return nil
+	}
+
+	if len(errBuf.Bytes()) == 0 {
+		return fmt.Errorf("run failed: %s", err.Error())
+	}
+
+	return fmt.Errorf("run failed: %s \n%s", strings.TrimSpace(errBuf.String()), err.Error())
+}

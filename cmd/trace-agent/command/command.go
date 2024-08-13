@@ -62,6 +62,7 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 
 	traceAgentCmd.PersistentFlags().StringVarP(&globalParams.ConfPath, "config", "c", defaultConfigPath, "path to directory containing datadog.yaml")
 	traceAgentCmd.PersistentFlags().StringVarP(&globalParams.FleetPoliciesDirPath, "fleetcfgpath", "", "", "path to the directory containing fleet policies")
+	_ = traceAgentCmd.PersistentFlags().MarkHidden("fleetcfgpath")
 
 	return &traceAgentCmd
 }

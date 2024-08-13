@@ -45,10 +45,10 @@ type Conntracker interface {
 	Describe(descs chan<- *prometheus.Desc)
 	// Collect returns the current state of all metrics of the collector
 	Collect(metrics chan<- prometheus.Metric)
-	GetTranslationForConn(network.ConnectionStats) *network.IPTranslation
+	GetTranslationForConn(*network.ConnectionStats) *network.IPTranslation
 	// GetType returns a string describing whether the conntracker is "ebpf" or "netlink"
 	GetType() string
-	DeleteTranslation(network.ConnectionStats)
+	DeleteTranslation(*network.ConnectionStats)
 	DumpCachedTable(context.Context) (map[uint32][]DebugConntrackEntry, error)
 	Close()
 }
@@ -166,7 +166,7 @@ func (ctr *realConntracker) GetType() string {
 	return "netlink"
 }
 
-func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {
+func (ctr *realConntracker) GetTranslationForConn(c *network.ConnectionStats) *network.IPTranslation {
 	then := time.Now()
 	defer func() {
 		conntrackerTelemetry.getsDuration.Observe(float64(time.Since(then).Nanoseconds()))
@@ -202,7 +202,7 @@ func (ctr *realConntracker) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(conntrackerTelemetry.orphanSize, prometheus.CounterValue, float64(ctr.cache.orphans.Len()))
 }
 
-func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
+func (ctr *realConntracker) DeleteTranslation(c *network.ConnectionStats) {
 	then := time.Now()
 
 	ctr.Lock()
