@@ -392,6 +392,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// Discovery config
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "enabled"), false)
 
+	// Fleet policies
+	cfg.BindEnv("fleet_policies_dir")
+
 	initCWSSystemProbeConfig(cfg)
 }
 
