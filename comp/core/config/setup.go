@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path"
 	"runtime"
 	"strings"
@@ -78,8 +77,8 @@ func setupConfig(config pkgconfigmodel.Config, deps configDependencies) (*pkgcon
 	}
 
 	// Load the remote configuration
-	if p.FleetPoliciesDirPath == "" && os.Getenv("DD_FLEETCFGPATH") != "" {
-		p.FleetPoliciesDirPath = os.Getenv("DD_FLEETCFGPATH")
+	if p.FleetPoliciesDirPath == "" {
+		p.FleetPoliciesDirPath = config.GetString("fleet_policies_dir")
 	}
 	if p.FleetPoliciesDirPath != "" {
 		// Main config file

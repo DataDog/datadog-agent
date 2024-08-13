@@ -83,8 +83,8 @@ func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.C
 	}
 
 	// Load the remote configuration
-	if fleetPoliciesDirPath == "" && os.Getenv("DD_FLEETCFGPATH") != "" {
-		fleetPoliciesDirPath = os.Getenv("DD_FLEETCFGPATH")
+	if fleetPoliciesDirPath == "" {
+		fleetPoliciesDirPath = aconfig.SystemProbe().GetString("fleet_policies_dir")
 	}
 	if fleetPoliciesDirPath != "" {
 		err := aconfig.SystemProbe().MergeFleetPolicy(path.Join(fleetPoliciesDirPath, "system-probe.yaml"))

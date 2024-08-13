@@ -12,7 +12,7 @@ Type=oneshot
 PIDFile=/opt/datadog-packages/datadog-agent/experiment/run/agent.pid
 User=dd-agent
 EnvironmentFile=-/etc/datadog-agent/environment
-Environment="DD_FLEETCFGPATH=/etc/datadog-packages/datadog-agent/stable"
+Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-packages/datadog-agent/stable"
 ExecStart=/opt/datadog-packages/datadog-agent/experiment/bin/agent/agent run -p /opt/datadog-packages/datadog-agent/experiment/run/agent.pid
 ExecStart=/bin/false
 ExecStop=/bin/false
