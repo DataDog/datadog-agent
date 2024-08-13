@@ -376,3 +376,21 @@ func tokensToString(tokens []Token) string {
 	}
 	return str
 }
+
+// isMatch compares two sets of tokens and returns true if they match.
+// if the token strings are different lengths, the shortest string is used for comparison.
+func isMatch(setA []Token, setB []Token, thresh float64) bool {
+	count := len(setA)
+	if len(setB) < count {
+		count = len(setB)
+	}
+
+	match := 0
+	for i := 0; i < count; i++ {
+		if setA[i] == setB[i] {
+			match++
+		}
+	}
+
+	return float64(match)/float64(count) >= thresh
+}

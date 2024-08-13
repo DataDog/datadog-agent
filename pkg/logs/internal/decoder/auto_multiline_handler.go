@@ -8,6 +8,7 @@ package decoder
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	automultilinedetection "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
@@ -25,6 +26,7 @@ func NewAutoMultilineHandler(outputFn func(m *message.Message), maxContentSize i
 	heuristics := []automultilinedetection.Heuristic{
 		automultilinedetection.NewJSONDetector(),
 		automultilinedetection.NewTokenizer(40), // TODO: (brian) this will be configruable in a future change.
+		automultilinedetection.NewUserSamples(config.Datadog()),
 	}
 
 	return &AutoMultilineHandler{
