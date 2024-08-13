@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/di/diagnostics"
@@ -61,9 +62,6 @@ func setupRingbufferAndHeaders() error {
 		"-O2",
 		"-g",
 		"--target=bpf",
-		fmt.Sprintf("-I%s", globalHeadersPath),
-		"-o",
-		objFilePath,
 	}
 
 	// Read ringbuffer source file
@@ -80,7 +78,7 @@ func setupRingbufferAndHeaders() error {
 	}
 
 	// Compile ringbuffer source file
-	err = clang(cFlags, ringbufferSourcePath, withStdout(os.Stdout))
+	err = compiler.CompileToObjectFile(ringbufferSourcePath, objFilePath, cFlags, []string{globalHeadersPath})
 	if err != nil {
 		return fmt.Errorf("could not compile ringbuffer object: %w", err)
 	}
