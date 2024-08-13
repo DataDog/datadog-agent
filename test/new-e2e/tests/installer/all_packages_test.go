@@ -210,7 +210,8 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		ansiblePrefix := s.installAnsible(s.os)
 
 		// /home/ubuntu/.local/bin/ansible-galaxy collection install datadog.dd
-		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-galaxy collection install datadog.dd", ansiblePrefix))
+		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd", ansiblePrefix))
+
 		// Write the playbook
 		env := InstallScriptEnv(s.arch)
 		playbookPath := s.writeAnsiblePlaybook(env, params...)
@@ -324,6 +325,10 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
 			playbookStringSuffix += fmt.Sprintf("    datadog_apm_instrumentation_libraries: [%s]\n", value)
 		case "DD_INSTALLER":
 			playbookStringSuffix += fmt.Sprintf("    datadog_installer_enabled: %s\n", value)
+		case "DD_INSTALLER_REGISTRY_AUTH_INSTALLER_PACKAGE":
+			playbookStringSuffix += fmt.Sprintf("    datadog_installer_auth: %s\n", value)
+		case "DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE":
+			playbookStringSuffix += fmt.Sprintf("    datadog_installer_registry: %s\n", value)
 		default:
 			environments = append(environments, fmt.Sprintf("%s: %s ", key, value))
 		}
