@@ -184,29 +184,24 @@ fi
 
 install_dependencies()
 {
-    # if [ -e "$INSTALL_DIR/agent_requirements.txt" ] && [ -e "$INSTALL_DIR/new_agent_requirements.txt" ]; then
-    #     echo "Installing dependencies"
-    #     comm -13 $INSTALL_DIR/agent_requirements.txt $INSTALL_DIR/new_agent_requirements.txt > $INSTALL_DIR/installed_agent_requirements.txt
-    #     chown -R dd-agent:dd-agent ${INSTALL_DIR}/installed_agent_requirements.txt
-    #     sed -i "s|${INSTALL_DIR}/embedded/|${INSTALL_DIR}/embedded.bak/|g" ${INSTALL_DIR}/installed_agent_requirements.txt
-    #     $INSTALL_DIR/embedded/bin/pip install -r ${INSTALL_DIR}/installed_agent_requirements.txt
-    # else
-    #     # One or both files do not exist
-    #     echo "$INSTALL_DIR/agent_requirements.txt or $INSTALL_DIR/new_agent_requirements.txt do not exist. Not installing dependencies"
-    # fi
+    if [ -e "$INSTALL_DIR/.installed_datadog_requirements.txt" ]; then
+        echo "Installing integrations"
+        while IFS= read -r line
+            datadog-agent integration install -t "$line"
+        done < $INSTALL_DIR/.installed_datadog_requirements.txt
+    else
+        # One or both files do not exist
+        echo "$INSTALL_DIR/.installed_datadog_requirements.txt does not exist. Not installing datadog integrations"
+    fi
 }
 
 create_dependencies_file()
 {
     echo "Creating dependencies file"
-    find "$INSTALL_DIR" -depth -path "$INSTALL_DIR/embedded/lib/python3.*/site-packages/datadog_*" -iname "__about__.py" | xargs --no-run-if-empty -I '{}' sh -c '
-        dir_name=$(basename "$(dirname "{}")" | tr "_" "-")
-        version=$(grep "^__version__ = " "{}" | sed -E "s/^__version__ = [\"\x27]([^\"\x27]+)[\"\x27]/\1/")
-        echo "datadog-$dir_name==$version"
-    ' > "$INSTALL_DIR/datadog_requirements.txt"
-
-    # $INSTALL_DIR/embedded/bin/pip freeze | sort  > $INSTALL_DIR/agent_requirements.txt
-    chown -R dd-agent:dd-agent ${INSTALL_DIR}/datadog_requirements.txt
+    datadog-agent integration freeze > ${INSTALL_DIR}/.datadog_requirements.txt
+    ${INSTALL_DIR}/embedded/bin/pip freeze | grep -v '^datadog-' > ${INSTALL_DIR}/.python_requirements.txt
+    chown -R dd-agent:dd-agent ${INSTALL_DIR}/.datadog_requirements.txt
+    chown -R dd-agent:dd-agent ${INSTALL_DIR}/.python_requirements.txt
 }
 
 install_dependencies
