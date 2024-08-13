@@ -20,7 +20,7 @@ type UserSample struct {
 	// MatchThreshold is the ratio of tokens that must match between the sample and the log message to consider it a match.
 	// From a user perspective, this is how similar the log has to be to the sample to be considered a match.
 	// Optional - Default value is 0.75.
-	MatchThreshold *float64 `mapstructure:"match_threshold"`
+	MatchThreshold *float64 `mapstructure:"match_threshold,omitempty"`
 	// Label is the label to apply to the log message if it matches the sample.
 	// Optional - Default value is "start_group".
 	Label *string `mapstructure:"label,omitempty"`
@@ -51,6 +51,10 @@ func NewUserSamples(config config.Reader) *UserSamples {
 
 	parsedSamples := make([]*UserSample, 0, len(s))
 	for _, sample := range s {
+		if sample.Sample == "" {
+			log.Warn("Sample was empty, skipping sample")
+			continue
+		}
 		sample.tokens = tokenizer.tokenize([]byte(sample.Sample))
 		if sample.MatchThreshold != nil {
 			if *sample.MatchThreshold <= 0 || *sample.MatchThreshold > 1 {

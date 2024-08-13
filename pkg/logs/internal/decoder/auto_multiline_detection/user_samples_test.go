@@ -92,10 +92,15 @@ logs_config:
       match_threshold: -9241
     - sample: "invalid2"
       match_threshold: 2
+    - sample:
+    - sample: ""
+    - match_threshold: 0.1
+    - label: no_aggregate
 `
 	mockConfig := pkgconfigsetup.ConfFromYAML(datadogYaml)
 
 	samples := NewUserSamples(mockConfig)
+	assert.Equal(t, 2, len(samples.samples))
 	assert.Equal(t, defaultMatchThreshold, samples.samples[0].matchThreshold)
 	assert.Equal(t, 0.1234, samples.samples[1].matchThreshold)
 }
