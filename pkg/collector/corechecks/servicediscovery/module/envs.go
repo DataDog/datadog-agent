@@ -27,7 +27,9 @@ const (
 	memFdMaxSize = 4096
 )
 
-// readEnvsFile reads the env file created by the auto injector.
+// readEnvsFile reads the env file created by the auto injector. The file
+// contains the variables in a format similar to /proc/$PID/environ: ENV=VAL,
+// separated by \000.
 func readEnvsFile(path string) ([]string, error) {
 	reader, err := os.Open(path)
 	if err != nil {
@@ -44,7 +46,19 @@ func readEnvsFile(path string) ([]string, error) {
 }
 
 // getInjectedEnvs gets environment variables injected by the auto injector, if
-// present.
+// present. The auto injector creates a memfd file with a specific name into which
+// it writes the environment variables. In order to find the correct file, we
+// need to iterate the list of files (named after file descriptor numbers) in
+// /proc/$PID/fd and get the name from the target of the symbolic link.
+//
+// ```
+// $ ls -l /proc/1750097/fd/
+// total 0
+// lrwx------ 1 foo foo 64 Aug 13 14:24 0 -> /dev/pts/6
+// lrwx------ 1 foo foo 64 Aug 13 14:24 1 -> /dev/pts/6
+// lrwx------ 1 foo foo 64 Aug 13 14:24 2 -> /dev/pts/6
+// lrwx------ 1 foo foo 64 Aug 13 14:24 3 -> '/memfd:dd_environ (deleted)'
+// ```
 func getInjectedEnvs(proc *process.Process) []string {
 	fdsPath := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "fd")
 	entries, err := os.ReadDir(fdsPath)
