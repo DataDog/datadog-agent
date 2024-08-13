@@ -36,7 +36,10 @@ int BPF_UPROBE(uprobe__cudaLaunchKernel, const void *func, __u64 grid_xy, __u64 
     shared_mem = PT_REGS_PARM7(ctx);
     stream_ptr = (__u64 *)PT_REGS_PARM8(ctx);
 
-    if (bpf_probe_read_user(&stream, sizeof(__u64), stream_ptr)) {
+    if (!stream_ptr) {
+        // Stream is optional, if pointer is NULL assume stream 0
+        stream = 0;
+    } else if (bpf_probe_read_user(&stream, sizeof(__u64), stream_ptr)) {
         log_debug("cudaLaunchKernel: failed to read stream pointer 0x%llx", (__u64)stream_ptr);
         return 0;
     }
@@ -51,6 +54,8 @@ int BPF_UPROBE(uprobe__cudaLaunchKernel, const void *func, __u64 grid_xy, __u64 
     launch_data.header.type = cuda_kernel_launch;
     launch_data.kernel_addr = (uint64_t)func;
     launch_data.shared_mem_size = shared_mem;
+
+    log_debug("cudaLaunchKernel: EMIT pid_tgid=%llu, ts=%llu", launch_data.header.pid_tgid, launch_data.header.ktime_ns);
 
     bpf_ringbuf_output(&cuda_events, &launch_data, sizeof(launch_data), 0);
 
@@ -96,7 +101,7 @@ int BPF_URETPROBE(uretprobe__cudaMalloc) {
         return 0;
     }
 
-    log_debug("cudaMalloc[ret]: EMIT pid_tgid=%llu, size=%llu, addr=0x%llx", mem_data.header.pid_tgid, mem_data.size, (__u64)mem_data.addr);
+    log_debug("cudaMalloc[ret]: EMIT size=%llu, addr=0x%llx, ts=%llu", mem_data.size, (__u64)mem_data.addr, mem_data.header.ktime_ns);
 
     bpf_ringbuf_output(&cuda_events, &mem_data, sizeof(mem_data), 0);
 
@@ -128,7 +133,10 @@ int BPF_UPROBE(uprobe__cudaStreamSynchronize, size_t *stream_ptr) {
     cuda_sync_t event;
     size_t stream;
 
-    if (bpf_probe_read_user(&stream, sizeof(size_t), stream_ptr)) {
+    if (!stream_ptr) {
+        // Stream is optional, if pointer is NULL assume stream 0
+        stream = 0;
+    } else if (bpf_probe_read_user(&stream, sizeof(size_t), stream_ptr)) {
         log_debug("cudaStreamSynchronize: failed to read stream pointer 0x%llx", (__u64)stream_ptr);
         stream = 0;
     }
