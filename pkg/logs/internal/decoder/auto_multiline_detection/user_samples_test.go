@@ -122,12 +122,12 @@ logs_config:
 		shouldStop    bool
 		input         string
 	}{
-		{aggregate, false, ""},
-		{aggregate, false, "some random log line"},
-		{aggregate, false, "2023-03-28T14:33:53.743350Z App started successfully"},
-		{startGroup, true, "!!![$my custom prefix%] some other log line"},
-		{startGroup, true, "!!![$my slight variation%] some other log line"},
-		{aggregate, false, "!!![$Not_close_enough%] some other log line"},
+		{aggregate, true, ""},
+		{aggregate, true, "some random log line"},
+		{aggregate, true, "2023-03-28T14:33:53.743350Z App started successfully"},
+		{startGroup, false, "!!![$my custom prefix%] some other log line"},
+		{startGroup, false, "!!![$my slight variation%] some other log line"},
+		{aggregate, true, "!!![$Not_close_enough%] some other log line"},
 	}
 
 	for _, test := range tests {
@@ -161,12 +161,12 @@ logs_config:
 		shouldStop    bool
 		input         string
 	}{
-		{aggregate, false, ""},
-		{aggregate, false, "some random log line"},
-		{aggregate, false, "2023-03-28T14:33:53.743350Z App started successfully"},
-		{noAggregate, true, "!!![$my custom prefix%] some other log line"},
-		{noAggregate, true, "!!![$my slight variation%] some other log line"},
-		{noAggregate, true, "!!![$Not_close_enough%] some other log line"}, // Now this case works with a lower match threshold
+		{aggregate, true, ""},
+		{aggregate, true, "some random log line"},
+		{aggregate, true, "2023-03-28T14:33:53.743350Z App started successfully"},
+		{noAggregate, false, "!!![$my custom prefix%] some other log line"},
+		{noAggregate, false, "!!![$my slight variation%] some other log line"},
+		{noAggregate, false, "!!![$Not_close_enough%] some other log line"}, // Now this case works with a lower match threshold
 	}
 
 	for _, test := range tests {
