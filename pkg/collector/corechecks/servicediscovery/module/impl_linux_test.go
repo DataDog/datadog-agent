@@ -451,7 +451,7 @@ func TestCache(t *testing.T) {
 
 	for i, cmd := range cmds {
 		pid := int32(cmd.Process.Pid)
-		require.Contains(t, discovery.cache[pid].serviceName, serviceNames[i])
+		require.Contains(t, discovery.cache[pid].name, serviceNames[i])
 	}
 
 	cancel()
