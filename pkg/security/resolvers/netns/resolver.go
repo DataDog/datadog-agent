@@ -210,7 +210,7 @@ func NewResolver(config *config.Config, manager *manager.Manager, statsdClient s
 		tcResolver: tcResolver,
 	}
 
-	lru, err := simplelru.NewLRU(1024, func(key uint32, value *NetworkNamespace) {
+	lru, err := simplelru.NewLRU(1024, func(_ uint32, value *NetworkNamespace) {
 		nr.flushNetworkNamespace(value)
 		tcResolver.FlushNetworkNamespaceID(value.nsID, manager)
 	})

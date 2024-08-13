@@ -36,7 +36,7 @@ type dummyFlowProcessor struct {
 	stopped          bool
 }
 
-func (d *dummyFlowProcessor) FlowRoutine(workers int, addr string, port int, reuseport bool) error { //nolint:revive // TODO fix revive unused-parameter
+func (d *dummyFlowProcessor) FlowRoutine(_ int, addr string, port int, _ bool) error {
 	return utils.UDPStoppableRoutine(make(chan struct{}), "test_udp", func(msg interface{}) error {
 		d.receivedMessages <- msg
 		return nil
@@ -73,7 +73,7 @@ var testOptions = fx.Options(
 		// Set the internal flush frequency to a small number so tests don't take forever
 		c.(*Server).FlowAgg.FlushFlowsToSendInterval = 1 * time.Second
 		lc.Append(fx.Hook{
-			OnStop: func(ctx context.Context) error {
+			OnStop: func(_ context.Context) error {
 				// Remove the flow processor to avoid a spurious race detection error
 				replaceWithDummyFlowProcessor(c.(*Server))
 				return nil

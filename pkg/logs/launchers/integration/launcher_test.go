@@ -8,6 +8,7 @@ package integration
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -142,6 +143,25 @@ func (suite *LauncherTestSuite) TestEnsureFileSize() {
 	info, err = os.Stat(filename)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), int64(0), info.Size())
+
+// TestIntegrationLogFilePath ensures the filepath for the logs files are correct
+func (suite *LauncherTestSuite) TestIntegrationLogFilePath() {
+	logSource := sources.NewLogSource("testLogsSource", &config.LogsConfig{
+		Type:    config.IntegrationType,
+		Name:    "test_name",
+		Service: "test_service",
+		Path:    suite.testPath,
+	})
+
+	actualDirectory, actualFilePath := suite.s.integrationLogFilePath(*logSource)
+
+	expectedDirectoryComponents := []string{suite.s.runPath, "integrations", logSource.Config.Service}
+	expectedDirectory := strings.Join(expectedDirectoryComponents, "/")
+
+	expectedFilePath := strings.Join([]string{expectedDirectory, logSource.Config.Name + ".log"}, "/")
+
+	assert.Equal(suite.T(), expectedDirectory, actualDirectory)
+	assert.Equal(suite.T(), expectedFilePath, actualFilePath)
 }
 
 func TestLauncherTestSuite(t *testing.T) {

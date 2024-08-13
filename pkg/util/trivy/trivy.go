@@ -105,7 +105,7 @@ func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Optio
 		SBOMSources:       []string{},
 		DisabledHandlers:  DefaultDisabledHandlers(),
 		WalkOption: artifact.WalkOption{
-			ErrorCallback: func(pathname string, err error) error {
+			ErrorCallback: func(_ string, err error) error {
 				if errors.Is(err, fs.ErrPermission) || errors.Is(err, os.ErrNotExist) {
 					return nil
 				}
@@ -117,7 +117,7 @@ func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Optio
 	if len(opts.Analyzers) == 1 && opts.Analyzers[0] == OSAnalyzers {
 		option.OnlyDirs = []string{
 			"/etc/*",
-			"/lib/apk/*",
+			"/lib/apk/db/*",
 			"/usr/lib/*",
 			"/usr/lib/sysimage/rpm/*",
 			"/var/lib/dpkg/**",

@@ -38,7 +38,7 @@ func GetStaticTags(staticTags uint64) (tags []string) {
 	return tags
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
+// IsTLSTag return if the tag is a TLS tag
 func IsTLSTag(staticTags uint64) bool {
 	return staticTags&(ConnTagGnuTLS|ConnTagOpenSSL|ConnTagGo|ConnTagJava|ConnTagTLS|ConnTagIstio|ConnTagNodeJS) > 0
 }

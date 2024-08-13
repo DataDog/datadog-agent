@@ -68,11 +68,11 @@ func newTrapForwarder(lc fx.Lifecycle, dep dependencies) (forwarder.Component, e
 	conf := dep.Config.Get()
 	if conf.Enabled {
 		lc.Append(fx.Hook{
-			OnStart: func(ctx context.Context) error {
+			OnStart: func(_ context.Context) error {
 				tf.Start()
 				return nil
 			},
-			OnStop: func(ctx context.Context) error {
+			OnStop: func(_ context.Context) error {
 				tf.Stop()
 				return nil
 			},

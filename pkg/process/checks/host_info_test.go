@@ -49,7 +49,7 @@ func TestGetHostnameFromGRPC(t *testing.T) {
 	).Return(&pb.HostnameReply{Hostname: "unit-test-hostname"}, nil)
 
 	t.Run("hostname returns from grpc", func(t *testing.T) {
-		hostname, err := getHostnameFromGRPC(ctx, func(ctx context.Context, address, cmdPort string, opts ...grpc.DialOption) (pb.AgentClient, error) {
+		hostname, err := getHostnameFromGRPC(ctx, func(_ context.Context, _, _ string, _ ...grpc.DialOption) (pb.AgentClient, error) {
 			return mockClient, nil
 		}, config.DefaultGRPCConnectionTimeoutSecs*time.Second)
 
@@ -59,7 +59,7 @@ func TestGetHostnameFromGRPC(t *testing.T) {
 
 	t.Run("grpc client is unavailable", func(t *testing.T) {
 		grpcErr := errors.New("no grpc client")
-		hostname, err := getHostnameFromGRPC(ctx, func(ctx context.Context, address, cmdPort string, opts ...grpc.DialOption) (pb.AgentClient, error) {
+		hostname, err := getHostnameFromGRPC(ctx, func(_ context.Context, _, _ string, _ ...grpc.DialOption) (pb.AgentClient, error) {
 			return nil, grpcErr
 		}, config.DefaultGRPCConnectionTimeoutSecs*time.Second)
 
@@ -114,7 +114,7 @@ func TestResolveHostname(t *testing.T) {
 		{
 			name:        "running in core agent so use standard hostname lookup",
 			agentFlavor: flavor.DefaultAgent,
-			coreAgentHostname: func(ctx context.Context) (string, error) {
+			coreAgentHostname: func(_ context.Context) (string, error) {
 				return "core-agent-hostname", nil
 			},
 			expectedHostname: "core-agent-hostname",
@@ -122,7 +122,7 @@ func TestResolveHostname(t *testing.T) {
 		{
 			name:        "running in iot agent so use standard hostname lookup",
 			agentFlavor: flavor.IotAgent,
-			coreAgentHostname: func(ctx context.Context) (string, error) {
+			coreAgentHostname: func(_ context.Context) (string, error) {
 				return "iot-agent-hostname", nil
 			},
 			expectedHostname: "iot-agent-hostname",

@@ -49,7 +49,7 @@ func TestDatadogExternalQuery(t *testing.T) {
 		},
 		{
 			"metrics with different granularities Datadog",
-			func(from, to int64, query string) ([]datadog.Series, error) {
+			func(int64, int64, string) ([]datadog.Series, error) {
 				return []datadog.Series{
 					{
 						// Note that points are ordered when we get them from Datadog.
@@ -110,7 +110,7 @@ func TestDatadogExternalQuery(t *testing.T) {
 		},
 		{
 			"retrieved multiple series for query",
-			func(from, to int64, query string) ([]datadog.Series, error) {
+			func(int64, int64, string) ([]datadog.Series, error) {
 				return []datadog.Series{
 					{
 						// Note that points are ordered when we get them from Datadog.
@@ -185,7 +185,7 @@ func TestDatadogExternalQuery(t *testing.T) {
 		},
 		{
 			"missing queryIndex",
-			func(from, to int64, query string) ([]datadog.Series, error) {
+			func(int64, int64, string) ([]datadog.Series, error) {
 				return []datadog.Series{
 					{
 						// Note that points are ordered when we get them from Datadog.

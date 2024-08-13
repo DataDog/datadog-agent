@@ -14,7 +14,7 @@ while ($retryCount -lt $maxRetries) {
     }
     if ($error -match "Unable to locate credentials") {
         # See 5th row in https://docs.google.com/spreadsheets/d/1JvdN0N-RdNEeOJKmW_ByjBsr726E3ZocCKU8QoYchAc
-        Write-Host "Credentials won't be retrieved, no need to retry"
+        Write-Error "Credentials won't be retrieved, no need to retry"
         exit 1
     }
 

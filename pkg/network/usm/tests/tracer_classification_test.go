@@ -173,7 +173,7 @@ func testHTTPProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost,
 
 				ctx.extras["server"] = srv
 			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
+			postTracerSetup: func(_ *testing.T, ctx testContext) {
 				client := nethttp.Client{
 					Transport: &nethttp.Transport{
 						DialContext: defaultDialer.DialContext,
@@ -184,7 +184,7 @@ func testHTTPProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost,
 				io.Copy(io.Discard, resp.Body)
 				resp.Body.Close()
 			},
-			teardown: func(t *testing.T, ctx testContext) {
+			teardown: func(_ *testing.T, ctx testContext) {
 				if srv, ok := ctx.extras["server"].(*nethttp.Server); ok {
 					timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 					defer cancel()
@@ -208,7 +208,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *tracer.Tracer, client
 		},
 	}
 
-	teardown := func(t *testing.T, ctx testContext) {
+	teardown := func(_ *testing.T, ctx testContext) {
 		if srv, ok := ctx.extras["server"].(*tracertestutil.TCPServer); ok {
 			srv.Shutdown()
 		}

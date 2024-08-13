@@ -26,8 +26,8 @@ type Macro struct {
 
 // MacroEvaluator - Evaluation part of a Macro
 type MacroEvaluator struct {
-	Value      interface{}
-	EventTypes []EventType
+	Value     interface{}
+	EventType EventType
 
 	fieldValues map[Field][]FieldValue
 	fields      []Field
@@ -117,14 +117,14 @@ func macroToEvaluator(macro *ast.Macro, model Model, opts *Opts, field Field) (*
 		return nil, err
 	}
 
-	events, err := eventTypesFromFields(model, state)
+	eventType, err := eventTypeFromFields(model, state)
 	if err != nil {
 		return nil, err
 	}
 
 	return &MacroEvaluator{
-		Value:      eval,
-		EventTypes: events,
+		Value:     eval,
+		EventType: eventType,
 
 		fieldValues: state.fieldValues,
 		fields:      KeysOfMap(state.fieldValues),
@@ -145,9 +145,9 @@ func (m *Macro) GenEvaluator(expression string, model Model) error {
 	return nil
 }
 
-// GetEventTypes - Returns a list of all the Event Type that the `Expression` handles
-func (m *Macro) GetEventTypes() []EventType {
-	return m.evaluator.EventTypes
+// GetEventType - Returns the Event Type that the `Expression` handles
+func (m *Macro) GetEventType() EventType {
+	return m.evaluator.EventType
 }
 
 // GetFields - Returns all the Field that the Macro handles included sub-Macro

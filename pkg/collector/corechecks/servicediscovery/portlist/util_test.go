@@ -116,7 +116,7 @@ func testDirWalkShallow(t *testing.T, portable bool) {
 	})
 
 	t.Run("err_not_exist", func(t *testing.T) {
-		err := dirWalkShallow(mem.S(filepath.Join(d, "not_exist")), func(name mem.RO, de os.DirEntry) error {
+		err := dirWalkShallow(mem.S(filepath.Join(d, "not_exist")), func(_ mem.RO, _ os.DirEntry) error {
 			return nil
 		})
 		if !os.IsNotExist(err) {
@@ -126,7 +126,7 @@ func testDirWalkShallow(t *testing.T, portable bool) {
 
 	t.Run("allocs", func(t *testing.T) {
 		allocs := int(testing.AllocsPerRun(1000, func() {
-			if err := dirWalkShallow(mem.S(d), func(name mem.RO, de os.DirEntry) error { return nil }); err != nil {
+			if err := dirWalkShallow(mem.S(d), func(_ mem.RO, _ os.DirEntry) error { return nil }); err != nil {
 				t.Fatal(err)
 			}
 		}))

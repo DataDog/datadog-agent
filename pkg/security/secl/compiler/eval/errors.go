@@ -7,11 +7,17 @@
 package eval
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 
 	"github.com/alecthomas/participle/lexer"
+)
+
+var (
+	// ErrMultipleEventTypes is returned when multiple event type were inferred from the expression
+	ErrMultipleEventTypes = errors.New("expression with multiple event types is not supported")
 )
 
 // ErrNonStaticPattern when pattern operator is used on a non static value

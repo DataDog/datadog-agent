@@ -31,22 +31,21 @@ type Event interface {
 	GetTags() []string
 }
 
-func eventTypesFromFields(model Model, state *State) ([]EventType, error) {
-	events := make(map[EventType]bool)
+func eventTypeFromFields(model Model, state *State) (EventType, error) {
+	var eventType EventType
+
 	for field := range state.fieldValues {
-		eventType, err := model.NewEvent().GetFieldEventType(field)
+		evt, err := model.NewEvent().GetFieldEventType(field)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 
-		if eventType != "" {
-			events[eventType] = true
+		if evt != "" {
+			if eventType != "" && eventType != evt {
+				return "", ErrMultipleEventTypes
+			}
+			eventType = evt
 		}
 	}
-
-	var uniq []string
-	for event := range events {
-		uniq = append(uniq, event)
-	}
-	return uniq, nil
+	return eventType, nil
 }

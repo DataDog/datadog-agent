@@ -447,7 +447,7 @@ func BenchmarkSerialize(b *testing.B) {
 		},
 	} {
 		b.Run(tt.name, func(b *testing.B) {
-			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ts := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 				io.Copy(io.Discard, r.Body)
 				r.Body.Close()
 			}))

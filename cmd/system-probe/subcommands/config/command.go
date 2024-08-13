@@ -40,7 +40,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		GlobalParams: globalParams,
 	}
 	oneShotRunE := func(callback interface{}) func(cmd *cobra.Command, args []string) error {
-		return func(cmd *cobra.Command, args []string) error {
+		return func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 			cliParams.GlobalParams = globalParams
 
@@ -48,7 +48,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath)),
+					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:            log.ForOneShot("SYS-PROBE", "off", true),
 				}),
 				// no need to provide sysprobe logger since ForOneShot ignores config values

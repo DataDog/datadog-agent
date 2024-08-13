@@ -21,7 +21,7 @@ func TestCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"configcheck", "-v"},
 		run,
-		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+		func(cliParams *cliParams, _ core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, true, cliParams.verbose)
 			require.Equal(t, true, secretParams.Enabled)
 		})

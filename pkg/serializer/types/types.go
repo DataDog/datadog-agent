@@ -22,6 +22,6 @@ func (stubMessageBody) Size() int      { return 0 }
 
 // ProcessPayloadEncoder is a dummy ProcessMessageBody to avoid importing
 // the process agent payload proto in case it's not needed (dogstastd)
-var ProcessPayloadEncoder = func(m ProcessMessageBody) ([]byte, error) {
+var ProcessPayloadEncoder = func(_ ProcessMessageBody) ([]byte, error) {
 	return []byte{}, nil
 }

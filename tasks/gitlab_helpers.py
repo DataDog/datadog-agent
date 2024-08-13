@@ -137,6 +137,17 @@ def print_job(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_
 
 
 @task
+def print_job_trace(_, job_id, repo='DataDog/datadog-agent'):
+    """
+    Print the trace (the log) of a Gitlab job
+    """
+    repo = get_gitlab_repo(repo)
+    trace = str(repo.jobs.get(job_id, lazy=True).trace(), 'utf-8')
+
+    print(trace)
+
+
+@task
 def print_ci(
     ctx,
     input_file: str = '.gitlab-ci.yml',

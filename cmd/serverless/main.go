@@ -400,7 +400,7 @@ func setupLogger() {
 	}
 
 	if logLevel := os.Getenv(logLevelEnvVar); len(logLevel) > 0 {
-		if err := config.ChangeLogLevel(logLevel); err != nil {
+		if err := configUtils.SetLogLevel(logLevel, config.Datadog(), model.SourceAgentRuntime); err != nil {
 			log.Errorf("While changing the loglevel: %s", err)
 		}
 	}

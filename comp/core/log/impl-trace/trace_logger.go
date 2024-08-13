@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package traceimpl provides a component that implements the log.Component for the trace-agent logger
-package traceimpl
+// Package logimpl provides a component that implements the log.Component for the trace-agent logger
+package logimpl
 
 import (
 	"context"
@@ -14,10 +14,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/config/logs"
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 // Requires declares the input types to the logger component constructor
@@ -39,8 +39,8 @@ func NewComponent(deps Requires) (Provides, error) {
 		return Provides{}, errors.New("must call one of core.BundleParams.ForOneShot or ForDaemon")
 	}
 
-	err := pkgconfiglogs.SetupLogger(
-		pkgconfiglogs.LoggerName(deps.Params.LoggerName()),
+	err := pkglogsetup.SetupLogger(
+		pkglogsetup.LoggerName(deps.Params.LoggerName()),
 		deps.Params.LogLevelFn(deps.Config),
 		deps.Params.LogFileFn(deps.Config),
 		deps.Params.LogSyslogURIFn(deps.Config),

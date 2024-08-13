@@ -371,9 +371,10 @@ func (s *upgradeScenarioSuite) startExperiment(pkg packageName, version string) 
 
 func (s *upgradeScenarioSuite) mustStartExperiment(pkg packageName, version string) string {
 	output, err := s.startExperiment(pkg, version)
-	require.NoError(s.T(), err, "Failed to start experiment: %s\ndatadog-installer journalctl:\n%s",
+	require.NoError(s.T(), err, "Failed to start experiment: %s\ndatadog-installer journalctl:\n%s\ndatadog-installer-exp journalctl:\n%s",
 		s.Env().RemoteHost.MustExecute("cat /tmp/start_experiment.log"),
 		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer --no-pager"),
+		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer-exp --no-pager"),
 	)
 	return output
 }
@@ -386,9 +387,10 @@ func (s *upgradeScenarioSuite) promoteExperiment(pkg packageName) (string, error
 
 func (s *upgradeScenarioSuite) mustPromoteExperiment(pkg packageName) string {
 	output, err := s.promoteExperiment(pkg)
-	require.NoError(s.T(), err, "Failed to promote experiment: %s\ndatadog-installer journalctl:\n%s",
+	require.NoError(s.T(), err, "Failed to promote experiment: %s\ndatadog-installer journalctl:\n%s\ndatadog-installer-exp journalctl:\n%s",
 		s.Env().RemoteHost.MustExecute("cat /tmp/promote_experiment.log"),
 		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer --no-pager"),
+		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer-exp --no-pager"),
 	)
 	return output
 }
@@ -401,9 +403,10 @@ func (s *upgradeScenarioSuite) stopExperiment(pkg packageName) (string, error) {
 
 func (s *upgradeScenarioSuite) mustStopExperiment(pkg packageName) string {
 	output, err := s.stopExperiment(pkg)
-	require.NoError(s.T(), err, "Failed to stop experiment: %s\ndatadog-installer journalctl:\n%s",
+	require.NoError(s.T(), err, "Failed to stop experiment: %s\ndatadog-installer journalctl:\n%s\ndatadog-installer-exp journalctl:\n%s",
 		s.Env().RemoteHost.MustExecute("cat /tmp/stop_experiment.log"),
 		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer --no-pager"),
+		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-installer-exp --no-pager"),
 	)
 	return output
 }

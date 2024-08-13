@@ -93,11 +93,13 @@ def release_manager(version, team):
 
     from atlassian import Confluence
 
+    # Disable the rc flag if any to get the release base name `x.y.z`
+    version.rc = False
     c = Confluence(url=CONFLUENCE_DOMAIN, username=username, password=password)
     page = c.get_page_by_title(SPACE_KEY, f"Agent {version}", expand="body.storage")
     account_ids = parse_table(page['body']['storage']['value'], missing=False, teams=[team])
     for id in account_ids:
-        user = c.get_user_by_account_id(id)
+        user = c.get_user_details_by_accountid(id)
         yield user['email']
 
 

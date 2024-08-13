@@ -9,11 +9,12 @@ package failure
 
 import (
 	"fmt"
-	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -25,22 +26,18 @@ import (
 )
 
 var (
-	allowListErrs = map[uint32]struct{}{
-		ebpf.TCPFailureConnReset:   {}, // Connection reset by peer
-		ebpf.TCPFailureConnTimeout: {}, // Connection timed out
-		ebpf.TCPFailureConnRefused: {}, // Connection refused
-	}
-
 	telemetryModuleName = "network_tracer__tcp_failure"
 	mapTTL              = 10 * time.Millisecond.Nanoseconds()
 )
 
 var failureTelemetry = struct {
-	failedConnOrphans telemetry.Counter
-	failedConnMatches telemetry.Counter
+	failedConnMatches  telemetry.Counter
+	failedConnOrphans  telemetry.Counter
+	failedConnsDropped telemetry.Counter
 }{
-	telemetry.NewCounter(telemetryModuleName, "orphans", []string{}, "Counter measuring the number of orphans after associating failed connections with a closed connection"),
 	telemetry.NewCounter(telemetryModuleName, "matches", []string{"type"}, "Counter measuring the number of successful matches of failed connections with closed connections"),
+	telemetry.NewCounter(telemetryModuleName, "orphans", []string{}, "Counter measuring the number of orphans after associating failed connections with a closed connection"),
+	telemetry.NewCounter(telemetryModuleName, "dropped", []string{}, "Counter measuring the number of dropped failed connections"),
 }
 
 // FailedConnStats is a wrapper to help document the purpose of the underlying map
@@ -61,17 +58,19 @@ type FailedConnMap map[ebpf.ConnTuple]*FailedConnStats
 
 // FailedConns is a struct to hold failed connections
 type FailedConns struct {
-	FailedConnMap map[ebpf.ConnTuple]*FailedConnStats
-	failureTuple  *ebpf.ConnTuple
-	mapCleaner    *ddebpf.MapCleaner[ebpf.ConnTuple, int64]
-	sync.RWMutex
+	FailedConnMap       map[ebpf.ConnTuple]*FailedConnStats
+	maxFailuresBuffered uint32
+	failureTuple        *ebpf.ConnTuple
+	mapCleaner          *ddebpf.MapCleaner[ebpf.ConnTuple, int64]
+	sync.Mutex
 }
 
 // NewFailedConns returns a new FailedConns struct
-func NewFailedConns(m *manager.Manager) *FailedConns {
+func NewFailedConns(m *manager.Manager, maxFailedConnsBuffered uint32) *FailedConns {
 	fc := &FailedConns{
-		FailedConnMap: make(map[ebpf.ConnTuple]*FailedConnStats),
-		failureTuple:  &ebpf.ConnTuple{},
+		FailedConnMap:       make(map[ebpf.ConnTuple]*FailedConnStats),
+		maxFailuresBuffered: maxFailedConnsBuffered,
+		failureTuple:        &ebpf.ConnTuple{},
 	}
 	fc.setupMapCleaner(m)
 	return fc
@@ -79,13 +78,18 @@ func NewFailedConns(m *manager.Manager) *FailedConns {
 
 // upsertConn adds or updates the failed connection in the failed connection map
 func (fc *FailedConns) upsertConn(failedConn *ebpf.FailedConn) {
-	if _, exists := allowListErrs[failedConn.Reason]; !exists {
+	if fc == nil {
 		return
 	}
-	connTuple := failedConn.Tup
 
 	fc.Lock()
 	defer fc.Unlock()
+
+	if len(fc.FailedConnMap) >= int(fc.maxFailuresBuffered) {
+		failureTelemetry.failedConnsDropped.Inc()
+		return
+	}
+	connTuple := failedConn.Tup
 
 	stats, ok := fc.FailedConnMap[connTuple]
 	if !ok {
@@ -101,25 +105,23 @@ func (fc *FailedConns) upsertConn(failedConn *ebpf.FailedConn) {
 
 // MatchFailedConn increments the failed connection counters for a given connection based on the failed connection map
 func (fc *FailedConns) MatchFailedConn(conn *network.ConnectionStats) {
-	if fc == nil {
+	if fc == nil || conn.Type != network.TCP {
 		return
 	}
-	if conn.Type != network.TCP {
-		return
-	}
-	util.ConnStatsToTuple(conn, fc.failureTuple)
 
-	fc.RLock()
-	defer fc.RUnlock()
+	fc.Lock()
+	defer fc.Unlock()
+
+	util.ConnStatsToTuple(conn, fc.failureTuple)
 
 	if failedConn, ok := fc.FailedConnMap[*fc.failureTuple]; ok {
 		// found matching failed connection
-		conn.TCPFailures = make(map[uint32]uint32)
+		conn.TCPFailures = failedConn.CountByErrCode
 
-		for errCode, count := range failedConn.CountByErrCode {
-			failureTelemetry.failedConnMatches.Add(1, strconv.Itoa(int(errCode)))
-			conn.TCPFailures[errCode] += count
+		for errCode := range failedConn.CountByErrCode {
+			failureTelemetry.failedConnMatches.Add(1, unix.ErrnoName(syscall.Errno(errCode)))
 		}
+		delete(fc.FailedConnMap, *fc.failureTuple)
 	}
 }
 
@@ -156,7 +158,7 @@ func (fc *FailedConns) setupMapCleaner(m *manager.Manager) {
 		return
 	}
 
-	mapCleaner.Clean(time.Second*1, nil, nil, func(now int64, _key ebpf.ConnTuple, val int64) bool {
+	mapCleaner.Clean(time.Second*1, nil, nil, func(now int64, _ ebpf.ConnTuple, val int64) bool {
 		return val > 0 && now-val > mapTTL
 	})
 

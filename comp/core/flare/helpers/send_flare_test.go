@@ -75,7 +75,7 @@ func TestFlareHasRightForm(t *testing.T) {
 		},
 		{
 			name: "service unavailable",
-			handlerFunc: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handlerFunc: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(503)
 				io.WriteString(w, "path not recognized by httptest server")
 			}),

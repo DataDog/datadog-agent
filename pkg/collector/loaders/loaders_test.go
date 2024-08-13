@@ -28,7 +28,7 @@ func (lo LoaderOne) Name() string {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (lo LoaderOne) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
+func (lo LoaderOne) Load(_ sender.SenderManager, _ integration.Config, _ integration.Data) (check.Check, error) {
 	var c check.Check
 	return c, nil
 }
@@ -40,7 +40,7 @@ func (lt LoaderTwo) Name() string {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (lt LoaderTwo) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
+func (lt LoaderTwo) Load(_ sender.SenderManager, _ integration.Config, _ integration.Data) (check.Check, error) {
 	var c check.Check
 	return c, nil
 }
@@ -52,7 +52,7 @@ func (lt *LoaderThree) Name() string {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (lt *LoaderThree) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
+func (lt *LoaderThree) Load(_ sender.SenderManager, _ integration.Config, _ integration.Data) (check.Check, error) {
 	var c check.Check
 	return c, nil
 }

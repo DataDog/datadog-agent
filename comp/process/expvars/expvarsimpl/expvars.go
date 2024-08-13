@@ -68,7 +68,7 @@ func newExpvarServer(deps dependencies) (expvars.Component, error) {
 	expvarServer := &http.Server{Addr: fmt.Sprintf("localhost:%d", expvarPort), Handler: http.DefaultServeMux}
 
 	deps.Lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
+		OnStart: func(_ context.Context) error {
 			go func() {
 				err := expvarServer.ListenAndServe()
 				if err != nil && !errors.Is(err, http.ErrServerClosed) {

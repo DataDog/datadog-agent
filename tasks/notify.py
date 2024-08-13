@@ -110,7 +110,7 @@ def failure_summary_upload_pipeline_data(ctx):
 
 @task
 def failure_summary_send_notifications(
-    ctx, daily_summary: bool = False, weekly_summary: bool = False, max_length: int = 8
+    ctx, daily_summary: bool = False, weekly_summary: bool = False, max_length: int = 8, dry_run: bool = False
 ):
     """
     Make summaries from data in s3 and send them to slack
@@ -118,10 +118,10 @@ def failure_summary_send_notifications(
 
     assert (
         daily_summary or weekly_summary and not (daily_summary and weekly_summary)
-    ), "Only one of daily or weekly summary can be set"
+    ), "Exactly one of daily or weekly summary must be set"
 
     period = timedelta(days=1) if daily_summary else timedelta(weeks=1)
-    failure_summary.send_summary_messages(ctx, weekly_summary, max_length, period)
+    failure_summary.send_summary_messages(ctx, weekly_summary, max_length, period, dry_run=dry_run)
 
 
 @task
