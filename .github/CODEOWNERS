@@ -19,7 +19,7 @@
 /.go-version                            @DataDog/agent-shared-components @DataDog/agent-delivery
 # Go linters and pre-commit config
 /.golangci.yml                          @DataDog/agent-devx-loops
-/.custom-gcl.yaml                       @DataDog/agent-devx-loops
+/.custom-gcl.yml                        @DataDog/agent-devx-loops
 /.pre-commit-config.yaml                @DataDog/agent-devx-loops
 
 /CHANGELOG.rst                          @DataDog/agent-delivery
