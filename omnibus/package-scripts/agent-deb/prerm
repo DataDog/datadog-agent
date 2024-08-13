@@ -158,9 +158,19 @@ remove_apm_remote_config()
     fi
 }
 
+create_new_dependencies_file()
+{
+    echo "Creating new dependencies file"
+    $INSTALL_DIR/embedded/bin/pip freeze | grep '^datadog-' > $INSTALL_DIR/new_agent_datadog_requirements.txt
+    chown -R dd-agent:dd-agent ${INSTALL_DIR}/new_agent_datadog_requirements.txt
+    $INSTALL_DIR/embedded/bin/pip freeze | grep -v '^datadog-' > $INSTALL_DIR/new_agent_python_requirements.txt
+    chown -R dd-agent:dd-agent ${INSTALL_DIR}/new_agent_python_requirements.txt
+}
+
 stop_agent
 deregister_agent
 # remove_custom_integrations
+create_new_dependencies_file
 remove_py_compiled_files
 
 case "$1" in
