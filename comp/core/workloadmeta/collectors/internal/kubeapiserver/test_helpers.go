@@ -9,7 +9,6 @@ package kubeapiserver
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -123,7 +122,6 @@ func testCollectMetadataEvent(t *testing.T, createObjects func() []runtime.Objec
 
 	response, err := metadataclient.Resource(gvr).List(ctx, v1.ListOptions{})
 	assert.NoError(t, err)
-	fmt.Println("metadata client listing: ", response.String())
 	store, _ := newMetadataStore(ctx, wlm, wlm.GetConfig(), metadataclient, gvr)
 
 	stopStore := make(chan struct{})

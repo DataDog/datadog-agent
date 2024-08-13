@@ -14,6 +14,7 @@ import (
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -80,7 +81,9 @@ func getDefaultLabelsToTags() map[string]string {
 
 func getLabelsToTags() map[string]string {
 	labelsToTags := getDefaultLabelsToTags()
-	for k, v := range config.Datadog().GetStringMapString("kubernetes_node_labels_as_tags") {
+
+	metadataAsTags := configutils.GetMetadataAsTags(config.Datadog())
+	for k, v := range metadataAsTags.GetNodeLabelsAsTags() {
 		// viper lower-cases map keys from yaml, but not from envvars
 		labelsToTags[strings.ToLower(k)] = v
 	}
@@ -90,7 +93,10 @@ func getLabelsToTags() map[string]string {
 
 func getAnnotationsToTags() map[string]string {
 	annotationsToTags := map[string]string{}
-	for k, v := range config.Datadog().GetStringMapString("kubernetes_node_annotations_as_tags") {
+
+	metadataAsTags := configutils.GetMetadataAsTags(config.Datadog())
+
+	for k, v := range metadataAsTags.GetNodeAnnotationsAsTags() {
 		// viper lower-cases map keys from yaml, but not from envvars
 		annotationsToTags[strings.ToLower(k)] = v
 	}
