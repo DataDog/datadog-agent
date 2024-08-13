@@ -14,46 +14,33 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+
+	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
 var errZeroLengthUDPPacket = errors.New("UDP packet with length 0")
 var errZeroLengthIPPacket = errors.New("IP packet with length 0")
 
-// Layers holds a set of network layers for a packet
-type Layers struct {
-	IP4 *layers.IPv4
-	IP6 *layers.IPv6
-	UDP *layers.UDP
-	TCP *layers.TCP
-}
-
-// Reset resets a Layers object
-func (l *Layers) Reset(ip4 *layers.IPv4, ip6 *layers.IPv6, udp *layers.UDP, tcp *layers.TCP) {
-	l.IP4 = ip4
-	l.IP6 = ip6
-	l.UDP = udp
-	l.TCP = tcp
-}
-
-// PayloadLen returns the length of the application
-// payload given the set of layers in `Layers`
-func (l Layers) PayloadLen() (uint16, error) {
-	if l.UDP != nil {
-		if l.UDP.Length == 0 {
-			return 0, errZeroLengthUDPPacket
-		}
-
-		// Length includes the header (8 bytes),
-		// so we need to exclude that here
-		return l.UDP.Length - 8, nil
+func UDPPayloadLen(udp *layers.UDP) (uint16, error) {
+	if udp.Length == 0 {
+		return 0, errZeroLengthUDPPacket
 	}
 
+	// Length includes the header (8 bytes),
+	// so we need to exclude that here
+	return udp.Length - 8, nil
+}
+
+func TCPPayloadLen(family network.ConnectionFamily, ip4 *layers.IPv4, ip6 *layers.IPv6, tcp *layers.TCP) (uint16, error) {
 	var ipl uint16
 	var err error
-	if l.IP4 != nil {
-		ipl, err = ipv4PayloadLen(l.IP4)
-	} else if l.IP6 != nil {
-		ipl, err = ipv6PayloadLen(l.IP6)
+	switch family {
+	case network.AFINET:
+		ipl, err = ipv4PayloadLen(ip4)
+	case network.AFINET6:
+		ipl, err = ipv6PayloadLen(ip6)
+	default:
+		return 0, fmt.Errorf("unknown family %s", family)
 	}
 
 	if err != nil {
@@ -69,7 +56,7 @@ func (l Layers) PayloadLen() (uint16, error) {
 	// subtracting that here to get the payload size
 	//
 	// see https://en.wikipedia.org/wiki/Transmission_Control_Protocol#TCP_segment_structure
-	return ipl - uint16(l.TCP.DataOffset)*4, nil
+	return ipl - uint16(tcp.DataOffset)*4, nil
 }
 
 func ipv4PayloadLen(ip4 *layers.IPv4) (uint16, error) {

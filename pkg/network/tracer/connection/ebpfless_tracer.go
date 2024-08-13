@@ -55,7 +55,6 @@ type ebpfLessTracer struct {
 	exit        chan struct{}
 	keyBuf      []byte
 	scratchConn *network.ConnectionStats
-	layers      *ebpfless.Layers
 
 	udp *udpProcessor
 	tcp *tcpProcessor
@@ -201,12 +200,11 @@ func (t *ebpfLessTracer) processConnection(
 	}
 
 	var err error
-	t.layers.Reset(ip4, ip6, udp, tcp)
 	switch conn.Type {
 	case network.UDP:
-		err = t.udp.process(conn, pktType, t.layers)
+		err = t.udp.process(conn, pktType, udp)
 	case network.TCP:
-		err = t.tcp.process(conn, pktType, t.layers)
+		err = t.tcp.process(conn, pktType, ip4, ip6, tcp)
 	default:
 		err = fmt.Errorf("unsupported connection type %d", conn.Type)
 	}
@@ -338,8 +336,8 @@ var _ Tracer = &ebpfLessTracer{}
 type udpProcessor struct {
 }
 
-func (u *udpProcessor) process(conn *network.ConnectionStats, pktType uint8, ls *ebpfless.Layers) error {
-	payloadLen, err := ls.PayloadLen()
+func (u *udpProcessor) process(conn *network.ConnectionStats, pktType uint8, udp *layers.UDP) error {
+	payloadLen, err := ebpfless.UDPPayloadLen(udp)
 	if err != nil {
 		return err
 	}
@@ -374,13 +372,12 @@ func newTCPProcessor() *tcpProcessor {
 	}
 }
 
-func (t *tcpProcessor) process(conn *network.ConnectionStats, pktType uint8, ls *ebpfless.Layers) error {
-	payloadLen, err := ls.PayloadLen()
+func (t *tcpProcessor) process(conn *network.ConnectionStats, pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, tcp *layers.TCP) error {
+	payloadLen, err := ebpfless.TCPPayloadLen(conn.Family, ip4, ip6, tcp)
 	if err != nil {
 		return err
 	}
 
-	tcp := ls.TCP
 	log.TraceFunc(func() string {
 		return fmt.Sprintf("tcp processor: pktType=%+v seq=%+v ack=%+v fin=%+v rst=%+v syn=%+v ack=%+v", pktType, tcp.Seq, tcp.Ack, tcp.FIN, tcp.RST, tcp.SYN, tcp.ACK)
 	})
