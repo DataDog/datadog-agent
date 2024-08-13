@@ -160,7 +160,7 @@ def go(
     if not check_tools_version(ctx, ['golangci-lint']):
         print(
             color_message(
-                "Error: The golanci-lint version you are using is not the corect one. Please run inv -e install-tools to install the correct version.",
+                "Error: The golanci-lint version you are using is not the correct one. Please run inv -e install-tools to install the correct version.",
                 "red",
             )
         )
