@@ -393,6 +393,14 @@ type extractedPodLibInfo struct {
 // extractLibInfo metadata about what library information we should be
 // injecting into the pod and where it came from.
 func (w *Webhook) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
+	var (
+		source     = libInfoSourceLibInjection
+		ssiEnabled = w.isEnabledInNamespace(pod.Namespace)
+	)
+
+	if ssiEnabled {
+		source = libInfoSourceSingleStepInstrumentation
+	}
 
 	// If the pod is "injectable" and annotated with libraries to inject, use those.
 	if w.isPodEligible(pod) {
@@ -400,10 +408,7 @@ func (w *Webhook) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 		// over libraries injected with Single Step Instrumentation
 		libs := w.extractLibrariesFromAnnotations(pod)
 		if len(libs) > 0 {
-			return extractedPodLibInfo{
-				libs:   libs,
-				source: libInfoSourceLibInjection,
-			}
+			return extractedPodLibInfo{libs: libs, source: source}
 		}
 	}
 
@@ -413,12 +418,9 @@ func (w *Webhook) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 	// 2. We check for language detection (if enabled)
 	//    If lang-detection is not enabled, we propagate the
 	// 3. We fall back to "latest"
-	if w.isEnabledInNamespace(pod.Namespace) {
+	if ssiEnabled {
 		if len(w.pinnedLibraries) > 0 {
-			return extractedPodLibInfo{
-				libs:   w.pinnedLibraries,
-				source: libInfoSourceSingleStepInstrumentation,
-			}
+			return extractedPodLibInfo{libs: w.pinnedLibraries, source: source}
 		}
 
 		detected := w.getLibrariesLanguageDetection(pod)
@@ -433,7 +435,7 @@ func (w *Webhook) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 		return extractedPodLibInfo{
 			libs:              w.getAllLatestLibraries(),
 			languageDetection: &detected,
-			source:            libInfoSourceSingleStepInstrumentation,
+			source:            source,
 		}
 	}
 
@@ -450,13 +452,11 @@ func (w *Webhook) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 
 		return extractedPodLibInfo{
 			libs:   w.getAllLatestLibraries(),
-			source: libInfoSourceLibInjection,
+			source: source,
 		}
 	}
 
-	return extractedPodLibInfo{
-		source: libInfoSourceNone,
-	}
+	return extractedPodLibInfo{}
 }
 
 // getAutoDetectedLibraries constructs the libraries to be injected if the languages
