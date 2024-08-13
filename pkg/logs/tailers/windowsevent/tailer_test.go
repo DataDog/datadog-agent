@@ -8,6 +8,7 @@
 package windowsevent
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -90,7 +91,7 @@ func newtailer(evtapi evtapi.API, tailerconfig *Config, bookmark string, msgChan
 		if source.Status.IsSuccess() {
 			return nil
 		} else if source.Status.IsError() {
-			return fmt.Errorf("%s", source.Status.GetError())
+			return errors.New(source.Status.GetError())
 		}
 		return fmt.Errorf("start pending")
 	}, backoff.NewConstantBackOff(50*time.Millisecond))
@@ -199,7 +200,7 @@ func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
 		if tailer.source.Status.IsSuccess() {
 			return nil
 		} else if tailer.source.Status.IsError() {
-			return fmt.Errorf("%s", tailer.source.Status.GetError())
+			return errors.New(tailer.source.Status.GetError())
 		}
 		return fmt.Errorf("start pending")
 	}, backoff.NewConstantBackOff(50*time.Millisecond))

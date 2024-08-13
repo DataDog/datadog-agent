@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"mime/multipart"
 	"net/http"
@@ -177,7 +178,7 @@ func (storage *ActivityDumpRemoteStorage) sendToEndpoint(url string, apiKey stri
 		}
 		storage.tooLargeEntities[entry].Inc()
 	}
-	return fmt.Errorf("%s", resp.Status)
+	return errors.New(resp.Status)
 }
 
 // Persist saves the provided buffer to the persistent storage

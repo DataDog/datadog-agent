@@ -860,7 +860,7 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 		)))
 	}
 	if errorMsg != "" {
-		return fmt.Errorf("%s", errorMsg)
+		return errors.New(errorMsg)
 	}
 	return nil
 }

@@ -9,6 +9,7 @@ package status
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -94,7 +95,7 @@ func runStatus(_ log.Component, config config.Component, _ secrets.Component, pa
 		json.Unmarshal(r, &errMap) //nolint:errcheck
 		// If the error has been marshalled into a json object, check it and return it properly
 		if err, found := errMap["error"]; found {
-			e = fmt.Errorf("%s", err)
+			e = errors.New(err)
 		}
 
 		fmt.Printf(`

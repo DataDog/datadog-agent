@@ -9,6 +9,7 @@ package health
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -99,7 +100,7 @@ func requestHealth(_ log.Component, config config.Component, cliParams *cliParam
 		json.Unmarshal(r, &errMap) //nolint:errcheck
 		// If the error has been marshalled into a json object, check it and return it properly
 		if e, found := errMap["error"]; found {
-			err = fmt.Errorf("%s", e)
+			err = errors.New(e)
 		}
 
 		return fmt.Errorf("could not reach agent: %v \nMake sure the agent is running before requesting the status and contact support if you continue having issues", err)
