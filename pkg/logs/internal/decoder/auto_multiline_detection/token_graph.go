@@ -48,6 +48,7 @@ func (m *TokenGraph) add(tokens []Token) {
 // MatchProbability returns the probability of a sequence of tokens being represented by the graph.
 func (m *TokenGraph) MatchProbability(tokens []Token) MatchContext {
 	if len(tokens) < 2 {
+	if len(tokens) < m.minimumTokenLength {
 		return MatchContext{}
 	}
 
