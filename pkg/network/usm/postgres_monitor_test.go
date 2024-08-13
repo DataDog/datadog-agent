@@ -43,6 +43,7 @@ const (
 	deleteTableQuery       = "DELETE FROM dummy WHERE id = 1"
 	alterTableQuery        = "ALTER TABLE dummy ADD test VARCHAR(255);"
 	truncateTableQuery     = "TRUNCATE TABLE dummy"
+	showQuery              = "SHOW search_path"
 )
 
 var (
@@ -472,6 +473,30 @@ func testDecoding(t *testing.T, isTLS bool) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
 						postgres.SelectOP: adjustCount(2),
+					},
+				}, isTLS)
+			},
+		},
+		{
+			name: "show command",
+			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
+			},
+			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.RunQuery(showQuery))
+			},
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
+					"UNKNOWN": {
+						postgres.UnknownOP: adjustCount(1),
 					},
 				}, isTLS)
 			},
