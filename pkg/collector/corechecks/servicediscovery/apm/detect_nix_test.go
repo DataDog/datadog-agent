@@ -19,6 +19,7 @@ func Test_javaDetector(t *testing.T) {
 	data := []struct {
 		name   string
 		args   []string
+		envs   map[string]string
 		result Instrumentation
 	}{
 		{
@@ -34,7 +35,7 @@ func Test_javaDetector(t *testing.T) {
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := javaDetector(zap.NewNop(), d.args, nil)
+			result := javaDetector(zap.NewNop(), d.args, d.envs)
 			if result != d.result {
 				t.Errorf("expected %s got %s", d.result, result)
 			}
