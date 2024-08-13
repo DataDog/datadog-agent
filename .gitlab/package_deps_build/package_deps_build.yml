@@ -77,3 +77,21 @@ generate_windows_embedded_python:
       Powershell
       -C "c:\mnt\tasks\winbuildscripts\generate-pyzip.ps1 -Version 3.12.4 -OutDir c:\mnt\artifacts"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+
+deploy_windows_embedded_python:
+  rules:
+    !reference [.manual]
+  needs:
+    - job: generate_windows_embedded_python
+      artifacts: true
+  stage: package_deps_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  before_script:
+    - ls artifacts
+  script:
+    - $S3_CP_CMD
+      --recursive
+      --exclude "*"
+      --include "python-windows-*.zip"
+      artifacts s3://dd-agent-omnibus/
