@@ -152,7 +152,8 @@ COPY --from=extract /output/ /
 
 # Copy libjemalloc compiled with je_cv_madv_free=no
 COPY libjemalloc.so.2 /lib/libjemalloc_profile.so
-COPY libjemalloc_arm.so.2 /lib/libjemalloc_arm_profile.so
+COPY libjemalloc_arm_profile.so.2 /lib/libjemalloc_arm_profile.so
+COPY libjemalloc_arm_noprofile.so.2 /lib/libjemalloc_arm_noprofile.so
 
 # S6 entrypoint, service definitions, healthcheck probe
 COPY s6-services /etc/services.d/
