@@ -199,22 +199,6 @@ type parsingContext struct {
 	netNsInfo map[uint32]*namespaceInfo
 }
 
-// envsToMap splits a list of strings containing environment variables of the
-// format NAME=VAL to a map.
-func envsToMap(envs ...string) map[string]string {
-	envMap := make(map[string]string, len(envs))
-	for _, env := range envs {
-		name, val, found := strings.Cut(env, "=")
-		if !found {
-			continue
-		}
-
-		envMap[name] = val
-	}
-
-	return envMap
-}
-
 // getServiceName gets the service name for a process using the servicedetector
 // module.
 func (s *discovery) getServiceName(proc *process.Process) (string, error) {
@@ -223,12 +207,12 @@ func (s *discovery) getServiceName(proc *process.Process) (string, error) {
 		return "", nil
 	}
 
-	env, err := proc.Environ()
+	envs, err := getEnvs(proc)
 	if err != nil {
 		return "", nil
 	}
 
-	return s.serviceDetector.GetServiceName(cmdline, envsToMap(env...)), nil
+	return s.serviceDetector.GetServiceName(cmdline, envs), nil
 }
 
 // getService gets information for a single service.

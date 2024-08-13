@@ -294,6 +294,25 @@ func TestServiceName(t *testing.T) {
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
+func TestInjectedServiceName(t *testing.T) {
+	url := setupDiscoveryModule(t)
+
+	createEnvsMemfd(t, []string{
+		"OTHER_ENV=test",
+		"DD_SERVICE=injected-service-name",
+		"YET_ANOTHER_ENV=test",
+	})
+
+	listener, err := net.Listen("tcp", "")
+	require.NoError(t, err)
+	t.Cleanup(func() { listener.Close() })
+
+	pid := os.Getpid()
+	portMap := getServicesMap(t, url)
+	require.Contains(t, portMap, pid)
+	require.Equal(t, "injected-service-name", portMap[pid].Name)
+}
+
 // Check that we can get listening processes in other namespaces.
 func TestNamespaces(t *testing.T) {
 	url := setupDiscoveryModule(t)
