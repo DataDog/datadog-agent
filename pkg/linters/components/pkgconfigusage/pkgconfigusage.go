@@ -13,8 +13,8 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
-// We can replace during tests
-var componentPath = "github.com/DataDog/datadog-agent/comp"
+// We can replace it during tests
+var componentPath = "github.com/DataDog/datadog-agent/comp/"
 
 func init() {
 	register.Plugin("pkgconfigusage", New)
@@ -33,7 +33,7 @@ func (f *pkgconfigUsagePlugin) BuildAnalyzers() ([]*analysis.Analyzer, error) {
 	return []*analysis.Analyzer{
 		{
 			Name: "pkgconfigusage",
-			Doc:  "ensure github.com/DataDog/datadog-agent/pkg/config is not used inside comp folder",
+			Doc:  "ensure github.com/DataDog/datadog-agent/pkg/config is not used inside the components folder",
 			Run:  f.run,
 		},
 	}, nil
