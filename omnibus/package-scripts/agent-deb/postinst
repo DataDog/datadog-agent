@@ -184,15 +184,15 @@ fi
 
 install_dependencies()
 {
-    if [ -e "$INSTALL_DIR/.installed_datadog_requirements.txt" ]; then
-        echo "Installing integrations"
-        while IFS= read -r line
-            datadog-agent integration install -t "$line"
-        done < $INSTALL_DIR/.installed_datadog_requirements.txt
-    else
-        # One or both files do not exist
-        echo "$INSTALL_DIR/.installed_datadog_requirements.txt does not exist. Not installing datadog integrations"
-    fi
+    # if [ -e "$INSTALL_DIR/.installed_datadog_requirements.txt" ]; then
+    #     echo "Installing integrations"
+    #     while IFS= read -r line
+    #         datadog-agent integration install -t "$line"
+    #     done < $INSTALL_DIR/.installed_datadog_requirements.txt
+    # else
+    #     # One or both files do not exist
+    #     echo "$INSTALL_DIR/.installed_datadog_requirements.txt does not exist. Not installing datadog integrations"
+    # fi
 }
 
 create_dependencies_file()
