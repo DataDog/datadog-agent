@@ -169,6 +169,7 @@ stop_agent
 deregister_agent
 # remove_custom_integrations
 create_new_dependencies_file
+mv $INSTALL_DIR/embedded $INSTALL_DIR/embedded.bak
 remove_py_compiled_files
 
 case "$1" in
