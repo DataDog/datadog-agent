@@ -14,9 +14,6 @@ exporters:
       key: ${DD_API_KEY}
 processors:
   batch:
-  # using the sampler
-  probabilistic_sampler:
-    sampling_percentage: 30
 connectors:
   # Use datadog connector to compute stats for pre-sampled traces
   datadog/connector:
@@ -26,14 +23,10 @@ connectors:
       peer_tags_aggregation: true
 service:
   pipelines:
-    traces: # this pipeline computes APM stats
+    traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [datadog/connector]
-    traces/sampling: # this pipeline uses sampling and sends traces
-      receivers: [otlp]
-      processors: [probabilistic_sampler,batch]
-      exporters: [datadog]
+      exporters: [datadog/connector, datadog]
     metrics:
       receivers: [otlp, datadog/connector]
       processors: [batch]
