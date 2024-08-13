@@ -26,7 +26,7 @@ func join(pieces ...string) string {
 
 // NewConfig generates a new configuration for the GPU monitoring probe.
 func NewConfig() *Config {
-	cfg := ddconfig.SystemProbe
+	cfg := ddconfig.SystemProbe()
 	sysconfig.Adjust(cfg)
 
 	return &Config{
