@@ -204,12 +204,12 @@ type parsingContext struct {
 func (s *discovery) getServiceName(proc *process.Process) (string, error) {
 	cmdline, err := proc.CmdlineSlice()
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 
 	envs, err := getEnvs(proc)
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 
 	return s.serviceDetector.GetServiceName(cmdline, envs), nil
