@@ -393,6 +393,10 @@ AND status = 'ACTIVE'`)
 		}
 		sessionRow.CdbName = c.cdbName
 		sessionRows = append(sessionRows, sessionRow)
+		//sessionRow.SessionID = 17
+		//sessionRow.SessionSerial = 23
+		sessionRow.SQLID = "23"
+		sessionRows = append(sessionRows, sessionRow)
 	}
 
 	var collection_interval float64
