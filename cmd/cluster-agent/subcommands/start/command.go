@@ -218,7 +218,7 @@ func start(log log.Component,
 	demultiplexer demultiplexer.Component,
 	wmeta workloadmeta.Component,
 	ac autodiscovery.Component,
-	dc datadogclient.Component,
+	dc optional.Option[datadogclient.Component],
 	secretResolver secrets.Component,
 	statusComponent status.Component,
 	collector collector.Component,
@@ -324,7 +324,7 @@ func start(log log.Component,
 		DatadogClient:          dc,
 	}
 
-	if aggErr := controllers.StartControllers(ctx); aggErr != nil {
+	if aggErr := controllers.StartControllers(&ctx); aggErr != nil {
 		for _, err := range aggErr.Errors() {
 			pkglog.Warnf("Error while starting controller: %v", err)
 		}
