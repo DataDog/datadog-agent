@@ -2,6 +2,6 @@ version: v1.59.1
 
 name: golangci-lint
 
-#plugins:
-#  - module: 'github.com/DataDog/datadog-agent/pkg/linters/pkgConfigComponents'
-#    path: ./pkg/linters/pkgConfigComponents
+plugins:
+  - module: 'github.com/DataDog/datadog-agent/pkg/linters/pkgConfigComponents'
+    path: ./pkg/linters/pkgConfigComponents
