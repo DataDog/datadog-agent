@@ -20,6 +20,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -86,7 +87,7 @@ func (m *Check) Run() error {
 
 	data, err := m.sysProbeUtil.GetCheck(sysconfig.GPUMonitoringModule)
 	if err != nil {
-		return fmt.Errorf("get ebpf check: %s", err)
+		return fmt.Errorf("get gpu check: %s", err)
 	}
 
 	sender, err := m.GetSender()
@@ -98,6 +99,36 @@ func (m *Check) Run() error {
 	if !ok {
 		return log.Errorf("ebpf check raw data has incorrect type: %T", stats)
 	}
+
+	for _, data := range stats.PastData {
+		for _, span := range data.Spans {
+			event := event.Event{
+				SourceTypeName: CheckName,
+				EventType:      "gpu-kernel",
+				Title:          fmt.Sprintf("GPU Kernel launch %d", span.AvgThreadCount),
+				Text:           fmt.Sprintf("Start at %d, end %d", span.Start, span.End),
+				// Ts:             int64(span.Start / uint64(time.Second)),
+			}
+			fmt.Printf("spanev: %v\n", event)
+			sender.Event(event)
+		}
+		for _, span := range data.Allocations {
+			event := event.Event{
+				AlertType:      event.AlertTypeInfo,
+				Priority:       event.PriorityLow,
+				AggregationKey: "gpu-0",
+				SourceTypeName: CheckName,
+				EventType:      "gpu-memory",
+				Title:          fmt.Sprintf("GPU mem alloc size %d", span.Size),
+				Text:           fmt.Sprintf("Start at %d, end %d", span.Start, span.End),
+				// Ts:             int64(span.Start / uint64(time.Second)),
+			}
+			fmt.Printf("memev: %v\n", event)
+			sender.Event(event)
+		}
+	}
+
+	fmt.Printf("GPU stats: %+v\n", stats)
 
 	sender.Commit()
 	return nil

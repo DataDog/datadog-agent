@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/tcpqueuelength"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/network"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/ntp"
 	ciscosdwan "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan"
@@ -75,6 +76,7 @@ func RegisterChecks(store workloadmeta.Component, cfg config.Component, telemetr
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	corecheckLoader.RegisterCheck(pod.CheckName, pod.Factory())
 	corecheckLoader.RegisterCheck(ebpf.CheckName, ebpf.Factory())
+	corecheckLoader.RegisterCheck(gpu.CheckName, gpu.Factory())
 	corecheckLoader.RegisterCheck(ecs.CheckName, ecs.Factory(store))
 	corecheckLoader.RegisterCheck(oomkill.CheckName, oomkill.Factory())
 	corecheckLoader.RegisterCheck(tcpqueuelength.CheckName, tcpqueuelength.Factory())
