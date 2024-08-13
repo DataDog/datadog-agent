@@ -201,7 +201,7 @@ type parsingContext struct {
 
 // envsToMap splits a list of strings containing environment variables of the
 // format NAME=VAL to a map.
-func envsToMap(envs []string) map[string]string {
+func envsToMap(envs ...string) map[string]string {
 	envMap := make(map[string]string, len(envs))
 	for _, env := range envs {
 		name, val, found := strings.Cut(env, "=")
@@ -228,7 +228,7 @@ func (s *discovery) getServiceName(proc *process.Process) (string, error) {
 		return "", nil
 	}
 
-	return s.serviceDetector.GetServiceName(cmdline, envsToMap(env)), nil
+	return s.serviceDetector.GetServiceName(cmdline, envsToMap(env...)), nil
 }
 
 // getService gets information for a single service.
