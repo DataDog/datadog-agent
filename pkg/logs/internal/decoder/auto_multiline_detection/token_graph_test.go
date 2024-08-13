@@ -51,7 +51,10 @@ func TestMaxSubsequence(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		start, end := maxSubsequence(test.input)
+		_, start, end := maxSubsequence(len(test.input), func(idx int) int {
+			return test.input[idx]
+		})
+
 		assert.Equal(t, test.expected, test.input[start:end])
 	}
 }
