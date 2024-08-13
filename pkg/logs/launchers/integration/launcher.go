@@ -127,6 +127,7 @@ func (s *Launcher) makeFileSource(source *sources.LogSource, filepath string) *s
 		Path:        filepath,
 		Name:        source.Config.Name,
 		Source:      source.Config.Source,
+		Service:     source.Config.Service,
 		Tags:        source.Config.Tags,
 	})
 
@@ -155,8 +156,8 @@ func (s *Launcher) createFile(source *sources.LogSource) (string, error) {
 
 // integrationLogFilePath returns a directory and file to use for an integration log file
 func (s *Launcher) integrationLogFilePath(source sources.LogSource) (string, string) {
-	fileName := source.Config.Name + ".log"
-	directoryComponents := []string{s.runPath, "integrations", source.Config.Service}
+	fileName := source.Name + ".log"
+	directoryComponents := []string{s.runPath, "integrations"}
 	directory := strings.Join(directoryComponents, "/")
 	filepath := strings.Join([]string{directory, fileName}, "/")
 

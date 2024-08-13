@@ -123,10 +123,10 @@ func (suite *LauncherTestSuite) TestIntegrationLogFilePath() {
 
 	actualDirectory, actualFilePath := suite.s.integrationLogFilePath(*logSource)
 
-	expectedDirectoryComponents := []string{suite.s.runPath, "integrations", logSource.Config.Service}
+	expectedDirectoryComponents := []string{suite.s.runPath, "integrations"}
 	expectedDirectory := strings.Join(expectedDirectoryComponents, "/")
 
-	expectedFilePath := strings.Join([]string{expectedDirectory, logSource.Config.Name + ".log"}, "/")
+	expectedFilePath := strings.Join([]string{expectedDirectory, logSource.Name + ".log"}, "/")
 
 	assert.Equal(suite.T(), expectedDirectory, actualDirectory)
 	assert.Equal(suite.T(), expectedFilePath, actualFilePath)
