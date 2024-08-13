@@ -35,6 +35,7 @@ func TestInjectedEnvBasic(t *testing.T) {
 	createEnvsMemfd(t, expected)
 
 	envMap, err := getEnvs(proc)
+	require.NoError(t, err)
 	require.Subset(t, envMap, map[string]string{
 		"key1": "val1",
 		"key2": "val2",
