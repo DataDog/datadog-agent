@@ -21,6 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,7 +39,8 @@ var _ module.Module = &discovery{}
 // serviceInfo holds process data that should be cached between calls to the
 // endpoint.
 type serviceInfo struct {
-	name string
+	name               string
+	apmInstrumentation apm.Instrumentation
 }
 
 // discovery is an implementation of the Module interface for the discovery module.
@@ -213,8 +216,10 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 	}
 
 	name := s.serviceDetector.GetServiceName(cmdline, envs)
+	// Language passed as unknown for now to only detect injection.
+	apmInstrumentation := apm.Detect(cmdline, envs, language.Unknown)
 
-	return &serviceInfo{name: name}, nil
+	return &serviceInfo{name: name, apmInstrumentation: apmInstrumentation}, nil
 }
 
 // getService gets information for a single service.
@@ -282,9 +287,10 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	}
 
 	return &model.Service{
-		PID:   int(pid),
-		Name:  info.name,
-		Ports: ports,
+		PID:                int(pid),
+		Name:               info.name,
+		Ports:              ports,
+		APMInstrumentation: string(info.apmInstrumentation),
 	}
 }
 
