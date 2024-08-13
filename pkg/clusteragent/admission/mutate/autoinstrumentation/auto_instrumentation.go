@@ -390,16 +390,25 @@ type extractedPodLibInfo struct {
 	source libInfoSource
 }
 
+func (e extractedPodLibInfo) withLibs(l []libInfo) extractedPodLibInfo {
+	e.libs = l
+	return e
+}
+
 // extractLibInfo metadata about what library information we should be
 // injecting into the pod and where it came from.
 func (w *Webhook) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 	var (
-		source     = libInfoSourceLibInjection
-		ssiEnabled = w.isEnabledInNamespace(pod.Namespace)
+		ssiEnabled        = w.isEnabledInNamespace(pod.Namespace)
+		langaugeDetection = w.getLibrariesLanguageDetection(pod)
+		extracted         = extractedPodLibInfo{
+			source:            libInfoSourceLibInjection,
+			languageDetection: &langaugeDetection,
+		}
 	)
 
 	if ssiEnabled {
-		source = libInfoSourceSingleStepInstrumentation
+		extracted.source = libInfoSourceSingleStepInstrumentation
 	}
 
 	// If the pod is "injectable" and annotated with libraries to inject, use those.
@@ -408,35 +417,26 @@ func (w *Webhook) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 		// over libraries injected with Single Step Instrumentation
 		libs := w.extractLibrariesFromAnnotations(pod)
 		if len(libs) > 0 {
-			return extractedPodLibInfo{libs: libs, source: source}
+			return extracted.withLibs(libs)
 		}
 	}
 
 	// If auto-instrumentation is enabled in the namespace and nothing has been overridden,
 	//
 	// 1. We check for pinned libraries in the config
-	// 2. We check for language detection (if enabled)
-	//    If lang-detection is not enabled, we propagate the
+	// 2. We use language detection (if enabled)
 	// 3. We fall back to "latest"
 	if ssiEnabled {
 		if len(w.pinnedLibraries) > 0 {
-			return extractedPodLibInfo{libs: w.pinnedLibraries, source: source}
+			return extracted.withLibs(w.pinnedLibraries)
 		}
 
-		detected := w.getLibrariesLanguageDetection(pod)
-		if detected.enabled && len(detected.libs) > 0 {
-			return extractedPodLibInfo{
-				libs:              detected.libs,
-				languageDetection: &detected,
-				source:            libInfoSourceSingleStepLangaugeDetection,
-			}
+		if langaugeDetection.enabled && len(langaugeDetection.libs) > 0 {
+			extracted.source = libInfoSourceSingleStepLangaugeDetection
+			return extracted.withLibs(langaugeDetection.libs)
 		}
 
-		return extractedPodLibInfo{
-			libs:              w.getAllLatestLibraries(),
-			languageDetection: &detected,
-			source:            source,
-		}
+		return extracted.withLibs(w.getAllLatestLibraries())
 	}
 
 	// Get libraries to inject for Remote Instrumentation
@@ -450,10 +450,7 @@ func (w *Webhook) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 			log.Warnf("Ignoring version %q. To inject all libs, the only supported version is latest for now", version)
 		}
 
-		return extractedPodLibInfo{
-			libs:   w.getAllLatestLibraries(),
-			source: source,
-		}
+		return extracted.withLibs(w.getAllLatestLibraries())
 	}
 
 	return extractedPodLibInfo{}
