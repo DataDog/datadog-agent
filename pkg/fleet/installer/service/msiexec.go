@@ -29,3 +29,18 @@ func msiexec(target, product, operation string, args []string) (err error) {
 	cmd := exec.Command("msiexec", append([]string{operation, msis[0], "/qn", "MSIFASTINSTALL=7"}, args...)...)
 	return cmd.Run()
 }
+
+// removeProduct uses the registry to try and find a product and use msiexec to remove it.
+// It is different from msiexec in that it uses the registry and not the stable/experiment path on disk to
+// uninstall the product.
+// This is needed because in certain circumstances the installer database stored in the stable/experiment paths does not
+// reflect the installed version, and using those installers can lead to undefined behavior (either failure to uninstall,
+// or weird bugs from uninstalling a product with an installer from a different version).
+func removeProduct(product string) (err error) {
+	return exec.Command("powershell", fmt.Sprintf(`{
+	$installerList = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object {$_.DisplayName -like '%s'}
+	if (($installerList | measure).Count -gt 0) {
+		msiexec /x $installerList.PSChildName /qn MSIFASTINSTALL=7
+	}
+}`, product)).Run()
+}

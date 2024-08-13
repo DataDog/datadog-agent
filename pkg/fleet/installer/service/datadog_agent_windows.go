@@ -27,6 +27,8 @@ func SetupAgent(ctx context.Context, args []string) (err error) {
 		}
 		span.Finish(tracer.WithError(err))
 	}()
+	// Make sure there are no Agent already installed
+	_ = removeProduct("Datadog Agent")
 	err = msiexec("stable", datadogAgent, "/i", args)
 	return err
 }
@@ -44,7 +46,7 @@ func StartAgentExperiment(ctx context.Context) (err error) {
 	return err
 }
 
-// StopAgentExperiment stops the agent experiment
+// StopAgentExperiment stops the agent experiment, i.e. removes/uninstalls it.
 func StopAgentExperiment(ctx context.Context) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "stop_experiment")
 	defer func() {
@@ -53,7 +55,7 @@ func StopAgentExperiment(ctx context.Context) (err error) {
 		}
 		span.Finish(tracer.WithError(err))
 	}()
-	err = msiexec("experiment", datadogAgent, "/x", nil)
+	err = removeProduct("Datadog Agent")
 	if err != nil {
 		return err
 	}
@@ -78,6 +80,6 @@ func RemoveAgent(ctx context.Context) (err error) {
 		}
 		span.Finish(tracer.WithError(err))
 	}()
-	err = msiexec("stable", datadogAgent, "/x", nil)
+	err = removeProduct("Datadog Agent")
 	return err
 }
