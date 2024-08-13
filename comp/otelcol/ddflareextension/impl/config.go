@@ -4,7 +4,7 @@
 // Copyright 2024-present Datadog, Inc.
 
 // Package extensionimpl defines the OpenTelemetry Extension implementation.
-package extensionimpl
+package ddflareextensionimpl
 
 import (
 	"errors"

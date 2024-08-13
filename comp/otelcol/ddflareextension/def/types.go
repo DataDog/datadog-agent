@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package extension defines the OpenTelemetry Extension component.
-package extension
+// Package ddflareextension defines the OpenTelemetry Extension component.
+package ddflareextension
 
 // BuildInfoResponse is the response struct for BuildInfo
 type BuildInfoResponse struct {

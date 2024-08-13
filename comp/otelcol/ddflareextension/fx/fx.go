@@ -4,7 +4,7 @@
 // Copyright 2024-present Datadog, Inc.
 
 // Package extensionfx provides fx access for the provider component
-package extensionfx
+package ddflareextensionfx
 
 import (
 	extension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
