@@ -33,9 +33,9 @@ func TestAll(t *testing.T) {
 	assert.NoError(t, err)
 
 	analyzer := analyzers[0]
-	// We do this to skip issues with issues with import or other errors
-	// We only care about parsing the test file and run the analyzer
+	// We do this to skip issues with import or other errors.
+	// We only care about parsing the test file and run the analyzer.
 	analyzer.RunDespiteErrors = true
 
-	analysistest.Run(t, testdata, analyzers[0], "comp/...")
+	analysistest.Run(t, testdata, analyzer, "comp/...")
 }
