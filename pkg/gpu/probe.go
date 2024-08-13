@@ -9,13 +9,7 @@ package gpu
 
 import (
 	"fmt"
-	"hash/fnv"
-	"os"
-	"path/filepath"
 	"regexp"
-	"strings"
-
-	"golang.org/x/exp/maps"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -77,51 +71,6 @@ func NewProbe(cfg *Config, telemetryComponent telemetry.Component) (*Probe, erro
 	log.Debugf("[gpu] successfully loaded GPU monitoring probe")
 
 	return probe, nil
-}
-
-func locateLibrary(name string) ([]string, error) {
-	// Use a map to deduplicate results due to symlinks
-	locations := make(map[string]struct{})
-
-	candidateFolders := []string{
-		"/usr/lib",
-		"/usr/local",
-	}
-
-	for _, folder := range candidateFolders {
-		err := filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
-			// Ignore permission denied errors
-			if err != nil && os.IsPermission(err) {
-				return nil
-			} else if err != nil {
-				return err
-			}
-
-			if strings.HasPrefix(info.Name(), name) && strings.Contains(info.Name(), ".so") {
-				path, err = filepath.EvalSymlinks(path)
-				if err != nil {
-					return fmt.Errorf("error resolving symlink %s: %w", path, err)
-				}
-				locations[path] = struct{}{}
-			}
-
-			return nil
-		})
-
-		if err != nil {
-			return []string{}, fmt.Errorf("error browsing %s searching for library %s: %w", folder, name, err)
-		}
-	}
-
-	return maps.Keys(locations), nil
-}
-
-func buildProbeUID(uprobe string, library string) (string, error) {
-	hash := fnv.New64a()
-	if _, err := hash.Write([]byte(uprobe + library)); err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%x", hash.Sum64()), nil
 }
 
 func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, telemetryComponent telemetry.Component, cfg *Config) (*Probe, error) {
