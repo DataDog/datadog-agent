@@ -85,7 +85,9 @@ func NewActivityDumpLocalStorage(cfg *config.Config, m *ActivityDumpManager) (Ac
 
 		// remove everything
 		for _, f := range *files {
-			_ = os.Remove(path.Join(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, f))
+			if err := os.Remove(path.Join(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, f)); err != nil {
+				seclog.Warnf("Failed to remove dump %s (limit of dumps reach): %v", f, err)
+			}
 		}
 
 		adls.deletedCount.Add(1)
@@ -121,6 +123,7 @@ func NewActivityDumpLocalStorage(cfg *config.Config, m *ActivityDumpManager) (Ac
 			// fetch MTime
 			dumpInfo, err := f.Info()
 			if err != nil {
+				seclog.Warnf("Failed to retrieve dump %s file informations: %v", f.Name(), err)
 				// ignore this file
 				continue
 			}
