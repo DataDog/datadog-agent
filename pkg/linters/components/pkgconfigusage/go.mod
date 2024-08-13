@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/linters/components/pkgconfigusage
 
-go 1.22.4
+go 1.22.0
 
 require (
 	github.com/golangci/plugin-module-register v0.1.1
