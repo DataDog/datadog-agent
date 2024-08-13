@@ -1661,7 +1661,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		ctx:                  ctx,
 		cancelFnc:            cancelFnc,
 		newTCNetDevices:      make(chan model.NetDevice, 16),
-		processKiller:        NewProcessKiller(),
+		processKiller:        NewProcessKiller(config),
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, 1),
 	}
 

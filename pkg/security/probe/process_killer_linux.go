@@ -22,12 +22,13 @@ const (
 
 var (
 	// list of binaries that can't be killed
-	protectedBinaries = []string{
+	binariesExcluded = []string{
 		"/opt/datadog-agent/bin/agent/agent",
 		"/opt/datadog-agent/embedded/bin/trace-agent",
 		"/opt/datadog-agent/embedded/bin/security-agent",
 		"/opt/datadog-agent/embedded/bin/process-agent",
 		"/opt/datadog-agent/embedded/bin/system-probe",
+		"/opt/datadog-agent/embedded/bin/cws-instrumentation",
 		"/opt/datadog-agent/bin/datadog-cluster-agent",
 	}
 )

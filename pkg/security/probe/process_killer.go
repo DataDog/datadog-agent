@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -28,12 +29,15 @@ const (
 type ProcessKiller struct {
 	sync.Mutex
 
-	pendingReports []*KillActionReport
+	pendingReports   []*KillActionReport
+	binariesExcluded []string
 }
 
 // NewProcessKiller returns a new ProcessKiller
-func NewProcessKiller() *ProcessKiller {
-	return &ProcessKiller{}
+func NewProcessKiller(cfg *config.Config) *ProcessKiller {
+	return &ProcessKiller{
+		binariesExcluded: append(binariesExcluded, cfg.RuntimeSecurity.EnforcementBinaryExcluded...),
+	}
 }
 
 // AddPendingReports add a pending reports
@@ -79,13 +83,13 @@ func (p *ProcessKiller) HandleProcessExited(event *model.Event) {
 	})
 }
 
-func isKillAllowed(pids []uint32, paths []string) bool {
+func (p *ProcessKiller) isKillAllowed(pids []uint32, paths []string) bool {
 	for i, pid := range pids {
 		if pid <= 1 || pid == utils.Getpid() {
 			return false
 		}
 
-		if slices.Contains(protectedBinaries, paths[i]) {
+		if slices.Contains(p.binariesExcluded, paths[i]) {
 			return false
 		}
 	}
@@ -112,7 +116,7 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.R
 	}
 
 	// if one pids is not allowed don't kill anything
-	if !isKillAllowed(pids, paths) {
+	if !p.isKillAllowed(pids, paths) {
 		log.Warnf("unable to kill, some processes are protected: %v, %v", pids, paths)
 		return
 	}

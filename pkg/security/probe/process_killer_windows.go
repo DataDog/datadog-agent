@@ -15,7 +15,7 @@ import (
 
 var (
 	// list of binaries that can't be killed
-	protectedBinaries = []string{}
+	binariesExcluded = []string{}
 )
 
 // KillFromUserspace tries to kill from userspace
