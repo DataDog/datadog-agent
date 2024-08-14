@@ -30,12 +30,12 @@ var templatesFS embed.FS
 
 // Name returns the name
 func (p statusProvider) Name() string {
-	return "External Metrcis Endpoints"
+	return "External Metrics Endpoints"
 }
 
 // Section return the section
 func (p statusProvider) Section() string {
-	return "External Metrcis Endpoints"
+	return "External Metrics Endpoints"
 }
 
 // JSON populates the status map

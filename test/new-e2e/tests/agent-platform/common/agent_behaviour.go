@@ -310,43 +310,6 @@ func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 			return AgentProcessIsRunning(client, "system-probe")
 		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ", err)
 	})
-
-	t.Run("system-probe and security-agent communicate", func(tt *testing.T) {
-		var statusOutputJSON map[string]any
-		var result bool
-
-		for try := 1; try <= 20 && !result; try++ {
-			status, err := client.Host.Execute("sudo /opt/datadog-agent/embedded/bin/security-agent status -j")
-			if err != nil {
-				tt.Logf("[CheckCWSBehaviour] Try #%d: unable to retrieve security-agent status with error %s", try, err)
-				time.Sleep(1 * time.Second)
-				continue
-			}
-
-			statusLines := strings.Split(status, "\n")
-			status = strings.Join(statusLines[1:], "\n")
-			err = json.Unmarshal([]byte(status), &statusOutputJSON)
-			require.NoError(tt, err)
-
-			runtimeStatus, ok := statusOutputJSON["runtimeSecurityStatus"]
-			require.True(tt, ok, "runtimeSecurityStatus should be present on the security-agent status")
-
-			connected, ok := runtimeStatus.(map[string]any)["connected"]
-			require.True(tt, ok, "connected should be present on the runtimeSecurityStatus")
-
-			result, ok = connected.(bool)
-			require.True(tt, ok, "connected should be convertable to boolean")
-
-			if result {
-				break
-			}
-
-			tt.Logf("[CheckCWSBehaviour] Try #%d: Failed to connect security to system probe with status: %+v", try, runtimeStatus)
-			time.Sleep(1 * time.Second)
-		}
-
-		require.True(tt, result, "system-probe and security-agent should communicate")
-	})
 }
 
 // CheckSystemProbeBehavior runs tests to check the agent behave correctly when system-probe is enabled

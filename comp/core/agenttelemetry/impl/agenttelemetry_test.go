@@ -26,8 +26,10 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -96,23 +98,7 @@ func newRunnerMock() runner {
 	return &runnerMock{}
 }
 
-// Status component currently has mock but it appears to be not compatible with fx  fx fails
-type statusMock struct {
-}
-
-func (s statusMock) GetStatus(string, bool, ...string) ([]byte, error) {
-	return []byte{}, nil
-}
-func (s statusMock) GetStatusBySections([]string, string, bool) ([]byte, error) {
-	return []byte{}, nil
-}
-func (s statusMock) GetSections() []string {
-	return []string{}
-}
-func newStatusMock() statusMock {
-	return statusMock{}
-}
-
+// utilities
 func convertYamlStrToMap(t *testing.T, cfgStr string) map[string]any {
 	var c map[string]any
 	err := yaml.Unmarshal([]byte(cfgStr), &c)
@@ -143,16 +129,33 @@ func makeStableMetricMap(metrics []*dto.Metric) map[string]*dto.Metric {
 	return metricMap
 }
 
+func makeTelMock(t *testing.T) telemetry.Component {
+	return fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+}
+
+func makeCfgMock(t *testing.T, confOverrides map[string]any) config.Component {
+	return fxutil.Test[config.Component](t, config.MockModule(),
+		fx.Replace(config.MockParams{Overrides: confOverrides}))
+}
+
+func makeLogMock(t *testing.T) log.Component {
+	return logmock.New(t)
+}
+
+func makeStatusMock(t *testing.T) status.Component {
+	return fxutil.Test[status.Mock](t, fx.Options(statusimpl.MockModule()))
+}
+
 // aggregator mock function
 func getTestAtel(t *testing.T,
 	tel telemetry.Component,
-	confOverrides map[string]any,
+	ovrrd map[string]any,
 	sndr sender,
 	client client,
 	runner runner) *atel {
 
 	if tel == nil {
-		tel = fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+		tel = makeTelMock(t)
 	}
 
 	if client == nil {
@@ -163,15 +166,8 @@ func getTestAtel(t *testing.T,
 		runner = newRunnerMock()
 	}
 
-	cfg := fxutil.Test[config.Component](t, config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: confOverrides}))
-	log := logmock.New(t)
-	status := fxutil.Test[status.Component](t,
-		func() fxutil.Module {
-			return fxutil.Component(
-				fx.Provide(newStatusMock),
-				fx.Provide(func(s statusMock) status.Component { return s }))
-		}())
+	cfg := makeCfgMock(t, ovrrd)
+	log := makeLogMock(t)
 
 	var err error
 	if sndr == nil {
@@ -179,7 +175,7 @@ func getTestAtel(t *testing.T,
 	}
 	assert.NoError(t, err)
 
-	atel := createAtel(cfg, log, tel, status, sndr, runner)
+	atel := createAtel(cfg, log, tel, makeStatusMock(t), sndr, runner)
 	if atel == nil {
 		err = fmt.Errorf("failed to create atel")
 	}
@@ -189,6 +185,11 @@ func getTestAtel(t *testing.T,
 }
 
 func getCommonOverrideConfig(enabled bool, site string) map[string]any {
+	if site == "" {
+		return map[string]any{
+			"agent_telemetry.enabled": enabled,
+		}
+	}
 	return map[string]any{
 		"agent_telemetry.enabled": enabled,
 		"site":                    site,
@@ -205,6 +206,40 @@ func TestDisable(t *testing.T) {
 	o := getCommonOverrideConfig(false, "foo.bar")
 	a := getTestAtel(t, nil, o, nil, nil, nil)
 	assert.False(t, a.enabled)
+}
+
+func TestDisableIfFipsEnabled(t *testing.T) {
+	o := map[string]any{
+		"agent_telemetry.enabled": true,
+		"site":                    "foo.bar",
+		"fips.enabled":            true}
+	a := getTestAtel(t, nil, o, nil, nil, nil)
+	assert.False(t, a.enabled)
+}
+
+func TestEnableIfFipsDisabled(t *testing.T) {
+	o := map[string]any{
+		"agent_telemetry.enabled": true,
+		"site":                    "foo.bar",
+		"fips.enabled":            false}
+	a := getTestAtel(t, nil, o, nil, nil, nil)
+	assert.True(t, a.enabled)
+}
+
+func TestDisableIfGovCloud(t *testing.T) {
+	o := map[string]any{
+		"agent_telemetry.enabled": true,
+		"site":                    "ddog-gov.com"}
+	a := getTestAtel(t, nil, o, nil, nil, nil)
+	assert.False(t, a.enabled)
+}
+
+func TestEnableIfNotGovCloud(t *testing.T) {
+	o := map[string]any{
+		"agent_telemetry.enabled": true,
+		"site":                    "datadoghq.eu"}
+	a := getTestAtel(t, nil, o, nil, nil, nil)
+	assert.True(t, a.enabled)
 }
 
 func TestDisableByDefault(t *testing.T) {

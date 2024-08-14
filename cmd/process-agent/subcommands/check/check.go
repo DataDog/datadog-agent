@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -87,6 +87,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			ConfFilePath:         globalParams.ConfFilePath,
 			ExtraConfFilePath:    globalParams.ExtraConfFilePath,
 			SysProbeConfFilePath: globalParams.SysProbeConfFilePath,
+			FleetPoliciesDirPath: globalParams.FleetPoliciesDirPath,
 		}
 	}, "check", checkAllowlist)}
 }
@@ -126,7 +127,7 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 				fx.Supply(eventplatformimpl.NewDefaultParams()),
 				npcollectorimpl.Module(),
 				// Provide the corresponding workloadmeta Params to configure the catalog
-				collectors.GetCatalog(),
+				wmcatalog.GetCatalog(),
 				fx.Provide(func(config config.Component) workloadmeta.Params {
 
 					var catalog workloadmeta.AgentType

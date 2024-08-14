@@ -33,7 +33,7 @@ var (
 		web services and are commonly used inside companies.
 		Let those fall through as WebService.
 	*/
-	portMap = map[int]ServiceType{
+	portMap = map[uint16]ServiceType{
 		// Postgres, MySQL, Oracle
 		5432: DB,
 		3306: DB,
@@ -92,7 +92,7 @@ var (
 )
 
 // Detect returns the ServiceType from the provided process information.
-func Detect(name string, ports []int) ServiceType {
+func Detect(name string, ports []uint16) ServiceType {
 	// start with ports
 	for _, v := range ports {
 		if st, ok := portMap[v]; ok {

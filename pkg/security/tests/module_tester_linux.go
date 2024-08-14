@@ -47,6 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -676,7 +677,7 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 
 	if opts.dynamicOpts.disableBundledRules {
 		ruleDefs = append(ruleDefs, &rules.RuleDefinition{
-			ID:       events.NeedRefreshSBOMRuleID,
+			ID:       bundled.NeedRefreshSBOMRuleID,
 			Disabled: true,
 			Combine:  rules.OverridePolicy,
 		})

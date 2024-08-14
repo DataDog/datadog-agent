@@ -10,6 +10,7 @@ package servicediscovery
 import (
 	"cmp"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,12 +18,13 @@ import (
 	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/prometheus/procfs"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/portlist"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 )
 
 type testProc struct {
@@ -38,6 +40,19 @@ var (
 	// procLaunched is number of clicks (100 per second) since bootTime when the process started
 	// assume it's 12 hours later
 	procLaunchedClicks = uint64((12 * time.Hour).Seconds()) * 100
+	pythonCommandLine  = []string{"python", "-m", "foobar.main", "--", "--password", "secret",
+		"--other-stuff", "--more-things", "--even-more",
+		"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+		"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+		"AAAAAAAAAAAAAAAAAAAAAAAAA",
+		"--a-long-argument-total-over-max-length",
+	}
+	eventPythonCommandLine = []string{"python", "-m", "foobar.main", "--", "--password", "********",
+		"--other-stuff", "--more-things", "--even-more",
+		"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+		"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+		"AAAAAAAAAAAAAAAAAAAAAAAAA",
+		"--a-long-argument"}
 )
 
 var (
@@ -53,6 +68,15 @@ var (
 	procTestService1 = testProc{
 		pid:     99,
 		cmdline: []string{"test-service-1"},
+		env:     []string{},
+		cwd:     "",
+		stat: procfs.ProcStat{
+			Starttime: procLaunchedClicks,
+		},
+	}
+	procPythonService = testProc{
+		pid:     500,
+		cmdline: pythonCommandLine,
 		env:     []string{},
 		cwd:     "",
 		stat: procfs.ProcStat{
@@ -89,35 +113,35 @@ var (
 )
 
 var (
-	portTCP22 = portlist.Port{
-		Proto:   "tcp",
-		Port:    22,
-		Process: "sshd",
-		Pid:     procSSHD.pid,
+	portTCP22 = model.Service{
+		PID:   procSSHD.pid,
+		Name:  "sshd",
+		Ports: []uint16{22},
 	}
-	portTCP8080 = portlist.Port{
-		Proto:   "tcp",
-		Port:    8080,
-		Process: "test-service-1",
-		Pid:     procTestService1.pid,
+	portTCP8080 = model.Service{
+		PID:   procTestService1.pid,
+		Name:  "test-service-1",
+		Ports: []uint16{8080},
 	}
-	portTCP8080DifferentPID = portlist.Port{
-		Proto:   "tcp",
-		Port:    8080,
-		Process: "test-service-1",
-		Pid:     procTestService1DifferentPID.pid,
+	portTCP8080DifferentPID = model.Service{
+		PID:   procTestService1DifferentPID.pid,
+		Name:  "test-service-1",
+		Ports: []uint16{8080},
 	}
-	portTCP8081 = portlist.Port{
-		Proto:   "tcp",
-		Port:    8081,
-		Process: "ignore-1",
-		Pid:     procIgnoreService1.pid,
+	portTCP8081 = model.Service{
+		PID:   procIgnoreService1.pid,
+		Name:  "ignore-1",
+		Ports: []uint16{8081},
 	}
-	portTCP5432 = portlist.Port{
-		Proto:   "tcp",
-		Port:    5432,
-		Process: "test-service-1",
-		Pid:     procTestService1Repeat.pid,
+	portTCP5000 = model.Service{
+		PID:   procPythonService.pid,
+		Name:  "python-service",
+		Ports: []uint16{5000},
+	}
+	portTCP5432 = model.Service{
+		PID:   procTestService1Repeat.pid,
+		Name:  "test-service-1",
+		Ports: []uint16{5432},
 	}
 )
 
@@ -128,8 +152,6 @@ func mockProc(
 	m := NewMockproc(ctrl)
 	m.EXPECT().PID().Return(p.pid).AnyTimes()
 	m.EXPECT().CmdLine().Return(p.cmdline, nil).AnyTimes()
-	m.EXPECT().Environ().Return(p.env, nil).AnyTimes()
-	m.EXPECT().Cwd().Return(p.cwd, nil).AnyTimes()
 	m.EXPECT().Stat().Return(p.stat, nil).AnyTimes()
 	return m
 }
@@ -156,6 +178,8 @@ func cmpEvents(a, b *event) bool {
 		cmp.Compare(ap.ServiceName, bp.ServiceName),
 		cmp.Compare(ap.ServiceType, bp.ServiceType),
 		cmp.Compare(ap.ServiceLanguage, bp.ServiceLanguage),
+		cmp.Compare(ap.Ports[0], bp.Ports[0]),
+		cmp.Compare(ap.PID, bp.PID),
 	}
 	for _, val := range vals {
 		if val != 0 {
@@ -168,12 +192,12 @@ func cmpEvents(a, b *event) bool {
 func Test_linuxImpl(t *testing.T) {
 	host := "test-host"
 	cfgYaml := `ignore_processes: ["ignore-1", "ignore-2"]`
-	t.Setenv("DD_SERVICE_DISCOVERY_ENABLED", "true")
+	t.Setenv("DD_DISCOVERY_ENABLED", "true")
 
 	type checkRun struct {
-		aliveProcs []testProc
-		openPorts  []portlist.Port
-		time       time.Time
+		aliveProcs   []testProc
+		servicesResp *model.ServicesResponse
+		time         time.Time
 	}
 
 	tests := []struct {
@@ -189,12 +213,14 @@ func Test_linuxImpl(t *testing.T) {
 						procSSHD,
 						procIgnoreService1,
 						procTestService1,
+						procPythonService,
 					},
-					openPorts: []portlist.Port{
+					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
+						portTCP5000,
 						portTCP8080,
 						portTCP8081,
-					},
+					}},
 					time: calcTime(0),
 				},
 				{
@@ -202,12 +228,14 @@ func Test_linuxImpl(t *testing.T) {
 						procSSHD,
 						procIgnoreService1,
 						procTestService1,
+						procPythonService,
 					},
-					openPorts: []portlist.Port{
+					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
+						portTCP5000,
 						portTCP8080,
 						portTCP8081,
-					},
+					}},
 					time: calcTime(1 * time.Minute),
 				},
 				{
@@ -215,21 +243,25 @@ func Test_linuxImpl(t *testing.T) {
 						procSSHD,
 						procIgnoreService1,
 						procTestService1,
+						procPythonService,
 					},
-					openPorts: []portlist.Port{
+					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
+						portTCP5000,
 						portTCP8080,
 						portTCP8081,
-					},
+					}},
 					time: calcTime(20 * time.Minute),
 				},
 				{
 					aliveProcs: []testProc{
 						procSSHD,
+						procPythonService,
 					},
-					openPorts: []portlist.Port{
+					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
-					},
+						portTCP5000,
+					}},
 					time: calcTime(21 * time.Minute),
 				},
 			},
@@ -240,14 +272,14 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
-						ServiceLanguage:     "UNKNOWN",
-						ServiceType:         "web_service",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(1 * time.Minute).Unix(),
-						APMInstrumentation:  "none",
-						ServiceNameSource:   "generated",
+						Ports:               []uint16{8080},
+						PID:                 99,
+						CommandLine:         []string{"test-service-1"},
 					},
 				},
 				{
@@ -256,14 +288,14 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
-						ServiceLanguage:     "UNKNOWN",
-						ServiceType:         "web_service",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(20 * time.Minute).Unix(),
-						APMInstrumentation:  "none",
-						ServiceNameSource:   "generated",
+						Ports:               []uint16{8080},
+						PID:                 99,
+						CommandLine:         []string{"test-service-1"},
 					},
 				},
 				{
@@ -272,14 +304,48 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
-						ServiceLanguage:     "UNKNOWN",
-						ServiceType:         "web_service",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(20 * time.Minute).Unix(),
-						APMInstrumentation:  "none",
-						ServiceNameSource:   "generated",
+						Ports:               []uint16{8080},
+						PID:                 99,
+						CommandLine:         []string{"test-service-1"},
+					},
+				},
+				{
+					RequestType: "start-service",
+					APIVersion:  "v2",
+					Payload: &eventPayload{
+						NamingSchemaVersion: "1",
+						ServiceName:         "python-service",
+						ServiceType:         "web_service",
+						HostName:            host,
+						Env:                 "",
+						StartTime:           calcTime(0).Unix(),
+						LastSeen:            calcTime(1 * time.Minute).Unix(),
+						Ports:               []uint16{5000},
+						PID:                 500,
+						ServiceLanguage:     "python",
+						CommandLine:         eventPythonCommandLine,
+					},
+				},
+				{
+					RequestType: "heartbeat-service",
+					APIVersion:  "v2",
+					Payload: &eventPayload{
+						NamingSchemaVersion: "1",
+						ServiceName:         "python-service",
+						ServiceType:         "web_service",
+						HostName:            host,
+						Env:                 "",
+						StartTime:           calcTime(0).Unix(),
+						LastSeen:            calcTime(20 * time.Minute).Unix(),
+						Ports:               []uint16{5000},
+						PID:                 500,
+						ServiceLanguage:     "python",
+						CommandLine:         eventPythonCommandLine,
 					},
 				},
 			},
@@ -294,12 +360,12 @@ func Test_linuxImpl(t *testing.T) {
 						procTestService1,
 						procTestService1Repeat,
 					},
-					openPorts: []portlist.Port{
+					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
 						portTCP8080,
 						portTCP8081,
 						portTCP5432,
-					},
+					}},
 					time: calcTime(0),
 				},
 				{
@@ -309,12 +375,12 @@ func Test_linuxImpl(t *testing.T) {
 						procTestService1,
 						procTestService1Repeat,
 					},
-					openPorts: []portlist.Port{
+					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
 						portTCP8080,
 						portTCP8081,
 						portTCP5432,
-					},
+					}},
 					time: calcTime(1 * time.Minute),
 				},
 				{
@@ -324,12 +390,12 @@ func Test_linuxImpl(t *testing.T) {
 						procTestService1,
 						procTestService1Repeat,
 					},
-					openPorts: []portlist.Port{
+					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
 						portTCP8080,
 						portTCP8081,
 						portTCP5432,
-					},
+					}},
 					time: calcTime(20 * time.Minute),
 				},
 				{
@@ -337,10 +403,10 @@ func Test_linuxImpl(t *testing.T) {
 						procSSHD,
 						procTestService1,
 					},
-					openPorts: []portlist.Port{
+					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
 						portTCP8080,
-					},
+					}},
 					time: calcTime(21 * time.Minute),
 				},
 			},
@@ -351,14 +417,14 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "db",
 						HostName:            host,
 						Env:                 "",
-						ServiceLanguage:     "UNKNOWN",
-						ServiceType:         "web_service",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(1 * time.Minute).Unix(),
-						APMInstrumentation:  "none",
-						ServiceNameSource:   "generated",
+						Ports:               []uint16{5432},
+						PID:                 101,
+						CommandLine:         []string{"test-service-1"},
 					},
 				},
 				{
@@ -367,14 +433,14 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
-						ServiceLanguage:     "UNKNOWN",
-						ServiceType:         "db",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(1 * time.Minute).Unix(),
-						APMInstrumentation:  "none",
-						ServiceNameSource:   "generated",
+						Ports:               []uint16{8080},
+						PID:                 99,
+						CommandLine:         []string{"test-service-1"},
 					},
 				},
 				{
@@ -383,30 +449,14 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
-						HostName:            host,
-						Env:                 "",
-						ServiceLanguage:     "UNKNOWN",
-						ServiceType:         "web_service",
-						StartTime:           calcTime(0).Unix(),
-						LastSeen:            calcTime(20 * time.Minute).Unix(),
-						APMInstrumentation:  "none",
-						ServiceNameSource:   "generated",
-					},
-				},
-				{
-					RequestType: "heartbeat-service",
-					APIVersion:  "v2",
-					Payload: &eventPayload{
-						NamingSchemaVersion: "1",
-						ServiceName:         "test-service-1",
-						HostName:            host,
-						Env:                 "",
-						ServiceLanguage:     "UNKNOWN",
 						ServiceType:         "db",
+						HostName:            host,
+						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(20 * time.Minute).Unix(),
-						APMInstrumentation:  "none",
-						ServiceNameSource:   "generated",
+						Ports:               []uint16{5432},
+						PID:                 101,
+						CommandLine:         []string{"test-service-1"},
 					},
 				},
 				{
@@ -415,14 +465,30 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "db",
 						HostName:            host,
 						Env:                 "",
-						ServiceLanguage:     "UNKNOWN",
-						ServiceType:         "db",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(20 * time.Minute).Unix(),
-						APMInstrumentation:  "none",
-						ServiceNameSource:   "generated",
+						Ports:               []uint16{5432},
+						PID:                 101,
+						CommandLine:         []string{"test-service-1"},
+					},
+				},
+				{
+					RequestType: "heartbeat-service",
+					APIVersion:  "v2",
+					Payload: &eventPayload{
+						NamingSchemaVersion: "1",
+						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
+						HostName:            host,
+						Env:                 "",
+						StartTime:           calcTime(0).Unix(),
+						LastSeen:            calcTime(20 * time.Minute).Unix(),
+						Ports:               []uint16{8080},
+						PID:                 99,
+						CommandLine:         []string{"test-service-1"},
 					},
 				},
 			},
@@ -438,11 +504,11 @@ func Test_linuxImpl(t *testing.T) {
 						procIgnoreService1,
 						procTestService1,
 					},
-					openPorts: []portlist.Port{
+					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
 						portTCP8080,
 						portTCP8081,
-					},
+					}},
 					time: calcTime(0),
 				},
 				{
@@ -451,11 +517,11 @@ func Test_linuxImpl(t *testing.T) {
 						procIgnoreService1,
 						procTestService1,
 					},
-					openPorts: []portlist.Port{
+					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
 						portTCP8080,
 						portTCP8081,
-					},
+					}},
 					time: calcTime(1 * time.Minute),
 				},
 				{
@@ -463,10 +529,10 @@ func Test_linuxImpl(t *testing.T) {
 						procSSHD,
 						procTestService1DifferentPID,
 					},
-					openPorts: []portlist.Port{
+					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
 						portTCP8080DifferentPID,
-					},
+					}},
 					time: calcTime(21 * time.Minute),
 				},
 				{
@@ -474,10 +540,10 @@ func Test_linuxImpl(t *testing.T) {
 						procSSHD,
 						procTestService1DifferentPID,
 					},
-					openPorts: []portlist.Port{
+					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
 						portTCP8080DifferentPID,
-					},
+					}},
 					time: calcTime(22 * time.Minute),
 				},
 			},
@@ -488,14 +554,14 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
-						ServiceLanguage:     "UNKNOWN",
-						ServiceType:         "web_service",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(1 * time.Minute).Unix(),
-						APMInstrumentation:  "none",
-						ServiceNameSource:   "generated",
+						Ports:               []uint16{8080},
+						PID:                 99,
+						CommandLine:         []string{"test-service-1"},
 					},
 				},
 				{
@@ -504,14 +570,14 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
-						ServiceLanguage:     "UNKNOWN",
-						ServiceType:         "web_service",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(22 * time.Minute).Unix(),
-						APMInstrumentation:  "none",
-						ServiceNameSource:   "generated",
+						Ports:               []uint16{8080},
+						PID:                 102,
+						CommandLine:         []string{"test-service-1"},
 					},
 				},
 			},
@@ -540,15 +606,17 @@ func Test_linuxImpl(t *testing.T) {
 			require.NotNil(t, check.os)
 
 			for _, cr := range tc.checkRun {
+				mSysProbe := NewMocksystemProbeClient(ctrl)
+				mSysProbe.EXPECT().GetDiscoveryServices().
+					Return(cr.servicesResp, nil).
+					Times(1)
+
 				var procs []proc
 				for _, p := range cr.aliveProcs {
 					procs = append(procs, mockProc(ctrl, p))
 				}
 
 				_, mHostname := hostnameinterface.NewMock(hostnameinterface.MockHostname(host))
-
-				mPortPoller := NewMockportPoller(ctrl)
-				mPortPoller.EXPECT().OpenPorts().Return(cr.openPorts, nil).Times(1)
 
 				mProcFS := NewMockprocFS(ctrl)
 				mProcFS.EXPECT().AllProcs().Return(procs, nil).Times(1)
@@ -558,7 +626,9 @@ func Test_linuxImpl(t *testing.T) {
 
 				// set mocks
 				check.os.(*linuxImpl).procfs = mProcFS
-				check.os.(*linuxImpl).portPoller = mPortPoller
+				check.os.(*linuxImpl).getSysProbeClient = func() (systemProbeClient, error) {
+					return mSysProbe, nil
+				}
 				check.os.(*linuxImpl).time = mTimer
 				check.os.(*linuxImpl).bootTime = bootTimeSeconds
 				check.sender.hostname = mHostname
@@ -585,20 +655,8 @@ func (errorProcFS) AllProcs() ([]proc, error) {
 	return nil, errors.New("procFS failure")
 }
 
-type emptyProcFS struct{}
-
-func (emptyProcFS) AllProcs() ([]proc, error) {
-	return []proc{}, nil
-}
-
-type errorPortPoller struct{}
-
-func (errorPortPoller) OpenPorts() (portlist.List, error) {
-	return nil, errors.New("portPoller failure")
-}
-
 func Test_linuxImpl_errors(t *testing.T) {
-	t.Setenv("DD_SERVICE_DISCOVERY_ENABLED", "true")
+	t.Setenv("DD_DISCOVERY_ENABLED", "true")
 
 	// bad procFS
 	{
@@ -618,23 +676,46 @@ func Test_linuxImpl_errors(t *testing.T) {
 			t.Error("expected errWithCode, got", err)
 		}
 	}
-	// bad portPoller
-	{
-		li := linuxImpl{
-			procfs:     emptyProcFS{},
-			portPoller: errorPortPoller{},
-		}
-		ds, err := li.DiscoverServices()
-		if ds != nil {
-			t.Error("expected nil discovery service")
-		}
-		var expected errWithCode
-		if errors.As(err, &expected) {
-			if expected.Code() != errorCodePortPoller {
-				t.Errorf("expected error code portPoller: %#v", expected)
-			}
-		} else {
-			t.Error("expected errWithCode, got", err)
-		}
+}
+
+func TestTruncateCmdline(t *testing.T) {
+	type testData struct {
+		original []string
+		result   []string
+	}
+
+	tests := []testData{
+		{
+			original: []string{},
+			result:   nil,
+		},
+		{
+			original: []string{"a", "b", "", "c", "d"},
+			result:   []string{"a", "b", "c", "d"},
+		},
+		{
+			original: []string{"x", strings.Repeat("A", maxCommandLine-1)},
+			result:   []string{"x", strings.Repeat("A", maxCommandLine-1)},
+		},
+		{
+			original: []string{strings.Repeat("A", maxCommandLine), "B"},
+			result:   []string{strings.Repeat("A", maxCommandLine)},
+		},
+		{
+			original: []string{strings.Repeat("A", maxCommandLine+1)},
+			result:   []string{strings.Repeat("A", maxCommandLine)},
+		},
+		{
+			original: []string{strings.Repeat("A", maxCommandLine-1), "", "B"},
+			result:   []string{strings.Repeat("A", maxCommandLine-1), "B"},
+		},
+		{
+			original: []string{strings.Repeat("A", maxCommandLine-1), "BCD"},
+			result:   []string{strings.Repeat("A", maxCommandLine-1), "B"},
+		},
+	}
+
+	for _, test := range tests {
+		assert.Equal(t, test.result, truncateCmdline(test.original))
 	}
 }

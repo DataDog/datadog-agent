@@ -76,7 +76,7 @@ func TestProxyWithSecret(t *testing.T) {
 		},
 		{
 			name: "secrets fron DD env vars for proxy",
-			setup: func(_ *testing.T, config pkgconfigmodel.Config, _ string, resolver secrets.Mock) {
+			setup: func(t *testing.T, config pkgconfigmodel.Config, _ string, resolver secrets.Mock) {
 				resolver.SetFetchHookFunc(func(_ []string) (map[string]string, error) {
 					return map[string]string{
 						"http_handle":       "http_url",
@@ -103,7 +103,7 @@ func TestProxyWithSecret(t *testing.T) {
 		},
 		{
 			name: "secrets fron UNIX env vars for proxy",
-			setup: func(_ *testing.T, config pkgconfigmodel.Config, _ string, resolver secrets.Mock) {
+			setup: func(t *testing.T, config pkgconfigmodel.Config, _ string, resolver secrets.Mock) {
 				resolver.SetFetchHookFunc(func(_ []string) (map[string]string, error) {
 					return map[string]string{
 						"http_handle":       "http_url",

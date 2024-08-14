@@ -37,6 +37,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/secrets => ./comp/core/secrets
 	github.com/DataDog/datadog-agent/comp/core/status => ./comp/core/status
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl => ./comp/core/status/statusimpl
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils => ./comp/core/tagger/utils
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ./comp/core/telemetry/
 	github.com/DataDog/datadog-agent/comp/def => ./comp/def/
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ./comp/forwarder/defaultforwarder
@@ -153,9 +154,9 @@ require (
 	github.com/DataDog/ebpf-manager v0.7.1
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.4
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.17.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.17.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.17.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.18.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.18.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.18.0
 	github.com/DataDog/sketches-go v1.4.6
 	github.com/DataDog/viper v1.13.5
 	github.com/DataDog/watermarkpodautoscaler v0.6.1
@@ -297,15 +298,15 @@ require (
 	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.27.0
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
-	golang.org/x/arch v0.8.0
-	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842
+	golang.org/x/arch v0.9.0
+	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
 	golang.org/x/net v0.27.0
-	golang.org/x/sync v0.7.0
-	golang.org/x/sys v0.22.0
+	golang.org/x/sync v0.8.0
+	golang.org/x/sys v0.23.0
 	golang.org/x/text v0.16.0
-	golang.org/x/time v0.5.0
+	golang.org/x/time v0.6.0
 	golang.org/x/tools v0.23.0
-	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028
+	golang.org/x/xerrors v0.0.0-20240716161551-93cc26a95ae9
 	google.golang.org/genproto v0.0.0-20240617180043-68d350f18fd4 // indirect
 	google.golang.org/grpc v1.65.0
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
@@ -317,14 +318,14 @@ require (
 	k8s.io/api v0.29.3
 	k8s.io/apiextensions-apiserver v0.29.2
 	k8s.io/apimachinery v0.29.3
-	k8s.io/apiserver v0.29.3
+	k8s.io/apiserver v0.29.3 // indirect
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.13.0
 	k8s.io/client-go v0.29.3
 	k8s.io/cri-api v0.29.3
 	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
 	k8s.io/klog/v2 v2.120.1
 	k8s.io/kube-aggregator v0.28.6
-	k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00
+	k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00 // indirect
 	k8s.io/kube-state-metrics/v2 v2.8.2
 	k8s.io/kubelet v0.29.3
 	k8s.io/metrics v0.28.6
@@ -565,7 +566,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.27.0
 	go.opentelemetry.io/proto/otlp v1.2.0 // indirect
 	golang.org/x/crypto v0.25.0 // indirect
-	golang.org/x/mod v0.19.0
+	golang.org/x/mod v0.20.0
 	golang.org/x/oauth2 v0.21.0 // indirect
 	golang.org/x/term v0.22.0 // indirect
 	gonum.org/v1/gonum v0.15.0 // indirect
@@ -576,7 +577,6 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	k8s.io/component-base v0.29.3
-	k8s.io/gengo v0.0.0-20230829151522-9cce18d56c01 // indirect
 	mellium.im/sasl v0.3.1 // indirect
 	modernc.org/cc/v3 v3.41.0 // indirect
 	modernc.org/ccgo/v3 v3.16.15 // indirect
@@ -592,11 +592,14 @@ require (
 	sigs.k8s.io/yaml v1.4.0
 )
 
-require github.com/lorenzosaino/go-sysctl v0.3.1
+require (
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.0.0-00010101000000-000000000000
+	github.com/lorenzosaino/go-sysctl v0.3.1
+)
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.129
+	github.com/DataDog/agent-payload/v5 v5.0.130
 	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/config v0.56.0-rc.3
@@ -639,7 +642,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/api v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/env v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.0.0-20240723160440-69ec7b21bb9c
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.0.0-20240726104123-0f372a5f7b15
 	github.com/DataDog/datadog-agent/pkg/config/model v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/remote v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.0-rc.3
@@ -689,7 +692,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/version v0.56.0-rc.3
 	github.com/DataDog/go-libddwaf/v3 v3.3.0
-	github.com/DataDog/go-sqllexer v0.0.12
+	github.com/DataDog/go-sqllexer v0.0.13
 	github.com/Datadog/dublin-traceroute v0.0.1
 	github.com/aquasecurity/trivy v0.49.2-0.20240227072422-e1ea02c7b80d
 	github.com/aws/aws-sdk-go-v2/service/kms v1.34.1
