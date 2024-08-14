@@ -23,16 +23,20 @@ type windowsService struct {
 	*fx.App
 }
 
+func getFxOptions(global *command.GlobalParams) []fx.Option {
+	return []fx.Option{
+		getCommonFxOption(global),
+		fxutil.FxAgentBase(),
+		// Force the instantiation of some components
+		fx.Invoke(func(_ pid.Component) {}),
+		fx.Invoke(func(_ localapi.Component) {}),
+		fx.Invoke(func(_ telemetry.Component) {}),
+	}
+}
+
 func runFxWrapper(global *command.GlobalParams) error {
 	return svc.Run(&windowsService{
-		App: fx.New(
-			getCommonFxOption(global),
-			fxutil.FxAgentBase(),
-			// Force the instantiation of some components
-			fx.Invoke(func(_ pid.Component) {}),
-			fx.Invoke(func(_ localapi.Component) {}),
-			fx.Invoke(func(_ telemetry.Component) {}),
-		),
+		App: fx.New(getFxOptions(global)...),
 	}, syscall.SIGINT, syscall.SIGTERM)
 }
 
