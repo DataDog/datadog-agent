@@ -164,7 +164,7 @@ func GetLogLevel() (seelog.LogLevel, error) {
 func (sw *loggerPointer) getLogLevel() (seelog.LogLevel, error) {
 	l := sw.Load()
 	if l == nil {
-		return seelog.InfoLvl, errors.New("cannot get loglevel: logger not initialized")
+		return seelog.InfoLvl, errors.New("cannot get loglevels: logger not initialized")
 	}
 
 	l.l.RLock()
