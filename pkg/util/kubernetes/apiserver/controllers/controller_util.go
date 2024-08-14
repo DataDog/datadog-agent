@@ -231,6 +231,8 @@ func (h *autoscalersController) processingLoop(stopCh <-chan struct{}) {
 	tickerAutoscalerRefreshProcess := time.NewTicker(time.Duration(h.poller.refreshPeriod) * time.Second)
 	gcPeriodSeconds := time.NewTicker(time.Duration(h.poller.gcPeriodSeconds) * time.Second)
 	go func() {
+		defer tickerAutoscalerRefreshProcess.Stop()
+		defer gcPeriodSeconds.Stop()
 		for {
 			select {
 			case <-stopCh:
