@@ -1,25 +1,32 @@
 receivers:
-    otlp:
+  otlp:
 
 exporters:
-    nop:
+  nop:
 
 extensions:
   pprof/dd-autoconfigured:
   health_check/dd-autoconfigured:
   zpages/dd-autoconfigured:
     endpoint: "localhost:55679"
-  datadog/dd-autoconfigured:
+  ddflareextension/dd-autoconfigured:
 
 service:
-    extensions: [pprof/dd-autoconfigured, zpages/dd-autoconfigured, health_check/dd-autoconfigured, datadog/dd-autoconfigured]
-    pipelines:
-        traces:
-            receivers: [nop]
-            exporters: [nop]
-        metrics:
-            receivers: [nop]
-            exporters: [nop]
-        logs:
-            receivers: [nop]
-            exporters: [nop]
+  extensions:
+    [
+      pprof/dd-autoconfigured,
+      zpages/dd-autoconfigured,
+      health_check/dd-autoconfigured,
+      ddflareextension/dd-autoconfigured,
+    ]
+  pipelines:
+    traces:
+      receivers: [nop]
+      exporters: [nop]
+    metrics:
+      receivers: [nop]
+      exporters: [nop]
+    logs:
+      receivers: [nop]
+      exporters: [nop]
+
