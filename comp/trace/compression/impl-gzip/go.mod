@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip
 
-go 1.21.0
+go 1.22.0
 
 replace github.com/DataDog/datadog-agent/comp/trace/compression/def => ../../../../comp/trace/compression/def/
 
