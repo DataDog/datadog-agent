@@ -26,7 +26,7 @@ var (
 	forbiddenSymbolsRegex = "[^/a-zA-Z0-9_*]"
 )
 
-var executibleExtensions = []string{".com", ".exe", ".bat", ".cmd", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".psc1", ".ps1"}
+var executableExtensions = []string{".com", ".exe", ".bat", ".cmd", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".psc1", ".ps1"}
 
 // stripArguments identifies windows extension and extracts command. Otherwise, returns the first element of the cmdline before first space.
 // If cmdline is empty, stripArguments will return an empty string.
@@ -43,27 +43,27 @@ func (ds *DataScrubber) stripArguments(cmdline []string) []string {
 	}
 
 	// Case 2: One string for cmdline, use extensionParser() to find first token.
-	if len(cmdline) == 1 && !strings.HasPrefix(strCmdline, "\"") {
-		strippedCmdline := extensionParser(strCmdline, executibleExtensions)
+	if !strings.HasPrefix(strCmdline, "\"") {
+		strippedCmdline := extensionParser(strCmdline, executableExtensions)
 
 		if strippedCmdline != "" {
-			return []string{strings.TrimSuffix(strippedCmdline, " ")}
+			return []string{strippedCmdline}
 		}
 
 		// If no extension is found, return first token of cmdline.
-		return []string{strings.TrimSuffix(strings.SplitN(strCmdline, " ", 2)[0], " ")}
+		return []string{strings.SplitN(strCmdline, " ", 2)[0]}
 	}
 
 	// Case 2b: One string for cmdline and first token wrapped in quotes, use findEmbeddedQuotes() to find content between quotes.
 	strippedCmdline := findEmbeddedQuotes(strCmdline)
-	return []string{strings.TrimSuffix(strippedCmdline, " ")}
+	return []string{strippedCmdline}
 }
 
 // extensionParser returns substring of cmdline up to the first extension (inclusive).
 // If no extension is found, returns empty string.
 // Example: Input="C:\\Program Files\\Datadog\\agent.vbe check process"  Output="C:\\Program Files\\Datadog\\agent.vbe"
-func extensionParser(cmdline string, executibleExtensions []string) string {
-	for _, c := range executibleExtensions {
+func extensionParser(cmdline string, executableExtensions []string) string {
+	for _, c := range executableExtensions {
 		// If extension is found before a word break (space or end of line).
 		if i := strings.Index(cmdline, c); i != -1 && (i+len(c) == len(cmdline) || cmdline[i+len(c)] == ' ') {
 			processedCmdline := cmdline[:i+len(c)]
@@ -77,10 +77,6 @@ func extensionParser(cmdline string, executibleExtensions []string) string {
 // If there is no pair of double quotes found, function returns original cmdline.
 // Example: Input="\"C:\\Program Files\\Datadog\\agent.vbe\" check process" Output="C:\\Program Files\\Datadog\\agent.vbe"
 func findEmbeddedQuotes(cmdline string) string {
-	if len(cmdline) == 0 {
-		return cmdline
-	}
-
 	strippedCmdline := strings.SplitN(cmdline, "\"", 3)
 	if len(strippedCmdline) < 3 {
 		return cmdline

@@ -185,7 +185,7 @@ func TestExtensionParser(t *testing.T) {
 	} {
 
 		t.Run(tc.name, func(t *testing.T) {
-			actual := extensionParser(tc.cmdline, executibleExtensions)
+			actual := extensionParser(tc.cmdline, executableExtensions)
 			assert.Equal(t, tc.expected, actual)
 		})
 	}
