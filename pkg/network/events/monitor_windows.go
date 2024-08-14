@@ -3,12 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux && !windows
-
 // Package events handles process events
 package events
 
-// Initialized returns true if Init() has been called successfully
-func Initialized() bool {
-	return false
+import (
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+)
+
+func getProcessStartTime(ev *model.Event) time.Time {
+	if ev.GetEventType() == model.ExecEventType {
+		return ev.GetProcessExecTime()
+	}
+	// windows does not have a fork event.
+	return time.Time{}
 }

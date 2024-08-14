@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	netconfig "github.com/DataDog/datadog-agent/pkg/network/config"
+	procmon "github.com/DataDog/datadog-agent/pkg/process/monitor"
 )
 
 // EventMonitor - Event monitor Factory
@@ -21,6 +22,7 @@ var EventMonitor = module.Factory{
 	Fn:               createEventMonitorModule,
 }
 
-func createProcessMonitorConsumer(_ *eventmonitor.EventMonitor, _ *netconfig.Config) (eventmonitor.EventConsumerInterface, error) {
-	return nil, nil
+func createProcessMonitorConsumer(evm *eventmonitor.EventMonitor, _ *netconfig.Config) (eventmonitor.EventConsumerInterface, error) {
+
+	return procmon.NewProcessMonitorEventConsumer(evm)
 }

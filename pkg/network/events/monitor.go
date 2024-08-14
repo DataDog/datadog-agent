@@ -5,7 +5,7 @@
 
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/generators/event_copy -scope "(h *eventConsumerWrapper)" -pkg events -output event_copy_linux.go Process .
 
-//go:build linux
+//go:build linux || windows
 
 // Package events handles process events
 package events
@@ -14,7 +14,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"time"
 
 	"go.uber.org/atomic"
 	"go4.org/intern"
@@ -115,19 +114,14 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 	}
 
 	// If this consumer subscribes to more event types, this block will have to account for those additional event types
-	var processStartTime time.Time
-	if ev.GetEventType() == model.ExecEventType {
-		processStartTime = ev.GetProcessExecTime()
-	}
-	if ev.GetEventType() == model.ForkEventType {
-		processStartTime = ev.GetProcessForkTime()
-	}
+	processStartTime := getProcessStartTime(ev)
 
 	p := &Process{
 		Pid:       ev.GetProcessPid(),
 		StartTime: processStartTime.UnixNano(),
 	}
 
+	log.Infof("Got process start %d ", p.Pid)
 	envs := model.FilterEnvs(ev.GetProcessEnvp(), envFilter)
 	if len(envs) > 0 {
 		p.Tags = make([]*intern.Value, 0, len(envs))
