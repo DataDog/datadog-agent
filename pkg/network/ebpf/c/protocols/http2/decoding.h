@@ -619,7 +619,7 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
         return;
     }
 
-    frame_header_remainder_t *frame_state = bpf_map_lookup_elem(&http2_remainder, tup);
+    frame_header_remainder_t *frame_state = bpf_map_lookup_elem(&http2_incomplete_frames, tup);
 
     http2_telemetry_t *http2_tel = get_telemetry(pkt);
     if (http2_tel == NULL) {
@@ -629,7 +629,7 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
     bool has_valid_first_frame = pktbuf_get_first_frame(pkt, frame_state, &current_frame, http2_tel);
     // If we have a state and we consumed it, then delete it.
     if (frame_state != NULL && frame_state->remainder == 0) {
-        bpf_map_delete_elem(&http2_remainder, tup);
+        bpf_map_delete_elem(&http2_incomplete_frames, tup);
     }
 
     if (!has_valid_first_frame) {
@@ -643,7 +643,7 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
                 pktbuf_load_bytes(pkt, pktbuf_data_offset(pkt) + iteration, new_frame_state.buf + iteration, 1);
             }
             new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE - new_frame_state.remainder;
-            bpf_map_update_elem(&http2_remainder, tup, &new_frame_state, BPF_ANY);
+            bpf_map_update_elem(&http2_incomplete_frames, tup, &new_frame_state, BPF_ANY);
         }
         return;
     }
@@ -671,7 +671,7 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
         }
 
         iteration_value->frames_count = 0;
-        bpf_map_update_elem(&http2_remainder, tup, &new_frame_state, BPF_ANY);
+        bpf_map_update_elem(&http2_incomplete_frames, tup, &new_frame_state, BPF_ANY);
         // Not calling the next tail call as we have nothing to process.
         return;
     }
@@ -708,14 +708,14 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
     if (is_tcp_termination(&dispatcher_args_copy.skb_info)) {
         // Deleting the entry for the original tuple.
-        bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
+        bpf_map_delete_elem(&http2_incomplete_frames, &dispatcher_args_copy.tup);
         bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
         terminated_http2_batch_enqueue(&dispatcher_args_copy.tup);
         // In case of local host, the protocol will be deleted for both (client->server) and (server->client),
         // so we won't reach for that path again in the code, so we're deleting the opposite side as well.
         flip_tuple(&dispatcher_args_copy.tup);
         bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
-        bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
+        bpf_map_delete_elem(&http2_incomplete_frames, &dispatcher_args_copy.tup);
         return 0;
     }
 
@@ -777,7 +777,7 @@ static __always_inline void filter_frame(pktbuf_t pkt, void *map_key, conn_tuple
     if (pktbuf_data_offset(pkt) > pktbuf_data_end(pkt)) {
         // We have a remainder
         new_frame_state.remainder = pktbuf_data_offset(pkt) - pktbuf_data_end(pkt);
-        bpf_map_update_elem(&http2_remainder, tup, &new_frame_state, BPF_ANY);
+        bpf_map_update_elem(&http2_incomplete_frames, tup, &new_frame_state, BPF_ANY);
     } else if (pktbuf_data_offset(pkt) < pktbuf_data_end(pkt) && pktbuf_data_offset(pkt) + HTTP2_FRAME_HEADER_SIZE > pktbuf_data_end(pkt)) {
         // We have a frame header remainder
         new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (pktbuf_data_end(pkt) - pktbuf_data_offset(pkt));
@@ -787,7 +787,7 @@ static __always_inline void filter_frame(pktbuf_t pkt, void *map_key, conn_tuple
             pktbuf_load_bytes(pkt, pktbuf_data_offset(pkt) + iteration, new_frame_state.buf + iteration, 1);
         }
         new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE - new_frame_state.remainder;
-        bpf_map_update_elem(&http2_remainder, tup, &new_frame_state, BPF_ANY);
+        bpf_map_update_elem(&http2_incomplete_frames, tup, &new_frame_state, BPF_ANY);
     }
 
     if (iteration_value->frames_count == 0) {
