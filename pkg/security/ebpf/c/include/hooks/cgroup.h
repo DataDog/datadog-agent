@@ -63,6 +63,10 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         // Select the old cache entry
         old_entry = get_proc_from_cookie(cookie);
         if (old_entry) {
+            if (old_entry->container.container_id[0] != '\0') {
+                return 0;
+            }
+
             // copy cache data
             copy_proc_cache(old_entry, &new_entry);
         }
@@ -74,8 +78,6 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     struct dentry *container_d;
     struct qstr container_qstr;
     char *container_id;
-
-    int check_validity = 0;
     u32 container_flags = 0;
 
     struct dentry_resolver_input_t cgroup_dentry_resolver;
@@ -109,8 +111,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         container_id = (void *)container_qstr.name;
 
         if (is_docker_cgroup(ctx, container_d)) {
-            container_flags |= CGROUP_MANAGER_DOCKER;
-            check_validity = 1;
+            container_flags = CGROUP_MANAGER_DOCKER;
         }
 
         break;
@@ -134,8 +135,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         resolver->dentry = container_d;
 
         if (is_docker_cgroup(ctx, container_d)) {
-            container_flags |= CGROUP_MANAGER_DOCKER;
-            check_validity = 1;
+            container_flags = CGROUP_MANAGER_DOCKER;
         }
 
         break;
@@ -184,18 +184,12 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         ||
         (length >= 7 && (*prefix)[length-7] == '.'  && (*prefix)[length-6] == 's' && (*prefix)[length-5] == 'c' && (*prefix)[length-4] == 'o' && (*prefix)[length-3] == 'p' && (*prefix)[length-2] == 'e')
     )) {
-        check_validity = 0;
-        container_flags |= CGROUP_MANAGER_SYSTEMD;
-    } else {
-        bpf_probe_read(&new_entry.container.container_id, sizeof(new_entry.container.container_id), container_id);
+        container_flags = CGROUP_MANAGER_SYSTEMD;
     }
+    bpf_probe_read(&new_entry.container.container_id, sizeof(new_entry.container.container_id), container_id);
 
     new_entry.container.cgroup_context.cgroup_flags = container_flags;
     new_entry.container.cgroup_context.cgroup_file = resolver->key;
-
-    if (check_validity && !is_container_id_valid(new_entry.container.container_id)) {
-        return 0;
-    }
 
 #ifdef DEBUG_CGROUP
     bpf_printk("container flags=%d, inode=%d: prefix=%s\n", container_flags, new_entry.container.cgroup_context.cgroup_file.ino, prefix);
