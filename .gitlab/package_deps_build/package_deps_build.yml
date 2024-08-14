@@ -95,3 +95,5 @@ deploy_windows_embedded_python:
       --exclude "*"
       --include "python-windows-*.zip"
       artifacts s3://dd-agent-omnibus/
+      --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+      full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
