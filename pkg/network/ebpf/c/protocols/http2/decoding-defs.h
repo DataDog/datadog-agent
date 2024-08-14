@@ -228,6 +228,7 @@ typedef struct {
         // Incomplete frame payload.
         struct {
             http2_frame_t frame;
+            bool interesting_frame;
             __u32 payload_bytes_left;
         };
     };
