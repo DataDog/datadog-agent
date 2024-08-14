@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build windows
 
-package winutil
+package iisconfig
 
 import (
 	"os"

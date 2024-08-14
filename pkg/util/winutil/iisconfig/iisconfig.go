@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build windows
 
-package winutil
+package iisconfig
 
 import (
 	"encoding/xml"
@@ -35,6 +35,10 @@ type DynamicIISConfig struct {
 	xmlcfg       *iisConfiguration
 	siteIDToName map[uint32]string
 }
+
+
+// appConfig is the datadog configuration 
+type appConfig map[string]string
 
 // NewDynamicIISConfig creates a new DynamicIISConfig
 func NewDynamicIISConfig() (*DynamicIISConfig, error) {

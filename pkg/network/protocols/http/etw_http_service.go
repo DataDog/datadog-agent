@@ -148,6 +148,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/iisconfig"
 )
 
 //nolint:revive // TODO(WKIT) Fix revive linter
@@ -274,7 +275,7 @@ var (
 
 	lastSummaryTime time.Time
 
-	iisConfig *winutil.DynamicIISConfig
+	iisConfig *iisconfig.DynamicIISConfig
 )
 
 func init() {
@@ -1427,7 +1428,7 @@ func (hei *EtwInterface) OnStart() {
 	initializeEtwHttpServiceSubscription()
 	httpServiceSubscribed = true
 	var err error
-	iisConfig, err = winutil.NewDynamicIISConfig()
+	iisConfig, err = iisconfig.NewDynamicIISConfig()
 	if err != nil {
 		log.Warnf("Failed to create iis config %v", err)
 		iisConfig = nil
