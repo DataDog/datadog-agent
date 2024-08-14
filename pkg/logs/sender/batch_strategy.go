@@ -28,6 +28,7 @@ type batchStrategy struct {
 	flushChan  chan struct{}
 	serverless bool
 	flushWg    *sync.WaitGroup
+	flushStart chan struct{}
 	buffer     *MessageBuffer
 	// pipelineName provides a name for the strategy to differentiate it from other instances in other internal pipelines
 	pipelineName    string
@@ -44,13 +45,14 @@ func NewBatchStrategy(inputChan chan *message.Message,
 	flushChan chan struct{},
 	serverless bool,
 	flushWg *sync.WaitGroup,
+	flushStart chan struct{},
 	serializer Serializer,
 	batchWait time.Duration,
 	maxBatchSize int,
 	maxContentSize int,
 	pipelineName string,
 	contentEncoding ContentEncoding) Strategy {
-	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverless, flushWg, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), contentEncoding)
+	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serverless, flushWg, flushStart, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), contentEncoding)
 }
 
 func newBatchStrategyWithClock(inputChan chan *message.Message,
@@ -58,6 +60,7 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 	flushChan chan struct{},
 	serverless bool,
 	flushWg *sync.WaitGroup,
+	flushStart chan struct{},
 	serializer Serializer,
 	batchWait time.Duration,
 	maxBatchSize int,
@@ -72,6 +75,7 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 		flushChan:       flushChan,
 		serverless:      serverless,
 		flushWg:         flushWg,
+		flushStart:      flushStart,
 		buffer:          NewMessageBuffer(maxBatchSize, maxContentSize),
 		serializer:      serializer,
 		batchWait:       batchWait,
@@ -167,6 +171,7 @@ func (s *batchStrategy) sendMessages(messages []*message.Message, outputChan cha
 	if s.serverless {
 		// Increment the wait group so the flush doesn't finish until all payloads are sent to all destinations
 		s.flushWg.Add(1)
+		s.flushStart <- struct{}{}
 	}
 
 	outputChan <- &message.Payload{
