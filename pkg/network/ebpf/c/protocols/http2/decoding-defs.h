@@ -226,7 +226,10 @@ typedef struct {
             __u8 header_bytes_left;
         };
         // Incomplete frame payload.
-        __u32 remainder;
+        struct {
+            http2_frame_t frame;
+            __u32 payload_bytes_left;
+        };
     };
 
     incomplete_frame_type_t type;
