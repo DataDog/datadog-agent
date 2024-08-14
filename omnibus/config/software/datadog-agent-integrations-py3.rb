@@ -128,7 +128,6 @@ build do
       shellout! "inv agent.collect-integrations #{project_dir} 3 #{os} #{excluded_folders.join(',')}",
                 :cwd => tasks_dir_in
     ).stdout.split()
-
     # Retrieving integrations from cache
     cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
     cache_branch = (shellout! "inv release.get-release-json-value base_branch", cwd: File.expand_path('..', tasks_dir_in)).stdout.strip
