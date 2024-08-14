@@ -21,6 +21,7 @@ import (
 var errZeroLengthUDPPacket = errors.New("UDP packet with length 0")
 var errZeroLengthIPPacket = errors.New("IP packet with length 0")
 
+// UDPPayloadLen returns the UDP payload length from a layers.UDP object
 func UDPPayloadLen(udp *layers.UDP) (uint16, error) {
 	if udp.Length == 0 {
 		return 0, errZeroLengthUDPPacket
@@ -31,6 +32,7 @@ func UDPPayloadLen(udp *layers.UDP) (uint16, error) {
 	return udp.Length - 8, nil
 }
 
+// TCPPayloadLen returns the TCP payload length from a layers.TCP object
 func TCPPayloadLen(family network.ConnectionFamily, ip4 *layers.IPv4, ip6 *layers.IPv6, tcp *layers.TCP) (uint16, error) {
 	var ipl uint16
 	var err error
