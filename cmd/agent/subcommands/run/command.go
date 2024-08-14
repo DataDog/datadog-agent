@@ -434,8 +434,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
-		eventplatformimpl.Module(),
-		fx.Supply(eventplatformimpl.NewDefaultParams()),
+		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 		eventplatformreceiverimpl.Module(),
 
 		// injecting the shared Serializer to FX until we migrate it to a proper component. This allows other
