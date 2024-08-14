@@ -547,7 +547,7 @@ static __always_inline bool pktbuf_get_first_frame(pktbuf_t pkt, incomplete_fram
 // - HEADERS frames
 // - RST_STREAM frames
 // - DATA frames with the END_STREAM flag set
-static __always_inline bool pktbuf_find_relevant_frames(pktbuf_t pkt, http2_tail_call_state_t *iteration_value, http2_telemetry_t *http2_tel) {
+static __always_inline bool pktbuf_find_relevant_frames(pktbuf_t pkt, http2_tail_call_state_t *iteration_value, http2_telemetry_t *http2_tel, http2_frame_t *last_frame) {
     bool is_headers_or_rst_frame, is_data_end_of_stream;
     http2_frame_t current_frame = {};
 
@@ -607,6 +607,7 @@ static __always_inline bool pktbuf_find_relevant_frames(pktbuf_t pkt, http2_tail
         __sync_fetch_and_add(&http2_tel->exceeding_max_interesting_frames, 1);
     }
 
+    bpf_memcpy(last_frame, &current_frame, sizeof(http2_frame_t));
     // This function returns true if there are more frames to filter, which will be parsed by the next tail call,
     // and if we have not yet reached the maximum number of frames we can process.
     return (((iteration == HTTP2_MAX_FRAMES_TO_FILTER) &&
@@ -768,7 +769,8 @@ static __always_inline void filter_frame(pktbuf_t pkt, void *map_key, conn_tuple
     // in a map, we cannot allow it to be modified. Thus, storing the original value of the offset.
     __u32 original_off = pktbuf_data_offset(pkt);
 
-    bool have_more_frames_to_process = pktbuf_find_relevant_frames(pkt, iteration_value, http2_tel);
+    http2_frame_t last_frame = {};
+    bool have_more_frames_to_process = pktbuf_find_relevant_frames(pkt, iteration_value, http2_tel, &last_frame);
     // We have found there are more frames to filter, so we will call frame_filter again.
     // Max current amount of tail calls would be 2, which will allow us to currently parse
     // HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER*HTTP2_MAX_FRAMES_ITERATIONS.
