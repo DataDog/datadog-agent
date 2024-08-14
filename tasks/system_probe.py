@@ -21,7 +21,7 @@ from invoke.tasks import task
 
 from tasks.agent import BUNDLED_AGENTS
 from tasks.agent import build as agent_build
-from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
+from tasks.build_tags import UNIT_TEST_TAGS, add_fips_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.color import color_message
@@ -591,6 +591,7 @@ def build(
     strip_binary=False,
     with_unit_test=False,
     bundle=True,
+    fips_mode=False,
 ):
     """
     Build the system-probe
@@ -644,6 +645,7 @@ def build_sysprobe_binary(
     bundle_ebpf=False,
     strip_binary=False,
     bundle=True,
+    fips_mode=False,
 ) -> None:
     if bundle and not is_windows:
         return agent_build(
@@ -663,6 +665,7 @@ def build_sysprobe_binary(
     )
 
     build_tags = get_default_build_tags(build="system-probe")
+    build_tags = add_fips_tags(build_tags, fips_mode)
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
     if strip_binary:

@@ -14,7 +14,7 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit, ParseError
 
-from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.build_tags import add_fips_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
@@ -133,6 +133,7 @@ def build(
     bundle_ebpf=False,
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
+    fips_mode=False,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -201,6 +202,7 @@ def build(
 
             exclude_tags = [] if build_exclude is None else build_exclude.split(",")
             build_tags = get_build_tags(include_tags, exclude_tags)
+            build_tags = add_fips_tags(build_tags, fips_mode)
 
             all_tags |= set(build_tags)
         build_tags = list(all_tags)
