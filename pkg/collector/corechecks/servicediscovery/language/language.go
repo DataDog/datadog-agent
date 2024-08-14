@@ -7,13 +7,12 @@
 package language
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"path"
 	"strings"
 
-	"go.uber.org/zap"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Language represents programming languages.
@@ -110,9 +109,8 @@ type Matcher interface {
 }
 
 // New returns a new language Finder.
-func New(l *zap.Logger) Finder {
+func New() Finder {
 	return Finder{
-		Logger: l,
 		Matchers: []Matcher{
 			PythonScript{},
 			RubyScript{},
@@ -123,20 +121,17 @@ func New(l *zap.Logger) Finder {
 
 // Finder allows to detect the language for a given process.
 type Finder struct {
-	Logger   *zap.Logger
 	Matchers []Matcher
 }
 
 func (lf Finder) findLang(pi ProcessInfo) Language {
 	lang := FindInArgs(pi.Args)
-	lf.Logger.Debug("language found", zap.Any("lang", lang))
+	log.Debugf("language found: %q", lang)
 
 	// if we can't figure out a language from the command line, try alternate methods
 	if lang == "" {
-		lf.Logger.Debug("trying alternate methods")
 		for _, matcher := range lf.Matchers {
 			if matcher.Match(pi) {
-				lf.Logger.Debug(fmt.Sprintf("%T matched", matcher))
 				lang = matcher.Language()
 				break
 			}
@@ -145,7 +140,7 @@ func (lf Finder) findLang(pi ProcessInfo) Language {
 	return lang
 }
 
-// FindInArgs trys to detect the language only using the provided command line arguments.
+// FindInArgs tries to detect the language only using the provided command line arguments.
 func FindInArgs(args []string) Language {
 	// empty slice passed in
 	if len(args) == 0 {

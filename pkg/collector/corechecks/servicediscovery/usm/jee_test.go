@@ -13,8 +13,6 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"go.uber.org/zap"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -110,7 +108,7 @@ com.ibm.wsspi.bootstrap.WSPreLauncher -nosplash -application com.ibm.ws.bootstra
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := strings.Split(strings.ReplaceAll(tt.rawCmd, "\n", " "), " ")
-			vendor, home := jeeExtractor{NewDetectionContext(zap.NewNop(), cmd, nil, fstest.MapFS{})}.resolveAppServer()
+			vendor, home := jeeExtractor{NewDetectionContext(cmd, nil, fstest.MapFS{})}.resolveAppServer()
 			require.Equal(t, tt.expectedVendor, vendor)
 			// the base dir is making sense only when the vendor has been properly understood
 			if tt.expectedVendor != unknown {
@@ -243,7 +241,7 @@ func TestWeblogicExtractServiceNamesForJEEServer(t *testing.T) {
 	envs := map[string]string{
 		"PWD": "wls/domain",
 	}
-	extractor := jeeExtractor{ctx: NewDetectionContext(zap.NewNop(), cmd, envs, memfs)}
+	extractor := jeeExtractor{ctx: NewDetectionContext(cmd, envs, memfs)}
 	extractedContextRoots := extractor.extractServiceNamesForJEEServer()
 	require.Equal(t, []string{
 		"app1_context", // taken from ear application.xml
