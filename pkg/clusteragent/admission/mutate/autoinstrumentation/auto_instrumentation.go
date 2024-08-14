@@ -89,11 +89,19 @@ func NewWebhook(wmeta workloadmeta.Component, filter mutatecommon.InjectionFilte
 		return nil, fmt.Errorf("invalid version for key apm_config.instrumentation.version: %w", err)
 	}
 
-	containerRegistry := mutatecommon.ContainerRegistry("admission_controller.auto_instrumentation.container_registry")
+	var (
+		isEnabled         = config.Datadog().GetBool("admission_controller.auto_instrumentation.enabled")
+		containerRegistry = mutatecommon.ContainerRegistry("admission_controller.auto_instrumentation.container_registry")
+		pinnedLibraries   []libInfo
+	)
+
+	if isEnabled {
+		pinnedLibraries = getPinnedLibraries(containerRegistry)
+	}
 
 	return &Webhook{
 		name:                     webhookName,
-		isEnabled:                config.Datadog().GetBool("admission_controller.auto_instrumentation.enabled"),
+		isEnabled:                isEnabled,
 		endpoint:                 config.Datadog().GetString("admission_controller.auto_instrumentation.endpoint"),
 		resources:                []string{"pods"},
 		operations:               []admiv1.OperationType{admiv1.Create},
@@ -102,7 +110,7 @@ func NewWebhook(wmeta workloadmeta.Component, filter mutatecommon.InjectionFilte
 		injectionFilter:          filter,
 		containerRegistry:        containerRegistry,
 		injectorImageTag:         config.Datadog().GetString("apm_config.instrumentation.injector_image_tag"),
-		pinnedLibraries:          getPinnedLibraries(containerRegistry),
+		pinnedLibraries:          pinnedLibraries,
 		version:                  v,
 		wmeta:                    wmeta,
 	}, nil
@@ -334,8 +342,8 @@ func (l *libInfoLanguageDetection) podMutator(v version) podMutator {
 //
 // The languages information is available in workloadmeta-store
 // and attached on the pod's owner.
-func (w *Webhook) getLibrariesLanguageDetection(pod *corev1.Pod) libInfoLanguageDetection {
-	return libInfoLanguageDetection{
+func (w *Webhook) getLibrariesLanguageDetection(pod *corev1.Pod) *libInfoLanguageDetection {
+	return &libInfoLanguageDetection{
 		libs:             w.getAutoDetectedLibraries(pod),
 		injectionEnabled: config.Datadog().GetBool("admission_controller.auto_instrumentation.inject_auto_detected_libraries"),
 	}
@@ -382,6 +390,10 @@ func (s libInfoSource) injectionType() string {
 	}
 }
 
+func (s libInfoSource) isSingleStep() bool {
+	return s.injectionType() == singleStepInstrumentationInstallType
+}
+
 // isFromLanguageDetection tells us whether this source comes from
 // the language detection reporting and annotation.
 func (s libInfoSource) isFromLanguageDetection() bool {
@@ -423,16 +435,19 @@ func (e extractedPodLibInfo) useLanguageDetectionLibs() (extractedPodLibInfo, bo
 func (w *Webhook) initExtractedLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 	// it's possible to get here without single step being enabled, and the pod having
 	// annotations on it to opt it into pod mutation, we disambiguate those two cases.
-	source := libInfoSourceLibInjection
+	var (
+		source            = libInfoSourceLibInjection
+		languageDetection *libInfoLanguageDetection
+	)
+
 	if w.isEnabledInNamespace(pod.Namespace) {
 		source = libInfoSourceSingleStepInstrumentation
+		languageDetection = w.getLibrariesLanguageDetection(pod)
 	}
-
-	languageDetection := w.getLibrariesLanguageDetection(pod)
 
 	return extractedPodLibInfo{
 		source:            source,
-		languageDetection: &languageDetection,
+		languageDetection: languageDetection,
 	}
 }
 
@@ -441,30 +456,26 @@ func (w *Webhook) initExtractedLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 func (w *Webhook) extractLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 	extracted := w.initExtractedLibInfo(pod)
 
-	// If the pod is "injectable" and annotated with libraries to inject, use those.
-	if w.isPodEligible(pod) && {
-		// The library version specified via annotation on the Pod takes precedence
-		// over libraries injected with Single Step Instrumentation
-		libs := w.extractLibrariesFromAnnotations(pod)
-		if len(libs) > 0 {
-			return extracted.withLibs(libs)
-		}
+	libs := w.extractLibrariesFromAnnotations(pod)
+	if len(libs) > 0 {
+		return extracted.withLibs(libs)
 	}
 
-	if w.isEnabledInNamespace(pod.Namespace) {
-		// if the user has pinned libraries for their configuration, we prefer to use these and
-		// not override their behavior.
-		if len(w.pinnedLibraries) > 0 {
-			return extracted.withLibs(w.pinnedLibraries)
-		}
+	// if the user has pinned libraries for their configuration,
+	// we prefer to use these and not override their behavior.
+	//
+	// N.B. this is empty if auto-instrumentation is disabled.
+	if len(w.pinnedLibraries) > 0 {
+		return extracted.withLibs(w.pinnedLibraries)
+	}
 
-		// if the language_detection injection is enabled (and we have things to filter to)
-		// we use that!
-		if e, usingLanguageDetection := extracted.useLanguageDetectionLibs(); usingLanguageDetection {
-			return e
-		}
+	// if the language_detection injection is enabled
+	// (and we have things to filter to) we use that!
+	if e, usingLanguageDetection := extracted.useLanguageDetectionLibs(); usingLanguageDetection {
+		return e
+	}
 
-		// otherwise we use the "latest" versions of the libraries.
+	if extracted.source.isSingleStep() {
 		return extracted.withLibs(w.getAllLatestLibraries())
 	}
 

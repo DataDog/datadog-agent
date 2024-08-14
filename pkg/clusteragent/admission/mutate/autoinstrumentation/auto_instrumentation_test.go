@@ -631,18 +631,17 @@ func TestExtractLibInfo(t *testing.T) {
 			containerRegistry:   "registry",
 			expectedPodEligible: pointer.Ptr(true),
 			expectedLibsToInject: []libInfo{
-				{
-					lang:  "python",
-					image: "registry/dd-lib-python-init:v1",
-				},
+				python.libInfo("", "registry/dd-lib-python-init:v1"),
 			},
 		},
 		{
-			name:                 "python with unlabelled injection off",
-			pod:                  common.FakePodWithAnnotation("admission.datadoghq.com/python-lib.version", "v1"),
-			containerRegistry:    "registry",
-			expectedPodEligible:  pointer.Ptr(false),
-			expectedLibsToInject: []libInfo{},
+			name:                "python with unlabelled injection off",
+			pod:                 common.FakePodWithAnnotation("admission.datadoghq.com/python-lib.version", "v1"),
+			containerRegistry:   "registry",
+			expectedPodEligible: pointer.Ptr(false),
+			expectedLibsToInject: []libInfo{
+				python.libInfo("", "registry/dd-lib-python-init:v1"),
+			},
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 			},
@@ -652,10 +651,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.custom-image", "custom/image"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				{
-					lang:  "java",
-					image: "custom/image",
-				},
+				java.libInfo("", "custom/image"),
 			},
 		},
 		{
