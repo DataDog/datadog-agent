@@ -1,8 +1,6 @@
 Generating Python Zips
 ======================
 
-⚠️ This method is The Way to embed Python in the Agent. The Agent *no longer* uses the python binaries built from source from the fork https://github.com/DataDog/cpython ⚠️
-
 The Windows builds require a prebuilt zip file which is extracted into the _embedded_ directory at build time. The zip files are constructed using the python installer from python.org.
 
 How To Run The Script
