@@ -633,13 +633,12 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
         return;
     }
 
-    frame_header_remainder_t *frame_state = bpf_map_lookup_elem(&http2_incomplete_frames, tup);
-
     http2_telemetry_t *http2_tel = get_telemetry(pkt);
     if (http2_tel == NULL) {
         return;
     }
 
+    frame_header_remainder_t *frame_state = bpf_map_lookup_elem(&http2_incomplete_frames, tup);
     bool has_valid_first_frame = pktbuf_get_first_frame(pkt, frame_state, &current_frame);
     // If we have a state and we consumed it, then delete it.
     if (frame_state != NULL && frame_state->remainder == 0) {
