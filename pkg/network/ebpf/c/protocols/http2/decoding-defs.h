@@ -216,7 +216,7 @@ typedef struct {
     __u32 remainder;
     __u32 header_length;
     char buf[HTTP2_FRAME_HEADER_SIZE];
-} frame_header_remainder_t;
+} incomplete_frame_t;
 
 // http2_telemetry_t is used to hold the HTTP/2 kernel telemetry.
 // request_seen                         Count of HTTP/2 requests seen

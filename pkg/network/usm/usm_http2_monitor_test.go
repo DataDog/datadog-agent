@@ -1931,7 +1931,7 @@ func getIncompleteFrameTableMapKeys(t *testing.T, ebpfProgram *ebpfProgram) []us
 	require.NoError(t, err)
 	resultIndexes := make([]usmhttp.ConnTuple, 0)
 	var key usmhttp2.ConnTuple
-	var value usmhttp2.HTTP2RemainderEntry
+	var value usmhttp2.HTTP2IncompleteFrameEntry
 	iterator := incompleteFrameMap.Iterate()
 
 	for iterator.Next(&key, &value) {
