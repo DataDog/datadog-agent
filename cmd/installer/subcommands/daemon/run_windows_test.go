@@ -40,8 +40,7 @@ func (s *daemonTestSuite) TestRunCommand() {
 	s.Require().NoError(fx.ValidateApp(getFxOptions(s.global)...))
 }
 
-// TestAppStartsAndStops creates a new test app (not a daemon.windowsService)
-// with our dependency graph and verify that we can start and stop it.
+// TestAppStartsAndStops creates a new app with our dependency graph and verify that we can start and stop it.
 // This is essentially what the svc.Run code does behind the scenes.
 // Note: this actually instantiates the components, so it will actually start
 // the remote config service etc...
