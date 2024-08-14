@@ -48,6 +48,7 @@ Runtime Security Monitoring, Universal Service Monitoring, and others.`,
 
 	sysprobeCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "config", "c", "", "path to directory containing system-probe.yaml")
 	sysprobeCmd.PersistentFlags().StringVarP(&globalParams.FleetPoliciesDirPath, "fleetcfgpath", "", "", "path to the directory containing fleet policies")
+	_ = sysprobeCmd.PersistentFlags().MarkHidden("fleetcfgpath")
 
 	// github.com/fatih/color sets its global color.NoColor to a default value based on
 	// whether the process is running in a tty.  So, we only want to override that when

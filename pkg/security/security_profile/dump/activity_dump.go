@@ -16,7 +16,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
@@ -446,6 +445,10 @@ func (ad *ActivityDump) Finalize(releaseTracedCgroupSpot bool) {
 // finalize (thread unsafe) finalizes an active dump: envs and args are scrubbed, tags, service and container ID are set. If a cgroup
 // spot can be released, the dump will be fully stopped.
 func (ad *ActivityDump) finalize(releaseTracedCgroupSpot bool) {
+	if ad.state == Stopped {
+		return
+	}
+
 	ad.Metadata.End = time.Now()
 	ad.adm.lastStoppedDumpTime = ad.Metadata.End
 
@@ -465,18 +468,12 @@ func (ad *ActivityDump) finalize(releaseTracedCgroupSpot bool) {
 
 	// add the container ID in a tag
 	if len(ad.ContainerID) > 0 {
-		// check if we already have a container_id tag, and display the stack trace if it's the case
-		for _, tag := range ad.Tags {
-			if strings.HasPrefix(tag, "container_id:") {
-				seclog.Errorf("container_id tag already present in tags (is finalize called multiple times?): %v + %s", ad.Tags, ad.ContainerID)
-				seclog.Errorf("stack trace: %s", string(debug.Stack()))
-			}
-		}
-
 		// make sure we are not adding the same tag twice
 		newTag := fmt.Sprintf("container_id:%s", ad.ContainerID)
 		if !slices.Contains(ad.Tags, newTag) {
 			ad.Tags = append(ad.Tags, newTag)
+		} else {
+			seclog.Errorf("container_id tag already present in tags (is finalize called multiple times?): %s", newTag)
 		}
 	}
 
