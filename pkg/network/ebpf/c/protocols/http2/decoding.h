@@ -460,6 +460,18 @@ static __always_inline bool get_first_frame_header_with_header_remainder(pktbuf_
     return false;
 }
 
+static __always_inline void consume_frame_payload_remainder(pktbuf_t pkt, frame_header_remainder_t *frame_state) {
+    __u32 payload_bytes_left = frame_state->remainder;
+    if (pktbuf_data_offset(pkt) + payload_bytes_left > pktbuf_data_end(pkt)) {
+        payload_bytes_left = pktbuf_data_end(pkt) - pktbuf_data_offset(pkt);
+    }
+    if (payload_bytes_left == 0) {
+        return;
+    }
+    pktbuf_advance(pkt, payload_bytes_left);
+    frame_state->remainder -= payload_bytes_left;
+}
+
 static __always_inline bool pktbuf_get_first_frame(pktbuf_t pkt, frame_header_remainder_t *frame_state, http2_frame_t *current_frame, http2_telemetry_t *http2_tel) {
     // Attempting to read the initial frame in the packet, or handling a state where there is no remainder and finishing reading the current frame.
     if (frame_state == NULL) {
@@ -494,15 +506,12 @@ static __always_inline bool pktbuf_get_first_frame(pktbuf_t pkt, frame_header_re
 
     // We failed to read a frame, if we have a remainder trying to consume it and read the following frame.
     if (frame_state->remainder > 0) {
+        consume_frame_payload_remainder(pkt, frame_state);
         // To make a "best effort," if we are in a state where we are left with a remainder, and the length of it from
         // our current position is larger than the data end, we will attempt to handle the remaining buffer as much as possible.
         if (pktbuf_data_offset(pkt) + frame_state->remainder > pktbuf_data_end(pkt)) {
-            frame_state->remainder -= pktbuf_data_end(pkt) - pktbuf_data_offset(pkt);
-            pktbuf_set_offset(pkt, pktbuf_data_end(pkt));
             return false;
         }
-        pktbuf_advance(pkt, frame_state->remainder);
-        frame_state->remainder = 0;
         // The remainders "ends" the current packet. No interesting frames were found.
         if (pktbuf_data_offset(pkt) == pktbuf_data_end(pkt)) {
             return false;
