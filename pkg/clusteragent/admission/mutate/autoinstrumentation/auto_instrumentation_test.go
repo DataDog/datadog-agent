@@ -201,7 +201,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			requireEnv := func(t *testing.T, key string, ok bool, value string) {
 				t.Helper()
 				val, exists := envsByName[key]
-				require.Equal(t, ok, exists, "expected env %v to be %v", key, ok)
+				require.Equal(t, ok, exists, "expected env %v exists to = %v", key, ok)
 				require.Equal(t, value, val.Value, "expected env %v = %v", key, val)
 			}
 
@@ -276,10 +276,10 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 
 			if tt.expectedLangsDetected != "" {
 				requireEnv(t, "DD_INSTRUMENTATION_LANGUAGES_DETECTED", true, tt.expectedLangsDetected)
-				requireEnv(t, "DD_INSTRUMENTATION_LANGUAGE_DETECTION_ENABLED", true, "false")
+				requireEnv(t, "DD_INSTRUMENTATION_LANGUAGE_DETECTION_INJECTION_ENABLED", true, "false")
 			} else {
 				requireEnv(t, "DD_INSTRUMENTATION_LANGUAGES_DETECTED", false, "")
-				requireEnv(t, "DD_INSTRUMENTATION_LANGUAGE_DETECTION_ENABLED", false, "")
+				requireEnv(t, "DD_INSTRUMENTATION_LANGUAGE_DETECTION_INJECTION_ENABLED", false, "")
 			}
 		})
 	}
