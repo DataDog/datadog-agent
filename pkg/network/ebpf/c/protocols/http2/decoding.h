@@ -447,6 +447,19 @@ static __always_inline bool get_first_frame_header_without_remainder(pktbuf_t pk
     return format_http2_frame_header(current_frame);
 }
 
+static __always_inline bool get_first_frame_header_with_header_remainder(pktbuf_t pkt, frame_header_remainder_t *frame_state, http2_frame_t *current_frame) {
+    pktbuf_fix_header_frame(pkt, (char*)current_frame, frame_state);
+    if (format_http2_frame_header(current_frame)) {
+        pktbuf_advance(pkt, frame_state->remainder);
+        frame_state->remainder = 0;
+        return true;
+    }
+    // We couldn't read frame header using the remainder.
+    // Marking it for deletion
+    frame_state->remainder = 0;
+    return false;
+}
+
 static __always_inline bool pktbuf_get_first_frame(pktbuf_t pkt, frame_header_remainder_t *frame_state, http2_frame_t *current_frame, http2_telemetry_t *http2_tel) {
     // Attempting to read the initial frame in the packet, or handling a state where there is no remainder and finishing reading the current frame.
     if (frame_state == NULL) {
@@ -476,15 +489,7 @@ static __always_inline bool pktbuf_get_first_frame(pktbuf_t pkt, frame_header_re
         return true;
     }
     if (frame_state->header_length > 0) {
-        pktbuf_fix_header_frame(pkt, (char*)current_frame, frame_state);
-        if (format_http2_frame_header(current_frame)) {
-            pktbuf_advance(pkt, frame_state->remainder);
-            frame_state->remainder = 0;
-            return true;
-        }
-        frame_state->remainder = 0;
-        // We couldn't read frame header using the remainder.
-        return false;
+        return get_first_frame_header_with_header_remainder(pkt, frame_state, current_frame);
     }
 
     // We failed to read a frame, if we have a remainder trying to consume it and read the following frame.
