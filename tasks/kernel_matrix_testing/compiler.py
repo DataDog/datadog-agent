@@ -94,9 +94,8 @@ class CompilerImage:
                 raise Exit(f"Failed to start compiler for {self.arch}: {e}") from e
 
     def ensure_version(self):
-        res = self.ctx.run(f"docker image inspect {self.image}", hide=True, warn=True)
-        if res is None or not res.ok:
-            raise ValueError(f"Image {self.image} not found, please pull it before running the tests")
+        if not self.is_running:
+            return  # Nothing to do if the container is not running
 
         image_used = get_docker_image_name(self.ctx, self.name)
         if image_used != self.image:
