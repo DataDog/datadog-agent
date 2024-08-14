@@ -77,7 +77,8 @@ def install_custom_golanci_lint(ctx):
 
         print("Installed custom golangci-lint binary successfully")
 
-    ctx.run("golangci-lint --version")
+    ctx.run("golangci-lint version --debug")
+    ctx.run("golangci-lint-backup version --debug")
 
 
 @task
