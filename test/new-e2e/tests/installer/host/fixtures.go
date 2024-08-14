@@ -118,6 +118,7 @@ func (h *Host) SetupFakeAgentExp() FakeAgent {
 	h.remote.MustExecute(fmt.Sprintf("sudo mkdir -p %s/embedded/bin", vBroken))
 	h.remote.MustExecute(fmt.Sprintf("sudo mkdir -p %s/bin/agent", vBroken))
 
+	h.remote.MustExecute("rm -f /opt/datadog-packages/datadog-agent/experiment") // remove symlink if it exists, next command doesn't overwrite it
 	h.remote.MustExecute(fmt.Sprintf("sudo ln -sf %s /opt/datadog-packages/datadog-agent/experiment", vBroken))
 	f := FakeAgent{
 		h:    h,
