@@ -7,6 +7,7 @@ package integration
 
 import (
 	"fmt"
+	"hash/fnv"
 	"os"
 	"strings"
 	"testing"
@@ -118,15 +119,22 @@ func (suite *LauncherTestSuite) TestIntegrationLogFilePath() {
 		Type:    config.IntegrationType,
 		Name:    "test_name",
 		Service: "test_service",
+		Source:  "test_service",
 		Path:    suite.testPath,
 	})
 
-	actualDirectory, actualFilePath := suite.s.integrationLogFilePath(*logSource)
+	actualDirectory, actualFilePath := suite.s.integrationLogFilePath(logSource)
+
+	sourceToHash := logSource.Config.Service + logSource.Config.Source
+	h := fnv.New64a()
+	h.Write([]byte(sourceToHash))
+	hashValue := h.Sum64()
+	filename := fmt.Sprintf("%x", hashValue) + ".log"
 
 	expectedDirectoryComponents := []string{suite.s.runPath, "integrations"}
 	expectedDirectory := strings.Join(expectedDirectoryComponents, "/")
 
-	expectedFilePath := strings.Join([]string{expectedDirectory, logSource.Name + ".log"}, "/")
+	expectedFilePath := strings.Join([]string{expectedDirectory, filename}, "/")
 
 	assert.Equal(suite.T(), expectedDirectory, actualDirectory)
 	assert.Equal(suite.T(), expectedFilePath, actualFilePath)
