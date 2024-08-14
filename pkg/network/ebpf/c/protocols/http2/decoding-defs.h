@@ -219,9 +219,16 @@ typedef enum {
 } incomplete_frame_type_t;
 
 typedef struct {
-    __u32 remainder;
-    __u32 header_length;
-    char buf[HTTP2_FRAME_HEADER_SIZE];
+    union {
+        // Incomplete frame header.
+        struct {
+            char buf[HTTP2_FRAME_HEADER_SIZE];
+            __u8 header_bytes_left;
+        };
+        // Incomplete frame payload.
+        __u32 remainder;
+    };
+
     incomplete_frame_type_t type;
 } incomplete_frame_t;
 

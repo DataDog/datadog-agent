@@ -405,7 +405,7 @@ static __always_inline void pktbuf_process_headers(pktbuf_t pkt, dynamic_table_i
 static __always_inline void pktbuf_fix_header_frame(pktbuf_t pkt, char *out, incomplete_frame_t *frame_state) {
     bpf_memcpy(out, frame_state->buf, HTTP2_FRAME_HEADER_SIZE);
     // Verifier is unhappy with a single call to `bpf_skb_load_bytes` with a variable length (although checking boundaries)
-    switch (frame_state->remainder) {
+    switch (frame_state->header_bytes_left) {
     case 1:
         pktbuf_load_bytes_from_current_offset(pkt, out + HTTP2_FRAME_HEADER_SIZE - 1, 1);
         break;
@@ -450,13 +450,13 @@ static __always_inline bool get_first_frame_header_without_remainder(pktbuf_t pk
 static __always_inline bool get_first_frame_header_with_header_remainder(pktbuf_t pkt, incomplete_frame_t *frame_state, http2_frame_t *current_frame) {
     pktbuf_fix_header_frame(pkt, (char*)current_frame, frame_state);
     if (format_http2_frame_header(current_frame)) {
-        pktbuf_advance(pkt, frame_state->remainder);
-        frame_state->remainder = 0;
+        pktbuf_advance(pkt, frame_state->header_bytes_left);
+        frame_state->header_bytes_left = 0;
         return true;
     }
     // We couldn't read frame header using the remainder.
     // Marking it for deletion
-    frame_state->remainder = 0;
+    frame_state->header_bytes_left = 0;
     return false;
 }
 
@@ -474,7 +474,7 @@ static __always_inline void consume_frame_payload_remainder(pktbuf_t pkt, incomp
 
 static __always_inline bool empty_incomplete_frame(incomplete_frame_t *incomplete_frame) {
     return incomplete_frame == NULL ||
-        (incomplete_frame->type == kIncompleteFrameHeader && incomplete_frame->remainder == 0) ||
+        (incomplete_frame->type == kIncompleteFrameHeader && incomplete_frame->header_bytes_left == 0) ||
         (incomplete_frame->type == kIncompleteFramePayload && incomplete_frame->remainder == 0);
 }
 
@@ -497,13 +497,13 @@ static __always_inline bool pktbuf_get_first_frame(pktbuf_t pkt, incomplete_fram
 
     // Frame-header-remainder.
 
-    if (frame_state->header_length == HTTP2_FRAME_HEADER_SIZE) {
+    if (frame_state->header_bytes_left == HTTP2_FRAME_HEADER_SIZE) {
         // A case where we read an interesting valid frame header in the previous call, and now we're trying to read the
         // rest of the frame payload. But, since we already read a valid frame, we just fill it as an interesting frame,
         // and continue to the next tail call.
         // Copy the cached frame header to the current frame.
         bpf_memcpy((char *)current_frame, frame_state->buf, HTTP2_FRAME_HEADER_SIZE);
-        frame_state->remainder = 0;
+        frame_state->header_bytes_left = 0;
         return true;
     }
     if (frame_state->type == kIncompleteFrameHeader) {
@@ -657,13 +657,12 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
         if (pktbuf_data_offset(pkt) < pktbuf_data_end(pkt) && pktbuf_data_offset(pkt) + HTTP2_FRAME_HEADER_SIZE > pktbuf_data_end(pkt)) {
             incomplete_frame_t new_frame_state = { 0 };
             new_frame_state.type = kIncompleteFrameHeader;
-            new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (pktbuf_data_end(pkt) - pktbuf_data_offset(pkt));
+            new_frame_state.header_bytes_left = HTTP2_FRAME_HEADER_SIZE - (pktbuf_data_end(pkt) - pktbuf_data_offset(pkt));
             bpf_memset(new_frame_state.buf, 0, HTTP2_FRAME_HEADER_SIZE);
         #pragma unroll(HTTP2_FRAME_HEADER_SIZE)
-            for (__u32 iteration = 0; iteration < HTTP2_FRAME_HEADER_SIZE && new_frame_state.remainder + iteration < HTTP2_FRAME_HEADER_SIZE; ++iteration) {
+            for (__u32 iteration = 0; iteration < HTTP2_FRAME_HEADER_SIZE && new_frame_state.header_bytes_left + iteration < HTTP2_FRAME_HEADER_SIZE; ++iteration) {
                 pktbuf_load_bytes(pkt, pktbuf_data_offset(pkt) + iteration, new_frame_state.buf + iteration, 1);
             }
-            new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE - new_frame_state.remainder;
             bpf_map_update_elem(&http2_incomplete_frames, tup, &new_frame_state, BPF_ANY);
         }
         return;
@@ -688,7 +687,7 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
         // We did find an interesting frame (as frames_count == 1), so we cache the current frame and waiting for the
         // next call.
         if (iteration_value->frames_count == 1) {
-            new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE;
+            new_frame_state.header_bytes_left = HTTP2_FRAME_HEADER_SIZE;
             bpf_memcpy(new_frame_state.buf, (char *)&current_frame, HTTP2_FRAME_HEADER_SIZE);
         }
 
@@ -805,13 +804,12 @@ static __always_inline void filter_frame(pktbuf_t pkt, void *map_key, conn_tuple
     } else if (pktbuf_data_offset(pkt) < pktbuf_data_end(pkt) && pktbuf_data_offset(pkt) + HTTP2_FRAME_HEADER_SIZE > pktbuf_data_end(pkt)) {
         // We have a frame header remainder
         new_frame_state.type = kIncompleteFrameHeader;
-        new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (pktbuf_data_end(pkt) - pktbuf_data_offset(pkt));
+        new_frame_state.header_bytes_left = HTTP2_FRAME_HEADER_SIZE - (pktbuf_data_end(pkt) - pktbuf_data_offset(pkt));
         bpf_memset(new_frame_state.buf, 0, HTTP2_FRAME_HEADER_SIZE);
     #pragma unroll(HTTP2_FRAME_HEADER_SIZE)
-        for (__u32 iteration = 0; iteration < HTTP2_FRAME_HEADER_SIZE && new_frame_state.remainder + iteration < HTTP2_FRAME_HEADER_SIZE; ++iteration) {
+        for (__u32 iteration = 0; iteration < HTTP2_FRAME_HEADER_SIZE && new_frame_state.header_bytes_left + iteration < HTTP2_FRAME_HEADER_SIZE; ++iteration) {
             pktbuf_load_bytes(pkt, pktbuf_data_offset(pkt) + iteration, new_frame_state.buf + iteration, 1);
         }
-        new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE - new_frame_state.remainder;
         bpf_map_update_elem(&http2_incomplete_frames, tup, &new_frame_state, BPF_ANY);
     }
 
