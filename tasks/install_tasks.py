@@ -1,6 +1,6 @@
 import os
-import shutil
 import platform
+import shutil
 import sys
 import zipfile
 from pathlib import Path
@@ -76,6 +76,8 @@ def install_custom_golanci_lint(ctx):
             shutil.move("golangci-lint", f"{gopath}/bin/golangci-lint")
 
         print("Installed custom golangci-lint binary successfully")
+
+    ctx.run("golangci-lint --version")
 
 
 @task
