@@ -18,10 +18,12 @@ import (
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	scaleclient "k8s.io/client-go/scale"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/clock"
 
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -48,18 +50,22 @@ type store = autoscaling.Store[model.PodAutoscalerInternal]
 type Controller struct {
 	*autoscaling.Controller
 
-	eventRecorder record.EventRecorder
+	clusterID string
+	clock     clock.Clock
 
-	clock clock.Clock
-	store *store
+	eventRecorder record.EventRecorder
+	store         *store
 
 	podWatcher           podWatcher
 	horizontalController *horizontalController
 	verticalController   *verticalController
+
+	localSender sender.Sender
 }
 
 // newController returns a new workload autoscaling controller
 func newController(
+	clusterID string,
 	eventRecorder record.EventRecorder,
 	restMapper apimeta.RESTMapper,
 	scaleClient scaleclient.ScalesGetter,
@@ -68,13 +74,24 @@ func newController(
 	isLeader func() bool,
 	store *store,
 	podWatcher podWatcher,
+	localSender sender.Sender,
 ) (*Controller, error) {
 	c := &Controller{
-		eventRecorder: eventRecorder,
+		clusterID:     clusterID,
 		clock:         clock.RealClock{},
+		eventRecorder: eventRecorder,
+		localSender:   localSender,
 	}
 
-	baseController, err := autoscaling.NewController(controllerID, c, dynamicClient, dynamicInformer, podAutoscalerGVR, isLeader, store)
+	autoscalingWorkqueue := workqueue.NewRateLimitingQueueWithConfig(
+		workqueue.DefaultItemBasedRateLimiter(),
+		workqueue.RateLimitingQueueConfig{
+			Name:            subsystem,
+			MetricsProvider: autoscalingQueueMetricsProvider,
+		},
+	)
+
+	baseController, err := autoscaling.NewController(controllerID, c, dynamicClient, dynamicInformer, podAutoscalerGVR, isLeader, store, autoscalingWorkqueue)
 	if err != nil {
 		return nil, err
 	}
@@ -88,6 +105,11 @@ func newController(
 	c.verticalController = newVerticalController(c.clock, eventRecorder, dynamicClient, c.podWatcher)
 
 	return c, nil
+}
+
+// PreStart is called before the controller starts
+func (c *Controller) PreStart(ctx context.Context) {
+	startLocalTelemetry(ctx, c.localSender, []string{"kube_cluster_id:" + c.clusterID})
 }
 
 // Process implements the Processor interface (so required to be public)
@@ -295,6 +317,7 @@ func (c *Controller) createPodAutoscaler(ctx context.Context, podAutoscalerInter
 		Spec:   *podAutoscalerInternal.Spec().DeepCopy(),
 		Status: podAutoscalerInternal.BuildStatus(metav1.NewTime(c.clock.Now()), nil),
 	}
+	trackPodAutoscalerStatus(autoscalerObj)
 
 	obj, err := autoscaling.ToUnstructured(autoscalerObj)
 	if err != nil {
@@ -332,6 +355,7 @@ func (c *Controller) updatePodAutoscalerSpec(ctx context.Context, podAutoscalerI
 
 func (c *Controller) updatePodAutoscalerStatus(ctx context.Context, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
 	newStatus := podAutoscalerInternal.BuildStatus(metav1.NewTime(c.clock.Now()), &podAutoscaler.Status)
+
 	if autoscaling.Semantic.DeepEqual(podAutoscaler.Status, newStatus) {
 		return nil
 	}
@@ -342,6 +366,7 @@ func (c *Controller) updatePodAutoscalerStatus(ctx context.Context, podAutoscale
 		ObjectMeta: podAutoscaler.ObjectMeta,
 		Status:     newStatus,
 	}
+	trackPodAutoscalerStatus(autoscalerObj)
 
 	obj, err := autoscaling.ToUnstructured(autoscalerObj)
 	if err != nil {

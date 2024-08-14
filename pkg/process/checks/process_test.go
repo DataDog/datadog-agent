@@ -176,6 +176,51 @@ func TestProcessCheckSecondRun(t *testing.T) {
 	assert.Nil(t, actual.RealtimePayloads())
 }
 
+func TestProcessCheckChunking(t *testing.T) {
+	for _, tc := range []struct {
+		name                  string
+		noChunking            bool
+		expectedPayloadLength int
+	}{
+		{
+			name:                  "Chunking",
+			noChunking:            false,
+			expectedPayloadLength: 5,
+		},
+		{
+			name:                  "No chunking",
+			noChunking:            true,
+			expectedPayloadLength: 1,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			processCheck, probe := processCheckWithMockProbe(t)
+
+			// Set small chunk size to force chunking behavior
+			processCheck.maxBatchBytes = 0
+			processCheck.maxBatchSize = 0
+
+			// mock processes
+			now := time.Now().Unix()
+			proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
+			proc2 := makeProcessWithCreateTime(2, "mine-bitcoins -all -x", now+1)
+			proc3 := makeProcessWithCreateTime(3, "foo --version", now+2)
+			proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
+			proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
+
+			processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
+			probe.On("ProcessesByPID", mock.Anything, mock.Anything).
+				Return(processesByPid, nil)
+
+			// Test second check runs without error and has correct number of chunks
+			processCheck.Run(testGroupID(0), getChunkingOption(tc.noChunking))
+			actual, err := processCheck.Run(testGroupID(0), getChunkingOption(tc.noChunking))
+			require.NoError(t, err)
+			assert.Len(t, actual.Payloads(), tc.expectedPayloadLength)
+		})
+	}
+}
+
 func TestProcessCheckWithRealtime(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
 	proc1 := makeProcess(1, "git clone google.com")

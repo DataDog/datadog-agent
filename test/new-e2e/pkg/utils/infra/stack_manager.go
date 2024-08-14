@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"io"
 	"os"
 	"runtime"
@@ -17,8 +18,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV1"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/debug"
@@ -28,6 +27,9 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/workspace"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 )
 
 const (
@@ -49,19 +51,6 @@ var (
 	stackManager     *StackManager
 	initStackManager sync.Once
 )
-
-type internalError struct {
-	err error
-}
-
-func (i internalError) Error() string {
-	return fmt.Sprintf("E2E INTERNAL ERROR: %v", i.err)
-}
-
-func (i internalError) Is(target error) bool {
-	_, ok := target.(internalError)
-	return ok
-}
 
 // StackManager handles
 type StackManager struct {
@@ -128,7 +117,7 @@ func newStackManager() (*StackManager, error) {
 func (sm *StackManager) GetStack(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool) (_ *auto.Stack, _ auto.UpResult, err error) {
 	defer func() {
 		if err != nil {
-			err = internalError{err}
+			err = common.InternalError{Err: err}
 		}
 	}()
 
@@ -215,7 +204,7 @@ func WithCancelTimeout(cancelTimeout time.Duration) GetStackOption {
 func (sm *StackManager) GetStackNoDeleteOnFailure(ctx context.Context, name string, deployFunc pulumi.RunFunc, options ...GetStackOption) (_ *auto.Stack, _ auto.UpResult, err error) {
 	defer func() {
 		if err != nil {
-			err = internalError{err}
+			err = common.InternalError{Err: err}
 		}
 	}()
 
@@ -226,7 +215,7 @@ func (sm *StackManager) GetStackNoDeleteOnFailure(ctx context.Context, name stri
 func (sm *StackManager) DeleteStack(ctx context.Context, name string, logWriter io.Writer) (err error) {
 	defer func() {
 		if err != nil {
-			err = internalError{err}
+			err = common.InternalError{Err: err}
 		}
 	}()
 
@@ -235,7 +224,7 @@ func (sm *StackManager) DeleteStack(ctx context.Context, name string, logWriter 
 		// Build configuration from profile
 		profile := runner.GetProfile()
 		stackName := buildStackName(profile.NamePrefix(), name)
-		workspace, err := buildWorkspace(ctx, profile, stackName, func(ctx *pulumi.Context) error { return nil })
+		workspace, err := buildWorkspace(ctx, profile, stackName, func(*pulumi.Context) error { return nil })
 		if err != nil {
 			return err
 		}
@@ -256,7 +245,7 @@ func (sm *StackManager) DeleteStack(ctx context.Context, name string, logWriter 
 func (sm *StackManager) ForceRemoveStackConfiguration(ctx context.Context, name string) (err error) {
 	defer func() {
 		if err != nil {
-			err = internalError{err}
+			err = common.InternalError{Err: err}
 		}
 	}()
 
@@ -277,7 +266,7 @@ func (sm *StackManager) Cleanup(ctx context.Context) []error {
 	sm.stacks.Range(func(stackID string, stack *auto.Stack) {
 		err := sm.deleteStack(ctx, stackID, stack, nil, nil)
 		if err != nil {
-			errors = append(errors, internalError{err})
+			errors = append(errors, common.InternalError{Err: err})
 		}
 	})
 
@@ -572,7 +561,7 @@ func sendEventToDatadog(sender datadogEventSender, title string, message string,
 func (sm *StackManager) GetPulumiStackName(name string) (_ string, err error) {
 	defer func() {
 		if err != nil {
-			err = internalError{err}
+			err = common.InternalError{Err: err}
 		}
 	}()
 

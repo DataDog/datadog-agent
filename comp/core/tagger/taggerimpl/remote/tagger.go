@@ -79,10 +79,10 @@ func NodeAgentOptions(config configComponent.Component) (Options, error) {
 	}, nil
 }
 
-// NodeAgentOptionsForSecruityResolvers is a legacy function that returns the
+// NodeAgentOptionsForSecurityResolvers is a legacy function that returns the
 // same options as NodeAgentOptions, but it's used by the tag security resolvers only
 // TODO (component): remove this function once the security resolver migrates to component
-func NodeAgentOptionsForSecruityResolvers() (Options, error) {
+func NodeAgentOptionsForSecurityResolvers() (Options, error) {
 	return Options{
 		Target:       fmt.Sprintf(":%v", config.Datadog().GetInt("cmd_port")),
 		TokenFetcher: func() (string, error) { return security.FetchAuthToken(config.Datadog()) },
@@ -140,7 +140,7 @@ func (t *Tagger) Start(ctx context.Context) error {
 		t.ctx,
 		t.options.Target,
 		grpc.WithTransportCredentials(creds),
-		grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
+		grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
 			return net.Dial("tcp", url)
 		}),
 	)

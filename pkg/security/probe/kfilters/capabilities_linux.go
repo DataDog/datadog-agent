@@ -32,13 +32,11 @@ func validateBasenameFilter(value rules.FilterValue) bool {
 func oneBasenameCapabilities(event string) Capabilities {
 	return Capabilities{
 		event + ".file.path": {
-			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
-			ValidateFnc:     validateBasenameFilter,
+			ValueTypeBitmask: eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
+			ValidateFnc:      validateBasenameFilter,
 		},
 		event + ".file.name": {
-			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType,
+			ValueTypeBitmask: eval.ScalarValueType,
 		},
 	}
 }
@@ -46,22 +44,18 @@ func oneBasenameCapabilities(event string) Capabilities {
 func twoBasenameCapabilities(event string, field1, field2 string) Capabilities {
 	return Capabilities{
 		event + "." + field1 + ".path": {
-			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType | eval.GlobValueType,
-			ValidateFnc:     validateBasenameFilter,
+			ValueTypeBitmask: eval.ScalarValueType | eval.GlobValueType,
+			ValidateFnc:      validateBasenameFilter,
 		},
 		event + "." + field1 + ".name": {
-			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType,
+			ValueTypeBitmask: eval.ScalarValueType,
 		},
 		event + "." + field2 + ".path": {
-			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType | eval.GlobValueType,
-			ValidateFnc:     validateBasenameFilter,
+			ValueTypeBitmask: eval.ScalarValueType | eval.GlobValueType,
+			ValidateFnc:      validateBasenameFilter,
 		},
 		event + "." + field2 + ".name": {
-			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType,
+			ValueTypeBitmask: eval.ScalarValueType,
 		},
 	}
 }

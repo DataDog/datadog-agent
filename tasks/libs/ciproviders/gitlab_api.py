@@ -10,6 +10,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from difflib import Differ
 from functools import lru_cache
+from itertools import product
 
 import gitlab
 import yaml
@@ -496,17 +497,20 @@ def clean_gitlab_ci_configuration(yml):
     return flatten(yml)
 
 
-def filter_gitlab_ci_configuration(yml: dict, job: str | None = None) -> dict:
+def filter_gitlab_ci_configuration(yml: dict, job: str | None = None, keep_special_objects: bool = False) -> dict:
     """
     Filters gitlab-ci configuration jobs
 
     - job: If provided, retrieve only this job
+    - keep_special_objects: Will keep special objects (not jobs) in the configuration (variables, stages, etc.)
     """
 
     def filter_yaml(key, value):
         # Not a job
         if key.startswith('.') or 'script' not in value and 'trigger' not in value:
-            return None
+            # Exception for special objects if this option is enabled
+            if not (keep_special_objects and key in CONFIG_SPECIAL_OBJECTS):
+                return None
 
         if job is not None:
             return (key, value) if key == job else None
@@ -517,6 +521,74 @@ def filter_gitlab_ci_configuration(yml: dict, job: str | None = None) -> dict:
         assert job in yml, f"Job {job} not found in the configuration"
 
     return {node[0]: node[1] for node in (filter_yaml(k, v) for k, v in yml.items()) if node is not None}
+
+
+def _get_combinated_variables(arg: dict[str, (str | list[str])]):
+    """
+    Make combinations from the matrix arguments to obtain the list of variables that have each new job.
+
+    combinations({'key1': ['val1', 'val2'], 'key2': 'val3'}) -> [
+        {'key1': 'val1', 'key2': 'val3'},
+        {'key1': 'val2', 'key2': 'val3'}
+    ]
+
+    - Returns a tuple of (1) the list of variable values and (2) the list of variable dictionaries
+    """
+
+    job_keys = []
+    job_values = []
+    for key, values in arg.items():
+        if not isinstance(values, list):
+            values = [values]
+
+        job_keys.append([key] * len(values))
+        job_values.append(values)
+
+    # Product order is deterministic so each item in job_values will be associated with the same item in job_keys
+    job_keys = list(product(*job_keys))
+    job_values = list(product(*job_values))
+
+    job_vars = [dict(zip(k, v, strict=True)) for (k, v) in zip(job_keys, job_values, strict=True)]
+
+    return job_values, job_vars
+
+
+def expand_matrix_jobs(yml: dict) -> dict:
+    """
+    Will expand matrix jobs into multiple jobs
+    """
+    new_jobs = {}
+    to_remove = set()
+    for job in yml:
+        if 'parallel' in yml[job] and 'matrix' in yml[job]['parallel']:
+            to_remove.add(job)
+            for arg in yml[job]['parallel']['matrix']:
+                # Compute all combinations of variables
+                job_values, job_vars = _get_combinated_variables(arg)
+
+                # Create names
+                job_names = [', '.join(str(value) for value in spec) for spec in job_values]
+                job_names = [f'{job}: [{specs}]' for specs in job_names]
+
+                for variables, name in zip(job_vars, job_names, strict=True):
+                    new_job = deepcopy(yml[job])
+
+                    # Update variables
+                    new_job['variables'] = {**new_job.get('variables', {}), **variables}
+
+                    # Remove matrix config for the new jobs
+                    del new_job['parallel']['matrix']
+                    if not new_job['parallel']:
+                        del new_job['parallel']
+
+                    new_jobs[name] = new_job
+
+    for job in to_remove:
+        del yml[job]
+
+    yml.update(new_jobs)
+
+    return yml
 
 
 def print_gitlab_ci_configuration(yml: dict, sort_jobs: bool):
@@ -641,22 +713,31 @@ def get_gitlab_ci_configuration(
     input_file: str = '.gitlab-ci.yml',
     ignore_errors: bool = False,
     job: str | None = None,
+    keep_special_objects: bool = False,
     clean: bool = True,
+    expand_matrix: bool = False,
     git_ref: str | None = None,
 ) -> dict:
     """
     Creates, filters and processes the gitlab-ci configuration
+
+    - keep_special_objects: Will keep special objects (not jobs) in the configuration (variables, stages, etc.)
+    - expand_matrix: Will expand matrix jobs into multiple jobs
     """
 
     # Make full configuration
     yml = get_full_gitlab_ci_configuration(ctx, input_file, ignore_errors=ignore_errors, git_ref=git_ref)
 
     # Filter
-    yml = filter_gitlab_ci_configuration(yml, job)
+    yml = filter_gitlab_ci_configuration(yml, job, keep_special_objects=keep_special_objects)
 
     # Clean
     if clean:
         yml = clean_gitlab_ci_configuration(yml)
+
+    # Expand matrix
+    if expand_matrix:
+        yml = expand_matrix_jobs(yml)
 
     return yml
 

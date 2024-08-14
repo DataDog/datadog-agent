@@ -320,13 +320,13 @@ func containerdClient(container containerd.Container) fake.MockedContainerdClien
 	createdAt, _ := time.Parse("2006-01-02", "2021-10-11")
 
 	return fake.MockedContainerdClient{
-		MockContainerWithCtx: func(ctx context.Context, namespace string, id string) (containerd.Container, error) {
+		MockContainerWithCtx: func(context.Context, string, string) (containerd.Container, error) {
 			return container, nil
 		},
-		MockLabels: func(namespace string, ctn containerd.Container) (map[string]string, error) {
+		MockLabels: func(string, containerd.Container) (map[string]string, error) {
 			return labels, nil
 		},
-		MockImageOfContainer: func(namespace string, ctn containerd.Container) (containerd.Image, error) {
+		MockImageOfContainer: func(string, containerd.Container) (containerd.Image, error) {
 			return &mockedImage{
 				mockName: func() string {
 					return imgName
@@ -336,16 +336,16 @@ func containerdClient(container containerd.Container) fake.MockedContainerdClien
 				},
 			}, nil
 		},
-		MockInfo: func(namespace string, ctn containerd.Container) (containers.Container, error) {
+		MockInfo: func(string, containerd.Container) (containers.Container, error) {
 			return containers.Container{CreatedAt: createdAt}, nil
 		},
-		MockSpec: func(namespace string, ctn containers.Container) (*oci.Spec, error) {
+		MockSpec: func(string, containers.Container) (*oci.Spec, error) {
 			return &oci.Spec{Hostname: hostName, Process: &specs.Process{Env: envVarStrs}}, nil
 		},
-		MockStatus: func(namespace string, ctn containerd.Container) (containerd.ProcessStatus, error) {
+		MockStatus: func(string, containerd.Container) (containerd.ProcessStatus, error) {
 			return containerd.Running, nil
 		},
-		MockTaskPids: func(namespace string, ctn containerd.Container) ([]containerd.ProcessInfo, error) {
+		MockTaskPids: func(string, containerd.Container) ([]containerd.ProcessInfo, error) {
 			return nil, nil
 		},
 	}

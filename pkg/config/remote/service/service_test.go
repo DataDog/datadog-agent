@@ -156,7 +156,7 @@ func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.
 		WithTraceAgentEnv(traceAgentEnv),
 		WithAPIKey("abc"),
 	}
-	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, options...)
+	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
 	require.NoError(t, err)
 	t.Cleanup(func() { service.Stop() })
 	service.api = api
@@ -186,7 +186,7 @@ func TestServiceBackoffFailure(t *testing.T) {
 		Products:                     []string{},
 		NewProducts:                  []string{},
 		OrgUuid:                      "abcdef",
-		Tags:                         []string{"dogo_state:hungry"},
+		Tags:                         getHostTags(),
 	}).Return(lastConfigResponse, errors.New("simulated HTTP error"))
 	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
@@ -216,7 +216,7 @@ func TestServiceBackoffFailure(t *testing.T) {
 		HasError:                     true,
 		Error:                        httpError,
 		OrgUuid:                      "abcdef",
-		Tags:                         []string{"dogo_state:hungry"},
+		Tags:                         getHostTags(),
 	}).Return(lastConfigResponse, errors.New("simulated HTTP error"))
 	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
@@ -271,7 +271,7 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 		Products:                     []string{},
 		NewProducts:                  []string{},
 		OrgUuid:                      "abcdef",
-		Tags:                         []string{"dogo_state:hungry"},
+		Tags:                         getHostTags(),
 	}).Return(lastConfigResponse, nil)
 	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
@@ -402,7 +402,7 @@ func TestService(t *testing.T) {
 		Products:                     []string{},
 		NewProducts:                  []string{},
 		OrgUuid:                      "abcdef",
-		Tags:                         []string{"dogo_state:hungry"},
+		Tags:                         getHostTags(),
 	}).Return(lastConfigResponse, nil)
 	uptaneClient.On("StoredOrgUUID").Return("abcdef", nil)
 	uptaneClient.On("TUFVersionState").Return(uptane.TUFVersions{}, nil)
@@ -491,7 +491,7 @@ func TestService(t *testing.T) {
 		HasError:           false,
 		Error:              "",
 		OrgUuid:            "abcdef",
-		Tags:               []string{"dogo_state:hungry"},
+		Tags:               getHostTags(),
 	}).Return(lastConfigResponse, nil)
 
 	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
@@ -602,7 +602,7 @@ func TestServiceClientPredicates(t *testing.T) {
 		HasError:           false,
 		Error:              "",
 		OrgUuid:            "abcdef",
-		Tags:               []string{"dogo_state:hungry"},
+		Tags:               getHostTags(),
 	}).Return(lastConfigResponse, nil)
 
 	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
@@ -644,7 +644,7 @@ func TestServiceGetRefreshIntervalNone(t *testing.T) {
 		NewProducts:                  []string{},
 		BackendClientState:           []byte("test_state"),
 		OrgUuid:                      "abcdef",
-		Tags:                         []string{"dogo_state:hungry"},
+		Tags:                         getHostTags(),
 	}).Return(lastConfigResponse, nil)
 
 	// No explicit refresh interval is provided by the backend
@@ -684,7 +684,7 @@ func TestServiceGetRefreshIntervalValid(t *testing.T) {
 		NewProducts:                  []string{},
 		BackendClientState:           []byte("test_state"),
 		OrgUuid:                      "abcdef",
-		Tags:                         []string{"dogo_state:hungry"},
+		Tags:                         getHostTags(),
 	}).Return(lastConfigResponse, nil)
 
 	// An acceptable refresh interval is provided by the backend
@@ -724,7 +724,7 @@ func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
 		NewProducts:                  []string{},
 		BackendClientState:           []byte("test_state"),
 		OrgUuid:                      "abcdef",
-		Tags:                         []string{"dogo_state:hungry"},
+		Tags:                         getHostTags(),
 	}).Return(lastConfigResponse, nil)
 
 	// A too small refresh interval is provided by the backend (the refresh interval should not change)
@@ -764,7 +764,7 @@ func TestServiceGetRefreshIntervalTooBig(t *testing.T) {
 		NewProducts:                  []string{},
 		BackendClientState:           []byte("test_state"),
 		OrgUuid:                      "abcdef",
-		Tags:                         []string{"dogo_state:hungry"},
+		Tags:                         getHostTags(),
 	}).Return(lastConfigResponse, nil)
 
 	// A too large refresh interval is provided by the backend (the refresh interval should not change)
@@ -807,7 +807,7 @@ func TestServiceGetRefreshIntervalNoOverrideAllowed(t *testing.T) {
 		NewProducts:                  []string{},
 		BackendClientState:           []byte("test_state"),
 		OrgUuid:                      "abcdef",
-		Tags:                         []string{"dogo_state:hungry"},
+		Tags:                         getHostTags(),
 	}).Return(lastConfigResponse, nil)
 
 	// An interval is provided, but it should not be applied
@@ -892,7 +892,7 @@ func TestConfigExpiration(t *testing.T) {
 		HasError:           false,
 		Error:              "",
 		OrgUuid:            "abcdef",
-		Tags:               []string{"dogo_state:hungry"},
+		Tags:               getHostTags(),
 	}).Return(lastConfigResponse, nil)
 
 	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
@@ -953,7 +953,7 @@ func TestWithTraceAgentEnv(t *testing.T) {
 		WithTraceAgentEnv(traceAgentEnv),
 		WithAPIKey("abc"),
 	}
-	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, options...)
+	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
 	assert.NoError(t, err)
 	assert.Equal(t, "dog", service.traceAgentEnv)
 	assert.NotNil(t, service)
@@ -970,7 +970,7 @@ func TestWithDatabaseFileName(t *testing.T) {
 		WithDatabaseFileName("test.db"),
 		WithAPIKey("abc"),
 	}
-	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, options...)
+	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
 	assert.NoError(t, err)
 	assert.Equal(t, "/tmp/test.db", service.db.Path())
 	assert.NotNil(t, service)
@@ -1011,7 +1011,7 @@ func TestWithRefreshInterval(t *testing.T) {
 				WithRefreshInterval(tt.interval, "test.refresh_interval"),
 				WithAPIKey("abc"),
 			}
-			service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, options...)
+			service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expected, service.defaultRefreshInterval)
 			assert.Equal(t, tt.expectedRefreshIntervalOverrideAllowed, service.refreshIntervalOverrideAllowed)
@@ -1108,7 +1108,7 @@ func TestWithDirectorRootOverride(t *testing.T) {
 		WithDirectorRootOverride("datadoghq.com", "{\"a\": \"b\"}"),
 		WithAPIKey("abc"),
 	}
-	_, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, options...)
+	_, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", getHostTags, mockTelemetryReporter, agentVersion, options...)
 	// Because we used an invalid root, we should get an error. All we're trying to capture
 	// with this test is that the builder method is propagating the value properly
 	assert.Errorf(t, err, "failed to set embedded root in roots bucket: invalid meta: version field is missing")
@@ -1141,4 +1141,8 @@ func TestWithClientTTL(t *testing.T) {
 			assert.Equal(t, tt.expected, defaultOptions.clientTTL)
 		})
 	}
+}
+
+func getHostTags() []string {
+	return []string{"dogo_state:hungry"}
 }

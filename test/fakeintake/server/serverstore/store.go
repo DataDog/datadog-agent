@@ -21,7 +21,7 @@ import (
 // Store is the interface for a store that can store payloads and try parsing them
 type Store interface {
 	// AppendPayload adds a payload to the store and tries parsing and adding a dumped json to the parsed store
-	AppendPayload(route string, data []byte, encoding string, collectTime time.Time) error
+	AppendPayload(route string, data []byte, encoding string, contentType string, collectTime time.Time) error
 	// CleanUpPayloadsOlderThan removes payloads older than the given time
 	CleanUpPayloadsOlderThan(time.Time)
 	// GetRawPayloads returns all raw payloads for a given route

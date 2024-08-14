@@ -10,6 +10,8 @@ package model
 
 import (
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
 
 // SetAncestor sets the ancestor
@@ -31,7 +33,7 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 func hasValidLineage(pc *ProcessCacheEntry) (bool, error) {
 	var (
 		pid, ppid uint32
-		ctrID     ContainerID
+		ctrID     containerutils.ContainerID
 		err       error
 	)
 
@@ -81,6 +83,9 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 		child.CGroup = parent.CGroup
 		child.ContainerID = parent.ContainerID
 	}
+
+	// AUIDs should be inherited just like container IDs
+	child.Credentials.AUID = parent.Credentials.AUID
 }
 
 // ApplyExecTimeOf replace previous entry values by the given one

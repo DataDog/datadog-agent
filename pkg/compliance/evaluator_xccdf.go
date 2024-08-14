@@ -379,7 +379,7 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient statsd
 }
 
 // FinishXCCDFBenchmark finishes an XCCDF benchmark by terminating the oscap-io processes.
-func FinishXCCDFBenchmark(ctx context.Context, benchmark *Benchmark) { //nolint:revive // TODO fix revive unused-parameter
+func FinishXCCDFBenchmark(_ context.Context, benchmark *Benchmark) {
 	oscapIOsMu.Lock()
 	if len(oscapIOs) == 0 {
 		// No oscap-io process is running.

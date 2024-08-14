@@ -31,7 +31,7 @@ func statusCommand(global *command.GlobalParams) *cobra.Command {
 		Short:   "Print the installer status",
 		GroupID: "daemon",
 		Long:    ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return statusFxWrapper(global)
 		},
 	}

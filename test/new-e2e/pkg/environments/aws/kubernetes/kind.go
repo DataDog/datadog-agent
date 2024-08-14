@@ -10,12 +10,13 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/DataDog/test-infra-definitions/common/utils"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
-	"github.com/DataDog/test-infra-definitions/common/utils"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agent/helm"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
@@ -129,7 +130,7 @@ agents:
 
 		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues)}
 		params.agentOptions = append(newOpts, params.agentOptions...)
-		agent, err := agent.NewKubernetesAgent(&awsEnv, kindClusterName, kubeProvider, params.agentOptions...)
+		agent, err := helm.NewKubernetesAgent(&awsEnv, kindClusterName, kubeProvider, params.agentOptions...)
 		if err != nil {
 			return err
 		}

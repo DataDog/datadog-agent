@@ -1553,6 +1553,10 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 			ID:         "test_capset",
 			Expression: `capset.cap_effective & CAP_WAKE_ALARM == 0 && capset.cap_permitted & CAP_SYS_BOOT == 0 && process.file.name == "syscall_go_tester"`,
 		},
+		{
+			ID:         "test_auid",
+			Expression: `exec.auid == 1234`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs)

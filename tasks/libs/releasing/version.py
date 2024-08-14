@@ -421,10 +421,19 @@ def get_matching_pattern(ctx, major_version, release=False):
     """
     We need to used specific patterns (official release tags) for nightly builds as they are used to install agent versions.
     """
+    from functools import cmp_to_key
+
+    import semver
+
     pattern = rf"{major_version}\.*"
     if release or os.getenv("BUCKET_BRANCH") in ALLOWED_REPO_NIGHTLY_BRANCHES:
-        pattern = ctx.run(
-            rf"git tag --list --merged {get_current_branch(ctx)} | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$' | sort -rV | head -1",
-            hide=True,
-        ).stdout.strip()
+        tags = (
+            ctx.run(
+                rf"git tag --list --merged {get_current_branch(ctx)} | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$'",
+                hide=True,
+            )
+            .stdout.strip()
+            .split("\n")
+        )
+        pattern = max(tags, key=cmp_to_key(semver.compare))
     return pattern

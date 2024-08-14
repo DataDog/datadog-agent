@@ -104,3 +104,17 @@ func TestGetAgentV1ContainerURLs(t *testing.T) {
 	assert.Contains(t, agentURLS, "http://172.17.0.3:51678/")
 	assert.Equal(t, "http://ip-172-29-167-5:51678/", agentURLS[2])
 }
+
+func TestIsMetadataV4Available(t *testing.T) {
+	ok, err := IsMetadataV4Available("")
+	assert.NotNil(t, err)
+	assert.False(t, ok)
+
+	ok, err = IsMetadataV4Available("1.0.0")
+	assert.NoError(t, err)
+	assert.False(t, ok)
+
+	ok, err = IsMetadataV4Available("1.80.0")
+	assert.NoError(t, err)
+	assert.True(t, ok)
+}

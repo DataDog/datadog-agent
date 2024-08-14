@@ -4,7 +4,7 @@
 // Copyright 2024-present Datadog, Inc.
 
 // Package impl implements the healthprobe component interface
-package impl
+package healthprobeimpl
 
 import (
 	"context"
@@ -22,7 +22,7 @@ import (
 
 func TestServer(t *testing.T) {
 
-	lc := compdef.NewTestLifecycle()
+	lc := compdef.NewTestLifecycle(t)
 	logComponent := logmock.New(t)
 
 	requires := Requires{
@@ -40,13 +40,14 @@ func TestServer(t *testing.T) {
 	assert.NotNil(t, provides.Comp)
 
 	ctx := context.Background()
-	assert.NoError(t, lc.Start(ctx))
 
+	lc.AssertHooksNumber(1)
+	assert.NoError(t, lc.Start(ctx))
 	assert.NoError(t, lc.Stop(ctx))
 }
 
 func TestServerNoHealthPort(t *testing.T) {
-	lc := compdef.NewTestLifecycle()
+	lc := compdef.NewTestLifecycle(t)
 	logComponent := logmock.New(t)
 
 	requires := Requires{

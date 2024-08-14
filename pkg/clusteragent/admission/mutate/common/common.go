@@ -17,7 +17,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
 
-	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -63,18 +62,6 @@ func contains(envs []corev1.EnvVar, name string) bool {
 		}
 	}
 	return false
-}
-
-// EnvIndex returns the index of env var in an env var list
-// returns -1 if not found
-func EnvIndex(envs []corev1.EnvVar, name string) int {
-	for i := range envs {
-		if envs[i].Name == name {
-			return i
-		}
-	}
-
-	return -1
 }
 
 // InjectEnv injects an env var into a pod template if it doesn't exist
@@ -162,31 +149,6 @@ func containsVolumeMount(volumeMounts []corev1.VolumeMount, element corev1.Volum
 		}
 	}
 	return false
-}
-
-// ShouldMutateUnlabelledPods returns true if we should mutate unlabelled pods.
-func ShouldMutateUnlabelledPods() bool {
-	return config.Datadog().GetBool("admission_controller.mutate_unlabelled")
-}
-
-// IsExplicitPodMutationEnabled returns true if the pod mutation is opted into
-// by a pod label. It returns a second bool to show whether or not the value was
-// specified or not in the first place.
-func IsExplicitPodMutationEnabled(pod *corev1.Pod) (bool, bool) {
-	// If a pod explicitly sets the label admission.datadoghq.com/enabled,
-	// make a decision based on its value.
-	if val, found := pod.GetLabels()[admCommon.EnabledLabelKey]; found {
-		switch val {
-		case "true":
-			return true, true
-		case "false":
-			return false, true
-		default:
-			log.Warnf("Invalid label value '%s=%s' on pod %s should be either 'true' or 'false', ignoring it", admCommon.EnabledLabelKey, val, PodString(pod))
-		}
-	}
-
-	return false, false
 }
 
 // ContainerRegistry gets the container registry config using the specified
