@@ -21,6 +21,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/stretchr/testify/require"
 )
@@ -52,6 +53,7 @@ func TestGetSourceMap(t *testing.T) {
 
 	for name, path := range objectFiles {
 		t.Run(name, func(tt *testing.T) {
+			log.Debugf("Processing %s", path)
 			spec, err := ebpf.LoadCollectionSpec(path)
 			require.NoError(tt, err)
 			sourceMap, funcsPerSection, err := getSourceMap(path, spec)
