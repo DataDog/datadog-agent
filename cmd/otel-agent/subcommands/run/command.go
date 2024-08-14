@@ -200,6 +200,6 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 	return nil
 }
 
-func newForwarderParams(config coreconfig.Component, l log.Component) defaultforwarder.Params {
+func newForwarderParams(config coreconfig.Component, l log.Component, _ optional.Option[configsync.Component]) defaultforwarder.Params {
 	return defaultforwarder.NewParams(config, l)
 }

@@ -38,8 +38,6 @@ func (cs *configSync) updater() {
 	for key, value := range cfg {
 		if updateConfig(cs.Config, key, value) {
 			cs.Log.Debugf("Updating config key %s from core agent", key)
-			cs.Log.Infof("UPDATED CONFIG KEY (%v) WITH VALUE: %v", key, value.(string)[:5])
-
 		}
 	}
 }
