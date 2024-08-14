@@ -9,11 +9,8 @@ package service
 
 import (
 	"context"
-	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-	"path/filepath"
 )
 
 const (
@@ -42,25 +39,7 @@ func RemoveInstaller(ctx context.Context) (err error) {
 		}
 		span.Finish(tracer.WithError(err))
 	}()
-	targets := []string{
-		"experiment",
-		"stable",
-	}
-	for _, target := range targets {
-		updaterPath := filepath.Join(paths.PackagesPath, datadogInstaller, target)
-		msis, findErr := filepath.Glob(filepath.Join(updaterPath, fmt.Sprintf("%s-*-1-x86_64.msi", datadogInstaller)))
-		if len(msis) == 1 && findErr == nil {
-			err = msiexec(target, datadogInstaller, "/x", nil)
-			if err == nil {
-				// There can only be one Installer per system.
-				// If we successfully uninstalled, there is nothing else to do.
-				break
-			}
-		} else {
-			log.Infof("%s installer not found, skipping (%v)", target, findErr)
-		}
-	}
-
+	err = removeProduct("Datadog Installer")
 	return err
 }
 
