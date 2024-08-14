@@ -41,8 +41,13 @@ func TestGetSourceMap(t *testing.T) {
 			return nil
 		}
 
-		if _, ok := objectFiles[d.Name()]; !ok {
-			objectFiles[d.Name()] = path
+		objName := d.Name()
+		if strings.Contains(path, "/co-re/") {
+			objName = "co-re/" + objName
+		}
+
+		if _, ok := objectFiles[objName]; !ok {
+			objectFiles[objName] = path
 		}
 		return nil
 	})
