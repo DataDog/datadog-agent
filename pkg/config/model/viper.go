@@ -7,6 +7,7 @@ package model
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -238,10 +239,56 @@ func (c *safeConfig) GetKnownKeysLowercased() map[string]interface{} {
 
 // SetEnvKeyTransformer allows defining a transformer function which decides
 // how an environment variables value gets assigned to key.
+//
+// [DEPRECATED] This function will soon be remove. Use one of the LoadEnvAs* helpers instead.
 func (c *safeConfig) SetEnvKeyTransformer(key string, fn func(string) interface{}) {
 	c.Lock()
 	defer c.Unlock()
 	c.Viper.SetEnvKeyTransformer(key, fn)
+}
+
+// LoadEnvAsJSON convert the value from the environment assiciated to the setting from JSON.
+func (c *safeConfig) LoadEnvAsJSON(key string) {
+	c.Lock()
+	defer c.Unlock()
+	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} {
+		var out interface{}
+		if err := json.Unmarshal([]byte(data), &out); err != nil {
+			log.Warnf("could not Unmarshal JSON from env var for '%s': %s", key, err)
+			return nil
+		}
+		return out
+	})
+}
+
+// LoadEnvAsStringList convert the value from the environment into a slice of strings.
+//
+// Format support either JSON style array or space separated list (we aim at reproducing the behavior expected by the
+// trace-agent until we can migrate to a better configuration lib than viper).
+func (c *safeConfig) LoadEnvAsStringList(key string) {
+	c.Lock()
+	defer c.Unlock()
+	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} {
+		data = strings.Trim(data, " ")
+		if len(data) == 0 {
+			return []string{}
+		}
+
+		// For backward compatibility we need to support both JSON array of strings and list of string separated
+		// by a space.
+
+		// '[' as a first character signals JSON array format
+		if data[0] != '[' {
+			log.Warnf("loading from space string")
+			return strings.Split(data, " ")
+		}
+		var values []string
+		if err := json.Unmarshal([]byte(data), &values); err != nil {
+			log.Warnf("could not Unmarshal string array JSON from env var for '%s': %s", key, err)
+			return []string{}
+		}
+		return values
+	})
 }
 
 // SetFs wraps Viper for concurrent access

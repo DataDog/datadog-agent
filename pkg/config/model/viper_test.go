@@ -7,6 +7,7 @@ package model
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"reflect"
@@ -15,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConcurrencySetGet(t *testing.T) {
@@ -417,4 +419,41 @@ func TestMergeFleetPolicy(t *testing.T) {
 
 	assert.Equal(t, "baz", config.Get("foo"))
 	assert.Equal(t, SourceFleetPolicies, config.GetSource("foo"))
+}
+
+func TestLoadEnvAsJSON(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	config.BindEnv("my_key")
+	config.LoadEnvAsJSON("my_key")
+
+	payload := "{\"a\": 21, \"b\": \"result\"}"
+
+	var expected interface{}
+	err := json.Unmarshal([]byte(payload), &expected)
+	require.NoError(t, err)
+
+	t.Setenv("DD_MY_KEY", payload)
+	assert.Equal(t, expected, config.Get("my_key"))
+
+	t.Setenv("DD_MY_KEY", "[invalid payload")
+	assert.Equal(t, nil, config.Get("my_key"))
+}
+
+func TestLoadEnvAsString(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	config.BindEnv("slice_of_string")
+	config.LoadEnvAsStringList("slice_of_string")
+
+	expected := []string{"a", "b", "c"}
+
+	t.Setenv("DD_SLICE_OF_STRING", "[\"a\", \"b\", \"c\"]")
+	assert.Equal(t, expected, config.Get("slice_of_string"))
+
+	t.Setenv("DD_SLICE_OF_STRING", "  a b c  ")
+	assert.Equal(t, expected, config.Get("slice_of_string"))
+
+	t.Setenv("DD_SLICE_OF_STRING", "[invalid_json")
+	assert.Equal(t, []string{}, config.Get("slice_of_string"))
 }

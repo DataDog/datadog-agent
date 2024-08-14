@@ -111,7 +111,11 @@ type Setup interface {
 	SetEnvPrefix(in string)
 	BindEnv(input ...string)
 	SetEnvKeyReplacer(r *strings.Replacer)
+
+	// SetEnvKeyTransformer is deprecated in favor of LoadEnv* functions
 	SetEnvKeyTransformer(key string, fn func(string) interface{})
+	LoadEnvAsJSON(key string)
+	LoadEnvAsStringList(key string)
 
 	// SetKnown adds a key to the set of known valid config keys
 	SetKnown(key string)
