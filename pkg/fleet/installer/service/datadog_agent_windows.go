@@ -55,7 +55,7 @@ func StopAgentExperiment(ctx context.Context) (err error) {
 		}
 		span.Finish(tracer.WithError(err))
 	}()
-	err = removeProduct("Datadog Agent")
+	err = msiexec("experiment", datadogAgent, "/x", nil)
 	if err != nil {
 		return err
 	}
