@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/trace/stats/oteltest
 
-go 1.21.0
+go 1.22.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.57.0-rc.1
