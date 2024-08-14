@@ -88,7 +88,6 @@ func (ext *ddExtension) Start(_ context.Context, host component.Host) error {
 		}
 
 		uri, crawl, err := extractor(exconf)
-		fmt.Println("ERROR IS: ========== ", err)
 		if err != nil {
 			ext.telemetry.Logger.Info("Unavailable debug extension for", zap.String("extension", extension.String()))
 		} else {
