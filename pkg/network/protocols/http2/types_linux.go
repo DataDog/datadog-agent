@@ -89,7 +89,7 @@ type HTTP2IncompleteFrameEntry struct {
 	Remainder uint32
 	Length    uint32
 	Buf       [9]byte
-	Pad_cgo_0 [3]byte
+	Type      uint32
 }
 
 type StaticTableEnumValue = uint8
