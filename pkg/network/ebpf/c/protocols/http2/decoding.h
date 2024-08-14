@@ -472,7 +472,7 @@ static __always_inline void consume_frame_payload_remainder(pktbuf_t pkt, frame_
     frame_state->remainder -= payload_bytes_left;
 }
 
-static __always_inline bool pktbuf_get_first_frame(pktbuf_t pkt, frame_header_remainder_t *frame_state, http2_frame_t *current_frame, http2_telemetry_t *http2_tel) {
+static __always_inline bool pktbuf_get_first_frame(pktbuf_t pkt, frame_header_remainder_t *frame_state, http2_frame_t *current_frame) {
     // Attempting to read the initial frame in the packet, or handling a state where there is no remainder and finishing reading the current frame.
     if (frame_state == NULL) {
         return get_first_frame_header_without_remainder(pkt, current_frame);
@@ -640,7 +640,7 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
         return;
     }
 
-    bool has_valid_first_frame = pktbuf_get_first_frame(pkt, frame_state, &current_frame, http2_tel);
+    bool has_valid_first_frame = pktbuf_get_first_frame(pkt, frame_state, &current_frame);
     // If we have a state and we consumed it, then delete it.
     if (frame_state != NULL && frame_state->remainder == 0) {
         bpf_map_delete_elem(&http2_incomplete_frames, tup);
