@@ -9,15 +9,17 @@
 package autoscaling
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-
-	admiv1 "k8s.io/api/admissionregistration/v1"
+	"k8s.io/client-go/dynamic"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	admiv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/dynamic"
+
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 const (
@@ -27,29 +29,36 @@ const (
 
 // Webhook implements the MutatingWebhook interface
 type Webhook struct {
-	name       string
-	isEnabled  bool
-	endpoint   string
-	resources  []string
-	operations []admiv1.OperationType
-	patcher    workload.PodPatcher
+	name        string
+	webhookType common.WebhookType
+	isEnabled   bool
+	endpoint    string
+	resources   []string
+	operations  []admissionregistrationv1.OperationType
+	patcher     workload.PodPatcher
 }
 
 // NewWebhook returns a new Webhook
 func NewWebhook(patcher workload.PodPatcher) *Webhook {
 	return &Webhook{
-		name:       webhookName,
-		isEnabled:  pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled"),
-		endpoint:   webhookEndpoint,
-		resources:  []string{"pods"},
-		operations: []admiv1.OperationType{admiv1.Create},
-		patcher:    patcher,
+		name:        webhookName,
+		webhookType: common.MutatingWebhook,
+		isEnabled:   pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled"),
+		endpoint:    webhookEndpoint,
+		resources:   []string{"pods"},
+		operations:  []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
+		patcher:     patcher,
 	}
 }
 
 // Name returns the name of the webhook
 func (w *Webhook) Name() string {
 	return w.name
+}
+
+// WebhookType returns the type of the webhook
+func (w *Webhook) WebhookType() common.WebhookType {
+	return w.webhookType
 }
 
 // IsEnabled returns whether the webhook is enabled
@@ -70,7 +79,7 @@ func (w *Webhook) Resources() []string {
 
 // Operations returns the operations on the resources specified for which
 // the webhook should be invoked
-func (w *Webhook) Operations() []admiv1.OperationType {
+func (w *Webhook) Operations() []admissionregistrationv1.OperationType {
 	return w.operations
 }
 
@@ -82,18 +91,14 @@ func (w *Webhook) LabelSelectors(_ bool) (namespaceSelector *metav1.LabelSelecto
 	return nil, nil
 }
 
-// MutateFunc returns the function that mutates the resources
-func (w *Webhook) MutateFunc() admission.MutatingWebhookFunc {
-	return w.mutate
+// WebhookFunc returns the function that mutates the resources
+func (w *Webhook) WebhookFunc() admission.WebhookFunc {
+	return func(request *admission.Request) *admiv1.AdmissionResponse {
+		return common.MutationResponse(mutatecommon.Mutate(request.Raw, request.Namespace, w.Name(), w.updateResources, request.DynamicClient))
+	}
 }
 
-// mutate adds the DD_AGENT_HOST and DD_ENTITY_ID env vars to the pod template if they don't exist
-func (w *Webhook) mutate(request *admission.MutateRequest) ([]byte, error) {
-	return common.Mutate(request.Raw, request.Namespace, w.Name(), w.updateResources, request.DynamicClient)
-}
-
-// updateResource finds the owner of a pod, calls the recommender to retrieve the recommended CPU and Memory
-// requests
+// updateResources finds the owner of a pod, calls the recommender to retrieve the recommended CPU and Memory requests
 func (w *Webhook) updateResources(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
 	return w.patcher.ApplyRecommendations(pod)
 }

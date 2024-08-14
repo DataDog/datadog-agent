@@ -14,19 +14,20 @@ import (
 	"fmt"
 	"strings"
 
-	admiv1 "k8s.io/api/admissionregistration/v1"
+	"k8s.io/client-go/dynamic"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	admiv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	apiCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	apiCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 const (
@@ -102,23 +103,25 @@ var (
 // Webhook is the webhook that injects DD_AGENT_HOST and DD_ENTITY_ID into a pod
 type Webhook struct {
 	name            string
+	webhookType     common.WebhookType
 	isEnabled       bool
 	endpoint        string
 	resources       []string
-	operations      []admiv1.OperationType
+	operations      []admissionregistrationv1.OperationType
 	mode            string
 	wmeta           workloadmeta.Component
-	injectionFilter common.InjectionFilter
+	injectionFilter mutatecommon.InjectionFilter
 }
 
 // NewWebhook returns a new Webhook
-func NewWebhook(wmeta workloadmeta.Component, injectionFilter common.InjectionFilter) *Webhook {
+func NewWebhook(wmeta workloadmeta.Component, injectionFilter mutatecommon.InjectionFilter) *Webhook {
 	return &Webhook{
 		name:            webhookName,
+		webhookType:     common.MutatingWebhook,
 		isEnabled:       pkgconfigsetup.Datadog().GetBool("admission_controller.inject_config.enabled"),
 		endpoint:        pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.endpoint"),
 		resources:       []string{"pods"},
-		operations:      []admiv1.OperationType{admiv1.Create},
+		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
 		mode:            pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.mode"),
 		wmeta:           wmeta,
 		injectionFilter: injectionFilter,
@@ -128,6 +131,11 @@ func NewWebhook(wmeta workloadmeta.Component, injectionFilter common.InjectionFi
 // Name returns the name of the webhook
 func (w *Webhook) Name() string {
 	return w.name
+}
+
+// WebhookType returns the type of the webhook
+func (w *Webhook) WebhookType() common.WebhookType {
+	return w.webhookType
 }
 
 // IsEnabled returns whether the webhook is enabled
@@ -148,7 +156,7 @@ func (w *Webhook) Resources() []string {
 
 // Operations returns the operations on the resources specified for which
 // the webhook should be invoked
-func (w *Webhook) Operations() []admiv1.OperationType {
+func (w *Webhook) Operations() []admissionregistrationv1.OperationType {
 	return w.operations
 }
 
@@ -158,14 +166,11 @@ func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *
 	return common.DefaultLabelSelectors(useNamespaceSelector)
 }
 
-// MutateFunc returns the function that mutates the resources
-func (w *Webhook) MutateFunc() admission.MutatingWebhookFunc {
-	return w.mutate
-}
-
-// mutate adds the DD_AGENT_HOST and DD_ENTITY_ID env vars to the pod template if they don't exist
-func (w *Webhook) mutate(request *admission.MutateRequest) ([]byte, error) {
-	return common.Mutate(request.Raw, request.Namespace, w.Name(), w.inject, request.DynamicClient)
+// WebhookFunc returns the function that mutates the resources
+func (w *Webhook) WebhookFunc() admission.WebhookFunc {
+	return func(request *admission.Request) *admiv1.AdmissionResponse {
+		return common.MutationResponse(mutatecommon.Mutate(request.Raw, request.Namespace, w.Name(), w.inject, request.DynamicClient))
+	}
 }
 
 // inject injects the following environment variables into the pod template:
@@ -186,20 +191,20 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, 
 	// Inject DD_AGENT_HOST
 	switch injectionMode(pod, w.mode) {
 	case hostIP:
-		injectedConfig = common.InjectEnv(pod, agentHostIPEnvVar)
+		injectedConfig = mutatecommon.InjectEnv(pod, agentHostIPEnvVar)
 	case service:
-		injectedConfig = common.InjectEnv(pod, agentHostServiceEnvVar)
+		injectedConfig = mutatecommon.InjectEnv(pod, agentHostServiceEnvVar)
 	case socket:
 		injectedVolumes := injectSocketVolumes(pod)
-		injectedEnv := common.InjectEnv(pod, traceURLSocketEnvVar)
-		injectedEnv = common.InjectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
+		injectedEnv := mutatecommon.InjectEnv(pod, traceURLSocketEnvVar)
+		injectedEnv = mutatecommon.InjectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
 		injectedConfig = injectedVolumes || injectedEnv
 	default:
 		log.Errorf("invalid injection mode %q", w.mode)
 		return false, errors.New(metrics.InvalidInput)
 	}
 
-	injectedEntity = common.InjectEnv(pod, defaultDdEntityIDEnvVar)
+	injectedEntity = mutatecommon.InjectEnv(pod, defaultDdEntityIDEnvVar)
 
 	// Inject External Data Environment Variable
 	injectedExternalEnv = injectExternalDataEnvVar(pod)
@@ -209,13 +214,13 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, 
 
 // injectionMode returns the injection mode based on the global mode and pod labels
 func injectionMode(pod *corev1.Pod, globalMode string) string {
-	if val, found := pod.GetLabels()[admCommon.InjectionModeLabelKey]; found {
+	if val, found := pod.GetLabels()[common.InjectionModeLabelKey]; found {
 		mode := strings.ToLower(val)
 		switch mode {
 		case hostIP, service, socket:
 			return mode
 		default:
-			log.Warnf("Invalid label value '%s=%s' on pod %s should be either 'hostip', 'service' or 'socket', defaulting to %q", admCommon.InjectionModeLabelKey, val, common.PodString(pod), globalMode)
+			log.Warnf("Invalid label value '%s=%s' on pod %s should be either 'hostip', 'service' or 'socket', defaulting to %q", common.InjectionModeLabelKey, val, mutatecommon.PodString(pod), globalMode)
 			return globalMode
 		}
 	}
@@ -235,10 +240,10 @@ func buildExternalEnv(container *corev1.Container, init bool) (corev1.EnvVar, er
 // The format is: it-<init>,cn-<container_name>,pu-<pod_uid>
 func injectExternalDataEnvVar(pod *corev1.Pod) (injected bool) {
 	// Inject External Data Environment Variable for the pod
-	injected = common.InjectDynamicEnv(pod, buildExternalEnv)
+	injected = mutatecommon.InjectDynamicEnv(pod, buildExternalEnv)
 
 	// Inject Internal Pod UID
-	injected = common.InjectEnv(pod, corev1.EnvVar{
+	injected = mutatecommon.InjectEnv(pod, corev1.EnvVar{
 		Name: podUIDEnvVarName,
 		ValueFrom: &corev1.EnvVarSource{
 			FieldRef: &corev1.ObjectFieldSelector{

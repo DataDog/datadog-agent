@@ -18,7 +18,8 @@ import (
 	"strings"
 	"time"
 
-	admiv1 "k8s.io/api/admissionregistration/v1"
+	admiv1 "k8s.io/api/admission/v1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -49,10 +50,11 @@ const (
 // Webhook is the auto instrumentation webhook
 type Webhook struct {
 	name                     string
+	webhookType              common.WebhookType
 	isEnabled                bool
 	endpoint                 string
 	resources                []string
-	operations               []admiv1.OperationType
+	operations               []admissionregistrationv1.OperationType
 	initSecurityContext      *corev1.SecurityContext
 	initResourceRequirements corev1.ResourceRequirements
 	containerRegistry        string
@@ -101,10 +103,11 @@ func NewWebhook(wmeta workloadmeta.Component, filter mutatecommon.InjectionFilte
 
 	return &Webhook{
 		name:                     webhookName,
+		webhookType:              common.MutatingWebhook,
 		isEnabled:                isEnabled,
 		endpoint:                 pkgconfigsetup.Datadog().GetString("admission_controller.auto_instrumentation.endpoint"),
 		resources:                []string{"pods"},
-		operations:               []admiv1.OperationType{admiv1.Create},
+		operations:               []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
 		initSecurityContext:      initSecurityContext,
 		initResourceRequirements: initResourceRequirements,
 		injectionFilter:          filter,
@@ -119,6 +122,11 @@ func NewWebhook(wmeta workloadmeta.Component, filter mutatecommon.InjectionFilte
 // Name returns the name of the webhook
 func (w *Webhook) Name() string {
 	return w.name
+}
+
+// WebhookType returns the type of the webhook
+func (w *Webhook) WebhookType() common.WebhookType {
+	return w.webhookType
 }
 
 // IsEnabled returns whether the webhook is enabled
@@ -139,24 +147,21 @@ func (w *Webhook) Resources() []string {
 
 // Operations returns the operations on the resources specified for which
 // the webhook should be invoked
-func (w *Webhook) Operations() []admiv1.OperationType {
+func (w *Webhook) Operations() []admissionregistrationv1.OperationType {
 	return w.operations
 }
 
 // LabelSelectors returns the label selectors that specify when the webhook
 // should be invoked
 func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
-	return mutatecommon.DefaultLabelSelectors(useNamespaceSelector)
+	return common.DefaultLabelSelectors(useNamespaceSelector)
 }
 
-// MutateFunc returns the function that mutates the resources
-func (w *Webhook) MutateFunc() admission.MutatingWebhookFunc {
-	return w.injectAutoInstrumentation
-}
-
-// injectAutoInstrumentation injects APM libraries into pods
-func (w *Webhook) injectAutoInstrumentation(request *admission.MutateRequest) ([]byte, error) {
-	return mutatecommon.Mutate(request.Raw, request.Namespace, w.Name(), w.inject, request.DynamicClient)
+// WebhookFunc returns the function that mutates the resources
+func (w *Webhook) WebhookFunc() admission.WebhookFunc {
+	return func(request *admission.Request) *admiv1.AdmissionResponse {
+		return common.MutationResponse(mutatecommon.Mutate(request.Raw, request.Namespace, w.Name(), w.inject, request.DynamicClient))
+	}
 }
 
 func initContainerName(lang language) string {

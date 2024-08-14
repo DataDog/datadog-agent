@@ -25,6 +25,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -35,15 +36,18 @@ import (
 // It uses the admissionregistration/v1 API.
 type ControllerV1 struct {
 	controllerBase
-	mutatingWebhooksLister   admissionlisters.MutatingWebhookConfigurationLister
-	mutatingWebhookTemplates []admiv1.MutatingWebhook
+	validatingWebhooksLister   admissionlisters.ValidatingWebhookConfigurationLister
+	validatingWebhookTemplates []admiv1.ValidatingWebhook
+	mutatingWebhooksLister     admissionlisters.MutatingWebhookConfigurationLister
+	mutatingWebhookTemplates   []admiv1.MutatingWebhook
 }
 
 // NewControllerV1 returns a new Webhook Controller using admissionregistration/v1.
 func NewControllerV1(
 	client kubernetes.Interface,
 	secretInformer coreinformers.SecretInformer,
-	MutatingWebhookInformer admissioninformers.MutatingWebhookConfigurationInformer,
+	validatingWebhookInformer admissioninformers.ValidatingWebhookConfigurationInformer,
+	mutatingWebhookInformer admissioninformers.MutatingWebhookConfigurationInformer,
 	isLeaderFunc func() bool,
 	isLeaderNotif <-chan struct{},
 	config Config,
@@ -55,12 +59,14 @@ func NewControllerV1(
 	controller.config = config
 	controller.secretsLister = secretInformer.Lister()
 	controller.secretsSynced = secretInformer.Informer().HasSynced
-	controller.mutatingWebhooksLister = MutatingWebhookInformer.Lister()
-	controller.mutatingWebhooksSynced = MutatingWebhookInformer.Informer().HasSynced
+	controller.validatingWebhooksLister = validatingWebhookInformer.Lister()
+	controller.validatingWebhooksSynced = validatingWebhookInformer.Informer().HasSynced
+	controller.mutatingWebhooksLister = mutatingWebhookInformer.Lister()
+	controller.mutatingWebhooksSynced = mutatingWebhookInformer.Informer().HasSynced
 	controller.queue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "webhooks")
 	controller.isLeaderFunc = isLeaderFunc
 	controller.isLeaderNotif = isLeaderNotif
-	controller.mutatingWebhooks = mutatingWebhooks(wmeta, pa)
+	controller.webhooks = controller.generateWebhooks(wmeta, pa)
 	controller.generateTemplates()
 
 	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -71,12 +77,20 @@ func NewControllerV1(
 		log.Errorf("cannot add event handler to secret informer: %v", err)
 	}
 
-	if _, err := MutatingWebhookInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := validatingWebhookInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    controller.handleWebhook,
-		UpdateFunc: controller.handleMutatingWebhookUpdate,
+		UpdateFunc: controller.handleWebhookUpdate,
 		DeleteFunc: controller.handleWebhook,
 	}); err != nil {
-		log.Errorf("cannot add event handler to webhook informer: %v", err)
+		log.Errorf("cannot add event handler to validating webhook informer: %v", err)
+	}
+
+	if _, err := mutatingWebhookInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    controller.handleWebhook,
+		UpdateFunc: controller.handleWebhookUpdate,
+		DeleteFunc: controller.handleWebhook,
+	}); err != nil {
+		log.Errorf("cannot add event handler to mutating webhook informer: %v", err)
 	}
 
 	return controller
@@ -90,7 +104,7 @@ func (c *ControllerV1) Run(stopCh <-chan struct{}) {
 	log.Infof("Starting webhook controller for secret %s/%s and webhook %s - Using admissionregistration/v1", c.config.getSecretNs(), c.config.getSecretName(), c.config.getWebhookName())
 	defer log.Infof("Stopping webhook controller for secret %s/%s and webhook %s", c.config.getSecretNs(), c.config.getSecretName(), c.config.getWebhookName())
 
-	if ok := cache.WaitForCacheSync(stopCh, c.secretsSynced, c.mutatingWebhooksSynced); !ok {
+	if ok := cache.WaitForCacheSync(stopCh, c.secretsSynced, c.validatingWebhooksSynced, c.mutatingWebhooksSynced); !ok {
 		return
 	}
 
@@ -109,30 +123,42 @@ func (c *ControllerV1) run() {
 	}
 }
 
-// handleMutatingWebhookUpdate handles the new Webhook reported in update events.
+// handleWebhookUpdate handles the new Webhook reported in update events.
 // It can be a callback function for update events.
-func (c *ControllerV1) handleMutatingWebhookUpdate(oldObj, newObj interface{}) {
+func (c *ControllerV1) handleWebhookUpdate(oldObj, newObj interface{}) {
 	if !c.isLeaderFunc() {
 		return
 	}
 
-	newWebhook, ok := newObj.(*admiv1.MutatingWebhookConfiguration)
-	if !ok {
-		log.Debugf("Expected MutatingWebhookConfiguration object, got: %v", newObj)
+	switch newObj.(type) {
+	case *admiv1.ValidatingWebhookConfiguration:
+		newWebhook, _ := newObj.(*admiv1.ValidatingWebhookConfiguration)
+		oldWebhook, ok := oldObj.(*admiv1.ValidatingWebhookConfiguration)
+		if !ok {
+			log.Debugf("Expected ValidatingWebhookConfiguration object, got: %v", oldObj)
+			return
+		}
+
+		if newWebhook.ResourceVersion == oldWebhook.ResourceVersion {
+			return
+		}
+		c.handleWebhook(newObj)
+	case *admiv1.MutatingWebhookConfiguration:
+		newWebhook, _ := newObj.(*admiv1.MutatingWebhookConfiguration)
+		oldWebhook, ok := oldObj.(*admiv1.MutatingWebhookConfiguration)
+		if !ok {
+			log.Debugf("Expected MutatingWebhookConfiguration object, got: %v", oldObj)
+			return
+		}
+
+		if newWebhook.ResourceVersion == oldWebhook.ResourceVersion {
+			return
+		}
+		c.handleWebhook(newObj)
+	default:
+		log.Debugf("Expected ValidatingWebhookConfiguration or MutatingWebhookConfiguration object, got: %v", newObj)
 		return
 	}
-
-	oldWebhook, ok := oldObj.(*admiv1.MutatingWebhookConfiguration)
-	if !ok {
-		log.Debugf("Expected MutatingWebhookConfiguration object, got: %v", oldObj)
-		return
-	}
-
-	if newWebhook.ResourceVersion == oldWebhook.ResourceVersion {
-		return
-	}
-
-	c.handleWebhook(newObj)
 }
 
 // reconcile creates/updates the webhook object on new events.
@@ -142,19 +168,78 @@ func (c *ControllerV1) reconcile() error {
 		return err
 	}
 
+	validatingWebhook, err := c.validatingWebhooksLister.Get(c.config.getWebhookName())
+	if err != nil {
+		if errors.IsNotFound(err) {
+			log.Infof("Validating Webhook %s was not found, creating it", c.config.getWebhookName())
+			err := c.createValidatingWebhook(secret)
+			if err != nil {
+				_ = log.Errorf("Failed to create Validating Webhook %s: %v", c.config.getWebhookName(), err)
+			}
+		}
+	} else {
+		log.Debugf("Validating Webhook %s was found, updating it", c.config.getWebhookName())
+		err := c.updateValidatingWebhook(secret, validatingWebhook)
+		if err != nil {
+			_ = log.Errorf("Failed to update Validating Webhook %s: %v", c.config.getWebhookName(), err)
+		}
+	}
+
 	mutatingWebhook, err := c.mutatingWebhooksLister.Get(c.config.getWebhookName())
 	if err != nil {
 		if errors.IsNotFound(err) {
 			log.Infof("Mutating Webhook %s was not found, creating it", c.config.getWebhookName())
-			return c.createMutatingWebhook(secret)
+			err := c.createMutatingWebhook(secret)
+			if err != nil {
+				_ = log.Errorf("Failed to create Mutating Webhook %s: %v", c.config.getWebhookName(), err)
+			}
 		}
-
-		return err
+	} else {
+		log.Debugf("Mutating Webhook %s was found, updating it", c.config.getWebhookName())
+		err := c.updateMutatingWebhook(secret, mutatingWebhook)
+		if err != nil {
+			_ = log.Errorf("Failed to update Mutating Webhook %s: %v", c.config.getWebhookName(), err)
+		}
 	}
 
-	log.Debugf("Mutating Webhook %s was found, updating it", c.config.getWebhookName())
+	return err
+}
 
-	return c.updateMutatingWebhook(secret, mutatingWebhook)
+// createValidatingWebhook creates a new ValidatingWebhookConfiguration object.
+func (c *ControllerV1) createValidatingWebhook(secret *corev1.Secret) error {
+	webhook := &admiv1.ValidatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: c.config.getWebhookName(),
+		},
+		Webhooks: c.newValidatingWebhooks(secret),
+	}
+
+	_, err := c.clientSet.AdmissionregistrationV1().ValidatingWebhookConfigurations().Create(context.TODO(), webhook, metav1.CreateOptions{})
+	if errors.IsAlreadyExists(err) {
+		log.Infof("Validating Webhook %s already exists", webhook.GetName())
+		return nil
+	}
+
+	return err
+}
+
+// updateValidatingWebhook stores a new configuration in the ValidatingWebhookConfiguration object.
+func (c *ControllerV1) updateValidatingWebhook(secret *corev1.Secret, webhook *admiv1.ValidatingWebhookConfiguration) error {
+	webhook = webhook.DeepCopy()
+	webhook.Webhooks = c.newValidatingWebhooks(secret)
+	_, err := c.clientSet.AdmissionregistrationV1().ValidatingWebhookConfigurations().Update(context.TODO(), webhook, metav1.UpdateOptions{})
+	return err
+}
+
+// newValidatingWebhooks generates Webhook objects from config templates with updated CABundle from Secret.
+func (c *ControllerV1) newValidatingWebhooks(secret *corev1.Secret) []admiv1.ValidatingWebhook {
+	webhooks := []admiv1.ValidatingWebhook{}
+	for _, tpl := range c.validatingWebhookTemplates {
+		tpl.ClientConfig.CABundle = certificate.GetCABundle(secret.Data)
+		webhooks = append(webhooks, tpl)
+	}
+
+	return webhooks
 }
 
 // createMutatingWebhook creates a new MutatingWebhookConfiguration object.
@@ -183,7 +268,7 @@ func (c *ControllerV1) updateMutatingWebhook(secret *corev1.Secret, webhook *adm
 	return err
 }
 
-// newMutatingWebhooks generates MutatingWebhook objects from config templates with updated CABundle from Secret.
+// newMutatingWebhooks generates Webhook objects from config templates with updated CABundle from Secret.
 func (c *ControllerV1) newMutatingWebhooks(secret *corev1.Secret) []admiv1.MutatingWebhook {
 	webhooks := []admiv1.MutatingWebhook{}
 	for _, tpl := range c.mutatingWebhookTemplates {
@@ -194,18 +279,38 @@ func (c *ControllerV1) newMutatingWebhooks(secret *corev1.Secret) []admiv1.Mutat
 	return webhooks
 }
 
+// generateTemplates generates the webhook templates from the configuration.
 func (c *ControllerV1) generateTemplates() {
-	webhooks := []admiv1.MutatingWebhook{}
-
-	for _, webhook := range c.mutatingWebhooks {
-		if !webhook.IsEnabled() {
+	// Generate validating webhook templates
+	validatingWebhooks := []admiv1.ValidatingWebhook{}
+	for _, webhook := range c.webhooks {
+		if !webhook.IsEnabled() || webhook.WebhookType() != common.ValidatingWebhook {
 			continue
 		}
-
 		nsSelector, objSelector := webhook.LabelSelectors(c.config.useNamespaceSelector())
+		validatingWebhooks = append(
+			validatingWebhooks,
+			c.getValidatingWebhookSkeleton(
+				webhook.Name(),
+				webhook.Endpoint(),
+				webhook.Operations(),
+				webhook.Resources(),
+				nsSelector,
+				objSelector,
+			),
+		)
+	}
+	c.validatingWebhookTemplates = validatingWebhooks
 
-		webhooks = append(
-			webhooks,
+	// Generate mutating webhook templates
+	mutatingWebhooks := []admiv1.MutatingWebhook{}
+	for _, webhook := range c.webhooks {
+		if !webhook.IsEnabled() || webhook.WebhookType() != common.MutatingWebhook {
+			continue
+		}
+		nsSelector, objSelector := webhook.LabelSelectors(c.config.useNamespaceSelector())
+		mutatingWebhooks = append(
+			mutatingWebhooks,
 			c.getMutatingWebhookSkeleton(
 				webhook.Name(),
 				webhook.Endpoint(),
@@ -216,8 +321,46 @@ func (c *ControllerV1) generateTemplates() {
 			),
 		)
 	}
+	c.mutatingWebhookTemplates = mutatingWebhooks
+}
 
-	c.mutatingWebhookTemplates = webhooks
+func (c *ControllerV1) getValidatingWebhookSkeleton(nameSuffix, path string, operations []admiv1.OperationType, resources []string, namespaceSelector, objectSelector *metav1.LabelSelector) admiv1.ValidatingWebhook {
+	matchPolicy := admiv1.Exact
+	sideEffects := admiv1.SideEffectClassNone
+	port := c.config.getServicePort()
+	timeout := c.config.getTimeout()
+	failurePolicy := c.getFailurePolicy()
+
+	webhook := admiv1.ValidatingWebhook{
+		Name: c.config.configName(nameSuffix),
+		ClientConfig: admiv1.WebhookClientConfig{
+			Service: &admiv1.ServiceReference{
+				Namespace: c.config.getServiceNs(),
+				Name:      c.config.getServiceName(),
+				Port:      &port,
+				Path:      &path,
+			},
+		},
+		Rules: []admiv1.RuleWithOperations{
+			{
+				Operations: operations,
+				Rule: admiv1.Rule{
+					APIGroups:   []string{""},
+					APIVersions: []string{"v1"},
+					Resources:   resources,
+				},
+			},
+		},
+		FailurePolicy:           &failurePolicy,
+		MatchPolicy:             &matchPolicy,
+		SideEffects:             &sideEffects,
+		TimeoutSeconds:          &timeout,
+		AdmissionReviewVersions: []string{"v1", "v1beta1"},
+		NamespaceSelector:       namespaceSelector,
+		ObjectSelector:          objectSelector,
+	}
+
+	return webhook
 }
 
 func (c *ControllerV1) getMutatingWebhookSkeleton(nameSuffix, path string, operations []admiv1.OperationType, resources []string, namespaceSelector, objectSelector *metav1.LabelSelector) admiv1.MutatingWebhook {
@@ -225,8 +368,9 @@ func (c *ControllerV1) getMutatingWebhookSkeleton(nameSuffix, path string, opera
 	sideEffects := admiv1.SideEffectClassNone
 	port := c.config.getServicePort()
 	timeout := c.config.getTimeout()
-	failurePolicy := c.getAdmiV1FailurePolicy()
+	failurePolicy := c.getFailurePolicy()
 	reinvocationPolicy := c.getReinvocationPolicy()
+
 	webhook := admiv1.MutatingWebhook{
 		Name: c.config.configName(nameSuffix),
 		ClientConfig: admiv1.WebhookClientConfig{
@@ -260,7 +404,7 @@ func (c *ControllerV1) getMutatingWebhookSkeleton(nameSuffix, path string, opera
 	return webhook
 }
 
-func (c *ControllerV1) getAdmiV1FailurePolicy() admiv1.FailurePolicyType {
+func (c *ControllerV1) getFailurePolicy() admiv1.FailurePolicyType {
 	policy := strings.ToLower(c.config.getFailurePolicy())
 	switch policy {
 	case "ignore":

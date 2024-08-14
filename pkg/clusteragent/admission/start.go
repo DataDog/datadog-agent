@@ -36,10 +36,12 @@ type ControllerContext struct {
 }
 
 // StartControllers starts the secret and webhook controllers
-func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa workload.PodPatcher) ([]webhook.MutatingWebhook, error) {
+func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa workload.PodPatcher) ([]webhook.Webhook, error) {
+	var webhooks []webhook.Webhook
+
 	if !pkgconfigsetup.Datadog().GetBool("admission_controller.enabled") {
 		log.Info("Admission controller is disabled")
-		return nil, nil
+		return webhooks, nil
 	}
 
 	certConfig := secret.NewCertConfig(
@@ -60,28 +62,28 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 
 	nsSelectorEnabled, err := useNamespaceSelector(ctx.Client.Discovery())
 	if err != nil {
-		return nil, err
+		return webhooks, err
 	}
 
 	v1Enabled, err := UseAdmissionV1(ctx.Client.Discovery())
 	if err != nil {
-		return nil, err
+		return webhooks, err
 	}
 
-	mutatingWebhookConfig := webhook.NewConfig(v1Enabled, nsSelectorEnabled)
-	mutatingWebhookController := webhook.NewController(
+	webhookConfig := webhook.NewConfig(v1Enabled, nsSelectorEnabled)
+	webhookController := webhook.NewController(
 		ctx.Client,
 		ctx.SecretInformers.Core().V1().Secrets(),
 		ctx.WebhookInformers.Admissionregistration(),
 		ctx.IsLeaderFunc,
 		ctx.LeaderSubscribeFunc(),
-		mutatingWebhookConfig,
+		webhookConfig,
 		wmeta,
 		pa,
 	)
 
 	go secretController.Run(ctx.StopCh)
-	go mutatingWebhookController.Run(ctx.StopCh)
+	go webhookController.Run(ctx.StopCh)
 
 	ctx.SecretInformers.Start(ctx.StopCh)
 	ctx.WebhookInformers.Start(ctx.StopCh)
@@ -91,12 +93,16 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 	}
 
 	if v1Enabled {
+		informers[apiserver.ValidatingWebhooksInformer] = ctx.WebhookInformers.Admissionregistration().V1().ValidatingWebhookConfigurations().Informer()
 		informers[apiserver.MutatingWebhooksInformer] = ctx.WebhookInformers.Admissionregistration().V1().MutatingWebhookConfigurations().Informer()
 		getWebhookStatus = getWebhookStatusV1
 	} else {
+		informers[apiserver.ValidatingWebhooksInformer] = ctx.WebhookInformers.Admissionregistration().V1beta1().ValidatingWebhookConfigurations().Informer()
 		informers[apiserver.MutatingWebhooksInformer] = ctx.WebhookInformers.Admissionregistration().V1beta1().MutatingWebhookConfigurations().Informer()
 		getWebhookStatus = getWebhookStatusV1beta1
 	}
 
-	return mutatingWebhookController.EnabledMutatingWebhooks(), apiserver.SyncInformers(informers, 0)
+	webhooks = append(webhooks, webhookController.EnabledWebhooks()...)
+
+	return webhooks, apiserver.SyncInformers(informers, 0)
 }

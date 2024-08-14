@@ -5,16 +5,17 @@
   Disabled: {{ .admissionWebhook.Disabled }}
   {{ else }}
   {{ if .admissionWebhook.WebhookError }}
-  MutatingWebhookConfigurations name: {{ .admissionWebhook.WebhookName }}
+  ValidatingWebhookConfigurations and MutatingWebhookConfigurations name: {{ .admissionWebhook.WebhookName }}
   Error: {{ .admissionWebhook.WebhookError }}
-  {{- end }}
-  {{- if .admissionWebhook.Webhooks }}
+  {{ else }}
     Webhooks info
     -------------
-      MutatingWebhookConfigurations name: {{ .admissionWebhook.Webhooks.Name }}
-      Created at: {{ .admissionWebhook.Webhooks.CreatedAt }}
+  {{- end }}
+  {{if .admissionWebhook.ValidatingWebhooks }}
+      ValidatingWebhookConfigurations name: {{ .admissionWebhook.ValidatingWebhooks.Name }}
+      Created at: {{ .admissionWebhook.ValidatingWebhooks.CreatedAt }}
 
-      {{- range $name, $config := .admissionWebhook.Webhooks.Webhooks }}
+      {{- range $name, $config := .admissionWebhook.ValidatingWebhooks.Webhooks }}
       ---------
         Name: {{ $name }}
         {{- range $k, $v := $config }}
@@ -22,6 +23,18 @@
         {{- end }}
       {{- end }}
   {{- end }}
+  {{if .admissionWebhook.MutatingWebhooks }}
+      MutatingWebhookConfigurations name: {{ .admissionWebhook.MutatingWebhooks.Name }}
+      Created at: {{ .admissionWebhook.MutatingWebhooks.CreatedAt }}
+
+      {{- range $name, $config := .admissionWebhook.MutatingWebhooks.Webhooks }}
+      ---------
+        Name: {{ $name }}
+        {{- range $k, $v := $config }}
+        {{$k}}: {{$v}}
+        {{- end }}
+      {{- end }}
+    {{- end }}
   {{ if .admissionWebhook.SecretError }}
   Secret name: {{ .admissionWebhook.SecretName }}
   Error: {{ .admissionWebhook.SecretError }}
