@@ -1455,7 +1455,7 @@ func (s *usmHTTP2Suite) TestRemainderTable() {
 					a[10:],
 				}
 			},
-			mapSize: 1,
+			mapSize: 0,
 		},
 	}
 	for _, tt := range tests {
