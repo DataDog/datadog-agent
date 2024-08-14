@@ -58,7 +58,8 @@ def install_tools(ctx: Context, max_retry: int = 3):
 
 
 def install_custom_golanci_lint(ctx):
-    res = ctx.run("golangci-lint custom -v")
+    with ctx.cd("internal/tools"):
+        res = ctx.run("golangci-lint custom -v")
     if res.ok:
         gopath = os.getenv('GOPATH')
         gobin = os.getenv('GOBIN')
