@@ -673,10 +673,12 @@ def prepare(
         raise Exit(
             f"Architecture {arch} (inferred {arch_obj}) is not supported. Supported architectures are amd64 and arm64"
         )
-    cc = get_compiler(ctx)
 
-    if arch_obj.is_cross_compiling():
-        cc.ensure_ready_for_cross_compile()
+    if not ci:
+        cc = get_compiler(ctx)
+
+        if arch_obj.is_cross_compiling():
+            cc.ensure_ready_for_cross_compile()
 
     pkgs = ""
     if packages:
