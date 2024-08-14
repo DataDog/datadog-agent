@@ -45,5 +45,4 @@ exceptions:
 
 additional:
   # list here paths to additional licenses
-  golang/go: "raw.githubusercontent.com/golang/go/master/LICENSE"
-  
+  golang/go: "raw.githubusercontent.com/golang/go/go1.22.5/LICENSE"
