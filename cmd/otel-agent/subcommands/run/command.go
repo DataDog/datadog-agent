@@ -93,7 +93,7 @@ func (o *orchestratorinterfaceimpl) Reset() {
 
 func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, opts ...fx.Option) error {
 	err := fxutil.Run(
-		forwarder.Bundle(),
+		forwarder.BundleWithProvider(newForwarderParams),
 		logtracefx.Module(),
 		inventoryagentimpl.Module(),
 		workloadmetafx.Module(),
@@ -154,7 +154,6 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			return hn, nil
 		}),
 
-		fx.Provide(newForwarderParams),
 		fx.Provide(func(c defaultforwarder.Component) (defaultforwarder.Forwarder, error) {
 			return defaultforwarder.Forwarder(c), nil
 		}),

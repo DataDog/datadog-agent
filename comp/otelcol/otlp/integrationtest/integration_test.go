@@ -80,7 +80,7 @@ import (
 
 func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) error {
 	return fxutil.Run(
-		forwarder.Bundle(),
+		forwarder.BundleWithProvider(defaultforwarder.NewParams),
 		logtrace.Module(),
 		inventoryagentimpl.Module(),
 		workloadmetafx.Module(),
@@ -132,7 +132,6 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 			return s
 		}),
 		fx.Supply("test-host"),
-		fx.Provide(defaultforwarder.NewParams),
 		fx.Provide(func(c defaultforwarder.Component) (defaultforwarder.Forwarder, error) {
 			return defaultforwarder.Forwarder(c), nil
 		}),
