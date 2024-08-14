@@ -22,6 +22,7 @@ qa_agent_ot:
   stage: dev_container_deploy
   rules:
     - !reference [.on_otel_or_e2e_changes]
+    - !reference [.manual]
   needs:
     - docker_build_ot_agent7
     - docker_build_ot_agent7_arm64
