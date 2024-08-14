@@ -502,7 +502,8 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                                                                             u32 api_version)
 {
     u32 orig_offset = offset;
-    bool flexible = api_version >= 12;
+    const u32 api_key = response->transaction.request_api_key;
+    bool flexible = (api_key == KAFKA_PRODUCE && api_version >= 9) || (api_key == KAFKA_FETCH && api_version >= 12);
     enum parse_result ret;
 
     extra_debug("carry_over_offset %d", response->carry_over_offset);
@@ -515,6 +516,72 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
     response->carry_over_offset = 0;
 
     switch (response->state) {
+    case KAFKA_PRODUCE_RESPONSE_START:
+        if (flexible) {
+            ret = skip_tagged_fields(response, pkt, &offset, data_end, true);
+            if (ret != RET_DONE) {
+                return ret;
+            }
+        }
+
+        if (api_version >= 1) {
+            offset += sizeof(s32); // Skip throttle_time_ms
+        }
+
+        response->state = KAFKA_PRODUCE_RESPONSE_NUM_TOPICS;
+        // fallthrough
+
+    case KAFKA_PRODUCE_RESPONSE_NUM_TOPICS:
+        {
+            s64 num_topics = 0;
+            ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &num_topics, true,
+                                     VARINT_BYTES_NUM_TOPICS);
+            extra_debug("num_topics: %lld", num_topics);
+            if (ret != RET_DONE) {
+                return ret;
+            }
+            if (num_topics <= 0) {
+                return RET_ERR;
+            }
+        }
+        response->state = KAFKA_PRODUCE_RESPONSE_TOPIC_NAME_SIZE;
+        // fallthrough
+
+    case KAFKA_PRODUCE_RESPONSE_TOPIC_NAME_SIZE:
+        {
+            s64 topic_name_size = 0;
+            ret = read_varint_or_s16(flexible, response, pkt, &offset, data_end, &topic_name_size, true,
+                                     VARINT_BYTES_TOPIC_NAME_SIZE);
+            extra_debug("topic_name_size: %lld", topic_name_size);
+            if (ret != RET_DONE) {
+                return ret;
+            }
+            if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
+                return RET_ERR;
+            }
+
+            offset += topic_name_size;
+        }
+        response->state = KAFKA_PRODUCE_RESPONSE_NUM_PARTITIONS;
+        // fallthrough
+
+    case KAFKA_PRODUCE_RESPONSE_NUM_PARTITIONS:
+        {
+            s64 number_of_partitions = 0;
+            ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &number_of_partitions, true,
+                                     VARINT_BYTES_NUM_PARTITIONS);
+            extra_debug("number_of_partitions: %lld", number_of_partitions);
+            if (ret != RET_DONE) {
+                return ret;
+            }
+            if (number_of_partitions <= 0) {
+                return RET_ERR;
+            }
+
+            response->partitions_count = number_of_partitions;
+            response->state = KAFKA_PRODUCE_RESPONSE_PARTITION_START;
+        }
+
     case KAFKA_FETCH_RESPONSE_START:
         if (flexible) {
             ret = skip_tagged_fields(response, pkt, &offset, data_end, true);
@@ -608,16 +675,71 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
 
         extra_debug("partition state: %d", response->state);
         switch (response->state) {
+        case KAFKA_PRODUCE_RESPONSE_START:
+        case KAFKA_PRODUCE_RESPONSE_NUM_TOPICS:
+        case KAFKA_PRODUCE_RESPONSE_TOPIC_NAME_SIZE:
+        case KAFKA_PRODUCE_RESPONSE_NUM_PARTITIONS:
         case KAFKA_FETCH_RESPONSE_START:
         case KAFKA_FETCH_RESPONSE_NUM_TOPICS:
         case KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE:
         case KAFKA_FETCH_RESPONSE_NUM_PARTITIONS:
             // Never happens. Only present to supress a compiler warning.
             break;
+        case KAFKA_PRODUCE_RESPONSE_PARTITION_START:
+            offset += sizeof(s32); // Skip partition_index
+            response->state = KAFKA_PRODUCE_RESPONSE_PARTITION_ERROR_CODE_START;
+            // fallthrough
         case KAFKA_FETCH_RESPONSE_PARTITION_START:
             offset += sizeof(s32); // Skip partition_index
             response->state = KAFKA_FETCH_RESPONSE_PARTITION_ERROR_CODE_START;
             // fallthrough
+
+         case KAFKA_PRODUCE_RESPONSE_PARTITION_ERROR_CODE_START:
+         {
+            // Error codes range from -1 to 119 as per the Kafka protocol specification.
+            // For details, refer to: https://kafka.apache.org/protocol.html#protocol_error_codes
+            s16 error_code = 0;
+            ret = read_with_remainder_s16(response, pkt, &offset, data_end, &error_code, first);
+            if (ret != RET_DONE) {
+                return ret;
+            }
+            if (error_code < -1 || error_code > 119) {
+                extra_debug("invalid error code: %d", error_code);
+                return RET_ERR;
+            }
+            extra_debug("got error code: %d", error_code);
+            response->partition_error_code = error_code;
+
+            offset += sizeof(s64); // Skip base_offset
+            if (api_version >= 2) {
+                offset += sizeof(s64); // Skip log_append_time_ms
+
+                if (api_version >= 5) {
+                    offset += sizeof(s64); // Skip log_start_offset
+
+                        if (api_version >= 8) {
+                            // TODO
+                        }
+                }
+            }
+
+            response->state = KAFKA_PRODUCE_RESPONSE_PARTITION_END_TODO;
+            // fallthrough
+            }
+
+        case KAFKA_PRODUCE_RESPONSE_PARTITION_END:
+            if (offset > data_end) {
+                response->carry_over_offset = offset - data_end;
+                return RET_EOP;
+            }
+
+            response->partitions_count--;
+            if (response->partitions_count == 0) {
+                return RET_DONE;
+            }
+
+            response->state = KAFKA_FETCH_RESPONSE_PARTITION_START;
+            break;
 
          case KAFKA_FETCH_RESPONSE_PARTITION_ERROR_CODE_START:
          {
@@ -1282,6 +1404,11 @@ int socket__kafka_response_record_batch_parser_v12(struct __sk_buff *skb) {
     return __socket__kafka_response_parser(skb, PARSER_LEVEL_RECORD_BATCH, 12, 12);
 }
 
+SEC("socket/kafka_produce_response_partition_parser_v0")
+int socket__kafka_produce_response_partition_parser_v0(struct __sk_buff *skb) {
+    return __socket__kafka_response_parser(skb, PARSER_LEVEL_PARTITION, 0, 8);
+}
+
 static __always_inline int __uprobe__kafka_tls_response_parser(struct pt_regs *ctx, enum parser_level level, u32 min_api_version, u32 max_api_version) {
     const __u32 zero = 0;
     kafka_info_t *kafka = bpf_map_lookup_elem(&kafka_heap, &zero);
@@ -1339,8 +1466,8 @@ static __always_inline bool kafka_process_new_response(void *ctx, conn_tuple_t *
     u32 offset = pktbuf_data_offset(pkt);
     u32 orig_offset = offset;
 
-    // Usually the first packet containts the message size, correlation ID, and the first
-    // fields of the headers up to the partirtion start. However, with TLS, each read from
+    // Usually the first packet contains the message size, correlation ID, and the first
+    // fields of the headers up to the partition start. However, with TLS, each read from
     // user space will arrive as a separate "packet".
     //
     // In theory the program can read even one byte at a time, but since supporting arbitrary
@@ -1604,21 +1731,16 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         return false;
      }
 
-    if (kafka_header.api_key == KAFKA_FETCH) {
-        // Copy to stack required by 4.14 verifier.
-        kafka_transaction_t transaction;
-        kafka_transaction_key_t key;
-        bpf_memset(&key, 0, sizeof(key));
-        bpf_memcpy(&transaction, kafka_transaction, sizeof(transaction));
-        key.correlation_id = kafka_header.correlation_id;
-        bpf_memcpy(&key.tuple, tup, sizeof(key.tuple));
-        // Flip the tuple for the response path.
-        flip_tuple(&key.tuple);
-        bpf_map_update_elem(&kafka_in_flight, &key, &transaction, BPF_NOEXIST);
-        return true;
-    }
-
-    kafka_batch_enqueue_wrapper(kafka, tup, kafka_transaction);
+    // Copy to stack required by 4.14 verifier.
+    kafka_transaction_t transaction;
+    kafka_transaction_key_t key;
+    bpf_memset(&key, 0, sizeof(key));
+    bpf_memcpy(&transaction, kafka_transaction, sizeof(transaction));
+    key.correlation_id = kafka_header.correlation_id;
+    bpf_memcpy(&key.tuple, tup, sizeof(key.tuple));
+    // Flip the tuple for the response path.
+    flip_tuple(&key.tuple);
+    bpf_map_update_elem(&kafka_in_flight, &key, &transaction, BPF_NOEXIST);
     return true;
 }
 
