@@ -256,7 +256,10 @@ def get_version(
 ):
     version = ""
     if pipeline_id is None:
-        pipeline_id = os.getenv("CI_PIPELINE_ID")
+        if os.getenv("E2E_PIPELINE_ID"):  # If we are in an E2E pipeline, we should use the E2E pipeline ID
+            pipeline_id = os.getenv("E2E_PIPELINE_ID")
+        else:
+            pipeline_id = os.getenv("CI_PIPELINE_ID")
 
     project_name = os.getenv("CI_PROJECT_NAME")
     try:
