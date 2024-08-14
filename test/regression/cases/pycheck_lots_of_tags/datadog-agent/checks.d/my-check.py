@@ -14,7 +14,7 @@ def generate_tag_sets(rng, num_sets, tags_per_set, tag_length, unique_tagset_rat
     - num_sets (int): Number of tag sets to generate.
     - tags_per_set (int): Number of tags in each set.
     - tag_length (int): Total length of each tag, including the delimiter.
-    - unique_tag_ratio (float): Value between 1 and 0, indicating the ratio of unique tags.
+    - unique_tag_ratio (float): Value between 0 and 1 inclusive. Indicates the ratio of unique tags.
                                 If this value is 1, every tag will be unique. If 0, all will be re-used.
     - seed (int): Seed value for random number generator to ensure reproducibility.
 
