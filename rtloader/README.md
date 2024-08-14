@@ -34,7 +34,7 @@ Most of the code used to extend the embedded interpreter is there.
 
 * C/C++ compiler
 * Python 2.7.x development packages
-* Python 3.8.x development packages
+* Python 3.12.x development packages
 * Cmake version 3.12 or above
 * Go compiler with `cgo` capabilities to run the tests
 

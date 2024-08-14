@@ -78,7 +78,7 @@ build do
 
                 # Used in https://docs.datadoghq.com/agent/guide/python-3/
                 delete "#{install_dir}/embedded/bin/2to3"
-                link "#{install_dir}/embedded/bin/2to3-3.11", "#{install_dir}/embedded/bin/2to3"
+                link "#{install_dir}/embedded/bin/2to3-3.12", "#{install_dir}/embedded/bin/2to3"
             end
             delete "#{install_dir}/embedded/lib/config_guess"
 

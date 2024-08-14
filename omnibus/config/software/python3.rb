@@ -1,6 +1,6 @@
 name "python3"
 
-default_version "3.11.8"
+default_version "3.12.4"
 
 if ohai["platform"] != "windows"
 
@@ -15,7 +15,7 @@ if ohai["platform"] != "windows"
   dependency "libyaml"
 
   source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-         :sha256 => "d3019a613b9e8761d260d9ebe3bd4df63976de30464e5c0189566e1ae3f61889"
+         :sha256 => "01b3c1c082196f3b33168d344a9c85fb07bfe0e7ecfe77fee4443420d1ce2ad9"
 
   relative_path "Python-#{version}"
 
@@ -63,7 +63,7 @@ else
 
   # note that starting with 3.7.3 on Windows, the zip should be created without the built-in pip
   source :url => "https://dd-agent-omnibus.s3.amazonaws.com/python-windows-#{version}-amd64.zip",
-         :sha256 => "8b016ed2f94cfc027fed172cbf1f6043f64519c6e9ad70b4565635192228b2b6".downcase
+         :sha256 => "89a5d503f4b63d8f8864f42a9260d6e10a854db823233c0c4276ecbe272eebcf".downcase
 
   vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"
   build do

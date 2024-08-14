@@ -14,10 +14,10 @@ license_file "./LICENSE"
 dependency 'datadog-agent-integrations-py3-dependencies'
 
 relative_path 'integrations-core'
-whitelist_file "embedded/lib/python3.11/site-packages/.libsaerospike"
-whitelist_file "embedded/lib/python3.11/site-packages/aerospike.libs"
-whitelist_file "embedded/lib/python3.11/site-packages/psycopg2"
-whitelist_file "embedded/lib/python3.11/site-packages/pymqi"
+whitelist_file "embedded/lib/python3.12/site-packages/.libsaerospike"
+whitelist_file "embedded/lib/python3.12/site-packages/aerospike.libs"
+whitelist_file "embedded/lib/python3.12/site-packages/psycopg2"
+whitelist_file "embedded/lib/python3.12/site-packages/pymqi"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
 
@@ -133,7 +133,7 @@ build do
     cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
     cache_branch = (shellout! "inv release.get-release-json-value base_branch", cwd: File.expand_path('..', tasks_dir_in)).stdout.strip
     # On windows, `aws` actually executes Ruby's AWS SDK, but we want the Python one
-    awscli = if windows_target? then '"c:\Program files\python311\scripts\aws"' else 'aws' end
+    awscli = if windows_target? then '"c:\Program files\python312\scripts\aws"' else 'aws' end
     if cache_bucket != ''
       mkdir cached_wheels_dir
       shellout! "inv -e agent.get-integrations-from-cache " \
@@ -228,7 +228,7 @@ build do
   if windows_target?
     patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{python_3_embedded}/Lib/site-packages/psutil/__init__.py"
   else
-    patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{install_dir}/embedded/lib/python3.11/site-packages/psutil/__init__.py"
+    patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{install_dir}/embedded/lib/python3.12/site-packages/psutil/__init__.py"
   end
 
   # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
@@ -238,7 +238,7 @@ build do
   if windows_target?
     delete "#{python_3_embedded}/Lib/site-packages/Cryptodome/SelfTest/"
   else
-    delete "#{install_dir}/embedded/lib/python3.11/site-packages/Cryptodome/SelfTest/"
+    delete "#{install_dir}/embedded/lib/python3.12/site-packages/Cryptodome/SelfTest/"
   end
 
   # Ship `requirements-agent-release.txt` file containing the versions of every check shipped with the agent
