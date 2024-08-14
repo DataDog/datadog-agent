@@ -43,7 +43,7 @@ func (s *testAgentUpgradeSuite) installStableAgent() {
 	// Act
 	output, err := s.Installer().InstallPackage(installerwindows.AgentPackage,
 		installer.WithRegistry("public.ecr.aws/datadog"),
-		installer.WithVersion(s.StableAgentVersion().Version()),
+		installer.WithVersion(s.StableAgentVersion().PackageVersion()),
 		installer.WithAuthentication(""),
 	)
 
