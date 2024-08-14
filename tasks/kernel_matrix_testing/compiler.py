@@ -30,7 +30,7 @@ def get_build_image_suffix_and_version() -> tuple[str, str]:
         ci_config = yaml.load(f, Loader=GitlabYamlLoader())
 
     ci_vars = ci_config['variables']
-    return ci_vars['DATADOG_AGENT_BUILDIMAGES_SUFFIX'], ci_vars['DATADOG_AGENT_BUILDIMAGES']
+    return ci_vars['DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX'], ci_vars['DATADOG_AGENT_SYSPROBE_BUILDIMAGES']
 
 
 def has_ddtool_helpers() -> bool:
