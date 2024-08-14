@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/fx"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
@@ -45,7 +46,15 @@ func (s *daemonTestSuite) TestRunCommand() {
 // Note: this actually instantiates the components, so it will actually start
 // the remote config service etc...
 func (s *daemonTestSuite) TestAppStartsAndStops() {
-	if !filesystem.FileExists(datadogYaml) {
+	if _, err := os.Stat(datadogYaml); os.IsNotExist(err) {
+		parentDir := strings.TrimSuffix(datadogYaml, "\\datadog.yaml")
+		if _, err := os.Stat(parentDir); os.IsNotExist(err) {
+			err = os.MkdirAll(parentDir, 0700)
+			s.Require().NoError(err)
+			defer func() {
+				os.RemoveAll(parentDir)
+			}()
+		}
 		f, err := os.Create(datadogYaml)
 		s.Require().NoError(err)
 		f.Close()
