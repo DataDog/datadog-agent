@@ -434,7 +434,8 @@ static __always_inline void pktbuf_fix_header_frame(pktbuf_t pkt, char *out, inc
     return;
 }
 
-static __always_inline bool get_first_frame_header_without_remainder(pktbuf_t pkt, http2_frame_t *current_frame) {
+// Reads a frame from the packet, and reports if it's a valid frame.
+static __always_inline bool read_frame(pktbuf_t pkt, http2_frame_t *current_frame) {
     // Checking we have enough bytes in the packet to read a frame header.
     if (pktbuf_data_offset(pkt) + HTTP2_FRAME_HEADER_SIZE > pktbuf_data_end(pkt)) {
         // Not enough bytes, cannot read frame, so we have 0 interesting frames in that packet.
@@ -447,20 +448,21 @@ static __always_inline bool get_first_frame_header_without_remainder(pktbuf_t pk
     return format_http2_frame_header(current_frame);
 }
 
-static __always_inline bool get_first_frame_header_with_header_remainder(pktbuf_t pkt, incomplete_frame_t *incomplete_frame, http2_frame_t *current_frame) {
+// Fixes an incomplete frame header. The function is trying to read the remaining of a split frame header.
+static __always_inline bool fix_incomplete_frame_header(pktbuf_t pkt, incomplete_frame_t *incomplete_frame, http2_frame_t *current_frame) {
     pktbuf_fix_header_frame(pkt, (char*)current_frame, incomplete_frame);
     if (format_http2_frame_header(current_frame)) {
         pktbuf_advance(pkt, incomplete_frame->header_bytes_left);
         incomplete_frame->header_bytes_left = 0;
         return true;
     }
-    // We couldn't read frame header using the remainder.
-    // Marking it for deletion
+    // We didn't read a valid frame header, so we're marking it for deletion.
     incomplete_frame->header_bytes_left = 0;
     return false;
 }
 
-static __always_inline void consume_frame_payload_remainder(pktbuf_t pkt, incomplete_frame_t *incomplete_frame) {
+// Consumes the payload of an incomplete frame. The function is trying to read the remaining of a split frame payload.
+static __always_inline void consume_incomplete_frame_payload(pktbuf_t pkt, incomplete_frame_t *incomplete_frame) {
     __u32 payload_bytes_left = incomplete_frame->payload_bytes_left;
     if (pktbuf_data_offset(pkt) + payload_bytes_left > pktbuf_data_end(pkt)) {
         payload_bytes_left = pktbuf_data_end(pkt) - pktbuf_data_offset(pkt);
@@ -472,6 +474,8 @@ static __always_inline void consume_frame_payload_remainder(pktbuf_t pkt, incomp
     incomplete_frame->payload_bytes_left -= payload_bytes_left;
 }
 
+// Tests if the incomplete frame is empty. An incomplete frame is considered empty if it's NULL, or if it's a header frame
+// and the header bytes left is 0, or if it's a payload frame and the payload bytes left is 0.
 static __always_inline bool empty_incomplete_frame(incomplete_frame_t *incomplete_frame) {
     return incomplete_frame == NULL ||
         (incomplete_frame->type == kIncompleteFrameHeader && incomplete_frame->header_bytes_left == 0) ||
@@ -592,10 +596,10 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
     bool has_valid_first_frame = false;
     bool should_consume_frame_payload = true;
     if (incomplete_frame == NULL) {
-        has_valid_first_frame = get_first_frame_header_without_remainder(pkt, &current_frame);
+        has_valid_first_frame = read_frame(pkt, &current_frame);
     } else {
         if (incomplete_frame->type == kIncompleteFrameHeader) {
-            has_valid_first_frame = get_first_frame_header_with_header_remainder(pkt, incomplete_frame, &current_frame);
+            has_valid_first_frame = fix_incomplete_frame_header(pkt, incomplete_frame, &current_frame);
         } else { // Incomplete frame payload
             // We have an interesting frame, and the remainder is exactly the frame length.
             // We can just copy the frame and continue to the next tail call.
@@ -606,19 +610,19 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
                 incomplete_frame->payload_bytes_left = 0;
             } else {
                 // The frame is either not interesting, or we have a remainder that is not the entire frame.
-                consume_frame_payload_remainder(pkt, incomplete_frame);
+                consume_incomplete_frame_payload(pkt, incomplete_frame);
                 // If we still have a remainder, we don't have a valid frame.
                 if (incomplete_frame->payload_bytes_left > 0) {
                     return;
                 }
                 if (incomplete_frame->interesting_frame) {
                     has_valid_first_frame = true;
-                    // Already consumed in `consume_frame_payload_remainder`.
+                    // Already consumed in `consume_incomplete_frame_payload`.
                     should_consume_frame_payload = false;
                     current_frame = incomplete_frame->frame;
                 } else {
                     // We don't have a remainder, so we're trying to read a new frame.
-                    has_valid_first_frame = get_first_frame_header_without_remainder(pkt, &current_frame);
+                    has_valid_first_frame = read_frame(pkt, &current_frame);
                 }
             }
         }

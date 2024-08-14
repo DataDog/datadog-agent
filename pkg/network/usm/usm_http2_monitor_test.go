@@ -1399,9 +1399,9 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 	}
 }
 
-// TestRemainderTable tests the remainder table map.
+// TestIncompleteFrameTable tests the http2_incomplete_frame table map.
 // We would like to make sure that the remainder table map is being updated correctly.
-func (s *usmHTTP2Suite) TestRemainderTable() {
+func (s *usmHTTP2Suite) TestIncompleteFrameTable() {
 	t := s.T()
 	cfg := s.getCfg()
 
