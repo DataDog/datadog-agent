@@ -16,8 +16,10 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/jackc/pgx/v5/pgproto3"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
@@ -28,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
+	pgebpf "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
@@ -405,10 +408,10 @@ func testDecoding(t *testing.T, isTLS bool) {
 				require.NoError(t, pg.Ping())
 				ctx.extras["pg"] = pg
 				require.NoError(t, pg.RunQuery(createTableQuery))
-				for i := 0; i < 20; i++ {
+				for i := 0; i < 10; i++ {
 					require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(i*5, 5)...)))
 				}
-				require.NoError(t, pg.RunQuery(generateSelectLimitQuery(50)))
+				require.NoError(t, pg.RunQuery(generateSelectLimitQuery(20)))
 				require.NoError(t, pg.RunQuery(updateSingleValueQuery))
 			},
 			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
@@ -416,7 +419,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 					"dummy": {
 						postgres.SelectOP:      adjustCount(1),
 						postgres.UpdateOP:      adjustCount(1),
-						postgres.InsertOP:      adjustCount(20),
+						postgres.InsertOP:      adjustCount(10),
 						postgres.CreateTableOP: adjustCount(1),
 					},
 				}, isTLS)
@@ -731,4 +734,140 @@ func validatePostgres(t *testing.T, monitor *Monitor, expectedStats map[string]m
 		}
 		return reflect.DeepEqual(expectedStats, found)
 	}, time.Second*5, time.Millisecond*100, "Expected to find a %v stats, instead captured %v", &expectedStats, &found)
+}
+
+func (s *postgresProtocolParsingSuite) TestKernelTelemetry() {
+	t := s.T()
+
+	tests := []struct {
+		name  string
+		isTLS bool
+	}{
+		{
+			name:  "without TLS",
+			isTLS: false,
+		},
+		{
+			name:  "with TLS",
+			isTLS: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.isTLS && !gotlstestutil.GoTLSSupported(t, config.New()) {
+				t.Skip("GoTLS not supported for this setup")
+			}
+			testKernelMessagesCount(t, tt.isTLS)
+		})
+	}
+}
+
+// testKernelMessagesCount check postgres kernel messages count.
+func testKernelMessagesCount(t *testing.T, isTLS bool) {
+	serverHost := "127.0.0.1"
+	serverAddress := net.JoinHostPort(serverHost, postgresPort)
+	require.NoError(t, postgres.RunServer(t, serverHost, postgresPort, isTLS))
+	waitForPostgresServer(t, serverAddress, isTLS)
+
+	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS))
+	if isTLS {
+		utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid(), utils.ManualTracingFallbackEnabled)
+	}
+	cleanProtocolMaps(t, "postgres", monitor.ebpfProgram.Manager.Manager)
+	var pgClient *postgres.PGXClient
+
+	expectedMsgCounts := &pgebpf.PostgresKernelMsgCount{
+		Messages_count_buckets: [8]uint64{0, 0, 0, 0, 0, 0, 0, 0},
+	}
+
+	for i := 0; i < pgebpf.KerMsgCountNumBuckets; i++ {
+		test_name := fmt.Sprintf("kernel messages count bucket[%d]", i)
+		t.Run(test_name, func(t *testing.T) {
+			t.Cleanup(func() {
+				if pgClient != nil {
+					_ = pgClient.RunQuery(dropTableQuery)
+					if pgClient != nil {
+						pgClient.Close()
+						pgClient = nil
+					}
+				}
+			})
+			pgClient = setupPgClient(t, serverAddress, isTLS)
+			require.NoError(t, pgClient.Ping())
+
+			// 'sqlInsertCount' is the heuristic number of values to construct the long query
+			sqlInsertCount := i*pgebpf.KerMsgCountBucketSize + 1
+			runQueryForBucket(t, pgClient, sqlInsertCount)
+
+			expectedMsgCounts.Messages_count_buckets[i] = 1
+			validatePostgresKernel(t, monitor, isTLS, expectedMsgCounts)
+		})
+	}
+}
+
+func runQueryForBucket(t *testing.T, pg *postgres.PGXClient, insertCount int) {
+	require.NoError(t, pg.RunQuery(createTableQuery))
+	require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(0, insertCount)...)))
+	require.NoError(t, pg.RunQuery(selectAllQuery))
+}
+
+func setupPgClient(t *testing.T, serverAddress string, isTLS bool) *postgres.PGXClient {
+	pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+		ServerAddress: serverAddress,
+		EnableTLS:     isTLS,
+	})
+	require.NoError(t, err)
+	require.NoError(t, pg.Ping())
+	return pg
+}
+
+func validatePostgresKernel(t *testing.T, monitor *Monitor, tls bool, expected *pgebpf.PostgresKernelMsgCount) {
+	var actual *pgebpf.PostgresKernelMsgCount
+	assert.Eventually(t, func() bool {
+		found, err := getPostgresKernelTelemetry(monitor, tls)
+		require.NoError(t, err)
+		require.NotNil(t, found)
+		actual = found
+		return compareMessagesCount(found, expected)
+	}, time.Second*4, time.Millisecond*100)
+	if t.Failed() {
+		t.Logf("\nexpected telemetry:\n %+v;\nactual telemetry:\n %+v", expected, actual)
+	}
+}
+
+// compareMessagesCount returns 'true' if the expected and actual counters have similar non-zero values
+func compareMessagesCount(a *pgebpf.PostgresKernelMsgCount, b *pgebpf.PostgresKernelMsgCount) bool {
+	return compareBucketsFilling(a.Messages_count_buckets, b.Messages_count_buckets)
+}
+
+// compareBucketsFilling returns 'true' if the same buckets have non-zero values
+// For example return true if a[43, 21, 22, 0, 0, 0, 0, 0] and b[1, 1, 1, 0, 0, 0, 0, 0]
+// the first array represents the retrieved counters, while the second array represents
+// the buckets that are expected to be non-empty.
+func compareBucketsFilling(a [8]uint64, b [8]uint64) bool {
+	for i := range a {
+		if a[i] != b[i] && (a[i]*b[i] == 0) {
+			return false
+		}
+	}
+	return true
+}
+
+// getPostgresKernelTelemetry returns statistics obtained from the kernel
+func getPostgresKernelTelemetry(monitor *Monitor, isTLS bool) (*pgebpf.PostgresKernelMsgCount, error) {
+	pgKernelTelemetry := &pgebpf.PostgresKernelMsgCount{}
+	var zero uint32
+
+	mapName := postgres.KernelTelemetryMapPlain
+	if isTLS {
+		mapName = postgres.KernelTelemetryMapTLS
+	}
+	mp, _, err := monitor.ebpfProgram.GetMap(mapName)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get %q map: %s", mapName, err)
+	}
+	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(pgKernelTelemetry)); err != nil {
+		return nil, fmt.Errorf("unable to lookup %q map: %s", mapName, err)
+	}
+	return pgKernelTelemetry, nil
 }

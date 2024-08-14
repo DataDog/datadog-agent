@@ -9,6 +9,7 @@ package postgres
 
 import (
 	"io"
+	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -37,6 +38,8 @@ const (
 	tlsParseMessageTailCall = "uprobe__postgres_tls_process_parse_message"
 	tlsTerminationTailCall  = "uprobe__postgres_tls_termination"
 	eventStream             = "postgres"
+	KernelTelemetryMapPlain = "postgres_plain_msg_count" // map for getting kernel metrics
+	KernelTelemetryMapTLS   = "postgres_tls_msg_count"
 )
 
 // protocol holds the state of the postgres protocol monitoring.
@@ -46,6 +49,10 @@ type protocol struct {
 	eventsConsumer *events.Consumer[postgresebpf.EbpfEvent]
 	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, postgresebpf.EbpfTx]
 	statskeeper    *StatKeeper
+
+	// pgKernelTelemetry retrieves Postgres metrics from kernel
+	pgKernelTelemetry   *PGKernelTelemetry
+	pgKernelStopChannel chan struct{}
 }
 
 // Spec is the protocol spec for the postgres protocol.
@@ -113,9 +120,11 @@ func newPostgresProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	}
 
 	return &protocol{
-		cfg:         cfg,
-		telemetry:   NewTelemetry(),
-		statskeeper: NewStatkeeper(cfg),
+		cfg:                 cfg,
+		telemetry:           NewTelemetry(),
+		statskeeper:         NewStatkeeper(cfg),
+		pgKernelTelemetry:   newPGKernelTelemetry(),
+		pgKernelStopChannel: make(chan struct{}),
 	}, nil
 }
 
@@ -155,6 +164,7 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 func (p *protocol) PostStart(mgr *manager.Manager) error {
 	// Setup map cleaner after manager start.
 	p.setupMapCleaner(mgr)
+	p.updatePgKernelTelemetry(mgr)
 	return nil
 }
 
@@ -166,17 +176,30 @@ func (p *protocol) Stop(*manager.Manager) {
 	if p.eventsConsumer != nil {
 		p.eventsConsumer.Stop()
 	}
+	if p.pgKernelStopChannel != nil {
+		close(p.pgKernelStopChannel)
+	}
 }
 
 // DumpMaps dumps map contents for debugging.
 func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
-	if mapName == InFlightMap { // maps/postgres_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value EbpfTx
+	switch mapName {
+	case InFlightMap:
+		// maps/postgres_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value EbpfTx
 		var key netebpf.ConnTuple
 		var value postgresebpf.EbpfTx
 		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
 		iter := currentMap.Iterate()
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
+		}
+	case KernelTelemetryMapPlain, KernelTelemetryMapTLS:
+		// postgres_plain_msg_count / postgres_tls_msg_count (BPF_ARRAY_MAP), key 0, value PostgresKernelMsgCount
+		var zeroKey uint32
+		var value postgresebpf.PostgresKernelMsgCount
+		protocols.WriteMapDumpHeader(w, currentMap, mapName, zeroKey, value)
+		if err := currentMap.Lookup(unsafe.Pointer(&zeroKey), unsafe.Pointer(&value)); err == nil {
+			spew.Fdump(w, zeroKey, value)
 		}
 	}
 }
@@ -229,4 +252,45 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 	})
 
 	p.mapCleaner = mapCleaner
+}
+
+func (p *protocol) updatePgKernelTelemetry(mgr *manager.Manager) {
+	mapPlain, err := protocols.GetMap(mgr, KernelTelemetryMapPlain)
+	if err != nil {
+		log.Warn(err)
+		return
+	}
+
+	mapTLS, err := protocols.GetMap(mgr, KernelTelemetryMapTLS)
+	if err != nil {
+		log.Warn(err)
+		return
+	}
+
+	var zero uint32
+	pgKernelMsgCount := &postgresebpf.PostgresKernelMsgCount{}
+	ticker := time.NewTicker(30 * time.Second)
+
+	go func() {
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				if err := mapPlain.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(pgKernelMsgCount)); err != nil {
+					_ = log.Errorf("unable to lookup %q map: %s", KernelTelemetryMapPlain, err)
+					return
+				}
+				p.pgKernelTelemetry.update(pgKernelMsgCount, false)
+
+				if err := mapTLS.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(pgKernelMsgCount)); err != nil {
+					_ = log.Errorf("unable to lookup %q map: %s", KernelTelemetryMapTLS, err)
+					return
+				}
+				p.pgKernelTelemetry.update(pgKernelMsgCount, true)
+			case <-p.pgKernelStopChannel:
+				return
+			}
+		}
+	}()
 }

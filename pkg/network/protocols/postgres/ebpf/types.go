@@ -9,6 +9,7 @@ package ebpf
 
 /*
 #include "../../ebpf/c/protocols/postgres/types.h"
+#include "../../ebpf/c/protocols/postgres/defs.h"
 #include "../../ebpf/c/protocols/classification/defs.h"
 */
 import "C"
@@ -19,7 +20,10 @@ type ConnTuple = C.conn_tuple_t
 
 type EbpfEvent C.postgres_event_t
 type EbpfTx C.postgres_transaction_t
+type PostgresKernelMsgCount C.postgres_kernel_msg_count_t
 
 const (
-	BufferSize = C.POSTGRES_BUFFER_SIZE
+	BufferSize            = C.POSTGRES_BUFFER_SIZE
+	KerMsgCountBucketSize = C.PG_KERNEL_MSG_COUNT_BUCKET_SIZE
+	KerMsgCountNumBuckets = C.PG_KERNEL_MSG_COUNT_NUM_BUCKETS
 )
