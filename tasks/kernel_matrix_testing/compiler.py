@@ -202,4 +202,7 @@ class CompilerImage:
 
 
 def get_compiler(ctx: Context):
-    return CompilerImage(ctx, Arch.local())
+    cc = CompilerImage(ctx, Arch.local())
+    cc.ensure_running()
+
+    return cc
