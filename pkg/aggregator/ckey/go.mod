@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/aggregator/ckey
 
-go 1.21.0
+go 1.22.0
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/tagset => ../../tagset/

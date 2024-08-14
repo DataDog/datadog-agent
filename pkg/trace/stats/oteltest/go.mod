@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/trace/stats/oteltest
 
-go 1.21.0
+go 1.22.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.56.0-rc.11
