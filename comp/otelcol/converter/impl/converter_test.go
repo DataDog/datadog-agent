@@ -121,6 +121,11 @@ func TestConvert(t *testing.T) {
 			provided:       "receivers/no-receivers-defined/config.yaml",
 			expectedResult: "receivers/no-receivers-defined/config-result.yaml",
 		},
+		{
+			name:           "connectors/dd-connector",
+			provided:       "connectors/dd-connector/config.yaml",
+			expectedResult: "connectors/dd-connector/config-result.yaml",
+		},
 	}
 
 	for _, tc := range tests {
