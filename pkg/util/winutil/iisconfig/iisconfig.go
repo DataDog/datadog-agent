@@ -34,10 +34,10 @@ type DynamicIISConfig struct {
 	stopChannel  chan bool
 	xmlcfg       *iisConfiguration
 	siteIDToName map[uint32]string
+	pathtrees    map[uint32]*pathTreeEntry
 }
 
-
-// appConfig is the datadog configuration 
+// appConfig is the datadog configuration
 type appConfig map[string]string
 
 // NewDynamicIISConfig creates a new DynamicIISConfig
@@ -118,18 +118,20 @@ type iisApplication struct {
 	VirtualDirs []iisVirtualDirectory `xml:"virtualDirectory"`
 }
 type iisSite struct {
-	Name        string `xml:"name,attr"`
-	SiteID      string `xml:"id,attr"`
-	Application iisApplication
-	Bindings    []iisBinding `xml:"bindings>binding"`
+	Name         string           `xml:"name,attr"`
+	SiteID       string           `xml:"id,attr"`
+	Applications []iisApplication `xml:"application"`
+	Bindings     []iisBinding     `xml:"bindings>binding"`
 }
 type iisSystemApplicationHost struct {
 	XMLName xml.Name  `xml:"system.applicationHost"`
 	Sites   []iisSite `xml:"sites>site"`
 }
+
 type iisConfiguration struct {
 	XMLName         xml.Name `xml:"configuration"`
 	ApplicationHost iisSystemApplicationHost
+	AppSettings     iisAppSettings
 }
 
 func (iiscfg *DynamicIISConfig) readXMLConfig() error {
