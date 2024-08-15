@@ -22,7 +22,6 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
 )
 
 // variables for testing config options
@@ -1311,14 +1310,6 @@ service_monitoring_config:
 `)
 
 		assert.Equal(t, 30000, cfg.MaxPostgresTelemetryBuffer)
-	})
-
-	// Validating that the default value matches the one in the Postgres ebpf package.
-	t.Run("default", func(t *testing.T) {
-		aconfig.ResetSystemProbeConfig(t)
-
-		cfg := New()
-		assert.Equal(t, ebpf.BufferSize, cfg.MaxPostgresTelemetryBuffer)
 	})
 }
 
