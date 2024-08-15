@@ -1290,6 +1290,27 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				}: 1,
 			},
 		},
+		{
+			name: "Frame header split into multiple packets",
+			messageBuilder: func() [][]byte {
+				frame := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideContentLength: 0})}).
+					writeData(t, 1, true, emptyBody).bytes()
+
+				return [][]byte{
+					frame[:3],
+					frame[3:6],
+					frame[6:9],
+					frame[9:],
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
