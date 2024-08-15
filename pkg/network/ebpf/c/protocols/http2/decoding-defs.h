@@ -224,6 +224,7 @@ typedef struct {
         struct {
             char buf[HTTP2_FRAME_HEADER_SIZE];
             __u8 header_bytes_left;
+            __u8 header_offset;
         };
         // Incomplete frame payload.
         struct {

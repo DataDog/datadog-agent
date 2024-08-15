@@ -399,41 +399,6 @@ static __always_inline void pktbuf_process_headers(pktbuf_t pkt, dynamic_table_i
     }
 }
 
-// The function is trying to read the remaining of a split frame header. We have the first part in
-// `incomplete_frame->buf` (from the previous packet), and now we're trying to read the remaining (`incomplete_frame->remainder`
-// bytes from the current packet).
-static __always_inline void pktbuf_fix_header_frame(pktbuf_t pkt, char *out, incomplete_frame_t *incomplete_frame) {
-    bpf_memcpy(out, incomplete_frame->buf, HTTP2_FRAME_HEADER_SIZE);
-    // Verifier is unhappy with a single call to `bpf_skb_load_bytes` with a variable length (although checking boundaries)
-    switch (incomplete_frame->header_bytes_left) {
-    case 1:
-        pktbuf_load_bytes_from_current_offset(pkt, out + HTTP2_FRAME_HEADER_SIZE - 1, 1);
-        break;
-    case 2:
-        pktbuf_load_bytes_from_current_offset(pkt, out + HTTP2_FRAME_HEADER_SIZE - 2, 2);
-        break;
-    case 3:
-        pktbuf_load_bytes_from_current_offset(pkt, out + HTTP2_FRAME_HEADER_SIZE - 3, 3);
-        break;
-    case 4:
-        pktbuf_load_bytes_from_current_offset(pkt, out + HTTP2_FRAME_HEADER_SIZE - 4, 4);
-        break;
-    case 5:
-        pktbuf_load_bytes_from_current_offset(pkt, out + HTTP2_FRAME_HEADER_SIZE - 5, 5);
-        break;
-    case 6:
-        pktbuf_load_bytes_from_current_offset(pkt, out + HTTP2_FRAME_HEADER_SIZE - 6, 6);
-        break;
-    case 7:
-        pktbuf_load_bytes_from_current_offset(pkt, out + HTTP2_FRAME_HEADER_SIZE - 7, 7);
-        break;
-    case 8:
-        pktbuf_load_bytes_from_current_offset(pkt, out + HTTP2_FRAME_HEADER_SIZE - 8, 8);
-        break;
-    }
-    return;
-}
-
 // Reads a frame from the packet, and reports if it's a valid frame.
 static __always_inline bool read_frame(pktbuf_t pkt, http2_frame_t *current_frame) {
     // Checking we have enough bytes in the packet to read a frame header.
@@ -450,15 +415,41 @@ static __always_inline bool read_frame(pktbuf_t pkt, http2_frame_t *current_fram
 
 // Fixes an incomplete frame header. The function is trying to read the remaining of a split frame header.
 static __always_inline bool fix_incomplete_frame_header(pktbuf_t pkt, incomplete_frame_t *incomplete_frame, http2_frame_t *current_frame) {
-    pktbuf_fix_header_frame(pkt, (char*)current_frame, incomplete_frame);
-    if (format_http2_frame_header(current_frame)) {
-        pktbuf_advance(pkt, incomplete_frame->header_bytes_left);
-        incomplete_frame->header_bytes_left = 0;
-        return true;
+    // Get the current frame header bytes left.
+    __u32 header_bytes_left = incomplete_frame->header_bytes_left;
+    // If we don't have enough bytes in the packet to read the remaining header, we read the remaining bytes.
+    if (pktbuf_data_offset(pkt) + header_bytes_left > pktbuf_data_end(pkt)) {
+        header_bytes_left = pktbuf_data_end(pkt) - pktbuf_data_offset(pkt);
     }
-    // We didn't read a valid frame header, so we're marking it for deletion.
-    incomplete_frame->header_bytes_left = 0;
-    return false;
+    // Copy what we already have in the incomplete frame buffer to the current frame.
+    bpf_memcpy(current_frame, incomplete_frame->buf, HTTP2_FRAME_HEADER_SIZE);
+    // Read the remaining bytes from the packet.
+    pktbuf_read_into_buffer_http2_frame_header(incomplete_frame->buf, pkt, pktbuf_data_offset(pkt));
+
+    // Converting the current frame to a char pointer to copy the remaining bytes.
+    char *ptr = (char*)current_frame;
+
+    #pragma unroll(HTTP2_FRAME_HEADER_SIZE)
+    for (__u32 iteration = 0; iteration < HTTP2_FRAME_HEADER_SIZE; ++iteration) {
+        if (incomplete_frame->header_offset + iteration >= HTTP2_FRAME_HEADER_SIZE) {
+            break;
+        }
+        // Copy the remaining bytes to the current frame.
+        ptr[incomplete_frame->header_offset + iteration] = incomplete_frame->buf[iteration];
+    }
+
+    // Advance the packet and update the incomplete frame state.
+    incomplete_frame->header_bytes_left -= header_bytes_left;
+    incomplete_frame->header_offset += header_bytes_left;
+    pktbuf_advance(pkt, header_bytes_left);
+    // If we still have bytes left to read, we return false, indicating that we still have an incomplete frame.
+    if (incomplete_frame->header_bytes_left > 0) {
+        // Copy the remaining bytes to the incomplete frame buffer.
+        bpf_memcpy(incomplete_frame->buf, ptr, HTTP2_FRAME_HEADER_SIZE);
+        return false;
+    }
+
+    return format_http2_frame_header(current_frame);
 }
 
 // Consumes the payload of an incomplete frame. The function is trying to read the remaining of a split frame payload.
@@ -637,7 +628,8 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
         if (pktbuf_data_offset(pkt) < pktbuf_data_end(pkt) && pktbuf_data_offset(pkt) + HTTP2_FRAME_HEADER_SIZE > pktbuf_data_end(pkt)) {
             incomplete_frame_t new_frame_state = { 0 };
             new_frame_state.type = kIncompleteFrameHeader;
-            new_frame_state.header_bytes_left = HTTP2_FRAME_HEADER_SIZE - (pktbuf_data_end(pkt) - pktbuf_data_offset(pkt));
+            new_frame_state.header_offset = pktbuf_data_end(pkt) - pktbuf_data_offset(pkt);
+            new_frame_state.header_bytes_left = HTTP2_FRAME_HEADER_SIZE - new_frame_state.header_offset;
             bpf_memset(new_frame_state.buf, 0, HTTP2_FRAME_HEADER_SIZE);
         #pragma unroll(HTTP2_FRAME_HEADER_SIZE)
             for (__u32 iteration = 0; iteration < HTTP2_FRAME_HEADER_SIZE && new_frame_state.header_bytes_left + iteration < HTTP2_FRAME_HEADER_SIZE; ++iteration) {
@@ -787,7 +779,8 @@ static __always_inline void filter_frame(pktbuf_t pkt, void *map_key, conn_tuple
     } else if (pktbuf_data_offset(pkt) < pktbuf_data_end(pkt) && pktbuf_data_offset(pkt) + HTTP2_FRAME_HEADER_SIZE > pktbuf_data_end(pkt)) {
         // We have a frame header remainder
         new_frame_state.type = kIncompleteFrameHeader;
-        new_frame_state.header_bytes_left = HTTP2_FRAME_HEADER_SIZE - (pktbuf_data_end(pkt) - pktbuf_data_offset(pkt));
+        new_frame_state.header_offset = pktbuf_data_end(pkt) - pktbuf_data_offset(pkt);
+        new_frame_state.header_bytes_left = HTTP2_FRAME_HEADER_SIZE - new_frame_state.header_offset;
         bpf_memset(new_frame_state.buf, 0, HTTP2_FRAME_HEADER_SIZE);
     #pragma unroll(HTTP2_FRAME_HEADER_SIZE)
         for (__u32 iteration = 0; iteration < HTTP2_FRAME_HEADER_SIZE && new_frame_state.header_bytes_left + iteration < HTTP2_FRAME_HEADER_SIZE; ++iteration) {
