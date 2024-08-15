@@ -43,7 +43,7 @@ GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 WINDOWS_MAX_PACKAGES_NUMBER = 150
 TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/source_test/*"]
 OTEL_UPSTREAM_GO_MOD_PATH = (
-    "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/main/go.mod"
+    "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v0.104.0/go.mod"
 )
 
 
