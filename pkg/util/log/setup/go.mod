@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/log/setup
 
-go 1.22.0
+go 1.21.0
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../pkg/config/model/
