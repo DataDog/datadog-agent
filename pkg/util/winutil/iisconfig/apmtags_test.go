@@ -73,47 +73,45 @@ func TestAPMTags(t *testing.T) {
 	err = iisCfg.Start()
 	assert.Nil(t, err)
 
-	iisCfg.buildPathTagTree()
-
 	t.Run("Test simple root path", func(t *testing.T) {
-		tags, _ := iisCfg.GetAPMTags("2", "/")
+		tags, _ := iisCfg.GetAPMTags(2, "/")
 		assert.Equal(t, "app1", tags.DDService)
 	})
 	t.Run("Test deeper path from top app", func(t *testing.T) {
-		tags, _ := iisCfg.GetAPMTags("2", "/path/to/app")
+		tags, _ := iisCfg.GetAPMTags(2, "/path/to/app")
 		assert.Equal(t, "app1", tags.DDService)
 	})
 
 	t.Run("test top level app2", func(t *testing.T) {
-		tags, _ := iisCfg.GetAPMTags("2", "/app2")
+		tags, _ := iisCfg.GetAPMTags(2, "/app2")
 		assert.Equal(t, "app2", tags.DDService)
 	})
 	t.Run("test deeper app2", func(t *testing.T) {
-		tags, _ := iisCfg.GetAPMTags("2", "/app2/some/path")
+		tags, _ := iisCfg.GetAPMTags(2, "/app2/some/path")
 		assert.Equal(t, "app2", tags.DDService)
 	})
 
 	t.Run("test app3 nested in app2", func(t *testing.T) {
-		tags, _ := iisCfg.GetAPMTags("2", "/app2/app3")
+		tags, _ := iisCfg.GetAPMTags(2, "/app2/app3")
 		assert.Equal(t, "app3", tags.DDService)
 	})
 	t.Run("test app3 nested in app2 with path", func(t *testing.T) {
-		tags, _ := iisCfg.GetAPMTags("2", "/app2/app3/some/path")
+		tags, _ := iisCfg.GetAPMTags(2, "/app2/app3/some/path")
 		assert.Equal(t, "app3", tags.DDService)
 	})
 
 	t.Run("test secondary site", func(t *testing.T) {
-		tags, _ := iisCfg.GetAPMTags("3", "/")
+		tags, _ := iisCfg.GetAPMTags(3, "/")
 		assert.Equal(t, "app1", tags.DDService)
 	})
 	t.Run("test secondary site app 3", func(t *testing.T) {
 		// this should still be app1 because the root path on the
 		// second site is different
-		tags, _ := iisCfg.GetAPMTags("3", "/app2/app3")
+		tags, _ := iisCfg.GetAPMTags(3, "/app2/app3")
 		assert.Equal(t, "app1", tags.DDService)
 	})
 	t.Run("test secondary site actual app3", func(t *testing.T) {
-		tags, _ := iisCfg.GetAPMTags("3", "/siteapp2/siteapp3")
+		tags, _ := iisCfg.GetAPMTags(3, "/siteapp2/siteapp3")
 		assert.Equal(t, "app3", tags.DDService)
 	})
 }

@@ -30,12 +30,7 @@ func splitPaths(path string) []string {
 	return append(s, b)
 }
 
-func findInPathTree(pathtrees map[uint32]*pathTreeEntry, siteID string, urlpath string) (APMTags, APMTags) {
-	intid, err := strconv.Atoi(siteID)
-	if err != nil {
-		return APMTags{}, APMTags{}
-	}
-	id := uint32(intid)
+func findInPathTree(pathtrees map[uint32]*pathTreeEntry, id uint32, urlpath string) (APMTags, APMTags) {
 	// urlpath will come in as something like
 	// /path/to/app
 	// need to build the tree all the way down
@@ -101,7 +96,7 @@ func addToPathTree(pathtrees map[uint32]*pathTreeEntry, siteID string, urlpath s
 	return
 
 }
-func (iiscfg *DynamicIISConfig) GetAPMTags(siteID string, urlpath string) (APMTags, APMTags) {
+func (iiscfg *DynamicIISConfig) GetAPMTags(siteID uint32, urlpath string) (APMTags, APMTags) {
 	iiscfg.mux.Lock()
 	defer iiscfg.mux.Unlock()
 	return findInPathTree(iiscfg.pathtrees, siteID, urlpath)

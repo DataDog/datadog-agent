@@ -201,7 +201,8 @@ type HttpConnLink struct {
 
 	http WinHttpTransaction
 
-	url string
+	url     string
+	urlPath string
 
 	// list of etw notifications, in order, that this transaction has been seen
 	// this is for internal debugging; is not surfaced anywhere.
@@ -743,6 +744,8 @@ func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *etw.DDEventRecord) {
 		if len(urlParsed.Path) == 0 {
 			urlParsed.Path = "/"
 		}
+		httpConnLink.urlPath = urlParsed.Path
+
 		// httpConnLink.http.RequestFragment[0] = 32 is done to simulate
 		//   func getPath(reqFragment, buffer []byte) []byte
 		// which expects something like "GET /foo?var=bar HTTP/1.1"
@@ -832,6 +835,8 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEventRecord) {
 	httpConnLink.http.AppPool = appPool
 	httpConnLink.http.SiteID = userData.GetUint32(16)
 	httpConnLink.http.SiteName = iisConfig.GetSiteNameFromID(httpConnLink.http.SiteID)
+
+	httpConnLink.http.TagsFromJson, httpConnLink.http.TagsFromConfig = iisConfig.GetAPMTags(httpConnLink.http.SiteID, httpConnLink.urlPath)
 
 	// Parse url
 	if urlOffset > userData.Length() {

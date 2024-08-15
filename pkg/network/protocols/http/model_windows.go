@@ -107,11 +107,30 @@ func (tx *WinHttpTransaction) StaticTags() uint64 {
 //nolint:revive // TODO(WKIT) Fix revive linter
 func (tx *WinHttpTransaction) DynamicTags() []string {
 	if len(tx.AppPool) != 0 || len(tx.SiteName) != 0 {
-		return []string{
+		tags := []string{
 			fmt.Sprintf("http.iis.app_pool:%v", tx.AppPool),
 			fmt.Sprintf("http.iis.site:%v", tx.SiteID),
 			fmt.Sprintf("http.iis.sitename:%v", tx.SiteName),
 		}
+		if (len(tx.TagsFromConfig.DDEnv)) > 0 {
+			tags = append(tags, fmt.Sprintf("http.iis.json.ddenv:%v", tx.TagsFromConfig.DDEnv))
+		}
+		if (len(tx.TagsFromConfig.DDService)) > 0 {
+			tags = append(tags, fmt.Sprintf("http.iis.json.ddservice:%v", tx.TagsFromConfig.DDService))
+		}
+		if (len(tx.TagsFromConfig.DDVersion)) > 0 {
+			tags = append(tags, fmt.Sprintf("http.iis.json.ddversion:%v", tx.TagsFromConfig.DDVersion))
+		}
+		if (len(tx.TagsFromJson.DDEnv)) > 0 {
+			tags = append(tags, fmt.Sprintf("http.iis.cfg.ddenv:%v", tx.TagsFromJson.DDEnv))
+		}
+		if (len(tx.TagsFromJson.DDService)) > 0 {
+			tags = append(tags, fmt.Sprintf("http.iis.cfg.ddservice:%v", tx.TagsFromJson.DDService))
+		}
+		if (len(tx.TagsFromJson.DDVersion)) > 0 {
+			tags = append(tags, fmt.Sprintf("http.iis.cfg.ddversion:%v", tx.TagsFromJson.DDVersion))
+		}
+		return tags
 	}
 	return nil
 }
