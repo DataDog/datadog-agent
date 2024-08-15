@@ -26,10 +26,10 @@ type Module struct {
 //nolint:revive // TODO(DEBUG) Fix revive linter
 func NewModule(config *Config) (*Module, error) {
 	godi, err := di.RunDynamicInstrumentation(&di.DIOptions{
-		Offline:          coreconfig.SystemProbe.GetBool("dynamic_instrumentation.offline_mode"),
-		ProbesFilePath:   coreconfig.SystemProbe.GetString("dynamic_instrumentation.probes_file_path"),
-		SnapshotOutput:   coreconfig.SystemProbe.GetString("dynamic_instrumentation.snapshot_output_file_path"),
-		DiagnosticOutput: coreconfig.SystemProbe.GetString("dynamic_instrumentation.diagnostics_output_file_path"),
+		Offline:          coreconfig.SystemProbe().GetBool("dynamic_instrumentation.offline_mode"),
+		ProbesFilePath:   coreconfig.SystemProbe().GetString("dynamic_instrumentation.probes_file_path"),
+		SnapshotOutput:   coreconfig.SystemProbe().GetString("dynamic_instrumentation.snapshot_output_file_path"),
+		DiagnosticOutput: coreconfig.SystemProbe().GetString("dynamic_instrumentation.diagnostics_output_file_path"),
 	})
 	if err != nil {
 		return nil, err

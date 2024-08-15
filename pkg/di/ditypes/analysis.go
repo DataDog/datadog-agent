@@ -26,17 +26,44 @@ type TypeMap struct {
 }
 
 type Parameter struct {
-	Name            string
-	ID              string
-	Type            string
-	TotalSize       int64
-	Kind            uint
-	Location        Location
-	ParameterPieces []Parameter
+	Name             string
+	ID               string
+	Type             string
+	TotalSize        int64
+	Kind             uint
+	Location         Location
+	NotCaptureReason NotCaptureReason
+	ParameterPieces  []Parameter
 }
 
 func (p Parameter) String() string {
 	return fmt.Sprintf("%s %s", p.Name, p.Type)
+}
+
+type NotCaptureReason uint8
+
+const (
+	Unsupported NotCaptureReason = iota + 1
+	FieldLimitReached
+	CaptureDepthReached
+)
+
+type SpecialKind uint8
+
+const (
+	KindUnsupported = 255 - iota
+	KindCutFieldLimit
+)
+
+func (s SpecialKind) String() string {
+	switch s {
+	case KindUnsupported:
+		return "Unsupported"
+	case KindCutFieldLimit:
+		return "CutFieldLimit"
+	default:
+		return fmt.Sprintf("%d", s)
+	}
 }
 
 type Location struct {

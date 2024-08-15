@@ -20,24 +20,24 @@ func TestDynamicInstrumentationLogJSONRoundTrip(t *testing.T) {
 	for _, filePath := range files {
 		file, err := os.Open(filePath)
 		if err != nil {
-			log.Error(err)
+			log.Fatal(err)
 		}
 		defer file.Close()
 
 		bytes, err := io.ReadAll(file)
 		if err != nil {
-			log.Error(err)
+			log.Fatal(err)
 		}
 
 		var s SnapshotUpload
 		err = json.Unmarshal(bytes, &s)
 		if err != nil {
-			log.Error(err)
+			log.Fatal(err)
 		}
 
 		mBytes, err := json.Marshal(s)
 		if err != nil {
-			log.Error(err)
+			log.Fatal(err)
 		}
 
 		assert.JSONEq(t, string(bytes), string(mBytes))

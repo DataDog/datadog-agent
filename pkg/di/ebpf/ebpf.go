@@ -3,6 +3,7 @@ package ebpf
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -10,7 +11,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/di/diagnostics"
@@ -62,6 +62,9 @@ func setupRingbufferAndHeaders() error {
 		"-O2",
 		"-g",
 		"--target=bpf",
+		fmt.Sprintf("-I%s", globalHeadersPath),
+		"-o",
+		objFilePath,
 	}
 
 	// Read ringbuffer source file
@@ -78,7 +81,7 @@ func setupRingbufferAndHeaders() error {
 	}
 
 	// Compile ringbuffer source file
-	err = compiler.CompileToObjectFile(ringbufferSourcePath, objFilePath, cFlags, []string{globalHeadersPath})
+	err = clang(cFlags, ringbufferSourcePath, withStdout(os.Stdout))
 	if err != nil {
 		return fmt.Errorf("could not compile ringbuffer object: %w", err)
 	}
@@ -148,6 +151,10 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 
 	bpfObject, err := ebpf.NewCollectionWithOptions(spec, opts)
 	if err != nil {
+		var ve *ebpf.VerifierError
+		if errors.As(err, &ve) {
+			log.Infof("Verifier error: %+v\n", ve)
+		}
 		diagnostics.Diagnostics.SetError(procInfo.ServiceName, procInfo.RuntimeID, probe.ID, "ATTACH_ERROR", err.Error())
 		return fmt.Errorf("could not load bpf collection for probe %s: %w", probe.ID, err)
 	}
@@ -231,7 +238,7 @@ func CompileBPFProgram(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) erro
 }
 
 var (
-	clangBinPath = "/opt/datadog-agent/embedded/bin/clang-bpf"
+	clangBinPath = getClangPath()
 )
 
 const (
@@ -276,4 +283,12 @@ func withStdout(out io.Writer) func(*exec.Cmd) {
 	return func(c *exec.Cmd) {
 		c.Stdout = out
 	}
+}
+
+func getClangPath() string {
+	clangPath := os.Getenv("CLANG_PATH")
+	if clangPath == "" {
+		clangPath = "/opt/datadog-agent/embedded/bin/clang-bpf"
+	}
+	return clangPath
 }

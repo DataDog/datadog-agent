@@ -26,7 +26,13 @@ func NewDILog(procInfo *ditypes.ProcessInfo, event *ditypes.DIEvent) *ditypes.Sn
 
 	snapshotID, _ := uuid.NewUUID()
 	argDefs := getFunctionArguments(procInfo, probe)
-	captures := convertCaptures(argDefs, event.Argdata)
+	var captures ditypes.Captures
+	if probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters {
+		captures = convertCaptures(argDefs, event.Argdata)
+	} else {
+		captures = reportCaptureError(argDefs)
+	}
+
 	capturesJSON, _ := json.Marshal(captures)
 	stackTrace, err := parseStackTrace(procInfo, event.StackPCs)
 	if err != nil {
@@ -64,7 +70,7 @@ func convertProbe(probe *ditypes.Probe) ditypes.ProbeInSnapshot {
 	}
 }
 
-func convertCaptures(defs []ditypes.Parameter, captures []ditypes.Param) ditypes.Captures {
+func convertCaptures(defs []ditypes.Parameter, captures []*ditypes.Param) ditypes.Captures {
 	return ditypes.Captures{
 		Entry: &ditypes.Capture{
 			Arguments: convertArgs(defs, captures),
@@ -72,7 +78,22 @@ func convertCaptures(defs []ditypes.Parameter, captures []ditypes.Param) ditypes
 	}
 }
 
-func convertArgs(defs []ditypes.Parameter, captures []ditypes.Param) map[string]*ditypes.CapturedValue {
+func reportCaptureError(defs []ditypes.Parameter) ditypes.Captures {
+	args := make(map[string]*ditypes.CapturedValue)
+	for _, def := range defs {
+		args[def.Name] = &ditypes.CapturedValue{
+			Type:              def.Type,
+			NotCapturedReason: "Failed to instrument, type is unsupported or too complex",
+		}
+	}
+	return ditypes.Captures{
+		Entry: &ditypes.Capture{
+			Arguments: args,
+		},
+	}
+}
+
+func convertArgs(defs []ditypes.Parameter, captures []*ditypes.Param) map[string]*ditypes.CapturedValue {
 	args := make(map[string]*ditypes.CapturedValue)
 	for idx, capture := range captures {
 		var argName string
@@ -82,13 +103,17 @@ func convertArgs(defs []ditypes.Parameter, captures []ditypes.Param) map[string]
 			argName = fmt.Sprintf("arg_%d", idx)
 		}
 
-		cv := &ditypes.CapturedValue{Type: capture.Kind}
-		if capture.ValueStr != "" || capture.Kind == "string" {
+		if capture == nil {
+			continue
+		}
+
+		cv := &ditypes.CapturedValue{Type: capture.Type}
+		if capture.ValueStr != "" || capture.Type == "string" {
 			// we make a copy of the string so the pointer isn't overwritten in the loop
 			valueCopy := capture.ValueStr
 			cv.Value = &valueCopy
 		}
-		if capture.Fields != nil {
+		if capture.Fields != nil && idx < len(defs) {
 			cv.Fields = convertArgs(defs[idx].ParameterPieces, capture.Fields)
 		}
 		args[argName] = cv

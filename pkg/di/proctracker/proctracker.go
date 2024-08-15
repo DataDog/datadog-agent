@@ -9,7 +9,6 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -20,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"golang.org/x/sys/unix"
@@ -87,29 +87,35 @@ func (pt *ProcessTracker) inspectBinary(exePath string, pid uint32) {
 		// if the expected env vars are not set we don't inspect the binary
 		return
 	}
+	log.Info("Found instrumentation candidate", serviceName)
+	// binPath, err := os.Readlink(exePath)
+	// if err != nil {
+	// 	// /proc could be slow to update so we retry a few times
+	// 	end := time.Now().Add(10 * time.Millisecond)
+	// 	for end.After(time.Now()) {
+	// 		binPath, err = os.Readlink(exePath)
+	// 		if err == nil {
+	// 			break
+	// 		}
+	// 		time.Sleep(time.Millisecond)
+	// 	}
+	// }
+	// if err != nil {
+	// 	// we can't access the binary path here (pid probably ended already)
+	// 	// there is not much we can do, and we don't want to flood the logs
+	// 	log.Infof("cannot follow link %s -> %s, %s", exePath, binPath, err)
+	// 	// in docker, following the symlink does not work, but we can open the file in /proc
+	// 	// if we can't follow the symlink we try to open /proc directly
+	// 	// TODO: validate this approach
+	// 	binPath = exePath
+	// }
 
-	binPath, err := os.Readlink(exePath)
+	// TODO: switch to using exePath for the demo, use conditional logic above moving forward
+	binPath := exePath
+	f, err := os.Open(exePath)
 	if err != nil {
-		// /proc could be slow to update so we retry a few times
-		end := time.Now().Add(10 * time.Millisecond)
-		for end.After(time.Now()) {
-			binPath, err = os.Readlink(exePath)
-			if err == nil {
-				break
-			}
-			time.Sleep(time.Millisecond)
-		}
-	}
-	if err != nil {
-		// we can't access the binary path here (pid probably ended already)
-		// there is not much we can do, and we don't want to flood the logs
-		return
-	}
-
-	f, err := os.Open(binPath)
-	if err != nil {
-		// this should be a debug log, it's noisy and not very useful
-		// log.Infof("could not open file %s, %s", binPath, err)
+		// this should be a debug log, but we want to know if this happens
+		log.Infof("could not open file %s, %s", binPath, err)
 		return
 	}
 	defer f.Close()
@@ -167,7 +173,7 @@ func (pt *ProcessTracker) registerProcess(binID binaryID, pid pid, mTime syscall
 }
 
 func getServiceName(pid uint32) string {
-	envVars, _, err := utils.EnvVars([]string{"DD"}, pid, 256)
+	envVars, _, err := utils.EnvVars([]string{"DD"}, pid, model.MaxArgsEnvsSize)
 	if err != nil {
 		return ""
 	}
