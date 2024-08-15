@@ -62,8 +62,8 @@ func (goDI *GoDI) startRingbufferConsumer() (func(), error) {
 			if event == nil {
 				continue
 			}
-			goDI.stats.PIDTriggerCount[event.PID]++
-			goDI.stats.ProbeTriggerCount[event.ProbeID]++
+			goDI.stats.PIDEventsCreatedCount[event.PID]++
+			goDI.stats.ProbeEventsCreatedCount[event.ProbeID]++
 			goDI.processEvent(event)
 		}
 	}()

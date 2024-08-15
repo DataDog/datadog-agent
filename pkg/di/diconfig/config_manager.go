@@ -32,6 +32,10 @@ type rcConfig struct {
 	Template        string
 	CaptureSnapshot bool
 	EvaluatedAt     string
+	Capture         struct {
+		MaxReferenceDepth int `json:"maxReferenceDepth"`
+		MaxFieldCount     int `json:"maxFieldCount"`
+	}
 }
 
 type configUpdateCallback func(*ditypes.ProcessInfo, *ditypes.Probe)
@@ -49,7 +53,7 @@ type RCConfigManager struct {
 }
 
 func NewRCConfigManager() (*RCConfigManager, error) {
-	log.Info("Creating new config manager")
+	log.Info("Creating new RC config manager")
 	cm := &RCConfigManager{
 		callback: applyConfigUpdate,
 	}
@@ -145,8 +149,8 @@ func (cm *RCConfigManager) installConfigProbe(procInfo *ditypes.ProcessInfo) err
 }
 
 func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.ProcessInfo) {
+	log.Info("Waiting for configs for", procInfo.ServiceName)
 	for {
-		log.Info("Waiting for configs")
 		record, err := r.Read()
 		if err != nil {
 			log.Infof("error reading raw configuration from bpf: %s", err)
@@ -189,9 +193,18 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 			continue
 		}
 
+		if conf.Capture.MaxReferenceDepth == 0 {
+			conf.Capture.MaxReferenceDepth = int(ditypes.MaxReferenceDepth)
+		}
+		if conf.Capture.MaxFieldCount == 0 {
+			conf.Capture.MaxFieldCount = int(ditypes.MaxFieldCount)
+		}
 		opts := &ditypes.InstrumentationOptions{
-			ArgumentsMaxSize: ditypes.ArgumentsMaxSize,
-			StringMaxSize:    ditypes.StringMaxSize,
+			CaptureParameters: ditypes.CaptureParameters,
+			ArgumentsMaxSize:  ditypes.ArgumentsMaxSize,
+			StringMaxSize:     ditypes.StringMaxSize,
+			MaxReferenceDepth: conf.Capture.MaxReferenceDepth,
+			MaxFieldCount:     conf.Capture.MaxFieldCount,
 		}
 
 		probe, probeExists := procInfo.ProbesByID[configPath.ProbeUUID.String()]
@@ -217,6 +230,7 @@ func applyConfigUpdate(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) {
 		return
 	}
 
+generateCompileAttach:
 	err = codegen.GenerateBPFProgram(procInfo, probe)
 	if err != nil {
 		log.Info("Couldn't generate BPF programs", err)
@@ -225,13 +239,25 @@ func applyConfigUpdate(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) {
 
 	err = ebpf.CompileBPFProgram(procInfo, probe)
 	if err != nil {
-		log.Info("Couldn't compile BPF objects", err)
+		log.Info("Couldn't compile BPF object", err)
+		if !probe.InstrumentationInfo.AttemptedRebuild {
+			log.Info("Removing parameters and attempting to rebuild BPF object", err)
+			probe.InstrumentationInfo.AttemptedRebuild = true
+			probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters = false
+			goto generateCompileAttach
+		}
 		return
 	}
 
 	err = ebpf.AttachBPFUprobe(procInfo, probe)
 	if err != nil {
-		log.Info("Errors while attaching bpf programs", err)
+		log.Info("Couldn't load and attach bpf programs", err)
+		if !probe.InstrumentationInfo.AttemptedRebuild {
+			log.Info("Removing parameters and attempting to rebuild BPF object", err)
+			probe.InstrumentationInfo.AttemptedRebuild = true
+			probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters = false
+			goto generateCompileAttach
+		}
 		return
 	}
 }
@@ -242,8 +268,11 @@ func newConfigProbe() *ditypes.Probe {
 		FuncName: "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.passProbeConfiguration",
 		InstrumentationInfo: &ditypes.InstrumentationInfo{
 			InstrumentationOptions: &ditypes.InstrumentationOptions{
-				ArgumentsMaxSize: 100000,
-				StringMaxSize:    30000,
+				ArgumentsMaxSize:  100000,
+				StringMaxSize:     30000,
+				MaxFieldCount:     int(ditypes.MaxFieldCount),
+				MaxReferenceDepth: 8,
+				CaptureParameters: true,
 			},
 		},
 		RateLimiter: ratelimiter.NewSingleEventRateLimiter(0),

@@ -3,9 +3,11 @@ package uploader
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"os"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -121,7 +123,7 @@ func (u *Uploader[T]) uploadBatch(batch []*T) {
 func (u *Uploader[T]) uploadLogBatch(batch []*T) {
 	// TODO: find out if there are more efficient ways of sending logs to the backend
 	// this is the way all other DI runtimes upload data
-	url := "http://localhost:8126/debugger/v1/input"
+	url := fmt.Sprintf("http://%s:8126/debugger/v1/input", getAgentHost())
 	body, _ := json.Marshal(batch)
 	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
 	if err != nil {
@@ -140,7 +142,7 @@ func (u *Uploader[T]) uploadLogBatch(batch []*T) {
 }
 
 func (u *Uploader[T]) uploadDiagnosticBatch(batch []*T) {
-	url := "http://localhost:8126/debugger/v1/diagnostics"
+	url := fmt.Sprintf("http://%s:8126/debugger/v1/diagnostics", getAgentHost())
 
 	// Create a buffer to hold the multipart form data
 	var b bytes.Buffer
@@ -187,4 +189,12 @@ func (u *Uploader[T]) uploadDiagnosticBatch(batch []*T) {
 	defer resp.Body.Close()
 
 	log.Info("HTTP", resp.StatusCode, url)
+}
+
+func getAgentHost() string {
+	ddAgentHost := os.Getenv("DD_AGENT_HOST")
+	if ddAgentHost == "" {
+		ddAgentHost = "localhost"
+	}
+	return ddAgentHost
 }

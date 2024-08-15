@@ -12,11 +12,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/di/ratelimiter"
 )
 
+const MAX_BUFFER_SIZE = 10000
+
 var (
 	byteOrder = binary.LittleEndian
 )
-
-const MAX_BUFFER_SIZE = 10000 // TODO: find this out from configuration, maybe a special value at the begining of all events?
 
 func ParseEvent(record []byte, ratelimiters *ratelimiter.MultiProbeRateLimiter) *ditypes.DIEvent {
 	event := ditypes.DIEvent{}
@@ -40,12 +40,11 @@ func ParseEvent(record []byte, ratelimiters *ratelimiter.MultiProbeRateLimiter) 
 	event.UID = byteOrder.Uint32(record[308:312])
 	event.StackPCs = record[312:392]
 	event.Argdata = readParams(record[392:])
-
 	return &event
 }
 
 // ParseParms extracts just the parsed parameters from the full event record
-func ParseParams(record []byte) ([]ditypes.Param, error) {
+func ParseParams(record []byte) ([]*ditypes.Param, error) {
 	if len(record) < 392 {
 		log.Info("malformed event record")
 		return nil, fmt.Errorf("malformed event record (length %d)", len(record))
@@ -53,115 +52,176 @@ func ParseParams(record []byte) ([]ditypes.Param, error) {
 	return readParams(record[392:]), nil
 }
 
-func readParams(values []byte) []ditypes.Param {
-	outputParams := []ditypes.Param{}
-	stack := newParamStack()
-
+func readParams(values []byte) []*ditypes.Param {
+	outputParams := []*ditypes.Param{}
 	for i := 0; i < MAX_BUFFER_SIZE; {
 		if i+3 >= len(values) {
 			break
 		}
-
-		pieceType := values[i]
-		pieceSize := binary.LittleEndian.Uint16(values[i+1 : i+3])
-
-		if pieceType == 0 {
+		paramTypeDefinition := parseTypeDefinition(values[i:])
+		if paramTypeDefinition == nil {
 			break
 		}
 
-		newParam := &ditypes.Param{
-			Size: pieceSize,
-			Kind: reflect.Kind(pieceType).String(),
-		}
-
-		if isTypeWithHeader(pieceType) {
-			// It's a type with a header, pushing onto the stack
-			stack.push(newParam)
-
-			if reflect.Kind(pieceType) == reflect.Pointer {
-				// Pointers are a unique case where they have fields below them (header)
-				// but also have a value (the actual address)
-				newParam.Size = 2
-			} else {
-				i += 3
-				continue
-			}
-		}
-
-		// Not a type with a header, parsing the value
-		start, end := i+3, i+3+int(pieceSize)
-		if end >= len(values) {
-			log.Info("size of parameter piece exceeds length of buffer, dropping data")
-			break
-		}
-
-		paramValueBytes := values[start:end]
-		val := parseParamValue(pieceType, paramValueBytes)
-		newParam.ValueStr = val
-		i = end
-
-	stackCheck:
-		if !stack.isEmpty() {
-			// There's an element on the stack, add this parameter to its fields
-			// and then check if it should be popped from the stack
-			top := stack.peek()
-
-			if !(top.Kind == "ptr" && newParam.Kind == "ptr") {
-				// The value of pointers are in the header, we don't want to add another layer
-				// to the event with duplicate information
-				top.Fields = append(top.Fields, *newParam)
-			}
-
-			// If this is a statically sized type (arrays, structs), the size reflects
-			// the number of elements instead of total size. Pointers are also included
-			// because they always have two values, the address and actual content.
-			if top.Kind == reflect.Struct.String() || top.Kind == reflect.Array.String() ||
-				top.Kind == reflect.Pointer.String() {
-				top.Size -= 1
-			}
-
-			// If this is a dynamically sized type (slices), the size reflects
-			// the total size of all elements
-			if top.Kind == reflect.Slice.String() {
-				top.Size -= newParam.Size
-			}
-
-			// Check if all fields for the element at the top of the stack
-			// have been read
-			if top.Size == 0 {
-				stack.pop()
-
-				// After popping this element, check if theres more left on the stack,
-				// meaning that what was just popped is something like an embedded struct
-				if !stack.isEmpty() {
-					val := *top
-					newParam = &val
-					// After popping the stack, there's more left on the stack, so what's popped should be a member of that
-					goto stackCheck
-				}
-
-				// Otherwise it should just be part of output, meaning
-				// it's a top level argument
-				outputParams = append(outputParams, *top)
-
-			}
+		sizeOfTypeDefinition := countBufferUsedByTypeDefinition(paramTypeDefinition)
+		i += sizeOfTypeDefinition
+		val, numBytesRead := parseParamValue(paramTypeDefinition, values[i:])
+		if reflect.Kind(val.Kind) == reflect.Slice {
+			// In BPF we read the slice by reading the maximum size of a slice
+			// that we allow, instead of just the size of the slice (which we
+			// know at runtime). This is to satisfy the verifier. When parsing
+			// here, we read just the actual slice content, but have to move the
+			// buffer index ahead by the amount of space used by the max read.
+			i += ditypes.SliceMaxSize
 		} else {
-			// There's nothing on the stack, just putting the param into output
-			outputParams = append(outputParams, *newParam)
+			i += numBytesRead
 		}
-
+		outputParams = append(outputParams, val)
 	}
-
 	return outputParams
 }
 
-func parseParamValue(paramType byte, paramValueBytes []byte) string {
+// parseParamValue takes the representation of the param type's definition and the
+// actual values in the buffer and populates the definition with the value parsed
+// from the byte buffer. It returns the resulting parameter and an indication of
+// how many bytes were read from the buffer
+func parseParamValue(definition *ditypes.Param, buffer []byte) (*ditypes.Param, int) {
+	// Start by creating a stack with each layer of the definition
+	// which will correspond with the layers of the values read from buffer.
+	// This is done using a temporary stack.
+	tempStack := newParamStack()
+	definitionStack := newParamStack()
+	tempStack.push(definition)
+	for !tempStack.isEmpty() {
+		current := tempStack.pop()
+		definitionStack.push(copyParam(current))
+		for i := 0; i < len(current.Fields); i++ {
+			tempStack.push(current.Fields[i])
+		}
+	}
+	var i int
+	valueStack := newParamStack()
+	for i = 0; i+3 < len(buffer); {
+		paramDefinition := definitionStack.pop()
+		if paramDefinition == nil {
+			break
+		}
+		if !isTypeWithHeader(paramDefinition.Kind) {
+			// This is a regular value (no sub-fields).
+			// We parse the value of it from the buffer and push it to the value stack
+			paramDefinition.ValueStr = parseIndividualValue(paramDefinition.Kind, buffer[i:i+int(paramDefinition.Size)])
+			i += int(paramDefinition.Size)
+			valueStack.push(paramDefinition)
+		} else if reflect.Kind(paramDefinition.Kind) == reflect.Pointer {
+			// Pointers are unique in that they have their own value, and sub-fields.
+			// We parse the value of it from the buffer, place it in the value for
+			// the pointer itself, then pop the next value and place it as a sub-field.
+			paramDefinition.ValueStr = parseIndividualValue(paramDefinition.Kind, buffer[i:i+int(paramDefinition.Size)])
+			i += int(paramDefinition.Size)
+			paramDefinition.Fields = append(paramDefinition.Fields, valueStack.pop())
+			valueStack.push(paramDefinition)
+		} else {
+			// This is a type with sub-fields which have already been parsed and push
+			// onto the value stack. We pop those and set them as fields in this type.
+			// We then push this type onto the value stack as it may also be a sub-field.
+			// In header types like this, paramDefinition.Size corresponds with the number of
+			// fields under it.
+			for n := 0; n < int(paramDefinition.Size); n++ {
+				paramDefinition.Fields = append([]*ditypes.Param{valueStack.pop()}, paramDefinition.Fields...)
+			}
+			valueStack.push(paramDefinition)
+		}
+	}
+	return valueStack.pop(), i
+}
 
+func copyParam(p *ditypes.Param) *ditypes.Param {
+	return &ditypes.Param{
+		Type: p.Type,
+		Kind: p.Kind,
+		Size: p.Size,
+	}
+}
+
+func parseKindToString(kind byte) string {
+	if kind == 255 {
+		return "Unsupported"
+	} else if kind == 254 {
+		return "reached field limit"
+	}
+
+	return reflect.Kind(kind).String()
+}
+
+// parseTypeDefinition is given a buffer which contains the header type definition
+// for basic/complex types, and the actual content of those types.
+// It returns a fully populated tree of `ditypes.Param` which will be used for parsing
+// the actual values
+func parseTypeDefinition(b []byte) *ditypes.Param {
+	stack := newParamStack()
+	i := 0
+	for {
+		if len(b) < 3 {
+			return nil
+		}
+		newParam := &ditypes.Param{
+			Kind: b[i],
+			Size: binary.LittleEndian.Uint16(b[i+1 : i+3]),
+			Type: parseKindToString(b[i]),
+		}
+		if newParam.Kind == 0 && newParam.Size == 0 {
+			break
+		}
+		i += 3
+		if isTypeWithHeader(newParam.Kind) {
+			stack.push(newParam)
+			continue
+		} else {
+		stackCheck:
+			if stack.isEmpty() {
+				return newParam
+			}
+			top := stack.peek()
+			top.Fields = append(top.Fields, newParam)
+			if len(top.Fields) == int(top.Size) ||
+				(reflect.Kind(top.Kind) == reflect.Pointer && len(top.Fields) == 1) {
+				newParam = stack.pop()
+				goto stackCheck
+			}
+		}
+	}
+	return nil
+}
+
+// countBufferUsedByTypeDefinition is used to determine that amount of bytes
+// that were used to read the type definition. Each individual element of the
+// definition uses 3 bytes (1 for kind, 2 for size). This is a needed calculation
+// so we know where we should read the actual values in the buffer.
+func countBufferUsedByTypeDefinition(root *ditypes.Param) int {
+	queue := []*ditypes.Param{root}
+	counter := 0
+	for len(queue) != 0 {
+		front := queue[0]
+		queue = queue[1:]
+		counter += 3
+		queue = append(queue, front.Fields...)
+	}
+	return counter
+}
+
+func isTypeWithHeader(pieceType byte) bool {
+	return reflect.Kind(pieceType) == reflect.Struct ||
+		reflect.Kind(pieceType) == reflect.Slice ||
+		reflect.Kind(pieceType) == reflect.Array ||
+		reflect.Kind(pieceType) == reflect.Pointer
+}
+
+func parseIndividualValue(paramType byte, paramValueBytes []byte) string {
 	switch reflect.Kind(paramType) {
 	case reflect.Uint8:
-		return fmt.Sprintf("%d", uint8(byteOrder.Uint16(paramValueBytes[0:8])))
+		return fmt.Sprintf("%d", uint8(paramValueBytes[0]))
 	case reflect.Int8:
-		return fmt.Sprintf("%d", int8(byteOrder.Uint16(paramValueBytes[0:8])))
+		return fmt.Sprintf("%d", int8(paramValueBytes[0]))
 	case reflect.Uint16:
 		return fmt.Sprintf("%d", byteOrder.Uint16(paramValueBytes))
 	case reflect.Int16:
@@ -188,14 +248,9 @@ func parseParamValue(paramType byte, paramValueBytes []byte) string {
 		} else {
 			return "false"
 		}
+	case ditypes.KindUnsupported:
+		return "UNSUPPORTED"
 	default:
-		return "<UNSUPPORTED>"
+		return ""
 	}
-}
-
-func isTypeWithHeader(pieceType byte) bool {
-	return reflect.Kind(pieceType) == reflect.Struct ||
-		reflect.Kind(pieceType) == reflect.Slice ||
-		reflect.Kind(pieceType) == reflect.Array ||
-		reflect.Kind(pieceType) == reflect.Pointer
 }

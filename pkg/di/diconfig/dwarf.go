@@ -9,19 +9,26 @@ import (
 	"reflect"
 	"slices"
 
-	"github.com/DataDog/datadog-agent/pkg/di/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/pkg/di/ditypes"
 	"github.com/go-delve/delve/pkg/dwarf/godwarf"
 )
- 
+
 func getTypeMap(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditypes.TypeMap, error) {
 	return loadFunctionDefinitions(dwarfData, targetFunctions)
 }
 
-var dwarfMap = make(map[string]*dwarf.Data, 0)
+var dwarfMap = make(map[string]*dwarf.Data)
+
+type seenTypeCounter struct {
+	parameter *ditypes.Parameter
+	count     uint8
+}
+
+var seenTypes = make(map[string]*seenTypeCounter)
 
 func loadFunctionDefinitions(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditypes.TypeMap, error) {
-
 	entryReader := dwarfData.Reader()
 	typeReader := dwarfData.Reader()
 	readingAFunction := false
@@ -139,17 +146,11 @@ entryLoop:
 					return nil, err
 				}
 
-				if typeEntry.Tag == dwarf.TagTypedef {
-					typeEntry, err = resolveTypedefToRealType(typeEntry, typeReader)
-					if err != nil {
-						return nil, err
-					}
-				}
-
 				typeFields, err = expandTypeData(typeEntry.Offset, dwarfData)
 				if err != nil {
 					return nil, fmt.Errorf("error while parsing debug information: %w", err)
 				}
+
 			}
 		}
 
@@ -157,6 +158,7 @@ entryLoop:
 
 		// We've collected information about this ditypes.Parameter, append it to the slice of ditypes.Parameters for this function
 		result.Functions[funcName] = append(result.Functions[funcName], *typeFields)
+		seenTypes = make(map[string]*seenTypeCounter) // reset seen types map for next parameter
 	}
 
 	// Sort program counter slice for lookup when resolving pcs->functions
@@ -196,6 +198,10 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data) (*ditypes.Parame
 		return nil, fmt.Errorf("could not get type entry: %w", err)
 	}
 
+	if !entryTypeIsSupported(typeEntry) {
+		return resolveUnsupportedEntry(typeEntry), nil
+	}
+
 	if typeEntry.Tag == dwarf.TagTypedef {
 		typeEntry, err = resolveTypedefToRealType(typeEntry, typeReader)
 		if err != nil {
@@ -210,7 +216,26 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data) (*ditypes.Parame
 		Kind:      typeKind,
 	}
 
-	if typeEntry.Tag == dwarf.TagStructType && typeName != "string" {
+	v, typeParsedAlready := seenTypes[typeHeader.Type]
+	if typeParsedAlready {
+		v.count++
+		if v.count >= ditypes.MaxReferenceDepth {
+			return v.parameter, nil
+		}
+	} else {
+		seenTypes[typeHeader.Type] = &seenTypeCounter{
+			parameter: &typeHeader,
+			count:     1,
+		}
+	}
+
+	if typeKind == uint(reflect.Slice) {
+		sliceElements, err := getSliceField(typeEntry.Offset, dwarfData)
+		if err != nil {
+			return nil, fmt.Errorf("could not collect fields of slice type: %w", err)
+		}
+		typeHeader = sliceElements[0]
+	} else if typeEntry.Tag == dwarf.TagStructType && typeName != "string" {
 		structFields, err := getStructFields(typeEntry.Offset, dwarfData)
 		if err != nil {
 			return nil, fmt.Errorf("could not collect fields of struct type of ditypes.Parameter: %w", err)
@@ -227,15 +252,56 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data) (*ditypes.Parame
 		if err != nil {
 			return nil, fmt.Errorf("could not find pointer type: %w", err)
 		}
-		typeHeader.Location.NeedsDereference = true
 		typeHeader.ParameterPieces = pointerElements
 	}
 
 	return &typeHeader, nil
 }
 
-func getIndividualArrayElements(offset dwarf.Offset, dwarfData *dwarf.Data) ([]ditypes.Parameter, error) {
+// getSliceField returns the representation of a slice as a []ditypes.Parameter. The returned
+// slice will have only one element.
+//
+// Slices are represented internally in go as a struct with 3 fields. The pointer to the
+// the underlying array, the array length, and the array capacity.
+func getSliceField(offset dwarf.Offset, dwarfData *dwarf.Data) ([]ditypes.Parameter, error) {
+	typeReader := dwarfData.Reader()
 
+	typeReader.Seek(offset)
+	typeEntry, err := typeReader.Next()
+	if err != nil {
+		return nil, fmt.Errorf("could not get slice type entry: %w", err)
+	}
+
+	elementTypeName, elementTypeSize, elementTypeKind := getTypeEntryBasicInfo(typeEntry)
+	sliceParameter := ditypes.Parameter{
+		Type:      elementTypeName,
+		TotalSize: elementTypeSize,
+		Kind:      elementTypeKind,
+	}
+
+	arrayEntry, err := typeReader.Next()
+	if err != nil {
+		return nil, fmt.Errorf("could not get slice type entry: %w", err)
+	}
+
+	for i := range arrayEntry.Field {
+		if arrayEntry.Field[i].Attr == dwarf.AttrType {
+			typeReader.Seek(arrayEntry.Field[i].Val.(dwarf.Offset))
+			typeEntry, err := typeReader.Next()
+			if err != nil {
+				return nil, err
+			}
+			underlyingType, err := expandTypeData(typeEntry.Offset, dwarfData)
+			if err != nil {
+				return nil, err
+			}
+			sliceParameter.ParameterPieces = append(sliceParameter.ParameterPieces, underlyingType.ParameterPieces[0])
+		}
+	}
+	return []ditypes.Parameter{sliceParameter}, nil
+}
+
+func getIndividualArrayElements(offset dwarf.Offset, dwarfData *dwarf.Data) ([]ditypes.Parameter, error) {
 	savedArrayEntryOffset := offset
 	typeReader := dwarfData.Reader()
 
@@ -245,17 +311,33 @@ func getIndividualArrayElements(offset dwarf.Offset, dwarfData *dwarf.Data) ([]d
 	if err != nil {
 		return nil, fmt.Errorf("could not get array type entry: %w", err)
 	}
-	arrayElementTypeEntry, err := resolveTypedefToRealType(typeEntry, typeReader)
-	if err != nil {
-		return nil, err
-	}
 
-	elementFields, err := expandTypeData(arrayElementTypeEntry.Offset, dwarfData)
+	var (
+		elementFields   *ditypes.Parameter
+		elementTypeName string
+		elementTypeSize int64
+		elementTypeKind uint
+	)
+	underlyingType, err := followType(typeEntry, dwarfData.Reader())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not get underlying array type's type entry: %w", err)
 	}
+	if !entryTypeIsSupported(underlyingType) {
+		elementFields = resolveUnsupportedEntry(underlyingType)
+		elementTypeName, elementTypeSize, elementTypeKind = getTypeEntryBasicInfo(underlyingType)
+	} else {
+		arrayElementTypeEntry, err := resolveTypedefToRealType(underlyingType, typeReader)
+		if err != nil {
+			return nil, err
+		}
 
-	elementTypeName, elementTypeSize, elementTypeKind := getTypeEntryBasicInfo(arrayElementTypeEntry)
+		elementFields, err = expandTypeData(arrayElementTypeEntry.Offset, dwarfData)
+		if err != nil {
+			return nil, err
+		}
+
+		elementTypeName, elementTypeSize, elementTypeKind = getTypeEntryBasicInfo(arrayElementTypeEntry)
+	}
 
 	// Return back to entry of array so we can  go to the subrange entry after the type, which gives
 	// us the length of the array
@@ -281,6 +363,7 @@ func getIndividualArrayElements(offset dwarf.Offset, dwarfData *dwarf.Data) ([]d
 		newParam := ditypes.Parameter{}
 		copyTree(&newParam.ParameterPieces, &elementFields.ParameterPieces)
 		newParam.Name = fmt.Sprintf("[%d]%s[%d]", arrayLength, elementTypeName, h)
+		newParam.Type = elementTypeName
 		newParam.Kind = elementTypeKind
 		newParam.TotalSize = elementTypeSize
 		arrayElements = append(arrayElements, newParam)
@@ -332,6 +415,12 @@ func getStructFields(offset dwarf.Offset, dwarfData *dwarf.Data) ([]ditypes.Para
 					return []ditypes.Parameter{}, err
 				}
 
+				if !entryTypeIsSupported(typeEntry) {
+					unsupportedType := resolveUnsupportedEntry(typeEntry)
+					structFields = append(structFields, *unsupportedType)
+					continue
+				}
+
 				if typeEntry.Tag == dwarf.TagTypedef {
 					typeEntry, err = resolveTypedefToRealType(typeEntry, typeReader)
 					if err != nil {
@@ -379,7 +468,9 @@ func getPointerLayers(offset dwarf.Offset, dwarfData *dwarf.Data) ([]ditypes.Par
 			}
 		}
 	}
-
+	if underlyingType == nil {
+		return []ditypes.Parameter{}, nil
+	}
 	return []ditypes.Parameter{*underlyingType}, nil
 }
 
@@ -392,11 +483,9 @@ func entryIsEmpty(e *dwarf.Entry) bool {
 }
 
 func getTypeEntryBasicInfo(typeEntry *dwarf.Entry) (typeName string, typeSize int64, typeKind uint) {
-
 	if typeEntry.Tag == dwarf.TagPointerType {
 		typeSize = 8 // On 64 bit, all pointers are 8 bytes
 	}
-
 	for i := range typeEntry.Field {
 		if typeEntry.Field[i].Attr == dwarf.AttrName {
 			typeName = typeEntry.Field[i].Val.(string)
@@ -406,33 +495,54 @@ func getTypeEntryBasicInfo(typeEntry *dwarf.Entry) (typeName string, typeSize in
 		}
 		if typeEntry.Field[i].Attr == godwarf.AttrGoKind {
 			typeKind = uint(typeEntry.Field[i].Val.(int64))
-
-			if typeEntry.Tag == dwarf.TagPointerType && typeKind == 0 {
-				typeKind = uint(reflect.Pointer) // Temporary fix for bug: https://github.com/golang/go/issues/64231
+			if typeKind == 0 {
+				// Temporary fix for bug: https://github.com/golang/go/issues/64231
+				switch typeEntry.Tag {
+				case dwarf.TagStructType:
+					typeKind = uint(reflect.Struct)
+				case dwarf.TagArrayType:
+					typeKind = uint(reflect.Array)
+				case dwarf.TagPointerType:
+					typeKind = uint(reflect.Pointer)
+				default:
+					log.Info("Unexpected AttrGoKind == 0 for", typeEntry.Tag)
+				}
 			}
 		}
 	}
 	return
 }
 
-func resolveTypedefToRealType(outerType *dwarf.Entry, reader *dwarf.Reader) (*dwarf.Entry, error) {
+func followType(outerType *dwarf.Entry, reader *dwarf.Reader) (*dwarf.Entry, error) {
 	for i := range outerType.Field {
 		if outerType.Field[i].Attr == dwarf.AttrType {
 			reader.Seek(outerType.Field[i].Val.(dwarf.Offset))
-			realTypeEntry, err := reader.Next()
+			nextType, err := reader.Next()
 			if err != nil {
 				return nil, fmt.Errorf("error while retrieving underlying type: %w", err)
 			}
-
-			if realTypeEntry.Tag == dwarf.TagTypedef {
-				realTypeEntry, err = resolveTypedefToRealType(realTypeEntry, reader)
-				if err != nil {
-					return nil, err
-				}
-			}
-
-			return realTypeEntry, nil
+			return nextType, nil
 		}
+	}
+	return outerType, nil
+}
+
+// resolveTypedefToRealType is used to get the underlying type of fields/variables/parameters when
+// go packages the type underneath a typdef DWARF entry. The typedef DWARF entry has a 'type' entry
+// which points to the actual type, which is what this funciton 'resolves'.
+// Typedef's are used in for structs, pointers, maps, and likely other types.
+func resolveTypedefToRealType(outerType *dwarf.Entry, reader *dwarf.Reader) (*dwarf.Entry, error) {
+
+	if outerType.Tag == dwarf.TagTypedef {
+		followedType, err := followType(outerType, reader)
+		if err != nil {
+			return nil, err
+		}
+
+		if followedType.Tag == dwarf.TagTypedef {
+			return resolveTypedefToRealType(followedType, reader)
+		}
+		return followedType, nil
 	}
 
 	return outerType, nil
@@ -449,26 +559,77 @@ func correctStructSize(param *ditypes.Parameter) {
 	if len(param.ParameterPieces) == 0 {
 		return
 	}
-
 	if param.Kind == uint(reflect.Struct) || param.Kind == uint(reflect.Array) {
 		param.TotalSize = int64(len(param.ParameterPieces))
 	}
-
 	for i := range param.ParameterPieces {
 		correctStructSize(&param.ParameterPieces[i])
 	}
 }
 
 func copyTree(dst, src *[]ditypes.Parameter) {
-
 	if dst == nil || src == nil || len(*src) == 0 {
 		return
 	}
-
 	*dst = make([]ditypes.Parameter, len(*src))
 	copy(*dst, *src)
-
 	for i := range *src {
 		copyTree(&((*dst)[i].ParameterPieces), &((*src)[i].ParameterPieces))
+	}
+}
+
+func kindIsSupported(k reflect.Kind) bool {
+	if k == reflect.Map ||
+		k == reflect.UnsafePointer ||
+		k == reflect.Chan {
+		return false
+	}
+	return true
+}
+
+func typeIsSupported(t string) bool {
+	return t != "unsafe.Pointer"
+}
+
+func entryTypeIsSupported(e *dwarf.Entry) bool {
+	for f := range e.Field {
+
+		if e.Field[f].Attr == godwarf.AttrGoKind {
+			kindOfTypeEntry := reflect.Kind(e.Field[f].Val.(int64))
+			if !kindIsSupported(kindOfTypeEntry) {
+				return false
+			}
+		}
+
+		if e.Field[f].Attr == dwarf.AttrName {
+			if !typeIsSupported(e.Field[f].Val.(string)) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func resolveUnsupportedEntry(e *dwarf.Entry) *ditypes.Parameter {
+	var (
+		kind uint
+		name string
+	)
+	for f := range e.Field {
+		if e.Field[f].Attr == godwarf.AttrGoKind {
+			kind = uint(e.Field[f].Val.(int64))
+		}
+		if e.Field[f].Attr == dwarf.AttrName {
+			name = e.Field[f].Val.(string)
+		}
+	}
+	if name == "unsafe.Pointer" {
+		// The DWARF entry for unsafe.Pointer doesn't have a `kind` field
+		kind = uint(reflect.UnsafePointer)
+	}
+	return &ditypes.Parameter{
+		Type:             fmt.Sprintf("unsupported-%s", reflect.Kind(kind).String()),
+		Kind:             kind,
+		NotCaptureReason: ditypes.Unsupported,
 	}
 }

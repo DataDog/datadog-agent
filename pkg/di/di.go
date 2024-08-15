@@ -26,8 +26,15 @@ type GoDI struct {
 }
 
 type GoDIStats struct {
-	PIDTriggerCount   map[uint32]uint64 // pid : count
-	ProbeTriggerCount map[string]uint64 // probeID : count
+	PIDEventsCreatedCount   map[uint32]uint64 // pid : count
+	ProbeEventsCreatedCount map[string]uint64 // probeID : count
+}
+
+func newGoDIStats() GoDIStats {
+	return GoDIStats{
+		PIDEventsCreatedCount:   make(map[uint32]uint64),
+		ProbeEventsCreatedCount: make(map[string]uint64),
+	}
 }
 
 type DIOptions struct {
@@ -59,9 +66,10 @@ func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 			return nil, fmt.Errorf("couldn't create new offline diagnostic serializer: %w", err)
 		}
 		goDI = &GoDI{
-			cm: cm,
-			lu: lu,
-			du: du,
+			cm:    cm,
+			lu:    lu,
+			du:    du,
+			stats: newGoDIStats(),
 		}
 	} else {
 		cm, err := diconfig.NewRCConfigManager()
@@ -69,9 +77,10 @@ func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 			return nil, fmt.Errorf("couldn't create new RC config manager: %w", err)
 		}
 		goDI = &GoDI{
-			cm: cm,
-			lu: uploader.NewLogUploader(),
-			du: uploader.NewDiagnosticUploader(),
+			cm:    cm,
+			lu:    uploader.NewLogUploader(),
+			du:    uploader.NewDiagnosticUploader(),
+			stats: newGoDIStats(),
 		}
 	}
 	if opts.EventCallback != nil {

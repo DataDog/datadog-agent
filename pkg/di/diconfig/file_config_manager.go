@@ -198,16 +198,16 @@ func convert(service string, configsByID map[ditypes.ProbeID]rcConfig) map[dityp
 
 func (rc *rcConfig) toProbe(service string) *ditypes.Probe {
 	return &ditypes.Probe{
-		ID:                  rc.ID,
-		ServiceName:         service,
-		FuncName:            fmt.Sprintf("%s.%s", rc.Where.TypeName, rc.Where.MethodName),
-		InstrumentationInfo: &ditypes.InstrumentationInfo{InstrumentationOptions: defaultInstrumentationOptions()},
-	}
-}
-
-func defaultInstrumentationOptions() *ditypes.InstrumentationOptions {
-	return &ditypes.InstrumentationOptions{
-		ArgumentsMaxSize: ditypes.ArgumentsMaxSize,
-		StringMaxSize:    ditypes.StringMaxSize,
+		ID:          rc.ID,
+		ServiceName: service,
+		FuncName:    fmt.Sprintf("%s.%s", rc.Where.TypeName, rc.Where.MethodName),
+		InstrumentationInfo: &ditypes.InstrumentationInfo{
+			InstrumentationOptions: &ditypes.InstrumentationOptions{
+				CaptureParameters: ditypes.CaptureParameters,
+				ArgumentsMaxSize:  ditypes.ArgumentsMaxSize,
+				StringMaxSize:     ditypes.StringMaxSize,
+				MaxReferenceDepth: rc.Capture.MaxReferenceDepth,
+			},
+		},
 	}
 }

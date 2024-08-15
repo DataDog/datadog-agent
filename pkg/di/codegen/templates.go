@@ -10,23 +10,14 @@ var programTemplateText = `
 #define MAX_STRING_SIZE {{.Probe.InstrumentationInfo.InstrumentationOptions.StringMaxSize}}
 #define PARAM_BUFFER_SIZE {{.Probe.InstrumentationInfo.InstrumentationOptions.ArgumentsMaxSize}}
 #define STACK_DEPTH_LIMIT 10
+#define MAX_SLICE_SIZE 1800
+#define MAX_SLICE_LENGTH 20
 
 struct bpf_map_def SEC("maps") zeroval = {
     .type        = BPF_MAP_TYPE_ARRAY,
     .key_size    = sizeof(u32),
     .value_size  = sizeof(char[PARAM_BUFFER_SIZE]),
     .max_entries = 1,
-};
-
-// Hash map where k = TID, v = goroutine ID
-// used to retrieve goroutine ids for triggered
-// events by setting the goroutine ID from
-// instrumenting runtime.execute
-struct bpf_map_def SEC("maps") tgs = {
-    .type        = BPF_MAP_TYPE_HASH,
-    .key_size    = sizeof(u32),
-    .value_size  = sizeof(u64),
-    .max_entries = 1<<16,
 };
 
 // NOTE: Be careful when adding fields, alignment should always be to 8 bytes
@@ -99,10 +90,12 @@ int {{.Probe.GetBPFFuncName}}(struct pt_regs *ctx)
     // Collect parameters
     __u8 param_type;
     __u16 param_size;
+    __u16 slice_length;
 
     int outputOffset = 0;
 
     {{ .PopulatedParameterText }}
+
     bpf_ringbuf_submit(event, 0);
 
     return 0;
@@ -111,168 +104,196 @@ int {{.Probe.GetBPFFuncName}}(struct pt_regs *ctx)
 char __license[] SEC("license") = "GPL";
 `
 
-var sliceRegisterTemplateText = ``
-var slicePointerRegisterTemplateText = ``
+var forcedVerifierErrorTemplate = `
+int illegalDereference = *(*(*ctx->regs[0]));
+`
 
-var sliceStackTemplateText = ``
-var slicePointerStackTemplateText = ``
+var headerTemplateText = `
+// Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
+// Write the kind and size to output buffer
+param_type = {{.Kind}};
+bpf_probe_read(&event->output[outputOffset], 1, &param_type);
+param_size = {{.TotalSize}};
+bpf_probe_read(&event->output[outputOffset+1], 2, &param_size);
+outputOffset += 3;
+`
+
+// The length of slices aren't known until parsing, so they require
+// special headers to read in the length dynamically
+var sliceRegisterHeaderTemplateText = `
+// Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
+// Write the slice kind to output buffer
+param_type = {{.Parameter.Kind}};
+bpf_probe_read(&event->output[outputOffset], 1, &param_type);
+// Read slice length and write it to output buffer
+bpf_probe_read(&param_size, 8, &ctx->regs[{{.Parameter.Location.Register}}+1]);
+bpf_probe_read(&event->output[outputOffset+1], 2, &param_size);
+outputOffset += 3;
+
+slice_length = param_size;
+
+for (i = 0; i < MAX_SLICE_LENGTH; i++) {
+    if (i >= slice_length) {
+        break;
+    }
+    {{.SliceTypeHeaderText}}
+}
+`
+
+// The length of slices aren't known until parsing, so they require
+// special headers to read in the length dynamically
+var sliceStackHeaderTemplateText = `
+// Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
+// Write the slice kind to output buffer
+param_type = {{.Parameter.Kind}};
+bpf_probe_read(&event->output[outputOffset], 1, &param_type);
+// Read slice length and write it to output buffer
+bpf_probe_read(&param_size, 8, &ctx->regs[29]+{{.Location.StackOffset}}+8]);
+bpf_probe_read(&event->output[outputOffset+1], 2, &param_size);
+outputOffset += 3;
+
+slice_length = param_size;
+if (slice_length > MAX_SLICE_LENGTH) {
+    slice_length = MAX_SLICE_LENGTH;
+}
+
+for (i = 0; i < slice_length; i++) {
+    {{.SliceTypeHeaderText}}
+}
+`
+
+// The length of strings aren't known until parsing, so they require
+// special headers to read in the length dynamically
+var stringRegisterHeaderTemplateText = `
+// Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
+// Write the string kind to output buffer
+param_type = {{.Kind}};
+bpf_probe_read(&event->output[outputOffset], 1, &param_type);
+
+// Read string length and write it to output buffer
+bpf_probe_read(&param_size, 8, &ctx->regs[{{.Location.Register}}+1]);
+
+// Limit string length
+__u16 string_size_{{.ID}} = param_size;
+if (string_size_{{.ID}} > MAX_STRING_SIZE) {
+    string_size_{{.ID}} = MAX_STRING_SIZE;
+}
+bpf_probe_read(&event->output[outputOffset+1], 2, &string_size_{{.ID}});
+outputOffset += 3;
+`
+
+// The length of strings aren't known until parsing, so they require
+// special headers to read in the length dynamically
+var stringStackHeaderTemplateText = `
+// Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
+// Write the string kind to output buffer
+param_type = {{.Kind}};
+bpf_probe_read(&event->output[outputOffset], 1, &param_type);
+// Read string length and write it to output buffer
+bpf_probe_read(&param_size, 8, (char*)((ctx->regs[29])+{{.Location.StackOffset}}+8));
+// Limit string length
+__u16 string_size_{{.ID}} = param_size;
+if (string_size_{{.ID}} > MAX_STRING_SIZE) {
+    string_size_{{.ID}} = MAX_STRING_SIZE;
+}
+bpf_probe_read(&event->output[outputOffset+1], 2, &string_size_{{.ID}});
+outputOffset += 3;
+`
+
+var sliceRegisterTemplateText = `
+// Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
+// Read contents of slice
+bpf_probe_read(&event->output[outputOffset], MAX_SLICE_SIZE, (void*)ctx->regs[{{.Location.Register}}]);
+outputOffset += MAX_SLICE_SIZE;
+`
+
+var sliceStackTemplateText = `
+// Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
+// Read contents of slice
+bpf_probe_read(&event->output[outputOffset], MAX_SLICE_SIZE, (void*)(ctx->regs[29]+{{.Location.StackOffset}});
+outputOffset += MAX_SLICE_SIZE;`
 
 var stringRegisterTemplateText = `
-// Read the type
-param_type = {{.Kind}};
-bpf_probe_read(&event->output[outputOffset], 1, &param_type);
-
-// Read string length
+// Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
+// Read string length and write it to output buffer
 bpf_probe_read(&param_size, 8, &ctx->regs[{{.Location.Register}}+1]);
-bpf_probe_read(&event->output[outputOffset+1], 2, &param_size);
-outputOffset += 3;
 
-// Limit string length
-int string_size_{{.ID}} = param_size;
-if (string_size_{{.ID}} > MAX_STRING_SIZE) {
-    string_size_{{.ID}} = MAX_STRING_SIZE;
+__u16 string_size_read_{{.ID}} = param_size;
+if (string_size_read_{{.ID}} > MAX_STRING_SIZE) {
+    string_size_read_{{.ID}} = MAX_STRING_SIZE;
 }
 
-// Read Actual String
-bpf_probe_read(&event->output[outputOffset], string_size_{{.ID}}, (void*)ctx->regs[{{.Location.Register}}]);
-outputOffset += string_size_{{.ID}};
-`
-
-var stringPointerRegisterTemplateText = `
-// Read the type
-param_type = {{.Kind}};
-bpf_probe_read(&event->output[outputOffset], 1, &param_type);
-
-// Get string address
-void* locationOfStringStructure{{.ID}} = (void*)ctx->regs[{{.Location.Register}}];
-char* char_array_{{.ID}};
-
-// Read string length and address of array
-bpf_probe_read(&param_size, 8, locationOfStringStructure{{.ID}}+8);
-bpf_probe_read(&char_array_{{.ID}}, 8, locationOfStringStructure{{.ID}});
-
-bpf_probe_read(&event->output[outputOffset+1], 2, &param_size);
-outputOffset += 3;
-
-// Limit string length
-int string_size_{{.ID}} = param_size;
-if (string_size_{{.ID}} > MAX_STRING_SIZE) {
-    string_size_{{.ID}} = MAX_STRING_SIZE;
-}
-
-// Read actual string
-bpf_probe_read(&event->output[outputOffset], string_size_{{.ID}}, (char*)char_array_{{.ID}});
-outputOffset += string_size_{{.ID}};
-`
-
-var pointerRegisterTemplateText = `
-void *ptrTo{{.ID}};
-bpf_probe_read(&ptrTo{{.ID}}, 8, &ctx->regs[{{.Location.Register}}]);
-
-param_type = {{.Kind}};
-bpf_probe_read(&event->output[outputOffset], 1, &param_type);
-
-param_size = {{.TotalSize}};
-bpf_probe_read(&event->output[outputOffset+1], 2, &param_size);
-
-outputOffset += 3;
-{{ if and (ne .Kind 25) (ne .Kind 24) (ne .Kind 23) (ne .Kind 17)}}
-// Read the actual value of this type (Not a type header)
-bpf_probe_read(&event->output[outputOffset], {{.TotalSize}}, ptrTo{{.ID}}+{{.Location.PointerOffset}});
-outputOffset += {{.TotalSize}};
-{{ end }}
-`
-
-var normalValueRegisterTemplateText = `
-// Read the type
-param_type = {{.Kind}};
-bpf_probe_read(&event->output[outputOffset], 1, &param_type);
-
-// Read the length
-param_size = {{.TotalSize}};
-bpf_probe_read(&event->output[outputOffset+1], 2, &param_size);
-
-outputOffset += 3;
-
-{{ if and (ne .Kind 25) (ne .Kind 24) (ne .Kind 23) (ne .Kind 17)}}
-// Actual value (if not a type header)
-bpf_probe_read(&event->output[outputOffset], {{.TotalSize}}, &ctx->regs[{{.Location.Register}}]);
-outputOffset += {{.TotalSize}};
-{{ end }}
+// Read contents of string
+bpf_probe_read(&event->output[outputOffset], string_size_read_{{.ID}}, (void*)ctx->regs[{{.Location.Register}}]);
+outputOffset += string_size_read_{{.ID}};
 `
 
 var stringStackTemplateText = `
-// Read the type
-param_type = {{.Kind}};
-bpf_probe_read(&event->output[outputOffset], 1, &param_type);
-
+// Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
+// Read string length and write it to output buffer
 bpf_probe_read(&param_size, 8, (char*)((ctx->regs[29])+{{.Location.StackOffset}}+8));
-bpf_probe_read(&event->output[outputOffset+1], 2, &param_size);
-outputOffset += 3;
-
-int string_size_{{.Name}} = param_size;
-if (string_size_{{.Name}} > MAX_STRING_SIZE) {
-    string_size_{{.Name}} = MAX_STRING_SIZE;
+// Limit string length
+__u16 string_size_read_{{.ID}} = param_size;
+if (string_size_read_{{.ID}} > MAX_STRING_SIZE) {
+    string_size_read_{{.ID}} = MAX_STRING_SIZE;
 }
+// Read contents of string
 bpf_probe_read(&ret_addr, sizeof(__u64), (void*)(ctx->regs[29]+{{.Location.StackOffset}}));
-bpf_probe_read(&event->output[outputOffset], string_size_{{.Name}}, (void*)(ret_addr));
-outputOffset += string_size_{{.Name}};
+bpf_probe_read(&event->output[outputOffset], string_size_read_{{.ID}}, (void*)(ret_addr));
+outputOffset += string_size_read_{{.ID}};
 `
 
-var stringPointerStackTemplateText = `
-// Read the type
-param_type = {{.Kind}};
-bpf_probe_read(&event->output[outputOffset], 1, &param_type);
+var pointerRegisterTemplateText = `
+// Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
+// Read the pointer value (address of underlying value)
+void *ptrTo{{.ID}};
+bpf_probe_read(&ptrTo{{.ID}}, 8, &ctx->regs[{{.Location.Register}}]);
 
-void* locationOfStringStructure{{.ID}} = (char*)((ctx->regs[29])+{{.Location.StackOffset}}+8);
-char* char_array_{{.ID}};
+// Write the underlying value to output
+bpf_probe_read(&event->output[outputOffset], {{.TotalSize}}, ptrTo{{.ID}}+{{.Location.PointerOffset}});
+outputOffset += {{.TotalSize}};
 
-bpf_probe_read(&param_size, 8, locationOfStringStructure{{.ID}}+8);
-bpf_probe_read(&char_array_{{.ID}}, 8, locationOfStringStructure{{.ID}});
-
-bpf_probe_read(&event->output[outputOffset+1], 2, &param_size);
-outputOffset += 3;
-
-int string_size_{{.ID}} = param_size;
-if (string_size_{{.ID}} > MAX_STRING_SIZE) {
-    string_size_{{.ID}} = MAX_STRING_SIZE;
-}
-
-bpf_probe_read(&event->output[outputOffset], string_size_{{.ID}}, (char*)char_array_{{.ID}});
-outputOffset += string_size_{{.ID}};
+// Write the pointer address to output
+ptrTo{{.ID}} += {{.Location.PointerOffset}};
+bpf_probe_read(&event->output[outputOffset], 8, &ptrTo{{.ID}});
 `
 
 var pointerStackTemplateText = `
-// Read the type
-param_type = {{.Kind}};
-bpf_probe_read(&event->output[outputOffset], 1, &param_type);
-
-void *ptrTo{{.Name}};
+// Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
+// Read the pointer value (address of underlying value)
+void *ptrTo{{.ID}};
 bpf_probe_read(&ptrTo{{.Name}}, 8, (char*)((ctx->regs[29])+{{.Location.StackOffset}}+8));
 
-param_size = {{.TotalSize}};
-bpf_probe_read(&event->output[outputOffset+1], 2, &param_size);
-
-outputOffset += 3;
-{{ if and (ne .Kind 25) (ne .Kind 24) (ne .Kind 23) (ne .Kind 17)}}
-bpf_probe_read(&event->output[outputOffset], {{.TotalSize}}, ptrTo{{.Name}}+{{.Location.PointerOffset}});
+// Write the underlying value to output
+bpf_probe_read(&event->output[outputOffset], {{.TotalSize}}, ptrTo{{.ID}}+{{.Location.PointerOffset}});
 outputOffset += {{.TotalSize}};
-{{ end }}
+
+// Write the pointer address to output
+ptrTo{{.ID}} += {{.Location.PointerOffset}};
+bpf_probe_read(&event->output[outputOffset], 8, &ptrTo{{.ID}});
+`
+
+var normalValueRegisterTemplateText = `
+// Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
+bpf_probe_read(&event->output[outputOffset], {{.TotalSize}}, &ctx->regs[{{.Location.Register}}]);
+outputOffset += {{.TotalSize}};
 `
 
 var normalValueStackTemplateText = `
-// Read the type
-param_type = {{.Kind}};
-bpf_probe_read(&event->output[outputOffset], 1, &param_type);
-
-// Length
-param_size = {{.TotalSize}};
-bpf_probe_read(&event->output[outputOffset+1], 2, &param_size);
-
-outputOffset += 3;
-{{ if and (ne .Kind 25) (ne .Kind 24) (ne .Kind 23) (ne .Kind 17)}}
-// Actual value (if not a type header)
+// Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
+// Read value for {{.Name}}
 bpf_probe_read(&event->output[outputOffset], {{.TotalSize}}, (char*)((ctx->regs[29])+{{.Location.StackOffset}}));
 outputOffset += {{.TotalSize}};
-{{ end }}
+`
+
+// Unsupported types just get a single `255` value to signify as a placeholder
+// that an unsupported type goes here. Size is where we keep the actual type.
+var unsupportedTypeTemplateText = `
+// Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
+// No capture, unsupported type
+`
+
+var cutForFieldLimitTemplateText = `
+// Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
+// No capture, cut for field limit
 `

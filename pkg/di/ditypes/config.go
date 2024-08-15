@@ -17,8 +17,13 @@ import (
 const ConfigBPFProbeID = "config"
 
 var (
-	ArgumentsMaxSize = 10000
-	StringMaxSize    = 512
+	CaptureParameters       = true
+	ArgumentsMaxSize        = 10000
+	StringMaxSize           = 512
+	MaxReferenceDepth uint8 = 4
+	MaxFieldCount     int   = 20
+	SliceMaxSize            = 1800
+	SliceMaxLength          = 100
 )
 
 type ProbeID = string
@@ -181,11 +186,19 @@ type InstrumentationInfo struct {
 	BPFObjectFilePath string
 
 	ConfigurationHash string
+
+	// Toggle for whether or not the BPF object was rebuilt after changing parameters
+	AttemptedRebuild bool
 }
 
 type InstrumentationOptions struct {
-	ArgumentsMaxSize int
-	StringMaxSize    int
+	CaptureParameters bool
+	ArgumentsMaxSize  int
+	StringMaxSize     int
+	MaxReferenceDepth int
+	MaxFieldCount     int
+	SliceMaxSize      int
+	SliceMaxLength    int
 }
 
 // Probe represents a location in a GoProgram that can be instrumented

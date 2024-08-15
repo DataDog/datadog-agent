@@ -4,15 +4,16 @@ type DIEvent struct {
 	ProbeID  string
 	PID      uint32
 	UID      uint32
-	Argdata  []Param
+	Argdata  []*Param
 	StackPCs []byte
 }
 
 type Param struct {
 	ValueStr string `json:",omitempty"`
-	Kind     string
+	Type     string
 	Size     uint16
-	Fields   []Param `json:",omitempty"`
+	Kind     byte
+	Fields   []*Param `json:",omitempty"`
 }
 
 type StackFrame struct {
