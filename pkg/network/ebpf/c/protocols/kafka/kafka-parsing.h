@@ -486,7 +486,7 @@ static enum parser_level parser_state_to_level(kafka_response_state state)
     case KAFKA_PRODUCE_RESPONSE_NUM_PARTITIONS:
     case KAFKA_PRODUCE_RESPONSE_PARTITION_START:
     case KAFKA_PRODUCE_RESPONSE_PARTITION_ERROR_CODE_START:
-    case KAFKA_PRODUCE_RESPONSE_RECORD_ERRORS:
+    case KAFKA_PRODUCE_RESPONSE_PARTITION_RECORD_ERRORS:
     case KAFKA_PRODUCE_RESPONSE_PARTITION_END:
         return PARSER_LEVEL_PARTITION;
     case KAFKA_FETCH_RESPONSE_RECORD_BATCH_START:
@@ -588,6 +588,8 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
 
             response->partitions_count = number_of_partitions;
             response->state = KAFKA_PRODUCE_RESPONSE_PARTITION_START;
+            response->record_batches_num_bytes = 0;
+            response->record_batch_length = 0;
         }
 
     case KAFKA_FETCH_RESPONSE_START:
@@ -674,9 +676,10 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
     case KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_END:
     case KAFKA_FETCH_RESPONSE_PARTITION_TAGGED_FIELDS:
     case KAFKA_FETCH_RESPONSE_PARTITION_END:
+
     case KAFKA_PRODUCE_RESPONSE_PARTITION_START:
     case KAFKA_PRODUCE_RESPONSE_PARTITION_ERROR_CODE_START:
-    case KAFKA_PRODUCE_RESPONSE_RECORD_ERRORS:
+    case KAFKA_PRODUCE_RESPONSE_PARTITION_RECORD_ERRORS:
     case KAFKA_PRODUCE_RESPONSE_PARTITION_END:
         break;
     }
@@ -691,6 +694,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
         case KAFKA_PRODUCE_RESPONSE_NUM_TOPICS:
         case KAFKA_PRODUCE_RESPONSE_TOPIC_NAME_SIZE:
         case KAFKA_PRODUCE_RESPONSE_NUM_PARTITIONS:
+
         case KAFKA_FETCH_RESPONSE_START:
         case KAFKA_FETCH_RESPONSE_NUM_TOPICS:
         case KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE:
@@ -731,11 +735,11 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                 }
             }
 
-            response->state = KAFKA_PRODUCE_RESPONSE_RECORD_ERRORS;
+            response->state = KAFKA_PRODUCE_RESPONSE_PARTITION_RECORD_ERRORS;
             // fallthrough
             }
 
-        case KAFKA_PRODUCE_RESPONSE_RECORD_ERRORS:
+        case KAFKA_PRODUCE_RESPONSE_PARTITION_RECORD_ERRORS:
             if (api_version >= 8) {
                 s64 record_errors_count = 0;
                 ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &record_errors_count, first,
@@ -775,8 +779,8 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
 //                }
             }
 
-         response->state = KAFKA_PRODUCE_RESPONSE_PARTITION_END;
-         // fallthrough
+            response->state = KAFKA_PRODUCE_RESPONSE_PARTITION_END;
+            // fallthrough
 
         case KAFKA_PRODUCE_RESPONSE_PARTITION_END:
             if (offset > data_end) {
@@ -1158,7 +1162,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_record_ba
         case KAFKA_PRODUCE_RESPONSE_NUM_PARTITIONS:
         case KAFKA_PRODUCE_RESPONSE_PARTITION_START:
         case KAFKA_PRODUCE_RESPONSE_PARTITION_ERROR_CODE_START:
-        case KAFKA_PRODUCE_RESPONSE_RECORD_ERRORS:
+        case KAFKA_PRODUCE_RESPONSE_PARTITION_RECORD_ERRORS:
         case KAFKA_PRODUCE_RESPONSE_PARTITION_END:
             extra_debug("invalid state %d in record batches array parser", response->state);
             break;
