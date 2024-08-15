@@ -24,15 +24,25 @@ func TestConfig(t *testing.T) {
 			name:       "disabled by default",
 			configYaml: ``,
 			expectedConfig: rdnsQuerierConfig{
-				enabled:              false,
-				workers:              0,
-				chanSize:             0,
-				rateLimiterEnabled:   true,
-				rateLimitPerSec:      0,
-				cacheEnabled:         true,
-				cacheEntryTTL:        0,
-				cacheCleanInterval:   0,
-				cachePersistInterval: 0,
+				enabled:  false,
+				workers:  0,
+				chanSize: 0,
+				cache: cacheConfig{
+					enabled:         true,
+					entryTTL:        0,
+					cleanInterval:   0,
+					persistInterval: 0,
+					maxRetries:      -1,
+					maxSize:         0,
+				},
+				rateLimiter: rateLimiterConfig{
+					enabled:                true,
+					limitPerSec:            0,
+					limitThrottledPerSec:   0,
+					throttleErrorThreshold: 0,
+					recoveryIntervals:      0,
+					recoveryInterval:       0,
+				},
 			},
 		},
 		{
@@ -43,15 +53,25 @@ network_devices:
     reverse_dns_enrichment_enabled: true
 `,
 			expectedConfig: rdnsQuerierConfig{
-				enabled:              true,
-				workers:              defaultWorkers,
-				chanSize:             defaultChanSize,
-				rateLimiterEnabled:   true,
-				rateLimitPerSec:      defaultRateLimitPerSec,
-				cacheEnabled:         true,
-				cacheEntryTTL:        defaultCacheEntryTTL,
-				cacheCleanInterval:   defaultCacheCleanInterval,
-				cachePersistInterval: defaultCachePersistInterval,
+				enabled:  true,
+				workers:  defaultWorkers,
+				chanSize: defaultChanSize,
+				cache: cacheConfig{
+					enabled:         true,
+					entryTTL:        defaultCacheEntryTTL,
+					cleanInterval:   defaultCacheCleanInterval,
+					persistInterval: defaultCachePersistInterval,
+					maxRetries:      defaultCacheMaxRetries,
+					maxSize:         defaultCacheMaxSize,
+				},
+				rateLimiter: rateLimiterConfig{
+					enabled:                true,
+					limitPerSec:            defaultRateLimitPerSec,
+					limitThrottledPerSec:   defaultRateLimitThrottledPerSec,
+					throttleErrorThreshold: defaultRateLimitThrottleErrorThreshold,
+					recoveryIntervals:      defaultRateLimitRecoveryIntervals,
+					recoveryInterval:       defaultRateLimitRecoveryInterval,
+				},
 			},
 		},
 		{
@@ -63,25 +83,41 @@ network_devices:
 reverse_dns_enrichment:
   workers: 0
   chan_size: 0
-  rate_limiter:
-    enabled: true
-    limit_per_sec: 0
   cache:
     enabled: true
     entry_ttl: 0
     clean_interval: 0
     persist_interval: 0
+    max_retries: -1
+    max_size: 0
+  rate_limiter:
+    enabled: true
+    limit_per_sec: 0
+    limit_throttled_per_sec: 0
+    throttle_error_threshold: 0
+    recovery_intervals : 0
+    recovery_interval: 0
 `,
 			expectedConfig: rdnsQuerierConfig{
-				enabled:              true,
-				workers:              defaultWorkers,
-				chanSize:             defaultChanSize,
-				rateLimiterEnabled:   true,
-				rateLimitPerSec:      defaultRateLimitPerSec,
-				cacheEnabled:         true,
-				cacheEntryTTL:        defaultCacheEntryTTL,
-				cacheCleanInterval:   defaultCacheCleanInterval,
-				cachePersistInterval: defaultCachePersistInterval,
+				enabled:  true,
+				workers:  defaultWorkers,
+				chanSize: defaultChanSize,
+				cache: cacheConfig{
+					enabled:         true,
+					entryTTL:        defaultCacheEntryTTL,
+					cleanInterval:   defaultCacheCleanInterval,
+					persistInterval: defaultCachePersistInterval,
+					maxRetries:      defaultCacheMaxRetries,
+					maxSize:         defaultCacheMaxSize,
+				},
+				rateLimiter: rateLimiterConfig{
+					enabled:                true,
+					limitPerSec:            defaultRateLimitPerSec,
+					limitThrottledPerSec:   defaultRateLimitThrottledPerSec,
+					throttleErrorThreshold: defaultRateLimitThrottleErrorThreshold,
+					recoveryIntervals:      defaultRateLimitRecoveryIntervals,
+					recoveryInterval:       defaultRateLimitRecoveryInterval,
+				},
 			},
 		},
 		{
@@ -93,25 +129,41 @@ network_devices:
 reverse_dns_enrichment:
   workers: 25
   chan_size: 999
-  rate_limiter:
-    enabled: true
-    limit_per_sec: 111
   cache:
     enabled: true
     entry_ttl: 24h
     clean_interval: 30m
     persist_interval: 2h
+    max_retries: 1
+    max_size: 100_000
+  rate_limiter:
+    enabled: true
+    limit_per_sec: 111
+    limit_throttled_per_sec: 5
+    throttle_error_threshold: 11
+    recovery_intervals : 10
+    recovery_interval: 10s
 `,
 			expectedConfig: rdnsQuerierConfig{
-				enabled:              true,
-				workers:              25,
-				chanSize:             999,
-				rateLimiterEnabled:   true,
-				rateLimitPerSec:      111,
-				cacheEnabled:         true,
-				cacheEntryTTL:        24 * time.Hour,
-				cacheCleanInterval:   30 * time.Minute,
-				cachePersistInterval: 2 * time.Hour,
+				enabled:  true,
+				workers:  25,
+				chanSize: 999,
+				cache: cacheConfig{
+					enabled:         true,
+					entryTTL:        24 * time.Hour,
+					cleanInterval:   30 * time.Minute,
+					persistInterval: 2 * time.Hour,
+					maxRetries:      1,
+					maxSize:         100_000,
+				},
+				rateLimiter: rateLimiterConfig{
+					enabled:                true,
+					limitPerSec:            111,
+					limitThrottledPerSec:   5,
+					throttleErrorThreshold: 11,
+					recoveryIntervals:      10,
+					recoveryInterval:       10 * time.Second,
+				},
 			},
 		},
 		{
@@ -123,21 +175,31 @@ network_devices:
 reverse_dns_enrichment:
   workers: 25
   chan_size: 999
-  rate_limiter:
-    enabled: true
   cache:
+    enabled: true
+  rate_limiter:
     enabled: true
 `,
 			expectedConfig: rdnsQuerierConfig{
-				enabled:              true,
-				workers:              25,
-				chanSize:             999,
-				rateLimiterEnabled:   true,
-				rateLimitPerSec:      defaultRateLimitPerSec,
-				cacheEnabled:         true,
-				cacheEntryTTL:        defaultCacheEntryTTL,
-				cacheCleanInterval:   defaultCacheCleanInterval,
-				cachePersistInterval: defaultCachePersistInterval,
+				enabled:  true,
+				workers:  25,
+				chanSize: 999,
+				cache: cacheConfig{
+					enabled:         true,
+					entryTTL:        defaultCacheEntryTTL,
+					cleanInterval:   defaultCacheCleanInterval,
+					persistInterval: defaultCachePersistInterval,
+					maxRetries:      defaultCacheMaxRetries,
+					maxSize:         defaultCacheMaxSize,
+				},
+				rateLimiter: rateLimiterConfig{
+					enabled:                true,
+					limitPerSec:            defaultRateLimitPerSec,
+					limitThrottledPerSec:   defaultRateLimitThrottledPerSec,
+					throttleErrorThreshold: defaultRateLimitThrottleErrorThreshold,
+					recoveryIntervals:      defaultRateLimitRecoveryIntervals,
+					recoveryInterval:       defaultRateLimitRecoveryInterval,
+				},
 			},
 		},
 		{
@@ -149,21 +211,67 @@ network_devices:
 reverse_dns_enrichment:
   workers: 25
   chan_size: 999
-  rate_limiter:
-    enabled: false
   cache:
+    enabled: false
+  rate_limiter:
     enabled: false
 `,
 			expectedConfig: rdnsQuerierConfig{
-				enabled:              true,
-				workers:              25,
-				chanSize:             999,
-				rateLimiterEnabled:   false,
-				rateLimitPerSec:      0,
-				cacheEnabled:         false,
-				cacheEntryTTL:        0,
-				cacheCleanInterval:   0,
-				cachePersistInterval: 0,
+				enabled:  true,
+				workers:  25,
+				chanSize: 999,
+				cache: cacheConfig{
+					enabled:         false,
+					entryTTL:        0,
+					cleanInterval:   0,
+					persistInterval: 0,
+					maxRetries:      -1,
+					maxSize:         0,
+				},
+				rateLimiter: rateLimiterConfig{
+					enabled:                false,
+					limitPerSec:            0,
+					limitThrottledPerSec:   0,
+					throttleErrorThreshold: 0,
+					recoveryIntervals:      0,
+					recoveryInterval:       0,
+				},
+			},
+		},
+		{
+			name: "rate_limiter limit_throttled_per_sec > limit_per_sec",
+			configYaml: `
+network_devices:
+  netflow:
+    reverse_dns_enrichment_enabled: true
+reverse_dns_enrichment:
+  workers: 25
+  chan_size: 999
+  rate_limiter:
+    enabled: true
+    limit_per_sec: 50
+    limit_throttled_per_sec: 500
+`,
+			expectedConfig: rdnsQuerierConfig{
+				enabled:  true,
+				workers:  25,
+				chanSize: 999,
+				cache: cacheConfig{
+					enabled:         true,
+					entryTTL:        defaultCacheEntryTTL,
+					cleanInterval:   defaultCacheCleanInterval,
+					persistInterval: defaultCachePersistInterval,
+					maxRetries:      defaultCacheMaxRetries,
+					maxSize:         defaultCacheMaxSize,
+				},
+				rateLimiter: rateLimiterConfig{
+					enabled:                true,
+					limitPerSec:            50,
+					limitThrottledPerSec:   50,
+					throttleErrorThreshold: defaultRateLimitThrottleErrorThreshold,
+					recoveryIntervals:      defaultRateLimitRecoveryIntervals,
+					recoveryInterval:       defaultRateLimitRecoveryInterval,
+				},
 			},
 		},
 	}

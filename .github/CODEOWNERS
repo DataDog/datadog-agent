@@ -252,7 +252,6 @@
 /comp/core @DataDog/agent-shared-components
 /comp/dogstatsd @DataDog/agent-metrics-logs
 /comp/forwarder @DataDog/agent-processing-and-routing
-/comp/languagedetection @DataDog/container-platform
 /comp/logs @DataDog/agent-metrics-logs
 /comp/metadata @DataDog/agent-shared-components
 /comp/ndmtmp @DataDog/network-device-monitoring
@@ -280,6 +279,7 @@
 /comp/trace/etwtracer @DataDog/windows-agent
 /comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/etw @DataDog/windows-agent
+/comp/languagedetection/client @DataDog/container-platform
 /comp/rdnsquerier @DataDog/network-device-monitoring
 /comp/serializer/compression @DataDog/agent-metrics-logs
 # END COMPONENTS
@@ -592,6 +592,7 @@
 /test/new-e2e/tests/npm                       @DataDog/Networks
 /test/new-e2e/tests/npm/ec2_1host_wkit_test.go @DataDog/Networks @DataDog/windows-kernel-integrations
 /test/new-e2e/tests/orchestrator              @DataDog/container-app
+/test/new-e2e/tests/otel                      @DataDog/opentelemetry
 /test/new-e2e/tests/process                   @DataDog/processes
 /test/new-e2e/tests/sysprobe-functional     @DataDog/windows-kernel-integrations
 /test/new-e2e/tests/security-agent-functional     @DataDog/windows-kernel-integrations

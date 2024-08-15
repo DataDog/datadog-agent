@@ -218,7 +218,6 @@ func (s *TracerSuite) TestTCPShortLived() {
 	t := s.T()
 	// Enable BPF-based system probe
 	cfg := testConfig()
-	cfg.TCPClosedTimeout = 10 * time.Millisecond
 	tr := setupTracer(t, cfg)
 
 	// Create TCP Server which sends back serverMessageSize bytes
@@ -1050,7 +1049,6 @@ func (s *TracerSuite) TestTCPEstablished() {
 	t := s.T()
 	// Ensure closed connections are flushed as soon as possible
 	cfg := testConfig()
-	cfg.TCPClosedTimeout = 500 * time.Millisecond
 
 	tr := setupTracer(t, cfg)
 
@@ -1075,11 +1073,14 @@ func (s *TracerSuite) TestTCPEstablished() {
 	assert.Equal(t, uint32(0), conn.Last.TCPClosed)
 
 	c.Close()
-	// Wait for the connection to be sent from the perf buffer
-	time.Sleep(cfg.TCPClosedTimeout)
 
-	connections = getConnections(t, tr)
-	conn, ok = findConnection(laddr, raddr, connections)
+	// Wait for the connection to be sent from the perf buffer
+	require.Eventually(t, func() bool {
+		var ok bool
+		conn, ok = findConnection(laddr, raddr, getConnections(t, tr))
+		return ok
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection")
+
 	require.True(t, ok)
 	assert.Equal(t, uint32(0), conn.Last.TCPEstablished)
 	assert.Equal(t, uint32(1), conn.Last.TCPClosed)
@@ -1100,18 +1101,20 @@ func (s *TracerSuite) TestTCPEstablishedPreExistingConn() {
 
 	// Ensure closed connections are flushed as soon as possible
 	cfg := testConfig()
-	cfg.TCPClosedTimeout = 500 * time.Millisecond
 
 	tr := setupTracer(t, cfg)
 
 	c.Write([]byte("hello"))
 	c.Close()
-	// Wait for the connection to be sent from the perf buffer
-	time.Sleep(cfg.TCPClosedTimeout)
-	connections := getConnections(t, tr)
-	conn, ok := findConnection(laddr, raddr, connections)
 
-	require.True(t, ok)
+	// Wait for the connection to be sent from the perf buffer
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		var ok bool
+		conn, ok = findConnection(laddr, raddr, getConnections(t, tr))
+		return ok
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection")
+
 	m := conn.Monotonic
 	assert.Equal(t, uint32(0), m.TCPEstablished)
 	assert.Equal(t, uint32(1), m.TCPClosed)

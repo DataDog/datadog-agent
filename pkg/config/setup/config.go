@@ -535,6 +535,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("ecs_collect_resource_tags_ec2", false)
 	config.BindEnvAndSetDefault("ecs_resource_tags_replace_colon", false)
 	config.BindEnvAndSetDefault("ecs_metadata_timeout", 500) // value in milliseconds
+	config.BindEnvAndSetDefault("ecs_metadata_retry_initial_interval", 100*time.Millisecond)
+	config.BindEnvAndSetDefault("ecs_metadata_retry_max_elapsed_time", 3000*time.Millisecond)
+	config.BindEnvAndSetDefault("ecs_metadata_retry_timeout_factor", 3)
 	config.BindEnvAndSetDefault("ecs_task_collection_enabled", false)
 	config.BindEnvAndSetDefault("ecs_task_cache_ttl", 3*time.Minute)
 	config.BindEnvAndSetDefault("ecs_task_collection_rate", 35)
@@ -816,7 +819,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
 
 	// Service discovery configuration
-	config.BindEnvAndSetDefault("service_discovery.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "service_discovery.forwarder.")
 
 	// Orchestrator Explorer - process agent
@@ -961,11 +963,17 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.SetKnown("reverse_dns_enrichment.workers")
 	config.SetKnown("reverse_dns_enrichment.chan_size")
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.enabled", true)
-	config.SetKnown("reverse_dns_enrichment.rate_limiter.limit_per_sec")
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.enabled", true)
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.entry_ttl", time.Duration(0))
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.clean_interval", time.Duration(0))
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.persist_interval", time.Duration(0))
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.max_retries", -1)
+	config.SetKnown("reverse_dns_enrichment.cache.max_size")
+	config.SetKnown("reverse_dns_enrichment.rate_limiter.limit_per_sec")
+	config.SetKnown("reverse_dns_enrichment.rate_limiter.limit_throttled_per_sec")
+	config.SetKnown("reverse_dns_enrichment.rate_limiter.throttle_error_threshold")
+	config.SetKnown("reverse_dns_enrichment.rate_limiter.recovery_intervals")
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.recovery_interval", time.Duration(0))
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -2496,4 +2504,13 @@ func GetRemoteConfigurationAllowedIntegrations(cfg pkgconfigmodel.Reader) map[st
 	}
 
 	return allowMap
+}
+
+// IsAgentTelemetryEnabled returns true if Agent Telemetry ise enabled
+func IsAgentTelemetryEnabled(cfg pkgconfigmodel.Reader) bool {
+	// Disable Agent Telemetry for GovCloud
+	if cfg.GetBool("fips.enabled") || cfg.GetString("site") == "ddog-gov.com" {
+		return false
+	}
+	return cfg.GetBool("agent_telemetry.enabled")
 }

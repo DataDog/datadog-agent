@@ -157,10 +157,6 @@ type Config struct {
 	// tcp_close is not intercepted for some reason.
 	TCPConnTimeout time.Duration
 
-	// TCPClosedTimeout represents the maximum amount of time a closed TCP connection can remain buffered in eBPF before
-	// being marked as idle and flushed to the perf ring.
-	TCPClosedTimeout time.Duration
-
 	// MaxTrackedConnections specifies the maximum number of connections we can track. This determines the size of the eBPF Maps
 	MaxTrackedConnections uint32
 
@@ -336,7 +332,6 @@ func New() *Config {
 		CollectTCPv4Conns: cfg.GetBool(join(netNS, "collect_tcp_v4")),
 		CollectTCPv6Conns: cfg.GetBool(join(netNS, "collect_tcp_v6")),
 		TCPConnTimeout:    2 * time.Minute,
-		TCPClosedTimeout:  1 * time.Second,
 
 		CollectUDPv4Conns: cfg.GetBool(join(netNS, "collect_udp_v4")),
 		CollectUDPv6Conns: cfg.GetBool(join(netNS, "collect_udp_v6")),
