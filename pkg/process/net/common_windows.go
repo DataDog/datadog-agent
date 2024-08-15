@@ -28,7 +28,13 @@ const (
 	procStatsURL = "http://localhost:3333/" + string(sysconfig.ProcessModule) + "stats"
 	// pingURL is not used in windows, the value is added to avoid compilation error in windows
 	pingURL = "http://localhost:3333/" + string(sysconfig.PingModule) + "/ping/"
+
+	// SystemProbeProductionPipeName is the production named pipe for system-probe
+	SystemProbeProductionPipeName = `\\.\pipe\dd_system_probe`
 )
+
+// SystemProbePipeName is the effective named pipe path for system-probe
+var SystemProbePipeName = SystemProbeProductionPipeName
 
 // CheckPath is used to make sure the globalSocketPath has been set before attempting to connect
 func CheckPath(path string) error {

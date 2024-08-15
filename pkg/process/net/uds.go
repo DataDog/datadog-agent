@@ -22,8 +22,8 @@ type UDSListener struct {
 	socketPath string
 }
 
-// NewListener returns an idle UDSListener
-func NewListener(socketAddr string) (*UDSListener, error) {
+// NewSystemProbeListener returns an idle UDSListener
+func NewSystemProbeListener(socketAddr string) (*UDSListener, error) {
 	if len(socketAddr) == 0 {
 		return nil, fmt.Errorf("uds: empty socket path provided")
 	}

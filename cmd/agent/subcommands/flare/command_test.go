@@ -31,6 +31,7 @@ type commandTestSuite struct {
 	sysprobeSocketPath string
 	tcpServer          *httptest.Server
 	unixServer         *httptest.Server
+	systemProbeServer  *httptest.Server
 }
 
 func (c *commandTestSuite) SetupSuite() {
@@ -44,11 +45,13 @@ func (c *commandTestSuite) TearDownSuite() {
 	if c.unixServer != nil {
 		c.unixServer.Close()
 	}
+	if c.systemProbeServer != nil {
+		c.systemProbeServer.Close()
+	}
 }
 
-func (c *commandTestSuite) getPprofTestServer() (tcpServer *httptest.Server, unixServer *httptest.Server) {
-	t := c.T()
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func newMockHandler() http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/debug/pprof/heap":
 			w.Write([]byte("heap_profile"))
@@ -67,7 +70,12 @@ func (c *commandTestSuite) getPprofTestServer() (tcpServer *httptest.Server, uni
 			w.WriteHeader(500)
 		}
 	})
+}
 
+func (c *commandTestSuite) getPprofTestServer() (tcpServer *httptest.Server, unixServer *httptest.Server) {
+	t := c.T()
+
+	handler := newMockHandler()
 	tcpServer = httptest.NewServer(handler)
 	if runtime.GOOS == "linux" {
 		unixServer = httptest.NewUnstartedServer(handler)
@@ -80,12 +88,33 @@ func (c *commandTestSuite) getPprofTestServer() (tcpServer *httptest.Server, uni
 	return tcpServer, unixServer
 }
 
+func (c *commandTestSuite) restartSystemProbeTestServer() {
+	t := c.T()
+
+	if runtime.GOOS == "windows" {
+		// In Windows, the http server caches responses from prior test runs.
+		// This prevents simulating connection failures.
+		// Thus on every test run, we need to recreate the http server.
+		if c.systemProbeServer != nil {
+			c.systemProbeServer.Close()
+			c.systemProbeServer = nil
+		}
+
+		var err error
+		c.systemProbeServer, err = NewSystemProbeTestServer(newMockHandler())
+		require.NoError(t, err, "could not create listener for system probe")
+		c.systemProbeServer.Start()
+	}
+}
+
 func TestCommandTestSuite(t *testing.T) {
 	suite.Run(t, &commandTestSuite{})
 }
 
 func (c *commandTestSuite) TestReadProfileData() {
 	t := c.T()
+	c.restartSystemProbeTestServer()
+
 	u, err := url.Parse(c.tcpServer.URL)
 	require.NoError(t, err)
 	port := u.Port()
@@ -154,6 +183,8 @@ func (c *commandTestSuite) TestReadProfileData() {
 
 func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 	t := c.T()
+	c.restartSystemProbeTestServer()
+
 	u, err := url.Parse(c.tcpServer.URL)
 	require.NoError(t, err)
 	port := u.Port()
@@ -217,6 +248,8 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 
 func (c *commandTestSuite) TestReadProfileDataErrors() {
 	t := c.T()
+	c.restartSystemProbeTestServer()
+
 	mockConfig := configmock.New(t)
 	// setting Core Agent Expvar port to 0 to ensure failing on fetch (using the default value can lead to
 	// successful request when running next to an Agent)
@@ -226,9 +259,22 @@ func (c *commandTestSuite) TestReadProfileDataErrors() {
 	mockConfig.SetWithoutSource("process_config.enabled", true)
 	mockConfig.SetWithoutSource("process_config.expvar_port", 0)
 
+	mockSysProbeConfig := configmock.NewSystemProbe(t)
+	InjectConnectionFailures(mockSysProbeConfig, mockConfig)
+
 	data, err := readProfileData(10)
+
+	ClearConnectionFailures(mockSysProbeConfig, mockConfig)
+
 	require.Error(t, err)
-	require.Regexp(t, "^4 errors occurred:\n", err.Error())
+
+	if runtime.GOOS == "windows" {
+		// Windows has the security agent.
+		require.Regexp(t, "^5 errors occurred:\n", err.Error())
+	} else {
+		require.Regexp(t, "^4 errors occurred:\n", err.Error())
+	}
+
 	require.Len(t, data, 0)
 }
 

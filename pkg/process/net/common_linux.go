@@ -9,6 +9,7 @@ package net
 
 import (
 	"fmt"
+	"net"
 	"os"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -38,4 +39,9 @@ func CheckPath(path string) error {
 		return fmt.Errorf("socket path does not exist: %v", err)
 	}
 	return nil
+}
+
+// DialSystemProbe connects to the system-probe service endpoint
+func DialSystemProbe(netType string, path string) (net.Conn, error) {
+	return net.Dial(netType, path)
 }
