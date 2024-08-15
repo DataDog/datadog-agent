@@ -295,6 +295,9 @@ func (v *apmvmSuite) TestUSMAutoTaggingSuite() {
 	testExe := path.Join("c:", "users", "administrator", "littleget.exe")
 	vm.CopyFile("usmtest/littleget.exe", testExe)
 
+	pipeExe := path.Join("c:", "users", "administrator", "NamedPipeCmd.exe")
+	vm.CopyFile("usmtest/NamedPipeCmd.exe", pipeExe)
+
 	pscommand := "%s -TargetHost localhost -TargetPort %s -TargetPath %s -ExpectedClientTags %s -ExpectedServerTags %s -ConnExe %s"
 
 	for _, test := range usmTaggingTests {

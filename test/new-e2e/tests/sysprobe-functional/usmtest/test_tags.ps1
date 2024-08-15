@@ -30,7 +30,11 @@ function make-connectionrequest {
 }
 
 function get-connectionsendpoint {
-    $payload = ((iwr -UseBasicParsing -DisableKeepAlive http://localhost:3333/network_tracer/connections).content | ConvertFrom-Json)
+    $payload = (.\NamedPipeCmd.exe -method GET -path /network_tracer/connections -quiet) | convertfrom-json
+    if (! $?){
+        Write-Host -ForegroundColor Red "Failed to get connection list"
+        exit 1
+    }
     return $payload
 }
 
