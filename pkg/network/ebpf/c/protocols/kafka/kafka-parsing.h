@@ -480,6 +480,14 @@ static enum parser_level parser_state_to_level(kafka_response_state state)
     case KAFKA_FETCH_RESPONSE_PARTITION_ERROR_CODE_START:
     case KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS:
     case KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_START:
+    case KAFKA_PRODUCE_RESPONSE_START:
+    case KAFKA_PRODUCE_RESPONSE_NUM_TOPICS:
+    case KAFKA_PRODUCE_RESPONSE_TOPIC_NAME_SIZE:
+    case KAFKA_PRODUCE_RESPONSE_NUM_PARTITIONS:
+    case KAFKA_PRODUCE_RESPONSE_PARTITION_START:
+    case KAFKA_PRODUCE_RESPONSE_PARTITION_ERROR_CODE_START:
+    case KAFKA_PRODUCE_RESPONSE_RECORD_ERRORS:
+    case KAFKA_PRODUCE_RESPONSE_PARTITION_END:
         return PARSER_LEVEL_PARTITION;
     case KAFKA_FETCH_RESPONSE_RECORD_BATCH_START:
     case KAFKA_FETCH_RESPONSE_RECORD_BATCH_LENGTH:
@@ -666,6 +674,10 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
     case KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_END:
     case KAFKA_FETCH_RESPONSE_PARTITION_TAGGED_FIELDS:
     case KAFKA_FETCH_RESPONSE_PARTITION_END:
+    case KAFKA_PRODUCE_RESPONSE_PARTITION_START:
+    case KAFKA_PRODUCE_RESPONSE_PARTITION_ERROR_CODE_START:
+    case KAFKA_PRODUCE_RESPONSE_RECORD_ERRORS:
+    case KAFKA_PRODUCE_RESPONSE_PARTITION_END:
         break;
     }
 
@@ -716,16 +728,55 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
 
                 if (api_version >= 5) {
                     offset += sizeof(s64); // Skip log_start_offset
-
-                        if (api_version >= 8) {
-                            // TODO
-                        }
                 }
             }
 
-            response->state = KAFKA_PRODUCE_RESPONSE_PARTITION_END_TODO;
+            response->state = KAFKA_PRODUCE_RESPONSE_RECORD_ERRORS;
             // fallthrough
             }
+
+        case KAFKA_PRODUCE_RESPONSE_RECORD_ERRORS:
+            if (api_version >= 8) {
+                s64 record_errors_count = 0;
+                ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &record_errors_count, first,
+                                         VARINT_BYTES_NUM_ABORTED_TRANSACTIONS);
+                if (ret != RET_DONE) {
+                    return ret;
+                }
+
+                extra_debug("record_errors_count: %lld", record_errors_count);
+
+                if (record_errors_count < 0) {
+                    return RET_ERR;
+                }
+                // If we interpret some junk data as a packet with a huge record_errors_count,
+                // we could end up missing up a lot of future response processing since we
+                // would wait for the end of the record_errors_count list. So add a limit
+                // as a heuristic.
+                if (record_errors_count >= KAFKA_MAX_ABORTED_TRANSACTIONS) {
+                    extra_debug("Possibly invalid record_errors_count %lld", record_errors_count);
+                    return RET_ERR;
+                }
+
+                // TODO: Handle batch_index and batch_index_error_message
+//                // producer_id and first_offset in each aborted transaction
+//                u32 transaction_size = sizeof(s64) * 2;
+//
+//                if (flexible) {
+//                    // Assume zero tagged fields.  It's a bit involved to verify that they are
+//                    // zero here so we don't do it for now.
+//                    transaction_size += sizeof(u8);
+//                }
+//
+//                offset += transaction_size * aborted_transactions;
+//
+//                if (api_version >= 11) {
+//                    offset += sizeof(s32); // preferred_read_replica
+//                }
+            }
+
+         response->state = KAFKA_PRODUCE_RESPONSE_PARTITION_END;
+         // fallthrough
 
         case KAFKA_PRODUCE_RESPONSE_PARTITION_END:
             if (offset > data_end) {
@@ -1099,6 +1150,16 @@ static __always_inline enum parse_result kafka_continue_parse_response_record_ba
         case KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_START:
         case KAFKA_FETCH_RESPONSE_PARTITION_TAGGED_FIELDS:
         case KAFKA_FETCH_RESPONSE_PARTITION_END:
+            extra_debug("invalid state %d in record batches array parser", response->state);
+            break;
+        case KAFKA_PRODUCE_RESPONSE_START:
+        case KAFKA_PRODUCE_RESPONSE_NUM_TOPICS:
+        case KAFKA_PRODUCE_RESPONSE_TOPIC_NAME_SIZE:
+        case KAFKA_PRODUCE_RESPONSE_NUM_PARTITIONS:
+        case KAFKA_PRODUCE_RESPONSE_PARTITION_START:
+        case KAFKA_PRODUCE_RESPONSE_PARTITION_ERROR_CODE_START:
+        case KAFKA_PRODUCE_RESPONSE_RECORD_ERRORS:
+        case KAFKA_PRODUCE_RESPONSE_PARTITION_END:
             extra_debug("invalid state %d in record batches array parser", response->state);
             break;
         }
