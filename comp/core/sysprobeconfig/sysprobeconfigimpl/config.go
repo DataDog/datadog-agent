@@ -64,7 +64,7 @@ func newConfig(deps dependencies) (sysprobeconfig.Component, error) {
 		return nil, err
 	}
 
-	return &cfg{Config: config.SystemProbe, syscfg: syscfg}, nil
+	return &cfg{Config: config.SystemProbe(), syscfg: syscfg}, nil
 }
 
 func (c *cfg) Warnings() *config.Warnings {

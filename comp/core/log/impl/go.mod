@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/log/impl
 
-go 1.21.0
+go 1.22.0
 
 replace github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../../pkg/util/scrubber
 
@@ -23,6 +23,8 @@ replace github.com/DataDog/datadog-agent/pkg/util/system => ../../../../pkg/util
 replace github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../pkg/util/hostname/validate
 
 replace github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../comp/core/flare/builder
+
+replace github.com/DataDog/datadog-agent/pkg/config/mock => ../../../../pkg/config/mock
 
 replace github.com/DataDog/datadog-agent/pkg/config/env => ../../../../pkg/config/env
 
@@ -58,8 +60,10 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.0.0-20240726104123-0f372a5f7b15
 	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.0.0-00010101000000-000000000000
+	github.com/stretchr/testify v1.9.0
 )
 
 require (
@@ -104,7 +108,6 @@ require (
 	github.com/spf13/cobra v1.7.0 // indirect
 	github.com/spf13/jwalterweatherman v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/stretchr/testify v1.9.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect

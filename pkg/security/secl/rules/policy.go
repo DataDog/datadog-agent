@@ -7,9 +7,9 @@
 package rules
 
 import (
-	"errors"
 	"fmt"
 	"io"
+	"slices"
 
 	"github.com/hashicorp/go-multierror"
 	"gopkg.in/yaml.v2"
@@ -17,153 +17,245 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 )
 
-// PolicyDef represents a policy file definition
-type PolicyDef struct {
-	Version            string              `yaml:"version"`
-	Rules              []*RuleDefinition   `yaml:"rules"`
-	Macros             []*MacroDefinition  `yaml:"macros"`
-	OnDemandHookPoints []OnDemandHookPoint `yaml:"hooks"`
+// PolicyMacro represents a macro loaded from a policy
+type PolicyMacro struct {
+	Def      *MacroDefinition
+	Accepted bool
+	Error    error
+	Policy   *Policy
 }
 
-// Policy represents a policy file which is composed of a list of rules and macros
+func (m *PolicyMacro) isAccepted() bool {
+	return m.Accepted && m.Error == nil
+}
+
+// MergeWith merges macro m2 into m
+func (m *PolicyMacro) MergeWith(m2 *PolicyMacro) error {
+	switch m2.Def.Combine {
+	case MergePolicy:
+		if m.Def.Expression != "" || m2.Def.Expression != "" {
+			return &ErrMacroLoad{Macro: m2, Err: ErrCannotMergeExpression}
+		}
+		m.Def.Values = append(m.Def.Values, m2.Def.Values...)
+	case OverridePolicy:
+		m.Def.Values = m2.Def.Values
+	default:
+		return &ErrMacroLoad{Macro: m2, Err: ErrDefinitionIDConflict}
+	}
+	return nil
+}
+
+// PolicyRule represents a rule loaded from a policy
+type PolicyRule struct {
+	Def        *RuleDefinition
+	Actions    []*Action
+	Accepted   bool
+	Error      error
+	Policy     *Policy
+	ModifiedBy []*PolicyRule
+}
+
+func (r *PolicyRule) isAccepted() bool {
+	return r.Accepted && r.Error == nil
+}
+
+func applyOverride(rd1, rd2 *PolicyRule) {
+	// keep track of the combine
+	rd1.Def.Combine = rd2.Def.Combine
+
+	// for backward compatibility, by default only the expression is copied if no options
+	if len(rd2.Def.OverrideOptions.Fields) == 0 {
+		rd1.Def.Expression = rd2.Def.Expression
+	} else if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideAllFields) {
+		*rd1.Def = *rd2.Def
+	} else {
+		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideExpressionField) {
+			rd1.Def.Expression = rd2.Def.Expression
+		}
+		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideActionFields) {
+			rd1.Def.Actions = rd2.Def.Actions
+		}
+		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideEveryField) {
+			rd1.Def.Every = rd2.Def.Every
+		}
+		if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideTagsField) {
+			rd1.Def.Tags = rd2.Def.Tags
+		}
+	}
+}
+
+// MergeWith merges rule r2 into r
+func (r *PolicyRule) MergeWith(r2 *PolicyRule) error {
+	switch r2.Def.Combine {
+	case OverridePolicy:
+		applyOverride(r, r2)
+	default:
+		if !r2.Def.Disabled {
+			return &ErrRuleLoad{Rule: r2, Err: ErrDefinitionIDConflict}
+		}
+	}
+	r.Def.Disabled = r2.Def.Disabled
+	r.ModifiedBy = append(r.ModifiedBy, r2)
+	return nil
+}
+
+// Policy represents a policy which is composed of a list of rules, macros and on-demand hook points
 type Policy struct {
-	Name               string
-	Source             string
-	Version            string
-	Rules              []*RuleDefinition
-	Macros             []*MacroDefinition
-	OnDemandHookPoints []OnDemandHookPoint
-	IsInternal         bool
+	Def        *PolicyDef
+	Name       string
+	Source     string
+	IsInternal bool
+	// multiple macros can have the same ID but different filters (e.g. agent version)
+	macros map[MacroID][]*PolicyMacro
+	// multiple rules can have the same ID but different filters (e.g. agent version)
+	rules              map[RuleID][]*PolicyRule
+	onDemandHookPoints []OnDemandHookPoint
 }
 
-// AddMacro add a macro to the policy
-func (p *Policy) AddMacro(def *MacroDefinition) {
-	p.Macros = append(p.Macros, def)
+// GetAcceptedMacros returns the list of accepted macros that are part of the policy
+func (p *Policy) GetAcceptedMacros() []*PolicyMacro {
+	var acceptedMacros []*PolicyMacro
+	for _, macros := range p.macros {
+		for _, macro := range macros {
+			if macro.isAccepted() {
+				acceptedMacros = append(acceptedMacros, macro)
+			}
+		}
+	}
+	return acceptedMacros
 }
 
-// AddRule adds a rule to the policy
-func (p *Policy) AddRule(def *RuleDefinition) {
-	def.Policy = p
-	p.Rules = append(p.Rules, def)
+// GetAcceptedRules returns the list of accepted rules that are part of the policy
+func (p *Policy) GetAcceptedRules() []*PolicyRule {
+	var acceptedRules []*PolicyRule
+	for _, rules := range p.rules {
+		for _, rule := range rules {
+			if rule.isAccepted() {
+				acceptedRules = append(acceptedRules, rule)
+			}
+		}
+	}
+	return acceptedRules
 }
 
-func parsePolicyDef(name string, source string, def *PolicyDef, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
+// SetInternalCallbackAction adds an internal callback action for the given rule IDs
+func (p *Policy) SetInternalCallbackAction(ruleID ...RuleID) {
+	for _, id := range ruleID {
+		if rules, ok := p.rules[id]; ok {
+			for _, rule := range rules {
+				if rule.isAccepted() && rule.Def.ID == id {
+					rule.Actions = append(rule.Actions, &Action{
+						InternalCallback: &InternalCallbackDefinition{},
+						Def:              &ActionDefinition{},
+					})
+				}
+			}
+		}
+	}
+}
+
+func (p *Policy) parse(macroFilters []MacroFilter, ruleFilters []RuleFilter) error {
 	var errs *multierror.Error
 
-	policy := &Policy{
-		Name:    name,
-		Source:  source,
-		Version: def.Version,
-	}
-
 MACROS:
-	for _, macroDef := range def.Macros {
+	for _, macroDef := range p.Def.Macros {
+		macro := &PolicyMacro{
+			Def:      macroDef,
+			Accepted: true,
+			Policy:   p,
+		}
+		p.macros[macroDef.ID] = append(p.macros[macroDef.ID], macro)
 		for _, filter := range macroFilters {
-			isMacroAccepted, err := filter.IsMacroAccepted(macroDef)
-			if err != nil {
-				errs = multierror.Append(errs, &ErrMacroLoad{Definition: macroDef, Err: fmt.Errorf("error when evaluating one of the macro filters: %w", err)})
+			macro.Accepted, macro.Error = filter.IsMacroAccepted(macroDef)
+			if macro.Error != nil {
+				errs = multierror.Append(errs, &ErrMacroLoad{Macro: macro, Err: fmt.Errorf("error when evaluating one of the macro filters: %w", macro.Error)})
 			}
-			if !isMacroAccepted {
+
+			if !macro.Accepted {
 				continue MACROS
 			}
 		}
 
 		if macroDef.ID == "" {
-			errs = multierror.Append(errs, &ErrMacroLoad{Err: fmt.Errorf("no ID defined for macro with expression `%s`", macroDef.Expression)})
+			macro.Error = &ErrMacroLoad{Err: fmt.Errorf("no ID defined for macro with expression `%s`", macroDef.Expression)}
+			errs = multierror.Append(errs, macro.Error)
 			continue
 		}
 		if !validators.CheckRuleID(macroDef.ID) {
-			errs = multierror.Append(errs, &ErrMacroLoad{Definition: macroDef, Err: fmt.Errorf("ID does not match pattern `%s`", validators.RuleIDPattern)})
+			macro.Error = &ErrMacroLoad{Macro: macro, Err: fmt.Errorf("ID does not match pattern `%s`", validators.RuleIDPattern)}
+			errs = multierror.Append(errs, macro.Error)
 			continue
 		}
-
-		policy.AddMacro(macroDef)
-	}
-
-	var skipped []struct {
-		ruleDefinition *RuleDefinition
-		err            error
 	}
 
 RULES:
-	for _, ruleDef := range def.Rules {
-		// set the policy so that when we parse the errors we can get the policy associated
-		ruleDef.Policy = policy
-
+	for _, ruleDef := range p.Def.Rules {
+		rule := &PolicyRule{
+			Def:      ruleDef,
+			Accepted: true,
+			Policy:   p,
+		}
+		p.rules[ruleDef.ID] = append(p.rules[ruleDef.ID], rule)
 		for _, filter := range ruleFilters {
-			isRuleAccepted, err := filter.IsRuleAccepted(ruleDef)
-			if err != nil {
-				errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: err})
+			rule.Accepted, rule.Error = filter.IsRuleAccepted(ruleDef)
+			if rule.Error != nil {
+				errs = multierror.Append(errs, &ErrRuleLoad{Rule: rule, Err: rule.Error})
 			}
 
-			if !isRuleAccepted {
-				// we do not fail directly because one of the rules with the same id can load properly
-				if _, ok := filter.(*AgentVersionFilter); ok {
-					skipped = append(skipped, struct {
-						ruleDefinition *RuleDefinition
-						err            error
-					}{ruleDefinition: ruleDef, err: ErrRuleAgentVersion})
-				} else if _, ok := filter.(*SECLRuleFilter); ok {
-					skipped = append(skipped, struct {
-						ruleDefinition *RuleDefinition
-						err            error
-					}{ruleDefinition: ruleDef, err: ErrRuleAgentFilter})
-				}
-
+			if !rule.Accepted {
 				continue RULES
 			}
 		}
 
-		if ruleDef.ID == "" {
-			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: ErrRuleWithoutID})
+		if rule.Def.ID == "" {
+			rule.Error = &ErrRuleLoad{Rule: rule, Err: ErrRuleWithoutID}
+			errs = multierror.Append(errs, rule.Error)
 			continue
 		}
 		if !validators.CheckRuleID(ruleDef.ID) {
-			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: ErrRuleIDPattern})
+			rule.Error = &ErrRuleLoad{Rule: rule, Err: ErrRuleIDPattern}
+			errs = multierror.Append(errs, rule.Error)
 			continue
 		}
 
 		if ruleDef.GroupID != "" && !validators.CheckRuleID(ruleDef.GroupID) {
-			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: ErrRuleIDPattern})
+			rule.Error = &ErrRuleLoad{Rule: rule, Err: ErrRuleIDPattern}
+			errs = multierror.Append(errs, rule.Error)
 			continue
 		}
 
 		if ruleDef.Expression == "" && !ruleDef.Disabled && ruleDef.Combine == "" {
-			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: ErrRuleWithoutExpression})
+			rule.Error = &ErrRuleLoad{Rule: rule, Err: ErrRuleWithoutExpression}
+			errs = multierror.Append(errs, rule.Error)
 			continue
 		}
-
-		policy.AddRule(ruleDef)
 	}
 
-LOOP:
-	for _, s := range skipped {
-		// For every skipped rule, if it doesn't match an ID of a policy rule, add an error.
-		for _, r := range policy.Rules {
-			if s.ruleDefinition.ID == r.ID {
-				continue LOOP
-			}
-		}
+	p.onDemandHookPoints = p.Def.OnDemandHookPoints
 
-		// do not report filtered rules
-		if !errors.Is(s.err, ErrRuleAgentFilter) {
-			errs = multierror.Append(errs, &ErrRuleLoad{Definition: s.ruleDefinition, Err: s.err})
-		}
+	return errs.ErrorOrNil()
+}
+
+// LoadPolicyFromDefinition load a policy from a definition
+func LoadPolicyFromDefinition(name string, source string, def *PolicyDef, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
+	p := &Policy{
+		Def:    def,
+		Name:   name,
+		Source: source,
+		macros: make(map[MacroID][]*PolicyMacro, len(def.Macros)),
+		rules:  make(map[RuleID][]*PolicyRule, len(def.Rules)),
 	}
 
-	policy.OnDemandHookPoints = def.OnDemandHookPoints
-
-	return policy, errs.ErrorOrNil()
+	return p, p.parse(macroFilters, ruleFilters)
 }
 
 // LoadPolicy load a policy
 func LoadPolicy(name string, source string, reader io.Reader, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
-	var def PolicyDef
-
+	def := PolicyDef{}
 	decoder := yaml.NewDecoder(reader)
 	if err := decoder.Decode(&def); err != nil {
 		return nil, &ErrPolicyLoad{Name: name, Err: err}
 	}
 
-	return parsePolicyDef(name, source, &def, macroFilters, ruleFilters)
+	return LoadPolicyFromDefinition(name, source, &def, macroFilters, ruleFilters)
 }

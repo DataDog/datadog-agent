@@ -70,6 +70,7 @@ func TestExternalMetricsProviderEndpointAndRefresh(t *testing.T) {
 	logger := logmock.New(t)
 	cfg.Set("api_key", "apikey123", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.Set("app_key", "appkey456", pkgconfigmodel.SourceLocalConfigProcess)
+	cfg.Set("external_metrics_provider.enabled", true, pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.SetWithoutSource(metricsEndpointConfig, ts.URL)
 	datadogClientProvides, err := NewComponent(Requires{Config: cfg, Log: logger})
 	// test component creation
@@ -101,4 +102,11 @@ func TestExternalMetricsProviderEndpointAndRefresh(t *testing.T) {
 	payload2 := <-reqs
 	assert.Contains(t, payload2, newAPIKey)
 	assert.Contains(t, payload2, newAPPKey)
+
+	// noop client
+	cfg.Set("external_metrics_provider.enabled", false, pkgconfigmodel.SourceLocalConfigProcess)
+	noopProvides, err := NewComponent(Requires{Config: cfg, Log: logger})
+	assert.NoError(t, err)
+	_, ok = noopProvides.Comp.(*ImplNone)
+	assert.True(t, ok)
 }

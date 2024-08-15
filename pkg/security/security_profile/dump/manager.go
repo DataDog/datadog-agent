@@ -143,14 +143,7 @@ func (adm *ActivityDumpManager) cleanup() {
 		} else {
 			adm.emptyDropped.Inc()
 		}
-
-		// remove from the map of ignored dumps
-		adm.Lock()
-		delete(adm.ignoreFromSnapshot, ad.Metadata.ContainerID)
-		adm.Unlock()
 	}
-
-	adm.RemoveStoppedActivityDumps()
 
 	// cleanup cgroup_wait_list map
 	iterator := adm.cgroupWaitList.Iterate()
@@ -166,37 +159,23 @@ func (adm *ActivityDumpManager) cleanup() {
 	}
 }
 
-// RemoveStoppedActivityDumps removes all stopped activity dumps from the active list
-func (adm *ActivityDumpManager) RemoveStoppedActivityDumps() {
-	adm.Lock()
-	defer adm.Unlock()
-
-	newActiveDumps := make([]*ActivityDump, 0, len(adm.activeDumps))
-	for _, ad := range adm.activeDumps {
-		ad.Lock()
-		state := ad.state
-		ad.Unlock()
-
-		if state != Stopped {
-			newActiveDumps = append(newActiveDumps, ad)
-		}
-	}
-	adm.activeDumps = newActiveDumps
-}
-
-// getExpiredDumps returns the list of dumps that have timed out
+// getExpiredDumps returns the list of dumps that have timed out and remove them from the active dumps
 func (adm *ActivityDumpManager) getExpiredDumps() []*ActivityDump {
 	adm.Lock()
 	defer adm.Unlock()
 
-	var dumps []*ActivityDump
+	var expiredDumps []*ActivityDump
+	var newDumps []*ActivityDump
 	for _, ad := range adm.activeDumps {
-		if time.Now().After(ad.Metadata.End) {
-			dumps = append(dumps, ad)
-			adm.ignoreFromSnapshot[ad.Metadata.ContainerID] = true
+		if time.Now().After(ad.Metadata.End) || ad.state == Stopped {
+			expiredDumps = append(expiredDumps, ad)
+			delete(adm.ignoreFromSnapshot, ad.Metadata.ContainerID)
+		} else {
+			newDumps = append(newDumps, ad)
 		}
 	}
-	return dumps
+	adm.activeDumps = newDumps
+	return expiredDumps
 }
 
 func (adm *ActivityDumpManager) resolveTagsPerAd(ad *ActivityDump) {

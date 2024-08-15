@@ -405,6 +405,20 @@ new-e2e-ndm-snmp:
     TARGETS: ./tests/ndm/snmp
     TEAM: network-device-monitoring
 
+new-e2e-otel:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_otel_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_dca
+    - qa_agent
+    - qa_agent_ot
+  variables:
+    TARGETS: ./tests/otel
+    TEAM: otel
+
 generate-flakes-finder-pipeline:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: e2e

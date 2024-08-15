@@ -171,6 +171,7 @@ type RuleState struct {
 	Message    string            `json:"message,omitempty"`
 	Tags       map[string]string `json:"tags,omitempty"`
 	Actions    []RuleAction      `json:"actions,omitempty"`
+	ModifiedBy []*PolicyState    `json:"modified_by,omitempty"`
 }
 
 // PolicyState is used to report policy was loaded
@@ -248,55 +249,59 @@ func (e HeartbeatEvent) ToJSON() ([]byte, error) {
 	return utils.MarshalEasyJSON(e)
 }
 
-// PolicyStateFromRuleDefinition returns a policy state based on the rule definition
-func PolicyStateFromRuleDefinition(def *rules.RuleDefinition) *PolicyState {
+// PolicyStateFromRule returns a policy state based on the rule definition
+func PolicyStateFromRule(rule *rules.PolicyRule) *PolicyState {
 	return &PolicyState{
-		Name:    def.Policy.Name,
-		Version: def.Policy.Version,
-		Source:  def.Policy.Source,
+		Name:    rule.Policy.Name,
+		Version: rule.Policy.Def.Version,
+		Source:  rule.Policy.Source,
 	}
 }
 
-// RuleStateFromDefinition returns a rule state based on the rule definition
-func RuleStateFromDefinition(def *rules.RuleDefinition, status string, message string) *RuleState {
+// RuleStateFromRule returns a rule state based on the given rule
+func RuleStateFromRule(rule *rules.PolicyRule, status string, message string) *RuleState {
 	ruleState := &RuleState{
-		ID:         def.ID,
-		Version:    def.Version,
-		Expression: def.Expression,
+		ID:         rule.Def.ID,
+		Version:    rule.Policy.Def.Version,
+		Expression: rule.Def.Expression,
 		Status:     status,
 		Message:    message,
-		Tags:       def.Tags,
+		Tags:       rule.Def.Tags,
 	}
 
-	for _, action := range def.Actions {
-		ruleAction := RuleAction{Filter: action.Filter}
+	for _, action := range rule.Actions {
+		ruleAction := RuleAction{Filter: action.Def.Filter}
 		switch {
-		case action.Kill != nil:
+		case action.Def.Kill != nil:
 			ruleAction.Kill = &RuleKillAction{
-				Scope:  action.Kill.Scope,
-				Signal: action.Kill.Signal,
+				Scope:  action.Def.Kill.Scope,
+				Signal: action.Def.Kill.Signal,
 			}
-		case action.Set != nil:
+		case action.Def.Set != nil:
 			ruleAction.Set = &RuleSetAction{
-				Name:   action.Set.Name,
-				Value:  action.Set.Value,
-				Field:  action.Set.Field,
-				Append: action.Set.Append,
-				Scope:  string(action.Set.Scope),
+				Name:   action.Def.Set.Name,
+				Value:  action.Def.Set.Value,
+				Field:  action.Def.Set.Field,
+				Append: action.Def.Set.Append,
+				Scope:  string(action.Def.Set.Scope),
 			}
-		case action.Hash != nil:
+		case action.Def.Hash != nil:
 			ruleAction.Hash = &HashAction{
 				Enabled: true,
 			}
-		case action.CoreDump != nil:
+		case action.Def.CoreDump != nil:
 			ruleAction.CoreDump = &CoreDumpAction{
-				Process:       action.CoreDump.Process,
-				Mount:         action.CoreDump.Mount,
-				Dentry:        action.CoreDump.Dentry,
-				NoCompression: action.CoreDump.NoCompression,
+				Process:       action.Def.CoreDump.Process,
+				Mount:         action.Def.CoreDump.Mount,
+				Dentry:        action.Def.CoreDump.Dentry,
+				NoCompression: action.Def.CoreDump.NoCompression,
 			}
 		}
 		ruleState.Actions = append(ruleState.Actions, ruleAction)
+	}
+
+	for _, modRule := range rule.ModifiedBy {
+		ruleState.ModifiedBy = append(ruleState.ModifiedBy, PolicyStateFromRule(modRule))
 	}
 
 	return ruleState
@@ -310,36 +315,34 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 	var exists bool
 
 	for _, rule := range rs.GetRules() {
-		if rule.Definition.Policy.IsInternal && !includeInternalPolicies {
+		if rule.Policy.IsInternal && !includeInternalPolicies {
 			continue
 		}
 
-		ruleDef := rule.Definition
-		policyName := ruleDef.Policy.Name
-
+		policyName := rule.Policy.Name
 		if policyState, exists = mp[policyName]; !exists {
-			policyState = PolicyStateFromRuleDefinition(ruleDef)
+			policyState = PolicyStateFromRule(rule.PolicyRule)
 			mp[policyName] = policyState
 		}
-		policyState.Rules = append(policyState.Rules, RuleStateFromDefinition(ruleDef, "loaded", ""))
+		policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule.PolicyRule, "loaded", ""))
 	}
 
 	// rules ignored due to errors
 	if err != nil && err.Errors != nil {
 		for _, err := range err.Errors {
 			if rerr, ok := err.(*rules.ErrRuleLoad); ok {
-				if rerr.Definition.Policy.IsInternal && !includeInternalPolicies {
+				if rerr.Rule.Policy.IsInternal && !includeInternalPolicies {
 					continue
 				}
-				policyName := rerr.Definition.Policy.Name
+				policyName := rerr.Rule.Policy.Name
 
 				if _, exists := mp[policyName]; !exists {
-					policyState = PolicyStateFromRuleDefinition(rerr.Definition)
+					policyState = PolicyStateFromRule(rerr.Rule)
 					mp[policyName] = policyState
 				} else {
 					policyState = mp[policyName]
 				}
-				policyState.Rules = append(policyState.Rules, RuleStateFromDefinition(rerr.Definition, string(rerr.Type()), rerr.Err.Error()))
+				policyState.Rules = append(policyState.Rules, RuleStateFromRule(rerr.Rule, string(rerr.Type()), rerr.Err.Error()))
 			}
 		}
 	}
