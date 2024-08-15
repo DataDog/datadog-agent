@@ -1313,6 +1313,7 @@ service_monitoring_config:
 		assert.Equal(t, 30000, cfg.MaxPostgresTelemetryBuffer)
 	})
 
+	// Validating that the default value matches the one in the Postgres ebpf package.
 	t.Run("default", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
 
