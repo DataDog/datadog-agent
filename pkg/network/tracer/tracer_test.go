@@ -1293,6 +1293,47 @@ func (s *TracerSuite) TestTCPFailureConnectionReset() {
 
 	// Check if the connection was recorded as reset
 	require.Eventually(t, func() bool {
+		// 104 is the errno for ECONNRESET
+		return findFailedConnection(t, c.LocalAddr().String(), serverAddr, getConnections(t, tr), 104)
+	}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
+
+	require.NoError(t, c.Close(), "error closing client connection")
+}
+
+func (s *TracerSuite) TestTCPFailureConnectionResetNoData() {
+	t := s.T()
+
+	checkSkipFailureConnectionsTests(t)
+
+	cfg := testConfig()
+	cfg.TCPFailedConnectionsEnabled = true
+	tr := setupTracer(t, cfg)
+
+	// Server that immediately resets the connection without any data transfer
+	srv := testutil.NewTCPServer(func(c net.Conn) {
+		if tcpConn, ok := c.(*net.TCPConn); ok {
+			tcpConn.SetLinger(0)
+		}
+		// Close the connection immediately to trigger a reset
+		c.Close()
+	})
+
+	require.NoError(t, srv.Run(), "error running server")
+	t.Cleanup(srv.Shutdown)
+
+	serverAddr := srv.Address()
+	c, err := net.Dial("tcp", serverAddr)
+	require.NoError(t, err, "could not connect to server: ", err)
+
+	// Wait briefly to give the server time to close the connection
+	time.Sleep(50 * time.Millisecond)
+
+	// Attempt to write to the server, expecting a reset
+	_, writeErr := c.Write([]byte("ping"))
+	require.Error(t, writeErr, "expected connection reset error but got none")
+
+	// Check if the connection was recorded as reset
+	require.Eventually(t, func() bool {
 		conns := getConnections(t, tr)
 		// 104 is the errno for ECONNRESET
 		return findFailedConnection(t, c.LocalAddr().String(), serverAddr, conns, 104)
