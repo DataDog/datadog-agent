@@ -122,9 +122,9 @@ func TestConvert(t *testing.T) {
 			expectedResult: "receivers/no-receivers-defined/config-result.yaml",
 		},
 		{
-			name:           "connectors/dd-connector",
-			provided:       "connectors/dd-connector/config.yaml",
-			expectedResult: "connectors/dd-connector/config-result.yaml",
+			name:           "processors/dd-connector",
+			provided:       "processors/dd-connector/config.yaml",
+			expectedResult: "processors/dd-connector/config-result.yaml",
 		},
 	}
 

@@ -56,12 +56,14 @@ func addProcessorToPipelinesWithDDExporter(conf *confmap.Conf, comp component) {
 			return
 		}
 		infraAttrsInPipeline := false
+		ddExporterInPipeline := false
 		for _, exporter := range exportersSlice {
 			exporterString, ok := exporter.(string)
 			if !ok {
 				return
 			}
 			if componentName(exporterString) == "datadog" && !infraAttrsInPipeline {
+				ddExporterInPipeline = true
 				// datadog component is an exporter in this pipeline. Need to make sure that processor is also configured.
 				_, ok := componentsMap[comp.Type]
 				if !ok {
@@ -86,7 +88,7 @@ func addProcessorToPipelinesWithDDExporter(conf *confmap.Conf, comp component) {
 
 		}
 
-		if !infraAttrsInPipeline {
+		if !infraAttrsInPipeline && ddExporterInPipeline {
 			// no processors are defined
 			if !componentAddedToConfig {
 				addComponentToConfig(conf, comp)
