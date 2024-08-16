@@ -880,12 +880,22 @@ def generate_complexity_summary_for_pr(
         if not any(row[-1] for row in rows):
             continue
 
-        # Format rows to make it more compact, remove the changes marker and remove the object name
-        rows = [[row[0].split("/")[1]] + row[1:-1] for row in rows]
+        rows = list(rows)  # Convert the iterator to a list, so we can iterate over it multiple times
+
+        def _build_table(orig_rows):
+            # Format rows to make it more compact, remove the changes marker and remove the object name
+            changed_rows = [[row[0].split("/")[1]] + row[1:-1] for row in orig_rows]
+            assert tabulate is not None  # For typing
+            return tabulate(changed_rows, headers=headers, tablefmt="github")
+
+        with_changes = [row for row in rows if row[-1]]
+        without_changes = [row for row in rows if not row[-1]]
 
         msg += f"\n<details><summary>{group} details</summary>\n\n"
-        msg += f"## {group}\n\n"
-        msg += tabulate(rows, headers=headers, tablefmt="github")
+        msg += f"## {group} [programs with changes]\n\n"
+        msg += _build_table(with_changes)
+        msg += f"\n\n## {group} [programs without changes]\n\n"
+        msg += _build_table(without_changes)
         msg += "\n\n</details>\n"
         has_any_changes = True
 
