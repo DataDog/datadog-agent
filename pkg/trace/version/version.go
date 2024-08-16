@@ -17,9 +17,9 @@ import (
 const (
 	versionField           = "version"
 	gitCommitShaField      = "_dd.git.commit.sha"
-	gitRepositoryUrlField  = "_dd.git.repository_url"
+	gitRepositoryURLField  = "_dd.git.repository_url"
 	gitCommitShaTagPrefix  = "git.commit.sha:"
-	gitRepositoryUrlPrefix = "git.repository_url"
+	gitRepositoryURLPrefix = "git.repository_url"
 	imageTagPrefix         = "image_tag:"
 )
 
@@ -58,9 +58,9 @@ func GetGitCommitShaFromTrace(root *trace.Span, t *trace.TraceChunk) string {
 	return searchTraceForField(root, t, gitCommitShaField)
 }
 
-// GetGitRepositoryUrlFromTrace returns the first "git.repository_url" tag found in trace t.
-func GetGitRepositoryUrlFromTrace(root *trace.Span, t *trace.TraceChunk) string {
-	return searchTraceForField(root, t, gitRepositoryUrlField)
+// GetGitRepositoryURLFromTrace returns the first "git.repository_url" tag found in trace t.
+func GetGitRepositoryURLFromTrace(root *trace.Span, t *trace.TraceChunk) string {
+	return searchTraceForField(root, t, gitRepositoryURLField)
 }
 
 // GetAppVersionFromTrace returns the first "version" tag found in trace t.
