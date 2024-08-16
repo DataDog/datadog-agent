@@ -40,11 +40,19 @@ type Launcher struct {
 	writeFunction func(logFilePath, log string) error
 }
 
-// NewLauncher returns a new launcher
+// NewLauncher creates and returns an integrations launcher, and creates the
+// path for integrations files to run in
 func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.Component) *Launcher {
+	runPath := filepath.Join(pkgConfig.Datadog().GetString("logs_config.run_path"), "integrations")
+	err := os.MkdirAll(runPath, 0755)
+	if err != nil {
+		ddLog.Warn("Unable to make integrations logs directory: ", err)
+		return nil
+	}
+
 	return &Launcher{
 		sources:              sources,
-		runPath:              pkgConfig.Datadog().GetString("logs_config.run_path"),
+		runPath:              runPath,
 		stop:                 make(chan struct{}),
 		integrationsLogsChan: integrationsLogsComp.Subscribe(),
 		addedConfigs:         integrationsLogsComp.SubscribeIntegration(),
@@ -150,12 +158,7 @@ func (s *Launcher) makeFileSource(source *sources.LogSource, logFilePath string)
 // TODO Change file naming to reflect ID once logs from go interfaces gets merged.
 // createFile creates a file for the logsource
 func (s *Launcher) createFile(id string) (string, error) {
-	directory, logFilePath := s.integrationLogFilePath(id)
-
-	err := os.MkdirAll(directory, 0755)
-	if err != nil {
-		return "", err
-	}
+	logFilePath := s.integrationLogFilePath(id)
 
 	file, err := os.Create(logFilePath)
 	if err != nil {
@@ -166,13 +169,13 @@ func (s *Launcher) createFile(id string) (string, error) {
 	return logFilePath, nil
 }
 
-// integrationLoglogFilePath returns a directory and file to use for an integration log file
-func (s *Launcher) integrationLogFilePath(id string) (string, string) {
-	fileName := strings.ReplaceAll(id, ":", "-") + ".log"
-	directory := filepath.Join(s.runPath, "integrations")
-	logFilePath := filepath.Join(directory, fileName)
+// integrationLoglogFilePath returns a file path to use for an integration log file
+func (s *Launcher) integrationLogFilePath(id string) string {
+	fileName := strings.ReplaceAll(id, " ", "-")
+	fileName = strings.ReplaceAll(fileName, ":", "_") + ".log"
+	logFilePath := filepath.Join(s.runPath, fileName)
 
-	return directory, logFilePath
+	return logFilePath
 }
 
 // ensureFileSize enforces the max file size for files integrations logs

@@ -126,12 +126,13 @@ func (suite *LauncherTestSuite) TestWriteMultipleLogsToFile() {
 // TestIntegrationLogFilePath ensures the filepath for the logs files are correct
 func (suite *LauncherTestSuite) TestIntegrationLogFilePath() {
 	id := "123456789"
-	actualDirectory, actualFilePath := suite.s.integrationLogFilePath(id)
+	actualFilePath := suite.s.integrationLogFilePath(id)
+	expectedFilePath := filepath.Join(suite.s.runPath, id+".log")
+	assert.Equal(suite.T(), expectedFilePath, actualFilePath)
 
-	expectedDirectory := filepath.Join(suite.s.runPath, "integrations")
-	expectedFilePath := filepath.Join(expectedDirectory, id+".log")
-
-	assert.Equal(suite.T(), expectedDirectory, actualDirectory)
+	id = "1234 5678:myIntegration"
+	actualFilePath = suite.s.integrationLogFilePath(id)
+	expectedFilePath = filepath.Join(suite.s.runPath, "1234-5678_myIntegration.log")
 	assert.Equal(suite.T(), expectedFilePath, actualFilePath)
 }
 
