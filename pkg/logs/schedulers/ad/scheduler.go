@@ -199,14 +199,17 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 		if service != nil {
 			// a config defined in a container label or a pod annotation does not always contain a type,
 			// override it here to ensure that the config won't be dropped at validation.
-			if (cfg.Type == logsConfig.FileType || cfg.Type == logsConfig.TCPType || cfg.Type == logsConfig.UDPType) && (config.Provider == names.Kubernetes || config.Provider == names.Container || config.Provider == names.KubeContainer || config.Provider == logsConfig.FileType) {
-				// cfg.Type is not overwritten as tailing a file from a Docker or Kubernetes AD configuration
-				// is explicitly supported (other combinations may be supported later)
-				cfg.Identifier = service.Identifier
-			} else {
+			skipOverrideType := (cfg.Type == logsConfig.FileType || cfg.Type == logsConfig.TCPType || cfg.Type == logsConfig.UDPType || cfg.Type == logsConfig.IntegrationType)
+			sikpOverrideProvider := (config.Provider == names.Kubernetes || config.Provider == names.Container || config.Provider == names.KubeContainer || config.Provider == logsConfig.FileType)
+			shouldOverrideType := !(skipOverrideType && sikpOverrideProvider)
+
+			// cfg.Type is not overwritten as tailing a file, socket, or integration from a Docker or Kubernetes AD configuration
+			// is explicitly supported (other combinations may be supported later)
+			if shouldOverrideType {
 				cfg.Type = service.Type
-				cfg.Identifier = service.Identifier // used for matching a source with a service
 			}
+
+			cfg.Identifier = service.Identifier // used for matching a source with a service
 		}
 
 		source := sourcesPkg.NewLogSource(configName, cfg)
