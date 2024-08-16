@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	integrationsMock "github.com/DataDog/datadog-agent/comp/logs/integrations/mock"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	auditor "github.com/DataDog/datadog-agent/pkg/logs/auditor/mock"
@@ -67,10 +67,11 @@ func (suite *LauncherTestSuite) TearDownTest() {
 }
 
 func (suite *LauncherTestSuite) TestFileCreation() {
+	id := "123456789"
 	source := sources.NewLogSource("testLogsSource", &config.LogsConfig{Type: config.IntegrationType, Identifier: "123456789", Path: suite.testPath})
 	sources.NewLogSources().AddSource(source)
 
-	filePath, err := suite.s.createFile(source)
+	filePath, err := suite.s.createFile(id)
 	assert.Nil(suite.T(), err)
 	assert.NotNil(suite.T(), filePath)
 }
@@ -87,7 +88,8 @@ func (suite *LauncherTestSuite) TestSendLog() {
 		return nil
 	}
 
-	filepath, err := suite.s.createFile(source)
+	id := "123456789"
+	filepath, err := suite.s.createFile(id)
 	assert.Nil(suite.T(), err)
 	suite.s.integrationToFile[source.Name] = filepath
 	fileSource := suite.s.makeFileSource(source, filepath)
@@ -114,19 +116,13 @@ func (suite *LauncherTestSuite) TestWriteLogToFile() {
 
 // TestIntegrationLogFilePath ensures the filepath for the logs files are correct
 func (suite *LauncherTestSuite) TestIntegrationLogFilePath() {
-	logSource := sources.NewLogSource("testLogsSource", &config.LogsConfig{
-		Type:    config.IntegrationType,
-		Name:    "test_name",
-		Service: "test_service",
-		Path:    suite.testPath,
-	})
+	id := "123456789"
+	actualDirectory, actualFilePath := suite.s.integrationLogFilePath(id)
 
-	actualDirectory, actualFilePath := suite.s.integrationLogFilePath(*logSource)
-
-	expectedDirectoryComponents := []string{suite.s.runPath, "integrations", logSource.Config.Service}
+	expectedDirectoryComponents := []string{suite.s.runPath, "integrations"}
 	expectedDirectory := strings.Join(expectedDirectoryComponents, "/")
 
-	expectedFilePath := strings.Join([]string{expectedDirectory, logSource.Config.Name + ".log"}, "/")
+	expectedFilePath := strings.Join([]string{expectedDirectory, id + ".log"}, "/")
 
 	assert.Equal(suite.T(), expectedDirectory, actualDirectory)
 	assert.Equal(suite.T(), expectedFilePath, actualFilePath)

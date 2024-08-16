@@ -11,10 +11,18 @@
 // function to receive a channel that receives all the logs integrations send.
 package integrations
 
+import "github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+
 // team: agent-metrics-logs
 
 // Component is the component type.
 type Component interface {
+	// Register registers an integration with the component.
+	Register(id string, config integration.Config)
+
+	// SubscribeIntegration returns a channel for a subscriber to receive integration configurations.
+	SubscribeIntegration() chan IntegrationConfig
+
 	// Subscribe subscribes returns a channel for a subscriber to receive logs from integrations.
 	Subscribe() chan IntegrationLog
 

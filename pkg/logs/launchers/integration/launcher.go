@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 )
@@ -25,8 +26,9 @@ import (
 // Launcher checks for launcher integrations, creates files for integrations to
 // write logs to, then creates file sources for the file launcher to tail
 type Launcher struct {
-	sources              *sources.LogSources
-	addedSources         chan *sources.LogSource
+	sources *sources.LogSources
+	// addedSources         chan *sources.LogSource
+	addedConfigs         chan integrations.IntegrationConfig
 	stop                 chan struct{}
 	runPath              string
 	integrationsLogsChan chan integrations.IntegrationLog
@@ -43,15 +45,14 @@ func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.
 		runPath:              pkgConfig.Datadog().GetString("logs_config.run_path"),
 		stop:                 make(chan struct{}),
 		integrationsLogsChan: integrationsLogsComp.Subscribe(),
+		addedConfigs:         integrationsLogsComp.SubscribeIntegration(),
 		integrationToFile:    make(map[string]string),
 		writeFunction:        writeLogToFile,
 	}
 }
 
 // Start starts the launcher and launches the run loop in a go function
-func (s *Launcher) Start(sourceProvider launchers.SourceProvider, _ pipeline.Provider, _ auditor.Registry, _ *tailers.TailerTracker) {
-	s.addedSources, _ = sourceProvider.SubscribeForType(config.IntegrationType)
-
+func (s *Launcher) Start(_ launchers.SourceProvider, _ pipeline.Provider, _ auditor.Registry, _ *tailers.TailerTracker) {
 	go s.run()
 }
 
@@ -64,20 +65,29 @@ func (s *Launcher) Stop() {
 func (s *Launcher) run() {
 	for {
 		select {
-		case source := <-s.addedSources:
-			// Send logs configurations to the file launcher to tail, it will handle
-			// tailer lifecycle, file rotation, etc.
-			filepath, err := s.createFile(source)
+		case cfg := <-s.addedConfigs:
+			sources, err := ad.CreateSources(cfg.Config)
 			if err != nil {
-				ddLog.Warn("Failed to create integration log file: ", err)
+				ddLog.Warn("Failed to create source ", err)
 				continue
 			}
 
-			filetypeSource := s.makeFileSource(source, filepath)
-			s.sources.AddSource(filetypeSource)
+			for _, source := range sources {
+				// TODO: integrations should only be allowed to have one IntegrationType config.
+				if source.Config.Type == config.IntegrationType {
+					filepath, err := s.createFile(cfg.ID)
+					if err != nil {
+						ddLog.Warn("Failed to create integration log file: ", err)
+						continue
+					}
+					filetypeSource := s.makeFileSource(source, filepath)
+					s.sources.AddSource(filetypeSource)
 
-			// file to write the incoming logs to
-			s.integrationToFile[source.Name] = filepath
+					// file to write the incoming logs to
+					s.integrationToFile[source.Name] = filepath
+				}
+			}
+
 		case log := <-s.integrationsLogsChan:
 			// Integrations will come in the form of: check_name:instance_config_hash
 			integrationSplit := strings.Split(log.IntegrationID, ":")
@@ -136,8 +146,8 @@ func (s *Launcher) makeFileSource(source *sources.LogSource, filepath string) *s
 
 // TODO Change file naming to reflect ID once logs from go interfaces gets merged.
 // createFile creates a file for the logsource
-func (s *Launcher) createFile(source *sources.LogSource) (string, error) {
-	directory, filepath := s.integrationLogFilePath(*source)
+func (s *Launcher) createFile(id string) (string, error) {
+	directory, filepath := s.integrationLogFilePath(id)
 
 	err := os.MkdirAll(directory, 0755)
 	if err != nil {
@@ -154,9 +164,9 @@ func (s *Launcher) createFile(source *sources.LogSource) (string, error) {
 }
 
 // integrationLogFilePath returns a directory and file to use for an integration log file
-func (s *Launcher) integrationLogFilePath(source sources.LogSource) (string, string) {
-	fileName := source.Config.Name + ".log"
-	directoryComponents := []string{s.runPath, "integrations", source.Config.Service}
+func (s *Launcher) integrationLogFilePath(id string) (string, string) {
+	fileName := id + ".log"
+	directoryComponents := []string{s.runPath, "integrations"}
 	directory := strings.Join(directoryComponents, "/")
 	filepath := strings.Join([]string{directory, fileName}, "/")
 

@@ -7,18 +7,30 @@
 package integrationsimpl
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 )
 
 type logsintegration struct {
-	logChan chan integrations.IntegrationLog
+	logChan         chan integrations.IntegrationLog
+	integrationChan chan integrations.IntegrationConfig
 }
 
 // NewComponent creates a new integrations component
 func NewComponent() integrations.Component {
 	return &logsintegration{
-		logChan: make(chan integrations.IntegrationLog),
+		logChan:         make(chan integrations.IntegrationLog),
+		integrationChan: make(chan integrations.IntegrationConfig),
 	}
+}
+
+func (li *logsintegration) Register(id string, config integration.Config) {
+	integrationConfig := integrations.IntegrationConfig{
+		ID:     id,
+		Config: config,
+	}
+
+	li.integrationChan <- integrationConfig
 }
 
 // SendLog sends a log to any subscribers
@@ -36,4 +48,8 @@ func (li *logsintegration) SendLog(log, integrationID string) {
 // later by making a new channel for any number of subscribers.
 func (li *logsintegration) Subscribe() chan integrations.IntegrationLog {
 	return li.logChan
+}
+
+func (li *logsintegration) SubscribeIntegration() chan integrations.IntegrationConfig {
+	return li.integrationChan
 }
