@@ -23,7 +23,6 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	sectime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -149,46 +148,34 @@ func (m *Check) Run() error {
 	if err != nil {
 		return fmt.Errorf("get GPU device threads: %s", err)
 	}
-	totalThreadSecondsUsed := 0.0
 
-	for _, data := range stats.PastData {
-		for _, span := range data.Spans {
-			event := event.Event{
-				SourceTypeName: CheckName,
-				EventType:      "gpu-kernel",
-				Title:          "GPU kernel launch",
-				Text:           fmt.Sprintf("Start=%s, end=%s, avgThreadSize=%d, duration=%ds", m.timeResolver.ResolveMonotonicTimestamp(span.Start), m.timeResolver.ResolveMonotonicTimestamp(span.End), span.AvgThreadCount, span.End-span.Start),
-				Ts:             m.timeResolver.ResolveMonotonicTimestamp(span.Start).Unix(),
+	processors := make(map[uint32]*StatsProcessor)
+	ensureProcessor := func(key *model.StreamKey) {
+		if _, ok := processors[key.Pid]; !ok {
+			processors[key.Pid] = &StatsProcessor{
+				key:                    key,
+				totalThreadSecondsUsed: 0,
+				sender:                 sender,
+				gpuMaxThreads:          gpuThreads,
+				measuredInterval:       checkDuration,
+				timeResolver:           m.timeResolver,
+				lastCheck:              m.lastCheckTime,
 			}
-			fmt.Printf("spanev: %v\n", event)
-			sender.Event(event)
-
-			durationSec := float64(span.End-span.Start) / float64(time.Second)
-			totalThreadSecondsUsed += durationSec * float64(min(span.AvgThreadCount, uint64(gpuThreads))) // we can't use more threads than the GPU has
-		}
-		for _, span := range data.Allocations {
-			event := event.Event{
-				AlertType:      event.AlertTypeInfo,
-				Priority:       event.PriorityLow,
-				AggregationKey: "gpu-0",
-				SourceTypeName: CheckName,
-				EventType:      "gpu-memory",
-				Title:          fmt.Sprintf("GPU mem alloc size %d", span.Size),
-				Text:           fmt.Sprintf("Start at %d, end %d", span.Start, span.End),
-				Ts:             m.timeResolver.ResolveMonotonicTimestamp(span.Start).Unix(),
-			}
-			fmt.Printf("memev: %v\n", event)
-			sender.Event(event)
 		}
 	}
 
-	checkDurationSecs := checkDuration.Seconds()
-	if checkDurationSecs > 0 {
-		availableThreadSeconds := float64(gpuThreads) * checkDurationSecs
-		utilization := totalThreadSecondsUsed / availableThreadSeconds
-		fmt.Printf("GPU utilization: %f, totalUsed %f\n", utilization, totalThreadSecondsUsed)
+	for _, data := range stats.CurrentData {
+		ensureProcessor(&data.Key)
+		processors[data.Key.Pid].processCurrentData(data)
+	}
 
-		sender.Gauge("gjulian.cudapoc.utilization", utilization, "", nil)
+	for _, data := range stats.PastData {
+		ensureProcessor(&data.Key)
+		processors[data.Key.Pid].processPastData(data)
+	}
+
+	for _, processor := range processors {
+		processor.finish()
 	}
 
 	fmt.Printf("GPU stats: %+v\n", stats)
