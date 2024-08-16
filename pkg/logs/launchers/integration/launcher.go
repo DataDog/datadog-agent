@@ -24,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 )
 
+var endOfLine = []byte{'\n'}
+
 // Launcher checks for launcher integrations, creates files for integrations to
 // write logs to, then creates file sources for the file launcher to tail
 type Launcher struct {
@@ -121,12 +123,15 @@ func writeLogToFile(logFilePath, log string) error {
 
 	defer file.Close()
 
-	_, err = file.WriteString(log + "\n")
+	_, err = file.WriteString(log)
 	if err != nil {
 		ddLog.Warn("Failed to write integration log to file: ", err)
 		return err
 	}
-
+	if _, err = file.Write(endOfLine); err != nil {
+		ddLog.Warn("Failed to write integration log to file: ", err)
+		return err
+	}
 	return nil
 }
 
