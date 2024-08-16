@@ -44,7 +44,7 @@ func (s *windowsTestSuite) SetupSuite() {
 	s.Env().RemoteHost.MustExecute("Start-MpScan -ScanType FullScan -AsJob")
 }
 
-func (s *windowsTestSuite) TestProcessCheck() {
+func (s *windowsTestSuite) testProcessCheck() {
 	t := s.T()
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess"}, false)
@@ -61,6 +61,23 @@ func (s *windowsTestSuite) TestProcessCheck() {
 	}, 2*time.Minute, 10*time.Second)
 
 	assertProcessCollected(t, payloads, false, "MsMpEng.exe")
+}
+
+func (s *windowsTestSuite) TestProcessCheck() {
+	s.testProcessCheck()
+}
+
+func (s *windowsTestSuite) TestProcessChecksInCoreAgent() {
+	t := s.T()
+	s.UpdateEnv(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr))))
+	s.testProcessCheck()
+
+	// Verify the process component is not running in the core agent
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		status := getAgentStatus(collect, s.Env().Agent.Client)
+		assert.Empty(t, status.ProcessComponentStatus.Expvars.Map.EnabledChecks, []string{})
+	}, 1*time.Minute, 5*time.Second)
 }
 
 func (s *windowsTestSuite) TestProcessDiscoveryCheck() {
