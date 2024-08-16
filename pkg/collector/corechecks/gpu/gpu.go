@@ -145,6 +145,10 @@ func (m *Check) Run() error {
 		return log.Errorf("ebpf check raw data has incorrect type: %T", stats)
 	}
 
+	gpuThreads, err := gpuDevices[0].GetMaxThreads()
+	if err != nil {
+		return fmt.Errorf("get GPU device threads: %s", err)
+	}
 	totalThreadSecondsUsed := 0.0
 
 	for _, data := range stats.PastData {
@@ -152,15 +156,15 @@ func (m *Check) Run() error {
 			event := event.Event{
 				SourceTypeName: CheckName,
 				EventType:      "gpu-kernel",
-				Title:          fmt.Sprintf("GPU Kernel launch %d", span.AvgThreadCount),
-				Text:           fmt.Sprintf("Start at %d, end %d", span.Start, span.End),
+				Title:          "GPU kernel launch",
+				Text:           fmt.Sprintf("Start=%s, end=%s, avgThreadSize=%d, duration=%ds", m.timeResolver.ResolveMonotonicTimestamp(span.Start), m.timeResolver.ResolveMonotonicTimestamp(span.End), span.AvgThreadCount, span.End-span.Start),
 				Ts:             m.timeResolver.ResolveMonotonicTimestamp(span.Start).Unix(),
 			}
 			fmt.Printf("spanev: %v\n", event)
 			sender.Event(event)
 
 			durationSec := float64(span.End-span.Start) / float64(time.Second)
-			totalThreadSecondsUsed += durationSec * float64(span.AvgThreadCount)
+			totalThreadSecondsUsed += durationSec * float64(min(span.AvgThreadCount, uint64(gpuThreads))) // we can't use more threads than the GPU has
 		}
 		for _, span := range data.Allocations {
 			event := event.Event{
@@ -180,10 +184,6 @@ func (m *Check) Run() error {
 
 	checkDurationSecs := checkDuration.Seconds()
 	if checkDurationSecs > 0 {
-		gpuThreads, err := gpuDevices[0].GetMaxThreads()
-		if err != nil {
-			return fmt.Errorf("get GPU device threads: %s", err)
-		}
 		availableThreadSeconds := float64(gpuThreads) * checkDurationSecs
 		utilization := totalThreadSecondsUsed / availableThreadSeconds
 		fmt.Printf("GPU utilization: %f, totalUsed %f\n", utilization, totalThreadSecondsUsed)
