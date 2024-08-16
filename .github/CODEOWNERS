@@ -298,7 +298,9 @@
 /pkg/gohai                              @DataDog/agent-shared-components
 /pkg/jmxfetch/                          @DataDog/agent-metrics-logs
 /pkg/metrics/                           @DataDog/agent-metrics-logs
+/pkg/metrics/metricsource.go            @DataDog/agent-metrics-logs @DataDog/agent-integrations
 /pkg/serializer/                        @DataDog/agent-processing-and-routing
+/pkg/serializer/internal/metrics/origin_mapping.go  @DataDog/agent-processing-and-routing @DataDog/agent-integrations
 /pkg/serverless/                        @DataDog/serverless
 /pkg/serverless/appsec/                 @DataDog/asm-go
 /pkg/status/                            @DataDog/agent-shared-components
@@ -398,7 +400,6 @@
 /pkg/proto/datadog/workloadmeta         @DataDog/container-platform
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-shared-components
-/pkg/serializer/                        @DataDog/agent-processing-and-routing
 /pkg/tagset/                            @DataDog/agent-shared-components
 /pkg/util/                              @DataDog/agent-shared-components
 /pkg/util/aggregatingqueue              @DataDog/container-integrations @DataDog/container-platform
