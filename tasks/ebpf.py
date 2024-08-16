@@ -5,6 +5,7 @@ import shutil
 
 from tasks.github_tasks import pr_commenter
 from tasks.kmt import download_complexity_data
+from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.git import get_commit_sha, get_current_branch
 from tasks.libs.types.arch import Arch
 
@@ -675,14 +676,37 @@ def generate_html_report(ctx: Context, dest_folder: str | Path):
         shutil.copy(file, dest_folder)
 
 
-@task
-def generate_complexity_summary_for_pr(ctx: Context, skip_github_comment=False):
+@task(
+    help={
+        "skip_github_comment": "Do not comment on the PR with the complexity summary",
+        "branch_name": "Branch name to use for the complexity data. By default, the current branch is used",
+        "base_branch": "Base branch to compare against. If not provided, we will try to find a PR for the current branch, and use the base branch from there. If that fails, the main branch will be used",
+    }
+)
+def generate_complexity_summary_for_pr(
+    ctx: Context, skip_github_comment=False, branch_name: str | None = None, base_branch: str | None = None
+):
     """Task meant to run in CI. Generates a summary of the complexity data for the current PR"""
     if tabulate is None:
         raise Exit("tabulate is required to print the complexity summary")
 
     pr_comment_head = 'eBPF complexity changes'
-    branch_name = get_current_branch(ctx)
+
+    if branch_name is None:
+        branch_name = get_current_branch(ctx)
+
+    if base_branch is None:
+        github = GithubAPI()
+        prs = list(github.get_pr_for_branch(branch_name))
+        if len(prs) == 0:
+            print(f"Warning: No PR found for branch {branch_name}, using main branch as base")
+            base_branch = "main"
+        elif len(prs) > 1:
+            print(f"Warning: Multiple PRs found for branch {branch_name}, using main branch as base")
+            base_branch = "main"
+        else:
+            base_branch = prs[0].base.ref
+            print(f"Found PR {prs[0].number} for this branch, using base branch {base_branch}")
 
     def _exit_or_delete_github_comment(msg: str):
         if skip_github_comment:
@@ -705,9 +729,11 @@ def generate_complexity_summary_for_pr(ctx: Context, skip_github_comment=False):
         return
 
     # We have files, now get files for the main branch
-    common_ancestor = cast(Result, ctx.run("git merge-base HEAD origin/main", hide=True)).stdout.strip()
+    common_ancestor = cast(
+        Result, ctx.run(f"git merge-base {branch_name} origin/{base_branch}", hide=True)
+    ).stdout.strip()
     main_branch_complexity_path = Path("/tmp/verifier-complexity-main")
-    print(f"Downloading complexity data for main branch (commit {common_ancestor})...")
+    print(f"Downloading complexity data for {base_branch} branch (commit {common_ancestor})...")
     download_complexity_data(ctx, common_ancestor, main_branch_complexity_path)
 
     main_complexity_files = list(main_branch_complexity_path.glob("verifier-complexity-*"))
