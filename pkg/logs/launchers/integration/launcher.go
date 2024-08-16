@@ -29,8 +29,7 @@ var endOfLine = []byte{'\n'}
 // Launcher checks for launcher integrations, creates files for integrations to
 // write logs to, then creates file sources for the file launcher to tail
 type Launcher struct {
-	sources *sources.LogSources
-	// addedSources         chan *sources.LogSource
+	sources              *sources.LogSources
 	addedConfigs         chan integrations.IntegrationConfig
 	stop                 chan struct{}
 	runPath              string
