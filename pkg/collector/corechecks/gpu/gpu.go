@@ -85,8 +85,7 @@ func (m *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	return nil
 }
 
-// Run executes the check
-func (m *Check) Run() error {
+func (m *Check) ensureInitialized() error {
 	var err error
 
 	if m.sysProbeUtil == nil {
@@ -103,6 +102,14 @@ func (m *Check) Run() error {
 		if err != nil {
 			return fmt.Errorf("cannot create time resolver: %s", err)
 		}
+	}
+	return nil
+}
+
+// Run executes the check
+func (m *Check) Run() error {
+	if err := m.ensureInitialized(); err != nil {
+		return err
 	}
 
 	gpuDevices, err := getGPUDevices()
