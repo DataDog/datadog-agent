@@ -73,7 +73,9 @@ func buildEndpoints(coreConfig pkgConfig.Reader) (*config.Endpoints, error) {
 	if err != nil {
 		return nil, err
 	}
-	// in serverless mode, we never want the batch strategy to flush with a tick
-	config.BatchWait = 365 * 24 * time.Hour
+	if IsServerless {
+		// in AWS Lambda, we never want the batch strategy to flush with a tick
+		config.BatchWait = 365 * 24 * time.Hour
+	}
 	return config, nil
 }
