@@ -126,6 +126,11 @@ func TestConvert(t *testing.T) {
 			provided:       "processors/dd-connector/config.yaml",
 			expectedResult: "processors/dd-connector/config-result.yaml",
 		},
+		{
+			name:           "processors/dd-connector-multi-pipelines",
+			provided:       "processors/dd-connector-multi-pipelines/config.yaml",
+			expectedResult: "processors/dd-connector-multi-pipelines/config-result.yaml",
+		},
 	}
 
 	for _, tc := range tests {
