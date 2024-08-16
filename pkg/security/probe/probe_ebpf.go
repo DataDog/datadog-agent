@@ -1316,11 +1316,6 @@ func (p *EBPFProbe) GetDiscarders() (*DiscardersDump, error) {
 		return nil, err
 	}
 
-	pidMap, err := managerhelper.Map(p.Manager, "pid_discarders")
-	if err != nil {
-		return nil, err
-	}
-
 	statsFB, err := managerhelper.Map(p.Manager, "fb_discarder_stats")
 	if err != nil {
 		return nil, err
@@ -1331,7 +1326,7 @@ func (p *EBPFProbe) GetDiscarders() (*DiscardersDump, error) {
 		return nil, err
 	}
 
-	dump, err := dumpDiscarders(p.Resolvers.DentryResolver, pidMap, inodeMap, statsFB, statsBB)
+	dump, err := dumpDiscarders(p.Resolvers.DentryResolver, inodeMap, statsFB, statsBB)
 	if err != nil {
 		return nil, err
 	}

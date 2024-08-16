@@ -9,10 +9,6 @@
 
 long __attribute__((always_inline)) trace__sys_chdir(const char *path) {
     struct policy_t policy = fetch_policy(EVENT_CHDIR);
-    if (is_discarded_by_process(policy.mode, EVENT_CHDIR)) {
-        return 0;
-    }
-
     struct syscall_cache_t syscall = {
         .type = EVENT_CHDIR,
         .policy = policy,
