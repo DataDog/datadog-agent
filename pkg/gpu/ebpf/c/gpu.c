@@ -29,20 +29,11 @@ static inline void load_dim3(__u64 xy, __u64 z, dim3 *dst) {
 SEC("uprobe/cudaLaunchKernel")
 int BPF_UPROBE(uprobe__cudaLaunchKernel, const void *func, __u64 grid_xy, __u64 grid_z, __u64 block_xy, __u64 block_z, void **args) {
     cuda_kernel_launch_t launch_data;
-    size_t shared_mem = 0;
-    __u64 *stream_ptr = 0;
-    __u64 stream;
+    __u64 shared_mem = 0;
+    __u64 stream = 0;
 
-    shared_mem = PT_REGS_PARM7(ctx);
-    stream_ptr = (__u64 *)PT_REGS_PARM8(ctx);
-
-    if (!stream_ptr) {
-        // Stream is optional, if pointer is NULL assume stream 0
-        stream = 0;
-    } else if (bpf_probe_read_user(&stream, sizeof(__u64), stream_ptr)) {
-        log_debug("cudaLaunchKernel: failed to read stream pointer 0x%llx", (__u64)stream_ptr);
-        return 0;
-    }
+    shared_mem = PT_REGS_USER_PARM7(ctx);
+    stream = PT_REGS_USER_PARM8(ctx);
 
     __builtin_memset(&launch_data, 0, sizeof(launch_data));
 
@@ -55,7 +46,8 @@ int BPF_UPROBE(uprobe__cudaLaunchKernel, const void *func, __u64 grid_xy, __u64 
     launch_data.kernel_addr = (uint64_t)func;
     launch_data.shared_mem_size = shared_mem;
 
-    log_debug("cudaLaunchKernel: EMIT pid_tgid=%llu, ts=%llu", launch_data.header.pid_tgid, launch_data.header.ktime_ns);
+    log_debug("cudaLaunchKernel: EMIT[1/2] pid_tgid=%llu, ts=%llu", launch_data.header.pid_tgid, launch_data.header.ktime_ns);
+    log_debug("cudaLaunchKernel: EMIT[2/2] kernel_addr=0x%llx, shared_mem=%llu, stream_id=%llu", launch_data.kernel_addr, launch_data.shared_mem_size, launch_data.header.stream_id);
 
     bpf_ringbuf_output(&cuda_events, &launch_data, sizeof(launch_data), 0);
 
@@ -128,18 +120,9 @@ int BPF_UPROBE(uprobe__cudaFree, void *mem) {
 }
 
 SEC("uprobe/cudaStreamSynchronize")
-int BPF_UPROBE(uprobe__cudaStreamSynchronize, size_t *stream_ptr) {
+int BPF_UPROBE(uprobe__cudaStreamSynchronize, __u64 stream) {
     // TODO: Send this on return, not on entry
     cuda_sync_t event;
-    size_t stream;
-
-    if (!stream_ptr) {
-        // Stream is optional, if pointer is NULL assume stream 0
-        stream = 0;
-    } else if (bpf_probe_read_user(&stream, sizeof(size_t), stream_ptr)) {
-        log_debug("cudaStreamSynchronize: failed to read stream pointer 0x%llx", (__u64)stream_ptr);
-        stream = 0;
-    }
 
     __builtin_memset(&event, 0, sizeof(event));
 

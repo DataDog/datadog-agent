@@ -4,34 +4,56 @@
 #if defined(bpf_target_x86)
 
 #define __PT_PARM6_REG r9
-#define PT_REGS_STACK_PARM(x,n)                                                     \
-({                                                                                  \
-    unsigned long p = 0;                                                            \
-    bpf_probe_read_kernel(&p, sizeof(p), ((unsigned long *)x->__PT_SP_REG) + n);    \
-    p;                                                                              \
-})
+#define PT_REGS_STACK_PARM(x, n)                                             \
+    ({                                                                       \
+        __u64 p = 0;                                                         \
+        bpf_probe_read_kernel(&p, sizeof(p), ((__u64 *)x->__PT_SP_REG) + n); \
+        p;                                                                   \
+    })
 
-#define PT_REGS_PARM7(x) PT_REGS_STACK_PARM(x,1)
-#define PT_REGS_PARM8(x) PT_REGS_STACK_PARM(x,2)
-#define PT_REGS_PARM9(x) PT_REGS_STACK_PARM(x,3)
-#define PT_REGS_PARM10(x) PT_REGS_STACK_PARM(x,4)
+#define PT_REGS_USER_STACK_PARM(x, n)                                             \
+    ({                                                                       \
+        __u64 p = 0;                                                         \
+        bpf_probe_read_user(&p, sizeof(p), ((__u64 *)x->__PT_SP_REG) + n); \
+        p;                                                                   \
+    })
+
+#define PT_REGS_PARM7(x) PT_REGS_STACK_PARM(x, 1)
+#define PT_REGS_PARM8(x) PT_REGS_STACK_PARM(x, 2)
+#define PT_REGS_PARM9(x) PT_REGS_STACK_PARM(x, 3)
+#define PT_REGS_PARM10(x) PT_REGS_STACK_PARM(x, 4)
+
+#define PT_REGS_USER_PARM7(x) PT_REGS_USER_STACK_PARM(x, 1)
+#define PT_REGS_USER_PARM8(x) PT_REGS_USER_STACK_PARM(x, 2)
+#define PT_REGS_USER_PARM9(x) PT_REGS_USER_STACK_PARM(x, 3)
+#define PT_REGS_USER_PARM10(x) PT_REGS_USER_STACK_PARM(x, 4)
 
 #elif defined(bpf_target_arm64)
 
 #define __PT_PARM6_REG regs[5]
-#define PT_REGS_STACK_PARM(x,n)                                            \
-({                                                                         \
-    unsigned long p = 0;                                                   \
-    bpf_probe_read_kernel(&p, sizeof(p), ((unsigned long *)x->sp) + n);    \
-    p;                                                                     \
-})
+#define PT_REGS_STACK_PARM(x, n)                                            \
+    ({                                                                      \
+        unsigned long p = 0;                                                \
+        bpf_probe_read_kernel(&p, sizeof(p), ((unsigned long *)x->sp) + n); \
+        p;                                                                  \
+    })
+
+#define PT_REGS_USER_STACK_PARM(x, n)                                            \
+    ({                                                                      \
+        unsigned long p = 0;                                                \
+        bpf_probe_read_USER(&p, sizeof(p), ((unsigned long *)x->sp) + n); \
+        p;                                                                  \
+    })
 
 #define PT_REGS_PARM7(x) (__PT_REGS_CAST(x)->regs[6])
 #define PT_REGS_PARM8(x) (__PT_REGS_CAST(x)->regs[7])
-#define PT_REGS_PARM9(x) PT_REGS_STACK_PARM(__PT_REGS_CAST(x),0)
-#define PT_REGS_PARM10(x) PT_REGS_STACK_PARM(__PT_REGS_CAST(x),1)
+#define PT_REGS_PARM9(x) PT_REGS_STACK_PARM(__PT_REGS_CAST(x), 0)
+#define PT_REGS_PARM10(x) PT_REGS_STACK_PARM(__PT_REGS_CAST(x), 1)
 #define PT_REGS_PARM7_CORE(x) BPF_CORE_READ(__PT_REGS_CAST(x), regs[6])
 #define PT_REGS_PARM8_CORE(x) BPF_CORE_READ(__PT_REGS_CAST(x), regs[7])
+
+#define PT_REGS_USER_PARM9(x) PT_REGS_STACK_PARM(__PT_REGS_CAST(x), 0)
+#define PT_REGS_USER_PARM10(x) PT_REGS_STACK_PARM(__PT_REGS_CAST(x), 1)
 
 #endif /* defined(bpf_target_x86) */
 
