@@ -38,7 +38,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "stop",
 		Short: "Stops a running Agent",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(stop,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),

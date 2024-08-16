@@ -73,7 +73,7 @@ func diagnoseChecksInAgentProcess(collector collector.Component) []diagnosis.Dia
 	return diagnoses
 }
 
-func diagnoseChecksInCLIProcess(_ diagnosis.Config, senderManager diagnosesendermanager.Component, logReceiver integrations.Component, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], ac autodiscovery.Component) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
+func diagnoseChecksInCLIProcess(_ diagnosis.Config, senderManager diagnosesendermanager.Component, _ integrations.Component, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], ac autodiscovery.Component) []diagnosis.Diagnosis {
 	// other choices
 	// 	run() github.com\DataDog\datadog-agent\pkg\cli\subcommands\check\command.go
 	//  runCheck() github.com\DataDog\datadog-agent\cmd\agent\gui\checks.go

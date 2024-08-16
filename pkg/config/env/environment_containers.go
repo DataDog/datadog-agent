@@ -168,7 +168,7 @@ func detectAWSEnvironments(features FeatureMap, cfg model.Reader) {
 	if IsECSFargate() {
 		features[ECSFargate] = struct{}{}
 		if cfg.GetBool("orchestrator_explorer.enabled") &&
-			cfg.GetBool("orchestrator_explorer.ecs_collection.enabled") {
+			cfg.GetBool("ecs_task_collection_enabled") {
 			features[ECSOrchestratorExplorer] = struct{}{}
 		}
 		return
@@ -183,7 +183,7 @@ func detectAWSEnvironments(features FeatureMap, cfg model.Reader) {
 	if IsECS() {
 		features[ECSEC2] = struct{}{}
 		if cfg.GetBool("orchestrator_explorer.enabled") &&
-			cfg.GetBool("orchestrator_explorer.ecs_collection.enabled") {
+			cfg.GetBool("ecs_task_collection_enabled") {
 			features[ECSOrchestratorExplorer] = struct{}{}
 		}
 	}

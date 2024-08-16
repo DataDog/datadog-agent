@@ -14,9 +14,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestNewHTTPTransaction(t *testing.T) {
@@ -38,7 +39,7 @@ func TestGetCreatedAt(t *testing.T) {
 }
 
 func TestProcess(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ts.Close()
@@ -90,7 +91,7 @@ func TestProcessNetworkError(t *testing.T) {
 func TestProcessHTTPError(t *testing.T) {
 	errorCode := http.StatusServiceUnavailable
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(errorCode)
 	}))
 	defer ts.Close()

@@ -344,6 +344,7 @@ func protoKubernetesPodFromWorkloadmetaKubernetesPod(kubernetesPod *workloadmeta
 		Ip:                         kubernetesPod.IP,
 		PriorityClass:              kubernetesPod.PriorityClass,
 		QosClass:                   kubernetesPod.QOSClass,
+		RuntimeClass:               kubernetesPod.RuntimeClass,
 		KubeServices:               kubernetesPod.KubeServices,
 		NamespaceLabels:            kubernetesPod.NamespaceLabels,
 	}, nil
@@ -764,6 +765,7 @@ func toWorkloadmetaKubernetesPod(protoKubernetesPod *pb.KubernetesPod) (*workloa
 		IP:                         protoKubernetesPod.Ip,
 		PriorityClass:              protoKubernetesPod.PriorityClass,
 		QOSClass:                   protoKubernetesPod.QosClass,
+		RuntimeClass:               protoKubernetesPod.RuntimeClass,
 		KubeServices:               protoKubernetesPod.KubeServices,
 		NamespaceLabels:            protoKubernetesPod.NamespaceLabels,
 	}, nil

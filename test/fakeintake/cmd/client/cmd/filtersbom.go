@@ -24,7 +24,7 @@ func NewFilterSBOMCommand(cl **client.Client) (cmd *cobra.Command) {
 		Use:     "sbom",
 		Short:   "Filter SBOMs",
 		Example: `fakeintakectl --url http://internal-lenaic-eks-fakeintake-2062862526.us-east-1.elb.amazonaws.com filter sbom --id gcr.io/datadoghq/agent@sha256:c08324052945874a0a5fb1ba5d4d5d1d3b8ff1a87b7b3e46810c8cf476ea4c3d`,
-		RunE: func(cmd *cobra.Command, args []string) (err error) {
+		RunE: func(cmd *cobra.Command, _ []string) (err error) {
 			var opts []client.MatchOpt[*aggregator.SBOMPayload]
 			if cmd.Flag("tags").Changed {
 				opts = append(opts, client.WithTags[*aggregator.SBOMPayload](tags))

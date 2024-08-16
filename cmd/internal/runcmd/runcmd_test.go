@@ -20,7 +20,7 @@ import (
 func TestRun_success(t *testing.T) {
 	cmd := &cobra.Command{
 		Use: "ok",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return nil
 		},
 	}
@@ -31,7 +31,7 @@ func TestRun_success(t *testing.T) {
 func TestRun_fail(t *testing.T) {
 	cmd := &cobra.Command{
 		Use: "bad",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return errors.New("uhoh")
 		},
 	}
@@ -39,12 +39,12 @@ func TestRun_fail(t *testing.T) {
 	require.Equal(t, -1, Run(cmd))
 }
 
-func makeFxError(t *testing.T) error { //nolint:revive // TODO fix revive unused-parameter
+func makeFxError(_ *testing.T) error {
 	app := fx.New(
 		fx.Provide(func() (string, error) {
 			return "", errors.New("uhoh")
 		}),
-		fx.Invoke(func(s string) {}),
+		fx.Invoke(func(_ string) {}),
 	)
 
 	// "could not build arguments for function .. uhoh"

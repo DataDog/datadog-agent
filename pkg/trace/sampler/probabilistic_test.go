@@ -214,7 +214,7 @@ func makeOtelTraceWithID(traceID []byte) ptrace.Traces {
 }
 
 func TestProbabilisticSamplerStartStop(t *testing.T) {
-	t.Run("enabled", func(t *testing.T) {
+	t.Run("enabled", func(_ *testing.T) {
 		conf := &config.AgentConfig{
 			ProbabilisticSamplerEnabled:            true,
 			ProbabilisticSamplerHashSeed:           22,
@@ -224,7 +224,7 @@ func TestProbabilisticSamplerStartStop(t *testing.T) {
 		sampler.Start()
 		sampler.Stop()
 	})
-	t.Run("disabled", func(t *testing.T) {
+	t.Run("disabled", func(_ *testing.T) {
 		conf := &config.AgentConfig{
 			ProbabilisticSamplerEnabled:            false,
 			ProbabilisticSamplerHashSeed:           22,

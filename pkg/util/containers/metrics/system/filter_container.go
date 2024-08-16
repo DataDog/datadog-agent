@@ -61,11 +61,14 @@ func (cf *containerFilter) handleEvent(ev workloadmeta.Event) {
 	}
 	switch ev.Type {
 	case workloadmeta.EventTypeSet:
-		// As a memory optimization, we only store the container id in the trie
-		// if the cgroup path is not already matched by the cgroup filter.
-		if res, _ := cgroups.ContainerFilter("", cont.CgroupPath); res == "" {
-			cid := cont.ID
-			cf.trie.Insert(cont.CgroupPath, &cid)
+		// As a performance optimization, only try to match the cgroup path if it is set
+		if cont.CgroupPath != "" {
+			// As a memory optimization, we only store the container id in the trie
+			// if the cgroup path is not already matched by the cgroup filter.
+			if res, _ := cgroups.ContainerFilter("", cont.CgroupPath); res == "" {
+				cid := cont.ID
+				cf.trie.Insert(cont.CgroupPath, &cid)
+			}
 		}
 	case workloadmeta.EventTypeUnset:
 		cf.trie.Delete(cont.CgroupPath)

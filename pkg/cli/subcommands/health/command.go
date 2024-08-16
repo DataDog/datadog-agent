@@ -38,10 +38,11 @@ type cliParams struct {
 // A pointer to this type is passed to SubcommandFactory's, but its contents
 // are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
-	ConfFilePath       string
-	ExtraConfFilePaths []string
-	ConfigName         string
-	LoggerName         string
+	ConfFilePath         string
+	ExtraConfFilePaths   []string
+	ConfigName           string
+	LoggerName           string
+	FleetPoliciesDirPath string
 }
 
 // MakeCommand returns a `health` command to be used by agent binaries.
@@ -52,12 +53,12 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		Short:        "Print the current agent health",
 		Long:         ``,
 		SilenceUsage: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			globalParams := globalParamsGetter()
 			return fxutil.OneShot(requestHealth,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName), config.WithExtraConfFiles(globalParams.ExtraConfFilePaths)),
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName), config.WithExtraConfFiles(globalParams.ExtraConfFilePaths), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
 			)

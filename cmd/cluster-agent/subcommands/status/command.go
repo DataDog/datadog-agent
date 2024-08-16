@@ -41,7 +41,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "status",
 		Short: "Print the current status",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
@@ -63,7 +63,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 //nolint:revive // TODO(CINT) Fix revive linter
 func run(log log.Component, config config.Component, cliParams *cliParams) error {
-	fmt.Printf("Getting the status from the agent.\n")
+	if !cliParams.prettyPrintJSON && !cliParams.jsonStatus {
+		fmt.Printf("Getting the status from the agent.\n")
+	}
 	var e error
 	var s string
 	c := util.GetClient(false) // FIX: get certificates right then make this true

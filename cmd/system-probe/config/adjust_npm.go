@@ -6,6 +6,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"runtime"
@@ -50,7 +51,7 @@ func adjustNetwork(cfg config.Config) {
 
 	validateInt64(cfg, spNS("max_tracked_connections"), defaultMaxTrackedConnections, func(v int64) error {
 		if v <= 0 {
-			return fmt.Errorf("must be a positive value")
+			return errors.New("must be a positive value")
 		}
 		return nil
 	})
@@ -60,11 +61,19 @@ func adjustNetwork(cfg config.Config) {
 	// closed connections in environments with mostly short-lived connections
 	validateInt64(cfg, spNS("max_closed_connections_buffered"), cfg.GetInt64(spNS("max_tracked_connections")), func(v int64) error {
 		if v <= 0 {
-			return fmt.Errorf("must be a positive value")
+			return errors.New("must be a positive value")
 		}
 		return nil
 	})
 	limitMaxInt64(cfg, spNS("max_closed_connections_buffered"), math.MaxUint32)
+	// also ensure that max_failed_connections_buffered is equal to max_tracked_connections if the former is not set
+	validateInt64(cfg, netNS("max_failed_connections_buffered"), cfg.GetInt64(spNS("max_tracked_connections")), func(v int64) error {
+		if v <= 0 {
+			return errors.New("must be a positive value")
+		}
+		return nil
+	})
+	limitMaxInt64(cfg, netNS("max_failed_connections_buffered"), math.MaxUint32)
 
 	limitMaxInt(cfg, spNS("offset_guess_threshold"), maxOffsetThreshold)
 

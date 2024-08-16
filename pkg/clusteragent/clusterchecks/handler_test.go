@@ -143,7 +143,7 @@ func TestHandlerRun(t *testing.T) {
 		err: errors.New("failing"),
 	}
 
-	testServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	testServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "I'm a teapot", 418)
 	}))
 	testPort := testServer.Listener.Addr().(*net.TCPAddr).Port

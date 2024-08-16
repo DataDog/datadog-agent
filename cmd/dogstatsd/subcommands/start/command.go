@@ -33,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-less"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
@@ -133,7 +133,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		forwarder.Bundle(),
 		fx.Provide(defaultforwarder.NewParams),
 		// workloadmeta setup
-		collectors.GetCatalog(),
+		wmcatalog.GetCatalog(),
 		fx.Provide(func(config config.Component) workloadmeta.Params {
 			catalog := workloadmeta.NodeAgent
 			instantiate := config.GetBool("dogstatsd_origin_detection")
@@ -227,7 +227,7 @@ func start(
 }
 
 // RunDogstatsd starts the dogstatsd server
-func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Component, log log.Component, params *Params, components *DogstatsdComponents, demultiplexer demultiplexer.Component) (err error) {
+func RunDogstatsd(_ context.Context, cliParams *CLIParams, config config.Component, log log.Component, params *Params, components *DogstatsdComponents, demultiplexer demultiplexer.Component) (err error) {
 	if len(cliParams.confPath) == 0 {
 		log.Infof("Config will be read from env variables")
 	}

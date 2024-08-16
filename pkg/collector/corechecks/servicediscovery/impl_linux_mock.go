@@ -14,7 +14,7 @@ package servicediscovery
 import (
 	reflect "reflect"
 
-	portlist "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/portlist"
+	model "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	gomock "github.com/golang/mock/gomock"
 	procfs "github.com/prometheus/procfs"
 )
@@ -55,36 +55,6 @@ func (m *Mockproc) CmdLine() ([]string, error) {
 func (mr *MockprocMockRecorder) CmdLine() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CmdLine", reflect.TypeOf((*Mockproc)(nil).CmdLine))
-}
-
-// Cwd mocks base method.
-func (m *Mockproc) Cwd() (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Cwd")
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Cwd indicates an expected call of Cwd.
-func (mr *MockprocMockRecorder) Cwd() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cwd", reflect.TypeOf((*Mockproc)(nil).Cwd))
-}
-
-// Environ mocks base method.
-func (m *Mockproc) Environ() ([]string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Environ")
-	ret0, _ := ret[0].([]string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Environ indicates an expected call of Environ.
-func (mr *MockprocMockRecorder) Environ() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Environ", reflect.TypeOf((*Mockproc)(nil).Environ))
 }
 
 // PID mocks base method.
@@ -154,40 +124,40 @@ func (mr *MockprocFSMockRecorder) AllProcs() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AllProcs", reflect.TypeOf((*MockprocFS)(nil).AllProcs))
 }
 
-// MockportPoller is a mock of portPoller interface.
-type MockportPoller struct {
+// MocksystemProbeClient is a mock of systemProbeClient interface.
+type MocksystemProbeClient struct {
 	ctrl     *gomock.Controller
-	recorder *MockportPollerMockRecorder
+	recorder *MocksystemProbeClientMockRecorder
 }
 
-// MockportPollerMockRecorder is the mock recorder for MockportPoller.
-type MockportPollerMockRecorder struct {
-	mock *MockportPoller
+// MocksystemProbeClientMockRecorder is the mock recorder for MocksystemProbeClient.
+type MocksystemProbeClientMockRecorder struct {
+	mock *MocksystemProbeClient
 }
 
-// NewMockportPoller creates a new mock instance.
-func NewMockportPoller(ctrl *gomock.Controller) *MockportPoller {
-	mock := &MockportPoller{ctrl: ctrl}
-	mock.recorder = &MockportPollerMockRecorder{mock}
+// NewMocksystemProbeClient creates a new mock instance.
+func NewMocksystemProbeClient(ctrl *gomock.Controller) *MocksystemProbeClient {
+	mock := &MocksystemProbeClient{ctrl: ctrl}
+	mock.recorder = &MocksystemProbeClientMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockportPoller) EXPECT() *MockportPollerMockRecorder {
+func (m *MocksystemProbeClient) EXPECT() *MocksystemProbeClientMockRecorder {
 	return m.recorder
 }
 
-// OpenPorts mocks base method.
-func (m *MockportPoller) OpenPorts() (portlist.List, error) {
+// GetDiscoveryListeners mocks base method.
+func (m *MocksystemProbeClient) GetDiscoveryServices() (*model.ServicesResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "OpenPorts")
-	ret0, _ := ret[0].(portlist.List)
+	ret := m.ctrl.Call(m, "GetDiscoveryServices")
+	ret0, _ := ret[0].(*model.ServicesResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// OpenPorts indicates an expected call of OpenPorts.
-func (mr *MockportPollerMockRecorder) OpenPorts() *gomock.Call {
+// GetDiscoveryServices indicates an expected call of GetDiscoveryServices.
+func (mr *MocksystemProbeClientMockRecorder) GetDiscoveryServices() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenPorts", reflect.TypeOf((*MockportPoller)(nil).OpenPorts))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDiscoveryServices", reflect.TypeOf((*MocksystemProbeClient)(nil).GetDiscoveryServices))
 }

@@ -65,7 +65,7 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "Starting OpenTelemetry Collector",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			globalParams := globalConfGetter()
 			return runOTelAgentCommand(context.Background(), globalParams)
 		},
@@ -130,7 +130,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		remotehostnameimpl.Module(),
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 
-		fx.Provide(func(c coreconfig.Component) log.Params {
+		fx.Provide(func(_ coreconfig.Component) log.Params {
 			return log.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 		}),
 		logsagentpipelineimpl.Module(),

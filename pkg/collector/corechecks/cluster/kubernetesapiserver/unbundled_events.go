@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component, types []collectedEventType, bundleUnspecifiedEvents bool) eventTransformer {
+func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component, types []collectedEventType, bundleUnspecifiedEvents bool, filteringEnabled bool) eventTransformer {
 	collectedTypes := make([]collectedEventType, 0, len(types))
 	for _, f := range types {
 		if f.Kind == "" && f.Source == "" {
@@ -32,7 +32,7 @@ func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component
 
 	var t eventTransformer = noopEventTransformer{}
 	if bundleUnspecifiedEvents {
-		t = newBundledTransformer(clusterName, taggerInstance)
+		t = newBundledTransformer(clusterName, taggerInstance, collectedTypes, false)
 	}
 
 	return &unbundledTransformer{
@@ -41,6 +41,7 @@ func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component
 		taggerInstance:          taggerInstance,
 		bundledTransformer:      t,
 		bundleUnspecifiedEvents: bundleUnspecifiedEvents,
+		filteringEnabled:        filteringEnabled,
 	}
 }
 
@@ -50,6 +51,7 @@ type unbundledTransformer struct {
 	taggerInstance          tagger.Component
 	bundledTransformer      eventTransformer
 	bundleUnspecifiedEvents bool
+	filteringEnabled        bool
 }
 
 func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []error) {
@@ -71,7 +73,17 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 			source,
 		)
 
-		if !c.shouldCollect(ev) {
+		collectedByDefault := false
+		if c.filteringEnabled {
+			if !shouldCollectByDefault(ev) {
+				source = fmt.Sprintf("%s_%s", source, customEventSourceSuffix)
+			} else {
+				collectedByDefault = true
+			}
+		}
+
+		isCollected := collectedByDefault || c.shouldCollect(ev)
+		if !isCollected {
 			if c.bundleUnspecifiedEvents {
 				eventsToBundle = append(eventsToBundle, ev)
 			}
@@ -88,7 +100,15 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 			involvedObject.Kind,
 			ev.Type,
 			source,
+			"false",
 		)
+
+		var timestamp int64
+		if ev.FirstTimestamp.IsZero() {
+			timestamp = int64(ev.EventTime.Unix())
+		} else {
+			timestamp = int64(ev.FirstTimestamp.Unix())
+		}
 
 		event := event.Event{
 			Title:          fmt.Sprintf("%s: %s", readableKey, ev.Reason),
@@ -96,7 +116,7 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 			Host:           hostInfo.hostname,
 			SourceTypeName: source,
 			EventType:      CheckName,
-			Ts:             int64(ev.LastTimestamp.Unix()),
+			Ts:             timestamp,
 			Tags:           tags,
 			AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", involvedObject.UID),
 			AlertType:      getDDAlertType(ev.Type),
@@ -166,27 +186,5 @@ func (c *unbundledTransformer) getTagsFromTagger(obj v1.ObjectReference, tagsAcc
 }
 
 func (c *unbundledTransformer) shouldCollect(ev *v1.Event) bool {
-	involvedObject := ev.InvolvedObject
-
-	for _, f := range c.collectedTypes {
-		if f.Kind != "" && f.Kind != involvedObject.Kind {
-			continue
-		}
-
-		if f.Source != "" && f.Source != ev.Source.Component {
-			continue
-		}
-
-		if len(f.Reasons) == 0 {
-			return true
-		}
-
-		for _, r := range f.Reasons {
-			if ev.Reason == r {
-				return true
-			}
-		}
-	}
-
-	return false
+	return shouldCollect(ev, c.collectedTypes)
 }

@@ -8,27 +8,21 @@ include:
   stage: deploy_packages
   rules:
     - !reference [.on_deploy]
+    - !reference [.on_deploy_installer]
     - !reference [.on_installer_or_e2e_changes]
     - !reference [.manual]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
-    - python3 -m pip install -r tasks/libs/requirements-github.txt
     - set +x
-    - export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.platform-github-app-key)
-    - export GITHUB_APP_ID=682216
-    - export GH_TOKEN=$(inv -e github.get-token-from-app --app-id-env=GITHUB_APP_ID --pkey-env=GITHUB_KEY_B64)
     - export VERSION=$(inv agent.version --url-safe)-1
-    - git config --global credential.helper '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; };f'
-    - ${CI_PROJECT_DIR}/tools/ci/retry.sh git clone -v --depth=1 https://github.com/DataDog/datadog-packages /tmp/datadog-packages
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
-    - export GOPROXY="binaries.ddbuild.io,proxy.golang.org,direct"
-    - export GONOSUMDB="github.com/DataDog,go.ddbuild.io"
-    - cd /tmp/datadog-packages/cmd/datadog-package
-    - go build .
-    - ./datadog-package push registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:${VERSION} ${OMNIBUS_PACKAGE_DIR}/${OCI_PRODUCT}-${VERSION}.oci.tar
+    - go env -w GOPRIVATE="github.com/DataDog/*"
+    - export PATH=$PATH:$(go env GOPATH)/bin
+    - go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
+    - datadog-package push registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:${VERSION} ${OMNIBUS_PACKAGE_DIR}/${OCI_PRODUCT}-${VERSION}.oci.tar
     # This is used for E2E tests. Doesn't cost more than an additional tag to the registry.
-    - ./datadog-package push registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} ${OMNIBUS_PACKAGE_DIR}/${OCI_PRODUCT}-${VERSION}.oci.tar
+    - datadog-package push registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} ${OMNIBUS_PACKAGE_DIR}/${OCI_PRODUCT}-${VERSION}.oci.tar
   variables:
     MAJOR_VERSION: 7
 

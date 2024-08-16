@@ -5,7 +5,7 @@
 
 //go:build unix
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl_linux.json -field-accessors-output field_accessors_unix.go -verbose
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl_linux.json -field-accessors-output field_accessors_unix.go
 
 // Package model holds model related files
 package model
@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"modernc.org/mathutil"
 )
 
 // Event represents an event sent from the kernel
@@ -22,12 +24,12 @@ type Event struct {
 	BaseEvent
 
 	// globals
-	Async bool `field:"event.async,handler:ResolveAsync" event:"*"` // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
+	Async bool `field:"event.async,handler:ResolveAsync"` // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
 
 	// context
 	SpanContext    SpanContext    `field:"-"`
-	NetworkContext NetworkContext `field:"network"` // [7.36] [Network] Network context
-	CGroupContext  CGroupContext  `field:"cgroup" event:"*"`
+	NetworkContext NetworkContext `field:"network" restricted_to:"dns,imds"` // [7.36] [Network] Network context
+	CGroupContext  CGroupContext  `field:"cgroup"`
 
 	// fim events
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
@@ -78,17 +80,21 @@ type Event struct {
 	ArgsEnvs         ArgsEnvsEvent         `field:"-"`
 	MountReleased    MountReleasedEvent    `field:"-"`
 	CgroupTracing    CgroupTracingEvent    `field:"-"`
+	CgroupWrite      CgroupWriteEvent      `field:"-"`
 	NetDevice        NetDeviceEvent        `field:"-"`
 	VethPair         VethPairEvent         `field:"-"`
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
+
 	// used for ebpfless
 	NSID uint64 `field:"-"`
 }
 
 // CGroupContext holds the cgroup context of an event
 type CGroupContext struct {
-	CGroupID    CGroupID    `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
-	CGroupFlags CGroupFlags `field:"-"`
+	CGroupID      containerutils.CGroupID    `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
+	CGroupFlags   containerutils.CGroupFlags `field:"-"`
+	CGroupManager string                     `field:"manager,handler:ResolveCGroupManager"` // SECLDoc[manager] Definition:`Lifecycle manager of the cgroup`
+	CGroupFile    PathKey                    `field:"file"`
 }
 
 // SyscallEvent contains common fields for all the event
@@ -199,11 +205,11 @@ type Process struct {
 
 	FileEvent FileEvent `field:"file,check:IsNotKworker"`
 
-	CGroup      CGroupContext `field:"cgroup"`                                         // SECLDoc[cgroup] Definition:`CGroup`
-	ContainerID ContainerID   `field:"container.id,handler:ResolveProcessContainerID"` // SECLDoc[container.id] Definition:`Container ID`
+	CGroup      CGroupContext              `field:"cgroup"`                                         // SECLDoc[cgroup] Definition:`CGroup`
+	ContainerID containerutils.ContainerID `field:"container.id,handler:ResolveProcessContainerID"` // SECLDoc[container.id] Definition:`Container ID`
 
-	SpanID  uint64 `field:"-"`
-	TraceID uint64 `field:"-"`
+	SpanID  uint64          `field:"-"`
+	TraceID mathutil.Int128 `field:"-"`
 
 	TTYName     string      `field:"tty_name"`                         // SECLDoc[tty_name] Definition:`Name of the TTY associated with the process`
 	Comm        string      `field:"comm"`                             // SECLDoc[comm] Definition:`Comm attribute of the process`
@@ -589,10 +595,15 @@ type SpliceEvent struct {
 
 // CgroupTracingEvent is used to signal that a new cgroup should be traced by the activity dump manager
 type CgroupTracingEvent struct {
-	CGroupFlags      uint64
 	ContainerContext ContainerContext
+	CGroupContext    CGroupContext
 	Config           ActivityDumpLoadConfig
 	ConfigCookie     uint64
+}
+
+// CgroupWriteEvent is used to signal that a new cgroup was created
+type CgroupWriteEvent struct {
+	File FileEvent `field:"file"` // Path to the cgroup
 }
 
 // ActivityDumpLoadConfig represents the load configuration of an activity dump

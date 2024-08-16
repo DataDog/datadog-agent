@@ -65,7 +65,7 @@ func eksHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[eksHttpbinEnv] {
 			return err
 		}
 
-		npmToolsWorkload := func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+		npmToolsWorkload := func(_ config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
 			// NPM tools Workload
 			testURL := "http://" + env.HTTPBinHost.Address + "/"
 			return npmtools.K8sAppDefinition(&awsEnv, kubeProvider, "npmtools", testURL)

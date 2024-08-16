@@ -110,6 +110,7 @@ func (h *PodHandlers) BuildMessageBody(ctx processors.ProcessorContext, resource
 		HostName:    pctx.HostName,
 		Pods:        models,
 		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Info:        pctx.SystemInfo,
 	}
 }
 
@@ -156,7 +157,7 @@ func (h *PodHandlers) ResourceVersion(ctx processors.ProcessorContext, resource,
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *PodHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*corev1.Pod)
-	redact.RemoveSensitiveAnnotations(r.Annotations)
+	redact.RemoveSensitiveAnnotationsAndLabels(r.Annotations, r.Labels)
 }
 
 // ScrubBeforeMarshalling is a handler called to redact the raw resource before

@@ -38,11 +38,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "workload-list",
 		Short: "Print the workload content of a running agent",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(workloadList,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true),
 				}),
 				core.Bundle(),

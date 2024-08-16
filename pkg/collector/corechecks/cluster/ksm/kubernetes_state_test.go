@@ -311,7 +311,7 @@ func TestProcessMetrics(t *testing.T) {
 			},
 			metricsToGet: []ksmstore.DDMetricsFam{},
 			metricTransformers: map[string]metricTransformerFunc{
-				"kube_pod_status_phase": func(s sender.Sender, n string, m ksmstore.DDMetric, h string, t []string, c time.Time) {
+				"kube_pod_status_phase": func(s sender.Sender, _ string, _ ksmstore.DDMetric, _ string, _ []string, _ time.Time) {
 					s.Gauge("kube_pod_status_phase_transformed", 1, "", []string{"transformed:tag"})
 				},
 			},

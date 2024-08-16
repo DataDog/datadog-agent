@@ -487,7 +487,7 @@ func (e *ebpfProgram) setupMapCleaner() (*ddebpf.MapCleaner[netebpf.ConnTuple, n
 	}
 
 	ttl := connProtoTTL.Nanoseconds()
-	mapCleaner.Clean(connProtoCleaningInterval, nil, nil, func(now int64, key netebpf.ConnTuple, val netebpf.ProtocolStackWrapper) bool {
+	mapCleaner.Clean(connProtoCleaningInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val netebpf.ProtocolStackWrapper) bool {
 		return (now - int64(val.Updated)) > ttl
 	})
 

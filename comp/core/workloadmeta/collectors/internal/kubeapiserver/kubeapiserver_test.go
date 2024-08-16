@@ -474,7 +474,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(tt *testing.T) {
+		t.Run(test.name, func(_ *testing.T) {
 			cfg := fxutil.Test[config.Component](t, fx.Options(
 				config.MockModule(),
 				fx.Replace(config.MockParams{Overrides: test.cfg}),

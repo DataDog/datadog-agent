@@ -111,7 +111,7 @@ func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error
 		Handler:  s.mux,
 		ErrorLog: stdLog.New(logWriter, "Error from the admission controller http API server: ", 0),
 		TLSConfig: &tls.Config{
-			GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			GetCertificate: func(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
 				secretNs := common.GetResourcesNamespace()
 				secretName := config.Datadog().GetString("admission_controller.certificate.secret_name")
 				cert, err := certificate.GetCertificateFromSecret(secretNs, secretName, client)

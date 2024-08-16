@@ -76,7 +76,7 @@ func TestSendLogRegistrationRequestSuccess(t *testing.T) {
 func TestSubscribeLogsSuccess(t *testing.T) {
 	payload := buildLogRegistrationPayload("myUri", "platform function", 10, 100, 1000)
 	//fake the register route
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(200)
 	}))
 	defer ts.Close()
@@ -88,7 +88,7 @@ func TestSubscribeLogsTimeout(t *testing.T) {
 	payload := buildLogRegistrationPayload("myUri", "platform function", 10, 100, 1000)
 	done := make(chan struct{})
 	//fake the register route
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		// timeout
 		select {
 		case <-time.After(registerLogsTimeout + 5*time.Second):
@@ -106,7 +106,7 @@ func TestSubscribeLogsTimeout(t *testing.T) {
 func TestSubscribeLogsInvalidHttpCode(t *testing.T) {
 	payload := buildLogRegistrationPayload("myUri", "platform function", 10, 100, 1000)
 	//fake the register route
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		// invalid code
 		w.WriteHeader(500)
 	}))
@@ -159,7 +159,7 @@ func TestBuildCallbackURI(t *testing.T) {
 
 func TestEnableTelemetryCollection(t *testing.T) {
 	//fake the register route
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(200)
 	}))
 	defer ts.Close()

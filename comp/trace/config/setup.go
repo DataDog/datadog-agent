@@ -17,8 +17,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"go.opentelemetry.io/collector/component/componenttest"
+
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -220,15 +221,18 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsSet("apm_config.connection_limit") {
 		c.ConnectionLimit = core.GetInt("apm_config.connection_limit")
 	}
-	c.PeerServiceAggregation = core.GetBool("apm_config.peer_service_aggregation")
-	if c.PeerServiceAggregation {
+
+	// NOTE: maintain backwards-compatibility with old peer service flag that will eventually be deprecated.
+	c.PeerTagsAggregation = core.GetBool("apm_config.peer_service_aggregation")
+	if c.PeerTagsAggregation {
 		log.Warn("`apm_config.peer_service_aggregation` is deprecated, please use `apm_config.peer_tags_aggregation` instead")
 	}
-	c.PeerTagsAggregation = core.GetBool("apm_config.peer_tags_aggregation")
+	c.PeerTagsAggregation = c.PeerTagsAggregation || core.GetBool("apm_config.peer_tags_aggregation")
 	c.ComputeStatsBySpanKind = core.GetBool("apm_config.compute_stats_by_span_kind")
 	if core.IsSet("apm_config.peer_tags") {
 		c.PeerTags = core.GetStringSlice("apm_config.peer_tags")
 	}
+
 	if core.IsSet("apm_config.extra_sample_rate") {
 		c.ExtraSampleRate = core.GetFloat64("apm_config.extra_sample_rate")
 	}
@@ -837,11 +841,10 @@ func SetHandler() http.Handler {
 				if lvl == "warning" {
 					lvl = "warn"
 				}
-				if err := coreconfig.ChangeLogLevel(lvl); err != nil {
+				if err := utils.SetLogLevel(lvl, coreconfig.Datadog(), model.SourceAgentRuntime); err != nil {
 					httpError(w, http.StatusInternalServerError, err)
 					return
 				}
-				coreconfig.Datadog().Set("log_level", lvl, model.SourceAgentRuntime)
 				log.Infof("Switched log level to %s", lvl)
 			default:
 				log.Infof("Unsupported config change requested (key: %q).", key)

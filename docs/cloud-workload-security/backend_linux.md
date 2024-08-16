@@ -188,6 +188,10 @@ CSM Threats event for Linux systems have the following JSON schema:
                 "id": {
                     "type": "string",
                     "description": "CGroup ID"
+                },
+                "manager": {
+                    "type": "string",
+                    "description": "CGroup manager"
                 }
             },
             "additionalProperties": false,
@@ -217,11 +221,11 @@ CSM Threats event for Linux systems have the following JSON schema:
         "DDContext": {
             "properties": {
                 "span_id": {
-                    "type": "integer",
+                    "type": "string",
                     "description": "Span ID used for APM correlation"
                 },
                 "trace_id": {
-                    "type": "integer",
+                    "type": "string",
                     "description": "Trace ID used for APM correlation"
                 }
             },
@@ -2022,6 +2026,10 @@ CSM Threats event for Linux systems have the following JSON schema:
         "id": {
             "type": "string",
             "description": "CGroup ID"
+        },
+        "manager": {
+            "type": "string",
+            "description": "CGroup manager"
         }
     },
     "additionalProperties": false,
@@ -2034,6 +2042,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `id` | CGroup ID |
+| `manager` | CGroup manager |
 
 
 ## `ContainerContext`
@@ -2080,11 +2089,11 @@ CSM Threats event for Linux systems have the following JSON schema:
 {
     "properties": {
         "span_id": {
-            "type": "integer",
+            "type": "string",
             "description": "Span ID used for APM correlation"
         },
         "trace_id": {
-            "type": "integer",
+            "type": "string",
             "description": "Trace ID used for APM correlation"
         }
     },

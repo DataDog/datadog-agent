@@ -94,11 +94,20 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		Regex: regexp.MustCompile(`(?i)([a-z][a-z0-9+-.]+://|\b)([^:]+):([^\s|"]+)@`),
 		Repl:  []byte(`$1$2:********@`),
 	}
-	passwordReplacer := matchYAMLKeyPart(
+	yamlPasswordReplacer := matchYAMLKeyPart(
 		`(pass(word)?|pwd)`,
 		[]string{"pass", "pwd"},
 		[]byte(`$1 "********"`),
 	)
+	passwordReplacer := Replacer{
+		// this regex has three parts:
+		// * key: case-insensitive, optionally quoted (pass | password | pswd | pwd), not anchored to match on args like --mysql_password= etc.
+		// * separator: (= or :) with optional opening quote we don't want to match as part of the password
+		// * password string: alphanum + special chars except quotes and semicolon
+		Regex: regexp.MustCompile(`(?i)(\"?(?:pass(?:word)?|pswd|pwd)\"?)((?:=| = |: )\"?)([0-9A-Za-z#!$%&()*+,\-./:<=>?@[\\\]^_{|}~]+)`),
+		// replace the 3rd capture group (password string) with ********
+		Repl: []byte(`$1$2********`),
+	}
 	tokenReplacer := matchYAMLKeyEnding(
 		`token`,
 		[]string{"token"},
@@ -169,6 +178,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, appKeyReplacer)
 	scrubber.AddReplacer(SingleLine, rcAppKeyReplacer)
 	scrubber.AddReplacer(SingleLine, uriPasswordReplacer)
+	scrubber.AddReplacer(SingleLine, yamlPasswordReplacer)
 	scrubber.AddReplacer(SingleLine, passwordReplacer)
 	scrubber.AddReplacer(SingleLine, tokenReplacer)
 	scrubber.AddReplacer(SingleLine, snmpReplacer)

@@ -78,13 +78,22 @@ func (e *Process) MarshalProcCache(data []byte, bootTime time.Time) (int, error)
 
 	copy(data[0:ContainerIDLen], []byte(e.ContainerID))
 	binary.NativeEndian.PutUint64(data[ContainerIDLen:ContainerIDLen+8], uint64(e.CGroup.CGroupFlags))
+
 	written := ContainerIDLen + 8
 
-	toAdd, err := MarshalBinary(data[written:], &e.FileEvent)
+	toAdd, err := e.CGroup.CGroupFile.MarshalBinary()
 	if err != nil {
 		return 0, err
 	}
-	written += toAdd
+
+	copy(data[written:written+len(toAdd)], toAdd)
+	written += len(toAdd)
+
+	added, err := MarshalBinary(data[written:], &e.FileEvent)
+	if err != nil {
+		return 0, err
+	}
+	written += added
 
 	if len(data[written:]) < 88 {
 		return 0, ErrNotEnoughSpace

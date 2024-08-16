@@ -139,6 +139,7 @@ func GenerateEnhancedMetricsFromRuntimeDoneLog(args GenerateEnhancedMetricsFromR
 func ContainsOutOfMemoryLog(logString string) bool {
 	for _, substring := range getOutOfMemorySubstrings() {
 		if strings.Contains(logString, substring) {
+			log.Debug("Found out of memory substring in function log line")
 			return true
 		}
 	}

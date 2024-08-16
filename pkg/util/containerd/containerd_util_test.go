@@ -270,7 +270,7 @@ func TestStatus(t *testing.T) {
 	status := containerd.Running
 
 	task := mockTaskStruct{
-		mockStatus: func(ctx context.Context) (containerd.Status, error) {
+		mockStatus: func(context.Context) (containerd.Status, error) {
 			return containerd.Status{
 				Status: status,
 			}, nil
@@ -321,7 +321,7 @@ func TestIsSandbox(t *testing.T) {
 //nolint:govet // TODO(CINT) Fix govet linter
 func makeCtn(value v1.Metrics, typeURL string, taskMetricsError error) containerd.Container {
 	taskStruct := &mockTaskStruct{
-		mockMectric: func(ctx context.Context) (*types.Metric, error) {
+		mockMectric: func(context.Context) (*types.Metric, error) {
 			typeURL := typeURL
 			//nolint:govet // TODO(CINT) Fix govet linter
 			jsonValue, _ := json.Marshal(value)

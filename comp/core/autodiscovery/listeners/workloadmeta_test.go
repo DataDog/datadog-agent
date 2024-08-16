@@ -37,7 +37,7 @@ type testWorkloadmetaListener struct {
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
-func (l *testWorkloadmetaListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
+func (l *testWorkloadmetaListener) Listen(_ chan<- Service, _ chan<- Service) {
 	panic("not implemented")
 }
 

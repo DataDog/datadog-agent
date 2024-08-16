@@ -247,7 +247,7 @@ func publishDropCheckPayloads() interface{} {
 }
 
 // InitExpvars initializes expvars
-func InitExpvars(config ddconfig.Reader, hostname string, processModuleEnabled, languageDetectionEnabled bool, eps []apicfg.Endpoint) {
+func InitExpvars(_ ddconfig.Reader, hostname string, processModuleEnabled, languageDetectionEnabled bool, eps []apicfg.Endpoint) {
 	infoOnce.Do(func() {
 		processExpvars := expvar.NewMap("process_agent")
 		hostString := expvar.NewString("host")

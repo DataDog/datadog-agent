@@ -27,11 +27,7 @@ from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH, GITHUB_REPO_NAME
 from tasks.libs.common.git import get_staged_files
-from tasks.libs.common.utils import (
-    gitlab_section,
-    is_pr_context,
-    running_in_ci,
-)
+from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
 from tasks.libs.types.copyright import CopyrightLinter, LintFailure
 from tasks.modules import GoModule
 from tasks.test_core import ModuleLintResult, process_input_args, process_module_results, test_core
@@ -190,14 +186,14 @@ def go(
         include_sds=include_sds,
     )
 
-    with gitlab_section('Linter execution time'):
-        print(color_message('Execution time summary:', 'bold'))
+    if not headless_mode:
+        with gitlab_section('Linter execution time'):
+            print(color_message('Execution time summary:', 'bold'))
+            for e in execution_times:
+                print(f'- {e.name}: {e.duration:.1f}s')
 
     with gitlab_section('Linter failures'):
         success = process_module_results(flavor=flavor, module_results=lint_results)
-
-        for e in execution_times:
-            print(f'- {e.name}: {e.duration:.1f}s')
 
     if success:
         if not headless_mode:
@@ -309,35 +305,59 @@ def list_ssm_parameters(_):
 
 
 @task
-def ssm_parameters(ctx):
+def ssm_parameters(ctx, mode="all", folders=None):
     """
     Lint SSM parameters in the datadog-agent repository.
     """
-    lint_folders = [".circleci", ".github", ".gitlab", "tasks", "test"]
+    modes = ["env", "wrapper", "all"]
+    if mode not in modes:
+        raise Exit(f"Invalid mode: {mode}. Must be one of {modes}")
+    if folders is None:
+        lint_folders = [".circleci", ".github", ".gitlab", "test"]
+    else:
+        lint_folders = folders.split(",")
     repo_files = ctx.run("git ls-files", hide="both")
     error_files = []
     for filename in repo_files.stdout.split("\n"):
         if any(filename.startswith(f) for f in lint_folders):
-            matched = is_get_parameter_call(filename)
-            if matched:
-                error_files.append(matched)
+            calls = list_get_parameter_calls(filename)
+            if calls:
+                error_files.extend(calls)
+    if mode == "env":
+        error_files = [f for f in error_files if not f.with_env_var]
+    elif mode == "wrapper":
+        error_files = [f for f in error_files if not f.with_wrapper]
     if error_files:
-        print("The following files contain unexpected syntax for aws ssm get-parameter:")
+        print(
+            f"[{color_message('ERROR', Color.RED)}] The following files contain unexpected syntax for aws ssm get-parameter:"
+        )
         for filename in error_files:
             print(f"  - {filename}")
         raise Exit(code=1)
+    print(f"[{color_message('OK', Color.GREEN)}] All files are correctly using wrapper for aws ssm parameters.")
 
 
 class SSMParameterCall:
-    def __init__(self, file, line_nb, with_wrapper=False, with_env_var=False):
+    def __init__(self, file, line_nb, with_wrapper=False, with_env_var=False, standard=True):
+        """
+        Initialize an SSMParameterCall instance.
+
+        Args:
+            file (str): The name of the file where the SSM parameter call is located.
+            line_nb (int): The line number in the file where the SSM parameter call is located.
+            with_wrapper (bool, optional): If the call is using the wrapper. Defaults to False.
+            with_env_var (bool, optional): If the call is using an environment variable defined in .gitlab-ci.yml. Defaults to False.
+            not_standard (bool, optional): If the call is standard (matching either "aws ssm get-parameter --name" or "aws_ssm_get_wrapper"). Defaults to True.
+        """
         self.file = file
         self.line_nb = line_nb
         self.with_wrapper = with_wrapper
         self.with_env_var = with_env_var
+        self.standard = standard
 
     def __str__(self):
         message = ""
-        if not self.with_wrapper:
+        if not self.with_wrapper or not self.standard:
             message += "Please use the dedicated `aws_ssm_get_wrapper.(sh|ps1)`."
         if not self.with_env_var:
             message += " Save your parameter name as environment variable in .gitlab-ci.yml file."
@@ -347,10 +367,12 @@ class SSMParameterCall:
         return str(self)
 
 
-def is_get_parameter_call(file):
+def list_get_parameter_calls(file):
     ssm_get = re.compile(r"^.+ssm.get.+$")
     aws_ssm_call = re.compile(r"^.+ssm get-parameter.+--name +(?P<param>[^ ]+).*$")
-    ssm_wrapper_call = re.compile(r"^.+aws_ssm_get_wrapper.(sh|ps1) +(?P<param>[^ )]+).*$")
+    # remove the 'a' of 'aws' because '\a' is badly interpreted for windows paths
+    ssm_wrapper_call = re.compile(r"^.+ws_ssm_get_wrapper.(sh|ps1)[\"]? +(?P<param>[^ )]+).*$")
+    calls = []
     with open(file) as f:
         try:
             for nb, line in enumerate(f):
@@ -358,14 +380,20 @@ def is_get_parameter_call(file):
                 if is_ssm_get:
                     m = aws_ssm_call.match(line.strip())
                     if m:
-                        return SSMParameterCall(
-                            file, nb, with_wrapper=False, with_env_var=m.group("param").startswith("$")
+                        # Remove possible quotes
+                        param = m["param"].replace('"', '').replace("'", "")
+                        calls.append(
+                            SSMParameterCall(file, nb, with_env_var=(param.startswith("$") or "os.environ" in param))
                         )
                     m = ssm_wrapper_call.match(line.strip())
-                    if m and not m.group("param").startswith("$"):
-                        return SSMParameterCall(file, nb, with_wrapper=True, with_env_var=False)
+                    param = m["param"].replace('"', '').replace("'", "") if m else None
+                    if m and not (param.startswith("$") or "os.environ" in param):
+                        calls.append(SSMParameterCall(file, nb, with_wrapper=True))
+                    if not m:
+                        calls.append(SSMParameterCall(file, nb, standard=False))
         except UnicodeDecodeError:
             pass
+    return calls
 
 
 @task

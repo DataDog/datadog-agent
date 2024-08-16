@@ -20,6 +20,7 @@ type WindowsHost struct {
 	FakeIntake      *components.FakeIntake
 	Agent           *components.RemoteHostAgent
 	ActiveDirectory *components.RemoteActiveDirectory
+	Installer       *components.RemoteDatadogInstaller
 }
 
 var _ e2e.Initializable = &WindowsHost{}
