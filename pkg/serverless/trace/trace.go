@@ -144,9 +144,7 @@ func (t *serverlessTraceAgent) Flush() {
 
 // Process processes a payload in the trace agent.
 func (t *serverlessTraceAgent) Process(p *api.Payload) {
-	log.Debugf("=== datadog-agent serverlessTraceAgent Process before: %+v ===", p)
 	t.ta.Process(p)
-	log.Debugf("=== datadog-agent serverlessTraceAgent Process after: %+v ===", p)
 }
 
 type taggable interface {

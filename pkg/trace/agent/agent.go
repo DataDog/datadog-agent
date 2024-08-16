@@ -292,7 +292,6 @@ func (a *Agent) setFirstTraceTags(root *pb.Span) {
 // Process is the default work unit that receives a trace, transforms it and
 // passes it downstream.
 func (a *Agent) Process(p *api.Payload) {
-
 	if len(p.Chunks()) == 0 {
 		log.Debugf("Skipping received empty payload")
 		return
