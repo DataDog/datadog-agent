@@ -2108,8 +2108,14 @@ def install_ddagent(
         build_layout(ctx, domains, layout, verbose)
 
 
-@task
-def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path):
+@task(
+    help={
+        "commit": "The commit to download the complexity data for",
+        "dest_path": "The path to save the complexity data to",
+        "keep_compressed_archives": "Keep the compressed archives after extracting the data. Useful for testing, as it replicates the exact state of the artifacts in CI",
+    }
+)
+def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path, keep_compressed_archives: bool = False):
     gitlab = get_gitlab_repo()
     dest_path = Path(dest_path)
 
@@ -2132,6 +2138,10 @@ def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path):
             if data is None:
                 print(f"Complexity data not found for {job.name} - filename {complexity_data_fname} not found")
                 continue
+
+            if keep_compressed_archives:
+                with open(dest_path / f"{complexity_name}.tar.gz", "wb") as f:
+                    f.write(data)
 
             tar = tarfile.open(fileobj=io.BytesIO(data))
             job_folder = dest_path / complexity_name
