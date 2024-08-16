@@ -17,8 +17,8 @@ import (
 // StreamHandler is responsible for receiving events from a single CUDA stream and generating
 // stats from them.
 type StreamHandler struct {
-	kernelLaunches []*gpuebpf.CudaKernelLaunch
-	memAllocEvents map[uint64]*gpuebpf.CudaMemEvent
+	kernelLaunches []gpuebpf.CudaKernelLaunch
+	memAllocEvents map[uint64]gpuebpf.CudaMemEvent
 	kernelSpans    []*model.KernelSpan
 	allocations    []*model.MemoryAllocation
 	processEnded   bool
@@ -26,17 +26,18 @@ type StreamHandler struct {
 
 func newStreamHandler() *StreamHandler {
 	return &StreamHandler{
-		memAllocEvents: make(map[uint64]*gpuebpf.CudaMemEvent),
+		memAllocEvents: make(map[uint64]gpuebpf.CudaMemEvent),
 	}
 }
 
 func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
-	sh.kernelLaunches = append(sh.kernelLaunches, event)
+	// Copy events, as the memory can be overwritten in the ring buffer after the function returns
+	sh.kernelLaunches = append(sh.kernelLaunches, *event)
 }
 
 func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 	if event.Type == gpuebpf.CudaMemAlloc {
-		sh.memAllocEvents[event.Addr] = event
+		sh.memAllocEvents[event.Addr] = *event
 		return
 	}
 
@@ -45,6 +46,8 @@ func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 		log.Warnf("Invalid free event: %v", event)
 		return
 	}
+
+	log.Debugf("corresponding alloc event: %+v", alloc)
 
 	data := model.MemoryAllocation{
 		StartKtime: alloc.Header.Ktime_ns,
@@ -65,7 +68,7 @@ func (sh *StreamHandler) markSynchronization(ts uint64) {
 
 	sh.kernelSpans = append(sh.kernelSpans, span)
 
-	remainingLaunches := []*gpuebpf.CudaKernelLaunch{}
+	remainingLaunches := []gpuebpf.CudaKernelLaunch{}
 	for _, launch := range sh.kernelLaunches {
 		if launch.Header.Ktime_ns >= ts {
 			remainingLaunches = append(remainingLaunches, launch)
