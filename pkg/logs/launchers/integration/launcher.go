@@ -137,6 +137,7 @@ func (s *Launcher) makeFileSource(source *sources.LogSource, filepath string) *s
 		Path:        filepath,
 		Name:        source.Config.Name,
 		Source:      source.Config.Source,
+		Service:     source.Config.Service,
 		Tags:        source.Config.Tags,
 	})
 

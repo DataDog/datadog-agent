@@ -79,7 +79,7 @@ func (suite *LauncherTestSuite) TestFileCreation() {
 func (suite *LauncherTestSuite) TestSendLog() {
 	logsSources := sources.NewLogSources()
 	suite.s.sources = logsSources
-	source := sources.NewLogSource("testLogsSource", &config.LogsConfig{Type: config.IntegrationType, Name: "integrationName", Path: suite.testPath})
+	source := sources.NewLogSource("testLogsSource", &config.LogsConfig{Type: config.IntegrationType, Name: "integrationName", Path: suite.testPath, Source: "foo", Service: "bar"})
 	filepathChan := make(chan string)
 	fileLogChan := make(chan string)
 	suite.s.writeFunction = func(filepath, log string) error {
@@ -93,6 +93,12 @@ func (suite *LauncherTestSuite) TestSendLog() {
 	assert.Nil(suite.T(), err)
 	suite.s.integrationToFile[source.Name] = filepath
 	fileSource := suite.s.makeFileSource(source, filepath)
+	assert.Equal(suite.T(), fileSource.Config.Type, config.FileType)
+	assert.Equal(suite.T(), source.Config.TailingMode, fileSource.Config.TailingMode)
+	assert.Equal(suite.T(), source.Config.Name, fileSource.Config.Name)
+	assert.Equal(suite.T(), source.Config.Source, fileSource.Config.Source)
+	assert.Equal(suite.T(), source.Config.Service, fileSource.Config.Service)
+	assert.Equal(suite.T(), source.Config.Tags, fileSource.Config.Tags)
 	suite.s.sources.AddSource(fileSource)
 
 	suite.s.Start(launchers.NewMockSourceProvider(), suite.pipelineProvider, auditor.NewRegistry(), tailers.NewTailerTracker())
