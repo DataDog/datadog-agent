@@ -274,12 +274,12 @@ notify_ebpf_complexity_changes:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   rules:
+    - !reference [ .except_mergequeue ]
+    - !reference [ .except_main_or_release_branch ]
+    - !reference [ .except_no_tests_no_deploy ]
+    - !reference [ .except_deploy ]
     - !reference [.on_system_probe_or_e2e_changes_or_manual]
     - !reference [.on_security_agent_changes_or_manual]
-    - !reference [.except_mergequeue]
-    - !reference [.except_main_or_release_branch]
-    - !reference [.except_no_tests_no_deploy]
-    - !reference [.except_deploy]
 
   needs:
     # We need to specify the jobs that generate complexity explicitly, else we hit the limit of "needs"
