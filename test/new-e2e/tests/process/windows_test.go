@@ -46,7 +46,7 @@ func (s *windowsTestSuite) SetupSuite() {
 
 func assertProcessCheck(t *testing.T, env *environments.Host) {
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess"}, false)
+		assertRunningChecks(collect, env.Agent.Client, []string{"process", "rtprocess"}, false)
 	}, 1*time.Minute, 5*time.Second)
 
 	var payloads []*aggregator.ProcessPayload
