@@ -225,6 +225,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	tags := []string{
 		"collector:network_path_collector",
 		"destination_hostname:abc",
+		"destination_ip:10.0.0.4",
 		"destination_port:80",
 		"protocol:UDP",
 	}
@@ -676,6 +677,7 @@ func Test_npCollectorImpl_sendTelemetry(t *testing.T) {
 	tags := []string{
 		"collector:network_path_collector",
 		"destination_hostname:abc",
+		"destination_ip:10.0.0.2",
 		"destination_port:80",
 		"protocol:UDP",
 	}
