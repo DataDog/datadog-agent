@@ -87,15 +87,12 @@ func (s *Launcher) run() {
 					s.sources.AddSource(filetypeSource)
 
 					// file to write the incoming logs to
-					s.integrationToFile[source.Name] = logFilePath
+					s.integrationToFile[cfg.ID] = logFilePath
 				}
 			}
 
 		case log := <-s.integrationsLogsChan:
-			// Integrations will come in the form of: check_name:instance_config_hash
-			integrationSplit := strings.Split(log.IntegrationID, ":")
-			integrationName := integrationSplit[0]
-			logFilePath := s.integrationToFile[integrationName]
+			logFilePath := s.integrationToFile[log.IntegrationID]
 
 			err := s.ensureFileSize(logFilePath)
 			if err != nil {
