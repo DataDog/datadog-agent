@@ -66,7 +66,7 @@ func (s *spanModifier) ModifySpan(t *pb.TraceChunk, span *pb.Span) {
 		if gitCommitSha := version.GetGitCommitShaFromTrace(span, t); gitCommitSha != "" {
 			traceutil.SetMeta(span, "git.commit.sha", gitCommitSha)
 		}
-		if gitRepositoryUrl := version.GetGitRepositoryUrlFromTrace(span, t); gitRepositoryUrl != "" {
+		if gitRepositoryUrl := version.GetGitRepositoryURLFromTrace(span, t); gitRepositoryUrl != "" {
 			traceutil.SetMeta(span, "git.repository_url", gitRepositoryUrl)
 		}
 	}
