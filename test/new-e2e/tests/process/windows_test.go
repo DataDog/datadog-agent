@@ -44,8 +44,7 @@ func (s *windowsTestSuite) SetupSuite() {
 	s.Env().RemoteHost.MustExecute("Start-MpScan -ScanType FullScan -AsJob")
 }
 
-func (s *windowsTestSuite) testProcessCheck() {
-	t := s.T()
+func assertProcessCheck(t *testing.T, env *environments.Host) {
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess"}, false)
 	}, 1*time.Minute, 5*time.Second)
@@ -53,7 +52,7 @@ func (s *windowsTestSuite) testProcessCheck() {
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		var err error
-		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
+		payloads, err = env.FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
@@ -64,14 +63,14 @@ func (s *windowsTestSuite) testProcessCheck() {
 }
 
 func (s *windowsTestSuite) TestProcessCheck() {
-	s.testProcessCheck()
+	assertProcessCheck(s.T(), s.Env())
 }
 
 func (s *windowsTestSuite) TestProcessChecksInCoreAgent() {
 	t := s.T()
 	s.UpdateEnv(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr))))
-	s.testProcessCheck()
+	assertProcessCheck(t, s.Env())
 
 	// Verify the process component is not running in the core agent
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
