@@ -310,29 +310,37 @@ func getPinnedLibraries(registry string) []libInfo {
 type libInfoLanguageDetection struct {
 	libs             []libInfo
 	injectionEnabled bool
-
-	injected bool
 }
 
-func (l *libInfoLanguageDetection) podMutator(v version) podMutator {
-	return podMutatorFunc(func(pod *corev1.Pod) error {
-		if l == nil || len(l.libs) == 0 || !v.usesInjector() || l.injected {
+func (l *libInfoLanguageDetection) containerMutator(v version) containerMutator {
+	return containerMutatorFunc(func(c *corev1.Container) error {
+		if !v.usesInjector() || l == nil {
 			return nil
 		}
 
-		var libs []string
+		var langs []string
 		for _, lib := range l.libs {
-			libs = append(libs, string(lib.lang))
+			if lib.ctrName == c.Name { // strict container name matching
+				langs = append(langs, string(lib.lang))
+			}
 		}
 
-		_ = mutatecommon.InjectEnv(pod, corev1.EnvVar{
-			Name:  "DD_INSTRUMENTATION_LANGUAGES_DETECTED",
-			Value: strings.Join(libs, ","),
-		})
-		_ = mutatecommon.InjectEnv(pod, corev1.EnvVar{
-			Name:  "DD_INSTRUMENTATION_LANGUAGE_DETECTION_INJECTION_ENABLED",
-			Value: strconv.FormatBool(l.injectionEnabled),
-		})
+		// N.B.
+		// We report on the languages detected regardless
+		// of if it is empty or not to disambiguate the empty state
+		// language_detection reporting being disabled.
+		if err := (containerMutators{
+			envVar{
+				key:     "DD_INSTRUMENTATION_LANGUAGES_DETECTED",
+				valFunc: identityValFunc(strings.Join(langs, ",")),
+			},
+			envVar{
+				key:     "DD_INSTRUMENTATION_LANGUAGE_DETECTION_INJECTION_ENABLED",
+				valFunc: identityValFunc(strconv.FormatBool(l.injectionEnabled)),
+			},
+		}).mutateContainer(c); err != nil {
+			return err
+		}
 
 		return nil
 	})
@@ -343,6 +351,11 @@ func (l *libInfoLanguageDetection) podMutator(v version) podMutator {
 // The languages information is available in workloadmeta-store
 // and attached on the pod's owner.
 func (w *Webhook) getLibrariesLanguageDetection(pod *corev1.Pod) *libInfoLanguageDetection {
+	if !config.Datadog().GetBool("language_detection.enabled") ||
+		!config.Datadog().GetBool("language_detection.reporting.enabled") {
+		return nil
+	}
+
 	return &libInfoLanguageDetection{
 		libs:             w.getAutoDetectedLibraries(pod),
 		injectionEnabled: config.Datadog().GetBool("admission_controller.auto_instrumentation.inject_auto_detected_libraries"),
@@ -367,7 +380,8 @@ type libInfoSource int
 const (
 	// libInfoSourceNone is no source provided.
 	libInfoSourceNone libInfoSource = iota
-	// libInfoSourceLibInjection is when the user sets up manual annotations on their pods.
+	// libInfoSourceLibInjection is when the user sets up annotations on their pods for
+	// library injection and single step is disabled.
 	libInfoSourceLibInjection
 	// libInfoSourceSingleStepInstrumentation is when we are using the instrumentation config
 	// to determine which libraries to inject.
@@ -547,8 +561,8 @@ func (w *Webhook) extractLibrariesFromAnnotations(pod *corev1.Pod) []libInfo {
 	return libList
 }
 
-func (w *Webhook) initContainerMutators() []containerMutator {
-	return []containerMutator{
+func (w *Webhook) initContainerMutators() containerMutators {
+	return containerMutators{
 		containerResourceRequirements{w.initResourceRequirements},
 		containerSecurityContext{w.initSecurityContext},
 	}
@@ -585,9 +599,11 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, config extractedPodLib
 		injectionType  = config.source.injectionType()
 		autoDetected   = config.source.isFromLanguageDetection()
 
-		initContainerMutators = w.initContainerMutators()
 		injector              = w.newInjector(time.Now(), pod)
-		detectedLangsMutator  = config.languageDetection.podMutator(w.version)
+		initContainerMutators = w.initContainerMutators()
+		containerMutators     = containerMutators{
+			config.languageDetection.containerMutator(w.version),
+		}
 	)
 
 	// Inject env variables used for Onboarding KPIs propagation...
@@ -604,10 +620,10 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, config extractedPodLib
 			metrics.LibInjectionAttempts.Inc(langStr, strconv.FormatBool(injected), strconv.FormatBool(autoDetected), injectionType)
 		}()
 
-		if err := lib.podMutator(w.version, initContainerMutators, []podMutator{
-			configInjector.podMutator(lib.lang),
-			injector,
-			detectedLangsMutator,
+		if err := lib.podMutator(w.version, libRequirementOptions{
+			containerMutators:     containerMutators,
+			initContainerMutators: initContainerMutators,
+			podMutators:           []podMutator{configInjector.podMutator(lib.lang), injector},
 		}).mutatePod(pod); err != nil {
 			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
 			lastError = err

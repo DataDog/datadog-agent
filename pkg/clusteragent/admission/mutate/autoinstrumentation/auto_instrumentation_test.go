@@ -125,7 +125,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{
 					libs: []libInfo{
-						python.defaultLibInfo(commonRegistry, ""),
+						python.defaultLibInfo(commonRegistry, "java-pod-container"),
 					},
 				},
 				libs: []libInfo{
@@ -138,6 +138,34 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			},
 		},
 		{
+			name:                  "language detected for a different container",
+			pod:                   common.FakePod("java-pod"),
+			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0",
+			expectedLangsDetected: "",
+			libInfo: extractedPodLibInfo{
+				languageDetection: &libInfoLanguageDetection{
+					libs: []libInfo{
+						python.defaultLibInfo(commonRegistry, "not-java-pod-container"),
+					},
+				},
+				libs: []libInfo{
+					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+				},
+			},
+		},
+		{
+			name:                  "language detected but no languages found",
+			pod:                   common.FakePod("java-pod"),
+			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0",
+			expectedLangsDetected: "",
+			libInfo: extractedPodLibInfo{
+				languageDetection: &libInfoLanguageDetection{},
+				libs: []libInfo{
+					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+				},
+			},
+		},
+		{
 			name:                  "with specified install type",
 			pod:                   common.FakePod("java-pod"),
 			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0.16-1",
@@ -145,7 +173,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{
 					libs: []libInfo{
-						python.defaultLibInfo(commonRegistry, ""),
+						python.defaultLibInfo(commonRegistry, "java-pod-container"),
 					},
 				},
 				libs: []libInfo{
@@ -274,12 +302,12 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 
 			requireEnv(t, "DD_INSTRUMENTATION_INSTALL_TYPE", true, tt.expectedInstallType)
 
-			if tt.expectedLangsDetected != "" {
-				requireEnv(t, "DD_INSTRUMENTATION_LANGUAGES_DETECTED", true, tt.expectedLangsDetected)
-				requireEnv(t, "DD_INSTRUMENTATION_LANGUAGE_DETECTION_INJECTION_ENABLED", true, "false")
-			} else {
+			if tt.libInfo.languageDetection == nil {
 				requireEnv(t, "DD_INSTRUMENTATION_LANGUAGES_DETECTED", false, "")
 				requireEnv(t, "DD_INSTRUMENTATION_LANGUAGE_DETECTION_INJECTION_ENABLED", false, "")
+			} else {
+				requireEnv(t, "DD_INSTRUMENTATION_LANGUAGES_DETECTED", true, tt.expectedLangsDetected)
+				requireEnv(t, "DD_INSTRUMENTATION_LANGUAGE_DETECTION_INJECTION_ENABLED", true, strconv.FormatBool(tt.libInfo.languageDetection.injectionEnabled))
 			}
 		})
 	}
@@ -2302,6 +2330,8 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			wantWebhookInitErr: false,
 			setupConfig: funcs{
 				wConfig("admission_controller.auto_instrumentation.inject_auto_detected_libraries", true),
+				wConfig("language_detection.enabled", true),
+				wConfig("language_detection.reporting.enabled", true),
 				enableAPMInstrumentation,
 			},
 		},
