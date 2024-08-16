@@ -23,7 +23,6 @@ type StreamHandler struct {
 	memAllocEvents map[uint64]*gpuebpf.CudaMemEvent
 	kernelSpans    []*KernelSpan
 	allocations    []*MemoryAllocation
-	ktimeConverter *KtimeConverter
 }
 
 type KernelSpan struct {
@@ -42,7 +41,6 @@ type MemoryAllocation struct {
 func newStreamHandler() *StreamHandler {
 	return &StreamHandler{
 		memAllocEvents: make(map[uint64]*gpuebpf.CudaMemEvent),
-		ktimeConverter: NewKtimeConverter(),
 	}
 }
 
@@ -63,8 +61,8 @@ func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 	}
 
 	data := MemoryAllocation{
-		Start: sh.ktimeConverter.KtimeToEpoch(alloc.Header.Ktime_ns),
-		End:   sh.ktimeConverter.KtimeToEpoch(event.Header.Ktime_ns),
+		Start: alloc.Header.Ktime_ns,
+		End:   event.Header.Ktime_ns,
 		Size:  alloc.Size,
 	}
 
@@ -107,9 +105,6 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *KernelSpan {
 		span.AvgThreadCount += uint64(blockSize) * uint64(blockCount)
 		span.NumKernels++
 	}
-
-	span.Start = sh.ktimeConverter.KtimeToEpoch(span.Start)
-	span.End = sh.ktimeConverter.KtimeToEpoch(span.End)
 
 	if span.NumKernels > 0 {
 		span.AvgThreadCount /= uint64(span.NumKernels)
