@@ -7,39 +7,17 @@
 package mock
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 )
 
 type mockIntegrations struct {
-	logChan chan integrations.IntegrationLog
-}
-
-func (l *mockIntegrations) Register(id string, config integration.Config) {
-}
-
-func (l *mockIntegrations) SubscribeIntegration() chan integrations.IntegrationConfig {
-	return nil
-}
-
-// Subscribe returns an integrationLog channel
-func (l *mockIntegrations) Subscribe() chan integrations.IntegrationLog {
-	return l.logChan
-}
-
-// SendLog sends a log to the log channel
-func (l *mockIntegrations) SendLog(log, integrationID string) {
-	integrationLog := integrations.IntegrationLog{
-		Log:           log,
-		IntegrationID: integrationID,
-	}
-
-	l.logChan <- integrationLog
+	*integrationsimpl.Logsintegration
 }
 
 // Mock returns a mock for integrations component.
 func Mock() integrations.Component {
 	return &mockIntegrations{
-		logChan: make(chan integrations.IntegrationLog),
+		Logsintegration: integrationsimpl.NewLogsIntegration(),
 	}
 }

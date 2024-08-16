@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
+	integrationsmock "github.com/DataDog/datadog-agent/comp/logs/integrations/mock"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -42,7 +42,7 @@ type LauncherTestSuite struct {
 func (suite *LauncherTestSuite) SetupTest() {
 	suite.pipelineProvider = mock.NewMockProvider()
 	suite.outputChan = suite.pipelineProvider.NextPipelineChan()
-	suite.integrationsComp = integrationsimpl.NewComponent()
+	suite.integrationsComp = integrationsmock.Mock()
 	suite.testDir = suite.T().TempDir()
 	suite.testPath = filepath.Join(suite.testDir, "logs_integration_test.log")
 

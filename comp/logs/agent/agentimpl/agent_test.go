@@ -30,7 +30,6 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	integrationsLogs "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
