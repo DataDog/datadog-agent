@@ -418,7 +418,7 @@ namespace Datadog.CustomActions
             }
             catch (Exception e)
             {
-                _session.Log($"Failed to stop services: {e}");
+                _session.Log($"Failed to start services: {e}");
                 // Allow service start to fail and continue the install
             }
             return ActionResult.Success;
