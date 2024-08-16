@@ -9,8 +9,6 @@ package util
 
 import "github.com/DataDog/datadog-agent/pkg/config/model"
 
-// GetRunInCoreAgentConfig returns the config value for process_config.run_in_core_agent.enabled.
-// Will always return false outside of linux.
 func GetRunInCoreAgentConfig(config model.Reader) bool {
 	return config.GetBool("process_config.run_in_core_agent.enabled")
 }

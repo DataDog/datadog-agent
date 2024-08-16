@@ -22,7 +22,7 @@ func TestProcessCheckWindows(t *testing.T) {
 
 	// Make sure process checks run on the process agent even
 	// when run in core agent mode is enabled
-	t.Run("run in core agent", func(t *testing.T) {
+	t.Run("run in core agent ignored", func(t *testing.T) {
 		cfg, scfg := configmock.New(t), config.MockSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
 		cfg.SetWithoutSource("process_config.run_in_core_agent.enabled", true)
@@ -40,7 +40,7 @@ func TestProcessDiscoveryWindows(t *testing.T) {
 
 	// Make sure process discovery checks run on the process agent even
 	// when run in core agent mode is enabled
-	t.Run("run in core agent", func(t *testing.T) {
+	t.Run("run in core agent ignored", func(t *testing.T) {
 		cfg, scfg := configmock.New(t), config.MockSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
 		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
@@ -58,7 +58,7 @@ func TestContainerCheckWindows(t *testing.T) {
 
 	// Make sure container checks run on the process agent even
 	// when run in core agent mode is enabled
-	t.Run("run in core agent", func(t *testing.T) {
+	t.Run("run in core agent ignored", func(t *testing.T) {
 		deps := createDeps(t)
 		cfg, scfg := configmock.New(t), config.MockSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
