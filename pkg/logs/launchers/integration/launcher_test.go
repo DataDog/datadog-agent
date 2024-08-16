@@ -6,12 +6,12 @@
 package integration
 
 import (
-	"fmt"
 	"os"
-	"strings"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -33,7 +33,6 @@ type LauncherTestSuite struct {
 	suite.Suite
 	testDir  string
 	testPath string
-	testFile *os.File
 
 	outputChan       chan *message.Message
 	pipelineProvider pipeline.Provider
@@ -46,24 +45,13 @@ func (suite *LauncherTestSuite) SetupTest() {
 	suite.pipelineProvider = mock.NewMockProvider()
 	suite.outputChan = suite.pipelineProvider.NextPipelineChan()
 	suite.integrationsComp = integrationsMock.Mock()
-
-	var err error
 	suite.testDir = suite.T().TempDir()
+	suite.testPath = filepath.Join(suite.testDir, "logs_integration_test.log")
 
-	suite.testPath = fmt.Sprintf("%s/launcher.log", suite.testDir)
-
-	f, err := os.Create(suite.testPath)
-	suite.Nil(err)
-	suite.testFile = f
-
-	suite.source = sources.NewLogSource("", &config.LogsConfig{Type: config.IntegrationType, Path: suite.testPath})
+	suite.source = sources.NewLogSource(suite.T().Name(), &config.LogsConfig{Type: config.IntegrationType, Path: suite.testPath})
 	suite.s = NewLauncher(nil, suite.integrationsComp)
 	status.InitStatus(pkgConfig.Datadog(), util.CreateSources([]*sources.LogSource{suite.source}))
 	suite.s.runPath = suite.testDir
-}
-
-func (suite *LauncherTestSuite) TearDownTest() {
-	suite.testFile.Close()
 }
 
 func (suite *LauncherTestSuite) TestFileCreation() {
@@ -71,9 +59,9 @@ func (suite *LauncherTestSuite) TestFileCreation() {
 	source := sources.NewLogSource("testLogsSource", &config.LogsConfig{Type: config.IntegrationType, Identifier: "123456789", Path: suite.testPath})
 	sources.NewLogSources().AddSource(source)
 
-	filePath, err := suite.s.createFile(id)
-	assert.Nil(suite.T(), err)
-	assert.NotNil(suite.T(), filePath)
+	logFilePath, err := suite.s.createFile(id)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), logFilePath)
 }
 
 func (suite *LauncherTestSuite) TestSendLog() {
@@ -82,17 +70,17 @@ func (suite *LauncherTestSuite) TestSendLog() {
 	source := sources.NewLogSource("testLogsSource", &config.LogsConfig{Type: config.IntegrationType, Name: "integrationName", Path: suite.testPath, Source: "foo", Service: "bar"})
 	filepathChan := make(chan string)
 	fileLogChan := make(chan string)
-	suite.s.writeFunction = func(filepath, log string) error {
+	suite.s.writeFunction = func(logFilePath, log string) error {
 		fileLogChan <- log
-		filepathChan <- filepath
+		filepathChan <- logFilePath
 		return nil
 	}
 
 	id := "123456789"
-	filepath, err := suite.s.createFile(id)
+	logFilePath, err := suite.s.createFile(id)
 	assert.Nil(suite.T(), err)
-	suite.s.integrationToFile[source.Name] = filepath
-	fileSource := suite.s.makeFileSource(source, filepath)
+	suite.s.integrationToFile[source.Name] = logFilePath
+	fileSource := suite.s.makeFileSource(source, logFilePath)
 	assert.Equal(suite.T(), fileSource.Config.Type, config.FileType)
 	assert.Equal(suite.T(), source.Config.TailingMode, fileSource.Config.TailingMode)
 	assert.Equal(suite.T(), source.Config.Name, fileSource.Config.Name)
@@ -107,17 +95,36 @@ func (suite *LauncherTestSuite) TestSendLog() {
 	suite.integrationsComp.SendLog(logSample, "testLogsSource:HASH1234")
 
 	assert.Equal(suite.T(), logSample, <-fileLogChan)
-	assert.Equal(suite.T(), filepath, <-filepathChan)
+	assert.Equal(suite.T(), logFilePath, <-filepathChan)
 }
 
 func (suite *LauncherTestSuite) TestWriteLogToFile() {
 	logText := "hello world"
-	suite.s.writeFunction(suite.testPath, logText)
+	err := suite.s.writeFunction(suite.testPath, logText)
+	require.Nil(suite.T(), err)
 
 	fileContents, err := os.ReadFile(suite.testPath)
 
-	assert.Nil(suite.T(), err)
-	assert.Equal(suite.T(), logText, string(fileContents))
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), logText+"\n", string(fileContents))
+}
+
+func (suite *LauncherTestSuite) TestWriteMultipleLogsToFile() {
+	var err error
+	err = suite.s.writeFunction(suite.testPath, "line 1")
+	require.Nil(suite.T(), err, "error writing line 1")
+
+	err = suite.s.writeFunction(suite.testPath, "line 2")
+	require.Nil(suite.T(), err, "error writing line 2")
+
+	err = suite.s.writeFunction(suite.testPath, "line 3")
+	require.Nil(suite.T(), err, "error writing line 3")
+
+	fileContents, err := os.ReadFile(suite.testPath)
+
+	assert.NoError(suite.T(), err)
+	expectedContent := "line 1\nline 2\nline 3\n"
+	assert.Equal(suite.T(), expectedContent, string(fileContents))
 }
 
 // TestIntegrationLogFilePath ensures the filepath for the logs files are correct
@@ -125,10 +132,8 @@ func (suite *LauncherTestSuite) TestIntegrationLogFilePath() {
 	id := "123456789"
 	actualDirectory, actualFilePath := suite.s.integrationLogFilePath(id)
 
-	expectedDirectoryComponents := []string{suite.s.runPath, "integrations"}
-	expectedDirectory := strings.Join(expectedDirectoryComponents, "/")
-
-	expectedFilePath := strings.Join([]string{expectedDirectory, id + ".log"}, "/")
+	expectedDirectory := filepath.Join(suite.s.runPath, "integrations")
+	expectedFilePath := filepath.Join(expectedDirectory, id+".log")
 
 	assert.Equal(suite.T(), expectedDirectory, actualDirectory)
 	assert.Equal(suite.T(), expectedFilePath, actualFilePath)
