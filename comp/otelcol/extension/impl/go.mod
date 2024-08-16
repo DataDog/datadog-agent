@@ -9,9 +9,9 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def v0.56.0-rc.12
-	github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl v0.56.0-rc.12
-	github.com/DataDog/datadog-agent/comp/otelcol/extension/def v0.56.0-rc.12
+	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def v0.56.0
+	github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl v0.56.0
+	github.com/DataDog/datadog-agent/comp/otelcol/extension/def v0.56.0
 	github.com/stretchr/testify v1.9.0
 	go.opentelemetry.io/collector/component v0.104.0
 	go.opentelemetry.io/collector/config/confighttp v0.104.0
