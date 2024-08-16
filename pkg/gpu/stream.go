@@ -125,14 +125,6 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *KernelSpan {
 	return &span
 }
 
-func (sh *StreamHandler) getCurrentMemoryUsage() uint64 {
-	var total uint64
-	for _, alloc := range sh.memAllocEvents {
-		total += alloc.Size
-	}
-	return total
-}
-
 func (sh *StreamHandler) getPastData(flush bool) *StreamPastData {
 	if len(sh.kernelSpans) == 0 && len(sh.allocations) == 0 {
 		return nil
@@ -156,10 +148,22 @@ func (sh *StreamHandler) getCurrentData(now uint64) *StreamCurrentData {
 		return nil
 	}
 
-	return &StreamCurrentData{
+	data := &StreamCurrentData{
 		Span:               sh.getCurrentKernelSpan(now),
-		CurrentMemoryUsage: sh.getCurrentMemoryUsage(),
+		CurrentMemoryUsage: 0,
 	}
+
+	for _, alloc := range sh.memAllocEvents {
+		data.CurrentAllocations = append(data.CurrentAllocations, &MemoryAllocation{
+			Start:    alloc.Header.Ktime_ns,
+			End:      0,
+			Size:     alloc.Size,
+			IsLeaked: false,
+		})
+		data.CurrentMemoryUsage += alloc.Size
+	}
+
+	return data
 }
 
 func (sh *StreamHandler) markEnd() error {

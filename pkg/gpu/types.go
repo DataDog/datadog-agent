@@ -12,9 +12,10 @@ type StreamPastData struct {
 }
 
 type StreamCurrentData struct {
-	Key                StreamKey   `json:"key"`
-	Span               *KernelSpan `json:"span"`
-	CurrentMemoryUsage uint64      `json:"current_memory_usage"`
+	Key                StreamKey           `json:"key"`
+	Span               *KernelSpan         `json:"span"`
+	CurrentMemoryUsage uint64              `json:"current_memory_usage"`
+	CurrentAllocations []*MemoryAllocation `json:"current_allocations"`
 }
 
 type GPUStats struct {
