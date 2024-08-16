@@ -87,7 +87,6 @@ func (sh *StreamHandler) markSynchronization(ts uint64) {
 		}
 	}
 	sh.kernelLaunches = remainingLaunches
-	log.Debugf("Kernel span: %v, remainingLaunches = %v", span, remainingLaunches)
 }
 
 func (sh *StreamHandler) handleSync(event *gpuebpf.CudaSync) {
@@ -167,7 +166,6 @@ func (sh *StreamHandler) markProcessEnded() error {
 		return err
 	}
 
-	log.Debugf("nowTs = %d", nowTs)
 	sh.processEnded = true
 	sh.markSynchronization(uint64(nowTs))
 
