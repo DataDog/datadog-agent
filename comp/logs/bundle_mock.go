@@ -16,4 +16,5 @@ import (
 func MockBundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		agentimpl.MockModule(),
+	)
 }
