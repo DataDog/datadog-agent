@@ -35,9 +35,10 @@ type KernelSpan struct {
 }
 
 type MemoryAllocation struct {
-	Start uint64 `json:"start"`
-	End   uint64 `json:"end"`
-	Size  uint64 `json:"size"`
+	Start    uint64 `json:"start"`
+	End      uint64 `json:"end"`
+	Size     uint64 `json:"size"`
+	IsLeaked bool   `json:"is_leaked"`
 }
 
 func newStreamHandler() *StreamHandler {
@@ -63,9 +64,10 @@ func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 	}
 
 	data := MemoryAllocation{
-		Start: alloc.Header.Ktime_ns,
-		End:   event.Header.Ktime_ns,
-		Size:  alloc.Size,
+		Start:    alloc.Header.Ktime_ns,
+		End:      event.Header.Ktime_ns,
+		Size:     alloc.Size,
+		IsLeaked: false, // Came from a free event, so it's not a leak
 	}
 
 	sh.allocations = append(sh.allocations, &data)
@@ -160,7 +162,7 @@ func (sh *StreamHandler) getCurrentData(now uint64) *StreamCurrentData {
 	}
 }
 
-func (sh *StreamHandler) markProcessEnded() error {
+func (sh *StreamHandler) markEnd() error {
 	nowTs, err := ddebpf.NowNanoseconds()
 	if err != nil {
 		return err
@@ -168,6 +170,17 @@ func (sh *StreamHandler) markProcessEnded() error {
 
 	sh.processEnded = true
 	sh.markSynchronization(uint64(nowTs))
+
+	// Close all allocations. Treat them as leaks, as they weren't freed properly
+	for _, alloc := range sh.memAllocEvents {
+		data := MemoryAllocation{
+			Start:    alloc.Header.Ktime_ns,
+			End:      uint64(nowTs),
+			Size:     alloc.Size,
+			IsLeaked: true,
+		}
+		sh.allocations = append(sh.allocations, &data)
+	}
 
 	return nil
 }

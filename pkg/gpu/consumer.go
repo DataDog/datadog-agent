@@ -143,7 +143,7 @@ func (c *CudaEventConsumer) handleProcessExit(pid uint32) {
 	for key, handler := range c.streamHandlers {
 		if key.Pid == pid {
 			log.Debugf("Process %d ended, marking stream as ended", pid)
-			_ = handler.markProcessEnded()
+			_ = handler.markEnd()
 		}
 	}
 }
