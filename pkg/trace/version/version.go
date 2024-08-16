@@ -15,10 +15,12 @@ import (
 )
 
 const (
-	versionField          = "version"
-	gitCommitShaField     = "_dd.git.commit.sha"
-	gitCommitShaTagPrefix = "git.commit.sha:"
-	imageTagPrefix        = "image_tag:"
+	versionField           = "version"
+	gitCommitShaField      = "_dd.git.commit.sha"
+	gitRepositoryUrlField  = "_dd.git.repository_url"
+	gitCommitShaTagPrefix  = "git.commit.sha:"
+	gitRepositoryUrlPrefix = "git.repository_url"
+	imageTagPrefix         = "image_tag:"
 )
 
 // GetVersionDataFromContainerTags will return the git commit sha and image tag from container tags, if present.
@@ -54,6 +56,11 @@ func GetVersionDataFromContainerTags(containerID string, conf *config.AgentConfi
 // GetGitCommitShaFromTrace returns the first "git_commit_sha" tag found in trace t.
 func GetGitCommitShaFromTrace(root *trace.Span, t *trace.TraceChunk) string {
 	return searchTraceForField(root, t, gitCommitShaField)
+}
+
+// GetGitRepositoryUrlFromTrace returns the first "git.repository_url" tag found in trace t.
+func GetGitRepositoryUrlFromTrace(root *trace.Span, t *trace.TraceChunk) string {
+	return searchTraceForField(root, t, gitRepositoryUrlField)
 }
 
 // GetAppVersionFromTrace returns the first "version" tag found in trace t.

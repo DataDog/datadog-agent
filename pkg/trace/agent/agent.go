@@ -292,7 +292,6 @@ func (a *Agent) setFirstTraceTags(root *pb.Span) {
 // Process is the default work unit that receives a trace, transforms it and
 // passes it downstream.
 func (a *Agent) Process(p *api.Payload) {
-	log.Debugf("=== datadog-agent Process payload: %+v ===", p)
 
 	if len(p.Chunks()) == 0 {
 		log.Debugf("Skipping received empty payload")
@@ -305,8 +304,6 @@ func (a *Agent) Process(p *api.Payload) {
 	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.ClientComputedStats, a.conf)
 
 	p.TracerPayload.Env = traceutil.NormalizeTag(p.TracerPayload.Env)
-
-	a.discardSpans(p)
 
 	for i := 0; i < len(p.Chunks()); {
 		chunk := p.Chunk(i)
@@ -364,6 +361,8 @@ func (a *Agent) Process(p *api.Payload) {
 			}
 		}
 		a.Replacer.Replace(chunk.Spans)
+
+		a.discardSpans(p)
 
 		a.setRootSpanTags(root)
 		if !p.ClientComputedTopLevel {
@@ -454,7 +453,6 @@ func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, contain
 			pt.GitCommitSha = gitCommitSha
 		}
 	}
-	log.Debug("=== datadog-agent processed-trace: %+v ===", pt)
 	return pt
 }
 

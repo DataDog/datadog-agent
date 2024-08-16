@@ -6,9 +6,12 @@
 package trace
 
 import (
+	"os"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -27,7 +30,7 @@ type spanModifier struct {
 }
 
 // ModifySpan applies extra logic to the given span
-func (s *spanModifier) ModifySpan(_ *pb.TraceChunk, span *pb.Span) {
+func (s *spanModifier) ModifySpan(t *pb.TraceChunk, span *pb.Span) {
 	if span.Service == "aws.lambda" {
 		// service name could be incorrectly set to 'aws.lambda' in datadog lambda libraries
 		if s.tags["service"] != "" {
@@ -55,6 +58,16 @@ func (s *spanModifier) ModifySpan(_ *pb.TraceChunk, span *pb.Span) {
 		if spanMetadataTags != nil {
 			spanMetadataTags = inferredspan.FilterFunctionTags(spanMetadataTags)
 			span.Meta = spanMetadataTags
+		}
+	}
+
+	// source code integration
+	if os.Getenv("DD_TRACE_GIT_METADATA_ENABLED") != "false" {
+		if gitCommitSha := version.GetGitCommitShaFromTrace(span, t); gitCommitSha != "" {
+			traceutil.SetMeta(span, "git.commit.sha", gitCommitSha)
+		}
+		if gitRepositoryUrl := version.GetGitRepositoryUrlFromTrace(span, t); gitRepositoryUrl != "" {
+			traceutil.SetMeta(span, "git.repository_url", gitRepositoryUrl)
 		}
 	}
 }
