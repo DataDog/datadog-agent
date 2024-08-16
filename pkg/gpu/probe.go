@@ -180,6 +180,10 @@ func (p *Probe) GetAndFlush() (*GPUStats, error) {
 			pastData.Key = key
 			stats.PastData = append(stats.PastData, pastData)
 		}
+
+		if handler.processEnded {
+			delete(p.consumer.streamHandlers, key)
+		}
 	}
 
 	return &stats, nil

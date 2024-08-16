@@ -8,6 +8,7 @@ package gpu
 import (
 	"math"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -23,6 +24,7 @@ type StreamHandler struct {
 	memAllocEvents map[uint64]*gpuebpf.CudaMemEvent
 	kernelSpans    []*KernelSpan
 	allocations    []*MemoryAllocation
+	processEnded   bool
 }
 
 type KernelSpan struct {
@@ -68,22 +70,25 @@ func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 
 	sh.allocations = append(sh.allocations, &data)
 	delete(sh.memAllocEvents, event.Addr)
-
 }
 
-func (sh *StreamHandler) handleSync(event *gpuebpf.CudaSync) {
-	// TODO: Worry about concurrent calls to this?
-	span := sh.getCurrentKernelSpan(event.Header.Ktime_ns)
+func (sh *StreamHandler) markSynchronization(ts uint64) {
+	span := sh.getCurrentKernelSpan(ts)
 	sh.kernelSpans = append(sh.kernelSpans, span)
 
 	remainingLaunches := []*gpuebpf.CudaKernelLaunch{}
 	for _, launch := range sh.kernelLaunches {
-		if launch.Header.Ktime_ns >= span.End {
+		if launch.Header.Ktime_ns >= ts {
 			remainingLaunches = append(remainingLaunches, launch)
 		}
 	}
 	sh.kernelLaunches = remainingLaunches
+	log.Debugf("Kernel span: %v, remainingLaunches = %v", span, remainingLaunches)
+}
 
+func (sh *StreamHandler) handleSync(event *gpuebpf.CudaSync) {
+	// TODO: Worry about concurrent calls to this?
+	sh.markSynchronization(event.Header.Ktime_ns)
 }
 
 func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *KernelSpan {
@@ -148,4 +153,17 @@ func (sh *StreamHandler) getCurrentData(now uint64) *StreamCurrentData {
 		Span:               sh.getCurrentKernelSpan(now),
 		CurrentMemoryUsage: sh.getCurrentMemoryUsage(),
 	}
+}
+
+func (sh *StreamHandler) markProcessEnded() error {
+	nowTs, err := ddebpf.NowNanoseconds()
+	if err != nil {
+		return err
+	}
+
+	log.Debugf("nowTs = %d", nowTs)
+	sh.processEnded = true
+	sh.markSynchronization(uint64(nowTs))
+
+	return nil
 }

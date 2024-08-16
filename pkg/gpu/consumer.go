@@ -11,6 +11,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -65,6 +66,8 @@ func (c *CudaEventConsumer) Start() {
 		return
 	}
 	health := health.RegisterLiveness("gpu-tracer-cuda-events")
+	processMonitor := monitor.GetProcessMonitor()
+	processMonitor.SubscribeExit(c.handleProcessExit)
 
 	go func() {
 		defer func() {
@@ -134,4 +137,13 @@ func (c *CudaEventConsumer) Start() {
 			}
 		}
 	}()
+}
+
+func (c *CudaEventConsumer) handleProcessExit(pid uint32) {
+	for key, handler := range c.streamHandlers {
+		if key.Pid == pid {
+			log.Debugf("Process %d ended, marking stream as ended", pid)
+			_ = handler.markProcessEnded()
+		}
+	}
 }
