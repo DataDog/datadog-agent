@@ -9,7 +9,6 @@ package hostinfo
 
 import (
 	"context"
-	"strings"
 
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
@@ -19,14 +18,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// KubeNodeTagsProvider allows computing node tags based on the user configurations for node labels and annotations as tags
+type KubeNodeTagsProvider struct {
+	metadataAsTags configutils.MetadataAsTags
+}
+
+// NewKubeNodeTagsProvider creates and returns a new kube node tags provider object
+func NewKubeNodeTagsProvider(conf config.Reader) KubeNodeTagsProvider {
+	return KubeNodeTagsProvider{configutils.GetMetadataAsTags(conf)}
+}
+
 // GetTags gets the tags from the kubernetes apiserver and the kubelet
-func GetTags(ctx context.Context) ([]string, error) {
-	tags, err := getNodeInfoTags(ctx)
+func (k KubeNodeTagsProvider) GetTags(ctx context.Context) ([]string, error) {
+	tags, err := k.getNodeInfoTags(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	annotationsToTags := getAnnotationsToTags()
+	annotationsToTags := k.metadataAsTags.GetNodeAnnotationsAsTags()
 	if len(annotationsToTags) == 0 {
 		return tags, nil
 	}
@@ -41,7 +50,7 @@ func GetTags(ctx context.Context) ([]string, error) {
 }
 
 // getNodeInfoTags gets the tags from the kubelet and the cluster-agent
-func getNodeInfoTags(ctx context.Context) ([]string, error) {
+func (k KubeNodeTagsProvider) getNodeInfoTags(ctx context.Context) ([]string, error) {
 	nodeInfo, err := NewNodeInfo()
 	if err != nil {
 		log.Debugf("Unable to auto discover node info tags: %s", err)
@@ -56,7 +65,7 @@ func getNodeInfoTags(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	tags := []string{"kube_node:" + nodeName}
-	labelsToTags := getLabelsToTags()
+	labelsToTags := k.metadataAsTags.GetNodeLabelsAsTags()
 	if len(labelsToTags) == 0 {
 		return tags, nil
 	}
@@ -77,31 +86,6 @@ func getDefaultLabelsToTags() map[string]string {
 	return map[string]string{
 		NormalizedRoleLabel: kubernetes.KubeNodeRoleTagName,
 	}
-}
-
-func getLabelsToTags() map[string]string {
-	labelsToTags := getDefaultLabelsToTags()
-
-	metadataAsTags := configutils.GetMetadataAsTags(config.Datadog())
-	for k, v := range metadataAsTags.GetNodeLabelsAsTags() {
-		// viper lower-cases map keys from yaml, but not from envvars
-		labelsToTags[strings.ToLower(k)] = v
-	}
-
-	return labelsToTags
-}
-
-func getAnnotationsToTags() map[string]string {
-	annotationsToTags := map[string]string{}
-
-	metadataAsTags := configutils.GetMetadataAsTags(config.Datadog())
-
-	for k, v := range metadataAsTags.GetNodeAnnotationsAsTags() {
-		// viper lower-cases map keys from yaml, but not from envvars
-		annotationsToTags[strings.ToLower(k)] = v
-	}
-
-	return annotationsToTags
 }
 
 func extractTags(nodeLabels, labelsToTags map[string]string) []string {
