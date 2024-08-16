@@ -8,6 +8,7 @@ package integration
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 
 	ddLog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -33,9 +34,9 @@ type Launcher struct {
 	runPath              string
 	integrationsLogsChan chan integrations.IntegrationLog
 	integrationToFile    map[string]string
-	// writeLogToFile is used as a function pointer so it can be overridden in
+	// writeLogToFile is used as a function pointer, so it can be overridden in
 	// testing to make deterministic tests
-	writeFunction func(filepath, log string) error
+	writeFunction func(logFilePath, log string) error
 }
 
 // NewLauncher returns a new launcher
@@ -75,16 +76,16 @@ func (s *Launcher) run() {
 			for _, source := range sources {
 				// TODO: integrations should only be allowed to have one IntegrationType config.
 				if source.Config.Type == config.IntegrationType {
-					filepath, err := s.createFile(cfg.ID)
+					logFilePath, err := s.createFile(cfg.ID)
 					if err != nil {
 						ddLog.Warn("Failed to create integration log file: ", err)
 						continue
 					}
-					filetypeSource := s.makeFileSource(source, filepath)
+					filetypeSource := s.makeFileSource(source, logFilePath)
 					s.sources.AddSource(filetypeSource)
 
 					// file to write the incoming logs to
-					s.integrationToFile[source.Name] = filepath
+					s.integrationToFile[source.Name] = logFilePath
 				}
 			}
 
@@ -92,15 +93,15 @@ func (s *Launcher) run() {
 			// Integrations will come in the form of: check_name:instance_config_hash
 			integrationSplit := strings.Split(log.IntegrationID, ":")
 			integrationName := integrationSplit[0]
-			filepath := s.integrationToFile[integrationName]
+			logFilePath := s.integrationToFile[integrationName]
 
-			err := s.ensureFileSize(filepath)
+			err := s.ensureFileSize(logFilePath)
 			if err != nil {
 				ddLog.Warn("Failed to get file size: ", err)
 				continue
 			}
 
-			err = s.writeFunction(filepath, log.Log)
+			err = s.writeFunction(logFilePath, log.Log)
 			if err != nil {
 				ddLog.Warn("Error writing log to file: ", err)
 			}
@@ -111,8 +112,8 @@ func (s *Launcher) run() {
 }
 
 // writeLogToFile is used as a function pointer
-func writeLogToFile(filepath, log string) error {
-	file, err := os.OpenFile(filepath, os.O_WRONLY, 0644)
+func writeLogToFile(logFilePath, log string) error {
+	file, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		ddLog.Warn("Failed to open file to write log to: ", err)
 		return err
@@ -120,7 +121,7 @@ func writeLogToFile(filepath, log string) error {
 
 	defer file.Close()
 
-	_, err = file.WriteString(log)
+	_, err = file.WriteString(log + "\n")
 	if err != nil {
 		ddLog.Warn("Failed to write integration log to file: ", err)
 		return err
@@ -130,11 +131,11 @@ func writeLogToFile(filepath, log string) error {
 }
 
 // makeFileSource Turns an integrations source into a logsSource
-func (s *Launcher) makeFileSource(source *sources.LogSource, filepath string) *sources.LogSource {
+func (s *Launcher) makeFileSource(source *sources.LogSource, logFilePath string) *sources.LogSource {
 	fileSource := sources.NewLogSource(source.Name, &config.LogsConfig{
 		Type:        config.FileType,
 		TailingMode: source.Config.TailingMode,
-		Path:        filepath,
+		Path:        logFilePath,
 		Name:        source.Config.Name,
 		Source:      source.Config.Source,
 		Tags:        source.Config.Tags,
@@ -147,45 +148,44 @@ func (s *Launcher) makeFileSource(source *sources.LogSource, filepath string) *s
 // TODO Change file naming to reflect ID once logs from go interfaces gets merged.
 // createFile creates a file for the logsource
 func (s *Launcher) createFile(id string) (string, error) {
-	directory, filepath := s.integrationLogFilePath(id)
+	directory, logFilePath := s.integrationLogFilePath(id)
 
 	err := os.MkdirAll(directory, 0755)
 	if err != nil {
 		return "", err
 	}
 
-	file, err := os.Create(filepath)
+	file, err := os.Create(logFilePath)
 	if err != nil {
 		return "", nil
 	}
 	defer file.Close()
 
-	return filepath, nil
+	return logFilePath, nil
 }
 
-// integrationLogFilePath returns a directory and file to use for an integration log file
+// integrationLoglogFilePath returns a directory and file to use for an integration log file
 func (s *Launcher) integrationLogFilePath(id string) (string, string) {
-	fileName := id + ".log"
-	directoryComponents := []string{s.runPath, "integrations"}
-	directory := strings.Join(directoryComponents, "/")
-	filepath := strings.Join([]string{directory, fileName}, "/")
+	fileName := strings.ReplaceAll(id, ":", "-") + ".log"
+	directory := filepath.Join(s.runPath, "integrations")
+	logFilePath := filepath.Join(directory, fileName)
 
-	return directory, filepath
+	return directory, logFilePath
 }
 
 // ensureFileSize enforces the max file size for files integrations logs
 // files. Files over the set size will be deleted and remade.
-func (s *Launcher) ensureFileSize(filepath string) error {
+func (s *Launcher) ensureFileSize(logFilePath string) error {
 	maxFileSizeSetting := pkgConfig.Datadog().GetInt64("logs_config.integrations_logs_files_max_size")
 	maxFileSizeBytes := maxFileSizeSetting * 1024 * 1024
 
-	fi, err := os.Stat(filepath)
+	fi, err := os.Stat(logFilePath)
 	if err != nil {
 		return err
 	}
 
 	if fi.Size() > int64(maxFileSizeBytes) {
-		err := os.Remove(filepath)
+		err := os.Remove(logFilePath)
 		if err != nil {
 			if os.IsNotExist(err) {
 				ddLog.Warn("File does not exist, creating new one: ", err)
@@ -196,7 +196,7 @@ func (s *Launcher) ensureFileSize(filepath string) error {
 			ddLog.Info("Successfully deleted oversize log file, creating new one.")
 		}
 
-		file, err := os.Create(filepath)
+		file, err := os.Create(logFilePath)
 		if err != nil {
 			return err
 		}
