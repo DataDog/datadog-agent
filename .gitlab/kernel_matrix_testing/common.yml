@@ -280,7 +280,6 @@ notify_ebpf_complexity_changes:
     - !reference [ .except_deploy ]
     - !reference [.on_system_probe_or_e2e_changes_or_manual]
     - !reference [.on_security_agent_changes_or_manual]
-
   needs:
     # We need to specify the jobs that generate complexity explicitly, else we hit the limit of "needs"
     # Important: the list of platforms should match the one in .define_if_collect_complexity
