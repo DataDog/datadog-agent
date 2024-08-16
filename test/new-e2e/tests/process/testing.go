@@ -226,6 +226,26 @@ func assertContainersCollected(t *testing.T, payloads []*aggregator.ProcessPaylo
 	}
 }
 
+// assertContainersNotCollected asserts that the given containers are not collected
+func assertContainersNotCollected(t *testing.T, payloads []*aggregator.ProcessPayload, containers []string) {
+	defer func() {
+		if t.Failed() {
+			t.Logf("Payloads:\n%+v\n", payloads)
+		}
+	}()
+
+	for _, container := range containers {
+		var found bool
+		for _, payload := range payloads {
+			if findContainer(container, payload.Containers) {
+				found = true
+				break
+			}
+		}
+		assert.False(t, found, "%s container found", container)
+	}
+}
+
 // findContainer returns whether the container with the given name exists in the given list of
 // containers and whether it has the expected data populated
 func findContainer(name string, containers []*agentmodel.Container) bool {
