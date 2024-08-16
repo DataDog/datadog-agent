@@ -74,6 +74,10 @@ func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
 
 func (sh *StreamHandler) markSynchronization(ts uint64) {
 	span := sh.getCurrentKernelSpan(ts)
+	if span == nil {
+		return
+	}
+
 	sh.kernelSpans = append(sh.kernelSpans, span)
 
 	remainingLaunches := []*gpuebpf.CudaKernelLaunch{}
@@ -111,9 +115,11 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *KernelSpan {
 		span.NumKernels++
 	}
 
-	if span.NumKernels > 0 {
-		span.AvgThreadCount /= uint64(span.NumKernels)
+	if span.NumKernels == 0 {
+		return nil
 	}
+
+	span.AvgThreadCount /= uint64(span.NumKernels)
 
 	return &span
 }
