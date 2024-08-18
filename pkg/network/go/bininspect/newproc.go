@@ -14,7 +14,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/go/goid"
 	"github.com/DataDog/datadog-agent/pkg/network/go/goversion"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type newProcessBinaryInspector struct {
@@ -24,7 +26,7 @@ type newProcessBinaryInspector struct {
 }
 
 // InspectNewProcessBinary process the given elf File, and returns the offsets of the given functions and structs.
-func InspectNewProcessBinary(elfFile *elf.File, functions map[string]FunctionConfiguration, structs map[FieldIdentifier]StructLookupFunction) (*Result, error) {
+func InspectNewProcessBinary(filePath utils.FilePath, elfFile *elf.File, functions map[string]FunctionConfiguration, structs map[FieldIdentifier]StructLookupFunction) (*Result, error) {
 	if elfFile == nil {
 		return nil, errors.New("got nil elf file")
 	}
@@ -53,7 +55,19 @@ func InspectNewProcessBinary(elfFile *elf.File, functions map[string]FunctionCon
 	// This might fail if the binary was stripped.
 	symbols, err := GetAllSymbolsByName(elfFile, symbolsSet)
 	if err != nil {
-		return nil, err
+		funcs := pclnFuncs(elfFile)
+		if len(funcs) == 0 {
+			return nil, fmt.Errorf("failed retrieving symbols: %+v", err)
+		}
+		symbols = make(map[string]elf.Symbol, len(funcs))
+		for _, f := range funcs {
+			symbols[f.Name] = elf.Symbol{
+				Name:  f.Name,
+				Value: f.Entry,
+				Size:  f.End - f.Entry,
+			}
+		}
+		log.Infof("pcln table to resolve symbols: %v", filePath)
 	}
 
 	inspector := newProcessBinaryInspector{

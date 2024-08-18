@@ -358,7 +358,7 @@ func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs 
 			return fmt.Errorf("file %s could not be parsed as an ELF file: %w", filePath.HostPath, err)
 		}
 
-		inspectionResult, err := bininspect.InspectNewProcessBinary(elfFile, functionsConfig, structFieldsLookupFunctions)
+		inspectionResult, err := bininspect.InspectNewProcessBinary(filePath, elfFile, functionsConfig, structFieldsLookupFunctions)
 		if err != nil {
 			if errors.Is(err, elf.ErrNoSymbols) {
 				binNoSymbolsMetric.Add(1)
