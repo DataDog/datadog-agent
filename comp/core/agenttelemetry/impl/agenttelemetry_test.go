@@ -663,3 +663,21 @@ func TestSenderConfigDDUrlWithAdditionalEndpoints(t *testing.T) {
 	url = buildURL(sndr.(*senderImpl).endpoints.Endpoints[1])
 	assert.Equal(t, "https://instrumentation-telemetry-intake.us3.datadoghq.com./api/v2/apmtelemetry", url)
 }
+
+// TestSenderConfigDDUrlWithEmptyAdditionalPoint dd_url overrides with empty additional endpoints
+func TestSenderConfigDDUrlWithEmptyAdditionalPoint(t *testing.T) {
+	c := `
+    site: datadoghq.com
+    api_key: foo
+    agent_telemetry:
+      enabled: true
+      dd_url: instrumentation-telemetry-intake.us5.datadoghq.com.
+      additional_endpoints:
+    `
+	sndr := makeSenderImpl(t, c)
+	assert.NotNil(t, sndr)
+
+	assert.Len(t, sndr.(*senderImpl).endpoints.Endpoints, 1)
+	url := buildURL(sndr.(*senderImpl).endpoints.Endpoints[0])
+	assert.Equal(t, "https://instrumentation-telemetry-intake.us5.datadoghq.com./api/v2/apmtelemetry", url)
+}
