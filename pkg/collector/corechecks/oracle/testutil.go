@@ -58,6 +58,8 @@ func getConnectData(t *testing.T, userType int) config.ConnectionConfig {
 		case useSysUser:
 			userEnvVariable = "ORACLE_TEST_SYS_USER"
 			passwordEnvVariable = "ORACLE_TEST_SYS_PASSWORD"
+			username = "sys"
+			password = "datad0g"
 		}
 
 		// server = os.Getenv(serverEnvVariable)
