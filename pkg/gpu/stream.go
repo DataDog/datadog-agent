@@ -99,7 +99,7 @@ func (sh *StreamHandler) handleSync(event *gpuebpf.CudaSync) {
 func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *KernelSpan {
 	span := KernelSpan{
 		Start:      math.MaxUint64,
-		End:        0,
+		End:        maxTime,
 		NumKernels: 0,
 	}
 
