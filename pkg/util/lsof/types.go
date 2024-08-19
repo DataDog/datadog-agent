@@ -35,11 +35,12 @@ Here we don't care about COMMAND, PID, and USER, since we only look at a single 
 // File represents an open file
 // The fields are not guaranteed to match lsof output, but they are good enough for debugging
 type File struct {
-	Fd   string
-	Type string
-	Perm string
-	Size int64
-	Name string
+	Fd       string
+	Type     string
+	OpenPerm string
+	FilePerm string
+	Size     int64
+	Name     string
 }
 
 // Files represents a list of open files
@@ -48,7 +49,18 @@ type Files []File
 // String returns a one-line description of the file
 func (file *File) String() string {
 	// fields won't be aligned like lsof does, but it's good enough for debugging
-	return fmt.Sprintf("FD: %s, Type: %s, Size: %d, Name: %s, Perm: %s", file.Fd, file.Type, file.Size, file.Name, file.Perm)
+	description := fmt.Sprintf("FD: %s, Type: %s, Size: %d, Name: %s", file.Fd, file.Type, file.Size, file.Name)
+
+	// OpenPerm is not defined for anonymous inodes
+	if file.OpenPerm != "" {
+		description += fmt.Sprintf(", OpenPerm: %s", file.OpenPerm)
+	}
+
+	// FilePerm is not defined for pipes and anonymous inodes
+	if file.FilePerm != "" {
+		description += fmt.Sprintf(", FilePerm: %s", file.FilePerm)
+	}
+	return description
 }
 
 func (files Files) String() string {

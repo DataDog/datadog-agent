@@ -13,7 +13,7 @@ import (
 
 // ListOpenFiles returns a list of open files for the given process
 func ListOpenFiles(ctx context.Context, pid int) (Files, error) {
-	return listOpenFiles(ctx, pid)
+	return openFiles(ctx, pid)
 }
 
 // ListOpenFilesFromSelf returns a list of open files for the current process
