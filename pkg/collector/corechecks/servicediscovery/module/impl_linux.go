@@ -207,12 +207,12 @@ func (s *discovery) getServiceName(proc *process.Process) (string, error) {
 		return "", nil
 	}
 
-	env, err := proc.Environ()
+	envs, err := getEnvs(proc)
 	if err != nil {
 		return "", nil
 	}
 
-	return s.serviceDetector.GetServiceName(cmdline, env), nil
+	return s.serviceDetector.GetServiceName(cmdline, envs), nil
 }
 
 // getService gets information for a single service.
