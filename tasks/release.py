@@ -75,6 +75,8 @@ GITLAB_FILES_TO_UPDATE = [
     ".gitlab/notify/notify.yml",
 ]
 
+BACKPORT_LABEL_COLOR = "5319e7"
+
 
 @task
 def list_major_change(_, milestone):
@@ -586,6 +588,7 @@ def create_release_branches(ctx, base_directory="~/dd", major_versions="6,7", up
     This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
     release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
+    github = GithubAPI(repository=GITHUB_REPO_NAME)
 
     list_major_versions = parse_major_versions(major_versions)
 
@@ -602,7 +605,6 @@ def create_release_branches(ctx, base_directory="~/dd", major_versions="6,7", up
 
     if check_state:
         print(color_message("Checking repository state", "bold"))
-        github = GithubAPI(repository=GITHUB_REPO_NAME)
         check_clean_branch_state(ctx, github, release_branch)
 
     if not yes_no_question(
@@ -616,6 +618,12 @@ def create_release_branches(ctx, base_directory="~/dd", major_versions="6,7", up
 
     for repo in UNFREEZE_REPOS:
         create_and_update_release_branch(ctx, repo, release_branch, base_directory=base_directory, upstream=upstream)
+
+    # create the backport label in the Agent repo
+    print(color_message("Creating backport label in the Agent repository", Color.BOLD))
+    github.create_label(
+        f'backport/{release_branch}', BACKPORT_LABEL_COLOR, f'Automatically create a backport PR to {release_branch}'
+    )
 
     # Step 2 - Create PRs with new settings in datadog-agent repository
 
