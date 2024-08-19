@@ -69,7 +69,6 @@ lint_macos:
       else
         echo "Go current version $GO_VERSION is the same as .go-version. Keeping the cache."
       fi
-      export GOPATH=$HOME/go
     # Remove the Python cache and env if the Python version changed
     - |
       PYTHON_REPO_VERSION=$(cat .python-version)
