@@ -187,7 +187,7 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__udp_sendpage, int sent) {
         return 0;
     }
 
-    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE, skp);
+    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT, skp);
 }
 
 SEC("kprobe/tcp_done")
@@ -420,7 +420,7 @@ static __always_inline int handle_ip6_skb(struct sock *sk, size_t size, struct f
     }
 
     log_debug("kprobe/ip6_make_skb: pid_tgid: %llu, size: %zu", pid_tgid, size);
-    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE, sk);
+    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT, sk);
     increment_telemetry_count(udp_send_processed);
 
     return 0;
@@ -599,7 +599,7 @@ static __always_inline int handle_ip_skb(struct sock *sk, size_t size, struct fl
 
     // segment count is not currently enabled on prebuilt.
     // to enable, change PACKET_COUNT_NONE => PACKET_COUNT_INCREMENT
-    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_NONE, sk);
+    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT, sk);
     increment_telemetry_count(udp_send_processed);
 
     return 0;

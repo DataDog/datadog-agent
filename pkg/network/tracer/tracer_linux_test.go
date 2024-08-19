@@ -1203,12 +1203,99 @@ func (s *TracerSuite) TestUDPPeekCount() {
 	m := outgoing.Monotonic
 	require.Equal(t, len(msg), int(m.SentBytes))
 	require.Equal(t, 0, int(m.RecvBytes))
+	require.Equal(t, 1, int(m.SentPackets))
+	require.Equal(t, 0, int(m.RecvPackets))
 	require.True(t, outgoing.IntraHost)
 
 	// make sure the inverse values are seen for the other message
 	m = incoming.Monotonic
 	require.Equal(t, 0, int(m.SentBytes))
 	require.Equal(t, len(msg), int(m.RecvBytes))
+	require.Equal(t, 0, int(m.SentPackets))
+	require.Equal(t, 1, int(m.RecvPackets))
+	require.True(t, incoming.IntraHost)
+}
+
+func (s *TracerSuite) TestUdpCorkCount() {
+	t := s.T()
+
+	t.Skip("skipping because of missed call issue from inet_sendmsg")
+
+	config := testConfig()
+	tr := setupTracer(t, config)
+
+	ln, err := net.ListenPacket("udp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+
+	saddr := ln.LocalAddr().String()
+
+	laddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:0")
+	require.NoError(t, err)
+	raddr, err := net.ResolveUDPAddr("udp", saddr)
+	require.NoError(t, err)
+
+	c, err := net.DialUDP("udp", laddr, raddr)
+	require.NoError(t, err)
+	defer c.Close()
+
+	msg := []byte("asdf")
+	rawConn, err := c.SyscallConn()
+	require.NoError(t, err)
+
+	COUNT := 10
+	// this is the main behavior of the test that's being tested
+	err = rawConn.Control(func(fd uintptr) {
+		for i := 0; i < COUNT; i++ {
+			flags := 0
+			isLast := i == COUNT-1
+			if !isLast {
+				flags |= syscall.MSG_MORE
+			}
+			sockAddr := syscall.SockaddrInet4{Port: raddr.Port}
+			copy(sockAddr.Addr[:], raddr.IP.To4())
+
+			t.Log("flags", flags)
+
+			err = syscall.Sendto(int(fd), msg, flags, &sockAddr)
+			require.NoError(t, err)
+		}
+	})
+	require.NoError(t, err)
+
+	recvBuffer := make([]byte, 256)
+	n, _, err := ln.ReadFrom(recvBuffer[:])
+	// make sure the full message was received on the other side (regardless of what the tracer thinks)
+	require.Equal(t, n, len(msg)*COUNT)
+	require.NoError(t, err)
+
+	var incoming *network.ConnectionStats
+	var outgoing *network.ConnectionStats
+	require.Eventuallyf(t, func() bool {
+		conns := getConnections(t, tr)
+		if outgoing == nil {
+			outgoing, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		}
+		if incoming == nil {
+			incoming, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
+		}
+
+		return outgoing != nil && incoming != nil
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find incoming and outgoing connections matching")
+
+	m := outgoing.Monotonic
+	require.Equal(t, len(msg)*COUNT, int(m.SentBytes))
+	require.Equal(t, 0, int(m.RecvBytes))
+	require.Equal(t, 1, int(m.SentPackets))
+	require.Equal(t, 0, int(m.RecvPackets))
+	require.True(t, outgoing.IntraHost)
+
+	// make sure the inverse values are seen for the other message
+	m = incoming.Monotonic
+	require.Equal(t, 0, int(m.SentBytes))
+	require.Equal(t, len(msg)*COUNT, int(m.RecvBytes))
+	require.Equal(t, 0, int(m.SentPackets))
+	require.Equal(t, 1, int(m.RecvPackets))
 	require.True(t, incoming.IntraHost)
 }
 
@@ -1506,10 +1593,18 @@ func (s *TracerSuite) TestSendfileRegression() {
 		}, 3*time.Second, 100*time.Millisecond, "couldn't find connections used by sendfile(2)")
 
 		if assert.NotNil(t, outConn, "couldn't find outgoing connection used by sendfile(2)") {
-			assert.Equalf(t, int64(clientMessageSize), int64(outConn.Monotonic.SentBytes), "sendfile send data wasn't properly traced")
+			assert.Equalf(t, int64(clientMessageSize), int64(outConn.Monotonic.SentBytes), "sendfile sent bytes wasn't properly traced")
+			if connType == network.UDP {
+				assert.Equalf(t, int64(1), int64(outConn.Monotonic.SentPackets), "sendfile UDP should send exactly 1 packet")
+				assert.Equalf(t, int64(0), int64(outConn.Monotonic.RecvPackets), "sendfile outConn shouldn't have any RecvPackets")
+			}
 		}
 		if assert.NotNil(t, inConn, "couldn't find incoming connection used by sendfile(2)") {
-			assert.Equalf(t, int64(clientMessageSize), int64(inConn.Monotonic.RecvBytes), "sendfile recv data wasn't properly traced")
+			assert.Equalf(t, int64(clientMessageSize), int64(inConn.Monotonic.RecvBytes), "sendfile recv bytes wasn't properly traced")
+			if connType == network.UDP {
+				assert.Equalf(t, int64(1), int64(inConn.Monotonic.RecvPackets), "sendfile UDP should recv exactly 1 packet")
+				assert.Equalf(t, int64(0), int64(inConn.Monotonic.SentPackets), "sendfile inConn shouldn't have any SentPackets")
+			}
 		}
 	}
 
@@ -1540,7 +1635,7 @@ func (s *TracerSuite) TestSendfileRegression() {
 					t.Skip("UDP will fail with prebuilt tracer")
 				}
 
-				// Start TCP server
+				// Start UDP server
 				var rcvd int64
 				server := &UDPServer{
 					network: "udp" + strings.TrimPrefix(family.String(), "v"),
