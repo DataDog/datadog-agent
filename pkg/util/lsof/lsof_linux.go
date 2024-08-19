@@ -22,9 +22,8 @@ import (
 // openFilesLister stores the state needed to list open files
 // this is helpful for tests to help with mocking
 type openFilesLister struct {
-	pid         int
-	procPath    string
-	procPIDPath string
+	pid      int
+	procPath string
 
 	readlink func(string) (string, error)
 	stat     func(string) (os.FileInfo, error)
@@ -34,6 +33,7 @@ type openFilesLister struct {
 	socketInfo map[uint64]socketInfo
 }
 
+// procfsProc is an interface to allow mocking of procfs.Proc
 type procfsProc interface {
 	ProcMaps() ([]*procfs.ProcMap, error)
 	FileDescriptors() ([]uintptr, error)
@@ -56,7 +56,6 @@ func openFiles(_ context.Context, pid int) (Files, error) {
 	}
 
 	ofl.procPath = procPath()
-	ofl.procPIDPath = fmt.Sprintf("%s/%d", ofl.procPath, ofl.pid)
 
 	fs, err := procfs.NewFS(ofl.procPath)
 	if err != nil {
@@ -68,15 +67,19 @@ func openFiles(_ context.Context, pid int) (Files, error) {
 		return nil, err
 	}
 
-	ofl.socketInfo = readSocketInfo(ofl.procPIDPath)
+	ofl.socketInfo = readSocketInfo(ofl.procPIDPath())
 
 	return ofl.openFiles()
+}
+
+func (ofl *openFilesLister) procPIDPath() string {
+	return fmt.Sprintf("%s/%d", ofl.procPath, ofl.pid)
 }
 
 func (ofl *openFilesLister) openFiles() (Files, error) {
 	var files Files
 
-	// open files, socket, pipe (everything with a file descriptor)
+	// open files, socket, pipe (everything with a file descriptor, from /proc/<pid>/fd)
 	openFDFiles, err := ofl.fdMetadata()
 	if err != nil {
 		log.Debugf("Failed to get open FDs for pid %d: %s", ofl.pid, err)
@@ -84,7 +87,7 @@ func (ofl *openFilesLister) openFiles() (Files, error) {
 		files = append(files, openFDFiles...)
 	}
 
-	// memory mapped files, code,
+	// memory mapped files, code, regions (from /proc/<pid>/maps)
 	mmapFiles, err := ofl.mmapMetadata()
 	if err != nil {
 		log.Debugf("Failed to get memory maps for pid %d: %s", ofl.pid, err)
@@ -183,10 +186,6 @@ func mmapFD(path string, ty, cwd string) string {
 	return fd
 }
 
-type fileDescriptors interface {
-	FileDescriptors() ([]uintptr, error)
-}
-
 func (ofl *openFilesLister) fdMetadata() (Files, error) {
 	openFDs, err := ofl.proc.FileDescriptors()
 	if err != nil {
@@ -210,11 +209,7 @@ func (ofl *openFilesLister) fdStat(fd uintptr) (File, bool) {
 		Fd: fmt.Sprintf("%d", fd),
 	}
 
-	fdLinkPath := fmt.Sprintf("%s/fd/%d", ofl.procPIDPath, fd)
-	file.Name, err = ofl.readlink(fdLinkPath)
-	if err != nil {
-		return File{}, false
-	}
+	fdLinkPath := fmt.Sprintf("%s/fd/%d", ofl.procPIDPath(), fd)
 
 	var inode uint64
 	if file.Type, file.OpenPerm, _, _ = fileStats(ofl.lstat, fdLinkPath); file.Type == "" {
@@ -229,6 +224,11 @@ func (ofl *openFilesLister) fdStat(fd uintptr) (File, bool) {
 		file.Name = info.Description
 		file.FilePerm = info.State
 		file.Type = info.Protocol
+	} else {
+		file.Name, err = ofl.readlink(fdLinkPath)
+		if err != nil {
+			return File{}, false
+		}
 	}
 
 	return file, true
