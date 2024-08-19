@@ -54,7 +54,7 @@ var (
 )
 
 // Detect attempts to detect the Language from the provided process information.
-func (lf Finder) Detect(args []string, envs []string) (Language, bool) {
+func (lf Finder) Detect(args []string, envs map[string]string) (Language, bool) {
 	lang := lf.findLang(ProcessInfo{
 		Args: args,
 		Envs: envs,
@@ -76,7 +76,7 @@ func findFile(fileName string) (io.ReadCloser, bool) {
 // ProcessInfo holds information about a process.
 type ProcessInfo struct {
 	Args []string
-	Envs []string
+	Envs map[string]string
 }
 
 // FileReader attempts to read the most representative file associated to a process.
@@ -89,16 +89,16 @@ func (pi ProcessInfo) FileReader() (io.ReadCloser, bool) {
 	if strings.HasPrefix(fileName, "/") {
 		return findFile(fileName)
 	}
-	for _, env := range pi.Envs {
-		if key, val, _ := strings.Cut(env, "="); key == "PATH" {
-			paths := strings.Split(val, ":")
-			for _, path := range paths {
-				if r, found := findFile(path + string(os.PathSeparator) + fileName); found {
-					return r, true
-				}
+	if val, ok := pi.Envs["PATH"]; ok {
+		paths := strings.Split(val, ":")
+		for _, path := range paths {
+			if r, found := findFile(path + string(os.PathSeparator) + fileName); found {
+				return r, true
 			}
 		}
+
 	}
+
 	// well, just try it as a relative path, maybe it works
 	return findFile(fileName)
 }

@@ -19,19 +19,17 @@ func Test_javaDetector(t *testing.T) {
 	data := []struct {
 		name   string
 		args   []string
-		envs   []string
+		envs   map[string]string
 		result Instrumentation
 	}{
 		{
 			name:   "not there",
 			args:   strings.Split("java -jar Foo.jar Foo", " "),
-			envs:   nil,
 			result: None,
 		},
 		{
 			name:   "version",
 			args:   strings.Split("java -version", " "),
-			envs:   nil,
 			result: None,
 		},
 	}
@@ -59,31 +57,29 @@ func Test_pythonDetector(t *testing.T) {
 	data := []struct {
 		name   string
 		args   []string
-		envs   []string
+		envs   map[string]string
 		result Instrumentation
 	}{
 		{
 			name:   "venv_provided",
 			args:   []string{"./echoer.sh", "nope"},
-			envs:   []string{"VIRTUAL_ENV=" + tmpDir},
+			envs:   map[string]string{"VIRTUAL_ENV": tmpDir},
 			result: Provided,
 		},
 		{
 			name:   "venv_none",
 			args:   []string{"./testdata/echoer.sh", "nope"},
-			envs:   []string{"VIRTUAL_ENV=" + tmpDir2},
+			envs:   map[string]string{"VIRTUAL_ENV": tmpDir2},
 			result: None,
 		},
 		{
 			name:   "cmd_provided",
 			args:   []string{"./testdata/cmd_works.sh"},
-			envs:   []string{},
 			result: Provided,
 		},
 		{
 			name:   "cmd_none",
 			args:   []string{"./testdata/cmd_fails.sh"},
-			envs:   []string{},
 			result: None,
 		},
 	}

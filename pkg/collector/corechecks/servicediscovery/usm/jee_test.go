@@ -240,7 +240,9 @@ func TestWeblogicExtractServiceNamesForJEEServer(t *testing.T) {
 		wlsHomeSysProp + "/wls",
 		wlsServerMainClass,
 	}
-	envs := []string{"PWD=wls/domain"}
+	envs := map[string]string{
+		"PWD": "wls/domain",
+	}
 	extractor := jeeExtractor{ctx: NewDetectionContext(zap.NewNop(), cmd, envs, memfs)}
 	extractedContextRoots := extractor.extractServiceNamesForJEEServer()
 	require.Equal(t, []string{
