@@ -437,7 +437,7 @@ func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggerty
 		if originInfo.FromUDS != packets.NoOrigin &&
 			(originInfo.FromTag == "" || !t.datadogConfig.dogstatsdEntityIDPrecedenceEnabled) {
 			if err := t.AccumulateTagsFor(originInfo.FromUDS, cardinality, tb); err != nil {
-				t.log.Errorf(err.Error())
+				t.log.Errorf("%s", err.Error())
 			}
 		}
 
@@ -462,7 +462,7 @@ func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggerty
 		// Tag using Local Data
 		if originInfo.FromUDS != packets.NoOrigin {
 			if err := t.AccumulateTagsFor(originInfo.FromUDS, cardinality, tb); err != nil {
-				t.log.Errorf(err.Error())
+				t.log.Errorf("%s", err.Error())
 			}
 		}
 

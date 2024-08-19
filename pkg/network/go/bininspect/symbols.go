@@ -226,6 +226,9 @@ func GetAllSymbolsByName(elfFile *elf.File, symbolSet common.StringSet) (map[str
 	}
 
 	// Only if we failed getting both regular and dynamic symbols - then we abort.
+	if regularSymbolsErr == elf.ErrNoSymbols && dynamicSymbolsErr == elf.ErrNoSymbols {
+		return nil, elf.ErrNoSymbols
+	}
 	if regularSymbolsErr != nil && dynamicSymbolsErr != nil {
 		return nil, fmt.Errorf("could not open symbol sections to resolve symbol offset: %v, %v", regularSymbolsErr, dynamicSymbolsErr)
 	}

@@ -1,0 +1,15 @@
+new-e2e-agent-platform-install-script-docker:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new_e2e_template_needs_deb_x64
+    - .new-e2e_agent_a7
+    - .new-e2e_install_script
+  rules: !reference [.on_default_new_e2e_tests]
+  variables:
+    E2E_ARCH: x86_64
+    E2E_PLATFORM: "docker"
+    E2E_OSVERS: "none"
+    E2E_BRANCH_OSVERS: none
+    E2E_CWS_SUPPORTED_OSVERS: "none"
+    FLAVOR: "datadog-agent"
