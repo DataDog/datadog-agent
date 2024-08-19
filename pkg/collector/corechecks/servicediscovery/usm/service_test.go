@@ -31,7 +31,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 	tests := []struct {
 		name                       string
 		cmdline                    []string
-		envs                       []string
+		envs                       map[string]string
 		expectedServiceTag         string
 		expectedAdditionalServices []string
 		fromDDService              bool
@@ -58,7 +58,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"./my-server.sh",
 			},
-			envs:               []string{"DD_SERVICE=my-service"},
+			envs:               map[string]string{"DD_SERVICE": "my-service"},
 			expectedServiceTag: "my-service",
 			fromDDService:      true,
 		},
@@ -67,7 +67,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"./my-server.sh",
 			},
-			envs:               []string{"DD_TAGS=service:my-service"},
+			envs:               map[string]string{"DD_TAGS": "service:my-service"},
 			expectedServiceTag: "my-service",
 			fromDDService:      true,
 		},
@@ -91,7 +91,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"/opt/python/2.7.11/bin/python2.7", "flask", "run", "--host=0.0.0.0",
 			},
 			expectedServiceTag: "flask",
-			envs:               []string{"PWD=testdata/python"},
+			envs:               map[string]string{"PWD": "testdata/python"},
 		},
 		{
 			name: "python - flask argument in path",
@@ -105,7 +105,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"/opt/python/2.7.11/bin/python2.7 flask run --host=0.0.0.0",
 			},
-			envs:               []string{"PWD=testdata/python"},
+			envs:               map[string]string{"PWD": "testdata/python"},
 			expectedServiceTag: "flask",
 		},
 		{
@@ -201,7 +201,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"--",
 				"index.js",
 			},
-			envs:               []string{"PWD=testdata/deep"}, // it's relative but it's ok for testing purposes
+			envs:               map[string]string{"PWD": "testdata/deep"}, // it's relative but it's ok for testing purposes
 			expectedServiceTag: "my-awesome-package",
 		},
 		{
@@ -285,7 +285,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"-Dwls.home=/u01/oracle/wlserver/server",
 				"-Dweblogic.home=/u01/oracle/wlserver/server",
 				"weblogic.Server"},
-			envs:                       []string{"PWD=" + weblogicTestAppRoot},
+			envs:                       map[string]string{"PWD": weblogicTestAppRoot},
 			expectedServiceTag:         "Server",
 			expectedAdditionalServices: []string{"my_context", "sample4", "some_context_root"},
 		},
@@ -397,21 +397,21 @@ func TestExtractServiceMetadata(t *testing.T) {
 		{
 			name:               "DD_SERVICE_set_manually",
 			cmdline:            []string{"java", "-jar", "Foo.jar"},
-			envs:               []string{"DD_SERVICE=howdy"},
+			envs:               map[string]string{"DD_SERVICE": "howdy"},
 			expectedServiceTag: "howdy",
 			fromDDService:      true,
 		},
 		{
 			name:               "DD_SERVICE_set_manually_tags",
 			cmdline:            []string{"java", "-jar", "Foo.jar"},
-			envs:               []string{"DD_TAGS=service:howdy"},
+			envs:               map[string]string{"DD_TAGS": "service:howdy"},
 			expectedServiceTag: "howdy",
 			fromDDService:      true,
 		},
 		{
 			name:               "DD_SERVICE_set_manually_injection",
 			cmdline:            []string{"java", "-jar", "Foo.jar"},
-			envs:               []string{"DD_SERVICE=howdy", "DD_INJECTION_ENABLED=tracer,service_name"},
+			envs:               map[string]string{"DD_SERVICE": "howdy", "DD_INJECTION_ENABLED": "tracer,service_name"},
 			expectedServiceTag: "howdy",
 			fromDDService:      false,
 		},
@@ -455,7 +455,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"gunicorn",
 				"test:app",
 			},
-			envs:               []string{"GUNICORN_CMD_ARGS=--bind=127.0.0.1:8080 --workers=3 -n dummy"},
+			envs:               map[string]string{"GUNICORN_CMD_ARGS": "--bind=127.0.0.1:8080 --workers=3 -n dummy"},
 			expectedServiceTag: "dummy",
 		},
 		{
@@ -463,7 +463,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"gunicorn",
 			},
-			envs:               []string{"GUNICORN_CMD_ARGS=--bind=127.0.0.1:8080 --workers=3"},
+			envs:               map[string]string{"GUNICORN_CMD_ARGS": "--bind=127.0.0.1:8080 --workers=3"},
 			expectedServiceTag: "gunicorn",
 		},
 		{
@@ -480,7 +480,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"gunicorn",
 				"my.package",
 			},
-			envs:               []string{"WSGI_APP="},
+			envs:               map[string]string{"WSGI_APP": ""},
 			expectedServiceTag: "my.package",
 		},
 		{
@@ -488,7 +488,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"gunicorn",
 			},
-			envs:               []string{"WSGI_APP=test:app"},
+			envs:               map[string]string{"WSGI_APP": "test:app"},
 			expectedServiceTag: "test",
 		},
 	}

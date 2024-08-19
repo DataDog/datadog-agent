@@ -299,7 +299,7 @@ func TestExtractServiceMetadataSpringBoot(t *testing.T) {
 		name     string
 		jarname  string
 		cmdline  []string
-		envs     []string
+		envs     map[string]string
 		expected string
 	}{
 		{
@@ -342,8 +342,8 @@ func TestExtractServiceMetadataSpringBoot(t *testing.T) {
 				"-jar",
 				spFullPath,
 			},
-			envs: []string{
-				"SPRING_APPLICATION_NAME=found",
+			envs: map[string]string{
+				"SPRING_APPLICATION_NAME": "found",
 			},
 			expected: "found",
 		},
