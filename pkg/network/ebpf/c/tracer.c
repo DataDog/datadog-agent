@@ -212,24 +212,24 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
         return 0;
     }
 
-    // connection timeouts will have 0 pids as they are cleaned up by an idle process. 
-    // resets can also have kernel pids are they are triggered by receiving an RST packet from the server
-    // get the pid from the ongoing failure map in this case, as it should have been set in connect(). else bail
-    failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &t);
-    if (failed_conn_pid) {
-        pid_tgid = *failed_conn_pid;
-        bpf_probe_read_kernel_with_telemetry(&pid_tgid, sizeof(pid_tgid), failed_conn_pid);
-        t.pid = pid_tgid >> 32;
-    }
-    if (t.pid == 0) {
-        return 0;
-    }
-
     log_debug("kprobe/tcp_done: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
     log_debug("kprobe/tcp_done: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
+
+    // connection timeouts will have 0 pids as they are cleaned up by an idle process. 
+    // resets can also have kernel pids are they are triggered by receiving an RST packet from the server
+    // get the pid from the ongoing failure map in this case, as it should have been set in connect(). else bail
+    failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &t);
+    if (failed_conn_pid) {
+        bpf_probe_read_kernel_with_telemetry(&pid_tgid, sizeof(pid_tgid), failed_conn_pid);
+        t.pid = pid_tgid >> 32;
+        bpf_map_delete_elem(&tcp_ongoing_connect_pid, &t);
+    }
+    if (t.pid == 0) {
+        return 0;
+    }
 
     // check if this connection was already flushed and ensure we don't flush again
     // upsert the timestamp to the map and delete if it already exists, flush connection otherwise
@@ -258,11 +258,6 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
-    // increment telemetry for connections that were never established
-    if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
-        increment_telemetry_count(tcp_failed_connect);
-    }
-
     // Get network namespace id
     log_debug("kprobe/tcp_close: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
@@ -282,6 +277,10 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
     __u64 timestamp = bpf_ktime_get_ns();
     if (!tcp_failed_connections_enabled() || (bpf_map_update_with_telemetry(conn_close_flushed, &t, &timestamp, BPF_NOEXIST, -EEXIST) == 0)) {
         cleanup_conn(ctx, &t, sk);
+        // increment telemetry for connections that were never established
+        if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &t) == 0) {
+            increment_telemetry_count(tcp_failed_connect);
+        }
     } else {
         bpf_map_delete_elem(&conn_close_flushed, &t);
         increment_telemetry_count(double_flush_attempts_close);
@@ -961,22 +960,20 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_finish_connect, struct sock *skp) {
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
+    log_debug("kprobe/tcp_finish_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
+    log_debug("kprobe/tcp_finish_connect: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
     u64 *pid_tgid_p = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &t);
     if (!pid_tgid_p) {
         return 0;
-    }
-    
-    log_debug("kprobe/tcp_finish_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    } 
 
     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &t);
 
     handle_tcp_stats(&t, skp, TCP_ESTABLISHED);
     handle_message(&t, 0, 0, CONN_DIRECTION_OUTGOING, 0, 0, PACKET_COUNT_NONE, skp);
-
-    log_debug("kprobe/tcp_finish_connect: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
     return 0;
 }
