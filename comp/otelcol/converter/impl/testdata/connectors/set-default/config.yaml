@@ -26,8 +26,11 @@ processors:
 connectors:
   datadog/conn:
   datadog/conn-2:
-    span_name_remappings:
-      instrumentation:express.server: express
+    traces:
+  datadog/conn-3:
+    traces:
+      span_name_remappings:
+        instrumentation:express.server: express
 
 service:
     extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, datadog/user-defined]

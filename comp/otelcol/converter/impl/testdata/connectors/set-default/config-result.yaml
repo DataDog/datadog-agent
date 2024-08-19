@@ -25,11 +25,16 @@ processors:
 
 connectors:
   datadog/conn:
-    span_name_as_resource_name: true
+    traces:
+      span_name_as_resource_name: true
   datadog/conn-2:
-    span_name_as_resource_name: true
-    span_name_remappings:
-      instrumentation:express.server: express
+    traces:
+      span_name_as_resource_name: true
+  datadog/conn-3:
+    traces:
+      span_name_as_resource_name: true
+      span_name_remappings:
+        instrumentation:express.server: express
 
 service:
     extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, datadog/user-defined]

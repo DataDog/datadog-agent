@@ -25,7 +25,8 @@ processors:
 
 connectors:
   datadog/conn:
-    span_name_as_resource_name: false
+    traces:
+      span_name_as_resource_name: false
 
 service:
     extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, datadog/user-defined]

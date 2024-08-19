@@ -25,21 +25,31 @@ func changeDefaultConfigsForDatadogConnector(conf *confmap.Conf) {
 		if componentName(name) != "datadog" {
 			continue
 		}
-		var ddconnectorCfg map[string]any
 		if ccfg == nil {
-			ddconnectorCfg = map[string]any{"span_name_as_resource_name": true}
-			connectorMap[name] = ddconnectorCfg
+			connectorMap[name] = map[string]any{
+				"traces": map[string]any{"span_name_as_resource_name": true},
+			}
 			changed = true
-		} else {
-			ddconnectorCfg, ok = ccfg.(map[string]any)
-			if !ok {
-				continue
-			}
-			_, ok = ddconnectorCfg["span_name_as_resource_name"]
-			if !ok {
-				ddconnectorCfg["span_name_as_resource_name"] = true
-				changed = true
-			}
+			continue
+		}
+		ddconnectorCfg, ok := ccfg.(map[string]any)
+		if !ok {
+			continue
+		}
+		tcfg, ok := ddconnectorCfg["traces"]
+		if !ok || tcfg == nil {
+			ddconnectorCfg["traces"] = map[string]any{"span_name_as_resource_name": true}
+			changed = true
+			continue
+		}
+		tcfgMap, ok := tcfg.(map[string]any)
+		if !ok {
+			continue
+		}
+		_, isSet := tcfgMap["span_name_as_resource_name"]
+		if !isSet {
+			tcfgMap["span_name_as_resource_name"] = true
+			changed = true
 		}
 	}
 	if changed {
