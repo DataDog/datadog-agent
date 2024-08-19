@@ -104,7 +104,7 @@ func TestBufferTelemetryFull(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, channelPacketsBytesMetrics, 1)
 
-	// buffer size metrcis get reset when buffer is full
+	// buffer size metrics get reset when buffer is full
 	bufferSizeMetricLabel := bufferSizeMetrics[0].Tags()
 	assert.Equal(t, bufferSizeMetricLabel["listener_id"], "test_buffer")
 	assert.Equal(t, float64(0), bufferSizeMetrics[0].Value())

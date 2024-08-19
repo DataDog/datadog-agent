@@ -16,10 +16,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"go.uber.org/zap"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language/reader"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Instrumentation represents the state of APM instrumentation for a service.
@@ -34,7 +33,7 @@ const (
 	Injected Instrumentation = "injected"
 )
 
-type detector func(logger *zap.Logger, args []string, envs []string) Instrumentation
+type detector func(args []string, envs map[string]string) Instrumentation
 
 var (
 	detectorMap = map[language.Language]detector{
@@ -47,7 +46,7 @@ var (
 )
 
 // Detect attempts to detect the type of APM instrumentation for the given service.
-func Detect(logger *zap.Logger, args []string, envs []string, lang language.Language) Instrumentation {
+func Detect(args []string, envs map[string]string, lang language.Language) Instrumentation {
 	// first check to see if the DD_INJECTION_ENABLED is set to tracer
 	if isInjected(envs) {
 		return Injected
@@ -55,18 +54,14 @@ func Detect(logger *zap.Logger, args []string, envs []string, lang language.Lang
 
 	// different detection for provided instrumentation for each
 	if detect, ok := detectorMap[lang]; ok {
-		return detect(logger, args, envs)
+		return detect(args, envs)
 	}
 
 	return None
 }
 
-func isInjected(envs []string) bool {
-	for _, env := range envs {
-		if !strings.HasPrefix(env, "DD_INJECTION_ENABLED=") {
-			continue
-		}
-		_, val, _ := strings.Cut(env, "=")
+func isInjected(envs map[string]string) bool {
+	if val, ok := envs["DD_INJECTION_ENABLED"]; ok {
 		parts := strings.Split(val, ",")
 		for _, v := range parts {
 			if v == "tracer" {
@@ -77,11 +72,11 @@ func isInjected(envs []string) bool {
 	return false
 }
 
-func rubyDetector(_ *zap.Logger, _ []string, _ []string) Instrumentation {
+func rubyDetector(_ []string, _ map[string]string) Instrumentation {
 	return None
 }
 
-func pythonDetector(logger *zap.Logger, args []string, envs []string) Instrumentation {
+func pythonDetector(args []string, envs map[string]string) Instrumentation {
 	/*
 		Check for VIRTUAL_ENV env var
 			if it's there, use $VIRTUAL_ENV/lib/python{}/site-packages/ and see if ddtrace is inside
@@ -95,39 +90,31 @@ func pythonDetector(logger *zap.Logger, args []string, envs []string) Instrument
 						if so, return PROVIDED
 			return NONE
 	*/
-	for _, env := range envs {
-		if strings.HasPrefix(env, "VIRTUAL_ENV=") {
-			_, path, _ := strings.Cut(env, "=")
-			venv := os.DirFS(path)
-			libContents, err := fs.ReadDir(venv, "lib")
-			if err != nil {
-				continue
-			}
+	if path, ok := envs["VIRTUAL_ENV"]; ok {
+		venv := os.DirFS(path)
+		libContents, err := fs.ReadDir(venv, "lib")
+		if err == nil {
 			for _, v := range libContents {
 				if strings.HasPrefix(v.Name(), "python") && v.IsDir() {
 					tracedir, err := fs.Stat(venv, "lib/"+v.Name()+"/site-packages/ddtrace")
-					if err != nil {
-						continue
-					}
-					if tracedir.IsDir() {
+					if err == nil && tracedir.IsDir() {
 						return Provided
 					}
 				}
 			}
-			// the virtual env didn't have ddtrace, can exit
-			return None
 		}
+		// the virtual env didn't have ddtrace, can exit
+		return None
 	}
 	// slow option...
 	results, err := exec.Command(args[0], `-c`, `"import sys; print(':'.join(sys.path))"`).Output()
 	if err != nil {
-		logger.Warn("Failed to execute command", zap.Error(err))
+		log.Warn("Failed to execute command", err)
 		return None
 	}
 
 	results = bytes.TrimSpace(results)
 	parts := strings.Split(string(results), ":")
-	logger.Debug("parts", zap.Strings("parts", parts))
 	for _, v := range parts {
 		if strings.HasSuffix(v, "/site-packages") {
 			_, err := os.Stat(v + "/ddtrace")
@@ -139,19 +126,16 @@ func pythonDetector(logger *zap.Logger, args []string, envs []string) Instrument
 	return None
 }
 
-func nodeDetector(logger *zap.Logger, _ []string, envs []string) Instrumentation {
+func nodeDetector(_ []string, envs map[string]string) Instrumentation {
 	// check package.json, see if it has dd-trace in it.
 	// first find it
 	wd := ""
-	for _, v := range envs {
-		if strings.HasPrefix(v, "PWD=") {
-			_, wd, _ = strings.Cut(v, "=")
-			break
-		}
+	if val, ok := envs["PWD"]; ok {
+		wd = val
 	}
 	if wd == "" {
 		// don't know the working directory, just quit
-		logger.Debug("unable to determine working directory, assuming uninstrumented")
+		log.Debug("unable to determine working directory, assuming uninstrumented")
 		return None
 	}
 
@@ -164,15 +148,15 @@ func nodeDetector(logger *zap.Logger, _ []string, envs []string) Instrumentation
 		// this error means the file isn't there, so check parent directory
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
-				logger.Debug("package.json not found", zap.String("path", curPkgJSON))
+				log.Debug("package.json not found", curPkgJSON)
 			} else {
-				logger.Debug("error opening package.json", zap.String("path", curPkgJSON), zap.Error(err))
+				log.Debug("error opening package.json", curPkgJSON, err)
 			}
 			continue
 		}
 		offset, err := reader.Index(f, `"dd-trace"`)
 		if err != nil {
-			logger.Debug("error reading package.json", zap.String("path", curPkgJSON), zap.Error(err))
+			log.Debug("error reading package.json", curPkgJSON, err)
 			_ = f.Close()
 			continue
 		}
@@ -187,7 +171,7 @@ func nodeDetector(logger *zap.Logger, _ []string, envs []string) Instrumentation
 	return None
 }
 
-func javaDetector(_ *zap.Logger, args []string, envs []string) Instrumentation {
+func javaDetector(args []string, envs map[string]string) Instrumentation {
 	ignoreArgs := map[string]bool{
 		"-version":     true,
 		"-Xshare:dump": true,
@@ -205,20 +189,19 @@ func javaDetector(_ *zap.Logger, args []string, envs []string) Instrumentation {
 		}
 	}
 	// also don't instrument if the javaagent is there in the environment variable JAVA_TOOL_OPTIONS and friends
-	toolOptionEnvs := map[string]bool{
+	toolOptionEnvs := []string{
 		// These are the environment variables that are used to pass options to the JVM
-		"JAVA_TOOL_OPTIONS": true,
-		"_JAVA_OPTIONS":     true,
-		"JDK_JAVA_OPTIONS":  true,
+		"JAVA_TOOL_OPTIONS",
+		"_JAVA_OPTIONS",
+		"JDK_JAVA_OPTIONS",
 		// I'm pretty sure these won't be necessary, as they should be parsed before the JVM sees them
 		// but there's no harm in including them
-		"JAVA_OPTIONS":  true,
-		"CATALINA_OPTS": true,
-		"JDPA_OPTS":     true,
+		"JAVA_OPTIONS",
+		"CATALINA_OPTS",
+		"JDPA_OPTS",
 	}
-	for _, v := range envs {
-		name, val, _ := strings.Cut(v, "=")
-		if toolOptionEnvs[name] {
+	for _, name := range toolOptionEnvs {
+		if val, ok := envs[name]; ok {
 			if strings.Contains(val, "-javaagent:") && strings.Contains(val, "dd-java-agent.jar") {
 				return Provided
 			}
@@ -237,7 +220,7 @@ func findFile(fileName string) (io.ReadCloser, bool) {
 
 const datadogDotNetInstrumented = "Datadog.Trace.ClrProfiler.Native"
 
-func dotNetDetector(_ *zap.Logger, args []string, envs []string) Instrumentation {
+func dotNetDetector(args []string, envs map[string]string) Instrumentation {
 	// if it's just the word `dotnet` by itself, don't instrument
 	if len(args) == 1 && args[0] == "dotnet" {
 		return None
@@ -251,13 +234,11 @@ func dotNetDetector(_ *zap.Logger, args []string, envs []string) Instrumentation
 	*/
 	// don't instrument if the tracer is already installed
 	foundFlags := 0
-	for _, v := range envs {
-		if strings.HasPrefix(v, "CORECLR_PROFILER_PATH") {
-			foundFlags |= 1
-		}
-		if v == "CORECLR_ENABLE_PROFILING=1" {
-			foundFlags |= 2
-		}
+	if _, ok := envs["CORECLR_PROFILER_PATH"]; ok {
+		foundFlags |= 1
+	}
+	if val, ok := envs["CORECLR_ENABLE_PROFILING"]; ok && val == "1" {
+		foundFlags |= 2
 	}
 	if foundFlags == 3 {
 		return Provided

@@ -5,7 +5,10 @@ receivers:
       http:
 exporters:
   otlp:
+extensions:
+  pprof/custom:
 service:
+  extensions: [pprof/custom]
   pipelines:
     traces:
       receivers: [otlp]
