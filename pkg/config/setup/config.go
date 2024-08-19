@@ -1506,6 +1506,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// Max size in MB to allow for integrations logs files
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
+
+	// Add a tag to file logs that are truncated by the agent
+	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", false)
 }
 
 func vector(config pkgconfigmodel.Setup) {
