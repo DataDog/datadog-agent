@@ -28,20 +28,34 @@ type StatsProcessor struct {
 	pastAllocs             []*model.MemoryAllocation
 }
 
-func (sp *StatsProcessor) processPastData(data *model.StreamPastData) {
-	for _, span := range data.Spans {
+func (sp *StatsProcessor) processKernelSpan(span *model.KernelSpan, sendEvent bool) {
+	tsStart := sp.timeResolver.ResolveMonotonicTimestamp(span.Start)
+	tsEnd := sp.timeResolver.ResolveMonotonicTimestamp(span.End)
+
+	if sendEvent {
+		realDuration := tsEnd.Sub(tsStart)
 		event := event.Event{
 			SourceTypeName: CheckName,
 			EventType:      "gpu-kernel",
 			Title:          "GPU kernel launch",
-			Text:           fmt.Sprintf("Start=%s, end=%s, avgThreadSize=%d, duration=%ds", sp.timeResolver.ResolveMonotonicTimestamp(span.Start), sp.timeResolver.ResolveMonotonicTimestamp(span.End), span.AvgThreadCount, span.End-span.Start),
-			Ts:             sp.timeResolver.ResolveMonotonicTimestamp(span.Start).Unix(),
+			Text:           fmt.Sprintf("Start=%s, end=%s, avgThreadSize=%d, duration=%s", tsStart, tsEnd, span.AvgThreadCount, realDuration),
+			Ts:             tsStart.Unix(),
 		}
 		fmt.Printf("spanev: %v\n", event)
 		sp.sender.Event(event)
+	}
 
-		durationSec := float64(span.End-span.Start) / float64(time.Second/time.Nanosecond)
-		sp.totalThreadSecondsUsed += durationSec * float64(min(span.AvgThreadCount, uint64(sp.gpuMaxThreads))) // we can't use more threads than the GPU has
+	// we only want to consider data that was not already processed in the previous interval
+	if sp.lastCheck.After(tsStart) {
+		tsStart = sp.lastCheck
+	}
+	duration := tsEnd.Sub(tsStart)
+	sp.totalThreadSecondsUsed += duration.Seconds() * float64(min(span.AvgThreadCount, uint64(sp.gpuMaxThreads))) // we can't use more threads than the GPU has
+}
+
+func (sp *StatsProcessor) processPastData(data *model.StreamPastData) {
+	for _, span := range data.Spans {
+		sp.processKernelSpan(span, true)
 	}
 
 	for _, span := range data.Allocations {
@@ -63,6 +77,10 @@ func (sp *StatsProcessor) processPastData(data *model.StreamPastData) {
 }
 
 func (sp *StatsProcessor) processCurrentData(data *model.StreamCurrentData) {
+	if data.Span != nil {
+		sp.processKernelSpan(data.Span, false)
+	}
+
 	sp.currentAllocs = data.CurrentAllocations
 }
 
