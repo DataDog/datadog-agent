@@ -125,7 +125,10 @@ func (pi *ProcessInfo) SetupConfigUprobe() (*ebpf.Map, error) {
 }
 
 func (pi *ProcessInfo) CloseConfigUprobe() error {
-	return (*pi.ConfigurationUprobe).Close()
+	if pi.ConfigurationUprobe != nil {
+		return (*pi.ConfigurationUprobe).Close()
+	}
+	return nil
 }
 
 func (pi *ProcessInfo) SetUprobeLink(probeID ProbeID, l *link.Link) {
