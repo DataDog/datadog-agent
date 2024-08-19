@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"reflect"
+	"strconv"
 	"time"
 
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
@@ -36,9 +37,27 @@ func (cs *configSync) updater() {
 	}
 
 	for key, value := range cfg {
-		if updateConfig(cs.Config, key, value) {
-			cs.Log.Debugf("Updating config key %s from core agent", key)
+		if key == "logs_config.additional_endpoints" {
+			valueMap, ok := value.(map[string]string)
+			if !ok {
+				updateConfig(cs.Config, key, value)
+			}
+			typedValues := map[string]interface{}{}
+			for cfgkey, cfgval := range valueMap {
+				if cfgkey == "is_reliable" {
+					if b, err := strconv.ParseBool(cfgval); err == nil {
+						typedValues[cfgkey] = b
+					} else {
+						typedValues[cfgkey] = cfgval
+					}
+				}
+				updateConfig(cs.Config, key, typedValues)
+			}
+
+		} else {
+			updateConfig(cs.Config, key, value)
 		}
+		cs.Log.Debugf("Updating config key %s from core agent", key)
 	}
 }
 
