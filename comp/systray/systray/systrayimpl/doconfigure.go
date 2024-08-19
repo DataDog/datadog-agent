@@ -53,9 +53,9 @@ func doConfigure(s *systrayImpl) error {
 	// Open the GUI in a browser, passing the authorization tokens as parameters
 	err = open("http://" + guiAddress + "/auth?intent=" + string(intentToken))
 	if err != nil {
-		return fmt.Errorf("error opening GUI: " + err.Error())
+		return fmt.Errorf("error opening GUI: %s", err.Error())
 	}
 
-	s.log.Debugf("GUI opened at %s\n", guiAddress)
+	s.log.Debugf("GUI opened at 127.0.0.1:%s\n", guiPort)
 	return nil
 }

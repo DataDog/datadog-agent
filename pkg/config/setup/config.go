@@ -1954,7 +1954,7 @@ func LoadCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) e
 	}
 
 	for _, warningMsg := range findUnexpectedUnicode(config) {
-		log.Warnf(warningMsg)
+		log.Warnf("%s", warningMsg)
 	}
 
 	return nil

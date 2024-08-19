@@ -8,7 +8,7 @@ package util
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
+	"errors"
 	"io"
 	"net/http"
 	"time"
@@ -92,7 +92,7 @@ func DoGetWithOptions(c *http.Client, url string, options *ReqOptions) (body []b
 		return body, e
 	}
 	if r.StatusCode >= 400 {
-		return body, fmt.Errorf("%s", body)
+		return body, errors.New(string(body))
 	}
 	return body, nil
 }
@@ -116,7 +116,7 @@ func DoPost(c *http.Client, url string, contentType string, body io.Reader) (res
 		return resp, e
 	}
 	if r.StatusCode >= 400 {
-		return resp, fmt.Errorf("%s", resp)
+		return resp, errors.New(string(resp))
 	}
 	return resp, nil
 }

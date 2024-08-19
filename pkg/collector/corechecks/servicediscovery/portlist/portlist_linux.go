@@ -308,7 +308,7 @@ func (li *linuxImpl) findProcessNames(need map[string]*portMeta) error {
 			targetBuf := make([]byte, 64) // plenty big for "socket:[165614651]"
 
 			linkPath := li.readlinkPathBuf[:0]
-			linkPath = fmt.Appendf(linkPath, li.procMountPath+"/")
+			linkPath = fmt.Append(linkPath, li.procMountPath+"/")
 			linkPath = mem.Append(linkPath, pid)
 			linkPath = append(linkPath, "/fd/"...)
 			linkPath = mem.Append(linkPath, fd)

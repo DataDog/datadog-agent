@@ -19,6 +19,7 @@
 /.go-version                            @DataDog/agent-shared-components @DataDog/agent-delivery
 # Go linters and pre-commit config
 /.golangci.yml                          @DataDog/agent-devx-loops
+/.custom-gcl.yml                        @DataDog/agent-devx-loops
 /.pre-commit-config.yaml                @DataDog/agent-devx-loops
 
 /CHANGELOG.rst                          @DataDog/agent-delivery
@@ -426,6 +427,8 @@
 /pkg/util/testutil/flake                @DataDog/agent-devx-loops
 /pkg/util/trie                          @DataDog/container-integrations
 /pkg/languagedetection                  @DataDog/processes @DataDog/universal-service-monitoring
+/pkg/linters/                           @DataDog/agent-devx-loops
+/pkg/linters/components/                @DataDog/agent-shared-components
 /pkg/logs/                              @DataDog/agent-metrics-logs
 /pkg/logs/launchers/windowsevent        @DataDog/agent-metrics-logs @DataDog/windows-agent
 /pkg/logs/tailers/windowsevent          @DataDog/agent-metrics-logs @DataDog/windows-agent
