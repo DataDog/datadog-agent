@@ -84,7 +84,6 @@ func NewTracer(config *config.Config, telemetry telemetry.Component) (*Tracer, e
 		config.MaxHTTPStatsBuffered,
 		config.MaxKafkaStatsBuffered,
 		config.MaxPostgresStatsBuffered,
-		config.MaxPostgresTelemetryBuffer,
 		config.MaxRedisStatsBuffered,
 		config.EnableNPMConnectionRollup,
 		config.EnableProcessEventMonitoring,
