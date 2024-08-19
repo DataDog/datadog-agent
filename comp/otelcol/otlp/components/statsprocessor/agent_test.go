@@ -89,9 +89,13 @@ func TestTraceAgent(t *testing.T) {
 		case stats = <-out:
 			if len(stats.Stats) != 0 {
 				require.Len(t, stats.Stats, 1)
-				require.Len(t, stats.Stats[0].Stats, 1)
-				assert.Greater(t, len(stats.Stats[0].Stats[0].Stats), 0)
-				actual = append(actual, stats.Stats[0].Stats[0].Stats...)
+				cspayload := stats.Stats[0]
+				// stats can be in one or multiple buckets
+				assert.Greater(t, cspayload.Stats, 0)
+				for _, bucket := range cspayload.Stats {
+					assert.Greater(t, len(bucket.Stats), 0)
+					actual = append(actual, bucket.Stats...)
+				}
 			}
 		case <-timeout:
 			t.Fatal("timed out")
