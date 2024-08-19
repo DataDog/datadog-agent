@@ -15,6 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
+// TestMaxPostgresTelemetryDefaultConfig validates that the default value matches the one in the Postgres eBPF package.
+// This test is located here to avoid importing /pkg/network/protocols/postgres/ebpf/
+// into the /pkg/network/config package.
 func TestMaxPostgresTelemetryDefaultConfig(t *testing.T) {
 	// Validating that the default value matches the one in the Postgres ebpf package.
 	t.Run("default", func(t *testing.T) {
