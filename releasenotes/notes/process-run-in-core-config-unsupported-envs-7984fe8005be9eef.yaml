@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Prevents the use of the `process.run_in_core_agent.enabled` configuration option in unsupported environments.
+    Prevents the use of the `process_config.run_in_core_agent.enabled` configuration option in unsupported environments.
