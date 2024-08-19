@@ -55,8 +55,8 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, wmeta optional.Option[wo
 		if err != nil {
 			return nil, err
 		}
-		evm.RegisterEventConsumer(cws)
-		log.Info("event monitoring cws consumer initialized")
+		evm.RegisterModule(cws)
+		log.Info("event monitoring cws module initialized")
 	}
 
 	// only add the network consumer if the pkg/network/events
@@ -68,8 +68,8 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, wmeta optional.Option[wo
 		if err != nil {
 			return nil, err
 		}
-		evm.RegisterEventConsumer(network)
-		log.Info("event monitoring network consumer initialized")
+		evm.RegisterModule(network)
+		log.Info("event monitoring network module initialized")
 	}
 
 	if emconfig.ProcessConsumerEnabled {
@@ -77,8 +77,8 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, wmeta optional.Option[wo
 		if err != nil {
 			return nil, err
 		}
-		evm.RegisterEventConsumer(process)
-		log.Info("event monitoring process-agent consumer initialized")
+		evm.RegisterModule(process)
+		log.Info("event monitoring process-agent module initialized")
 	}
 
 	netconfig := netconfig.New()
@@ -88,8 +88,8 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, wmeta optional.Option[wo
 			return nil, err
 		}
 		if procmonconsumer != nil {
-			evm.RegisterEventConsumer(procmonconsumer)
-			log.Info("USM process monitoring consumer initialized")
+			evm.RegisterModule(procmonconsumer)
+			log.Info("USM process monitoring module initialized")
 		}
 	}
 
