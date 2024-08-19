@@ -42,7 +42,7 @@ github_team = "agent-devx-infra"
 github_labels = ["team/agent-devx-infra"]
 exclude_members = []
 
-[teams."Agent Build and Releases Experience"]
+[teams."Agent Delivery"]
 jira_project = "BARX"
 jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]

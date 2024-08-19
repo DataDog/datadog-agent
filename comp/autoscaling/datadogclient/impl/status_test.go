@@ -59,7 +59,7 @@ func TestStatusProvider(t *testing.T) {
 		}},
 		{"NAME", func(t *testing.T) {
 			name := provider.Name()
-			assert.Equal(t, name, "External Metrcis Endpoints")
+			assert.Equal(t, name, "External Metrics Endpoints")
 		}},
 		{"Text", func(t *testing.T) {
 			b := new(bytes.Buffer)
