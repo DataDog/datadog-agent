@@ -48,6 +48,7 @@ func newStreamHandler() *StreamHandler {
 }
 
 func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
+	log.Debugf("Handling kernel event: %+v", event)
 	sh.kernelLaunches = append(sh.kernelLaunches, event)
 }
 
@@ -121,6 +122,7 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *KernelSpan {
 	}
 
 	span.AvgThreadCount /= uint64(span.NumKernels)
+	log.Debugf("Current kernel span: %+v", span)
 
 	return &span
 }
