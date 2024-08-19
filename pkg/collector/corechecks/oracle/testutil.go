@@ -9,8 +9,6 @@ package oracle
 
 import (
 	"fmt"
-	"os"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -40,10 +38,10 @@ const (
 
 func getConnectData(t *testing.T, userType int) config.ConnectionConfig {
 	handleRealConnection := func(userType int) config.ConnectionConfig {
-		var username string
-		var password string
-		var server string
-		var serviceName string
+		username := "c##datadog"
+		password := "datadog"
+		server := "localhost"
+		serviceName := "XE"
 		var userEnvVariable string
 		var passwordEnvVariable string
 		serverEnvVariable := "ORACLE_TEST_SERVER"
@@ -54,23 +52,20 @@ func getConnectData(t *testing.T, userType int) config.ConnectionConfig {
 		case useDefaultUser:
 			userEnvVariable = "ORACLE_TEST_USER"
 			passwordEnvVariable = "ORACLE_TEST_PASSWORD"
-			server = os.Getenv(serverEnvVariable)
-			serviceName = os.Getenv(serviceNameEnvVariable)
 		case useLegacyUser:
 			userEnvVariable = "ORACLE_TEST_LEGACY_USER"
 			passwordEnvVariable = "ORACLE_TEST_LEGACY_PASSWORD"
-			server = os.Getenv(serverEnvVariable)
-			serviceName = os.Getenv(serviceNameEnvVariable)
 		case useSysUser:
 			userEnvVariable = "ORACLE_TEST_SYS_USER"
 			passwordEnvVariable = "ORACLE_TEST_SYS_PASSWORD"
-			server = os.Getenv(serverEnvVariable)
-			serviceName = os.Getenv(serviceNameEnvVariable)
 		}
 
-		username = os.Getenv(userEnvVariable)
-		password = os.Getenv(passwordEnvVariable)
-		port, _ := strconv.Atoi(os.Getenv(portEnvVariable))
+		// server = os.Getenv(serverEnvVariable)
+		// serviceName = os.Getenv(serviceNameEnvVariable)
+		// username = os.Getenv(userEnvVariable)
+		// password = os.Getenv(passwordEnvVariable)
+		// port, _ = strconv.Atoi(os.Getenv(portEnvVariable))
+		port := 1521
 
 		if t != nil {
 			require.NotEqualf(t, "", username, "Please set the %s environment variable", userEnvVariable)

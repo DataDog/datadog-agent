@@ -10,8 +10,8 @@ services:
       timeout: 5s
       retries: 5
     volumes:
-      - ./initdb.d:/docker-entrypoint-initdb.d/
-    # environment:
-    #   ORACLE_PWD: datad0g
+      - ./initdb.d:/docker-entrypoint-initdb.d/startup
+    environment:
+      ORACLE_PWD: datad0g
     # command: "echo 'select 1 from dual;' | sqlplus -s sys/datad0g@localhost"
     # command: [ "bash", "-c", "echo 'select 1 from dual;' | sqlplus -s sys/datad0g@localhost"]
