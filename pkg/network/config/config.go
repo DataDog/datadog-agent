@@ -302,6 +302,8 @@ type Config struct {
 	// buffers (>=5.8) will result in forcing the use of Perf Maps instead.
 	EnableUSMRingBuffers bool
 
+	EnableEbpfless bool
+
 	// EnableUSMEventStream enables USM to use the event stream instead
 	// of netlink for receiving process events.
 	EnableUSMEventStream bool
@@ -405,6 +407,8 @@ func New() *Config {
 		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,
 
 		EnableNPMConnectionRollup: cfg.GetBool(join(netNS, "enable_connection_rollup")),
+
+		EnableEbpfless: cfg.GetBool(join(netNS, "enable_ebpfless")),
 
 		// Service Monitoring
 		EnableJavaTLSSupport:        cfg.GetBool(join(smjtNS, "enabled")),
