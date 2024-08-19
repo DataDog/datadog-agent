@@ -74,16 +74,24 @@ class CompilerImage:
 
         return f"{image_base}_{self.arch.ci_arch}{suffix}:{version}"
 
-    @property
-    def is_running(self):
+    def _check_container_exists(self, allow_stopped=False):
         if self.ctx.config.run["dry"]:
             warn(f"[!] Dry run, not checking if compiler {self.name} is running")
             return True
 
-        res = self.ctx.run(f"docker ps -qf \"name={self.name}\"", hide=True)
+        args = "-a" if allow_stopped else ""
+        res = self.ctx.run(f"docker ps -{args}qf \"name={self.name}\"", hide=True)
         if res is not None and res.ok:
             return res.stdout.rstrip() != ""
         return False
+
+    @property
+    def is_running(self):
+        return self._check_container_exists(allow_stopped=False)
+
+    @property
+    def is_loaded(self):
+        return self._check_container_exists(allow_stopped=True)
 
     def ensure_running(self):
         if not self.is_running:
@@ -94,8 +102,8 @@ class CompilerImage:
                 raise Exit(f"Failed to start compiler for {self.arch}: {e}") from e
 
     def ensure_version(self):
-        if not self.is_running:
-            return  # Nothing to do if the container is not running
+        if not self.is_loaded:
+            return  # Nothing to do if the container is not loaded
 
         image_used = get_docker_image_name(self.ctx, self.name)
         if image_used != self.image:
@@ -120,7 +128,7 @@ class CompilerImage:
         return cast('Result', res)  # Avoid mypy error about res being None
 
     def start(self) -> None:
-        if self.is_running:
+        if self.is_loaded:
             self.stop()
 
         # Check if the image exists
