@@ -93,7 +93,7 @@ exporters:
       trace_buffer: 0
     write_buffer_size: 0
 extensions:
-  ddflareextension/dd-autoconfigured:
+  ddflare/dd-autoconfigured:
     auth: null
     compression_algorithms: []
     configstore: {}
@@ -186,7 +186,7 @@ service:
     - pprof/dd-autoconfigured
     - zpages/dd-autoconfigured
     - health_check/dd-autoconfigured
-    - ddflareextension/dd-autoconfigured
+    - ddflare/dd-autoconfigured
   pipelines:
     logs:
       exporters:

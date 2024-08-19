@@ -18,14 +18,14 @@ extensions:
   health_check/user-defined:
   zpages/user-defined:
     endpoint: "localhost:55679"
-  ddflareextension/user-defined:
+  ddflare/user-defined:
     
 processors:
   infraattributes/dd-autoconfigured:
   k8sattributes:
 
 service:
-    extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflareextension/user-defined]
+    extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflare/user-defined]
     pipelines:
         traces:
             receivers: [nop]

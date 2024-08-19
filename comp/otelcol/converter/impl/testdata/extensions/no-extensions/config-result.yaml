@@ -9,7 +9,7 @@ extensions:
   health_check/dd-autoconfigured:
   zpages/dd-autoconfigured:
     endpoint: "localhost:55679"
-  ddflareextension/dd-autoconfigured:
+  ddflare/dd-autoconfigured:
 
 service:
   extensions:
@@ -17,7 +17,7 @@ service:
       pprof/dd-autoconfigured,
       zpages/dd-autoconfigured,
       health_check/dd-autoconfigured,
-      ddflareextension/dd-autoconfigured,
+      ddflare/dd-autoconfigured,
     ]
   pipelines:
     traces:
