@@ -479,12 +479,11 @@ def annotate_complexity(
                                 )
                             )
 
-                            if show_register_state:
+                            # This is the register state after the statement is executed
+                            reg_state = asm_line.get("register_state")
+                            if show_register_state and reg_state is not None:
                                 # Get all the registers that were used in this instruction
                                 registers = re.findall(r"r\d+", asm_code)
-
-                                # This is the register state after the statement is executed
-                                reg_state = asm_line["register_state"]
 
                                 if show_raw_register_state:
                                     total_indent = 4 + 3 + get_total_complexity_stats_len(compinfo_widths)
