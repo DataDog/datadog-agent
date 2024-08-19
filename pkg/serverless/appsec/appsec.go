@@ -45,7 +45,7 @@ func NewWithShutdown(demux aggregator.Demultiplexer) (lp *httpsec.ProxyLifecycle
 		return nil, nil, nil // appsec disabled
 	}
 
-	lambdaRuntimeAPI := os.Getenv("DD_AWS_LAMBDA_RUNTIME_API")
+	lambdaRuntimeAPI := os.Getenv("AWS_LAMBDA_RUNTIME_API")
 	if lambdaRuntimeAPI == "" {
 		lambdaRuntimeAPI = "127.0.0.1:9001"
 	}

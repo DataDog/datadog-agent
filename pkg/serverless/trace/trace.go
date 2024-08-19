@@ -61,7 +61,7 @@ const tcpRemotePortMetaKey = "tcp.remote.port"
 // dnsAddressMetaKey is the key of the span meta containing the DNS address
 const dnsAddressMetaKey = "dns.address"
 
-// lambdaRuntimeUrlPrefix is the first part of a URL for a call to the Lambda runtime API. The value may be replaced if `DD_AWS_LAMBDA_RUNTIME_API` is set.
+// lambdaRuntimeUrlPrefix is the first part of a URL for a call to the Lambda runtime API. The value may be replaced if `AWS_LAMBDA_RUNTIME_API` is set.
 var lambdaRuntimeURLPrefix = "http://127.0.0.1:9001"
 
 // lambdaExtensionURLPrefix is the first part of a URL for a call from the Datadog Lambda Library to the Lambda Extension
@@ -260,7 +260,7 @@ func (t noopTraceAgent) SetSpanModifier(agent.SpanModifier)  {}
 func (t noopTraceAgent) GetSpanModifier() agent.SpanModifier { return nil }
 
 func init() {
-	if lambdaRuntime := os.Getenv("DD_AWS_LAMBDA_RUNTIME_API"); lambdaRuntime != "" {
+	if lambdaRuntime := os.Getenv("AWS_LAMBDA_RUNTIME_API"); lambdaRuntime != "" {
 		lambdaRuntimeURLPrefix = fmt.Sprintf("http://%s", lambdaRuntime)
 	}
 }
