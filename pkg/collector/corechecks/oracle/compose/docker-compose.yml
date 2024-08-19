@@ -1,0 +1,17 @@
+services:
+  oracle:
+    platform: linux/amd64
+    image: "registry.ddbuild.io/images/mirror/oracle:${DBMS_VERSION:-21.3.0-xe}"
+    ports:
+      - "1521:1521"
+    healthcheck:
+      test: "echo 'select 1 from dual;' | sqlplus -s sys/datad0g@localhost"
+      interval: 1s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./initdb.d:/docker-entrypoint-initdb.d/
+    # environment:
+    #   ORACLE_PWD: datad0g
+    # command: "echo 'select 1 from dual;' | sqlplus -s sys/datad0g@localhost"
+    # command: [ "bash", "-c", "echo 'select 1 from dual;' | sqlplus -s sys/datad0g@localhost"]

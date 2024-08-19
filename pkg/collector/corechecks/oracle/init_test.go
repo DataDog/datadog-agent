@@ -8,6 +8,7 @@
 package oracle
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,4 +25,15 @@ func TestTags(t *testing.T) {
 	assert.True(t, c.initialized, "Check not initialized")
 	assert.Contains(t, c.tags, dbmsTag, "Static tag not merged")
 	assert.Contains(t, c.tags, "foo1:bar1", "Config tag not in tags")
+}
+
+func TestAgain(t *testing.T) {
+	assert.True(t, true)
+}
+
+func TestMain(m *testing.M) {
+	print("setup")
+	code := m.Run()
+	print("shutdown")
+	os.Exit(code)
 }
