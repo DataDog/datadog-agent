@@ -62,28 +62,32 @@ func addProcessorToPipelinesWithDDExporter(conf *confmap.Conf, comp component) {
 			if !ok {
 				return
 			}
-			if componentName(exporterString) == "datadog" && !infraAttrsInPipeline {
-				ddExporterInPipeline = true
-				// datadog component is an exporter in this pipeline. Need to make sure that processor is also configured.
-				_, ok := componentsMap[comp.Type]
-				if !ok {
-					componentsMap[comp.Type] = []any{}
-				}
+			if infraAttrsInPipeline {
+				break
+			}
+			if componentName(exporterString) != "datadog" {
+				continue
+			}
+			ddExporterInPipeline = true
+			// datadog component is an exporter in this pipeline. Need to make sure that processor is also configured.
+			_, ok = componentsMap[comp.Type]
+			if !ok {
+				componentsMap[comp.Type] = []any{}
+			}
 
-				processorsSlice, ok := componentsMap[comp.Type].([]any)
+			processorsSlice, ok := componentsMap[comp.Type].([]any)
+			if !ok {
+				return
+			}
+			for _, processor := range processorsSlice {
+				processorString, ok := processor.(string)
 				if !ok {
 					return
 				}
-				for _, processor := range processorsSlice {
-					processorString, ok := processor.(string)
-					if !ok {
-						return
-					}
-					if componentName(processorString) == comp.Name {
-						infraAttrsInPipeline = true
-					}
-
+				if componentName(processorString) == comp.Name {
+					infraAttrsInPipeline = true
 				}
+
 			}
 
 		}
