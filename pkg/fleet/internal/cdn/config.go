@@ -63,7 +63,7 @@ func newConfig(layers ...*layer) (_ *Config, err error) {
 			mergedLayer.SystemProbeConfig = systemProbeAgentConfig.(map[string]interface{})
 		}
 	}
-	mergedLayer.AgentConfig[layerKeys] = layerIDs
+	mergedLayer.AgentConfig[layerKeys] = layerIDs // Add a field with the applied layers that will be reported through inventories
 
 	serializedAgentConfig, err := marshalConfig(mergedLayer.AgentConfig)
 	if err != nil {

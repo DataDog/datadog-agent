@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	pkghostname "github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/google/uuid"
 	"go.uber.org/multierr"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
@@ -79,7 +80,6 @@ func (c *CDN) getOrderedLayers(ctx context.Context) ([]*layer, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	options := []remoteconfig.Option{
 		remoteconfig.WithAPIKey(c.env.APIKey),
 		remoteconfig.WithConfigRootOverride(c.env.Site, ""),
@@ -92,7 +92,7 @@ func (c *CDN) getOrderedLayers(ctx context.Context) ([]*layer, error) {
 		hostname,
 		getHostTags(ctx, config),
 		&rctelemetryreporterimpl.DdRcTelemetryReporter{}, // No telemetry for this client
-		"9.9.9",
+		version.AgentVersion,
 		options...,
 	)
 	if err != nil {
