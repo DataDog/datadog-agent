@@ -60,7 +60,7 @@ jobs:
                 ATLASSIAN_USERNAME: ${{ secrets.ATLASSIAN_USERNAME }}
                 ATLASSIAN_PASSWORD: ${{ secrets.ATLASSIAN_PASSWORD }}
               run: |
-                echo "CHANGES=$(inv -e release.check-for-changes -r ${{ matrix.value }} ${{ env.WARNING }})" >> $GITHUB_OUTPUT
+                echo "CHANGES=$(inv -e release.check-for-changes -r ${{ branches.value }} ${{ env.WARNING }})" >> $GITHUB_OUTPUT
 
             - name: Create RC PR
               if: ${{ steps.check_for_changes.outputs.CHANGES == 'true'}}
