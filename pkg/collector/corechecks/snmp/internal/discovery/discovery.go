@@ -101,7 +101,7 @@ func (d *Discovery) runWorker(w int, jobs <-chan checkDeviceJob) {
 			log.Debugf("subnet %s: Handling IP %s", d.config.Network, job.currentIP.String())
 			err := d.checkDevice(job)
 			if err != nil {
-				log.Errorf(err.Error())
+				log.Errorf("%s", err.Error())
 			}
 		}
 	}

@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import tempfile
+import time
 from collections import defaultdict
 from datetime import date
 from time import sleep
@@ -47,9 +48,9 @@ from tasks.libs.releasing.json import (
     UNFREEZE_REPO_AGENT,
     UNFREEZE_REPOS,
     _get_release_json_value,
-    _load_release_json,
     _save_release_json,
     generate_repo_data,
+    load_release_json,
     set_new_release_branch,
     update_release_json,
 )
@@ -73,6 +74,8 @@ GITLAB_FILES_TO_UPDATE = [
     ".gitlab-ci.yml",
     ".gitlab/notify/notify.yml",
 ]
+
+BACKPORT_LABEL_COLOR = "5319e7"
 
 
 @task
@@ -521,7 +524,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
 
 @task(help={'key': "Path to an existing release.json key, separated with double colons, eg. 'last_stable::6'"})
 def set_release_json(_, key, value):
-    release_json = _load_release_json()
+    release_json = load_release_json()
     path = key.split('::')
     current_node = release_json
     for key_idx in range(len(path)):
@@ -568,10 +571,11 @@ def create_and_update_release_branch(ctx, repo, release_branch, base_directory="
             )
 
 
-@task(help={'upstream': "Remote repository name (default 'origin')"})
-def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"):
+# TODO: unfreeze is the former name of this task, kept for backward compatibility. Remove in a few weeks.
+@task(help={'upstream': "Remote repository name (default 'origin')"}, aliases=["unfreeze"])
+def create_release_branches(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin", check_state=True):
     """
-    Performs set of tasks required for the main branch unfreeze during the agent release cycle.
+    Create and push release branches in Agent repositories and update them.
     That includes:
     - creates a release branch in datadog-agent, datadog-agent-macos, omnibus-ruby and omnibus-software repositories,
     - updates release.json on new datadog-agent branch to point to newly created release branches in nightly section
@@ -584,6 +588,7 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
     release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
+    github = GithubAPI(repository=GITHUB_REPO_NAME)
 
     list_major_versions = parse_major_versions(major_versions)
 
@@ -596,12 +601,11 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     release_branch = current.branch()
 
     # Step 0: checks
-
-    print(color_message("Checking repository state", "bold"))
     ctx.run("git fetch")
 
-    github = GithubAPI(repository=GITHUB_REPO_NAME)
-    check_clean_branch_state(ctx, github, release_branch)
+    if check_state:
+        print(color_message("Checking repository state", "bold"))
+        check_clean_branch_state(ctx, github, release_branch)
 
     if not yes_no_question(
         f"This task will create new branches with the name '{release_branch}' in repositories: {', '.join(UNFREEZE_REPOS)}. Is this OK?",
@@ -615,13 +619,19 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     for repo in UNFREEZE_REPOS:
         create_and_update_release_branch(ctx, repo, release_branch, base_directory=base_directory, upstream=upstream)
 
+    # create the backport label in the Agent repo
+    print(color_message("Creating backport label in the Agent repository", Color.BOLD))
+    github.create_label(
+        f'backport/{release_branch}', BACKPORT_LABEL_COLOR, f'Automatically create a backport PR to {release_branch}'
+    )
+
     # Step 2 - Create PRs with new settings in datadog-agent repository
 
     with ctx.cd(f"{base_directory}/{UNFREEZE_REPO_AGENT}"):
         # Step 2.0 - Create milestone update
-        milestone_branch = "release_milestone"
+        milestone_branch = f"release_milestone-{int(time.time())}"
         ctx.run(f"git switch -c {milestone_branch}")
-        rj = _load_release_json()
+        rj = load_release_json()
         rj["current_milestone"] = f"{next}"
         _save_release_json(rj)
         # Commit release.json
@@ -712,7 +722,7 @@ def _update_last_stable(_, version, major_versions="7"):
     """
     Updates the last_release field(s) of release.json
     """
-    release_json = _load_release_json()
+    release_json = load_release_json()
     list_major_versions = parse_major_versions(major_versions)
     # If the release isn't a RC, update the last stable release field
     for major in list_major_versions:

@@ -16,12 +16,15 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const (
+	agentPackage      = "datadog-agent"
 	pathOldAgent      = "/opt/datadog-agent"
 	agentSymlink      = "/usr/bin/datadog-agent"
 	agentUnit         = "datadog-agent.service"
@@ -34,6 +37,7 @@ const (
 	processAgentExp   = "datadog-agent-process-exp.service"
 	systemProbeExp    = "datadog-agent-sysprobe-exp.service"
 	securityAgentExp  = "datadog-agent-security-exp.service"
+	configDatadogYAML = "datadog.yaml"
 )
 
 var (
@@ -221,4 +225,34 @@ func StopAgentExperiment(ctx context.Context) error {
 // PromoteAgentExperiment promotes the agent experiment
 func PromoteAgentExperiment(ctx context.Context) error {
 	return StopAgentExperiment(ctx)
+}
+
+// ConfigureAgent configures the stable agent
+func ConfigureAgent(ctx context.Context, cdn *cdn.CDN, configs *repository.Repositories) error {
+	config, err := cdn.Get(ctx)
+	if err != nil {
+		return fmt.Errorf("could not get cdn config: %w", err)
+	}
+	tmpDir, err := configs.MkdirTemp()
+	if err != nil {
+		return fmt.Errorf("could not create temporary directory: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+	ddAgentUID, ddAgentGID, err := getAgentIDs()
+	if err != nil {
+		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
+	}
+	err = os.WriteFile(filepath.Join(tmpDir, configDatadogYAML), []byte(config.Datadog), 0640)
+	if err != nil {
+		return fmt.Errorf("could not write datadog.yaml: %w", err)
+	}
+	err = os.Chown(filepath.Join(tmpDir, configDatadogYAML), ddAgentUID, ddAgentGID)
+	if err != nil {
+		return fmt.Errorf("could not chown datadog.yaml: %w", err)
+	}
+	err = configs.Create(agentPackage, config.Version, tmpDir)
+	if err != nil {
+		return fmt.Errorf("could not create repository: %w", err)
+	}
+	return nil
 }

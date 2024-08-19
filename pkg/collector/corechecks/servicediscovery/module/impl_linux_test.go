@@ -278,7 +278,9 @@ func TestServiceName(t *testing.T) {
 
 	cmd := exec.CommandContext(ctx, "sleep", "1000")
 	cmd.Dir = "/tmp/"
+	cmd.Env = append(cmd.Env, "OTHER_ENV=test")
 	cmd.Env = append(cmd.Env, "DD_SERVICE=foobar")
+	cmd.Env = append(cmd.Env, "YET_OTHER_ENV=test")
 	err = cmd.Start()
 	require.NoError(t, err)
 	f.Close()
@@ -290,6 +292,25 @@ func TestServiceName(t *testing.T) {
 		assert.Contains(collect, portMap, pid)
 		assert.Equal(t, "foobar", portMap[pid].Name)
 	}, 30*time.Second, 100*time.Millisecond)
+}
+
+func TestInjectedServiceName(t *testing.T) {
+	url := setupDiscoveryModule(t)
+
+	createEnvsMemfd(t, []string{
+		"OTHER_ENV=test",
+		"DD_SERVICE=injected-service-name",
+		"YET_ANOTHER_ENV=test",
+	})
+
+	listener, err := net.Listen("tcp", "")
+	require.NoError(t, err)
+	t.Cleanup(func() { listener.Close() })
+
+	pid := os.Getpid()
+	portMap := getServicesMap(t, url)
+	require.Contains(t, portMap, pid)
+	require.Equal(t, "injected-service-name", portMap[pid].Name)
 }
 
 // Check that we can get listening processes in other namespaces.

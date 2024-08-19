@@ -77,6 +77,9 @@ func setupConfig(config pkgconfigmodel.Config, deps configDependencies) (*pkgcon
 	}
 
 	// Load the remote configuration
+	if p.FleetPoliciesDirPath == "" {
+		p.FleetPoliciesDirPath = config.GetString("fleet_policies_dir")
+	}
 	if p.FleetPoliciesDirPath != "" {
 		// Main config file
 		err := config.MergeFleetPolicy(path.Join(p.FleetPoliciesDirPath, "datadog.yaml"))

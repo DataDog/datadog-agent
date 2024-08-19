@@ -411,9 +411,9 @@ func (c *SystemdCheck) submitPropertyMetricsAsGauge(sender sender.Sender, conn *
 			if err != nil {
 				msg := fmt.Sprintf("Cannot send property '%s' for unit '%s': %v", service.propertyName, unit.Name, err)
 				if service.optional {
-					log.Debugf(msg)
+					log.Debugf("%s", msg)
 				} else {
-					log.Warnf(msg)
+					log.Warnf("%s", msg)
 				}
 			}
 		}

@@ -53,7 +53,7 @@ func InspectNewProcessBinary(elfFile *elf.File, functions map[string]FunctionCon
 	// This might fail if the binary was stripped.
 	symbols, err := GetAllSymbolsByName(elfFile, symbolsSet)
 	if err != nil {
-		return nil, fmt.Errorf("failed retrieving symbols: %+v", err)
+		return nil, err
 	}
 
 	inspector := newProcessBinaryInspector{

@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl
 
-go 1.21.0
+go 1.22.0
 
 require (
 	go.opentelemetry.io/collector/confmap v0.104.0

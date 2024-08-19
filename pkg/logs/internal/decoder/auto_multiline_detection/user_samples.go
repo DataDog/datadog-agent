@@ -8,6 +8,7 @@ package automultilinedetection
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -26,7 +27,7 @@ type UserSample struct {
 	Label *string `mapstructure:"label,omitempty"`
 
 	// Parse fields
-	tokens         []Token
+	tokens         []tokens.Token
 	matchThreshold float64
 	label          Label
 }
@@ -55,7 +56,7 @@ func NewUserSamples(config config.Reader) *UserSamples {
 			log.Warn("Sample was empty, skipping sample")
 			continue
 		}
-		sample.tokens = tokenizer.tokenize([]byte(sample.Sample))
+		sample.tokens, _ = tokenizer.tokenize([]byte(sample.Sample))
 		if sample.MatchThreshold != nil {
 			if *sample.MatchThreshold <= 0 || *sample.MatchThreshold > 1 {
 				log.Warnf("Invalid match threshold %f, skipping sample", *sample.MatchThreshold)

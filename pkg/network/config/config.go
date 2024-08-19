@@ -302,6 +302,8 @@ type Config struct {
 	// buffers (>=5.8) will result in forcing the use of Perf Maps instead.
 	EnableUSMRingBuffers bool
 
+	EnableEbpfless bool
+
 	// EnableUSMEventStream enables USM to use the event stream instead
 	// of netlink for receiving process events.
 	EnableUSMEventStream bool
@@ -386,7 +388,7 @@ func New() *Config {
 		EnableConntrackAllNamespaces: cfg.GetBool(join(spNS, "enable_conntrack_all_namespaces")),
 		IgnoreConntrackInitFailure:   cfg.GetBool(join(netNS, "ignore_conntrack_init_failure")),
 		ConntrackInitTimeout:         cfg.GetDuration(join(netNS, "conntrack_init_timeout")),
-		EnableEbpfConntracker:        true,
+		EnableEbpfConntracker:        cfg.GetBool(join(netNS, "enable_ebpf_conntracker")),
 
 		EnableGatewayLookup: cfg.GetBool(join(netNS, "enable_gateway_lookup")),
 
@@ -405,6 +407,8 @@ func New() *Config {
 		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,
 
 		EnableNPMConnectionRollup: cfg.GetBool(join(netNS, "enable_connection_rollup")),
+
+		EnableEbpfless: cfg.GetBool(join(netNS, "enable_ebpfless")),
 
 		// Service Monitoring
 		EnableJavaTLSSupport:        cfg.GetBool(join(smjtNS, "enabled")),

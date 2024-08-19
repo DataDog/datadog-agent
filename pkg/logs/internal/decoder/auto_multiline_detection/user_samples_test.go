@@ -42,7 +42,7 @@ logs_config:
 
 func TestUserPatternsDefaults(t *testing.T) {
 
-	expectedOutput := NewTokenizer(0).tokenize([]byte("sample"))
+	expectedOutput, _ := NewTokenizer(0).tokenize([]byte("sample"))
 
 	datadogYaml := `
 logs_config:

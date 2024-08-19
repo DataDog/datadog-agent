@@ -185,7 +185,7 @@ func (h *LegacyAutoMultilineHandler) processAndTry(message *message.Message) {
 		if matchRatio >= h.matchThreshold {
 			h.autoMultiLineStatus.SetMessage("state", "State: Using multi-line handler")
 			h.autoMultiLineStatus.SetMessage("message", fmt.Sprintf("Pattern %v matched %d lines with a ratio of %f", topMatch.regexp.String(), topMatch.score, matchRatio))
-			log.Debug(fmt.Sprintf("Pattern %v matched %d lines with a ratio of %f - using multi-line handler", topMatch.regexp.String(), topMatch.score, matchRatio))
+			log.Debugf("Pattern %v matched %d lines with a ratio of %f - using multi-line handler", topMatch.regexp.String(), topMatch.score, matchRatio)
 			telemetry.GetStatsTelemetryProvider().Count(autoMultiLineTelemetryMetricName, 1, []string{"success:true"})
 
 			h.detectedPattern.Set(topMatch.regexp)
@@ -193,7 +193,7 @@ func (h *LegacyAutoMultilineHandler) processAndTry(message *message.Message) {
 		} else {
 			h.autoMultiLineStatus.SetMessage("state", "State: Using single-line handler")
 			h.autoMultiLineStatus.SetMessage("message", fmt.Sprintf("No pattern met the line match threshold: %f during multiline auto detection. Top match was %v with a match ratio of: %f", h.matchThreshold, topMatch.regexp.String(), matchRatio))
-			log.Debugf(fmt.Sprintf("No pattern met the line match threshold: %f during multiline auto detection. Top match was %v with a match ratio of: %f - using single-line handler", h.matchThreshold, topMatch.regexp.String(), matchRatio))
+			log.Debugf("No pattern met the line match threshold: %f during multiline auto detection. Top match was %v with a match ratio of: %f - using single-line handler", h.matchThreshold, topMatch.regexp.String(), matchRatio)
 			telemetry.GetStatsTelemetryProvider().Count(autoMultiLineTelemetryMetricName, 1, []string{"success:false"})
 
 			// Stay with the single line handler and no longer attempt to detect multiline matches.
