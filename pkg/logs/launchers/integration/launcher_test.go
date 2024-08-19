@@ -47,6 +47,11 @@ func (suite *LauncherTestSuite) SetupTest() {
 	suite.testPath = filepath.Join(suite.testDir, "logs_integration_test.log")
 
 	suite.source = sources.NewLogSource(suite.T().Name(), &config.LogsConfig{Type: config.IntegrationType, Path: suite.testPath})
+
+	// Override `logs_config.run_path` before calling `sources.NewLogSources()` as otherwise
+	// it will try and create `/opt/datadog` directory and fail
+	pkgConfig.Datadog().SetWithoutSource("logs_config.run_path", suite.testDir)
+
 	suite.s = NewLauncher(sources.NewLogSources(), suite.integrationsComp)
 	status.InitStatus(pkgConfig.Datadog(), util.CreateSources([]*sources.LogSource{suite.source}))
 	suite.s.runPath = suite.testDir
