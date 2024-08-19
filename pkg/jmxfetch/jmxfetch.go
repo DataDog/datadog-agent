@@ -138,7 +138,7 @@ func (j *JMXFetch) Monitor() {
 
 		if !limiter.canRestart(time.Now()) {
 			msg := fmt.Sprintf("Too many JMXFetch restarts (%v) in time interval (%vs) - giving up", limiter.maxRestarts, limiter.interval)
-			log.Errorf(msg)
+			log.Errorf("%s", msg)
 			s := jmxStatus.StartupError{LastError: msg, Timestamp: time.Now().Unix()}
 			jmxStatus.SetStartupError(s)
 			return
