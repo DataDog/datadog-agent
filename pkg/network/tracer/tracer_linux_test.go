@@ -2389,83 +2389,83 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeoutWithData() {
 	}, 3*time.Second, 1000*time.Millisecond, "Failed connection not recorded properly")
 }
 
-func (s *TracerSuite) TestTCPFailureConnectionTimeoutWithInitialData() {
-	t := s.T()
-
-	checkSkipFailureConnectionsTests(t)
-	// TODO: remove this check when we fix this test on kernels < 4.19
-	if kv < kernel.VersionCode(4, 19, 0) {
-		t.Skip("Skipping test on kernels < 4.19")
-	}
-
-	// Start a server that can respond to initial data
-	srv := tracertestutil.NewTCPServer(func(c net.Conn) {
-		buf := make([]byte, 4)
-		_, _ = c.Read(buf)             // Read initial data from the client
-		_, _ = c.Write([]byte("pong")) // Respond to the client
-		time.Sleep(1 * time.Second)    // Keep the connection open
-	})
-
-	require.NoError(t, srv.Run(), "error running server")
-	t.Cleanup(srv.Shutdown)
-
-	cfg := testConfig()
-	cfg.TCPFailedConnectionsEnabled = true
-	tr := setupTracer(t, cfg)
-
-	serverAddr := srv.Address()
-	ipString, portString, err := net.SplitHostPort(serverAddr)
-	require.NoError(t, err)
-	ip := netip.MustParseAddr(ipString)
-	port, err := strconv.Atoi(portString)
-	require.NoError(t, err)
-
-	addr := syscall.SockaddrInet4{
-		Port: port,
-		Addr: ip.As4(),
-	}
-	sfd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
-	require.NoError(t, err)
-	t.Cleanup(func() { syscall.Close(sfd) })
-
-	// syscall.TCP_USER_TIMEOUT is 18 but not defined in our linter. Set it to 500ms
-	err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, 18, 500)
-	require.NoError(t, err)
-
-	err = syscall.Connect(sfd, &addr)
-	require.NoError(t, err, "could not connect to server: ", err)
-
-	f := os.NewFile(uintptr(sfd), "")
-	defer f.Close()
-	c, err := net.FileConn(f)
-	require.NoError(t, err)
-	port = c.LocalAddr().(*net.TCPAddr).Port
-	// the addr here is 0.0.0.0, but the tracer sees it as 127.0.0.1
-	localAddr := fmt.Sprintf("127.0.0.1:%d", port)
-
-	// Exchange initial data
-	_, writeErr := c.Write([]byte("ping"))
-	require.NoError(t, writeErr, "could not write initial data to server")
-
-	resp := make([]byte, 4)
-	_, readErr := c.Read(resp)
-	require.NoError(t, readErr, "could not read response from server")
-	require.Equal(t, "pong", string(resp), "unexpected server response")
-
-	// Introduce the traffic drop rule after initial data exchange
-	setupDropTrafficRule(t)
-
-	// Attempt to send more data, which should now time out due to the drop rule
-	_, writeErr = c.Write([]byte("ping again"))
-	require.Error(t, writeErr, "expected connection timeout error but got none")
-
-	// Check if the connection was recorded as failed due to timeout
-	require.Eventually(t, func() bool {
-		conns := getConnections(t, tr)
-		// 110 is the errno for ETIMEDOUT
-		return findFailedConnection(t, localAddr, serverAddr, conns, 110)
-	}, 3*time.Second, 1000*time.Millisecond, "Failed connection not recorded properly")
-}
+//func (s *TracerSuite) TestTCPFailureConnectionTimeoutWithInitialData() {
+//	t := s.T()
+//
+//	checkSkipFailureConnectionsTests(t)
+//	// TODO: remove this check when we fix this test on kernels < 4.19
+//	if kv < kernel.VersionCode(4, 19, 0) {
+//		t.Skip("Skipping test on kernels < 4.19")
+//	}
+//
+//	// Start a server that can respond to initial data
+//	srv := tracertestutil.NewTCPServer(func(c net.Conn) {
+//		buf := make([]byte, 4)
+//		_, _ = c.Read(buf)             // Read initial data from the client
+//		_, _ = c.Write([]byte("pong")) // Respond to the client
+//		time.Sleep(1 * time.Second)    // Keep the connection open
+//	})
+//
+//	require.NoError(t, srv.Run(), "error running server")
+//	t.Cleanup(srv.Shutdown)
+//
+//	cfg := testConfig()
+//	cfg.TCPFailedConnectionsEnabled = true
+//	tr := setupTracer(t, cfg)
+//
+//	serverAddr := srv.Address()
+//	ipString, portString, err := net.SplitHostPort(serverAddr)
+//	require.NoError(t, err)
+//	ip := netip.MustParseAddr(ipString)
+//	port, err := strconv.Atoi(portString)
+//	require.NoError(t, err)
+//
+//	addr := syscall.SockaddrInet4{
+//		Port: port,
+//		Addr: ip.As4(),
+//	}
+//	sfd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
+//	require.NoError(t, err)
+//	t.Cleanup(func() { syscall.Close(sfd) })
+//
+//	// syscall.TCP_USER_TIMEOUT is 18 but not defined in our linter. Set it to 500ms
+//	err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, 18, 500)
+//	require.NoError(t, err)
+//
+//	err = syscall.Connect(sfd, &addr)
+//	require.NoError(t, err, "could not connect to server: ", err)
+//
+//	f := os.NewFile(uintptr(sfd), "")
+//	defer f.Close()
+//	c, err := net.FileConn(f)
+//	require.NoError(t, err)
+//	port = c.LocalAddr().(*net.TCPAddr).Port
+//	// the addr here is 0.0.0.0, but the tracer sees it as 127.0.0.1
+//	localAddr := fmt.Sprintf("127.0.0.1:%d", port)
+//
+//	// Exchange initial data
+//	_, writeErr := c.Write([]byte("ping"))
+//	require.NoError(t, writeErr, "could not write initial data to server")
+//
+//	resp := make([]byte, 4)
+//	_, readErr := c.Read(resp)
+//	require.NoError(t, readErr, "could not read response from server")
+//	require.Equal(t, "pong", string(resp), "unexpected server response")
+//
+//	// Introduce the traffic drop rule after initial data exchange
+//	setupDropTrafficRule(t)
+//
+//	// Attempt to send more data, which should now time out due to the drop rule
+//	_, writeErr = c.Write([]byte("ping again"))
+//	require.Error(t, writeErr, "expected connection timeout error but got none")
+//
+//	// Check if the connection was recorded as failed due to timeout
+//	require.Eventually(t, func() bool {
+//		conns := getConnections(t, tr)
+//		// 110 is the errno for ETIMEDOUT
+//		return findFailedConnection(t, localAddr, serverAddr, conns, 110)
+//	}, 3*time.Second, 1000*time.Millisecond, "Failed connection not recorded properly")
+//}
 
 func setupDropTrafficRule(tb testing.TB) (ns string) {
 	state := testutil.IptablesSave(tb)

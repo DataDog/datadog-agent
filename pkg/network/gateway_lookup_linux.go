@@ -124,6 +124,7 @@ func (g *gatewayLookup) Lookup(cs *ConnectionStats) *Via {
 // LookupWithIPs performs a gateway lookup given the
 // source, destination, and namespace
 func (g *gatewayLookup) LookupWithIPs(source util.Address, dest util.Address, netns uint32) *Via {
+	// routes come from local lookup
 	r, ok := g.routeCache.Get(source, dest, netns)
 	if !ok {
 		return nil

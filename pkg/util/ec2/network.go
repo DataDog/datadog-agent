@@ -90,6 +90,7 @@ func GetSubnetForHardwareAddr(ctx context.Context, hwAddr net.HardwareAddr) (sub
 
 	subnet.ID = strings.TrimSpace(resp)
 
+	// The IPv4 CIDR block of the subnet in which the interface resides.
 	resp, err = getMetadataItem(ctx, fmt.Sprintf("%s/%s/subnet-ipv4-cidr-block", imdsNetworkMacs, hwAddr), false)
 	if err != nil {
 		return
