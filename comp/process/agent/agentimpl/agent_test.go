@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -99,5 +100,6 @@ func TestProcessAgentComponentConfigOverride(t *testing.T) {
 	}
 
 	agentComponent := fxutil.Test[agent.Component](t, fx.Options(opts...))
-	assert.Equal(t, false, agentComponent.Enabled())
+	assert.False(t, config.Datadog().GetBool("process_config.run_in_core_agent.enabled"))
+	assert.False(t, agentComponent.Enabled())
 }
