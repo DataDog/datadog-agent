@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
@@ -21,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -78,28 +76,4 @@ func TestProcessAgentComponent(t *testing.T) {
 			assert.Equal(t, tc.expected, agentComponent.Enabled())
 		})
 	}
-}
-
-func TestProcessAgentComponentConfigOverride(t *testing.T) {
-	originalFlavor := flavor.GetFlavor()
-	flavor.SetFlavor(flavor.DefaultAgent)
-	defer func() {
-		flavor.SetFlavor(originalFlavor)
-	}()
-
-	opts := []fx.Option{
-		runnerimpl.Module(),
-		hostinfoimpl.MockModule(),
-		submitterimpl.MockModule(),
-		taggerimpl.MockModule(),
-		statsd.MockModule(),
-		Module(),
-		fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
-			"process_config.run_in_core_agent.enabled": true,
-		}}),
-	}
-
-	agentComponent := fxutil.Test[agent.Component](t, fx.Options(opts...))
-	assert.False(t, config.Datadog().GetBool("process_config.run_in_core_agent.enabled"))
-	assert.False(t, agentComponent.Enabled())
 }

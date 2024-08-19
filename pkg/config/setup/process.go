@@ -211,6 +211,7 @@ func setupProcesses(config pkgconfigmodel.Config) {
 
 	processesAddOverrideOnce.Do(func() {
 		pkgconfigmodel.AddOverrideFunc(loadProcessTransforms)
+		pkgconfigmodel.AddOverrideFunc(overrideRunInCoreAgentConfig)
 	})
 }
 
