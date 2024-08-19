@@ -18,6 +18,7 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	util "github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -74,7 +75,7 @@ func (c *configEndpoint) getConfigValueHandler(w http.ResponseWriter, r *http.Re
 
 	var value interface{}
 	if path == "logs_config.additional_endpoints" {
-		entries, err := getSliceOfStringMap(c.cfg, path)
+		entries, err := encodeInterfaceSliceToStringMap(c.cfg, path)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to marshal %v: %v", path, err), http.StatusInternalServerError)
 			return
@@ -91,8 +92,9 @@ func (c *configEndpoint) getAllConfigValuesHandler(w http.ResponseWriter, r *htt
 	allValues := make(map[string]interface{}, len(c.authorizedConfigPaths))
 	for key := range c.authorizedConfigPaths {
 		if key == "logs_config.additional_endpoints" {
-			entries, err := getSliceOfStringMap(c.cfg, key)
+			entries, err := encodeInterfaceSliceToStringMap(c.cfg, key)
 			if err != nil {
+				log.Warnf("error encoding logs_config.additional endpoints: %v", err)
 				continue
 			}
 			allValues[key] = entries
@@ -138,6 +140,19 @@ func getConfigEndpoint(cfg config.Reader, authorizedConfigPaths api.AuthorizedSe
 	configEndpointMux.HandleFunc("/{path}", http.HandlerFunc(configEndpoint.getConfigValueHandler)).Methods("GET")
 
 	return configEndpointMux, configEndpoint
+}
+
+func encodeInterfaceSliceToStringMap(c config.Reader, key string) ([]map[string]string, error) {
+	value := c.Get(key)
+	if value == nil {
+		return nil, nil
+	}
+	values, ok := value.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("key does not host a slice of interfaces")
+	}
+
+	return util.GetSliceOfStringMap(values)
 }
 
 func (c *configEndpoint) marshalAndSendResponse(w http.ResponseWriter, path string, value interface{}) {
