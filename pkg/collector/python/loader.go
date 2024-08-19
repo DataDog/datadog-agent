@@ -225,7 +225,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	}
 
 	if v, ok := cl.logReceiver.Get(); ok {
-		v.Register(string(c.id), config)
+		v.RegisterIntegration(string(c.id), config)
 	}
 
 	c.version = wheelVersion

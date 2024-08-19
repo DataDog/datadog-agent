@@ -25,11 +25,11 @@ func NewLogsIntegration() *Logsintegration {
 	}
 }
 
-// Register registers an integration with the integrations component
-func (li *Logsintegration) Register(id string, config integration.Config) {
+// RegisterIntegration registers an integration with the integrations component
+func (li *Logsintegration) RegisterIntegration(id string, config integration.Config) {
 	integrationConfig := integrations.IntegrationConfig{
-		ID:     id,
-		Config: config,
+		IntegrationID: id,
+		Config:        config,
 	}
 
 	li.integrationChan <- integrationConfig

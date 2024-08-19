@@ -85,7 +85,7 @@ func (s *Launcher) run() {
 			for _, source := range sources {
 				// TODO: integrations should only be allowed to have one IntegrationType config.
 				if source.Config.Type == config.IntegrationType {
-					logFilePath, err := s.createFile(cfg.ID)
+					logFilePath, err := s.createFile(cfg.IntegrationID)
 					if err != nil {
 						ddLog.Warn("Failed to create integration log file: ", err)
 						continue
@@ -94,7 +94,7 @@ func (s *Launcher) run() {
 					s.sources.AddSource(filetypeSource)
 
 					// file to write the incoming logs to
-					s.integrationToFile[cfg.ID] = logFilePath
+					s.integrationToFile[cfg.IntegrationID] = logFilePath
 				}
 			}
 

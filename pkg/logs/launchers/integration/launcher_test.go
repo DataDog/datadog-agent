@@ -84,7 +84,7 @@ func (suite *LauncherTestSuite) TestSendLog() {
 	id := "123456789"
 
 	suite.s.Start(nil, nil, nil, nil)
-	suite.integrationsComp.Register(id, *mockConf)
+	suite.integrationsComp.RegisterIntegration(id, *mockConf)
 
 	logSample := "hello world"
 	suite.integrationsComp.SendLog(logSample, id)

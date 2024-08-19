@@ -16,6 +16,6 @@ type IntegrationLog struct {
 
 // IntegrationConfig represents the combined ID and Config for an integration
 type IntegrationConfig struct {
-	ID     string
-	Config integration.Config
+	IntegrationID string
+	Config        integration.Config
 }
