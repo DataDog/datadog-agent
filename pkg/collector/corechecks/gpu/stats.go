@@ -26,22 +26,32 @@ type StatsProcessor struct {
 	timeResolver           *sectime.Resolver
 	currentAllocs          []*model.MemoryAllocation
 	pastAllocs             []*model.MemoryAllocation
+	lastKernelEnd          time.Time
+	firstKernelStart       time.Time
+	sentEvents             int
 }
 
 func (sp *StatsProcessor) processKernelSpan(span *model.KernelSpan, sendEvent bool) {
 	tsStart := sp.timeResolver.ResolveMonotonicTimestamp(span.Start)
 	tsEnd := sp.timeResolver.ResolveMonotonicTimestamp(span.End)
 
+	if sp.firstKernelStart.IsZero() {
+		sp.firstKernelStart = tsStart
+	} else if tsStart.Before(sp.firstKernelStart) {
+		sp.firstKernelStart = tsStart
+	}
+
+	realDuration := tsEnd.Sub(tsStart)
+	event := event.Event{
+		SourceTypeName: CheckName,
+		EventType:      "gpu-kernel",
+		Title:          "GPU kernel launch",
+		Text:           fmt.Sprintf("Start=%s, end=%s, avgThreadSize=%d, duration=%s, pid=%s", tsStart, tsEnd, span.AvgThreadCount, realDuration, sp.key.Pid),
+		Ts:             tsStart.Unix(),
+	}
+	fmt.Printf("spanev: %v\n", event)
+
 	if sendEvent {
-		realDuration := tsEnd.Sub(tsStart)
-		event := event.Event{
-			SourceTypeName: CheckName,
-			EventType:      "gpu-kernel",
-			Title:          "GPU kernel launch",
-			Text:           fmt.Sprintf("Start=%s, end=%s, avgThreadSize=%d, duration=%s", tsStart, tsEnd, span.AvgThreadCount, realDuration),
-			Ts:             tsStart.Unix(),
-		}
-		fmt.Printf("spanev: %v\n", event)
 		sp.sender.Event(event)
 	}
 
@@ -51,6 +61,9 @@ func (sp *StatsProcessor) processKernelSpan(span *model.KernelSpan, sendEvent bo
 	}
 	duration := tsEnd.Sub(tsStart)
 	sp.totalThreadSecondsUsed += duration.Seconds() * float64(min(span.AvgThreadCount, uint64(sp.gpuMaxThreads))) // we can't use more threads than the GPU has
+	if tsEnd.After(sp.lastKernelEnd) {
+		sp.lastKernelEnd = tsEnd
+	}
 }
 
 func (sp *StatsProcessor) processPastData(data *model.StreamPastData) {
@@ -102,14 +115,17 @@ type memAllocTsPoint struct {
 	size int64
 }
 
-func (sp *StatsProcessor) finish() {
+func (sp *StatsProcessor) markInterval(now time.Time) {
 	intervalSecs := sp.measuredInterval.Seconds()
 	if intervalSecs > 0 {
 		availableThreadSeconds := float64(sp.gpuMaxThreads) * intervalSecs
 		utilization := sp.totalThreadSecondsUsed / availableThreadSeconds
 		fmt.Printf("GPU utilization: %f, totalUsed %f\n", utilization, sp.totalThreadSecondsUsed)
 
-		sp.sender.Gauge("gjulian.cudapoc.utilization", utilization, "", sp.getTags())
+		if sp.sentEvents == 0 {
+			sp.sender.GaugeWithTimestamp("gjulian.cudapoc.utilization", utilization, "", sp.getTags(), float64(sp.firstKernelStart.Unix()))
+		}
+		sp.sender.GaugeWithTimestamp("gjulian.cudapoc.utilization", utilization, "", sp.getTags(), float64(sp.lastKernelEnd.Unix()))
 	}
 
 	fmt.Printf("past: %+v, current: %+v\n", sp.pastAllocs, sp.currentAllocs)
@@ -161,5 +177,12 @@ func (sp *StatsProcessor) finish() {
 	}
 
 	fmt.Printf("gjulian.cudapoc.max_memory: %d\n", maxMemory)
-	sp.sender.Gauge("gjulian.cudapoc.max_memory", float64(maxMemory), "", sp.getTags())
+	sp.sender.GaugeWithTimestamp("gjulian.cudapoc.max_memory", float64(maxMemory), "", sp.getTags(), float64(now.Unix()))
+	sp.sentEvents++
+}
+
+func (sp *StatsProcessor) finish(now time.Time) {
+	sp.sender.GaugeWithTimestamp("gjulian.cudapoc.memory", 0, "", sp.getTags(), float64(now.Unix()))
+	sp.sender.GaugeWithTimestamp("gjulian.cudapoc.max_memory", 0, "", sp.getTags(), float64(now.Unix()))
+	sp.sender.GaugeWithTimestamp("gjulian.cudapoc.utilization", 0, "", sp.getTags(), float64(now.Unix()))
 }

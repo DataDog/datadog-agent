@@ -39,11 +39,12 @@ type CheckConfig struct {
 // Check doesn't need additional fields
 type Check struct {
 	core.CheckBase
-	config        *CheckConfig
-	sysProbeUtil  *processnet.RemoteSysProbeUtil
-	telemetryComp telemetryComp.Component
-	lastCheckTime time.Time
-	timeResolver  *sectime.Resolver
+	config         *CheckConfig
+	sysProbeUtil   *processnet.RemoteSysProbeUtil
+	telemetryComp  telemetryComp.Component
+	lastCheckTime  time.Time
+	timeResolver   *sectime.Resolver
+	statProcessors map[uint32]*StatsProcessor
 }
 
 // Factory creates a new check factory
@@ -53,8 +54,9 @@ func Factory() optional.Option[func() check.Check] {
 
 func newCheck() check.Check {
 	return &Check{
-		CheckBase: core.NewCheckBase(CheckName),
-		config:    &CheckConfig{},
+		CheckBase:      core.NewCheckBase(CheckName),
+		config:         &CheckConfig{},
+		statProcessors: make(map[uint32]*StatsProcessor),
 	}
 }
 
@@ -106,6 +108,21 @@ func (m *Check) ensureInitialized() error {
 	return nil
 }
 
+func (m *Check) ensureProcessor(key *model.StreamKey, snd sender.Sender, gpuThreads int, checkDuration time.Duration) {
+	if _, ok := m.statProcessors[key.Pid]; !ok {
+		m.statProcessors[key.Pid] = &StatsProcessor{
+			key: key,
+		}
+	}
+
+	m.statProcessors[key.Pid].totalThreadSecondsUsed = 0
+	m.statProcessors[key.Pid].sender = snd
+	m.statProcessors[key.Pid].gpuMaxThreads = gpuThreads
+	m.statProcessors[key.Pid].measuredInterval = checkDuration
+	m.statProcessors[key.Pid].timeResolver = m.timeResolver
+	m.statProcessors[key.Pid].lastCheck = m.lastCheckTime
+}
+
 // Run executes the check
 func (m *Check) Run() error {
 	if err := m.ensureInitialized(); err != nil {
@@ -141,7 +158,7 @@ func (m *Check) Run() error {
 		checkDuration = now.Sub(m.lastCheckTime)
 	}
 
-	sender, err := m.GetSender()
+	snd, err := m.GetSender()
 	if err != nil {
 		return fmt.Errorf("get metric sender: %s", err)
 	}
@@ -156,38 +173,32 @@ func (m *Check) Run() error {
 		return fmt.Errorf("get GPU device threads: %s", err)
 	}
 
-	processors := make(map[uint32]*StatsProcessor)
-	ensureProcessor := func(key *model.StreamKey) {
-		if _, ok := processors[key.Pid]; !ok {
-			processors[key.Pid] = &StatsProcessor{
-				key:                    key,
-				totalThreadSecondsUsed: 0,
-				sender:                 sender,
-				gpuMaxThreads:          gpuThreads,
-				measuredInterval:       checkDuration,
-				timeResolver:           m.timeResolver,
-				lastCheck:              m.lastCheckTime,
-			}
-		}
-	}
+	usedProcessors := make(map[uint32]bool)
 
 	for _, data := range stats.CurrentData {
-		ensureProcessor(&data.Key)
-		processors[data.Key.Pid].processCurrentData(data)
+		m.ensureProcessor(&data.Key, snd, gpuThreads, checkDuration)
+		m.statProcessors[data.Key.Pid].processCurrentData(data)
+		usedProcessors[data.Key.Pid] = true
 	}
 
 	for _, data := range stats.PastData {
-		ensureProcessor(&data.Key)
-		processors[data.Key.Pid].processPastData(data)
+		m.ensureProcessor(&data.Key, snd, gpuThreads, checkDuration)
+		m.statProcessors[data.Key.Pid].processPastData(data)
+		usedProcessors[data.Key.Pid] = true
 	}
 
-	for _, processor := range processors {
-		processor.finish()
+	for _, processor := range m.statProcessors {
+		if usedProcessors[processor.key.Pid] {
+			processor.markInterval(now)
+		} else {
+			processor.finish(now)
+			delete(m.statProcessors, processor.key.Pid)
+		}
 	}
 
 	fmt.Printf("GPU stats: %+v\n", stats)
-	sender.Commit()
-	fmt.Printf("GPU check done, sender stats: %+v\n", sender.GetSenderStats())
+	snd.Commit()
+	fmt.Printf("GPU check done, sender stats: %+v\n", snd.GetSenderStats())
 	m.lastCheckTime = now
 	return nil
 }
