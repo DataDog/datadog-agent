@@ -14,9 +14,9 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -209,8 +209,8 @@ func GetFileDescriptorMaxData() (*FileDescriptorMaxData, error) {
 }
 
 func getFileDescriptorMaxData() (*FileDescriptorMaxData, error) {
-	var fdMax unix.Rlimit
-	err := unix.Getrlimit(unix.RLIMIT_NOFILE, &fdMax)
+	var fdMax syscall.Rlimit
+	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &fdMax)
 	if err != nil {
 		return nil, err
 	}

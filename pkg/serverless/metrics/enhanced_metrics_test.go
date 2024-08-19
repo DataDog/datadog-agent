@@ -730,6 +730,42 @@ func TestSendTmpEnhancedMetricsDisabled(t *testing.T) {
 	enhancedMetricsDisabled = false
 }
 
+func TestSendFdEnhancedMetrics(t *testing.T) {
+	demux := createDemultiplexer(t)
+	tags := []string{"functionname:test-function"}
+	now := float64(time.Now().UnixNano()) / float64(time.Second)
+	args := generateFdEnhancedMetricsArgs{
+		FdMax: 1024,
+		FdUse: 26,
+		Tags:  tags,
+		Demux: demux,
+		Time:  now,
+	}
+	go generateFdEnhancedMetrics(args)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(3, 0, 100*time.Millisecond)
+	assert.Equal(t, []metrics.MetricSample{
+		{
+			Name:       fdMaxMetric,
+			Value:      1024,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+		{
+			Name:       fdUseMetric,
+			Value:      26,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+	},
+		generatedMetrics,
+	)
+	assert.Len(t, timedMetrics, 0)
+}
+
 func TestSendFailoverReasonMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
 	tags := []string{"reason:test-reason"}
