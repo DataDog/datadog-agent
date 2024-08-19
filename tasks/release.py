@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import tempfile
+import time
 from collections import defaultdict
 from datetime import date
 from time import sleep
@@ -568,10 +569,11 @@ def create_and_update_release_branch(ctx, repo, release_branch, base_directory="
             )
 
 
-@task(help={'upstream': "Remote repository name (default 'origin')"})
-def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"):
+# TODO: unfreeze is the former name of this task, kept for backward compatibility. Remove in a few weeks.
+@task(help={'upstream': "Remote repository name (default 'origin')"}, aliases=["unfreeze"])
+def create_release_branches(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin", check_state=True):
     """
-    Performs set of tasks required for the main branch unfreeze during the agent release cycle.
+    Create and push release branches in Agent repositories and update them.
     That includes:
     - creates a release branch in datadog-agent, datadog-agent-macos, omnibus-ruby and omnibus-software repositories,
     - updates release.json on new datadog-agent branch to point to newly created release branches in nightly section
@@ -596,12 +598,12 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     release_branch = current.branch()
 
     # Step 0: checks
-
-    print(color_message("Checking repository state", "bold"))
     ctx.run("git fetch")
 
-    github = GithubAPI(repository=GITHUB_REPO_NAME)
-    check_clean_branch_state(ctx, github, release_branch)
+    if check_state:
+        print(color_message("Checking repository state", "bold"))
+        github = GithubAPI(repository=GITHUB_REPO_NAME)
+        check_clean_branch_state(ctx, github, release_branch)
 
     if not yes_no_question(
         f"This task will create new branches with the name '{release_branch}' in repositories: {', '.join(UNFREEZE_REPOS)}. Is this OK?",
@@ -619,7 +621,7 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
 
     with ctx.cd(f"{base_directory}/{UNFREEZE_REPO_AGENT}"):
         # Step 2.0 - Create milestone update
-        milestone_branch = "release_milestone"
+        milestone_branch = f"release_milestone-{int(time.time())}"
         ctx.run(f"git switch -c {milestone_branch}")
         rj = _load_release_json()
         rj["current_milestone"] = f"{next}"
