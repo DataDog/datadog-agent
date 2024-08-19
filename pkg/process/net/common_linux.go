@@ -23,6 +23,7 @@ const (
 	statsURL             = "http://unix/debug/stats"
 	pprofURL             = "http://unix/debug/pprof"
 	languageDetectionURL = "http://unix/" + string(sysconfig.LanguageDetectionModule) + "/detect"
+	discoveryServicesURL = "http://unix/" + string(sysconfig.DiscoveryModule) + "/services"
 	netType              = "unix"
 )
 

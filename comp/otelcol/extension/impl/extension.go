@@ -64,7 +64,7 @@ func (ext *ddExtension) Start(_ context.Context, host component.Host) error {
 
 	// List configured Extensions
 	configstore := ext.cfg.ConfigStore
-	c, err := configstore.GetProvidedConf()
+	c, err := configstore.GetEnhancedConf()
 	if err != nil {
 		return err
 	}
@@ -76,7 +76,7 @@ func (ext *ddExtension) Start(_ context.Context, host component.Host) error {
 
 	extensions := host.GetExtensions()
 	for extension := range extensions {
-		extractor, ok := supportedDebugExtensions[extension.String()]
+		extractor, ok := supportedDebugExtensions[extension.Type().String()]
 		if !ok {
 			continue
 		}

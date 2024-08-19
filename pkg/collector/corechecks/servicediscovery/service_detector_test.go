@@ -12,23 +12,23 @@ import (
 )
 
 func Test_serviceDetector(t *testing.T) {
-	sd := newServiceDetector()
+	sd := NewServiceDetector()
 
 	// no need to test many cases here, just ensuring the process data is properly passed down is enough.
 	pInfo := processInfo{
 		PID:     100,
 		CmdLine: []string{"my-service.py"},
-		Env:     []string{"PATH=testdata/test-bin", "DD_INJECTION_ENABLED=tracer"},
-		Cwd:     "",
+		Env:     map[string]string{"PATH": "testdata/test-bin", "DD_INJECTION_ENABLED": "tracer"},
 		Stat:    procStat{},
-		Ports:   []int{5432},
+		Ports:   []uint16{5432},
 	}
 
-	want := serviceMetadata{
+	want := ServiceMetadata{
 		Name:               "my-service",
 		Language:           "python",
 		Type:               "db",
 		APMInstrumentation: "injected",
+		NameSource:         "generated",
 	}
 	got := sd.Detect(pInfo)
 	assert.Equal(t, want, got)
@@ -38,16 +38,15 @@ func Test_serviceDetector(t *testing.T) {
 		PID:     0,
 		CmdLine: nil,
 		Env:     nil,
-		Cwd:     "",
 		Stat:    procStat{},
 		Ports:   nil,
 	}
-	wantEmpty := serviceMetadata{
+	wantEmpty := ServiceMetadata{
 		Name:               "",
 		Language:           "UNKNOWN",
 		Type:               "web_service",
 		APMInstrumentation: "none",
-		FromDDService:      false,
+		NameSource:         "generated",
 	}
 	gotEmpty := sd.Detect(pInfoEmpty)
 	assert.Equal(t, wantEmpty, gotEmpty)

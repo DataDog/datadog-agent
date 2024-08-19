@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/grpclog"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -48,7 +49,7 @@ type client struct {
 	parentCollector *streamHandler
 }
 
-func (c *client) StreamEntities(ctx context.Context, _ ...grpc.CallOption) (remote.Stream, error) {
+func (c *client) StreamEntities(ctx context.Context) (remote.Stream, error) {
 	log.Debug("starting a new stream")
 	streamcl, err := c.cl.StreamEntities(
 		ctx,
@@ -74,8 +75,8 @@ type streamHandler struct {
 	config.Reader
 }
 
-// WorkloadmetaEventFromProcessEventSet converts the given ProcessEventSet into a workloadmeta.Event
-func WorkloadmetaEventFromProcessEventSet(protoEvent *pbgo.ProcessEventSet) (workloadmeta.Event, error) {
+// workloadmetaEventFromProcessEventSet converts the given ProcessEventSet into a workloadmeta.Event
+func workloadmetaEventFromProcessEventSet(protoEvent *pbgo.ProcessEventSet) (workloadmeta.Event, error) {
 	if protoEvent == nil {
 		return workloadmeta.Event{}, nil
 	}
@@ -95,8 +96,8 @@ func WorkloadmetaEventFromProcessEventSet(protoEvent *pbgo.ProcessEventSet) (wor
 	}, nil
 }
 
-// WorkloadmetaEventFromProcessEventUnset converts the given ProcessEventSet into a workloadmeta.Event
-func WorkloadmetaEventFromProcessEventUnset(protoEvent *pbgo.ProcessEventUnset) (workloadmeta.Event, error) {
+// workloadmetaEventFromProcessEventUnset converts the given ProcessEventSet into a workloadmeta.Event
+func workloadmetaEventFromProcessEventUnset(protoEvent *pbgo.ProcessEventUnset) (workloadmeta.Event, error) {
 	if protoEvent == nil {
 		return workloadmeta.Event{}, nil
 	}
@@ -147,7 +148,8 @@ func (s *streamHandler) IsEnabled() bool {
 	if flavor.GetFlavor() != flavor.DefaultAgent {
 		return false
 	}
-	return s.Reader.GetBool("language_detection.enabled")
+
+	return s.Reader.GetBool("language_detection.enabled") && !util.LocalProcessCollectorIsEnabled()
 }
 
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient {
@@ -163,8 +165,8 @@ func (s *streamHandler) HandleResponse(store workloadmeta.Component, resp interf
 	}
 
 	collectorEvents := make([]workloadmeta.CollectorEvent, 0, len(response.SetEvents)+len(response.UnsetEvents))
-	collectorEvents = handleEvents(collectorEvents, response.UnsetEvents, WorkloadmetaEventFromProcessEventUnset)
-	collectorEvents = handleEvents(collectorEvents, response.SetEvents, WorkloadmetaEventFromProcessEventSet)
+	collectorEvents = handleEvents(collectorEvents, response.UnsetEvents, workloadmetaEventFromProcessEventUnset)
+	collectorEvents = handleEvents(collectorEvents, response.SetEvents, workloadmetaEventFromProcessEventSet)
 	s.populateMissingContainerID(collectorEvents, store)
 	log.Tracef("collected [%d] events", len(collectorEvents))
 	return collectorEvents, nil

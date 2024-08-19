@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,7 +33,8 @@ func TestK8sCCAOff(t *testing.T) {
 }
 
 func (v *k8sCCAOffSuite) TestADAnnotations() {
-	v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	err := v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(v.T(), err, "Could not reset the Fake Intake")
 	var backOffLimit int32 = 4
 	testLogMessage := "Annotations pod"
 
@@ -63,7 +65,7 @@ func (v *k8sCCAOffSuite) TestADAnnotations() {
 		},
 	}
 
-	_, err := v.Env().KubernetesCluster.Client().BatchV1().Jobs("default").Create(context.TODO(), jobSpcec, metav1.CreateOptions{})
+	_, err = v.Env().KubernetesCluster.Client().BatchV1().Jobs("default").Create(context.TODO(), jobSpcec, metav1.CreateOptions{})
 	assert.NoError(v.T(), err, "Could not start autodiscovery job")
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
@@ -73,13 +75,16 @@ func (v *k8sCCAOffSuite) TestADAnnotations() {
 		if assert.Contains(c, logsServiceNames, "ubuntu", "Ubuntu service not found") {
 			filteredLogs, err := v.Env().FakeIntake.Client().FilterLogs("ubuntu")
 			assert.NoError(c, err, "Error filtering logs")
-			assert.Equal(c, testLogMessage, filteredLogs[0].Message, "Test log doesn't match")
+			if assert.NotEmpty(v.T(), filteredLogs, "Fake Intake returned no logs even though log service name exists") {
+				assert.Equal(c, testLogMessage, filteredLogs[0].Message, "Test log doesn't match")
+			}
 		}
 	}, 1*time.Minute, 10*time.Second)
 }
 
 func (v *k8sCCAOffSuite) TestCCAOff() {
-	v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	err := v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	require.NoError(v.T(), err, "Could not reset the Fake Intake")
 	var backOffLimit int32 = 4
 	testLogMessage := "Test pod"
 
@@ -105,7 +110,7 @@ func (v *k8sCCAOffSuite) TestCCAOff() {
 		},
 	}
 
-	_, err := v.Env().KubernetesCluster.Client().BatchV1().Jobs("default").Create(context.TODO(), jobSpcec, metav1.CreateOptions{})
+	_, err = v.Env().KubernetesCluster.Client().BatchV1().Jobs("default").Create(context.TODO(), jobSpcec, metav1.CreateOptions{})
 	assert.NoError(v.T(), err, "Could not start job")
 
 	v.EventuallyWithT(func(c *assert.CollectT) {

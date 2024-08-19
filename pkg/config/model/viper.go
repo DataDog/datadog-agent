@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"reflect"
 	"strconv"
 	"strings"
@@ -643,6 +644,7 @@ func (c *safeConfig) MergeFleetPolicy(configPath string) error {
 	for _, key := range c.configSources[SourceFleetPolicies].AllKeys() {
 		c.mergeViperInstances(key)
 	}
+	log.Infof("Fleet policies configuration %s successfully merged", path.Base(configPath))
 	return nil
 }
 

@@ -9,6 +9,7 @@ package infra
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"io"
 	"strings"
 	"testing"
@@ -149,7 +150,7 @@ func TestStackManager(t *testing.T) {
 			WithDatadogEventSender(mockDatadogEventSender),
 		)
 		assert.Error(t, err)
-		assert.ErrorIs(t, err, internalError{}, "should be an internal error")
+		assert.ErrorIs(t, err, common.InternalError{}, "should be an internal error")
 		require.NotNil(t, stack)
 		defer func() {
 			err := stackManager.DeleteStack(ctx, stackName, mockWriter)

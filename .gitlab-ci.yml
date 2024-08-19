@@ -164,15 +164,15 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v38375519-53773733
+  DATADOG_AGENT_BUILDIMAGES: v41089396-d65d75ec
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v38375519-53773733
+  DATADOG_AGENT_WINBUILDIMAGES: v41089396-d65d75ec
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v38375519-53773733
+  DATADOG_AGENT_ARMBUILDIMAGES: v41089396-d65d75ec
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v38375519-53773733
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v41089396-d65d75ec
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v38375519-53773733
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v41089396-d65d75ec
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: c0962c7d
@@ -201,8 +201,8 @@ variables:
   CODECOV_TOKEN_SSM_NAME: ci.datadog-agent.codecov_token  # agent-devx-infra
   DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID}  # agent-delivery
   DEB_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.deb_signing_key_passphrase_${DEB_GPG_KEY_ID}  # agent-delivery
-  DOCKER_REGISTRY_LOGIN_SSM_KEY: ci.datadog-agent.docker_hub_login  # agent-devx-infra
-  DOCKER_REGISTRY_PWD_SSM_KEY: ci.datadog-agent.docker_hub_pwd  # agent-devx-infra
+  DOCKER_REGISTRY_LOGIN_SSM_KEY: ci.datadog-agent.docker_hub_login  # container-integrations
+  DOCKER_REGISTRY_PWD_SSM_KEY: ci.datadog-agent.docker_hub_pwd  # container-integrations
   E2E_TESTS_API_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_api_key  # agent-devx-loops
   E2E_TESTS_APP_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_app_key  # agent-devx-loops
   E2E_TESTS_RC_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_rc_key  # agent-devx-loops
@@ -590,7 +590,6 @@ workflow:
 .except_deploy:
   - <<: *if_deploy
     when: never
-  - when: on_success
 
 .except_no_tests_no_deploy:
   - if: $DEPLOY_AGENT == "false" && $DDR_WORKFLOW_ID == null && $RUN_E2E_TESTS == "off"
@@ -736,6 +735,7 @@ workflow:
 
 .system_probe_change_paths: &system_probe_change_paths
   - pkg/collector/corechecks/ebpf/**/*
+  - pkg/collector/corechecks/servicediscovery/module/*
   - pkg/ebpf/**/*
   - pkg/network/**/*
   - pkg/process/monitor/*
@@ -820,6 +820,7 @@ workflow:
         - comp/core/autodiscovery/listeners/**/*
         - comp/core/autodiscovery/providers/**/*
         - comp/languagedetection/**/*
+        - pkg/clusteragent/admission/mutate/**/*
         - pkg/collector/corechecks/cluster/**/*
         - pkg/collector/corechecks/containers/**/*
         - pkg/collector/corechecks/containerimage/**/*
@@ -984,6 +985,15 @@ workflow:
     when: on_success
   - when: manual
     allow_failure: true
+
+.on_otel_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - comp/otelcol/**/*
+        - test/new-e2e/tests/otel/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
 
 .on_windows_service_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
