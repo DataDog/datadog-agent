@@ -59,7 +59,7 @@ func (sp *StatsProcessor) processPastData(data *model.StreamPastData) {
 	}
 
 	for _, span := range data.Allocations {
-		event := event.Event{
+		ev := event.Event{
 			AlertType:      event.AlertTypeInfo,
 			Priority:       event.PriorityLow,
 			AggregationKey: "gpu-0",
@@ -69,8 +69,15 @@ func (sp *StatsProcessor) processPastData(data *model.StreamPastData) {
 			Text:           fmt.Sprintf("Start at %d, end %d", span.Start, span.End),
 			Ts:             sp.timeResolver.ResolveMonotonicTimestamp(span.Start).Unix(),
 		}
-		fmt.Printf("memev: %v\n", event)
-		sp.sender.Event(event)
+
+		if span.IsLeaked {
+			ev.Priority = event.PriorityNormal
+			ev.AlertType = event.AlertTypeWarning
+			ev.Title += " (leaked)"
+		}
+
+		fmt.Printf("memev: %v\n", ev)
+		sp.sender.Event(ev)
 	}
 
 	sp.pastAllocs = append(sp.pastAllocs, data.Allocations...)
