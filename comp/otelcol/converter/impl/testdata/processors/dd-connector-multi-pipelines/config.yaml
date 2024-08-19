@@ -1,0 +1,61 @@
+receivers:
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: "otelcol"
+          scrape_interval: 10s
+          static_configs:
+            - targets: ["0.0.0.0:8888"]
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+exporters:
+  debug:
+    verbosity: detailed
+  datadog:
+    api:
+      key: "0000"
+processors:
+  batch:
+    timeout: 10s
+connectors:
+  datadog/connector:
+    traces:
+      compute_top_level_by_span_kind: true
+      peer_tags_aggregation: true
+      compute_stats_by_span_kind: true
+extensions:
+  pprof/user-defined:
+  health_check/user-defined:
+  zpages/user-defined:
+    endpoint: "localhost:55679"
+  datadog/user-defined:
+
+service:
+  extensions:
+    [
+      pprof/user-defined,
+      zpages/user-defined,
+      health_check/user-defined,
+      datadog/user-defined,
+    ]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [datadog]
+    traces/2:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [datadog/connector]
+    metrics:
+      receivers: [otlp, datadog/connector, prometheus]
+      processors: [batch]
+      exporters: [datadog]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [datadog]
