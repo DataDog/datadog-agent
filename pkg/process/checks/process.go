@@ -167,7 +167,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 		p.workloadMetaExtractor = workloadmeta.GetSharedWorkloadMetaExtractor(ddconfig.SystemProbe())
 
 		// The server is only needed on the process agent
-		if !util.GetRunInCoreAgentConfig(p.config) && flavor.GetFlavor() == flavor.ProcessAgent {
+		if !p.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
 			p.workloadMetaServer = workloadmeta.NewGRPCServer(p.config, p.workloadMetaExtractor)
 			err = p.workloadMetaServer.Start()
 			if err != nil {
@@ -209,7 +209,7 @@ func (p *ProcessCheck) getLastConnRates() ProcessConnRates {
 
 // IsEnabled returns true if the check is enabled by configuration
 func (p *ProcessCheck) IsEnabled() bool {
-	if util.GetRunInCoreAgentConfig(p.config) && flavor.GetFlavor() == flavor.ProcessAgent {
+	if p.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
 		return false
 	}
 

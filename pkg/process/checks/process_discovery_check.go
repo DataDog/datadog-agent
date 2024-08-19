@@ -16,7 +16,6 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 // NewProcessDiscoveryCheck returns an instance of the ProcessDiscoveryCheck.
@@ -56,7 +55,7 @@ func (d *ProcessDiscoveryCheck) Init(syscfg *SysProbeConfig, info *HostInfo, _ b
 
 // IsEnabled returns true if the check is enabled by configuration
 func (d *ProcessDiscoveryCheck) IsEnabled() bool {
-	if util.GetRunInCoreAgentConfig(d.config) && flavor.GetFlavor() == flavor.ProcessAgent {
+	if d.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
 		return false
 	}
 

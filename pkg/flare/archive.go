@@ -30,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	processutil "github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
@@ -62,7 +61,7 @@ func CompleteFlare(fb flaretypes.FlareBuilder, diagnoseDeps diagnose.SuitesDeps)
 		fb.AddFileFromFunc("tagger-list.json", getAgentTaggerList)                      //nolint:errcheck
 		fb.AddFileFromFunc("workload-list.log", getAgentWorkloadList)                   //nolint:errcheck
 		fb.AddFileFromFunc("process-agent_tagger-list.json", getProcessAgentTaggerList) //nolint:errcheck
-		if !processutil.GetRunInCoreAgentConfig(config.Datadog()) {
+		if !config.Datadog().GetBool("process_config.run_in_core_agent.enabled") {
 			getChecksFromProcessAgent(fb, config.GetProcessAPIAddressPort)
 		}
 	}

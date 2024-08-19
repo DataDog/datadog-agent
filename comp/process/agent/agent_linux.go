@@ -89,3 +89,7 @@ func Enabled(config config.Component, checkComponents []types.CheckComponent, l 
 	})
 	return enabled
 }
+
+// OverrideRunInCoreAgentConfig sets the process_config.run_in_core_agent.enabled to false on unsupported environments.
+func OverrideRunInCoreAgentConfig(_ config.Component) {
+}
