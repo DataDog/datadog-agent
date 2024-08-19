@@ -18,7 +18,7 @@ func Test_serviceDetector(t *testing.T) {
 	pInfo := processInfo{
 		PID:     100,
 		CmdLine: []string{"my-service.py"},
-		Env:     []string{"PATH=testdata/test-bin", "DD_INJECTION_ENABLED=tracer"},
+		Env:     map[string]string{"PATH": "testdata/test-bin", "DD_INJECTION_ENABLED": "tracer"},
 		Stat:    procStat{},
 		Ports:   []uint16{5432},
 	}

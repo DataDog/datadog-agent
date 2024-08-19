@@ -8,6 +8,7 @@
 package python
 
 import (
+	"errors"
 	"expvar"
 	"fmt"
 	"os"
@@ -258,7 +259,7 @@ func addExpvarPythonInitErrors(msg string) error {
 	defer pyInitLock.Unlock()
 
 	pyInitErrors = append(pyInitErrors, msg)
-	return fmt.Errorf(msg)
+	return errors.New(msg)
 }
 
 func sendTelemetry(pythonVersion string) {

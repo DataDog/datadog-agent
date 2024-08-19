@@ -46,7 +46,7 @@ type procStat struct {
 type processInfo struct {
 	PID     int
 	CmdLine []string
-	Env     []string
+	Env     map[string]string
 	Stat    procStat
 	Ports   []uint16
 }

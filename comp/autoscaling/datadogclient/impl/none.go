@@ -7,8 +7,9 @@
 package datadogclientimpl
 
 import (
-	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	"gopkg.in/zorkian/go-datadog-api.v2"
+
+	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 )
 
 // ImplNone is a noop datadogclient implementation
@@ -22,7 +23,7 @@ func NewNone() datadogclient.Component {
 }
 
 // QueryMetrics does nothing for the noop datadogclient implementation
-func (d *ImplNone) QueryMetrics(from, to int64, query string) ([]datadog.Series, error) {
+func (d *ImplNone) QueryMetrics(_, _ int64, _ string) ([]datadog.Series, error) {
 	// noop
 	return nil, nil
 }

@@ -134,7 +134,7 @@ type libInfo struct {
 	image   string
 }
 
-func (i libInfo) podMutator(v version, ics []containerMutator, ms []podMutator) podMutator {
+func (i libInfo) podMutator(v version, opts libRequirementOptions) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
 		reqs, ok := i.libRequirement(v)
 		if !ok {
@@ -144,17 +144,10 @@ func (i libInfo) podMutator(v version, ics []containerMutator, ms []podMutator) 
 			)
 		}
 
-		// set the initContainerMutators on the requirements
-		reqs.initContainerMutators = ics
+		reqs.libRequirementOptions = opts
 
 		if err := reqs.injectPod(pod, i.ctrName); err != nil {
 			return err
-		}
-
-		for _, m := range ms {
-			if err := m.mutatePod(pod); err != nil {
-				return err
-			}
 		}
 
 		return nil

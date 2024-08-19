@@ -590,7 +590,6 @@ workflow:
 .except_deploy:
   - <<: *if_deploy
     when: never
-  - when: on_success
 
 .except_no_tests_no_deploy:
   - if: $DEPLOY_AGENT == "false" && $DDR_WORKFLOW_ID == null && $RUN_E2E_TESTS == "off"
