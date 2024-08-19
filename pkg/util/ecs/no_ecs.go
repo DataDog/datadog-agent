@@ -12,7 +12,14 @@ import (
 	"context"
 )
 
-// GetECSAgentVersion fetches the ECS Agent Version if running in ECS
-func GetECSAgentVersion(_ context.Context) string {
-	return ""
+type MetaECS struct{}
+
+// NewECSMeta returns an ECSConfig object
+func NewECSMeta(ctx context.Context) (*MetaECS, error) {
+	return nil, nil
+}
+
+// GetECSInstanceMetadata fetches the ECS Instance metadata if running in ECS
+func GetECSInstanceMetadata(ctx context.Context) (string, string, error) {
+	return "", "", nil
 }

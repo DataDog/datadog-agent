@@ -17,15 +17,36 @@ import (
 var metaV1 v1.Client
 var err error
 
-// GetECSAgentVersion fetches the ECS Agent Version if running in ECS
-func GetECSAgentVersion(ctx context.Context) string {
+type MetaECS struct {
+	ECSCluster      string
+	ECSAgentVersion string
+}
+
+// NewECSMeta returns an ECSConfig object
+func NewECSMeta(ctx context.Context) (*MetaECS, error) {
+	cluster, version, err := GetECSInstanceMetadata(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	ecsMeta := MetaECS{
+		ECSCluster:      cluster,
+		ECSAgentVersion: version,
+	}
+	return &ecsMeta, nil
+}
+
+// GetECSInstanceMetadata fetches the ECS Instance metadata if running in ECS
+func GetECSInstanceMetadata(ctx context.Context) (string, string, error) {
 	metaV1, err = metadata.V1()
 	if err != nil {
-		return ""
+		return "", "", err
 	}
+
 	ecsInstance, err := metaV1.GetInstance(ctx)
 	if err != nil {
-		return ""
+		return "", "", err
 	}
-	return ecsInstance.Version
+
+	return ecsInstance.Cluster, ecsInstance.Version, err
 }

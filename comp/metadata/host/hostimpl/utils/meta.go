@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
 )
@@ -26,16 +25,15 @@ var (
 
 // Meta is the metadata nested under the meta key
 type Meta struct {
-	SocketHostname  string   `json:"socket-hostname"`
-	Timezones       []string `json:"timezones"`
-	SocketFqdn      string   `json:"socket-fqdn"`
-	EC2Hostname     string   `json:"ec2-hostname"`
-	ECSAgentVersion string   `json:"ecs-agent-version"`
-	Hostname        string   `json:"hostname"`
-	HostAliases     []string `json:"host_aliases"`
-	InstanceID      string   `json:"instance-id"`
-	AgentHostname   string   `json:"agent-hostname,omitempty"`
-	ClusterName     string   `json:"cluster-name,omitempty"`
+	SocketHostname string   `json:"socket-hostname"`
+	Timezones      []string `json:"timezones"`
+	SocketFqdn     string   `json:"socket-fqdn"`
+	EC2Hostname    string   `json:"ec2-hostname"`
+	Hostname       string   `json:"hostname"`
+	HostAliases    []string `json:"host_aliases"`
+	InstanceID     string   `json:"instance-id"`
+	AgentHostname  string   `json:"agent-hostname,omitempty"`
+	ClusterName    string   `json:"cluster-name,omitempty"`
 }
 
 // GetMetaFromCache returns the metadata information about the host from the cache and returns it, if the cache is
@@ -65,14 +63,13 @@ func GetMeta(ctx context.Context, conf config.Reader) *Meta {
 	}
 
 	m := &Meta{
-		SocketHostname:  osHostname,
-		Timezones:       []string{tzname},
-		SocketFqdn:      util.Fqdn(osHostname),
-		EC2Hostname:     ec2Hostname,
-		ECSAgentVersion: ecs.GetECSAgentVersion(ctx),
-		HostAliases:     cloudproviders.GetHostAliases(ctx),
-		InstanceID:      instanceID,
-		AgentHostname:   agentHostname,
+		SocketHostname: osHostname,
+		Timezones:      []string{tzname},
+		SocketFqdn:     util.Fqdn(osHostname),
+		EC2Hostname:    ec2Hostname,
+		HostAliases:    cloudproviders.GetHostAliases(ctx),
+		InstanceID:     instanceID,
+		AgentHostname:  agentHostname,
 	}
 
 	if finalClusterName := kubelet.GetMetaClusterNameText(ctx, osHostname); finalClusterName != "" {
