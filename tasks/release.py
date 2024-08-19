@@ -48,9 +48,9 @@ from tasks.libs.releasing.json import (
     UNFREEZE_REPO_AGENT,
     UNFREEZE_REPOS,
     _get_release_json_value,
-    _load_release_json,
     _save_release_json,
     generate_repo_data,
+    load_release_json,
     set_new_release_branch,
     update_release_json,
 )
@@ -522,7 +522,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
 
 @task(help={'key': "Path to an existing release.json key, separated with double colons, eg. 'last_stable::6'"})
 def set_release_json(_, key, value):
-    release_json = _load_release_json()
+    release_json = load_release_json()
     path = key.split('::')
     current_node = release_json
     for key_idx in range(len(path)):
@@ -623,7 +623,7 @@ def create_release_branches(ctx, base_directory="~/dd", major_versions="6,7", up
         # Step 2.0 - Create milestone update
         milestone_branch = f"release_milestone-{int(time.time())}"
         ctx.run(f"git switch -c {milestone_branch}")
-        rj = _load_release_json()
+        rj = load_release_json()
         rj["current_milestone"] = f"{next}"
         _save_release_json(rj)
         # Commit release.json
@@ -714,7 +714,7 @@ def _update_last_stable(_, version, major_versions="7"):
     """
     Updates the last_release field(s) of release.json
     """
-    release_json = _load_release_json()
+    release_json = load_release_json()
     list_major_versions = parse_major_versions(major_versions)
     # If the release isn't a RC, update the last stable release field
     for major in list_major_versions:
