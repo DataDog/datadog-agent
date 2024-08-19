@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package impl implements the lsof component interface
+// Package lsofimpl implements the lsof component interface
 package lsofimpl
 
 import (
@@ -32,7 +32,7 @@ func fillFlare(fb flaretypes.FlareBuilder) error {
 
 	files, err := lsof.ListOpenFilesFromSelf(context.Background())
 	if err != nil {
-		fb.Logf("could not list agent open files: %v", err)
+		_ = fb.Logf("could not list agent open files: %v", err)
 		if errors.Is(err, lsof.ErrNotImplemented) {
 			return nil
 		}
@@ -43,7 +43,7 @@ func fillFlare(fb flaretypes.FlareBuilder) error {
 }
 
 // NewComponent creates a new lsof component
-func NewComponent(reqs Requires) (Provides, error) {
+func NewComponent(Requires) (Provides, error) {
 	provides := Provides{
 		FlareProvider: flaretypes.NewProvider(fillFlare),
 	}

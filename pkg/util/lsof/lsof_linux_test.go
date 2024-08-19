@@ -48,10 +48,10 @@ func TestMmapMetadata(t *testing.T) {
 		procPath: "testdata",
 		proc:     proc,
 
-		readlink: func(path string) (string, error) {
+		readlink: func(string) (string, error) {
 			return "/some/file", nil
 		},
-		lstat: func(path string) (os.FileInfo, error) {
+		lstat: func(string) (os.FileInfo, error) {
 			return &mockFileInfo{
 				mode: os.ModeSymlink | 0500,
 				name: "10",
@@ -147,7 +147,7 @@ func TestFdMetadata(t *testing.T) {
 				sys:  &syscall.Stat_t{Ino: 123},
 			}, nil
 		},
-		stat: func(path string) (os.FileInfo, error) {
+		stat: func(string) (os.FileInfo, error) {
 			return &mockFileInfo{
 				mode: 0400,
 				name: "file",
@@ -155,7 +155,7 @@ func TestFdMetadata(t *testing.T) {
 				sys:  &syscall.Stat_t{Ino: 456},
 			}, nil
 		},
-		readlink: func(path string) (string, error) {
+		readlink: func(string) (string, error) {
 			return "/some/file", nil
 		},
 		socketInfo: map[uint64]socketInfo{},
@@ -208,7 +208,7 @@ func TestFDStat(t *testing.T) {
 		{
 			"success socket",
 			3,
-			func(path string) (os.FileInfo, error) {
+			func(string) (os.FileInfo, error) {
 				return &mockFileInfo{
 					mode: os.ModeSymlink | 0700,
 					name: "3",
@@ -216,7 +216,7 @@ func TestFDStat(t *testing.T) {
 					sys:  &syscall.Stat_t{Ino: 123},
 				}, nil
 			},
-			func(path string) (os.FileInfo, error) {
+			func(string) (os.FileInfo, error) {
 				return &mockFileInfo{
 					mode: os.ModeSocket | 0600,
 					name: "socket[456]",
@@ -224,7 +224,7 @@ func TestFDStat(t *testing.T) {
 					sys:  &syscall.Stat_t{Ino: 456},
 				}, nil
 			},
-			func(path string) (string, error) {
+			func(string) (string, error) {
 				return "socket", nil
 			},
 			map[uint64]socketInfo{
@@ -242,7 +242,7 @@ func TestFDStat(t *testing.T) {
 		{
 			"success regular",
 			4,
-			func(path string) (os.FileInfo, error) {
+			func(string) (os.FileInfo, error) {
 				return &mockFileInfo{
 					mode: os.ModeSymlink | 0500,
 					name: "4",
@@ -250,7 +250,7 @@ func TestFDStat(t *testing.T) {
 					sys:  &syscall.Stat_t{Ino: 124},
 				}, nil
 			},
-			func(path string) (os.FileInfo, error) {
+			func(string) (os.FileInfo, error) {
 				return &mockFileInfo{
 					mode: 0400,
 					name: "filename",
@@ -258,7 +258,7 @@ func TestFDStat(t *testing.T) {
 					sys:  &syscall.Stat_t{Ino: 789},
 				}, nil
 			},
-			func(path string) (string, error) {
+			func(string) (string, error) {
 				return "/some/filename", nil
 			},
 			map[uint64]socketInfo{},
@@ -274,10 +274,10 @@ func TestFDStat(t *testing.T) {
 		{
 			"error lstat",
 			5,
-			func(path string) (os.FileInfo, error) {
+			func(string) (os.FileInfo, error) {
 				return nil, errors.New("some error")
 			},
-			func(s string) (os.FileInfo, error) {
+			func(string) (os.FileInfo, error) {
 				return &mockFileInfo{
 					mode: os.ModeSymlink | 0500,
 					name: "4",
@@ -285,7 +285,7 @@ func TestFDStat(t *testing.T) {
 					sys:  &syscall.Stat_t{Ino: 124},
 				}, nil
 			},
-			func(path string) (string, error) {
+			func(string) (string, error) {
 				return "/some/filename", nil
 			},
 			map[uint64]socketInfo{},
@@ -294,7 +294,7 @@ func TestFDStat(t *testing.T) {
 		{
 			"error stat",
 			6,
-			func(path string) (os.FileInfo, error) {
+			func(string) (os.FileInfo, error) {
 				return &mockFileInfo{
 					mode: os.ModeSymlink | 0500,
 					name: "6",
@@ -302,10 +302,10 @@ func TestFDStat(t *testing.T) {
 					sys:  &syscall.Stat_t{Ino: 126},
 				}, nil
 			},
-			func(s string) (os.FileInfo, error) {
+			func(string) (os.FileInfo, error) {
 				return nil, errors.New("some error")
 			},
-			func(path string) (string, error) {
+			func(string) (string, error) {
 				return "/some/filename", nil
 			},
 			map[uint64]socketInfo{},
@@ -314,7 +314,7 @@ func TestFDStat(t *testing.T) {
 		{
 			"error readlink",
 			7,
-			func(path string) (os.FileInfo, error) {
+			func(string) (os.FileInfo, error) {
 				return &mockFileInfo{
 					mode: os.ModeSymlink | 0500,
 					name: "7",
@@ -322,7 +322,7 @@ func TestFDStat(t *testing.T) {
 					sys:  &syscall.Stat_t{Ino: 127},
 				}, nil
 			},
-			func(s string) (os.FileInfo, error) {
+			func(string) (os.FileInfo, error) {
 				return &mockFileInfo{
 					mode: 0400,
 					name: "filename",
@@ -330,7 +330,7 @@ func TestFDStat(t *testing.T) {
 					sys:  &syscall.Stat_t{Ino: 789},
 				}, nil
 			},
-			func(path string) (string, error) {
+			func(string) (string, error) {
 				return "", errors.New("some error")
 			},
 			map[uint64]socketInfo{},
@@ -584,7 +584,7 @@ func TestFileStats(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			stat := func(path string) (os.FileInfo, error) {
+			stat := func(string) (os.FileInfo, error) {
 				fi := &mockFileInfo{
 					modTime: time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC),
 					mode:    tc.fileType | tc.filePerm,
@@ -607,7 +607,7 @@ func TestFileStats(t *testing.T) {
 }
 
 func TestFileStatsErr(t *testing.T) {
-	stat := func(path string) (os.FileInfo, error) {
+	stat := func(string) (os.FileInfo, error) {
 		return nil, errors.New("some error")
 	}
 	ty, _, _, _ := fileStats(stat, "/some/path")
@@ -615,7 +615,7 @@ func TestFileStatsErr(t *testing.T) {
 }
 
 func TestFileStatsNoSys(t *testing.T) {
-	stat := func(path string) (os.FileInfo, error) {
+	stat := func(string) (os.FileInfo, error) {
 		return &mockFileInfo{}, nil
 	}
 
