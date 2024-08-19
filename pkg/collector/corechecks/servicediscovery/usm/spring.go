@@ -82,8 +82,8 @@ func (y *environmentSource) Get(key string) (string, bool) {
 func (y *environmentSource) GetDefault(key string, defVal string) string {
 	return y.m.GetDefault(strings.Map(normalizeEnv, key), defVal)
 }
-func newEnvironmentSource(envs []string) props.PropertyGetter {
-	return &environmentSource{m: newArgumentSource(envs, "")}
+func newEnvironmentSource(envs map[string]string) props.PropertyGetter {
+	return &environmentSource{m: &mapSource{m: envs}}
 }
 
 // normalizeEnv converts a rune into a suitable replacement for an environment variable name.

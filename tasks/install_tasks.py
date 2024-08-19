@@ -1,5 +1,6 @@
-import os.path as ospath
+import os
 import platform
+import shutil
 import sys
 import zipfile
 from pathlib import Path
@@ -9,7 +10,7 @@ from invoke import Context, Exit, task
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.retry import run_command_with_retry
-from tasks.libs.common.utils import environ, gitlab_section
+from tasks.libs.common.utils import bin_name, environ, gitlab_section
 
 TOOL_LIST = [
     'github.com/frapposelli/wwhrd',
@@ -45,7 +46,7 @@ def download_tools(ctx):
 
 
 @task
-def install_tools(ctx: Context, max_retry: int = 3):
+def install_tools(ctx: Context, max_retry: int = 3, custom_golangci_lint=True):
     """Install all Go tools for testing."""
     with gitlab_section("Installing Go tools", collapsed=True):
         with environ({'GO111MODULE': 'on'}):
@@ -53,6 +54,34 @@ def install_tools(ctx: Context, max_retry: int = 3):
                 with ctx.cd(path):
                     for tool in tools:
                         run_command_with_retry(ctx, f"go install {tool}", max_retry=max_retry)
+        if custom_golangci_lint:
+            install_custom_golanci_lint(ctx)
+
+
+def install_custom_golanci_lint(ctx):
+    res = ctx.run("golangci-lint custom -v")
+    if res.ok:
+        gopath = os.getenv('GOPATH')
+        gobin = os.getenv('GOBIN')
+
+        golintci_binary = bin_name('golangci-lint')
+        golintci_lint_backup_binary = bin_name('golangci-lint-backup')
+
+        if gopath is None and gobin is None:
+            print("Not able to install custom golangci-lint binary. golangci-lint won't work as expected")
+            raise Exit(code=1)
+
+        if gobin is not None and gopath is None:
+            shutil.move(os.path.join(gobin, golintci_binary), os.path.join(gobin, golintci_lint_backup_binary))
+            shutil.move(golintci_binary, os.path.join(gobin, golintci_binary))
+
+        if gopath is not None:
+            shutil.move(
+                os.path.join(gopath, "bin", golintci_binary), os.path.join(gopath, "bin", golintci_lint_backup_binary)
+            )
+            shutil.move(golintci_binary, os.path.join(gopath, "bin", golintci_binary))
+
+        print("Installed custom golangci-lint binary successfully")
 
 
 @task
@@ -95,21 +124,21 @@ def install_protoc(ctx, version="26.1"):
     platform_arch = platform.machine().lower()
     if platform_arch == "amd64":
         platform_arch = "x86_64"
-    elif platform_arch == "aarch64":
+    elif platform_arch in {"aarch64", "arm64"}:
         platform_arch = "aarch_64"
 
     # Download the artifact thanks to the Github API class
     artifact_url = f"https://github.com/protocolbuffers/protobuf/releases/download/v{version}/protoc-{version}-{platform_os}-{platform_arch}.zip"
     zip_path = "/tmp"
     zip_name = "protoc"
-    zip_file = ospath.join(zip_path, f"{zip_name}.zip")
+    zip_file = os.path.join(zip_path, f"{zip_name}.zip")
 
     gh = GithubAPI(public_repo=True)
     # the download_from_url expect to have the path and the name of the file separated and without the extension
     gh.download_from_url(artifact_url, zip_path, zip_name)
 
     # Unzip it in the target destination
-    destination = ospath.join(Path.home(), ".local")
+    destination = os.path.join(Path.home(), ".local")
     with zipfile.ZipFile(zip_file, "r") as zip_ref:
         zip_ref.extract('bin/protoc', path=destination)
     ctx.run(f"chmod +x {destination}/bin/protoc")

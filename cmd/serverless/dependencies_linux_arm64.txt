@@ -82,6 +82,7 @@ github.com/DataDog/datadog-agent/comp/core/tagger/types
 github.com/DataDog/datadog-agent/comp/core/tagger/utils
 github.com/DataDog/datadog-agent/comp/core/telemetry
 github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl
+github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util
 github.com/DataDog/datadog-agent/comp/core/workloadmeta/def
 github.com/DataDog/datadog-agent/comp/def
 github.com/DataDog/datadog-agent/comp/dogstatsd/constants
@@ -159,6 +160,7 @@ github.com/DataDog/datadog-agent/pkg/logs/internal/framer
 github.com/DataDog/datadog-agent/pkg/logs/internal/parsers
 github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerfile
 github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/encodedtext
+github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/integrations
 github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/kubernetes
 github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop
 github.com/DataDog/datadog-agent/pkg/logs/internal/tag

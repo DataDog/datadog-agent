@@ -83,7 +83,7 @@ func runCheckHandler(collector collector.Component, ac autodiscovery.Component) 
 		for _, ch := range instances {
 			collector.RunCheck(ch) //nolint:errcheck
 		}
-		log.Infof("Scheduled new check: " + name)
+		log.Infof("Scheduled new check: %s", name)
 	}
 }
 
@@ -156,14 +156,14 @@ func reloadCheckHandler(collector collector.Component, ac autodiscovery.Componen
 		name := html.EscapeString(mux.Vars(r)["name"])
 		instances := pkgcollector.GetChecksByNameForConfigs(name, ac.GetAllConfigs())
 		if len(instances) == 0 {
-			log.Errorf("Can't reload " + name + ": check has no new instances.")
+			log.Errorf("Can't reload %s: check has no new instances.", name)
 			w.Write([]byte("Can't reload " + name + ": check has no new instances"))
 			return
 		}
 
 		killed, e := collector.ReloadAllCheckInstances(name, instances)
 		if e != nil {
-			log.Errorf("Error reloading check: " + e.Error())
+			log.Errorf("Error reloading check: %s", e.Error())
 			w.Write([]byte("Error reloading check: " + e.Error()))
 			return
 		}
@@ -309,7 +309,7 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		log.Infof("Successfully wrote new " + fileName + " config file.")
+		log.Infof("Successfully wrote new %s  config file.", fileName)
 		w.Write([]byte("Success"))
 	} else if r.Method == "DELETE" {
 		// Attempt to write new configs to custom checks directory
@@ -336,7 +336,7 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		log.Infof("Successfully disabled integration " + fileName + " config file.")
+		log.Infof("Successfully disabled integration %s config file.", fileName)
 		w.Write([]byte("Success"))
 	}
 }

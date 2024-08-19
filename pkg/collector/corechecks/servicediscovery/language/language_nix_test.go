@@ -90,7 +90,7 @@ func TestFinder_findLang(t *testing.T) {
 			name: "dotnet binary",
 			pi: ProcessInfo{
 				Args: strings.Split("testdata/dotnet/linuxdotnettest a b c", " "),
-				Envs: []string{"PATH=/usr/bin"},
+				Envs: map[string]string{"PATH": "/usr/bin"},
 			},
 			lang: DotNet,
 		},
@@ -98,7 +98,7 @@ func TestFinder_findLang(t *testing.T) {
 			name: "dotnet",
 			pi: ProcessInfo{
 				Args: strings.Split("dotnet run mydll.dll a b c", " "),
-				Envs: []string{"PATH=/usr/bin"},
+				Envs: map[string]string{"PATH": "/usr/bin"},
 			},
 			lang: DotNet,
 		},
@@ -106,7 +106,7 @@ func TestFinder_findLang(t *testing.T) {
 			name: "native",
 			pi: ProcessInfo{
 				Args: strings.Split("./myproc a b c", " "),
-				Envs: []string{"PATH=/usr/bin"},
+				Envs: map[string]string{"PATH": "/usr/bin"},
 			},
 			lang: "",
 		},
@@ -132,43 +132,43 @@ func TestProcessInfoFileReader(t *testing.T) {
 	data := []struct {
 		name    string
 		args    []string
-		envs    []string
+		envs    map[string]string
 		success bool
 	}{
 		{
 			name:    "full",
 			args:    []string{fullPath},
-			envs:    []string{"PATH=" + tempDir},
+			envs:    map[string]string{"PATH": tempDir},
 			success: true,
 		},
 		{
 			name:    "full_missing",
 			args:    []string{tempDir + "/" + "not_my_file"},
-			envs:    []string{"PATH=" + tempDir},
+			envs:    map[string]string{"PATH": tempDir},
 			success: false,
 		},
 		{
 			name:    "relative_in_path",
 			args:    []string{"my_file"},
-			envs:    []string{"PATH=" + tempDir},
+			envs:    map[string]string{"PATH": tempDir},
 			success: true,
 		},
 		{
 			name:    "relative_in_path_missing",
 			args:    []string{"not_my_file"},
-			envs:    []string{"PATH=" + tempDir},
+			envs:    map[string]string{"PATH": tempDir},
 			success: false,
 		},
 		{
 			name:    "relative_not_in_path",
 			args:    []string{"testdata/dotnet/linuxdotnettest"},
-			envs:    []string{"PATH=" + tempDir},
+			envs:    map[string]string{"PATH": tempDir},
 			success: true,
 		},
 		{
 			name:    "relative_not_in_path_missing",
 			args:    []string{"testdata/dotnet/not_my_file"},
-			envs:    []string{"PATH=" + tempDir},
+			envs:    map[string]string{"PATH": tempDir},
 			success: false,
 		},
 	}
@@ -194,28 +194,28 @@ func TestFinderDetect(t *testing.T) {
 	data := []struct {
 		name string
 		args []string
-		envs []string
+		envs map[string]string
 		lang Language
 		ok   bool
 	}{
 		{
 			name: "dotnet binary",
 			args: strings.Split("testdata/dotnet/linuxdotnettest a b c", " "),
-			envs: []string{"PATH=/usr/bin"},
+			envs: map[string]string{"PATH": "/usr/bin"},
 			lang: DotNet,
 			ok:   true,
 		},
 		{
 			name: "dotnet",
 			args: strings.Split("dotnet run mydll.dll a b c", " "),
-			envs: []string{"PATH=/usr/bin"},
+			envs: map[string]string{"PATH": "/usr/bin"},
 			lang: DotNet,
 			ok:   true,
 		},
 		{
 			name: "native",
 			args: strings.Split("./myproc a b c", " "),
-			envs: []string{"PATH=/usr/bin"},
+			envs: map[string]string{"PATH": "/usr/bin"},
 			lang: Unknown,
 			ok:   false,
 		},
