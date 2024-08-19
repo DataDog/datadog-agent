@@ -28,7 +28,7 @@ On Linux, depending on the distribution, you might need to explicitly install
 the development files, for example on Ubuntu:
 ```
 sudo apt-get install python2.7-dev
-sudo apt-get install 3.12-dev
+sudo apt-get install python3.12-dev
 ```
 
 On Windows, install Python 2.7 and/or 3.12 via the [official installer](https://www.python.org/downloads/).
@@ -118,7 +118,7 @@ sure to work is `virtualenv`.**
 If using virtual environments when running the built Agent, you may need to override the built Agent's search path for Python check packages using the `PYTHONPATH` variable (your target path must have the [pre-requisite core integration packages installed](https://datadoghq.dev/integrations-core/setup/) though).
 
 ```sh
-PYTHONPATH="./venv/lib/3.12/site-packages:$PYTHONPATH" ./agent run ...
+PYTHONPATH="./venv/lib/python3.12/site-packages:$PYTHONPATH" ./agent run ...
 ```
 
 See also some notes in [./checks](https://github.com/DataDog/datadog-agent/tree/main/docs/dev/checks) about running custom python checks.
