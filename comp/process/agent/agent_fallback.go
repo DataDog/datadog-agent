@@ -21,7 +21,7 @@ func Enabled(_ config.Component, _ []types.CheckComponent, _ log.Component) bool
 	return flavor.GetFlavor() == flavor.ProcessAgent
 }
 
-// OverrideRunInCoreAgentConfig sets the process_config.run_in_core_agent.enabled to false on unsupported environments.
+// OverrideRunInCoreAgentConfig sets the process_config.run_in_core_agent.enabled to false in unsupported environments.
 func OverrideRunInCoreAgentConfig(config config.Component) {
 	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 }
