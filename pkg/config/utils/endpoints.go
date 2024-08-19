@@ -97,8 +97,6 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (map[string][]string, error) 
 		},
 	}
 
-	log.Infof("Domain: %v will use API key: %v", ddURL, c.GetString("api_key")[:6])
-
 	additionalEndpoints := c.GetStringMapStringSlice("additional_endpoints")
 
 	// populate with MRF endpoints too
