@@ -96,8 +96,6 @@ def setup(
                 "go.lintFlags": [
                     "--build-tags",
                     local_build_tags,
-                    "--config",
-                    f"{AGENT_REPOSITORY_PATH}/.golangci.yml",
                 ],
                 "[go]": {
                     "editor.formatOnSave": True,
