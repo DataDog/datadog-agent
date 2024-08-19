@@ -24,7 +24,7 @@ RUN apt-get update && \
     && rm -rf /var/lib/apt/lists/*
 
 # TEMP: Use github source code
-RUN git clone https://github.com/DataDog/datadog-agent.git datadog-agent-${AGENT_VERSION}
+RUN git clone --depth 1 https://github.com/DataDog/datadog-agent.git datadog-agent-${AGENT_VERSION}
 
 # Once we have stable releases, we can use the following code to download the source code
 # TODO: use released agent version once we have an agent release with the otel binary

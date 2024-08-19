@@ -11,9 +11,9 @@ import (
 	"path"
 	"strings"
 
-	"go.uber.org/zap"
-
 	"github.com/valyala/fastjson"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type nodeDetector struct {
@@ -84,21 +84,17 @@ func (n nodeDetector) maybeExtractServiceName(filename string) (string, bool) {
 		return "", false
 	}
 	if !ok {
-		n.ctx.logger.Debug("skipping package.js because too large", zap.String("filename", filename))
+		log.Debugf("skipping package.js (%q) because too large", filename)
 		return "", true // stops here
 	}
 	bytes, err := io.ReadAll(file)
 	if err != nil {
-		n.ctx.logger.Debug("unable to read a package.js file",
-			zap.String("filename", filename),
-			zap.Error(err))
+		log.Debugf("unable to read a package.js file (%q). Err: %v", filename, err)
 		return "", true
 	}
 	value, err := fastjson.ParseBytes(bytes)
 	if err != nil {
-		n.ctx.logger.Debug("unable to parse a package.js file",
-			zap.String("filename", filename),
-			zap.Error(err))
+		log.Debugf("unable to parse a package.js (%q) file. Err: %v", filename, err)
 		return "", true
 	}
 	return string(value.GetStringBytes("name")), true

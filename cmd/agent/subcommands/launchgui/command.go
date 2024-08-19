@@ -66,9 +66,9 @@ func launchGui(config config.Component, _ *cliParams, _ log.Component) error {
 	// Open the GUI in a browser, passing the authorization tokens as parameters
 	err = open("http://127.0.0.1:" + guiPort + "/auth?intent=" + string(intentToken))
 	if err != nil {
-		return fmt.Errorf("error opening GUI: " + err.Error())
+		return fmt.Errorf("error opening GUI: %s", err.Error())
 	}
 
-	fmt.Printf("GUI opened at 127.0.0.1:" + guiPort + "\n")
+	fmt.Printf("GUI opened at 127.0.0.1:%s\n", guiPort)
 	return nil
 }
