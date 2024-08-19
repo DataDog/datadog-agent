@@ -120,7 +120,7 @@ func (j jbossExtractor) findDeployedApps(domainHome string) ([]jeeDeployment, bo
 		baseDir = path.Join(baseDir, jbossStandaloneBase)
 		sub, err = j.cxt.fs.Sub(baseDir)
 		if err != nil {
-			log.Debug("jboss: cannot open jboss home %q. Err: %v", baseDir, err)
+			log.Debugf("jboss: cannot open jboss home %q. Err: %v", baseDir, err)
 			return nil, false
 		}
 		deployments, err = jbossStandaloneFindDeployments(sub, configFile)
