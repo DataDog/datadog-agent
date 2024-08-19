@@ -66,6 +66,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
+	lsof "github.com/DataDog/datadog-agent/comp/core/lsof/fx"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
@@ -336,6 +337,7 @@ func getSharedFxOption() fx.Option {
 			path.DefaultStreamlogsLogFile,
 		)),
 		flare.Module(),
+		lsof.Module(),
 		core.Bundle(),
 		fx.Supply(dogstatsdServer.Params{
 			Serverless: false,
