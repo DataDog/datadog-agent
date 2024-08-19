@@ -11,7 +11,47 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
+
+func TestInjected(t *testing.T) {
+	data := []struct {
+		name   string
+		envs   map[string]string
+		result bool
+	}{
+		{
+			name: "injected",
+			envs: map[string]string{
+				"DD_INJECTION_ENABLED": "tracer",
+			},
+			result: true,
+		},
+		{
+			name: "one of injected",
+			envs: map[string]string{
+				"DD_INJECTION_ENABLED": "service_name,tracer",
+			},
+			result: true,
+		},
+		{
+			name: "not injected but with env variable",
+			envs: map[string]string{
+				"DD_INJECTION_ENABLED": "service_name",
+			},
+		},
+		{
+			name: "not injected, no env variable",
+		},
+	}
+	for _, d := range data {
+		t.Run(d.name, func(t *testing.T) {
+			result := isInjected(d.envs)
+			assert.Equal(t, d.result, result)
+		})
+	}
+}
 
 func Test_javaDetector(t *testing.T) {
 	data := []struct {

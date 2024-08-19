@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
@@ -313,6 +314,23 @@ func TestInjectedServiceName(t *testing.T) {
 	require.Equal(t, "injected-service-name", portMap[pid].Name)
 }
 
+func TestAPMInstrumentationInjected(t *testing.T) {
+	url := setupDiscoveryModule(t)
+
+	createEnvsMemfd(t, []string{
+		"DD_INJECTION_ENABLED=service_name,tracer",
+	})
+
+	listener, err := net.Listen("tcp", "")
+	require.NoError(t, err)
+	t.Cleanup(func() { listener.Close() })
+
+	pid := os.Getpid()
+	portMap := getServicesMap(t, url)
+	require.Contains(t, portMap, pid)
+	require.Equal(t, string(apm.Injected), portMap[pid].APMInstrumentation)
+}
+
 // Check that we can get listening processes in other namespaces.
 func TestNamespaces(t *testing.T) {
 	url := setupDiscoveryModule(t)
@@ -451,7 +469,7 @@ func TestCache(t *testing.T) {
 
 	for i, cmd := range cmds {
 		pid := int32(cmd.Process.Pid)
-		require.Contains(t, discovery.cache[pid].serviceName, serviceNames[i])
+		require.Contains(t, discovery.cache[pid].name, serviceNames[i])
 	}
 
 	cancel()
