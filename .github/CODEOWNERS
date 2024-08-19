@@ -591,6 +591,7 @@
 /test/new-e2e/tests/agent-shared-components   @DataDog/agent-shared-components
 /test/new-e2e/tests/agent-subcommands         @DataDog/agent-shared-components
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
+/test/new-e2e/tests/discovery                 @DataDog/apm-onboarding @DataDog/universal-service-monitoring
 /test/new-e2e/tests/language-detection        @DataDog/processes
 /test/new-e2e/tests/ndm                       @DataDog/network-device-monitoring
 /test/new-e2e/tests/npm                       @DataDog/Networks
