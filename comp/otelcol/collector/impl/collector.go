@@ -129,8 +129,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	addFactories(reqs, factories)
 
-	converterEnabled := reqs.Config.Get("otelcollector.converter.enabled").(bool)
-
+	converterEnabled := reqs.Config.GetBool("otelcollector.converter.enabled")
 	err = reqs.ConfigStore.AddConfigs(newConfigProviderSettings(reqs, false), newConfigProviderSettings(reqs, converterEnabled), factories)
 	if err != nil {
 		return Provides{}, err
