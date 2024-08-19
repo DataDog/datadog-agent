@@ -82,7 +82,6 @@ func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
 		exit:         make(chan struct{}),
 		keyBuf:       make([]byte, network.ConnectionByteKeyMaxLen),
 		scratchConn:  &network.ConnectionStats{},
-		layers:       &ebpfless.Layers{},
 		udp:          &udpProcessor{},
 		tcp:          newTCPProcessor(),
 		conns:        make(map[string]*network.ConnectionStats, cfg.MaxTrackedConnections),
