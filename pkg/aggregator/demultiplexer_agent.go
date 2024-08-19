@@ -286,9 +286,7 @@ func (d *AgentDemultiplexer) run() {
 func (d *AgentDemultiplexer) flushLoop() {
 	var flushTicker <-chan time.Time
 	if d.options.FlushInterval > 0 {
-		flushT := time.NewTicker(d.options.FlushInterval)
-		defer flushT.Stop()
-		flushTicker = flushT.C
+		flushTicker = time.NewTicker(d.options.FlushInterval).C
 	} else {
 		d.log.Debug("flushInterval set to 0: will never flush automatically")
 	}

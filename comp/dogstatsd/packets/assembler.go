@@ -89,6 +89,5 @@ func (p *Assembler) flush() {
 func (p *Assembler) Close() {
 	p.Lock()
 	close(p.closeChannel)
-	p.flushTimer.Stop()
 	p.Unlock()
 }

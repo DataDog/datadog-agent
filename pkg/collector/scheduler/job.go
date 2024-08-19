@@ -177,7 +177,6 @@ func (jq *jobQueue) process(s *Scheduler) bool {
 	select {
 	case <-jq.stop:
 		jq.health.Deregister() //nolint:errcheck
-		jq.bucketTicker.Stop()
 		return false
 	case t := <-jq.bucketTicker.C:
 		log.Tracef("Bucket ticked... current index: %v", jq.currentBucketIdx)

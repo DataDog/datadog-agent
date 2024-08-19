@@ -90,7 +90,6 @@ func (pb *Buffer) flush() {
 // Close closes the packet buffer
 func (pb *Buffer) Close() {
 	close(pb.closeChannel)
-	pb.flushTimer.Stop()
 	if pb.listenerID != "" {
 		pb.telemetryStore.tlmBufferSize.Delete(pb.listenerID)
 		pb.telemetryStore.tlmChannelSize.Delete(pb.listenerID)
