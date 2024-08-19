@@ -16,10 +16,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"go.uber.org/zap"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language/reader"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Instrumentation represents the state of APM instrumentation for a service.
@@ -34,7 +33,7 @@ const (
 	Injected Instrumentation = "injected"
 )
 
-type detector func(logger *zap.Logger, args []string, envs map[string]string) Instrumentation
+type detector func(args []string, envs map[string]string) Instrumentation
 
 var (
 	detectorMap = map[language.Language]detector{
@@ -47,7 +46,7 @@ var (
 )
 
 // Detect attempts to detect the type of APM instrumentation for the given service.
-func Detect(logger *zap.Logger, args []string, envs map[string]string, lang language.Language) Instrumentation {
+func Detect(args []string, envs map[string]string, lang language.Language) Instrumentation {
 	// first check to see if the DD_INJECTION_ENABLED is set to tracer
 	if isInjected(envs) {
 		return Injected
@@ -55,7 +54,7 @@ func Detect(logger *zap.Logger, args []string, envs map[string]string, lang lang
 
 	// different detection for provided instrumentation for each
 	if detect, ok := detectorMap[lang]; ok {
-		return detect(logger, args, envs)
+		return detect(args, envs)
 	}
 
 	return None
@@ -73,11 +72,11 @@ func isInjected(envs map[string]string) bool {
 	return false
 }
 
-func rubyDetector(_ *zap.Logger, _ []string, _ map[string]string) Instrumentation {
+func rubyDetector(_ []string, _ map[string]string) Instrumentation {
 	return None
 }
 
-func pythonDetector(logger *zap.Logger, args []string, envs map[string]string) Instrumentation {
+func pythonDetector(args []string, envs map[string]string) Instrumentation {
 	/*
 		Check for VIRTUAL_ENV env var
 			if it's there, use $VIRTUAL_ENV/lib/python{}/site-packages/ and see if ddtrace is inside
@@ -110,13 +109,12 @@ func pythonDetector(logger *zap.Logger, args []string, envs map[string]string) I
 	// slow option...
 	results, err := exec.Command(args[0], `-c`, `"import sys; print(':'.join(sys.path))"`).Output()
 	if err != nil {
-		logger.Warn("Failed to execute command", zap.Error(err))
+		log.Warn("Failed to execute command", err)
 		return None
 	}
 
 	results = bytes.TrimSpace(results)
 	parts := strings.Split(string(results), ":")
-	logger.Debug("parts", zap.Strings("parts", parts))
 	for _, v := range parts {
 		if strings.HasSuffix(v, "/site-packages") {
 			_, err := os.Stat(v + "/ddtrace")
@@ -128,7 +126,7 @@ func pythonDetector(logger *zap.Logger, args []string, envs map[string]string) I
 	return None
 }
 
-func nodeDetector(logger *zap.Logger, _ []string, envs map[string]string) Instrumentation {
+func nodeDetector(_ []string, envs map[string]string) Instrumentation {
 	// check package.json, see if it has dd-trace in it.
 	// first find it
 	wd := ""
@@ -137,7 +135,7 @@ func nodeDetector(logger *zap.Logger, _ []string, envs map[string]string) Instru
 	}
 	if wd == "" {
 		// don't know the working directory, just quit
-		logger.Debug("unable to determine working directory, assuming uninstrumented")
+		log.Debug("unable to determine working directory, assuming uninstrumented")
 		return None
 	}
 
@@ -150,15 +148,15 @@ func nodeDetector(logger *zap.Logger, _ []string, envs map[string]string) Instru
 		// this error means the file isn't there, so check parent directory
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
-				logger.Debug("package.json not found", zap.String("path", curPkgJSON))
+				log.Debug("package.json not found", curPkgJSON)
 			} else {
-				logger.Debug("error opening package.json", zap.String("path", curPkgJSON), zap.Error(err))
+				log.Debug("error opening package.json", curPkgJSON, err)
 			}
 			continue
 		}
 		offset, err := reader.Index(f, `"dd-trace"`)
 		if err != nil {
-			logger.Debug("error reading package.json", zap.String("path", curPkgJSON), zap.Error(err))
+			log.Debug("error reading package.json", curPkgJSON, err)
 			_ = f.Close()
 			continue
 		}
@@ -173,7 +171,7 @@ func nodeDetector(logger *zap.Logger, _ []string, envs map[string]string) Instru
 	return None
 }
 
-func javaDetector(_ *zap.Logger, args []string, envs map[string]string) Instrumentation {
+func javaDetector(args []string, envs map[string]string) Instrumentation {
 	ignoreArgs := map[string]bool{
 		"-version":     true,
 		"-Xshare:dump": true,
@@ -222,7 +220,7 @@ func findFile(fileName string) (io.ReadCloser, bool) {
 
 const datadogDotNetInstrumented = "Datadog.Trace.ClrProfiler.Native"
 
-func dotNetDetector(_ *zap.Logger, args []string, envs map[string]string) Instrumentation {
+func dotNetDetector(args []string, envs map[string]string) Instrumentation {
 	// if it's just the word `dotnet` by itself, don't instrument
 	if len(args) == 1 && args[0] == "dotnet" {
 		return None

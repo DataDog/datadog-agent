@@ -11,8 +11,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-
-	"go.uber.org/zap"
 )
 
 func Test_javaDetector(t *testing.T) {
@@ -35,7 +33,7 @@ func Test_javaDetector(t *testing.T) {
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := javaDetector(zap.NewNop(), d.args, d.envs)
+			result := javaDetector(d.args, d.envs)
 			if result != d.result {
 				t.Errorf("expected %s got %s", d.result, result)
 			}
@@ -85,7 +83,7 @@ func Test_pythonDetector(t *testing.T) {
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := pythonDetector(zap.NewNop(), d.args, d.envs)
+			result := pythonDetector(d.args, d.envs)
 			if result != d.result {
 				t.Errorf("expected %s got %s", d.result, result)
 			}

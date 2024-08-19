@@ -11,16 +11,10 @@ import (
 	"os"
 	"strings"
 	"testing"
-
-	"go.uber.org/zap"
 )
 
 func TestNew(t *testing.T) {
-	f := New(zap.NewNop())
-	// make sure all alternatives are registered
-	if f.Logger == nil {
-		t.Error("Logger is nil")
-	}
+	f := New()
 	count := 0
 	for _, v := range f.Matchers {
 		switch v.(type) {
@@ -80,7 +74,7 @@ func Test_findInArgs(t *testing.T) {
 }
 
 func TestFinder_findLang(t *testing.T) {
-	f := New(zap.NewNop())
+	f := New()
 	data := []struct {
 		name string
 		pi   ProcessInfo
@@ -190,7 +184,7 @@ func TestProcessInfoFileReader(t *testing.T) {
 }
 
 func TestFinderDetect(t *testing.T) {
-	f := New(zap.NewNop())
+	f := New()
 	data := []struct {
 		name string
 		args []string

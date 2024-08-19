@@ -13,8 +13,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"go.uber.org/zap"
 )
 
 const (
@@ -495,7 +493,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			meta, ok := ExtractServiceMetadata(zap.NewNop(), tt.cmdline, tt.envs)
+			meta, ok := ExtractServiceMetadata(tt.cmdline, tt.envs)
 			if len(tt.expectedServiceTag) == 0 {
 				require.False(t, ok)
 			} else {
