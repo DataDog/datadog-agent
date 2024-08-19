@@ -133,13 +133,13 @@ func (m *Check) Run() error {
 	if err != nil {
 		return fmt.Errorf("get gpu check: %s", err)
 	}
+	now := time.Now()
 
 	var checkDuration time.Duration
 	// mark the check duration as close to the actual check as possible
 	if !m.lastCheckTime.IsZero() {
-		checkDuration = time.Since(m.lastCheckTime)
+		checkDuration = now.Sub(m.lastCheckTime)
 	}
-	m.lastCheckTime = time.Now()
 
 	sender, err := m.GetSender()
 	if err != nil {
@@ -186,7 +186,8 @@ func (m *Check) Run() error {
 	}
 
 	fmt.Printf("GPU stats: %+v\n", stats)
-
 	sender.Commit()
+	fmt.Printf("GPU check done, sender stats: %+v\n", sender.GetSenderStats())
+	m.lastCheckTime = now
 	return nil
 }
