@@ -91,7 +91,7 @@ func TestTraceAgent(t *testing.T) {
 				require.Len(t, stats.Stats, 1)
 				cspayload := stats.Stats[0]
 				// stats can be in one or multiple buckets
-				assert.Greater(t, cspayload.Stats, 0)
+				assert.Greater(t, len(cspayload.Stats), 0)
 				for _, bucket := range cspayload.Stats {
 					assert.Greater(t, len(bucket.Stats), 0)
 					actual = append(actual, bucket.Stats...)
