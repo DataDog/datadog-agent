@@ -74,7 +74,7 @@ type provides struct {
 }
 
 func newProcessAgent(deps dependencies) (provides, error) {
-	agent.OverrideRunInCoreConfig(deps.Config)
+	agent.OverrideRunInCoreAgentConfig(deps.Config)
 	if !agent.Enabled(deps.Config, deps.Checks, deps.Log) {
 		return provides{
 			Comp: processAgent{
