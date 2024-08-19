@@ -7,7 +7,6 @@ package lsof
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"syscall"
@@ -20,38 +19,75 @@ import (
 // see the documentation for /proc for more details about files and their format
 // https://www.kernel.org/doc/html/latest/filesystems/proc.html
 
+// openFilesLister stores the state needed to list open files
+// this is helpful for tests to help with mocking
+type openFilesLister struct {
+	pid         int
+	procPath    string
+	procPIDPath string
+
+	readlink func(string) (string, error)
+	stat     func(string) (os.FileInfo, error)
+	lstat    func(string) (os.FileInfo, error)
+
+	proc       procfsProc
+	socketInfo map[uint64]socketInfo
+}
+
+type procfsProc interface {
+	ProcMaps() ([]*procfs.ProcMap, error)
+	FileDescriptors() ([]uintptr, error)
+	Cwd() (string, error)
+}
+
+type socketInfo struct {
+	Description string
+	State       string
+	Protocol    string
+}
+
 func openFiles(_ context.Context, pid int) (Files, error) {
-	fs, err := procfs.NewFS(procPath())
+	ofl := &openFilesLister{
+		pid: pid,
+
+		readlink: os.Readlink,
+		stat:     os.Stat,
+		lstat:    os.Lstat,
+	}
+
+	ofl.procPath = procPath()
+	ofl.procPIDPath = fmt.Sprintf("%s/%d", ofl.procPath, ofl.pid)
+
+	fs, err := procfs.NewFS(ofl.procPath)
 	if err != nil {
 		return nil, err
 	}
 
-	proc, err := fs.Proc(pid)
+	ofl.proc, err = fs.Proc(pid)
 	if err != nil {
 		return nil, err
 	}
 
+	ofl.socketInfo = readSocketInfo(ofl.procPIDPath)
+
+	return ofl.openFiles()
+}
+
+func (ofl *openFilesLister) openFiles() (Files, error) {
 	var files Files
 
 	// open files, socket, pipe (everything with a file descriptor)
-	procPIDPath := fmt.Sprintf("%s/%d", procPath(), pid)
-	openFDFiles, err := fdMetadata(proc, procPIDPath)
+	openFDFiles, err := ofl.fdMetadata()
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			return nil, err
-		}
-		log.Debugf("Failed to get open FDs for pid %d: %s", pid, err)
+		log.Debugf("Failed to get open FDs for pid %d: %s", ofl.pid, err)
 	} else {
 		files = append(files, openFDFiles...)
 	}
 
 	// memory mapped files, code,
-	mmapFiles, err := mmapMetadata(proc)
+	mmapFiles, err := ofl.mmapMetadata()
 	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			return nil, err
-		}
-		log.Debugf("Failed to get memory maps for pid %d: %s", pid, err)
+		log.Debugf("Failed to get memory maps for pid %d: %s", ofl.pid, err)
 	} else {
 		files = append(files, mmapFiles...)
 	}
@@ -59,13 +95,13 @@ func openFiles(_ context.Context, pid int) (Files, error) {
 	return files, nil
 }
 
-func mmapMetadata(proc procfs.Proc) (Files, error) {
-	maps, err := proc.ProcMaps()
+func (ofl *openFilesLister) mmapMetadata() (Files, error) {
+	maps, err := ofl.proc.ProcMaps()
 	if err != nil {
 		return nil, err
 	}
 
-	cwd, _ := proc.Cwd()
+	cwd, _ := ofl.proc.Cwd()
 
 	var files Files
 	for i, m := range maps {
@@ -88,7 +124,7 @@ func mmapMetadata(proc procfs.Proc) (Files, error) {
 			OpenPerm: permToString(m.Perms),
 		}
 
-		if file.Type, file.FilePerm, file.Size, _ = fileStats(os.Stat, m.Pathname); file.Type == "" {
+		if file.Type, file.FilePerm, file.Size, _ = fileStats(ofl.stat, m.Pathname); file.Type == "" {
 			continue
 		}
 		file.Fd = mmapFD(m.Pathname, file.Type, cwd)
@@ -151,17 +187,15 @@ type fileDescriptors interface {
 	FileDescriptors() ([]uintptr, error)
 }
 
-func fdMetadata(proc fileDescriptors, procPidPath string) (Files, error) {
-	openFDs, err := proc.FileDescriptors()
+func (ofl *openFilesLister) fdMetadata() (Files, error) {
+	openFDs, err := ofl.proc.FileDescriptors()
 	if err != nil {
 		return nil, err
 	}
 
-	socketInfo := readSocketInfo(procPidPath)
-
 	var files Files
 	for _, openFD := range openFDs {
-		file, ok := fdStat(socketInfo, procPidPath, openFD)
+		file, ok := ofl.fdStat(openFD)
 		if ok {
 			files = append(files, file)
 		}
@@ -170,28 +204,28 @@ func fdMetadata(proc fileDescriptors, procPidPath string) (Files, error) {
 	return files, nil
 }
 
-func fdStat(socketInfo map[uint64]socketInfo, procPidPath string, fd uintptr) (File, bool) {
+func (ofl *openFilesLister) fdStat(fd uintptr) (File, bool) {
 	var err error
 	file := File{
 		Fd: fmt.Sprintf("%d", fd),
 	}
 
-	fdLinkPath := fmt.Sprintf("%s/fd/%d", procPidPath, fd)
-	file.Name, err = os.Readlink(fdLinkPath)
+	fdLinkPath := fmt.Sprintf("%s/fd/%d", ofl.procPIDPath, fd)
+	file.Name, err = ofl.readlink(fdLinkPath)
 	if err != nil {
 		return File{}, false
 	}
 
 	var inode uint64
-	if file.Type, file.OpenPerm, _, _ = fileStats(os.Lstat, fdLinkPath); file.Type == "" {
+	if file.Type, file.OpenPerm, _, _ = fileStats(ofl.lstat, fdLinkPath); file.Type == "" {
 		return File{}, false
 	}
 
-	if file.Type, file.FilePerm, file.Size, inode = fileStats(os.Stat, fdLinkPath); file.Type == "" {
+	if file.Type, file.FilePerm, file.Size, inode = fileStats(ofl.stat, fdLinkPath); file.Type == "" {
 		return File{}, false
 	}
 
-	if info, ok := socketInfo[inode]; ok {
+	if info, ok := ofl.socketInfo[inode]; ok {
 		file.Name = info.Description
 		file.FilePerm = info.State
 		file.Type = info.Protocol
@@ -200,21 +234,15 @@ func fdStat(socketInfo map[uint64]socketInfo, procPidPath string, fd uintptr) (F
 	return file, true
 }
 
-type socketInfo struct {
-	Description string
-	State       string
-	Protocol    string
-}
-
 // readSocketInfo reads the socket information from /proc/<pid>/net/{tcp,tcp6,udp,udp6,unix}
 // returns a map of inode to socketInfo
 // see https://www.kernel.org/doc/Documentation/networking/proc_net_tcp.txt
-func readSocketInfo(procPidPath string) map[uint64]socketInfo {
+func readSocketInfo(procPIDPath string) map[uint64]socketInfo {
 	si := make(map[uint64]socketInfo)
 
-	fs, err := procfs.NewFS(procPidPath)
+	fs, err := procfs.NewFS(procPIDPath)
 	if err != nil {
-		log.Debugf("Failed to read %s: %s", procPidPath, err)
+		log.Debugf("Failed to read %s: %s", procPIDPath, err)
 		return si
 	}
 
@@ -224,7 +252,7 @@ func readSocketInfo(procPidPath string) map[uint64]socketInfo {
 	} {
 		addrs, err := parser()
 		if err != nil {
-			log.Debugf("Failed to read %s socket info in %s: %s", protocol, procPidPath, err)
+			log.Debugf("Failed to read %s socket info in %s: %s", protocol, procPIDPath, err)
 			continue
 		}
 		for _, entry := range addrs {
@@ -244,7 +272,7 @@ func readSocketInfo(procPidPath string) map[uint64]socketInfo {
 	} {
 		addrs, err := parser()
 		if err != nil {
-			log.Debugf("Failed to read %s socket info in %s: %s", protocol, procPidPath, err)
+			log.Debugf("Failed to read %s socket info in %s: %s", protocol, procPIDPath, err)
 			continue
 		}
 		for _, entry := range addrs {
@@ -266,16 +294,14 @@ func readSocketInfo(procPidPath string) map[uint64]socketInfo {
 			}
 		}
 	} else {
-		log.Debugf("Failed to read unix socket info in %s: %s", procPidPath, err)
+		log.Debugf("Failed to read unix socket info in %s: %s", procPIDPath, err)
 	}
 
 	return si
 }
 
-type statFunc func(string) (os.FileInfo, error)
-
 // fileStats returns the type, permission, size, and inode of a file
-func fileStats(statf statFunc, path string) (string, string, int64, uint64) {
+func fileStats(statf func(string) (os.FileInfo, error), path string) (string, string, int64, uint64) {
 	stat, err := statf(path)
 	if err != nil {
 		log.Debugf("stat failed for %s: %v", path, err)

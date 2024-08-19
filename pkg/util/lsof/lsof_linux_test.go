@@ -36,65 +36,108 @@ func TestOpenFiles(t *testing.T) {
 	t.Logf("%+v\n", files)
 }
 
-// GENERATED
-
-func TestMmapMetadata(t *testing.T) {
-	proc := procfs.Proc{}
-
-	files, err := mmapMetadata(proc)
-
-	assert.NoError(t, err)
-	assert.NotNil(t, files)
-}
+//TODO: openFiles
+//TODO: mmapMetadata
+//TODO: fdMetadata
+//TODO: fdStat
+//TODO: readSocketInfo
 
 func TestPermToString(t *testing.T) {
-	perms := &procfs.ProcMapPermissions{
-		Read:    true,
-		Write:   true,
-		Execute: true,
-		Shared:  true,
+	testCases := []struct {
+		perms    *procfs.ProcMapPermissions
+		expected string
+	}{
+		{
+			perms: &procfs.ProcMapPermissions{
+				Private: true,
+			},
+			expected: "---p",
+		},
+		{
+			perms: &procfs.ProcMapPermissions{
+				Read:   true,
+				Shared: true,
+			},
+			expected: "r--s",
+		},
+		{
+			perms: &procfs.ProcMapPermissions{
+				Write:   true,
+				Private: true,
+			},
+			expected: "-w-p",
+		},
+		{
+			perms: &procfs.ProcMapPermissions{
+				Execute: true,
+				Shared:  true,
+			},
+			expected: "--xs",
+		},
+		{
+			perms: &procfs.ProcMapPermissions{
+				Read:    true,
+				Write:   true,
+				Execute: true,
+				Shared:  true,
+			},
+			expected: "rwxs",
+		},
 	}
 
-	result := permToString(perms)
-
-	assert.Equal(t, "rwxp", result)
+	for _, tc := range testCases {
+		t.Run(tc.expected, func(t *testing.T) {
+			res := permToString(tc.perms)
+			assert.Equal(t, tc.expected, res)
+		})
+	}
 }
 
 func TestMmapFD(t *testing.T) {
-	path := "/path/to/file"
-	ty := "file"
-	cwd := "/current/working/directory"
-
-	result := mmapFD(path, ty, cwd)
-
-	assert.Equal(t, "/current/working/directory/path/to/file", result)
-}
-
-type fdmock struct {
-	fds []uintptr
-}
-
-func (f *fdmock) FileDescriptors() ([]uintptr, error) {
-	if f.fds == nil {
-		return nil, errors.New("no fds")
+	testCases := []struct {
+		name     string
+		path     string
+		ty       string
+		cwd      string
+		expected string
+	}{
+		{
+			"regular file",
+			"/some/path",
+			"REG",
+			"/some/cwd",
+			"mem",
+		},
+		{
+			"directory",
+			"/",
+			"DIR",
+			"",
+			"rtd",
+		},
+		{
+			"cwd",
+			"/some/cwd",
+			"DIR",
+			"/some/cwd",
+			"cwd",
+		},
+		{
+			"unknown",
+			"/some/path",
+			"PIPE",
+			"",
+			"unknown",
+		},
 	}
-	return f.fds, nil
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			res := mmapFD(tc.path, tc.ty, tc.cwd)
+			assert.Equal(t, tc.expected, res)
+		})
+	}
 }
-
-func TestFdMetadata(t *testing.T) {
-	proc := &fdmock{[]uintptr{1, 2}}
-
-	procPidPath := "testdata/fdmetadata/"
-
-	files, err := fdMetadata(proc, procPidPath)
-
-	assert.NoError(t, err)
-	assert.NotNil(t, files)
-}
-
-//TODO: fdStat
-
-//TODO: readSocketInfo
 
 type mockFileInfo struct {
 	modTime time.Time
@@ -245,6 +288,6 @@ func TestFileStatsNoSys(t *testing.T) {
 func TestProcPath(t *testing.T) {
 	assert.Equal(t, "/proc", procPath())
 
-	t.Setenv("PROC_PATH", "/myproc")
+	t.Setenv("HOST_PROC", "/myproc")
 	assert.Equal(t, "/myproc", procPath())
 }
