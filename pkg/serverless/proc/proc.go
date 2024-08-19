@@ -16,13 +16,14 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/sys/unix"
 )
 
 const (
 	ProcStatPath           = "/proc/stat"
 	ProcUptimePath         = "/proc/uptime"
 	ProcNetDevPath         = "/proc/net/dev"
-	ProcSysFsFilenrPath    = "/proc/sys/fs/file-nr"
+	ProcSelfFd             = "/proc/self/fd"
 	lambdaNetworkInterface = "vinternal_1"
 )
 
@@ -198,37 +199,45 @@ func getNetworkData(path string) (*NetworkData, error) {
 
 }
 
-type FileDescriptorData struct {
-	AllocatedFileHandles float64
-	UnusedFileHandles    float64
-	MaximumFileHandles   float64
+type FileDescriptorMaxData struct {
+	MaximumFileHandles float64
 }
 
-// GetNetworkData collects bytes sent and received by the function
-func GetFileDescriptorData() (*FileDescriptorData, error) {
-	return getFileDescriptorData(ProcSysFsFilenrPath)
+// GetFileDescriptorMaxData returns the maximum limit of file descriptors the function can use
+func GetFileDescriptorMaxData() (*FileDescriptorMaxData, error) {
+	return getFileDescriptorMaxData()
 }
 
-func getFileDescriptorData(path string) (*FileDescriptorData, error) {
-	file, err := os.Open(path)
+func getFileDescriptorMaxData() (*FileDescriptorMaxData, error) {
+	var fdMax unix.Rlimit
+	err := unix.Getrlimit(unix.RLIMIT_NOFILE, &fdMax)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
 
-	var allocatedFileHandles, unusedFileHandles, maximumFileHandles float64
-	for {
-		_, err = fmt.Fscanln(file, &allocatedFileHandles, &unusedFileHandles, &maximumFileHandles)
-		if errors.Is(err, io.EOF) {
-			return nil, fmt.Errorf("file descriptor data not found in file '%s'", path)
-		}
-		if err == nil {
-			return &FileDescriptorData{
-				AllocatedFileHandles: allocatedFileHandles,
-				UnusedFileHandles:    unusedFileHandles,
-				MaximumFileHandles:   maximumFileHandles,
-			}, nil
-		}
+	return &FileDescriptorMaxData{
+		MaximumFileHandles: float64(fdMax.Cur),
+	}, nil
+}
+
+type FileDescriptorUseData struct {
+	UseFileHandles float64
+}
+
+// GetFileDescriptorUseData returns the maximum number of file descriptors the function has used at a time
+func GetFileDescriptorUseData() (*FileDescriptorUseData, error) {
+	return getFileDescriptorUseData(ProcSelfFd)
+}
+
+func getFileDescriptorUseData(path string) (*FileDescriptorUseData, error) {
+	files, err := os.ReadDir(path)
+	if err != nil {
+		return nil, err
 	}
 
+	fdUse := len(files)
+
+	return &FileDescriptorUseData{
+		UseFileHandles: float64(fdUse),
+	}, nil
 }

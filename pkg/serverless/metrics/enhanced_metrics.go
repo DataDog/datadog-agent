@@ -7,6 +7,7 @@
 package metrics
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"strings"
@@ -594,45 +595,25 @@ func generateFdEnhancedMetrics(args generateFdEnhancedMetricsArgs) {
 	})
 }
 
-// func SendFdEnhancedMetrics(fdOffsetData *proc.FileDescriptorData, tags []string, demux aggregator.Demultiplexer) {
-// 	log.Debug("=== fdOffsetData: %+v ===", fdOffsetData)
-
-// 	if enhancedMetricsDisabled {
-// 		return
-// 	}
-
-// 	fileDescriptorData, err := proc.GetFileDescriptorData()
-// 	log.Debug("=== fileDescriptorData: %+v ===", fileDescriptorData)
-// 	if err != nil {
-// 		log.Debug("Could not emit file descriptor enhanced metrics")
-// 		return
-// 	}
-
-// 	now := float64(time.Now().UnixNano()) / float64(time.Second)
-// 	generateFdEnhancedMetrics(generateFdEnhancedMetricsArgs{
-// 		fileDescriptorData.AllocatedFileHandles,
-// 		fileDescriptorData.UnusedFileHandles,
-// 		fileDescriptorData.MaximumFileHandles,
-// 		tags,
-// 		demux,
-// 		now,
-// 	})
-
-// }
-
 func SendFdEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *ServerlessMetricAgent) {
 	if enhancedMetricsDisabled {
 		return
 	}
 
-	fileDescriptorData, err := proc.GetFileDescriptorData()
+	fdMaxData, err := proc.GetFileDescriptorMaxData()
 	if err != nil {
-		log.Debugf("Could not emit tmp enhanced metrics. %v", err)
+		log.Debug("Could not emit file descriptor enhanced metrics. %v", err)
 		return
 	}
 
-	fdMax := fileDescriptorData.MaximumFileHandles
-	fdUse := fileDescriptorData.AllocatedFileHandles - fileDescriptorData.UnusedFileHandles
+	fdUseData, err := proc.GetFileDescriptorUseData()
+	if err != nil {
+		log.Debugf("Could not emit file descriptor enhanced metrics. %v", err)
+		return
+	}
+
+	fdMax := fdMaxData.MaximumFileHandles
+	fdUse := fdUseData.UseFileHandles
 
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
@@ -640,6 +621,7 @@ func SendFdEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *Se
 		select {
 		case _, open := <-sendMetrics:
 			if !open {
+				fmt.Printf("=== sending fd enhanced metrics - fdMax : %f, fdUse: %f ===\n", fdMax, fdUse)
 				generateFdEnhancedMetrics(generateFdEnhancedMetricsArgs{
 					FdMax: fdMax,
 					FdUse: fdUse,
@@ -650,12 +632,12 @@ func SendFdEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *Se
 				return
 			}
 		case <-ticker.C:
-			fileDescriptorData, err := proc.GetFileDescriptorData()
+			fdUseData, err := proc.GetFileDescriptorUseData()
 			if err != nil {
-				log.Debugf("Could not emit tmp enhanced metrics. %v", err)
+				log.Debugf("Could not emit file descriptor enhanced metrics. %v", err)
 				return
 			}
-			fdUse = math.Max(fdUse, fileDescriptorData.AllocatedFileHandles-fileDescriptorData.UnusedFileHandles)
+			fdUse = math.Max(fdUse, fdUseData.UseFileHandles)
 		}
 	}
 }
