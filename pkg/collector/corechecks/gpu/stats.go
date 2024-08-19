@@ -59,7 +59,7 @@ func (sp *StatsProcessor) processPastData(data *model.StreamPastData) {
 		sp.sender.Event(event)
 	}
 
-	sp.pastAllocs = data.Allocations
+	sp.pastAllocs = append(sp.pastAllocs, data.Allocations...)
 }
 
 func (sp *StatsProcessor) processCurrentData(data *model.StreamCurrentData) {
@@ -87,6 +87,8 @@ func (sp *StatsProcessor) finish() {
 		sp.sender.Gauge("gjulian.cudapoc.utilization", utilization, "", sp.getTags())
 	}
 
+	fmt.Printf("past: %+v, current: %+v\n", sp.pastAllocs, sp.currentAllocs)
+
 	points := make([]memAllocTsPoint, 0, len(sp.currentAllocs)+2*len(sp.pastAllocs))
 	for _, alloc := range sp.currentAllocs {
 		points = append(points, memAllocTsPoint{ts: alloc.Start, size: int64(alloc.Size)})
@@ -101,15 +103,13 @@ func (sp *StatsProcessor) finish() {
 		return int(a.ts - b.ts)
 	})
 
-	fmt.Printf("GPU points: %+v\n", points)
-
 	currentMemory := int64(0)
 	maxMemory := int64(0)
 	pointsPerSecond := make([]memAllocTsPoint, 0)
 	for i := range points {
 		tsEpochCurrent := sp.timeResolver.ResolveMonotonicTimestamp(points[i].ts).Unix()
 		if i > 0 {
-			tsEpochPrev := sp.timeResolver.ResolveMonotonicTimestamp(points[i-1].ts).Unix()
+			tsEpochPrev := int64(pointsPerSecond[len(pointsPerSecond)-1].ts)
 			if tsEpochCurrent != tsEpochPrev {
 				pointsPerSecond = append(pointsPerSecond, memAllocTsPoint{ts: uint64(tsEpochCurrent), size: 0})
 			}
@@ -122,16 +122,19 @@ func (sp *StatsProcessor) finish() {
 		maxMemory = max(maxMemory, currentMemory)
 	}
 
-	fmt.Printf("GPU memory: %d, max %d, points: %+v\n", currentMemory, maxMemory, pointsPerSecond)
+	lastCheckEpoch := sp.lastCheck.Unix()
+	fmt.Printf("GPU memory: %d, max %d, lastCheckEpoch: %d, points: %+v\n", currentMemory, maxMemory, lastCheckEpoch, pointsPerSecond)
 
 	totalMemBytes := 0
-	lastCheckEpoch := sp.lastCheck.Unix()
 	for _, point := range pointsPerSecond {
+		hadMemory := totalMemBytes > 0
 		totalMemBytes += int(point.size)
-		if point.ts > uint64(lastCheckEpoch) {
+		if point.ts > uint64(lastCheckEpoch) && (totalMemBytes > 0 || hadMemory) {
+			fmt.Printf("gjulian.cudapoc.memory: %d, ts %d\n", totalMemBytes, point.ts)
 			sp.sender.GaugeWithTimestamp("gjulian.cudapoc.memory", float64(totalMemBytes), "", sp.getTags(), float64(point.ts))
 		}
 	}
 
+	fmt.Printf("gjulian.cudapoc.max_memory: %d\n", maxMemory)
 	sp.sender.Gauge("gjulian.cudapoc.max_memory", float64(maxMemory), "", sp.getTags())
 }
