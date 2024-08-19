@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package impl implements the systemprobe metadata providers interface
-package impl
+// Package systemprobeimpl implements the systemprobe metadata providers interface
+package systemprobeimpl
 
 import (
 	"context"
@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
@@ -149,6 +149,7 @@ func (sb *systemprobe) getConfigLayers() map[string]interface{} {
 		model.SourceAgentRuntime:       "agent_runtime_configuration",
 		model.SourceLocalConfigProcess: "source_local_configuration",
 		model.SourceRC:                 "remote_configuration",
+		model.SourceFleetPolicies:      "fleet_policies_configuration",
 		model.SourceCLI:                "cli_configuration",
 		model.SourceProvided:           "provided_configuration",
 	}

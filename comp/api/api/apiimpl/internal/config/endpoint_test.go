@@ -16,7 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	model "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 type testCase struct {
@@ -230,10 +231,10 @@ func checkExpvars(t *testing.T, beforeVars, afterVars expvals, configName string
 	require.EqualValues(t, beforeVars, afterVars)
 }
 
-func getConfigServer(t *testing.T, authorizedConfigPaths map[string]struct{}) (*config.MockConfig, *httptest.Server, *configEndpoint) {
+func getConfigServer(t *testing.T, authorizedConfigPaths map[string]struct{}) (model.Config, *httptest.Server, *configEndpoint) {
 	t.Helper()
 
-	cfg := config.Mock(t)
+	cfg := configmock.New(t)
 	configEndpointMux, configEndpoint := getConfigEndpoint(cfg, authorizedConfigPaths, t.Name())
 	server := httptest.NewServer(configEndpointMux)
 	t.Cleanup(server.Close)

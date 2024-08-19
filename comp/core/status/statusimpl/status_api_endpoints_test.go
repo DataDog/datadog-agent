@@ -22,7 +22,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -31,7 +32,7 @@ import (
 func getTestComp(t *testing.T, withError bool) provides {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
 			status.NewHeaderInformationProvider(mockHeaderProvider{
@@ -145,7 +146,7 @@ func TestStatusAPIEndpoints(t *testing.T) {
 				return status
 			}(),
 			expectedCode: http.StatusOK,
-			additionalTests: func(t *testing.T, rr *httptest.ResponseRecorder) {
+			additionalTests: func(_ *testing.T, _ *httptest.ResponseRecorder) {
 			},
 		},
 		{

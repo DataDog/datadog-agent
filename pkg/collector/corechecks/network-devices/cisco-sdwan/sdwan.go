@@ -31,21 +31,29 @@ const (
 
 // Configuration for the Cisco SD-WAN check
 type checkCfg struct {
-	VManageEndpoint           string `yaml:"vmanage_endpoint"`
-	Username                  string `yaml:"username"`
-	Password                  string `yaml:"password"`
-	Namespace                 string `yaml:"namespace"`
-	MaxAttempts               int    `yaml:"max_attempts"`
-	MaxPages                  int    `yaml:"max_pages"`
-	MaxCount                  int    `yaml:"max_count"`
-	LookbackTimeWindowMinutes int    `yaml:"lookback_time_window_minutes"`
-	UseHTTP                   bool   `yaml:"use_http"`
-	Insecure                  bool   `yaml:"insecure"`
-	CAFile                    string `yaml:"ca_file"`
-	SendNDMMetadata           *bool  `yaml:"send_ndm_metadata"`
-	MinCollectionInterval     int    `yaml:"min_collection_interval"`
-	CollectBFDSessionStatus   bool   `yaml:"collect_bfd_session_status"`
-	CollectHardwareStatus     bool   `yaml:"collect_hardware_status"`
+	VManageEndpoint                 string `yaml:"vmanage_endpoint"`
+	Username                        string `yaml:"username"`
+	Password                        string `yaml:"password"`
+	Namespace                       string `yaml:"namespace"`
+	MaxAttempts                     int    `yaml:"max_attempts"`
+	MaxPages                        int    `yaml:"max_pages"`
+	MaxCount                        int    `yaml:"max_count"`
+	LookbackTimeWindowMinutes       int    `yaml:"lookback_time_window_minutes"`
+	UseHTTP                         bool   `yaml:"use_http"`
+	Insecure                        bool   `yaml:"insecure"`
+	CAFile                          string `yaml:"ca_file"`
+	SendNDMMetadata                 *bool  `yaml:"send_ndm_metadata"`
+	MinCollectionInterval           int    `yaml:"min_collection_interval"`
+	CollectHardwareMetrics          *bool  `yaml:"collect_hardware_metrics"`
+	CollectInterfaceMetrics         *bool  `yaml:"collect_interface_metrics"`
+	CollectTunnelMetrics            *bool  `yaml:"collect_tunnel_metrics"`
+	CollectControlConnectionMetrics *bool  `yaml:"collect_control_connection_metrics"`
+	CollectOMPPeerMetrics           *bool  `yaml:"collect_omp_peer_metrics"`
+	CollectDeviceCountersMetrics    *bool  `yaml:"collect_device_counters_metrics"`
+	CollectBFDSessionStatus         *bool  `yaml:"collect_bfd_session_status"`
+	CollectHardwareStatus           *bool  `yaml:"collect_hardware_status"`
+	CollectCloudApplicationsMetrics *bool  `yaml:"collect_cloud_applications_metrics"`
+	CollectBGPNeighborStates        *bool  `yaml:"collect_bgp_neighbor_states"`
 }
 
 // CiscoSdwanCheck contains the field for the CiscoSdwanCheck
@@ -81,56 +89,71 @@ func (c *CiscoSdwanCheck) Run() error {
 	if err != nil {
 		log.Warnf("Error getting cEdge interfaces from Cisco SD-WAN API: %s", err)
 	}
-	deviceStats, err := client.GetDeviceHardwareMetrics()
-	if err != nil {
-		log.Warnf("Error getting device metrics from Cisco SD-WAN API: %s", err)
-	}
-	interfaceStats, err := client.GetInterfacesMetrics()
-	if err != nil {
-		log.Warnf("Error getting interface metrics from Cisco SD-WAN API: %s", err)
-	}
-	appRouteStats, err := client.GetApplicationAwareRoutingMetrics()
-	if err != nil {
-		log.Warnf("Error getting application-aware routing metrics from Cisco SD-WAN API: %s", err)
-	}
-	controlConnectionsState, err := client.GetControlConnectionsState()
-	if err != nil {
-		log.Warnf("Error getting control-connection states from Cisco SD-WAN API: %s", err)
-	}
-	ompPeersState, err := client.GetOMPPeersState()
-	if err != nil {
-		log.Warnf("Error getting OMP peer states from Cisco SD-WAN API: %s", err)
-	}
-	deviceCounters, err := client.GetDevicesCounters()
-	if err != nil {
-		log.Warnf("Error getting device counters from Cisco SD-WAN API: %s", err)
-	}
 
 	devicesMetadata := payload.GetDevicesMetadata(c.config.Namespace, devices)
-	deviceTags := payload.GetDevicesTags(c.config.Namespace, devices)
-	uptimes := payload.GetDevicesUptime(devices)
-	deviceStatus := payload.GetDevicesStatus(devices)
-
 	interfaces := payload.ConvertInterfaces(vEdgeInterfaces, cEdgeInterfaces)
 	interfacesMetadata, interfacesMap := payload.GetInterfacesMetadata(c.config.Namespace, interfaces)
 	ipAddressesMetadata := payload.GetIPAddressesMetadata(c.config.Namespace, interfaces)
 
+	deviceTags := payload.GetDevicesTags(c.config.Namespace, devices)
 	c.metricsSender.SetDeviceTags(deviceTags)
 
-	if *c.config.SendNDMMetadata {
-		c.metricsSender.SendMetadata(devicesMetadata, interfacesMetadata, ipAddressesMetadata)
-	}
-	c.metricsSender.SendDeviceMetrics(deviceStats)
-	c.metricsSender.SendInterfaceMetrics(interfaceStats, interfacesMap)
-	c.metricsSender.SendUptimeMetrics(uptimes)
-	c.metricsSender.SendAppRouteMetrics(appRouteStats)
-	c.metricsSender.SendControlConnectionMetrics(controlConnectionsState)
-	c.metricsSender.SendOMPPeerMetrics(ompPeersState)
-	c.metricsSender.SendDeviceCountersMetrics(deviceCounters)
-	c.metricsSender.SendDeviceStatusMetrics(deviceStatus)
+	if *c.config.CollectHardwareMetrics {
+		deviceStats, err := client.GetDeviceHardwareMetrics()
+		if err != nil {
+			log.Warnf("Error getting device metrics from Cisco SD-WAN API: %s", err)
+		}
 
-	// Configurable metrics
-	if c.config.CollectBFDSessionStatus {
+		uptimes := payload.GetDevicesUptime(devices)
+		deviceStatus := payload.GetDevicesStatus(devices)
+
+		c.metricsSender.SendDeviceMetrics(deviceStats)
+		c.metricsSender.SendUptimeMetrics(uptimes)
+		c.metricsSender.SendDeviceStatusMetrics(deviceStatus)
+	}
+
+	if *c.config.CollectInterfaceMetrics {
+		interfaceStats, err := client.GetInterfacesMetrics()
+		if err != nil {
+			log.Warnf("Error getting interface metrics from Cisco SD-WAN API: %s", err)
+		}
+		c.metricsSender.SendInterfaceMetrics(interfaceStats, interfacesMap)
+	}
+
+	if *c.config.CollectTunnelMetrics {
+		appRouteStats, err := client.GetApplicationAwareRoutingMetrics()
+		if err != nil {
+			log.Warnf("Error getting application-aware routing metrics from Cisco SD-WAN API: %s", err)
+		}
+		c.metricsSender.SendAppRouteMetrics(appRouteStats)
+	}
+
+	if *c.config.CollectControlConnectionMetrics {
+		controlConnectionsState, err := client.GetControlConnectionsState()
+		if err != nil {
+			log.Warnf("Error getting control-connection states from Cisco SD-WAN API: %s", err)
+		}
+		c.metricsSender.SendControlConnectionMetrics(controlConnectionsState)
+	}
+
+	if *c.config.CollectOMPPeerMetrics {
+		ompPeersState, err := client.GetOMPPeersState()
+		if err != nil {
+			log.Warnf("Error getting OMP peer states from Cisco SD-WAN API: %s", err)
+		}
+		c.metricsSender.SendOMPPeerMetrics(ompPeersState)
+	}
+
+	if *c.config.CollectDeviceCountersMetrics {
+		deviceCounters, err := client.GetDevicesCounters()
+		if err != nil {
+			log.Warnf("Error getting device counters from Cisco SD-WAN API: %s", err)
+		}
+		c.metricsSender.SendDeviceCountersMetrics(deviceCounters)
+	}
+
+	// Disabled  by default
+	if *c.config.CollectBFDSessionStatus {
 		bfdSessionsState, err := client.GetBFDSessionsState()
 		if err != nil {
 			log.Warnf("Error getting BFD session states from Cisco SD-WAN API: %s", err)
@@ -138,12 +161,35 @@ func (c *CiscoSdwanCheck) Run() error {
 		c.metricsSender.SendBFDSessionMetrics(bfdSessionsState)
 	}
 
-	if c.config.CollectHardwareStatus {
+	// Disabled  by default
+	if *c.config.CollectHardwareStatus {
 		hardwareStates, err := client.GetHardwareStates()
 		if err != nil {
 			log.Warnf("Error getting hardware states from Cisco SD-WAN API: %s", err)
 		}
 		c.metricsSender.SendHardwareMetrics(hardwareStates)
+	}
+
+	// Disabled  by default
+	if *c.config.CollectCloudApplicationsMetrics {
+		cloudApplications, err := client.GetCloudExpressMetrics()
+		if err != nil {
+			log.Warnf("Error getting cloud application metrics from Cisco SD-WAN API: %s", err)
+		}
+		c.metricsSender.SendCloudApplicationMetrics(cloudApplications)
+	}
+
+	// Disabled  by default
+	if *c.config.CollectBGPNeighborStates {
+		bgpNeighbors, err := client.GetBGPNeighbors()
+		if err != nil {
+			log.Warnf("Error getting BGP neighbors from Cisco SD-WAN API: %s", err)
+		}
+		c.metricsSender.SendBGPNeighborMetrics(bgpNeighbors)
+	}
+
+	if *c.config.SendNDMMetadata {
+		c.metricsSender.SendMetadata(devicesMetadata, interfacesMetadata, ipAddressesMetadata)
 	}
 
 	// Commit
@@ -168,6 +214,21 @@ func (c *CiscoSdwanCheck) Configure(senderManager sender.SenderManager, integrat
 	}
 
 	var instanceConfig checkCfg
+
+	// Set defaults before unmarshalling
+	instanceConfig.CollectHardwareMetrics = boolPointer(true)
+	instanceConfig.CollectInterfaceMetrics = boolPointer(true)
+	instanceConfig.CollectTunnelMetrics = boolPointer(true)
+	instanceConfig.CollectControlConnectionMetrics = boolPointer(true)
+	instanceConfig.CollectOMPPeerMetrics = boolPointer(true)
+	instanceConfig.CollectDeviceCountersMetrics = boolPointer(true)
+	instanceConfig.SendNDMMetadata = boolPointer(true)
+
+	instanceConfig.CollectBFDSessionStatus = boolPointer(false)
+	instanceConfig.CollectHardwareStatus = boolPointer(false)
+	instanceConfig.CollectCloudApplicationsMetrics = boolPointer(false)
+	instanceConfig.CollectBGPNeighborStates = boolPointer(false)
+
 	err = yaml.Unmarshal(rawInstance, &instanceConfig)
 	if err != nil {
 		return err
@@ -182,11 +243,6 @@ func (c *CiscoSdwanCheck) Configure(senderManager sender.SenderManager, integrat
 			return err
 		}
 		c.config.Namespace = namespace
-	}
-
-	if c.config.SendNDMMetadata == nil {
-		sendMetadata := true
-		c.config.SendNDMMetadata = &sendMetadata
 	}
 
 	if c.config.MinCollectionInterval != 0 {
@@ -232,6 +288,10 @@ func (c *CiscoSdwanCheck) buildClientOptions() ([]client.ClientOptions, error) {
 // Interval returns the scheduling time for the check
 func (c *CiscoSdwanCheck) Interval() time.Duration {
 	return c.interval
+}
+
+func boolPointer(b bool) *bool {
+	return &b
 }
 
 // Factory creates a new check factory

@@ -25,25 +25,31 @@ instances:
     # bundle_unspecified_events: true
 
     ## @param collected_event_types - map of array of strings - optional
-    ## Specify which events to be collected by kind, source, and reasons.
+    ## Specify custom events to be collected by kind, source, and reasons.
     ## Either kind or source are required, reasons is optional. Only effective
     ## when unbundle_events is true.
     #
-    collected_event_types:
-      - kind: Pod
-        reasons:
-          - Failed
-          - BackOff
-          - Unhealthy
-          - FailedScheduling
-          - FailedMount
-          - FailedAttachVolume
-      - kind: Node
-        reasons:
-          - TerminatingEvictedPod
-          - NodeNotReady
-          - Rebooted
-          - HostPortConflict
+    # collected_event_types:
+    #  - kind: Pod
+    #    reasons:
+    #      - Failed
+    #      - BackOff
+    #      - Unhealthy
+    #      - FailedScheduling
+    #      - FailedMount
+    #      - FailedAttachVolume
+    #  - kind: Node
+    #    reasons:
+    #      - TerminatingEvictedPod
+    #      - NodeNotReady
+    #      - Rebooted
+    #      - HostPortConflict
+
+    ## @param filtering_enabled - boolean - optional - default: false
+    ## Enable filtering of events to only include supported events. This will cause only events that match the pre-defined allowed event
+    ## types to be sent to Datadog.
+    #
+    # filtering_enabled: true
 
     ## @param filtered_event_types - array of strings - optional
     ## Specify a list of exclusion filters over the event type, involvedObject.kind, reason, following the Kubernetes field-selector format.

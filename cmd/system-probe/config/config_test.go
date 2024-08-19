@@ -9,9 +9,9 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,17 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-func newConfig(t *testing.T) {
-	originalConfig := config.SystemProbe
-	t.Cleanup(func() {
-		config.SystemProbe = originalConfig
-	})
-	config.SystemProbe = config.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
-	config.InitSystemProbeConfig(config.SystemProbe)
-}
-
 func TestEventMonitor(t *testing.T) {
-	newConfig(t)
+	config.MockSystemProbe(t)
 
 	for i, tc := range []struct {
 		cws, fim, processEvents, networkEvents bool
@@ -61,7 +52,7 @@ func TestEventMonitor(t *testing.T) {
 			t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(tc.networkEvents))
 			t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", strconv.FormatBool(tc.networkEvents))
 
-			cfg, err := New("/doesnotexist")
+			cfg, err := New("/doesnotexist", "")
 			t.Logf("%+v\n", cfg)
 			require.NoError(t, err)
 			assert.Equal(t, tc.enabled, cfg.ModuleIsEnabled(EventMonitorModule))
@@ -76,8 +67,7 @@ func TestEventStreamEnabledForSupportedKernelsWindowsUnsupported(t *testing.T) {
 		}
 		config.ResetSystemProbeConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
-
-		cfg := config.SystemProbe
+		cfg := config.SystemProbe()
 		Adjust(cfg)
 
 		require.False(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
@@ -88,10 +78,46 @@ func TestEventStreamEnabledForSupportedKernelsWindowsUnsupported(t *testing.T) {
 		}
 		config.ResetSystemProbeConfig(t)
 		t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
-
-		cfg := config.SystemProbe
+		cfg := config.SystemProbe()
 		Adjust(cfg)
 
 		require.False(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
 	})
+}
+
+func TestEnableDiscovery(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		config.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+discovery:
+  enabled: true
+`)
+		assert.True(t, cfg.GetBool(discoveryNS("enabled")))
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		config.ResetSystemProbeConfig(t)
+		t.Setenv("DD_DISCOVERY_ENABLED", "true")
+		assert.True(t, config.SystemProbe().GetBool(discoveryNS("enabled")))
+	})
+
+	t.Run("default", func(t *testing.T) {
+		config.ResetSystemProbeConfig(t)
+		assert.False(t, config.SystemProbe().GetBool(discoveryNS("enabled")))
+	})
+}
+
+func configurationFromYAML(t *testing.T, yaml string) config.Config {
+	f, err := os.CreateTemp(t.TempDir(), "system-probe.*.yaml")
+	require.NoError(t, err)
+	defer f.Close()
+
+	b := []byte(yaml)
+	n, err := f.Write(b)
+	require.NoError(t, err)
+	require.Equal(t, len(b), n)
+	f.Sync()
+
+	_, _ = New(f.Name(), "")
+	return config.SystemProbe()
 }

@@ -111,10 +111,10 @@ func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname stri
 	return bodyReader
 }
 
-func readAndPostFlareFile(archivePath, caseID, email, hostname, url string, source FlareSource, client *http.Client) (*http.Response, error) {
+func readAndPostFlareFile(archivePath, caseID, email, hostname, url string, source FlareSource, client *http.Client, apiKey string) (*http.Response, error) {
 	// Having resolved the POST URL, we do not expect to see further redirects, so do not
 	// handle them.
-	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+	client.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
 
@@ -122,6 +122,7 @@ func readAndPostFlareFile(archivePath, caseID, email, hostname, url string, sour
 	if err != nil {
 		return nil, err
 	}
+	request.Header.Add("DD-API-KEY", apiKey)
 
 	// We need to set the Content-Type header here, but we still haven't created the writer
 	// to obtain it from. Here we create one which only purpose is to give us a proper
@@ -192,11 +193,12 @@ func analyzeResponse(r *http.Response, apiKey string) (string, error) {
 // Resolve a flare URL to the URL at which a POST should be made.  This uses a HEAD request
 // to follow any redirects, avoiding the problematic behavior of a POST that results in a
 // redirect (and often in an early termination of the connection).
-func resolveFlarePOSTURL(url string, client *http.Client) (string, error) {
+func resolveFlarePOSTURL(url string, client *http.Client, apiKey string) (string, error) {
 	request, err := http.NewRequest("HEAD", url, nil)
 	if err != nil {
 		return "", err
 	}
+	request.Header.Add("DD-API-KEY", apiKey)
 
 	r, err := client.Do(request)
 	if err != nil {
@@ -214,12 +216,12 @@ func resolveFlarePOSTURL(url string, client *http.Client) (string, error) {
 	return r.Request.URL.String(), nil
 }
 
-func mkURL(baseURL string, caseID string, apiKey string) string {
+func mkURL(baseURL string, caseID string) string {
 	url := baseURL + datadogSupportURL
 	if caseID != "" {
 		url += "/" + caseID
 	}
-	return url + "?api_key=" + apiKey
+	return url
 }
 
 // SendTo sends a flare file to the backend. This is part of the "helpers" package while all the code is moved to
@@ -239,14 +241,14 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 		Timeout:   httpTimeout,
 	}
 
-	url = mkURL(baseURL, caseID, apiKey)
+	url = mkURL(baseURL, caseID)
 
-	url, err = resolveFlarePOSTURL(url, client)
+	url, err = resolveFlarePOSTURL(url, client, apiKey)
 	if err != nil {
 		return "", err
 	}
 
-	r, err := readAndPostFlareFile(archivePath, caseID, email, hostname, url, source, client)
+	r, err := readAndPostFlareFile(archivePath, caseID, email, hostname, url, source, client, apiKey)
 	if err != nil {
 		return "", err
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
@@ -58,7 +59,7 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 		// erase cache
 		cache.Cache.Delete(cache.BuildAgentKey("hostname"))
 	})
-	config.Mock(t)
+	configmock.New(t)
 
 	if tc.configHostname {
 		config.Datadog().SetWithoutSource("hostname", "hostname-from-configuration")
@@ -86,7 +87,7 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 
 	if tc.FQDN || tc.FQDNEC2 {
 		// making isOSHostnameUsable return true
-		osHostnameUsable = func(ctx context.Context) bool { return true }
+		osHostnameUsable = func(context.Context) bool { return true }
 		config.Datadog().SetWithoutSource("hostname_fqdn", true)
 		if !tc.FQDNEC2 {
 			fqdnHostname = func() (string, error) { return "hostname-from-fqdn", nil }
@@ -99,7 +100,7 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 
 	if tc.OS || tc.OSEC2 {
 		// making isOSHostnameUsable return true
-		osHostnameUsable = func(ctx context.Context) bool { return true }
+		osHostnameUsable = func(context.Context) bool { return true }
 		if !tc.OSEC2 {
 			osHostname = func() (string, error) { return "hostname-from-os", nil }
 		} else {

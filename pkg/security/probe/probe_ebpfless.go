@@ -10,6 +10,7 @@ package probe
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -31,12 +32,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 const (
@@ -80,6 +81,11 @@ type EBPFLessProbe struct {
 	wg            sync.WaitGroup
 }
 
+// GetProfileManager returns the Profile Managers
+func (p *EBPFLessProbe) GetProfileManager() interface{} {
+	return nil
+}
+
 func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
 	switch msg.Type {
 	case ebpfless.MessageTypeHello:
@@ -98,6 +104,8 @@ func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
 		}
 	case ebpfless.MessageTypeSyscall:
 		p.handleSyscallMsg(cl, msg.Syscall)
+	default:
+		seclog.Errorf("unknown message type: %d", msg.Type)
 	}
 }
 
@@ -287,7 +295,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	}
 
 	// container context
-	event.ContainerContext.ContainerID = model.ContainerID(syscallMsg.ContainerID)
+	event.ContainerContext.ContainerID = containerutils.ContainerID(syscallMsg.ContainerID)
 	if containerContext, exists := p.containerContexts[syscallMsg.ContainerID]; exists {
 		event.ContainerContext.CreatedAt = containerContext.CreatedAt
 		event.ContainerContext.Tags = []string{
@@ -391,7 +399,7 @@ func (p *EBPFLessProbe) readMsg(conn net.Conn, msg *ebpfless.Message) error {
 		return errors.New("not enough data")
 	}
 
-	size := native.Endian.Uint32(sizeBuf)
+	size := binary.NativeEndian.Uint32(sizeBuf)
 	if size > maxMessageSize {
 		return fmt.Errorf("data overflow the max size: %d", size)
 	}
@@ -570,22 +578,22 @@ func (p *EBPFLessProbe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 func (p *EBPFLessProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 	ev := ctx.Event.(*model.Event)
 
-	for _, action := range rule.Definition.Actions {
+	for _, action := range rule.Actions {
 		if !action.IsAccepted(ctx) {
 			continue
 		}
 
 		switch {
-		case action.Kill != nil:
+		case action.Def.Kill != nil:
 			// do not handle kill action on event with error
 			if ev.Error != nil {
 				return
 			}
 
-			p.processKiller.KillAndReport(action.Kill.Scope, action.Kill.Signal, ev, func(pid uint32, sig uint32) error {
+			p.processKiller.KillAndReport(action.Def.Kill.Scope, action.Def.Kill.Signal, rule, ev, func(pid uint32, sig uint32) error {
 				return p.processKiller.KillFromUserspace(pid, sig, ev)
 			})
-		case action.Hash != nil:
+		case action.Def.Hash != nil:
 			// force the resolution as it will force the hash resolution as well
 			ev.ResolveFields()
 		}

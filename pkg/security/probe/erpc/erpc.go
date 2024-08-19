@@ -10,6 +10,7 @@ package erpc
 
 import (
 	"errors"
+	"runtime"
 	"syscall"
 	"unsafe"
 )
@@ -79,7 +80,14 @@ func (k *ERPC) Request(req *Request) error {
 		}
 	}
 
+	runtime.KeepAlive(req)
+
 	return nil
+}
+
+// Close closes the ERPC client
+func (k *ERPC) Close() error {
+	return syscall.Close(k.fd)
 }
 
 // NewERPC returns a new ERPC object

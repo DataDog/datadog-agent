@@ -202,7 +202,9 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 
 	r.CGroupResolver.Start(ctx)
 	if r.SBOMResolver != nil {
-		r.SBOMResolver.Start(ctx)
+		if err := r.SBOMResolver.Start(ctx); err != nil {
+			return err
+		}
 	}
 
 	if err := r.UserSessionsResolver.Start(r.manager); err != nil {

@@ -897,6 +897,7 @@ profiles:
       "vendor": "f5",
       "subnet": "127.0.0.0/30",
       "serial_number": "a-serial-num",
+	  "integration": "snmp",
 	  "device_type": "load_balancer"
     }
   ],
@@ -1550,6 +1551,7 @@ tags:
       "description": "my_desc",
       "sys_object_id": "1.2.3.4",
       "subnet": "127.0.0.0/30",
+	  "integration": "snmp",
 	  "device_type": "other"
     }
   ],
@@ -1694,6 +1696,7 @@ tags:
       "ip_address": "1.2.3.5",
       "status": 2,
       "subnet": "127.0.0.0/30",
+	  "integration": "snmp",
 	  "device_type": "other"
     }
   ],
@@ -2010,6 +2013,7 @@ metric_tags:
       "status": 1,
       "name": "foo_sys_name",
       "subnet": "10.10.0.0/30",
+	  "integration": "snmp",
 	  "device_type": "other"
     }
   ],

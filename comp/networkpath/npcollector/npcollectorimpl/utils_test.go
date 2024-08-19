@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -67,10 +68,26 @@ func Test_shouldScheduleNetworkPathForConn(t *testing.T) {
 			},
 			shouldSchedule: false,
 		},
+		{
+			name: "should not schedule for intrahost",
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+				Family:    model.ConnectionFamily_v4,
+				IntraHost: true,
+			},
+			shouldSchedule: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.shouldSchedule, shouldScheduleNetworkPathForConn(tt.conn))
 		})
 	}
+}
+
+func Test_convertProtocol(t *testing.T) {
+	assert.Equal(t, convertProtocol(model.ConnectionType_udp), payload.ProtocolUDP)
+	assert.Equal(t, convertProtocol(model.ConnectionType_tcp), payload.ProtocolTCP)
 }

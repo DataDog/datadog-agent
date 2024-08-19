@@ -113,7 +113,7 @@ int hook_security_socket_bind(ctx_t *ctx) {
         bpf_map_update_elem(&flow_pid, &key, &pid, BPF_ANY);
 #endif
 
-#ifdef DEBUG
+#if defined(DEBUG_BIND)
         bpf_printk("# registered (bind) pid:%d", pid);
         bpf_printk("# p:%d a:%d a:%d", key.port, key.addr[0], key.addr[1]);
 #endif

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -27,6 +28,7 @@ type KillActionReport struct {
 	DetectedAt time.Time
 	KilledAt   time.Time
 	ExitedAt   time.Time
+	Rule       *rules.Rule
 
 	// internal
 	resolved bool
@@ -73,4 +75,12 @@ func (k *KillActionReport) ToJSON() ([]byte, bool, error) {
 	}
 
 	return data, resolved, nil
+}
+
+// IsMatchingRule returns true if this action report is targeted at the given rule ID
+func (k *KillActionReport) IsMatchingRule(ruleID eval.RuleID) bool {
+	k.RLock()
+	defer k.RUnlock()
+
+	return k.Rule.ID == ruleID
 }

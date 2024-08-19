@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
@@ -27,7 +28,7 @@ type PrometheusPodsConfigProvider struct {
 
 // NewPrometheusPodsConfigProvider returns a new Prometheus ConfigProvider connected to kubelet.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewPrometheusPodsConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
+func NewPrometheusPodsConfigProvider(*config.ConfigurationProviders, *telemetry.Store) (ConfigProvider, error) {
 	checks, err := getPrometheusConfigs()
 	if err != nil {
 		return nil, err

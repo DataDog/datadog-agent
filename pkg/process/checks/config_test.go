@@ -49,7 +49,7 @@ func TestEnsureValidMaxBatchSize(t *testing.T) {
 
 	assert := assert.New(t)
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(_ *testing.T) {
 			assert.Equal(tc.expectedMaxBatchSize, ensureValidMaxBatchSize(tc.maxPerMessage))
 		})
 	}
@@ -90,7 +90,7 @@ func TestEnsureValidMaxBatchBytes(t *testing.T) {
 
 	assert := assert.New(t)
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(_ *testing.T) {
 			assert.Equal(tc.expectedMaxBatchBytes, ensureValidMaxBatchBytes(tc.maxMessageBytes))
 		})
 	}

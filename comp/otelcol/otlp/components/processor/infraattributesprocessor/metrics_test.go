@@ -228,7 +228,7 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 				})
 				return attributes
 			}(),
-			entityIDs: []string{"deployment://k8s_namespace_goes_here/k8s_deployment_name_goes_here", "kubernetes_metadata://namespaces//k8s_namespace_goes_here"},
+			entityIDs: []string{"deployment://k8s_namespace_goes_here/k8s_deployment_name_goes_here", "kubernetes_metadata:///namespaces//k8s_namespace_goes_here"},
 		},
 		{
 			name: "only namespace name",
@@ -239,7 +239,7 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 				})
 				return attributes
 			}(),
-			entityIDs: []string{"kubernetes_metadata://namespaces//k8s_namespace_goes_here"},
+			entityIDs: []string{"kubernetes_metadata:///namespaces//k8s_namespace_goes_here"},
 		},
 		{
 			name: "only node UID",
@@ -250,7 +250,7 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 				})
 				return attributes
 			}(),
-			entityIDs: []string{"kubernetes_metadata://nodes//k8s_node_name_goes_here"},
+			entityIDs: []string{"kubernetes_metadata:///nodes//k8s_node_name_goes_here"},
 		},
 		{
 			name: "only process pid",

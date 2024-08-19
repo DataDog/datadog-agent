@@ -17,15 +17,10 @@
     - rm -f $OMNIBUS_PACKAGE_DIR/*-dbg-*.tar.xz
     - ls -l $OMNIBUS_PACKAGE_DIR
     - python3 -m pip install -r tasks/libs/requirements-github.txt
-    - export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.platform-github-app-key)
-    - export GITHUB_APP_ID=682216
     - set +x
-    - export GH_TOKEN=$(inv -e github.get-token-from-app --app-id-env=GITHUB_APP_ID --pkey-env=GITHUB_KEY_B64)
-    - git config --global credential.helper '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; };f'
-    - cd /tmp/
-    - ${CI_PROJECT_DIR}/tools/ci/retry.sh git clone --depth=1 https://github.com/DataDog/datadog-packages
-    - cd datadog-packages/cmd/datadog-package
-    - go build .
+    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    - go env -w GOPRIVATE="github.com/DataDog/*"
+    - ${CI_PROJECT_DIR}/tools/ci/retry.sh go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
     - OUTPUT_DIR="/tmp/oci_output"
     - mkdir -p ${OUTPUT_DIR}
     - ls $OMNIBUS_PACKAGE_DIR
@@ -50,7 +45,7 @@
         if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
           EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent"
         fi
-        ./datadog-package create \
+        datadog-package create \
           --version ${PACKAGE_VERSION} \
           --package ${OCI_PRODUCT} \
           --os linux \
@@ -62,7 +57,7 @@
       done
     - echo "Aggregating all layers into one package -> ${MERGED_FILE}"
     - ls -l ${OUTPUT_DIR}/
-    - ./datadog-package merge ${OUTPUT_DIR}/*.tar
+    - datadog-package merge ${OUTPUT_DIR}/*.tar
     # We need to propagate the exact version in the pipeline artifact
     - cp merged.tar ${OMNIBUS_PACKAGE_DIR}/${MERGED_FILE}
     # Only the major version is needed in the S3 bucket

@@ -24,11 +24,18 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 func TestParseKubeServiceAnnotations(t *testing.T) {
+	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryStore := acTelemetry.NewStore(telemetry)
+
 	for _, tc := range []struct {
 		name        string
 		service     *v1.Service
@@ -240,7 +247,9 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 				cfg.SetWithoutSource("cluster_checks.support_hybrid_ignore_ad_tags", true)
 			}
 
-			provider := KubeServiceConfigProvider{}
+			provider := KubeServiceConfigProvider{
+				telemetryStore: telemetryStore,
+			}
 			cfgs, _ := provider.parseServiceAnnotations([]*v1.Service{tc.service}, cfg)
 			assert.EqualValues(t, tc.expectedOut, cfgs)
 		})
@@ -341,6 +350,9 @@ func TestInvalidateIfChanged(t *testing.T) {
 }
 
 func TestGetConfigErrors_KubeServices(t *testing.T) {
+	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryStore := acTelemetry.NewStore(telemetry)
+
 	serviceWithErrors := v1.Service{
 		TypeMeta: metav1.TypeMeta{
 			Kind: kubernetes.ServiceKind,
@@ -462,8 +474,9 @@ func TestGetConfigErrors_KubeServices(t *testing.T) {
 			factory.WaitForCacheSync(stop)
 
 			provider := KubeServiceConfigProvider{
-				lister:       lister,
-				configErrors: test.currentErrors,
+				lister:         lister,
+				configErrors:   test.currentErrors,
+				telemetryStore: telemetryStore,
 			}
 
 			configs, err := provider.Collect(context.TODO())

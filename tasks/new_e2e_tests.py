@@ -19,6 +19,7 @@ from invoke.tasks import task
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
 from tasks.libs.common.git import get_commit_sha
+from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.utils import REPO_PATH, color_message, running_in_ci
 from tasks.modules import DEFAULT_MODULES
 
@@ -180,6 +181,14 @@ def clean(ctx, locks=True, stacks=False, output=False):
 
     if output:
         _clean_output()
+
+
+@task
+def deps(ctx, verbose=False):
+    """
+    Setup Go dependencies
+    """
+    download_go_dependencies(ctx, paths=["test/new-e2e"], verbose=verbose, max_retry=3)
 
 
 def _get_default_env():

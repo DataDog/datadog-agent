@@ -135,7 +135,7 @@ func TestPatchPrintkAllAssets(t *testing.T) {
 	require.NotNil(t, cfg)
 	totalPatches := 0
 
-	err := filepath.WalkDir(cfg.BPFDir, func(path string, d os.DirEntry, err error) error {
+	err := filepath.WalkDir(cfg.BPFDir, func(path string, _ os.DirEntry, err error) error {
 		require.NoError(t, err)
 
 		if !strings.HasSuffix(path, "-debug.o") {

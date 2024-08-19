@@ -37,8 +37,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log/tracelogimpl"
+	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logtrace "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -81,7 +81,7 @@ import (
 func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) error {
 	return fxutil.Run(
 		forwarder.Bundle(),
-		tracelogimpl.Module(), // cannot have corelogimpl and tracelogimpl at the same time
+		logtrace.Module(),
 		inventoryagentimpl.Module(),
 		workloadmetafx.Module(),
 		fx.Supply(metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{})),
@@ -117,8 +117,8 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 		hostnameinterface.MockModule(),
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 
-		fx.Provide(func(c coreconfig.Component) corelogimpl.Params {
-			return corelogimpl.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
+		fx.Provide(func(_ coreconfig.Component) logdef.Params {
+			return logdef.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 		}),
 		logsagentpipelineimpl.Module(),
 		// We create strategy.ZlibStrategy directly to avoid build tags

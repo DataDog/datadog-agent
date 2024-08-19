@@ -29,8 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
-	"github.com/DataDog/datadog-agent/comp/core/agenttelemetry"
-	"github.com/DataDog/datadog-agent/comp/core/agenttelemetry/agenttelemetryimpl"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 
 	// checks implemented as components
 
@@ -56,8 +56,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/gui/guiimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/process"
@@ -77,7 +76,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -97,6 +96,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs"
 	"github.com/DataDog/datadog-agent/comp/logs/adscheduler/adschedulerimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -178,10 +178,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				ddruntime.SetMaxProcs()
 			}),
 			fx.Supply(core.BundleParams{
-				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath)),
+				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
 				SecretParams:         secrets.NewEnabledParams(),
-				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-				LogParams:            logimpl.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
+				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
+				LogParams:            log.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
 			}),
 			fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 			getSharedFxOption(),
@@ -235,6 +235,7 @@ func run(log log.Component,
 	_ inventoryotel.Component,
 	_ secrets.Component,
 	invChecks inventorychecks.Component,
+	logReceiver optional.Option[integrations.Component],
 	_ netflowServer.Component,
 	_ snmptrapsServer.Component,
 	_ langDetectionCl.Component,
@@ -310,6 +311,7 @@ func run(log log.Component,
 		demultiplexer,
 		agentAPI,
 		invChecks,
+		logReceiver,
 		statusComponent,
 		collector,
 		cfg,
@@ -347,7 +349,7 @@ func getSharedFxOption() fx.Option {
 		}),
 
 		// workloadmeta setup
-		collectors.GetCatalog(),
+		wmcatalog.GetCatalog(),
 		fx.Provide(defaults.DefaultParams),
 		workloadmetafx.Module(),
 		fx.Supply(
@@ -444,6 +446,9 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(ms serializer.MetricSerializer) optional.Option[serializer.MetricSerializer] {
 			return optional.NewOption[serializer.MetricSerializer](ms)
 		}),
+		fx.Provide(func(logReceiver integrations.Component) optional.Option[integrations.Component] {
+			return optional.NewOption[integrations.Component](logReceiver)
+		}),
 		ndmtmp.Bundle(),
 		netflow.Bundle(),
 		rdnsquerierfx.Module(),
@@ -480,7 +485,7 @@ func getSharedFxOption() fx.Option {
 			}
 		}),
 		settingsimpl.Module(),
-		agenttelemetryimpl.Module(),
+		agenttelemetryfx.Module(),
 		networkpath.Bundle(),
 	)
 }
@@ -504,6 +509,7 @@ func startAgent(
 	demultiplexer demultiplexer.Component,
 	_ internalAPI.Component,
 	invChecks inventorychecks.Component,
+	logReceiver optional.Option[integrations.Component],
 	_ status.Component,
 	collector collector.Component,
 	cfg config.Component,
@@ -594,7 +600,7 @@ func startAgent(
 
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta, cfg, telemetry)
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
+	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 

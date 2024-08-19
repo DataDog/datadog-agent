@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import itertools
 import json
 import os
@@ -42,6 +43,7 @@ from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.utils import get_build_flags
 from tasks.libs.pipeline.tools import loop_status
 from tasks.libs.releasing.version import VERSION_RE, check_version
@@ -111,6 +113,8 @@ def create_stack(ctx, stack=None):
         "use-local-if-possible": "(Only when --from-ci-pipeline is used) If the VM is for the same architecture as the host, use the local VM instead of the remote one.",
         "vmconfig_template": "Template to use for the generated vmconfig.json file. Defaults to 'system-probe'. A file named 'vmconfig-<vmconfig_template>.json' must exist in 'tasks/new-e2e/system-probe/config/'",
         "yes": "Do not ask for confirmation",
+        "ci": "Generate a vmconfig.json file for the KMT CI, that is, with all available VMs for the given architecture.",
+        "arch": "(Only when --ci is used) Architecture to select when generating the vmconfig for all posible VMs.",
     }
 )
 def gen_config(
@@ -133,6 +137,13 @@ def gen_config(
     """
     Generate a vmconfig.json file with the given VMs.
     """
+    if not ci and arch != "":
+        # The argument is not used later on, so better notify the user early to avoid confusion
+        raise Exit(
+            "Error: Architecture (--arch argument) can only be specified when generating from a CI pipeline (--ci argument). "
+            "To specify the architecture of the VMs, use the VM specifier (e.g., x64-ubuntu_22-distro or local-ubuntu_22-distro for local VMs)"
+        )
+
     if from_ci_pipeline is not None:
         return gen_config_from_ci_pipeline(
             ctx,
@@ -207,7 +218,12 @@ def gen_config_from_ci_pipeline(
 
             failed_tests = test_job.get_test_results()
             failed_packages.update({test.split(':')[0] for test in failed_tests.keys()})
-            vms.add(f"{vm_arch}-{test_job.distro}-distro")
+            vm_name = f"{vm_arch}-{test_job.distro}-distro"
+            info(f"[+] Adding {vm_name} from failed job {test_job.name}")
+            vms.add(vm_name)
+
+    if len(vms) == 0:
+        raise Exit(f"No failed jobs found in pipeline {pipeline}")
 
     info(f"[+] generating {output_file} file for VMs {vms}")
     vcpu = DEFAULT_VCPU if vcpu is None else vcpu
@@ -705,6 +721,7 @@ def prepare(
             clang_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/clang-bpf",
             llc_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/llc-bpf",
             "flakes.yaml": paths.dependencies / "flakes.yaml",
+            ".github/CODEOWNERS": paths.dependencies / "CODEOWNERS",
         }
 
         for src, dst in copy_static_files.items():
@@ -1882,6 +1899,7 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
 def tag_ci_job(ctx: Context):
     """Add extra tags to the CI job"""
     tags: dict[str, str] = {}
+    metrics: dict[str, str] = {}
 
     # Retrieve tags from environment variables, with a renaming for convenience
     environment_vars_to_tags = {
@@ -1970,12 +1988,16 @@ def tag_ci_job(ctx: Context):
 
         e2e_retry_count = ci_project_dir / "e2e-retry-count"
         if e2e_retry_count.is_file():
-            tags["e2e_retry_count"] = e2e_retry_count.read_text().strip()
+            metrics["pulumi_retry_count"] = e2e_retry_count.read_text().strip()
 
     tag_prefix = "kmt."
     tags_str = " ".join(f"--tags '{tag_prefix}{k}:{v}'" for k, v in tags.items())
 
     ctx.run(f"datadog-ci tag --level job {tags_str}")
+
+    if len(metrics) > 0:
+        metrics_str = " ".join(f"--metrics '{tag_prefix}{k}:{v}'" for k, v in metrics.items())
+        ctx.run(f"datadog-ci metric --level job {metrics_str}")
 
 
 @task
@@ -2084,3 +2106,35 @@ def install_ddagent(
 
     if layout is not None:
         build_layout(ctx, domains, layout, verbose)
+
+
+@task
+def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path):
+    gitlab = get_gitlab_repo()
+    dest_path = Path(dest_path)
+
+    # We can't get all the pipelines associated with a commit directly, so we get it by the commit statuses
+    commit_statuses = gitlab.commits.get(commit, lazy=True).statuses.list(all=True)
+    pipeline_ids = {status.pipeline_id for status in commit_statuses if 'pipeline_id' in status.asdict()}
+    print(f"Found pipelines {pipeline_ids}")
+
+    for pipeline_id in pipeline_ids:
+        pipeline = gitlab.pipelines.get(pipeline_id)
+        if pipeline.source != "push":
+            print(f"Ignoring pipeline {pipeline_id}, only using push pipelines")
+            continue
+
+        _, test_jobs = get_all_jobs_for_pipeline(pipeline_id)
+        for job in test_jobs:
+            complexity_name = f"verifier-complexity-{job.arch}-{job.distro}-{job.component}"
+            complexity_data_fname = f"test/kitchen/{complexity_name}.tar.gz"
+            data = job.artifact_file_binary(complexity_data_fname, ignore_not_found=True)
+            if data is None:
+                print(f"Complexity data not found for {job.name} - filename {complexity_data_fname} not found")
+                continue
+
+            tar = tarfile.open(fileobj=io.BytesIO(data))
+            job_folder = dest_path / complexity_name
+            job_folder.mkdir(parents=True, exist_ok=True)
+            tar.extractall(dest_path / job_folder)
+            print(f"Extracted complexity data for {job.name} successfully, filename {complexity_data_fname}")

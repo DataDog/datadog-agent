@@ -96,5 +96,5 @@ func (h *PersistentVolumeClaimHandlers) ResourceVersion(ctx processors.Processor
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *PersistentVolumeClaimHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*corev1.PersistentVolumeClaim)
-	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
+	redact.RemoveSensitiveAnnotationsAndLabels(r.Annotations, r.Labels)
 }

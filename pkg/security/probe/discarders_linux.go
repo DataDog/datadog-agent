@@ -311,7 +311,7 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 					}
 				} else {
 					// regex are not currently supported on path, see ValidateFields
-					isDiscarderFnc = func(dirname string) (bool, bool, error) {
+					isDiscarderFnc = func(_ string) (bool, bool, error) {
 						return false, false, nil
 					}
 				}
@@ -332,8 +332,10 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 			return false, false, err
 		}
 
-		if isDiscarder, _ := rules.IsDiscarder(id.evalCtx, basenameField, basenameRules); !isDiscarder {
-			return false, true, nil
+		if len(basenameRules) > 0 {
+			if isDiscarder, _ := rules.IsDiscarder(id.evalCtx, basenameField, basenameRules); !isDiscarder {
+				return false, true, nil
+			}
 		}
 
 		return true, true, nil

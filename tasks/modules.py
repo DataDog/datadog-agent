@@ -140,10 +140,14 @@ DEFAULT_MODULES = {
     "comp/core/hostname/hostnameinterface": GoModule(
         "comp/core/hostname/hostnameinterface", independent=True, used_by_otel=True
     ),
-    "comp/core/log": GoModule("comp/core/log", independent=True, used_by_otel=True),
+    "comp/core/log/def": GoModule("comp/core/log/def", independent=True, used_by_otel=True),
+    "comp/core/log/impl": GoModule("comp/core/log/impl", independent=True, used_by_otel=True),
+    "comp/core/log/impl-trace": GoModule("comp/core/log/impl-trace", independent=True),
+    "comp/core/log/mock": GoModule("comp/core/log/mock", independent=True, used_by_otel=True),
     "comp/core/secrets": GoModule("comp/core/secrets", independent=True, used_by_otel=True),
     "comp/core/status": GoModule("comp/core/status", independent=True, used_by_otel=True),
     "comp/core/status/statusimpl": GoModule("comp/core/status/statusimpl", independent=True),
+    "comp/core/tagger/utils": GoModule("comp/core/tagger/utils", independent=True, used_by_otel=True),
     "comp/core/telemetry": GoModule("comp/core/telemetry", independent=True, used_by_otel=True),
     "comp/def": GoModule("comp/def", independent=True, used_by_otel=True),
     "comp/forwarder/defaultforwarder": GoModule("comp/forwarder/defaultforwarder", independent=True, used_by_otel=True),
@@ -204,7 +208,7 @@ DEFAULT_MODULES = {
     "pkg/api": GoModule("pkg/api", independent=True),
     "pkg/collector/check/defaults": GoModule("pkg/collector/check/defaults", independent=True, used_by_otel=True),
     "pkg/config/env": GoModule("pkg/config/env", independent=True, used_by_otel=True),
-    "pkg/config/logs": GoModule("pkg/config/logs", independent=True, used_by_otel=True),
+    "pkg/config/mock": GoModule("pkg/config/mock", independent=True, used_by_otel=True),
     "pkg/config/model": GoModule("pkg/config/model", independent=True, used_by_otel=True),
     "pkg/config/remote": GoModule("pkg/config/remote", independent=True),
     "pkg/config/setup": GoModule("pkg/config/setup", independent=True, used_by_otel=True),
@@ -256,6 +260,7 @@ DEFAULT_MODULES = {
     "pkg/util/http": GoModule("pkg/util/http", independent=True, used_by_otel=True),
     "pkg/util/json": GoModule("pkg/util/json", independent=True, used_by_otel=True),
     "pkg/util/log": GoModule("pkg/util/log", independent=True, used_by_otel=True),
+    "pkg/util/log/setup": GoModule("pkg/util/log/setup", independent=True, used_by_otel=True),
     "pkg/util/optional": GoModule("pkg/util/optional", independent=True, used_by_otel=True),
     "pkg/util/pointer": GoModule("pkg/util/pointer", independent=True, used_by_otel=True),
     "pkg/util/scrubber": GoModule("pkg/util/scrubber", independent=True, used_by_otel=True),
@@ -278,6 +283,7 @@ DEFAULT_MODULES = {
         targets=["./pkg/runner", "./pkg/utils/e2e/client"],
         lint_targets=[".", "./examples"],  # need to explicitly list "examples", otherwise it is skipped
     ),
+    "test/otel": GoModule("test/otel", independent=True, used_by_otel=True),
     "tools/retry_file_dump": GoModule("tools/retry_file_dump", condition=lambda: False, should_tag=False),
 }
 
@@ -391,15 +397,40 @@ def go_work(_: Context):
 
 
 @task
-def for_each(ctx: Context, cmd: str, skip_untagged: bool = False):
+def for_each(
+    ctx: Context,
+    cmd: str,
+    skip_untagged: bool = False,
+    ignore_errors: bool = False,
+    use_targets_path: bool = False,
+    use_lint_targets_path: bool = False,
+    skip_condition: bool = False,
+):
     """
     Run the given command in the directory of each module.
     """
+    assert not (
+        use_targets_path and use_lint_targets_path
+    ), "Only one of use_targets_path and use_lint_targets_path can be set"
+
     for mod in DEFAULT_MODULES.values():
         if skip_untagged and not mod.should_tag:
             continue
-        with ctx.cd(mod.full_path()):
-            ctx.run(cmd)
+        if skip_condition and not mod.condition():
+            continue
+
+        targets = [mod.full_path()]
+        if use_targets_path:
+            targets = [os.path.join(mod.full_path(), target) for target in mod.targets]
+        if use_lint_targets_path:
+            targets = [os.path.join(mod.full_path(), target) for target in mod.lint_targets]
+
+        for target in targets:
+            with ctx.cd(target):
+                res = ctx.run(cmd, warn=True)
+                assert res is not None
+                if res.failed and not ignore_errors:
+                    raise Exit(f"Command failed in {target}")
 
 
 @task

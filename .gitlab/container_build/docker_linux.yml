@@ -1,8 +1,6 @@
 ---
 .docker_build_job_definition:
   stage: container_build
-  variables:
-    CI_ENABLE_CONTAINER_IMAGE_BUILDS: "true"
   script:
     - aws s3 sync --only-show-errors $S3_ARTIFACTS_URI $BUILD_CONTEXT
     - TAG_SUFFIX=${TAG_SUFFIX:-}
@@ -23,6 +21,7 @@
     - crane flatten -t ${TARGET_TAG} ${TARGET_TAG}
   # Workaround for temporary network failures
   retry: 2
+  timeout: 30m
 
 .docker_build_job_definition_amd64:
   extends: .docker_build_job_definition
@@ -306,6 +305,7 @@ docker_build_dogstatsd_amd64:
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
     BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
+  timeout: 20m
 
 # build the dogstatsd image
 docker_build_dogstatsd_arm64:
@@ -319,3 +319,4 @@ docker_build_dogstatsd_arm64:
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
     BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
+  timeout: 20m

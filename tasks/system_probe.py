@@ -52,6 +52,7 @@ TEST_PACKAGES_LIST = [
     "./pkg/ebpf/...",
     "./pkg/network/...",
     "./pkg/collector/corechecks/ebpf/...",
+    "./pkg/collector/corechecks/servicediscovery/module/...",
     "./pkg/process/monitor/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
@@ -443,6 +444,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
                 "pkg/network/ebpf/c/prebuilt/offset-guess.h",
                 "pkg/network/ebpf/c/protocols/classification/defs.h",
             ],
+            "pkg/network/protocols/ebpf_types.go": [
+                "pkg/network/ebpf/c/protocols/classification/defs.h",
+            ],
             "pkg/network/protocols/http/gotls/go_tls_types.go": [
                 "pkg/network/ebpf/c/protocols/tls/go-tls-types.h",
             ],
@@ -460,8 +464,11 @@ def ninja_cgo_type_files(nw: NinjaWriter):
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/kafka/types.h",
             ],
-            "pkg/network/protocols/postgres/types.go": [
+            "pkg/network/protocols/postgres/ebpf/types.go": [
                 "pkg/network/ebpf/c/protocols/postgres/types.h",
+            ],
+            "pkg/network/protocols/redis/types.go": [
+                "pkg/network/ebpf/c/protocols/redis/types.h",
             ],
             "pkg/ebpf/telemetry/types.go": [
                 "pkg/ebpf/c/telemetry_types.h",
@@ -480,6 +487,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             ],
             "pkg/collector/corechecks/ebpf/probe/ebpfcheck/c_types.go": [
                 "pkg/collector/corechecks/ebpf/c/runtime/ebpf-kern-user.h"
+            ],
+            "pkg/collector/corechecks/ebpf/probe/oomkill/c_types.go": [
+                "pkg/collector/corechecks/ebpf/c/runtime/oom-kill-kern-user.h",
             ],
             "pkg/ebpf/types.go": [
                 "pkg/ebpf/c/lock_contention.h",
@@ -1798,7 +1808,7 @@ def save_test_dockers(ctx, output_dir, arch, use_crane=False):
         arch = "amd64"
 
     # only download images not present in preprepared vm disk
-    resp = requests.get('https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/docker.ls')
+    resp = requests.get('https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker.ls')
     docker_ls = {line for line in resp.text.split('\n') if line.strip()}
 
     images = _test_docker_image_list()

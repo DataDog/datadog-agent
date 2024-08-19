@@ -134,6 +134,11 @@ func (spm *SecurityProfileManagers) GetActivityDumpTracedEventTypes() []model.Ev
 	return spm.config.RuntimeSecurity.ActivityDumpTracedEventTypes
 }
 
+// GetAnomalyDetectionEventTypes returns the event types that may generate anomaly detections
+func (spm *SecurityProfileManagers) GetAnomalyDetectionEventTypes() []model.EventType {
+	return spm.config.RuntimeSecurity.AnomalyDetectionEventTypes
+}
+
 // SnapshotTracedCgroups snapshots traced cgroups
 func (spm *SecurityProfileManagers) SnapshotTracedCgroups() {
 	spm.activityDumpManager.SnapshotTracedCgroups()

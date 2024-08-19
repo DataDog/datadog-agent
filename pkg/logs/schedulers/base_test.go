@@ -21,7 +21,7 @@ type testSched struct {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (t *testSched) Start(mgr SourceManager) {
+func (t *testSched) Start(_ SourceManager) {
 	t.started = true
 }
 

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -29,7 +30,7 @@ type KubeletListener struct {
 }
 
 // NewKubeletListener returns a new KubeletListener.
-func NewKubeletListener(_ Config, wmeta optional.Option[workloadmeta.Component]) (ServiceListener, error) {
+func NewKubeletListener(_ Config, wmeta optional.Option[workloadmeta.Component], telemetryStore *telemetry.Store) (ServiceListener, error) {
 	const name = "ad-kubeletlistener"
 
 	l := &KubeletListener{}
@@ -43,7 +44,7 @@ func NewKubeletListener(_ Config, wmeta optional.Option[workloadmeta.Component])
 		return nil, errors.New("workloadmeta store is not initialized")
 	}
 	var err error
-	l.workloadmetaListener, err = newWorkloadmetaListener(name, filter, l.processPod, wmetaInstance)
+	l.workloadmetaListener, err = newWorkloadmetaListener(name, filter, l.processPod, wmetaInstance, telemetryStore)
 	if err != nil {
 		return nil, err
 	}

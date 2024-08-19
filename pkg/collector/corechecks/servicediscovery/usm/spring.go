@@ -94,9 +94,9 @@ func normalizeEnv(r rune) rune {
 		return r
 	} else if r >= '0' && r <= '9' {
 		return r
-	} else {
-		return '_'
 	}
+
+	return '_'
 }
 
 type springBootParser struct {

@@ -248,16 +248,6 @@ Package orchestrator implements the orchestrator forwarder component.
 
 Package orchestratorinterface defines the interface for the orchestrator forwarder component.
 
-## [comp/languagedetection](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection) (Component Bundle)
-
-*Datadog Team*: container-platform
-
-Package languagedetection implements the "languagedetection" bundle
-
-### [comp/languagedetection/client](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection/client)
-
-Package client implements a component to send process metadata to the Cluster-Agent
-
 ## [comp/logs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs) (Component Bundle)
 
 *Datadog Team*: agent-metrics-logs
@@ -271,6 +261,10 @@ Package adscheduler is glue code to connect autodiscovery to the logs agent. It 
 ### [comp/logs/agent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/agent)
 
 Package agent contains logs agent component.
+
+### [comp/logs/integrations](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/integrations)
+
+Package integrations adds a go interface for integrations to send logs.
 
 ## [comp/metadata](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata) (Component Bundle)
 
@@ -315,11 +309,11 @@ Package runner implements a component to generate metadata payload at the right 
 
 ### [comp/metadata/securityagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/securityagent)
 
-Package def is the metadata provider for security-agent process
+Package securityagent is the metadata provider for security-agent process
 
 ### [comp/metadata/systemprobe](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/systemprobe)
 
-Package def is the metadata provider for system-probe process
+Package systemprobe is the metadata provider for system-probe process
 
 ## [comp/ndmtmp](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/ndmtmp) (Component Bundle)
 
@@ -544,7 +538,7 @@ Package trace implements the "trace" bundle, providing components for the Trace 
 
 ### [comp/trace/agent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/agent)
 
-Package traceagent provides the agent component type.
+Package agent provides the trace agent component type.
 
 ### [comp/trace/compression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/compression)
 
@@ -567,7 +561,7 @@ Package status implements the core status component information provider interfa
 
 ## [comp/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater) (Component Bundle)
 
-*Datadog Team*: fleet
+*Datadog Team*: fleet windows-agent
 
 Package updater implements the updater component.
 
@@ -587,11 +581,23 @@ Package telemetry provides the installer telemetry component.
 
 Package updater is the updater component.
 
+### [comp/autoscaling/datadogclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient)
+
+*Datadog Team*: container-integrations
+
+Package datadogclient provides a client to query the datadog API
+
 ### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
 
 *Datadog Team*: windows-agent
 
 Package etw provides an ETW tracing interface
+
+### [comp/languagedetection/client](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection/client)
+
+*Datadog Team*: container-platform
+
+Package client implements a component to send process metadata to the Cluster-Agent
 
 ### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
 

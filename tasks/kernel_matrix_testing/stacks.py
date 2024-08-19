@@ -9,7 +9,6 @@ from invoke.context import Context
 from invoke.runners import Result
 
 from tasks.kernel_matrix_testing.infra import (
-    ask_for_ssh,
     build_infrastructure,
     ensure_key_in_agent,
     ensure_key_in_ec2,
@@ -199,12 +198,11 @@ def launch_stack(
     ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
 
     if remote_vms_in_config(vm_config):
-        if ssh_key_obj is None and ask_for_ssh():
+        if ssh_key_obj is None:
             raise Exit("No ssh key provided. Pass with '--ssh-key=<key-name>' or configure it with kmt.config-ssh-key")
 
-        if ssh_key_obj is not None:
-            ensure_key_in_agent(ctx, ssh_key_obj)
-            ensure_key_in_ec2(ctx, ssh_key_obj)
+        ensure_key_in_agent(ctx, ssh_key_obj)
+        ensure_key_in_ec2(ctx, ssh_key_obj)
 
     env = [
         "TEAM=ebpf-platform",

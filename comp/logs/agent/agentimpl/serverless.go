@@ -9,7 +9,7 @@ import (
 	"context"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	logComponent "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"

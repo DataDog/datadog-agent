@@ -54,6 +54,10 @@ def get_current_branch(ctx) -> str:
     return ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
 
 
+def get_common_ancestor(ctx, branch) -> str:
+    return ctx.run(f"git merge-base {branch} main", hide=True).stdout.strip()
+
+
 def check_uncommitted_changes(ctx):
     """
     Checks if there are uncommitted changes in the local git repository.

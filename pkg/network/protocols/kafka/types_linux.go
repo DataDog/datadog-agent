@@ -5,6 +5,7 @@ package kafka
 
 const (
 	TopicNameBuckets = 0xa
+	TopicNameMaxSize = 0x50
 )
 
 type ConnTuple struct {
@@ -31,6 +32,7 @@ type KafkaTransactionKey struct {
 }
 type KafkaTransaction struct {
 	Request_started     uint64
+	Response_last_seen  uint64
 	Records_count       uint32
 	Request_api_key     uint8
 	Request_api_version uint8

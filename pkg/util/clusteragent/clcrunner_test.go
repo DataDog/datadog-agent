@@ -23,6 +23,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -111,6 +113,7 @@ func (d *dummyCLCRunner) PopRequest() *http.Request {
 type clcRunnerSuite struct {
 	suite.Suite
 	authTokenPath string
+	conf          model.Config
 }
 
 const (
@@ -119,7 +122,7 @@ const (
 
 func (suite *clcRunnerSuite) SetupTest() {
 	os.Remove(suite.authTokenPath)
-	mockConfig.SetWithoutSource("cluster_agent.auth_token", clcRunnerTokenValue)
+	suite.conf.SetWithoutSource("cluster_agent.auth_token", clcRunnerTokenValue)
 }
 
 func (suite *clcRunnerSuite) TestGetCLCRunnerStats() {
@@ -229,7 +232,7 @@ func TestCLCRunnerSuite(t *testing.T) {
 		require.NoError(t, f.Close())
 	})
 
-	s := &clcRunnerSuite{}
+	s := &clcRunnerSuite{conf: configmock.New(t)}
 	config.Datadog().SetConfigFile(f.Name())
 	s.authTokenPath = filepath.Join(fakeDir, clcRunnerAuthTokenFilename)
 	_, err = os.Stat(s.authTokenPath)

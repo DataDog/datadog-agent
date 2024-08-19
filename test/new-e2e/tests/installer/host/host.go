@@ -165,11 +165,11 @@ func (h *Host) WaitForFileExists(useSudo bool, filePaths ...string) {
 	}
 }
 
-// WaitForTraceAgentReady waits for the trace agent to be ready to receive traces
+// WaitForTraceAgentSocketReady waits for the trace agent to be ready to receive traces
 // This is because of a race condition where the trace agent is not ready to receive traces and we send them
 // meaning that the traces are lost
-func (h *Host) WaitForTraceAgentReady() {
-	_, err := h.remote.Execute("timeout=30; while ! grep -q 'Listening for traces at unix://' <(sudo cat /var/log/datadog/trace-agent.log); do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]")
+func (h *Host) WaitForTraceAgentSocketReady() {
+	_, err := h.remote.Execute("timeout=30; while ! grep -q 'Listening for traces at unix://' <(journalctl _PID=`systemctl show -p MainPID datadog-agent-trace | cut -d\"=\" -f2`); do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]")
 	require.NoError(h.t, err, "trace agent did not become ready")
 }
 
@@ -181,6 +181,12 @@ func (h *Host) BootstraperVersion() string {
 // InstallerVersion returns the version of the installer on the host.
 func (h *Host) InstallerVersion() string {
 	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-installer version"))
+}
+
+// AgentStableVersion returns the stable version of the agent on the host.
+func (h *Host) AgentStableVersion() string {
+	path := strings.TrimSpace(h.remote.MustExecute(`readlink /opt/datadog-packages/datadog-agent/stable`))
+	return filepath.Base(path)
 }
 
 // AssertPackageInstalledByInstaller checks if a package is installed by the installer on the host.
@@ -397,6 +403,23 @@ func (h *Host) getSystemdUnitInfo() map[string]SystemdUnitInfo {
 	}
 
 	return units
+}
+
+// SetUmask set the default umask for commands
+func (h *Host) SetUmask(mask string) (oldmask string) {
+	oldmask = strings.TrimSpace(h.remote.MustExecute("umask"))
+	if _, err := h.remote.Execute("cat ~/.bashrc | grep umask"); err != nil {
+		// There are different default bashrc files for different distros. In some cases
+		// the umask must be at the first instruction as other instructions are skipped for non-interactive sessions
+		// and in others the umask must be at the bottom as it is overridden somewhere in the bashrc file.
+		// Thus we set it in both places.
+		h.remote.MustExecute(fmt.Sprintf("echo 'umask %s' | cat - ~/.bashrc > temp && mv temp ~/.bashrc", mask))
+		h.remote.MustExecute(fmt.Sprintf("echo 'umask %s' | tee -a ~/.bashrc", mask))
+	} else {
+		h.remote.MustExecute(fmt.Sprintf("sed -i -E 's/umask %s/umask %s/g' ~/.bashrc", oldmask, mask))
+	}
+	h.remote.MustExecute(fmt.Sprintf("umask | grep -q %s", mask)) // Correctness check
+	return oldmask
 }
 
 // LoadState is the load state of a systemd unit.

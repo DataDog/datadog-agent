@@ -90,7 +90,7 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 }
 
 func errorHandler(err error) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		msg := fmt.Sprintf("Profile forwarder is OFF: %v", err)
 		http.Error(w, msg, http.StatusInternalServerError)
 	})

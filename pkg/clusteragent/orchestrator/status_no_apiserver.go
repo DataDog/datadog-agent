@@ -13,7 +13,7 @@ import "context"
 // GetStatus returns status info for the orchestrator explorer.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func GetStatus(ctx context.Context, apiCl interface{}) map[string]interface{} {
+func GetStatus(_ context.Context, _ interface{}) map[string]interface{} {
 	status := make(map[string]interface{})
 	status["Disabled"] = "The orchestrator explorer is not compiled-in"
 	return status
