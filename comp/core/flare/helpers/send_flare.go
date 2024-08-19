@@ -8,6 +8,7 @@ package helpers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -114,7 +115,7 @@ func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname stri
 func readAndPostFlareFile(archivePath, caseID, email, hostname, url string, source FlareSource, client *http.Client, apiKey string) (*http.Response, error) {
 	// Having resolved the POST URL, we do not expect to see further redirects, so do not
 	// handle them.
-	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+	client.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
 
@@ -184,7 +185,7 @@ func analyzeResponse(r *http.Response, apiKey string) (string, error) {
 
 	if res.Error != "" {
 		response := fmt.Sprintf("An error occurred while uploading the flare: %s. Please contact support by email.", res.Error)
-		return response, fmt.Errorf("%s", res.Error)
+		return response, errors.New(res.Error)
 	}
 
 	return fmt.Sprintf("Your logs were successfully uploaded. For future reference, your internal case id is %d", res.CaseID), nil

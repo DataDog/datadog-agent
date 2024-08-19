@@ -46,7 +46,7 @@ func (p *mockProvider) StopSDSProcessing() error {
 // Flush does nothing
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func (p *mockProvider) Flush(ctx context.Context) {}
+func (p *mockProvider) Flush(_ context.Context) {}
 
 // NextPipelineChan returns the next pipeline
 func (p *mockProvider) NextPipelineChan() chan *message.Message {

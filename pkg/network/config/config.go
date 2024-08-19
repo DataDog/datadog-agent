@@ -96,6 +96,9 @@ type Config struct {
 	// EnableIstioMonitoring specifies whether USM should monitor Istio traffic
 	EnableIstioMonitoring bool
 
+	// EnvoyPath specifies the envoy path to be used for Istio monitoring
+	EnvoyPath string
+
 	// EnableNodeJSMonitoring specifies whether USM should monitor NodeJS TLS traffic
 	EnableNodeJSMonitoring bool
 
@@ -154,16 +157,16 @@ type Config struct {
 	// tcp_close is not intercepted for some reason.
 	TCPConnTimeout time.Duration
 
-	// TCPClosedTimeout represents the maximum amount of time a closed TCP connection can remain buffered in eBPF before
-	// being marked as idle and flushed to the perf ring.
-	TCPClosedTimeout time.Duration
-
 	// MaxTrackedConnections specifies the maximum number of connections we can track. This determines the size of the eBPF Maps
 	MaxTrackedConnections uint32
 
 	// MaxClosedConnectionsBuffered represents the maximum number of closed connections we'll buffer in memory. These closed connections
 	// get flushed on every client request (default 30s check interval)
 	MaxClosedConnectionsBuffered uint32
+
+	// MaxFailedConnectionsBuffered represents the maximum number of failed connections we'll buffer in memory. These connections will be
+	// removed from memory as they are matched to closed connections
+	MaxFailedConnectionsBuffered uint32
 
 	// ClosedConnectionFlushThreshold represents the number of closed connections stored before signalling
 	// the agent to flush the connections.  This value only valid on Windows
@@ -299,6 +302,8 @@ type Config struct {
 	// buffers (>=5.8) will result in forcing the use of Perf Maps instead.
 	EnableUSMRingBuffers bool
 
+	EnableEbpfless bool
+
 	// EnableUSMEventStream enables USM to use the event stream instead
 	// of netlink for receiving process events.
 	EnableUSMEventStream bool
@@ -314,7 +319,7 @@ func join(pieces ...string) string {
 
 // New creates a config for the network tracer
 func New() *Config {
-	cfg := ddconfig.SystemProbe
+	cfg := ddconfig.SystemProbe()
 	sysconfig.Adjust(cfg)
 
 	c := &Config{
@@ -326,7 +331,6 @@ func New() *Config {
 		CollectTCPv4Conns: cfg.GetBool(join(netNS, "collect_tcp_v4")),
 		CollectTCPv6Conns: cfg.GetBool(join(netNS, "collect_tcp_v6")),
 		TCPConnTimeout:    2 * time.Minute,
-		TCPClosedTimeout:  1 * time.Second,
 
 		CollectUDPv4Conns: cfg.GetBool(join(netNS, "collect_udp_v4")),
 		CollectUDPv6Conns: cfg.GetBool(join(netNS, "collect_udp_v6")),
@@ -340,6 +344,7 @@ func New() *Config {
 		TCPFailedConnectionsEnabled:    cfg.GetBool(join(netNS, "enable_tcp_failed_connections")),
 		MaxTrackedConnections:          uint32(cfg.GetInt64(join(spNS, "max_tracked_connections"))),
 		MaxClosedConnectionsBuffered:   uint32(cfg.GetInt64(join(spNS, "max_closed_connections_buffered"))),
+		MaxFailedConnectionsBuffered:   uint32(cfg.GetInt64(join(netNS, "max_failed_connections_buffered"))),
 		ClosedConnectionFlushThreshold: cfg.GetInt(join(spNS, "closed_connection_flush_threshold")),
 		ClosedChannelSize:              cfg.GetInt(join(spNS, "closed_channel_size")),
 		MaxConnectionsStateBuffered:    cfg.GetInt(join(spNS, "max_connection_state_buffered")),
@@ -364,6 +369,7 @@ func New() *Config {
 		EnableRedisMonitoring:     cfg.GetBool(join(smNS, "enable_redis_monitoring")),
 		EnableNativeTLSMonitoring: cfg.GetBool(join(smNS, "tls", "native", "enabled")),
 		EnableIstioMonitoring:     cfg.GetBool(join(smNS, "tls", "istio", "enabled")),
+		EnvoyPath:                 cfg.GetString(join(smNS, "tls", "istio", "envoy_path")),
 		EnableNodeJSMonitoring:    cfg.GetBool(join(smNS, "tls", "nodejs", "enabled")),
 		MaxUSMConcurrentRequests:  uint32(cfg.GetInt(join(smNS, "max_concurrent_requests"))),
 		MaxHTTPStatsBuffered:      cfg.GetInt(join(smNS, "max_http_stats_buffered")),
@@ -382,7 +388,7 @@ func New() *Config {
 		EnableConntrackAllNamespaces: cfg.GetBool(join(spNS, "enable_conntrack_all_namespaces")),
 		IgnoreConntrackInitFailure:   cfg.GetBool(join(netNS, "ignore_conntrack_init_failure")),
 		ConntrackInitTimeout:         cfg.GetDuration(join(netNS, "conntrack_init_timeout")),
-		EnableEbpfConntracker:        true,
+		EnableEbpfConntracker:        cfg.GetBool(join(netNS, "enable_ebpf_conntracker")),
 
 		EnableGatewayLookup: cfg.GetBool(join(netNS, "enable_gateway_lookup")),
 
@@ -401,6 +407,8 @@ func New() *Config {
 		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,
 
 		EnableNPMConnectionRollup: cfg.GetBool(join(netNS, "enable_connection_rollup")),
+
+		EnableEbpfless: cfg.GetBool(join(netNS, "enable_ebpfless")),
 
 		// Service Monitoring
 		EnableJavaTLSSupport:        cfg.GetBool(join(smjtNS, "enabled")),

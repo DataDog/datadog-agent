@@ -2,9 +2,6 @@ name: "Serverless Binary Size"
 
 on:
   pull_request:
-  push:
-    branches:
-      - mq-working-branch-*
 
 env:
   SIZE_ALLOWANCE: fromJSON(1000000) # 1 MB
@@ -36,7 +33,7 @@ jobs:
           path: go/src/github.com/DataDog/datadog-lambda-extension
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb # v3.3.0
+        uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
 
       - name: Previous binary size and dependencies
         id: previous

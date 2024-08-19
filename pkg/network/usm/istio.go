@@ -8,9 +8,8 @@
 package usm
 
 import (
-	"bytes"
 	"fmt"
-	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,8 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
-
 	manager "github.com/DataDog/ebpf-manager"
 )
 
@@ -76,16 +73,6 @@ var istioProbes = []manager.ProbesSelector{
 	},
 }
 
-// envoyCmd represents the search term used for determining
-// whether or not a given PID represents an Envoy process.
-// The search is done over the /proc/<pid>/cmdline file.
-var envoyCmd = []byte("/bin/envoy")
-
-// readBufferPool is used for reading /proc/<pid>/cmdline files.
-// We use a pointer to a slice to avoid allocations when casting
-// values to the empty interface during Put() calls.
-var readBufferPool = ddsync.NewSlicePool[byte](128, 128)
-
 // istioMonitor essentially scans for Envoy processes and attaches SSL uprobes
 // to them.
 //
@@ -95,6 +82,7 @@ var readBufferPool = ddsync.NewSlicePool[byte](128, 128)
 type istioMonitor struct {
 	registry *utils.FileRegistry
 	procRoot string
+	envoyCmd string
 
 	// `utils.FileRegistry` callbacks
 	registerCB   func(utils.FilePath) error
@@ -117,6 +105,7 @@ func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
 	return &istioMonitor{
 		registry: utils.NewFileRegistry("istio"),
 		procRoot: procRoot,
+		envoyCmd: c.EnvoyPath,
 		done:     make(chan struct{}),
 
 		// Callbacks
@@ -250,46 +239,19 @@ func (m *istioMonitor) handleProcessExec(pid uint32) {
 }
 
 // getEnvoyPath returns the executable path of the envoy binary for a given PID.
-// In case the PID doesn't represent an envoy process, an empty string is returned.
+// It constructs the path to the symbolic link for the executable file of the process with the given PID,
+// then resolves this symlink to determine the actual path of the binary.
 //
-// TODO:
-// refine process detection heuristic so we can remove the number of false
-// positives. A common case that is likely worth optimizing for is filtering
-// out "vanilla" envoy processes, and selecting only envoy processes that are
-// running inside istio containers. Based on a quick inspection I made, it
-// seems that we could also search for "istio" in the cmdline string in addition
-// to "envoy", since the command line arguments look more or less the following:
-//
-// /usr/local/bin/envoy -cetc/istio/proxy/envoy-rev.json ...
+// If the resolved path contains the expected envoy command substring (as defined by m.envoyCmd),
+// the function returns this path. If the PID does not correspond to an envoy process or if an error
+// occurs during resolution, it returns an empty string.
 func (m *istioMonitor) getEnvoyPath(pid uint32) string {
-	cmdlinePath := fmt.Sprintf("%s/%d/cmdline", m.procRoot, pid)
+	exePath := fmt.Sprintf("%s/%d/exe", m.procRoot, pid)
 
-	f, err := os.Open(cmdlinePath)
-	if err != nil {
-		// This can happen often in the context of ephemeral processes
-		return ""
-	}
-	defer f.Close()
-
-	// From here on we shouldn't allocate for the common case
-	// (eg., a process is *not* envoy)
-	bufferPtr := readBufferPool.Get()
-	defer func() {
-		readBufferPool.Put(bufferPtr)
-	}()
-
-	buffer := *bufferPtr
-	n, _ := f.Read(buffer)
-	if n == 0 {
+	envoyPath, err := utils.ResolveSymlink(exePath)
+	if err != nil || !strings.Contains(envoyPath, m.envoyCmd) {
 		return ""
 	}
 
-	buffer = buffer[:n]
-	i := bytes.Index(buffer, envoyCmd)
-	if i < 0 {
-		return ""
-	}
-
-	executable := buffer[:i+len(envoyCmd)]
-	return string(executable)
+	return envoyPath
 }

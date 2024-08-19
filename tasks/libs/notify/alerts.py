@@ -14,7 +14,6 @@ from tasks.libs.notify.utils import (
     AWS_S3_CP_CMD,
     CHANNEL_BROADCAST,
     PROJECT_NAME,
-    PROJECT_TITLE,
     get_ci_visibility_job_url,
 )
 from tasks.libs.pipeline.data import get_failed_jobs
@@ -132,7 +131,7 @@ class ConsecutiveJobAlert:
         # Find initial PR
         initial_pr_sha = next(iter(self.failures.values()))[0].commit
         initial_pr_title = ctx.run(f'git show -s --format=%s {initial_pr_sha}', hide=True).stdout.strip()
-        initial_pr_info = get_pr_from_commit(initial_pr_title, PROJECT_TITLE)
+        initial_pr_info = get_pr_from_commit(initial_pr_title, PROJECT_NAME)
         if initial_pr_info:
             pr_id, pr_url = initial_pr_info
             initial_pr = f'<{pr_url}|#{pr_id}>'

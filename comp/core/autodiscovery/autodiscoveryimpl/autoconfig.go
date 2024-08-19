@@ -139,11 +139,11 @@ func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
 func newAutoConfig(deps dependencies) autodiscovery.Component {
 	ac := createNewAutoConfig(scheduler.NewController(), deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry)
 	deps.Lc.Append(fx.Hook{
-		OnStart: func(c context.Context) error {
+		OnStart: func(_ context.Context) error {
 			ac.Start()
 			return nil
 		},
-		OnStop: func(c context.Context) error {
+		OnStop: func(_ context.Context) error {
 			ac.Stop()
 			return nil
 		},

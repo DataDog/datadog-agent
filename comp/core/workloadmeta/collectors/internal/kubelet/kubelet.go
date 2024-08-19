@@ -155,6 +155,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 		}
 
 		PodSecurityContext := extractPodSecurityContext(&pod.Spec)
+		RuntimeClassName := extractPodRuntimeClassName(&pod.Spec)
 
 		entity := &workloadmeta.KubernetesPod{
 			EntityID: podID,
@@ -173,6 +174,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			IP:                         pod.Status.PodIP,
 			PriorityClass:              pod.Spec.PriorityClassName,
 			QOSClass:                   pod.Status.QOSClass,
+			RuntimeClass:               RuntimeClassName,
 			SecurityContext:            PodSecurityContext,
 		}
 
@@ -273,6 +275,13 @@ func (c *collector) parsePodContainers(
 			containerState.FinishedAt = st.FinishedAt
 		}
 
+		// Kubelet considers containers without probe to be ready
+		if container.Ready {
+			containerState.Health = workloadmeta.ContainerHealthHealthy
+		} else {
+			containerState.Health = workloadmeta.ContainerHealthUnhealthy
+		}
+
 		podContainers = append(podContainers, podContainer)
 		events = append(events, workloadmeta.CollectorEvent{
 			Source: workloadmeta.SourceNodeOrchestrator,
@@ -301,6 +310,13 @@ func (c *collector) parsePodContainers(
 	}
 
 	return podContainers, events
+}
+
+func extractPodRuntimeClassName(spec *kubelet.Spec) string {
+	if spec.RuntimeClassName == nil {
+		return ""
+	}
+	return *spec.RuntimeClassName
 }
 
 func extractPodSecurityContext(spec *kubelet.Spec) *workloadmeta.PodSecurityContext {

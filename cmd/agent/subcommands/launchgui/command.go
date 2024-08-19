@@ -34,7 +34,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "launch-gui",
 		Short: "starts the Datadog Agent GUI",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(launchGui,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -66,9 +66,9 @@ func launchGui(config config.Component, _ *cliParams, _ log.Component) error {
 	// Open the GUI in a browser, passing the authorization tokens as parameters
 	err = open("http://127.0.0.1:" + guiPort + "/auth?intent=" + string(intentToken))
 	if err != nil {
-		return fmt.Errorf("error opening GUI: " + err.Error())
+		return fmt.Errorf("error opening GUI: %s", err.Error())
 	}
 
-	fmt.Printf("GUI opened at 127.0.0.1:" + guiPort + "\n")
+	fmt.Printf("GUI opened at 127.0.0.1:%s\n", guiPort)
 	return nil
 }

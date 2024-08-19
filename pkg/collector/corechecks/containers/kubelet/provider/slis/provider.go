@@ -62,7 +62,7 @@ func (p *Provider) sliHealthCheck(metricFam *prom.MetricFamily, sender sender.Se
 			}
 		}
 
-		tags = lo.Filter(tags, func(x string, index int) bool {
+		tags = lo.Filter(tags, func(x string, _ int) bool {
 			return !strings.HasPrefix(x, "type")
 		})
 

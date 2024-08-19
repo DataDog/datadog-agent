@@ -252,7 +252,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     bpf_map_update_elem(&pid_cache, &pid, &on_stack_pid_entry, BPF_ANY);
 
     // [activity_dump] inherit tracing state
-    inherit_traced_state(args, ppid, pid, event->container.container_id);
+    inherit_traced_state(args, ppid, pid, &event->container);
 
     // send the entry to maintain userspace cache
     send_event_ptr(args, EVENT_FORK, event);
@@ -741,7 +741,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     fill_args_envs(event, syscall);
 
     // [activity_dump] check if this process should be traced
-    should_trace_new_process(ctx, now, (event->container.cgroup_context.cgroup_flags<<32)|tgid, event->container.container_id);
+    should_trace_new_process(ctx, now, tgid, &event->container);
 
     // add interpreter path info
     event->linux_binprm.interpreter = syscall->exec.linux_binprm.interpreter;

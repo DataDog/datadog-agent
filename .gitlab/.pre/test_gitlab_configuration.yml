@@ -10,6 +10,7 @@ test_gitlab_configuration:
     - inv -e linter.gitlab-ci
     - inv -e linter.job-change-path
     - inv -e linter.gitlab-change-paths
+    - inv -e linter.ssm-parameters
 
 test_gitlab_compare_to:
   stage: .pre

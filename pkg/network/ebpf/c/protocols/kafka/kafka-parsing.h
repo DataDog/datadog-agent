@@ -1390,6 +1390,7 @@ static __always_inline bool kafka_process_new_response(void *ctx, conn_tuple_t *
     kafka->response.state = KAFKA_FETCH_RESPONSE_START;
     kafka->response.carry_over_offset = offset - orig_offset;
     kafka->response.expected_tcp_seq = kafka_get_next_tcp_seq(skb_info);
+    kafka->response.transaction.response_last_seen = bpf_ktime_get_ns();
 
     // Copy it to the stack since the verifier on 4.14 complains otherwise.
     kafka_response_context_t response_ctx;
@@ -1404,6 +1405,7 @@ static __always_inline bool kafka_process_new_response(void *ctx, conn_tuple_t *
 static __always_inline bool kafka_process_response(void *ctx, conn_tuple_t *tup, kafka_info_t *kafka, pktbuf_t pkt, skb_info_t *skb_info) {
     kafka_response_context_t *response = bpf_map_lookup_elem(&kafka_response, tup);
     if (response) {
+        response->transaction.response_last_seen = bpf_ktime_get_ns();
         if (!skb_info || skb_info->tcp_seq == response->expected_tcp_seq) {
             response->expected_tcp_seq = kafka_get_next_tcp_seq(skb_info);
             kafka_call_response_parser(ctx, tup, pkt, response->state, response->transaction.request_api_version);
@@ -1471,6 +1473,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     }
 
     kafka_transaction->request_started = bpf_ktime_get_ns();
+    kafka_transaction->response_last_seen = 0;
     kafka_transaction->request_api_key = kafka_header.api_key;
     kafka_transaction->request_api_version = kafka_header.api_version;
 

@@ -10,6 +10,6 @@ package dogstatsd
 import "testing"
 
 // noop version for unsupported platforms
-func testUDSOriginDetection(t *testing.T, network string) {
+func testUDSOriginDetection(t *testing.T, _ string) {
 	t.Log("Unsupported platform, skip...")
 }

@@ -11,14 +11,17 @@ package dump
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
 	"strings"
 
-	"github.com/mailru/easyjson/jwriter"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -27,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	ddhttputil "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type tooLargeEntityStatsEntry struct {
@@ -96,11 +98,7 @@ func (storage *ActivityDumpRemoteStorage) writeEventMetadata(writer *multipart.W
 	ad.DDTags = strings.Join(ad.Tags, ",")
 
 	// marshal event metadata
-	w := &jwriter.Writer{
-		Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
-	}
-	ad.MarshalEasyJSON(w)
-	metadata, err := w.BuildBytes()
+	metadata, err := json.Marshal(ad.ActivityDumpHeader)
 	if err != nil {
 		return fmt.Errorf("couldn't marshall event metadata")
 	}
@@ -180,7 +178,7 @@ func (storage *ActivityDumpRemoteStorage) sendToEndpoint(url string, apiKey stri
 		}
 		storage.tooLargeEntities[entry].Inc()
 	}
-	return fmt.Errorf(resp.Status)
+	return errors.New(resp.Status)
 }
 
 // Persist saves the provided buffer to the persistent storage

@@ -410,7 +410,7 @@ func TestForwarderEndtoEnd(t *testing.T) {
 
 func TestTransactionEventHandlers(t *testing.T) {
 	requests := atomic.NewInt64(0)
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		requests.Inc()
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -436,11 +436,11 @@ func TestTransactionEventHandlers(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	transactions[0].CompletionHandler = func(transaction *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
+	transactions[0].CompletionHandler = func(_ *transaction.HTTPTransaction, statusCode int, _ []byte, _ error) {
 		assert.Equal(t, http.StatusOK, statusCode)
 		wg.Done()
 	}
-	transactions[0].AttemptHandler = func(transaction *transaction.HTTPTransaction) {
+	transactions[0].AttemptHandler = func(_ *transaction.HTTPTransaction) {
 		attempts.Inc()
 	}
 
@@ -456,10 +456,10 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	requests := atomic.NewInt64(0)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(endpoints.V1ValidateEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(endpoints.V1ValidateEndpoint.Route, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	mux.HandleFunc(endpoints.SeriesEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(endpoints.SeriesEndpoint.Route, func(w http.ResponseWriter, _ *http.Request) {
 		if v := requests.Inc(); v == 1 {
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
@@ -491,11 +491,11 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	transactions[0].CompletionHandler = func(transaction *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
+	transactions[0].CompletionHandler = func(_ *transaction.HTTPTransaction, statusCode int, _ []byte, _ error) {
 		assert.Equal(t, http.StatusOK, statusCode)
 		wg.Done()
 	}
-	transactions[0].AttemptHandler = func(transaction *transaction.HTTPTransaction) {
+	transactions[0].AttemptHandler = func(_ *transaction.HTTPTransaction) {
 		attempts.Inc()
 	}
 
@@ -511,10 +511,10 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	requests := atomic.NewInt64(0)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(endpoints.V1ValidateEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(endpoints.V1ValidateEndpoint.Route, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	mux.HandleFunc(endpoints.SeriesEndpoint.Route, func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(endpoints.SeriesEndpoint.Route, func(w http.ResponseWriter, _ *http.Request) {
 		requests.Inc()
 		w.WriteHeader(http.StatusInternalServerError)
 	})
@@ -542,11 +542,11 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(1)
-	transactions[0].CompletionHandler = func(transaction *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
+	transactions[0].CompletionHandler = func(_ *transaction.HTTPTransaction, statusCode int, _ []byte, _ error) {
 		assert.Equal(t, http.StatusInternalServerError, statusCode)
 		wg.Done()
 	}
-	transactions[0].AttemptHandler = func(transaction *transaction.HTTPTransaction) {
+	transactions[0].AttemptHandler = func(_ *transaction.HTTPTransaction) {
 		attempts.Inc()
 	}
 
@@ -563,7 +563,7 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 
 func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 	requests := atomic.NewInt64(0)
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		requests.Inc()
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -659,7 +659,7 @@ func TestCustomCompletionHandler(t *testing.T) {
 	highPriorityQueueFull.Set(0)
 
 	// Setup a test HTTP server
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
@@ -671,7 +671,7 @@ func TestCustomCompletionHandler(t *testing.T) {
 	// Now let's create a Forwarder with a custom HTTPCompletionHandler set to it
 	done := make(chan struct{})
 	defer close(done)
-	var handler transaction.HTTPCompletionHandler = func(transaction *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
+	var handler transaction.HTTPCompletionHandler = func(_ *transaction.HTTPTransaction, _ int, _ []byte, _ error) {
 		done <- struct{}{}
 	}
 	mockConfig := pkgconfigsetup.Conf()

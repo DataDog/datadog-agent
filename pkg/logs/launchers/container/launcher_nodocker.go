@@ -24,7 +24,7 @@ import (
 type Launcher struct{}
 
 // NewLauncher returns a new launcher
-func NewLauncher(sources *sourcesPkg.LogSources, wmeta optional.Option[workloadmeta.Component]) *Launcher {
+func NewLauncher(_ *sourcesPkg.LogSources, _ optional.Option[workloadmeta.Component]) *Launcher {
 	return &Launcher{}
 }
 

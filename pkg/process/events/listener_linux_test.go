@@ -116,7 +116,7 @@ func TestSecurityModuleClientReconnect(t *testing.T) {
 	client := mocks.NewEventMonitoringModuleClient(t)
 	stream := mocks.NewEventMonitoringModule_GetProcessEventsClient(t)
 
-	l, err := NewSysProbeListener(nil, client, func(e *model.ProcessEvent) {})
+	l, err := NewSysProbeListener(nil, client, func(*model.ProcessEvent) {})
 	require.NoError(t, err)
 
 	l.retryInterval = 10 * time.Millisecond // force a fast retry for tests

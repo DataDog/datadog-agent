@@ -33,7 +33,7 @@ func TestLogResponseHandlerCallsNext(t *testing.T) {
 			req := httptest.NewRequest("GET", "http://agent.host/test/", nil)
 
 			rr := httptest.NewRecorder()
-			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(code)
 			})
 
@@ -106,7 +106,7 @@ func TestLogResponseHandlerLogging(t *testing.T) {
 
 			var getLogFuncCalls int
 			getLogFunc := func(int) logFunc {
-				return func(format string, args ...interface{}) {
+				return func(_ string, args ...interface{}) {
 					getLogFuncCalls++
 
 					require.Equal(t, 7, len(args))
@@ -122,7 +122,7 @@ func TestLogResponseHandlerLogging(t *testing.T) {
 			}
 
 			clock := clock.NewMock()
-			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				clock.Add(tt.duration)
 				w.WriteHeader(tt.statusCode)
 			})

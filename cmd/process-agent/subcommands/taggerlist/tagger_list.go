@@ -30,7 +30,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "tagger-list",
 		Short: "Print the tagger content of a running agent",
 		Long:  "",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(taggerList,
 				fx.Supply(command.GetCoreBundleParamsForOneShot(globalParams)),
 

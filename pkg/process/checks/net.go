@@ -480,13 +480,6 @@ func batchConnections(
 	return batches
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func groupSize(total, maxBatchSize int) int32 {
 	groupSize := total / maxBatchSize
 	if total%maxBatchSize > 0 {

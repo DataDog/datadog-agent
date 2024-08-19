@@ -18,7 +18,7 @@ import (
 func countPoolSize(p *PoolManager[Packet]) int {
 
 	i := 0
-	p.refs.Range(func(key, value interface{}) bool {
+	p.refs.Range(func(_, _ interface{}) bool {
 		i++
 
 		return true

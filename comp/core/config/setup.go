@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"path"
 	"runtime"
 	"strings"
 
@@ -54,9 +55,9 @@ func setupConfig(config pkgconfigmodel.Config, deps configDependencies) (*pkgcon
 	var err error
 	var warnings *pkgconfigmodel.Warnings
 	if resolver, ok := deps.getSecretResolver(); ok {
-		warnings, err = pkgconfigsetup.LoadWithSecret(config, resolver, pkgconfigsetup.SystemProbe.GetEnvVars())
+		warnings, err = pkgconfigsetup.LoadWithSecret(config, resolver, pkgconfigsetup.SystemProbe().GetEnvVars())
 	} else {
-		warnings, err = pkgconfigsetup.LoadWithoutSecret(config, pkgconfigsetup.SystemProbe.GetEnvVars())
+		warnings, err = pkgconfigsetup.LoadWithoutSecret(config, pkgconfigsetup.SystemProbe().GetEnvVars())
 	}
 
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
@@ -74,5 +75,24 @@ func setupConfig(config pkgconfigmodel.Config, deps configDependencies) (*pkgcon
 		}
 		return warnings, err
 	}
+
+	// Load the remote configuration
+	if p.FleetPoliciesDirPath == "" {
+		p.FleetPoliciesDirPath = config.GetString("fleet_policies_dir")
+	}
+	if p.FleetPoliciesDirPath != "" {
+		// Main config file
+		err := config.MergeFleetPolicy(path.Join(p.FleetPoliciesDirPath, "datadog.yaml"))
+		if err != nil {
+			return warnings, err
+		}
+		if p.configLoadSecurityAgent {
+			err := config.MergeFleetPolicy(path.Join(p.FleetPoliciesDirPath, "security-agent.yaml"))
+			if err != nil {
+				return warnings, err
+			}
+		}
+	}
+
 	return warnings, nil
 }

@@ -46,7 +46,7 @@ func TestDBMAuroraListener(t *testing.T) {
 			numDiscoveryIntervals: 0,
 			rdsClientConfigurer: func(k *aws.MockRDSClient) {
 				k.EXPECT().GetAuroraClustersFromTags(contextWithTimeout(1*time.Second), []string{defaultClusterTag}).DoAndReturn(
-					func(ctx context.Context, tags []string) ([]string, error) {
+					func(ctx context.Context, _ []string) ([]string, error) {
 						<-ctx.Done()
 						return nil, ctx.Err()
 					}).AnyTimes()
@@ -67,7 +67,7 @@ func TestDBMAuroraListener(t *testing.T) {
 				gomock.InOrder(
 					k.EXPECT().GetAuroraClustersFromTags(gomock.Any(), []string{defaultClusterTag}).Return([]string{"my-cluster-1"}, nil).AnyTimes(),
 					k.EXPECT().GetAuroraClusterEndpoints(contextWithTimeout(1*time.Second), []string{"my-cluster-1"}).DoAndReturn(
-						func(ctx context.Context, ids []string) (map[string]*aws.AuroraCluster, error) {
+						func(ctx context.Context, _ []string) (map[string]*aws.AuroraCluster, error) {
 							<-ctx.Done()
 							return nil, ctx.Err()
 						}).AnyTimes(),
