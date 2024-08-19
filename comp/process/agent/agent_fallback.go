@@ -11,7 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
@@ -19,9 +18,4 @@ import (
 // The process-agent always runs as a stand-alone agent in all non-linux platforms
 func Enabled(_ config.Component, _ []types.CheckComponent, _ log.Component) bool {
 	return flavor.GetFlavor() == flavor.ProcessAgent
-}
-
-// OverrideRunInCoreAgentConfig sets the process_config.run_in_core_agent.enabled to false in unsupported environments.
-func OverrideRunInCoreAgentConfig(config config.Component) {
-	config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 }
