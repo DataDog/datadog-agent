@@ -36,8 +36,8 @@ func (s *packageInstallerSuite) TestInstall() {
 
 	state.AssertDirExists("/etc/datadog-agent", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/var/log/datadog", 0755, "dd-agent", "dd-agent")
-	state.AssertDirExists("/var/run/datadog-installer", 0755, "dd-agent", "dd-agent")
-	state.AssertDirExists("/var/run/datadog-installer/locks", 0777, "root", "root")
+	state.AssertDirExists("/opt/datadog-packages/run", 0755, "dd-agent", "dd-agent")
+	state.AssertDirExists("/opt/datadog-packages/run/locks", 0777, "root", "root")
 	state.AssertDirExists("/var/run/datadog", 0755, "dd-agent", "dd-agent")
 
 	state.AssertDirExists("/opt/datadog-installer", 0755, "root", "root")
@@ -80,7 +80,6 @@ func (s *packageInstallerSuite) TestUninstall() {
 
 	// state that should get removed
 	state.AssertPathDoesNotExist("/opt/datadog-installer")
-	state.AssertPathDoesNotExist("/var/run/datadog-installer")
 	state.AssertPathDoesNotExist("/opt/datadog-packages")
 
 	state.AssertPathDoesNotExist("/usr/bin/datadog-bootstrap")

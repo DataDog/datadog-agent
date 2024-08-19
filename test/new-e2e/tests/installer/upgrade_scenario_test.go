@@ -117,7 +117,7 @@ func (s *upgradeScenarioSuite) TestUpgradeFromExistingExperiment() {
 		"datadog-installer.service",
 	)
 
-	s.host.WaitForFileExists(true, "/var/run/datadog-installer/installer.sock")
+	s.host.WaitForFileExists(true, "/opt/datadog-packages/run/installer.sock")
 
 	s.setCatalog(testCatalog)
 
@@ -491,7 +491,7 @@ func (s *upgradeScenarioSuite) assertSuccessfulAgentStopExperiment(timestamp hos
 }
 
 func (s *upgradeScenarioSuite) getInstallerStatus() installerStatus {
-	socketPath := "/var/run/datadog-installer/installer.sock"
+	socketPath := "/opt/datadog-packages/run/installer.sock"
 
 	requestHeader := " -H 'Content-Type: application/json' -H 'Accept: application/json' "
 	response := s.Env().RemoteHost.MustExecute(fmt.Sprintf(

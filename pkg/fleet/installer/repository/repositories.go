@@ -48,6 +48,10 @@ func (r *Repositories) loadRepositories() (map[string]*Repository, error) {
 			// Temporary extraction dir, ignore
 			continue
 		}
+		if filepath.Join(r.rootPath, d.Name()) == r.locksPath {
+			// Locks dir, ignore
+			continue
+		}
 		repo := r.newRepository(d.Name())
 		repositories[d.Name()] = repo
 	}

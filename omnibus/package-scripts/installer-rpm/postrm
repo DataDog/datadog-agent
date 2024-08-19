@@ -6,7 +6,6 @@
 
 PACKAGES_DIR=/opt/datadog-packages
 INSTALL_DIR=/opt/datadog-installer
-RUN_DIR=/var/run/datadog-installer
 
 set -e
 
@@ -19,7 +18,6 @@ datadog-installer purge || true
 rm -f "/usr/bin/datadog-bootstrap"
 echo "Force-deleting $INSTALL_DIR $PACKAGES_DIR $RUN_DIR"
 rm -rf $PACKAGES_DIR
-rm -rf $RUN_DIR
 rm -rf $INSTALL_DIR
 
 exit 0

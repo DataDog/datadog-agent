@@ -73,18 +73,22 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error creating /var/log/datadog: %w", err)
 	}
-	err = os.MkdirAll("/var/run/datadog-installer", 0755)
+	err = os.MkdirAll("/var/run/datadog-installer", 0755) // TODO(baptiste): remove this once the injector has been successfully migrated
 	if err != nil {
 		return fmt.Errorf("error creating /var/run/datadog-installer: %w", err)
 	}
-	err = os.MkdirAll("/var/run/datadog-installer/locks", 0777)
+	err = os.MkdirAll("/opt/datadog-packages/run", 0755)
 	if err != nil {
-		return fmt.Errorf("error creating /var/run/datadog-installer/locks: %w", err)
+		return fmt.Errorf("error creating /opt/datadog-packages/run: %w", err)
+	}
+	err = os.MkdirAll("/opt/datadog-packages/run/locks", 0777)
+	if err != nil {
+		return fmt.Errorf("error creating /opt/datadog-packages/run/locks: %w", err)
 	}
 	// Locks directory can already be created by a package install
-	err = os.Chmod("/var/run/datadog-installer/locks", 0777)
+	err = os.Chmod("/opt/datadog-packages/run/locks", 0777)
 	if err != nil {
-		return fmt.Errorf("error changing permissions of /var/run/datadog-installer/locks: %w", err)
+		return fmt.Errorf("error changing permissions of /opt/datadog-packages/run/locks: %w", err)
 	}
 	err = os.Chown("/etc/datadog-agent", ddAgentUID, ddAgentGID)
 	if err != nil {
@@ -94,9 +98,13 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error changing owner of /var/log/datadog: %w", err)
 	}
-	err = os.Chown("/var/run/datadog-installer", ddAgentUID, ddAgentGID)
+	err = os.Chown("/var/run/datadog-installer", ddAgentUID, ddAgentGID) // TODO(baptiste): remove this once the injector has been successfully migrated
 	if err != nil {
 		return fmt.Errorf("error changing owner of /var/run/datadog-installer: %w", err)
+	}
+	err = os.Chown("/opt/datadog-packages/run", ddAgentUID, ddAgentGID)
+	if err != nil {
+		return fmt.Errorf("error changing owner of /opt/datadog-packages/run: %w", err)
 	}
 	if err = os.MkdirAll("/var/run/datadog", 0755); err != nil {
 		return fmt.Errorf("failed to create /var/run/datadog: %v", err)

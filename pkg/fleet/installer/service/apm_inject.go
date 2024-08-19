@@ -125,6 +125,10 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 	if err := a.configureSocketsEnv(ctx); err != nil {
 		return err
 	}
+	if err := os.Symlink(envFilePath, envFilePathOld); err != nil && !os.IsExist(err) {
+		// TODO(baptiste): remove this once the injector has been successfully migrated
+		return fmt.Errorf("failed to symlink %s to /var/run/datadog-installer/environment: %w", envFilePath, err)
+	}
 	// Symlinks for sysvinit
 	if err := os.Symlink(envFilePath, "/etc/default/datadog-agent-trace"); err != nil && !os.IsExist(err) {
 		return fmt.Errorf("failed to symlink %s to /etc/default/datadog-agent-trace: %w", envFilePath, err)
