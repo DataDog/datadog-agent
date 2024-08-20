@@ -37,7 +37,6 @@ type collector struct {
 	metaV2                v2.Client
 	metaV4                v3or4.Client
 	seen                  map[workloadmeta.EntityID]struct{}
-	config                config.Component
 	taskCollectionEnabled bool
 	taskCollectionParser  util.TaskParser
 }

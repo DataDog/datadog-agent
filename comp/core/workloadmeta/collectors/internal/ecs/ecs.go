@@ -18,6 +18,7 @@ import (
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
@@ -43,7 +44,6 @@ type collector struct {
 	collectResourceTags bool
 	resourceTags        map[string]resourceTags
 	seen                map[workloadmeta.EntityID]struct{}
-	config              config.Component
 	// taskCollectionEnabled is a flag to enable detailed task collection
 	// if the flag is enabled, the collector will query the latest metadata endpoint, currently v4, for each task
 	// that is returned from the v1/tasks endpoint

@@ -19,6 +19,7 @@ import (
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	processwlm "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -51,7 +52,7 @@ type collector struct {
 // NewCollector returns a new local process collector
 // Currently, this is only used on Linux when language detection and run in core agent are enabled.
 func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
-	wlmExtractor := processwlm.GetSharedWorkloadMetaExtractor(cfg.SystemProbe())
+	wlmExtractor := processwlm.GetSharedWorkloadMetaExtractor(pkgconfig.SystemProbe())
 	processData := NewProcessData()
 	processData.Register(wlmExtractor)
 

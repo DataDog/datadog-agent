@@ -82,6 +82,7 @@ type exitInfo struct {
 
 type collector struct {
 	id                     string
+	config                 config.Component
 	store                  workloadmeta.Component
 	catalog                workloadmeta.AgentType
 	containerdClient       cutil.ContainerdItf
@@ -140,7 +141,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	}
 
 	eventsCtx, cancelEvents := context.WithCancel(ctx)
-	c.eventsChan, c.errorsChan = c.containerdClient.GetEvents().Subscribe(eventsCtx, subscribeFilters()...)
+	c.eventsChan, c.errorsChan = c.containerdClient.GetEvents().Subscribe(eventsCtx, subscribeFilters(c.config)...)
 
 	err = c.notifyInitialEvents(ctx)
 	if err != nil {
@@ -394,11 +395,11 @@ func (c *collector) ignoreContainer(namespace string, container containerd.Conta
 	return c.filterPausedContainers.IsExcluded(nil, "", info.Image, ""), nil
 }
 
-func subscribeFilters() []string {
+func subscribeFilters(cfg config.Component) []string {
 	var filters []string
 
 	for _, topic := range containerdTopics {
-		if isImageTopic(topic) && !imageMetadataCollectionIsEnabled() {
+		if isImageTopic(topic) && !imageMetadataCollectionIsEnabled(cfg) {
 			continue
 		}
 
