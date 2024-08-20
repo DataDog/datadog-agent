@@ -1,7 +1,7 @@
 
 prompt create test table
 create table t(n number);
--- grant select,insert on t to &&user ;
+grant select,insert on t to c##datadog ;
 insert into t values(18446744073709551615);
 commit;
 

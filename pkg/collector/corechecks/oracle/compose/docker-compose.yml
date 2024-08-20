@@ -5,10 +5,11 @@ services:
     ports:
       - "1521:1521"
     healthcheck:
-      test: "echo 'select 1 from dual;' | sqlplus -s sys/datad0g@localhost"
-      interval: 1s
+      test: "echo 'select 123456789;' | sqlplus -s sys/datad0g@localhost as sysdba | grep 123456789"
+      interval: 5s
+      start_period: 15s
       timeout: 5s
-      retries: 5
+      retries: 12
     volumes:
       - ./initdb.d:/docker-entrypoint-initdb.d/startup
     environment:

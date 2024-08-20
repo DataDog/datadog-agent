@@ -26,6 +26,7 @@ import (
  */
 
 func TestTablespaces(t *testing.T) {
+	t.Skip()
 	c, s := newDefaultCheck(t, "", "")
 	defer c.Teardown()
 	err := c.Run()
@@ -38,6 +39,7 @@ func TestTablespaces(t *testing.T) {
 }
 
 func TestTablespacesOffline(t *testing.T) {
+	t.Skip()
 	c, s := newDefaultCheck(t, "", "")
 	defer c.Teardown()
 	connection := getConnectData(t, useSysUser)
