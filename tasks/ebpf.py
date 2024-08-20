@@ -900,7 +900,7 @@ def generate_complexity_summary_for_pr(
         has_any_changes = True
 
     curr_commit = get_commit_sha(ctx, short=False)
-    msg += f"\n\nThis report was generated based on the complexity data for the current branch {branch_name} (pipeline [https://gitlab.ddbuild.io/DataDog/datadog-agent/-/pipelines/{pipeline_id}]({pipeline_id}, commit {curr_commit}) and the base branch {base_branch} (commit {common_ancestor}). Objects without changes are not reported. Contact [#ebpf-platform](https://dd.enterprise.slack.com/archives/C0424HA1SJK) if you have any questions/feedback."
+    msg += f"\n\nThis report was generated based on the complexity data for the current branch {branch_name} (pipeline [https://gitlab.ddbuild.io/DataDog/datadog-agent/-/pipelines/{pipeline_id}]({pipeline_id}), commit {curr_commit}) and the base branch {base_branch} (commit {common_ancestor}). Objects without changes are not reported. Contact [#ebpf-platform](https://dd.enterprise.slack.com/archives/C0424HA1SJK) if you have any questions/feedback."
     msg += "\n\nTable complexity legend: 🔵 - new; ⚪ - unchanged; 🟢 - reduced; 🔴 - increased"
 
     print(msg)
