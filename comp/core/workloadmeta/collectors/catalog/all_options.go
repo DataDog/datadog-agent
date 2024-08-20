@@ -30,9 +30,20 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/processcollector"
 	remoteworkloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func getCollectorList(cfg config.Component) []wmcatalog.Collector {
+	var filter *workloadmeta.Filter // Nil filter accepts everything
+
+	// Security Agent is only interested in containers
+	// TODO: (components) create a Catalog component, the implementation used by
+	// security-agent can use this filter, instead of needing to chekc agent.flavor
+	if flavor.GetFlavor() == flavor.SecurityAgent {
+		filter = workloadmeta.NewFilterBuilder().AddKind(workloadmeta.KindContainer).Build()
+	}
+
 	return util.BuildCatalog(
 		cfg,
 		cfcontainer.NewCollector,
@@ -45,8 +56,7 @@ func getCollectorList(cfg config.Component) []wmcatalog.Collector {
 		kubelet.NewCollector,
 		kubemetadata.NewCollector,
 		podman.NewCollector,
-		remoteworkloadmeta.NewCollector,
-		// TODO: remoteworkloadmetaParams(),
+		remoteworkloadmeta.NewCollectorWithFilterFunc(filter),
 		processcollector.NewCollector,
 		host.NewCollector,
 	)

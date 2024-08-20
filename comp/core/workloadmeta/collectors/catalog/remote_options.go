@@ -23,7 +23,6 @@ import (
 func getCollectorList(cfg config.Component) []wmcatalog.Collector {
 	return util.BuildCatalog(
 		cfg,
-		remoteworkloadmeta.NewCollector,
-		// TODO: remoteworkloadmetaParams(),
+		remoteworkloadmeta.NewCollectorWithFilterFunc(nil),
 	)
 }

@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"slices"
 
-	"go.uber.org/fx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 
@@ -42,17 +41,6 @@ var supportedKinds = []workloadmeta.Kind{
 	workloadmeta.KindContainer,
 	workloadmeta.KindKubernetesPod,
 	workloadmeta.KindECSTask,
-}
-
-// Params defines the parameters of the remote workloadmeta collector.
-type Params struct {
-	Filter *workloadmeta.Filter
-}
-
-type dependencies struct {
-	fx.In
-
-	Params Params
 }
 
 type client struct {
@@ -89,25 +77,29 @@ func (s *stream) Recv() (interface{}, error) {
 type streamHandler struct {
 	port   int
 	filter *workloadmeta.Filter
-	config config.Config
+	config config.Component
 }
 
-// NewCollector returns a remote workloadmeta collector, and an error if any.
-func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
-	// TODO:
-	//if filterHasUnsupportedKind(deps.Params.Filter) {
-	//	return nil, fmt.Errorf("the filter specified contains unsupported kinds")
-	//}
+// NewCollector returns a remote process collector for workloadmeta if any
+func newCollectorWithFilter(cfg config.Component, filter *workloadmeta.Filter) (wmcatalog.Collector, error) {
+	if filterHasUnsupportedKind(filter) {
+		return nil, fmt.Errorf("the filter specified contains unsupported kinds")
+	}
 
 	return &remote.GenericCollector{
 		CollectorID: collectorID,
 		StreamHandler: &streamHandler{
-			// TODO:
-			//filter: deps.Params.Filter,
+			filter: filter,
 			config: cfg,
 		},
 		Catalog: workloadmeta.Remote,
 	}, nil
+}
+
+func NewCollectorWithFilterFunc(filter *workloadmeta.Filter) func(config.Component) (wmcatalog.Collector, error) {
+	return func(cfg config.Component) (wmcatalog.Collector, error) {
+		return newCollectorWithFilter(cfg, filter)
+	}
 }
 
 func init() {

@@ -24,27 +24,35 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/podman"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/processcollector"
 	remoteworkloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
-func firstArg(c wmcatalog.Collector, _ error) wmcatalog.Collector {
-	return c
-}
-
 func getCollectorList(cfg config.Component) []wmcatalog.Collector {
-	return []wmcatalog.Collector{
-		firstArg(cfcontainer.NewCollector(cfg)),
-		firstArg(cfvm.NewCollector(cfg)),
-		firstArg(containerd.NewCollector(cfg)),
-		firstArg(docker.NewCollector(cfg)),
-		firstArg(ecs.NewCollector(cfg)),
-		firstArg(ecsfargate.NewCollector(cfg)),
-		firstArg(kubeapiserver.NewCollector(cfg)),
-		firstArg(kubelet.NewCollector(cfg)),
-		firstArg(kubemetadata.NewCollector(cfg)),
-		firstArg(podman.NewCollector(cfg)),
-		firstArg(remoteworkloadmeta.NewCollector(cfg)),
-		// TODO: remoteworkloadmetaParams(),
-		firstArg(processcollector.NewCollector(cfg)),
-		firstArg(host.NewCollector(cfg)),
+	var filter *workloadmeta.Filter // Nil filter accepts everything
+
+	// Security Agent is only interested in containers
+	// TODO: (components) create a Catalog component, the implementation used by
+	// security-agent can use this filter, instead of needing to check agent.flavor
+	if flavor.GetFlavor() == flavor.SecurityAgent {
+		filter = workloadmeta.NewFilterBuilder().AddKind(workloadmeta.KindContainer).Build()
 	}
+
+	return util.BuildCatalog(
+		cfg,
+		cfcontainer.NewCollector,
+		cfvm.NewCollector,
+		containerd.NewCollector,
+		docker.NewCollector,
+		ecs.NewCollector,
+		ecsfargate.NewCollector,
+		kubeapiserver.NewCollector,
+		kubelet.NewCollector,
+		kubemetadata.NewCollector,
+		podman.NewCollector,
+		remoteworkloadmeta.NewCollectorWithFilterFunc(filter),
+		processcollector.NewCollector,
+		host.NewCollector,
+	)
 }
