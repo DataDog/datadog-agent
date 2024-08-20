@@ -14,8 +14,6 @@ import (
 	"slices"
 	"strings"
 	"unicode"
-
-	"go.uber.org/zap"
 )
 
 type detectorCreatorFn func(ctx DetectionContext) detector
@@ -74,19 +72,17 @@ func newDotnetDetector(ctx DetectionContext) detector {
 
 // DetectionContext allows to detect ServiceMetadata.
 type DetectionContext struct {
-	logger *zap.Logger
-	args   []string
-	envs   map[string]string
-	fs     fs.SubFS
+	args []string
+	envs map[string]string
+	fs   fs.SubFS
 }
 
 // NewDetectionContext initializes DetectionContext.
-func NewDetectionContext(logger *zap.Logger, args []string, envs map[string]string, fs fs.SubFS) DetectionContext {
+func NewDetectionContext(args []string, envs map[string]string, fs fs.SubFS) DetectionContext {
 	return DetectionContext{
-		logger: logger,
-		args:   args,
-		envs:   envs,
-		fs:     fs,
+		args: args,
+		envs: envs,
+		fs:   fs,
 	}
 }
 
@@ -151,12 +147,11 @@ func checkForInjectionNaming(envs map[string]string) bool {
 }
 
 // ExtractServiceMetadata attempts to detect ServiceMetadata from the given process.
-func ExtractServiceMetadata(logger *zap.Logger, args []string, envs map[string]string) (ServiceMetadata, bool) {
+func ExtractServiceMetadata(args []string, envs map[string]string) (ServiceMetadata, bool) {
 	dc := DetectionContext{
-		logger: logger,
-		args:   args,
-		envs:   envs,
-		fs:     RealFs{},
+		args: args,
+		envs: envs,
+		fs:   RealFs{},
 	}
 	cmd := dc.args
 	if len(cmd) == 0 || len(cmd[0]) == 0 {

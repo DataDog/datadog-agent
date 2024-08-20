@@ -15,6 +15,19 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+const (
+	injectPackageDir   = "opt/datadog-packages/datadog-apm-inject"
+	libraryPackagesDir = "opt/datadog/apm/library"
+)
+
+func asAbs(path string) string {
+	return "/" + path
+}
+
+func injectorFilePath(name string) string {
+	return injectPackageDir + "/stable/inject/" + name
+}
+
 var sourceVolume = volume{
 	Volume: corev1.Volume{
 		Name: volumeName,
@@ -29,13 +42,32 @@ var v1VolumeMount = sourceVolume.mount(corev1.VolumeMount{
 })
 
 var v2VolumeMountInjector = sourceVolume.mount(corev1.VolumeMount{
-	MountPath: "/opt/datadog-packages/datadog-apm-inject",
-	SubPath:   "opt/datadog-packages/datadog-apm-inject",
+	MountPath: asAbs(injectPackageDir),
+	SubPath:   injectPackageDir,
 })
 
 var v2VolumeMountLibrary = sourceVolume.mount(corev1.VolumeMount{
-	MountPath: "/opt/datadog/apm/library",
-	SubPath:   "opt/datadog/apm/library",
+	MountPath: asAbs(libraryPackagesDir),
+	SubPath:   libraryPackagesDir,
+})
+
+var etcVolume = volume{
+	Volume: corev1.Volume{
+		Name: "datadog-auto-instrumentation-etc",
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	},
+}
+
+var volumeMountETCDPreloadInitContainer = etcVolume.mount(corev1.VolumeMount{
+	MountPath: "/datadog-etc",
+})
+
+var volumeMountETCDPreloadAppContainer = etcVolume.mount(corev1.VolumeMount{
+	MountPath: "/etc/ld.so.preload",
+	SubPath:   "ld.so.preload",
+	ReadOnly:  true,
 })
 
 type injector struct {
@@ -62,12 +94,20 @@ func (i *injector) initContainer() initContainer {
 			Image:   i.image,
 			Command: []string{"/bin/sh", "-c", "--"},
 			Args: []string{
+				// TODO: We should probably move this into either a script that's in the container _or_
+				//       something we can do with a go template because this is not great.
 				fmt.Sprintf(
-					`cp -r /%s/* %s && echo $(date +%%s) >> %s`,
-					mount.SubPath, mount.MountPath, tsFilePath,
+					`cp -r /%s/* %s && echo %s > /datadog-etc/ld.so.preload && echo $(date +%%s) >> %s`,
+					mount.SubPath,
+					mount.MountPath,
+					asAbs(injectorFilePath("launcher.preload.so")),
+					tsFilePath,
 				),
 			},
-			VolumeMounts: []corev1.VolumeMount{mount},
+			VolumeMounts: []corev1.VolumeMount{
+				mount,
+				volumeMountETCDPreloadInitContainer.VolumeMount,
+			},
 		},
 	}
 }
@@ -75,20 +115,22 @@ func (i *injector) initContainer() initContainer {
 func (i *injector) requirements() libRequirement {
 	return libRequirement{
 		initContainers: []initContainer{i.initContainer()},
-		volumes:        []volume{sourceVolume},
-		volumeMounts:   []volumeMount{v2VolumeMountInjector.readOnly().prepended()},
+		volumes: []volume{
+			sourceVolume,
+			etcVolume,
+		},
+		volumeMounts: []volumeMount{
+			volumeMountETCDPreloadAppContainer.prepended(),
+			v2VolumeMountInjector.readOnly().prepended(),
+		},
 		envVars: []envVar{
 			{
-				key: "LD_PRELOAD",
-				valFunc: identityValFunc(
-					"/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
-				),
+				key:     "LD_PRELOAD",
+				valFunc: identityValFunc(asAbs(injectorFilePath("launcher.preload.so"))),
 			},
 			{
-				key: "DD_INJECT_SENDER_TYPE",
-				valFunc: identityValFunc(
-					"k8s",
-				),
+				key:     "DD_INJECT_SENDER_TYPE",
+				valFunc: identityValFunc("k8s"),
 			},
 			{
 				key:     "DD_INJECT_START_TIME",

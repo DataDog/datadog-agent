@@ -1293,6 +1293,26 @@ service_monitoring_config:
 	})
 }
 
+func TestMaxPostgresTelemetryBuffered(t *testing.T) {
+	t.Run("value set through env var", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_POSTGRES_TELEMETRY_BUFFER", "50000")
+
+		cfg := New()
+		assert.Equal(t, 50000, cfg.MaxPostgresTelemetryBuffer)
+	})
+
+	t.Run("value set through yaml", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  max_postgres_telemetry_buffer: 30000
+`)
+
+		assert.Equal(t, 30000, cfg.MaxPostgresTelemetryBuffer)
+	})
+}
+
 func TestMaxPostgresStatsBuffered(t *testing.T) {
 	t.Run("value set through env var", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)

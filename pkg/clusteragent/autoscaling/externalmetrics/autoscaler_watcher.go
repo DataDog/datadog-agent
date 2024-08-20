@@ -144,6 +144,7 @@ func (w *AutoscalerWatcher) Run(stopCh <-chan struct{}) {
 	log.Infof("AutoscalerWatcher started (cache sync finished)")
 
 	tickerRefreshProcess := time.NewTicker(time.Duration(w.refreshPeriod) * time.Second)
+	defer tickerRefreshProcess.Stop()
 	for {
 		select {
 		case <-tickerRefreshProcess.C:

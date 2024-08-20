@@ -60,6 +60,28 @@ func filterToRegex(filter string) (*regexp.Regexp, error) {
 	return r, nil
 }
 
+// groupResourceToGVRString is a helper function that converts a group resource string to
+// a group-version-resource string
+// a group resource string is in the form `{resource}.{group}` or `{resource}` (example: deployments.apps, pods)
+// a group version resource string is in the form `{group}/{version}/{resource}` (example: apps/v1/deployments)
+// if the groupResource argument is not in the correct format, an empty string is returned
+func groupResourceToGVRString(groupResource string) string {
+	parts := strings.Split(groupResource, ".")
+
+	if len(parts) > 2 {
+		// incorrect format
+		log.Errorf("unexpected group resource format %q. correct format should be `{resource}.{group}` or `{resource}`", groupResource)
+	} else if len(parts) == 1 {
+		// format is `{resource}`
+		return parts[0]
+	} else {
+		// format is `{resource}/{group}`
+		return fmt.Sprintf("%s//%s", parts[1], parts[0])
+	}
+
+	return ""
+}
+
 // cleanDuplicateVersions detects if different versions are requested for the same resource within the same group
 // it logs an error for each occurrence, and a clean slice that doesn't contain any such duplication
 func cleanDuplicateVersions(resources []string) []string {
