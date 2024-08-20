@@ -57,10 +57,8 @@ lint_macos:
   before_script:
     # Selecting the current Go version
     - |
-      echo $(gimme $(cat .go-version))
       eval $(gimme $(cat .go-version))
-      echo "Using Go version: $(go version)"
-      echo "Don't forget to regularly delete unused versions"
+      echo "Don't forget to regularly delete unused versions. Here are the installed versions and their memory usage on the runner:"
       du -sh $HOME/.gimme/versions/*
     # Remove the Python cache and env if the Python version changed
     - |
