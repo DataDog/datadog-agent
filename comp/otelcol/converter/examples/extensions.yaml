@@ -2,7 +2,9 @@ receivers:
     otlp:
 
 exporters:
-    datadog: 
+    datadog:
+      api:
+        key: 12345
 
 extensions:
   pprof/user-defined:
