@@ -154,6 +154,12 @@ func (p *Processor) run() {
 		// -------------------
 
 		case order := <-p.ReconfigChan:
+			// applying the reconfiguration
+			// IMPORTANT: best-effort as unblocking the RC client asap but if there
+			// is yet another reconfiguration order triggered while a goroute is
+			// processing the buffered messages, this one will have to wait
+			// for the mutex below and will block the RC until the second reconfiguration
+			// is applied.
 			p.mu.Lock()
 			p.applySDSReconfiguration(order)
 			p.mu.Unlock()
@@ -161,12 +167,20 @@ func (p *Processor) run() {
 	}
 }
 
+// applySDSReconfiguration applies the SDS reconfiguration, possibly starting/stopping
+// SDS scanners and possibly processing buffered messages.
+// Returns as soon as the reconfiguration has been applied, processing the buffered
+// messages is done in a separate step.
 func (p *Processor) applySDSReconfiguration(order sds.ReconfigureOrder) {
 	isActive, err := p.sds.scanner.Reconfigure(order)
 	response := sds.ReconfigureResponse{
 		IsActive: isActive,
 		Err:      err,
 	}
+
+	// reply early, processing the buffered messages shouldn't
+	// block the RC client.
+	order.ResponseChan <- response
 
 	if err != nil {
 		log.Errorf("Error while reconfiguring the SDS scanner: %v", err)
@@ -192,8 +206,6 @@ func (p *Processor) applySDSReconfiguration(order sds.ReconfigureOrder) {
 		// enabled the SDS scanners, if they become inactive it is because the
 		// configuration has been sent like that.
 	}
-
-	order.ResponseChan <- response
 }
 
 func (s *sdsProcessor) bufferMsg(msg *message.Message) {
