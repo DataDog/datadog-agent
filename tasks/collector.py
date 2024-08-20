@@ -2,8 +2,11 @@ import os
 import platform
 import shutil
 import subprocess
+from sys import modules
 import tempfile
 import urllib.request
+import requests
+import re
 
 import yaml
 from invoke.exceptions import Exit
@@ -12,12 +15,13 @@ from invoke.tasks import task
 from tasks.go import tidy
 from tasks.libs.common.color import Color, color_message
 
+
 LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 """
-OCB_VERSION = "0.104.0"
+OCB_VERSION = "0.107.0"
 
 MANDATORY_COMPONENTS = {
     "extensions": [
@@ -42,9 +46,7 @@ COMPONENTS_TO_STRIP = {
     ],
 }
 
-BASE_URL = (
-    f"https://github.com/open-telemetry/opentelemetry-collector/releases/download/cmd%2Fbuilder%2Fv{OCB_VERSION}/"
-)
+BASE_URL = f"https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv{OCB_VERSION}/"
 
 BINARY_NAMES_BY_SYSTEM_AND_ARCH = {
     "Linux": {
@@ -64,7 +66,9 @@ class YAMLValidationError(Exception):
         super().__init__(message)
 
 
-def find_matching_components(manifest, components_to_match: dict, present: bool) -> list:
+def find_matching_components(
+    manifest, components_to_match: dict, present: bool
+) -> list:
     """Given a manifest and dict of components to match, if present=True, return list of
     components found, otherwise return list of components missing."""
     res = []
@@ -110,10 +114,14 @@ def validate_manifest(manifest) -> list:
     # validate mandatory components are present
     missing_components = find_matching_components(manifest, MANDATORY_COMPONENTS, False)
     if missing_components:
-        raise YAMLValidationError(f"Missing mandatory components in manifest: {', '.join(missing_components)}")
+        raise YAMLValidationError(
+            f"Missing mandatory components in manifest: {', '.join(missing_components)}"
+        )
 
     # determine if conflicting components are included in manifest, and if so, return list to remove
-    conflicting_components = find_matching_components(manifest, COMPONENTS_TO_STRIP, True)
+    conflicting_components = find_matching_components(
+        manifest, COMPONENTS_TO_STRIP, True
+    )
     return conflicting_components
 
 
@@ -238,9 +246,126 @@ def generate(ctx):
                     content = LICENSE_HEADER + "\n" + content
 
                 # Rename package
-                content = content.replace("package main", "package collectorcontribimpl")
+                content = content.replace(
+                    "package main", "package collectorcontribimpl"
+                )
 
                 with open(file_path, "w") as f:
                     f.write(content)
 
-                print(f"Updated package name and ensured license header in: {file_path}")
+                print(
+                    f"Updated package name and ensured license header in: {file_path}"
+                )
+
+
+GITHUB_API_URL = "https://api.github.com/repos"
+
+
+def fetch_latest_release(repo):
+    url = f"{GITHUB_API_URL}/{repo}/releases/latest"
+    print(f"Fetching latest release from {url} for {repo}")
+    response = requests.get(url)
+    if response.status_code == 200:
+        data = response.json()
+        return data["tag_name"]
+    else:
+        return None
+
+
+def update_go_mod_file(go_mod_path, collector_version, collector_modules):
+    print(f"Updating {go_mod_path} with version {collector_version}")
+    updated_lines = []
+    with open(go_mod_path) as file:
+        for line in file:
+            for module in collector_modules:
+                module_regex = re.compile(rf"^(\s*{re.escape(module)}\S*)\s+v[\d\.]+")
+                match = module_regex.match(line)
+                if match:
+                    print(f"Updating {module} in {go_mod_path}")
+                    # Replace the version with the new version
+                    line = f"{match.group(1)} {collector_version}\n"
+                updated_lines.append(line)
+    # Write the updated lines back to the file
+    with open(go_mod_path, "w") as file:
+        file.writelines(updated_lines)
+
+
+def update_all_go_mod(collector_version, collector_modules):
+    for root, _, files in os.walk("."):
+        if "go.mod" in files:
+            go_mod_path = os.path.join(root, "go.mod")
+            update_go_mod_file(go_mod_path, collector_version, collector_modules)
+    print("All go.mod files updated.")
+
+
+def read_old_version(filepath):
+    """Reads the old version from the manifest.yaml file."""
+    version_regex = re.compile(r"^\s*version:\s+([\d\.]+)")
+    with open(filepath) as file:
+        for line in file:
+            match = version_regex.match(line)
+            if match:
+                return match.group(1)
+    return None
+
+
+def update_file(filepath, old_version, new_version):
+    """Updates all instances of the old version to the new version in the file."""
+    print(f"Updating all instances of {old_version} to {new_version} in {filepath}")
+    with open(filepath) as file:
+        content = file.read()
+
+    # Replace all occurrences of the old version with the new version
+    updated_content = content.replace(old_version, new_version)
+
+    # Write the updated content back to the file
+    with open(filepath, "w") as file:
+        file.write(updated_content)
+
+    print(f"Updated all instances of {old_version} to {new_version} in {filepath}")
+
+
+def update_core_collector():
+    print(
+        "Updating the core collector version in all go.mod files and manifest.yaml file."
+    )
+    repo = "open-telemetry/opentelemetry-collector"
+    modules = ["go.opentelemetry.io/collector"]
+    collector_version = fetch_latest_release(repo)
+    if collector_version:
+        print(f"Latest release for {repo}: {collector_version}")
+        update_all_go_mod(collector_version, modules)
+        manifest_path = "./comp/otelcol/collector-contrib/impl/manifest.yaml"
+        old_version = read_old_version(manifest_path)
+        if old_version:
+            update_file(manifest_path, old_version, collector_version)
+            update_file(
+                "./comp/otelcol/collector/impl/collector.go",
+                old_version,
+                collector_version,
+            )
+            update_file("./tasks/collector.py", old_version, collector_version[1:])
+
+    else:
+        print(f"Failed to fetch the latest release for {repo}")
+
+    print("Core collector update complete.")
+
+
+def update_collector_contrib():
+    print("Updating the collector-contrib version in all go.mod files.")
+    repo = "open-telemetry/opentelemetry-collector-contrib"
+    modules = ["github.com/open-telemetry/opentelemetry-collector-contrib"]
+    collector_version = fetch_latest_release(repo)
+    if collector_version:
+        print(f"Latest release for {repo}: {collector_version}")
+        update_all_go_mod(collector_version, modules)
+    else:
+        print(f"Failed to fetch the latest release for {repo}")
+    print("Collector-contrib update complete.")
+
+
+@task
+def update(ctx):
+    update_core_collector()
+    update_collector_contrib()
