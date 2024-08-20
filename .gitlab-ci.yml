@@ -1020,16 +1020,14 @@ workflow:
 .on_windows_systemprobe_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
-      paths:
-        - test/new-e2e/tests/sysprobe-functional/**/*
+      paths: *system_probe_change_paths
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
 
 .on_windows_security_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
-      paths:
-        - test/new-e2e/tests/security-agent-functional/**/*
+      paths: *security_agent_change_paths
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
 
