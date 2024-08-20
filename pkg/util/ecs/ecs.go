@@ -17,6 +17,7 @@ import (
 var metaV1 v1.Client
 var err error
 
+// MetaECS stores ECS metadata to be exported to a json file in the agent flare
 type MetaECS struct {
 	ECSCluster      string
 	ECSAgentVersion string
