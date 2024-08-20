@@ -8,9 +8,11 @@
 // Package containerd provides the containerd colletor for workloadmeta
 package containerd
 
-import "go.uber.org/fx"
+import (
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
+)
 
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return fx.Options()
+// NewCollector is a no-op constructor
+func NewCollector() (wmcatalog.Collector, error) {
+	return nil, nil
 }

@@ -14,7 +14,7 @@ import (
 
 // GetCatalog returns the set of FX options to populate the catalog
 func GetCatalog() fx.Option {
-	options := getCollectorOptions()
+	options := getCollectorList()
 
 	// remove nil options
 	opts := make([]fx.Option, 0, len(options))

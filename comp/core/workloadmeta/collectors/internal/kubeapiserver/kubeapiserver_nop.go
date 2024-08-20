@@ -8,9 +8,13 @@
 // Package kubeapiserver provides the kubeapiserver colletor for workloadmeta
 package kubeapiserver
 
-import "go.uber.org/fx"
+import (
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
+)
 
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return nil
+type dependencies struct{}
+
+// NewCollector is a no-op constructor
+func NewCollector(deps dependencies) (wmcatalog.Collector, error) {
+	return nil, nil
 }

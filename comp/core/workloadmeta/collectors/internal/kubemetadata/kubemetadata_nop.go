@@ -8,9 +8,11 @@
 // Package kubemetadata implements the kube_metadata Workloadmeta collector.
 package kubemetadata
 
-import "go.uber.org/fx"
+import (
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
+)
 
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return nil
+// NewCollector is a no-op constructor
+func NewCollector() (wmcatalog.Collector, error) {
+	return nil, nil
 }
