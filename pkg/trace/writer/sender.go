@@ -55,6 +55,8 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 			recorder:   r,
 			userAgent:  fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
 		}, statsd)
+
+		log.Infof("Configuring sender %v for endpoint (%v) with API: %v", i, url, endpoint.APIKey[:5])
 	}
 	return senders
 }
@@ -257,6 +259,7 @@ func (s *sender) sendOnce(p *payload) bool {
 	}
 	if err != nil {
 		log.Tracef("Error submitting payload: %v\n", err)
+		log.Infof("Error in sender to endpoint (%v) with API: %v", s.cfg.url, s.cfg.apiKey[:5])
 	}
 	switch err.(type) {
 	case *retriableError:
