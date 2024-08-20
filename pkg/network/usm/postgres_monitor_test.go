@@ -34,16 +34,17 @@ import (
 )
 
 const (
-	postgresPort           = "5432"
-	repeatCount            = ebpf.BufferSize / len("table_")
-	createTableQuery       = "CREATE TABLE dummy (id SERIAL PRIMARY KEY, foo TEXT)"
-	updateSingleValueQuery = "UPDATE dummy SET foo = 'updated' WHERE id = 1"
-	selectAllQuery         = "SELECT * FROM dummy"
-	dropTableQuery         = "DROP TABLE IF EXISTS dummy"
-	deleteTableQuery       = "DELETE FROM dummy WHERE id = 1"
-	alterTableQuery        = "ALTER TABLE dummy ADD test VARCHAR(255);"
-	truncateTableQuery     = "TRUNCATE TABLE dummy"
-	showQuery              = "SHOW search_path"
+	postgresPort             = "5432"
+	repeatCount              = ebpf.BufferSize / len("table_")
+	createTableQuery         = "CREATE TABLE dummy (id SERIAL PRIMARY KEY, foo TEXT)"
+	updateSingleValueQuery   = "UPDATE dummy SET foo = 'updated' WHERE id = 1"
+	selectAllQuery           = "SELECT * FROM dummy"
+	selectParameterizedQuery = "SELECT * FROM dummy WHERE id = $1"
+	dropTableQuery           = "DROP TABLE IF EXISTS dummy"
+	deleteTableQuery         = "DELETE FROM dummy WHERE id = 1"
+	alterTableQuery          = "ALTER TABLE dummy ADD test VARCHAR(255);"
+	truncateTableQuery       = "TRUNCATE TABLE dummy"
+	showQuery                = "SHOW search_path"
 )
 
 var (
@@ -533,6 +534,28 @@ func testDecoding(t *testing.T, isTLS bool) {
 						postgres.UnknownOP: adjustCount(2),
 					},
 				}, isTLS)
+			},
+		},
+		// This test validates that parameterized queries are currently not supported.
+		{
+			name: "parameterized select",
+			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
+				require.NoError(t, pg.RunQuery(createInsertQuery("value-1")))
+			},
+			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.RunQuery(selectParameterizedQuery, "value-1"))
+			},
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{}, isTLS)
 			},
 		},
 	}
