@@ -32,7 +32,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20240808172947-94712f9a273b
+	github.com/DataDog/test-infra-definitions v0.0.0-20240820110623-bce362adb242
 	github.com/aws/aws-sdk-go-v2 v1.30.3
 	github.com/aws/aws-sdk-go-v2/config v1.27.19
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.164.2
@@ -51,7 +51,7 @@ require (
 	github.com/pulumi/pulumi-eks/sdk/v2 v2.7.6
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.13.1
 	github.com/pulumi/pulumi/sdk/v3 v3.126.0
-	github.com/samber/lo v1.39.0
+	github.com/samber/lo v1.47.0
 	github.com/sethvargo/go-retry v0.2.4
 	github.com/stretchr/testify v1.9.0
 	github.com/xeipuuv/gojsonschema v1.2.0
