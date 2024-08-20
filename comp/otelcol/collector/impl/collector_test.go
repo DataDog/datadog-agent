@@ -51,7 +51,7 @@ func TestGetConfDump(t *testing.T) {
 
 	reqs := Requires{
 		CollectorContrib: collectorcontribimpl.NewComponent(),
-		Config: conf,
+		Config:           conf,
 		URIs:             uriFromFile("simple-dd/config.yaml"),
 		ConfigStore:      configstore,
 		Lc:               &lifecycle{},
