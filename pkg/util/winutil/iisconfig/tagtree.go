@@ -55,21 +55,21 @@ func splitPaths(path string) []string {
 	return append(s, b)
 }
 
-func findInPathTree(pathtrees map[uint32]*pathTreeEntry, siteId uint32, urlpath string) (APMTags, APMTags) {
+func findInPathTree(pathTrees map[uint32]*pathTreeEntry, siteId uint32, urlpath string) (APMTags, APMTags) {
 	// urlpath will come in as something like
 	// /path/to/app
 
 	// break down the path
 	pathparts := splitPaths(urlpath)
 
-	if _, ok := pathtrees[siteId]; !ok {
+	if _, ok := pathTrees[siteId]; !ok {
 		return APMTags{}, APMTags{}
 	}
 	if len(pathparts) == 0 {
-		return pathtrees[siteId].ddjson, pathtrees[siteId].appconfig
+		return pathTrees[siteId].ddjson, pathTrees[siteId].appconfig
 	}
 
-	currNode := pathtrees[siteId]
+	currNode := pathTrees[siteId]
 
 	for _, part := range pathparts {
 		if _, ok := currNode.nodes[part]; !ok {
@@ -80,7 +80,7 @@ func findInPathTree(pathtrees map[uint32]*pathTreeEntry, siteId uint32, urlpath 
 	return currNode.ddjson, currNode.appconfig
 }
 
-func addToPathTree(pathtrees map[uint32]*pathTreeEntry, siteID string, urlpath string, ddjson, appconfig APMTags) {
+func addToPathTree(pathTrees map[uint32]*pathTreeEntry, siteID string, urlpath string, ddjson, appconfig APMTags) {
 
 	intid, err := strconv.Atoi(siteID)
 	if err != nil {
@@ -94,18 +94,18 @@ func addToPathTree(pathtrees map[uint32]*pathTreeEntry, siteID string, urlpath s
 	// break down the path
 	pathparts := splitPaths(urlpath)
 
-	if _, ok := pathtrees[id]; !ok {
-		pathtrees[id] = &pathTreeEntry{
+	if _, ok := pathTrees[id]; !ok {
+		pathTrees[id] = &pathTreeEntry{
 			nodes: make(map[string]*pathTreeEntry),
 		}
 	}
 	if len(pathparts) == 0 {
-		pathtrees[id].ddjson = ddjson
-		pathtrees[id].appconfig = appconfig
+		pathTrees[id].ddjson = ddjson
+		pathTrees[id].appconfig = appconfig
 		return
 	}
 
-	currNode := pathtrees[id]
+	currNode := pathTrees[id]
 
 	for _, part := range pathparts {
 		if _, ok := currNode.nodes[part]; !ok {
@@ -121,11 +121,11 @@ func addToPathTree(pathtrees map[uint32]*pathTreeEntry, siteID string, urlpath s
 func (iiscfg *DynamicIISConfig) GetAPMTags(siteID uint32, urlpath string) (APMTags, APMTags) {
 	iiscfg.mux.Lock()
 	defer iiscfg.mux.Unlock()
-	return findInPathTree(iiscfg.pathtrees, siteID, urlpath)
+	return findInPathTree(iiscfg.pathTrees, siteID, urlpath)
 }
 
 func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
-	pathtrees := make(map[uint32]*pathTreeEntry)
+	pathTrees := make(map[uint32]*pathTreeEntry)
 
 	for _, site := range xmlcfg.ApplicationHost.Sites {
 		for _, app := range site.Applications {
@@ -174,9 +174,9 @@ func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 					continue
 				}
 
-				addToPathTree(pathtrees, site.SiteID, app.Path, ddjson, appconfig)
+				addToPathTree(pathTrees, site.SiteID, app.Path, ddjson, appconfig)
 			}
 		}
 	}
-	return pathtrees
+	return pathTrees
 }

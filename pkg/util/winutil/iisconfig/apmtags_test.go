@@ -65,7 +65,6 @@ func TestAPMTags(t *testing.T) {
 	os.Setenv("TESTROOTDIR", testroot)
 	defer os.Unsetenv("TESTROOTDIR")
 
-	//apppath := filepath.Join(path, "testdata", "iisconfig.xml")
 	iisCfg, err := NewDynamicIISConfig()
 	assert.Nil(t, err)
 	assert.NotNil(t, iisCfg)
@@ -112,6 +111,10 @@ func TestAPMTags(t *testing.T) {
 	})
 	t.Run("test secondary site actual app3", func(t *testing.T) {
 		tags, _ := iisCfg.GetAPMTags(3, "/siteapp2/siteapp3")
+		assert.Equal(t, "app3", tags.DDService)
+	})
+	t.Run("test secondary site actual app3 with file", func(t *testing.T) {
+		tags, _ := iisCfg.GetAPMTags(3, "/siteapp2/siteapp3/somefile")
 		assert.Equal(t, "app3", tags.DDService)
 	})
 }

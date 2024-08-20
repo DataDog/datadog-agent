@@ -34,7 +34,7 @@ type DynamicIISConfig struct {
 	stopChannel  chan bool
 	xmlcfg       *iisConfiguration
 	siteIDToName map[uint32]string
-	pathtrees    map[uint32]*pathTreeEntry
+	pathTrees    map[uint32]*pathTreeEntry
 }
 
 // NewDynamicIISConfig creates a new DynamicIISConfig
@@ -156,7 +156,7 @@ func (iiscfg *DynamicIISConfig) readXMLConfig() error {
 	defer iiscfg.mux.Unlock()
 	iiscfg.xmlcfg = &newcfg
 	iiscfg.siteIDToName = idmap
-	iiscfg.pathtrees = pt
+	iiscfg.pathTrees = pt
 	return nil
 }
 
