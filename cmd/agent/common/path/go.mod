@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/cmd/agent/common/path
 
-go 1.21.0
+go 1.22.0
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../pkg/util/executable
@@ -10,14 +10,14 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.56.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.56.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.56.0
+	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.56.0
 	golang.org/x/sys v0.19.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect

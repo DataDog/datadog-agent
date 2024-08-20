@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface
 
-go 1.21.0
+go 1.22.0
 
 replace (
 	github.com/DataDog/datadog-agent/comp/def => ../../../../comp/def
@@ -8,13 +8,13 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/fx v1.18.2
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.56.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/config/logs
 
-go 1.21.0
+go 1.22.0
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/config/model => ../model/
@@ -9,9 +9,9 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.56.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.8
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/config/model v0.56.0
+	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/stretchr/testify v1.9.0
 )

@@ -1,11 +1,11 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/converter/impl
 
-go 1.21.0
+go 1.22.0
 
 replace github.com/DataDog/datadog-agent/comp/otelcol/converter/def => ../def
 
 require (
-	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.56.0-rc.8
+	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.56.0
 	github.com/stretchr/testify v1.9.0
 	go.opentelemetry.io/collector/confmap v0.104.0
 	go.opentelemetry.io/collector/confmap/converter/expandconverter v0.104.0

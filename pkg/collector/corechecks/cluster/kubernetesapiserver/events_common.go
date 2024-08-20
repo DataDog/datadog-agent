@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/kubetags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -151,7 +152,7 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 			fmt.Sprintf("namespace:%s", involvedObject.Namespace),
 		)
 
-		namespaceEntityID := fmt.Sprintf("kubernetes_metadata://namespaces//%s", involvedObject.Namespace)
+		namespaceEntityID := fmt.Sprintf("kubernetes_metadata://%s", string(util.GenerateKubeMetadataEntityID("", "namespaces", "", involvedObject.Namespace)))
 		namespaceEntity, err := taggerInstance.GetEntity(namespaceEntityID)
 		if err == nil {
 			tagList = append(tagList, namespaceEntity.GetTags(types.HighCardinality)...)

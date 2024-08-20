@@ -1,7 +1,7 @@
 module github.com/DataDog/datadog-agent/comp/core/flare/builder
 
-go 1.21.0
+go 1.22.0
 
 replace github.com/DataDog/datadog-agent/comp/def => ../../../def
 
-require github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.8
+require github.com/DataDog/datadog-agent/comp/def v0.56.0
