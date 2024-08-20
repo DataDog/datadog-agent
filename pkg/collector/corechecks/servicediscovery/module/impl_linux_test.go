@@ -340,7 +340,7 @@ func buildFakeServer(t *testing.T) string {
 	require.NoError(t, err)
 
 	binDir := filepath.Dir(serverBin)
-	for _, alias := range []string{"java"} {
+	for _, alias := range []string{"java", "node"} {
 		aliasPath := filepath.Join(binDir, alias)
 
 		target, err := os.Readlink(aliasPath)
@@ -356,25 +356,67 @@ func buildFakeServer(t *testing.T) string {
 	return binDir
 }
 
+func makeFakeNodeWorkingDirectory(t *testing.T) string {
+	t.Helper()
+
+	workdir, err := os.MkdirTemp("/tmp", "nodefakeserver-*")
+	assert.NoError(t, err, "could not create temporary node fakeserver working directory")
+	t.Cleanup(func() { os.RemoveAll(workdir) })
+
+	f, err := os.Create(path.Join(workdir, "package.json"))
+	assert.NoError(t, err, "could not create temporary package.json")
+	defer f.Close()
+
+	const fakePkgJSON string = `{
+	"dependencies": {
+		"bar": ">=1.9.0",
+		"dd-trace": "9.99.9",
+		"foo": "1.0.1",
+	}
+}`
+
+	f.WriteString(fakePkgJSON)
+
+	return workdir
+}
+
 func TestAPMInstrumentationProvided(t *testing.T) {
+	testCases := map[string]struct {
+		commandline      []string // The command line of the fake server
+		workingDirectory string   // Optional: The working directory to use for the server.
+	}{
+		"java": {
+			commandline: []string{"java", "-javaagent:/path/to/dd-java-agent.jar", "-jar", "foo.jar"},
+		},
+		"node": {
+			commandline:      []string{"node"},
+			workingDirectory: makeFakeNodeWorkingDirectory(t),
+		},
+	}
+
 	serverDir := buildFakeServer(t)
 	url := setupDiscoveryModule(t)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	for name, test := range testCases {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(func() { cancel() })
 
-	bin := filepath.Join(serverDir, "java")
-	cmd := exec.CommandContext(ctx, bin, "-javaagent:/path/to/dd-java-agent.jar", "-jar", "foo.jar")
-	err := cmd.Start()
-	require.NoError(t, err)
+			bin := filepath.Join(serverDir, test.commandline[0])
+			cmd := exec.CommandContext(ctx, bin, test.commandline[1:]...)
+			cmd.Dir = test.workingDirectory
+			err := cmd.Start()
+			require.NoError(t, err)
 
-	pid := cmd.Process.Pid
+			pid := cmd.Process.Pid
 
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		portMap := getServicesMap(t, url)
-		assert.Contains(collect, portMap, pid)
-		assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
-	}, 30*time.Second, 100*time.Millisecond)
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				portMap := getServicesMap(t, url)
+				assert.Contains(collect, portMap, pid)
+				assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
+			}, 30*time.Second, 100*time.Millisecond)
+		})
+	}
 }
 
 // Check that we can get listening processes in other namespaces.
