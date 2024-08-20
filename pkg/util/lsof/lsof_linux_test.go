@@ -168,7 +168,7 @@ func TestFdMetadata(t *testing.T) {
 		{
 			Fd:       "3",
 			Type:     "REG",
-			OpenPerm: "-r-x------",
+			OpenPerm: "r-",
 			FilePerm: "-r--------",
 			Size:     0,
 			Name:     "/some/file",
@@ -176,7 +176,7 @@ func TestFdMetadata(t *testing.T) {
 		{
 			Fd:       "5",
 			Type:     "REG",
-			OpenPerm: "-r-x------",
+			OpenPerm: "r-",
 			FilePerm: "-r--------",
 			Size:     0,
 			Name:     "/some/file",
@@ -234,7 +234,7 @@ func TestFDStat(t *testing.T) {
 				Fd:       "3",
 				Type:     "tcp",
 				FilePerm: "connected",
-				OpenPerm: "-rwx------",
+				OpenPerm: "rw",
 				Size:     0,
 				Name:     "127.0.0.1:42->127.0.0.1:43",
 			},
@@ -266,7 +266,7 @@ func TestFDStat(t *testing.T) {
 				Fd:       "4",
 				Type:     "REG",
 				FilePerm: "-r--------",
-				OpenPerm: "-r-x------",
+				OpenPerm: "r-",
 				Size:     34567890,
 				Name:     "/some/filename",
 			},
@@ -363,12 +363,12 @@ func TestReadSocketInfo(t *testing.T) {
 		info := readSocketInfo("testdata/readSocketInfo/1")
 
 		expected := map[uint64]socketInfo{
-			10975:   {"0.0.0.0:18777->0.0.0.0:0", "7", "udp6"},
-			40124:   {"10.254.219.58:123->0.0.0.0:0", "7", "udp"},
-			1986475: {"127.0.0.1:38489->0.0.0.0:0", "10", "tcp"},
+			10975:   {"0.0.0.0:18777->0.0.0.0:0", "CLOSE", "udp6"},
+			40124:   {"10.254.219.58:123->0.0.0.0:0", "UNKNOWN(42)", "udp"},
+			1986475: {"127.0.0.1:38489->0.0.0.0:0", "LISTEN", "tcp"},
 			1987112: {"stream:/tmp/.X11-unix/X2", "unconnected:listen", "unix"},
 			2506353: {"stream:", "connected:default", "unix"},
-			3359554: {"172.17.0.2:44594->20.199.39.224:443", "1", "tcp6"},
+			3359554: {"172.17.0.2:44594->20.199.39.224:443", "ESTABLISHED", "tcp6"},
 		}
 
 		require.Equal(t, expected, info)

@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"syscall"
 
 	"github.com/prometheus/procfs"
@@ -216,6 +217,19 @@ func (ofl *openFilesLister) fdStat(fd uintptr) (File, bool) {
 		return File{}, false
 	}
 
+	var ok bool
+	// remove some unnecessary information from permissions string
+	// if the expectations are not met, the permissions are left as is
+
+	// file descriptors always have no sticky bit, setuid, setgid
+	file.OpenPerm = strings.TrimPrefix(file.OpenPerm, "-")
+	// file descriptors always have no permission for group and others
+	file.OpenPerm, ok = strings.CutSuffix(file.OpenPerm, "------")
+	if ok {
+		// file descriptors always have execute permission
+		file.OpenPerm = strings.TrimSuffix(file.OpenPerm, "x")
+	}
+
 	if file.Type, file.FilePerm, file.Size, inode = fileStats(ofl.stat, fdLinkPath); file.Type == "" {
 		return File{}, false
 	}
@@ -232,6 +246,33 @@ func (ofl *openFilesLister) fdStat(fd uintptr) (File, bool) {
 	}
 
 	return file, true
+}
+
+// TCP state codes, from the Linux kernel
+// https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/include/net/tcp_states.h
+//
+// The same codes are used for UDP, but only ESTABLISHED and CLOSE are valid
+var tcpStates = map[uint64]string{
+	1:  "ESTABLISHED",
+	2:  "SYN_SENT",
+	3:  "SYN_RECV",
+	4:  "FIN_WAIT1",
+	5:  "FIN_WAIT2",
+	6:  "TIME_WAIT",
+	7:  "CLOSE",
+	8:  "CLOSE_WAIT",
+	9:  "LAST_ACK",
+	10: "LISTEN",
+	11: "CLOSING",
+	12: "NEW_SYN_RECV",
+	13: "BOUND_INACTIVE",
+}
+
+func stateStr(state uint64) string {
+	if s, ok := tcpStates[state]; ok {
+		return s
+	}
+	return fmt.Sprintf("UNKNOWN(%d)", state)
 }
 
 // readSocketInfo reads the socket information from /proc/<pid>/net/{tcp,tcp6,udp,udp6,unix}
@@ -258,9 +299,7 @@ func readSocketInfo(procPIDPath string) map[uint64]socketInfo {
 		for _, entry := range addrs {
 			si[entry.Inode] = socketInfo{
 				fmt.Sprintf("%s:%d->%s:%d", entry.LocalAddr, entry.LocalPort, entry.RemAddr, entry.RemPort),
-				// see https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/include/net/tcp_states.h
-				// for the values of states
-				fmt.Sprintf("%d", entry.St),
+				stateStr(entry.St),
 				protocol,
 			}
 		}
@@ -278,7 +317,7 @@ func readSocketInfo(procPIDPath string) map[uint64]socketInfo {
 		for _, entry := range addrs {
 			si[entry.Inode] = socketInfo{
 				fmt.Sprintf("%s:%d->%s:%d", entry.LocalAddr, entry.LocalPort, entry.RemAddr, entry.RemPort),
-				fmt.Sprintf("%d", entry.St),
+				stateStr(entry.St),
 				protocol,
 			}
 		}
