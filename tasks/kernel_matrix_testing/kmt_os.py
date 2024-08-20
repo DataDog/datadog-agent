@@ -109,6 +109,7 @@ class Linux:
     def flare(ctx: Context, flare_folder: Path):
         ctx.run(f"apt-cache policy{' '.join(Linux.packages)} > {flare_folder / 'packages.txt'}", warn=True)
         ctx.run(f"ip r > {flare_folder / 'ip_r.txt'}", warn=True)
+        ctx.run(f"ip a > {flare_folder / 'ip_a.txt'}", warn=True)
 
 
 class MacOS:
