@@ -64,6 +64,9 @@ func launchGui(config config.Component, _ *cliParams, _ log.Component) error {
 	}
 
 	// Open the GUI in a browser, passing the authorization tokens as parameters
+	// 'http://localhost' is preferred over 'http://127.0.0.1' due to Internet Explorer behavior.
+	// Internet Explorer High Security Level does not support setting cookies via HTTP Header response.
+	// By default, 'http://localhost' is categorized as an "intranet" website, which is considered safer and allowed to use cookies. This is not the case for 'http://127.0.0.1'.
 	err = open("http://localhost:" + guiPort + "/auth?intent=" + string(intentToken))
 	if err != nil {
 		return fmt.Errorf("error opening GUI: %s", err.Error())
