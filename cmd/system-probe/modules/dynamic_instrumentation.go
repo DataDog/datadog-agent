@@ -21,7 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
-// DynamicInstrumentation is the dynamic instrumentation module factory
+// DynamicInstrumentation is a system probe module which allows you to add instrumentation into
+// running Go services without restarts.
 var DynamicInstrumentation = module.Factory{
 	Name:             config.DynamicInstrumentationModule,
 	ConfigNamespaces: []string{},
