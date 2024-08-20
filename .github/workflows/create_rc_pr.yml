@@ -50,6 +50,12 @@ jobs:
         matrix:
           value: ${{fromJSON(needs.find_release_branches.outputs.branches)}}
       steps:
+            - name: Checkout release branch
+              uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+              with:
+                ref: ${{ matrix.value }}
+                fetch-depth: 0
+
             - name: Install python
               uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f # v5.1.1
               with:
@@ -62,12 +68,6 @@ jobs:
                 pip install -r requirements.txt
                 pip install -r tasks/libs/requirements-github.txt
                 pip install -r tasks/requirements_release_tasks.txt
-
-            - name: Checkout release branch
-              uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
-              with:
-                ref: ${{ matrix.value }}
-                fetch-depth: 0
 
             - name: Check for changes since last RC
               id: check_for_changes
