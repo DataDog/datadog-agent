@@ -74,9 +74,6 @@ const (
 	// constant is not worth the increased memory cost.
 	DNSResponseCodeNoError = 0
 
-	// ConnectionByteKeyMaxLen represents the maximum size in bytes of a connection byte key
-	ConnectionByteKeyMaxLen = 41
-
 	stateModuleName = "network_tracer__state"
 
 	shortLivedConnectionThreshold = 2 * time.Minute

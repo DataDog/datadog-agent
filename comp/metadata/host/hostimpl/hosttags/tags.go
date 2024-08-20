@@ -57,7 +57,7 @@ func getProvidersDefinitions(conf config.Reader) map[string]*providerDef {
 	}
 
 	if config.IsFeaturePresent(config.Kubernetes) {
-		providers["kubernetes"] = &providerDef{10, k8s.GetTags}
+		providers["kubernetes"] = &providerDef{10, k8s.NewKubeNodeTagsProvider(conf).GetTags}
 	}
 
 	if config.IsFeaturePresent(config.Docker) {

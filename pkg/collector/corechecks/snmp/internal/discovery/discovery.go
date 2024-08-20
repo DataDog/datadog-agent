@@ -139,7 +139,7 @@ func (d *Discovery) discoverDevices() {
 	}
 
 	discoveryTicker := time.NewTicker(time.Duration(d.config.DiscoveryInterval) * time.Second)
-
+	defer discoveryTicker.Stop()
 	for {
 		log.Debugf("subnet %s: Run discovery", d.config.Network)
 		startingIP := make(net.IP, len(subnet.startingIP))

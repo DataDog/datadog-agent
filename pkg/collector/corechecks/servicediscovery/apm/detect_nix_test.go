@@ -12,8 +12,46 @@ import (
 	"strings"
 	"testing"
 
-	"go.uber.org/zap"
+	"github.com/stretchr/testify/assert"
 )
+
+func TestInjected(t *testing.T) {
+	data := []struct {
+		name   string
+		envs   map[string]string
+		result bool
+	}{
+		{
+			name: "injected",
+			envs: map[string]string{
+				"DD_INJECTION_ENABLED": "tracer",
+			},
+			result: true,
+		},
+		{
+			name: "one of injected",
+			envs: map[string]string{
+				"DD_INJECTION_ENABLED": "service_name,tracer",
+			},
+			result: true,
+		},
+		{
+			name: "not injected but with env variable",
+			envs: map[string]string{
+				"DD_INJECTION_ENABLED": "service_name",
+			},
+		},
+		{
+			name: "not injected, no env variable",
+		},
+	}
+	for _, d := range data {
+		t.Run(d.name, func(t *testing.T) {
+			result := isInjected(d.envs)
+			assert.Equal(t, d.result, result)
+		})
+	}
+}
 
 func Test_javaDetector(t *testing.T) {
 	data := []struct {
@@ -32,10 +70,23 @@ func Test_javaDetector(t *testing.T) {
 			args:   strings.Split("java -version", " "),
 			result: None,
 		},
+		{
+			name:   "cmdline",
+			args:   []string{"java", "-foo", "-javaagent:/path/to/data dog/dd-java-agent.jar", "-Ddd.profiling.enabled=true"},
+			result: Provided,
+		},
+		{
+			name: "CATALINA_OPTS",
+			args: []string{"java"},
+			envs: map[string]string{
+				"CATALINA_OPTS": "-javaagent:dd-java-agent.jar",
+			},
+			result: Provided,
+		},
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := javaDetector(zap.NewNop(), d.args, d.envs)
+			result := javaDetector(d.args, d.envs)
 			if result != d.result {
 				t.Errorf("expected %s got %s", d.result, result)
 			}
@@ -85,7 +136,7 @@ func Test_pythonDetector(t *testing.T) {
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := pythonDetector(zap.NewNop(), d.args, d.envs)
+			result := pythonDetector(d.args, d.envs)
 			if result != d.result {
 				t.Errorf("expected %s got %s", d.result, result)
 			}
