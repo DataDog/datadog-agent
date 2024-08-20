@@ -28,6 +28,7 @@ network_path:
     enabled: true
 
 runtime_security_config:
+  ## Set to true to enable Threat Detection
   enabled: true
 
 cluster_checks:
@@ -45,4 +46,29 @@ system_probe_config:
   enabled: true
 
 network_config:
+  enabled: true
+
+# Per Cloud Security Management setup documentation
+# https://docs.datadoghq.com/security/cloud_security_management/setup/agent/linux/
+remote_configuration:
+  # SMP environment does not support remote config currently.
+  enabled: false
+
+compliance_config:
+  ## Set to true to enable CIS benchmarks for Misconfigurations.
+  enabled: true
+  host_benchmarks:
+    enabled: true
+
+# Vulnerabilities are evaluated and scanned against your containers and hosts every hour.
+sbom:
+  enabled: true
+  # Set to true to enable Container Vulnerability Management
+  container_image:
+    enabled: true
+  # Set to true to enable Host Vulnerability Management
+  host:
+    enabled: true
+
+container_image:
   enabled: true
