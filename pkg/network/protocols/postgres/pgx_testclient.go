@@ -53,11 +53,7 @@ func (c *PGXClient) Begin() (pgx.Tx, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	tx, err := c.DB.Begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return tx, nil
+	return c.DB.Begin(ctx)
 }
 
 // Commit commits the transaction.
