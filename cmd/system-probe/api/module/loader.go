@@ -200,6 +200,7 @@ func updateStats() {
 	then := time.Now()
 	now := time.Now()
 	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
 
 	for {
 		l.Lock()
