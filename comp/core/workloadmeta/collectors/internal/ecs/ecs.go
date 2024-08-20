@@ -16,6 +16,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -68,29 +69,22 @@ type resourceTags struct {
 	containerInstanceTags map[string]string
 }
 
-// NewCollector returns a new ecs collector provider and an error
-func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
-	return workloadmeta.CollectorProvider{
-		Collector: &collector{
-			id:                           collectorID,
-			resourceTags:                 make(map[string]resourceTags),
-			seen:                         make(map[workloadmeta.EntityID]struct{}),
-			catalog:                      workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
-			config:                       deps.Config,
-			taskCollectionEnabled:        util.IsTaskCollectionEnabled(deps.Config),
-			taskCache:                    cache.New(deps.Config.GetDuration("ecs_task_cache_ttl"), 30*time.Second),
-			taskRateRPS:                  deps.Config.GetInt("ecs_task_collection_rate"),
-			taskRateBurst:                deps.Config.GetInt("ecs_task_collection_burst"),
-			metadataRetryInitialInterval: deps.Config.GetDuration("ecs_metadata_retry_initial_interval"),
-			metadataRetryMaxElapsedTime:  deps.Config.GetDuration("ecs_metadata_retry_max_elapsed_time"),
-			metadataRetryTimeoutFactor:   deps.Config.GetInt("ecs_metadata_retry_timeout_factor"),
-		},
+// NewCollector returns a new ecs collector
+func NewCollector(deps dependencies) (wmcatalog.Collector, error) {
+	return &collector{
+		id:                           collectorID,
+		resourceTags:                 make(map[string]resourceTags),
+		seen:                         make(map[workloadmeta.EntityID]struct{}),
+		catalog:                      workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+		config:                       deps.Config,
+		taskCollectionEnabled:        util.IsTaskCollectionEnabled(deps.Config),
+		taskCache:                    cache.New(deps.Config.GetDuration("ecs_task_cache_ttl"), 30*time.Second),
+		taskRateRPS:                  deps.Config.GetInt("ecs_task_collection_rate"),
+		taskRateBurst:                deps.Config.GetInt("ecs_task_collection_burst"),
+		metadataRetryInitialInterval: deps.Config.GetDuration("ecs_metadata_retry_initial_interval"),
+		metadataRetryMaxElapsedTime:  deps.Config.GetDuration("ecs_metadata_retry_max_elapsed_time"),
+		metadataRetryTimeoutFactor:   deps.Config.GetInt("ecs_metadata_retry_timeout_factor"),
 	}, nil
-}
-
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return fx.Provide(NewCollector)
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {

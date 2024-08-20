@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/proto"
@@ -91,27 +92,20 @@ type streamHandler struct {
 	config.Config
 }
 
-// NewCollector returns a CollectorProvider to build a remote workloadmeta collector, and an error if any.
-func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
+// NewCollector returns a remote workloadmeta collector, and an error if any.
+func NewCollector(deps dependencies) (wmcatalog.Collector, error) {
 	if filterHasUnsupportedKind(deps.Params.Filter) {
-		return workloadmeta.CollectorProvider{}, fmt.Errorf("the filter specified contains unsupported kinds")
+		return nil, fmt.Errorf("the filter specified contains unsupported kinds")
 	}
 
-	return workloadmeta.CollectorProvider{
-		Collector: &remote.GenericCollector{
-			CollectorID: collectorID,
-			StreamHandler: &streamHandler{
-				filter: deps.Params.Filter,
-				Config: config.Datadog(),
-			},
-			Catalog: workloadmeta.Remote,
+	return &remote.GenericCollector{
+		CollectorID: collectorID,
+		StreamHandler: &streamHandler{
+			filter: deps.Params.Filter,
+			Config: config.Datadog(),
 		},
+		Catalog: workloadmeta.Remote,
 	}, nil
-}
-
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return fx.Provide(NewCollector)
 }
 
 func init() {

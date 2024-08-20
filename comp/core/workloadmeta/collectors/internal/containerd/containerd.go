@@ -17,8 +17,8 @@ import (
 
 	"github.com/containerd/containerd"
 	containerdevents "github.com/containerd/containerd/events"
-	"go.uber.org/fx"
 
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	agentErrors "github.com/DataDog/datadog-agent/pkg/errors"
@@ -105,21 +105,14 @@ type collector struct {
 	sbomScanner *scanner.Scanner //nolint: unused
 }
 
-// NewCollector returns a new containerd collector provider and an error
-func NewCollector() (workloadmeta.CollectorProvider, error) {
-	return workloadmeta.CollectorProvider{
-		Collector: &collector{
-			id:             collectorID,
-			catalog:        workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
-			contToExitInfo: make(map[string]*exitInfo),
-			knownImages:    newKnownImages(),
-		},
+// NewCollector returns a new containerd collector
+func NewCollector() (wmcatalog.Collector, error) {
+	return &collector{
+		id:             collectorID,
+		catalog:        workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+		contToExitInfo: make(map[string]*exitInfo),
+		knownImages:    newKnownImages(),
 	}, nil
-}
-
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return fx.Provide(NewCollector)
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {

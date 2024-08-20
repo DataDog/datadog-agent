@@ -15,6 +15,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -48,22 +49,15 @@ type collector struct {
 	taskCollectionParser  util.TaskParser
 }
 
-// NewCollector returns a new ecsfargate collector provider and an error
-func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
-	return workloadmeta.CollectorProvider{
-		Collector: &collector{
-			id:                    collectorID,
-			catalog:               workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
-			seen:                  make(map[workloadmeta.EntityID]struct{}),
-			config:                deps.Config,
-			taskCollectionEnabled: util.IsTaskCollectionEnabled(deps.Config),
-		},
+// NewCollector returns a new ecsfargate collector
+func NewCollector(deps dependencies) (wmcatalog.Collector, error) {
+	return &collector{
+		id:                    collectorID,
+		catalog:               workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+		seen:                  make(map[workloadmeta.EntityID]struct{}),
+		config:                deps.Config,
+		taskCollectionEnabled: util.IsTaskCollectionEnabled(deps.Config),
 	}, nil
-}
-
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return fx.Provide(NewCollector)
 }
 
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {

@@ -24,8 +24,8 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/go-connections/nat"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-	"go.uber.org/fx"
 
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -69,19 +69,12 @@ type collector struct {
 	sbomScanner *scanner.Scanner //nolint: unused
 }
 
-// NewCollector returns a new docker collector provider and an error
-func NewCollector() (workloadmeta.CollectorProvider, error) {
-	return workloadmeta.CollectorProvider{
-		Collector: &collector{
-			id:      collectorID,
-			catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
-		},
+// NewCollector returns a new docker collector
+func NewCollector() (wmcatalog.Collector, error) {
+	return &collector{
+		id:      collectorID,
+		catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
 	}, nil
-}
-
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return fx.Provide(NewCollector)
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {

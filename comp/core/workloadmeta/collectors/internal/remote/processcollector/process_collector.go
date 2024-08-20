@@ -13,10 +13,10 @@ import (
 	"strconv"
 	"time"
 
-	"go.uber.org/fx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -114,21 +114,14 @@ func workloadmetaEventFromProcessEventUnset(protoEvent *pbgo.ProcessEventUnset) 
 }
 
 // NewCollector returns a remote process collector for workloadmeta if any
-func NewCollector() (workloadmeta.CollectorProvider, error) {
-	return workloadmeta.CollectorProvider{
-		Collector: &remote.GenericCollector{
-			CollectorID: collectorID,
-			// TODO(components): make sure StreamHandler uses the config component not pkg/config
-			StreamHandler: &streamHandler{Reader: config.Datadog()},
-			Catalog:       workloadmeta.NodeAgent,
-			Insecure:      true, // wlm extractor currently does not support TLS
-		},
+func NewCollector() (wmcatalog.Collector, error) {
+	return &remote.GenericCollector{
+		CollectorID: collectorID,
+		// TODO(components): make sure StreamHandler uses the config component not pkg/config
+		StreamHandler: &streamHandler{Reader: config.Datadog()},
+		Catalog:       workloadmeta.NodeAgent,
+		Insecure:      true, // wlm extractor currently does not support TLS
 	}, nil
-}
-
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return fx.Provide(NewCollector)
 }
 
 func init() {

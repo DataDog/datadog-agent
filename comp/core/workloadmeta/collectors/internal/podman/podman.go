@@ -15,8 +15,7 @@ import (
 	"sort"
 	"strings"
 
-	"go.uber.org/fx"
-
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
@@ -44,20 +43,13 @@ type collector struct {
 	seen    map[workloadmeta.EntityID]struct{}
 }
 
-// NewCollector returns a new podman collector provider and an error
-func NewCollector() (workloadmeta.CollectorProvider, error) {
-	return workloadmeta.CollectorProvider{
-		Collector: &collector{
-			id:      collectorID,
-			seen:    make(map[workloadmeta.EntityID]struct{}),
-			catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
-		},
+// NewCollector returns a new podman collector
+func NewCollector() (wmcatalog.Collector, error) {
+	return &collector{
+		id:      collectorID,
+		seen:    make(map[workloadmeta.EntityID]struct{}),
+		catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
 	}, nil
-}
-
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return fx.Provide(NewCollector)
 }
 
 // Start the collector for the provided workloadmeta component

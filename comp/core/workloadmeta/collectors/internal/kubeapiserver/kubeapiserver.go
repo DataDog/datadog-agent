@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -152,20 +153,13 @@ type collector struct {
 	config  config.Reader
 }
 
-// NewCollector returns a kubeapiserver CollectorProvider that instantiates its colletor
-func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
-	return workloadmeta.CollectorProvider{
-		Collector: &collector{
-			id:      collectorID,
-			catalog: workloadmeta.ClusterAgent,
-			config:  deps.Config,
-		},
+// NewCollector returns a kubeapiserver Collector
+func NewCollector(deps dependencies) (wmcatalog.Collector, error) {
+	return &collector{
+		id:      collectorID,
+		catalog: workloadmeta.ClusterAgent,
+		config:  deps.Config,
 	}, nil
-}
-
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return fx.Provide(NewCollector)
 }
 
 func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Component) error {

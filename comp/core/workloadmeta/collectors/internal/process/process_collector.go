@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"go.uber.org/fx"
 
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -47,29 +47,22 @@ type collector struct {
 	containerProvider proccontainers.ContainerProvider
 }
 
-// NewCollector returns a new local process collector provider and an error.
+// NewCollector returns a new local process collector
 // Currently, this is only used on Linux when language detection and run in core agent are enabled.
-func NewCollector() (workloadmeta.CollectorProvider, error) {
+func NewCollector() (wmcatalog.Collector, error) {
 	wlmExtractor := processwlm.GetSharedWorkloadMetaExtractor(config.SystemProbe())
 	processData := NewProcessData()
 	processData.Register(wlmExtractor)
 
-	return workloadmeta.CollectorProvider{
-		Collector: &collector{
-			id:              collectorID,
-			catalog:         workloadmeta.NodeAgent,
-			wlmExtractor:    wlmExtractor,
-			processDiffCh:   wlmExtractor.ProcessCacheDiff(),
-			processData:     processData,
-			pidToCid:        make(map[int]string),
-			collectionClock: clock.New(),
-		},
+	return &collector{
+		id:              collectorID,
+		catalog:         workloadmeta.NodeAgent,
+		wlmExtractor:    wlmExtractor,
+		processDiffCh:   wlmExtractor.ProcessCacheDiff(),
+		processData:     processData,
+		pidToCid:        make(map[int]string),
+		collectionClock: clock.New(),
 	}, nil
-}
-
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return fx.Provide(NewCollector)
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {

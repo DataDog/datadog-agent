@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -50,20 +50,13 @@ type collector struct {
 	collectNamespaceAnnotations bool
 }
 
-// NewCollector returns a CollectorProvider to build a kubemetadata collector, and an error if any.
-func NewCollector() (workloadmeta.CollectorProvider, error) {
-	return workloadmeta.CollectorProvider{
-		Collector: &collector{
-			id:      collectorID,
-			seen:    make(map[workloadmeta.EntityID]struct{}),
-			catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
-		},
+// NewCollector returns a kubemetadata collector
+func NewCollector() (wmcatalog.Collector, error) {
+	return &collector{
+		id:      collectorID,
+		seen:    make(map[workloadmeta.EntityID]struct{}),
+		catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
 	}, nil
-}
-
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return fx.Provide(NewCollector)
 }
 
 // Start tries to connect to the kubelet, the DCA and the API Server if the DCA is not available.
