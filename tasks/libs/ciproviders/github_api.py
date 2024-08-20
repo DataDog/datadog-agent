@@ -10,12 +10,12 @@ from collections.abc import Iterable
 from functools import lru_cache
 
 import requests
-import semver
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import GITHUB_REPO_NAME
 
 try:
+    import semver
     from github import Auth, Github, GithubException, GithubIntegration, GithubObject, PullRequest
     from github.NamedUser import NamedUser
 except ImportError:
