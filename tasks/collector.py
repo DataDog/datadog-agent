@@ -1,20 +1,18 @@
 import os
 import platform
+import re
 import shutil
 import subprocess
-from sys import modules
 import tempfile
 import urllib.request
-import requests
-import re
 
+import requests
 import yaml
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.go import tidy
 from tasks.libs.common.color import Color, color_message
-
 
 LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
@@ -66,9 +64,7 @@ class YAMLValidationError(Exception):
         super().__init__(message)
 
 
-def find_matching_components(
-    manifest, components_to_match: dict, present: bool
-) -> list:
+def find_matching_components(manifest, components_to_match: dict, present: bool) -> list:
     """Given a manifest and dict of components to match, if present=True, return list of
     components found, otherwise return list of components missing."""
     res = []
@@ -114,14 +110,10 @@ def validate_manifest(manifest) -> list:
     # validate mandatory components are present
     missing_components = find_matching_components(manifest, MANDATORY_COMPONENTS, False)
     if missing_components:
-        raise YAMLValidationError(
-            f"Missing mandatory components in manifest: {', '.join(missing_components)}"
-        )
+        raise YAMLValidationError(f"Missing mandatory components in manifest: {', '.join(missing_components)}")
 
     # determine if conflicting components are included in manifest, and if so, return list to remove
-    conflicting_components = find_matching_components(
-        manifest, COMPONENTS_TO_STRIP, True
-    )
+    conflicting_components = find_matching_components(manifest, COMPONENTS_TO_STRIP, True)
     return conflicting_components
 
 
@@ -246,16 +238,12 @@ def generate(ctx):
                     content = LICENSE_HEADER + "\n" + content
 
                 # Rename package
-                content = content.replace(
-                    "package main", "package collectorcontribimpl"
-                )
+                content = content.replace("package main", "package collectorcontribimpl")
 
                 with open(file_path, "w") as f:
                     f.write(content)
 
-                print(
-                    f"Updated package name and ensured license header in: {file_path}"
-                )
+                print(f"Updated package name and ensured license header in: {file_path}")
 
 
 GITHUB_API_URL = "https://api.github.com/repos"
@@ -326,9 +314,7 @@ def update_file(filepath, old_version, new_version):
 
 
 def update_core_collector():
-    print(
-        "Updating the core collector version in all go.mod files and manifest.yaml file."
-    )
+    print("Updating the core collector version in all go.mod files and manifest.yaml file.")
     repo = "open-telemetry/opentelemetry-collector"
     modules = ["go.opentelemetry.io/collector"]
     collector_version = fetch_latest_release(repo)
