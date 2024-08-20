@@ -905,8 +905,10 @@ func (c *Client) GetServiceDiscoveries() ([]*aggregator.ServiceDiscoveryPayload,
 	if err != nil {
 		return nil, err
 	}
-	var payloads []*aggregator.ServiceDiscoveryPayload
-	for _, name := range c.serviceDiscoveryAggregator.GetNames() {
+
+	names := c.serviceDiscoveryAggregator.GetNames()
+	payloads := make([]*aggregator.ServiceDiscoveryPayload, 0, len(names))
+	for _, name := range names {
 		payloads = append(payloads, c.serviceDiscoveryAggregator.GetPayloadsByName(name)...)
 	}
 	return payloads, nil
