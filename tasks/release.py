@@ -2,7 +2,6 @@
 Release helper tasks
 """
 
-import json
 import os
 import re
 import sys
@@ -880,15 +879,6 @@ def get_active_release_branch(_):
         print(f"{release_branch.name}")
     else:
         print("main")
-
-
-@task
-def get_unreleased_release_branches(_):
-    """
-    Determine what are the current active release branches for the Agent.
-    """
-    gh = GithubAPI()
-    print(json.dumps([branch.name for branch in gh.latest_unreleased_release_branches()]))
 
 
 def get_next_version(gh):
