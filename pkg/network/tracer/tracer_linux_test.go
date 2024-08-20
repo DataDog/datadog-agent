@@ -1216,10 +1216,8 @@ func (s *TracerSuite) TestUDPPeekCount() {
 	require.True(t, incoming.IntraHost)
 }
 
-func (s *TracerSuite) TestUdpCorkCount() {
+func (s *TracerSuite) TestUdpMsgMoreCount() {
 	t := s.T()
-
-	t.Skip("skipping because of missed call issue from inet_sendmsg")
 
 	config := testConfig()
 	tr := setupTracer(t, config)
@@ -1255,11 +1253,91 @@ func (s *TracerSuite) TestUdpCorkCount() {
 			sockAddr := syscall.SockaddrInet4{Port: raddr.Port}
 			copy(sockAddr.Addr[:], raddr.IP.To4())
 
-			t.Log("flags", flags)
-
 			err = syscall.Sendto(int(fd), msg, flags, &sockAddr)
 			require.NoError(t, err)
 		}
+	})
+	require.NoError(t, err)
+
+	recvBuffer := make([]byte, 256)
+	n, _, err := ln.ReadFrom(recvBuffer[:])
+	// make sure the full message was received on the other side (regardless of what the tracer thinks)
+	require.Equal(t, n, len(msg)*COUNT)
+	require.NoError(t, err)
+
+	var incoming *network.ConnectionStats
+	var outgoing *network.ConnectionStats
+	require.Eventuallyf(t, func() bool {
+		conns := getConnections(t, tr)
+		if outgoing == nil {
+			outgoing, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		}
+		if incoming == nil {
+			incoming, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
+		}
+
+		return outgoing != nil && incoming != nil
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find incoming and outgoing connections matching")
+
+	m := outgoing.Monotonic
+	require.Equal(t, len(msg)*COUNT, int(m.SentBytes))
+	require.Equal(t, 0, int(m.RecvBytes))
+	require.Equal(t, 1, int(m.SentPackets))
+	require.Equal(t, 0, int(m.RecvPackets))
+	require.True(t, outgoing.IntraHost)
+
+	// make sure the inverse values are seen for the other message
+	m = incoming.Monotonic
+	require.Equal(t, 0, int(m.SentBytes))
+	require.Equal(t, len(msg)*COUNT, int(m.RecvBytes))
+	require.Equal(t, 0, int(m.SentPackets))
+	require.Equal(t, 1, int(m.RecvPackets))
+	require.True(t, incoming.IntraHost)
+}
+
+func (s *TracerSuite) TestUdpCorkCount() {
+	t := s.T()
+
+	config := testConfig()
+	tr := setupTracer(t, config)
+
+	ln, err := net.ListenPacket("udp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+
+	saddr := ln.LocalAddr().String()
+
+	laddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:0")
+	require.NoError(t, err)
+	raddr, err := net.ResolveUDPAddr("udp", saddr)
+	require.NoError(t, err)
+
+	c, err := net.DialUDP("udp", laddr, raddr)
+	require.NoError(t, err)
+	defer c.Close()
+
+	msg := []byte("asdf")
+	rawConn, err := c.SyscallConn()
+	require.NoError(t, err)
+
+	// this is the main behavior of the test that's being tested
+	err = rawConn.Control(func(fd uintptr) {
+		// enable UDP_CORK
+		err = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_UDP, unix.UDP_CORK, 1)
+		require.NoError(t, err)
+	})
+	require.NoError(t, err)
+
+	COUNT := 10
+	for i := 0; i < COUNT; i++ {
+		_, err = c.Write(msg)
+		require.NoError(t, err)
+	}
+	err = rawConn.Control(func(fd uintptr) {
+		// disable UDP_CORK - this is the syscall that actually sends the UDP packet
+		// c.Write did not send any packets since UDP_CORK was active!
+		err = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_UDP, unix.UDP_CORK, 0)
+		require.NoError(t, err)
 	})
 	require.NoError(t, err)
 
