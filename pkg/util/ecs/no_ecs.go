@@ -12,6 +12,7 @@ import (
 	"context"
 )
 
+// MetaECS stores ECS metadata to be exported to a json file in the agent flare
 type MetaECS struct{}
 
 // NewECSMeta returns an ECSConfig object
