@@ -61,6 +61,7 @@ type appConfiguration struct {
 func ReadDotNetConfig(cfgpath string) (APMTags, error) { //(APMTags, error) {
 	var newcfg appConfiguration
 	var apmtags APMTags
+	var chaseDatadogJson string
 	f, err := os.ReadFile(cfgpath)
 	if err != nil {
 		return apmtags, err
@@ -77,6 +78,22 @@ func ReadDotNetConfig(cfgpath string) (APMTags, error) { //(APMTags, error) {
 			apmtags.DDEnv = setting.Value
 		case "DD_VERSION":
 			apmtags.DDVersion = setting.Value
+		case "DD_TRACE_CONFIG_FILE":
+			chaseDatadogJson = setting.Value
+		}
+	}
+	if len(chaseDatadogJson) > 0 {
+		ddjson, err := ReadDatadogJson(chaseDatadogJson)
+		if err == nil {
+			if len(ddjson.DDService) > 0 {
+				apmtags.DDService = ddjson.DDService
+			}
+			if len(ddjson.DDEnv) > 0 {
+				apmtags.DDEnv = ddjson.DDEnv
+			}
+			if len(ddjson.DDVersion) > 0 {
+				apmtags.DDVersion = ddjson.DDVersion
+			}
 		}
 	}
 	return apmtags, nil

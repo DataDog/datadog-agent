@@ -102,10 +102,10 @@ func (iiscfg *DynamicIISConfig) GetAPMTags(siteID uint32, urlpath string) (APMTa
 	return findInPathTree(iiscfg.pathtrees, siteID, urlpath)
 }
 
-func (iiscfg *DynamicIISConfig) buildPathTagTree() {
+func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 	pathtrees := make(map[uint32]*pathTreeEntry)
 
-	for _, site := range iiscfg.xmlcfg.ApplicationHost.Sites {
+	for _, site := range xmlcfg.ApplicationHost.Sites {
 		for _, app := range site.Applications {
 			for _, vdir := range app.VirtualDirs {
 				if vdir.Path != "/" {
@@ -153,5 +153,5 @@ func (iiscfg *DynamicIISConfig) buildPathTagTree() {
 			}
 		}
 	}
-	iiscfg.pathtrees = pathtrees
+	return pathtrees
 }

@@ -154,11 +154,12 @@ func (iiscfg *DynamicIISConfig) readXMLConfig() error {
 		idmap[uint32(id)] = site.Name
 	}
 
+	pt := buildPathTagTree(&newcfg)
 	iiscfg.mux.Lock()
 	defer iiscfg.mux.Unlock()
 	iiscfg.xmlcfg = &newcfg
 	iiscfg.siteIDToName = idmap
-	iiscfg.buildPathTagTree()
+	iiscfg.pathtrees = pt
 	return nil
 }
 
