@@ -63,23 +63,18 @@ def install_custom_golanci_lint(ctx):
     if res.ok:
         gopath = os.getenv('GOPATH')
         gobin = os.getenv('GOBIN')
+        default_gopath = os.path.join(Path.home(), "go")
 
         golintci_binary = bin_name('golangci-lint')
         golintci_lint_backup_binary = bin_name('golangci-lint-backup')
 
-        if gopath is None and gobin is None:
-            print("Not able to install custom golangci-lint binary. golangci-lint won't work as expected")
-            raise Exit(code=1)
+        go_binaries_folder = gobin or os.path.join(gopath or default_gopath, "bin")
 
-        if gobin is not None and gopath is None:
-            shutil.move(os.path.join(gobin, golintci_binary), os.path.join(gobin, golintci_lint_backup_binary))
-            shutil.move(golintci_binary, os.path.join(gobin, golintci_binary))
-
-        if gopath is not None:
-            shutil.move(
-                os.path.join(gopath, "bin", golintci_binary), os.path.join(gopath, "bin", golintci_lint_backup_binary)
-            )
-            shutil.move(golintci_binary, os.path.join(gopath, "bin", golintci_binary))
+        shutil.move(
+            os.path.join(go_binaries_folder, golintci_binary),
+            os.path.join(go_binaries_folder, golintci_lint_backup_binary),
+        )
+        shutil.move(golintci_binary, os.path.join(go_binaries_folder, golintci_binary))
 
         print("Installed custom golangci-lint binary successfully")
 
