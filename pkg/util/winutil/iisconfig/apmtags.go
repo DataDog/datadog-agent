@@ -16,6 +16,8 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"os"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type APMTags struct {
@@ -60,6 +62,10 @@ type appConfiguration struct {
 	AppSettings iisAppSettings
 }
 
+var (
+	errorlogcount = 0
+)
+
 // ReadDotNetConfig reads an iis config file(xml) and returns the APM tags
 func ReadDotNetConfig(cfgpath string) (APMTags, error) { //(APMTags, error) {
 	var newcfg appConfiguration
@@ -97,6 +103,12 @@ func ReadDotNetConfig(cfgpath string) (APMTags, error) { //(APMTags, error) {
 			if len(ddjson.DDVersion) > 0 {
 				apmtags.DDVersion = ddjson.DDVersion
 			}
+		} else {
+			// only log every 1000 occurrences because if this is misconfigured, it could flood the log
+			if errorlogcount%1000 == 0 {
+				log.Warnf("Error reading configured datadog.json file %s: %v", chasedatadogJSON, err)
+			}
+			errorlogcount++
 		}
 	}
 	return apmtags, nil
