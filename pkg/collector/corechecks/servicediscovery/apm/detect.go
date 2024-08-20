@@ -33,7 +33,7 @@ const (
 	Injected Instrumentation = "injected"
 )
 
-type detector func(args []string, envs map[string]string) Instrumentation
+type detector func(pid int, args []string, envs map[string]string) Instrumentation
 
 var (
 	detectorMap = map[language.Language]detector{
@@ -49,7 +49,7 @@ var (
 )
 
 // Detect attempts to detect the type of APM instrumentation for the given service.
-func Detect(args []string, envs map[string]string, lang language.Language) Instrumentation {
+func Detect(pid int, args []string, envs map[string]string, lang language.Language) Instrumentation {
 	// first check to see if the DD_INJECTION_ENABLED is set to tracer
 	if isInjected(envs) {
 		return Injected
@@ -61,7 +61,7 @@ func Detect(args []string, envs map[string]string, lang language.Language) Instr
 
 	// different detection for provided instrumentation for each
 	if detect, ok := detectorMap[lang]; ok {
-		return detect(args, envs)
+		return detect(pid, args, envs)
 	}
 
 	return None
@@ -79,7 +79,7 @@ func isInjected(envs map[string]string) bool {
 	return false
 }
 
-func pythonDetector(args []string, envs map[string]string) Instrumentation {
+func pythonDetector(_ int, args []string, envs map[string]string) Instrumentation {
 	/*
 		Check for VIRTUAL_ENV env var
 			if it's there, use $VIRTUAL_ENV/lib/python{}/site-packages/ and see if ddtrace is inside
@@ -129,7 +129,7 @@ func pythonDetector(args []string, envs map[string]string) Instrumentation {
 	return None
 }
 
-func nodeDetector(_ []string, envs map[string]string) Instrumentation {
+func nodeDetector(_ int, _ []string, envs map[string]string) Instrumentation {
 	// check package.json, see if it has dd-trace in it.
 	// first find it
 	wd := ""
@@ -174,7 +174,7 @@ func nodeDetector(_ []string, envs map[string]string) Instrumentation {
 	return None
 }
 
-func javaDetector(args []string, envs map[string]string) Instrumentation {
+func javaDetector(_ int, args []string, envs map[string]string) Instrumentation {
 	ignoreArgs := map[string]bool{
 		"-version":     true,
 		"-Xshare:dump": true,
@@ -223,7 +223,7 @@ func findFile(fileName string) (io.ReadCloser, bool) {
 
 const datadogDotNetInstrumented = "Datadog.Trace.ClrProfiler.Native"
 
-func dotNetDetector(args []string, envs map[string]string) Instrumentation {
+func dotNetDetector(_ int, args []string, envs map[string]string) Instrumentation {
 	// if it's just the word `dotnet` by itself, don't instrument
 	if len(args) == 1 && args[0] == "dotnet" {
 		return None

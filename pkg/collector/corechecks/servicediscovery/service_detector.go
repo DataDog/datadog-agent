@@ -69,7 +69,7 @@ func (sd *ServiceDetector) Detect(p processInfo) ServiceMetadata {
 	meta, _ := usm.ExtractServiceMetadata(p.CmdLine, p.Env)
 	lang, _ := sd.langFinder.Detect(p.CmdLine, p.Env)
 	svcType := servicetype.Detect(meta.Name, p.Ports)
-	apmInstr := apm.Detect(p.CmdLine, p.Env, lang)
+	apmInstr := apm.Detect(p.PID, p.CmdLine, p.Env, lang)
 
 	log.Debugf("name info - name: %q; additional names: %v", meta.Name, meta.AdditionalNames)
 

@@ -86,7 +86,7 @@ func Test_javaDetector(t *testing.T) {
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := javaDetector(d.args, d.envs)
+			result := javaDetector(0, d.args, d.envs)
 			if result != d.result {
 				t.Errorf("expected %s got %s", d.result, result)
 			}
@@ -136,7 +136,7 @@ func Test_pythonDetector(t *testing.T) {
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := pythonDetector(d.args, d.envs)
+			result := pythonDetector(0, d.args, d.envs)
 			if result != d.result {
 				t.Errorf("expected %s got %s", d.result, result)
 			}
