@@ -1018,14 +1018,25 @@ workflow:
 .on_windows_systemprobe_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
-      paths: *system_probe_change_paths
+      paths:
+        - pkg/collector/corechecks/ebpf/**/*
+        - pkg/collector/corechecks/servicediscovery/module/*
+        - pkg/ebpf/**/*
+        - pkg/network/**/*
+        - pkg/process/monitor/*
+        - pkg/util/kernel/**/*
+        - test/new-e2e/tests/sysprobe-functional/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
 
 .on_windows_security_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
-      paths: *security_agent_change_paths
+      paths:
+        - pkg/ebpf/**/*
+        - pkg/security/**/*
+        - pkg/eventmonitor/**/*
+        - test/new-e2e/tests/security-agent-functional/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
 
