@@ -17,7 +17,7 @@ import (
 	collectorcontribimpl "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl"
 	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/confmap/confmaptest"
 	"gopkg.in/yaml.v3"
@@ -121,9 +121,9 @@ func TestGetConfDumpConverterDisabled(t *testing.T) {
 	provider, err := converter.NewConverter()
 	assert.NoError(t, err)
 
-	conf := config.Datadog()
+	conf := setup.Datadog()
 	conf.SetWithoutSource("otelcollector.converter.enabled", false)
-	
+
 	reqs := Requires{
 		CollectorContrib: collectorcontribimpl.NewComponent(),
 		Config:           conf,
