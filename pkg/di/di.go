@@ -121,7 +121,7 @@ func (goDI *GoDI) printSnapshot(event *ditypes.DIEvent) {
 	if err != nil {
 		log.Info(err)
 	}
-	log.Info(string(bs))
+	log.Debug(string(bs))
 }
 
 func (goDI *GoDI) uploadSnapshot(event *ditypes.DIEvent) {

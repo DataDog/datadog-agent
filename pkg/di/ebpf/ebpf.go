@@ -11,10 +11,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/di/diagnostics"
 	"github.com/DataDog/datadog-agent/pkg/di/ditypes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 )
@@ -80,7 +79,22 @@ func setupRingbufferAndHeaders() error {
 		return fmt.Errorf("could not write to ringbuffer source code file: %w", err)
 	}
 
-	// Compile ringbuffer source file
+	// // Compile ringbuffer source file
+	// cfg := ddebpf.NewConfig()
+	// khOpts := kernel.HeaderOptions{
+	// 	DownloadEnabled: cfg.EnableKernelHeaderDownload,
+	// 	Dirs:            cfg.KernelHeadersDirs,
+	// 	DownloadDir:     cfg.KernelHeadersDownloadDir,
+	// 	AptConfigDir:    cfg.AptConfigDir,
+	// 	YumReposDir:     cfg.YumReposDir,
+	// 	ZypperReposDir:  cfg.ZypperReposDir,
+	// }
+	// kernelHeaders := kernel.GetKernelHeaders(khOpts, nil)
+	// if len(kernelHeaders) == 0 {
+	// 	return fmt.Errorf("unable to find kernel headers!")
+	// }
+
+	// err = compiler.CompileToObjectFile(ringbufferSourcePath, objFilePath, cFlags, []string{})
 	err = clang(cFlags, ringbufferSourcePath, withStdout(os.Stdout))
 	if err != nil {
 		return fmt.Errorf("could not compile ringbuffer object: %w", err)
@@ -226,6 +240,22 @@ func CompileBPFProgram(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) erro
 		"-o",
 		objFilePath,
 	}
+
+	// cfg := ddebpf.NewConfig()
+	// opts := kernel.HeaderOptions{
+	// 	DownloadEnabled: cfg.EnableKernelHeaderDownload,
+	// 	Dirs:            cfg.KernelHeadersDirs,
+	// 	DownloadDir:     cfg.KernelHeadersDownloadDir,
+	// 	AptConfigDir:    cfg.AptConfigDir,
+	// 	YumReposDir:     cfg.YumReposDir,
+	// 	ZypperReposDir:  cfg.ZypperReposDir,
+	// }
+	// kernelHeaders := kernel.GetKernelHeaders(opts, nil)
+	// if len(kernelHeaders) == 0 {
+	// 	return fmt.Errorf("unable to find kernel headers!!")
+	// }
+
+	// err = compiler.CompileToObjectFile(bpfSourceFile.Name(), objFilePath, cFlags, []string{})
 	err = clang(cFlags, bpfSourceFile.Name(), withStdout(os.Stdout))
 	if err != nil {
 		diagnostics.Diagnostics.SetError(procInfo.ServiceName, procInfo.RuntimeID, probe.ID, "COMPILE_ERROR", err.Error())

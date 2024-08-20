@@ -18,12 +18,10 @@ import (
 	di "github.com/DataDog/datadog-agent/pkg/di"
 )
 
-//nolint:revive // TODO(DEBUG) Fix revive linter
 type Module struct {
 	godi *di.GoDI
 }
 
-//nolint:revive // TODO(DEBUG) Fix revive linter
 func NewModule(config *Config) (*Module, error) {
 	godi, err := di.RunDynamicInstrumentation(&di.DIOptions{
 		Offline:          coreconfig.SystemProbe().GetBool("dynamic_instrumentation.offline_mode"),
@@ -37,20 +35,27 @@ func NewModule(config *Config) (*Module, error) {
 	return &Module{godi}, nil
 }
 
-//nolint:revive // TODO(DEBUG) Fix revive linter
 func (m *Module) Close() {
-	log.Info("Closing user tracer module")
+	if m.godi == nil {
+		log.Info("Could not close dynamic instrumentation module, already closed")
+		return
+	}
+	log.Info("Closing dynamic instrumentation module")
 	m.godi.Close()
 }
 
-//nolint:revive // TODO(DEBUG) Fix revive linter
 func (m *Module) GetStats() map[string]interface{} {
-	m.godi.GetStats()
+	if m == nil || m.godi == nil {
+		log.Info("Could not get stats from dynamic instrumentation module, closed")
+		return map[string]interface{}{}
+	}
 	debug := map[string]interface{}{}
+	stats := m.godi.GetStats()
+	debug["PIDEventsCreated"] = stats.PIDEventsCreatedCount
+	debug["ProbeEventsCreated"] = stats.ProbeEventsCreatedCount
 	return debug
 }
 
-//nolint:revive // TODO(DEBUG) Fix revive linter
 func (m *Module) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests,
 		func(w http.ResponseWriter, req *http.Request) {

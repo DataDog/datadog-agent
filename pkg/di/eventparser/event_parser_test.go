@@ -1,11 +1,11 @@
 package eventparser
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/di/ditypes"
-	"github.com/kr/pretty"
 )
 
 func TestCountBufferUsedByTypeDefinition(t *testing.T) {
@@ -161,8 +161,8 @@ func TestReadParams(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			output := readParams(tt.inputBuffer)
 			if !reflect.DeepEqual(output, tt.expectedResult) {
-				pretty.Log(output)
-				pretty.Log(tt.expectedResult)
+				fmt.Printf("%v\n", output)
+				fmt.Printf("%v\n", tt.expectedResult)
 				t.Errorf("Didn't read correctly!")
 			}
 		})
@@ -265,8 +265,8 @@ func TestParseTypeDefinition(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			typeDefinition := parseTypeDefinition(tt.inputBuffer)
 			if !reflect.DeepEqual(typeDefinition, tt.expectedResult) {
-				pretty.Log(typeDefinition)
-				pretty.Log(tt.expectedResult)
+				fmt.Printf("%v\n", typeDefinition)
+				fmt.Printf("%v\n", tt.expectedResult)
 				t.Errorf("Not equal!")
 			}
 		})
