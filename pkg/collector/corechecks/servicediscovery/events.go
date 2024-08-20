@@ -38,6 +38,7 @@ type eventPayload struct {
 	ServiceNameSource   string   `json:"service_name_source"`
 	Ports               []uint16 `json:"ports"`
 	PID                 int      `json:"pid"`
+	CommandLine         []string `json:"command_line"`
 }
 
 type event struct {
@@ -71,6 +72,7 @@ func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 			ServiceNameSource:   svc.meta.NameSource,
 			Ports:               svc.process.Ports,
 			PID:                 svc.process.PID,
+			CommandLine:         svc.process.CmdLine,
 		},
 	}
 }

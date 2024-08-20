@@ -236,8 +236,13 @@ func TestIsStreamResetError(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:     "stream error - internal error",
+			name:     "stream error - internal error - value",
 			err:      http2.StreamError{Code: http2.ErrCodeInternal},
+			expected: true,
+		},
+		{
+			name:     "stream error - internal error - pointer",
+			err:      &http2.StreamError{Code: http2.ErrCodeInternal},
 			expected: true,
 		},
 	}

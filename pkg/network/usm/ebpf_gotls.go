@@ -119,6 +119,9 @@ type goTLSProgram struct {
 	// analysis
 	binAnalysisMetric *libtelemetry.Counter
 
+	// binNoSymbolsMetric counts Golang binaries without symbols.
+	binNoSymbolsMetric *libtelemetry.Counter
+
 	registry *utils.FileRegistry
 }
 
@@ -176,12 +179,13 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactor
 		}
 
 		return &goTLSProgram{
-			done:              make(chan struct{}),
-			cfg:               c,
-			manager:           m,
-			procRoot:          c.ProcRoot,
-			binAnalysisMetric: libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptPrometheus),
-			registry:          utils.NewFileRegistry("go-tls"),
+			done:               make(chan struct{}),
+			cfg:                c,
+			manager:            m,
+			procRoot:           c.ProcRoot,
+			binAnalysisMetric:  libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptPrometheus),
+			binNoSymbolsMetric: libtelemetry.NewCounter("usm.go_tls.missing_symbols", libtelemetry.OptPrometheus),
+			registry:           utils.NewFileRegistry("go-tls"),
 		}, nil
 	}
 }
@@ -334,10 +338,10 @@ func (p *goTLSProgram) AttachPID(pid uint32) error {
 
 	// Check go process
 	probeList := make([]manager.ProbeIdentificationPair, 0)
-	return p.registry.Register(binPath, pid, registerCBCreator(p.manager, p.offsetsDataMap, &probeList, p.binAnalysisMetric), unregisterCBCreator(p.manager, &probeList, p.offsetsDataMap))
+	return p.registry.Register(binPath, pid, registerCBCreator(p.manager, p.offsetsDataMap, &probeList, p.binAnalysisMetric, p.binNoSymbolsMetric), unregisterCBCreator(p.manager, &probeList, p.offsetsDataMap))
 }
 
-func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs *[]manager.ProbeIdentificationPair, binAnalysisMetric *libtelemetry.Counter) func(path utils.FilePath) error {
+func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs *[]manager.ProbeIdentificationPair, binAnalysisMetric, binNoSymbolsMetric *libtelemetry.Counter) func(path utils.FilePath) error {
 	return func(filePath utils.FilePath) error {
 		start := time.Now()
 
@@ -354,6 +358,9 @@ func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs 
 
 		inspectionResult, err := bininspect.InspectNewProcessBinary(elfFile, functionsConfig, structFieldsLookupFunctions)
 		if err != nil {
+			if errors.Is(err, elf.ErrNoSymbols) {
+				binNoSymbolsMetric.Add(1)
+			}
 			return fmt.Errorf("error extracting inspectoin data from %s: %w", filePath.HostPath, err)
 		}
 

@@ -9,8 +9,6 @@ package kubeapiserver
 
 import (
 	"context"
-	"fmt"
-	"reflect"
 	"testing"
 	"time"
 
@@ -121,10 +119,8 @@ func testCollectMetadataEvent(t *testing.T, createObjects func() []runtime.Objec
 	ctx := context.TODO()
 
 	// Create a fake metadata client to mock API calls.
-
-	response, err := metadataclient.Resource(gvr).List(ctx, v1.ListOptions{})
+	_, err = metadataclient.Resource(gvr).List(ctx, v1.ListOptions{})
 	assert.NoError(t, err)
-	fmt.Println("metadata client listing: ", response.String())
 	store, _ := newMetadataStore(ctx, wlm, wlm.GetConfig(), metadataclient, gvr)
 
 	stopStore := make(chan struct{})
@@ -166,9 +162,4 @@ func testCollectMetadataEvent(t *testing.T, createObjects func() []runtime.Objec
 	assert.Equal(t, expected, actual)
 	close(stopStore)
 	wlm.Unsubscribe(ch)
-}
-
-// sameInMemory returns true if the two variables refer to the same data in memory
-func sameInMemory(x, y interface{}) bool {
-	return reflect.ValueOf(x).Pointer() == reflect.ValueOf(y).Pointer()
 }

@@ -56,7 +56,7 @@ func Test_telemetrySender(t *testing.T) {
 	svc := serviceInfo{
 		process: processInfo{
 			PID:     99,
-			CmdLine: nil,
+			CmdLine: []string{"test-service", "--args"},
 			Env:     nil,
 			Stat: procStat{
 				StartTime: uint64(now.Add(-20 * time.Minute).Unix()),
@@ -94,6 +94,7 @@ func Test_telemetrySender(t *testing.T) {
 				ServiceNameSource:   "generated",
 				Ports:               []uint16{80, 8080},
 				PID:                 99,
+				CommandLine:         []string{"test-service", "--args"},
 			},
 		},
 		{
@@ -112,6 +113,7 @@ func Test_telemetrySender(t *testing.T) {
 				ServiceNameSource:   "generated",
 				Ports:               []uint16{80, 8080},
 				PID:                 99,
+				CommandLine:         []string{"test-service", "--args"},
 			},
 		},
 		{
@@ -130,6 +132,7 @@ func Test_telemetrySender(t *testing.T) {
 				ServiceNameSource:   "generated",
 				Ports:               []uint16{80, 8080},
 				PID:                 99,
+				CommandLine:         []string{"test-service", "--args"},
 			},
 		},
 	}
@@ -161,7 +164,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 	svc := serviceInfo{
 		process: processInfo{
 			PID:     55,
-			CmdLine: nil,
+			CmdLine: []string{"foo", "--option"},
 			Env:     nil,
 			Stat: procStat{
 				StartTime: uint64(now.Add(-20 * time.Minute).Unix()),
@@ -198,6 +201,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 				APMInstrumentation:  "injected",
 				ServiceNameSource:   "provided",
 				PID:                 55,
+				CommandLine:         []string{"foo", "--option"},
 			},
 		},
 		{
@@ -215,6 +219,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 				APMInstrumentation:  "injected",
 				ServiceNameSource:   "provided",
 				PID:                 55,
+				CommandLine:         []string{"foo", "--option"},
 			},
 		},
 		{
@@ -232,6 +237,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 				APMInstrumentation:  "injected",
 				ServiceNameSource:   "provided",
 				PID:                 55,
+				CommandLine:         []string{"foo", "--option"},
 			},
 		},
 	}

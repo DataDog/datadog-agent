@@ -17,7 +17,7 @@ single-machine-performance-regression_detector:
       - outputs/report.html # for debugging, also on S3
     when: always
   variables:
-    SMP_VERSION: 0.15.1
+    SMP_VERSION: 0.16.0
   # At present we require two artifacts to exist for the 'baseline' and the
   # 'comparison'. We are guaranteed by the structure of the pipeline that
   # 'comparison' exists, not so much with 'baseline' as it has to come from main

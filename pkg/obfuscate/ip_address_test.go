@@ -23,6 +23,7 @@ func TestQuantizePeerIpAddresses(t *testing.T) {
 		// - link-local IP address, aka "metadata server" for various cloud providers
 		{"169.254.169.254", "169.254.169.254"},
 		{"fd00:ec2::254", "fd00:ec2::254"},
+		{"169.254.170.2", "169.254.170.2"},
 		// blocking cases
 		{"", ""},
 		{"foo.dog", "foo.dog"},
