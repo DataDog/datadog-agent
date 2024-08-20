@@ -680,6 +680,7 @@ type provides5 struct {
 
 type providesPrivate struct {
 	compdef.Out
+	//nolint:unused
 	private FirstComp
 }
 
