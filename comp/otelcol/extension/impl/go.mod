@@ -70,10 +70,10 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.57.0-rc.2
-	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def v0.57.0-rc.2
-	github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl v0.57.0-rc.2
-	github.com/DataDog/datadog-agent/comp/otelcol/extension/def v0.57.0-rc.2
+	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.57.0-rc.3
+	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def v0.57.0-rc.3
+	github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl v0.57.0-rc.3
+	github.com/DataDog/datadog-agent/comp/otelcol/extension/def v0.57.0-rc.3
 	github.com/stretchr/testify v1.9.0
 	go.opentelemetry.io/collector/component v0.104.0
 	go.opentelemetry.io/collector/config/confighttp v0.104.0
@@ -97,7 +97,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
 	github.com/Code-Hex/go-generics-cache v1.3.1 // indirect
-	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.57.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.57.0-rc.3 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.24.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/Showmax/go-fqdn v1.0.0 // indirect
