@@ -15,5 +15,5 @@ exporters:
 service:
     pipelines:
         metrics:
-            receivers: [nop, prometheus/user-defined]
+            receivers: [prometheus/user-defined]
             exporters: [datadog]
