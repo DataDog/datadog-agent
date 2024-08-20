@@ -16,10 +16,11 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -37,6 +38,7 @@ const (
 
 type collector struct {
 	id                          string
+	config                      config.Component
 	store                       workloadmeta.Component
 	catalog                     workloadmeta.AgentType
 	seen                        map[workloadmeta.EntityID]struct{}
@@ -51,9 +53,10 @@ type collector struct {
 }
 
 // NewCollector returns a kubemetadata collector
-func NewCollector() (wmcatalog.Collector, error) {
+func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
 	return &collector{
 		id:      collectorID,
+		config:  cfg,
 		seen:    make(map[workloadmeta.EntityID]struct{}),
 		catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
 	}, nil
@@ -61,7 +64,7 @@ func NewCollector() (wmcatalog.Collector, error) {
 
 // Start tries to connect to the kubelet, the DCA and the API Server if the DCA is not available.
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
-	if !config.IsFeaturePresent(config.Kubernetes) {
+	if !pkgconfig.IsFeaturePresent(pkgconfig.Kubernetes) {
 		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}
 
@@ -75,7 +78,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 
 	// If DCA is enabled and can't communicate with the DCA, let worloadmeta retry.
 	var errDCA error
-	if config.Datadog().GetBool("cluster_agent.enabled") {
+	if c.config.GetBool("cluster_agent.enabled") {
 		c.dcaEnabled = false
 		c.dcaClient, errDCA = clusteragent.GetClusterAgentClient()
 		if errDCA != nil {
@@ -87,7 +90,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 			}
 
 			// We return the permanent fail only if fallback is disabled
-			if retry.IsErrPermaFail(errDCA) && !config.Datadog().GetBool("cluster_agent.tagging_fallback") {
+			if retry.IsErrPermaFail(errDCA) && !c.config.GetBool("cluster_agent.tagging_fallback") {
 				return errDCA
 			}
 
@@ -98,7 +101,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 	}
 
 	// Fallback to local metamapper if DCA not enabled, or in permafail state with fallback enabled.
-	if !config.Datadog().GetBool("cluster_agent.enabled") || errDCA != nil {
+	if !c.config.GetBool("cluster_agent.enabled") || errDCA != nil {
 		// Using GetAPIClient as error returned follows the IsErrWillRetry/IsErrPermaFail
 		// Workloadmeta will retry calling this method until permafail
 		c.apiClient, err = apiserver.GetAPIClient()
@@ -107,9 +110,9 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 		}
 	}
 
-	c.updateFreq = time.Duration(config.Datadog().GetInt("kubernetes_metadata_tag_update_freq")) * time.Second
+	c.updateFreq = time.Duration(c.config.GetInt("kubernetes_metadata_tag_update_freq")) * time.Second
 
-	metadataAsTags := configutils.GetMetadataAsTags(config.Datadog())
+	metadataAsTags := configutils.GetMetadataAsTags(c.config)
 	c.collectNamespaceLabels = len(metadataAsTags.GetNamespaceLabelsAsTags()) > 0
 	c.collectNamespaceAnnotations = len(metadataAsTags.GetNamespaceAnnotationsAsTags()) > 0
 

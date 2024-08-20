@@ -18,9 +18,10 @@ import (
 	"github.com/containerd/containerd"
 	containerdevents "github.com/containerd/containerd/events"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	agentErrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -106,9 +107,10 @@ type collector struct {
 }
 
 // NewCollector returns a new containerd collector
-func NewCollector() (wmcatalog.Collector, error) {
+func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
 	return &collector{
 		id:             collectorID,
+		config:         cfg,
 		catalog:        workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
 		contToExitInfo: make(map[string]*exitInfo),
 		knownImages:    newKnownImages(),
@@ -116,7 +118,7 @@ func NewCollector() (wmcatalog.Collector, error) {
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	if !config.IsFeaturePresent(config.Containerd) {
+	if !pkgconfig.IsFeaturePresent(pkgconfig.Containerd) {
 		return agentErrors.NewDisabled(componentName, "Agent is not running on containerd")
 	}
 
@@ -212,7 +214,7 @@ func (c *collector) notifyInitialEvents(ctx context.Context) error {
 	}
 
 	for _, namespace := range namespaces {
-		if imageMetadataCollectionIsEnabled() {
+		if imageMetadataCollectionIsEnabled(c.config) {
 			if err := c.notifyInitialImageEvents(ctx, namespace); err != nil {
 				return err
 			}
@@ -421,6 +423,6 @@ func (c *collector) cacheExitInfo(id string, exitCode *int64, exitTS time.Time) 
 	}
 }
 
-func imageMetadataCollectionIsEnabled() bool {
-	return config.Datadog().GetBool("container_image.enabled")
+func imageMetadataCollectionIsEnabled(cfg config.Component) bool {
+	return cfg.GetBool("container_image.enabled")
 }

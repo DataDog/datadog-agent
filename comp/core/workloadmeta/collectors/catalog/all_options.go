@@ -37,19 +37,19 @@ func firstArg(c wmcatalog.Collector, _ error) wmcatalog.Collector {
 
 func getCollectorList(cfg config.Component) []wmcatalog.Collector {
 	return []wmcatalog.Collector{
-		firstArg(cfcontainer.NewCollector()),
-		firstArg(cfvm.NewCollector()),
-		firstArg(containerd.NewCollector()),
-		firstArg(docker.NewCollector()),
+		firstArg(cfcontainer.NewCollector(cfg)),
+		firstArg(cfvm.NewCollector(cfg)),
+		firstArg(containerd.NewCollector(cfg)),
+		firstArg(docker.NewCollector(cfg)),
 		firstArg(ecs.NewCollector(cfg)),
 		firstArg(ecsfargate.NewCollector(cfg)),
 		firstArg(kubeapiserver.NewCollector(cfg)),
-		firstArg(kubelet.NewCollector()),
-		firstArg(kubemetadata.NewCollector()),
-		firstArg(podman.NewCollector()),
+		firstArg(kubelet.NewCollector(cfg)),
+		firstArg(kubemetadata.NewCollector(cfg)),
+		firstArg(podman.NewCollector(cfg)),
 		firstArg(remoteworkloadmeta.NewCollector(cfg)),
 		// TODO: remoteworkloadmetaParams(),
-		firstArg(processcollector.NewCollector()),
+		firstArg(processcollector.NewCollector(cfg)),
 		firstArg(host.NewCollector(cfg)),
 	}
 }

@@ -15,10 +15,10 @@ import (
 
 	"github.com/benbjohnson/clock"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	processwlm "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -34,6 +34,7 @@ const (
 
 type collector struct {
 	id      string
+	config  config.Component
 	store   workloadmeta.Component
 	catalog workloadmeta.AgentType
 
@@ -49,13 +50,14 @@ type collector struct {
 
 // NewCollector returns a new local process collector
 // Currently, this is only used on Linux when language detection and run in core agent are enabled.
-func NewCollector() (wmcatalog.Collector, error) {
-	wlmExtractor := processwlm.GetSharedWorkloadMetaExtractor(config.SystemProbe())
+func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
+	wlmExtractor := processwlm.GetSharedWorkloadMetaExtractor(cfg.SystemProbe())
 	processData := NewProcessData()
 	processData.Register(wlmExtractor)
 
 	return &collector{
 		id:              collectorID,
+		config:          cfg,
 		catalog:         workloadmeta.NodeAgent,
 		wlmExtractor:    wlmExtractor,
 		processDiffCh:   wlmExtractor.ProcessCacheDiff(),
@@ -74,7 +76,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 
 	// If process collection is disabled, the collector will gather the basic process and container data
 	// necessary for language detection.
-	if !config.Datadog().GetBool("process_config.process_collection.enabled") {
+	if !c.config.GetBool("process_config.process_collection.enabled") {
 		collectionTicker := c.collectionClock.Ticker(10 * time.Second)
 		if c.containerProvider == nil {
 			c.containerProvider = proccontainers.GetSharedContainerProvider(store)

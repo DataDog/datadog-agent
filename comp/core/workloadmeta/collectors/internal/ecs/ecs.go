@@ -13,13 +13,11 @@ import (
 	"time"
 
 	"github.com/patrickmn/go-cache"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
@@ -33,14 +31,9 @@ const (
 	componentName = "workloadmeta-ecs"
 )
 
-type dependencies struct {
-	fx.In
-
-	Config config.Component
-}
-
 type collector struct {
 	id                  string
+	config              config.Component
 	store               workloadmeta.Component
 	catalog             workloadmeta.AgentType
 	metaV1              v1.Client
@@ -70,25 +63,25 @@ type resourceTags struct {
 }
 
 // NewCollector returns a new ecs collector
-func NewCollector(deps dependencies) (wmcatalog.Collector, error) {
+func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
 	return &collector{
 		id:                           collectorID,
+		config:                       cfg,
 		resourceTags:                 make(map[string]resourceTags),
 		seen:                         make(map[workloadmeta.EntityID]struct{}),
 		catalog:                      workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
-		config:                       deps.Config,
-		taskCollectionEnabled:        util.IsTaskCollectionEnabled(deps.Config),
-		taskCache:                    cache.New(deps.Config.GetDuration("ecs_task_cache_ttl"), 30*time.Second),
-		taskRateRPS:                  deps.Config.GetInt("ecs_task_collection_rate"),
-		taskRateBurst:                deps.Config.GetInt("ecs_task_collection_burst"),
-		metadataRetryInitialInterval: deps.Config.GetDuration("ecs_metadata_retry_initial_interval"),
-		metadataRetryMaxElapsedTime:  deps.Config.GetDuration("ecs_metadata_retry_max_elapsed_time"),
-		metadataRetryTimeoutFactor:   deps.Config.GetInt("ecs_metadata_retry_timeout_factor"),
+		taskCollectionEnabled:        util.IsTaskCollectionEnabled(cfg),
+		taskCache:                    cache.New(cfg.GetDuration("ecs_task_cache_ttl"), 30*time.Second),
+		taskRateRPS:                  cfg.GetInt("ecs_task_collection_rate"),
+		taskRateBurst:                cfg.GetInt("ecs_task_collection_burst"),
+		metadataRetryInitialInterval: cfg.GetDuration("ecs_metadata_retry_initial_interval"),
+		metadataRetryMaxElapsedTime:  cfg.GetDuration("ecs_metadata_retry_max_elapsed_time"),
+		metadataRetryTimeoutFactor:   cfg.GetInt("ecs_metadata_retry_timeout_factor"),
 	}, nil
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	if !pkgConfig.IsFeaturePresent(pkgConfig.ECSEC2) {
+	if !pkgconfig.IsFeaturePresent(pkgconfig.ECSEC2) {
 		return errors.NewDisabled(componentName, "Agent is not running on ECS EC2")
 	}
 

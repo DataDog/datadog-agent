@@ -12,9 +12,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -29,6 +30,7 @@ const (
 
 type collector struct {
 	id      string
+	config  config.Component
 	store   workloadmeta.Component
 	seen    map[workloadmeta.EntityID]struct{}
 	catalog workloadmeta.AgentType
@@ -41,16 +43,17 @@ type collector struct {
 }
 
 // NewCollector instantiates a CF container collector
-func NewCollector() (wmcatalog.Collector, error) {
+func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
 	return &collector{
 		id:      collectorID,
+		config:  cfg,
 		seen:    make(map[workloadmeta.EntityID]struct{}),
 		catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
 	}, nil
 }
 
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
-	if !config.IsFeaturePresent(config.CloudFoundry) {
+	if !pkgconfig.IsFeaturePresent(pkgconfig.CloudFoundry) {
 		return errors.NewDisabled(componentName, "Agent is not running on CloudFoundry")
 	}
 
@@ -63,10 +66,10 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 		return err
 	}
 
-	c.nodeName = config.Datadog().GetString("bosh_id")
+	c.nodeName = c.config.GetString("bosh_id")
 
 	// Check for Cluster Agent availability (will be retried at each pull)
-	c.dcaEnabled = config.Datadog().GetBool("cluster_agent.enabled")
+	c.dcaEnabled = c.config.GetBool("cluster_agent.enabled")
 	c.dcaClient = c.getDCAClient()
 
 	return nil

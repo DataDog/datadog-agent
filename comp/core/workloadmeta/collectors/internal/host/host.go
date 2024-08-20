@@ -10,7 +10,6 @@ import (
 	"context"
 
 	"github.com/benbjohnson/clock"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
@@ -21,12 +20,6 @@ import (
 
 const id = "host"
 
-type dependencies struct {
-	fx.In
-
-	Config config.Component
-}
-
 type collector struct {
 	store        workloadmeta.Component
 	catalog      workloadmeta.AgentType
@@ -36,10 +29,10 @@ type collector struct {
 }
 
 // NewCollector returns a new host collector
-func NewCollector(deps dependencies) (wmcatalog.Collector, error) {
+func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
 	return &collector{
 		catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
-		config:  deps.Config,
+		config:  cfg,
 		clock:   clock.New(),
 	}, nil
 }

@@ -16,11 +16,11 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -114,11 +114,10 @@ func workloadmetaEventFromProcessEventUnset(protoEvent *pbgo.ProcessEventUnset) 
 }
 
 // NewCollector returns a remote process collector for workloadmeta if any
-func NewCollector() (wmcatalog.Collector, error) {
+func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
 	return &remote.GenericCollector{
-		CollectorID: collectorID,
-		// TODO(components): make sure StreamHandler uses the config component not pkg/config
-		StreamHandler: &streamHandler{Reader: config.Datadog()},
+		CollectorID:   collectorID,
+		StreamHandler: &streamHandler{Reader: cfg},
 		Catalog:       workloadmeta.NodeAgent,
 		Insecure:      true, // wlm extractor currently does not support TLS
 	}, nil

@@ -15,9 +15,10 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,6 +38,7 @@ type podmanClient interface {
 
 type collector struct {
 	id      string
+	config  config.Component
 	client  podmanClient
 	store   workloadmeta.Component
 	catalog workloadmeta.AgentType
@@ -44,9 +46,10 @@ type collector struct {
 }
 
 // NewCollector returns a new podman collector
-func NewCollector() (wmcatalog.Collector, error) {
+func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
 	return &collector{
 		id:      collectorID,
+		config:  cfg,
 		seen:    make(map[workloadmeta.EntityID]struct{}),
 		catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
 	}, nil
@@ -54,12 +57,12 @@ func NewCollector() (wmcatalog.Collector, error) {
 
 // Start the collector for the provided workloadmeta component
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
-	if !config.IsFeaturePresent(config.Podman) {
+	if !pkgconfig.IsFeaturePresent(pkgconfig.Podman) {
 		return dderrors.NewDisabled(componentName, "Podman not detected")
 	}
 
 	var dbPath string
-	dbPath = config.Datadog().GetString("podman_db_path")
+	dbPath = c.config.Datadog().GetString("podman_db_path")
 
 	// We verify the user-provided path exists to prevent the collector entering a failing loop.
 	if dbPath != "" && !dbIsAccessible(dbPath) {

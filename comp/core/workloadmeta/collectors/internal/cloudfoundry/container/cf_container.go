@@ -12,9 +12,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
@@ -29,26 +30,28 @@ const (
 
 type collector struct {
 	id       string
+	config   config.Component
 	store    workloadmeta.Component
 	nodeName string
 	catalog  workloadmeta.AgentType
 }
 
 // NewCollector instantiates a CF container collector
-func NewCollector() (wmcatalog.Collector, error) {
+func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
 	return &collector{
 		id:      collectorID,
+		config:  cfg,
 		catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
 	}, nil
 }
 
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
-	if !config.IsFeaturePresent(config.CloudFoundry) {
+	if !pkgconfig.IsFeaturePresent(pkgconfig.CloudFoundry) {
 		return errors.NewDisabled(componentName, "Agent is not running on CloudFoundry")
 	}
 
 	// Detect if we're on a PCF container
-	if !config.Datadog().GetBool("cloud_foundry_buildpack") {
+	if !c.config.GetBool("cloud_foundry_buildpack") {
 		return errors.NewDisabled(componentName, "Agent is not running on a CloudFoundry container")
 	}
 

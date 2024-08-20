@@ -9,12 +9,11 @@
 package ecsfargate
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 )
 
-type dependencies struct{}
-
 // NewCollector is a no-op constructor
-func NewCollector(deps dependencies) (wmcatalog.Collector, error) {
+func NewCollector(_ config.Component) (wmcatalog.Collector, error) {
 	return nil, nil
 }

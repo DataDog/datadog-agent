@@ -12,13 +12,11 @@ import (
 	"context"
 	"strings"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
@@ -31,14 +29,9 @@ const (
 	componentName = "workloadmeta-ecs_fargate"
 )
 
-type dependencies struct {
-	fx.In
-
-	Config config.Component
-}
-
 type collector struct {
 	id                    string
+	config                config.Component
 	store                 workloadmeta.Component
 	catalog               workloadmeta.AgentType
 	metaV2                v2.Client
@@ -50,18 +43,18 @@ type collector struct {
 }
 
 // NewCollector returns a new ecsfargate collector
-func NewCollector(deps dependencies) (wmcatalog.Collector, error) {
+func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
 	return &collector{
 		id:                    collectorID,
+		config:                cfg,
 		catalog:               workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
 		seen:                  make(map[workloadmeta.EntityID]struct{}),
-		config:                deps.Config,
-		taskCollectionEnabled: util.IsTaskCollectionEnabled(deps.Config),
+		taskCollectionEnabled: util.IsTaskCollectionEnabled(cfg),
 	}, nil
 }
 
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
-	if !pkgConfig.IsFeaturePresent(pkgConfig.ECSFargate) {
+	if !pkgconfig.IsFeaturePresent(pkgconfig.ECSFargate) {
 		return errors.NewDisabled(componentName, "Agent is not running on ECS Fargate")
 	}
 

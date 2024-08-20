@@ -9,10 +9,11 @@
 package process
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 )
 
 // NewCollector is a no-op constructor
-func NewCollector() (wmcatalog.Collector, error) {
+func NewCollector(_ config.Component) (wmcatalog.Collector, error) {
 	return nil, nil
 }

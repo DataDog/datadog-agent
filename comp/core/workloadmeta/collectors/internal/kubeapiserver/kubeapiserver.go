@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
@@ -33,12 +32,6 @@ const (
 	componentName = "workloadmeta-kubeapiserver"
 	noResync      = time.Duration(0)
 )
-
-type dependencies struct {
-	fx.In
-
-	Config config.Component
-}
 
 // storeGenerator returns a new store specific to a given resource
 type storeGenerator func(context.Context, workloadmeta.Component, config.Reader, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
@@ -154,11 +147,11 @@ type collector struct {
 }
 
 // NewCollector returns a kubeapiserver Collector
-func NewCollector(deps dependencies) (wmcatalog.Collector, error) {
+func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
 	return &collector{
 		id:      collectorID,
 		catalog: workloadmeta.ClusterAgent,
-		config:  deps.Config,
+		config:  cfg,
 	}, nil
 }
 

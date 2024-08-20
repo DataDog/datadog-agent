@@ -14,10 +14,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -35,6 +36,7 @@ const (
 
 type collector struct {
 	id         string
+	config     config.Component
 	catalog    workloadmeta.AgentType
 	watcher    *kubelet.PodWatcher
 	store      workloadmeta.Component
@@ -43,15 +45,16 @@ type collector struct {
 }
 
 // NewCollector returns a kubelet Collector
-func NewCollector() (wmcatalog.Collector, error) {
+func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
 	return &collector{
 		id:      collectorID,
+		config:  cfg,
 		catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
 	}, nil
 }
 
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
-	if !config.IsFeaturePresent(config.Kubernetes) {
+	if !pkgconfig.IsFeaturePresent(pkgconfig.Kubernetes) {
 		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}
 

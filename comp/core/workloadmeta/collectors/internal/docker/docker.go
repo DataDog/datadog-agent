@@ -25,10 +25,11 @@ import (
 	"github.com/docker/go-connections/nat"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	errorspkg "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -51,6 +52,7 @@ type resolveHook func(ctx context.Context, co types.ContainerJSON) (string, erro
 
 type collector struct {
 	id      string
+	config  config.Component
 	store   workloadmeta.Component
 	catalog workloadmeta.AgentType
 
@@ -70,15 +72,16 @@ type collector struct {
 }
 
 // NewCollector returns a new docker collector
-func NewCollector() (wmcatalog.Collector, error) {
+func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
 	return &collector{
 		id:      collectorID,
+		config:  cfg,
 		catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
 	}, nil
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	if !config.IsFeaturePresent(config.Docker) {
+	if !pkgconfig.IsFeaturePresent(pkgconfig.Docker) {
 		return errorspkg.NewDisabled(componentName, "Agent is not running on Docker")
 	}
 

@@ -15,11 +15,11 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/proto"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
@@ -89,20 +89,22 @@ func (s *stream) Recv() (interface{}, error) {
 type streamHandler struct {
 	port   int
 	filter *workloadmeta.Filter
-	config.Config
+	config config.Config
 }
 
 // NewCollector returns a remote workloadmeta collector, and an error if any.
-func NewCollector(deps dependencies) (wmcatalog.Collector, error) {
-	if filterHasUnsupportedKind(deps.Params.Filter) {
-		return nil, fmt.Errorf("the filter specified contains unsupported kinds")
-	}
+func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
+	// TODO:
+	//if filterHasUnsupportedKind(deps.Params.Filter) {
+	//	return nil, fmt.Errorf("the filter specified contains unsupported kinds")
+	//}
 
 	return &remote.GenericCollector{
 		CollectorID: collectorID,
 		StreamHandler: &streamHandler{
-			filter: deps.Params.Filter,
-			Config: config.Datadog(),
+			// TODO:
+			//filter: deps.Params.Filter,
+			config: cfg,
 		},
 		Catalog: workloadmeta.Remote,
 	}, nil
@@ -115,7 +117,7 @@ func init() {
 
 func (s *streamHandler) Port() int {
 	if s.port == 0 {
-		return s.Config.GetInt("cmd_port")
+		return s.config.GetInt("cmd_port")
 	}
 	// for tests
 	return s.port
