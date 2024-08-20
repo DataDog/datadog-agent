@@ -338,7 +338,7 @@ def update_core_collector():
         manifest_path = "./comp/otelcol/collector-contrib/impl/manifest.yaml"
         old_version = read_old_version(manifest_path)
         if old_version:
-            update_file(manifest_path, old_version, collector_version)
+            update_file(manifest_path, old_version, collector_version[1:])
             update_file(
                 "./comp/otelcol/collector/impl/collector.go",
                 old_version,

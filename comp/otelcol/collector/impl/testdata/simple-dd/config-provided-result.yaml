@@ -3,7 +3,7 @@ exporters:
   datadog:
     api:
       fail_on_invalid_key: false
-      key: '[REDACTED]'
+      key: "[REDACTED]"
       site: datadoghq.com
     auth: null
     compression: ""
@@ -32,9 +32,9 @@ exporters:
     max_idle_conns_per_host: null
     metrics:
       apm_stats_receiver_addr: ""
+      delta_ttl: 3600
       dialer:
         timeout: 0s
-      delta_ttl: 3600
       enabled: false
       endpoint: https://api.datadoghq.com
       histograms:
@@ -69,15 +69,15 @@ exporters:
     timeout: 15s
     tls:
       ca_file: ""
-      ca_pem: '[REDACTED]'
+      ca_pem: "[REDACTED]"
       cert_file: ""
-      cert_pem: '[REDACTED]'
+      cert_pem: "[REDACTED]"
       cipher_suites: []
       include_system_ca_certs_pool: false
       insecure: false
       insecure_skip_verify: false
       key_file: ""
-      key_pem: '[REDACTED]'
+      key_pem: "[REDACTED]"
       max_version: ""
       min_version: ""
       reload_interval: 0s
@@ -105,28 +105,30 @@ receivers:
         evaluation_interval: 1m
         scrape_interval: 1m
         scrape_protocols:
-        - OpenMetricsText1.0.0
-        - OpenMetricsText0.0.1
-        - PrometheusText0.0.4
+          - OpenMetricsText1.0.0
+          - OpenMetricsText0.0.1
+          - PrometheusText0.0.4
         scrape_timeout: 10s
+      runtime:
+        gogc: 75
       scrape_configs:
-      - enable_compression: true
-        enable_http2: true
-        follow_redirects: true
-        honor_timestamps: true
-        job_name: datadog-agent
-        metrics_path: /metrics
-        scheme: http
-        scrape_interval: 5s
-        scrape_protocols:
-        - OpenMetricsText1.0.0
-        - OpenMetricsText0.0.1
-        - PrometheusText0.0.4
-        scrape_timeout: 5s
-        static_configs:
-        - targets:
-          - 0.0.0.0:8888
-        track_timestamps_staleness: false
+        - enable_compression: true
+          enable_http2: true
+          follow_redirects: true
+          honor_timestamps: true
+          job_name: datadog-agent
+          metrics_path: /metrics
+          scheme: http
+          scrape_interval: 5s
+          scrape_protocols:
+            - OpenMetricsText1.0.0
+            - OpenMetricsText0.0.1
+            - PrometheusText0.0.4
+          scrape_timeout: 5s
+          static_configs:
+            - targets:
+                - 0.0.0.0:8888
+          track_timestamps_staleness: false
     report_extra_scrape_metrics: false
     start_time_metric_regex: ""
     target_allocator: null
@@ -137,23 +139,23 @@ service:
   pipelines:
     logs:
       exporters:
-      - datadog
+        - datadog
       processors: []
       receivers:
-      - otlp
+        - otlp
     metrics:
       exporters:
-      - datadog
+        - datadog
       processors: []
       receivers:
-      - otlp
-      - prometheus
+        - otlp
+        - prometheus
     traces:
       exporters:
-      - datadog
+        - datadog
       processors: []
       receivers:
-      - otlp
+        - otlp
   telemetry:
     logs:
       development: false
@@ -161,18 +163,18 @@ service:
       disable_stacktrace: false
       encoding: console
       error_output_paths:
-      - stderr
+        - stderr
       initial_fields: {}
       level: info
       output_paths:
-      - stderr
+        - stderr
       sampling:
         enabled: true
         initial: 10
         thereafter: 100
         tick: 10s
     metrics:
-      address: :8888
+      address: ":8888"
       level: Normal
       readers: []
     resource: {}
