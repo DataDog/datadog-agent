@@ -78,7 +78,7 @@ lint_macos:
     - pyenv rehash
     - inv -e rtloader.make --python-runtimes $PYTHON_RUNTIMES
     - inv -e rtloader.install
-    - inv -e install-tools
+    - inv -e install-tools --no-custom-golangci-lint
     - inv -e deps
 
 .lint_macos_gitlab:
