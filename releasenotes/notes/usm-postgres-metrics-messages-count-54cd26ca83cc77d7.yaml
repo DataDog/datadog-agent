@@ -1,3 +1,0 @@
-enhancements:
-  - |
-    Added metrics about the distribution of the number of Postgres messages in each TCP packet.
