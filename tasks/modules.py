@@ -302,7 +302,6 @@ IGNORED_MODULE_PATHS = [
     # Test files
     Path("./test/integration/serverless/recorder-extension"),
     Path("./test/integration/serverless/src"),
-    Path("./test/new-e2e/tests/discovery/testdata/provision/go"),
 ]
 
 MAIN_TEMPLATE = """package main
