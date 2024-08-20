@@ -29,3 +29,25 @@ For any prometheus receiver collecting collector health metrics, and sending the
 `GetProvidedConf` and `GetEnhancedConf` return the string representation of the user provided and autoconfigured conf respectively. Currently, these APIs have two limitations:
 - They do not redact sensitive data
 - They do not provide the effective config (including defaults...etc)
+
+## Opting out of converter
+
+It is possible to opt out of the converter by setting env var `DD_OTELCOLLECTOR_CONVERTER_ENABLED` or agent config `otelcollector.converter.enabled` to `false` (`true` by default). 
+
+You are still able to add the components added by the converter manually:
+
+### Extensions
+
+Please refer to the following example in order to manually set the `pprof`, `health_check`, `zpages` and `datadog` extensions: [extensions.yaml](examples/extensions.yaml). Please refer to the extensions README.md for additional information about the components:
+- [pprof](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/extension/pprofextension/README.md)
+- [health_check](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/healthcheckextension/README.md)
+- [zpages](https://github.com/open-telemetry/opentelemetry-collector/blob/main/extension/zpagesextension/README.md)
+- [datadog](../extension/README.md)
+
+### Prometheus Receiver
+
+Please refer to the following example in order to manually set the prometheus receiver: [prometheus.yaml](examples/prometheus.yaml). Please refer to the receivers [README.md](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/prometheusreceiver) for additional information about the component.
+
+### Infra Attributes Processor
+
+Please refer to the following example in order to manually set the infraattributes processor: [infraattributes.yaml](examples/infraattributes.yaml). Please refer to the processors [README.md](../otlp/components/processor/infraattributesprocessor/README.md) for additional information about the component.
