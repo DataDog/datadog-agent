@@ -44,7 +44,8 @@ var (
 	}
 	// For now, only allow a subset of the above detectors to actually run.
 	allowedLangs = map[language.Language]struct{}{
-		language.Java: {},
+		language.Java:   {},
+		language.Python: {},
 	}
 )
 
