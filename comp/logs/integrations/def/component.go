@@ -3,15 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package integrations adds a go interface for integrations to send logs
-// register and send logs.
+// Package integrations adds a go interface for integrations to register and
+// send logs.
 //
 // The integrations component is a basic interface for integrations to send logs
 // from one place to another. Integrations and their configs can be registered
 // using the RegisterIntegrations function and then use the SendLog function to
 // send logs to consumers, who will use the SubscribeIntegration and Subscribe
 // functions to receive integration configs and logs.
-
 package integrations
 
 import "github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
