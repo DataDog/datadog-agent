@@ -240,6 +240,11 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 
 	ia.data["feature_csm_vm_containers_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("container_image.enabled") && ia.conf.GetBool("sbom.container_image.enabled")
 	ia.data["feature_csm_vm_hosts_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("sbom.host.enabled")
+
+	ia.data["fleet_policies_applied"] = ia.conf.GetStringSlice("__fleet_layers")
+
+	// ECS Fargate
+	ia.fetchECSFargateAgentMetadata()
 }
 
 func (ia *inventoryagent) fetchSecurityAgentMetadata() {
@@ -325,9 +330,6 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	ia.data["system_probe_root_namespace_enabled"] = sysProbeConf.GetBool("network_config.enable_root_netns")
 
 	ia.data["feature_dynamic_instrumentation_enabled"] = sysProbeConf.GetBool("dynamic_instrumentation.enabled")
-
-	// ECS Fargate
-	ia.fetchECSFargateAgentMetadata()
 }
 
 // fetchECSFargateAgentMetadata fetches ECS Fargate agent metadata from the ECS metadata V2 service.
