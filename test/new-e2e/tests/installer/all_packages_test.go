@@ -216,11 +216,6 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		env := InstallScriptEnv(s.arch)
 		playbookPath := s.writeAnsiblePlaybook(env, params...)
 
-		// ot, err := s.Env().RemoteHost.Execute("git clone https://github.com/DataDog/ansible-datadog.git /home/ubuntu/github.com/DataDog/ansible-datadog")
-		// s.T().Log(ot)
-		// s.T().Log(err)
-		// s.Env().RemoteHost.MustExecute("cd /home/ubuntu/github.com/DataDog/ansible-datadog && git checkout 5cd9829f207144c572c2d791a026b905c54f4ef5")
-
 		// Run the playbook
 		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-playbook -vvv %s", ansiblePrefix, playbookPath))
 	default:
@@ -357,8 +352,11 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
 		playbookStringSuffix += fmt.Sprintf("    datadog_apt_repo: \"deb [signed-by=%s] https://%s/ %s\"\n", defaultRepoEnv["TESTING_APT_KEY"], defaultRepoEnv["TESTING_APT_URL"], defaultRepoEnv["TESTING_APT_REPO_VERSION"])
 	}
 	if defaultRepoEnv["TESTING_YUM_VERSION_PATH"] != "" {
-		playbookStringSuffix += fmt.Sprintf("    datadog_yum_repo: \"https://%s/%s/%s/\"\n", defaultRepoEnv["TESTING_YUM_URL"], defaultRepoEnv["TESTING_YUM_VERSION_PATH"], s.arch)
-		// type=rpm-md\ngpgcheck=1\nrepo_gpgcheck=${rpm_repo_gpgcheck}\ngpgkey=${gpgkeys}
+		archi := "x86_64"
+		if s.arch == e2eos.ARM64Arch {
+			archi = "aarch64"
+		}
+		playbookStringSuffix += fmt.Sprintf("    datadog_yum_repo: \"https://%s/%s/%s/\"\n", defaultRepoEnv["TESTING_YUM_URL"], defaultRepoEnv["TESTING_YUM_VERSION_PATH"], archi)
 	}
 	if len(environments) > 0 {
 		playbookStringPrefix += "      environment:\n"
