@@ -58,7 +58,6 @@ func splitPaths(path string) []string {
 func findInPathTree(pathtrees map[uint32]*pathTreeEntry, siteId uint32, urlpath string) (APMTags, APMTags) {
 	// urlpath will come in as something like
 	// /path/to/app
-	// need to build the tree all the way down
 
 	// break down the path
 	pathparts := splitPaths(urlpath)
