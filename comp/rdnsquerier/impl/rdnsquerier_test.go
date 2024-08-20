@@ -678,7 +678,7 @@ func TestRetriesExceeded(t *testing.T) {
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called")
 		},
-		func(hostname string, err error) {
+		func(_ string, err error) {
 			assert.Error(t, err)
 			wg.Done()
 		},
