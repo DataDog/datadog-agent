@@ -28,14 +28,14 @@ type Provides struct {
 
 func fillFlare(fb flaretypes.FlareBuilder) error {
 	if fb.IsLocal() {
-		fb.Logf("listing open files is not supported in local mode")
+		_ = fb.Logf("listing open files is not supported in local mode")
 		return nil
 	}
 
 	files, err := lsof.ListOpenFilesFromSelf(context.Background())
 	if err != nil {
 		if errors.Is(err, lsof.ErrNotImplemented) {
-			fb.Logf("listing files opened by the agent process is not supported on %s/%s", runtime.GOOS, runtime.GOARCH)
+			_ = fb.Logf("listing files opened by the agent process is not supported on %s/%s", runtime.GOOS, runtime.GOARCH)
 			return nil
 		}
 		_ = fb.Logf("could not list agent open files: %v", err)
