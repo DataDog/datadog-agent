@@ -6,10 +6,8 @@ target:
   command: /bin/entrypoint.sh
 
   environment:
-    DD_TELEMETRY_ENABLED: true
     DD_API_KEY: 00000001
     DD_HOSTNAME: smp-regression
-    DD_DD_URL: http://127.0.0.1:9092
     DD_RUNTIME_SECURITY_CONFIG_ENABLED: true
     DD_RUNTIME_SECURITY_CONFIG_NETWORK_ENABLED: true
     DD_RUNTIME_SECURITY_CONFIG_REMOTE_CONFIGURATION_ENABLED: true
