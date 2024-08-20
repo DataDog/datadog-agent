@@ -51,7 +51,7 @@ jobs:
             - name: Checkout release branch
               uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
               with:
-                ref: ${{ branches.value }}
+                ref: ${{ matrix.value }}
                 fetch-depth: 0
 
             - name: Check for changes since last RC
@@ -60,7 +60,7 @@ jobs:
                 ATLASSIAN_USERNAME: ${{ secrets.ATLASSIAN_USERNAME }}
                 ATLASSIAN_PASSWORD: ${{ secrets.ATLASSIAN_PASSWORD }}
               run: |
-                echo "CHANGES=$(inv -e release.check-for-changes -r ${{ branches.value }} ${{ env.WARNING }})" >> $GITHUB_OUTPUT
+                echo "CHANGES=$(inv -e release.check-for-changes -r ${{ matrix.value }} ${{ env.WARNING }})" >> $GITHUB_OUTPUT
 
             - name: Create RC PR
               if: ${{ steps.check_for_changes.outputs.CHANGES == 'true'}}
