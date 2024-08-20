@@ -216,8 +216,8 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 	}
 
 	name := s.serviceDetector.GetServiceName(cmdline, envs)
-	// Language passed as unknown for now to only detect injection.
-	apmInstrumentation := apm.Detect(cmdline, envs, language.Unknown)
+	language := language.FindInArgs(cmdline)
+	apmInstrumentation := apm.Detect(cmdline, envs, language)
 
 	return &serviceInfo{name: name, apmInstrumentation: apmInstrumentation}, nil
 }
