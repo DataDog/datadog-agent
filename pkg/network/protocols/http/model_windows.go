@@ -108,13 +108,13 @@ func (tx *WinHttpTransaction) StaticTags() uint64 {
 func (tx *WinHttpTransaction) DynamicTags() []string {
 	tags := make([]string, 0, 6)
 	if(len(tx.AppPool)) > 0 {
-		tags = append(tags(fmt.Sprintf("http.iis.app_pool:%v", tx.AppPool))
+		tags = append(tags, fmt.Sprintf("http.iis.app_pool:%v", tx.AppPool))
 	}
 	if(len(tx.SiteID)) > 0 {
-		tags = append(tags(fmt.Sprintf("http.iis.site:%v", tx.SiteID))
+		tags = append(tags, fmt.Sprintf("http.iis.site:%v", tx.SiteID))
 	}
 	if(len(tx.SiteName)) > 0 {
-		tags = append(tags(fmt.Sprintf("http.iis.sitename:%v", tx.SiteName))
+		tags = append(tags, fmt.Sprintf("http.iis.sitename:%v", tx.SiteName))
 	}
 
 	// tag precedence is web.config -> datadog.json

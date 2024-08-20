@@ -44,7 +44,7 @@ func TestUninitializedConfig(t *testing.T) {
 	iisCfg, err := NewDynamicIISConfig()
 
 	// by not calling start, this will simulate either a caller trying to use w/o calling
-	// start, or a race where the start is still "in progress"
+	// start, or a race where the start is still "in progress" when the caller tries to use it
 
 	assert.Nil(t, err)
 	assert.NotNil(t, iisCfg)
@@ -55,5 +55,5 @@ func TestUninitializedConfig(t *testing.T) {
 	atags, cfgtags := iisCfg.GetAPMTags(0, "/")
 	assert.Equal(t, atags.DDService, "")
 	assert.Equal(t, cfgtags.DDService, "")
-	
+
 }
