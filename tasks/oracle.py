@@ -3,30 +3,41 @@ from invoke import task
 from invoke.exceptions import Exit
 
 @task
-def functional_tests(ctx) -> None:
+def test(ctx, verbose = False) -> None:
     with ctx.cd("pkg/collector/corechecks/oracle/compose"):
-        ctx.run("docker compose down")
-        ctx.run("docker compose rm -f")
-        ctx.run("docker compose build")
-        ctx.run("docker compose up -d")
+        print("Launching docker...")
+        ctx.run("docker compose down", hide=not verbose)
+        ctx.run("docker compose rm -f", hide=not verbose)
+        ctx.run("docker compose build", hide=not verbose)
+        ctx.run("docker compose up -d", hide=not verbose)
 
         healthy = False
         attempts = 0
-        while attempts < 10:
+        while attempts < 30:
             health_check = ctx.run("docker inspect --format \"{{json .State.Health.Status }}\" compose-oracle-1 | jq", hide=True)
             if health_check.stdout.strip() == '"starting"':
-                print("Waiting for oracle to start...")
+                dots = ("." * (attempts%3 + 1)).ljust(3, " ")
+                print(f"Waiting for oracle to be ready{dots}", end="\r")
             elif health_check.stdout.strip() == '"healthy"':
                 healthy = True
                 break
             attempts += 1
-            sleep(3)
+            sleep(1)
+        print()
         if not healthy:
             ctx.run("docker inspect --format \"{{json .State.Health }}\" compose-oracle-1 | jq")
             raise Exit(message='docker failed to start', code=1)
-        
-    with ctx.cd("pkg/collector/corechecks/oracle"):
-        ctx.run("go test -v -tags test oracle oracle_test ./...")
 
+    try:
+        with ctx.cd("pkg/collector/corechecks/oracle"):
+            print("Running tests...")
+            go_flags = " -v" if verbose else ""
+            ctx.run(f"go test{go_flags} -tags \"test oracle oracle_test\" ./...")
+    finally:    
+        clean(ctx, verbose)
+
+@task
+def clean(ctx, verbose = False) -> None:
+    print("Cleaning up...")
     with ctx.cd("pkg/collector/corechecks/oracle/compose"):
-        ctx.run("docker compose down")
+        ctx.run("docker compose down", hide=not verbose)
