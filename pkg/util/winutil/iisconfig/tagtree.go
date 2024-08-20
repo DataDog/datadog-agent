@@ -55,7 +55,7 @@ func splitPaths(path string) []string {
 	return append(s, b)
 }
 
-func findInPathTree(pathtrees map[uint32]*pathTreeEntry, id uint32, urlpath string) (APMTags, APMTags) {
+func findInPathTree(pathtrees map[uint32]*pathTreeEntry, siteId uint32, urlpath string) (APMTags, APMTags) {
 	// urlpath will come in as something like
 	// /path/to/app
 	// need to build the tree all the way down
@@ -63,14 +63,14 @@ func findInPathTree(pathtrees map[uint32]*pathTreeEntry, id uint32, urlpath stri
 	// break down the path
 	pathparts := splitPaths(urlpath)
 
-	if _, ok := pathtrees[id]; !ok {
+	if _, ok := pathtrees[siteId]; !ok {
 		return APMTags{}, APMTags{}
 	}
 	if len(pathparts) == 0 {
-		return pathtrees[id].ddjson, pathtrees[id].appconfig
+		return pathtrees[siteId].ddjson, pathtrees[siteId].appconfig
 	}
 
-	currNode := pathtrees[id]
+	currNode := pathtrees[siteId]
 
 	for _, part := range pathparts {
 		if _, ok := currNode.nodes[part]; !ok {
