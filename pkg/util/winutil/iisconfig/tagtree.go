@@ -14,6 +14,31 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
+/*
+	 IIS can have multiple sites.  Each site can have multiple applications.
+	   each application can have its own config.
+
+	   Such as
+	   <site name="app1" id="2">
+	    <application path="/" applicationPool="app1">
+	        <virtualDirectory path="/" physicalPath="C:\Temp" />
+	    </application>
+	    <application path="/app2" applicationPool="app1">
+	        <virtualDirectory path="/" physicalPath="D:\temp" />
+	    </application>
+	    <application path="/app2/app3" applicationPool="app1">
+	        <virtualDirectory path="/" physicalPath="D:\source" />
+	    </application>
+
+
+		in the above, there each application should be treated separately.
+
+		so if theURL is /app2/app3/appx, then we look in d:\source
+		                /app2/app4/appx, then we look in d:\tmp
+						/app3            then we look in app1
+
+	  pathTreeEntry implements a search tree to simplify the search for matching paths.
+*/
 type pathTreeEntry struct {
 	nodes     map[string]*pathTreeEntry
 	ddjson    APMTags
@@ -93,8 +118,6 @@ func addToPathTree(pathtrees map[uint32]*pathTreeEntry, siteID string, urlpath s
 	}
 	currNode.ddjson = ddjson
 	currNode.appconfig = appconfig
-	return
-
 }
 func (iiscfg *DynamicIISConfig) GetAPMTags(siteID uint32, urlpath string) (APMTags, APMTags) {
 	iiscfg.mux.Lock()
@@ -118,6 +141,9 @@ func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 				// check to see if the datadog.json or web.config exists
 				ppath := vdir.PhysicalPath
 				ppath, err := registry.ExpandString(ppath)
+				if err != nil {
+					ppath = vdir.PhysicalPath
+				}
 
 				ddjsonpath := filepath.Join(ppath, "datadog.json")
 				webcfg := filepath.Join(ppath, "web.config")
@@ -134,7 +160,7 @@ func buildPathTagTree(xmlcfg *iisConfiguration) map[uint32]*pathTreeEntry {
 				}
 
 				if hasddjson {
-					ddjson, err = ReadDatadogJson(ddjsonpath)
+					ddjson, err = ReadDatadogJSON(ddjsonpath)
 					if err != nil {
 						hasddjson = false
 					}

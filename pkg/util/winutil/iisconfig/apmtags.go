@@ -4,6 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build windows
 
+// Package iisconfig manages iis configuration
 package iisconfig
 
 /*
@@ -23,25 +24,25 @@ type APMTags struct {
 	DDVersion string
 }
 
-// ReadDatadogJson reads a datadog.json file and returns the APM tags
-func ReadDatadogJson(datadogJsonPath string) (APMTags, error) {
-	var datadogJson map[string]string
+// ReadDatadogJSON reads a datadog.json file and returns the APM tags
+func ReadDatadogJSON(datadogJSONPath string) (APMTags, error) {
+	var datadogJSON map[string]string
 	var apmtags APMTags
 
-	file, err := os.Open(datadogJsonPath)
+	file, err := os.Open(datadogJSONPath)
 	if err != nil {
 		return apmtags, err
 	}
 	defer file.Close()
 
 	decoder := json.NewDecoder(file)
-	err = decoder.Decode(&datadogJson)
+	err = decoder.Decode(&datadogJSON)
 	if err != nil {
 		return apmtags, err
 	}
-	apmtags.DDService = datadogJson["DD_SERVICE"]
-	apmtags.DDEnv = datadogJson["DD_ENV"]
-	apmtags.DDVersion = datadogJson["DD_VERSION"]
+	apmtags.DDService = datadogJSON["DD_SERVICE"]
+	apmtags.DDEnv = datadogJSON["DD_ENV"]
+	apmtags.DDVersion = datadogJSON["DD_VERSION"]
 	return apmtags, nil
 }
 
@@ -59,11 +60,11 @@ type appConfiguration struct {
 	AppSettings iisAppSettings
 }
 
-// ReadDatadogJson reads an iis config file(xml) and returns the APM tags
+// ReadDotNetConfig reads an iis config file(xml) and returns the APM tags
 func ReadDotNetConfig(cfgpath string) (APMTags, error) { //(APMTags, error) {
 	var newcfg appConfiguration
 	var apmtags APMTags
-	var chaseDatadogJson string
+	var chasedatadogJSON string
 	f, err := os.ReadFile(cfgpath)
 	if err != nil {
 		return apmtags, err
@@ -81,11 +82,11 @@ func ReadDotNetConfig(cfgpath string) (APMTags, error) { //(APMTags, error) {
 		case "DD_VERSION":
 			apmtags.DDVersion = setting.Value
 		case "DD_TRACE_CONFIG_FILE":
-			chaseDatadogJson = setting.Value
+			chasedatadogJSON = setting.Value
 		}
 	}
-	if len(chaseDatadogJson) > 0 {
-		ddjson, err := ReadDatadogJson(chaseDatadogJson)
+	if len(chasedatadogJSON) > 0 {
+		ddjson, err := ReaddatadogJSON(chasedatadogJSON)
 		if err == nil {
 			if len(ddjson.DDService) > 0 {
 				apmtags.DDService = ddjson.DDService

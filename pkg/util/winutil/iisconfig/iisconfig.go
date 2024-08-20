@@ -37,9 +37,6 @@ type DynamicIISConfig struct {
 	pathtrees    map[uint32]*pathTreeEntry
 }
 
-// appConfig is the datadog configuration
-type appConfig map[string]string
-
 // NewDynamicIISConfig creates a new DynamicIISConfig
 func NewDynamicIISConfig() (*DynamicIISConfig, error) {
 	iiscfg := &DynamicIISConfig{
