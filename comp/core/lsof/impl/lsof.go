@@ -27,6 +27,7 @@ type Provides struct {
 
 func fillFlare(fb flaretypes.FlareBuilder) error {
 	if fb.IsLocal() {
+		fb.Logf("listing open files is not supported in local mode")
 		return nil
 	}
 
