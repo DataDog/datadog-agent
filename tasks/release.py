@@ -885,7 +885,7 @@ def get_active_release_branch(_):
 @task
 def get_active_release_branches(_):
     """
-    Determine what is the current active release branches for the Agent.
+    Determine what are the current active release branches for the Agent.
     """
     gh = GithubAPI()
     print(json.dumps([branch.name for branch in gh.latest_unreleased_release_branches()]))
