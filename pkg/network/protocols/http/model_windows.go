@@ -107,12 +107,15 @@ func (tx *WinHttpTransaction) StaticTags() uint64 {
 //nolint:revive // TODO(WKIT) Fix revive linter
 func (tx *WinHttpTransaction) DynamicTags() []string {
 	tags := make([]string, 0, 6)
-	tags = append(tags, fmt.Sprintf("http.iis.site:%v", tx.SiteID))
-	if (len(tx.AppPool)) > 0 {
-		tags = append(tags, fmt.Sprintf("http.iis.app_pool:%v", tx.AppPool))
-	}
-	if (len(tx.SiteName)) > 0 {
-		tags = append(tags, fmt.Sprintf("http.iis.sitename:%v", tx.SiteName))
+
+	if len(tx.AppPool) != 0 || len(tx.SiteName) != 0 {
+		tags = append(tags, fmt.Sprintf("http.iis.site:%v", tx.SiteID))
+		if (len(tx.AppPool)) > 0 {
+			tags = append(tags, fmt.Sprintf("http.iis.app_pool:%v", tx.AppPool))
+		}
+		if (len(tx.SiteName)) > 0 {
+			tags = append(tags, fmt.Sprintf("http.iis.sitename:%v", tx.SiteName))
+		}
 	}
 
 	// tag precedence is web.config -> datadog.json
