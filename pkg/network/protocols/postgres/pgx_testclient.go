@@ -12,6 +12,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -42,6 +43,28 @@ func (c *PGXClient) Ping() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return c.DB.Ping(ctx)
+}
+
+// Begin starts a new transaction.
+func (c *PGXClient) Begin() (pgx.Tx, error) {
+	if c.DB == nil {
+		return nil, errors.New("db handle is nil")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	tx, err := c.DB.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
+// Commit commits the transaction.
+func (c *PGXClient) Commit(tx pgx.Tx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return tx.Commit(ctx)
 }
 
 // Close closes the connection to the database.

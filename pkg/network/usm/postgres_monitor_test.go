@@ -477,6 +477,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 				}, isTLS)
 			},
 		},
+		// This test validates that the SHOW command is currently not supported.
 		{
 			name: "show command",
 			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
@@ -497,6 +498,39 @@ func testDecoding(t *testing.T, isTLS bool) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"UNKNOWN": {
 						postgres.UnknownOP: adjustCount(1),
+					},
+				}, isTLS)
+			},
+		},
+		// This test validates that the sql transaction is not supported.
+		{
+			name: "transaction",
+			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+
+				tx, err := pg.Begin()
+				require.NoError(t, err)
+				require.NoError(t, pg.RunQuery(createTableQuery))
+				require.NoError(t, pg.Commit(tx))
+			},
+			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+
+				tx, err := pg.Begin()
+				require.NoError(t, err)
+				require.NoError(t, pg.RunQuery(selectAllQuery))
+				require.NoError(t, pg.Commit(tx))
+			},
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
+					"UNKNOWN": {
+						postgres.UnknownOP: adjustCount(2),
 					},
 				}, isTLS)
 			},
