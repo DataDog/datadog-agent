@@ -9,6 +9,7 @@ package lsofimpl
 import (
 	"context"
 	"errors"
+	"runtime"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	lsofdef "github.com/DataDog/datadog-agent/comp/core/lsof/def"
@@ -33,10 +34,11 @@ func fillFlare(fb flaretypes.FlareBuilder) error {
 
 	files, err := lsof.ListOpenFilesFromSelf(context.Background())
 	if err != nil {
-		_ = fb.Logf("could not list agent open files: %v", err)
 		if errors.Is(err, lsof.ErrNotImplemented) {
+			fb.Logf("listing files opened by the agent process is not supported on %s/%s", runtime.GOOS, runtime.GOARCH)
 			return nil
 		}
+		_ = fb.Logf("could not list agent open files: %v", err)
 		return err
 	}
 

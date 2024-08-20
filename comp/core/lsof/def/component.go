@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package lsof ... /* TODO: detailed doc comment for the component */
+// Package lsof provides a flare file with data about files opened by the agent process
 package lsof
 
 // team: agent-shared-components
