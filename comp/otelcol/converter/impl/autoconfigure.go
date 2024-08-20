@@ -36,6 +36,9 @@ func enhanceConfig(conf *confmap.Conf) {
 
 	// prometheus receiver
 	addPrometheusReceiver(conf, prometheusReceiver)
+
+	// datadog connector
+	changeDefaultConfigsForDatadogConnector(conf)
 }
 
 func componentName(fullName string) string {

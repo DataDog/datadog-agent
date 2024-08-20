@@ -961,6 +961,7 @@ def kmt_sysprobe_prepare(
                 "external_unix_proxy_server",
                 "fmapper",
                 "prefetch_file",
+                "fake_server",
             ]:
                 src_file_path = os.path.join(pkg, f"{gobin}.go")
                 if os.path.isdir(pkg) and os.path.isfile(src_file_path):
