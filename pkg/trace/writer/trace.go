@@ -138,6 +138,7 @@ func NewTraceWriter(
 
 func (w *TraceWriter) reporter() {
 	tck := time.NewTicker(w.tick)
+	defer tck.Stop()
 	defer w.wg.Done()
 	for {
 		select {
@@ -172,6 +173,7 @@ func (w *TraceWriter) Stop() {
 	w.wg.Wait()
 	w.flush()
 	stopSenders(w.senders)
+	w.flushTicker.Stop()
 }
 
 // FlushSync blocks and sends pending payloads when syncMode is true

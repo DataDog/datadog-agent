@@ -70,6 +70,19 @@ func Test_javaDetector(t *testing.T) {
 			args:   strings.Split("java -version", " "),
 			result: None,
 		},
+		{
+			name:   "cmdline",
+			args:   []string{"java", "-foo", "-javaagent:/path/to/data dog/dd-java-agent.jar", "-Ddd.profiling.enabled=true"},
+			result: Provided,
+		},
+		{
+			name: "CATALINA_OPTS",
+			args: []string{"java"},
+			envs: map[string]string{
+				"CATALINA_OPTS": "-javaagent:dd-java-agent.jar",
+			},
+			result: Provided,
+		},
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
