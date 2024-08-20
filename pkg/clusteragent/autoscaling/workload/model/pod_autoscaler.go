@@ -30,7 +30,7 @@ const (
 	statusRetainedActions = 5
 )
 
-// PodAutoscalerInternal hols the necessary data to work with the `DatadogPodAutoscaler` CRD.
+// PodAutoscalerInternal holds the necessary data to work with the `DatadogPodAutoscaler` CRD.
 type PodAutoscalerInternal struct {
 	// namespace is the namespace of the PodAutoscaler
 	namespace string
@@ -48,6 +48,10 @@ type PodAutoscalerInternal struct {
 	// Version is stored in .Spec.RemoteVersion
 	// (only if owner == remote)
 	settingsTimestamp time.Time
+
+	// creationTimestamp is the time when the kubernetes object was created
+	// creationTimestamp is stored in .DatadogPodAutoscaler.CreationTimestamp
+	creationTimestamp time.Time
 
 	// scalingValues represents the current target scaling values (retrieved from RC)
 	scalingValues ScalingValues
@@ -129,6 +133,7 @@ func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq
 	p.targetGVK = schema.GroupVersionKind{}
 	// Compute the horizontal events retention again in case .Spec.Policy has changed
 	p.horizontalEventsRetention = getHorizontalEventsRetention(podAutoscaler.Spec.Policy, longestScalingRulePeriodAllowed)
+	p.creationTimestamp = podAutoscaler.CreationTimestamp.Time
 }
 
 // UpdateFromSettings updates the PodAutoscalerInternal from a new settings
@@ -303,6 +308,11 @@ func (p *PodAutoscalerInternal) Spec() *datadoghq.DatadogPodAutoscalerSpec {
 // SettingsTimestamp returns the timestamp of the last settings update
 func (p *PodAutoscalerInternal) SettingsTimestamp() time.Time {
 	return p.settingsTimestamp
+}
+
+// CreationTimestamp returns the timestamp the kubernetes object was created
+func (p *PodAutoscalerInternal) CreationTimestamp() time.Time {
+	return p.creationTimestamp
 }
 
 // ScalingValues returns the scaling values of the PodAutoscaler
