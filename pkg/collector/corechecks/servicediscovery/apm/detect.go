@@ -10,14 +10,14 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language/reader"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -79,54 +79,39 @@ func isInjected(envs map[string]string) bool {
 	return false
 }
 
-func pythonDetector(_ int, args []string, envs map[string]string) Instrumentation {
-	/*
-		Check for VIRTUAL_ENV env var
-			if it's there, use $VIRTUAL_ENV/lib/python{}/site-packages/ and see if ddtrace is inside
-			if so, return PROVIDED
-			if it's not there,
-				exec args[0] -c "import sys; print(':'.join(sys.path))"
-				split on :
-				for each part
-					see if it ends in site-packages
-					if so, check if ddtrace is inside
-						if so, return PROVIDED
-			return NONE
-	*/
-	if path, ok := envs["VIRTUAL_ENV"]; ok {
-		venv := os.DirFS(path)
-		libContents, err := fs.ReadDir(venv, "lib")
-		if err == nil {
-			for _, v := range libContents {
-				if strings.HasPrefix(v.Name(), "python") && v.IsDir() {
-					tracedir, err := fs.Stat(venv, "lib/"+v.Name()+"/site-packages/ddtrace")
-					if err == nil && tracedir.IsDir() {
-						return Provided
-					}
-				}
-			}
-		}
-		// the virtual env didn't have ddtrace, can exit
-		return None
-	}
-	// slow option...
-	results, err := exec.Command(args[0], `-c`, `"import sys; print(':'.join(sys.path))"`).Output()
+func getMaps(pid int) ([]byte, error) {
+	mapsPath := kernel.HostProc(strconv.Itoa(pid), "maps")
+	bytes, err := os.ReadFile(mapsPath)
 	if err != nil {
-		log.Warn("Failed to execute command", err)
+		return nil, err
+	}
+
+	return bytes, nil
+}
+
+func pythonDetectorFromMaps(maps []byte) Instrumentation {
+	idx := bytes.Index(maps, []byte("/site-packages/ddtrace/"))
+	if idx != -1 {
+		return Provided
+	}
+
+	return None
+}
+
+// pythonDetector detects the use of the ddtrace package in the process. Since
+// the ddtrace package uses native libraries, the paths of these libraries will
+// show up in /proc/$PID/maps.
+//
+// For example:
+// 7aef453fc000-7aef453ff000 rw-p 0004c000 fc:06 7895473  /home/foo/.local/lib/python3.10/site-packages/ddtrace/internal/_encoding.cpython-310-x86_64-linux-gnu.so
+// 7aef45400000-7aef45459000 r--p 00000000 fc:06 7895588  /home/foo/.local/lib/python3.10/site-packages/ddtrace/internal/datadog/profiling/libdd_wrapper.so
+func pythonDetector(pid int, _ []string, _ map[string]string) Instrumentation {
+	maps, err := getMaps(pid)
+	if err != nil {
 		return None
 	}
 
-	results = bytes.TrimSpace(results)
-	parts := strings.Split(string(results), ":")
-	for _, v := range parts {
-		if strings.HasSuffix(v, "/site-packages") {
-			_, err := os.Stat(v + "/ddtrace")
-			if err == nil {
-				return Provided
-			}
-		}
-	}
-	return None
+	return pythonDetectorFromMaps(maps)
 }
 
 func nodeDetector(_ int, _ []string, envs map[string]string) Instrumentation {
