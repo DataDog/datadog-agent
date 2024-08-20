@@ -23,6 +23,7 @@ type APMTags struct {
 	DDVersion string
 }
 
+// ReadDatadogJson reads a datadog.json file and returns the APM tags
 func ReadDatadogJson(datadogJsonPath string) (APMTags, error) {
 	var datadogJson map[string]string
 	var apmtags APMTags
@@ -58,6 +59,7 @@ type appConfiguration struct {
 	AppSettings iisAppSettings
 }
 
+// ReadDatadogJson reads an iis config file(xml) and returns the APM tags
 func ReadDotNetConfig(cfgpath string) (APMTags, error) { //(APMTags, error) {
 	var newcfg appConfiguration
 	var apmtags APMTags
