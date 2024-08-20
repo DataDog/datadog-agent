@@ -96,6 +96,7 @@ func newCollectorWithFilter(cfg config.Component, filter *workloadmeta.Filter) (
 	}, nil
 }
 
+// NewCollectorWithFilterFunc accepts a filter and returns a constructor for a collector that uses that filter
 func NewCollectorWithFilterFunc(filter *workloadmeta.Filter) func(config.Component) (wmcatalog.Collector, error) {
 	return func(cfg config.Component) (wmcatalog.Collector, error) {
 		return newCollectorWithFilter(cfg, filter)

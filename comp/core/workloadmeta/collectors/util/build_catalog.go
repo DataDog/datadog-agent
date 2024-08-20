@@ -11,6 +11,7 @@ import (
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 )
 
+// BuildCatalog builds a list of Collectors by invoking their constructors
 func BuildCatalog(cfg config.Component, constructors ...func(config.Component) (wmcatalog.Collector, error)) []wmcatalog.Collector {
 	results := []wmcatalog.Collector{}
 	for _, ctor := range constructors {
