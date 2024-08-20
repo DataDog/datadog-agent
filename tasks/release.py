@@ -883,7 +883,7 @@ def get_active_release_branch(_):
 
 
 @task
-def get_active_release_branches(_):
+def get_unreleased_release_branches(_):
     """
     Determine what are the current active release branches for the Agent.
     """

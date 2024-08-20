@@ -36,7 +36,7 @@ jobs:
             - name: Determine the release active branches
               id: branches
               run: |
-                echo "value=$(inv release.get-active-release-branches)" >> $GITHUB_OUTPUT
+                echo "value=$(inv release.get-unreleased-release-branches)" >> $GITHUB_OUTPUT
 
             - name: Set the warning option
               if: github.event.schedule == '0 8 * * 1,3,5'
