@@ -21,6 +21,7 @@
 /.golangci.yml                          @DataDog/agent-devx-loops
 /.custom-gcl.yml                        @DataDog/agent-devx-loops
 /.pre-commit-config.yaml                @DataDog/agent-devx-loops
+/.vscode/                               @DataDog/agent-devx-loops
 
 /CHANGELOG.rst                          @DataDog/agent-delivery
 /CHANGELOG-DCA.rst                      @DataDog/container-integrations @DataDog/container-platform
