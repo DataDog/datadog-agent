@@ -6,8 +6,9 @@
 package lsof
 
 import (
+	"bytes"
 	"fmt"
-	"strings"
+	"text/tabwriter"
 )
 
 /*
@@ -46,27 +47,15 @@ type File struct {
 // Files represents a list of open files
 type Files []File
 
-// String returns a one-line description of the file
-func (file *File) String() string {
-	// fields won't be aligned like lsof does, but it's good enough for debugging
-	description := fmt.Sprintf("FD: %s, Type: %s, Size: %d, Name: %s", file.Fd, file.Type, file.Size, file.Name)
-
-	// OpenPerm is not defined for anonymous inodes
-	if file.OpenPerm != "" {
-		description += fmt.Sprintf(", OpenPerm: %s", file.OpenPerm)
-	}
-
-	// FilePerm is not defined for pipes and anonymous inodes
-	if file.FilePerm != "" {
-		description += fmt.Sprintf(", FilePerm: %s", file.FilePerm)
-	}
-	return description
-}
-
 func (files Files) String() string {
-	var descriptions []string
+	var out bytes.Buffer
+	writer := tabwriter.NewWriter(&out, 1, 1, 1, ' ', 0)
+
+	fmt.Fprint(writer, "FD\tType\tSize\tOpenPerm\tFilePerm\tName\t\n")
 	for _, file := range files {
-		descriptions = append(descriptions, file.String())
+		fmt.Fprintf(writer, "%s\t%s\t%d\t%s\t%s\t%s\t\n", file.Fd, file.Type, file.Size, file.OpenPerm, file.FilePerm, file.Name)
 	}
-	return strings.Join(descriptions, "\n")
+
+	_ = writer.Flush()
+	return out.String()
 }
