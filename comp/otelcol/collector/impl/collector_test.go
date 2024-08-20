@@ -47,8 +47,11 @@ func TestGetConfDump(t *testing.T) {
 	provider, err := converter.NewConverter()
 	assert.NoError(t, err)
 
+	conf := setup.Datadog()
+
 	reqs := Requires{
 		CollectorContrib: collectorcontribimpl.NewComponent(),
+		Config: conf,
 		URIs:             uriFromFile("simple-dd/config.yaml"),
 		ConfigStore:      configstore,
 		Lc:               &lifecycle{},
