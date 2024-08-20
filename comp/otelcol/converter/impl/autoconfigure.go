@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"go.opentelemetry.io/collector/confmap"
 )
 
