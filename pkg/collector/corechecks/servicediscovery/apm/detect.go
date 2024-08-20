@@ -41,7 +41,6 @@ var (
 		language.Java:   javaDetector,
 		language.Node:   nodeDetector,
 		language.Python: pythonDetector,
-		language.Ruby:   rubyDetector,
 	}
 	// For now, only allow a subset of the above detectors to actually run.
 	allowedLangs = map[language.Language]struct{}{
@@ -78,10 +77,6 @@ func isInjected(envs map[string]string) bool {
 		}
 	}
 	return false
-}
-
-func rubyDetector(_ []string, _ map[string]string) Instrumentation {
-	return None
 }
 
 func pythonDetector(args []string, envs map[string]string) Instrumentation {
