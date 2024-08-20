@@ -107,28 +107,24 @@ func (tx *WinHttpTransaction) StaticTags() uint64 {
 //nolint:revive // TODO(WKIT) Fix revive linter
 func (tx *WinHttpTransaction) DynamicTags() []string {
 	tags := make([]string, 0, 6)
-	if(len(tx.AppPool)) > 0 {
+	tags = append(tags, fmt.Sprintf("http.iis.site:%v", tx.SiteID))
+	if (len(tx.AppPool)) > 0 {
 		tags = append(tags, fmt.Sprintf("http.iis.app_pool:%v", tx.AppPool))
 	}
-	if(len(tx.SiteID)) > 0 {
-		tags = append(tags, fmt.Sprintf("http.iis.site:%v", tx.SiteID))
-	}
-	if(len(tx.SiteName)) > 0 {
+	if (len(tx.SiteName)) > 0 {
 		tags = append(tags, fmt.Sprintf("http.iis.sitename:%v", tx.SiteName))
 	}
 
 	// tag precedence is web.config -> datadog.json
 	if (len(tx.TagsFromConfig.DDEnv)) > 0 {
 		tags = append(tags, fmt.Sprintf("env:%v", tx.TagsFromConfig.DDEnv))
-	}
-	else if (len(tx.TagsFromJson.DDEnv)) > 0 {
+	} else if (len(tx.TagsFromJson.DDEnv)) > 0 {
 		tags = append(tags, fmt.Sprintf("env:%v", tx.TagsFromJson.DDEnv))
 	}
 
 	if (len(tx.TagsFromConfig.DDService)) > 0 {
 		tags = append(tags, fmt.Sprintf("service:%v", tx.TagsFromConfig.DDService))
-	}
-	else if (len(tx.TagsFromJson.DDService)) > 0 {
+	} else if (len(tx.TagsFromJson.DDService)) > 0 {
 		tags = append(tags, fmt.Sprintf("service:%v", tx.TagsFromJson.DDService))
 	}
 

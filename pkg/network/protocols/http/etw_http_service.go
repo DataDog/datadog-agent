@@ -140,6 +140,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -276,7 +277,7 @@ var (
 
 	lastSummaryTime time.Time
 
-	iisConfig *iisconfig.DynamicIISConfig
+	iisConfig atomic.Pointer[iisconfig.DynamicIISConfig]
 )
 
 func init() {
@@ -834,9 +835,11 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEventRecord) {
 
 	httpConnLink.http.AppPool = appPool
 	httpConnLink.http.SiteID = userData.GetUint32(16)
-	httpConnLink.http.SiteName = iisConfig.GetSiteNameFromID(httpConnLink.http.SiteID)
-
-	httpConnLink.http.TagsFromJson, httpConnLink.http.TagsFromConfig = iisConfig.GetAPMTags(httpConnLink.http.SiteID, httpConnLink.urlPath)
+	cfg := iisConfig.Load()
+	if cfg != nil {
+		httpConnLink.http.SiteName = cfg.GetSiteNameFromID(httpConnLink.http.SiteID)
+		httpConnLink.http.TagsFromJson, httpConnLink.http.TagsFromConfig = cfg.GetAPMTags(httpConnLink.http.SiteID, httpConnLink.urlPath)
+	}
 
 	// Parse url
 	if urlOffset > userData.Length() {
@@ -983,7 +986,10 @@ func httpCallbackOnHTTPRequestTraceTaskSrvdFrmCache(eventInfo *etw.DDEventRecord
 
 		// <<<MORE ETW HttpService DETAILS>>>
 		httpConnLink.http.SiteID = cacheEntry.http.SiteID
-		httpConnLink.http.SiteName = iisConfig.GetSiteNameFromID(cacheEntry.http.SiteID)
+		cfg := iisConfig.Load()
+		if cfg != nil {
+			httpConnLink.http.SiteName = cfg.GetSiteNameFromID(cacheEntry.http.SiteID)
+		}
 
 		completeReqRespTracking(eventInfo, httpConnLink)
 		servedFromCache++
@@ -1433,16 +1439,19 @@ func (hei *EtwInterface) OnStart() {
 	initializeEtwHttpServiceSubscription()
 	httpServiceSubscribed = true
 	var err error
-	iisConfig, err = iisconfig.NewDynamicIISConfig()
+	config, err := iisconfig.NewDynamicIISConfig()
 	if err != nil {
 		log.Warnf("Failed to create iis config %v", err)
-		iisConfig = nil
+		config = nil
 	} else {
-		err = iisConfig.Start()
+		err = config.Start()
 		if err != nil {
 			log.Warnf("Failed to start iis config %v", err)
-			iisConfig = nil
+			config = nil
 		}
+	}
+	if config != nil {
+		iisConfig.Store(config)
 	}
 }
 
@@ -1450,9 +1459,9 @@ func (hei *EtwInterface) OnStart() {
 func (hei *EtwInterface) OnStop() {
 	httpServiceSubscribed = false
 	initializeEtwHttpServiceSubscription()
-	if iisConfig != nil {
-		iisConfig.Stop()
-		iisConfig = nil
+	cfg := iisConfig.Swap(nil)
+	if cfg != nil {
+		cfg.Stop()
 	}
 }
 func ipAndPortFromTup(tup driver.ConnTupleType, local bool) ([16]uint8, uint16) {

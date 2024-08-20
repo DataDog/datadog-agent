@@ -86,7 +86,7 @@ func ReadDotNetConfig(cfgpath string) (APMTags, error) { //(APMTags, error) {
 		}
 	}
 	if len(chasedatadogJSON) > 0 {
-		ddjson, err := ReaddatadogJSON(chasedatadogJSON)
+		ddjson, err := ReadDatadogJSON(chasedatadogJSON)
 		if err == nil {
 			if len(ddjson.DDService) > 0 {
 				apmtags.DDService = ddjson.DDService
