@@ -12,8 +12,6 @@ target:
     DD_DD_URL: http://127.0.0.1:9092
 
   profiling_environment:
-    DD_INTEGRATION_PROFILING: true
-    DD_TRACE_AGENT_URL: unix:///var/run/datadog/apm.socket
     DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000
     DD_INTERNAL_PROFILING_CPU_DURATION: 1m
     DD_INTERNAL_PROFILING_DELTA_PROFILES: true
@@ -25,5 +23,6 @@ target:
     DD_PROFILING_EXECUTION_TRACE_ENABLED: true
     DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
     DD_PROFILING_WAIT_PROFILE: true
+    DD_TRACE_AGENT_URL: unix:///var/run/datadog/apm.socket
 
-    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:pycheck_1000_100byte_tags
+    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:pycheck_lots_of_tags

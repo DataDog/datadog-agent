@@ -25,6 +25,7 @@ processors:
 connectors:
   datadog/connector:
     traces:
+      span_name_as_resource_name: true
       compute_top_level_by_span_kind: true
       peer_tags_aggregation: true
       compute_stats_by_span_kind: true

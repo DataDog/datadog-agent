@@ -170,7 +170,7 @@ func (p *processor) processTask(task *workloadmeta.ECSTask) error {
 // processQueues consumes the data available in the queues
 func (p *processor) processQueues(ctx context.Context, pollInterval time.Duration) {
 	ticker := time.NewTicker(pollInterval)
-
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
