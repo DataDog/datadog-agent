@@ -43,6 +43,10 @@ var (
 		language.Python: pythonDetector,
 		language.Ruby:   rubyDetector,
 	}
+	// For now, only allow a subset of the above detectors to actually run.
+	allowedLangs = map[language.Language]struct{}{
+		language.Java: {},
+	}
 )
 
 // Detect attempts to detect the type of APM instrumentation for the given service.
@@ -50,6 +54,10 @@ func Detect(args []string, envs map[string]string, lang language.Language) Instr
 	// first check to see if the DD_INJECTION_ENABLED is set to tracer
 	if isInjected(envs) {
 		return Injected
+	}
+
+	if _, ok := allowedLangs[lang]; !ok {
+		return None
 	}
 
 	// different detection for provided instrumentation for each
