@@ -14,18 +14,16 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	remoteworkloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 )
 
 // TODO: (components) Move remote-only to its own catalog, similar to how catalog-less works
 // Depend on this catalog-remote using fx, instead of build tags
 
-func firstArg(c wmcatalog.Collector, _ error) wmcatalog.Collector {
-	return c
-}
-
 func getCollectorList(cfg config.Component) []wmcatalog.Collector {
-	return []wmcatalog.Collector{
-		firstArg(remoteworkloadmeta.NewCollector(cfg)),
+	return util.BuildCatalog(
+		cfg,
+		remoteworkloadmeta.NewCollector,
 		// TODO: remoteworkloadmetaParams(),
-	}
+	)
 }

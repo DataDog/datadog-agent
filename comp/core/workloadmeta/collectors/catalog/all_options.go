@@ -29,27 +29,25 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/podman"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/processcollector"
 	remoteworkloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 )
 
-func firstArg(c wmcatalog.Collector, _ error) wmcatalog.Collector {
-	return c
-}
-
 func getCollectorList(cfg config.Component) []wmcatalog.Collector {
-	return []wmcatalog.Collector{
-		firstArg(cfcontainer.NewCollector(cfg)),
-		firstArg(cfvm.NewCollector(cfg)),
-		firstArg(containerd.NewCollector(cfg)),
-		firstArg(docker.NewCollector(cfg)),
-		firstArg(ecs.NewCollector(cfg)),
-		firstArg(ecsfargate.NewCollector(cfg)),
-		firstArg(kubeapiserver.NewCollector(cfg)),
-		firstArg(kubelet.NewCollector(cfg)),
-		firstArg(kubemetadata.NewCollector(cfg)),
-		firstArg(podman.NewCollector(cfg)),
-		firstArg(remoteworkloadmeta.NewCollector(cfg)),
+	return util.BuildCatalog(
+		cfg,
+		cfcontainer.NewCollector,
+		cfvm.NewCollector,
+		containerd.NewCollector,
+		docker.NewCollector,
+		ecs.NewCollector,
+		ecsfargate.NewCollector,
+		kubeapiserver.NewCollector,
+		kubelet.NewCollector,
+		kubemetadata.NewCollector,
+		podman.NewCollector,
+		remoteworkloadmeta.NewCollector,
 		// TODO: remoteworkloadmetaParams(),
-		firstArg(processcollector.NewCollector(cfg)),
-		firstArg(host.NewCollector(cfg)),
-	}
+		processcollector.NewCollector,
+		host.NewCollector,
+	)
 }

@@ -15,13 +15,5 @@ import (
 
 // GetCatalog returns the set of collectors in the catalog
 func GetCatalog(cfg config.Component) []wmcatalog.Collector {
-	collectors := getCollectorList(cfg)
-	// remove nil options
-	results := make([]wmcatalog.Collector, 0, len(collectors))
-	for _, item := range collectors {
-		if item != nil {
-			results = append(results, item)
-		}
-	}
-	return results
+	return getCollectorList(cfg)
 }
