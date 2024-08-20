@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -42,11 +43,19 @@ type dependencies struct {
 type storeGenerator func(context.Context, workloadmeta.Component, config.Reader, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
 
 func shouldHavePodStore(cfg config.Reader) bool {
-	return cfg.GetBool("cluster_agent.collect_kubernetes_tags") || cfg.GetBool("autoscaling.workload.enabled")
+	metadataAsTags := configutils.GetMetadataAsTags(cfg)
+	hasPodLabelsAsTags := len(metadataAsTags.GetPodLabelsAsTags()) > 0
+	hasPodAnnotationsAsTags := len(metadataAsTags.GetPodAnnotationsAsTags()) > 0
+
+	return cfg.GetBool("cluster_agent.collect_kubernetes_tags") || cfg.GetBool("autoscaling.workload.enabled") || hasPodLabelsAsTags || hasPodAnnotationsAsTags
 }
 
 func shouldHaveDeploymentStore(cfg config.Reader) bool {
-	return cfg.GetBool("language_detection.enabled") && cfg.GetBool("language_detection.reporting.enabled")
+	metadataAsTags := configutils.GetMetadataAsTags(cfg)
+	hasDeploymentsLabelsAsTags := len(metadataAsTags.GetResourcesLabelsAsTags()["deployments.apps"]) > 0
+	hasDeploymentsAnnotationsAsTags := len(metadataAsTags.GetResourcesAnnotationsAsTags()["deployments.apps"]) > 0
+
+	return cfg.GetBool("language_detection.enabled") && cfg.GetBool("language_detection.reporting.enabled") || hasDeploymentsLabelsAsTags || hasDeploymentsAnnotationsAsTags
 }
 
 func storeGenerators(cfg config.Reader) []storeGenerator {
@@ -82,10 +91,27 @@ func resourcesWithMetadataCollectionEnabled(cfg config.Reader) []string {
 func resourcesWithRequiredMetadataCollection(cfg config.Reader) []string {
 	res := []string{"nodes"} // nodes are always needed
 
-	namespaceLabelsAsTagsEnabled := len(cfg.GetStringMapString("kubernetes_namespace_labels_as_tags")) > 0
-	namespaceAnnotationsAsTagsEnabled := len(cfg.GetStringMapString("kubernetes_namespace_annotations_as_tags")) > 0
-	if namespaceLabelsAsTagsEnabled || namespaceAnnotationsAsTagsEnabled {
-		res = append(res, "namespaces")
+	metadataAsTags := configutils.GetMetadataAsTags(cfg)
+
+	for groupResource, labelsAsTags := range metadataAsTags.GetResourcesLabelsAsTags() {
+
+		if strings.HasPrefix(groupResource, "pods") || strings.HasPrefix(groupResource, "deployments") || len(labelsAsTags) == 0 {
+			continue
+		}
+		requestedResource := groupResourceToGVRString(groupResource)
+		if requestedResource != "" {
+			res = append(res, requestedResource)
+		}
+	}
+
+	for groupResource, annotationsAsTags := range metadataAsTags.GetResourcesAnnotationsAsTags() {
+		if strings.HasPrefix(groupResource, "pods") || strings.HasPrefix(groupResource, "deployments") || len(annotationsAsTags) == 0 {
+			continue
+		}
+		requestedResource := groupResourceToGVRString(groupResource)
+		if requestedResource != "" {
+			res = append(res, requestedResource)
+		}
 	}
 
 	return res
@@ -104,12 +130,12 @@ func resourcesWithExplicitMetadataCollectionEnabled(cfg config.Reader) []string 
 	var resources []string
 	requestedResources := cfg.GetStringSlice("cluster_agent.kube_metadata_collection.resources")
 	for _, resource := range requestedResources {
-		if strings.HasSuffix(resource, "pods") && shouldHavePodStore(cfg) {
+		if strings.HasSuffix(resource, "pods") {
 			log.Debugf("skipping pods from metadata collection because a separate pod store is initialised in workload metadata store.")
 			continue
 		}
 
-		if strings.HasSuffix(resource, "deployments") && shouldHaveDeploymentStore(cfg) {
+		if strings.HasSuffix(resource, "deployments") {
 			log.Debugf("skipping deployments from metadata collection because a separate deployment store is initialised in workload metadata store.")
 			continue
 		}

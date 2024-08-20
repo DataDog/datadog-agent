@@ -10,26 +10,21 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
-	"go.uber.org/zap"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
-	agentzap "github.com/DataDog/datadog-agent/pkg/util/log/zap"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ServiceDetector defines the service detector to get metadata about services.
 type ServiceDetector struct {
-	logger     *zap.Logger
 	langFinder language.Finder
 }
 
 // NewServiceDetector creates a new ServiceDetector object.
 func NewServiceDetector() *ServiceDetector {
-	logger := zap.New(agentzap.NewZapCore())
 	return &ServiceDetector{
-		logger:     logger,
-		langFinder: language.New(logger),
+		langFinder: language.New(),
 	}
 }
 
@@ -64,19 +59,19 @@ func makeFinalName(meta usm.ServiceMetadata) string {
 
 // GetServiceName gets the service name based on the command line arguments and
 // the list of environment variables.
-func (sd *ServiceDetector) GetServiceName(cmdline []string, env []string) string {
-	meta, _ := usm.ExtractServiceMetadata(sd.logger, cmdline, env)
+func (sd *ServiceDetector) GetServiceName(cmdline []string, env map[string]string) string {
+	meta, _ := usm.ExtractServiceMetadata(cmdline, env)
 	return makeFinalName(meta)
 }
 
 // Detect gets metadata for a service.
 func (sd *ServiceDetector) Detect(p processInfo) ServiceMetadata {
-	meta, _ := usm.ExtractServiceMetadata(sd.logger, p.CmdLine, p.Env)
+	meta, _ := usm.ExtractServiceMetadata(p.CmdLine, p.Env)
 	lang, _ := sd.langFinder.Detect(p.CmdLine, p.Env)
 	svcType := servicetype.Detect(meta.Name, p.Ports)
-	apmInstr := apm.Detect(sd.logger, p.CmdLine, p.Env, lang)
+	apmInstr := apm.Detect(p.CmdLine, p.Env, lang)
 
-	sd.logger.Debug("name info", zap.String("name", meta.Name), zap.Strings("additional names", meta.AdditionalNames))
+	log.Debugf("name info - name: %q; additional names: %v", meta.Name, meta.AdditionalNames)
 
 	nameSource := "generated"
 	if meta.FromDDService {
