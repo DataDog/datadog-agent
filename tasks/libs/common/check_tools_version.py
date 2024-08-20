@@ -59,10 +59,10 @@ def check_tools_version(ctx: Context, tools_list: list[str]) -> bool:
     """
     is_expected_versions = True
     tools_versions = {
-        'go': {'current_v': current_go_v(ctx), 'expected_vs': [expected_go_repo_v()]},
+        'go': {'current_v': current_go_v(ctx), 'expected_v': expected_go_repo_v()},
         'golangci-lint': {
             'current_v': current_golangci_lint_v(ctx),
-            'expected_vs': [expected_golangci_lint_repo_v(ctx), custom_golangci_v(expected_golangci_lint_repo_v(ctx))],
+            'expected_v': custom_golangci_v(expected_golangci_lint_repo_v(ctx)),
         },
     }
     for tool in tools_list:
@@ -72,11 +72,11 @@ def check_tools_version(ctx: Context, tools_list: list[str]) -> bool:
                 file=sys.stderr,
             )
         else:
-            current_v, expected_vs = tools_versions[tool]['current_v'], tools_versions[tool]['expected_vs']
-            if current_v not in expected_vs:
+            current_v, expected_v = tools_versions[tool]['current_v'], tools_versions[tool]['expected_v']
+            if current_v != expected_v:
                 is_expected_versions = False
                 print(
-                    f"Warning: You are using {tool} '{current_v}'. Expected {tool} version in {expected_vs}' . Please fix this as you might encounter issues using the tooling.",
+                    f"Warning: Expecting {tool} '{expected_v}' but you have {tool} '{current_v}'. Please fix this as you might encounter issues using the tooling.",
                     file=sys.stderr,
                 )
     return is_expected_versions
