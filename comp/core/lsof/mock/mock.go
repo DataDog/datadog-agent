@@ -5,6 +5,7 @@
 
 //go:build test
 
+// Package mock provides a mock of the lsof component
 package mock
 
 import (
@@ -14,6 +15,6 @@ import (
 )
 
 // Mock returns a mock for lsof component.
-func Mock(t *testing.T) lsof.Component {
+func Mock(*testing.T) lsof.Component {
 	return struct{}{}
 }
