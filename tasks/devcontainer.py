@@ -108,7 +108,7 @@ def setup(
         }
     }
     devcontainer["postStartCommand"] = (
-        f"git config --global --add safe.directory {AGENT_REPOSITORY_PATH} && invoke install-tools && invoke deps"
+        f"git config --global --add safe.directory {AGENT_REPOSITORY_PATH} && invoke -e install-tools && invoke -e deps"
     )
 
     devcontainer["remoteEnv"] = {"GITLAB_TOKEN": "${localEnv:GITLAB_TOKEN}"}
