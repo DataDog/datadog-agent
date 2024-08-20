@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package workloadmeta
+// package wmcatalog defines the catalog of collectors for workloadmeta
+package wmcatalog
 
 import (
 	"context"
 
-	"go.uber.org/fx"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 // Collector is responsible for collecting metadata about workloads.
@@ -16,7 +17,7 @@ type Collector interface {
 	// Start starts a collector. The collector should run until the context
 	// is done. It also gets a reference to the store that started it so it
 	// can use Notify, or get access to other entities in the store.
-	Start(context.Context, Component) error
+	Start(context.Context, workloadmeta.Component) error
 
 	// Pull triggers an entity collection. To be used by collectors that
 	// don't have streaming functionality, and called periodically by the
@@ -27,15 +28,5 @@ type Collector interface {
 	GetID() string
 
 	// GetTargetCatalog gets the expected catalog.
-	GetTargetCatalog() AgentType
+	GetTargetCatalog() workloadmeta.AgentType
 }
-
-// CollectorProvider is the collector fx value group
-type CollectorProvider struct {
-	fx.Out
-
-	Collector Collector `group:"workloadmeta"`
-}
-
-// CollectorList is an array of Collectors
-type CollectorList []Collector
