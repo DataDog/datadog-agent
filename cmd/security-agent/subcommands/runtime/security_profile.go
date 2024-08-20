@@ -11,6 +11,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -379,20 +381,7 @@ func securityProfileToWorkloadPolicy(_ log.Component, _ config.Component, _ secr
 	var mergedRules []*rules.RuleDefinition
 	switch pps.(type) {
 	case *proto.SecurityProfile:
-		sp := profile.NewSecurityProfile(model.WorkloadSelector{}, nil, nil)
-		sp.LoadFromProto(pps.(*proto.SecurityProfile), profile.LoadOpts{})
-
-		opts := profile.SECLRuleOpts{
-			EnableKill: args.kill,
-			AllowList:  args.allowlist,
-			Lineage:    args.lineage,
-			Service:    args.service,
-			ImageName:  args.imageName,
-			ImageTag:   args.imageTag,
-			FIM:        args.fim,
-		}
-
-		rules, err := sp.ToSECLRules(opts)
+		rules, err := generateRules(pps, args)
 		if err != nil {
 			return err
 		}
@@ -401,27 +390,15 @@ func securityProfileToWorkloadPolicy(_ log.Component, _ config.Component, _ secr
 
 		for _, pp := range pps.([]*proto.SecurityProfile) {
 
-			sp := profile.NewSecurityProfile(model.WorkloadSelector{}, nil, nil)
-			sp.LoadFromProto(pp, profile.LoadOpts{})
-
-			opts := profile.SECLRuleOpts{
-				EnableKill: args.kill,
-				AllowList:  args.allowlist,
-				Lineage:    args.lineage,
-				Service:    args.service,
-				ImageName:  args.imageName,
-				ImageTag:   args.imageTag,
-				FIM:        args.fim,
-			}
-
-			rules, err := sp.ToSECLRules(opts)
+			rules, err := generateRules(pp, args)
 			if err != nil {
 				return err
 			}
-
 			mergedRules = append(mergedRules, rules...)
 
 		}
+		mergedRules = factorise(mergedRules, args)
+
 	}
 
 	wp := wconfig.WorkloadPolicy{
@@ -450,4 +427,118 @@ func securityProfileToWorkloadPolicy(_ log.Component, _ config.Component, _ secr
 	fmt.Fprint(output, string(b))
 
 	return nil
+}
+
+func generateRules(pps interface{}, args *securityProfileToWorloadPolicyCliParams) ([]*rules.RuleDefinition, error) {
+	sp := profile.NewSecurityProfile(model.WorkloadSelector{}, nil, nil)
+	sp.LoadFromProto(pps.(*proto.SecurityProfile), profile.LoadOpts{})
+
+	opts := profile.SECLRuleOpts{
+		EnableKill: args.kill,
+		AllowList:  args.allowlist,
+		Lineage:    args.lineage,
+		Service:    args.service,
+		ImageName:  args.imageName,
+		ImageTag:   args.imageTag,
+		FIM:        args.fim,
+	}
+
+	rules, err := sp.ToSECLRules(opts)
+	if err != nil {
+		return nil, err
+	}
+	return rules, nil
+}
+
+// factorise function to combine rules with the same fields, operations, and paths
+func factorise(ruleset []*rules.RuleDefinition, args *securityProfileToWorloadPolicyCliParams) []*rules.RuleDefinition {
+	// Map to store combined paths by their field + operation keys
+	expressionMap := make(map[string][]string)
+
+	for _, rule := range ruleset {
+		// Extract the field and operation as the key
+		key := extractFieldAndOperation(rule.Expression)
+		// Extract the paths from the expression
+		paths := extractPaths(rule.Expression)
+
+		// Add the paths to the corresponding key in the map
+		expressionMap[key] = append(expressionMap[key], paths...)
+	}
+
+	// Clear the original rules slice
+	var res []*rules.RuleDefinition
+
+	// Rebuild the rules with combined paths
+	for key, paths := range expressionMap {
+		var combinedExpression string
+
+		if strings.HasPrefix(key, "!") { // if it's lineage, just append it to the list of rules
+			combinedExpression = key
+		} else {
+
+			// Remove duplicates and format the paths list
+			uniquePaths := unique(paths)
+			combinedPaths := strings.Join(uniquePaths, ", ")
+
+			// Construct the combined expression
+			combinedExpression = fmt.Sprintf("%s not in [%s]", key, combinedPaths)
+		}
+		// Add image name and image tag args
+		if args.imageName != "" {
+			combinedExpression = fmt.Sprintf("%s && container.tags == \"image_name:%s\"", combinedExpression, args.imageName)
+		}
+		if args.imageTag != "" {
+			combinedExpression = fmt.Sprintf("%s && container.tags == \"image_tag:%s\"", combinedExpression, args.imageTag)
+		}
+		// Add the new combined rule to the rules slice
+
+		tmp := rules.RuleDefinition{Expression: combinedExpression}
+		if args.kill {
+			tmp.Actions = []*rules.ActionDefinition{
+				{
+					Kill: &rules.KillDefinition{
+						Signal: "SIGKILL",
+					},
+				},
+			}
+		}
+		res = append(res, &tmp)
+	}
+	return res
+}
+
+// extractFieldAndOperation extracts the field and operation from an expression
+func extractFieldAndOperation(expression string) string {
+	// Extract the part of the expression before the "not in"
+	re := regexp.MustCompile(`(\S+\.\S+)\snot\s+in`)
+	match := re.FindStringSubmatch(expression)
+	if len(match) > 1 {
+		return match[1]
+	}
+	return expression
+}
+
+// extractPaths extracts the paths from the "not in [ ... ]" part of the expression
+func extractPaths(expression string) []string {
+	// Regular expression to match the paths inside the square brackets
+	re := regexp.MustCompile(`\[(.*?)\]`)
+	match := re.FindStringSubmatch(expression)
+	if len(match) > 1 {
+		// Split the matched paths by commas
+		return strings.Split(match[1], ",")
+	}
+	return nil
+}
+
+// unique removes duplicate paths from a slice
+func unique(paths []string) []string {
+	seen := make(map[string]bool)
+	result := []string{}
+	for _, path := range paths {
+		if _, ok := seen[path]; !ok {
+			seen[path] = true
+			result = append(result, path)
+		}
+	}
+	return result
 }
