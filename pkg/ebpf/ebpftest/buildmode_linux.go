@@ -30,6 +30,10 @@ func SupportedBuildModes() []BuildMode {
 		(runtime.GOARCH == "amd64" && (hostPlatform == "amazon" || hostPlatform == "amzn") && kv.Major() == 5 && kv.Minor() == 10) {
 		modes = append(modes, Fentry)
 	}
+	if os.Getenv("TEST_EBPFLESS_OVERRIDE") == "true" {
+		modes = append(modes, Ebpfless)
+	}
+
 	return modes
 }
 

@@ -33,6 +33,7 @@ from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import get_modified_files
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.libs.common.utils import clean_nested_paths, get_build_flags, gitlab_section
+from tasks.libs.releasing.json import _get_release_json_value
 from tasks.modules import DEFAULT_MODULES, GoModule
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.testwasher import TestWasher
@@ -833,7 +834,8 @@ def should_run_all_tests(files, trigger_files):
 
 
 def get_go_modified_files(ctx):
-    files = get_modified_files(ctx)
+    base_branch = _get_release_json_value("base_branch")
+    files = get_modified_files(ctx, base_branch=base_branch)
     return [
         file
         for file in files

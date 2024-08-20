@@ -201,7 +201,7 @@ func (p *protocol) processPostgres(events []postgresebpf.EbpfEvent) {
 		tx := &events[i]
 		eventWrapper := NewEventWrapper(tx)
 		p.statskeeper.Process(eventWrapper)
-		p.telemetry.Count(tx, eventWrapper)
+		p.telemetry.Count(tx, eventWrapper, CountOptions{TelemetryBufferSize: p.cfg.MaxPostgresTelemetryBuffer})
 	}
 }
 

@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 )
 
@@ -119,14 +120,16 @@ var (
 		Ports: []uint16{22},
 	}
 	portTCP8080 = model.Service{
-		PID:   procTestService1.pid,
-		Name:  "test-service-1",
-		Ports: []uint16{8080},
+		PID:                procTestService1.pid,
+		Name:               "test-service-1",
+		Ports:              []uint16{8080},
+		APMInstrumentation: string(apm.None),
 	}
 	portTCP8080DifferentPID = model.Service{
-		PID:   procTestService1DifferentPID.pid,
-		Name:  "test-service-1",
-		Ports: []uint16{8080},
+		PID:                procTestService1DifferentPID.pid,
+		Name:               "test-service-1",
+		Ports:              []uint16{8080},
+		APMInstrumentation: string(apm.Injected),
 	}
 	portTCP8081 = model.Service{
 		PID:   procIgnoreService1.pid,
@@ -280,6 +283,7 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:               []uint16{8080},
 						PID:                 99,
 						CommandLine:         []string{"test-service-1"},
+						APMInstrumentation:  "none",
 					},
 				},
 				{
@@ -296,6 +300,7 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:               []uint16{8080},
 						PID:                 99,
 						CommandLine:         []string{"test-service-1"},
+						APMInstrumentation:  "none",
 					},
 				},
 				{
@@ -312,6 +317,7 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:               []uint16{8080},
 						PID:                 99,
 						CommandLine:         []string{"test-service-1"},
+						APMInstrumentation:  "none",
 					},
 				},
 				{
@@ -441,6 +447,7 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:               []uint16{8080},
 						PID:                 99,
 						CommandLine:         []string{"test-service-1"},
+						APMInstrumentation:  "none",
 					},
 				},
 				{
@@ -489,6 +496,7 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:               []uint16{8080},
 						PID:                 99,
 						CommandLine:         []string{"test-service-1"},
+						APMInstrumentation:  "none",
 					},
 				},
 			},
@@ -562,6 +570,7 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:               []uint16{8080},
 						PID:                 99,
 						CommandLine:         []string{"test-service-1"},
+						APMInstrumentation:  "none",
 					},
 				},
 				{
@@ -578,6 +587,7 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:               []uint16{8080},
 						PID:                 102,
 						CommandLine:         []string{"test-service-1"},
+						APMInstrumentation:  "injected",
 					},
 				},
 			},
