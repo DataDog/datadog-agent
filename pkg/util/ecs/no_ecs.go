@@ -16,11 +16,11 @@ import (
 type MetaECS struct{}
 
 // NewECSMeta returns an ECSConfig object
-func NewECSMeta(ctx context.Context) (*MetaECS, error) {
+func NewECSMeta(_ context.Context) (*MetaECS, error) {
 	return nil, nil
 }
 
 // GetECSInstanceMetadata fetches the ECS Instance metadata if running in ECS
-func GetECSInstanceMetadata(ctx context.Context) (string, string, error) {
+func GetECSInstanceMetadata(_ context.Context) (string, string, error) {
 	return "", "", nil
 }
