@@ -11,6 +11,7 @@ package status
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -96,7 +97,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 		json.Unmarshal(r, &errMap) //nolint:errcheck
 		// If the error has been marshalled into a json object, check it and return it properly
 		if err, found := errMap["error"]; found {
-			e = fmt.Errorf(err)
+			e = errors.New(err)
 		}
 
 		fmt.Printf(`

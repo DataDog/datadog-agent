@@ -219,7 +219,7 @@ func TestLegacyReceiver(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			// start testing server
 			server := httptest.NewServer(
 				tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces),
@@ -284,7 +284,7 @@ func TestReceiverJSONDecoder(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			// start testing server
 			server := httptest.NewServer(
 				tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces),
@@ -344,7 +344,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			// start testing server
 			server := httptest.NewServer(
 				tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces),

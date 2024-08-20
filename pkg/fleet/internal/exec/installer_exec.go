@@ -169,13 +169,13 @@ func (i *InstallerExec) DefaultPackages(ctx context.Context) (_ []string, err er
 
 // State returns the state of a package.
 func (i *InstallerExec) State(pkg string) (repository.State, error) {
-	repositories := repository.NewRepositories(paths.PackagesPath, paths.LocksPack)
+	repositories := repository.NewRepositories(paths.PackagesPath, paths.LocksPath)
 	return repositories.Get(pkg).GetState()
 }
 
 // States returns the states of all packages.
 func (i *InstallerExec) States() (map[string]repository.State, error) {
-	repositories := repository.NewRepositories(paths.PackagesPath, paths.LocksPack)
+	repositories := repository.NewRepositories(paths.PackagesPath, paths.LocksPath)
 	states, err := repositories.GetState()
 	log.Debugf("repositories states: %v", states)
 	return states, err

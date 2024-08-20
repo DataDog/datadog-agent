@@ -83,14 +83,14 @@ func GetSubnetForHardwareAddr(ctx context.Context, hwAddr net.HardwareAddr) (sub
 	}
 
 	var resp string
-	resp, err = getMetadataItem(ctx, fmt.Sprintf("%s/%s/subnet-id", imdsNetworkMacs, hwAddr), false)
+	resp, err = getMetadataItem(ctx, fmt.Sprintf("%s/%s/subnet-id", imdsNetworkMacs, hwAddr), true)
 	if err != nil {
 		return
 	}
 
 	subnet.ID = strings.TrimSpace(resp)
 
-	resp, err = getMetadataItem(ctx, fmt.Sprintf("%s/%s/subnet-ipv4-cidr-block", imdsNetworkMacs, hwAddr), false)
+	resp, err = getMetadataItem(ctx, fmt.Sprintf("%s/%s/subnet-ipv4-cidr-block", imdsNetworkMacs, hwAddr), true)
 	if err != nil {
 		return
 	}

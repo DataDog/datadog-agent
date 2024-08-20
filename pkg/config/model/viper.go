@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"reflect"
 	"strconv"
 	"strings"
@@ -22,7 +23,6 @@ import (
 	"github.com/DataDog/viper"
 	"github.com/mohae/deepcopy"
 	"github.com/spf13/afero"
-	"github.com/spf13/pflag"
 	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -643,6 +643,7 @@ func (c *safeConfig) MergeFleetPolicy(configPath string) error {
 	for _, key := range c.configSources[SourceFleetPolicies].AllKeys() {
 		c.mergeViperInstances(key)
 	}
+	log.Infof("Fleet policies configuration %s successfully merged", path.Base(configPath))
 	return nil
 }
 
@@ -773,13 +774,6 @@ func (c *safeConfig) SetTypeByDefaultValue(in bool) {
 		c.configSources[source].SetTypeByDefaultValue(in)
 	}
 	c.Viper.SetTypeByDefaultValue(in)
-}
-
-// BindPFlag wraps Viper for concurrent access
-func (c *safeConfig) BindPFlag(key string, flag *pflag.Flag) error {
-	c.Lock()
-	defer c.Unlock()
-	return c.Viper.BindPFlag(key, flag)
 }
 
 // GetEnvVars implements the Config interface
