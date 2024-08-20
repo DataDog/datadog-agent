@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix `agent jmx [command]` subcommands for k8s deployments with annotations-based configs.
+    Fix `agent jmx [command]` subcommands for container environments with annotations-based configs.
