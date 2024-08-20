@@ -349,7 +349,7 @@ func getSharedFxOption() fx.Option {
 		}),
 
 		// workloadmeta setup
-		wmcatalog.GetCatalog(),
+		fx.Provide(wmcatalog.GetCatalog),
 		fx.Provide(defaults.DefaultParams),
 		workloadmetafx.Module(),
 		fx.Supply(

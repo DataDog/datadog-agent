@@ -11,23 +11,24 @@ package catalog
 import (
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	remoteworkloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
-// GetCatalog returns the set of FX options to populate the catalog
-func GetCatalog() fx.Option {
-	options := getCollectorOptions()
-
+// GetCatalog returns the set of collectors in the catalog
+func GetCatalog(cfg config.Component) []wmcatalog.Collector {
+	collectors := getCollectorList(cfg)
 	// remove nil options
-	opts := make([]fx.Option, 0, len(options))
-	for _, item := range options {
+	results := make([]wmcatalog.Collector, 0, len(collectors))
+	for _, item := range collectors {
 		if item != nil {
-			opts = append(opts, item)
+			results = append(results, item)
 		}
 	}
-	return fx.Options(opts...)
+	return results
 }
 
 // TODO: (components) Move remote-only to its own catalog, similar to how catalog-less works

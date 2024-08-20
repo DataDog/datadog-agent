@@ -94,7 +94,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				core.Bundle(),
 				// workloadmeta setup
-				wmcatalog.GetCatalog(),
+				fx.Provide(wmcatalog.GetCatalog),
 				fx.Provide(func() workloadmeta.Params {
 					return workloadmeta.Params{
 						AgentType:  workloadmeta.NodeAgent,

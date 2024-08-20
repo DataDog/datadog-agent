@@ -173,7 +173,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		autoexitimpl.Module(),
 
 		// Provide the corresponding workloadmeta Params to configure the catalog
-		wmcatalog.GetCatalog(),
+		fx.Provide(wmcatalog.GetCatalog),
 		fx.Provide(func(c config.Component) workloadmeta.Params {
 			var catalog workloadmeta.AgentType
 

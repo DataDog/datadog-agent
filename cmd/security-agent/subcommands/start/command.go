@@ -102,7 +102,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				core.Bundle(),
 				dogstatsd.ClientBundle,
 				// workloadmeta setup
-				wmcatalog.GetCatalog(),
+				fx.Provide(wmcatalog.GetCatalog),
 				workloadmetafx.Module(),
 				fx.Provide(func(config config.Component) workloadmeta.Params {
 					catalog := workloadmeta.NodeAgent

@@ -85,7 +85,7 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 			Features:  []config.Feature{config.Docker},
 		}),
 		fx.Supply(workloadmeta.NewParams()),
-		wmcatalog.GetCatalog(),
+		fx.Provide(wmcatalog.GetCatalog),
 		workloadmetafx.Module(),
 		taggerimpl.Module(),
 		fx.Supply(tagger.NewTaggerParams()),
