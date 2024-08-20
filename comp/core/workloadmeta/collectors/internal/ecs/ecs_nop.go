@@ -13,8 +13,6 @@ import (
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 )
 
-type dependencies struct{}
-
 // NewCollector is a no-op constructor
 func NewCollector(_ config.Component) (wmcatalog.Collector, error) {
 	return nil, nil

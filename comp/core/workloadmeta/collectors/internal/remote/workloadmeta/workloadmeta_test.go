@@ -22,6 +22,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -30,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -62,6 +64,8 @@ func (s *serverSecure) WorkloadmetaStreamEntities(in *pbgo.WorkloadmetaStreamReq
 }
 
 func TestNewCollector(t *testing.T) {
+	cfg := mock.New(t)
+
 	tests := []struct {
 		name         string
 		filter       *workloadmeta.Filter
@@ -92,13 +96,7 @@ func TestNewCollector(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			deps := dependencies{
-				Params: Params{
-					Filter: test.filter,
-				},
-			}
-
-			_, err := NewCollector(deps)
+			_, err := newCollectorWithFilter(cfg, test.filter)
 
 			if test.expectsError {
 				assert.Error(t, err)
@@ -245,7 +243,7 @@ func TestCollection(t *testing.T) {
 			AgentType: workloadmeta.Remote,
 		}),
 		fx.Provide(
-			fx.Annotate(func() workloadmeta.Collector {
+			fx.Annotate(func() wmcatalog.Collector {
 				return collector
 			},
 				fx.ResultTags(`group:"workloadmeta"`)),
