@@ -341,6 +341,12 @@ class GithubAPI:
         auth_token = integration.get_access_token(install_id)
         print(auth_token.token)
 
+    def create_label(self, name, color, description=""):
+        """
+        Creates a label in the given GitHub repository.
+        """
+        return self._repository.create_label(name, color, description)
+
 
 def get_github_teams(users):
     for user in users:

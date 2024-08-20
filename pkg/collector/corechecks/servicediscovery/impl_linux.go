@@ -282,9 +282,10 @@ func (li *linuxImpl) getServiceInfo(p proc, service model.Service) (*serviceInfo
 	serviceType := servicetype.Detect(service.Name, service.Ports)
 
 	meta := ServiceMetadata{
-		Name:     service.Name,
-		Language: string(lang),
-		Type:     string(serviceType),
+		Name:               service.Name,
+		Language:           string(lang),
+		Type:               string(serviceType),
+		APMInstrumentation: service.APMInstrumentation,
 	}
 
 	return &serviceInfo{
