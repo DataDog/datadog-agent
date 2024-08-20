@@ -6,7 +6,13 @@
 //nolint:revive // TODO(SERV) Fix revive linter
 package proc
 
+/*
+# <include stdio.h>
+# <include stdlib.h>
+*/
+
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -14,7 +20,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -24,6 +29,7 @@ const (
 	ProcUptimePath         = "/proc/uptime"
 	ProcNetDevPath         = "/proc/net/dev"
 	ProcSelfFd             = "/proc/self/fd"
+	ProcSelfLimits         = "/proc/self/limits"
 	lambdaNetworkInterface = "vinternal_1"
 )
 
@@ -205,19 +211,35 @@ type FileDescriptorMaxData struct {
 
 // GetFileDescriptorMaxData returns the maximum limit of file descriptors the function can use
 func GetFileDescriptorMaxData() (*FileDescriptorMaxData, error) {
-	return getFileDescriptorMaxData()
+	return getFileDescriptorMaxData(ProcSelfLimits)
 }
 
-func getFileDescriptorMaxData() (*FileDescriptorMaxData, error) {
-	var fdMax syscall.Rlimit
-	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &fdMax)
+func getFileDescriptorMaxData(path string) (*FileDescriptorMaxData, error) {
+	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
+	defer file.Close()
 
-	return &FileDescriptorMaxData{
-		MaximumFileHandles: float64(fdMax.Cur),
-	}, nil
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(line, "Max open files") {
+			fields := strings.Fields(line)
+			if len(fields) < 4 {
+				return nil, fmt.Errorf("file descriptor max data not found in file '%s'", path)
+			}
+			fdMaxStr := fields[3]
+			fdMax, err := strconv.Atoi(fdMaxStr)
+			if err != nil {
+				return nil, fmt.Errorf("file descriptor max data not found in file '%s'", path)
+			}
+			return &FileDescriptorMaxData{
+				MaximumFileHandles: float64(fdMax),
+			}, nil
+		}
+	}
+	return nil, fmt.Errorf("file descriptor max data not found in file '%s'", path)
 }
 
 type FileDescriptorUseData struct {

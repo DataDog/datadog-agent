@@ -766,6 +766,28 @@ func TestSendFdEnhancedMetrics(t *testing.T) {
 	assert.Len(t, timedMetrics, 0)
 }
 
+func TestSendFdEnhancedMetricsDisabled(t *testing.T) {
+	var wg sync.WaitGroup
+	enhancedMetricsDisabled = true
+	demux := createDemultiplexer(t)
+	metricAgent := ServerlessMetricAgent{Demux: demux}
+	tags := []string{"functionname:test-function"}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		SendFdEnhancedMetrics(make(chan bool), tags, &metricAgent)
+	}()
+
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+
+	assert.Len(t, generatedMetrics, 0)
+	assert.Len(t, timedMetrics, 0)
+
+	wg.Wait()
+	enhancedMetricsDisabled = false
+}
+
 func TestSendFailoverReasonMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
 	tags := []string{"reason:test-reason"}
