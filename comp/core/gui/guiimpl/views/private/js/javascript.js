@@ -63,10 +63,10 @@ function setError(status, message) {
     message = "Unable to contact the Datadog Agent. Please ensure it is running."
   }
   else if (status == 401) {
-    message = `Not logged in. Please ensure that your GUI session has not expired. (Agent replied with: ${message.trim()})`
+    message = "Not logged in. Please ensure that your GUI session has not expired. (Agent replied with: " + DOMPurify.sanitize(message.trim()) + ")"
   }
 
-  $("#error_content").html(`<h3>Error</h3> ${DOMPurify.sanitize(message)}`)
+  $("#error_content").html("<h3>Error</h3> " + message)
 
   if (status == 401) {
     $("#logged_out").css("display", "block");
