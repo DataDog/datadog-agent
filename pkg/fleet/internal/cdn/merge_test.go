@@ -52,7 +52,7 @@ func TestMergeScalar(t *testing.T) {
 		{
 			name:        "scalar and map error",
 			base:        "base",
-			override:    map[interface{}]interface{}{"key": "value"},
+			override:    map[string]interface{}{"key": "value"},
 			expectedErr: true,
 		},
 	}
@@ -113,7 +113,7 @@ func TestMergeMap(t *testing.T) {
 	}{
 		{
 			name: "nil override",
-			base: map[interface{}]interface{}{
+			base: map[string]interface{}{
 				"base": "value",
 			},
 			override: nil,
@@ -121,56 +121,56 @@ func TestMergeMap(t *testing.T) {
 		},
 		{
 			name: "override",
-			base: map[interface{}]interface{}{
+			base: map[string]interface{}{
 				"base": "value",
 			},
-			override: map[interface{}]interface{}{
+			override: map[string]interface{}{
 				"base": "override",
 			},
-			expected: map[interface{}]interface{}{
+			expected: map[string]interface{}{
 				"base": "override",
 			},
 		},
 		{
 			name: "add key",
-			base: map[interface{}]interface{}{
+			base: map[string]interface{}{
 				"base": "value",
 			},
-			override: map[interface{}]interface{}{
+			override: map[string]interface{}{
 				"override": "value",
 			},
-			expected: map[interface{}]interface{}{
+			expected: map[string]interface{}{
 				"base":     "value",
 				"override": "value",
 			},
 		},
 		{
 			name: "nested",
-			base: map[interface{}]interface{}{
-				"base": map[interface{}]interface{}{
+			base: map[string]interface{}{
+				"base": map[string]interface{}{
 					"key": "value",
 				},
 			},
-			override: map[interface{}]interface{}{
-				"base": map[interface{}]interface{}{
+			override: map[string]interface{}{
+				"base": map[string]interface{}{
 					"key": "override",
 				},
 			},
-			expected: map[interface{}]interface{}{
-				"base": map[interface{}]interface{}{
+			expected: map[string]interface{}{
+				"base": map[string]interface{}{
 					"key": "override",
 				},
 			},
 		},
 		{
 			name: "nested scalar and list error",
-			base: map[interface{}]interface{}{
-				"base": map[interface{}]interface{}{
+			base: map[string]interface{}{
+				"base": map[string]interface{}{
 					"key": []interface{}{"value"},
 				},
 			},
-			override: map[interface{}]interface{}{
-				"base": map[interface{}]interface{}{
+			override: map[string]interface{}{
+				"base": map[string]interface{}{
 					"key": "override",
 				},
 			},
