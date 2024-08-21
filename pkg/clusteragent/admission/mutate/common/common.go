@@ -64,31 +64,51 @@ func contains(envs []corev1.EnvVar, name string) bool {
 	return false
 }
 
-// InjectEnv injects an env var into a pod template if it doesn't exist
-func InjectEnv(pod *corev1.Pod, env corev1.EnvVar) bool {
-	injected := false
-	podStr := PodString(pod)
-	log.Debugf("Injecting env var '%s' into pod %s", env.Name, podStr)
-	for i, ctr := range pod.Spec.Containers {
-		if contains(ctr.Env, env.Name) {
-			log.Debugf("Ignoring container '%s' in pod %s: env var '%s' already exist", ctr.Name, podStr, env.Name)
+// InjectEnv injects an env var into a pod template.
+func InjectEnv(pod *corev1.Pod, env corev1.EnvVar) (injected bool) {
+	log.Debugf("Injecting env var '%s' into pod %s", env.Name, PodString(pod))
+
+	return InjectDynamicEnv(pod, func(_ *corev1.Container, _ bool) (corev1.EnvVar, error) {
+		return env, nil
+	})
+}
+
+// injectEnvInContainer injects an env var into a container if it doesn't exist.
+func injectEnvInContainer(container *corev1.Container, env corev1.EnvVar) (injected bool) {
+	if contains(container.Env, env.Name) {
+		log.Debugf("Ignoring container '%s': env var '%s' already exist", container.Name, env.Name)
+		return
+	}
+
+	// Prepend rather than append the new variables so that they precede the previous ones in the final list,
+	// allowing them to be referenced in other environment variables downstream.
+	// (See: https://kubernetes.io/docs/tasks/inject-data-application/define-interdependent-environment-variables)
+	container.Env = append([]corev1.EnvVar{env}, container.Env...)
+	return true
+}
+
+// BuildEnvVarFunc is a function that builds a dynamic env var.
+type BuildEnvVarFunc func(container *corev1.Container, init bool) (corev1.EnvVar, error)
+
+// InjectDynamicEnv injects a dynamic env var into a pod template.
+func InjectDynamicEnv(pod *corev1.Pod, fn BuildEnvVarFunc) (injected bool) {
+	log.Debugf("Injecting env var into pod %s", PodString(pod))
+	injected = injectDynamicEnvInContainers(pod.Spec.Containers, fn, false)
+	injected = injectDynamicEnvInContainers(pod.Spec.InitContainers, fn, true) || injected
+	return
+}
+
+// injectDynamicEnvInContainers injects a dynamic env var into a list of containers.
+func injectDynamicEnvInContainers(containers []corev1.Container, fn BuildEnvVarFunc, init bool) (injected bool) {
+	for i := range containers {
+		env, err := fn(&containers[i], init)
+		if err != nil {
+			_ = log.Errorf("Error building env var: %v", err)
 			continue
 		}
-		// prepend rather than append so that our new vars precede container vars in the final list, so that they
-		// can be referenced in other env vars downstream.  (see:  Kubernetes dependent environment variables.)
-		pod.Spec.Containers[i].Env = append([]corev1.EnvVar{env}, pod.Spec.Containers[i].Env...)
-		injected = true
+		injected = injectEnvInContainer(&containers[i], env) || injected
 	}
-	for i, ctr := range pod.Spec.InitContainers {
-		if contains(ctr.Env, env.Name) {
-			log.Debugf("Ignoring init container '%s' in pod %s: env var '%s' already exist", ctr.Name, podStr, env.Name)
-			continue
-		}
-		// prepend rather than append so that our new vars precede container vars in the final list, so that they
-		// can be referenced in other env vars downstream.  (see:  Kubernetes dependent environment variables.)
-		pod.Spec.InitContainers[i].Env = append([]corev1.EnvVar{env}, pod.Spec.InitContainers[i].Env...)
-		injected = true
-	}
+
 	return injected
 }
 
