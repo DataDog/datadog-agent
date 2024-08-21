@@ -73,10 +73,6 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error creating /var/log/datadog: %w", err)
 	}
-	err = os.MkdirAll("/var/run/datadog-installer", 0755) // TODO(baptiste): remove this once the injector has been successfully migrated
-	if err != nil {
-		return fmt.Errorf("error creating /var/run/datadog-installer: %w", err)
-	}
 	err = os.MkdirAll("/opt/datadog-packages/run", 0755)
 	if err != nil {
 		return fmt.Errorf("error creating /opt/datadog-packages/run: %w", err)
@@ -98,10 +94,6 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error changing owner of /var/log/datadog: %w", err)
 	}
-	err = os.Chown("/var/run/datadog-installer", ddAgentUID, ddAgentGID) // TODO(baptiste): remove this once the injector has been successfully migrated
-	if err != nil {
-		return fmt.Errorf("error changing owner of /var/run/datadog-installer: %w", err)
-	}
 	err = os.Chown("/opt/datadog-packages/run", ddAgentUID, ddAgentGID)
 	if err != nil {
 		return fmt.Errorf("error changing owner of /opt/datadog-packages/run: %w", err)
@@ -111,6 +103,11 @@ func SetupInstaller(ctx context.Context) (err error) {
 	}
 	if err = os.Chown("/var/run/datadog", ddAgentUID, ddAgentGID); err != nil {
 		return fmt.Errorf("failed to chown /var/run/datadog: %v", err)
+	}
+	// Symlink /opt/datadog-packages/run to /var/run/datadog-installer for backwards compatibility
+	// This is a best effort, so we won't fail on it.
+	if err := os.Symlink("/opt/datadog-packages/run", "/var/run/datadog-installer"); err != nil && !os.IsExist(err) {
+		log.Warnf("failed to symlink /opt/datadog-packages/run to /var/run/datadog-installer: %s", err.Error())
 	}
 	// Enforce that the directory exists. It should be created by the bootstrapper but
 	// older versions don't do it
@@ -122,7 +119,6 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error changing owner of /opt/datadog-installer/tmp: %w", err)
 	}
-
 	// Create installer path symlink
 	err = os.Symlink("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", "/usr/bin/datadog-installer")
 	if err != nil && errors.Is(err, os.ErrExist) {

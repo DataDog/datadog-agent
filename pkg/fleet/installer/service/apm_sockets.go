@@ -25,7 +25,6 @@ const (
 	apmInstallerSocket    = "/var/run/datadog/apm.socket"
 	statsdInstallerSocket = "/var/run/datadog/dsd.socket"
 	apmInjectOldPath      = "/opt/datadog/apm/inject"
-	envFilePathOld        = "/var/run/datadog-installer/environment" // TODO(baptiste): remove this once the injector has been successfully migrated
 	envFilePath           = "/opt/datadog-packages/run/environment"
 )
 

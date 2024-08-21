@@ -92,11 +92,6 @@ func TestPackages(t *testing.T) {
 				if flavor.Flavor == e2eos.Fedora {
 					flake.Mark(t)
 				}
-				if strings.Contains(suite.Name(), "upgrade") {
-					// TODO(baptiste): Remove the flake once 0.4.7 is released
-					// it is currently broken as we are changing the socket path
-					flake.Mark(t)
-				}
 				opts := []awshost.ProvisionerOption{
 					awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
 					awshost.WithoutAgent(),
