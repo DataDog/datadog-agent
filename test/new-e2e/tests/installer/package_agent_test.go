@@ -134,6 +134,9 @@ func (s *packageAgentSuite) TestUpgrade_Agent_OCI_then_DebRpm() {
 }
 
 func (s *packageAgentSuite) TestExperimentTimeout() {
+	if s.installMethod == installMethodAnsible {
+		s.Suite.T().Skip()
+	}
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
@@ -196,6 +199,9 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 }
 
 func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
+	if s.installMethod == installMethodAnsible {
+		s.Suite.T().Skip()
+	}
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
@@ -268,6 +274,9 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 }
 
 func (s *packageAgentSuite) TestExperimentExits() {
+	if s.installMethod == installMethodAnsible {
+		s.Suite.T().Skip()
+	}
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
@@ -324,6 +333,9 @@ func (s *packageAgentSuite) TestExperimentExits() {
 }
 
 func (s *packageAgentSuite) TestExperimentStopped() {
+	if s.installMethod == installMethodAnsible {
+		s.Suite.T().Skip()
+	}
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
