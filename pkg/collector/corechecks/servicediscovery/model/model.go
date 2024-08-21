@@ -8,9 +8,10 @@ package model
 
 // Service represents a listening process.
 type Service struct {
-	PID   int      `json:"pid"`
-	Name  string   `json:"name"`
-	Ports []uint16 `json:"ports"`
+	PID                int      `json:"pid"`
+	Name               string   `json:"name"`
+	Ports              []uint16 `json:"ports"`
+	APMInstrumentation string   `json:"apm_instrumentation"`
 }
 
 // ServicesResponse is the response for the system-probe /discovery/services endpoint.
