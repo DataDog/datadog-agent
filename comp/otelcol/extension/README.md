@@ -47,6 +47,11 @@ Will contain a json of the latest health check, for example:
 - pprof: Found in `otel/otel-flare/pprof`
 - zpages: Found in `otel/otel-flare/zpages`
 
+
+### Logs
+
+The flare will collect the otel-agent logs which can be found in `logs/otel-agent.log`.
+
 ### Raw data
 
 The raw response can be found in `otel-response.json`. This corresponds to the data that is exposed at the datadog extensions port.
