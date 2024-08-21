@@ -1255,7 +1255,7 @@ func (s *TracerSuite) TestTCPFailureConnectionRefused() {
 	}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
 }
 
-func (s *TracerSuite) TestTCPFailureConnectionReset() {
+func (s *TracerSuite) TestTCPFailureConnectionResetWithData() {
 	t := s.T()
 
 	checkSkipFailureConnectionsTests(t)

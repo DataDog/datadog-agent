@@ -232,15 +232,15 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
-    // Should actually delete something only if the connection never got established
-    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
-
     // Get network namespace id
     log_debug("fentry/tcp_close: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
     log_debug("fentry/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
+
+    // Should actually delete something only if the connection never got established
+    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &t);
 
     cleanup_conn(ctx, &t, sk);
     return 0;
@@ -450,7 +450,12 @@ int BPF_PROG(tcp_connect, struct sock *sk) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("fentry/tcp_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
-    bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &sk, &pid_tgid, BPF_ANY);
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &t, &pid_tgid, BPF_ANY);
 
     return 0;
 }
@@ -458,19 +463,21 @@ int BPF_PROG(tcp_connect, struct sock *sk) {
 SEC("fentry/tcp_finish_connect")
 int BPF_PROG(tcp_finish_connect, struct sock *sk, struct sk_buff *skb, int rc) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/tcp_finish_connect");
-    u64 *pid_tgid_p = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &sk);
-    if (!pid_tgid_p) {
-        return 0;
-    }
+    u64 pid_tgid = bpf_get_current_pid_tgid();
 
-    u64 pid_tgid = *pid_tgid_p;
-    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
     log_debug("fentry/tcp_finish_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
+
+    u64 *pid_tgid_p = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &t);
+    if (!pid_tgid_p) {
+        return 0;
+    }
+
+    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &t);
 
     handle_tcp_stats(&t, sk, TCP_ESTABLISHED);
     handle_message(&t, 0, 0, CONN_DIRECTION_OUTGOING, 0, 0, PACKET_COUNT_NONE, sk);
