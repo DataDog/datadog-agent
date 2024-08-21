@@ -34,6 +34,7 @@ func driverTimeToUnixTime(t uint64) uint64 {
 
 	// convert this to a unix timestamp
 
+	bootTime := time.Now().Add(-time.Duration(ticks) * time.Millisecond)
 	opTime := bootTime.Add(time.Duration(t) * time.Microsecond)
 	return uint64(opTime.UnixNano())
 
