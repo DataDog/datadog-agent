@@ -209,8 +209,13 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		// Install ansible then install the agent
 		ansiblePrefix := s.installAnsible(s.os)
 
-		// /home/ubuntu/.local/bin/ansible-galaxy collection install datadog.dd
+		ot, err := s.Env().RemoteHost.Execute("sudo find / -name \"ansible-galaxy\"")
+		s.T().Logf("ansible-galaxy path: %s", ot)
+		s.T().Logf("ansible-galaxy error: %v", err)
 		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd", ansiblePrefix))
+
+		ot = s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible --version", ansiblePrefix))
+		s.T().Logf("ansible --version: %s", ot)
 
 		// Write the playbook
 		env := InstallScriptEnv(s.arch)
@@ -269,18 +274,19 @@ func (s *packageBaseSuite) setupFakeIntake() {
 
 func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
 	pathPrefix := ""
-	// Install pipx, and set the default ansible path prefix
 	switch flavor.Flavor {
-	case e2eos.Ubuntu:
-		s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt install -y ansible")
-	case e2eos.Debian:
+	case e2eos.Ubuntu, e2eos.Debian:
 		s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt install -y ansible")
 	case e2eos.Fedora:
 		s.Env().RemoteHost.MustExecute("sudo dnf install -y ansible")
 	case e2eos.CentOS:
-		s.Env().RemoteHost.MustExecute("sudo yum install -y epel-release && sudo yum install -y ansible")
+		// Can't install ansible with yum install because the available package on centos is max ansible 2.9, EOL since May 2022
+		s.Env().RemoteHost.MustExecute("sudo yum install -y python3 curl")
+		s.Env().RemoteHost.MustExecute("curl https://bootstrap.pypa.io/pip/3.6/get-pip.py -o get-pip.py && python3 get-pip.py && rm get-pip.py")
+		s.Env().RemoteHost.MustExecute("python3 -m pip install ansible")
+		pathPrefix = "/home/centos/.local/bin/"
 	case e2eos.AmazonLinux, e2eos.RedHat:
-		s.Env().RemoteHost.MustExecute("sudo yum install -y python python-pip && yes | pip install ansible")
+		s.Env().RemoteHost.MustExecute("sudo yum install -y python3 python3-pip && yes | pip3 install ansible")
 		pathPrefix = "/home/ec2-user/.local/bin/"
 	case e2eos.Suse:
 		s.Env().RemoteHost.MustExecute("sudo zypper install -y python3 python3-pip && sudo pip3 install ansible")
