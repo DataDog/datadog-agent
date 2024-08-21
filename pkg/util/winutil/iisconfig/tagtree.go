@@ -55,21 +55,21 @@ func splitPaths(path string) []string {
 	return append(s, b)
 }
 
-func findInPathTree(pathTrees map[uint32]*pathTreeEntry, siteId uint32, urlpath string) (APMTags, APMTags) {
+func findInPathTree(pathTrees map[uint32]*pathTreeEntry, siteID uint32, urlpath string) (APMTags, APMTags) {
 	// urlpath will come in as something like
 	// /path/to/app
 
 	// break down the path
 	pathparts := splitPaths(urlpath)
 
-	if _, ok := pathTrees[siteId]; !ok {
+	if _, ok := pathTrees[siteID]; !ok {
 		return APMTags{}, APMTags{}
 	}
 	if len(pathparts) == 0 {
-		return pathTrees[siteId].ddjson, pathTrees[siteId].appconfig
+		return pathTrees[siteID].ddjson, pathTrees[siteID].appconfig
 	}
 
-	currNode := pathTrees[siteId]
+	currNode := pathTrees[siteID]
 
 	for _, part := range pathparts {
 		if _, ok := currNode.nodes[part]; !ok {
@@ -118,6 +118,8 @@ func addToPathTree(pathTrees map[uint32]*pathTreeEntry, siteID string, urlpath s
 	currNode.ddjson = ddjson
 	currNode.appconfig = appconfig
 }
+
+// GetAPMTags returns the APM tags for the given siteID and URL path
 func (iiscfg *DynamicIISConfig) GetAPMTags(siteID uint32, urlpath string) (APMTags, APMTags) {
 	iiscfg.mux.Lock()
 	defer iiscfg.mux.Unlock()

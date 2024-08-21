@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// APMTags holds the APM tags
 type APMTags struct {
 	DDService string
 	DDEnv     string
