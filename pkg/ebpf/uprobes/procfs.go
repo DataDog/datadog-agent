@@ -50,7 +50,7 @@ func waitUntilSucceeds[T any](p *ProcInfo, procFile string, readFunc func(string
 	for err != nil && end.After(time.Now()) {
 		result, err = readFunc(filePath)
 		if err != nil {
-			time.Sleep(time.Millisecond)
+			time.Sleep(10 * time.Millisecond)
 		}
 	}
 
