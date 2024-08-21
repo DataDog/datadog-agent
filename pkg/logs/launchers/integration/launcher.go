@@ -7,10 +7,12 @@
 package integration
 
 import (
+	"math"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	ddLog "github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -52,11 +54,20 @@ type FileInfo struct {
 
 // NewLauncher returns a new launcher
 func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.Component) *Launcher {
+	logsTotalUsageSetting := pkgConfig.Datadog().GetInt64("logs_config.integrations_logs_total_usage") * 1024 * 1024
+	logsUsageRatio := pkgConfig.Datadog().GetFloat64("logs_config.integrations_logs_disk_ratio")
+	runPath := pkgConfig.Datadog().GetString("logs_config.run_path")
+	maxDiskUsage, err := computeMaxDiskUsage(runPath, logsTotalUsageSetting, logsUsageRatio)
+	if err != nil {
+		ddLog.Warn("Unable to computer integrations logs max disk usage, defaulting to set value: ", err)
+		maxDiskUsage = logsTotalUsageSetting
+	}
+
 	return &Launcher{
 		sources:               sources,
-		runPath:               pkgConfig.Datadog().GetString("logs_config.run_path"),
+		runPath:               runPath,
 		fileSizeMax:           pkgConfig.Datadog().GetInt64("logs_config.integrations_logs_files_max_size") * 1024 * 1024,
-		combinedUsageMax:      pkgConfig.Datadog().GetInt64("logs_config.integrations_logs_total_usage") * 1024 * 1024,
+		combinedUsageMax:      maxDiskUsage,
 		combinedUsageSize:     0,
 		stop:                  make(chan struct{}),
 		integrationsLogsChan:  integrationsLogsComp.Subscribe(),
@@ -258,4 +269,19 @@ func (s *Launcher) deleteAndRemakeFile(filepath string) error {
 	defer file.Close()
 
 	return nil
+}
+
+// computerDiskUsageMax computes the max disk space the launcher can use based
+// off the integrations_logs_disk_ratio and integrations_logs_total_usage
+// settings
+func computeMaxDiskUsage(runPath string, logsTotalUsageSetting int64, usageRatio float64) (int64, error) {
+	usage, err := filesystem.NewDisk().GetUsage(runPath)
+	if err != nil {
+		return 0, err
+	}
+
+	diskReserved := float64(usage.Total) * (1 - usageRatio)
+	diskAvailable := int64(usage.Available) - int64(math.Ceil(diskReserved))
+
+	return min(logsTotalUsageSetting, diskAvailable), nil
 }
