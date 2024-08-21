@@ -189,7 +189,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		// If flagged for deletion, we just need to clear up our store (deletion complete)
 		// Also if object was not owned by remote config, we also need to delete it (deleted by user)
 		if podAutoscalerInternal.Deleted() || podAutoscalerInternal.Spec().Owner != datadoghq.DatadogPodAutoscalerRemoteOwner {
-			log.Infof("Object %s not present in Kuberntes and flagged for deletion (remote) or owner == local, clearing internal store", key)
+			log.Infof("Object %s not present in Kubernetes and flagged for deletion (remote) or owner == local, clearing internal store", key)
 			c.store.UnlockDelete(key, c.ID)
 			return autoscaling.NoRequeue, nil
 		}
@@ -229,7 +229,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 			*podAutoscalerInternal.Spec().RemoteVersion > *podAutoscaler.Spec.RemoteVersion {
 			err := c.updatePodAutoscalerSpec(ctx, podAutoscalerInternal, podAutoscaler)
 
-			// When doing an external update, we stop and reqeue the object to not have multiple changes at once.
+			// When doing an external update, we stop and requeue the object to not have multiple changes at once.
 			c.store.Unlock(key)
 			return autoscaling.Requeue, err
 		}
@@ -253,7 +253,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 			if localHash != remoteHash {
 				err := c.updatePodAutoscalerSpec(ctx, podAutoscalerInternal, podAutoscaler)
 
-				// When doing an external update, we stop and reqeue the object to not have multiple changes at once.
+				// When doing an external update, we stop and requeue the object to not have multiple changes at once.
 				c.store.Unlock(key)
 				return autoscaling.Requeue, err
 			}
