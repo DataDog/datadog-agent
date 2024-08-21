@@ -1073,6 +1073,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("log_format_json", false)
 
 	// Agent GUI access port
+	config.BindEnvAndSetDefault("GUI_host", "localhost")
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
 	config.BindEnvAndSetDefault("GUI_session_expiration", 0)
 
