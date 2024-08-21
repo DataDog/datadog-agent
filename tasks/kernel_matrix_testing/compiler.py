@@ -79,7 +79,7 @@ class CompilerImage:
             warn(f"[!] Dry run, not checking if compiler {self.name} is running")
             return True
 
-        args = "-a" if allow_stopped else ""
+        args = "a" if allow_stopped else ""
         res = self.ctx.run(f"docker ps -{args}qf \"name={self.name}\"", hide=True)
         if res is not None and res.ok:
             return res.stdout.rstrip() != ""
