@@ -10,8 +10,6 @@ package otlp
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/mohae/deepcopy"
@@ -112,15 +110,7 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 
 // IsEnabled checks if OTLP pipeline is enabled in a given config.
 func IsEnabled(cfg config.Reader) bool {
-	section := hasSection(cfg, coreconfig.OTLPReceiverSubSectionKey)
-	otelcolEnabled := cfg.GetBool("otelcollector.enabled")
-
-	filename := filepath.Base(os.Args[0])
-	if filename == "trace-agent" { // TODO: do this with no assumptions on binary name
-		return section && !otelcolEnabled
-	}
-
-	return section
+	return hasSection(cfg, coreconfig.OTLPReceiverSubSectionKey)
 }
 
 // HasLogsSectionEnabled checks if OTLP logs are explicitly enabled in a given config.
