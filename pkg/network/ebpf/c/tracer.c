@@ -223,12 +223,13 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     // get the pid from the ongoing failure map in this case, as it should have been set in connect(). else bail
     failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &t);
     if (failed_conn_pid) {
-        log_debug("adamk kprobe/tcp_done: ongoing connection pid: %llu", *failed_conn_pid);
+        log_debug("adamk kprobe/tcp_done: ongoing connection pid: %llu", *failed_conn_pid >> 32);
         bpf_probe_read_kernel_with_telemetry(&pid_tgid, sizeof(pid_tgid), failed_conn_pid);
         t.pid = pid_tgid >> 32;
         bpf_map_delete_elem(&tcp_ongoing_connect_pid, &t);
     } else {
         increment_telemetry_count(tcp_done_missing_pid);
+        log_debug("adamk kprobe/tcp_done: missing pid for connection");
     }
     if (t.pid == 0) {
         return 0;
@@ -262,11 +263,11 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     // Get network namespace id
-    log_debug("kprobe/tcp_close: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("adamk kprobe/tcp_close: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
-    log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
+    log_debug("adamk kprobe/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
     // If protocol classification is disabled, then we don't have kretprobe__tcp_close_clean_protocols hook
     // so, there is no one to use the map and clean it.
@@ -285,6 +286,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
             increment_telemetry_count(tcp_failed_connect);
         }
     } else {
+        log_debug("adamk kprobe/tcp_close: double flush attempt");
         bpf_map_delete_elem(&conn_close_flushed, &t);
         increment_telemetry_count(double_flush_attempts_close);
     }
@@ -961,9 +963,8 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_connect, struct sock *skp) {
 SEC("kprobe/tcp_finish_connect")
 int BPF_BYPASSABLE_KPROBE(kprobe__tcp_finish_connect, struct sock *skp) {
     conn_tuple_t t = {};
-    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u64 pid_tgid = 0;
 
-    log_debug("adamk kprobe/tcp_finish_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
@@ -973,7 +974,9 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_finish_connect, struct sock *skp) {
     if (!pid_tgid_p) {
         return 0;
     }
+    bpf_probe_read_kernel_with_telemetry(&pid_tgid, sizeof(pid_tgid), pid_tgid_p);
     t.pid = pid_tgid >> 32;
+    log_debug("adamk kprobe/tcp_finish_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &t);
 
