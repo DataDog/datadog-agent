@@ -46,6 +46,7 @@ require (
 	github.com/DataDog/agent-payload/v5 v5.0.106
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/config/model v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.56.0-rc.3
@@ -61,7 +62,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.56.0-rc.3 // indirect

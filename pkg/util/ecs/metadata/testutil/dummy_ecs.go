@@ -11,20 +11,19 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"sync"
+	"sync/atomic"
 	"time"
 )
 
 // DummyECS allows tests to mock ECS metadata server responses
 type DummyECS struct {
-	sync.Mutex
 	mux               *http.ServeMux
 	fileHandlers      map[string]string
 	fileHandlersDelay map[string]time.Duration
 	rawHandlers       map[string]string
 	rawHandlersDelay  map[string]time.Duration
 	Requests          chan *http.Request
-	RequestCount      int
+	RequestCount      atomic.Uint64
 }
 
 // Option represents an option used to create a new mock of the ECS metadata
@@ -100,9 +99,7 @@ func NewDummyECS(ops ...Option) (*DummyECS, error) {
 // ServeHTTP is used to handle HTTP requests.
 func (d *DummyECS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("dummyECS received %s on %s\n", r.Method, r.URL.Path)
-	d.Lock()
-	d.RequestCount++
-	d.Unlock()
+	d.RequestCount.Add(1)
 	d.Requests <- r
 	d.mux.ServeHTTP(w, r)
 }

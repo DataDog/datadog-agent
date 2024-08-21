@@ -189,7 +189,7 @@ func (c *collector) stream(ctx context.Context) {
 
 		case ev := <-c.eventsChan:
 			if err := c.handleEvent(ctx, ev); err != nil {
-				log.Warnf(err.Error())
+				log.Warnf("%s", err.Error())
 			}
 
 		case err := <-c.errorsChan:
@@ -261,7 +261,7 @@ func (c *collector) generateInitialContainerEvents(namespace string) ([]workload
 
 		ev, err := createSetEvent(container, namespace, c.containerdClient, c.store)
 		if err != nil {
-			log.Warnf(err.Error())
+			log.Warnf("%s", err.Error())
 			continue
 		}
 

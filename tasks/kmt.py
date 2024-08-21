@@ -37,6 +37,7 @@ from tasks.kernel_matrix_testing.infra import (
     try_get_ssh_key,
 )
 from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system
+from tasks.kernel_matrix_testing.kmt_os import flare as flare_kmt_os
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
@@ -44,6 +45,7 @@ from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+from tasks.libs.common.git import get_current_branch
 from tasks.libs.common.utils import get_build_flags
 from tasks.libs.pipeline.tools import loop_status
 from tasks.libs.releasing.version import VERSION_RE, check_version
@@ -960,6 +962,7 @@ def kmt_sysprobe_prepare(
                 "external_unix_proxy_server",
                 "fmapper",
                 "prefetch_file",
+                "fake_server",
             ]:
                 src_file_path = os.path.join(pkg, f"{gobin}.go")
                 if os.path.isdir(pkg) and os.path.isfile(src_file_path):
@@ -1565,12 +1568,25 @@ def validate_platform_info(ctx: Context):
 
 
 @task
-def explain_ci_failure(_, pipeline: str):
+def explain_ci_failure(ctx: Context, pipeline: str | None = None):
     """Show a summary of KMT failures in the given pipeline."""
     if tabulate is None:
         raise Exit("tabulate module is not installed, please install it to continue")
 
-    info(f"[+] retrieving all CI jobs for pipeline {pipeline}")
+    gitlab = get_gitlab_repo()
+
+    if pipeline is None:
+        branch = get_current_branch(ctx)
+        info(f"[+] searching for the latest pipeline for this branch ({branch})")
+        pipelines = cast(list[Any], gitlab.pipelines.list(ref=branch, per_page=1))
+        if len(pipelines) != 1:
+            raise Exit(f"[!] Could not find a pipeline for branch {branch}")
+        pipeline = cast(str, pipelines[0].id)
+
+    pipeline_data = gitlab.pipelines.get(pipeline)
+    info(
+        f"[+] retrieving all CI jobs for pipeline {pipeline} ({pipeline_data.web_url}), {pipeline_data.status}, created {pipeline_data.created_at} last updated {pipeline_data.updated_at}"
+    )
     setup_jobs, test_jobs = get_all_jobs_for_pipeline(pipeline)
 
     failed_setup_jobs = [j for j in setup_jobs if j.status == "failed"]
@@ -1609,8 +1625,8 @@ def explain_ci_failure(_, pipeline: str):
         failreasons[failed_job.name] = failreason
 
     # Check setup-env jobs that failed, they are infra failures for all related test jobs
-    for job in failed_setup_jobs:
-        for test_job in job.associated_test_jobs:
+    for setup_job in failed_setup_jobs:
+        for test_job in setup_job.associated_test_jobs:
             failreasons[test_job.name] = infrafail
             failed_jobs.append(test_job)
 
@@ -1634,8 +1650,8 @@ def explain_ci_failure(_, pipeline: str):
             if test_job.component != component or test_job.vmset != vmset:
                 continue
 
-            failreason = failreasons.get(job.name, ok)
-            distros[test_job.distro][job.arch] = failreason
+            failreason = failreasons.get(test_job.name, ok)
+            distros[test_job.distro][test_job.arch] = failreason
             if failreason == testfail:
                 distro_arch_with_test_failures.append((test_job.distro, test_job.arch))
 
@@ -2108,8 +2124,14 @@ def install_ddagent(
         build_layout(ctx, domains, layout, verbose)
 
 
-@task
-def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path):
+@task(
+    help={
+        "commit": "The commit to download the complexity data for",
+        "dest_path": "The path to save the complexity data to",
+        "keep_compressed_archives": "Keep the compressed archives after extracting the data. Useful for testing, as it replicates the exact state of the artifacts in CI",
+    }
+)
+def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path, keep_compressed_archives: bool = False):
     gitlab = get_gitlab_repo()
     dest_path = Path(dest_path)
 
@@ -2133,8 +2155,22 @@ def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path):
                 print(f"Complexity data not found for {job.name} - filename {complexity_data_fname} not found")
                 continue
 
+            if keep_compressed_archives:
+                with open(dest_path / f"{complexity_name}.tar.gz", "wb") as f:
+                    f.write(data)
+
             tar = tarfile.open(fileobj=io.BytesIO(data))
             job_folder = dest_path / complexity_name
             job_folder.mkdir(parents=True, exist_ok=True)
             tar.extractall(dest_path / job_folder)
             print(f"Extracted complexity data for {job.name} successfully, filename {complexity_data_fname}")
+
+
+@task
+def flare(ctx: Context, dest_folder: Path | str | None = None, keep_uncompressed_files: bool = False):
+    if dest_folder is None:
+        dest_folder = "."
+    dest_folder = Path(dest_folder)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        flare_kmt_os(ctx, Path(tmpdir), dest_folder, keep_uncompressed_files)
