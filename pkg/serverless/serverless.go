@@ -103,6 +103,8 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 	var request *http.Request
 	var response *http.Response
 
+	fmt.Println("hello")
+
 	if request, err = http.NewRequest(http.MethodGet, registration.NextUrl(), nil); err != nil {
 		return fmt.Errorf("WaitForNextInvocation: can't create the GET request: %v", err)
 	}
