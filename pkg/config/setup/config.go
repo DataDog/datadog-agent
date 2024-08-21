@@ -1205,6 +1205,8 @@ func telemetry(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("agent_telemetry.enabled", false)
 	config.BindEnvAndSetDefault("agent_telemetry.use_only_additional_endpoint", false)
 	config.SetKnown("agent_telemetry.additional_endpoints.*")
+	bindEnvAndSetLogsConfigKeys(config, "agent_telemetry.")
+
 }
 
 func serializer(config pkgconfigmodel.Setup) {
