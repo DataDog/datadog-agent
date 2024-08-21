@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestNetworkProcessEventMonitoring(t *testing.T) {
@@ -60,9 +61,8 @@ func TestDynamicInstrumentation(t *testing.T) {
 }
 
 func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
-	config.ResetSystemProbeConfig(t)
 	t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
-	cfg := config.SystemProbe()
+	cfg := mock.NewSystemProbe(t)
 	Adjust(cfg)
 
 	if ProcessEventDataStreamSupported() {
