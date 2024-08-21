@@ -3196,6 +3196,13 @@ api_key:
 #
 # ecs_metadata_timeout: 500
 
+## @param ecs_task_collection_enabled - boolean - optional - default: false
+## @env DD_ECS_TASK_COLLECTION_ENABLED - boolean - optional - default: false
+## The Agent can collect detailed task information from the metadata API exposed by the ECS Agent,
+## which is used for the orchestrator ECS check.
+#
+# ecs_task_collection_enabled: false
+
 {{ end -}}
 {{- if .CRI }}
 

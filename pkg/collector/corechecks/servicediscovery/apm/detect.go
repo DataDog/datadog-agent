@@ -3,22 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
+
 // Package apm provides functionality to detect the type of APM instrumentation a service is using.
 package apm
 
 import (
 	"bufio"
-	"bytes"
 	"io"
-	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language/reader"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -34,7 +35,7 @@ const (
 	Injected Instrumentation = "injected"
 )
 
-type detector func(args []string, envs map[string]string) Instrumentation
+type detector func(pid int, args []string, envs map[string]string) Instrumentation
 
 var (
 	detectorMap = map[language.Language]detector{
@@ -42,19 +43,19 @@ var (
 		language.Java:   javaDetector,
 		language.Node:   nodeDetector,
 		language.Python: pythonDetector,
-		language.Ruby:   rubyDetector,
 	}
 	// For now, only allow a subset of the above detectors to actually run.
 	allowedLangs = map[language.Language]struct{}{
 		language.Java: {},
 		language.Node: {},
+		language.Python: {},
 	}
 
 	nodeAPMCheckRegex = regexp.MustCompile(`"dd-trace"`)
 )
 
 // Detect attempts to detect the type of APM instrumentation for the given service.
-func Detect(args []string, envs map[string]string, lang language.Language) Instrumentation {
+func Detect(pid int, args []string, envs map[string]string, lang language.Language) Instrumentation {
 	// first check to see if the DD_INJECTION_ENABLED is set to tracer
 	if isInjected(envs) {
 		return Injected
@@ -66,7 +67,7 @@ func Detect(args []string, envs map[string]string, lang language.Language) Instr
 
 	// different detection for provided instrumentation for each
 	if detect, ok := detectorMap[lang]; ok {
-		return detect(args, envs)
+		return detect(pid, args, envs)
 	}
 
 	return None
@@ -84,58 +85,39 @@ func isInjected(envs map[string]string) bool {
 	return false
 }
 
-func rubyDetector(_ []string, _ map[string]string) Instrumentation {
+func pythonDetectorFromMapsReader(reader io.Reader) Instrumentation {
+	scanner := bufio.NewScanner(bufio.NewReader(reader))
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if strings.Contains(line, "/ddtrace/") {
+			return Provided
+		}
+	}
+
 	return None
 }
 
-func pythonDetector(args []string, envs map[string]string) Instrumentation {
-	/*
-		Check for VIRTUAL_ENV env var
-			if it's there, use $VIRTUAL_ENV/lib/python{}/site-packages/ and see if ddtrace is inside
-			if so, return PROVIDED
-			if it's not there,
-				exec args[0] -c "import sys; print(':'.join(sys.path))"
-				split on :
-				for each part
-					see if it ends in site-packages
-					if so, check if ddtrace is inside
-						if so, return PROVIDED
-			return NONE
-	*/
-	if path, ok := envs["VIRTUAL_ENV"]; ok {
-		venv := os.DirFS(path)
-		libContents, err := fs.ReadDir(venv, "lib")
-		if err == nil {
-			for _, v := range libContents {
-				if strings.HasPrefix(v.Name(), "python") && v.IsDir() {
-					tracedir, err := fs.Stat(venv, "lib/"+v.Name()+"/site-packages/ddtrace")
-					if err == nil && tracedir.IsDir() {
-						return Provided
-					}
-				}
-			}
-		}
-		// the virtual env didn't have ddtrace, can exit
-		return None
-	}
-	// slow option...
-	results, err := exec.Command(args[0], `-c`, `"import sys; print(':'.join(sys.path))"`).Output()
+// pythonDetector detects the use of the ddtrace package in the process. Since
+// the ddtrace package uses native libraries, the paths of these libraries will
+// show up in /proc/$PID/maps.
+//
+// It looks for the "/ddtrace/" part of the path. It doesn not look for the
+// "/site-packages/" part since some environments (such as pyinstaller) may not
+// use that exact name.
+//
+// For example:
+// 7aef453fc000-7aef453ff000 rw-p 0004c000 fc:06 7895473  /home/foo/.local/lib/python3.10/site-packages/ddtrace/internal/_encoding.cpython-310-x86_64-linux-gnu.so
+// 7aef45400000-7aef45459000 r--p 00000000 fc:06 7895588  /home/foo/.local/lib/python3.10/site-packages/ddtrace/internal/datadog/profiling/libdd_wrapper.so
+func pythonDetector(pid int, _ []string, _ map[string]string) Instrumentation {
+	mapsPath := kernel.HostProc(strconv.Itoa(pid), "maps")
+	mapsFile, err := os.Open(mapsPath)
 	if err != nil {
-		log.Warn("Failed to execute command", err)
 		return None
 	}
+	defer mapsFile.Close()
 
-	results = bytes.TrimSpace(results)
-	parts := strings.Split(string(results), ":")
-	for _, v := range parts {
-		if strings.HasSuffix(v, "/site-packages") {
-			_, err := os.Stat(v + "/ddtrace")
-			if err == nil {
-				return Provided
-			}
-		}
-	}
-	return None
+	return pythonDetectorFromMapsReader(mapsFile)
 }
 
 // isNodeInstrumented parses the provided `os.File` trying to find an
@@ -160,7 +142,7 @@ func isNodeInstrumented(f *os.File) bool {
 // To check for APM instrumentation, we try to find a package.json in
 // the parent directories of the service. If found, we then check for a
 // `dd-trace` entry to be present.
-func nodeDetector(_ []string, envs map[string]string) Instrumentation {
+func nodeDetector(_ int, _ []string, envs map[string]string) Instrumentation {
 	processWorkingDirectory := ""
 	if val, ok := envs["PWD"]; ok {
 		processWorkingDirectory = filepath.Clean(val)
@@ -189,7 +171,7 @@ func nodeDetector(_ []string, envs map[string]string) Instrumentation {
 	return None
 }
 
-func javaDetector(args []string, envs map[string]string) Instrumentation {
+func javaDetector(_ int, args []string, envs map[string]string) Instrumentation {
 	ignoreArgs := map[string]bool{
 		"-version":     true,
 		"-Xshare:dump": true,
@@ -238,7 +220,7 @@ func findFile(fileName string) (io.ReadCloser, bool) {
 
 const datadogDotNetInstrumented = "Datadog.Trace.ClrProfiler.Native"
 
-func dotNetDetector(args []string, envs map[string]string) Instrumentation {
+func dotNetDetector(_ int, args []string, envs map[string]string) Instrumentation {
 	// if it's just the word `dotnet` by itself, don't instrument
 	if len(args) == 1 && args[0] == "dotnet" {
 		return None
