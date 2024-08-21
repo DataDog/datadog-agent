@@ -235,6 +235,53 @@ func TestLogParsingWith(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:  "DoubleWidthInstruction",
+			input: "1803: R0=0\n1803: (18) r1 = 0xffff0001f3b06000\n1805: R1=1\n",
+			progSourceMap: map[int]*SourceLine{
+				1803: {
+					LineInfo: "file.c:5",
+					Line:     "int a = 2",
+				},
+				1805: {
+					LineInfo: "file.c:5",
+					Line:     "int a = 2",
+				},
+			},
+			expected: ComplexityInfo{
+				InsnMap: map[int]*InstructionInfo{
+					1803: {
+						Index:          1803,
+						TimesProcessed: 1,
+						Source: &SourceLine{
+							LineInfo: "file.c:5",
+							Line:     "int a = 2",
+						},
+						Code: "r1 = 0xffff0001f3b06000",
+						RegisterState: map[int]*RegisterState{
+							1: {
+								Register: 1,
+								Live:     "",
+								Type:     "scalar",
+								Value:    "1",
+								Precise:  false,
+							},
+						},
+						RegisterStateRaw: "R1=1",
+						IsDoubleWidth:    true,
+					},
+				},
+				SourceMap: map[string]*SourceLineStats{
+					"file.c:5": {
+						NumInstructions:            1,
+						MaxPasses:                  1,
+						MinPasses:                  1,
+						TotalInstructionsProcessed: 1,
+						AssemblyInsns:              []int{1803},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
