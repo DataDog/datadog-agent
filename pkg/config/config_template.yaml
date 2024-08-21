@@ -3199,7 +3199,7 @@ api_key:
 ## @param ecs_task_collection_enabled - boolean - optional - default: false
 ## @env DD_ECS_TASK_COLLECTION_ENABLED - boolean - optional - default: false
 ## The Agent can collect detailed task information from the metadata API exposed by the ECS Agent,
-## which will be used for the orchestrator ECS check.
+## which is used for the orchestrator ECS check.
 #
 # ecs_task_collection_enabled: false
 
