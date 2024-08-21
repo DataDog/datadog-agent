@@ -883,6 +883,14 @@ workflow:
         - test/new-e2e/tests/npm/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
+.on_discovery_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - test/new-e2e/tests/discovery/**/*
+        - pkg/collector/corechecks/servicediscovery/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
 .on_aml_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:

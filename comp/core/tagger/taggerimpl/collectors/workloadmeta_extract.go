@@ -11,15 +11,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -822,21 +821,21 @@ func (c *WorkloadMetaCollector) addOpenTelemetryStandardTags(container *workload
 func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
 	switch entityID.Kind {
 	case workloadmeta.KindContainer:
-		return containers.BuildTaggerEntityName(entityID.ID)
+		return common.ContainerID.ToUID(entityID.ID)
 	case workloadmeta.KindKubernetesPod:
-		return kubelet.PodUIDToTaggerEntityName(entityID.ID)
+		return common.KubernetesPodUID.ToUID(entityID.ID)
 	case workloadmeta.KindECSTask:
-		return fmt.Sprintf("ecs_task://%s", entityID.ID)
+		return common.ECSTask.ToUID(entityID.ID)
 	case workloadmeta.KindContainerImageMetadata:
-		return fmt.Sprintf("container_image_metadata://%s", entityID.ID)
+		return common.ContainerImageMetadata.ToUID(entityID.ID)
 	case workloadmeta.KindProcess:
-		return fmt.Sprintf("process://%s", entityID.ID)
+		return common.Process.ToUID(entityID.ID)
 	case workloadmeta.KindKubernetesDeployment:
-		return fmt.Sprintf("deployment://%s", entityID.ID)
+		return common.KubernetesDeployment.ToUID(entityID.ID)
 	case workloadmeta.KindHost:
-		return fmt.Sprintf("host://%s", entityID.ID)
+		return common.Host.ToUID(entityID.ID)
 	case workloadmeta.KindKubernetesMetadata:
-		return fmt.Sprintf("kubernetes_metadata://%s", entityID.ID)
+		return common.KubernetesMetadata.ToUID(entityID.ID)
 	default:
 		log.Errorf("can't recognize entity %q with kind %q; trying %s://%s as tagger entity",
 			entityID.ID, entityID.Kind, entityID.ID, entityID.Kind)

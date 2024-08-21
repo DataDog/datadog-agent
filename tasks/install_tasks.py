@@ -46,7 +46,7 @@ def download_tools(ctx):
 
 
 @task
-def install_tools(ctx: Context, max_retry: int = 3, custom_golangci_lint=True):
+def install_tools(ctx: Context, max_retry: int = 3):
     """Install all Go tools for testing."""
     with gitlab_section("Installing Go tools", collapsed=True):
         with environ({'GO111MODULE': 'on'}):
@@ -54,8 +54,8 @@ def install_tools(ctx: Context, max_retry: int = 3, custom_golangci_lint=True):
                 with ctx.cd(path):
                     for tool in tools:
                         run_command_with_retry(ctx, f"go install {tool}", max_retry=max_retry)
-        if custom_golangci_lint:
-            install_custom_golanci_lint(ctx)
+        # Always install the custom golangci-lint not to fail on custom linters run (e.g pkgconfigusage)
+        install_custom_golanci_lint(ctx)
 
 
 def install_custom_golanci_lint(ctx):

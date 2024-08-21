@@ -49,8 +49,7 @@ type linuxImpl struct {
 	time              timer
 	bootTime          uint64
 
-	serviceDetector *ServiceDetector
-	ignoreCfg       map[string]bool
+	ignoreCfg map[string]bool
 
 	ignoreProcs       map[int]bool
 	aliveServices     map[int]*serviceInfo
@@ -76,7 +75,6 @@ func newLinuxImpl(ignoreCfg map[string]bool) (osImpl, error) {
 		bootTime:          stat.BootTime,
 		getSysProbeClient: getSysProbeClient,
 		time:              realTime{},
-		serviceDetector:   NewServiceDetector(),
 		ignoreCfg:         ignoreCfg,
 		ignoreProcs:       make(map[int]bool),
 		aliveServices:     make(map[int]*serviceInfo),
