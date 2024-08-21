@@ -1125,24 +1125,35 @@ func (s *TracerSuite) TestSelfConnect() {
 		return len(conns) == 2
 	}, 5*time.Second, 100*time.Millisecond, "could not find expected number of tcp connections, expected: 2")
 }
-
 func (s *TracerSuite) TestUDPPeekCount() {
 	t := s.T()
+	t.Run("v4", func(t *testing.T) {
+		testUDPPeekCount(t, "udp4", "127.0.0.1")
+	})
+	t.Run("v6", func(t *testing.T) {
+		if !testConfig().CollectUDPv6Conns {
+			t.Skip("UDPv6 disabled")
+		}
+		testUDPPeekCount(t, "udp6", "[::1]")
+	})
+}
+func testUDPPeekCount(t *testing.T, udpnet, ip string) {
 	config := testConfig()
 	tr := setupTracer(t, config)
 
-	ln, err := net.ListenPacket("udp", "127.0.0.1:0")
+	serverAddr := fmt.Sprintf("%s:%d", ip, 0)
+	ln, err := net.ListenPacket(udpnet, serverAddr)
 	require.NoError(t, err)
 	defer ln.Close()
 
 	saddr := ln.LocalAddr().String()
 
-	laddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:0")
+	laddr, err := net.ResolveUDPAddr(udpnet, serverAddr)
 	require.NoError(t, err)
-	raddr, err := net.ResolveUDPAddr("udp", saddr)
+	raddr, err := net.ResolveUDPAddr(udpnet, saddr)
 	require.NoError(t, err)
 
-	c, err := net.DialUDP("udp", laddr, raddr)
+	c, err := net.DialUDP(udpnet, laddr, raddr)
 	require.NoError(t, err)
 	defer c.Close()
 
