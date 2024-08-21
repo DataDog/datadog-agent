@@ -80,7 +80,7 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 			name := p.Payload.ServiceName
 			t.Log("RequestType", p.RequestType, "ServiceName", name)
 
-			if p.RequestType == "start-service" && name == "python" {
+			if p.RequestType == "start-service" && name == "python.server" {
 				found = true
 				break
 			}
