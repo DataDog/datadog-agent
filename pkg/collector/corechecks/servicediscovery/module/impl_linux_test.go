@@ -356,31 +356,10 @@ func buildFakeServer(t *testing.T) string {
 	return binDir
 }
 
-func makeFakeNodeWorkingDirectory(t *testing.T) string {
-	t.Helper()
-
-	workdir, err := os.MkdirTemp("/tmp", "nodefakeserver-*")
-	assert.NoError(t, err, "could not create temporary node fakeserver working directory")
-	t.Cleanup(func() { os.RemoveAll(workdir) })
-
-	f, err := os.Create(filepath.Join(workdir, "package.json"))
-	assert.NoError(t, err, "could not create temporary package.json")
-	defer f.Close()
-
-	const fakePkgJSON string = `{
-	"dependencies": {
-		"bar": ">=1.9.0",
-		"dd-trace": "9.99.9",
-		"foo": "1.0.1",
-	}
-}`
-
-	f.WriteString(fakePkgJSON)
-
-	return workdir
-}
-
 func TestAPMInstrumentationProvided(t *testing.T) {
+	curDir, err := testutil.CurDir()
+	assert.NoError(t, err)
+
 	testCases := map[string]struct {
 		commandline      []string // The command line of the fake server
 		workingDirectory string   // Optional: The working directory to use for the server.
@@ -390,7 +369,7 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 		},
 		"node": {
 			commandline:      []string{"node"},
-			workingDirectory: makeFakeNodeWorkingDirectory(t),
+			workingDirectory: filepath.Join(curDir, "testdata"),
 		},
 	}
 
