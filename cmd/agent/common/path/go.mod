@@ -19,7 +19,6 @@ require (
 require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0-rc.3 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
-	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

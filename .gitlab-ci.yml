@@ -590,7 +590,6 @@ workflow:
 .except_deploy:
   - <<: *if_deploy
     when: never
-  - when: on_success
 
 .except_no_tests_no_deploy:
   - if: $DEPLOY_AGENT == "false" && $DDR_WORKFLOW_ID == null && $RUN_E2E_TESTS == "off"
@@ -882,6 +881,14 @@ workflow:
       paths:
         # TODO: Add paths that should trigger tests for npm
         - test/new-e2e/tests/npm/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.on_discovery_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - test/new-e2e/tests/discovery/**/*
+        - pkg/collector/corechecks/servicediscovery/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_aml_or_e2e_changes:

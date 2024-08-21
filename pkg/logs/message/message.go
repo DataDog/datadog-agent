@@ -19,6 +19,9 @@ import (
 // or/and at the end of every trucated lines.
 var TruncatedFlag = []byte("...TRUNCATED...")
 
+// TruncatedTag is added to truncated log messages (if enabled).
+const TruncatedTag = "truncated"
+
 // EscapedLineFeed is used to escape new line character
 // for multiline message.
 // New line character needs to be escaped because they are used
@@ -166,9 +169,10 @@ func (m *MessageContent) SetEncoded(content []byte) {
 // E.g. Timestamp is used by the docker parsers to transmit a tailing offset.
 type ParsingExtra struct {
 	// Used by docker parsers to transmit an offset.
-	Timestamp string
-	IsPartial bool
-	Tags      []string
+	Timestamp   string
+	IsPartial   bool
+	IsTruncated bool
+	Tags        []string
 }
 
 // ServerlessExtra ships extra information from logs processing in serverless envs.

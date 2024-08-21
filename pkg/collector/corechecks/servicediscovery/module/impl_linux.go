@@ -14,13 +14,14 @@ import (
 	"github.com/prometheus/procfs"
 	"github.com/shirou/gopsutil/v3/process"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
-
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -34,24 +35,23 @@ const (
 // Ensure discovery implements the module.Module interface.
 var _ module.Module = &discovery{}
 
-// cacheData holds process data that should be cached between calls to the
+// serviceInfo holds process data that should be cached between calls to the
 // endpoint.
-type cacheData struct {
-	serviceName string
+type serviceInfo struct {
+	name               string
+	apmInstrumentation apm.Instrumentation
 }
 
 // discovery is an implementation of the Module interface for the discovery module.
 type discovery struct {
 	// cache maps pids to data that should be cached between calls to the endpoint.
-	cache           map[int32]cacheData
-	serviceDetector servicediscovery.ServiceDetector
+	cache map[int32]*serviceInfo
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
 func NewDiscoveryModule(*sysconfigtypes.Config, optional.Option[workloadmeta.Component], telemetry.Component) (module.Module, error) {
 	return &discovery{
-		cache:           make(map[int32]cacheData),
-		serviceDetector: *servicediscovery.NewServiceDetector(),
+		cache: make(map[int32]*serviceInfo),
 	}, nil
 }
 
@@ -199,20 +199,24 @@ type parsingContext struct {
 	netNsInfo map[uint32]*namespaceInfo
 }
 
-// getServiceName gets the service name for a process using the servicedetector
-// module.
-func (s *discovery) getServiceName(proc *process.Process) (string, error) {
+// getServiceInfo gets the service information for a process using the
+// servicedetector module.
+func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) {
 	cmdline, err := proc.CmdlineSlice()
 	if err != nil {
-		return "", nil
+		return nil, err
 	}
 
-	env, err := proc.Environ()
+	envs, err := getEnvs(proc)
 	if err != nil {
-		return "", nil
+		return nil, err
 	}
 
-	return s.serviceDetector.GetServiceName(cmdline, env), nil
+	name := servicediscovery.GetServiceName(cmdline, envs)
+	language := language.FindInArgs(cmdline)
+	apmInstrumentation := apm.Detect(int(proc.Pid), cmdline, envs, language)
+
+	return &serviceInfo{name: name, apmInstrumentation: apmInstrumentation}, nil
 }
 
 // getService gets information for a single service.
@@ -267,22 +271,23 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		return nil
 	}
 
-	var serviceName string
+	var info *serviceInfo
 	if cached, ok := s.cache[pid]; ok {
-		serviceName = cached.serviceName
+		info = cached
 	} else {
-		serviceName, err = s.getServiceName(proc)
+		info, err = s.getServiceInfo(proc)
 		if err != nil {
 			return nil
 		}
 
-		s.cache[pid] = cacheData{serviceName: serviceName}
+		s.cache[pid] = info
 	}
 
 	return &model.Service{
-		PID:   int(pid),
-		Name:  serviceName,
-		Ports: ports,
+		PID:                int(pid),
+		Name:               info.name,
+		Ports:              ports,
+		APMInstrumentation: string(info.apmInstrumentation),
 	}
 }
 
