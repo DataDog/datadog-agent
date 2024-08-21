@@ -178,7 +178,6 @@ func (pc *processCache) add(p *events.Process) {
 	if log.ShouldLog(seelog.TraceLvl) {
 		log.Tracef("adding process %+v to process cache", p)
 	}
-
 	p.Expiry = time.Now().Add(defaultExpiry).Unix()
 	if evicted := pc.cache.Add(processCacheKey{pid: p.Pid, startTime: p.StartTime}, p); evicted {
 		processCacheTelemetry.cacheEvicts.Inc()
@@ -196,7 +195,7 @@ func (pc *processCache) Get(pid uint32, ts int64) (*events.Process, bool) {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
 
-	log.TraceFunc(func() string { return fmt.Sprintf("looking up pid %d", pid) })
+	log.TraceFunc(func() string { return fmt.Sprintf("looking up pid %d %v", pid, ts) })
 
 	pl := pc.cacheByPid[pid]
 	if closest := pl.closest(ts); closest != nil {

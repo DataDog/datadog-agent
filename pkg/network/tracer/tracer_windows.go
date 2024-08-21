@@ -332,8 +332,6 @@ func newUSMMonitor(c *config.Config, dh driver.Handle) usm.Monitor {
 	return monitor
 }
 
-
-
 func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	if t.processCache == nil {
 		return
