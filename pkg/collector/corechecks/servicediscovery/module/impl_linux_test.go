@@ -363,7 +363,7 @@ func makeFakeNodeWorkingDirectory(t *testing.T) string {
 	assert.NoError(t, err, "could not create temporary node fakeserver working directory")
 	t.Cleanup(func() { os.RemoveAll(workdir) })
 
-	f, err := os.Create(path.Join(workdir, "package.json"))
+	f, err := os.Create(filepath.Join(workdir, "package.json"))
 	assert.NoError(t, err, "could not create temporary package.json")
 	defer f.Close()
 
