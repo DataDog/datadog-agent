@@ -81,6 +81,6 @@ func launchGui(config config.Component, _ *cliParams, _ log.Component) error {
 		return fmt.Errorf("error opening GUI: %s", err.Error())
 	}
 
-	fmt.Printf("GUI opened at localhost:%s\n", guiPort)
+	fmt.Printf("GUI opened at %s\n", guiPort)
 	return nil
 }
