@@ -142,7 +142,7 @@ func pythonDetector(args []string, envs map[string]string) Instrumentation {
 // entry for APM NodeJS instrumentation. Returns true if finding such
 // an entry, false otherwise.
 func isNodeInstrumented(f *os.File) bool {
-	const readLimit = 16 * 1024 // Read 16KiB max
+	const readLimit = 1 * 1024 * 1024 // Read 1MiB max
 
 	limitReader := io.LimitReader(f, readLimit)
 	bufferedReader := bufio.NewReader(limitReader)
