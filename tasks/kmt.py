@@ -37,6 +37,7 @@ from tasks.kernel_matrix_testing.infra import (
     try_get_ssh_key,
 )
 from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system
+from tasks.kernel_matrix_testing.kmt_os import flare as flare_kmt_os
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
@@ -2123,8 +2124,14 @@ def install_ddagent(
         build_layout(ctx, domains, layout, verbose)
 
 
-@task
-def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path):
+@task(
+    help={
+        "commit": "The commit to download the complexity data for",
+        "dest_path": "The path to save the complexity data to",
+        "keep_compressed_archives": "Keep the compressed archives after extracting the data. Useful for testing, as it replicates the exact state of the artifacts in CI",
+    }
+)
+def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path, keep_compressed_archives: bool = False):
     gitlab = get_gitlab_repo()
     dest_path = Path(dest_path)
 
@@ -2148,8 +2155,22 @@ def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path):
                 print(f"Complexity data not found for {job.name} - filename {complexity_data_fname} not found")
                 continue
 
+            if keep_compressed_archives:
+                with open(dest_path / f"{complexity_name}.tar.gz", "wb") as f:
+                    f.write(data)
+
             tar = tarfile.open(fileobj=io.BytesIO(data))
             job_folder = dest_path / complexity_name
             job_folder.mkdir(parents=True, exist_ok=True)
             tar.extractall(dest_path / job_folder)
             print(f"Extracted complexity data for {job.name} successfully, filename {complexity_data_fname}")
+
+
+@task
+def flare(ctx: Context, dest_folder: Path | str | None = None, keep_uncompressed_files: bool = False):
+    if dest_folder is None:
+        dest_folder = "."
+    dest_folder = Path(dest_folder)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        flare_kmt_os(ctx, Path(tmpdir), dest_folder, keep_uncompressed_files)
