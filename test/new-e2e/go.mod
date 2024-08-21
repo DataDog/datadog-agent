@@ -32,7 +32,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20240820173820-926ba0f10de7
+	github.com/DataDog/test-infra-definitions v0.0.0-20240821125612-c5c77d22e91f
 	github.com/aws/aws-sdk-go-v2 v1.30.4
 	github.com/aws/aws-sdk-go-v2/config v1.27.19
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.164.2
@@ -48,9 +48,9 @@ require (
 	github.com/pkg/sftp v1.13.6
 	github.com/pulumi/pulumi-aws/sdk/v6 v6.44.0
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.13.0
-	github.com/pulumi/pulumi-eks/sdk/v2 v2.7.6
+	github.com/pulumi/pulumi-eks/sdk/v2 v2.7.8
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.17.1
-	github.com/pulumi/pulumi/sdk/v3 v3.128.0
+	github.com/pulumi/pulumi/sdk/v3 v3.129.0
 	github.com/samber/lo v1.47.0
 	github.com/sethvargo/go-retry v0.2.4
 	github.com/stretchr/testify v1.9.0
@@ -197,7 +197,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
 	github.com/pulumi/esc v0.9.1 // indirect
-	github.com/pulumi/pulumi-command/sdk v0.9.2 // indirect
+	github.com/pulumi/pulumi-command/sdk v1.0.1 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.5.1 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.4.7 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.16.3 // indirect
