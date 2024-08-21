@@ -182,22 +182,6 @@ else
     echo "No datadog.yaml file detected, not starting the agent"
 fi
 
-install_integrations()
-{
-    if [ -e "$INSTALL_DIR/.installed_datadog_requirements.txt" ]; then
-        while IFS= read -r line; do
-            datadog-agent integration install -t $line -r
-        done < "$INSTALL_DIR/.installed_datadog_requirements.txt"
-    fi
-}
-
-install_dependencies()
-{
-    if [ -e "$INSTALL_DIR/.installed_python_requirements.txt" ]; then
-        ${INSTALL_DIR}/embedded/bin/pip install -r "$INSTALL_DIR/.installed_python_requirements.txt"
-    fi
-}
-
 create_integrations_file()
 {
     echo "Creating integrations file"
@@ -212,9 +196,27 @@ create_dependencies_file()
     chown -R dd-agent:dd-agent ${INSTALL_DIR}/.python_requirements.txt
 }
 
-install_integrations
-install_dependencies
+install_integrations()
+{
+    if [ -e "$INSTALL_DIR/.installed_datadog_requirements.txt" ]; then
+        while IFS= read -r line; do
+            datadog-agent integration install -t $line -r
+        done < "$INSTALL_DIR/.installed_datadog_requirements.txt"
+        rm "$INSTALL_DIR/.installed_datadog_requirements.txt"
+    fi
+}
+
+install_dependencies()
+{
+    if [ -e "$INSTALL_DIR/.installed_python_requirements.txt" ]; then
+        ${INSTALL_DIR}/embedded/bin/pip install -r "$INSTALL_DIR/.installed_python_requirements.txt"
+        rm "$INSTALL_DIR/.installed_python_requirements.txt"
+    fi
+}
+
 create_integrations_file
 create_dependencies_file
+install_integrations
+install_dependencies
 
 exit 0
