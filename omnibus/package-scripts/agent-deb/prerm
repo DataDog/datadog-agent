@@ -162,7 +162,7 @@ create_new_integrations_file()
 {
     if [ -e "$INSTALL_DIR/.datadog_requirements.txt" ]; then
         echo "Creating installed integrations file"
-        datadog-agent integration freeze > ${INSTALL_DIR}/.new_datadog_requirements.txt
+        datadog-agent integration freeze | sort > ${INSTALL_DIR}/.new_datadog_requirements.txt
         chown -R dd-agent:dd-agent ${INSTALL_DIR}/.new_datadog_requirements.txt
         comm -13 $INSTALL_DIR/.datadog_requirements.txt $INSTALL_DIR/.new_datadog_requirements.txt > $INSTALL_DIR/.installed_datadog_requirements.txt
         rm "$INSTALL_DIR/.datadog_requirements.txt"
@@ -174,7 +174,7 @@ create_new_dependencies_file()
 {
     if [ -e "$INSTALL_DIR/.datadog_requirements.txt" ]; then
         echo "Creating installed dependencies file"
-        ${INSTALL_DIR}/embedded/bin/pip freeze | grep -v '^datadog-' > ${INSTALL_DIR}/.new_python_requirements.txt
+        ${INSTALL_DIR}/embedded/bin/pip freeze | grep -v '^datadog-' | sort > ${INSTALL_DIR}/.new_python_requirements.txt
         chown -R dd-agent:dd-agent ${INSTALL_DIR}/.new_python_requirements.txt
         comm -13 $INSTALL_DIR/.python_requirements.txt $INSTALL_DIR/.new_python_requirements.txt > $INSTALL_DIR/.installed_python_requirements.txt
         rm "$INSTALL_DIR/.python_requirements.txt"
