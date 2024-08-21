@@ -321,12 +321,29 @@ func (ua *UprobeAttacher) handlesLibraries() bool {
 	return result
 }
 
+func (ua *UprobeAttacher) handlesExecutables() bool {
+	// We don't cache this value because it's only used once in the Start method
+	for _, rule := range ua.config.Rules {
+		if rule.canTarget(AttachToExecutable) {
+			return true
+		}
+	}
+	return false
+}
+
 // Start starts the attacher, attaching to the processes and libraries as needed
 func (ua *UprobeAttacher) Start() error {
-	procMonitor := monitor.GetProcessMonitor()
-	err := procMonitor.Initialize(ua.config.ProcessMonitorEventStream)
-	if err != nil {
-		return fmt.Errorf("error initializing process monitor: %w", err)
+	var cleanupExec, cleanupExit func()
+	var procMonitor *monitor.ProcessMonitor
+
+	if ua.handlesExecutables() {
+		procMonitor = monitor.GetProcessMonitor()
+		err := procMonitor.Initialize(ua.config.ProcessMonitorEventStream)
+		if err != nil {
+			return fmt.Errorf("error initializing process monitor: %w", err)
+		}
+		cleanupExec = procMonitor.SubscribeExec(ua.handleProcessStart)
+		cleanupExit = procMonitor.SubscribeExit(ua.handleProcessExit)
 	}
 
 	if ua.config.PerformInitialScan {
@@ -335,9 +352,6 @@ func (ua *UprobeAttacher) Start() error {
 			return fmt.Errorf("error during initial scan: %w", err)
 		}
 	}
-
-	cleanupExec := procMonitor.SubscribeExec(ua.handleProcessStart)
-	cleanupExit := procMonitor.SubscribeExit(ua.handleProcessExit)
 
 	if ua.handlesLibraries() {
 		if !sharedlibraries.IsSupported(ua.config.EbpfConfig) {
@@ -362,9 +376,11 @@ func (ua *UprobeAttacher) Start() error {
 
 		defer func() {
 			processSync.Stop()
-			cleanupExec()
-			cleanupExit()
-			procMonitor.Stop()
+			if procMonitor != nil {
+				cleanupExec()
+				cleanupExit()
+				procMonitor.Stop()
+			}
 			ua.fileRegistry.Clear()
 			if ua.soWatcher != nil {
 				ua.soWatcher.Stop()
