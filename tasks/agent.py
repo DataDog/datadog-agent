@@ -219,6 +219,8 @@ def build(
         command_flavor = "iot-agent"
     if flavor.is_ka():
         command_flavor = "kernel-agent"
+    if flavor.is_logs():
+        command_flavor = "logs-agent"
 
     args = {
         "go_mod": go_mod,

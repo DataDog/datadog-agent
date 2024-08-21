@@ -115,6 +115,9 @@ IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib", "zstd"}
 # KA_AGENT_TAGS lists the tags needed when building the Kernel agent
 KA_AGENT_TAGS = {"zlib", "zstd"}
 
+# LOGS_AGENT_TAGS lists the tags needed when building the Logs agent
+LOGS_AGENT_TAGS = {"docker", "kubelet"}
+
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
 PROCESS_AGENT_TAGS = AGENT_TAGS.union({"fargateprocess"}).difference({"otlp", "python", "trivy"})
 
@@ -221,6 +224,11 @@ build_tags = {
         "agent": KA_AGENT_TAGS,
         "lint": KA_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "unit-tests": KA_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+    },
+    AgentFlavor.logs: {
+        "agent": LOGS_AGENT_TAGS,
+        "lint": LOGS_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "unit-tests": LOGS_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
     },
 }
 

@@ -9,6 +9,7 @@ class AgentFlavor(enum.Enum):
     dogstatsd = 4
     ot = 5
     ka = 6
+    logs = 7
 
     def is_iot(self):
         return self == type(self).iot
@@ -18,3 +19,6 @@ class AgentFlavor(enum.Enum):
 
     def is_ka(self):
         return self == type(self).ka
+
+    def is_logs(self):
+        return self == type(self).logs
