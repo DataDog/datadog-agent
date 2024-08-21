@@ -7,7 +7,6 @@ import platform
 import re
 import subprocess
 from collections.abc import Iterable
-from distutils.version import StrictVersion
 from functools import lru_cache
 
 import requests
@@ -16,6 +15,7 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import GITHUB_REPO_NAME
 
 try:
+    import semver
     from github import Auth, Github, GithubException, GithubIntegration, GithubObject, PullRequest
     from github.NamedUser import NamedUser
 except ImportError:
@@ -207,10 +207,10 @@ class GithubAPI:
         Get all the release branches that are newer than the latest release.
         """
         release = self._repository.get_latest_release()
-        released_version = StrictVersion(release.title)
+        released_version = semver.VersionInfo.parse(release.title)
 
         for branch in self.release_branches():
-            if StrictVersion(branch.name.removesuffix(".x")) > released_version:
+            if semver.VersionInfo.parse(branch.name.replace("x", "0")) > released_version:
                 yield branch
 
     def release_branches(self):
