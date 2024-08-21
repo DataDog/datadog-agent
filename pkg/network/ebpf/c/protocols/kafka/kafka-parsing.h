@@ -508,11 +508,11 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                                                                             kafka_response_context_t *response,
                                                                             pktbuf_t pkt, u32 offset,
                                                                             u32 data_end,
-                                                                            u32 api_version,
-                                                                            u32 api_key)
+                                                                            u32 api_version)
 {
+    extra_debug("Parsing produce response");
     u32 orig_offset = offset;
-    bool flexible = (api_key == KAFKA_PRODUCE && api_version >= 9) || (api_key == KAFKA_FETCH && api_version >= 12);
+    bool flexible = api_version >= 12;
     enum parse_result ret;
 
     extra_debug("carry_over_offset %d", response->carry_over_offset);
@@ -524,139 +524,94 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
     offset += response->carry_over_offset;
     response->carry_over_offset = 0;
 
-    if (api_key == KAFKA_FETCH) {
-        switch (response->state) {
-            case KAFKA_FETCH_RESPONSE_START:
-                if (flexible) {
-                    ret = skip_tagged_fields(response, pkt, &offset, data_end, true);
-                    if (ret != RET_DONE) {
-                        return ret;
-                    }
+    switch (response->state) {
+        case KAFKA_FETCH_RESPONSE_START:
+            if (flexible) {
+                ret = skip_tagged_fields(response, pkt, &offset, data_end, true);
+                if (ret != RET_DONE) {
+                    return ret;
                 }
-
-                if (api_version >= 1) {
-                    offset += sizeof(s32); // Skip throttle_time_ms
-                }
-                if (api_version >= 7) {
-                    offset += sizeof(s16); // Skip error_code
-                    offset += sizeof(s32); // Skip session_id
-                }
-                response->state = KAFKA_FETCH_RESPONSE_NUM_TOPICS;
-                // fallthrough
-
-            case KAFKA_FETCH_RESPONSE_NUM_TOPICS:
-                {
-                    s64 num_topics = 0;
-                    ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &num_topics, true,
-                                             VARINT_BYTES_NUM_TOPICS);
-                    extra_debug("num_topics: %lld", num_topics);
-                    if (ret != RET_DONE) {
-                        return ret;
-                    }
-                    if (num_topics <= 0) {
-                        return RET_ERR;
-                    }
-                }
-                response->state = KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE;
-                // fallthrough
-
-            case KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE:
-                {
-                    s64 topic_name_size = 0;
-                    ret = read_varint_or_s16(flexible, response, pkt, &offset, data_end, &topic_name_size, true,
-                                             VARINT_BYTES_TOPIC_NAME_SIZE);
-                    extra_debug("topic_name_size: %lld", topic_name_size);
-                    if (ret != RET_DONE) {
-                        return ret;
-                    }
-                    if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
-                        return RET_ERR;
-                    }
-
-                    // Should we check that topic name matches the topic we expect?
-                    offset += topic_name_size;
-                }
-                response->state = KAFKA_FETCH_RESPONSE_NUM_PARTITIONS;
-                // fallthrough
-
-            case KAFKA_FETCH_RESPONSE_NUM_PARTITIONS:
-                {
-                    s64 number_of_partitions = 0;
-                    ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &number_of_partitions, true,
-                                             VARINT_BYTES_NUM_PARTITIONS);
-                    extra_debug("number_of_partitions: %lld", number_of_partitions);
-                    if (ret != RET_DONE) {
-                        return ret;
-                    }
-                    if (number_of_partitions <= 0) {
-                        return RET_ERR;
-                    }
-
-                    response->partitions_count = number_of_partitions;
-                    response->state = KAFKA_FETCH_RESPONSE_PARTITION_START;
-                    response->record_batches_num_bytes = 0;
-                    response->record_batch_length = 0;
-                }
-                break;
-            case KAFKA_FETCH_RESPONSE_PARTITION_START:
-            case KAFKA_FETCH_RESPONSE_PARTITION_ERROR_CODE_START:
-            case KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS:
-            case KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_START:
-            case KAFKA_FETCH_RESPONSE_RECORD_BATCH_START:
-            case KAFKA_FETCH_RESPONSE_RECORD_BATCH_LENGTH:
-            case KAFKA_FETCH_RESPONSE_RECORD_BATCH_MAGIC:
-            case KAFKA_FETCH_RESPONSE_RECORD_BATCH_RECORDS_COUNT:
-            case KAFKA_FETCH_RESPONSE_RECORD_BATCH_END:
-            case KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_END:
-            case KAFKA_FETCH_RESPONSE_PARTITION_TAGGED_FIELDS:
-            case KAFKA_FETCH_RESPONSE_PARTITION_END:
-
-            case KAFKA_PRODUCE_RESPONSE_START:
-            case KAFKA_PRODUCE_RESPONSE_NUM_TOPICS:
-            case KAFKA_PRODUCE_RESPONSE_TOPIC_NAME_SIZE:
-            case KAFKA_PRODUCE_RESPONSE_NUM_PARTITIONS:
-            case KAFKA_PRODUCE_RESPONSE_PARTITION_START:
-            case KAFKA_PRODUCE_RESPONSE_PARTITION_ERROR_CODE_START:
-            case KAFKA_PRODUCE_RESPONSE_PARTITION_RECORD_ERRORS:
-            case KAFKA_PRODUCE_RESPONSE_PARTITION_END:
-                break;
             }
-    } else if (api_key == KAFKA_PRODUCE) {
-        switch (response->state) {
-            case KAFKA_PRODUCE_RESPONSE_START:
-                if (flexible) {
-                    ret = skip_tagged_fields(response, pkt, &offset, data_end, true);
-                    if (ret != RET_DONE) {
-                        return ret;
-                    }
+
+            if (api_version >= 1) {
+                offset += sizeof(s32); // Skip throttle_time_ms
+            }
+            if (api_version >= 7) {
+                offset += sizeof(s16); // Skip error_code
+                offset += sizeof(s32); // Skip session_id
+            }
+            response->state = KAFKA_FETCH_RESPONSE_NUM_TOPICS;
+            // fallthrough
+
+        case KAFKA_FETCH_RESPONSE_NUM_TOPICS:
+            {
+                s64 num_topics = 0;
+                ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &num_topics, true,
+                                         VARINT_BYTES_NUM_TOPICS);
+                extra_debug("num_topics: %lld", num_topics);
+                if (ret != RET_DONE) {
+                    return ret;
+                }
+                if (num_topics <= 0) {
+                    return RET_ERR;
+                }
+            }
+            response->state = KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE;
+            // fallthrough
+
+        case KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE:
+            {
+                s64 topic_name_size = 0;
+                ret = read_varint_or_s16(flexible, response, pkt, &offset, data_end, &topic_name_size, true,
+                                         VARINT_BYTES_TOPIC_NAME_SIZE);
+                extra_debug("topic_name_size: %lld", topic_name_size);
+                if (ret != RET_DONE) {
+                    return ret;
+                }
+                if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
+                    return RET_ERR;
                 }
 
-                if (api_version >= 1) {
-                    offset += sizeof(s32); // Skip throttle_time_ms
+                // Should we check that topic name matches the topic we expect?
+                offset += topic_name_size;
+            }
+            response->state = KAFKA_FETCH_RESPONSE_NUM_PARTITIONS;
+            // fallthrough
+
+        case KAFKA_FETCH_RESPONSE_NUM_PARTITIONS:
+            {
+                s64 number_of_partitions = 0;
+                ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &number_of_partitions, true,
+                                         VARINT_BYTES_NUM_PARTITIONS);
+                extra_debug("number_of_partitions: %lld", number_of_partitions);
+                if (ret != RET_DONE) {
+                    return ret;
+                }
+                if (number_of_partitions <= 0) {
+                    return RET_ERR;
                 }
 
-                response->state = KAFKA_PRODUCE_RESPONSE_NUM_TOPICS;
-                // fallthrough
-
-            case KAFKA_PRODUCE_RESPONSE_NUM_TOPICS:
-                {
-                    s64 num_topics = 0;
-                    ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &num_topics, true,
-                                             VARINT_BYTES_NUM_TOPICS);
-                    extra_debug("num_topics: %lld", num_topics);
-                    if (ret != RET_DONE) {
-                        return ret;
-                    }
-                    if (num_topics <= 0) {
-                        return RET_ERR;
-                    }
-                }
-                response->state = KAFKA_PRODUCE_RESPONSE_TOPIC_NAME_SIZE;
-                // fallthrough
-            default:
-                break;
+                response->partitions_count = number_of_partitions;
+                response->state = KAFKA_FETCH_RESPONSE_PARTITION_START;
+                response->record_batches_num_bytes = 0;
+                response->record_batch_length = 0;
+            }
+            break;
+        case KAFKA_FETCH_RESPONSE_PARTITION_START:
+        case KAFKA_FETCH_RESPONSE_PARTITION_ERROR_CODE_START:
+        case KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS:
+        case KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_START:
+        case KAFKA_FETCH_RESPONSE_RECORD_BATCH_START:
+        case KAFKA_FETCH_RESPONSE_RECORD_BATCH_LENGTH:
+        case KAFKA_FETCH_RESPONSE_RECORD_BATCH_MAGIC:
+        case KAFKA_FETCH_RESPONSE_RECORD_BATCH_RECORDS_COUNT:
+        case KAFKA_FETCH_RESPONSE_RECORD_BATCH_END:
+        case KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_END:
+        case KAFKA_FETCH_RESPONSE_PARTITION_TAGGED_FIELDS:
+        case KAFKA_FETCH_RESPONSE_PARTITION_END:
+        default:
+            break;
         }
-    }
 
 #pragma unroll(KAFKA_RESPONSE_PARSER_MAX_ITERATIONS)
     for (int i = 0; i < KAFKA_RESPONSE_PARSER_MAX_ITERATIONS; i++) {
@@ -840,6 +795,67 @@ exit:
     // call.
     response->carry_over_offset = offset - orig_offset;
     return RET_LOOP_END;
+}
+
+static __always_inline enum parse_result kafka_continue_parse_response_partition_loop_produce(kafka_info_t *kafka,
+                                                                            conn_tuple_t *tup,
+                                                                            kafka_response_context_t *response,
+                                                                            pktbuf_t pkt, u32 offset,
+                                                                            u32 data_end,
+                                                                            u32 api_version)
+{
+    extra_debug("Parsing produce response");
+//    u32 orig_offset = offset;
+    bool flexible = api_version >= 9;
+    enum parse_result ret;
+
+    extra_debug("carry_over_offset %d", response->carry_over_offset);
+
+    if (response->carry_over_offset < 0) {
+        return RET_ERR;
+    }
+
+    offset += response->carry_over_offset;
+    response->carry_over_offset = 0;
+
+    switch (response->state) {
+        case KAFKA_PRODUCE_RESPONSE_START:
+            if (flexible) {
+                ret = skip_tagged_fields(response, pkt, &offset, data_end, true);
+                if (ret != RET_DONE) {
+                    return ret;
+                }
+            }
+
+            if (api_version >= 1) {
+                offset += sizeof(s32); // Skip throttle_time_ms
+            }
+
+            response->state = KAFKA_PRODUCE_RESPONSE_NUM_TOPICS;
+            // fallthrough
+
+        case KAFKA_PRODUCE_RESPONSE_NUM_TOPICS:
+            {
+                s64 num_topics = 0;
+                ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &num_topics, true,
+                                         VARINT_BYTES_NUM_TOPICS);
+                extra_debug("num_topics: %lld", num_topics);
+                if (ret != RET_DONE) {
+                    return ret;
+                }
+                if (num_topics <= 0) {
+                    return RET_ERR;
+                }
+            }
+            response->state = KAFKA_PRODUCE_RESPONSE_TOPIC_NAME_SIZE;
+            // fallthrough
+        default:
+            break;
+    }
+
+    // TODO: add code
+
+    return RET_DONE;
 }
 
 static __always_inline enum parse_result kafka_continue_parse_response_record_batches_loop(kafka_info_t *kafka,
@@ -1159,13 +1175,17 @@ static __always_inline enum parse_result kafka_continue_parse_response(void *ctx
                                                                        u32 api_version,
                                                                        u32 api_key)
 {
-    enum parse_result ret;
+    enum parse_result ret = 0;
 
     if (level == PARSER_LEVEL_PARTITION) {
         response->record_batches_arrays_count = 0;
         response->record_batches_arrays_idx = 0;
 
-        ret = kafka_continue_parse_response_partition_loop(kafka, tup, response, pkt, offset, data_end, api_version, api_key);
+        if (api_key == KAFKA_PRODUCE) {
+            ret = kafka_continue_parse_response_partition_loop_produce(kafka, tup, response, pkt, offset, data_end, api_version);
+        } else if (api_key == KAFKA_FETCH) {
+            ret = kafka_continue_parse_response_partition_loop(kafka, tup, response, pkt, offset, data_end, api_version);
+        }
         extra_debug("partition loop ret %d record_batches_array_count %u partitions_count %u", ret, response->record_batches_arrays_count, response->partitions_count);
 
         // If we have parsed any record batches arrays (message sets), then
