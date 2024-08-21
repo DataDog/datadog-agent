@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
@@ -59,6 +60,16 @@ var (
 	}
 )
 
+var (
+	// matches omnibus/package-scripts/agent-deb/postinst
+	rootOwnedAgentPaths = []string{
+		"embedded/bin/system-probe",
+		"embedded/bin/security-agent",
+		"embedded/share/system-probe/ebpf",
+		"embedded/share/system-probe/java",
+	}
+)
+
 // SetupAgent installs and starts the agent
 func SetupAgent(ctx context.Context, _ []string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "setup_agent")
@@ -95,7 +106,7 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 	if err = os.Chown("/etc/datadog-agent", ddAgentUID, ddAgentGID); err != nil {
 		return fmt.Errorf("failed to chown /etc/datadog-agent: %v", err)
 	}
-	if err = chownRecursive("/opt/datadog-packages/datadog-agent/stable/", ddAgentUID, ddAgentGID); err != nil {
+	if err = chownRecursive("/opt/datadog-packages/datadog-agent/stable/", ddAgentUID, ddAgentGID, rootOwnedAgentPaths); err != nil {
 		return fmt.Errorf("failed to chown /opt/datadog-packages/datadog-agent/stable/: %v", err)
 	}
 
@@ -198,10 +209,19 @@ func stopOldAgentUnits(ctx context.Context) error {
 	return nil
 }
 
-func chownRecursive(path string, uid int, gid int) error {
+func chownRecursive(path string, uid int, gid int, ignorePaths []string) error {
 	return filepath.Walk(path, func(p string, _ os.FileInfo, err error) error {
 		if err != nil {
 			return err
+		}
+		relPath, err := filepath.Rel(path, p)
+		if err != nil {
+			return err
+		}
+		for _, ignore := range ignorePaths {
+			if relPath == ignore || strings.HasPrefix(relPath, ignore+string(os.PathSeparator)) {
+				return nil
+			}
 		}
 		return os.Chown(p, uid, gid)
 	})
@@ -213,7 +233,7 @@ func StartAgentExperiment(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
 	}
-	if err = chownRecursive("/opt/datadog-packages/datadog-agent/experiment/", ddAgentUID, ddAgentGID); err != nil {
+	if err = chownRecursive("/opt/datadog-packages/datadog-agent/experiment/", ddAgentUID, ddAgentGID, rootOwnedAgentPaths); err != nil {
 		return fmt.Errorf("failed to chown /opt/datadog-packages/datadog-agent/experiment/: %v", err)
 	}
 	return startUnit(ctx, agentExp, "--no-block")
