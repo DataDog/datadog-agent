@@ -15,7 +15,9 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	grpcClientfx "github.com/DataDog/datadog-agent/comp/core/grpcClient/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -29,8 +31,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
-	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	logsAgentimpl "github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
+	integrationsfx "github.com/DataDog/datadog-agent/comp/logs/integrations/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -95,9 +98,12 @@ func RunLogsAgent(cliParams *CLIParams, defaultConfPath string, fct interface{})
 		fx.Provide(workloadmeta.NewParams),
 		workloadmetafx.Module(),
 
-		fx.Supply(optional.NewNoneOption[integrations.Component]()),
+		// grpc Client
+		grpcClientfx.Module(),
+		fetchonlyimpl.Module(),
 
-		logsAgent.Module(),
+		logsAgentimpl.Module(),
+		integrationsfx.Module(),
 
 		// Healthprobe
 		fx.Provide(func(config config.Component) healthprobe.Options {
@@ -119,8 +125,14 @@ func start(
 	_ healthprobe.Component,
 	_ optional.Option[workloadmeta.Component],
 	_ telemetry.Component,
-	_ optional.Option[integrations.Component],
+	logsAgent optional.Option[logsAgent.Component],
 ) error {
+
+	_, ok := logsAgent.Get()
+	if !ok {
+		return log.Critical("Logs Agent component is missing")
+	}
+
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 
