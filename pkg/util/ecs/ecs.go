@@ -23,9 +23,9 @@ type MetaECS struct {
 	ECSAgentVersion string
 }
 
-// NewECSMeta returns an ECSConfig object
+// NewECSMeta returns a MetaECS object
 func NewECSMeta(ctx context.Context) (*MetaECS, error) {
-	cluster, version, err := GetECSInstanceMetadata(ctx)
+	cluster, version, err := getECSInstanceMetadata(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -37,8 +37,7 @@ func NewECSMeta(ctx context.Context) (*MetaECS, error) {
 	return &ecsMeta, nil
 }
 
-// GetECSInstanceMetadata fetches the ECS Instance metadata if running in ECS
-func GetECSInstanceMetadata(ctx context.Context) (string, string, error) {
+func getECSInstanceMetadata(ctx context.Context) (string, string, error) {
 	metaV1, err = metadata.V1()
 	if err != nil {
 		return "", "", err
