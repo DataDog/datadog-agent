@@ -22,12 +22,9 @@ import (
 // - removed and recreated
 // - truncated
 func (t *Tailer) DidRotate() (bool, error) {
-	if t.osFile == nil {
-		return false, fmt.Errorf("osFile is nil")
-	}
-	f, err := filesystem.OpenShared(t.osFile.Name())
+	f, err := filesystem.OpenShared(t.fullpath)
 	if err != nil {
-		return false, fmt.Errorf("open %q: %w", t.osFile.Name(), err)
+		return false, fmt.Errorf("open %q: %w", t.fullpath, err)
 	}
 	defer f.Close()
 	lastReadOffset := t.lastReadOffset.Load()
