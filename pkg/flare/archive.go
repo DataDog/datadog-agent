@@ -405,12 +405,7 @@ func getECSMeta() ([]byte, error) {
 		return nil, err
 	}
 
-	jsonValue, err := json.MarshalIndent(ecsMeta, "", "\t")
-	if err != nil {
-		return nil, err
-	}
-
-	return jsonValue, nil
+	return json.MarshalIndent(ecsMeta, "", "\t")
 }
 
 // getHTTPCallContent does a GET HTTP call to the given url and
