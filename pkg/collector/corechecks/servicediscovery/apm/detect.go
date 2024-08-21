@@ -142,6 +142,11 @@ func pythonDetector(args []string, envs map[string]string) Instrumentation {
 // entry for APM NodeJS instrumentation. Returns true if finding such
 // an entry, false otherwise.
 func isNodeInstrumented(f *os.File) bool {
+	// Don't try to read a non-regular file.
+	if fi, err := f.Stat(); err != nil || !fi.Mode().IsRegular() {
+		return false
+	}
+
 	const readLimit = 1 * 1024 * 1024 // Read 1MiB max
 
 	limitReader := io.LimitReader(f, readLimit)
