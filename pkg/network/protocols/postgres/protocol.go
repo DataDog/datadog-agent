@@ -257,13 +257,13 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 func (p *protocol) updatePgKernelTelemetry(mgr *manager.Manager) {
 	mapPlain, err := protocols.GetMap(mgr, KernelTelemetryMapPlain)
 	if err != nil {
-		log.Warn(err)
+		log.Errorf("Couldnt find kernel telemetry map: %s, error: %v", KernelTelemetryMapPlain, err)
 		return
 	}
 
 	mapTLS, err := protocols.GetMap(mgr, KernelTelemetryMapTLS)
 	if err != nil {
-		log.Warn(err)
+		log.Errorf("Couldnt find kernel telemetry map: %s, error: %v", KernelTelemetryMapTLS, err)
 		return
 	}
 
@@ -278,13 +278,13 @@ func (p *protocol) updatePgKernelTelemetry(mgr *manager.Manager) {
 			select {
 			case <-ticker.C:
 				if err := mapPlain.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(pgKernelMsgCount)); err != nil {
-					_ = log.Errorf("unable to lookup %q map: %s", KernelTelemetryMapPlain, err)
+					log.Errorf("unable to lookup %q map: %s", KernelTelemetryMapPlain, err)
 					return
 				}
 				p.pgKernelTelemetry.update(pgKernelMsgCount, false)
 
 				if err := mapTLS.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(pgKernelMsgCount)); err != nil {
-					_ = log.Errorf("unable to lookup %q map: %s", KernelTelemetryMapTLS, err)
+					log.Errorf("unable to lookup %q map: %s", KernelTelemetryMapTLS, err)
 					return
 				}
 				p.pgKernelTelemetry.update(pgKernelMsgCount, true)

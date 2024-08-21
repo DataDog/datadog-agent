@@ -781,8 +781,8 @@ func testKernelMessagesCount(t *testing.T, isTLS bool) {
 	}
 
 	for i := 0; i < pgebpf.KerMsgCountNumBuckets; i++ {
-		test_name := fmt.Sprintf("kernel messages count bucket[%d]", i)
-		t.Run(test_name, func(t *testing.T) {
+		testName := fmt.Sprintf("kernel messages count bucket[%d]", i)
+		t.Run(testName, func(t *testing.T) {
 			t.Cleanup(func() {
 				if pgClient != nil {
 					_ = pgClient.RunQuery(dropTableQuery)
@@ -792,8 +792,7 @@ func testKernelMessagesCount(t *testing.T, isTLS bool) {
 					}
 				}
 			})
-			pgClient = setupPgClient(t, serverAddress, isTLS)
-			require.NoError(t, pgClient.Ping())
+			pgClient = setupPGClient(t, serverAddress, isTLS)
 
 			// 'sqlInsertCount' is the heuristic number of values to construct the long query
 			sqlInsertCount := i*pgebpf.KerMsgCountBucketSize + 1
@@ -811,7 +810,7 @@ func runQueryForBucket(t *testing.T, pg *postgres.PGXClient, insertCount int) {
 	require.NoError(t, pg.RunQuery(selectAllQuery))
 }
 
-func setupPgClient(t *testing.T, serverAddress string, isTLS bool) *postgres.PGXClient {
+func setupPGClient(t *testing.T, serverAddress string, isTLS bool) *postgres.PGXClient {
 	pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
 		ServerAddress: serverAddress,
 		EnableTLS:     isTLS,

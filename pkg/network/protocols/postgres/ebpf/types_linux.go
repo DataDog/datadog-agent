@@ -33,6 +33,6 @@ type PostgresKernelMsgCount struct {
 
 const (
 	BufferSize            = 0xa0
-	KerMsgCountBucketSize = 0x5
+	KerMsgCountBucketSize = 0x8
 	KerMsgCountNumBuckets = 0x8
 )

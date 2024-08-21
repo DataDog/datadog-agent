@@ -11,10 +11,9 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (

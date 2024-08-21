@@ -125,16 +125,6 @@ static __always_inline void* get_pg_msg_counts_map(pktbuf_t pkt) {
     return pktbuf_map_lookup(pkt, pg_telemetry_lookup_opt);
 }
 
-// update_pg_message_count_telemetry - increments the corresponding statistics counter
-//      according to the number of Postgres messages detected.
-static __always_inline void update_pg_message_count_telemetry(postgres_kernel_msg_count_t* pg_msg_counts, __u8 msg_count) {
-    __u8 bucket_idx = PG_KERNEL_MSG_COUNT_BUCKET_INDEX((__u8)msg_count);
-    bucket_idx = bucket_idx >= PG_KERNEL_MSG_COUNT_NUM_BUCKETS ? (PG_KERNEL_MSG_COUNT_NUM_BUCKETS - 1) : bucket_idx;
-    __sync_fetch_and_add(&pg_msg_counts->pg_messages_count_buckets[bucket_idx], 1);
-
-    return;
-}
-
 // Main processing logic for the Postgres protocol. It reads the first message header and decides what to do based on the
 // message tag. If the message is a new query, it stores the query in the in-flight map. If the message is a command
 // complete, it enqueues the transaction and deletes it from the in-flight map. If the message is not a command complete,
@@ -160,9 +150,9 @@ static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn
     if (!transaction) {
         return;
     }
-    __u8 messages_count = 0;
+    __u8 bucket_idx = 0;
 #pragma unroll(POSTGRES_MAX_MESSAGES)
-    for (; messages_count < POSTGRES_MAX_MESSAGES; ++messages_count) {
+    for (__u8 messages_count = 0; messages_count < POSTGRES_MAX_MESSAGES; ++messages_count) {
         if (!read_message_header(pkt, header)) {
             break;
         }
@@ -174,15 +164,13 @@ static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn
         // reminder, the message length includes the size of the payload, 4 bytes of the message length itself, but not
         // the message tag. So we need to add 1 to the message length to jump over the entire message.
         pktbuf_advance(pkt, header->message_len + 1);
+        bucket_idx = PG_KERNEL_MSG_COUNT_BUCKET_INDEX((__u8)messages_count);
+        bucket_idx = bucket_idx >= PG_KERNEL_MSG_COUNT_NUM_BUCKETS ? (PG_KERNEL_MSG_COUNT_NUM_BUCKETS - 1) : bucket_idx;
     }
     postgres_kernel_msg_count_t* pg_msg_counts = get_pg_msg_counts_map(pkt);
-    if (!pg_msg_counts) {
-        log_debug("POSTGRES kernel telemetry, map not found.");
-        return;
+    if (pg_msg_counts != NULL) {
+        __sync_fetch_and_add(&pg_msg_counts->pg_messages_count_buckets[bucket_idx], 1);
     }
-    update_pg_message_count_telemetry(pg_msg_counts, messages_count);
-
-    return;
 }
 
 // A dedicated function to handle the parse message. This function is called from a tail call from the main entrypoint.
