@@ -37,7 +37,13 @@ The flare will collect all environment variables, and these can be found in `ote
 ### Extension data
 
 The flare also adds data collected from extensions. These extensions are added automatically by the [converter component](../converter/README.md). The data collected is from extensions:
-- health_check: Found in `otel/otel-flare/health_check`
+- health_check: Found in `otel/otel-flare/health_check`. 
+
+Will contain a json of the latest health check, for example:
+
+```
+{"status":"Server available","upSince":"2024-08-14T14:54:00.575804+02:00","uptime":"28.470434291s"}
+```
 - pprof: Found in `otel/otel-flare/pprof`
 - zpages: Found in `otel/otel-flare/zpages`
 
