@@ -48,6 +48,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
@@ -57,7 +58,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -134,9 +134,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			}),
 			// workloadmeta setup
 			fx.Provide(wmcatalog.GetCatalog),
-			fx.Supply(workloadmeta.Params{
-				InitHelper: common.GetWorkloadmetaInit(),
-			}),
+			fx.Provide(defaults.DefaultParams),
 			workloadmetafx.Module(),
 			apiimpl.Module(),
 			authtokenimpl.Module(),
@@ -304,7 +302,7 @@ func runJmxCommandConsole(config config.Component,
 	// This prevents log-spam from "comp/core/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
 	// It appears that this collector creates some contention in AD.
 	// Disabling it is both more efficient and gets rid of this log spam
-	pkgconfig.Datadog().Set("language_detection.enabled", "false", model.SourceAgentRuntime)
+	config.Set("language_detection.enabled", "false", model.SourceAgentRuntime)
 
 	senderManager, err := diagnoseSendermanager.LazyGetSenderManager()
 	if err != nil {

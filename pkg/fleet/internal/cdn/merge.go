@@ -5,7 +5,9 @@
 
 package cdn
 
-import "fmt"
+import (
+	"fmt"
+)
 
 func isList(i interface{}) bool {
 	_, ok := i.([]interface{})
@@ -13,7 +15,7 @@ func isList(i interface{}) bool {
 }
 
 func isMap(i interface{}) bool {
-	_, ok := i.(map[interface{}]interface{})
+	_, ok := i.(map[string]interface{})
 	return ok
 }
 
@@ -42,13 +44,13 @@ func merge(base interface{}, override interface{}) (interface{}, error) {
 		return override, nil
 	}
 	if isMap(base) && isMap(override) {
-		return mergeMap(base.(map[interface{}]interface{}), override.(map[interface{}]interface{}))
+		return mergeMap(base.(map[string]interface{}), override.(map[string]interface{}))
 	}
 	return nil, fmt.Errorf("could not merge %T with %T", base, override)
 }
 
-func mergeMap(base, override map[interface{}]interface{}) (map[interface{}]interface{}, error) {
-	merged := make(map[interface{}]interface{})
+func mergeMap(base, override map[string]interface{}) (map[string]interface{}, error) {
+	merged := make(map[string]interface{})
 	for k, v := range base {
 		merged[k] = v
 	}

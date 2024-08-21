@@ -327,7 +327,7 @@ func run(log log.Component,
 
 func getSharedFxOption() fx.Option {
 	return fx.Options(
-		fx.Supply(flare.NewParams(
+		flare.Module(flare.NewParams(
 			path.GetDistPath(),
 			path.PyChecksPath,
 			path.DefaultLogFile,
@@ -335,7 +335,6 @@ func getSharedFxOption() fx.Option {
 			path.DefaultDogstatsDLogFile,
 			path.DefaultStreamlogsLogFile,
 		)),
-		flare.Module(),
 		core.Bundle(),
 		fx.Supply(dogstatsdServer.Params{
 			Serverless: false,
