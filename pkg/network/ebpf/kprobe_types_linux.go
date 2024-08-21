@@ -65,7 +65,7 @@ type Telemetry struct {
 	Double_flush_attempts_close uint64
 	Double_flush_attempts_done  uint64
 	Unsupported_tcp_failures    uint64
-	Tcp_done_pid_mismatch       uint64
+	Tcp_done_missing_pid        uint64
 }
 type PortBinding struct {
 	Netns     uint32

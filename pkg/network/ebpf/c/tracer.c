@@ -227,6 +227,8 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
         bpf_probe_read_kernel_with_telemetry(&pid_tgid, sizeof(pid_tgid), failed_conn_pid);
         t.pid = pid_tgid >> 32;
         bpf_map_delete_elem(&tcp_ongoing_connect_pid, &t);
+    } else {
+        increment_telemetry_count(tcp_done_missing_pid);
     }
     if (t.pid == 0) {
         return 0;

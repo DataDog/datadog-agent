@@ -68,11 +68,11 @@ var EbpfTracerTelemetry = struct {
 	doubleFlushAttemptsDone *prometheus.Desc
 	// unsupportedTcpFailures is a counter measuring the number of attempts to flush a TCP failure that is not supported
 	unsupportedTcpFailures *prometheus.Desc
-	// tcpDonePidMismatch is a counter measuring the number of TCP connections with a PID mismatch between tcp_connect and tcp_done
-	tcpDonePidMismatch *prometheus.Desc
-	PidCollisions      *telemetry.StatCounterWrapper
-	iterationDups      telemetry.Counter
-	iterationAborts    telemetry.Counter
+	// tcpDoneMissingPid is a counter measuring the number of TCP connections with a PID mismatch between tcp_connect and tcp_done
+	tcpDoneMissingPid *prometheus.Desc
+	PidCollisions     *telemetry.StatCounterWrapper
+	iterationDups     telemetry.Counter
+	iterationAborts   telemetry.Counter
 
 	//nolint:revive // TODO(NET) Fix revive linter
 	lastTcpFailedConnects *atomic.Int64
@@ -94,8 +94,8 @@ var EbpfTracerTelemetry = struct {
 	lastDoubleFlushAttemptsDone *atomic.Int64
 	// lastUnsupportedTcpFailures is a counter measuring the diff between the last two values of unsupportedTcpFailures
 	lastUnsupportedTcpFailures *atomic.Int64
-	// lastTcpDonePidMismatch is a counter measuring the diff between the last two values of tcpDonePidMismatch
-	lastTcpDonePidMismatch *atomic.Int64
+	// lastTcpDoneMissingPid is a counter measuring the diff between the last two values of tcpDoneMissingPid
+	lastTcpDoneMissingPid *atomic.Int64
 }{
 	telemetry.NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_failed_connects", "Counter measuring the number of failed TCP connections in the EBPF map", nil, nil),
@@ -108,7 +108,7 @@ var EbpfTracerTelemetry = struct {
 	prometheus.NewDesc(connTracerModuleName+"__double_flush_attempts_close", "Counter measuring the number of attempts to flush a closed connection twice from tcp_close", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__double_flush_attempts_done", "Counter measuring the number of attempts to flush a closed connection twice from tcp_done", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__unsupported_tcp_failures", "Counter measuring the number of attempts to flush a TCP failure that is not supported", nil, nil),
-	prometheus.NewDesc(connTracerModuleName+"__tcp_done_pid_mismatch", "Counter measuring the number of TCP connections with a PID mismatch between tcp_connect and tcp_done", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__tcp_done_missing_pid", "Counter measuring the number of TCP connections with a missing PID in tcp_done", nil, nil),
 	telemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
@@ -516,7 +516,7 @@ func (t *ebpfTracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- EbpfTracerTelemetry.doubleFlushAttemptsClose
 	ch <- EbpfTracerTelemetry.doubleFlushAttemptsDone
 	ch <- EbpfTracerTelemetry.unsupportedTcpFailures
-	ch <- EbpfTracerTelemetry.tcpDonePidMismatch
+	ch <- EbpfTracerTelemetry.tcpDoneMissingPid
 }
 
 // Collect returns the current state of all metrics of the collector
@@ -565,9 +565,9 @@ func (t *ebpfTracer) Collect(ch chan<- prometheus.Metric) {
 	EbpfTracerTelemetry.lastUnsupportedTcpFailures.Store(int64(ebpfTelemetry.Unsupported_tcp_failures))
 	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.unsupportedTcpFailures, prometheus.CounterValue, float64(delta))
 
-	delta = int64(ebpfTelemetry.Tcp_done_pid_mismatch) - EbpfTracerTelemetry.lastTcpDonePidMismatch.Load()
-	EbpfTracerTelemetry.lastTcpDonePidMismatch.Store(int64(ebpfTelemetry.Tcp_done_pid_mismatch))
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpDonePidMismatch, prometheus.CounterValue, float64(delta))
+	delta = int64(ebpfTelemetry.Tcp_done_missing_pid) - EbpfTracerTelemetry.lastTcpDoneMissingPid.Load()
+	EbpfTracerTelemetry.lastTcpDoneMissingPid.Store(int64(ebpfTelemetry.Tcp_done_missing_pid))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpDoneMissingPid, prometheus.CounterValue, float64(delta))
 
 }
 
