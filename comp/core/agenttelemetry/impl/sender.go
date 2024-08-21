@@ -187,19 +187,8 @@ func getEndpoints(cfgComp config.Component) (*logconfig.Endpoints, error) {
 	// borrowed and styled after EP Forwarder newHTTPPassthroughPipeline().
 	// Will be eliminated in the future after switching to EP Forwarder.
 	configKeys := logconfig.NewLogsConfigKeys(telemetryConfigPrefix, cfgComp)
-	endpoints, err := logconfig.BuildHTTPEndpointsWithConfig(cfgComp, configKeys,
+	return logconfig.BuildHTTPEndpointsWithConfig(cfgComp, configKeys,
 		telemetryHostnameEndpointPrefix, telemetryIntakeTrackType, logconfig.DefaultIntakeProtocol, logconfig.DefaultIntakeOrigin)
-	if err != nil {
-		return nil, err
-	}
-
-	// If dual shipping endpoint overrides main endpoint
-	if len(endpoints.Endpoints) > 1 && cfgComp.GetBool("agent_telemetry.use_only_additional_endpoint") {
-		endpoints.Main = endpoints.Endpoints[1]
-		endpoints.Endpoints = endpoints.Endpoints[1:]
-	}
-
-	return endpoints, nil
 }
 
 func newSenderImpl(

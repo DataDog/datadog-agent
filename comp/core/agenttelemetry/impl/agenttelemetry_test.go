@@ -582,49 +582,6 @@ func TestSenderConfigAdditionalEndpoint(t *testing.T) {
 	assert.Equal(t, "https://instrumentation-telemetry-intake.us5.datadoghq.com/api/v2/apmtelemetry", url)
 }
 
-// TestSenderConfigAdditionalEndpointOverride tests that the additional endpoint configuration
-// is overridden to be used instead of the main endpoint
-func TestSenderConfigAdditionalEndpointOverride(t *testing.T) {
-	c := `
-    site: datadoghq.com
-    api_key: foo
-    agent_telemetry:
-      enabled: true
-      use_only_additional_endpoint: true
-      additional_endpoints:
-        - api_key: bar
-          host: instrumentation-telemetry-intake.us5.datadoghq.com
-    `
-	sndr := makeSenderImpl(t, c)
-	assert.NotNil(t, sndr)
-
-	assert.Len(t, sndr.(*senderImpl).endpoints.Endpoints, 1)
-	url := buildURL(sndr.(*senderImpl).endpoints.Endpoints[0])
-	assert.Equal(t, "https://instrumentation-telemetry-intake.us5.datadoghq.com/api/v2/apmtelemetry", url)
-	url = buildURL(sndr.(*senderImpl).endpoints.Main)
-	assert.Equal(t, "https://instrumentation-telemetry-intake.us5.datadoghq.com/api/v2/apmtelemetry", url)
-}
-
-// TestSenderConfigAdditionalEndpointOverride tests api keys
-func TestSenderConfigApiKeys(t *testing.T) {
-	c := `
-    site: datadoghq.com
-    api_key: foo
-    agent_telemetry:
-      enabled: true
-      use_only_additional_endpoint: false
-      additional_endpoints:
-        - api_key: bar
-          host: instrumentation-telemetry-intake.us5.datadoghq.com.
-    `
-	sndr := makeSenderImpl(t, c)
-	assert.NotNil(t, sndr)
-
-	assert.Len(t, sndr.(*senderImpl).endpoints.Endpoints, 2)
-	assert.Equal(t, "foo", sndr.(*senderImpl).endpoints.Endpoints[0].GetAPIKey())
-	assert.Equal(t, "bar", sndr.(*senderImpl).endpoints.Endpoints[1].GetAPIKey())
-}
-
 // TestSenderConfigDDUrl dd_url overrides alone
 func TestSenderConfigDDUrl(t *testing.T) {
 	c := `
