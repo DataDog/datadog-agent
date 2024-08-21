@@ -719,7 +719,9 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 								return fmt.Errorf("cannot attach running probe %v: %w", newProbeID, err)
 							}
 						}
-						log.Debugf("Probe %v already attached to %s", newProbeID, fpath.HostPath)
+						if ua.config.EnableDetailedLogging {
+							log.Debugf("Probe %v already attached to %s", newProbeID, fpath.HostPath)
+						}
 						continue
 					}
 
