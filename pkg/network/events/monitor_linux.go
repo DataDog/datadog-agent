@@ -24,6 +24,6 @@ func getProcessStartTime(ev *model.Event) time.Time {
 	return time.Time{}
 }
 
-func getAPMTags(filename string) []*intern.Value {
-	return nil	
+func getAPMTags(_ string) []*intern.Value {
+	return nil
 }

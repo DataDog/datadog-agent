@@ -17,6 +17,6 @@ func Initialized() bool {
 	return false
 }
 
-func getAPMTags(filename string) []*intern.Value {
-	return nil	
+func getAPMTags(_ string) []*intern.Value {
+	return nil
 }
