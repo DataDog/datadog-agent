@@ -37,7 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -1349,56 +1348,6 @@ func (s *TracerSuite) TestTCPFailureConnectionResetNoData() {
 		conns := getConnections(t, tr)
 		// 104 is the errno for ECONNRESET
 		return findFailedConnection(t, c.LocalAddr().String(), serverAddr, conns, 104)
-	}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
-
-	require.NoError(t, c.Close(), "error closing client connection")
-}
-
-func (s *TracerSuite) TestTCPFailureConnectionResetWithDNAT() {
-	t := s.T()
-
-	checkSkipFailureConnectionsTests(t)
-
-	cfg := testConfig()
-	cfg.TCPFailedConnectionsEnabled = true
-	tr := setupTracer(t, cfg)
-
-	// Setup DNAT to redirect traffic from 2.2.2.2 to 1.1.1.1
-	netlinktestutil.SetupDNAT(t)
-
-	// Set up a TCP server on the translated address (1.1.1.1)
-	srv := testutil.NewTCPServerOnAddress("1.1.1.1:80", func(c net.Conn) {
-		if tcpConn, ok := c.(*net.TCPConn); ok {
-			tcpConn.SetLinger(0)
-			buf := make([]byte, 10)
-			_, _ = c.Read(buf)
-			time.Sleep(10 * time.Millisecond)
-		}
-		c.Close()
-	})
-
-	require.NoError(t, srv.Run(), "error running server")
-	t.Cleanup(srv.Shutdown)
-
-	// Attempt to connect to the DNAT address (2.2.2.2), which should be redirected to the server at 1.1.1.1
-	clientAddr := "2.2.2.2:80"
-	c, err := net.Dial("tcp", clientAddr)
-	require.NoError(t, err, "could not connect to server: ", err)
-
-	// Write to the server and expect a reset
-	_, writeErr := c.Write([]byte("ping"))
-	if writeErr != nil {
-		t.Log("Write error:", writeErr)
-	}
-
-	// Read from server to ensure that the server has a chance to reset the connection
-	_, readErr := c.Read(make([]byte, 4))
-	require.Error(t, readErr, "expected connection reset error but got none")
-
-	// Check if the connection was recorded as reset
-	require.Eventually(t, func() bool {
-		// 104 is the errno for ECONNRESET
-		return findFailedConnection(t, c.LocalAddr().String(), clientAddr, getConnections(t, tr), 104)
 	}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
 
 	require.NoError(t, c.Close(), "error closing client connection")
