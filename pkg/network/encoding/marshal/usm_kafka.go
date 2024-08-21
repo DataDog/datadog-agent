@@ -9,6 +9,8 @@ import (
 	"bytes"
 	"io"
 
+	"github.com/gogo/protobuf/proto"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -69,9 +71,17 @@ func (e *kafkaEncoder) encodeData(connectionData *USMConnectionData[kafka.Key, *
 					continue
 				}
 				builder.AddStatsByErrorCode(func(statsByErrorCodeBuilder *model.KafkaAggregation_StatsByErrorCodeEntryBuilder) {
-					statsByErrorCodeBuilder.SetKey(int32(statusCode))
+					statsByErrorCodeBuilder.SetKey(statusCode)
 					statsByErrorCodeBuilder.SetValue(func(kafkaStatsBuilder *model.KafkaStatsBuilder) {
 						kafkaStatsBuilder.SetCount(uint32(requestStat.Count))
+						if latencies := requestStat.Latencies; latencies != nil {
+							blob, _ := proto.Marshal(latencies.ToProto())
+							kafkaStatsBuilder.SetLatencies(func(b *bytes.Buffer) {
+								b.Write(blob)
+							})
+						} else {
+							kafkaStatsBuilder.SetFirstLatencySample(requestStat.FirstLatencySample)
+						}
 					})
 				})
 				staticTags |= requestStat.StaticTags

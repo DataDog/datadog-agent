@@ -8,8 +8,9 @@ package stats
 import (
 	"testing"
 
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/stretchr/testify/assert"
+
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 )
 
 func TestGetStatusCode(t *testing.T) {
@@ -47,7 +48,7 @@ func TestGetStatusCode(t *testing.T) {
 			0,
 		},
 	} {
-		if got := getStatusCode(tt.in); got != tt.out {
+		if got := getStatusCode(tt.in.Meta, tt.in.Metrics); got != tt.out {
 			t.Fatalf("Expected %d, got %d", tt.out, got)
 		}
 	}
@@ -65,14 +66,14 @@ func TestNewAggregation(t *testing.T) {
 	}{
 		{
 			"nil case, peer tag aggregation disabled",
-			&pb.Span{},
+			&pb.Span{Metrics: map[string]float64{measuredKey: 1}},
 			nil,
 			Aggregation{},
 			nil,
 		},
 		{
 			"nil case, peer tag aggregation enabled",
-			&pb.Span{},
+			&pb.Span{Metrics: map[string]float64{measuredKey: 1}},
 			[]string{"db.instance", "db.system", "peer.service"},
 			Aggregation{},
 			nil,
@@ -82,6 +83,7 @@ func TestNewAggregation(t *testing.T) {
 			&pb.Span{
 				Service: "a",
 				Meta:    map[string]string{"span.kind": "client", "peer.service": "remote-service"},
+				Metrics: map[string]float64{measuredKey: 1},
 			},
 			nil,
 			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client"}},
@@ -92,6 +94,7 @@ func TestNewAggregation(t *testing.T) {
 			&pb.Span{
 				Service: "a",
 				Meta:    map[string]string{"span.kind": "", "peer.service": "remote-service"},
+				Metrics: map[string]float64{measuredKey: 1},
 			},
 			[]string{"db.instance", "db.system", "peer.service"},
 			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a"}},
@@ -102,6 +105,7 @@ func TestNewAggregation(t *testing.T) {
 			&pb.Span{
 				Service: "a",
 				Meta:    map[string]string{"span.kind": "client", "peer.service": "remote-service"},
+				Metrics: map[string]float64{measuredKey: 1},
 			},
 			[]string{"db.instance", "db.system", "peer.service"},
 			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: peerSvcOnlyHash}},
@@ -112,16 +116,29 @@ func TestNewAggregation(t *testing.T) {
 			&pb.Span{
 				Service: "a",
 				Meta:    map[string]string{"span.kind": "producer", "peer.service": "remote-service"},
+				Metrics: map[string]float64{measuredKey: 1},
 			},
 			[]string{"db.instance", "db.system", "peer.service"},
 			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "producer", PeerTagsHash: peerSvcOnlyHash}},
 			[]string{"peer.service:remote-service"},
 		},
 		{
+			"peer tags aggregation enabled, span.kind == consumer",
+			&pb.Span{
+				Service: "a",
+				Meta:    map[string]string{"span.kind": "consumer", "messaging.destination": "topic-foo", "messaging.system": "kafka"},
+				Metrics: map[string]float64{measuredKey: 1},
+			},
+			[]string{"db.instance", "db.system", "messaging.destination", "messaging.system"},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "consumer", PeerTagsHash: 0xf5eeb51fbe7929b4}},
+			[]string{"messaging.destination:topic-foo", "messaging.system:kafka"},
+		},
+		{
 			"peer tags aggregation enabled and multiple peer tags match",
 			&pb.Span{
 				Service: "a",
 				Meta:    map[string]string{"span.kind": "client", "field1": "val1", "peer.service": "remote-service", "db.instance": "i-1234", "db.system": "postgres"},
+				Metrics: map[string]float64{measuredKey: 1},
 			},
 			[]string{"db.instance", "db.system", "peer.service"},
 			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: peerTagsHash}},
@@ -132,6 +149,7 @@ func TestNewAggregation(t *testing.T) {
 			&pb.Span{
 				Service: "a",
 				Meta:    map[string]string{"span.kind": "client", "field1": "val1", "peer.service": "", "db.instance": "", "db.system": ""},
+				Metrics: map[string]float64{measuredKey: 1},
 			},
 			[]string{"db.instance", "db.system", "peer.service"},
 			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: 0}},
@@ -142,64 +160,72 @@ func TestNewAggregation(t *testing.T) {
 			&pb.Span{
 				Service: "a",
 				Meta:    map[string]string{"span.kind": "client", "field1": "val1", "peer.service": "remote-service", "db.instance": "", "db.system": ""},
+				Metrics: map[string]float64{measuredKey: 1},
 			},
 			[]string{"db.instance", "db.system", "peer.service"},
 			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: peerSvcOnlyHash}},
 			[]string{"peer.service:remote-service"},
 		},
 	} {
-		agg, et := NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, tt.peerTags)
+		sc := &SpanConcentrator{}
+		statSpan, _ := sc.NewStatSpanFromPB(tt.in, tt.peerTags)
+		agg := NewAggregationFromSpan(statSpan, "", PayloadAggregationKey{})
 		assert.Equal(t, tt.resAgg.Service, agg.Service, tt.name)
 		assert.Equal(t, tt.resAgg.SpanKind, agg.SpanKind, tt.name)
 		assert.Equal(t, tt.resAgg.PeerTagsHash, agg.PeerTagsHash, tt.name)
-		assert.Equal(t, tt.resPeerTags, et, tt.name)
 	}
 }
 
-func TestSpanKindIsConsumerOrProducer(t *testing.T) {
+func TestPeerTagsToAggregateForSpan(t *testing.T) {
+	allPeerTags := []string{"server.addres", "_dd.base_service"}
 	type testCase struct {
-		input string
-		res   bool
+		input       string
+		peerTagKeys []string
 	}
 	for _, tc := range []testCase{
-		{"client", true},
-		{"producer", true},
-		{"CLIENT", true},
-		{"PRODUCER", true},
-		{"cLient", true},
-		{"pRoducer", true},
-		{"server", false},
-		{"consumer", false},
-		{"internal", false},
-		{"", false},
+		{"client", allPeerTags},
+		{"producer", allPeerTags},
+		{"CLIENT", allPeerTags},
+		{"PRODUCER", allPeerTags},
+		{"cLient", allPeerTags},
+		{"pRoducer", allPeerTags},
+		{"server", nil},
+		{"consumer", allPeerTags},
+		{"internal", nil},
+		{"", nil},
 	} {
-		assert.Equal(t, tc.res, clientOrProducer(tc.input))
+
+		assert.Equal(t, tc.peerTagKeys, peerTagKeysToAggregateForSpan(tc.input, "", allPeerTags))
 	}
 }
 
 func TestIsRootSpan(t *testing.T) {
+	sc := &SpanConcentrator{}
 	for _, tt := range []struct {
 		in          *pb.Span
 		isTraceRoot pb.Trilean
 	}{
 		{
-			&pb.Span{},
+			&pb.Span{Metrics: map[string]float64{measuredKey: 1}},
 			pb.Trilean_TRUE,
 		},
 		{
 			&pb.Span{
 				ParentID: 0,
+				Metrics:  map[string]float64{measuredKey: 1},
 			},
 			pb.Trilean_TRUE,
 		},
 		{
 			&pb.Span{
 				ParentID: 123,
+				Metrics:  map[string]float64{measuredKey: 1},
 			},
 			pb.Trilean_FALSE,
 		},
 	} {
-		agg, _ := NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, []string{})
+		statSpan, _ := sc.NewStatSpanFromPB(tt.in, nil)
+		agg := NewAggregationFromSpan(statSpan, "", PayloadAggregationKey{})
 		assert.Equal(t, tt.isTraceRoot, agg.IsTraceRoot)
 	}
 }

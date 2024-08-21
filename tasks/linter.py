@@ -137,6 +137,7 @@ def go(
     headless_mode=False,
     include_sds=False,
     only_modified_packages=False,
+    verbose=False,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
 ):
     """
@@ -156,7 +157,16 @@ def go(
         inv linter.go --targets=./pkg/collector/check,./pkg/aggregator
         inv linter.go --module=.
     """
-    if not check_tools_version(ctx, ['go', 'golangci-lint']):
+    if not check_tools_version(ctx, ['golangci-lint']):
+        print(
+            color_message(
+                "Error: The golanci-lint version you are using is not the correct one. Please run inv -e install-tools to install the correct version.",
+                "red",
+            )
+        )
+        raise Exit(code=1)
+
+    if not check_tools_version(ctx, ['go']):
         print("Warning: If you have linter errors it might be due to version mismatches.", file=sys.stderr)
 
     modules, flavor = process_input_args(
@@ -184,6 +194,7 @@ def go(
         golangci_lint_kwargs=golangci_lint_kwargs,
         headless_mode=headless_mode,
         include_sds=include_sds,
+        verbose=verbose,
     )
 
     if not headless_mode:
@@ -217,6 +228,7 @@ def run_lint_go(
     golangci_lint_kwargs="",
     headless_mode=False,
     include_sds=False,
+    verbose=False,
 ):
     linter_tags = build_tags or compute_build_tags_for_flavor(
         flavor=flavor,
@@ -236,6 +248,7 @@ def run_lint_go(
         timeout=timeout,
         golangci_lint_kwargs=golangci_lint_kwargs,
         headless_mode=headless_mode,
+        verbose=verbose,
     )
 
     return lint_results, execution_times
@@ -251,6 +264,7 @@ def lint_flavor(
     timeout=None,
     golangci_lint_kwargs: str = "",
     headless_mode: bool = False,
+    verbose: bool = False,
 ):
     """
     Runs linters for given flavor, build tags, and modules.
@@ -272,6 +286,7 @@ def lint_flavor(
                 timeout=timeout,
                 golangci_lint_kwargs=golangci_lint_kwargs,
                 headless_mode=headless_mode,
+                verbose=verbose,
             )
             execution_times.extend(time_results)
             for lint_result in lint_results:
@@ -305,35 +320,59 @@ def list_ssm_parameters(_):
 
 
 @task
-def ssm_parameters(ctx):
+def ssm_parameters(ctx, mode="all", folders=None):
     """
     Lint SSM parameters in the datadog-agent repository.
     """
-    lint_folders = [".circleci", ".github", ".gitlab", "tasks", "test"]
+    modes = ["env", "wrapper", "all"]
+    if mode not in modes:
+        raise Exit(f"Invalid mode: {mode}. Must be one of {modes}")
+    if folders is None:
+        lint_folders = [".circleci", ".github", ".gitlab", "test"]
+    else:
+        lint_folders = folders.split(",")
     repo_files = ctx.run("git ls-files", hide="both")
     error_files = []
     for filename in repo_files.stdout.split("\n"):
         if any(filename.startswith(f) for f in lint_folders):
-            matched = is_get_parameter_call(filename)
-            if matched:
-                error_files.append(matched)
+            calls = list_get_parameter_calls(filename)
+            if calls:
+                error_files.extend(calls)
+    if mode == "env":
+        error_files = [f for f in error_files if not f.with_env_var]
+    elif mode == "wrapper":
+        error_files = [f for f in error_files if not f.with_wrapper]
     if error_files:
-        print("The following files contain unexpected syntax for aws ssm get-parameter:")
+        print(
+            f"[{color_message('ERROR', Color.RED)}] The following files contain unexpected syntax for aws ssm get-parameter:"
+        )
         for filename in error_files:
             print(f"  - {filename}")
         raise Exit(code=1)
+    print(f"[{color_message('OK', Color.GREEN)}] All files are correctly using wrapper for aws ssm parameters.")
 
 
 class SSMParameterCall:
-    def __init__(self, file, line_nb, with_wrapper=False, with_env_var=False):
+    def __init__(self, file, line_nb, with_wrapper=False, with_env_var=False, standard=True):
+        """
+        Initialize an SSMParameterCall instance.
+
+        Args:
+            file (str): The name of the file where the SSM parameter call is located.
+            line_nb (int): The line number in the file where the SSM parameter call is located.
+            with_wrapper (bool, optional): If the call is using the wrapper. Defaults to False.
+            with_env_var (bool, optional): If the call is using an environment variable defined in .gitlab-ci.yml. Defaults to False.
+            not_standard (bool, optional): If the call is standard (matching either "aws ssm get-parameter --name" or "aws_ssm_get_wrapper"). Defaults to True.
+        """
         self.file = file
         self.line_nb = line_nb
         self.with_wrapper = with_wrapper
         self.with_env_var = with_env_var
+        self.standard = standard
 
     def __str__(self):
         message = ""
-        if not self.with_wrapper:
+        if not self.with_wrapper or not self.standard:
             message += "Please use the dedicated `aws_ssm_get_wrapper.(sh|ps1)`."
         if not self.with_env_var:
             message += " Save your parameter name as environment variable in .gitlab-ci.yml file."
@@ -343,10 +382,12 @@ class SSMParameterCall:
         return str(self)
 
 
-def is_get_parameter_call(file):
+def list_get_parameter_calls(file):
     ssm_get = re.compile(r"^.+ssm.get.+$")
     aws_ssm_call = re.compile(r"^.+ssm get-parameter.+--name +(?P<param>[^ ]+).*$")
-    ssm_wrapper_call = re.compile(r"^.+aws_ssm_get_wrapper.(sh|ps1) +(?P<param>[^ )]+).*$")
+    # remove the 'a' of 'aws' because '\a' is badly interpreted for windows paths
+    ssm_wrapper_call = re.compile(r"^.+ws_ssm_get_wrapper.(sh|ps1)[\"]? +(?P<param>[^ )]+).*$")
+    calls = []
     with open(file) as f:
         try:
             for nb, line in enumerate(f):
@@ -354,14 +395,20 @@ def is_get_parameter_call(file):
                 if is_ssm_get:
                     m = aws_ssm_call.match(line.strip())
                     if m:
-                        return SSMParameterCall(
-                            file, nb, with_wrapper=False, with_env_var=m.group("param").startswith("$")
+                        # Remove possible quotes
+                        param = m["param"].replace('"', '').replace("'", "")
+                        calls.append(
+                            SSMParameterCall(file, nb, with_env_var=(param.startswith("$") or "os.environ" in param))
                         )
                     m = ssm_wrapper_call.match(line.strip())
-                    if m and not m.group("param").startswith("$"):
-                        return SSMParameterCall(file, nb, with_wrapper=True, with_env_var=False)
+                    param = m["param"].replace('"', '').replace("'", "") if m else None
+                    if m and not (param.startswith("$") or "os.environ" in param):
+                        calls.append(SSMParameterCall(file, nb, with_wrapper=True))
+                    if not m:
+                        calls.append(SSMParameterCall(file, nb, standard=False))
         except UnicodeDecodeError:
             pass
+    return calls
 
 
 @task
@@ -497,6 +544,7 @@ def job_change_path(ctx, job_files=None):
         'new-e2e-agent-platform-install-script-ubuntu-heroku-agent-a6-x86_64',
         'new-e2e-agent-platform-install-script-ubuntu-heroku-agent-a7-x86_64',
         'new-e2e-agent-platform-install-script-ubuntu-iot-agent-a7-x86_64',
+        'new-e2e-agent-platform-install-script-docker',
         'new-e2e-agent-platform-install-script-upgrade6-amazonlinux-x64',
         'new-e2e-agent-platform-install-script-upgrade6-centos-fips-x86_64',
         'new-e2e-agent-platform-install-script-upgrade6-centos-x86_64',

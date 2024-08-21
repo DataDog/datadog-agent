@@ -21,6 +21,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"google.golang.org/protobuf/proto"
 
+	discoverymodel "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
 	nppayload "github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -377,6 +378,30 @@ func (r *RemoteSysProbeUtil) GetPprof(path string) ([]byte, error) {
 	defer res.Body.Close()
 
 	return io.ReadAll(res.Body)
+}
+
+// GetDiscoveryServices returns service information from system-probe.
+func (r *RemoteSysProbeUtil) GetDiscoveryServices() (*discoverymodel.ServicesResponse, error) {
+	req, err := http.NewRequest(http.MethodGet, discoveryServicesURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("got non-success status code: path %s, url: %s, status_code: %d", r.path, discoveryServicesURL, resp.StatusCode)
+	}
+
+	res := &discoverymodel.ServicesResponse{}
+	if err := json.NewDecoder(resp.Body).Decode(res); err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 func (r *RemoteSysProbeUtil) init() error {

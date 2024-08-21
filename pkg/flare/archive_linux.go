@@ -22,7 +22,7 @@ import (
 )
 
 func addSystemProbePlatformSpecificEntries(fb flaretypes.FlareBuilder) {
-	sysprobeSocketLocation := config.SystemProbe.GetString("system_probe_config.sysprobe_socket")
+	sysprobeSocketLocation := config.SystemProbe().GetString("system_probe_config.sysprobe_socket")
 	if sysprobeSocketLocation != "" {
 		fb.RegisterDirPerm(filepath.Dir(sysprobeSocketLocation))
 	}

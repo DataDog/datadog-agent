@@ -10,7 +10,6 @@ import json
 import operator
 import os
 import re
-import shutil
 import sys
 from collections import defaultdict
 from collections.abc import Iterable
@@ -34,6 +33,7 @@ from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import get_modified_files
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.libs.common.utils import clean_nested_paths, get_build_flags, gitlab_section
+from tasks.libs.releasing.json import _get_release_json_value
 from tasks.modules import DEFAULT_MODULES, GoModule
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.testwasher import TestWasher
@@ -834,7 +834,8 @@ def should_run_all_tests(files, trigger_files):
 
 
 def get_go_modified_files(ctx):
-    files = get_modified_files(ctx)
+    base_branch = _get_release_json_value("base_branch")
+    files = get_modified_files(ctx, base_branch=base_branch)
     return [
         file
         for file in files
@@ -864,13 +865,23 @@ def lint_go(
     raise Exit("This task is deprecated, please use `inv linter.go`", 1)
 
 
+def rename_package(file_path, old_name, new_name):
+    with open(file_path) as f:
+        content = f.read()
+    # Rename package
+    content = content.replace(old_name, new_name)
+    with open(file_path, "w") as f:
+        f.write(content)
+
+
 @task
 def check_otel_build(ctx):
-    with ctx.cd("test/otel"):
-        # Rename fixtures
-        shutil.copy("test/otel/dependencies.go.fake", "test/otel/dependencies.go")
-        shutil.copy("test/otel/go.mod.fake", "test/otel/go.mod")
+    file_path = "test/otel/dependencies.go"
+    package_otel = "package otel"
+    package_main = "package main"
+    rename_package(file_path, package_otel, package_main)
 
+    with ctx.cd("test/otel"):
         # Update dependencies to latest local version
         res = ctx.run("go mod tidy")
         if not res.ok:
@@ -880,6 +891,8 @@ def check_otel_build(ctx):
         res = ctx.run("GO111MODULE=on CGO_ENABLED=0 go build -trimpath -o . .", warn=True)
         if res is None or not res.ok:
             raise Exit(f"Error building otel components with datadog-agent dependencies: {res.stderr}")
+
+    rename_package(file_path, package_main, package_otel)
 
 
 @task

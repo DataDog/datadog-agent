@@ -1524,6 +1524,7 @@ func validateProduceFetchCount(t *assert.CollectT, kafkaStats map[kafka.Key]*kaf
 			numberOfProduceRequests += kafkaStat.ErrorCodeToStat[errorCode].Count
 		case kafka.FetchAPIKey:
 			assert.Equal(t, uint16(validation.expectedAPIVersionFetch), kafkaKey.RequestVersion)
+			assert.Greater(t, kafkaStat.ErrorCodeToStat[errorCode].FirstLatencySample, float64(1))
 			numberOfFetchRequests += kafkaStat.ErrorCodeToStat[errorCode].Count
 		default:
 			assert.FailNow(t, "Expecting only produce or fetch kafka requests")

@@ -17,6 +17,7 @@ type FilterValue struct {
 	Field eval.Field
 	Value interface{}
 	Type  eval.FieldValueType
+	Mode  FilterMode
 }
 
 // Merge merges to FilterValues ensuring there is no duplicate value
