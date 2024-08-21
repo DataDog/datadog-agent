@@ -695,16 +695,19 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 				}
 
 				var locationsToAttach []uint64
+				var probeTypeCode string // to make unique UIDs between return/non-return probes
 				if probeOpts.IsManualReturn {
 					locationsToAttach = data.ReturnLocations
+					probeTypeCode = "r"
 				} else {
 					locationsToAttach = []uint64{data.EntryLocation}
+					probeTypeCode = "d"
 				}
 
 				for i, location := range locationsToAttach {
 					newProbeID := manager.ProbeIdentificationPair{
 						EBPFFuncName: probeID.EBPFFuncName,
-						UID:          fmt.Sprintf("%s_%d", uid, i), // Make UID unique even if we have multiple locations
+						UID:          fmt.Sprintf("%s%s%d", uid, probeTypeCode, i), // Make UID unique even if we have multiple locations
 					}
 
 					probe, found := ua.manager.GetProbe(newProbeID)
