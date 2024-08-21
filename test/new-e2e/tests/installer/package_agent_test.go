@@ -7,6 +7,7 @@ package installer
 
 import (
 	"fmt"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -56,6 +57,13 @@ func (s *packageAgentSuite) TestInstall() {
 	agentDir := fmt.Sprintf("/opt/datadog-packages/datadog-agent/%s", agentVersion)
 
 	state.AssertDirExists(agentDir, 0755, "dd-agent", "dd-agent")
+
+	state.AssertFileExists(path.Join(agentDir, "embedded/bin/system-probe"), 0755, "root", "root")
+	state.AssertFileExists(path.Join(agentDir, "embedded/bin/security-agent"), 0755, "root", "root")
+	state.AssertDirExists(path.Join(agentDir, "embedded/share/system-probe/java"), 0755, "root", "root")
+	state.AssertDirExists(path.Join(agentDir, "embedded/share/system-probe/ebpf"), 0755, "root", "root")
+	state.AssertFileExists(path.Join(agentDir, "embedded/share/system-probe/ebpf/dns.o"), 0644, "root", "root")
+
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", agentDir, "root", "root")
 	// FIXME: this file is either dd-agent or root depending on the OS for some reason
 	// state.AssertFileExists("/etc/datadog-agent/install.json", 0644, "dd-agent", "dd-agent")

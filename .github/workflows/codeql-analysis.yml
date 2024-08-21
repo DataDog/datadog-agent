@@ -54,7 +54,7 @@ jobs:
 
       - name: Build DataDog agent
         run: |
-          invoke install-tools --no-custom-golangci-lint
+          invoke install-tools
           invoke deps
           invoke agent.build --build-exclude=systemd
 
