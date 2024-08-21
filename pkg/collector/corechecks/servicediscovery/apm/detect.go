@@ -93,7 +93,7 @@ func getMaps(pid int) ([]byte, error) {
 }
 
 func pythonDetectorFromMaps(maps []byte) Instrumentation {
-	idx := bytes.Index(maps, []byte("/site-packages/ddtrace/"))
+	idx := bytes.Index(maps, []byte("/ddtrace/"))
 	if idx != -1 {
 		return Provided
 	}
@@ -104,6 +104,10 @@ func pythonDetectorFromMaps(maps []byte) Instrumentation {
 // pythonDetector detects the use of the ddtrace package in the process. Since
 // the ddtrace package uses native libraries, the paths of these libraries will
 // show up in /proc/$PID/maps.
+//
+// It looks for the "/ddtrace/" part of the path. It doesn not look for the
+// "/site-packages/" part since some environments (such as pyinstaller) may not
+// use that exact name.
 //
 // For example:
 // 7aef453fc000-7aef453ff000 rw-p 0004c000 fc:06 7895473  /home/foo/.local/lib/python3.10/site-packages/ddtrace/internal/_encoding.cpython-310-x86_64-linux-gnu.so
