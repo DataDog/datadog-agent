@@ -16,6 +16,7 @@ Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-packages/datadog-agent/experimen
 ExecStart=/opt/datadog-packages/datadog-agent/experiment/bin/agent/agent run -p /opt/datadog-packages/datadog-agent/experiment/run/agent.pid
 ExecStart=/bin/false
 ExecStop=/bin/false
+RuntimeDirectory=datadog
 
 [Install]
 WantedBy=multi-user.target
