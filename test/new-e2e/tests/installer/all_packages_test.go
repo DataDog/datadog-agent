@@ -209,13 +209,7 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		// Install ansible then install the agent
 		ansiblePrefix := s.installAnsible(s.os)
 
-		ot, err := s.Env().RemoteHost.Execute("sudo find / -name \"ansible-galaxy\"")
-		s.T().Logf("ansible-galaxy path: %s", ot)
-		s.T().Logf("ansible-galaxy error: %v", err)
 		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd", ansiblePrefix))
-
-		ot = s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible --version", ansiblePrefix))
-		s.T().Logf("ansible --version: %s", ot)
 
 		// Write the playbook
 		env := InstallScriptEnv(s.arch)
@@ -343,15 +337,15 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
 			playbookStringSuffix += fmt.Sprintf("    datadog_installer_enabled: %s\n", value)
 		case "DD_INSTALLER_REGISTRY_AUTH_INSTALLER_PACKAGE":
 			playbookStringSuffix += fmt.Sprintf("    datadog_installer_auth: %s\n", value)
-			environments = append(environments, fmt.Sprintf("%s: %s ", key, value))
+			environments = append(environments, fmt.Sprintf("%s: %s", key, value))
 		case "DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE":
 			playbookStringSuffix += fmt.Sprintf("    datadog_installer_registry: %s\n", value)
-			environments = append(environments, fmt.Sprintf("%s: %s ", key, value))
+			environments = append(environments, fmt.Sprintf("%s: %s", key, value))
 		case "TESTING_APT_REPO_VERSION", "TESTING_APT_URL", "TESTING_APT_KEY", "TESTING_YUM_URL", "TESTING_YUM_VERSION_PATH":
 			defaultRepoEnv[key] = value
-			environments = append(environments, fmt.Sprintf("%s: %s ", key, value))
+			environments = append(environments, fmt.Sprintf("%s: %s", key, value))
 		default:
-			environments = append(environments, fmt.Sprintf("%s: %s ", key, value))
+			environments = append(environments, fmt.Sprintf("%s: \"%s\"", key, value))
 		}
 	}
 	if defaultRepoEnv["TESTING_APT_REPO_VERSION"] != "" {
