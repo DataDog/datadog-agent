@@ -21,7 +21,6 @@ type linuxStatusSuite struct {
 }
 
 func TestLinuxStatusSuite(t *testing.T) {
-	t.Skip("Skipping due to a bug on the latest ubuntu AMI #incident-29343")
 	t.Parallel()
 	e2e.Run(t, &linuxStatusSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
