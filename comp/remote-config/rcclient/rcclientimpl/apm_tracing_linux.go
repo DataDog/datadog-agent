@@ -18,6 +18,7 @@ import (
 )
 
 var apmTracingFilePath = "/opt/datadog-agent/run/inject_config.yaml"
+var apmServiceNameFilePath = "/opt/datadog-agent/run/service_name_config.yaml"
 
 // InvalidAPMTracingPayload indicates we received an APM_TRACING payload we were unable to decode
 const InvalidAPMTracingPayload = "INVALID_APM_TRACING_PAYLOAD"
@@ -33,9 +34,10 @@ const FileWriteFailure = "FILE_WRITE_FAILURE"
 const DuplicateHostConfig = "DUPLICATE_HOST_CONFIG"
 
 type serviceEnvConfig struct {
-	Service        string `yaml:"service"`
-	Env            string `yaml:"env"`
-	TracingEnabled bool   `yaml:"tracing_enabled"`
+	ProvidedService string `yaml:"provided_service"`
+	Service         string `yaml:"service"`
+	Env             string `yaml:"env"`
+	TracingEnabled  bool   `yaml:"tracing_enabled"`
 }
 
 type tracingEnabledConfig struct {
@@ -55,8 +57,9 @@ type tracingConfigUpdate struct {
 		TracingEnabled bool   `json:"tracing_enabled"`
 	} `json:"lib_config"`
 	ServiceTarget *struct {
-		Service string `json:"service"`
-		Env     string `json:"env"`
+		ProvidedService string `json:"provided_service"`
+		Service         string `json:"service"`
+		Env             string `json:"env"`
 	} `json:"service_target"`
 	InfraTarget *struct {
 		Tags []string `json:"tags"`
@@ -126,9 +129,10 @@ func (rc rcClient) onAPMTracingUpdate(update map[string]state.RawConfig, applySt
 			continue
 		}
 		senvConfigs = append(senvConfigs, serviceEnvConfig{
-			Service:        tcu.ServiceTarget.Service,
-			Env:            tcu.ServiceTarget.Env,
-			TracingEnabled: tcu.LibConfig.TracingEnabled,
+			ProvidedService: tcu.ServiceTarget.ProvidedService,
+			Service:         tcu.ServiceTarget.Service,
+			Env:             tcu.ServiceTarget.Env,
+			TracingEnabled:  tcu.LibConfig.TracingEnabled,
 		})
 	}
 	tec := tracingEnabledConfig{
@@ -154,6 +158,20 @@ func (rc rcClient) onAPMTracingUpdate(update map[string]state.RawConfig, applySt
 		return
 	}
 	pkglog.Debugf("Successfully wrote APM_TRACING config to %s", apmTracingFilePath)
+
+	// also write a file that maps the generated service names to provided service names
+	if err := writeServiceNameConfig(tec); err != nil {
+		pkglog.Errorf("Failed to write service name config data file from APM_TRACING config: %v", err)
+		// Failed to write file, report failure for all updates
+		for id := range update {
+			applyStateCallback(id, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: FileWriteFailure,
+			})
+		}
+		return
+	}
+
 	// Successfully wrote file, report success/failure per update
 	for id, errStatus := range updateStatus {
 		applyState := state.ApplyStateAcknowledged
@@ -166,4 +184,20 @@ func (rc rcClient) onAPMTracingUpdate(update map[string]state.RawConfig, applySt
 		})
 	}
 
+}
+
+func writeServiceNameConfig(tec tracingEnabledConfig) error {
+	nameMap := map[string]string{}
+	for _, v := range tec.ServiceEnvConfigs {
+		if v.ProvidedService != "" {
+			nameMap[v.Service] = v.ProvidedService
+		}
+	}
+
+	apmServiceNameFile, err := yamlv2.Marshal(nameMap)
+	err = os.WriteFile(apmServiceNameFilePath, apmServiceNameFile, 0644)
+	if err != nil {
+		return err
+	}
+	return nil
 }

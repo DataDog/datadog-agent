@@ -8,7 +8,9 @@
 package rcclientimpl
 
 import (
+	yamlv2 "gopkg.in/yaml.v2"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -112,5 +114,128 @@ func TestOnAPMTracingUpdate(t *testing.T) {
 		assert.Len(t, calls, 2)
 		assert.Equal(t, calls["missingTarget"], MissingServiceTarget)
 		assert.Equal(t, calls["badPayload"], InvalidAPMTracingPayload)
+	})
+}
+
+func TestServiceNameConfig(t *testing.T) {
+	data := []struct {
+		name string
+		cfg  []serviceEnvConfig
+	}{
+		{
+			name: "simple",
+			cfg: []serviceEnvConfig{
+				{
+					ProvidedService: "replacement_name1",
+					Service:         "original_name1",
+				},
+				{
+					ProvidedService: "replacement_name2",
+					Service:         "original_name2",
+				},
+				{
+					ProvidedService: "replacement_name3",
+					Service:         "original_name3",
+				},
+			},
+		},
+		{
+			name: "none",
+			cfg:  nil,
+		},
+		{
+			name: "empty",
+			cfg:  []serviceEnvConfig{},
+		},
+	}
+	for _, d := range data {
+		t.Run(d.name, func(t *testing.T) {
+			// setup the temp file name
+			dir := t.TempDir()
+			origName := apmServiceNameFilePath
+			apmServiceNameFilePath = dir + "/" + d.name
+			t.Cleanup(func() {
+				apmServiceNameFilePath = origName
+			})
+
+			// write the file
+			tec := tracingEnabledConfig{
+				ServiceEnvConfigs: nil,
+			}
+			err := writeServiceNameConfig(tec)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// read the file
+			f, err := os.ReadFile(apmServiceNameFilePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			m := map[string]string{}
+			err = yamlv2.Unmarshal(f, &m)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// scan the file for entries
+			for i := range len(d.cfg) {
+				generatedName := "original_name" + strconv.Itoa(i+1)
+				expectedName := "replacement_name" + strconv.Itoa(i+1)
+				if m[generatedName] != expectedName {
+					t.Error("expected", expectedName, "got", m[generatedName], "for", generatedName)
+				}
+			}
+			// check for non-entries
+			if _, ok := m["not in there"]; ok {
+				t.Error("expected not in there, got", m["not in there"])
+			}
+		})
+	}
+	t.Run("check_map", func(t *testing.T) {
+		// setup the temp file name
+		dir := t.TempDir()
+		origName := apmServiceNameFilePath
+		apmServiceNameFilePath = dir + "/" + "check_map"
+		t.Cleanup(func() {
+			apmServiceNameFilePath = origName
+		})
+
+		// write the file
+		tec := tracingEnabledConfig{
+			ServiceEnvConfigs: []serviceEnvConfig{
+				{
+					ProvidedService: "p1",
+					Service:         "s1",
+				},
+				{
+					ProvidedService: "p2",
+					Service:         "s2",
+				},
+				{
+					Service: "nope",
+				},
+			},
+		}
+		err := writeServiceNameConfig(tec)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// read the file
+		f, err := os.ReadFile(apmServiceNameFilePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		m := map[string]string{}
+		err = yamlv2.Unmarshal(f, &m)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		assert.Equal(t, m, map[string]string{
+			"s2": "p2",
+			"s1": "p1",
+		})
 	})
 }
