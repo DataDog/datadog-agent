@@ -121,7 +121,7 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 		StartTime: processStartTime.UnixNano(),
 	}
 
-	log.Infof("Got process start %d ", p.Pid)
+	var tagsFoundInEnvironment bool
 	envs := model.FilterEnvs(ev.GetProcessEnvp(), envFilter)
 	if len(envs) > 0 {
 		p.Tags = make([]*intern.Value, 0, len(envs))
@@ -130,8 +130,15 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 			if len(v) > 0 {
 				if t := envTagNames[k]; t != "" {
 					p.Tags = append(p.Tags, intern.GetByString(t+":"+v))
+					tagsFoundInEnvironment = true
 				}
 			}
+		}
+	}
+	if !tagsFoundInEnvironment {
+		apmTags := getAPMTags(ev.GetExecFilePath())
+		if len(apmTags) > 0 {
+			p.Tags = append(p.Tags, apmTags...)
 		}
 	}
 

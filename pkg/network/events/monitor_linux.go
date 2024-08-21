@@ -9,6 +9,8 @@ package events
 import (
 	"time"
 
+	"go4.org/intern"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -20,4 +22,8 @@ func getProcessStartTime(ev *model.Event) time.Time {
 		return ev.GetProcessForkTime()
 	}
 	return time.Time{}
+}
+
+func getAPMTags(filename string) []*intern.Value {
+	return nil	
 }
