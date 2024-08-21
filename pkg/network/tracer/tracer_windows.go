@@ -64,12 +64,6 @@ type Tracer struct {
 	hStopClosedLoopEvent windows.Handle
 
 	processCache *processCache
-<<<<<<< HEAD
-=======
-
-	//timeResolver *timeresolver.Resolver
-
->>>>>>> 4a10749ca8 (undo process consumer; that was the wrong consumer.)
 }
 
 // NewTracer returns an initialized tracer struct
@@ -334,11 +328,6 @@ func newUSMMonitor(c *config.Config, dh driver.Handle) usm.Monitor {
 	return monitor
 }
 
-<<<<<<< HEAD
-=======
-
-
->>>>>>> 4a10749ca8 (undo process consumer; that was the wrong consumer.)
 func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	if t.processCache == nil {
 		return
@@ -362,8 +351,4 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	if p.ContainerID != nil {
 		c.ContainerID.Source = p.ContainerID
 	}
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 4a10749ca8 (undo process consumer; that was the wrong consumer.)

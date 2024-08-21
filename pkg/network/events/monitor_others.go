@@ -8,7 +8,15 @@
 // Package events handles process events
 package events
 
+import (
+	"go4.org/intern"
+)
+
 // Initialized returns true if Init() has been called successfully
 func Initialized() bool {
 	return false
+}
+
+func getAPMTags(filename string) []*intern.Value {
+	return nil	
 }
