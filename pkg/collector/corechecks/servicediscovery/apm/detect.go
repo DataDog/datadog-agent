@@ -9,7 +9,7 @@
 package apm
 
 import (
-	"bytes"
+	"bufio"
 	"errors"
 	"io"
 	"os"
@@ -82,20 +82,14 @@ func isInjected(envs map[string]string) bool {
 	return false
 }
 
-func getMaps(pid int) ([]byte, error) {
-	mapsPath := kernel.HostProc(strconv.Itoa(pid), "maps")
-	bytes, err := os.ReadFile(mapsPath)
-	if err != nil {
-		return nil, err
-	}
+func pythonDetectorFromMapsReader(reader io.Reader) Instrumentation {
+	scanner := bufio.NewScanner(bufio.NewReader(reader))
+	for scanner.Scan() {
+		line := scanner.Text()
 
-	return bytes, nil
-}
-
-func pythonDetectorFromMaps(maps []byte) Instrumentation {
-	idx := bytes.Index(maps, []byte("/ddtrace/"))
-	if idx != -1 {
-		return Provided
+		if strings.Contains(line, "/ddtrace/") {
+			return Provided
+		}
 	}
 
 	return None
@@ -113,12 +107,14 @@ func pythonDetectorFromMaps(maps []byte) Instrumentation {
 // 7aef453fc000-7aef453ff000 rw-p 0004c000 fc:06 7895473  /home/foo/.local/lib/python3.10/site-packages/ddtrace/internal/_encoding.cpython-310-x86_64-linux-gnu.so
 // 7aef45400000-7aef45459000 r--p 00000000 fc:06 7895588  /home/foo/.local/lib/python3.10/site-packages/ddtrace/internal/datadog/profiling/libdd_wrapper.so
 func pythonDetector(pid int, _ []string, _ map[string]string) Instrumentation {
-	maps, err := getMaps(pid)
+	mapsPath := kernel.HostProc(strconv.Itoa(pid), "maps")
+	mapsFile, err := os.Open(mapsPath)
 	if err != nil {
 		return None
 	}
+	defer mapsFile.Close()
 
-	return pythonDetectorFromMaps(maps)
+	return pythonDetectorFromMapsReader(mapsFile)
 }
 
 func nodeDetector(_ int, _ []string, envs map[string]string) Instrumentation {

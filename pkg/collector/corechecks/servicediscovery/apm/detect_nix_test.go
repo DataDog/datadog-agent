@@ -96,35 +96,35 @@ func Test_javaDetector(t *testing.T) {
 func Test_pythonDetector(t *testing.T) {
 	data := []struct {
 		name   string
-		maps   []byte
+		maps   string
 		result Instrumentation
 	}{
 		{
-			name:   "empty in maps",
-			maps:   []byte(""),
+			name:   "empty maps",
+			maps:   "",
 			result: None,
 		},
 		{
 			name: "not in maps",
-			maps: []byte(`
+			maps: `
 79f6cd47d000-79f6cd47f000 r--p 00000000 fc:04 793163                     /usr/lib/python3.10/lib-dynload/_bz2.cpython-310-x86_64-linux-gnu.so
 79f6cd479000-79f6cd47a000 r-xp 00001000 fc:06 5507018                    /home/foo/.local/lib/python3.10/site-packages/ddtrace_fake/md.cpython-310-x86_64-linux-gnu.so
-			`),
+			`,
 			result: None,
 		},
 		{
 			name: "in maps",
-			maps: []byte(`
+			maps: `
 79f6cd47d000-79f6cd47f000 r--p 00000000 fc:04 793163                     /usr/lib/python3.10/lib-dynload/_bz2.cpython-310-x86_64-linux-gnu.so
 79f6cd482000-79f6cd484000 r--p 00005000 fc:04 793163                     /usr/lib/python3.10/lib-dynload/_bz2.cpython-310-x86_64-linux-gnu.so
 79f6cd438000-79f6cd441000 r-xp 00004000 fc:06 7895596                    /home/foo/.local/lib/python3.10/site-packages-internal/ddtrace/internal/datadog/profiling/crashtracker/_crashtracker.cpython-310-x86_64-linux-gnu.so
-			`),
+			`,
 			result: Provided,
 		},
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := pythonDetectorFromMaps(d.maps)
+			result := pythonDetectorFromMapsReader(strings.NewReader(d.maps))
 			assert.Equal(t, d.result, result)
 		})
 	}
