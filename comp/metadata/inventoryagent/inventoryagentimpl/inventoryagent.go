@@ -241,7 +241,7 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	ia.data["feature_csm_vm_containers_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("container_image.enabled") && ia.conf.GetBool("sbom.container_image.enabled")
 	ia.data["feature_csm_vm_hosts_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("sbom.host.enabled")
 
-	ia.data["fleet_policies_applied"] = ia.conf.GetStringSlice("__fleet_layers")
+	ia.data["fleet_policies_applied"] = ia.conf.GetStringSlice("fleet_layers")
 
 	// ECS Fargate
 	ia.fetchECSFargateAgentMetadata()

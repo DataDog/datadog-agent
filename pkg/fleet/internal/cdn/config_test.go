@@ -36,7 +36,7 @@ func TestConfig(t *testing.T) {
 	serializedConfig, err := config.Marshal()
 	assert.NoError(t, err)
 	exprectedConfig := doNotEditDisclaimer + `
-__fleet_layers:
+fleet_layers:
 - base
 - override
 api_key: "1234"
