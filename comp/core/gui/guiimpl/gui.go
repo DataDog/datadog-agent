@@ -173,7 +173,7 @@ func (g *gui) start(_ context.Context) error {
 		return nil
 	}
 	go http.Serve(g.listener, g.router) //nolint:errcheck
-	g.logger.Infof("GUI server is listening at " + g.address)
+	g.logger.Info("GUI server is listening at " + g.address)
 	return nil
 }
 
