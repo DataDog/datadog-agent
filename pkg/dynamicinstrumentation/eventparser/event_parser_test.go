@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/di/ditypes"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 )
 
 func TestCountBufferUsedByTypeDefinition(t *testing.T) {

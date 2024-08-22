@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/DataDog/datadog-agent/pkg/di/ditypes"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 )
 
 // parseStackTrace parses a raw byte array into 10 uint64 program counters

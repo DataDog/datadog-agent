@@ -5,7 +5,7 @@
 package eventparser
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/di/ditypes"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 )
 
 type paramStack struct {

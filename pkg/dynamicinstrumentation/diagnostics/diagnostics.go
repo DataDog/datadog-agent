@@ -7,7 +7,7 @@ package diagnostics
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/di/ditypes"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 )
 
 func newDIDiagnostic(service, runtimeID, probeID string, status ditypes.Status) *ditypes.DiagnosticUpload {

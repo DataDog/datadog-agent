@@ -10,13 +10,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/di/codegen"
-	"github.com/DataDog/datadog-agent/pkg/di/diagnostics"
-	"github.com/DataDog/datadog-agent/pkg/di/ditypes"
-	"github.com/DataDog/datadog-agent/pkg/di/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/di/eventparser"
-	"github.com/DataDog/datadog-agent/pkg/di/proctracker"
-	"github.com/DataDog/datadog-agent/pkg/di/ratelimiter"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/codegen"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diagnostics"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/eventparser"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/proctracker"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ratelimiter"
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/google/uuid"
 )

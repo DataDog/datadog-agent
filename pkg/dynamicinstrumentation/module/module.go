@@ -19,7 +19,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	di "github.com/DataDog/datadog-agent/pkg/di"
+	di "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation"
 )
 
 type Module struct {
