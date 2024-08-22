@@ -23,8 +23,11 @@ BPF_HASH_MAP(tcp_stats, conn_tuple_t, tcp_stats_t, 0)
 */
 BPF_HASH_MAP(tcp_retransmits, conn_tuple_t, __u32, 0)
 
-/* Will hold the PIDs initiating TCP connections */
+/* Will hold the PIDs initiating TCP connections keyed by PIDless tuples */
 BPF_HASH_MAP(tcp_ongoing_connect_pid, conn_tuple_t, __u64, 8192)
+
+/* Will hold the PIDs initiating TCP connections for telemetry purposes */
+BPF_HASH_MAP(tcp_failed_connect_telemetry, struct sock *, __u64, 1024)
 
 /* Will hold a flag to indicate that closed connections have already been flushed */
 BPF_HASH_MAP(conn_close_flushed, conn_tuple_t, __u64, 8192)
