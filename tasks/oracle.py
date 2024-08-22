@@ -30,6 +30,7 @@ def test(ctx, verbose=False) -> None:
         print()
         if not healthy:
             ctx.run("docker inspect --format \"{{json .State.Health }}\" compose-oracle-1 | jq")
+            ctx.run("docker logs compose-oracle-1")
             raise Exit(message='docker failed to start', code=1)
 
     try:

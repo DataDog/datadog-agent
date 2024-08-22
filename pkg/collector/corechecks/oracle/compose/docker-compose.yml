@@ -9,7 +9,7 @@ services:
       interval: 5s
       start_period: 15s
       timeout: 5s
-      retries: 12
+      retries: 24
     volumes:
       - ./initdb.d:/docker-entrypoint-initdb.d/startup
     environment:
