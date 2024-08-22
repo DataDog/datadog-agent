@@ -9,9 +9,8 @@ package strategy
 import (
 	"bytes"
 
-	"github.com/DataDog/zstd"
-
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	"github.com/DataDog/zstd"
 )
 
 // ZstdStrategy is the strategy for when serializer_compressor_kind is zstd
