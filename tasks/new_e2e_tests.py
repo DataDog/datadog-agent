@@ -311,7 +311,7 @@ def _destroy_stack(ctx: Context, stack: str):
                 env=_get_default_env(),
             )
         if ret is not None and ret.exited != 0:
-            raise Exit(color_message(f"Failed to destroy stack {stack}: {ret.stdout}", "red"), 1)
+            raise Exit(color_message(f"Failed to destroy stack {stack}: {ret.stdout, ret.stderr}", "red"), 1)
 
 
 def _remove_stack(ctx: Context, stack: str):

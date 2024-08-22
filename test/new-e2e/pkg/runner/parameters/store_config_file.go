@@ -132,10 +132,6 @@ func (s configFileValueStore) get(key StoreKey) (string, error) {
 		value = s.config.ConfigParams.AWS.PrivateKeyPassword
 	case StackParameters:
 		value = s.stackParamsJSON
-	case Environments:
-		if s.config.ConfigParams.AWS.Account != "" {
-			value = "aws/" + s.config.ConfigParams.AWS.Account
-		}
 	case ExtraResourcesTags:
 		if s.config.ConfigParams.AWS.TeamTag != "" {
 			value = "team:" + s.config.ConfigParams.AWS.TeamTag

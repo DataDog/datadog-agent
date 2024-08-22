@@ -9,9 +9,11 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	commonconfig "github.com/DataDog/test-infra-definitions/common/config"
 	infraaws "github.com/DataDog/test-infra-definitions/resources/aws"
+	infraazure "github.com/DataDog/test-infra-definitions/resources/azure"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 )
@@ -40,6 +42,13 @@ const (
 	AWSPrivateKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultPrivateKeyPath
 	// AWSPrivateKeyPassword pulumi config paramater name
 	AWSPrivateKeyPassword = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultPrivateKeyPassword
+
+	// AzurePublicKeyPath pulumi config paramater name
+	AzurePublicKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infraazure.DDInfraDefaultPublicKeyPath
+	// AzurePrivateKeyPath pulumi config paramater name
+	AzurePrivateKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infraazure.DDInfraDefaultPrivateKeyPath
+	// AzurePrivateKeyPassword pulumi config paramater name
+	AzurePrivateKeyPassword = commonconfig.DDInfraConfigNamespace + ":" + infraazure.DDInfraDefaultPrivateKeyPassword
 )
 
 // ConfigMap type alias to auto.ConfigMap
@@ -107,10 +116,19 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 	if err != nil {
 		return nil, err
 	}
+	err = SetConfigMapFromParameter(profile.ParamStore(), cm, parameters.PublicKeyPath, AzurePublicKeyPath)
+	if err != nil {
+		return nil, err
+	}
 	err = SetConfigMapFromParameter(profile.ParamStore(), cm, parameters.PrivateKeyPath, AWSPrivateKeyPath)
 	if err != nil {
 		return nil, err
 	}
+	err = SetConfigMapFromParameter(profile.ParamStore(), cm, parameters.PrivateKeyPath, AzurePrivateKeyPath)
+	if err != nil {
+		return nil, err
+	}
+
 	err = SetConfigMapFromParameter(profile.ParamStore(), cm, parameters.ExtraResourcesTags, InfraExtraResourcesTags)
 	if err != nil {
 		return nil, err
@@ -134,6 +152,10 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 		return nil, err
 	}
 	err = SetConfigMapFromSecret(profile.SecretStore(), cm, parameters.PrivateKeyPassword, AWSPrivateKeyPassword)
+	if err != nil {
+		return nil, err
+	}
+	err = SetConfigMapFromSecret(profile.SecretStore(), cm, parameters.PrivateKeyPassword, AzurePrivateKeyPassword)
 	if err != nil {
 		return nil, err
 	}

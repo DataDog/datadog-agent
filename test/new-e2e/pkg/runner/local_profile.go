@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	defaultLocalEnvironments string = "aws/agent-sandbox"
+	defaultLocalEnvironments string = "aws/agent-sandbox az/agent-sandbox"
 )
 
 // NewLocalProfile creates a new local profile
@@ -41,6 +41,7 @@ func NewLocalProfile() (Profile, error) {
 	}
 	// inject default params
 	environments, err := store.GetWithDefault(parameters.Environments, defaultLocalEnvironments)
+	fmt.Println("ENVIRO", environments)
 	if err != nil {
 		return nil, err
 	}
