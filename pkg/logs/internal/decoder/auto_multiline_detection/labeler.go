@@ -61,3 +61,16 @@ func (l *Labeler) Label(rawMessage []byte) Label {
 	}
 	return context.label
 }
+
+func labelToString(label Label) string {
+	switch label {
+	case startGroup:
+		return "start_group"
+	case noAggregate:
+		return "no_aggregate"
+	case aggregate:
+		return "aggregate"
+	default:
+		return ""
+	}
+}

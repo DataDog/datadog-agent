@@ -8,6 +8,7 @@ package automultilinedetection
 
 import (
 	"bytes"
+	"math"
 	"strings"
 	"unicode"
 
@@ -318,20 +319,31 @@ func tokensToString(tokens []tokens.Token) string {
 	return str
 }
 
-// isMatch compares two sequences of tokens and returns true if they match.
-// if the token strings are different lengths, the shortest string is used for comparison.
+// isMatch compares two sequences of tokens and returns true if they match within the
+// given threshold. if the token strings are different lengths, the shortest string is
+// used for comparison. This function is optimized to exit early if the match is impossible
+// without having to compare all of the tokens.
 func isMatch(seqA []tokens.Token, seqB []tokens.Token, thresh float64) bool {
 	count := len(seqA)
 	if len(seqB) < count {
 		count = len(seqB)
 	}
 
+	if count == 0 {
+		return len(seqA) == len(seqB)
+	}
+
+	requiredMatches := int(math.Round(thresh * float64(count)))
 	match := 0
+
 	for i := 0; i < count; i++ {
 		if seqA[i] == seqB[i] {
 			match++
 		}
+		if match+(count-i-1) < requiredMatches {
+			return false
+		}
 	}
 
-	return float64(match)/float64(count) >= thresh
+	return match >= requiredMatches
 }

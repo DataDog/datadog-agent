@@ -101,3 +101,37 @@ func TestTokenizerHeuristic(t *testing.T) {
 	assert.Equal(t, "DDDZONE", tokensToString(msg.tokens))
 	assert.Equal(t, []int{0, 3}, msg.tokenIndicies)
 }
+
+func TestIsMatch(t *testing.T) {
+	tokenizer := NewTokenizer(0)
+	// A string of 10 tokens to make math easier.
+	ta, _ := tokenizer.tokenize([]byte("! @ # $ %"))
+	tb, _ := tokenizer.tokenize([]byte("! @ # $ %"))
+
+	assert.True(t, isMatch(ta, tb, 1))
+
+	ta, _ = tokenizer.tokenize([]byte("! @ # $ % "))
+	tb, _ = tokenizer.tokenize([]byte("! @ #1a1a1"))
+
+	assert.True(t, isMatch(ta, tb, 0.5))
+	assert.False(t, isMatch(ta, tb, 0.55))
+
+	ta, _ = tokenizer.tokenize([]byte("! @ # $ % "))
+	tb, _ = tokenizer.tokenize([]byte("#1a1a1$ $ "))
+
+	assert.False(t, isMatch(ta, tb, 0.5))
+	assert.True(t, isMatch(ta, tb, 0.3))
+
+	ta, _ = tokenizer.tokenize([]byte("! @ # $ % "))
+	tb, _ = tokenizer.tokenize([]byte(""))
+
+	assert.False(t, isMatch(ta, tb, 0.5))
+	assert.False(t, isMatch(ta, tb, 0))
+	assert.False(t, isMatch(ta, tb, 1))
+
+	ta, _ = tokenizer.tokenize([]byte("! @ # $ % "))
+	tb, _ = tokenizer.tokenize([]byte("!"))
+
+	assert.True(t, isMatch(ta, tb, 1))
+	assert.True(t, isMatch(ta, tb, 0.01))
+}
