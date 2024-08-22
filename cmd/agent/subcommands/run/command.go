@@ -336,6 +336,7 @@ func getSharedFxOption() fx.Option {
 			path.DefaultDogstatsDLogFile,
 			path.DefaultStreamlogsLogFile,
 		)),
+		core.Bundle(),
 		lsof.Module(),
 		fx.Supply(dogstatsdServer.Params{
 			Serverless: false,
