@@ -7,6 +7,7 @@ from invoke.exceptions import Exit
 
 @task
 def test(ctx, verbose=False) -> None:
+    print(os.environ)
     with ctx.cd("pkg/collector/corechecks/oracle/compose"):
         print("Launching docker...")
         ctx.run("docker compose down", hide=not verbose)
