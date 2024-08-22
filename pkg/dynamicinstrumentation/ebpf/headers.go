@@ -6,7 +6,6 @@ package ebpf
 
 import (
 	"embed"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 )
@@ -34,7 +33,7 @@ func loadHeadersToTmpfs(directory string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		err = ioutil.WriteFile(filepath.Join(tmpHeaderDir, entry.Name()), content, 0644)
+		err = os.WriteFile(filepath.Join(tmpHeaderDir, entry.Name()), content, 0644)
 		if err != nil {
 			return "", err
 		}

@@ -44,11 +44,14 @@ type rcConfig struct {
 
 type configUpdateCallback func(*ditypes.ProcessInfo, *ditypes.Probe)
 
+// ConfigManager is a facility to track probe configurations for
+// instrumenting tracked processes
 type ConfigManager interface {
 	GetProcInfos() ditypes.DIProcs
 	Stop()
 }
 
+// RCConfigManager is the configuration manager which utilizes remote-config
 type RCConfigManager struct {
 	procTracker *proctracker.ProcessTracker
 
@@ -56,6 +59,7 @@ type RCConfigManager struct {
 	callback configUpdateCallback
 }
 
+// NewRCConfigManager creates a new configuration manager which utilizes remote-config
 func NewRCConfigManager() (*RCConfigManager, error) {
 	log.Info("Creating new RC config manager")
 	cm := &RCConfigManager{
@@ -65,16 +69,18 @@ func NewRCConfigManager() (*RCConfigManager, error) {
 	cm.procTracker = proctracker.NewProcessTracker(cm.updateProcesses)
 	err := cm.procTracker.Start()
 	if err != nil {
-		return nil, fmt.Errorf("could not start proccess tracker: %w", err)
+		return nil, fmt.Errorf("could not start process tracker: %w", err)
 	}
 	cm.diProcs = ditypes.NewDIProcs()
 	return cm, nil
 }
 
+// GetProcInfos returns the state of the RCConfigManager
 func (cm *RCConfigManager) GetProcInfos() ditypes.DIProcs {
 	return cm.diProcs
 }
 
+// Stop closes the config and proc trackers used by the RCConfigManager
 func (cm *RCConfigManager) Stop() {
 	cm.procTracker.Stop()
 	for _, procInfo := range cm.GetProcInfos() {

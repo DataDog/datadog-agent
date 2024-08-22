@@ -2,7 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-package di
+
+package dynamicinstrumentation
 
 import (
 	"encoding/json"
@@ -17,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/uploader"
 )
 
+// GoDI is the central controller representation of the Dynamic Instrumentation
+// implementation for Go services
 type GoDI struct {
 	cm diconfig.ConfigManager
 
@@ -29,6 +32,8 @@ type GoDI struct {
 	stats GoDIStats
 }
 
+// GoDIStats is used to track various metrics relevant to the health of the
+// Dynamic Instrumentation process
 type GoDIStats struct {
 	PIDEventsCreatedCount   map[uint32]uint64 // pid : count
 	ProbeEventsCreatedCount map[string]uint64 // probeID : count
@@ -41,6 +46,7 @@ func newGoDIStats() GoDIStats {
 	}
 }
 
+// DIOptions is used to configure the running Dynamic Instrumentation process
 type DIOptions struct {
 	Offline bool
 
@@ -51,6 +57,7 @@ type DIOptions struct {
 	ditypes.EventCallback
 }
 
+// RunDyn
 func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 	var goDI *GoDI
 

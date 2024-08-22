@@ -7,7 +7,7 @@ package ratelimiter
 import (
 	"testing"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRateLimit(t *testing.T) {
