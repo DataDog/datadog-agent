@@ -188,7 +188,10 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Provide the corresponding tagger Params to configure the tagger
 		fx.Provide(func(c config.Component) tagger.Params {
-			if c.GetBool("process_config.remote_tagger") {
+			if c.GetBool("process_config.remote_tagger") ||
+				// If the agent is running in ECS or ECS Fargate and the ECS task collection is enabled, use the remote tagger
+				// as remote tagger can return more tags than the local tagger.
+				((ddconfig.IsECS() || ddconfig.IsECSFargate()) && c.GetBool("ecs_task_collection_enabled")) {
 				return tagger.NewNodeRemoteTaggerParams()
 			}
 			return tagger.NewTaggerParams()
