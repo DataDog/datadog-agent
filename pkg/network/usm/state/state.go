@@ -6,26 +6,38 @@
 // Package state provides the state of the USM monitor.
 package state
 
+import (
+	"go.uber.org/atomic"
+)
+
 // MonitorState represents the state of the USM monitor.
 type MonitorState = string
 
 const (
-	Disabled   MonitorState = "Disabled"
-	Running    MonitorState = "Running"
+	// Disabled represents the state of the USM monitor when it is disabled.
+	Disabled MonitorState = "Disabled"
+	// Running represents the state of the USM monitor when it is running.
+	Running MonitorState = "Running"
+	// NotRunning represents the state of the USM monitor when it is not running.
 	NotRunning MonitorState = "Not running"
-	Stopped    MonitorState = "Stopped"
+	// Stopped represents the state of the USM monitor when it is stopped.
+	Stopped MonitorState = "Stopped"
 )
 
 var (
-	State = Disabled
+	globalState = &atomic.Value{}
 )
+
+func init() {
+	Set(Disabled)
+}
 
 // Set sets the current state of the USM monitor.
 func Set(state MonitorState) {
-	State = state
+	globalState.Store(state)
 }
 
 // Get returns the current state of the USM monitor.
 func Get() MonitorState {
-	return State
+	return globalState.Load().(MonitorState)
 }
