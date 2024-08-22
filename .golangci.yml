@@ -632,6 +632,7 @@ linters-settings:
       - github.com/DataDog/datadog-agent/pkg/util/log.ErrorStackDepth
       - github.com/DataDog/datadog-agent/pkg/util/log.JMXError
       - (net/http.ResponseWriter).Write
+      - pkg/util/log.JMXError
   staticcheck:
     checks: ["all",
              "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022", # These ones are disabled by default on staticcheck
