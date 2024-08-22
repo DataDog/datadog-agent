@@ -1,9 +1,11 @@
 from time import sleep
+
 from invoke import task
 from invoke.exceptions import Exit
 
+
 @task
-def test(ctx, verbose = False) -> None:
+def test(ctx, verbose=False) -> None:
     with ctx.cd("pkg/collector/corechecks/oracle/compose"):
         print("Launching docker...")
         ctx.run("docker compose down", hide=not verbose)
@@ -14,9 +16,11 @@ def test(ctx, verbose = False) -> None:
         healthy = False
         attempts = 0
         while attempts < 30:
-            health_check = ctx.run("docker inspect --format \"{{json .State.Health.Status }}\" compose-oracle-1 | jq", hide=True)
+            health_check = ctx.run(
+                "docker inspect --format \"{{json .State.Health.Status }}\" compose-oracle-1 | jq", hide=True
+            )
             if health_check.stdout.strip() == '"starting"':
-                dots = ("." * (attempts%3 + 1)).ljust(3, " ")
+                dots = ("." * (attempts % 3 + 1)).ljust(3, " ")
                 print(f"Waiting for oracle to be ready{dots}", end="\r")
             elif health_check.stdout.strip() == '"healthy"':
                 healthy = True
@@ -33,11 +37,12 @@ def test(ctx, verbose = False) -> None:
             print("Running tests...")
             go_flags = " -v" if verbose else ""
             ctx.run(f"go test{go_flags} -tags \"test oracle oracle_test\" ./...")
-    finally:    
+    finally:
         clean(ctx, verbose)
 
+
 @task
-def clean(ctx, verbose = False) -> None:
+def clean(ctx, verbose=False) -> None:
     print("Cleaning up...")
     with ctx.cd("pkg/collector/corechecks/oracle/compose"):
         ctx.run("docker compose down", hide=not verbose)

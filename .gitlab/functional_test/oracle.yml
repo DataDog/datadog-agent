@@ -1,0 +1,9 @@
+oracle:
+  stage: functional_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:docker"]
+  needs: ["go_deps"]
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+  script:
+    - inv oracle.test
