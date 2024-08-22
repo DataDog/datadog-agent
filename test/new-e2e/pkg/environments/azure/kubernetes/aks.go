@@ -2,6 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
+// Package azurekubernetes contains the provisioner for Azure Kubernetes Service (AKS)
 package azurekubernetes
 
 import (
@@ -24,6 +26,7 @@ const (
 	provisionerBaseID = "azure-aks"
 )
 
+// AKSProvisioner creates a new provisioner for AKS on Azure
 func AKSProvisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Kubernetes] {
 	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 	// and it's easy to forget about it, leading to hard to debug issues.
@@ -45,6 +48,7 @@ func AKSProvisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments
 	return provisioner
 }
 
+// AKSRunFunc is the run function for AKS provisioner
 func AKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *ProvisionerParams) error {
 	azureEnv, err := azure.NewEnvironment(ctx)
 	if err != nil {

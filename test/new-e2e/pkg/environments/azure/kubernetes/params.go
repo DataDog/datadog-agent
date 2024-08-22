@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package awskubernetes contains the provisioner for the Kubernetes based environments
+// Package azurekubernetes contains the provisioner for the Kubernetes based environments
 package azurekubernetes
 
 import (

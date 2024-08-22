@@ -29,10 +29,6 @@ import (
 //     aws/someVariable: "ponyo"
 
 // Config instance contains ConfigParams and StackParams
-
-const defaultAzureAccount = "agent-sandbox"
-const defaultAwsAccount = "agent-sandbox"
-
 type Config struct {
 	ConfigParams ConfigParams                 `yaml:"configParams"`
 	StackParams  map[string]map[string]string `yaml:"stackParams"`
@@ -58,6 +54,7 @@ type AWS struct {
 	TeamTag            string `yaml:"teamTag"`
 }
 
+// Azure instance contains Azure related parameters
 type Azure struct {
 	Account            string `yaml:"account"`
 	PublicKeyPath      string `yaml:"publicKeyPath"`

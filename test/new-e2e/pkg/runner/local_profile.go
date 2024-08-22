@@ -42,11 +42,11 @@ func NewLocalProfile() (Profile, error) {
 	}
 	// inject default params
 	environments, err := store.GetWithDefault(parameters.Environments, "")
-	environments = defaultEnvironments(environments, defaultLocalEnvironments)
-	fmt.Println("ENVIRO", environments)
 	if err != nil {
 		return nil, err
 	}
+	environments = defaultEnvironments(environments, defaultLocalEnvironments)
+
 	outputDir := getLocalOutputDir()
 	return localProfile{baseProfile: newProfile("e2elocal", strings.Split(environments, " "), store, nil, outputDir)}, nil
 }
