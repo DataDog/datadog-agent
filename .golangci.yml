@@ -605,6 +605,7 @@ linters-settings:
 
   errcheck:
     exclude-functions:
+      - fmt.Sscanf
       - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).AddFile
       - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).AddFileFromFunc
       - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).AddFileWithoutScrubbing
@@ -620,8 +621,11 @@ linters-settings:
       - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).ChangeLogLevel
       - github.com/DataDog/datadog-agent/pkg/collector/corechecks.Warnf
       - github.com/DataDog/datadog-agent/pkg/util/log.Error
+      - github.com/DataDog/datadog-agent/pkg/util/log.Errorc
       - github.com/DataDog/datadog-agent/pkg/util/log.Errorf
+      - github.com/DataDog/datadog-agent/pkg/util/log.Critical
       - github.com/DataDog/datadog-agent/pkg/util/log.Warn
+      - github.com/DataDog/datadog-agent/pkg/util/log.Warnc
       - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
       - github.com/DataDog/datadog-agent/pkg/util/log.ChangeLogLevel
       - github.com/DataDog/datadog-agent/pkg/util/log.WarnStackDepth
