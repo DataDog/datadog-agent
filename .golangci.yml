@@ -607,6 +607,7 @@ linters-settings:
     exclude-functions:
       - (*github.com/DataDog/datadog-agent/pkg/collector/corechecks.CheckBase).Warn
       - (*github.com/DataDog/datadog-agent/pkg/collector/corechecks.CheckBase).Warnf
+      - (*github.com/lxn/walk.NotifyIcon).Dispose
       - (*golang.org/x/sys/windows/svc/mgr.Mgr).Disconnect
       - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).AddFile
       - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).AddFileFromFunc
@@ -642,7 +643,6 @@ linters-settings:
       - github.com/DataDog/datadog-agent/pkg/util/log.Warnc
       - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
       - github.com/DataDog/datadog-agent/pkg/util/log.WarnStackDepth
-      - github.com/lxn/walk.Dispose
       - golang.org/x/sys/windows.CloseHandle
       - golang.org/x/sys/windows.FreeLibrary
       - golang.org/x/sys/windows.FreeSid
