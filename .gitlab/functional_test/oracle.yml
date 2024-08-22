@@ -4,9 +4,12 @@ oracle:
   tags: ["runner:docker"]
   needs: ["go_deps"]
   before_script:
-    - apt-get update && apt-get install -y docker-compose-plugin && apt-get install -y golang-go
+    - apt-get update && apt-get install -y docker-compose-plugin curl
+    - curl -OL https://go.dev/dl/go1.22.6.linux-amd64.tar.gz
+    - tar -C /usr/local -xzf go1.22.6.linux-amd64.tar.gz
+    - export PATH=$PATH:/usr/local/go/bin
+    - go version
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
-    - which go
   script:
     - inv -e oracle.test
