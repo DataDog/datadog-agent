@@ -15,7 +15,7 @@ def test(ctx, verbose=False) -> None:
 
         healthy = False
         attempts = 0
-        while attempts < 30:
+        while attempts < 120:
             health_check = ctx.run(
                 "docker inspect --format \"{{json .State.Health.Status }}\" compose-oracle-1 | jq", hide=True
             )
