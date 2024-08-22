@@ -14,13 +14,12 @@ import (
 	"github.com/prometheus/procfs"
 	"github.com/shirou/gopsutil/v3/process"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
-
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
@@ -46,15 +45,13 @@ type serviceInfo struct {
 // discovery is an implementation of the Module interface for the discovery module.
 type discovery struct {
 	// cache maps pids to data that should be cached between calls to the endpoint.
-	cache           map[int32]*serviceInfo
-	serviceDetector servicediscovery.ServiceDetector
+	cache map[int32]*serviceInfo
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
 func NewDiscoveryModule(*sysconfigtypes.Config, optional.Option[workloadmeta.Component], telemetry.Component) (module.Module, error) {
 	return &discovery{
-		cache:           make(map[int32]*serviceInfo),
-		serviceDetector: *servicediscovery.NewServiceDetector(),
+		cache: make(map[int32]*serviceInfo),
 	}, nil
 }
 
@@ -215,9 +212,9 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 		return nil, err
 	}
 
-	name := s.serviceDetector.GetServiceName(cmdline, envs)
-	// Language passed as unknown for now to only detect injection.
-	apmInstrumentation := apm.Detect(cmdline, envs, language.Unknown)
+	name := servicediscovery.GetServiceName(cmdline, envs)
+	language := language.FindInArgs(cmdline)
+	apmInstrumentation := apm.Detect(int(proc.Pid), cmdline, envs, language)
 
 	return &serviceInfo{name: name, apmInstrumentation: apmInstrumentation}, nil
 }
