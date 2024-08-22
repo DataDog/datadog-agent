@@ -338,6 +338,27 @@ func readSocketInfo(procPIDPath string) map[uint64]socketInfo {
 	return si
 }
 
+func modeTypeToString(mode os.FileMode) string {
+	switch mode & os.ModeType {
+	case os.ModeSocket:
+		return "SOCKET"
+	case os.ModeNamedPipe:
+		return "PIPE"
+	case os.ModeDevice:
+		return "DEV"
+	case os.ModeDir:
+		return "DIR"
+	case os.ModeCharDevice:
+		return "CHAR"
+	case os.ModeSymlink:
+		return "LINK"
+	case os.ModeIrregular:
+		return "?"
+	default:
+		return "REG"
+	}
+}
+
 // fileStats returns the type, permission, size, and inode of a file
 func fileStats(statf func(string) (os.FileInfo, error), path string) (string, string, int64, uint64) {
 	stat, err := statf(path)
@@ -346,22 +367,7 @@ func fileStats(statf func(string) (os.FileInfo, error), path string) (string, st
 		return "", "", 0, 0
 	}
 
-	ty := "REG"
-	if stat.Mode()&os.ModeSocket != 0 {
-		ty = "SOCKET"
-	} else if stat.Mode()&os.ModeNamedPipe != 0 {
-		ty = "PIPE"
-	} else if stat.Mode()&os.ModeDevice != 0 {
-		ty = "DEV"
-	} else if stat.Mode()&os.ModeDir != 0 {
-		ty = "DIR"
-	} else if stat.Mode()&os.ModeCharDevice != 0 {
-		ty = "CHAR"
-	} else if stat.Mode()&os.ModeSymlink != 0 {
-		ty = "LINK"
-	} else if stat.Mode()&os.ModeIrregular != 0 {
-		ty = "?"
-	}
+	ty := modeTypeToString(stat.Mode())
 
 	size := stat.Size()
 	perm := stat.Mode().Perm().String()

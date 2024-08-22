@@ -505,6 +505,29 @@ func (m *mockFileInfo) Sys() any {
 	return m.sys
 }
 
+func TestModeTypeToString(t *testing.T) {
+	testCases := []struct {
+		mode     os.FileMode
+		expected string
+	}{
+		{os.ModeSocket, "SOCKET"},
+		{os.ModeNamedPipe | os.ModeAppend, "PIPE"},
+		{os.ModeDevice | os.ModeSetgid, "DEV"},
+		{os.ModeDir | os.ModeSetuid, "DIR"},
+		{os.ModeCharDevice | os.ModeExclusive, "CHAR"},
+		{os.ModeSymlink | os.ModeSticky, "LINK"},
+		{os.ModeIrregular, "?"},
+		{0, "REG"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.expected, func(t *testing.T) {
+			res := modeTypeToString(tc.mode)
+			assert.Equal(t, tc.expected, res)
+		})
+	}
+}
+
 func TestFileStats(t *testing.T) {
 	testCases := []struct {
 		name     string
@@ -529,38 +552,6 @@ func TestFileStats(t *testing.T) {
 			0600,
 			0,
 			123456789,
-		},
-		{
-			"pipe",
-			os.ModeNamedPipe,
-			"PIPE",
-			0220,
-			0,
-			67890,
-		},
-		{
-			"device",
-			os.ModeDevice,
-			"DEV",
-			0400,
-			0,
-			78901,
-		},
-		{
-			"dir",
-			os.ModeDir,
-			"DIR",
-			0,
-			0,
-			42,
-		},
-		{
-			"character device",
-			os.ModeCharDevice,
-			"CHAR",
-			0404,
-			0,
-			666,
 		},
 		{
 			"symlink",
