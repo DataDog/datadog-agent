@@ -18,6 +18,7 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	grpcClient "github.com/DataDog/datadog-agent/comp/core/grpcClient/def"
@@ -39,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	remoteAdScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/remoteAd"
 	"github.com/DataDog/datadog-agent/pkg/logs/sds"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -198,8 +200,8 @@ func (a *logAgent) start(context.Context) error {
 		return err
 	}
 
-	a.startPipeline()
-	a.log.Info("logs-agent started")
+	remoteAdScheduler := remoteAdScheduler.New()
+	configsChannel := make(chan []integration.Config)
 
 	// Start a stream using the grpc Client to consume autodiscovery updates for the different configurations
 	go func() {
@@ -212,7 +214,7 @@ func (a *logAgent) start(context.Context) error {
 				}
 			}
 
-			configs, err := a.autodiscoveryStream.Recv()
+			streamConfigs, err := a.autodiscoveryStream.Recv()
 
 			if err != nil {
 				a.autodiscoveryStreamCancel()
@@ -226,15 +228,78 @@ func (a *logAgent) start(context.Context) error {
 				continue
 			}
 
-			fmt.Println(configs)
+			configs := []integration.Config{}
+
+			for _, config := range streamConfigs.Configs {
+				configs = append(configs, autodiscoveryConfigFromprotobufConfig(config))
+			}
+
+			configsChannel <- configs
 		}
 	}()
+
+	a.AddScheduler(remoteAdScheduler)
 
 	for _, scheduler := range a.schedulerProviders {
 		a.AddScheduler(scheduler)
 	}
 
+	a.startPipeline()
+
+	a.log.Info("logs-agent started")
+
+	go func() {
+		for {
+			select {
+			case configs := <-configsChannel:
+				remoteAdScheduler.Schedule(configs)
+			default:
+			}
+		}
+	}()
+
 	return nil
+}
+
+func autodiscoveryConfigFromprotobufConfig(config *core.Config) integration.Config {
+	instances := []integration.Data{}
+
+	for _, instance := range config.Instances {
+		instances = append(instances, integration.Data(instance))
+	}
+
+	advancedAdIdentifiers := make([]integration.AdvancedADIdentifier, 0, len(config.AdvancedAdIdentifiers))
+	for _, advancedAdIdentifier := range config.AdvancedAdIdentifiers {
+		advancedAdIdentifiers = append(advancedAdIdentifiers, integration.AdvancedADIdentifier{
+			KubeService: integration.KubeNamespacedName{
+				Name:      advancedAdIdentifier.KubeService.Name,
+				Namespace: advancedAdIdentifier.KubeService.Namespace,
+			},
+			KubeEndpoints: integration.KubeNamespacedName{
+				Name:      advancedAdIdentifier.KubeEndpoints.Name,
+				Namespace: advancedAdIdentifier.KubeEndpoints.Namespace,
+			},
+		})
+	}
+
+	return integration.Config{
+		Name:                    config.Name,
+		Instances:               instances,
+		InitConfig:              config.InitConfig,
+		MetricConfig:            config.MetricConfig,
+		LogsConfig:              config.LogsConfig,
+		ADIdentifiers:           config.AdIdentifiers,
+		AdvancedADIdentifiers:   advancedAdIdentifiers,
+		Provider:                config.Provider,
+		ServiceID:               config.ServiceId,
+		TaggerEntity:            config.TaggerEntity,
+		ClusterCheck:            config.ClusterCheck,
+		NodeName:                config.NodeName,
+		Source:                  config.Source,
+		IgnoreAutodiscoveryTags: config.IgnoreAutodiscoveryTags,
+		MetricsExcluded:         config.MetricsExcluded,
+		LogsExcluded:            config.LogsExcluded,
+	}
 }
 
 func (a *logAgent) initStream() error {
