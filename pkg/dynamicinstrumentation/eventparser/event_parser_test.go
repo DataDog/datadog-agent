@@ -122,7 +122,7 @@ func TestReadParams(t *testing.T) {
 	tests := []struct {
 		name           string
 		inputBuffer    []byte
-		expectedResult []ditypes.Param
+		expectedResult []*ditypes.Param
 	}{
 		{
 			name: "Basic slice of structs",
@@ -143,7 +143,7 @@ func TestReadParams(t *testing.T) {
 				0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 				0, 0, 0, 0,
 			},
-			expectedResult: []ditypes.Param{{
+			expectedResult: []*ditypes.Param{{
 				Type: "slice", Size: 0x2, Kind: 0x17,
 				Fields: []*ditypes.Param{
 					{Type: "struct", Size: 0x3, Kind: 0x19, Fields: []*ditypes.Param{
@@ -165,8 +165,8 @@ func TestReadParams(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			output := readParams(tt.inputBuffer)
 			if !reflect.DeepEqual(output, tt.expectedResult) {
-				fmt.Printf("%v\n", output)
-				fmt.Printf("%v\n", tt.expectedResult)
+				fmt.Printf("Got: %v\n", output)
+				fmt.Printf("Expected: %v\n", tt.expectedResult)
 				t.Errorf("Didn't read correctly!")
 			}
 		})
@@ -182,12 +182,19 @@ func TestParseTypeDefinition(t *testing.T) {
 			name: "Slice of structs with uint8 and uint16 fields",
 			inputBuffer: []byte{
 				23, 2, 0, // Slice with 2 elements
+
 				25, 3, 0, // Slice elements are each a struct with 3 fields
+
 				8, 1, 0, // Struct field 1 is a uint8 (size 1)
 				9, 2, 0, // Struct field 2 is a uint16 (size 2)
 				8, 1, 0, // Struct field 3 is a uint8 (size 1)
-				1, 2, 0, 3, // Content of slice element 1 (not relevant for this function)
-				4, 5, 0, 6, // Content of slice element 2 (not relevant for this function)
+
+				25, 3, 0, // Slice elements are each a struct with 3 fields
+
+				8, 1, 0, // Struct field 1 is a uint8 (size 1)
+				9, 2, 0, // Struct field 2 is a uint16 (size 2)
+				8, 1, 0, // Struct field 3 is a uint8 (size 1)
+
 				// Padding
 				0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 			},
@@ -224,8 +231,18 @@ func TestParseTypeDefinition(t *testing.T) {
 				25, 2, 0, // Struct field 4 is a struct with 2 fields
 				8, 1, 0, // Nested struct field 1 is a uint8 (size 1)
 				8, 1, 0, // Nested struct field 2 is a uint8 (size 1)
+				25, 4, 0, // Slice elements are each a struct with 2 fields
+				8, 1, 0, // Struct field 1 is a uint8 (size 1)
+				8, 1, 0, // Struct field 2 is a uint8 (size 1)
+				8, 1, 0, // Struct field 3 is a uint8 (size 1)
+				25, 2, 0, // Struct field 4 is a struct with 2 fields
+				8, 1, 0, // Nested struct field 1 is a uint8 (size 1)
+				8, 1, 0, // Nested struct field 2 is a uint8 (size 1)
 				1, 2, 3, // Content of slice element 1 (top-level uint8, then 2 second tier uint8s)
 				4, 5, 6, // Content of slice element 2 (top-level uint8, then 2 second tier uint8s)
+				// Padding
+				0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+				0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 			},
 			expectedResult: &ditypes.Param{
 				Type: "slice", Size: 0x2, Kind: 0x17,
