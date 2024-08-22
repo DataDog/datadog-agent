@@ -605,7 +605,6 @@ linters-settings:
 
   errcheck:
     exclude-functions:
-      - fmt.Sscanf
       - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).AddFile
       - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).AddFileFromFunc
       - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).AddFileWithoutScrubbing
@@ -614,29 +613,47 @@ linters-settings:
       - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyDirToWithoutScrubbing
       - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyFile
       - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).CopyFileTo
-      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warn
-      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warnf
+      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).ChangeLogLevel
+      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Critical
       - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Error
       - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Errorf
-      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).ChangeLogLevel
+      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warn
+      - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warnf
+      - (net/http.ResponseWriter).Write
+      - fmt.Sscanf
+      - github.com/cihub/seelog.Warnf
       - github.com/DataDog/datadog-agent/pkg/collector/corechecks.Warnf
+      - github.com/DataDog/datadog-agent/pkg/util/log.ChangeLogLevel
+      - github.com/DataDog/datadog-agent/pkg/util/log.Critical
+      - github.com/DataDog/datadog-agent/pkg/util/log.Criticalc
+      - github.com/DataDog/datadog-agent/pkg/util/log.Criticalf
+      - github.com/DataDog/datadog-agent/pkg/util/log.CriticalStackDepth
       - github.com/DataDog/datadog-agent/pkg/util/log.Error
       - github.com/DataDog/datadog-agent/pkg/util/log.Errorc
       - github.com/DataDog/datadog-agent/pkg/util/log.Errorf
-      - github.com/DataDog/datadog-agent/pkg/util/log.Critical
+      - github.com/DataDog/datadog-agent/pkg/util/log.ErrorStackDepth
+      - github.com/DataDog/datadog-agent/pkg/util/log.JMXError
+      - github.com/DataDog/datadog-agent/pkg/util/log.logContextWithError
+      - github.com/DataDog/datadog-agent/pkg/util/log.logFormatWithError
       - github.com/DataDog/datadog-agent/pkg/util/log.Warn
       - github.com/DataDog/datadog-agent/pkg/util/log.Warnc
       - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
-      - github.com/DataDog/datadog-agent/pkg/util/log.ChangeLogLevel
       - github.com/DataDog/datadog-agent/pkg/util/log.WarnStackDepth
-      - github.com/DataDog/datadog-agent/pkg/util/log.CriticalStackDepth
-      - github.com/DataDog/datadog-agent/pkg/util/log.logFormatWithError
-      - github.com/DataDog/datadog-agent/pkg/util/log.logContextWithError
-      - github.com/DataDog/datadog-agent/pkg/util/log.Criticalc
-      - github.com/DataDog/datadog-agent/pkg/util/log.ErrorStackDepth
-      - github.com/DataDog/datadog-agent/pkg/util/log.JMXError
-      - (net/http.ResponseWriter).Write
+      - github.com/lxn/walk:Dispose
+      - golang.org/x/sys/windows.CloseHandle
+      - golang.org/x/sys/windows.FreeLibrary
+      - golang.org/x/sys/windows.FreeSid
+      - golang.org/x/sys/windows.RegCloseKey
+      - golang.org/x/sys/windows/registry.Close
+      - golang.org/x/sys/windows/svc/debug.Close
+      - golang.org/x/sys/windows/svc/debug.Error
+      - golang.org/x/sys/windows/svc/debug.Info
+      - golang.org/x/sys/windows/svc/debug.Warning
+      - golang.org/x/sys/windows/svc/mgr:Disconnect
+      - golang.org/x/sys/windows:LocalFree
+      - golang.org/x/sys/windows:SetEvent
       - pkg/util/log.JMXError
+      - syscall:CloseHandle
   staticcheck:
     checks: ["all",
              "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022", # These ones are disabled by default on staticcheck
