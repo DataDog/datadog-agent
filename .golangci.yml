@@ -605,6 +605,9 @@ linters-settings:
 
   errcheck:
     exclude-functions:
+      - (*github.com/DataDog/datadog-agent/pkg/collector/corechecks.CheckBase).Warn
+      - (*github.com/DataDog/datadog-agent/pkg/collector/corechecks.CheckBase).Warnf
+      - (*golang.org/x/sys/windows/svc/mgr.Mgr).Disconnect
       - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).AddFile
       - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).AddFileFromFunc
       - (github.com/DataDog/datadog-agent/comp/core/flare/builder.FlareBuilder).AddFileWithoutScrubbing
@@ -620,8 +623,6 @@ linters-settings:
       - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Errorf
       - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warn
       - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warnf
-      - (*github.com/DataDog/datadog-agent/pkg/collector/corechecks.CheckBase).Warnf
-      - (*github.com/DataDog/datadog-agent/pkg/collector/corechecks.CheckBase).Warn
       - (net/http.ResponseWriter).Write
       - fmt.Sscanf
       - github.com/cihub/seelog.Warnf
@@ -653,7 +654,6 @@ linters-settings:
       - golang.org/x/sys/windows/svc/debug.Error
       - golang.org/x/sys/windows/svc/debug.Info
       - golang.org/x/sys/windows/svc/debug.Warning
-      - (golang.org/x/sys/windows/svc/mgr.Mgr).Disconnect
       - pkg/util/log.JMXError
       - syscall.CloseHandle
   staticcheck:
