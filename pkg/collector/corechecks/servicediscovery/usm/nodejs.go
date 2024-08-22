@@ -48,8 +48,12 @@ func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 			entryPoint := ""
 			if isJs(a) {
 				entryPoint = absFile
-			} else if target, err := filepath.EvalSymlinks(absFile); err == nil && isJs(target) {
-				entryPoint = target
+			} else if target, err := os.Readlink(absFile); err == nil {
+				if !isJs(target) {
+					continue
+				}
+
+				entryPoint = abs(target, filepath.Dir(absFile))
 			} else {
 				continue
 			}
