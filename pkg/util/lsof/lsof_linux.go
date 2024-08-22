@@ -69,14 +69,14 @@ func openFiles(pid int) (Files, error) {
 
 	ofl.socketInfo = readSocketInfo(ofl.procPIDPath())
 
-	return ofl.openFiles()
+	return ofl.openFiles(), nil
 }
 
 func (ofl *openFilesLister) procPIDPath() string {
 	return fmt.Sprintf("%s/%d", ofl.procPath, ofl.pid)
 }
 
-func (ofl *openFilesLister) openFiles() (Files, error) {
+func (ofl *openFilesLister) openFiles() Files {
 	var files Files
 
 	// open files, socket, pipe (everything with a file descriptor, from /proc/<pid>/fd)
@@ -95,7 +95,7 @@ func (ofl *openFilesLister) openFiles() (Files, error) {
 		files = append(files, mmapFiles...)
 	}
 
-	return files, nil
+	return files
 }
 
 func (ofl *openFilesLister) mmapMetadata() (Files, error) {

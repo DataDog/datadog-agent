@@ -19,12 +19,23 @@ import (
 )
 
 func TestOpenFiles(t *testing.T) {
-	pid := os.Getpid()
+	t.Run("success", func(t *testing.T) {
+		pid := os.Getpid()
 
-	files, err := openFiles(pid)
+		files, err := openFiles(pid)
 
-	assert.NoError(t, err)
-	assert.NotEmpty(t, files)
+		require.NoError(t, err)
+		require.NotEmpty(t, files)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		ofl := &openFilesLister{
+			pid:  123,
+			proc: &procMock{},
+		}
+		files := ofl.openFiles()
+		require.Empty(t, files)
+	})
 }
 
 func TestMmapMetadata(t *testing.T) {
@@ -156,22 +167,8 @@ func TestFdMetadata(t *testing.T) {
 	require.NoError(t, err)
 
 	expected := Files{
-		{
-			Fd:       "3",
-			Type:     "REG",
-			OpenPerm: "r-",
-			FilePerm: "-r--------",
-			Size:     0,
-			Name:     "/some/file",
-		},
-		{
-			Fd:       "5",
-			Type:     "REG",
-			OpenPerm: "r-",
-			FilePerm: "-r--------",
-			Size:     0,
-			Name:     "/some/file",
-		},
+		{"3", "REG", "r-", "-r--------", 0, "/some/file"},
+		{"5", "REG", "r-", "-r--------", 0, "/some/file"},
 	}
 
 	require.ElementsMatch(t, expected, files)
