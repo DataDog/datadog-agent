@@ -320,8 +320,9 @@ func TestSync(t *testing.T) {
 		procFS := CreateFakeProcFS(t, procs)
 
 		config := AttacherConfig{
-			ProcRoot: procFS,
-			Rules:    rules,
+			ProcRoot:                       procFS,
+			Rules:                          rules,
+			EnablePeriodicScanNewProcesses: true,
 		}
 
 		ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
@@ -351,8 +352,9 @@ func TestSync(t *testing.T) {
 		procFS := CreateFakeProcFS(t, procs)
 
 		config := AttacherConfig{
-			ProcRoot: procFS,
-			Rules:    rules,
+			ProcRoot:                       procFS,
+			Rules:                          rules,
+			EnablePeriodicScanNewProcesses: true,
 		}
 
 		ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)

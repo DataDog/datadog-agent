@@ -162,8 +162,11 @@ type AttacherConfig struct {
 	// Rules defines a series of rules that tell the attacher how to attach the probes
 	Rules []*AttachRule
 
-	// ScanTerminatedProcessesInterval defines the interval at which we scan for terminated processes and new processes we haven't seen
-	ScanTerminatedProcessesInterval time.Duration
+	// ScanProcessesInterval defines the interval at which we scan for terminated processes and new processes we haven't seen
+	ScanProcessesInterval time.Duration
+
+	// EnablePeriodicScanNewProcesses defines whether the attacher should scan for new processes periodically (with ScanProcessesInterval)
+	EnablePeriodicScanNewProcesses bool
 
 	// ProcRoot is the root directory of the proc filesystem
 	ProcRoot string
@@ -188,8 +191,8 @@ type AttacherConfig struct {
 // SetDefaults configures the AttacherConfig with default values for those fields for which the compiler
 // defaults are not enough
 func (ac *AttacherConfig) SetDefaults() {
-	if ac.ScanTerminatedProcessesInterval == 0 {
-		ac.ScanTerminatedProcessesInterval = 30 * time.Second
+	if ac.ScanProcessesInterval == 0 {
+		ac.ScanProcessesInterval = 30 * time.Second
 	}
 
 	if ac.ProcRoot == "" {
@@ -372,7 +375,7 @@ func (ua *UprobeAttacher) Start() error {
 
 	ua.wg.Add(1)
 	go func() {
-		processSync := time.NewTicker(ua.config.ScanTerminatedProcessesInterval)
+		processSync := time.NewTicker(ua.config.ScanProcessesInterval)
 
 		defer func() {
 			processSync.Stop()
@@ -421,6 +424,10 @@ func (ua *UprobeAttacher) Start() error {
 
 // Sync scans the proc filesystem for new processes and detaches from terminated ones
 func (ua *UprobeAttacher) Sync(trackDeletions bool) error {
+	if !trackDeletions && !ua.config.EnablePeriodicScanNewProcesses {
+		return nil // Nothing to do
+	}
+
 	var deletionCandidates map[uint32]struct{}
 	if trackDeletions {
 		deletionCandidates = ua.fileRegistry.GetRegisteredProcesses()
@@ -444,8 +451,10 @@ func (ua *UprobeAttacher) Sync(trackDeletions bool) error {
 			}
 		}
 
-		// This is a new PID so we attempt to attach SSL probes to it
-		_ = ua.AttachPID(uint32(pid))
+		if ua.config.EnablePeriodicScanNewProcesses {
+			// This is a new PID so we attempt to attach SSL probes to it
+			_ = ua.AttachPID(uint32(pid))
+		}
 		return nil
 	})
 
