@@ -190,6 +190,18 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedServiceTag: "my-awesome-package",
 		},
 		{
+			name: "node js with a symlink to a .js file and valid package.json",
+			cmdline: []string{
+				"/usr/bin/node",
+				"--foo",
+				"./testdata/bins/notjs",
+				"--bar",
+				"./testdata/bins/broken",
+				"./testdata/bins/json-server",
+			},
+			expectedServiceTag: "json-server-package",
+		},
+		{
 			name: "node js with a valid nested package.json and cwd",
 			cmdline: []string{
 				"/usr/bin/node",
