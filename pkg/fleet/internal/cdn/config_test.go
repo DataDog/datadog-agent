@@ -12,30 +12,28 @@ import (
 )
 
 func TestConfig(t *testing.T) {
-	baseLayer := layer{
+	baseLayer := &layer{
 		ID: "base",
-		Content: map[interface{}]interface{}{
+		AgentConfig: map[string]interface{}{
 			"api_key": "1234",
-			"apm": map[interface{}]interface{}{
+			"apm": map[string]interface{}{
 				"enabled":       true,
 				"sampling_rate": 0.5,
 			},
 		},
 	}
-	overrideLayer := layer{
+	overrideLayer := &layer{
 		ID: "override",
-		Content: map[interface{}]interface{}{
-			"apm": map[interface{}]interface{}{
+		AgentConfig: map[string]interface{}{
+			"apm": map[string]interface{}{
 				"sampling_rate": 0.7,
 				"env":           "prod",
 			},
 		},
 	}
 	config, err := newConfig(baseLayer, overrideLayer)
-	assert.NoError(t, err)
-	serializedConfig, err := config.Marshal()
-	assert.NoError(t, err)
-	exprectedConfig := doNotEditDisclaimer + `
+	assert.Nil(t, err)
+	expectedConfig := doNotEditDisclaimer + `
 __fleet_layers:
 - base
 - override
@@ -45,5 +43,5 @@ apm:
   env: prod
   sampling_rate: 0.7
 `
-	assert.Equal(t, exprectedConfig, string(serializedConfig))
+	assert.Equal(t, expectedConfig, string(config.Datadog))
 }

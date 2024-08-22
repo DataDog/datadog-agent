@@ -77,7 +77,9 @@ func NewPipeline(outputChan chan *message.Payload,
 	logsSender = sender.NewSender(cfg, senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize, senderDoneChan, flushWg)
 
 	inputChan := make(chan *message.Message, config.ChanSize)
-	processor := processor.New(inputChan, strategyInput, processingRules, encoder, diagnosticMessageReceiver, hostname, pipelineID)
+
+	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
+		encoder, diagnosticMessageReceiver, hostname, pipelineID)
 
 	return &Pipeline{
 		InputChan:  inputChan,

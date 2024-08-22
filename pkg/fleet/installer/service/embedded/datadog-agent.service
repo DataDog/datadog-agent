@@ -17,6 +17,7 @@ ExecStart=/opt/datadog-packages/datadog-agent/stable/bin/agent/agent run -p /opt
 # it is also supported to have it here.
 StartLimitInterval=10
 StartLimitBurst=5
+RuntimeDirectory=datadog
 
 [Install]
 WantedBy=multi-user.target
