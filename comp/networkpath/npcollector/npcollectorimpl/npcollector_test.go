@@ -641,6 +641,37 @@ func Test_npCollectorImpl_flush(t *testing.T) {
 	assert.Equal(t, 2, len(npCollector.pathtestProcessingChan))
 }
 
+func Test_npCollectorImpl_flushLoop(t *testing.T) {
+	// GIVEN
+	agentConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled": true,
+		"network_path.collector.workers":              6,
+		"network_path.collector.flush_interval":       "100ms",
+	}
+	_, npCollector := newTestNpCollector(t, agentConfigs)
+	defer npCollector.stop()
+
+	stats := &teststatsd.Client{}
+	npCollector.statsdClient = stats
+	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host1", Port: 53})
+	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host2", Port: 53})
+
+	// WHEN
+	go npCollector.flushLoop()
+
+	// THEN
+	assert.Eventually(t, func() bool {
+		var pathtestFlushCount []teststatsd.MetricsArgs
+		for _, call := range stats.GaugeCalls {
+			if call.Name == "datadog.network_path.collector.flush_interval" {
+				pathtestFlushCount = append(pathtestFlushCount, call)
+				assert.Less(t, call.Value, (200 * time.Millisecond).Seconds())
+			}
+		}
+		return len(pathtestFlushCount) >= 3
+	}, 3*time.Second, 10*time.Millisecond)
+}
+
 func Test_npCollectorImpl_sendTelemetry(t *testing.T) {
 	// GIVEN
 	agentConfigs := map[string]any{
