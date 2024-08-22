@@ -37,9 +37,9 @@ func TestRateLimit(t *testing.T) {
 				r.AllowOneEvent()
 			}
 
-			assert.Equal(t, timesToRun-float64(r.droppedEvents), testcase.limitPerSecond)
-			assert.Equal(t, r.droppedEvents, timesToRun-testcase.limitPerSecond)
-			assert.Equal(t, r.successfulEvents, testcase.limitPerSecond)
+			assert.Equal(t, float64(timesToRun-float64(r.droppedEvents)), testcase.limitPerSecond)
+			assert.Equal(t, float64(r.droppedEvents), timesToRun-testcase.limitPerSecond)
+			assert.Equal(t, float64(r.successfulEvents), testcase.limitPerSecond)
 		})
 	}
 }
