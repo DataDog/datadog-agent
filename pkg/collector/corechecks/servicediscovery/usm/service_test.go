@@ -10,6 +10,7 @@ import (
 	"errors"
 	"io/fs"
 	"path"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -33,6 +34,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 		expectedServiceTag         string
 		expectedAdditionalServices []string
 		fromDDService              bool
+		skipOnWindows              bool
 	}{
 		{
 			name:               "empty",
@@ -200,6 +202,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"./testdata/bins/json-server",
 			},
 			expectedServiceTag: "json-server-package",
+			skipOnWindows:      true,
 		},
 		{
 			name: "node js with a valid nested package.json and cwd",
@@ -505,6 +508,10 @@ func TestExtractServiceMetadata(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.skipOnWindows && runtime.GOOS == "windows" {
+				t.Skip("Not supported on Windows")
+			}
+
 			meta, ok := ExtractServiceMetadata(tt.cmdline, tt.envs)
 			if len(tt.expectedServiceTag) == 0 {
 				require.False(t, ok)
