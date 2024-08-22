@@ -629,6 +629,7 @@ linters-settings:
       - github.com/DataDog/datadog-agent/pkg/util/log.logFormatWithError
       - github.com/DataDog/datadog-agent/pkg/util/log.logContextWithError
       - github.com/DataDog/datadog-agent/pkg/util/log.Criticalc
+      - github.com/DataDog/datadog-agent/pkg/util/log.ErrorStackDepth
       - github.com/DataDog/datadog-agent/pkg/util/log.JMXError
       - (net/http.ResponseWriter).Write
   staticcheck:
