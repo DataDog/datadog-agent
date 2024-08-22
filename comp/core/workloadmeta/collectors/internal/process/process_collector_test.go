@@ -26,7 +26,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	processwlm "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -60,7 +60,7 @@ func setUpCollectorTest(t *testing.T, configOverrides map[string]interface{}) co
 		}),
 		workloadmetafxmock.MockModule(),
 	))
-	mockConfig := mock.New(t)
+	mockConfig := pkgconfigmock.New(t)
 
 	wlmExtractor := processwlm.NewWorkloadMetaExtractor(mockStore.GetConfig())
 	mockProcessData, probe := NewProcessDataWithMockProbe(t)
