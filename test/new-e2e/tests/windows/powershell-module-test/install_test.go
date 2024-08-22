@@ -7,7 +7,6 @@
 package powershellmoduletest
 
 import (
-	"flag"
 	"fmt"
 	runneros "os"
 	"path/filepath"
@@ -25,8 +24,6 @@ import (
 )
 
 var (
-	devMode = flag.Bool("devmode", false, "enable dev mode")
-
 	localModuleDir  string
 	remoteModuleDir = "C:\\Program Files\\WindowsPowerShell\\Modules\\Datadog"
 )
@@ -44,10 +41,6 @@ func init() {
 // TestVMSuite runs tests for the VM interface to ensure its implementation is correct.
 func TestVMSuite(t *testing.T) {
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))))}
-	if *devMode {
-		suiteParams = append(suiteParams, e2e.WithDevMode())
-	}
-
 	e2e.Run(t, &vmSuite{}, suiteParams...)
 }
 
