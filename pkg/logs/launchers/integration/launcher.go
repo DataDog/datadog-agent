@@ -22,25 +22,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 )
+
+var endOfLine = []byte{'\n'}
 
 // Launcher checks for launcher integrations, creates files for integrations to
 // write logs to, then creates file sources for the file launcher to tail
 type Launcher struct {
 	sources                   *sources.LogSources
-	addedSources              chan *sources.LogSource
+	addedConfigs              chan integrations.IntegrationConfig
 	stop                      chan struct{}
 	runPath                   string
 	integrationsLogsChan      chan integrations.IntegrationLog
-	integrationNameToFile     map[string]*FileInfo
+	integrationToFile         map[string]*FileInfo
 	fileSizeMax               int64
 	combinedUsageMax          int64
 	combinedUsageSize         int64
 	leastRecentlyModifiedTime time.Time
 	leastRecentlyModifiedFile *FileInfo
-	// writeLogToFile is used as a function pointer so it can be overridden in
+	// writeLogToFile is used as a function pointer, so it can be overridden in
 	// testing to make deterministic tests
 	writeLogToFileFunction func(filepath, log string) error
 }
@@ -53,26 +56,34 @@ type FileInfo struct {
 	size         int64
 }
 
-// NewLauncher returns a new launcher
+// NewLauncher creates and returns an integrations launcher, and creates the
+// path for integrations files to run in
 func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.Component) *Launcher {
+	runPath := filepath.Join(pkgConfig.Datadog().GetString("logs_config.run_path"), "integrations")
+	err := os.MkdirAll(runPath, 0755)
+	if err != nil {
+		ddLog.Warn("Unable to make integrations logs directory: ", err)
+		return nil
+	}
+
 	logsTotalUsageSetting := pkgConfig.Datadog().GetInt64("logs_config.integrations_logs_total_usage") * 1024 * 1024
 	logsUsageRatio := pkgConfig.Datadog().GetFloat64("logs_config.integrations_logs_disk_ratio")
-	runPath := pkgConfig.Datadog().GetString("logs_config.run_path")
 	maxDiskUsage, err := computeMaxDiskUsage(runPath, logsTotalUsageSetting, logsUsageRatio)
 	if err != nil {
-		ddLog.Warn("Unable to computer integrations logs max disk usage, defaulting to set value: ", err)
+		ddLog.Warn("Unable to compute integrations logs max disk usage, defaulting to set value: ", err)
 		maxDiskUsage = logsTotalUsageSetting
 	}
 
 	return &Launcher{
-		sources:               sources,
-		runPath:               runPath,
-		fileSizeMax:           pkgConfig.Datadog().GetInt64("logs_config.integrations_logs_files_max_size") * 1024 * 1024,
-		combinedUsageMax:      maxDiskUsage,
-		combinedUsageSize:     0,
-		stop:                  make(chan struct{}),
-		integrationsLogsChan:  integrationsLogsComp.Subscribe(),
-		integrationNameToFile: make(map[string]*FileInfo),
+		sources:              sources,
+		runPath:              runPath,
+		fileSizeMax:          pkgConfig.Datadog().GetInt64("logs_config.integrations_logs_files_max_size") * 1024 * 1024,
+		combinedUsageMax:     maxDiskUsage,
+		combinedUsageSize:    0,
+		stop:                 make(chan struct{}),
+		integrationsLogsChan: integrationsLogsComp.Subscribe(),
+		addedConfigs:         integrationsLogsComp.SubscribeIntegration(),
+		integrationToFile:    make(map[string]*FileInfo),
 		// Set the initial least recently modified time to the largest possible
 		// value, used for the first comparison
 		leastRecentlyModifiedTime: time.Unix(1<<63-62135596801, 999999999),
@@ -81,8 +92,8 @@ func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.
 }
 
 // Start starts the launcher and launches the run loop in a go function
-func (s *Launcher) Start(sourceProvider launchers.SourceProvider, _ pipeline.Provider, _ auditor.Registry, _ *tailers.TailerTracker) {
-	s.addedSources, _ = sourceProvider.SubscribeForType(config.IntegrationType)
+func (s *Launcher) Start(_ launchers.SourceProvider, _ pipeline.Provider, _ auditor.Registry, _ *tailers.TailerTracker) {
+	s.scanInitialFiles(s.runPath)
 
 	go s.run()
 }
@@ -96,24 +107,31 @@ func (s *Launcher) Stop() {
 func (s *Launcher) run() {
 	for {
 		select {
-		case source := <-s.addedSources:
-			// Send logs configurations to the file launcher to tail, it will handle
-			// tailer lifecycle, file rotation, etc.
-			fileInfo, err := s.createFile(source)
+		case cfg := <-s.addedConfigs:
+			sources, err := ad.CreateSources(cfg.Config)
 			if err != nil {
-				ddLog.Warn("Failed to create integration log file: ", err)
+				ddLog.Warn("Failed to create source ", err)
 				continue
 			}
 
-			filetypeSource := s.makeFileSource(source, fileInfo.filename)
-			s.sources.AddSource(filetypeSource)
+			for _, source := range sources {
+				// TODO: integrations should only be allowed to have one IntegrationType config.
+				if source.Config.Type == config.IntegrationType {
+					logFile, err := s.createFile(cfg.IntegrationID)
+					if err != nil {
+						ddLog.Warn("Failed to create integration log file: ", err)
+						continue
+					}
+					filetypeSource := s.makeFileSource(source, logFile.filename)
+					s.sources.AddSource(filetypeSource)
 
-			s.integrationNameToFile[source.Name] = fileInfo
+					// file to write the incoming logs to
+					s.integrationToFile[cfg.IntegrationID] = logFile
+				}
+			}
+
 		case log := <-s.integrationsLogsChan:
-			// Integrations will come in the form of: check_name:instance_config_hash
-			integrationSplit := strings.Split(log.IntegrationID, ":")
-			integrationName := integrationSplit[0]
-			fileToUpdate := s.integrationNameToFile[integrationName]
+			fileToUpdate := s.integrationToFile[log.IntegrationID]
 
 			// Ensure the individual file doesn't exceed integrations_logs_files_max_size
 			logSize := int64(len(log.Log))
@@ -143,7 +161,7 @@ func (s *Launcher) run() {
 			s.combinedUsageSize += logSize
 
 			// Update leastRecentlyModifiedFile
-			if s.leastRecentlyModifiedFile == fileToUpdate && len(s.integrationNameToFile) > 1 {
+			if s.leastRecentlyModifiedFile == fileToUpdate && len(s.integrationToFile) > 1 {
 				s.updateLeastRecentlyModifiedFile()
 			}
 
@@ -169,7 +187,7 @@ func (s *Launcher) updateLeastRecentlyModifiedFile() {
 	leastRecentlyModifiedTime := time.Now()
 	var leastRecentlyModifiedFile *FileInfo = nil
 
-	for _, fileInfo := range s.integrationNameToFile {
+	for _, fileInfo := range s.integrationToFile {
 		if fileInfo.lastModified.Before(leastRecentlyModifiedTime) {
 			leastRecentlyModifiedFile = fileInfo
 			leastRecentlyModifiedTime = fileInfo.lastModified
@@ -181,8 +199,8 @@ func (s *Launcher) updateLeastRecentlyModifiedFile() {
 }
 
 // writeLogToFile is used as a function pointer that writes a log to a given file
-func writeLogToFile(filepath, log string) error {
-	file, err := os.OpenFile(filepath, os.O_WRONLY, 0644)
+func writeLogToFile(logFilePath, log string) error {
+	file, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		ddLog.Warn("Failed to open file to write log to: ", err)
 		return err
@@ -195,18 +213,22 @@ func writeLogToFile(filepath, log string) error {
 		ddLog.Warn("Failed to write integration log to file: ", err)
 		return err
 	}
-
+	if _, err = file.Write(endOfLine); err != nil {
+		ddLog.Warn("Failed to write integration log to file: ", err)
+		return err
+	}
 	return nil
 }
 
 // makeFileSource Turns an integrations source into a logsSource
-func (s *Launcher) makeFileSource(source *sources.LogSource, filepath string) *sources.LogSource {
+func (s *Launcher) makeFileSource(source *sources.LogSource, logFilePath string) *sources.LogSource {
 	fileSource := sources.NewLogSource(source.Name, &config.LogsConfig{
 		Type:        config.FileType,
 		TailingMode: source.Config.TailingMode,
-		Path:        filepath,
+		Path:        logFilePath,
 		Name:        source.Config.Name,
 		Source:      source.Config.Source,
+		Service:     source.Config.Service,
 		Tags:        source.Config.Tags,
 	})
 
@@ -216,13 +238,8 @@ func (s *Launcher) makeFileSource(source *sources.LogSource, filepath string) *s
 
 // TODO Change file naming to reflect ID once logs from go interfaces gets merged.
 // createFile creates a file for the logsource
-func (s *Launcher) createFile(source *sources.LogSource) (*FileInfo, error) {
-	directory, filepath := s.integrationLogFilePath(*source)
-
-	err := os.MkdirAll(directory, 0755)
-	if err != nil {
-		return nil, err
-	}
+func (s *Launcher) createFile(source string) (*FileInfo, error) {
+	filepath := s.integrationLogFilePath(source)
 
 	file, err := os.Create(filepath)
 	if err != nil {
@@ -240,14 +257,13 @@ func (s *Launcher) createFile(source *sources.LogSource) (*FileInfo, error) {
 	return fileInfo, nil
 }
 
-// integrationLogFilePath returns a directory and file to use for an integration log file
-func (s *Launcher) integrationLogFilePath(source sources.LogSource) (string, string) {
-	fileName := source.Config.Name + ".log"
-	directoryComponents := []string{s.runPath, "integrations", source.Config.Service}
-	directory := strings.Join(directoryComponents, "/")
-	filepath := strings.Join([]string{directory, fileName}, "/")
+// integrationLoglogFilePath returns a file path to use for an integration log file
+func (s *Launcher) integrationLogFilePath(id string) string {
+	fileName := strings.ReplaceAll(id, " ", "-")
+	fileName = strings.ReplaceAll(fileName, ":", "_") + ".log"
+	logFilePath := filepath.Join(s.runPath, fileName)
 
-	return directory, filepath
+	return logFilePath
 }
 
 // deleteAndRemakeFile deletes log files and creates a new empty file with the
@@ -307,7 +323,7 @@ func (s *Launcher) scanInitialFiles(dir string) error {
 
 			integrationID := strings.TrimSuffix(filepath.Base(info.Name()), filepath.Ext(info.Name()))
 
-			s.integrationNameToFile[integrationID] = fileInfo
+			s.integrationToFile[integrationID] = fileInfo
 		}
 
 		return nil
