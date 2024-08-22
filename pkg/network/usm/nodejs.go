@@ -122,7 +122,7 @@ func newNodeJSMonitor(c *config.Config, mgr *manager.Manager) *nodeJSMonitor {
 			ExecutableFilter: isNodeJSBinary,
 		}},
 		EbpfConfig:                     &c.Config,
-		ExcludeTargets:                 uprobes.ExcludeSelf | uprobes.ExcludeInternal,
+		ExcludeTargets:                 uprobes.ExcludeSelf | uprobes.ExcludeInternal | uprobes.ExcludeBuildkit | uprobes.ExcludeContainerdTmp,
 		EnablePeriodicScanNewProcesses: true,
 	}
 

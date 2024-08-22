@@ -100,7 +100,7 @@ func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
 			ExecutableFilter: monitor.isIstioBinary,
 		}},
 		EbpfConfig:                     &c.Config,
-		ExcludeTargets:                 uprobes.ExcludeSelf | uprobes.ExcludeInternal,
+		ExcludeTargets:                 uprobes.ExcludeSelf | uprobes.ExcludeInternal | uprobes.ExcludeBuildkit | uprobes.ExcludeContainerdTmp,
 		EnablePeriodicScanNewProcesses: true,
 	}
 
