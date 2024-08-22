@@ -1063,23 +1063,39 @@ func TestNormalizeHTTPHeader(t *testing.T) {
 		expected string
 	}{
 		{
-			input:    "tag value\nAnother tag value",
-			expected: "tag value_Another tag value",
+			input:    "Header: value\nAnother header: value",
+			expected: "Header: value_Another header: value",
+		},
+		{
+			input:    "Header: value\rAnother header: value",
+			expected: "Header: value_Another header: value",
+		},
+		{
+			input:    "Header: value\r\nAnother header: value",
+			expected: "Header: value_Another header: value",
 		},
 		{
 			input:    "SingleLineHeader: value",
 			expected: "SingleLineHeader: value",
 		},
 		{
+			input:    "\rLeading carriage return",
+			expected: "_Leading carriage return",
+		},
+		{
 			input:    "\nLeading line break",
 			expected: "_Leading line break",
+		},
+		{
+			input:    "Trailing carriage return\r",
+			expected: "Trailing carriage return_",
 		},
 		{
 			input:    "Trailing line break\n",
 			expected: "Trailing line break_",
 		},
 		{
-			input:    "Multiple\nline\nbreaks",
+			input:    "Multiple\r\nline\r\nbreaks",
 			expected: "Multiple_line_breaks",
 		},
 		{
