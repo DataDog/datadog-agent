@@ -117,10 +117,10 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (payload.Network
 	}
 
 	var timeout time.Duration
-	if cfg.TimeoutMs == 0 {
+	if cfg.Timeout == 0 {
 		timeout = DefaultReadTimeout
 	} else {
-		timeout = time.Duration(cfg.TimeoutMs) * time.Millisecond
+		timeout = cfg.Timeout
 	}
 
 	hname, err := hostname.Get(ctx)

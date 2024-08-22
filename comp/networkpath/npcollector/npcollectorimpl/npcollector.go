@@ -211,7 +211,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 		DestHostname: ptest.Pathtest.Hostname,
 		DestPort:     ptest.Pathtest.Port,
 		MaxTTL:       0, // TODO: make it configurable, setting 0 to use default value for now
-		TimeoutMs:    0, // TODO: make it configurable, setting 0 to use default value for now
+		Timeout:      0, // TODO: make it configurable, setting 0 to use default value for now
 		Protocol:     ptest.Pathtest.Protocol,
 	}
 

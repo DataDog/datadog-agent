@@ -16,11 +16,15 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-const defaultCheckInterval time.Duration = 1 * time.Minute
+const (
+	defaultCheckInterval time.Duration = 1 * time.Minute
+	defaultTimeout       time.Duration = 10 * time.Second
+)
 
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
-	MinCollectionInterval int `yaml:"min_collection_interval"`
+	MinCollectionInterval int64 `yaml:"min_collection_interval"`
+	TimeoutMs             int64 `yaml:"timeout"` // millisecond
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -36,7 +40,7 @@ type InstanceConfig struct {
 
 	MaxTTL uint8 `yaml:"max_ttl"`
 
-	TimeoutMs uint `yaml:"timeout"` // millisecond
+	TimeoutMs int64 `yaml:"timeout"` // millisecond
 
 	MinCollectionInterval int `yaml:"min_collection_interval"`
 
@@ -52,7 +56,7 @@ type CheckConfig struct {
 	DestinationService    string
 	MaxTTL                uint8
 	Protocol              payload.Protocol
-	TimeoutMs             uint
+	Timeout               time.Duration
 	MinCollectionInterval time.Duration
 	Tags                  []string
 	Namespace             string
@@ -80,7 +84,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.SourceService = instance.SourceService
 	c.DestinationService = instance.DestinationService
 	c.MaxTTL = instance.MaxTTL
-	c.TimeoutMs = instance.TimeoutMs
 	c.Protocol = payload.Protocol(strings.ToUpper(instance.Protocol))
 
 	c.MinCollectionInterval = firstNonZero(
@@ -91,6 +94,12 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	if c.MinCollectionInterval <= 0 {
 		return nil, fmt.Errorf("min collection interval must be > 0")
 	}
+
+	c.Timeout = firstNonZero(
+		time.Duration(instance.TimeoutMs)*time.Millisecond,
+		time.Duration(initConfig.TimeoutMs)*time.Millisecond,
+		defaultTimeout,
+	)
 
 	c.Tags = instance.Tags
 	c.Namespace = coreconfig.Datadog().GetString("network_devices.namespace")
