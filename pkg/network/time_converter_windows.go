@@ -16,8 +16,8 @@ import (
 )
 
 var (
-	modkernel          = windows.NewLazyDLL("kernel32.dll")
-	procGetTickCount64 = modkernel.NewProc("GetTickCount64")
+	modkernel32        = windows.NewLazyDLL("kernel32.dll")
+	procGetTickCount64 = modkernel32.NewProc("GetTickCount64")
 )
 
 // getTickCount64() returns the time, in milliseconds, that have elapsed since
