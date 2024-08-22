@@ -35,10 +35,12 @@ def test(ctx, verbose=False) -> None:
             raise Exit(message='docker failed to start', code=1)
 
     try:
+        ctx.run("netstat -a")
+        ctx.run("cat /etc/hosts")
         ctx.run("docker ps")
         os.environ["ORACLE_TEST_PORT"] = "1521"
         os.environ["ORACLE_TEST_SERVER"] = "0.0.0.0"
-        # if os.environ.get("CI"):            
+        # if os.environ.get("CI"):
         #     os.environ["ORACLE_TEST_SERVER"] = ctx.run(
         #     "docker inspect  -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' compose-oracle-1", hide=True
         # ).stdout.strip()
