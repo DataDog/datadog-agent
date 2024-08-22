@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    The embedded gopkg.in/DataDog/dd-trace-go.v1 package has been bumped from v1.65.1 to v1.67.0.
+
