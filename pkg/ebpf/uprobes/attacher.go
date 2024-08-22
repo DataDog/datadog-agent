@@ -350,7 +350,9 @@ func (ua *UprobeAttacher) Start() error {
 	}
 
 	if ua.config.PerformInitialScan {
-		err := ua.Sync(false)
+		// Initial scan only looks at existing processes, and as it's the first scan
+		// we don't have to track deletions
+		err := ua.Sync(true, false)
 		if err != nil {
 			return fmt.Errorf("error during initial scan: %w", err)
 		}
@@ -405,7 +407,8 @@ func (ua *UprobeAttacher) Start() error {
 			case <-ua.done:
 				return
 			case <-processSync.C:
-				_ = ua.Sync(true)
+				// We always track process deletions in the scan, to avoid memory leaks.
+				_ = ua.Sync(ua.config.EnablePeriodicScanNewProcesses, true)
 			case event, ok := <-sharedLibDataChan:
 				if !ok {
 					return
@@ -423,8 +426,8 @@ func (ua *UprobeAttacher) Start() error {
 }
 
 // Sync scans the proc filesystem for new processes and detaches from terminated ones
-func (ua *UprobeAttacher) Sync(trackDeletions bool) error {
-	if !trackDeletions && !ua.config.EnablePeriodicScanNewProcesses {
+func (ua *UprobeAttacher) Sync(trackCreations bool, trackDeletions bool) error {
+	if !trackDeletions && !trackCreations {
 		return nil // Nothing to do
 	}
 
@@ -451,7 +454,7 @@ func (ua *UprobeAttacher) Sync(trackDeletions bool) error {
 			}
 		}
 
-		if ua.config.EnablePeriodicScanNewProcesses {
+		if trackCreations {
 			// This is a new PID so we attempt to attach SSL probes to it
 			_ = ua.AttachPID(uint32(pid))
 		}
