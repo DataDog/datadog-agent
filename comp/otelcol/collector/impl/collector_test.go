@@ -17,6 +17,7 @@ import (
 	collectorcontribimpl "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl"
 	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/confmap/confmaptest"
 	"gopkg.in/yaml.v3"
@@ -46,8 +47,11 @@ func TestGetConfDump(t *testing.T) {
 	provider, err := converter.NewConverter(converter.Requires{})
 	assert.NoError(t, err)
 
+	conf := setup.Datadog()
+
 	reqs := Requires{
 		CollectorContrib: collectorcontribimpl.NewComponent(),
+		Config:           conf,
 		URIs:             uriFromFile("simple-dd/config.yaml"),
 		ConfigStore:      configstore,
 		Lc:               &lifecycle{},
