@@ -14,8 +14,8 @@ import (
 
 	"go4.org/intern"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/iisconfig"
 )
 
@@ -73,7 +73,7 @@ func getAPMTags(already map[string]struct{}, filename string) []*intern.Value {
 				tags = append(tags, found...)
 			}
 		}
-	} else if  !errors.Is(err, os.ErrNotExist) {
+	} else if !errors.Is(err, os.ErrNotExist) {
 		log.Warnf("Error reading app.config: %v", err)
 	}
 	if len(already) == len(envFilter) {
@@ -90,8 +90,8 @@ func getAPMTags(already map[string]struct{}, filename string) []*intern.Value {
 				tags = append(tags, found...)
 			}
 		}
-	} else if  !errors.Is(err, os.ErrNotExist) {
-		log.Warnf("Error reading app.config: %v", err)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		log.Warnf("Error reading datadog.json: %v", err)
 	}
 	if len(tags) != 0 {
 		return tags
