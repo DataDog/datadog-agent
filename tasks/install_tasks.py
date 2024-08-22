@@ -46,7 +46,7 @@ def download_tools(ctx):
 
 
 @task
-def install_tools(ctx: Context, max_retry: int = 3, custom_golangci_lint=True):
+def install_tools(ctx: Context, max_retry: int = 3):
     """Install all Go tools for testing."""
     with gitlab_section("Installing Go tools", collapsed=True):
         with environ({'GO111MODULE': 'on'}):
@@ -54,8 +54,8 @@ def install_tools(ctx: Context, max_retry: int = 3, custom_golangci_lint=True):
                 with ctx.cd(path):
                     for tool in tools:
                         run_command_with_retry(ctx, f"go install {tool}", max_retry=max_retry)
-        if custom_golangci_lint:
-            install_custom_golanci_lint(ctx)
+        # Always install the custom golangci-lint not to fail on custom linters run (e.g pkgconfigusage)
+        install_custom_golanci_lint(ctx)
 
 
 def install_custom_golanci_lint(ctx):
@@ -63,23 +63,18 @@ def install_custom_golanci_lint(ctx):
     if res.ok:
         gopath = os.getenv('GOPATH')
         gobin = os.getenv('GOBIN')
+        default_gopath = os.path.join(Path.home(), "go")
 
         golintci_binary = bin_name('golangci-lint')
         golintci_lint_backup_binary = bin_name('golangci-lint-backup')
 
-        if gopath is None and gobin is None:
-            print("Not able to install custom golangci-lint binary. golangci-lint won't work as expected")
-            raise Exit(code=1)
+        go_binaries_folder = gobin or os.path.join(gopath or default_gopath, "bin")
 
-        if gobin is not None and gopath is None:
-            shutil.move(os.path.join(gobin, golintci_binary), os.path.join(gobin, golintci_lint_backup_binary))
-            shutil.move(golintci_binary, os.path.join(gobin, golintci_binary))
-
-        if gopath is not None:
-            shutil.move(
-                os.path.join(gopath, "bin", golintci_binary), os.path.join(gopath, "bin", golintci_lint_backup_binary)
-            )
-            shutil.move(golintci_binary, os.path.join(gopath, "bin", golintci_binary))
+        shutil.move(
+            os.path.join(go_binaries_folder, golintci_binary),
+            os.path.join(go_binaries_folder, golintci_lint_backup_binary),
+        )
+        shutil.move(golintci_binary, os.path.join(go_binaries_folder, golintci_binary))
 
         print("Installed custom golangci-lint binary successfully")
 

@@ -5,6 +5,7 @@ import shutil
 
 from tasks.github_tasks import pr_commenter
 from tasks.kmt import download_complexity_data
+from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.git import get_commit_sha, get_current_branch
 from tasks.libs.types.arch import Arch
 
@@ -479,12 +480,11 @@ def annotate_complexity(
                                 )
                             )
 
-                            if show_register_state:
+                            # This is the register state after the statement is executed
+                            reg_state = asm_line.get("register_state")
+                            if show_register_state and reg_state is not None:
                                 # Get all the registers that were used in this instruction
                                 registers = re.findall(r"r\d+", asm_code)
-
-                                # This is the register state after the statement is executed
-                                reg_state = asm_line["register_state"]
 
                                 if show_raw_register_state:
                                     total_indent = 4 + 3 + get_total_complexity_stats_len(compinfo_widths)
@@ -675,14 +675,37 @@ def generate_html_report(ctx: Context, dest_folder: str | Path):
         shutil.copy(file, dest_folder)
 
 
-@task
-def generate_complexity_summary_for_pr(ctx: Context, skip_github_comment=False):
+@task(
+    help={
+        "skip_github_comment": "Do not comment on the PR with the complexity summary",
+        "branch_name": "Branch name to use for the complexity data. By default, the current branch is used",
+        "base_branch": "Base branch to compare against. If not provided, we will try to find a PR for the current branch, and use the base branch from there. If that fails, the main branch will be used",
+    }
+)
+def generate_complexity_summary_for_pr(
+    ctx: Context, skip_github_comment=False, branch_name: str | None = None, base_branch: str | None = None
+):
     """Task meant to run in CI. Generates a summary of the complexity data for the current PR"""
     if tabulate is None:
         raise Exit("tabulate is required to print the complexity summary")
 
     pr_comment_head = 'eBPF complexity changes'
-    branch_name = get_current_branch(ctx)
+
+    if branch_name is None:
+        branch_name = get_current_branch(ctx)
+
+    if base_branch is None:
+        github = GithubAPI()
+        prs = list(github.get_pr_for_branch(branch_name))
+        if len(prs) == 0:
+            print(f"Warning: No PR found for branch {branch_name}, using main branch as base")
+            base_branch = "main"
+        elif len(prs) > 1:
+            print(f"Warning: Multiple PRs found for branch {branch_name}, using main branch as base")
+            base_branch = "main"
+        else:
+            base_branch = prs[0].base.ref
+            print(f"Found PR {prs[0].number} for this branch, using base branch {base_branch}")
 
     def _exit_or_delete_github_comment(msg: str):
         if skip_github_comment:
@@ -705,9 +728,11 @@ def generate_complexity_summary_for_pr(ctx: Context, skip_github_comment=False):
         return
 
     # We have files, now get files for the main branch
-    common_ancestor = cast(Result, ctx.run("git merge-base HEAD origin/main", hide=True)).stdout.strip()
+    common_ancestor = cast(
+        Result, ctx.run(f"git merge-base {branch_name} origin/{base_branch}", hide=True)
+    ).stdout.strip()
     main_branch_complexity_path = Path("/tmp/verifier-complexity-main")
-    print(f"Downloading complexity data for main branch (commit {common_ancestor})...")
+    print(f"Downloading complexity data for {base_branch} branch (commit {common_ancestor})...")
     download_complexity_data(ctx, common_ancestor, main_branch_complexity_path)
 
     main_complexity_files = list(main_branch_complexity_path.glob("verifier-complexity-*"))
@@ -854,16 +879,27 @@ def generate_complexity_summary_for_pr(ctx: Context, skip_github_comment=False):
         if not any(row[-1] for row in rows):
             continue
 
-        # Format rows to make it more compact, remove the changes marker and remove the object name
-        rows = [[row[0].split("/")[1]] + row[1:-1] for row in rows]
+        rows = list(rows)  # Convert the iterator to a list, so we can iterate over it multiple times
+
+        def _build_table(orig_rows):
+            # Format rows to make it more compact, remove the changes marker and remove the object name
+            changed_rows = [[row[0].split("/")[1]] + row[1:-1] for row in orig_rows]
+            assert tabulate is not None  # For typing
+            return tabulate(changed_rows, headers=headers, tablefmt="github")
+
+        with_changes = [row for row in rows if row[-1]]
+        without_changes = [row for row in rows if not row[-1]]
 
         msg += f"\n<details><summary>{group} details</summary>\n\n"
-        msg += f"## {group}\n\n"
-        msg += tabulate(rows, headers=headers, tablefmt="github")
+        msg += f"## {group} [programs with changes]\n\n"
+        msg += _build_table(with_changes)
+        msg += f"\n\n## {group} [programs without changes]\n\n"
+        msg += _build_table(without_changes)
         msg += "\n\n</details>\n"
         has_any_changes = True
 
-    msg += f"\n\nThis report was generated based on the complexity data for the current branch {branch_name} (pipeline [https://gitlab.ddbuild.io/DataDog/datadog-agent/-/pipelines/{pipeline_id}]{pipeline_id}) and the main branch (commit {common_ancestor}). Objects without changes are not reported. Contact [#ebpf-platform](https://dd.enterprise.slack.com/archives/C0424HA1SJK) if you have any questions/feedback."
+    curr_commit = get_commit_sha(ctx, short=False)
+    msg += f"\n\nThis report was generated based on the complexity data for the current branch {branch_name} (pipeline [{pipeline_id}](https://gitlab.ddbuild.io/DataDog/datadog-agent/-/pipelines/{pipeline_id}), commit {curr_commit}) and the base branch {base_branch} (commit {common_ancestor}). Objects without changes are not reported. Contact [#ebpf-platform](https://dd.enterprise.slack.com/archives/C0424HA1SJK) if you have any questions/feedback."
     msg += "\n\nTable complexity legend: 🔵 - new; ⚪ - unchanged; 🟢 - reduced; 🔴 - increased"
 
     print(msg)
