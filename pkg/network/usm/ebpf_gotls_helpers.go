@@ -37,7 +37,12 @@ type GoTLSBinaryInspector struct {
 	// inodes.
 	offsetsDataMap *ebpf.Map
 
+	// binAnalysisMetric handles telemetry on the time spent doing binary
+	// analysis
 	binAnalysisMetric *libtelemetry.Counter
+
+	// binNoSymbolsMetric counts Golang binaries without symbols.
+	binNoSymbolsMetric *libtelemetry.Counter
 }
 
 // Ensure GoTLSBinaryInspector implements BinaryInspector
@@ -74,6 +79,9 @@ func (p *GoTLSBinaryInspector) Inspect(fpath utils.FilePath, requests []uprobes.
 
 	inspectionResult, err := bininspect.InspectNewProcessBinary(elfFile, functionsConfig, p.structFieldsLookupFunctions)
 	if err != nil {
+		if errors.Is(err, elf.ErrNoSymbols) {
+			p.binNoSymbolsMetric.Add(1)
+		}
 		return nil, false, fmt.Errorf("error extracting inspection data from %s: %w", path, err)
 	}
 

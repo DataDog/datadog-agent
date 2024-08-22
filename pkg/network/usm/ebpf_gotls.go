@@ -93,14 +93,6 @@ type goTLSProgram struct {
 
 	// Path to the process/container's procfs
 	procRoot string
-
-	// binAnalysisMetric handles telemetry on the time spent doing binary
-	// analysis
-	binAnalysisMetric *libtelemetry.Counter
-
-	// binNoSymbolsMetric counts Golang binaries without symbols.
-	binNoSymbolsMetric *libtelemetry.Counter
-
 	registry *utils.FileRegistry
 }
 
@@ -190,6 +182,7 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactor
 			structFieldsLookupFunctions: structFieldsLookupFunctions,
 			paramLookupFunctions:        paramLookupFunctions,
 			binAnalysisMetric:           libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptPrometheus),
+			binNoSymbolsMetric:          libtelemetry.NewCounter("usm.go_tls.missing_symbols", libtelemetry.OptPrometheus),
 		}
 
 		attacher, err := uprobes.NewUprobeAttacher(UsmGoTLSAttacherName, attacherCfg, m, nil, inspector)
@@ -198,13 +191,11 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactor
 		}
 
 		return &goTLSProgram{
-			cfg:                c,
-			manager:            m,
-			procRoot:           c.ProcRoot,
-			inspector:          inspector,
-			binAnalysisMetric:  libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptPrometheus),
-			binNoSymbolsMetric: libtelemetry.NewCounter("usm.go_tls.missing_symbols", libtelemetry.OptPrometheus),
-			attacher:           attacher,
+			cfg:       c,
+			manager:   m,
+			procRoot:  c.ProcRoot,
+			inspector: inspector,
+			attacher:  attacher,
 		}, nil
 	}
 }
