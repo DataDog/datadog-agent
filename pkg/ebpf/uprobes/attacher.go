@@ -608,9 +608,16 @@ func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) er
 
 	procInfo := NewProcInfo(ua.config.ProcRoot, pid)
 
-	binPath, err := procInfo.Exe()
-	if err != nil {
-		return err
+	// Only compute the binary path if we are going to need it. It's better to do these two checks
+	// (which are cheak, the handlesExecutables function is cached) than to do the syscall
+	// every time
+	var binPath string
+	var err error
+	if ua.handlesExecutables() || (ua.config.ExcludeTargets&ExcludeInternal) != 0 {
+		binPath, err = procInfo.Exe()
+		if err != nil {
+			return err
+		}
 	}
 
 	if (ua.config.ExcludeTargets&ExcludeInternal) != 0 && internalProcessRegex.MatchString(binPath) {
