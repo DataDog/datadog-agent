@@ -5,5 +5,6 @@ oracle:
   needs: ["go_deps"]
   before_script:
     - !reference [.retrieve_linux_go_deps]
+    - docker version
   script:
     - inv oracle.test
