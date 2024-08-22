@@ -64,9 +64,6 @@ type Tracer struct {
 	hStopClosedLoopEvent windows.Handle
 
 	processCache *processCache
-
-	//timeResolver *timeresolver.Resolver
-
 }
 
 // NewTracer returns an initialized tracer struct

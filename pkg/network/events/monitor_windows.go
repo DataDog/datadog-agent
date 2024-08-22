@@ -50,6 +50,7 @@ func makeTagsSlice(already map[string]struct{}, apmtags iisconfig.APMTags) []*in
 	}
 	return tags
 }
+
 func getAPMTags(already map[string]struct{}, filename string) []*intern.Value {
 
 	dir := filepath.Dir(filename)
