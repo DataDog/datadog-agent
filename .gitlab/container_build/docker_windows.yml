@@ -2,7 +2,7 @@
 .docker_build_agent_windows_common:
   stage: container_build
   variables:
-    IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
   script:
     - $ECR_RELEASE_SUFFIX="$(If ($BUCKET_BRANCH -eq `"nightly`") { `"-nightly`" } elseif ($CI_COMMIT_TAG) { `"-release`" } else { `"`" })"
