@@ -17,6 +17,6 @@ func Initialized() bool {
 	return false
 }
 
-func getAPMTags(_ string) []*intern.Value {
+func getAPMTags(_ map[string]struct{}, _ string) []*intern.Value {
 	return nil
 }

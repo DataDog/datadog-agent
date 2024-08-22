@@ -121,7 +121,19 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 		StartTime: processStartTime.UnixNano(),
 	}
 
-	var tagsFoundInEnvironment bool
+	// we need to keep looking for settings until all of the desired
+	// key/value pairs are found, following the precedence order.
+
+	// the precedence order is
+	// 1. environment variables
+	// 2. tags from the web.config file
+	// 3. tags from the datadog.json file
+
+	// keep the map of tagsFound, so that entries found at lower levels
+	// don't supercede those at higher.  However, we must actually parse
+	// all of the inputs to ensure that we don't miss any tags that are
+	tagsFound := make(map[string]struct{})
+
 	envs := model.FilterEnvs(ev.GetProcessEnvp(), envFilter)
 	if len(envs) > 0 {
 		p.Tags = make([]*intern.Value, 0, len(envs))
@@ -130,13 +142,13 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 			if len(v) > 0 {
 				if t := envTagNames[k]; t != "" {
 					p.Tags = append(p.Tags, intern.GetByString(t+":"+v))
-					tagsFoundInEnvironment = true
+					tagsFound[k] = struct{}{}
 				}
 			}
 		}
 	}
-	if !tagsFoundInEnvironment {
-		apmTags := getAPMTags(ev.GetExecFilePath())
+	if len(tagsFound) < len(envFilter) {
+		apmTags := getAPMTags(tagsFound, ev.GetExecFilePath())
 		if len(apmTags) > 0 {
 			p.Tags = append(p.Tags, apmTags...)
 		}

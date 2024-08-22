@@ -25,29 +25,39 @@ func getProcessStartTime(ev *model.Event) time.Time {
 	return time.Time{}
 }
 
-func makeTagsSlice(apmtags iisconfig.APMTags) []*intern.Value {
+func makeTagsSlice(already map[string]struct{}, apmtags iisconfig.APMTags) []*intern.Value {
 	tags := make([]*intern.Value, 0, 3)
-	if len(apmtags.DDService) > 0 {
-		tags = append(tags, intern.GetByString("service"+":"+apmtags.DDService))
+	if _, found := already["DD_SERVICE"]; !found {
+		if len(apmtags.DDService) > 0 {
+			tags = append(tags, intern.GetByString("service"+":"+apmtags.DDService))
+			already["DD_SERVICE"] = struct{}{}
+		}
 	}
-	if len(apmtags.DDEnv) > 0 {
-		tags = append(tags, intern.GetByString("env"+":"+apmtags.DDEnv))
+	if _, found := already["DD_ENV"]; !found {
+		if len(apmtags.DDEnv) > 0 {
+			tags = append(tags, intern.GetByString("env"+":"+apmtags.DDEnv))
+			already["DD_ENV"] = struct{}{}
+		}
 	}
-	if len(apmtags.DDVersion) > 0 {
-		tags = append(tags, intern.GetByString("version"+":"+apmtags.DDVersion))
+	if _, found := already["DD_VERSION"]; !found {
+		if len(apmtags.DDVersion) > 0 {
+			tags = append(tags, intern.GetByString("version"+":"+apmtags.DDVersion))
+			already["DD_VERSION"] = struct{}{}
+		}
 	}
 	if len(tags) == 0 {
 		return nil
 	}
 	return tags
 }
-func getAPMTags(filename string) []*intern.Value {
+func getAPMTags(already map[string]struct{}, filename string) []*intern.Value {
 
 	dir := filepath.Dir(filename)
 	if dir == "" {
 		return nil
 	}
 
+	tags := make([]*intern.Value, 0, 3)
 	// see if there's an app.config in the directory
 	appConfig := filepath.Join(dir, "app.config")
 	ddJSON := filepath.Join(dir, "datadog.json")
@@ -55,25 +65,29 @@ func getAPMTags(filename string) []*intern.Value {
 
 		appcfg, err := iisconfig.ReadDotNetConfig(appConfig)
 		if err == nil {
-			found := makeTagsSlice(appcfg)
+			found := makeTagsSlice(already, appcfg)
 			if len(found) > 0 {
-				return found
+				tags = append(tags, found...)
 			}
 		}
+	}
+	if len(already) == len(envFilter) {
+		// we've seen all we need, no point in looking in datadog.json
+		return tags
 	}
 	// see if there's a datadog.json
 	if _, err := os.Stat(ddJSON); err == nil {
 
 		appcfg, err := iisconfig.ReadDatadogJSON(ddJSON)
 		if err == nil {
-			if err == nil {
-				found := makeTagsSlice(appcfg)
-				if len(found) > 0 {
-					return found
-				}
+			found := makeTagsSlice(already, appcfg)
+			if len(found) > 0 {
+				tags = append(tags, found...)
 			}
 		}
 	}
-
+	if len(tags) != 0 {
+		return tags
+	}
 	return nil
 }

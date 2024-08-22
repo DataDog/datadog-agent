@@ -18,6 +18,7 @@ import (
 var (
 	modkernel32        = windows.NewLazyDLL("kernel32.dll")
 	procGetTickCount64 = modkernel32.NewProc("GetTickCount64")
+	bootTime           = time.Now().Add(-time.Duration(getTickCount64()) * time.Millisecond)
 )
 
 // getTickCount64() returns the time, in milliseconds, that have elapsed since
@@ -28,14 +29,11 @@ func getTickCount64() int64 {
 }
 
 func driverTimeToUnixTime(t uint64) uint64 {
-	ticks := getTickCount64()
-	// GetTickCount64() returns the number of milliseconds that have elapsed since the system was started
 
 	// t is the number of microseconds since the system was started.
 
 	// convert this to a unix timestamp
 
-	bootTime := time.Now().Add(-time.Duration(ticks) * time.Millisecond)
 	opTime := bootTime.Add(time.Duration(t) * time.Microsecond)
 	return uint64(opTime.UnixNano())
 
