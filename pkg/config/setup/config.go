@@ -991,6 +991,11 @@ func agent(config pkgconfigmodel.Config) {
 	// Use to output logs in JSON format
 	config.BindEnvAndSetDefault("log_format_json", false)
 
+	// Agent GUI access host
+	// 		'http://localhost' is preferred over 'http://127.0.0.1' due to Internet Explorer behavior.
+	// 		Internet Explorer High Security Level does not support setting cookies via HTTP Header response.
+	// 		By default, 'http://localhost' is categorized as an "intranet" website, which is considered safer and allowed to use cookies. This is not the case for 'http://127.0.0.1'.
+	config.BindEnvAndSetDefault("GUI_host", "localhost")
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
 	config.BindEnvAndSetDefault("GUI_session_expiration", 0)

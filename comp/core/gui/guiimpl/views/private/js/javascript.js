@@ -23,6 +23,28 @@ function sendMessage(endpoint, data, method, callback, callbackErr){
   })
 }
 
+// setError print the
+/**
+ * Sets the error message and displays it on the page.
+ * @param {number} status - The status code of the error.
+ * @param {string} message - The error message.
+ */
+function setError(status, message) {
+  if (status == 0) {
+    message = "Unable to contact the Datadog Agent. Please ensure it is running."
+  }
+  else if (status == 401) {
+    message = "Not logged in. Please ensure that your GUI session has not expired. (Agent replied with: " + DOMPurify.sanitize(message.trim()) + ")"
+  }
+
+  $("#error_content").html("<h3>Error</h3> " + message)
+
+  if (status == 401) {
+    $("#logged_out").css("display", "block");
+  }
+  $("#error").css("display", "block");
+}
+
 // Generates a CodeMirror text editor object and attaches it to the specific element
 function attachEditor(addTo, data) {
   var codeMirror = CodeMirror(document.getElementById(addTo), {
@@ -282,7 +304,8 @@ function loadManageChecks() {
 // Fetches the names of all the configuration (.yaml) files and fills the list of
 // checks to configure with the configurations for all currently enabled checks
 function loadCheckConfigFiles() {
-  $(".list").html("");
+  // Create a temporary container (IE doesn't like adding elements in HTML elements)
+  var tempList = $("<div></div>");
 
   sendMessage("checks/listConfigs", "", "post",
   function(data, status, xhr){
@@ -298,9 +321,12 @@ function loadCheckConfigFiles() {
           item.endsWith("auto_conf.yaml")) return;
 
       item = DOMPurify.sanitize(item)
-      $(".list").append('<a href="javascript:void(0)" onclick="showCheckConfig(\''
+      tempList.append('<a href="javascript:void(0)" onclick="showCheckConfig(\''
                         + item  + '\')" class="check">' +  item + '</a>');
     });
+
+    // Replace the existing .list content with the new HTML
+    $(".list").html(tempList.html());
 
     // Add highlighting current check functionality
     $(".check").click(function(){
@@ -315,7 +341,8 @@ function loadCheckConfigFiles() {
 // Fetches the names of all the check (.py) files and fills the list of checks to add
 // with the checks which are not already enabled
 function loadNewChecks() {
-  $(".list").html("");
+  // Create a temporary container (IE doesn't like adding elements in HTML elements)
+  var tempList = $("<div></div>");
 
   // Get a list of all the currently enabled checks (aka checks with a valid config file)
   var enabledChecks = [];
@@ -352,9 +379,13 @@ function loadNewChecks() {
         // Only display checks that aren't already enabled
         if (enabledChecks.indexOf(checkName) != -1) return;
 
-        $(".list").append('<a href="javascript:void(0)" onclick="addCheck(\'' +
+        tempList.append('<a href="javascript:void(0)" onclick="addCheck(\'' +
                           DOMPurify.sanitize(checkName) + '\')" class="check">' +  DOMPurify.sanitize(item) + '</a>');
       });
+
+      // Replace the existing .list content with the new HTML
+      $(".list").html(tempList.html());
+
       // Add current item highlighting
       $(".check").click(function(){
         $(".active_check").removeClass("active_check");
@@ -734,7 +765,10 @@ function restartAgent() {
       if (data != "Success") {
         $("#general_status").css("display", "block");
         $('#general_status').html("<span class='center'>Error restarting agent: " + DOMPurify.sanitize(data) + "</span>");
-      } else loadStatus("general");
+      } else {
+        $("#restart_status").hide()
+        loadStatus("general");
+      }
     }, 10000);
   }, function(requestObject, error, errorThrown) {
     $(".loading_spinner").remove();
