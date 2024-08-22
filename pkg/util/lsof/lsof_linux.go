@@ -373,6 +373,10 @@ func fileStats(statf func(string) (os.FileInfo, error), path string) (string, st
 	perm := stat.Mode().Perm().String()
 
 	var ino uint64
+	// The inode number is not part of the exported interface of `os.FileInfo`,
+	// so we need to use the underlying type to get it
+	// `syscall.Stat_t` is the underlying type of `os.FileInfo.Sys()` on Linux
+	// but type check to be safe and avoid unexpected panics
 	if sys, ok := stat.Sys().(*syscall.Stat_t); ok {
 		ino = sys.Ino
 	}
