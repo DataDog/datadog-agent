@@ -10,8 +10,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,24 +22,24 @@ func TestDynamicInstrumentationLogJSONRoundTrip(t *testing.T) {
 	for _, filePath := range files {
 		file, err := os.Open(filePath)
 		if err != nil {
-			log.Fatal(err)
+			t.Error(err)
 		}
 		defer file.Close()
 
 		bytes, err := io.ReadAll(file)
 		if err != nil {
-			log.Fatal(err)
+			t.Error(err)
 		}
 
 		var s SnapshotUpload
 		err = json.Unmarshal(bytes, &s)
 		if err != nil {
-			log.Fatal(err)
+			t.Error(err)
 		}
 
 		mBytes, err := json.Marshal(s)
 		if err != nil {
-			log.Fatal(err)
+			t.Error(err)
 		}
 
 		assert.JSONEq(t, string(bytes), string(mBytes))
