@@ -538,7 +538,7 @@ func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, e *model.CGroupCon
 }
 
 // ResolveCGroupManager resolves the manager of the cgroup
-func (fh *EBPFFieldHandlers) ResolveCGroupManager(ev *model.Event, e *model.CGroupContext) string {
+func (fh *EBPFFieldHandlers) ResolveCGroupManager(ev *model.Event, _ *model.CGroupContext) string {
 	if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil {
 		if manager := containerutils.CGroupManager(entry.CGroup.CGroupFlags); manager != 0 {
 			return manager.String()
