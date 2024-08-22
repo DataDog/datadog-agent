@@ -336,7 +336,7 @@ func TestSync(t *testing.T) {
 		mockRegistry.On("Register", "/bin/bash", uint32(1), mock.Anything, mock.Anything).Return(nil)
 		mockRegistry.On("Register", "/bin/bash", uint32(2), mock.Anything, mock.Anything).Return(nil)
 
-		err = ua.Sync(false)
+		err = ua.Sync(true, false)
 		require.NoError(tt, err)
 
 		mockRegistry.AssertExpectations(tt)
@@ -369,7 +369,7 @@ func TestSync(t *testing.T) {
 		mockRegistry.On("Register", "/bin/bash", uint32(2), mock.Anything, mock.Anything).Return(nil)
 		mockRegistry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{})
 
-		err = ua.Sync(true)
+		err = ua.Sync(true, true)
 		require.NoError(tt, err)
 		mockRegistry.AssertExpectations(tt)
 
@@ -379,7 +379,7 @@ func TestSync(t *testing.T) {
 		mockRegistry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{1: {}, 2: {}})
 		mockRegistry.On("Unregister", uint32(2)).Return(nil)
 
-		require.NoError(t, ua.Sync(true))
+		require.NoError(t, ua.Sync(true, true))
 		mockRegistry.AssertExpectations(tt)
 	})
 }
