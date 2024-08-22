@@ -378,6 +378,7 @@ func (l *CheckRunner) basicRunner(c checks.Check) func() {
 		}
 
 		ticker := time.NewTicker(checks.GetInterval(l.config, c.Name()))
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:

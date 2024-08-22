@@ -612,7 +612,7 @@ func (s *State) AssertFileExists(path string, perms fs.FileMode, user string, gr
 // AssertSymlinkExists asserts that a symlink exists on the host with the given target, user, and group.
 func (s *State) AssertSymlinkExists(path string, target string, user string, group string) {
 	fileInfo, ok := s.FS[path]
-	assert.True(s.t, ok, "syminlk %v does not exist", path)
+	assert.True(s.t, ok, "symlink %v does not exist", path)
 	assert.True(s.t, fileInfo.IsSymlink, "%v is not a symlink", path)
 	assert.Equal(s.t, target, fileInfo.Link, "%v has unexpected target", path)
 	assert.Equal(s.t, user, fileInfo.User, "%v has unexpected user", path)

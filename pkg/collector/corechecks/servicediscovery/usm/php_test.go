@@ -7,8 +7,6 @@ package usm
 
 import (
 	"testing"
-
-	"go.uber.org/zap"
 )
 
 func TestServiceNameFromCLI(t *testing.T) {
@@ -38,7 +36,7 @@ func TestServiceNameFromCLI(t *testing.T) {
 			expected: "",
 		},
 	}
-	instance := &phpDetector{ctx: NewDetectionContext(zap.NewExample(), nil, nil, nil)}
+	instance := &phpDetector{ctx: NewDetectionContext(nil, nil, nil)}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			value, ok := instance.detect(tt.args)
