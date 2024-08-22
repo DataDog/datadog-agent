@@ -37,6 +37,7 @@ def test(ctx, verbose=False) -> None:
 
     try:
         ctx.run("netstat -a")
+        ctx.run("netstat -rn")
         ctx.run("cat /etc/hosts")
         ctx.run("docker ps")
         os.environ["ORACLE_TEST_PORT"] = "1521"
