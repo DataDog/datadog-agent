@@ -56,6 +56,6 @@ func doConfigure(s *systrayImpl) error {
 		return fmt.Errorf("error opening GUI: %s", err.Error())
 	}
 
-	s.log.Debugf("GUI opened at %s\n", guiPort)
+	s.log.Debugf("GUI opened at %s\n", guiAddress)
 	return nil
 }
