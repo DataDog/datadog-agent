@@ -101,9 +101,14 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 
 	// Port cannot be shared with trace-agent, so just use the next one
 	traceAgentDebugPort := pkgconfig.GetInt("apm_config.debug.port")
-	pkgconfig.Set("apm_config.debug.port", traceAgentDebugPort+1, pkgconfigmodel.SourceLocalConfigProcess) // 5012 is for trace-agent
+	pkgconfig.Set("apm_config.debug.port", traceAgentDebugPort+1, pkgconfigmodel.SourceLocalConfigProcess) // Default: 5012 is for trace-agent
+
+	otlpTracePort := pkgconfig.GetInt(pkgconfigsetup.OTLPTracePort)
+	pkgconfig.Set(pkgconfigsetup.OTLPTracePort, otlpTracePort+1, pkgconfigmodel.SourceLocalConfigProcess) // Default: 5003 is for trace-agent
+
 	pkgconfig.Set("otlp_config.traces.span_name_as_resource_name", ddc.Traces.SpanNameAsResourceName, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("otlp_config.traces.span_name_remappings", ddc.Traces.SpanNameRemappings, pkgconfigmodel.SourceLocalConfigProcess)
+
 	pkgconfig.Set("apm_config.receiver_enabled", false, pkgconfigmodel.SourceLocalConfigProcess) // disable HTTP receiver
 	pkgconfig.Set("apm_config.ignore_resources", ddc.Traces.IgnoreResources, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("apm_config.skip_ssl_validation", ddc.ClientConfig.TLSSetting.InsecureSkipVerify, pkgconfigmodel.SourceLocalConfigProcess)
