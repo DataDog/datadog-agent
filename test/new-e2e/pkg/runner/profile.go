@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"io"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -96,6 +97,24 @@ func newProfile(projectName string, environments []string, store parameters.Stor
 	}
 
 	return p
+}
+
+func defaultEnvironments(environments string, defaultsEnvironments map[string]string) string {
+	defaultedEnvironmentsMap := maps.Clone(defaultsEnvironments)
+	environmentsList := strings.Split(environments, " ")
+	environmentsMap := make(map[string]string)
+	for _, env := range environmentsList {
+		parts := strings.Split(env, "/")
+		if len(parts) == 2 {
+			environmentsMap[parts[0]] = parts[1]
+		}
+	}
+	maps.Copy(defaultedEnvironmentsMap, environmentsMap)
+	defaultEnvironments := ""
+	for k, v := range defaultedEnvironmentsMap {
+		defaultEnvironments += fmt.Sprintf("%s/%s ", k, v)
+	}
+	return strings.TrimSpace(defaultEnvironments)
 }
 
 // EnvironmentNames returns a comma-separated list of environments that the profile targets

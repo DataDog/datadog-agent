@@ -16,9 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 )
 
-const (
-	defaultLocalEnvironments string = "aws/agent-sandbox az/agent-sandbox"
-)
+var defaultLocalEnvironments = map[string]string{
+	"aws": "agent-sandbox",
+	"az":  "agent-sandbox",
+}
 
 // NewLocalProfile creates a new local profile
 func NewLocalProfile() (Profile, error) {
@@ -40,7 +41,8 @@ func NewLocalProfile() (Profile, error) {
 		store = parameters.NewCascadingStore(envValueStore)
 	}
 	// inject default params
-	environments, err := store.GetWithDefault(parameters.Environments, defaultLocalEnvironments)
+	environments, err := store.GetWithDefault(parameters.Environments, "")
+	environments = defaultEnvironments(environments, defaultLocalEnvironments)
 	fmt.Println("ENVIRO", environments)
 	if err != nil {
 		return nil, err

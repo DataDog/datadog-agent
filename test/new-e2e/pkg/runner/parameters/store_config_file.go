@@ -8,6 +8,7 @@ package parameters
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"encoding/json"
 
@@ -150,19 +151,13 @@ func (s configFileValueStore) get(key StoreKey) (string, error) {
 			value = "team:" + s.config.ConfigParams.AWS.TeamTag
 		}
 	case Environments:
-		if s.config.ConfigParams.AWS.Account != "" && s.config.ConfigParams.Azure.Account != "" {
-			break
-		}
 		if s.config.ConfigParams.AWS.Account != "" {
-			value = "aws/" + s.config.ConfigParams.AWS.Account
-		} else {
-			value = "aws/" + defaultAwsAccount
+			value = value + fmt.Sprintf("aws/%s ", s.config.ConfigParams.AWS.Account)
 		}
 		if s.config.ConfigParams.Azure.Account != "" {
-			value = fmt.Sprintf("%s %s", value, "az/"+s.config.ConfigParams.Azure.Account)
-		} else {
-			value = fmt.Sprintf("%s %s", value, "az/"+defaultAzureAccount)
+			value = value + fmt.Sprintf("az/%s ", s.config.ConfigParams.Azure.Account)
 		}
+		value = strings.TrimSpace(value)
 
 	case VerifyCodeSignature:
 		value = s.config.ConfigParams.Agent.VerifyCodeSignature
