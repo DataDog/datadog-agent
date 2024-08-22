@@ -6,6 +6,7 @@
 package parameters
 
 import (
+	"fmt"
 	"os"
 
 	"encoding/json"
@@ -27,6 +28,10 @@ import (
 //     aws/someVariable: "ponyo"
 
 // Config instance contains ConfigParams and StackParams
+
+const defaultAzureAccount = "agent-sandbox"
+const defaultAwsAccount = "agent-sandbox"
+
 type Config struct {
 	ConfigParams ConfigParams                 `yaml:"configParams"`
 	StackParams  map[string]map[string]string `yaml:"stackParams"`
@@ -35,6 +40,7 @@ type Config struct {
 // ConfigParams instance contains config relayed parameters
 type ConfigParams struct {
 	AWS       AWS    `yaml:"aws"`
+	Azure     Azure  `yaml:"azure"`
 	Agent     Agent  `yaml:"agent"`
 	OutputDir string `yaml:"outputDir"`
 	Pulumi    Pulumi `yaml:"pulumi"`
@@ -49,6 +55,13 @@ type AWS struct {
 	PrivateKeyPath     string `yaml:"privateKeyPath"`
 	PrivateKeyPassword string `yaml:"privateKeyPassword"`
 	TeamTag            string `yaml:"teamTag"`
+}
+
+type Azure struct {
+	Account            string `yaml:"account"`
+	PublicKeyPath      string `yaml:"publicKeyPath"`
+	PrivateKeyPath     string `yaml:"privateKeyPath"`
+	PrivateKeyPassword string `yaml:"privateKeyPassword"`
 }
 
 // Agent instance contains agent related parameters
@@ -136,6 +149,21 @@ func (s configFileValueStore) get(key StoreKey) (string, error) {
 		if s.config.ConfigParams.AWS.TeamTag != "" {
 			value = "team:" + s.config.ConfigParams.AWS.TeamTag
 		}
+	case Environments:
+		if s.config.ConfigParams.AWS.Account != "" && s.config.ConfigParams.Azure.Account != "" {
+			break
+		}
+		if s.config.ConfigParams.AWS.Account != "" {
+			value = "aws/" + s.config.ConfigParams.AWS.Account
+		} else {
+			value = "aws/" + defaultAwsAccount
+		}
+		if s.config.ConfigParams.Azure.Account != "" {
+			value = fmt.Sprintf("%s %s", value, "az/"+s.config.ConfigParams.Azure.Account)
+		} else {
+			value = fmt.Sprintf("%s %s", value, "az/"+defaultAzureAccount)
+		}
+
 	case VerifyCodeSignature:
 		value = s.config.ConfigParams.Agent.VerifyCodeSignature
 	case OutputDir:
