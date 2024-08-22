@@ -662,7 +662,11 @@ func Test_npCollectorImpl_flushLoop(t *testing.T) {
 	// THEN
 	assert.Eventually(t, func() bool {
 		var pathtestFlushCount []teststatsd.MetricsArgs
-		for _, call := range stats.GaugeCalls {
+		calls := stats.GetGaugeSummaries()["datadog.network_path.collector.flush_interval"]
+		if calls == nil {
+			return false
+		}
+		for _, call := range calls.Calls {
 			if call.Name == "datadog.network_path.collector.flush_interval" {
 				pathtestFlushCount = append(pathtestFlushCount, call)
 				assert.Less(t, call.Value, (200 * time.Millisecond).Seconds())
