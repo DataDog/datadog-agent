@@ -3,7 +3,9 @@
 set -e
 
 apt-get update
-apt-get install -y ca-certificates curl gnupg python3
+apt-get install -y ca-certificates curl gnupg python3 python3-pip
+
+pip install ddtrace
 
 # Install our own services
 install_systemd_unit () {
@@ -31,6 +33,7 @@ EOM
 }
 
 install_systemd_unit "python-svc" "/usr/bin/python3 /home/ubuntu/e2e-test/python/server.py" "8082"
+install_systemd_unit "python-instrumented" "/usr/bin/python3 /home/ubuntu/e2e-test/python/instrumented.py" "8083"
 
 systemctl daemon-reload
 

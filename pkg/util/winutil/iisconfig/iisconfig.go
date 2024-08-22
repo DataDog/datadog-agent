@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build windows
 
-package winutil
+package iisconfig
 
 import (
 	"encoding/xml"
@@ -34,6 +34,7 @@ type DynamicIISConfig struct {
 	stopChannel  chan bool
 	xmlcfg       *iisConfiguration
 	siteIDToName map[uint32]string
+	pathTrees    map[uint32]*pathTreeEntry
 }
 
 // NewDynamicIISConfig creates a new DynamicIISConfig
@@ -114,18 +115,20 @@ type iisApplication struct {
 	VirtualDirs []iisVirtualDirectory `xml:"virtualDirectory"`
 }
 type iisSite struct {
-	Name        string `xml:"name,attr"`
-	SiteID      string `xml:"id,attr"`
-	Application iisApplication
-	Bindings    []iisBinding `xml:"bindings>binding"`
+	Name         string           `xml:"name,attr"`
+	SiteID       string           `xml:"id,attr"`
+	Applications []iisApplication `xml:"application"`
+	Bindings     []iisBinding     `xml:"bindings>binding"`
 }
 type iisSystemApplicationHost struct {
 	XMLName xml.Name  `xml:"system.applicationHost"`
 	Sites   []iisSite `xml:"sites>site"`
 }
+
 type iisConfiguration struct {
 	XMLName         xml.Name `xml:"configuration"`
 	ApplicationHost iisSystemApplicationHost
+	AppSettings     iisAppSettings
 }
 
 func (iiscfg *DynamicIISConfig) readXMLConfig() error {
@@ -147,10 +150,13 @@ func (iiscfg *DynamicIISConfig) readXMLConfig() error {
 		}
 		idmap[uint32(id)] = site.Name
 	}
+
+	pt := buildPathTagTree(&newcfg)
 	iiscfg.mux.Lock()
 	defer iiscfg.mux.Unlock()
 	iiscfg.xmlcfg = &newcfg
 	iiscfg.siteIDToName = idmap
+	iiscfg.pathTrees = pt
 	return nil
 }
 

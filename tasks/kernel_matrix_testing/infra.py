@@ -188,7 +188,7 @@ def build_infrastructure(stack: str, ssh_key_obj: SSHKey | None = None):
         try:
             infra_map: StackOutput = json.load(f)
         except json.decoder.JSONDecodeError as e:
-            raise Exit(f"{stack_output} file is not a valid json file") from e
+            raise RuntimeError(f"{stack_output} file is not a valid json file") from e
 
     infra: dict[KMTArchNameOrLocal, HostInstance] = {}
     for arch in infra_map:
