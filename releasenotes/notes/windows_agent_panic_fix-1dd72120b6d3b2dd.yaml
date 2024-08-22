@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Fixed a nil pointer dereference issue in the `Tailer.DidRotate` function that was caused the agent to panic.
+    Fixed a nil pointer dereference issue in the `Tailer.DidRotate` function that was causing the Agent to panic.
