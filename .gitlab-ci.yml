@@ -23,6 +23,7 @@ include:
   - .gitlab/dev_container_deploy/include.yml
   - .gitlab/e2e/e2e.yml
   - .gitlab/e2e_pre_test/e2e_pre_test.yml
+  - .gitlab/fips_compliance/check_binary_symbols.yml
   - .gitlab/functional_test/include.yml
   - .gitlab/functional_test_cleanup/functional_test_cleanup.yml
   - .gitlab/install_script_testing/install_script_testing.yml
@@ -75,6 +76,7 @@ stages:
   - benchmarks
   - package_build
   - packaging
+  - check_fips_compliance
   - pkg_metrics
   - kitchen_deploy
   - kitchen_testing

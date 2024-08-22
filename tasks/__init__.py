@@ -27,6 +27,7 @@ from tasks import (
     emacs,
     epforwarder,
     fakeintake,
+    fips,
     git,
     github_tasks,
     gitlab_helpers,
@@ -165,6 +166,7 @@ ns.add_collection(docker_tasks, "docker")
 ns.add_collection(dogstatsd)
 ns.add_collection(ebpf)
 ns.add_collection(emacs)
+ns.add_collection(fips)
 ns.add_collection(vim)
 ns.add_collection(epforwarder)
 ns.add_collection(go_deps)
