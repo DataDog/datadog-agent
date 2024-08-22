@@ -450,7 +450,7 @@ func TestAttachToBinaryAndDetach(t *testing.T) {
 	mockMan.On("GetProbe", mock.Anything).Return(nilProbe, false)
 
 	// Tell the manager to accept the probe
-	uid := "1hipf_0" // this is the UID that the manager will generate, from a path identifier with 0/0 as device/inode
+	uid := "1hipfd0" // this is the UID that the manager will generate, from a path identifier with 0/0 as device/inode
 	expectedProbe := &manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect", UID: uid},
 		BinaryPath:              target.HostPath,
@@ -515,7 +515,7 @@ func TestAttachToBinaryAtReturnLocation(t *testing.T) {
 		expectedProbe := &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "uprobe__SSL_connect__return",
-				UID:          fmt.Sprintf("%s_%d", uidBase, n)},
+				UID:          fmt.Sprintf("%sr%d", uidBase, n)},
 			BinaryPath:   target.HostPath,
 			UprobeOffset: symbolToAttach.ReturnLocations[n],
 			HookFuncName: "SSL_connect",
@@ -592,7 +592,7 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 	mockMan.On("GetProbe", mock.Anything).Return(nilProbe, false)
 
 	// Tell the manager to accept the probe
-	uid := "1hipf_0" // this is the UID that the manager will generate, from a path identifier with 0/0 as device/inode
+	uid := "1hipfd0" // this is the UID that the manager will generate, from a path identifier with 0/0 as device/inode
 	expectedProbe := &manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect", UID: uid},
 		BinaryPath:              target.HostPath,
