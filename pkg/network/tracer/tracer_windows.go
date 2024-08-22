@@ -126,11 +126,7 @@ func NewTracer(config *config.Config, telemetry telemetry.Component) (*Tracer, e
 		if tr.processCache, err = newProcessCache(config.MaxProcessesTracked); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
 		}
-		//telemetry.GetCompatComponent().RegisterCollector(tr.processCache)
-
-		//if tr.timeResolver, err = timeresolver.NewResolver(); err != nil {
-		//	return nil, fmt.Errorf("could not create time resolver: %w", err)
-		//}
+		telemetry.RegisterCollector(tr.processCache)
 
 		if err = events.Init(); err != nil {
 			return nil, fmt.Errorf("could not initialize event monitoring: %w", err)
