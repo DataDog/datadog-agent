@@ -1259,11 +1259,19 @@ func (s *TracerSuite) TestTCPFailureConnectionRefused() {
 	require.Error(t, err, "expected connection refused error but got none")
 
 	// Check if the connection was recorded as refused
+	var foundConn *network.ConnectionStats
 	require.Eventually(t, func() bool {
 		conns := getConnections(t, tr)
 		// Check for the refusal record
-		return findFailedConnectionByRemoteAddr(srvAddr, conns, 111)
+		foundConn = findFailedConnectionByRemoteAddr(srvAddr, conns, 111)
+		return foundConn != nil
 	}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
+
+	assert.Equal(t, uint32(1), foundConn.TCPFailures[111], "expected 1 connection refused")
+	assert.Equal(t, uint32(0), foundConn.TCPFailures[104], "expected 0 connection reset")
+	assert.Equal(t, uint32(0), foundConn.TCPFailures[110], "expected 0 connection timeout")
+	assert.Equal(t, uint64(0), foundConn.Monotonic.SentBytes, "expected 0 bytes sent")
+	assert.Equal(t, uint64(0), foundConn.Monotonic.RecvBytes, "expected 0 bytes received")
 }
 
 func (s *TracerSuite) TestTCPFailureConnectionResetWithData() {
@@ -1303,12 +1311,19 @@ func (s *TracerSuite) TestTCPFailureConnectionResetWithData() {
 	require.Error(t, readErr, "expected connection reset error but got none")
 
 	// Check if the connection was recorded as reset
+	var conn *network.ConnectionStats
 	require.Eventually(t, func() bool {
 		// 104 is the errno for ECONNRESET
-		return findFailedConnection(t, c.LocalAddr().String(), serverAddr, getConnections(t, tr), 104)
+		conn = findFailedConnection(t, c.LocalAddr().String(), serverAddr, getConnections(t, tr), 104)
+		return conn != nil
 	}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
 
 	require.NoError(t, c.Close(), "error closing client connection")
+	assert.Equal(t, uint32(1), conn.TCPFailures[104], "expected 1 connection reset")
+	assert.Equal(t, uint32(0), conn.TCPFailures[111], "expected 0 connection refused")
+	assert.Equal(t, uint32(0), conn.TCPFailures[110], "expected 0 connection timeout")
+	assert.Equal(t, uint64(4), conn.Monotonic.SentBytes, "expected 4 bytes sent")
+	assert.Equal(t, uint64(0), conn.Monotonic.RecvBytes, "expected 0 bytes received")
 }
 
 func (s *TracerSuite) TestTCPFailureConnectionResetNoData() {
@@ -1344,27 +1359,35 @@ func (s *TracerSuite) TestTCPFailureConnectionResetNoData() {
 	require.Error(t, writeErr, "expected connection reset error but got none")
 
 	// Check if the connection was recorded as reset
+	var conn *network.ConnectionStats
 	require.Eventually(t, func() bool {
 		conns := getConnections(t, tr)
 		// 104 is the errno for ECONNRESET
-		return findFailedConnection(t, c.LocalAddr().String(), serverAddr, conns, 104)
+		conn = findFailedConnection(t, c.LocalAddr().String(), serverAddr, conns, 104)
+		return conn != nil
 	}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
 
 	require.NoError(t, c.Close(), "error closing client connection")
+
+	assert.Equal(t, uint32(1), conn.TCPFailures[104], "expected 1 connection reset")
+	assert.Equal(t, uint32(0), conn.TCPFailures[111], "expected 0 connection refused")
+	assert.Equal(t, uint32(0), conn.TCPFailures[110], "expected 0 connection timeout")
+	assert.Equal(t, uint64(0), conn.Monotonic.SentBytes, "expected 0 bytes sent")
+	assert.Equal(t, uint64(0), conn.Monotonic.RecvBytes, "expected 0 bytes received")
 }
 
 // findFailedConnection is a utility function to find a failed connection based on specific TCP error codes
-func findFailedConnection(t *testing.T, local, remote string, conns *network.Connections, errorCode uint32) bool { // nolint:unused
+func findFailedConnection(t *testing.T, local, remote string, conns *network.Connections, errorCode uint32) *network.ConnectionStats { // nolint:unused
 	// Extract the address and port from the net.Addr types
 	localAddrPort, err := netip.ParseAddrPort(local)
 	if err != nil {
 		t.Logf("Failed to parse local address: %v", err)
-		return false
+		return nil
 	}
 	remoteAddrPort, err := netip.ParseAddrPort(remote)
 	if err != nil {
 		t.Logf("Failed to parse remote address: %v", err)
-		return false
+		return nil
 	}
 
 	failureFilter := func(cs network.ConnectionStats) bool {
@@ -1373,13 +1396,13 @@ func findFailedConnection(t *testing.T, local, remote string, conns *network.Con
 		return localMatch && remoteMatch && cs.TCPFailures[errorCode] > 0
 	}
 
-	return network.FirstConnection(conns, failureFilter) != nil
+	return network.FirstConnection(conns, failureFilter)
 }
 
 // for some failed connections we don't know the local addr/port so we need to search by remote addr only
-func findFailedConnectionByRemoteAddr(remoteAddr string, conns *network.Connections, errorCode uint32) bool {
+func findFailedConnectionByRemoteAddr(remoteAddr string, conns *network.Connections, errorCode uint32) *network.ConnectionStats {
 	failureFilter := func(cs network.ConnectionStats) bool {
 		return netip.MustParseAddrPort(remoteAddr) == netip.AddrPortFrom(cs.Dest.Addr, cs.DPort) && cs.TCPFailures[errorCode] > 0
 	}
-	return network.FirstConnection(conns, failureFilter) != nil
+	return network.FirstConnection(conns, failureFilter)
 }
