@@ -8,10 +8,10 @@ from invoke.exceptions import Exit
 def test(ctx, verbose=False) -> None:
     with ctx.cd("pkg/collector/corechecks/oracle/compose"):
         print("Launching docker...")
-        ctx.run("docker-compose down", hide=not verbose)
-        ctx.run("docker-compose rm -f", hide=not verbose)
-        ctx.run("docker-compose build", hide=not verbose)
-        ctx.run("docker-compose up -d", hide=not verbose)
+        ctx.run("docker compose down", hide=not verbose)
+        ctx.run("docker compose rm -f", hide=not verbose)
+        ctx.run("docker compose build", hide=not verbose)
+        ctx.run("docker compose up -d", hide=not verbose)
 
         healthy = False
         attempts = 0
@@ -45,4 +45,4 @@ def test(ctx, verbose=False) -> None:
 def clean(ctx, verbose=False) -> None:
     print("Cleaning up...")
     with ctx.cd("pkg/collector/corechecks/oracle/compose"):
-        ctx.run("docker-compose down", hide=not verbose)
+        ctx.run("docker compose down", hide=not verbose)
