@@ -10,8 +10,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"time"
 
+	"github.com/cenkalti/backoff"
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
@@ -42,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -116,6 +119,9 @@ type logAgent struct {
 	wmeta                     optional.Option[workloadmeta.Component]
 	schedulerProviders        []schedulers.Scheduler
 	integrationsLogs          integrations.Component
+	grpcClient                grpcClient.Component
+	autodiscoveryStream       core.AgentSecure_AutodiscoveryStreamConfigClient
+	autodiscoveryStreamCancel context.CancelFunc
 
 	// started is true if the logs agent is running
 	started *atomic.Bool
@@ -141,6 +147,7 @@ func newLogsAgent(deps dependencies) provides {
 			wmeta:              deps.WMeta,
 			schedulerProviders: deps.SchedulerProviders,
 			integrationsLogs:   deps.IntegrationsLogs,
+			grpcClient:         deps.GrpcClient,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,
@@ -194,11 +201,70 @@ func (a *logAgent) start(context.Context) error {
 	a.startPipeline()
 	a.log.Info("logs-agent started")
 
+	// Start a stream using the grpc Client to consume autodiscovery updates for the different configurations
+	go func() {
+		for {
+			if a.autodiscoveryStream == nil {
+				err := a.initStream()
+				if err != nil {
+					a.log.Warnf("error received trying to start stream: %s", err)
+					continue
+				}
+			}
+
+			configs, err := a.autodiscoveryStream.Recv()
+
+			if err != nil {
+				a.autodiscoveryStreamCancel()
+
+				a.autodiscoveryStream = nil
+
+				if err != io.EOF {
+					a.log.Warnf("error received from autodiscovery stream workloadmeta: %s", err)
+				}
+
+				continue
+			}
+
+			fmt.Println(configs)
+		}
+	}()
+
 	for _, scheduler := range a.schedulerProviders {
 		a.AddScheduler(scheduler)
 	}
 
 	return nil
+}
+
+func (a *logAgent) initStream() error {
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = 500 * time.Millisecond
+	expBackoff.MaxInterval = 5 * time.Minute
+	expBackoff.MaxElapsedTime = 0 * time.Minute
+
+	return backoff.Retry(func() error {
+		select {
+		case <-a.grpcClient.Context().Done():
+			return &backoff.PermanentError{}
+		default:
+		}
+
+		streamCtx, streamCancelCtx := a.grpcClient.NewStreamContext()
+
+		stream, err := a.grpcClient.AutodiscoveryStreamConfig(streamCtx, nil)
+		if err != nil {
+			a.log.Infof("unable to establish stream, will possibly retry: %s", err)
+			// We need to handle the case that the kernel agent dies
+			return err
+		}
+
+		a.autodiscoveryStream = stream
+		a.autodiscoveryStreamCancel = streamCancelCtx
+
+		a.log.Info("autodiscovery stream established successfully")
+		return nil
+	}, expBackoff)
 }
 
 func (a *logAgent) setupAgent() error {
@@ -263,6 +329,10 @@ func (a *logAgent) stop(context.Context) error {
 		a.destinationsCtx,
 		a.diagnosticMessageReceiver,
 	)
+
+	a.grpcClient.Cancel()
+	a.autodiscoveryStream = nil
+	a.autodiscoveryStreamCancel()
 
 	// This will try to stop everything in order, including the potentially blocking
 	// parts like the sender. After StopTimeout it will just stop the last part of the

@@ -12,9 +12,11 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/golang/protobuf/ptypes/empty"
 
@@ -37,6 +39,7 @@ type Provides struct {
 }
 
 type client struct {
+	ctx    context.Context
 	cancel context.CancelFunc
 	c      pb.AgentSecureClient
 	conn   *grpc.ClientConn
@@ -77,6 +80,40 @@ func (c *client) WorkloadmetaStreamEntities(ctx context.Context, in *pb.Workload
 func (c *client) AutodiscoveryStreamConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (pb.AgentSecure_AutodiscoveryStreamConfigClient, error) {
 	return c.c.AutodiscoveryStreamConfig(ctx, in, opts...)
 }
+func (c *client) NewStreamContextWithTimeout(timeout time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(
+		metadata.NewOutgoingContext(
+			c.ctx,
+			metadata.MD{
+				"authorization": []string{
+					fmt.Sprintf("Bearer %s", c.token),
+				},
+			},
+		),
+		timeout,
+	)
+}
+
+func (c *client) NewStreamContext() (context.Context, context.CancelFunc) {
+	return context.WithCancel(
+		metadata.NewOutgoingContext(
+			c.ctx,
+			metadata.MD{
+				"authorization": []string{
+					fmt.Sprintf("Bearer %s", c.token),
+				},
+			},
+		),
+	)
+}
+
+func (c *client) Cancel() {
+	c.cancel()
+}
+
+func (c *client) Context() context.Context {
+	return c.ctx
+}
 
 // NewComponent creates a new grpcClient component
 func NewComponent(reqs Requires) (Provides, error) {
@@ -115,6 +152,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	client := &client{
 		cancel: cancel,
+		ctx:    ctx,
 		c:      c,
 		token:  token,
 		conn:   conn,

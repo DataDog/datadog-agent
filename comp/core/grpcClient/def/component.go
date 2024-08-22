@@ -7,10 +7,19 @@
 package grpcClient
 
 import (
+	"context"
+	"time"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 // team: /* TODO: add team name */
 
 // Component is the component type.
-type Component = pb.AgentSecureClient
+type Component interface {
+	pb.AgentSecureClient
+	NewStreamContextWithTimeout(timeout time.Duration) (context.Context, context.CancelFunc)
+	NewStreamContext() (context.Context, context.CancelFunc)
+	Cancel()
+	Context() context.Context
+}
