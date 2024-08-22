@@ -48,10 +48,10 @@ var (
 		e2eos.Suse15,
 	}
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkipedFlavors{
-		{t: testInstaller},
-		{t: testAgent},
+		{t: testInstaller, skippedInstallationMethods: []installMethodOption{installMethodAnsible}},
+		{t: testAgent, skippedInstallationMethods: []installMethodOption{installMethodAnsible}},
 		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.Fedora37, e2eos.Suse15}, skippedInstallationMethods: []installMethodOption{installMethodAnsible}},
-		{t: testUpgradeScenario},
+		{t: testUpgradeScenario, skippedInstallationMethods: []installMethodOption{installMethodAnsible}},
 	}
 )
 
