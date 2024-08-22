@@ -207,7 +207,7 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) (bool, error) {
 	}
 
 	// prepare the scanner rules
-	var sdsRules []sds.Rule
+	var sdsRules []sds.RuleConfig
 	var malformedRulesCount int
 	var unknownStdRulesCount int
 	for _, userRule := range config.Rules {
@@ -251,7 +251,7 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) (bool, error) {
 	s.rawConfig = rawConfig
 	s.configuredRules = config.Rules
 
-	log.Info("Created an SDS scanner with", len(scanner.Rules), "enabled rules")
+	log.Info("Created an SDS scanner with", len(scanner.RuleConfigs), "enabled rules")
 	for _, rule := range s.configuredRules {
 		log.Debug("Configured rule:", rule.Name)
 	}
@@ -268,7 +268,7 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) (bool, error) {
 // an sds.Rule usable with the shared library.
 // `standardRule` contains the definition, with the name, pattern, etc.
 // `userRule`     contains the configuration done by the user: match action, etc.
-func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig, defaults StandardRulesDefaults) (sds.Rule, error) {
+func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig, defaults StandardRulesDefaults) (sds.RuleConfig, error) {
 	var extraConfig sds.ExtraConfig
 
 	var defToUse = StandardRuleDefinition{Version: -1}
@@ -309,7 +309,7 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig, defau
 
 	if defToUse.Version == -1 {
 		// TODO(remy): telemetry
-		return sds.Rule{}, fmt.Errorf("unsupported rule with no compatible definition")
+		return nil, fmt.Errorf("unsupported rule with no compatible definition")
 	}
 
 	// we use the filled `CharacterCount` value to decide if we want
@@ -347,7 +347,7 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig, defau
 		return sds.NewHashRule(standardRule.Name, defToUse.Pattern, extraConfig), nil
 	}
 
-	return sds.Rule{}, fmt.Errorf("Unknown MatchAction type (%v) received through RC for rule '%s':", matchAction, standardRule.Name)
+	return nil, fmt.Errorf("Unknown MatchAction type (%v) received through RC for rule '%s':", matchAction, standardRule.Name)
 }
 
 // Scan scans the given `event` using the internal SDS scanner.
@@ -418,7 +418,7 @@ func (s *Scanner) IsReady() bool {
 	if s.Scanner == nil {
 		return false
 	}
-	if len(s.Scanner.Rules) == 0 {
+	if len(s.Scanner.RuleConfigs) == 0 {
 		return false
 	}
 
