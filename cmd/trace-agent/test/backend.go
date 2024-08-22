@@ -156,16 +156,13 @@ func readCloserFromRequest(req *http.Request) (io.ReadCloser, error) {
 	encoding := strings.ToLower(req.Header.Get("Content-Encoding"))
 	switch encoding {
 	case "zstd":
-		reader := zstd.NewReader(req.Body)
-		defer reader.Close()
-		rc.Reader = reader
+		return zstd.NewReader(req.Body), nil
 	case "gzip":
 		reader, err := gzip.NewReader(req.Body)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
 		}
-		defer reader.Close()
-		rc.Reader = reader
+		return reader, nil
 	}
 	return rc, nil
 }
