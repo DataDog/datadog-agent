@@ -20,7 +20,7 @@ if ohai["platform"] != "windows"
   relative_path "Python-#{version}"
 
   python_configure_options = [
-    "--without-readline",
+    "--without-readline",  # Disables readline support
     "--with-ensurepip=yes" # We upgrade pip later, in the pip3 software definition
   ]
 
@@ -54,7 +54,6 @@ if ohai["platform"] != "windows"
 
     delete "#{install_dir}/embedded/lib/python#{major}.#{minor}/test"
     block do
-      # FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{major}.#{minor}/lib-dynload/readline.*"))
       FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{major}.#{minor}/distutils/command/wininst-*.exe"))
     end
   end
