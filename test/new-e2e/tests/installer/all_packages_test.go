@@ -55,8 +55,6 @@ var (
 	}
 )
 
-var supportedInstallMethods = []installMethodOption{installMethodInstallScript, installMethodAnsible}
-
 func shouldSkipFlavor(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
 	for _, f := range flavors {
 		if f.Flavor == flavor.Flavor && f.Version == flavor.Version {
