@@ -620,12 +620,8 @@ linters-settings:
       - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Errorf
       - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warn
       - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warnf
-      - (github.com/DataDog/datadog-agent/pkg/collector/corechecks.CheckBase).Warnf
-      - (github.com/DataDog/datadog-agent/pkg/collector/corechecks.CheckBase).Warn
-      - (github.com/DataDog/datadog-agent/pkg/collector/corechecks/systen/memory.Check).Warnf
-      - (github.com/DataDog/datadog-agent/pkg/collector/corechecks/systen/memory.Check).Warn
-      - (github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/ecs.Check).Warnf
-      - (github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/ecs.Check).Warn
+      - (*github.com/DataDog/datadog-agent/pkg/collector/corechecks.CheckBase).Warnf
+      - (*github.com/DataDog/datadog-agent/pkg/collector/corechecks.CheckBase).Warn
       - (net/http.ResponseWriter).Write
       - fmt.Sscanf
       - github.com/cihub/seelog.Warnf
