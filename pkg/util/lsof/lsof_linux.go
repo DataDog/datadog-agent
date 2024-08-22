@@ -215,7 +215,6 @@ func (ofl *openFilesLister) fdStat(fd uintptr) (File, bool) {
 
 	fdLinkPath := fmt.Sprintf("%s/fd/%d", ofl.procPIDPath(), fd)
 
-	var inode uint64
 	if file.Type, file.OpenPerm, _, _ = fileStats(ofl.lstat, fdLinkPath); file.Type == "" {
 		return File{}, false
 	}
@@ -233,6 +232,7 @@ func (ofl *openFilesLister) fdStat(fd uintptr) (File, bool) {
 		file.OpenPerm = strings.TrimSuffix(file.OpenPerm, "x")
 	}
 
+	var inode uint64
 	if file.Type, file.FilePerm, file.Size, inode = fileStats(ofl.stat, fdLinkPath); file.Type == "" {
 		return File{}, false
 	}

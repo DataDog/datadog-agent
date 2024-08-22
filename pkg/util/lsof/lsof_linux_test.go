@@ -13,25 +13,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/prometheus/procfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestOpenFiles(t *testing.T) {
-	log.SetupLogger(seelog.Default, "debug")
-
 	pid := os.Getpid()
 
 	files, err := openFiles(pid)
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, files)
-
-	t.Logf("%+v\n", files)
 }
 
 func TestMmapMetadata(t *testing.T) {
