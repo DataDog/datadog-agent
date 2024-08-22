@@ -1125,6 +1125,50 @@ func (s *TracerSuite) TestSelfConnect() {
 		return len(conns) == 2
 	}, 5*time.Second, 100*time.Millisecond, "could not find expected number of tcp connections, expected: 2")
 }
+
+// sets up two udp sockets talking to each other locally.
+// returns (listener, dialer)
+func setupUdpSockets(udpnet, ip string) (*net.UDPConn, *net.UDPConn, error) {
+	serverAddr := fmt.Sprintf("%s:%d", ip, 0)
+
+	laddr, err := net.ResolveUDPAddr(udpnet, serverAddr)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var ln, c *net.UDPConn = nil, nil
+	defer func() {
+		if err == nil {
+			return
+		}
+		if ln != nil {
+			ln.Close()
+		}
+		if c != nil {
+			c.Close()
+		}
+	}()
+
+	ln, err = net.ListenUDP(udpnet, laddr)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	saddr := ln.LocalAddr().String()
+
+	raddr, err := net.ResolveUDPAddr(udpnet, saddr)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	c, err = net.DialUDP(udpnet, laddr, raddr)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return ln, c, nil
+}
+
 func (s *TracerSuite) TestUDPPeekCount() {
 	t := s.T()
 	t.Run("v4", func(t *testing.T) {
@@ -1141,27 +1185,16 @@ func testUDPPeekCount(t *testing.T, udpnet, ip string) {
 	config := testConfig()
 	tr := setupTracer(t, config)
 
-	serverAddr := fmt.Sprintf("%s:%d", ip, 0)
-	ln, err := net.ListenPacket(udpnet, serverAddr)
+	ln, c, err := setupUdpSockets(udpnet, ip)
 	require.NoError(t, err)
 	defer ln.Close()
-
-	saddr := ln.LocalAddr().String()
-
-	laddr, err := net.ResolveUDPAddr(udpnet, serverAddr)
-	require.NoError(t, err)
-	raddr, err := net.ResolveUDPAddr(udpnet, saddr)
-	require.NoError(t, err)
-
-	c, err := net.DialUDP(udpnet, laddr, raddr)
-	require.NoError(t, err)
 	defer c.Close()
 
 	msg := []byte("asdf")
 	_, err = c.Write(msg)
 	require.NoError(t, err)
 
-	rawConn, err := ln.(*net.UDPConn).SyscallConn()
+	rawConn, err := ln.SyscallConn()
 	require.NoError(t, err)
 	err = rawConn.Control(func(fd uintptr) {
 		buf := make([]byte, 1024)
@@ -1224,6 +1257,71 @@ func testUDPPeekCount(t *testing.T, udpnet, ip string) {
 	require.Equal(t, len(msg), int(m.RecvBytes))
 	require.Equal(t, 0, int(m.SentPackets))
 	require.Equal(t, 1, int(m.RecvPackets))
+	require.True(t, incoming.IntraHost)
+}
+
+func (s *TracerSuite) TestUDPPacketSumming() {
+	t := s.T()
+	t.Run("v4", func(t *testing.T) {
+		testUDPPacketSumming(t, "udp4", "127.0.0.1")
+	})
+	t.Run("v6", func(t *testing.T) {
+		if !testConfig().CollectUDPv6Conns {
+			t.Skip("UDPv6 disabled")
+		}
+		testUDPPacketSumming(t, "udp6", "[::1]")
+	})
+}
+func testUDPPacketSumming(t *testing.T, udpnet, ip string) {
+	config := testConfig()
+	tr := setupTracer(t, config)
+
+	ln, c, err := setupUdpSockets(udpnet, ip)
+	require.NoError(t, err)
+	defer ln.Close()
+	defer c.Close()
+
+	msg := []byte("asdf")
+	// send UDP packets of increasing length
+	for i := range len(msg) {
+		_, err = c.Write(msg[:i+1])
+		require.NoError(t, err)
+	}
+
+	buf := make([]byte, 256)
+	for range len(msg) {
+		_, _, err = ln.ReadFrom(buf)
+		require.NoError(t, err)
+	}
+
+	var incoming *network.ConnectionStats
+	var outgoing *network.ConnectionStats
+	require.Eventuallyf(t, func() bool {
+		conns := getConnections(t, tr)
+		if outgoing == nil {
+			outgoing, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		}
+		if incoming == nil {
+			incoming, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
+		}
+
+		return outgoing != nil && incoming != nil
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find incoming and outgoing connections matching")
+
+	totalLen := 1 + 2 + 3 + 4
+	m := outgoing.Monotonic
+	require.Equal(t, totalLen, int(m.SentBytes))
+	require.Equal(t, 0, int(m.RecvBytes))
+	require.Equal(t, int(len(msg)), int(m.SentPackets))
+	require.Equal(t, 0, int(m.RecvPackets))
+	require.True(t, outgoing.IntraHost)
+
+	// make sure the inverse values are seen for the other message
+	m = incoming.Monotonic
+	require.Equal(t, 0, int(m.SentBytes))
+	require.Equal(t, totalLen, int(m.RecvBytes))
+	require.Equal(t, 0, int(m.SentPackets))
+	require.Equal(t, int(len(msg)), int(m.RecvPackets))
 	require.True(t, incoming.IntraHost)
 }
 
