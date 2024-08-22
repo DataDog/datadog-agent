@@ -101,7 +101,7 @@ def upload_to_codecov(
     ctx: Context,
     pull_coverage_cache: bool = False,
     push_coverage_cache: bool = False,
-    debug: bool = False,
+    debug_cache: bool = False,
 ):
     """
     Uploads coverage data of all modules to Codecov.
@@ -110,7 +110,7 @@ def upload_to_codecov(
 
     Flags:   --pull-coverage-cache: [For dev branches] Pull the coverage cache from main parent commit.
              --push-coverage-cache: [For main]         Push the coverage cache to the S3 bucket.
-             --debug:                                  Print debug information.
+             --debug-cache:                            Used to debug the cache.
     """
     if pull_coverage_cache and push_coverage_cache:
         raise Exit(
@@ -122,7 +122,7 @@ def upload_to_codecov(
 
     if pull_coverage_cache:
         with gitlab_section("Applying missing coverage cache from S3", collapsed=True):
-            apply_missing_coverage(ctx, from_commit_sha=get_main_parent_commit(ctx), keep_temp_files=debug)
+            apply_missing_coverage(ctx, from_commit_sha=get_main_parent_commit(ctx), keep_temp_files=debug_cache)
     if push_coverage_cache:
         with gitlab_section("Uploading coverage files to S3", collapsed=True):
             upload_coverage_to_s3(ctx)
