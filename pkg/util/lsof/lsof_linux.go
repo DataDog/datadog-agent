@@ -6,7 +6,6 @@
 package lsof
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -47,7 +46,7 @@ type socketInfo struct {
 	Protocol    string
 }
 
-func openFiles(_ context.Context, pid int) (Files, error) {
+func openFiles(pid int) (Files, error) {
 	ofl := &openFilesLister{
 		pid: pid,
 

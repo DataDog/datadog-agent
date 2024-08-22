@@ -7,7 +7,6 @@
 package lsofimpl
 
 import (
-	"context"
 	"errors"
 	"runtime"
 
@@ -32,7 +31,7 @@ func fillFlare(fb flaretypes.FlareBuilder) error {
 		return nil
 	}
 
-	files, err := lsof.ListOpenFilesFromSelf(context.Background())
+	files, err := lsof.ListOpenFilesFromSelf()
 	if err != nil {
 		if errors.Is(err, lsof.ErrNotImplemented) {
 			_ = fb.Logf("listing files opened by the agent process is not supported on %s/%s", runtime.GOOS, runtime.GOARCH)

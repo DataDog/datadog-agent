@@ -7,16 +7,15 @@
 package lsof
 
 import (
-	"context"
 	"os"
 )
 
 // ListOpenFiles returns a list of open files for the given process
-func ListOpenFiles(ctx context.Context, pid int) (Files, error) {
-	return openFiles(ctx, pid)
+func ListOpenFiles(pid int) (Files, error) {
+	return openFiles(pid)
 }
 
 // ListOpenFilesFromSelf returns a list of open files for the current process
-func ListOpenFilesFromSelf(ctx context.Context) (Files, error) {
-	return ListOpenFiles(ctx, os.Getpid())
+func ListOpenFilesFromSelf() (Files, error) {
+	return ListOpenFiles(os.Getpid())
 }

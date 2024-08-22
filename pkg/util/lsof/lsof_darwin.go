@@ -5,8 +5,6 @@
 
 package lsof
 
-import "context"
-
-func openFiles(_ context.Context, _ int) (Files, error) {
+func openFiles(_ int) (Files, error) {
 	return nil, ErrNotImplemented
 }

@@ -6,7 +6,6 @@
 package lsof
 
 import (
-	"context"
 	"errors"
 	"io/fs"
 	"os"
@@ -25,10 +24,9 @@ import (
 func TestOpenFiles(t *testing.T) {
 	log.SetupLogger(seelog.Default, "debug")
 
-	ctx := context.Background()
 	pid := os.Getpid()
 
-	files, err := openFiles(ctx, pid)
+	files, err := openFiles(pid)
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, files)
