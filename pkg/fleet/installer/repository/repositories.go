@@ -52,8 +52,8 @@ func (r *Repositories) loadRepositories() (map[string]*Repository, error) {
 			// Temporary dir created by Repositories.MkdirTemp, ignore
 			continue
 		}
-		if filepath.Join(r.rootPath, d.Name()) == r.locksPath {
-			// Locks dir, ignore
+		if d.Name() == "run" {
+			// run dir, ignore
 			continue
 		}
 		repo := r.newRepository(d.Name())
