@@ -10,11 +10,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/di/diagnostics"
-	"github.com/DataDog/datadog-agent/pkg/di/diconfig"
-	"github.com/DataDog/datadog-agent/pkg/di/ditypes"
-	"github.com/DataDog/datadog-agent/pkg/di/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/di/uploader"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diagnostics"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diconfig"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/uploader"
 )
 
 type GoDI struct {

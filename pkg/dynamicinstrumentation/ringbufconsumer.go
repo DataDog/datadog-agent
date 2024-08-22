@@ -10,9 +10,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/di/ditypes"
-	"github.com/DataDog/datadog-agent/pkg/di/eventparser"
-	"github.com/DataDog/datadog-agent/pkg/di/ratelimiter"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/eventparser"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ratelimiter"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/ringbuf"
 )

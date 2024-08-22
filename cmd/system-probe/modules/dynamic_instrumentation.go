@@ -16,7 +16,7 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	dimod "github.com/DataDog/datadog-agent/pkg/di/module"
+	dimod "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/module"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )

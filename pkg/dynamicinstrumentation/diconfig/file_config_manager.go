@@ -11,9 +11,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/di/ditypes"
-	"github.com/DataDog/datadog-agent/pkg/di/proctracker"
-	"github.com/DataDog/datadog-agent/pkg/di/util"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/proctracker"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/util"
 )
 
 type FileWatchingConfigManager struct {

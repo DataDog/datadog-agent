@@ -12,8 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/di/ditypes"
-	"github.com/DataDog/datadog-agent/pkg/di/ratelimiter"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ratelimiter"
 )
 
 const MAX_BUFFER_SIZE = 10000

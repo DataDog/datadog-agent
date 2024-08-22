@@ -16,8 +16,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/di/diagnostics"
-	"github.com/DataDog/datadog-agent/pkg/di/ditypes"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diagnostics"
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 )
 
 type LogUploader interface {
