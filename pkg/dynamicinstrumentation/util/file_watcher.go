@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
 package util
 
 import (
@@ -11,10 +12,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// FileWatcher is used to track updates to a particular filepath
 type FileWatcher struct {
 	filePath string
 }
 
+// NewFileWatcher creates a FileWatcher to track updates to a specified file
 func NewFileWatcher(filePath string) *FileWatcher {
 	return &FileWatcher{filePath: filePath}
 }

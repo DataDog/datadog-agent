@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/util"
 )
 
+// FileWatchingConfigManager is used to track updates to a specified file
+// which contains probe configurations
 type FileWatchingConfigManager struct {
 	configTracker *configTracker
 	procTracker   *proctracker.ProcessTracker
@@ -29,6 +31,8 @@ type fileConfigCallback func(configsByService)
 
 type configsByService = map[ditypes.ServiceName]map[ditypes.ProbeID]rcConfig
 
+// NewFileConfigManager creates a FileWatchingConfigManager set up to track
+// the specified file.
 func NewFileConfigManager(configFile string) (*FileWatchingConfigManager, error) {
 	cm := &FileWatchingConfigManager{
 		callback: applyConfigUpdate,
@@ -40,7 +44,7 @@ func NewFileConfigManager(configFile string) (*FileWatchingConfigManager, error)
 		return nil, err
 	}
 
-	cm.configTracker = NewFileWatchingConfigTracker(configFile, cm.updateServiceConfigs)
+	cm.configTracker = newFileWatchingConfigTracker(configFile, cm.updateServiceConfigs)
 	err = cm.configTracker.Start()
 	if err != nil {
 		return nil, err
@@ -48,16 +52,18 @@ func NewFileConfigManager(configFile string) (*FileWatchingConfigManager, error)
 	return cm, nil
 }
 
+// GetProcInfos returns the state of the FileWatchingConfigManager
 func (cm *FileWatchingConfigManager) GetProcInfos() ditypes.DIProcs {
 	return cm.state
 }
 
+// Stop closes the config and proc trackers used by the FileWatchingConfigManager
 func (cm *FileWatchingConfigManager) Stop() {
 	cm.configTracker.Stop()
 	cm.procTracker.Stop()
 }
 
-func NewFileWatchingConfigTracker(configFile string, onConfigUpdate fileConfigCallback) *configTracker {
+func newFileWatchingConfigTracker(configFile string, onConfigUpdate fileConfigCallback) *configTracker {
 	ct := configTracker{
 		ConfigPath:     configFile,
 		configCallback: onConfigUpdate,

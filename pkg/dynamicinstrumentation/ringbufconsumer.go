@@ -2,7 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-package di
+
+package dynamicinstrumentation
 
 import (
 	"fmt"
@@ -18,8 +19,8 @@ import (
 )
 
 var (
-	bpffs                         string = "/sys/fs/bpf"
-	globalEventsRingbufferPinPath string = filepath.Join(bpffs, "events")
+	bpffs                         = "/sys/fs/bpf"
+	globalEventsRingbufferPinPath = filepath.Join(bpffs, "events")
 )
 
 // startRingbufferConsumer opens the pinned bpf ringbuffer map
@@ -39,7 +40,7 @@ func (goDI *GoDI) startRingbufferConsumer() (func(), error) {
 
 	var (
 		record ringbuf.Record
-		closed bool = false
+		closed = false
 	)
 
 	closeFunc := func() {
