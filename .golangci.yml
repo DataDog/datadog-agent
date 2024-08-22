@@ -639,7 +639,7 @@ linters-settings:
       - github.com/DataDog/datadog-agent/pkg/util/log.Warnc
       - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
       - github.com/DataDog/datadog-agent/pkg/util/log.WarnStackDepth
-      - github.com/lxn/walk:Dispose
+      - github.com/lxn/walk.Dispose
       - golang.org/x/sys/windows.CloseHandle
       - golang.org/x/sys/windows.FreeLibrary
       - golang.org/x/sys/windows.FreeSid
