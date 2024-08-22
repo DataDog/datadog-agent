@@ -9,6 +9,8 @@ package oracle
 
 import (
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -62,12 +64,17 @@ func getConnectData(t *testing.T, userType int) config.ConnectionConfig {
 			password = "datad0g"
 		}
 
-		// server = os.Getenv(serverEnvVariable)
+		server = os.Getenv(serverEnvVariable)
+		if server == "" {
+			server = "localhost"
+		}
 		// serviceName = os.Getenv(serviceNameEnvVariable)
 		// username = os.Getenv(userEnvVariable)
 		// password = os.Getenv(passwordEnvVariable)
-		// port, _ = strconv.Atoi(os.Getenv(portEnvVariable))
-		port := 1521
+		port, err := strconv.Atoi(os.Getenv(portEnvVariable))
+		if port == 0 || err != nil {
+			port = 1521
+		}
 
 		if t != nil {
 			require.NotEqualf(t, "", username, "Please set the %s environment variable", userEnvVariable)

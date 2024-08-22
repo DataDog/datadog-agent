@@ -12,4 +12,4 @@ oracle:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
   script:
-    - inv -e oracle.test
+    - inv oracle.test

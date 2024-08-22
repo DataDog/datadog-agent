@@ -1,3 +1,4 @@
+import os
 from time import sleep
 
 from invoke import task
@@ -34,6 +35,12 @@ def test(ctx, verbose=False) -> None:
             raise Exit(message='docker failed to start', code=1)
 
     try:
+        ctx.run("docker ps")
+        os.environ["ORACLE_TEST_PORT"] = "1521"
+        os.environ["ORACLE_TEST_SERVER"] = ctx.run(
+            "docker inspect  -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' compose-oracle-1", hide=True
+        ).stdout.strip()
+        ctx.run("echo port=$ORACLE_TEST_PORT server=$ORACLE_TEST_SERVER")
         with ctx.cd("pkg/collector/corechecks/oracle"):
             print("Running tests...")
             go_flags = " -v" if verbose else ""
