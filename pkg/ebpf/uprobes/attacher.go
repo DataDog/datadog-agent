@@ -261,10 +261,11 @@ type UprobeAttacher struct {
 
 	// pathToAttachedProbes maps a filesystem path to the probes attached to it. Used to detach them
 	// once the path is no longer used.
-	pathToAttachedProbes   map[string][]manager.ProbeIdentificationPair
-	onAttachCallback       AttachCallback
-	soWatcher              *sharedlibraries.EbpfProgram
-	handlesLibrariesCached *bool
+	pathToAttachedProbes     map[string][]manager.ProbeIdentificationPair
+	onAttachCallback         AttachCallback
+	soWatcher                *sharedlibraries.EbpfProgram
+	handlesLibrariesCached   *bool
+	handlesExecutablesCached *bool
 }
 
 // NewUprobeAttacher creates a new UprobeAttacher. Receives as arguments the
@@ -324,14 +325,22 @@ func (ua *UprobeAttacher) handlesLibraries() bool {
 	return result
 }
 
+// handlesLibraries returns whether the attacher has rules configured to attach to executables directly
+// It caches the result to avoid recalculating it every time we are attaching to a PID.
 func (ua *UprobeAttacher) handlesExecutables() bool {
-	// We don't cache this value because it's only used once in the Start method
+	if ua.handlesExecutablesCached != nil {
+		return *ua.handlesExecutablesCached
+	}
+
+	result := false
 	for _, rule := range ua.config.Rules {
 		if rule.canTarget(AttachToExecutable) {
-			return true
+			result = true
+			break
 		}
 	}
-	return false
+	ua.handlesExecutablesCached = &result
+	return result
 }
 
 // Start starts the attacher, attaching to the processes and libraries as needed
@@ -608,13 +617,15 @@ func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) er
 		return ErrInternalDDogProcessRejected
 	}
 
-	matchingRules := ua.getRulesForExecutable(binPath, procInfo)
-	registerCB, unregisterCB := ua.buildRegisterCallbacks(matchingRules, procInfo)
+	if ua.handlesExecutables() {
+		matchingRules := ua.getRulesForExecutable(binPath, procInfo)
 
-	if len(matchingRules) != 0 {
-		err = ua.fileRegistry.Register(binPath, pid, registerCB, unregisterCB)
-		if err != nil {
-			return err
+		if len(matchingRules) != 0 {
+			registerCB, unregisterCB := ua.buildRegisterCallbacks(matchingRules, procInfo)
+			err = ua.fileRegistry.Register(binPath, pid, registerCB, unregisterCB)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
