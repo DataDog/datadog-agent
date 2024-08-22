@@ -392,6 +392,7 @@ new-e2e-installer:
   variables:
     TARGETS: ./tests/installer
     TEAM: fleet
+    KUBERNETES_CPU_REQUEST: 16
 
 new-e2e-ndm-netflow:
   extends: .new_e2e_template
