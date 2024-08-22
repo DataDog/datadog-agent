@@ -34,6 +34,8 @@ const (
 	maxRetry int = 5
 
 	controllerID = "dpa-c"
+
+	maxDatadogPodAutoscalerObjects int = 100
 )
 
 var (
@@ -91,7 +93,9 @@ func newController(
 		},
 	)
 
-	baseController, err := autoscaling.NewController(controllerID, c, dynamicClient, dynamicInformer, podAutoscalerGVR, isLeader, store, autoscalingWorkqueue)
+	autoscalingHeap := autoscaling.NewAutoscalingHeap(maxDatadogPodAutoscalerObjects)
+
+	baseController, err := autoscaling.NewController(controllerID, c, dynamicClient, dynamicInformer, podAutoscalerGVR, isLeader, store, autoscalingWorkqueue, autoscalingHeap)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +178,12 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		if podAutoscaler != nil {
 			// If we don't have an instance locally, we create it. Deletion is handled through setting the `Deleted` flag
 			log.Debugf("Creating internal PodAutoscaler: %s from Kubernetes object", key)
-			c.store.UnlockSet(key, model.NewPodAutoscalerInternal(podAutoscaler), c.ID)
+			podAutoscalerInternal := model.NewPodAutoscalerInternal(podAutoscaler)
+			c.store.UnlockSet(key, podAutoscalerInternal, c.ID)
+			c.AutoscalerHeap.InsertIntoHeap(autoscaling.TimestampKey{
+				Timestamp: podAutoscalerInternal.CreationTimestamp(),
+				Key:       key,
+			})
 		} else {
 			// If podAutoscaler == nil, both objects are nil, nothing to do
 			log.Debugf("Reconciling object: %s but object is not present in Kubernetes nor in internal store, nothing to do", key)
@@ -191,6 +200,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		if podAutoscalerInternal.Deleted() || podAutoscalerInternal.Spec().Owner != datadoghq.DatadogPodAutoscalerRemoteOwner {
 			log.Infof("Object %s not present in Kubernetes and flagged for deletion (remote) or owner == local, clearing internal store", key)
 			c.store.UnlockDelete(key, c.ID)
+			c.AutoscalerHeap.DeleteFromHeap(key)
 			return autoscaling.NoRequeue, nil
 		}
 
@@ -214,6 +224,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 			if err != nil && errors.IsNotFound(err) {
 				log.Debugf("Object %s not found in Kubernetes during deletion, clearing internal store", key)
 				c.store.UnlockDelete(key, c.ID)
+				c.AutoscalerHeap.DeleteFromHeap(key)
 				return autoscaling.NoRequeue, nil
 			}
 
@@ -272,8 +283,20 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	// Reaching this point, we had an error in processing, clearing up global error
 	podAutoscalerInternal.SetError(nil)
 
-	// Now that everything is synced, we can perform the actual processing
-	result, err := c.handleScaling(ctx, podAutoscaler, &podAutoscalerInternal)
+	isAdded := c.AutoscalerHeap.InsertIntoHeap(autoscaling.TimestampKey{
+		Timestamp: podAutoscalerInternal.CreationTimestamp(),
+		Key:       key,
+	})
+
+	result := autoscaling.NoRequeue
+	var err error
+	if !isAdded {
+		// Number of DatadogPodAutoscaler objects exceeds the limit
+		podAutoscalerInternal.SetError(fmt.Errorf("Too many DatadogPodAutoscaler objects created, ignoring this one %s", key))
+	} else {
+		// Now that everything is synced, we can perform the actual processing
+		result, err = c.handleScaling(ctx, podAutoscaler, &podAutoscalerInternal)
+	}
 
 	// Update status based on latest state
 	statusErr := c.updatePodAutoscalerStatus(ctx, podAutoscalerInternal, podAutoscaler)

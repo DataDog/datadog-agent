@@ -30,11 +30,12 @@ type Controller struct {
 	context   context.Context
 
 	// Fields available to child controllers
-	ID        string
-	Client    dynamic.Interface
-	Lister    cache.GenericLister
-	Workqueue workqueue.RateLimitingInterface
-	IsLeader  func() bool
+	ID             string
+	Client         dynamic.Interface
+	Lister         cache.GenericLister
+	Workqueue      workqueue.RateLimitingInterface
+	AutoscalerHeap *AutoscalingHeap
+	IsLeader       func() bool
 }
 
 // NewController returns a new workload autoscaling controller
@@ -47,16 +48,18 @@ func NewController(
 	isLeader func() bool,
 	observable Observable,
 	workqueue workqueue.RateLimitingInterface,
+	autoscalerHeap *AutoscalingHeap,
 ) (*Controller, error) {
 	mainInformer := informer.ForResource(gvr)
 	c := &Controller{
-		processor: processor,
-		ID:        controllerID,
-		Client:    client,
-		Lister:    mainInformer.Lister(),
-		synced:    mainInformer.Informer().HasSynced,
-		Workqueue: workqueue,
-		IsLeader:  isLeader,
+		processor:      processor,
+		ID:             controllerID,
+		Client:         client,
+		Lister:         mainInformer.Lister(),
+		synced:         mainInformer.Informer().HasSynced,
+		Workqueue:      workqueue,
+		IsLeader:       isLeader,
+		AutoscalerHeap: autoscalerHeap,
 	}
 
 	if _, err := mainInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
