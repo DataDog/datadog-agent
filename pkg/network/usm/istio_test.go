@@ -62,7 +62,7 @@ func TestIstioSync(t *testing.T) {
 		mockRegistry.On("Register", defaultEnvoyName, uint32(3), mock.Anything, mock.Anything).Return(nil)
 
 		// Calling sync should detect the two envoy processes
-		monitor.attacher.Sync(true)
+		monitor.attacher.Sync(true, true)
 
 		mockRegistry.AssertExpectations(tt)
 	})
@@ -80,7 +80,7 @@ func TestIstioSync(t *testing.T) {
 		mockRegistry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{})
 		mockRegistry.On("Register", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil) // Tell the mock to just say ok to everything, we'll validate later
 
-		monitor.attacher.Sync(true)
+		monitor.attacher.Sync(true, true)
 
 		mockRegistry.AssertCalled(tt, "Register", defaultEnvoyName, uint32(1), mock.Anything, mock.Anything)
 		mockRegistry.AssertCalled(tt, "Register", defaultEnvoyName, uint32(3), mock.Anything, mock.Anything)
@@ -105,7 +105,7 @@ func TestIstioSync(t *testing.T) {
 
 		// Once we call sync() again, PID 3 termination should be detected
 		// and the unregister callback should be executed
-		monitor.attacher.Sync(true)
+		monitor.attacher.Sync(true, true)
 		mockRegistry.AssertCalled(tt, "Unregister", uint32(3))
 	})
 }

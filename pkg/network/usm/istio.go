@@ -99,8 +99,9 @@ func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
 			ProbesSelector:   nodeJSProbes,
 			ExecutableFilter: monitor.isIstioBinary,
 		}},
-		EbpfConfig:     &c.Config,
-		ExcludeTargets: uprobes.ExcludeSelf | uprobes.ExcludeInternal,
+		EbpfConfig:                     &c.Config,
+		ExcludeTargets:                 uprobes.ExcludeSelf | uprobes.ExcludeInternal,
+		EnablePeriodicScanNewProcesses: true,
 	}
 
 	attacher, err := uprobes.NewUprobeAttacher(IstioAttacherName, attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{})

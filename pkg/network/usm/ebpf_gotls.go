@@ -177,8 +177,9 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactor
 					connCloseProbe:    {IsManualReturn: false, Symbol: bininspect.CloseGoTLSFunc},
 				},
 			}},
-			ExcludeTargets:     uprobes.ExcludeInternal,
-			PerformInitialScan: true,
+			ExcludeTargets:                 uprobes.ExcludeInternal,
+			PerformInitialScan:             true,
+			EnablePeriodicScanNewProcesses: false,
 		}
 
 		if c.GoTLSExcludeSelf {

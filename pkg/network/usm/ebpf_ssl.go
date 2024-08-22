@@ -446,11 +446,12 @@ func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory 
 				},
 			}
 			attacherConfig := uprobes.AttacherConfig{
-				ProcRoot:           procRoot,
-				Rules:              rules,
-				ExcludeTargets:     uprobes.ExcludeSelf | uprobes.ExcludeInternal | uprobes.ExcludeBuildkit | uprobes.ExcludeContainerdTmp,
-				EbpfConfig:         &c.Config,
-				PerformInitialScan: true,
+				ProcRoot:                       procRoot,
+				Rules:                          rules,
+				ExcludeTargets:                 uprobes.ExcludeSelf | uprobes.ExcludeInternal | uprobes.ExcludeBuildkit | uprobes.ExcludeContainerdTmp,
+				EbpfConfig:                     &c.Config,
+				PerformInitialScan:             true,
+				EnablePeriodicScanNewProcesses: false,
 			}
 
 			attacher, err = uprobes.NewUprobeAttacher(UsmTLSAttacherName, attacherConfig, m, nil, &uprobes.NativeBinaryInspector{})

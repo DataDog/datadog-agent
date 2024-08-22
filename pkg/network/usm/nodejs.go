@@ -121,8 +121,9 @@ func newNodeJSMonitor(c *config.Config, mgr *manager.Manager) *nodeJSMonitor {
 			ProbesSelector:   nodeJSProbes,
 			ExecutableFilter: isNodeJSBinary,
 		}},
-		EbpfConfig:     &c.Config,
-		ExcludeTargets: uprobes.ExcludeSelf | uprobes.ExcludeInternal,
+		EbpfConfig:                     &c.Config,
+		ExcludeTargets:                 uprobes.ExcludeSelf | uprobes.ExcludeInternal,
+		EnablePeriodicScanNewProcesses: true,
 	}
 
 	attacher, err := uprobes.NewUprobeAttacher(NodeJsAttacherName, attachCfg, mgr, nil, &uprobes.NativeBinaryInspector{})
