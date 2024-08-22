@@ -10,7 +10,7 @@
 #define POSTGRES_BUFFER_SIZE 160
 
 // Maximum number of Postgres messages we can parse for a single packet.
-#define POSTGRES_MAX_MESSAGES 64
+#define POSTGRES_MAX_MESSAGES 72
 
 // Postgres transaction information we store in the kernel.
 typedef struct {

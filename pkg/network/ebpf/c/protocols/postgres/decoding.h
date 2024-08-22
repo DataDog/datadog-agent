@@ -150,7 +150,8 @@ static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn
     if (!transaction) {
         return;
     }
-    __u8 bucket_idx = 0;
+    __u8 bucket_idx = 1;
+
 #pragma unroll(POSTGRES_MAX_MESSAGES)
     for (__u8 messages_count = 0; messages_count < POSTGRES_MAX_MESSAGES; ++messages_count) {
         if (!read_message_header(pkt, header)) {
@@ -164,13 +165,16 @@ static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn
         // reminder, the message length includes the size of the payload, 4 bytes of the message length itself, but not
         // the message tag. So we need to add 1 to the message length to jump over the entire message.
         pktbuf_advance(pkt, header->message_len + 1);
-        bucket_idx = PG_KERNEL_MSG_COUNT_BUCKET_INDEX((__u8)messages_count);
-        bucket_idx = bucket_idx >= PG_KERNEL_MSG_COUNT_NUM_BUCKETS ? (PG_KERNEL_MSG_COUNT_NUM_BUCKETS - 1) : bucket_idx;
+        if (messages_count >= PG_KERNEL_MSG_COUNT_BUCKET_SIZE*bucket_idx) {
+            bucket_idx++;
+        }
     }
     postgres_kernel_msg_count_t* pg_msg_counts = get_pg_msg_counts_map(pkt);
-    if (pg_msg_counts != NULL) {
-        __sync_fetch_and_add(&pg_msg_counts->pg_messages_count_buckets[bucket_idx], 1);
+    if (pg_msg_counts == NULL) {
+        return;
     }
+    bucket_idx = (bucket_idx > (PG_KERNEL_MSG_COUNT_NUM_BUCKETS - 1)) ? PG_KERNEL_MSG_COUNT_NUM_BUCKETS - 1: bucket_idx - 1;
+    __sync_fetch_and_add(&pg_msg_counts->pg_messages_count_buckets[bucket_idx], 1);
 }
 
 // A dedicated function to handle the parse message. This function is called from a tail call from the main entrypoint.
