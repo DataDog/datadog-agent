@@ -171,19 +171,23 @@ func mmapFD(path string, fileType, cwd string) string {
 		rtd  root directory;
 		txt  program text (code and data);
 	*/
-	fd := "unknown"
+
 	if fileType == "REG" {
-		// knowing whether the file is memory mapped or program text would require knowing permissions
-		// which aren't parsed by gopsutil, so we just assume it's memory mapped
-		fd = "mem"
-	} else if fileType == "DIR" {
+		// knowing whether the file is memory mapped or program text would require reading /proc/<pid>/stat
+		// but the specific fields needed are not parsed by procfs.Proc
+		// just assume it's a memory mapped file
+		return "mem"
+	}
+
+	if fileType == "DIR" {
 		if path == "/" {
-			fd = "rtd"
-		} else if cwd != "" && path == cwd {
-			fd = "cwd"
+			return "rtd"
+		}
+		if cwd != "" && path == cwd {
+			return "cwd"
 		}
 	}
-	return fd
+	return "unknown"
 }
 
 func (ofl *openFilesLister) fdMetadata() (Files, error) {
