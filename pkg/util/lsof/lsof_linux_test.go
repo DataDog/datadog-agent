@@ -436,7 +436,7 @@ func TestMmapFD(t *testing.T) {
 	testCases := []struct {
 		name     string
 		path     string
-		ty       string
+		fileType string
 		cwd      string
 		expected string
 	}{
@@ -472,7 +472,7 @@ func TestMmapFD(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			res := mmapFD(tc.path, tc.ty, tc.cwd)
+			res := mmapFD(tc.path, tc.fileType, tc.cwd)
 			assert.Equal(t, tc.expected, res)
 		})
 	}
@@ -584,10 +584,10 @@ func TestFileStats(t *testing.T) {
 				return fi, nil
 			}
 
-			ty, perm, size, ino := fileStats(stat, "/some/path")
-			require.NotEmpty(t, ty)
+			fileType, perm, size, ino := fileStats(stat, "/some/path")
+			require.NotEmpty(t, fileType)
 
-			assert.Equal(t, tc.fileTy, ty)
+			assert.Equal(t, tc.fileTy, fileType)
 			assert.Equal(t, tc.filePerm.String(), perm)
 			assert.Equal(t, tc.size, size)
 			assert.Equal(t, tc.inode, ino)
@@ -599,8 +599,8 @@ func TestFileStatsErr(t *testing.T) {
 	stat := func(string) (os.FileInfo, error) {
 		return nil, errors.New("some error")
 	}
-	ty, _, _, _ := fileStats(stat, "/some/path")
-	require.Empty(t, ty)
+	fileType, _, _, _ := fileStats(stat, "/some/path")
+	require.Empty(t, fileType)
 }
 
 func TestFileStatsNoSys(t *testing.T) {
@@ -608,8 +608,8 @@ func TestFileStatsNoSys(t *testing.T) {
 		return &mockFileInfo{}, nil
 	}
 
-	ty, perm, size, ino := fileStats(stat, "/some/path")
-	assert.Equal(t, "REG", ty)
+	fileType, perm, size, ino := fileStats(stat, "/some/path")
+	assert.Equal(t, "REG", fileType)
 	assert.Equal(t, "----------", perm)
 	assert.EqualValues(t, 0, size)
 	assert.EqualValues(t, 0, ino)

@@ -162,7 +162,7 @@ func permToString(perms *procfs.ProcMapPermissions) string {
 	return s
 }
 
-func mmapFD(path string, ty, cwd string) string {
+func mmapFD(path string, fileType, cwd string) string {
 	/*
 		cwd  current working directory;
 		ltx  shared library text (code and data);
@@ -172,11 +172,11 @@ func mmapFD(path string, ty, cwd string) string {
 		txt  program text (code and data);
 	*/
 	fd := "unknown"
-	if ty == "REG" {
+	if fileType == "REG" {
 		// knowing whether the file is memory mapped or program text would require knowing permissions
 		// which aren't parsed by gopsutil, so we just assume it's memory mapped
 		fd = "mem"
-	} else if ty == "DIR" {
+	} else if fileType == "DIR" {
 		if path == "/" {
 			fd = "rtd"
 		} else if cwd != "" && path == cwd {
@@ -367,7 +367,7 @@ func fileStats(statf func(string) (os.FileInfo, error), path string) (string, st
 		return "", "", 0, 0
 	}
 
-	ty := modeTypeToString(stat.Mode())
+	fileType := modeTypeToString(stat.Mode())
 
 	size := stat.Size()
 	perm := stat.Mode().Perm().String()
@@ -381,7 +381,7 @@ func fileStats(statf func(string) (os.FileInfo, error), path string) (string, st
 		ino = sys.Ino
 	}
 
-	return ty, perm, size, ino
+	return fileType, perm, size, ino
 }
 
 func procPath() string {
