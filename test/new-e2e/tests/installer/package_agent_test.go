@@ -43,9 +43,6 @@ func testAgent(os e2eos.Descriptor, arch e2eos.Architecture, method installMetho
 }
 
 func (s *packageAgentSuite) TestInstall() {
-	if s.installMethod == installMethodAnsible {
-		s.Suite.T().Skip()
-	}
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.WaitForUnitActive(agentUnit, traceUnit, processUnit)
