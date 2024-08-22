@@ -22,12 +22,18 @@ import (
 func TestOnAPMTracingUpdate(t *testing.T) {
 	mkTemp := func(t *testing.T) func() {
 		oldPath := apmTracingFilePath
+		oldPath2 := apmServiceNameFilePath
 		f, err := os.CreateTemp("", "test")
 		require.NoError(t, err)
 		f.Close() // This is required for windows unit tests as windows will not allow this file to be deleted while we have this handle.
 		apmTracingFilePath = f.Name()
+		f2, err := os.CreateTemp("", "test2")
+		require.NoError(t, err)
+		f2.Close() // This is required for windows unit tests as windows will not allow this file to be deleted while we have this handle.
+		apmServiceNameFilePath = f2.Name()
 		return func() {
 			apmTracingFilePath = oldPath
+			apmServiceNameFilePath = oldPath2
 		}
 	}
 
@@ -160,7 +166,7 @@ func TestServiceNameConfig(t *testing.T) {
 
 			// write the file
 			tec := tracingEnabledConfig{
-				ServiceEnvConfigs: nil,
+				ServiceEnvConfigs: d.cfg,
 			}
 			err := writeServiceNameConfig(tec)
 			if err != nil {
@@ -200,6 +206,7 @@ func TestServiceNameConfig(t *testing.T) {
 		t.Cleanup(func() {
 			apmServiceNameFilePath = origName
 		})
+
 
 		// write the file
 		tec := tracingEnabledConfig{

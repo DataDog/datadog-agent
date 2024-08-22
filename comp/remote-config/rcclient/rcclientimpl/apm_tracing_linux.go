@@ -34,7 +34,7 @@ const FileWriteFailure = "FILE_WRITE_FAILURE"
 const DuplicateHostConfig = "DUPLICATE_HOST_CONFIG"
 
 type serviceEnvConfig struct {
-	ProvidedService string `yaml:"provided_service"`
+	ProvidedService string `yaml:"provided_service,omitempty"`
 	Service         string `yaml:"service"`
 	Env             string `yaml:"env"`
 	TracingEnabled  bool   `yaml:"tracing_enabled"`
@@ -57,7 +57,7 @@ type tracingConfigUpdate struct {
 		TracingEnabled bool   `json:"tracing_enabled"`
 	} `json:"lib_config"`
 	ServiceTarget *struct {
-		ProvidedService string `json:"provided_service"`
+		ProvidedService string `json:"provided_service,omitempty"`
 		Service         string `json:"service"`
 		Env             string `json:"env"`
 	} `json:"service_target"`
