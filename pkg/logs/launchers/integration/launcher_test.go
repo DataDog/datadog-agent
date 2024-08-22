@@ -143,6 +143,7 @@ func (suite *LauncherTestSuite) TestEnsureFileSize() {
 	info, err = os.Stat(filename)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), int64(0), info.Size())
+}
 
 // TestIntegrationLogFilePath ensures the filepath for the logs files are correct
 func (suite *LauncherTestSuite) TestIntegrationLogFilePath() {
@@ -162,6 +163,11 @@ func (suite *LauncherTestSuite) TestIntegrationLogFilePath() {
 
 	assert.Equal(suite.T(), expectedDirectory, actualDirectory)
 	assert.Equal(suite.T(), expectedFilePath, actualFilePath)
+}
+
+// TestIntegrationFileDeletion ...
+func (suite *LauncherTestSuite) TestIntegrationFileDeletion() {
+
 }
 
 func TestLauncherTestSuite(t *testing.T) {

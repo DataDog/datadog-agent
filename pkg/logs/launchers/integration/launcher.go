@@ -9,6 +9,7 @@ package integration
 import (
 	"math"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -98,21 +99,15 @@ func (s *Launcher) run() {
 		case source := <-s.addedSources:
 			// Send logs configurations to the file launcher to tail, it will handle
 			// tailer lifecycle, file rotation, etc.
-			filepath, err := s.createFile(source)
+			fileInfo, err := s.createFile(source)
 			if err != nil {
 				ddLog.Warn("Failed to create integration log file: ", err)
 				continue
 			}
 
-			filetypeSource := s.makeFileSource(source, filepath)
+			filetypeSource := s.makeFileSource(source, fileInfo.filename)
 			s.sources.AddSource(filetypeSource)
 
-			// file to write the incoming logs to
-			fileInfo := &FileInfo{
-				filename:     filepath,
-				lastModified: time.Now(),
-				size:         0,
-			}
 			s.integrationNameToFile[source.Name] = fileInfo
 		case log := <-s.integrationsLogsChan:
 			// Integrations will come in the form of: check_name:instance_config_hash
@@ -221,21 +216,28 @@ func (s *Launcher) makeFileSource(source *sources.LogSource, filepath string) *s
 
 // TODO Change file naming to reflect ID once logs from go interfaces gets merged.
 // createFile creates a file for the logsource
-func (s *Launcher) createFile(source *sources.LogSource) (string, error) {
+func (s *Launcher) createFile(source *sources.LogSource) (*FileInfo, error) {
 	directory, filepath := s.integrationLogFilePath(*source)
 
 	err := os.MkdirAll(directory, 0755)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	file, err := os.Create(filepath)
 	if err != nil {
-		return "", nil
+		return nil, nil
 	}
+	ddLog.Info("Successfully created integrations log file.")
 	defer file.Close()
 
-	return filepath, nil
+	fileInfo := &FileInfo{
+		filename:     filepath,
+		lastModified: time.Now(),
+		size:         0,
+	}
+
+	return fileInfo, nil
 }
 
 // integrationLogFilePath returns a directory and file to use for an integration log file
@@ -284,4 +286,32 @@ func computeMaxDiskUsage(runPath string, logsTotalUsageSetting int64, usageRatio
 	diskAvailable := int64(usage.Available) - int64(math.Ceil(diskReserved))
 
 	return min(logsTotalUsageSetting, diskAvailable), nil
+}
+
+// scanInitialFiles scans the run path for initial files and then adds them to
+// be managed by the launcher
+func (s *Launcher) scanInitialFiles(dir string) error {
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+
+		// TODO make sure the name is properly tied to the file
+		// Add found files to be managed by the launcher
+		if !info.IsDir() {
+			fileInfo := &FileInfo{
+				filename:     info.Name(),
+				size:         info.Size(),
+				lastModified: info.ModTime(),
+			}
+
+			integrationID := strings.TrimSuffix(filepath.Base(info.Name()), filepath.Ext(info.Name()))
+
+			s.integrationNameToFile[integrationID] = fileInfo
+		}
+
+		return nil
+	})
+
+	return err
 }
