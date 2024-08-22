@@ -621,10 +621,14 @@ linters-settings:
       - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warn
       - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warnf
       - (github.com/DataDog/datadog-agent/pkg/collector/corechecks.CheckBase).Warnf
+      - (github.com/DataDog/datadog-agent/pkg/collector/corechecks.CheckBase).Warn
+      - (github.com/DataDog/datadog-agent/pkg/collector/corechecks/systen/memory.Check).Warnf
+      - (github.com/DataDog/datadog-agent/pkg/collector/corechecks/systen/memory.Check).Warn
+      - (github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/ecs.Check).Warnf
+      - (github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/ecs.Check).Warn
       - (net/http.ResponseWriter).Write
       - fmt.Sscanf
       - github.com/cihub/seelog.Warnf
-      - github.com/DataDog/datadog-agent/pkg/collector/corechecks.Warnf
       - github.com/DataDog/datadog-agent/pkg/util/log.ChangeLogLevel
       - github.com/DataDog/datadog-agent/pkg/util/log.Critical
       - github.com/DataDog/datadog-agent/pkg/util/log.Criticalc
@@ -653,7 +657,7 @@ linters-settings:
       - golang.org/x/sys/windows/svc/debug.Error
       - golang.org/x/sys/windows/svc/debug.Info
       - golang.org/x/sys/windows/svc/debug.Warning
-      - golang.org/x/sys/windows/svc/mgr.Disconnect
+      - (golang.org/x/sys/windows/svc/mgr.Mgr).Disconnect
       - pkg/util/log.JMXError
       - syscall.CloseHandle
   staticcheck:
