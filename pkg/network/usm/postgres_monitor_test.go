@@ -777,10 +777,10 @@ func testKernelMessagesCount(t *testing.T, isTLS bool) {
 	var pgClient *postgres.PGXClient
 
 	expectedMsgCounts := &pgebpf.PostgresKernelMsgCount{
-		Messages_count_buckets: [8]uint64{0, 0, 0, 0, 0, 0, 0, 0},
+		Messages_count_buckets: [pgebpf.KerMsgCountNumBuckets]uint64{},
 	}
 
-	for i := 0; i < pgebpf.KerMsgCountNumBuckets; i++ {
+	for i := 0; i < pgebpf.KerMsgCountNumBuckets-1; i++ {
 		testName := fmt.Sprintf("kernel messages count bucket[%d]", i)
 		t.Run(testName, func(t *testing.T) {
 			t.Cleanup(func() {
@@ -843,7 +843,7 @@ func compareMessagesCount(a *pgebpf.PostgresKernelMsgCount, b *pgebpf.PostgresKe
 // For example return true if a[43, 21, 22, 0, 0, 0, 0, 0] and b[1, 1, 1, 0, 0, 0, 0, 0]
 // the first array represents the retrieved counters, while the second array represents
 // the buckets that are expected to be non-empty.
-func compareBucketsFilling(a [8]uint64, b [8]uint64) bool {
+func compareBucketsFilling(a [pgebpf.KerMsgCountNumBuckets]uint64, b [pgebpf.KerMsgCountNumBuckets]uint64) bool {
 	for i := range a {
 		if a[i] != b[i] && (a[i]*b[i] == 0) {
 			return false

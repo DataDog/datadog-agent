@@ -173,7 +173,7 @@ static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn
     if (pg_msg_counts == NULL) {
         return;
     }
-    bucket_idx = (bucket_idx > (PG_KERNEL_MSG_COUNT_NUM_BUCKETS - 1)) ? PG_KERNEL_MSG_COUNT_NUM_BUCKETS - 1: bucket_idx - 1;
+    bucket_idx = (bucket_idx > PG_KERNEL_MSG_COUNT_NUM_BUCKETS) ? PG_KERNEL_MSG_COUNT_NUM_BUCKETS: bucket_idx - 1;
     __sync_fetch_and_add(&pg_msg_counts->pg_messages_count_buckets[bucket_idx], 1);
 }
 

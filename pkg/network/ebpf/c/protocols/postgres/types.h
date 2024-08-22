@@ -43,7 +43,7 @@ typedef struct {
 
 // postgres_kernel_msg_count_t This structure stores statistics about the number of Postgres messages in a TCP packet.
 typedef struct {
-    __u64 pg_messages_count_buckets[PG_KERNEL_MSG_COUNT_NUM_BUCKETS];
+    __u64 pg_messages_count_buckets[PG_KERNEL_MSG_COUNT_NUM_BUCKETS + 1];
 } postgres_kernel_msg_count_t;
 
 #endif
