@@ -649,11 +649,11 @@ linters-settings:
       - golang.org/x/sys/windows/svc/debug.Error
       - golang.org/x/sys/windows/svc/debug.Info
       - golang.org/x/sys/windows/svc/debug.Warning
-      - golang.org/x/sys/windows/svc/mgr:Disconnect
-      - golang.org/x/sys/windows:LocalFree
-      - golang.org/x/sys/windows:SetEvent
+      - golang.org/x/sys/windows/svc/mgr.Disconnect
+      - golang.org/x/sys/windows.LocalFree
+      - golang.org/x/sys/windows.SetEvent
       - pkg/util/log.JMXError
-      - syscall:CloseHandle
+      - syscall.CloseHandle
   staticcheck:
     checks: ["all",
              "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022", # These ones are disabled by default on staticcheck
