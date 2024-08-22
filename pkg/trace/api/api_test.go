@@ -1057,6 +1057,45 @@ func TestExpvar(t *testing.T) {
 	})
 }
 
+func TestNormalizeHTTPHeader(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{
+			input:    "tag value\nAnother tag value",
+			expected: "tag value_Another tag value",
+		},
+		{
+			input:    "SingleLineHeader: value",
+			expected: "SingleLineHeader: value",
+		},
+		{
+			input:    "\nLeading line break",
+			expected: "_Leading line break",
+		},
+		{
+			input:    "Trailing line break\n",
+			expected: "Trailing line break_",
+		},
+		{
+			input:    "Multiple\nline\nbreaks",
+			expected: "Multiple_line_breaks",
+		},
+		{
+			input:    "",
+			expected: "",
+		},
+	}
+
+	for _, test := range tests {
+		result := normalizeHTTPHeader(test.input)
+		if result != test.expected {
+			t.Errorf("normalizeHTTPHeader(%q) = %q; expected %q", test.input, result, test.expected)
+		}
+	}
+}
+
 func msgpTraces(t *testing.T, traces pb.Traces) []byte {
 	bts, err := traces.MarshalMsg(nil)
 	if err != nil {
