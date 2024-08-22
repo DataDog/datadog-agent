@@ -186,6 +186,23 @@ def _get_dev_coverage_files(dev_cov_lines: str) -> set[str]:
 
 
 def _merge_dev_in_main_coverage(main_cov_file: str, dev_cov_file: str) -> None:
+    """
+    Merge the dev coverage file into the main coverage file line by line. For example with the following files:
+
+    main coverage file:
+    mode: count
+    github.com/DataDog/datadog-agent/cmd/agent/common/autodiscovery.go:332.2,332.29 1 0
+    github.com/DataDog/datadog-agent/cmd/agent/common/common.go:35.32,43.2 1 0
+
+    dev coverage file:
+    mode: count
+    github.com/DataDog/datadog-agent/cmd/agent/common/autodiscovery.go:85.30,87.4 1 0
+
+    The output will be:
+    mode: count
+    github.com/DataDog/datadog-agent/cmd/agent/common/autodiscovery.go:85.30,87.4 1 0
+    github.com/DataDog/datadog-agent/cmd/agent/common/common.go:35.32,43.2 1 0
+    """
     with open(main_cov_file, encoding='utf-8') as main_cov:
         main_cov_lines = main_cov.readlines()
         main_mode_line = main_cov_lines.pop(0)
