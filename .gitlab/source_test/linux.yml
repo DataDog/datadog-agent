@@ -254,6 +254,7 @@ go_mod_tidy_check:
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
+    - which go
   script:
     - inv -e check-mod-tidy
     - inv -e check-go-mod-replaces

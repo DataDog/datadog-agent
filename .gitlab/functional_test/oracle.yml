@@ -1,14 +1,12 @@
 oracle:
+  extends: .linux_x64
   stage: functional_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker"]
-  needs: ["go_deps"]
+  needs: ["go_mod_tidy_check", "go_deps"]
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
+    - which go
     - apt-get update && apt-get install -y docker-compose-plugin
-    - which docker
-    - docker version
-    - docker compose version
   script:
-    - inv oracle.test
+    - inv -e oracle.test
