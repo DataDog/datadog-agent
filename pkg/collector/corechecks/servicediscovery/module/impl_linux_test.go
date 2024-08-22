@@ -356,32 +356,53 @@ func buildFakeServer(t *testing.T) string {
 	serverBin, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "fake_server")
 	require.NoError(t, err)
 
-	for _, alias := range []string{"java"} {
+	for _, alias := range []string{"java", "node"} {
 		makeAlias(t, alias, serverBin)
 	}
 
 	return filepath.Dir(serverBin)
 }
 
-func TestAPMInstrumentationProvidedJava(t *testing.T) {
+func TestAPMInstrumentationProvided(t *testing.T) {
+	curDir, err := testutil.CurDir()
+	assert.NoError(t, err)
+
+	testCases := map[string]struct {
+		commandline      []string // The command line of the fake server
+		workingDirectory string   // Optional: The working directory to use for the server.
+	}{
+		"java": {
+			commandline: []string{"java", "-javaagent:/path/to/dd-java-agent.jar", "-jar", "foo.jar"},
+		},
+		"node": {
+			commandline:      []string{"node"},
+			workingDirectory: filepath.Join(curDir, "testdata"),
+		},
+	}
+
 	serverDir := buildFakeServer(t)
 	url := setupDiscoveryModule(t)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	for name, test := range testCases {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(func() { cancel() })
 
-	bin := filepath.Join(serverDir, "java")
-	cmd := exec.CommandContext(ctx, bin, "-javaagent:/path/to/dd-java-agent.jar", "-jar", "foo.jar")
-	err := cmd.Start()
-	require.NoError(t, err)
+			bin := filepath.Join(serverDir, test.commandline[0])
+			cmd := exec.CommandContext(ctx, bin, test.commandline[1:]...)
+			cmd.Dir = test.workingDirectory
+			err := cmd.Start()
+			require.NoError(t, err)
 
-	pid := cmd.Process.Pid
+			pid := cmd.Process.Pid
 
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		portMap := getServicesMap(t, url)
-		assert.Contains(collect, portMap, pid)
-		assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
-	}, 30*time.Second, 100*time.Millisecond)
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				portMap := getServicesMap(t, url)
+				assert.Contains(collect, portMap, pid)
+				assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
+			}, 30*time.Second, 100*time.Millisecond)
+		})
+	}
 }
 
 func TestAPMInstrumentationProvidedPython(t *testing.T) {

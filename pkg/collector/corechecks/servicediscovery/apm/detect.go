@@ -10,10 +10,10 @@ package apm
 
 import (
 	"bufio"
-	"errors"
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -47,8 +47,11 @@ var (
 	// For now, only allow a subset of the above detectors to actually run.
 	allowedLangs = map[language.Language]struct{}{
 		language.Java:   {},
+		language.Node:   {},
 		language.Python: {},
 	}
+
+	nodeAPMCheckRegex = regexp.MustCompile(`"dd-trace"`)
 )
 
 // Detect attempts to detect the type of APM instrumentation for the given service.
@@ -117,48 +120,54 @@ func pythonDetector(pid int, _ []string, _ map[string]string) Instrumentation {
 	return pythonDetectorFromMapsReader(mapsFile)
 }
 
-func nodeDetector(_ int, _ []string, envs map[string]string) Instrumentation {
-	// check package.json, see if it has dd-trace in it.
-	// first find it
-	wd := ""
-	if val, ok := envs["PWD"]; ok {
-		wd = val
+// isNodeInstrumented parses the provided `os.File` trying to find an
+// entry for APM NodeJS instrumentation. Returns true if finding such
+// an entry, false otherwise.
+func isNodeInstrumented(f *os.File) bool {
+	// Don't try to read a non-regular file.
+	if fi, err := f.Stat(); err != nil || !fi.Mode().IsRegular() {
+		return false
 	}
-	if wd == "" {
-		// don't know the working directory, just quit
+
+	const readLimit = 1 * 1024 * 1024 // Read 1MiB max
+
+	limitReader := io.LimitReader(f, readLimit)
+	bufferedReader := bufio.NewReader(limitReader)
+
+	return nodeAPMCheckRegex.MatchReader(bufferedReader)
+}
+
+// nodeDetector checks if a service has APM NodeJS instrumentation.
+//
+// To check for APM instrumentation, we try to find a package.json in
+// the parent directories of the service. If found, we then check for a
+// `dd-trace` entry to be present.
+func nodeDetector(_ int, _ []string, envs map[string]string) Instrumentation {
+	processWorkingDirectory := ""
+	if val, ok := envs["PWD"]; ok {
+		processWorkingDirectory = filepath.Clean(val)
+	} else {
 		log.Debug("unable to determine working directory, assuming uninstrumented")
 		return None
 	}
 
-	// find package.json, see if already instrumented
-	// whatever is the first package.json that we find, we use
-	// we keep checking up to the root of the file system
-	for curWD := filepath.Clean(wd); len(curWD) > 1; curWD = filepath.Dir(curWD) {
-		curPkgJSON := curWD + string(filepath.Separator) + "package.json"
-		f, err := os.Open(curPkgJSON)
-		// this error means the file isn't there, so check parent directory
+	for curDir := processWorkingDirectory; len(curDir) > 1; curDir = filepath.Dir(curDir) {
+		pkgJSONPath := filepath.Join(curDir, "package.json")
+		pkgJSONFile, err := os.Open(pkgJSONPath)
 		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				log.Debug("package.json not found", curPkgJSON)
-			} else {
-				log.Debug("error opening package.json", curPkgJSON, err)
-			}
+			log.Debugf("could not open package.json: %s", err)
 			continue
 		}
-		offset, err := reader.Index(f, `"dd-trace"`)
-		if err != nil {
-			log.Debug("error reading package.json", curPkgJSON, err)
-			_ = f.Close()
-			continue
-		}
-		if offset != -1 {
-			_ = f.Close()
+		log.Debugf("found package.json: %s", pkgJSONPath)
+
+		isInstrumented := isNodeInstrumented(pkgJSONFile)
+		_ = pkgJSONFile.Close()
+
+		if isInstrumented {
 			return Provided
 		}
-		// intentionally ignoring error here
-		_ = f.Close()
-		return None
 	}
+
 	return None
 }
 
@@ -169,7 +178,7 @@ func javaDetector(_ int, args []string, envs map[string]string) Instrumentation 
 		"/usr/share/ca-certificates-java/ca-certificates-java.jar": true,
 	}
 
-	//Check simple args on builtIn list.
+	// Check simple args on builtIn list.
 	for _, v := range args {
 		if ignoreArgs[v] {
 			return None
