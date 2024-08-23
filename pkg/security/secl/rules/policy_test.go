@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/hashicorp/go-multierror"
@@ -563,9 +564,14 @@ func TestRuleAgentConstraint(t *testing.T) {
 		},
 	}
 
-	rs, rsErr := loadPolicy(t, testPolicy, policyOpts)
-	if rsErr != nil {
-		t.Fatalf("unexpected error: %v\n", rsErr)
+	rs, err := loadPolicy(t, testPolicy, policyOpts)
+
+	for _, err := range err.(*multierror.Error).Errors {
+		if rerr, ok := err.(*ErrRuleLoad); ok {
+			if rerr.Definition.ID != "basic" && rerr.Definition.ID != "range_not" {
+				t.Errorf("unexpected error: %v", rerr)
+			}
+		}
 	}
 
 	for _, exp := range expected {
@@ -827,8 +833,7 @@ rules:
 			want: &Policy{
 				Name:   "myLocal.policy",
 				Source: PolicyProviderTypeRC,
-				rules:  map[string][]*PolicyRule{},
-				macros: map[string][]*PolicyMacro{},
+				Rules:  nil,
 			},
 			wantErr: assert.NoError,
 		},
@@ -860,23 +865,21 @@ broken
 				macroFilters: nil,
 				ruleFilters:  nil,
 			},
-			want: fixupRulesPolicy(&Policy{
+			want: &Policy{
 				Name:   "myLocal.policy",
 				Source: PolicyProviderTypeRC,
-				rules: map[string][]*PolicyRule{
-					"rule_test": {
-						{
-							Def: &RuleDefinition{
-								ID:         "rule_test",
-								Expression: "",
-								Disabled:   true,
-							},
-							Accepted: true,
+				Rules: []*RuleDefinition{
+					{
+						ID:         "rule_test",
+						Expression: "",
+						Disabled:   true,
+						Policy: &Policy{
+							Name:   "myLocal.policy",
+							Source: PolicyProviderTypeRC,
 						},
 					},
 				},
-				macros: map[string][]*PolicyMacro{},
-			}),
+			},
 			wantErr: assert.NoError,
 		},
 		{
@@ -892,23 +895,21 @@ broken
 				macroFilters: nil,
 				ruleFilters:  nil,
 			},
-			want: fixupRulesPolicy(&Policy{
+			want: &Policy{
 				Name:   "myLocal.policy",
 				Source: PolicyProviderTypeRC,
-				rules: map[string][]*PolicyRule{
-					"rule_test": {
-						{
-							Def: &RuleDefinition{
-								ID:         "rule_test",
-								Expression: "open.file.path == \"/etc/gshadow\"",
-								Combine:    OverridePolicy,
-							},
-							Accepted: true,
+				Rules: []*RuleDefinition{
+					{
+						ID:         "rule_test",
+						Expression: "open.file.path == \"/etc/gshadow\"",
+						Combine:    OverridePolicy,
+						Policy: &Policy{
+							Name:   "myLocal.policy",
+							Source: PolicyProviderTypeRC,
 						},
 					},
 				},
-				macros: map[string][]*PolicyMacro{},
-			}),
+			},
 			wantErr: assert.NoError,
 		},
 	}
@@ -922,8 +923,8 @@ broken
 				return
 			}
 
-			if !cmp.Equal(tt.want, got, policyCmpOpts...) {
-				t.Errorf("The loaded policies do not match the expected\nDiff:\n%s", cmp.Diff(tt.want, got, policyCmpOpts...))
+			if !cmp.Equal(tt.want, got, cmpopts.IgnoreFields(RuleDefinition{}, "Policy")) {
+				t.Errorf("LoadPolicy(%v, %v, %v, %v, %v)", tt.args.name, tt.args.source, r, tt.args.macroFilters, tt.args.ruleFilters)
 			}
 		})
 	}

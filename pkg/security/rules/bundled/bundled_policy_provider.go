@@ -28,17 +28,19 @@ func NewPolicyProvider(cfg *config.RuntimeSecurityConfig) *PolicyProvider {
 
 // LoadPolicies implements the PolicyProvider interface
 func (p *PolicyProvider) LoadPolicies([]rules.MacroFilter, []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
-	policyDef := &rules.PolicyDef{
-		Version: version.AgentVersion,
-		Rules:   newBundledPolicyRules(p.cfg),
-	}
+	bundledPolicyRules := newBundledPolicyRules(p.cfg)
 
-	policy, err := rules.LoadPolicyFromDefinition("bundled_policy", "bundled", policyDef, nil, nil)
-	if err != nil {
-		return nil, multierror.Append(nil, err)
-	}
+	policy := &rules.Policy{}
+
+	policy.Name = "bundled_policy"
+	policy.Source = "bundled"
+	policy.Version = version.AgentVersion
+	policy.Rules = bundledPolicyRules
 	policy.IsInternal = true
-	policy.SetInternalCallbackAction(RefreshUserCacheRuleID, RefreshSBOMRuleID)
+
+	for _, rule := range bundledPolicyRules {
+		rule.Policy = policy
+	}
 
 	return []*rules.Policy{policy}, nil
 }

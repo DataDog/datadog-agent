@@ -6,10 +6,8 @@
 // Package bundled contains bundled rules
 package bundled
 
-const (
-	needRefreshSBOMVariableScope = "process"
-	needRefreshSBOMVariableName  = "pkg_db_modified"
-)
+const needRefreshSBOMVariableScope = "process"
+const needRefreshSBOMVariableName = "pkg_db_modified"
 
 // InternalVariables lists all variables used by internal rules
 var InternalVariables = [...]string{

@@ -201,37 +201,6 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor1(
 				}
 				in.Delim(']')
 			}
-		case "modified_by":
-			if in.IsNull() {
-				in.Skip()
-				out.ModifiedBy = nil
-			} else {
-				in.Delim('[')
-				if out.ModifiedBy == nil {
-					if !in.IsDelim(']') {
-						out.ModifiedBy = make([]*PolicyState, 0, 8)
-					} else {
-						out.ModifiedBy = []*PolicyState{}
-					}
-				} else {
-					out.ModifiedBy = (out.ModifiedBy)[:0]
-				}
-				for !in.IsDelim(']') {
-					var v6 *PolicyState
-					if in.IsNull() {
-						in.Skip()
-						v6 = nil
-					} else {
-						if v6 == nil {
-							v6 = new(PolicyState)
-						}
-						(*v6).UnmarshalEasyJSON(in)
-					}
-					out.ModifiedBy = append(out.ModifiedBy, v6)
-					in.WantComma()
-				}
-				in.Delim(']')
-			}
 		default:
 			in.SkipRecursive()
 		}
@@ -276,16 +245,16 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor1(
 		out.RawString(prefix)
 		{
 			out.RawByte('{')
-			v7First := true
-			for v7Name, v7Value := range in.Tags {
-				if v7First {
-					v7First = false
+			v6First := true
+			for v6Name, v6Value := range in.Tags {
+				if v6First {
+					v6First = false
 				} else {
 					out.RawByte(',')
 				}
-				out.String(string(v7Name))
+				out.String(string(v6Name))
 				out.RawByte(':')
-				out.String(string(v7Value))
+				out.String(string(v6Value))
 			}
 			out.RawByte('}')
 		}
@@ -295,29 +264,11 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor1(
 		out.RawString(prefix)
 		{
 			out.RawByte('[')
-			for v8, v9 := range in.Actions {
-				if v8 > 0 {
+			for v7, v8 := range in.Actions {
+				if v7 > 0 {
 					out.RawByte(',')
 				}
-				(v9).MarshalEasyJSON(out)
-			}
-			out.RawByte(']')
-		}
-	}
-	if len(in.ModifiedBy) != 0 {
-		const prefix string = ",\"modified_by\":"
-		out.RawString(prefix)
-		{
-			out.RawByte('[')
-			for v10, v11 := range in.ModifiedBy {
-				if v10 > 0 {
-					out.RawByte(',')
-				}
-				if v11 == nil {
-					out.RawString("null")
-				} else {
-					(*v11).MarshalEasyJSON(out)
-				}
+				(v8).MarshalEasyJSON(out)
 			}
 			out.RawByte(']')
 		}
@@ -694,17 +645,17 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor5(
 					out.Rules = (out.Rules)[:0]
 				}
 				for !in.IsDelim(']') {
-					var v12 *RuleState
+					var v9 *RuleState
 					if in.IsNull() {
 						in.Skip()
-						v12 = nil
+						v9 = nil
 					} else {
-						if v12 == nil {
-							v12 = new(RuleState)
+						if v9 == nil {
+							v9 = new(RuleState)
 						}
-						(*v12).UnmarshalEasyJSON(in)
+						(*v9).UnmarshalEasyJSON(in)
 					}
-					out.Rules = append(out.Rules, v12)
+					out.Rules = append(out.Rules, v9)
 					in.WantComma()
 				}
 				in.Delim(']')
@@ -745,14 +696,14 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor5(
 			out.RawString("null")
 		} else {
 			out.RawByte('[')
-			for v13, v14 := range in.Rules {
-				if v13 > 0 {
+			for v10, v11 := range in.Rules {
+				if v10 > 0 {
 					out.RawByte(',')
 				}
-				if v14 == nil {
+				if v11 == nil {
 					out.RawString("null")
 				} else {
-					(*v14).MarshalEasyJSON(out)
+					(*v11).MarshalEasyJSON(out)
 				}
 			}
 			out.RawByte(']')

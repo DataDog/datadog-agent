@@ -104,22 +104,22 @@ func (e ErrPolicyLoad) Error() string {
 
 // ErrMacroLoad is on macro definition error
 type ErrMacroLoad struct {
-	Macro *PolicyMacro
-	Err   error
+	Definition *MacroDefinition
+	Err        error
 }
 
 func (e ErrMacroLoad) Error() string {
-	return fmt.Sprintf("macro `%s` definition error: %s", e.Macro.Def.ID, e.Err)
+	return fmt.Sprintf("macro `%s` definition error: %s", e.Definition.ID, e.Err)
 }
 
 // ErrRuleLoad is on rule definition error
 type ErrRuleLoad struct {
-	Rule *PolicyRule
-	Err  error
+	Definition *RuleDefinition
+	Err        error
 }
 
 func (e ErrRuleLoad) Error() string {
-	return fmt.Sprintf("rule `%s` error: %s", e.Rule.Def.ID, e.Err)
+	return fmt.Sprintf("rule `%s` error: %s", e.Definition.ID, e.Err)
 }
 
 // RuleLoadErrType defines an rule error type
