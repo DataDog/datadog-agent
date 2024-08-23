@@ -9,29 +9,28 @@
 package paths
 
 import (
+	"path/filepath"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/winregistry"
 	"golang.org/x/sys/windows"
-	"path/filepath"
 )
 
 var (
 	// PackagesPath is the path to the packages directory.
 	PackagesPath string
+	// ConfigsPath is the path to the Fleet-managed configuration directory
+	ConfigsPath string
+	// LocksPath is the path to the locks directory.
+	LocksPath string
 
-	// TmpDirPath is the path to the temporary directory used for package installation.
-	TmpDirPath string
-
-	// LocksPack is the path to the locks directory.
-	LocksPack string
-
-	// DefaultConfigsDir is the default Agent configuration directory
-	DefaultConfigsDir string
+	// DefaultUserConfigsDir is the default Agent configuration directory
+	DefaultUserConfigsDir string
 )
 
 func init() {
 	datadogInstallerData, _ := winregistry.GetProgramDataDirForProduct("Datadog Installer")
-	TmpDirPath = filepath.Join(datadogInstallerData, "temp")
 	PackagesPath = filepath.Join(datadogInstallerData, "packages")
-	LocksPack = filepath.Join(datadogInstallerData, "locks")
-	DefaultConfigsDir, _ = windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
+	ConfigsPath = filepath.Join(datadogInstallerData, "configs")
+	LocksPath = filepath.Join(datadogInstallerData, "locks")
+	DefaultUserConfigsDir, _ = windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
 }

@@ -80,6 +80,7 @@ const (
 	orchestratorManifestEndpoint = "/api/v2/orchmanif"
 	metadataEndpoint             = "/api/v1/metadata"
 	ndmflowEndpoint              = "/api/v2/ndmflow"
+	apmTelemetryEndpoint         = "/api/v2/apmtelemetry"
 )
 
 // ErrNoFlareAvailable is returned when no flare is available
@@ -118,6 +119,7 @@ type Client struct {
 	orchestratorManifestAggregator aggregator.OrchestratorManifestAggregator
 	metadataAggregator             aggregator.MetadataAggregator
 	ndmflowAggregator              aggregator.NDMFlowAggregator
+	serviceDiscoveryAggregator     aggregator.ServiceDiscoveryAggregator
 }
 
 // NewClient creates a new fake intake client
@@ -143,6 +145,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		orchestratorManifestAggregator: aggregator.NewOrchestratorManifestAggregator(),
 		metadataAggregator:             aggregator.NewMetadataAggregator(),
 		ndmflowAggregator:              aggregator.NewNDMFlowAggregator(),
+		serviceDiscoveryAggregator:     aggregator.NewServiceDiscoveryAggregator(),
 	}
 	for _, opt := range opts {
 		opt(client)
@@ -317,6 +320,14 @@ func (c *Client) FilterContainerImages(name string, options ...MatchOpt[*aggrega
 	}
 	// apply filters one after the other
 	return filterPayload(images, options...)
+}
+
+func (c *Client) getServiceDiscoveries() error {
+	payloads, err := c.getFakePayloads(apmTelemetryEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.serviceDiscoveryAggregator.UnmarshallPayloads(payloads)
 }
 
 // GetLatestFlare queries the Fake Intake to fetch flares that were sent by a Datadog Agent and returns the latest flare as a Flare struct
@@ -885,4 +896,20 @@ func filterPayload[T aggregator.PayloadItem](payloads []T, options ...MatchOpt[T
 		}
 	}
 	return filteredPayloads, nil
+}
+
+// GetServiceDiscoveries fetches fakeintake on `api/v2/apmtelemetry` endpoint and returns
+// all received service discovery payloads
+func (c *Client) GetServiceDiscoveries() ([]*aggregator.ServiceDiscoveryPayload, error) {
+	err := c.getServiceDiscoveries()
+	if err != nil {
+		return nil, err
+	}
+
+	names := c.serviceDiscoveryAggregator.GetNames()
+	payloads := make([]*aggregator.ServiceDiscoveryPayload, 0, len(names))
+	for _, name := range names {
+		payloads = append(payloads, c.serviceDiscoveryAggregator.GetPayloadsByName(name)...)
+	}
+	return payloads, nil
 }

@@ -13,7 +13,6 @@ import (
 
 	"github.com/prometheus/procfs"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -49,8 +48,7 @@ type linuxImpl struct {
 	time              timer
 	bootTime          uint64
 
-	serviceDetector *ServiceDetector
-	ignoreCfg       map[string]bool
+	ignoreCfg map[string]bool
 
 	ignoreProcs       map[int]bool
 	aliveServices     map[int]*serviceInfo
@@ -76,7 +74,6 @@ func newLinuxImpl(ignoreCfg map[string]bool) (osImpl, error) {
 		bootTime:          stat.BootTime,
 		getSysProbeClient: getSysProbeClient,
 		time:              realTime{},
-		serviceDetector:   NewServiceDetector(),
 		ignoreCfg:         ignoreCfg,
 		ignoreProcs:       make(map[int]bool),
 		aliveServices:     make(map[int]*serviceInfo),
@@ -251,8 +248,6 @@ func (li *linuxImpl) getServiceInfo(p proc, service model.Service) (*serviceInfo
 		return nil, err
 	}
 
-	lang := language.FindInArgs(cmdline)
-
 	stat, err := p.Stat()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read /proc/{pid}/stat: %w", err)
@@ -282,9 +277,10 @@ func (li *linuxImpl) getServiceInfo(p proc, service model.Service) (*serviceInfo
 	serviceType := servicetype.Detect(service.Name, service.Ports)
 
 	meta := ServiceMetadata{
-		Name:     service.Name,
-		Language: string(lang),
-		Type:     string(serviceType),
+		Name:               service.Name,
+		Language:           service.Language,
+		Type:               string(serviceType),
+		APMInstrumentation: service.APMInstrumentation,
 	}
 
 	return &serviceInfo{

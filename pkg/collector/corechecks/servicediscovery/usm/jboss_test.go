@@ -10,8 +10,6 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"go.uber.org/zap"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -209,7 +207,7 @@ func TestJbossExtractWarContextRoot(t *testing.T) {
 			if len(tt.location) > 0 {
 				memFs[tt.location] = &fstest.MapFile{Data: []byte(tt.jbossWebXML)}
 			}
-			value, ok := newJbossExtractor(NewDetectionContext(zap.NewNop(), nil, nil, nil)).customExtractWarContextRoot(memFs)
+			value, ok := newJbossExtractor(NewDetectionContext(nil, nil, nil)).customExtractWarContextRoot(memFs)
 			require.Equal(t, tt.expected, value)
 			require.Equal(t, len(value) > 0, ok)
 		})
@@ -394,7 +392,7 @@ func TestJbossFindDeployedApps(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			value, ok := newJbossExtractor(NewDetectionContext(zap.NewNop(), tt.args, nil, tt.fs)).findDeployedApps(tt.domainHome)
+			value, ok := newJbossExtractor(NewDetectionContext(tt.args, nil, tt.fs)).findDeployedApps(tt.domainHome)
 			require.Equal(t, tt.expected, value)
 			require.Equal(t, len(value) > 0, ok)
 		})

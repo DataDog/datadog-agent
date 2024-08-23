@@ -296,6 +296,18 @@ new-e2e-cws:
   # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
   allow_failure: true
 
+new-e2e-discovery:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_x64
+  rules:
+    - !reference [.on_discovery_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/discovery
+    TEAM: universal-service-monitoring
+
 new-e2e-process:
   extends: .new_e2e_template
   needs:
@@ -368,6 +380,29 @@ new-e2e-installer:
   variables:
     TARGETS: ./tests/installer
     TEAM: fleet
+    FLEET_INSTALL_METHOD: "install_script"
+
+new-e2e-installer-ansible:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - new-e2e-installer
+  before_script:
+    # CURRENT_AGENT_VERSION is used to verify the installed agent version
+    # Must run before new_e2e_template changes the aws profile
+    # Note: this is similar to the WINDOWS_AGENT_VERSION in new-e2e_windows_msi but this job is running cross platforms
+    # Note 2: new_e2e_template does not define AGENT_MAJOR_VERSION, so define it as 7 below.
+    - export CURRENT_AGENT_VERSION=$(invoke agent.version --major-version 7)
+    - export STABLE_AGENT_VERSION_PACKAGE=$(curl -sS https://hub.docker.com/v2/namespaces/datadog/repositories/agent-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
+    - export STABLE_INSTALLER_VERSION_PACKAGE=$(curl -sS https://hub.docker.com/v2/namespaces/datadog/repositories/installer-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
+    - !reference [.new_e2e_template, before_script]
+  variables:
+    TARGETS: ./tests/installer
+    TEAM: fleet
+    FLEET_INSTALL_METHOD: "ansible"
 
 new-e2e-ndm-netflow:
   extends: .new_e2e_template
@@ -402,6 +437,7 @@ new-e2e-otel:
     - !reference [.needs_new_e2e_template]
     - qa_dca
     - qa_agent
+    - qa_agent_ot
   variables:
     TARGETS: ./tests/otel
     TEAM: otel
