@@ -1,5 +1,6 @@
 oracle:
-  extends: .linux_64
+  extends:
+    - .linux_x64
   stage: functional_test
   needs: ["go_deps"]
   services:
