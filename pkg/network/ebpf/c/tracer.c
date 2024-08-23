@@ -262,7 +262,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     // increment telemetry for connections that were never established
-    if (bpf_map_delete_elem(&tcp_failed_connect_telemetry, &t) == 0) {
+    if (bpf_map_delete_elem(&tcp_failed_connect_telemetry, &sk) == 0) {
         increment_telemetry_count(tcp_failed_connect);
     }
 
