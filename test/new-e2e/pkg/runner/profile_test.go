@@ -73,14 +73,14 @@ func TestDefaultEnvironments(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := defaultEnvironments(tt.args.environments, tt.args.defaultEnvironments)
+			got := mergeEnvironments(tt.args.environments, tt.args.defaultEnvironments)
 			gotList := strings.Split(got, " ")
 			if len(gotList) != len(tt.want) {
-				t.Errorf("defaultEnvironments() = %v, want %v", got, tt.want)
+				t.Errorf("mergeEnvironments() = %v, want %v", got, tt.want)
 			}
 			for _, v := range gotList {
 				if !slices.Contains(tt.want, v) {
-					t.Errorf("defaultEnvironments() = %v, want %v", got, tt.want)
+					t.Errorf("mergeEnvironments() = %v, want %v", got, tt.want)
 				}
 			}
 		})

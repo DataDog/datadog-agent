@@ -1513,7 +1513,9 @@ func validateProduceFetchCount(t *assert.CollectT, kafkaStats map[kafka.Key]*kaf
 	numberOfProduceRequests := 0
 	numberOfFetchRequests := 0
 	for kafkaKey, kafkaStat := range kafkaStats {
-		hasTLSTag := kafkaStat.ErrorCodeToStat[errorCode].StaticTags&network.ConnTagGo != 0
+		requestStats, exists := kafkaStat.ErrorCodeToStat[errorCode]
+		assert.True(t, exists, "Expected error code %d not found in stats", errorCode)
+		hasTLSTag := requestStats.StaticTags&network.ConnTagGo != 0
 		if hasTLSTag != validation.tlsEnabled {
 			continue
 		}
@@ -1521,11 +1523,11 @@ func validateProduceFetchCount(t *assert.CollectT, kafkaStats map[kafka.Key]*kaf
 		switch kafkaKey.RequestAPIKey {
 		case kafka.ProduceAPIKey:
 			assert.Equal(t, uint16(validation.expectedAPIVersionProduce), kafkaKey.RequestVersion)
-			numberOfProduceRequests += kafkaStat.ErrorCodeToStat[errorCode].Count
+			numberOfProduceRequests += requestStats.Count
 		case kafka.FetchAPIKey:
 			assert.Equal(t, uint16(validation.expectedAPIVersionFetch), kafkaKey.RequestVersion)
-			assert.Greater(t, kafkaStat.ErrorCodeToStat[errorCode].FirstLatencySample, float64(1))
-			numberOfFetchRequests += kafkaStat.ErrorCodeToStat[errorCode].Count
+			assert.Greater(t, requestStats.FirstLatencySample, float64(1))
+			numberOfFetchRequests += requestStats.Count
 		default:
 			assert.FailNow(t, "Expecting only produce or fetch kafka requests")
 		}

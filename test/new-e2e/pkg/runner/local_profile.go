@@ -45,7 +45,7 @@ func NewLocalProfile() (Profile, error) {
 	if err != nil {
 		return nil, err
 	}
-	environments = defaultEnvironments(environments, defaultLocalEnvironments)
+	environments = mergeEnvironments(environments, defaultLocalEnvironments)
 
 	outputDir := getLocalOutputDir()
 	return localProfile{baseProfile: newProfile("e2elocal", strings.Split(environments, " "), store, nil, outputDir)}, nil

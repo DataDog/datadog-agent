@@ -59,7 +59,7 @@ func NewCIProfile() (Profile, error) {
 	if err != nil {
 		return nil, err
 	}
-	environmentsStr = defaultEnvironments(environmentsStr, defaultCIEnvironments)
+	environmentsStr = mergeEnvironments(environmentsStr, defaultCIEnvironments)
 
 	// TODO can be removed using E2E_ENV variable
 	ciEnvNames := os.Getenv("CI_ENV_NAMES")

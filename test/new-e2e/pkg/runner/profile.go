@@ -55,7 +55,7 @@ type Profile interface {
 	// Since one Workspace supports one single program and we have one program per stack,
 	// the path should be unique for each stack.
 	GetWorkspacePath(stackName string) string
-	// ParamStore() returns the normal parameter store
+	// ParamStore returns the normal parameter store
 	ParamStore() parameters.Store
 	// SecretStore returns the secure parameter store
 	SecretStore() parameters.Store
@@ -100,22 +100,23 @@ func newProfile(projectName string, environments []string, store parameters.Stor
 }
 
 // mergeEnvironments returns a string with a space separated list of available environments. It merges environments with a `defaultEnvironments` map
-func mergeEnvironments(environments string, defaultsEnvironments map[string]string) string {
+func mergeEnvironments(environments string, defaultEnvironments map[string]string) string {
 	environmentsList := strings.Split(environments, " ")
 	// set merged map capacity to worst case scenario of no overlapping key
-	mergedEnvironmentsMap := make(map[string]string, len(defaultEnvironments) + len(environmentsList))
-	maps.Copy(mergedEnvironmentsMap, defaultsEnvironments)
+	mergedEnvironmentsMap := make(map[string]string, len(defaultEnvironments)+len(environmentsList))
+	maps.Copy(mergedEnvironmentsMap, defaultEnvironments)
 	for _, env := range environmentsList {
 		parts := strings.Split(env, "/")
 		if len(parts) == 2 {
 			mergedEnvironmentsMap[parts[0]] = parts[1]
 		}
 	}
-	maps.Copy(defaultedEnvironmentsMap, environmentsMap)
+
 	mergedEnvironmentsList := make([]string, 0, len(mergedEnvironmentsMap))
 	for k, v := range mergedEnvironmentsMap {
-		mergedEnvironmentsList = mergedEnvironmentsList.append(mergedEnvironmentsList, fmt.Sprintf("%s/%s ", k, v))
+		mergedEnvironmentsList = append(mergedEnvironmentsList, fmt.Sprintf("%s/%s", k, v))
 	}
+
 	return strings.Join(mergedEnvironmentsList, " ")
 }
 

@@ -720,7 +720,6 @@ workflow:
 .except_deploy:
   - <<: *if_deploy
     when: never
-  - when: on_success
 
 .on_a6_except_deploy:
   - <<: *if_not_version_6
