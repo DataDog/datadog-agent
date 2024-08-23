@@ -13,6 +13,7 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
 	"testing"
 	"testing/fstest"
 
@@ -23,7 +24,7 @@ import (
 // The file contains staged and non-staged deployments for different servers.
 // It is expected that only the staged deployment of `AdminServer` are returned.
 func TestWeblogicFindDeployedApps(t *testing.T) {
-	cwd, err := os.Getwd()
+	full, err := filepath.Abs("../testdata/root")
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -36,12 +37,12 @@ func TestWeblogicFindDeployedApps(t *testing.T) {
 		{
 			name:       "multiple deployments for multiple server - extract for AdminServer",
 			serverName: "AdminServer",
-			domainHome: abs(weblogicTestAppRoot, cwd),
-			fs:         RealFs{},
+			domainHome: weblogicTestAppRootAbsolute,
+			fs:         NewSubDirFS(full),
 			expected: []jeeDeployment{
 				{
 					name: "test.war",
-					path: weblogicTestAppRoot + "/test.war",
+					path: weblogicTestAppRootAbsolute + "/test.war",
 				},
 				{
 					name: "sample4.war",
@@ -49,7 +50,7 @@ func TestWeblogicFindDeployedApps(t *testing.T) {
 				},
 				{
 					name: "test.ear",
-					path: weblogicTestAppRoot + "/test.ear",
+					path: weblogicTestAppRootAbsolute + "/test.ear",
 				},
 			},
 		},
@@ -148,7 +149,7 @@ http://xmlns.oracle.com/weblogic/weblogic-web-app/1.4/weblogic-web-app.xsd">inva
 func TestWeblogicExtractExplodedWarContextRoot(t *testing.T) {
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
-	fs := os.DirFS(path.Join(cwd, weblogicTestAppRoot, "test.war"))
+	fs := os.DirFS(path.Join(cwd, "../testdata/root/testdata/b", "test.war"))
 	value, ok := newWeblogicExtractor(NewDetectionContext(nil, nil, nil)).customExtractWarContextRoot(fs)
 	require.True(t, ok)
 	require.Equal(t, "my_context", value)

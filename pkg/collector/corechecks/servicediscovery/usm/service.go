@@ -147,11 +147,11 @@ func checkForInjectionNaming(envs map[string]string) bool {
 }
 
 // ExtractServiceMetadata attempts to detect ServiceMetadata from the given process.
-func ExtractServiceMetadata(args []string, envs map[string]string) (ServiceMetadata, bool) {
+func ExtractServiceMetadata(args []string, envs map[string]string, fs fs.SubFS) (ServiceMetadata, bool) {
 	dc := DetectionContext{
 		args: args,
 		envs: envs,
-		fs:   RealFs{},
+		fs:   fs,
 	}
 	cmd := dc.args
 	if len(cmd) == 0 || len(cmd[0]) == 0 {
@@ -324,4 +324,61 @@ func (RealFs) Open(name string) (fs.File, error) {
 // Sub calls os.DirFS.
 func (RealFs) Sub(dir string) (fs.FS, error) {
 	return os.DirFS(dir), nil
+}
+
+// SubDirFS is like the fs.FS implemented by os.DirFS, except that it allows
+// absolute paths to be passed in the Open/Stat/etc, and attaches them to the
+// root dir.  It also implements SubFS, unlink the one implemented by os.DirFS.
+type SubDirFS struct {
+	fs.FS
+	root string
+}
+
+// NewSubDirFS creates a new SubDirFS rooted at the specified path.
+func NewSubDirFS(root string) SubDirFS {
+	return SubDirFS{FS: os.DirFS(root), root: root}
+}
+
+// fixPath ensures that the specified path is stripped of the leading slash (if
+// any) and is cleaned so that it can be passed to normal fs.FS functions which
+// do not allow absolute paths or paths which do not pass fs.ValidPath (which
+// contain ./ or .. for example).
+func (s SubDirFS) fixPath(path string) string {
+	path = filepath.Clean(path)
+	if filepath.IsAbs(path) {
+		return path[1:]
+	}
+
+	return path
+}
+
+// Sub provides a fs.FS for the specified subdirectory.
+func (s SubDirFS) Sub(dir string) (fs.FS, error) {
+	dir = filepath.Join(s.root, s.fixPath(dir))
+	return os.DirFS(dir), nil
+}
+
+// ReadDir reads the specified subdirectory
+func (s SubDirFS) ReadDir(name string) ([]fs.DirEntry, error) {
+	if readDirFS, ok := s.FS.(fs.ReadDirFS); ok {
+		name = s.fixPath(name)
+		return readDirFS.ReadDir(name)
+	}
+
+	return nil, fs.ErrInvalid
+}
+
+// Stat stats the specified file
+func (s SubDirFS) Stat(name string) (fs.FileInfo, error) {
+	if statFS, ok := s.FS.(fs.StatFS); ok {
+		name = s.fixPath(name)
+		return statFS.Stat(name)
+	}
+
+	return nil, fs.ErrInvalid
+}
+
+// Open opens the specified file
+func (s SubDirFS) Open(name string) (fs.File, error) {
+	return s.FS.Open(s.fixPath(name))
 }

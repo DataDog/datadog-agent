@@ -226,10 +226,10 @@ func TestWeblogicExtractServiceNamesForJEEServer(t *testing.T) {
 	require.NoError(t, writeFile(writer, weblogicXMLFile, weblogicXML))
 	require.NoError(t, writer.Close())
 	memfs := &fstest.MapFS{
-		"wls/domain/config/config.xml":        &fstest.MapFile{Data: []byte(wlsConfig)},
-		"apps/app1.ear/" + applicationXMLPath: &fstest.MapFile{Data: []byte(appXML)},
-		"apps/app2.war":                       &fstest.MapFile{Data: buf.Bytes()},
-		"apps/app3.war":                       &fstest.MapFile{Mode: fs.ModeDir},
+		"wls/domain/config/config.xml":                   &fstest.MapFile{Data: []byte(wlsConfig)},
+		"wls/domain/apps/app1.ear/" + applicationXMLPath: &fstest.MapFile{Data: []byte(appXML)},
+		"wls/domain/apps/app2.war":                       &fstest.MapFile{Data: buf.Bytes()},
+		"wls/domain/apps/app3.war":                       &fstest.MapFile{Mode: fs.ModeDir},
 	}
 
 	// simulate weblogic command line args

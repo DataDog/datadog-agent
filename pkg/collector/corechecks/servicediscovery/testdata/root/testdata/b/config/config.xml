@@ -61,7 +61,7 @@
         <name>sample</name>
         <target>AdminServer</target>
         <module-type>war</module-type>
-        <source-path>../testdata/b/test.war</source-path>
+        <source-path>./test.war</source-path>
         <security-dd-model>DDOnly</security-dd-model>
         <staging-mode>stage</staging-mode>
         <plan-staging-mode>stage</plan-staging-mode>
@@ -101,7 +101,7 @@
         <name>some_ear</name>
         <target>AdminServer</target>
         <module-type>ear</module-type>
-        <source-path>../testdata/b/test.ear</source-path>
+        <source-path>./test.ear</source-path>
         <security-dd-model>DDOnly</security-dd-model>
         <staging-mode>stage</staging-mode>
         <plan-staging-mode>stage</plan-staging-mode>

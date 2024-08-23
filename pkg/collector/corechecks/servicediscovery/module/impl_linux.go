@@ -213,7 +213,8 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 		return nil, err
 	}
 
-	name := servicediscovery.GetServiceName(cmdline, envs)
+	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
+	name := servicediscovery.GetServiceName(cmdline, envs, root)
 	language := language.FindInArgs(cmdline)
 	apmInstrumentation := apm.Detect(int(proc.Pid), cmdline, envs, language)
 
