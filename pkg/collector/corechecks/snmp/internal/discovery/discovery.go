@@ -101,7 +101,7 @@ func (d *Discovery) runWorker(w int, jobs <-chan checkDeviceJob) {
 			log.Debugf("subnet %s: Handling IP %s", d.config.Network, job.currentIP.String())
 			err := d.checkDevice(job)
 			if err != nil {
-				log.Errorf(err.Error())
+				log.Errorf("%s", err.Error())
 			}
 		}
 	}
@@ -139,7 +139,7 @@ func (d *Discovery) discoverDevices() {
 	}
 
 	discoveryTicker := time.NewTicker(time.Duration(d.config.DiscoveryInterval) * time.Second)
-
+	defer discoveryTicker.Stop()
 	for {
 		log.Debugf("subnet %s: Run discovery", d.config.Network)
 		startingIP := make(net.IP, len(subnet.startingIP))

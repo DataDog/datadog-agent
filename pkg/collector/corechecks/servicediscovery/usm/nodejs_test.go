@@ -8,8 +8,6 @@ package usm
 import (
 	"testing"
 
-	"go.uber.org/zap"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -35,7 +33,7 @@ func TestFindNameFromNearestPackageJSON(t *testing.T) {
 			expected: "my-awesome-package",
 		},
 	}
-	instance := &nodeDetector{ctx: DetectionContext{logger: zap.NewNop(), fs: &RealFs{}}}
+	instance := &nodeDetector{ctx: DetectionContext{fs: &RealFs{}}}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			value, ok := instance.findNameFromNearestPackageJSON(tt.path)
