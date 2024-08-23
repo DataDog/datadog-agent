@@ -1,6 +1,8 @@
 oracle:
-  extends:
-    - .linux_x64
+  # extends:
+  #   - .linux_x64
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:docker"]
   stage: functional_test
   needs: ["go_deps"]
   services:
@@ -8,7 +10,6 @@ oracle:
       name: "registry.ddbuild.io/images/mirror/oracle:${DBMS_VERSION}"
       variables:
         ORACLE_PWD: "datad0g"
-        INIT_CPU_COUNT: 1
   variables:
     CI_DEBUG_SERVICES: "true"
   parallel:
