@@ -101,21 +101,22 @@ func newProfile(projectName string, environments []string, store parameters.Stor
 
 // mergeEnvironments returns a string with a space separated list of available environments. It merges environments with a `defaultEnvironments` map
 func mergeEnvironments(environments string, defaultsEnvironments map[string]string) string {
-	defaultedEnvironmentsMap := maps.Clone(defaultsEnvironments)
 	environmentsList := strings.Split(environments, " ")
-	environmentsMap := make(map[string]string)
+	// set merged map capacity to worst case scenario of no overlapping key
+	mergedEnvironmentsMap := make(map[string]string, len(defaultEnvironments) + len(environmentsList))
+	maps.Copy(mergedEnvironmentsMap, defaultsEnvironments)
 	for _, env := range environmentsList {
 		parts := strings.Split(env, "/")
 		if len(parts) == 2 {
-			environmentsMap[parts[0]] = parts[1]
+			mergedEnvironmentsMap[parts[0]] = parts[1]
 		}
 	}
 	maps.Copy(defaultedEnvironmentsMap, environmentsMap)
-	defaultEnvironments := ""
-	for k, v := range defaultedEnvironmentsMap {
-		defaultEnvironments += fmt.Sprintf("%s/%s ", k, v)
+	mergedEnvironmentsList := make([]string, 0, len(mergedEnvironmentsMap))
+	for k, v := range mergedEnvironmentsMap {
+		mergedEnvironmentsList = mergedEnvironmentsList.append(mergedEnvironmentsList, fmt.Sprintf("%s/%s ", k, v))
 	}
-	return strings.TrimSpace(defaultEnvironments)
+	return strings.Join(mergedEnvironmentsList, " ")
 }
 
 // EnvironmentNames returns a comma-separated list of environments that the profile targets
