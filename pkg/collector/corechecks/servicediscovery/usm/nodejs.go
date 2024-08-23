@@ -7,7 +7,7 @@ package usm
 
 import (
 	"io"
-	"os"
+	"io/fs"
 	"path"
 	"strings"
 
@@ -40,7 +40,7 @@ func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 		} else if strings.HasSuffix(strings.ToLower(a), ".js") {
 			cwd, _ := workingDirFromEnvs(n.ctx.envs)
 			absFile := abs(path.Clean(a), cwd)
-			if _, err := os.Stat(absFile); err == nil {
+			if _, err := fs.Stat(n.ctx.fs, absFile); err == nil {
 				value, ok := n.findNameFromNearestPackageJSON(absFile)
 				if ok {
 					return NewServiceMetadata(value), true
