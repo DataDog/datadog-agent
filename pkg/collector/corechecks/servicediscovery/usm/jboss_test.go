@@ -7,7 +7,6 @@ package usm
 
 import (
 	"io/fs"
-	"path/filepath"
 	"testing"
 	"testing/fstest"
 
@@ -216,9 +215,7 @@ func TestJbossExtractWarContextRoot(t *testing.T) {
 }
 
 func TestJbossFindDeployedApps(t *testing.T) {
-	full, err := filepath.Abs("../testdata/root")
-	require.NoError(t, err)
-	sub := NewSubDirFS(full)
+	sub := MakeTestSubDirFS(t)
 	tests := []struct {
 		name       string
 		args       []string

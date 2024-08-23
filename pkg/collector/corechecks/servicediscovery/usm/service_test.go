@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,11 +28,17 @@ const (
 	weblogicTestAppRootAbsolute = "/testdata/b"
 )
 
+func MakeTestSubDirFS(t *testing.T) SubDirFS {
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err)
+
+	full := filepath.Join(curDir, "..", "..", "..", "..", "discovery", "testdata", "root")
+	return NewSubDirFS(full)
+}
+
 func TestExtractServiceMetadata(t *testing.T) {
 	springBootAppFullPath := createMockSpringBootApp(t)
-	full, err := filepath.Abs("../testdata/root")
-	require.NoError(t, err)
-	sub := NewSubDirFS(full)
+	sub := MakeTestSubDirFS(t)
 	usmFull, err := filepath.Abs("testdata/root")
 	require.NoError(t, err)
 	subUsmTestData := NewSubDirFS(usmFull)
