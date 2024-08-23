@@ -83,6 +83,3 @@ WHERE
   AND decode(s.ksusepch, 65535, TO_NUMBER(NULL), s.ksusepch) = sq_prev.child_number(+)
   AND s.con_id = c.con_id(+)
   AND s.ksuudoct = comm.command_type(+)
-;
-
-GRANT SELECT ON dd_session TO c##datadog;

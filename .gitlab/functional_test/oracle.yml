@@ -1,20 +1,16 @@
 oracle:
+  extends: .linux_64
   stage: functional_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:docker"]
   needs: ["go_deps"]
   services:
     - alias: "oracle"
       name: "registry.ddbuild.io/images/mirror/oracle:${DBMS_VERSION}"
+      variables:
+        ORACLE_PWD: "datad0g"
   parallel:
     matrix:
       - DBMS_VERSION: "21.3.0-xe"
   before_script:
-    - apt-get update && apt-get install -y docker-compose-plugin curl
-    - curl -OL https://go.dev/dl/go1.22.6.linux-amd64.tar.gz
-    - tar -C /usr/local -xzf go1.22.6.linux-amd64.tar.gz
-    - export PATH=$PATH:/usr/local/go/bin
-    - go version
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
   script:

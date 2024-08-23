@@ -1,11 +1,3 @@
-
-prompt create test table
-create table t(n number);
-grant select,insert on t to c##datadog ;
-insert into t values(18446744073709551615);
-commit;
-
-prompt create test tablespace
 declare
   dir dba_data_files.file_name%type;
   l_create_dir v$parameter.value%type;
@@ -25,4 +17,3 @@ begin
     execute immediate 'create tablespace tbs_test_offline datafile size 10M';
   end if;
 end;
-/

@@ -34,3 +34,5 @@ grant select on v_$locked_object to c##datadog;
 grant select on dba_objects to c##datadog;
 grant select on cdb_data_files to c##datadog;
 grant select on dba_data_files to c##datadog;
+
+GRANT SELECT ON dd_session TO c##datadog;

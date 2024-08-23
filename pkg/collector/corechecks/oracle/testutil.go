@@ -117,7 +117,9 @@ func newTestCheck(t *testing.T, connectConfig config.ConnectionConfig, instanceC
 	c := Check{}
 
 	connectYaml, err := yaml.Marshal(connectConfig)
-	require.NoError(t, err)
+	if t != nil {
+		require.NoError(t, err)
+	}
 	instanceConfig := string(connectYaml)
 	if instanceConfigAddition != "" {
 		instanceConfig = fmt.Sprintf("%s\n%s", instanceConfig, instanceConfigAddition)
@@ -126,17 +128,20 @@ func newTestCheck(t *testing.T, connectConfig config.ConnectionConfig, instanceC
 	rawInitConfig := []byte(initConfig)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	err = c.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "oracle_test")
-	require.NoError(t, err)
+	if t != nil {
+		require.NoError(t, err)
+	}
 
 	sender := mocksender.NewMockSenderWithSenderManager(c.ID(), senderManager)
 	sender.SetupAcceptAll()
-	assert.Equal(t, c.config.InstanceConfig.Server, connectConfig.Server)
-	assert.Equal(t, c.config.InstanceConfig.Port, connectConfig.Port)
-	assert.Equal(t, c.config.InstanceConfig.Username, connectConfig.Username)
-	assert.Equal(t, c.config.InstanceConfig.Password, connectConfig.Password)
-	assert.Equal(t, c.config.InstanceConfig.ServiceName, connectConfig.ServiceName)
-
-	assert.Contains(t, c.configTags, dbmsTag, "c.configTags doesn't contain static tags")
+	if t != nil {
+		assert.Equal(t, c.config.InstanceConfig.Server, connectConfig.Server)
+		assert.Equal(t, c.config.InstanceConfig.Port, connectConfig.Port)
+		assert.Equal(t, c.config.InstanceConfig.Username, connectConfig.Username)
+		assert.Equal(t, c.config.InstanceConfig.Password, connectConfig.Password)
+		assert.Equal(t, c.config.InstanceConfig.ServiceName, connectConfig.ServiceName)
+		assert.Contains(t, c.configTags, dbmsTag, "c.configTags doesn't contain static tags")
+	}
 
 	return c, sender
 }
@@ -149,6 +154,10 @@ func newLegacyCheck(t *testing.T, instanceConfigAddition string, initConfig stri
 
 func newDefaultCheck(t *testing.T, instanceConfigAddition string, initConfig string) (Check, *mocksender.MockSender) {
 	return newTestCheck(t, getConnectData(t, useDefaultUser), instanceConfigAddition, initConfig)
+}
+
+func newSysCheck(t *testing.T, instanceConfigAddition string, initConfig string) (Check, *mocksender.MockSender) {
+	return newTestCheck(t, getConnectData(t, useSysUser), instanceConfigAddition, initConfig)
 }
 
 func newDbDoesNotExistCheck(t *testing.T, instanceConfigAddition string, initConfig string) (Check, *mocksender.MockSender) {
