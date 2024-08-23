@@ -34,6 +34,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ./../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ./../../pkg/config/env
+	github.com/DataDog/datadog-agent/pkg/config/mock => ./../../pkg/config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ./../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ./../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/utils => ./../../pkg/config/utils
@@ -122,6 +123,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.58.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.56.0-rc.3 // indirect
