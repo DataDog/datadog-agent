@@ -264,8 +264,7 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) (bool, error) {
 	return true, nil
 }
 
-// interpretRCRule interprets a rule as received through RC to return
-// an sds.Rule usable with the shared library.
+// interpretRCRule interprets a rule as received through RC to return an sds.Rule usable with the shared library.
 // `standardRule` contains the definition, with the name, pattern, etc.
 // `userRule`     contains the configuration done by the user: match action, etc.
 func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig, defaults StandardRulesDefaults) (sds.RuleConfig, error) {
