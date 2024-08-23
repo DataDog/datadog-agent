@@ -214,9 +214,10 @@ install_dependencies()
     fi
 }
 
-create_integrations_file
-create_dependencies_file
-install_integrations
-install_dependencies
+# create_integrations_file
+# create_dependencies_file
+# install_integrations
+# install_dependencies
+${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/postinst.py" "${INSTALL_DIR}"
 
 exit 0
