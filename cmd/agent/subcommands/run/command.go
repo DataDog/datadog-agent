@@ -446,9 +446,6 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(ms serializer.MetricSerializer) optional.Option[serializer.MetricSerializer] {
 			return optional.NewOption[serializer.MetricSerializer](ms)
 		}),
-		fx.Provide(func(logReceiver integrations.Component) optional.Option[integrations.Component] {
-			return optional.NewOption[integrations.Component](logReceiver)
-		}),
 		ndmtmp.Bundle(),
 		netflow.Bundle(),
 		rdnsquerierfx.Module(),

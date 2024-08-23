@@ -264,7 +264,8 @@ Package agent contains logs agent component.
 
 ### [comp/logs/integrations](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/integrations)
 
-Package integrations adds a go interface for integrations to send logs.
+Package integrations adds a go interface for integrations to register and
+send logs.
 
 ## [comp/metadata](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata) (Component Bundle)
 
