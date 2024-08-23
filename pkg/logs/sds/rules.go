@@ -38,6 +38,7 @@ type StandardRuleDefinition struct {
 	Version                 int      `json:"version"`
 	Pattern                 string   `json:"pattern"`
 	DefaultIncludedKeywords []string `json:"default_included_keywords"`
+	DefaultExcludedKeywords []string `json:"default_excluded_keywords"`
 	RequiredCapabilities    []string `json:"required_capabilities"`
 }
 
@@ -51,6 +52,7 @@ type StandardRulesConfig struct {
 // standard rules.
 type StandardRulesDefaults struct {
 	IncludedKeywordsCharCount uint32 `json:"included_keywords_char_count"`
+	ExcludedKeywordsCharCount uint32 `json:"excluded_keywords_char_count"`
 }
 
 // RuleConfig of rule as sent by the Remote Configuration.
@@ -62,6 +64,7 @@ type RuleConfig struct {
 	Definition       RuleDefinition    `json:"definition"`
 	MatchAction      MatchAction       `json:"match_action"`
 	IncludedKeywords ProximityKeywords `json:"included_keywords"`
+	ExcludedKeywords ProximityKeywords `json:"excluded_keywords"`
 	IsEnabled        bool              `json:"is_enabled"`
 }
 
