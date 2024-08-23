@@ -2,6 +2,9 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
+// Package proctracker provides a facility for Dynamic Instrumentation to discover
+// and track the lifecycle of processes running on the same host
 package proctracker
 
 import (
@@ -31,7 +34,7 @@ import (
 
 type processTrackerCallback func(ditypes.DIProcs)
 
-// adapted from https://github.com/DataDog/datadog-agent/blob/main/pkg/network/protocols/http/ebpf_gotls.go
+// ProcessTracker is adapted from https://github.com/DataDog/datadog-agent/blob/main/pkg/network/protocols/http/ebpf_gotls.go
 type ProcessTracker struct {
 	procRoot    string
 	lock        sync.RWMutex
@@ -42,6 +45,7 @@ type ProcessTracker struct {
 	unsubscribe []func()
 }
 
+// NewProcessTracker creates a new ProcessTracer
 func NewProcessTracker(callback processTrackerCallback) *ProcessTracker {
 	pt := ProcessTracker{
 		pm:        monitor.GetProcessMonitor(),
@@ -160,7 +164,7 @@ func (pt *ProcessTracker) registerProcess(binID binaryID, pid pid, mTime syscall
 
 	pt.processes[pid] = binID
 	if bin, ok := pt.binaries[binID]; ok {
-		// proccess that uses this binary already exists
+		// process that uses this binary already exists
 		bin.processCount++
 	} else {
 

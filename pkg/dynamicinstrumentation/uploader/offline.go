@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
 package uploader
 
 import (
@@ -15,11 +16,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 )
 
+// OfflineSerializer is used for serializing events and printing instead of
+// uploading to the DataDog backend
 type OfflineSerializer[T any] struct {
 	outputFile *os.File
 	mu         sync.Mutex
 }
 
+// NewOfflineLogSerializer creates an offline serializer for serializing events and printing instead of
+// uploading to the DataDog backend
 func NewOfflineLogSerializer(outputPath string) (*OfflineSerializer[ditypes.SnapshotUpload], error) {
 	if outputPath == "" {
 		panic("No snapshot output path set")
@@ -27,6 +32,8 @@ func NewOfflineLogSerializer(outputPath string) (*OfflineSerializer[ditypes.Snap
 	return NewOfflineSerializer[ditypes.SnapshotUpload](outputPath)
 }
 
+// NewOfflineDiagnosticSerializer creates an offline serializer for serializing diagnostic information
+// and printing instead of uploading to the DataDog backend
 func NewOfflineDiagnosticSerializer(dm *diagnostics.DiagnosticManager, outputPath string) (*OfflineSerializer[ditypes.DiagnosticUpload], error) {
 	if outputPath == "" {
 		panic("No diagnostic output path set")
@@ -43,6 +50,8 @@ func NewOfflineDiagnosticSerializer(dm *diagnostics.DiagnosticManager, outputPat
 	return ds, nil
 }
 
+// NewOfflineSerializer is the generic create method for offline serialization
+// of events or diagnostic output
 func NewOfflineSerializer[T any](outputPath string) (*OfflineSerializer[T], error) {
 	file, err := os.OpenFile(outputPath, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0644)
 	if err != nil {
@@ -54,6 +63,7 @@ func NewOfflineSerializer[T any](outputPath string) (*OfflineSerializer[T], erro
 	return u, nil
 }
 
+// Enqueue writes data to the offline serializer
 func (s *OfflineSerializer[T]) Enqueue(item *T) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()

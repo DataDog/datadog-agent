@@ -2,6 +2,9 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
+// Package ebpf provides utility for setting up and instrumenting the bpf code
+// used by dynamic instrumentation
 package ebpf
 
 import (
@@ -31,6 +34,8 @@ var (
 	globalHeadersPath string
 )
 
+// SetupRingBufferAndHeaders compiles/loads the ringbuffer bpf object
+// and sets up the needed header files for probes in a temporary directory
 func SetupRingBufferAndHeaders() {
 	tempDir, err := os.MkdirTemp("/tmp", "dd-go-di*")
 	if err != nil {
@@ -46,8 +51,6 @@ func SetupRingBufferAndHeaders() {
 }
 
 func setupRingbufferAndHeaders() error {
-
-	// Create temporary directory structure to unload headers into
 	tempDir, err := os.MkdirTemp(globalTempDirPath, "run-*")
 	if err != nil {
 		return fmt.Errorf("couldn't create temp directory: %w", err)
@@ -133,6 +136,7 @@ func setupRingbufferAndHeaders() error {
 	return nil
 }
 
+// AttachBPFUprobe attaches the probe to the specified process
 func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error {
 	executable, err := link.OpenExecutable(procInfo.BinaryPath)
 	if err != nil {
@@ -186,7 +190,7 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 		return fmt.Errorf("could not find bpf map for zero value in bpf object")
 	}
 
-	var zeroSlice []uint8 = make([]uint8, probe.InstrumentationInfo.InstrumentationOptions.ArgumentsMaxSize)
+	var zeroSlice = make([]uint8, probe.InstrumentationInfo.InstrumentationOptions.ArgumentsMaxSize)
 	var index uint32
 	err = zeroValMap.Update(index, zeroSlice, 0)
 	if err != nil {

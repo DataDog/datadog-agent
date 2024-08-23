@@ -2,6 +2,9 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
+// Package ratelimiter implements a simple rate limiter used for tracking and limiting
+// the rate of events being produced per probe
 package ratelimiter
 
 import (
@@ -19,11 +22,14 @@ type SingleRateLimiter struct {
 	successfulEvents int64
 }
 
+// MultiProbeRateLimiter is used for tracking and limiting the rate of events
+// being produced for multiple probes
 type MultiProbeRateLimiter struct {
 	defaultRate float64
 	x           map[string]*SingleRateLimiter
 }
 
+// NewMultiProbeRateLimiter creates a new MultiProbeRateLimiter
 func NewMultiProbeRateLimiter(defaultRatePerSecond float64) *MultiProbeRateLimiter {
 	return &MultiProbeRateLimiter{
 		defaultRate: defaultRatePerSecond,
@@ -37,6 +43,9 @@ func (mr *MultiProbeRateLimiter) SetRate(id string, mps float64) {
 	mr.x[id] = NewSingleEventRateLimiter(mps)
 }
 
+// AllowOneEvent is called to determine if an event should be allowed according to
+// the configured rate limit. It returns a bool to say allowed or not, then the number
+// of dropped events, and then the number of successful events
 func (mr *MultiProbeRateLimiter) AllowOneEvent(id string) (bool, int64, int64) {
 	rateLimiter, ok := mr.x[id]
 	if !ok {
@@ -69,7 +78,7 @@ func (r *SingleRateLimiter) AllowOneEvent() bool {
 		return true
 	}
 
-	var sampled bool = false
+	var sampled = false
 	if r.limiter.Allow() {
 		sampled = true
 		r.successfulEvents++
