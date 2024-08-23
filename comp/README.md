@@ -152,6 +152,10 @@ Package hostnameinterface describes the interface for hostname methods
 
 Package log implements a component to handle logging internal to the agent.
 
+### [comp/core/lsof](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/lsof)
+
+Package lsof provides a flare file with data about files opened by the agent process
+
 ### [comp/core/pid](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/pid)
 
 Package pid writes the current PID to a file, ensuring that the file
