@@ -194,7 +194,10 @@ SEC("kprobe/tcp_done")
 int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     conn_tuple_t t = {};
     __u64 *failed_conn_pid = NULL;
-    u64 pid_tgid = 0;
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("kprobe/tcp_done: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    pid_tgid = 0;
+
 
     if (!tcp_failed_connections_enabled()) {
         return 0;
@@ -212,7 +215,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
         return 0;
     }
 
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
         return 0;
     }
     log_debug("kprobe/tcp_done: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
@@ -222,17 +225,14 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     // get the pid from the ongoing failure map in this case, as it should have been set in connect(). else bail
     failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &t);
     if (failed_conn_pid) {
-        log_debug("kprobe/tcp_done: ongoing connection pid: %llu", *failed_conn_pid >> 32);
-        bpf_probe_read_kernel_with_telemetry(&pid_tgid, sizeof(pid_tgid), failed_conn_pid);
+        log_debug("kprobe/tcp_done: pid from tcp_connect: %llu", *failed_conn_pid >> 32);
         bpf_map_delete_elem(&tcp_ongoing_connect_pid, &t);
-        t.pid = pid_tgid >> 32;
+        t.pid = *failed_conn_pid >> 32;
     } else {
         increment_telemetry_count(tcp_done_missing_pid);
         log_debug("kprobe/tcp_done: missing pid for connection");
         return 0;
     }
-
-    log_debug("kprobe/tcp_done: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
     // check if this connection was already flushed and ensure we don't flush again
     // upsert the timestamp to the map and delete if it already exists, flush connection otherwise
@@ -953,36 +953,35 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_connect, struct sock *skp) {
     if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
-    t.pid = 0;
-
-    bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &t, &pid_tgid, BPF_ANY);
 
     bpf_map_update_with_telemetry(tcp_failed_connect_telemetry, &skp, &pid_tgid, BPF_ANY);
+
+    t.pid = 0;
+    bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &t, &pid_tgid, BPF_ANY);
 
     return 0;
 }
 
 SEC("kprobe/tcp_finish_connect")
 int BPF_BYPASSABLE_KPROBE(kprobe__tcp_finish_connect, struct sock *skp) {
-    conn_tuple_t t = {};
-    u64 pid_tgid = 0;
-
-    if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
-        return 0;
-    }
-    log_debug("kprobe/tcp_finish_connect: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
-    u64 *pid_tgid_p = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &t);
+    u64 *pid_tgid_p = bpf_map_lookup_elem(&tcp_failed_connect_telemetry, &skp);
     if (!pid_tgid_p) {
         return 0;
     }
-    bpf_probe_read_kernel_with_telemetry(&pid_tgid, sizeof(pid_tgid), pid_tgid_p);
-    t.pid = pid_tgid >> 32;
+    u64 pid_tgid = *pid_tgid_p;
     log_debug("kprobe/tcp_finish_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
     bpf_map_delete_elem(&tcp_failed_connect_telemetry, &skp);
 
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+
     handle_tcp_stats(&t, skp, TCP_ESTABLISHED);
     handle_message(&t, 0, 0, CONN_DIRECTION_OUTGOING, 0, 0, PACKET_COUNT_NONE, skp);
+
+    log_debug("kprobe/tcp_finish_connect: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
     return 0;
 }
