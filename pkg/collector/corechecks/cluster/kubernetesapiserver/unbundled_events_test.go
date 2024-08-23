@@ -536,7 +536,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 			events, errors := transformer.Transform(incomingEvents)
 
 			// Sort events by title for easier comparison
-			sort.Slice(events, func(i, j int) bool {
+			sort.SliceStable(events, func(i, j int) bool {
 				return events[i].Title < events[j].Title
 			})
 
