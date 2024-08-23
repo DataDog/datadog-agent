@@ -218,49 +218,31 @@ func injectionMode(pod *corev1.Pod, globalMode string) string {
 	return globalMode
 }
 
+// buildExternalEnv generate an External Data environment variable.
+func buildExternalEnv(container *corev1.Container, init bool) (corev1.EnvVar, error) {
+	return corev1.EnvVar{
+		Name:  ddExternalDataEnvVarName,
+		Value: fmt.Sprintf("%s%t,%s%s,%s$(%s)", externalDataInitPrefix, init, externalDataContainerNamePrefix, container.Name, externalDataPodUIDPrefix, podUIDEnvVarName),
+	}, nil
+}
+
 // injectExternalDataEnvVar injects the External Data environment variable.
 // The format is: it-<init>,cn-<container_name>,pu-<pod_uid>
 func injectExternalDataEnvVar(pod *corev1.Pod) (injected bool) {
-	type containerInjection struct {
-		container *corev1.Container
-		init      bool
-	}
-	var containerInjections []containerInjection
+	// Inject External Data Environment Variable for the pod
+	injected = common.InjectDynamicEnv(pod, buildExternalEnv)
 
-	// Collect all containers and init containers
-	for i := range pod.Spec.Containers {
-		containerInjections = append(containerInjections, containerInjection{&pod.Spec.Containers[i], false})
-	}
-	for i := range pod.Spec.InitContainers {
-		containerInjections = append(containerInjections, containerInjection{&pod.Spec.InitContainers[i], true})
-	}
-
-	// Inject External Data Environment Variable for each container
-	for _, containerInjection := range containerInjections {
-		if containerInjection.container == nil {
-			_ = log.Errorf("Cannot inject identity into nil container")
-			continue
-		}
-
-		containerInjection.container.Env = append([]corev1.EnvVar{
-			{
-				Name: podUIDEnvVarName,
-				ValueFrom: &corev1.EnvVarSource{
-					FieldRef: &corev1.ObjectFieldSelector{
-						FieldPath: "metadata.uid",
-					},
-				},
+	// Inject Internal Pod UID
+	injected = common.InjectEnv(pod, corev1.EnvVar{
+		Name: podUIDEnvVarName,
+		ValueFrom: &corev1.EnvVarSource{
+			FieldRef: &corev1.ObjectFieldSelector{
+				FieldPath: "metadata.uid",
 			},
-			{
-				Name:  ddExternalDataEnvVarName,
-				Value: fmt.Sprintf("%s%t,%s%s,%s$(%s)", externalDataInitPrefix, containerInjection.init, externalDataContainerNamePrefix, containerInjection.container.Name, externalDataPodUIDPrefix, podUIDEnvVarName),
-			},
-		}, containerInjection.container.Env...)
+		},
+	}) || injected
 
-		injected = true
-	}
-
-	return injected
+	return
 }
 
 func buildVolume(volumeName, path string, readOnly bool) (corev1.Volume, corev1.VolumeMount) {

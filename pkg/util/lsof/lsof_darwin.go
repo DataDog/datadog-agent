@@ -3,15 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
+package lsof
 
-package flare
-
-// team: agent-shared-components
-
-// Mock is the mocked component type.
-type Mock interface {
-	Component
-
-	// no further methods are defined.
+func openFiles(_ int) (Files, error) {
+	return nil, ErrNotImplemented
 }
