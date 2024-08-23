@@ -185,8 +185,7 @@ create_new_dependencies_file()
 stop_agent
 deregister_agent
 # remove_custom_integrations
-create_new_integrations_file
-create_new_dependencies_file
+${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/prerm.py" "${INSTALL_DIR}"
 remove_py_compiled_files
 
 case "$1" in
