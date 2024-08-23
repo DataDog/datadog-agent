@@ -34,7 +34,7 @@ func TestAgain(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
-	print("setup")
+	print("Running initdb.d sql files...")
 	// This is a bit of a hack to get a db connection
 	// Ideally we should pull the connection logic out
 	// to make it more accessible for testing
@@ -66,7 +66,6 @@ func TestMain(m *testing.M) {
 			if err != nil {
 				fmt.Printf("Error executing as literal \n%s\n %s\n", sql, err)
 			}
-
 		} else {
 			// Oracle can't handle multiple SQL statements in a single exec
 			lines := strings.Split(sql, "\n")
@@ -85,12 +84,9 @@ func TestMain(m *testing.M) {
 					fmt.Printf("Error executing \n%s\n %s\n", trimmed, err)
 				}
 			}
-
 		}
-
 	}
 
 	code := m.Run()
-	print("shutdown")
 	os.Exit(code)
 }

@@ -39,14 +39,13 @@ def test(ctx, verbose=False) -> None:
 
     try:
         # ctx.run("docker ps")
-        os.environ
         os.environ["ORACLE_TEST_PORT"] = "1521"
         if os.environ.get("CI"):
             os.environ["ORACLE_TEST_SERVER"] = "oracle"
         else:
             os.environ["ORACLE_TEST_SERVER"] = "localhost"
 
-        ctx.run("echo port=$ORACLE_TEST_PORT server=$ORACLE_TEST_SERVER")
+        # ctx.run("echo port=$ORACLE_TEST_PORT server=$ORACLE_TEST_SERVER")
         with ctx.cd("pkg/collector/corechecks/oracle"):
             print("Running tests...")
             go_flags = " -v" if verbose else ""
