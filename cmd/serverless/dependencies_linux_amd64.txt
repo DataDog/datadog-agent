@@ -157,6 +157,7 @@ github.com/DataDog/datadog-agent/pkg/logs/client/tcp
 github.com/DataDog/datadog-agent/pkg/logs/diagnostic
 github.com/DataDog/datadog-agent/pkg/logs/internal/decoder
 github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection
+github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens
 github.com/DataDog/datadog-agent/pkg/logs/internal/framer
 github.com/DataDog/datadog-agent/pkg/logs/internal/parsers
 github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerfile
@@ -963,6 +964,7 @@ log/internal
 log/slog
 log/slog/internal
 log/slog/internal/buffer
+maps
 math
 math/big
 math/bits

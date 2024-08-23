@@ -9,3 +9,4 @@ include:
   - .gitlab/kitchen_testing/new-e2e_testing/centos.yml
   - .gitlab/kitchen_testing/new-e2e_testing/suse.yml
   - .gitlab/kitchen_testing/new-e2e_testing/windows.yml
+  - .gitlab/kitchen_testing/new-e2e_testing/docker.yml

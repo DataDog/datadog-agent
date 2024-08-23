@@ -312,13 +312,14 @@ def generate_protobuf(ctx):
         # mockgen
         pbgo_dir = os.path.join(proto_root, "pbgo")
         mockgen_out = os.path.join(proto_root, "pbgo", "mocks")
+        pbgo_rel = os.path.relpath(pbgo_dir, repo_root)
         try:
             os.mkdir(mockgen_out)
         except FileExistsError:
             print(f"{mockgen_out} folder already exists")
 
         # TODO: this should be parametrized
-        ctx.run(f"mockgen -source={pbgo_dir}/core/api.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go")
+        ctx.run(f"mockgen -source={pbgo_rel}/core/api.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go")
 
     # generate messagepack marshallers
     for pkg, files in msgp_targets.items():

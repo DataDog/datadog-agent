@@ -1,3 +1,6 @@
+# Agent 'out of the box' idle experiment. Represents an agent install with the
+# default configuration and no active workload.
+
 optimization_goal: memory
 erratic: false
 
@@ -25,3 +28,10 @@ target:
     DD_PROFILING_WAIT_PROFILE: true
 
     DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:idle
+
+checks:
+  - name: memory_usage
+    description: "Memory usage quality gate. This puts a bound on the total agent memory usage."
+    bounds:
+      series: total_rss_bytes
+      upper_bound: "424.0 MiB"
