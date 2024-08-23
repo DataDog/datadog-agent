@@ -525,13 +525,16 @@ func testDecoding(t *testing.T, isTLS bool) {
 
 				tx, err := pg.Begin()
 				require.NoError(t, err)
-				require.NoError(t, pg.RunQuery(selectAllQuery))
+				require.NoError(t, pg.RunQueryTX(tx, selectAllQuery))
 				require.NoError(t, pg.Commit(tx))
 			},
 			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"UNKNOWN": {
 						postgres.UnknownOP: adjustCount(2),
+					},
+					"dummy": {
+						postgres.SelectOP: adjustCount(1),
 					},
 				}, isTLS)
 			},

@@ -76,3 +76,12 @@ func (c *PGXClient) RunQuery(query string, args ...any) error {
 	res.Close()
 	return err
 }
+
+// RunQueryTX runs a query on the database in the context of a transaction.
+func (c *PGXClient) RunQueryTX(tx pgx.Tx, query string, args ...any) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
+	defer cancel()
+	res, err := tx.Query(ctx, query, args...)
+	res.Close()
+	return err
+}
