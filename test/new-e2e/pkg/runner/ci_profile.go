@@ -18,8 +18,8 @@ const (
 )
 
 var defaultCIEnvironments = map[string]string{
-	"aws": "agent-sandbox",
-	"az":  "agent-sandbox",
+	"aws": "agent-qa",
+	"az":  "agent-qa",
 }
 
 type ciProfile struct {
