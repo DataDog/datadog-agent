@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package dynamicinstrumentation provides the main entrypoint into running the
+// dynamic instrumentation for Go product
 package dynamicinstrumentation
 
 import (
@@ -57,7 +59,8 @@ type DIOptions struct {
 	ditypes.EventCallback
 }
 
-// RunDyn
+// RunDynamicInstrumentation is the main entry point into running the Dynamic
+// Instrumentation project for Go.
 func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 	var goDI *GoDI
 
@@ -144,6 +147,8 @@ func (goDI *GoDI) uploadSnapshot(event *ditypes.DIEvent) {
 	}
 }
 
+// GetStats returns the maps of various statitics for
+// runtime health of dynamic instrumentation
 func (goDI *GoDI) GetStats() GoDIStats {
 	return goDI.stats
 }

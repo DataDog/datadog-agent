@@ -22,10 +22,12 @@ import (
 	di "github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation"
 )
 
+// Module is the dynamic instrumentation system probe module
 type Module struct {
 	godi *di.GoDI
 }
 
+// NewModule creates a new dynamic instrumentation system probe module
 func NewModule(config *Config) (*Module, error) {
 	godi, err := di.RunDynamicInstrumentation(&di.DIOptions{
 		Offline:          coreconfig.SystemProbe().GetBool("dynamic_instrumentation.offline_mode"),
@@ -39,6 +41,7 @@ func NewModule(config *Config) (*Module, error) {
 	return &Module{godi}, nil
 }
 
+// Close disables the dynamic instrumentation system probe module
 func (m *Module) Close() {
 	if m.godi == nil {
 		log.Info("Could not close dynamic instrumentation module, already closed")
@@ -48,6 +51,7 @@ func (m *Module) Close() {
 	m.godi.Close()
 }
 
+// GetStats returns a map of various metrics about the state of the module
 func (m *Module) GetStats() map[string]interface{} {
 	if m == nil || m.godi == nil {
 		log.Info("Could not get stats from dynamic instrumentation module, closed")
@@ -60,6 +64,7 @@ func (m *Module) GetStats() map[string]interface{} {
 	return debug
 }
 
+// Register creates a health check endpoint for the dynamic instrumentation module
 func (m *Module) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests,
 		func(w http.ResponseWriter, req *http.Request) {

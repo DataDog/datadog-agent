@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
 package uploader
 
 import (
@@ -70,13 +71,13 @@ func parseStackTrace(procInfo *ditypes.ProcessInfo, pcArray []byte) ([]ditypes.S
 	return stackTrace, nil
 }
 
-type FuncInfo struct {
+type funcInfo struct {
 	file string
 	line int64
 	fn   string
 }
 
-func pcToLine(procInfo *ditypes.ProcessInfo, pc uint64) (*FuncInfo, error) {
+func pcToLine(procInfo *ditypes.ProcessInfo, pc uint64) (*funcInfo, error) {
 
 	var (
 		file string
@@ -125,14 +126,12 @@ func pcToLine(procInfo *ditypes.ProcessInfo, pc uint64) (*FuncInfo, error) {
 
 	file = files[fileNumber].Name
 
-	return &FuncInfo{
+	return &funcInfo{
 		file: file,
 		line: line,
 		fn:   fn,
 	}, nil
 }
-
-const MAX_BUFFER_SIZE = 10000 // TODO: find this out from configuration, maybe a special value at the begining of all events?
 
 func parseInlinedEntry(reader *dwarf.Reader, e *dwarf.Entry) (name string, line int64, err error) {
 

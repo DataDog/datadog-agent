@@ -26,7 +26,7 @@ type BPFProgram struct {
 }
 
 // GenerateBPFProgram generates the source code associated with the probe and data
-// in it's associated proccess info.
+// in it's associated process info.
 func GenerateBPFProgram(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error {
 	prog := &BPFProgram{
 		Probe: probe,

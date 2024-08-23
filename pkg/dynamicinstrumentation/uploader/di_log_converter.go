@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
 package uploader
 
 import (
@@ -17,6 +18,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// NewDILog creates a new snapshot upload based on the event and relevant process
 func NewDILog(procInfo *ditypes.ProcessInfo, event *ditypes.DIEvent) *ditypes.SnapshotUpload {
 	if procInfo == nil {
 		log.Infof("Process with pid %d not found, ignoring event", event.PID)

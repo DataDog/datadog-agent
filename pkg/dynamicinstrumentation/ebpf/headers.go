@@ -13,7 +13,7 @@ import (
 //go:embed headers
 var headersFS embed.FS
 
-// loadHeadersToTmpfs takes Go DIs needed header files from the embeded filesystem
+// loadHeadersToTmpfs takes Go DIs needed header files from the embedded filesystem
 // and loads them into the systems tmpfs so clang can find them
 //
 // The returned string is the directory path of the headers directory in tmpfs

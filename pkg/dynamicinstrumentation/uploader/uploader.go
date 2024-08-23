@@ -2,6 +2,9 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
+// Package uploader provides functionality for uploading events and diagnostic
+// information to the DataDog backend
 package uploader
 
 import (
@@ -20,14 +23,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 )
 
+// LogUploader is the interface for uploading Dynamic Instrumentation logs
 type LogUploader interface {
 	Enqueue(item *ditypes.SnapshotUpload) bool
 }
 
+// DiagnosticUploader is the interface for uploading Dynamic Instrumentation
+// diagnostic information
 type DiagnosticUploader interface {
 	Enqueue(item *ditypes.DiagnosticUpload) bool
 }
 
+// Uploader is a generic form of uploader functionality
 type Uploader[T any] struct {
 	buffer chan *T
 	client *http.Client
@@ -36,11 +43,14 @@ type Uploader[T any] struct {
 	uploadMode UploadMode
 }
 
+// UploadMode reflects the kind of data that is being uploaded
 type UploadMode bool
 
 const (
+	// UploadModeDiagnostic means the data being uploaded is diagnostic information
 	UploadModeDiagnostic UploadMode = true
-	UploadModeLog        UploadMode = false
+	//UploadModeLog means the data being uploaded is logs
+	UploadModeLog UploadMode = false
 )
 
 func startDiagnosticUploader(dm *diagnostics.DiagnosticManager) *Uploader[ditypes.DiagnosticUpload] {
@@ -53,14 +63,17 @@ func startDiagnosticUploader(dm *diagnostics.DiagnosticManager) *Uploader[ditype
 	return u
 }
 
+// NewLogUploader creates a new log uploader
 func NewLogUploader() *Uploader[ditypes.SnapshotUpload] {
 	return NewUploader[ditypes.SnapshotUpload](UploadModeLog)
 }
 
+// NewDiagnosticUploader creates a new diagnostic uploader
 func NewDiagnosticUploader() *Uploader[ditypes.DiagnosticUpload] {
 	return startDiagnosticUploader(diagnostics.Diagnostics)
 }
 
+// NewUploader creates a new uploader of a specified generic type
 func NewUploader[T any](mode UploadMode) *Uploader[T] {
 	u := &Uploader[T]{
 		buffer: make(chan *T, 100),
@@ -73,6 +86,8 @@ func NewUploader[T any](mode UploadMode) *Uploader[T] {
 	return u
 }
 
+// Enqueue enqueues data to be uploaded. It's return value reflects whether
+// or not the upload queue was full
 func (u *Uploader[T]) Enqueue(item *T) bool {
 	select {
 	case u.buffer <- item:

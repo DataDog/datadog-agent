@@ -2,6 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
+// Package eventparser is used for parsing raw bytes from bpf code into events
 package eventparser
 
 import (
@@ -16,12 +18,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ratelimiter"
 )
 
-const MAX_BUFFER_SIZE = 10000
+// MaxBufferSize is the maximum size of the output buffer from bpf which is read by this package
+const MaxBufferSize = 10000
 
 var (
 	byteOrder = binary.LittleEndian
 )
 
+// ParseEvent takes the raw buffer from bpf and parses it into an event. It also potentially
+// applies a rate limit
 func ParseEvent(record []byte, ratelimiters *ratelimiter.MultiProbeRateLimiter) *ditypes.DIEvent {
 	event := ditypes.DIEvent{}
 
@@ -47,7 +52,7 @@ func ParseEvent(record []byte, ratelimiters *ratelimiter.MultiProbeRateLimiter) 
 	return &event
 }
 
-// ParseParms extracts just the parsed parameters from the full event record
+// ParseParams extracts just the parsed parameters from the full event record
 func ParseParams(record []byte) ([]*ditypes.Param, error) {
 	if len(record) < 392 {
 		log.Info("malformed event record")
@@ -58,7 +63,7 @@ func ParseParams(record []byte) ([]*ditypes.Param, error) {
 
 func readParams(values []byte) []*ditypes.Param {
 	outputParams := []*ditypes.Param{}
-	for i := 0; i < MAX_BUFFER_SIZE; {
+	for i := 0; i < MaxBufferSize; {
 		if i+3 >= len(values) {
 			break
 		}
@@ -180,19 +185,20 @@ func parseTypeDefinition(b []byte) *ditypes.Param {
 		if isTypeWithHeader(newParam.Kind) {
 			stack.push(newParam)
 			continue
-		} else {
-		stackCheck:
-			if stack.isEmpty() {
-				return newParam
-			}
-			top := stack.peek()
-			top.Fields = append(top.Fields, newParam)
-			if len(top.Fields) == int(top.Size) ||
-				(reflect.Kind(top.Kind) == reflect.Pointer && len(top.Fields) == 1) {
-				newParam = stack.pop()
-				goto stackCheck
-			}
 		}
+
+	stackCheck:
+		if stack.isEmpty() {
+			return newParam
+		}
+		top := stack.peek()
+		top.Fields = append(top.Fields, newParam)
+		if len(top.Fields) == int(top.Size) ||
+			(reflect.Kind(top.Kind) == reflect.Pointer && len(top.Fields) == 1) {
+			newParam = stack.pop()
+			goto stackCheck
+		}
+
 	}
 	return nil
 }
