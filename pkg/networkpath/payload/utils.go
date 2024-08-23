@@ -7,6 +7,7 @@ package payload
 
 import "github.com/google/uuid"
 
+// NewPathtraceID creates a new pathtrace id
 func NewPathtraceID() string {
 	return uuid.New().String()
 }
