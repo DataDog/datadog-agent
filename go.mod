@@ -597,6 +597,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.0.0-00010101000000-000000000000
 	github.com/containerd/containerd/api v1.7.19
+	github.com/containerd/errdefs v0.1.0
+	github.com/distribution/reference v0.6.0
 	github.com/kouhin/envflag v0.0.0-20150818174321-0e9a86061649
 	github.com/lorenzosaino/go-sysctl v0.3.1
 )
@@ -791,13 +793,11 @@ require (
 	github.com/chrusty/protoc-gen-jsonschema v0.0.0-20240212064413-73d5723042b8 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/cncf/xds/go v0.0.0-20240423153145-555b57ec207b // indirect
-	github.com/containerd/errdefs v0.1.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v0.2.1 // indirect
 	github.com/csaf-poc/csaf_distribution/v3 v3.0.0 // indirect
 	github.com/dennwc/varint v1.0.0 // indirect
 	github.com/digitalocean/godo v1.109.0 // indirect
-	github.com/distribution/reference v0.6.0 // indirect
 	github.com/eapache/queue/v2 v2.0.0-20230407133247-75960ed334e4 // indirect
 	github.com/ebitengine/purego v0.6.0-alpha.5 // indirect
 	github.com/elastic/go-licenser v0.4.1 // indirect

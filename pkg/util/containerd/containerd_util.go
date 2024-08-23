@@ -27,11 +27,11 @@ import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/containers"
-	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/leases"
 	"github.com/containerd/containerd/mount"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/oci"
+	"github.com/containerd/errdefs"
 )
 
 const (
