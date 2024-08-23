@@ -44,8 +44,8 @@ def test(ctx, verbose=False) -> None:
         if os.environ.get("CI"):
             os.environ["ORACLE_TEST_SERVER"] = "oracle"
         else:
-            os.environ["ORACLE_TEST_SERVER"] = "localhost"  
-        
+            os.environ["ORACLE_TEST_SERVER"] = "localhost"
+
         ctx.run("echo port=$ORACLE_TEST_PORT server=$ORACLE_TEST_SERVER")
         with ctx.cd("pkg/collector/corechecks/oracle"):
             print("Running tests...")

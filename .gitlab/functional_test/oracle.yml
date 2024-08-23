@@ -8,7 +8,7 @@ oracle:
       name: "registry.ddbuild.io/images/mirror/oracle:${DBMS_VERSION}"
   parallel:
     matrix:
-      - DBMS_VERSION: "-21.3.0-xe"
+      - DBMS_VERSION: "21.3.0-xe"
   before_script:
     - apt-get update && apt-get install -y docker-compose-plugin curl
     - curl -OL https://go.dev/dl/go1.22.6.linux-amd64.tar.gz
