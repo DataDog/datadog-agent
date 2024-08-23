@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
 package ditypes
 
 import (
@@ -29,6 +30,7 @@ type TypeMap struct {
 	DeclaredFiles []*LowPCEntry
 }
 
+// Parameter represents a function parameter as read from DWARF info
 type Parameter struct {
 	Name             string
 	ID               string
@@ -44,19 +46,22 @@ func (p Parameter) String() string {
 	return fmt.Sprintf("%s %s", p.Name, p.Type)
 }
 
+// NotCaptureReason is used to convey why a parameter was not captured
 type NotCaptureReason uint8
 
 const (
-	Unsupported NotCaptureReason = iota + 1
-	FieldLimitReached
-	CaptureDepthReached
+	Unsupported         NotCaptureReason = iota + 1 // Unsupported means the data type of the parameter is unsupported
+	FieldLimitReached                               // FieldLimitReached means the parameter wasn't captured because the data type has too many fields
+	CaptureDepthReached                             // CaptureDepthReached means the parameter wasn't captures because the data type has too many levels
 )
 
+// SpecialKind is used for clarity in generated events that certain fields weren't read
 type SpecialKind uint8
 
 const (
-	KindUnsupported = 255 - iota
-	KindCutFieldLimit
+	KindUnsupported         = 255 - iota // KindUnsupported is for unsupported types
+	KindCutFieldLimit                    // KindCutFieldLimit is for fields that were cut because of field limit
+	KindCaptureDepthReached              // KindCaptureDepthReached is for fields that were cut because of depth limit
 )
 
 func (s SpecialKind) String() string {
@@ -70,6 +75,7 @@ func (s SpecialKind) String() string {
 	}
 }
 
+// Location represents where a particular datatype is found on probe entry
 type Location struct {
 	InReg            bool
 	StackOffset      int64
@@ -82,6 +88,7 @@ func (l Location) String() string {
 	return fmt.Sprintf("Location{InReg: %t, StackOffset: %d, Register: %d}", l.InReg, l.StackOffset, l.Register)
 }
 
+// LowPCEntry is a helper type used to sort DWARF entries by their low program counter
 type LowPCEntry struct {
 	LowPC uint64
 	Entry *dwarf.Entry

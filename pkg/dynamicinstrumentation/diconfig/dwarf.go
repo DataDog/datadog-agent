@@ -533,7 +533,7 @@ func followType(outerType *dwarf.Entry, reader *dwarf.Reader) (*dwarf.Entry, err
 
 // resolveTypedefToRealType is used to get the underlying type of fields/variables/parameters when
 // go packages the type underneath a typdef DWARF entry. The typedef DWARF entry has a 'type' entry
-// which points to the actual type, which is what this funciton 'resolves'.
+// which points to the actual type, which is what this function 'resolves'.
 // Typedef's are used in for structs, pointers, maps, and likely other types.
 func resolveTypedefToRealType(outerType *dwarf.Entry, reader *dwarf.Reader) (*dwarf.Entry, error) {
 

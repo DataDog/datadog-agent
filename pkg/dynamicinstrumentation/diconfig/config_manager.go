@@ -123,7 +123,7 @@ func (cm *RCConfigManager) installConfigProbe(procInfo *ditypes.ProcessInfo) err
 	svcConfigProbe.ServiceName = procInfo.ServiceName
 	procInfo.ProbesByID[configProbe.ID] = &svcConfigProbe
 
-	err = analyzeBinary(procInfo)
+	err = AnalyzeBinary(procInfo)
 	if err != nil {
 		return fmt.Errorf("could not analyze binary for config probe: %w", err)
 	}
@@ -234,7 +234,7 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 
 func applyConfigUpdate(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) {
 	log.Info("Applying config update", probe)
-	err := analyzeBinary(procInfo)
+	err := AnalyzeBinary(procInfo)
 	if err != nil {
 		log.Infof("couldn't inspect binary: %s\n", err)
 		return
