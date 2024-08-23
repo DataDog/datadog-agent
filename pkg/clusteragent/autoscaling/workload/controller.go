@@ -10,7 +10,9 @@ package workload
 import (
 	"context"
 	"fmt"
+	"os"
 
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	"k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -272,6 +274,23 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	// Reaching this point, we had an error in processing, clearing up global error
 	podAutoscalerInternal.SetError(nil)
 
+	// Check that targetRef is not set to the cluster agent
+	clusterAgentRef := autoscalingv2.CrossVersionObjectReference{
+		Kind:       "Deployment",
+		Name:       getDeploymentName(),
+		APIVersion: "apps/v1",
+	}
+
+	if podAutoscaler.Spec.TargetRef == clusterAgentRef {
+		podAutoscalerInternal.SetError(fmt.Errorf("Autoscaling target cannot be set to the cluster agent"))
+		statusErr := c.updatePodAutoscalerStatus(ctx, podAutoscalerInternal, podAutoscaler)
+		if statusErr != nil {
+			log.Errorf("Failed to update status for PodAutoscaler: %s/%s, err: %v", ns, name, statusErr)
+		}
+		c.store.UnlockSet(key, podAutoscalerInternal, c.ID)
+		return autoscaling.NoRequeue, statusErr
+	}
+
 	// Now that everything is synced, we can perform the actual processing
 	result, err := c.handleScaling(ctx, podAutoscaler, &podAutoscalerInternal)
 
@@ -388,4 +407,11 @@ func (c *Controller) deletePodAutoscaler(ns, name string) error {
 		return fmt.Errorf("Unable to delete PodAutoscaler: %s/%s, err: %v", ns, name, err)
 	}
 	return nil
+}
+
+func getDeploymentName() string {
+	if deploymentName := os.Getenv("CLUSTER_AGENT_DEPLOYMENT"); deploymentName != "" {
+		return deploymentName
+	}
+	return "datadog-agent-cluster-agent"
 }
