@@ -132,7 +132,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 {
     "timestamp": 0,
     "namespace": "my-ns1",
-    "path_id": "",
+    "pathtrace_id": "",
     "protocol": "UDP",
     "source": {
         "hostname": "abc",
@@ -164,7 +164,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 {
     "timestamp": 0,
     "namespace": "my-ns1",
-    "path_id": "",
+    "pathtrace_id": "",
     "protocol": "UDP",
     "source": {
         "hostname": "abc",
