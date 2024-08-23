@@ -968,10 +968,10 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_finish_connect, struct sock *skp) {
     if (!pid_tgid_p) {
         return 0;
     }
-    u64 pid_tgid = *pid_tgid_p;
-    log_debug("kprobe/tcp_finish_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
+    u64 pid_tgid = *pid_tgid_p;
     bpf_map_delete_elem(&tcp_failed_connect_telemetry, &skp);
+    log_debug("kprobe/tcp_finish_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
