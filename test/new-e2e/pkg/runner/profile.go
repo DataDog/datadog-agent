@@ -99,7 +99,8 @@ func newProfile(projectName string, environments []string, store parameters.Stor
 	return p
 }
 
-func defaultEnvironments(environments string, defaultsEnvironments map[string]string) string {
+// mergeEnvironments returns a string with a space separated list of available environments. It merges environments with a `defaultEnvironments` map
+func mergeEnvironments(environments string, defaultsEnvironments map[string]string) string {
 	defaultedEnvironmentsMap := maps.Clone(defaultsEnvironments)
 	environmentsList := strings.Split(environments, " ")
 	environmentsMap := make(map[string]string)
