@@ -88,6 +88,12 @@ k8s-e2e-otlp-main:
     - !reference [.needs_new_e2e_template]
   before_script:
     - !reference [.retrieve_linux_go_e2e_deps]
+    # Setup Azure credentials. https://www.pulumi.com/registry/packages/azure-native/installation-configuration/#set-configuration-using-pulumi-config
+    # The app is called `agent-e2e-tests`
+    - export ARM_CLIENT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.e2e-azure_client_id --with-decryption --query "Parameter.Value" --out text)
+    - export ARM_CLIENT_SECRET=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.e2e-azure_client_secret --with-decryption --query "Parameter.Value" --out text)
+    - export ARM_TENANT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.e2e-azure_tenant_id --with-decryption --query "Parameter.Value" --out text)
+    - export ARM_SUBSCRIPTION_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.agent-qa-azure_subscription_id --with-decryption --query "Parameter.Value" --out text)
     # Setup AWS Credentials
     - mkdir -p ~/.aws
     - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >> ~/.aws/config
