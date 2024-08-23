@@ -18,25 +18,25 @@ type TimestampKey struct {
 	Key       string
 }
 
-// MaxHeap is a heap that sorts TimestampKey objects by timestamp in descending order
-type MaxHeap []TimestampKey
+// MaxTimestampKeyHeap is a heap that sorts TimestampKey objects by timestamp in descending order
+type MaxTimestampKeyHeap []TimestampKey
 
 // Len returns the length of the heap
-func (h MaxHeap) Len() int { return len(h) }
+func (h MaxTimestampKeyHeap) Len() int { return len(h) }
 
 // Less returns true if the timestamp at index i is after the timestamp at index j
-func (h MaxHeap) Less(i, j int) bool { return h[i].Timestamp.After(h[j].Timestamp) }
+func (h MaxTimestampKeyHeap) Less(i, j int) bool { return h[i].Timestamp.After(h[j].Timestamp) }
 
 // Swap swaps the elements at indices i and j
-func (h MaxHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+func (h MaxTimestampKeyHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
 
 // Push adds an element to the heap while preserving max heap ordering
-func (h *MaxHeap) Push(x interface{}) {
+func (h *MaxTimestampKeyHeap) Push(x interface{}) {
 	*h = append(*h, x.(TimestampKey))
 }
 
 // Pop removes the top element from the heap while preserving max heap ordering
-func (h *MaxHeap) Pop() any {
+func (h *MaxTimestampKeyHeap) Pop() any {
 	old := *h
 	n := len(old)
 	x := old[n-1]
@@ -45,19 +45,19 @@ func (h *MaxHeap) Pop() any {
 }
 
 // Peek returns the top element of the heap without removing it
-func (h *MaxHeap) Peek() TimestampKey {
+func (h *MaxTimestampKeyHeap) Peek() TimestampKey {
 	return (*h)[0]
 }
 
-// NewMaxHeap returns a new MaxHeap
-func NewMaxHeap() *MaxHeap {
-	h := &MaxHeap{}
+// NewMaxHeap returns a new MaxTimestampKeyHeap
+func NewMaxHeap() *MaxTimestampKeyHeap {
+	h := &MaxTimestampKeyHeap{}
 	heap.Init(h)
 	return h
 }
 
 // FindIdx returns the index of the given key in the heap and a boolean indicating if the key was found
-func (h *MaxHeap) FindIdx(key string) (int, bool) {
+func (h *MaxTimestampKeyHeap) FindIdx(key string) (int, bool) {
 	for idx, k := range *h {
 		if k.Key == key {
 			return idx, true
@@ -66,16 +66,16 @@ func (h *MaxHeap) FindIdx(key string) (int, bool) {
 	return 0, false
 }
 
-// AutoscalingHeap is a struct that holds a MaxHeap and a set of keys that exist in the heap
-type AutoscalingHeap struct {
-	MaxHeap MaxHeap
+// HashHeap is a struct that holds a MaxHeap and a set of keys that exist in the heap
+type HashHeap struct {
+	MaxHeap MaxTimestampKeyHeap
 	Keys    map[string]bool
 	maxSize int
 }
 
-// NewAutoscalingHeap returns a new AutoscalingHeap with the given max size
-func NewAutoscalingHeap(maxSize int) *AutoscalingHeap {
-	return &AutoscalingHeap{
+// NewAutoscalingHeap returns a new MaxHeap with the given max size
+func NewHashHeap(maxSize int) *HashHeap {
+	return &HashHeap{
 		MaxHeap: *NewMaxHeap(),
 		Keys:    make(map[string]bool),
 		maxSize: maxSize,
@@ -83,7 +83,7 @@ func NewAutoscalingHeap(maxSize int) *AutoscalingHeap {
 }
 
 // InsertIntoHeap returns true if the key already exists in the max heap or was inserted correctly
-func (h *AutoscalingHeap) InsertIntoHeap(k TimestampKey) bool {
+func (h *HashHeap) InsertIntoHeap(k TimestampKey) bool {
 	// Already in heap, do not try to insert
 	if _, ok := h.Keys[k.Key]; ok {
 		return true
@@ -94,10 +94,9 @@ func (h *AutoscalingHeap) InsertIntoHeap(k TimestampKey) bool {
 		// If the new key is newer than or equal to the top key, do not insert
 		if top.Timestamp.Before(k.Timestamp) || top.Timestamp.Equal(k.Timestamp) {
 			return false
-		} else {
-			delete(h.Keys, top.Key)
-			heap.Pop(&h.MaxHeap)
 		}
+		delete(h.Keys, top.Key)
+		heap.Pop(&h.MaxHeap)
 	}
 
 	heap.Push(&h.MaxHeap, k)
@@ -106,7 +105,7 @@ func (h *AutoscalingHeap) InsertIntoHeap(k TimestampKey) bool {
 }
 
 // DeleteFromHeap removes the given key from the max heap
-func (h *AutoscalingHeap) DeleteFromHeap(key string) {
+func (h *HashHeap) DeleteFromHeap(key string) {
 	// Key did not exist in heap, return early
 	if _, ok := h.Keys[key]; !ok {
 		return

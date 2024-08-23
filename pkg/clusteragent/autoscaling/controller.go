@@ -34,7 +34,7 @@ type Controller struct {
 	Client         dynamic.Interface
 	Lister         cache.GenericLister
 	Workqueue      workqueue.RateLimitingInterface
-	AutoscalerHeap *AutoscalingHeap
+	AutoscalerHeap *HashHeap
 	IsLeader       func() bool
 }
 
@@ -48,7 +48,7 @@ func NewController(
 	isLeader func() bool,
 	observable Observable,
 	workqueue workqueue.RateLimitingInterface,
-	autoscalerHeap *AutoscalingHeap,
+	autoscalerHeap *HashHeap,
 ) (*Controller, error) {
 	mainInformer := informer.ForResource(gvr)
 	c := &Controller{

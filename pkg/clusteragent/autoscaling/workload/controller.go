@@ -93,7 +93,7 @@ func newController(
 		},
 	)
 
-	autoscalingHeap := autoscaling.NewAutoscalingHeap(maxDatadogPodAutoscalerObjects)
+	autoscalingHeap := autoscaling.NewHashHeap(maxDatadogPodAutoscalerObjects)
 
 	baseController, err := autoscaling.NewController(controllerID, c, dynamicClient, dynamicInformer, podAutoscalerGVR, isLeader, store, autoscalingWorkqueue, autoscalingHeap)
 	if err != nil {
