@@ -74,6 +74,7 @@ func shouldSkipInstallMethod(methods []installMethodOption, method installMethod
 }
 
 func getInstallMethodFromEnv() installMethodOption {
+	supportedValues := []string{string(installMethodAnsible), string(installMethodInstallScript)}
 	envValue := os.Getenv("FLEET_INSTALL_METHOD")
 	switch envValue {
 	case "install_script":
@@ -81,7 +82,7 @@ func getInstallMethodFromEnv() installMethodOption {
 	case "ansible":
 		return installMethodAnsible
 	default:
-		panic(fmt.Sprintf("unsupported install method: %s", envValue))
+		panic(fmt.Sprintf("unsupported install method: %s. Supported values are: %v", envValue, supportedValues))
 	}
 }
 
