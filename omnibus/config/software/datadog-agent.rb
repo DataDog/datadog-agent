@@ -229,4 +229,8 @@ build do
   unless windows_target?
     delete "#{install_dir}/uselessfile"
   end
+
+  python_scripts_dir = "#{project_dir}/omnibus/python-scripts"
+  mkdir "#{install_dir}/python-scripts"
+  copy "#{python_scripts_dir}/*", "#{install_dir}/python-scripts"
 end
