@@ -7,6 +7,8 @@
 package integration
 
 import (
+	"fmt"
+	"hash/fnv"
 	"os"
 	"strings"
 
@@ -127,6 +129,7 @@ func (s *Launcher) makeFileSource(source *sources.LogSource, filepath string) *s
 		Path:        filepath,
 		Name:        source.Config.Name,
 		Source:      source.Config.Source,
+		Service:     source.Config.Service,
 		Tags:        source.Config.Tags,
 	})
 
@@ -137,7 +140,7 @@ func (s *Launcher) makeFileSource(source *sources.LogSource, filepath string) *s
 // TODO Change file naming to reflect ID once logs from go interfaces gets merged.
 // createFile creates a file for the logsource
 func (s *Launcher) createFile(source *sources.LogSource) (string, error) {
-	directory, filepath := s.integrationLogFilePath(*source)
+	directory, filepath := s.integrationLogFilePath(source)
 
 	err := os.MkdirAll(directory, 0755)
 	if err != nil {
@@ -154,11 +157,16 @@ func (s *Launcher) createFile(source *sources.LogSource) (string, error) {
 }
 
 // integrationLogFilePath returns a directory and file to use for an integration log file
-func (s *Launcher) integrationLogFilePath(source sources.LogSource) (string, string) {
-	fileName := source.Config.Name + ".log"
-	directoryComponents := []string{s.runPath, "integrations", source.Config.Service}
+func (s *Launcher) integrationLogFilePath(source *sources.LogSource) (string, string) {
+	sourceToHash := source.Config.Service + source.Config.Source
+	h := fnv.New64a()
+	h.Write([]byte(sourceToHash))
+	hashValue := h.Sum64()
+
+	filename := fmt.Sprintf("%x", hashValue) + ".log"
+	directoryComponents := []string{s.runPath, "integrations"}
 	directory := strings.Join(directoryComponents, "/")
-	filepath := strings.Join([]string{directory, fileName}, "/")
+	filepath := strings.Join([]string{directory, filename}, "/")
 
 	return directory, filepath
 }
