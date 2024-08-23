@@ -101,10 +101,6 @@ func TestPackages(t *testing.T) {
 				if shouldSkipInstallMethod(test.skippedInstallationMethods, method) {
 					continue
 				}
-				// TODO: remove once ansible+suse is fully supported
-				if flavor.Flavor == e2eos.Suse && method == installMethodAnsible {
-					continue
-				}
 
 				suite := test.t(flavor, flavor.Architecture, method)
 				t.Run(suite.Name(), func(t *testing.T) {
