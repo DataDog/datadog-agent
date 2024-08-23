@@ -458,7 +458,6 @@ int BPF_PROG(tcp_connect, struct sock *sk) {
 SEC("fentry/tcp_finish_connect")
 int BPF_PROG(tcp_finish_connect, struct sock *sk, struct sk_buff *skb, int rc) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/tcp_finish_connect");
-
     u64 *pid_tgid_p = bpf_map_lookup_elem(&tcp_failed_connect_telemetry, &sk);
     if (!pid_tgid_p) {
         return 0;
