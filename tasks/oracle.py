@@ -57,5 +57,6 @@ def test(ctx, verbose=False) -> None:
 @task
 def clean(ctx, verbose=False) -> None:
     print("Cleaning up...")
-    with ctx.cd("pkg/collector/corechecks/oracle/compose"):
-        ctx.run("docker compose down", hide=not verbose)
+    if not os.environ.get("CI"):
+        with ctx.cd("pkg/collector/corechecks/oracle/compose"):
+            ctx.run("docker compose down", hide=not verbose)

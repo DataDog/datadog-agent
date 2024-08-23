@@ -8,6 +8,8 @@ oracle:
       name: "registry.ddbuild.io/images/mirror/oracle:${DBMS_VERSION}"
       variables:
         ORACLE_PWD: "datad0g"
+  variables:
+    CI_DEBUG_SERVICES: "true"
   parallel:
     matrix:
       - DBMS_VERSION: "21.3.0-xe"
