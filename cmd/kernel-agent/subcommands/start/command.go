@@ -86,7 +86,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
 	telemetryCheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -385,11 +384,7 @@ func parseToken(token string) (interface{}, error) {
 
 // getIPCAddressPort returns a listening connection
 func getIPCAddressPort(config config.Component) (string, error) {
-	address, err := setup.GetIPCAddress(config)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%v:%v", address, config.GetInt("cmd_port")), nil
+	return fmt.Sprintf("%v:%v", config.GetString("cmd_host"), config.GetInt("cmd_port")), nil
 }
 
 func buildSelfSignedKeyPair(additionalHostIdentities ...string) ([]byte, []byte) {

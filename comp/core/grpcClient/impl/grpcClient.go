@@ -21,6 +21,7 @@ import (
 	"github.com/golang/protobuf/ptypes/empty"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	grpcClient "github.com/DataDog/datadog-agent/comp/core/grpcClient/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
@@ -31,6 +32,7 @@ import (
 type Requires struct {
 	Lifecycle compdef.Lifecycle
 	AuthToken authtoken.Component
+	Config    config.Component
 }
 
 // Provides defines the output of the grpcClient component
@@ -135,7 +137,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	conn, err := grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		ctx,
-		fmt.Sprintf(":%v", 5001),
+		fmt.Sprintf("%v:%v", reqs.Config.GetString("cmd_host"), reqs.Config.GetInt("cmd_port")),
 		opts...,
 	)
 	if err != nil {
