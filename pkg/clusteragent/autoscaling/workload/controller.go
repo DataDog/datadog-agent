@@ -34,8 +34,6 @@ const (
 	maxRetry int = 5
 
 	controllerID = "dpa-c"
-
-	maxDatadogPodAutoscalerObjects int = 100
 )
 
 var (
@@ -77,6 +75,7 @@ func newController(
 	store *store,
 	podWatcher podWatcher,
 	localSender sender.Sender,
+	hashHeap *autoscaling.HashHeap,
 ) (*Controller, error) {
 	c := &Controller{
 		clusterID:     clusterID,
@@ -93,9 +92,7 @@ func newController(
 		},
 	)
 
-	autoscalingHeap := autoscaling.NewHashHeap(maxDatadogPodAutoscalerObjects)
-
-	baseController, err := autoscaling.NewController(controllerID, c, dynamicClient, dynamicInformer, podAutoscalerGVR, isLeader, store, autoscalingWorkqueue, autoscalingHeap)
+	baseController, err := autoscaling.NewController(controllerID, c, dynamicClient, dynamicInformer, podAutoscalerGVR, isLeader, store, autoscalingWorkqueue, hashHeap)
 	if err != nil {
 		return nil, err
 	}
