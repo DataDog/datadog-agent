@@ -21,13 +21,11 @@ import (
 	"text/template"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func createFakeOTelExtensionHTTPServer() (string, func()) {
@@ -123,11 +121,7 @@ func TestOTelExtFlareBuilder(t *testing.T) {
 	overrideConfigResponse = b.String()
 	defer func() { overrideConfigResponse = "" }()
 
-	cfg := fxutil.Test[config.Component](t,
-		fx.Options(
-			config.MockModule(),
-		),
-	)
+	cfg := config.NewMock(t)
 	cfg.Set("otelcollector.enabled", true, pkgconfigmodel.SourceAgentRuntime)
 	cfg.Set("otelcollector.extension_url", 7777, pkgconfigmodel.SourceAgentRuntime)
 

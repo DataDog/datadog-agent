@@ -40,7 +40,7 @@ func newMock(deps mockDependencies, t testing.TB) (Component, error) {
 	var mockConf model.Config
 
 	if deps.Params.ConfFilePath != "" {
-		mockConf = mock.NewFromFile(deps.Params.ConfFilePath)
+		mockConf = mock.NewFromFile(t, deps.Params.ConfFilePath)
 	} else {
 		mockConf = mock.New(t)
 	}
