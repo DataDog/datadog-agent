@@ -1128,45 +1128,34 @@ func (s *TracerSuite) TestSelfConnect() {
 
 // sets up two udp sockets talking to each other locally.
 // returns (listener, dialer)
-func setupUdpSockets(udpnet, ip string) (*net.UDPConn, *net.UDPConn, error) {
+func setupUdpSockets(t *testing.T, udpnet, ip string) (*net.UDPConn, *net.UDPConn) {
 	serverAddr := fmt.Sprintf("%s:%d", ip, 0)
 
 	laddr, err := net.ResolveUDPAddr(udpnet, serverAddr)
-	if err != nil {
-		return nil, nil, err
-	}
+	require.NoError(t, err)
 
 	var ln, c *net.UDPConn = nil, nil
-	defer func() {
-		if err == nil {
-			return
-		}
+	t.Cleanup(func() {
 		if ln != nil {
 			ln.Close()
 		}
 		if c != nil {
 			c.Close()
 		}
-	}()
+	})
 
 	ln, err = net.ListenUDP(udpnet, laddr)
-	if err != nil {
-		return nil, nil, err
-	}
+	require.NoError(t, err)
 
 	saddr := ln.LocalAddr().String()
 
 	raddr, err := net.ResolveUDPAddr(udpnet, saddr)
-	if err != nil {
-		return nil, nil, err
-	}
+	require.NoError(t, err)
 
 	c, err = net.DialUDP(udpnet, laddr, raddr)
-	if err != nil {
-		return nil, nil, err
-	}
+	require.NoError(t, err)
 
-	return ln, c, nil
+	return ln, c
 }
 
 func (s *TracerSuite) TestUDPPeekCount() {
@@ -1185,13 +1174,10 @@ func testUDPPeekCount(t *testing.T, udpnet, ip string) {
 	config := testConfig()
 	tr := setupTracer(t, config)
 
-	ln, c, err := setupUdpSockets(udpnet, ip)
-	require.NoError(t, err)
-	defer ln.Close()
-	defer c.Close()
+	ln, c := setupUdpSockets(t, udpnet, ip)
 
 	msg := []byte("asdf")
-	_, err = c.Write(msg)
+	_, err := c.Write(msg)
 	require.NoError(t, err)
 
 	rawConn, err := ln.SyscallConn()
@@ -1276,21 +1262,18 @@ func testUDPPacketSumming(t *testing.T, udpnet, ip string) {
 	config := testConfig()
 	tr := setupTracer(t, config)
 
-	ln, c, err := setupUdpSockets(udpnet, ip)
-	require.NoError(t, err)
-	defer ln.Close()
-	defer c.Close()
+	ln, c := setupUdpSockets(t, udpnet, ip)
 
 	msg := []byte("asdf")
 	// send UDP packets of increasing length
-	for i := range len(msg) {
-		_, err = c.Write(msg[:i+1])
+	for i := range msg {
+		_, err := c.Write(msg[:i+1])
 		require.NoError(t, err)
 	}
 
 	buf := make([]byte, 256)
-	for range len(msg) {
-		_, _, err = ln.ReadFrom(buf)
+	for range msg {
+		_, _, err := ln.ReadFrom(buf)
 		require.NoError(t, err)
 	}
 
