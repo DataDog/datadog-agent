@@ -346,17 +346,17 @@ func (ua *UprobeAttacher) handlesExecutables() bool {
 // Start starts the attacher, attaching to the processes and libraries as needed
 func (ua *UprobeAttacher) Start() error {
 	var cleanupExec, cleanupExit func()
-	var procMonitor *monitor.ProcessMonitor
+	procMonitor := monitor.GetProcessMonitor()
+	err := procMonitor.Initialize(ua.config.ProcessMonitorEventStream)
+	if err != nil {
+		return fmt.Errorf("error initializing process monitor: %w", err)
+	}
 
 	if ua.handlesExecutables() {
-		procMonitor = monitor.GetProcessMonitor()
-		err := procMonitor.Initialize(ua.config.ProcessMonitorEventStream)
-		if err != nil {
-			return fmt.Errorf("error initializing process monitor: %w", err)
-		}
 		cleanupExec = procMonitor.SubscribeExec(ua.handleProcessStart)
-		cleanupExit = procMonitor.SubscribeExit(ua.handleProcessExit)
 	}
+	// We always want to track process deletions, to avoid memory leaks
+	cleanupExit = procMonitor.SubscribeExit(ua.handleProcessExit)
 
 	if ua.config.PerformInitialScan {
 		// Initial scan only looks at existing processes, and as it's the first scan
@@ -390,11 +390,11 @@ func (ua *UprobeAttacher) Start() error {
 
 		defer func() {
 			processSync.Stop()
-			if procMonitor != nil {
+			if cleanupExec != nil {
 				cleanupExec()
-				cleanupExit()
-				procMonitor.Stop()
 			}
+			cleanupExit()
+			procMonitor.Stop()
 			ua.fileRegistry.Clear()
 			if ua.soWatcher != nil {
 				ua.soWatcher.Stop()
