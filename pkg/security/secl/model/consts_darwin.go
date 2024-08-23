@@ -5,15 +5,16 @@
 
 package model
 
-import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+import (
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"golang.org/x/sys/unix"
+)
 
 var (
 	errorConstants = map[string]int{}
 	// KernelCapabilityConstants list of kernel capabilities
 	KernelCapabilityConstants = map[string]uint64{}
-	// SignalConstants list of signals
-	SignalConstants        = map[string]int{}
-	addressFamilyConstants = map[string]uint16{}
+	addressFamilyConstants    = map[string]uint16{}
 )
 
 var (
@@ -23,6 +24,11 @@ var (
 		"VM_READ":  0x1,
 		"VM_WRITE": 0x2,
 		"VM_EXEC":  0x4,
+	}
+
+	// SignalConstants on darwin are used by some dd-go tests, so we need them on darwin as well
+	SignalConstants = map[string]int{
+		"SIGKILL": int(unix.SIGKILL),
 	}
 )
 
