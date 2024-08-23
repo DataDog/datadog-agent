@@ -211,6 +211,10 @@ variables:
   KITCHEN_AZURE_CLIENT_SECRET_SSM_NAME: ci.datadog-agent.azure_kitchen_client_secret  # agent-devx-loops
   KITCHEN_AZURE_SUBSCRIPTION_ID_SSM_NAME: ci.datadog-agent.azure_kitchen_subscription_id  # agent-devx-loops
   KITCHEN_AZURE_TENANT_ID_SSM_NAME: ci.datadog-agent.azure_kitchen_tenant_id  # agent-devx-loops
+  E2E_AZURE_TENANT_ID_SSM_NAME: ci.datadog-agent.e2e-azure_tenant_id # agent-devx-loops
+  E2E_AZURE_SUBSCRIPTION_ID_SSM_NAME: ci.datadog-agent.agent-qa-azure_subscription_id # agent-devx-loops
+  E2E_AZURE_CLIENT_ID_SSM_NAME: ci.datadog-agent.e2e-azure_client_id # agent-devx-loops
+  E2E_AZURE_CLIENT_SECRET_SSM_NAME: ci.datadog-agent.e2e-azure_client_secret # agent-devx-loops
   GITHUB_PR_COMMENTER_APP_KEY_SSM_NAME: pr-commenter.github_app_key  # agent-devx-infra
   GITHUB_PR_COMMENTER_INTEGRATION_ID_SSM_NAME: pr-commenter.github_integration_id  # agent-devx-infra
   GITHUB_PR_COMMENTER_INSTALLATION_ID_SSM_NAME: pr-commenter.github_installation_id  # agent-devx-infra
