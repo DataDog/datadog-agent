@@ -73,7 +73,7 @@ type HashHeap struct {
 	maxSize int
 }
 
-// NewAutoscalingHeap returns a new MaxHeap with the given max size
+// NewHashHeap returns a new MaxHeap with the given max size
 func NewHashHeap(maxSize int) *HashHeap {
 	return &HashHeap{
 		MaxHeap: *NewMaxHeap(),
