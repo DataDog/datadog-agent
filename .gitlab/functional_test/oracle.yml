@@ -8,6 +8,7 @@ oracle:
       name: "registry.ddbuild.io/images/mirror/oracle:${DBMS_VERSION}"
       variables:
         ORACLE_PWD: "datad0g"
+        INIT_CPU_COUNT: 1
   variables:
     CI_DEBUG_SERVICES: "true"
   parallel:
