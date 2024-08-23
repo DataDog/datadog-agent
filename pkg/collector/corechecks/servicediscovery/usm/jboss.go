@@ -98,6 +98,9 @@ func (j jbossExtractor) findDeployedApps(domainHome string) ([]jeeDeployment, bo
 		log.Debug("jboss: unable to extract the home directory")
 		return nil, false
 	}
+	if cwd, ok := workingDirFromEnvs(j.cxt.envs); ok {
+		baseDir = abs(baseDir, cwd)
+	}
 	serverName, domainMode := jbossExtractServerName(j.cxt.args)
 	if domainMode && len(serverName) == 0 {
 		log.Debug("jboss: domain mode with missing server name")
