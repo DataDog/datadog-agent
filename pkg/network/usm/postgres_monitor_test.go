@@ -43,6 +43,7 @@ const (
 	updateSingleValueQuery   = "UPDATE dummy SET foo = 'updated' WHERE id = 1"
 	selectAllQuery           = "SELECT * FROM dummy"
 	selectParameterizedQuery = "SELECT * FROM dummy WHERE id = $1"
+	selecQueryWithLimit      = "SELECT * FROM dummy LIMIT %d"
 	dropTableQuery           = "DROP TABLE IF EXISTS dummy"
 	deleteTableQuery         = "DELETE FROM dummy WHERE id = 1"
 	alterTableQuery          = "ALTER TABLE dummy ADD test VARCHAR(255);"
@@ -68,7 +69,7 @@ func generateTestValues(startingIndex, count int) []string {
 }
 
 func generateSelectLimitQuery(limit int) string {
-	return fmt.Sprintf("SELECT * FROM dummy limit %d", limit)
+	return fmt.Sprintf(selecQueryWithLimit, limit)
 }
 
 // pgTestContext shares the context of a given test.
@@ -773,41 +774,36 @@ func testKernelMessagesCount(t *testing.T, isTLS bool) {
 	if isTLS {
 		utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid(), utils.ManualTracingFallbackEnabled)
 	}
-	cleanProtocolMaps(t, "postgres", monitor.ebpfProgram.Manager.Manager)
-	var pgClient *postgres.PGXClient
+	pgClient := setupPGClient(t, serverAddress, isTLS)
+	defer func() {
+		_ = pgClient.RunQuery(dropTableQuery)
+		if pgClient != nil {
+			pgClient.Close()
+			pgClient = nil
+		}
+	}()
 
-	expectedMsgCounts := &pgebpf.PostgresKernelMsgCount{
-		Messages_count_buckets: [pgebpf.KerMsgCountNumBuckets]uint64{},
-	}
+	createLargeTable(t, pgClient, pgebpf.KerMsgCountBucketSize*pgebpf.KerMsgCountNumBuckets)
+	expectedBuckets := [pgebpf.KerMsgCountNumBuckets]bool{}
 
-	for i := 0; i < pgebpf.KerMsgCountNumBuckets-1; i++ {
+	for i := 0; i < pgebpf.KerMsgCountNumBuckets; i++ {
 		testName := fmt.Sprintf("kernel messages count bucket[%d]", i)
 		t.Run(testName, func(t *testing.T) {
-			t.Cleanup(func() {
-				if pgClient != nil {
-					_ = pgClient.RunQuery(dropTableQuery)
-					if pgClient != nil {
-						pgClient.Close()
-						pgClient = nil
-					}
-				}
-			})
-			pgClient = setupPGClient(t, serverAddress, isTLS)
 
-			// 'sqlInsertCount' is the heuristic number of values to construct the long query
-			sqlInsertCount := i*pgebpf.KerMsgCountBucketSize + 1
-			runQueryForBucket(t, pgClient, sqlInsertCount)
+			expectedBuckets[i] = true
+			cleanProtocolMaps(t, "postgres", monitor.ebpfProgram.Manager.Manager)
 
-			expectedMsgCounts.Messages_count_buckets[i] = 1
-			validatePostgresKernel(t, monitor, isTLS, expectedMsgCounts)
+			require.NoError(t, monitor.Resume())
+			runQueryForBucket(t, pgClient, i*pgebpf.KerMsgCountBucketSize)
+			require.NoError(t, monitor.Pause())
+
+			validatePostgresKernel(t, monitor, isTLS, expectedBuckets)
+			if i > 0 {
+				// skip the first bucket it is always not empty
+				expectedBuckets[i] = false
+			}
 		})
 	}
-}
-
-func runQueryForBucket(t *testing.T, pg *postgres.PGXClient, insertCount int) {
-	require.NoError(t, pg.RunQuery(createTableQuery))
-	require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(0, insertCount)...)))
-	require.NoError(t, pg.RunQuery(selectAllQuery))
 }
 
 func setupPGClient(t *testing.T, serverAddress string, isTLS bool) *postgres.PGXClient {
@@ -820,7 +816,24 @@ func setupPGClient(t *testing.T, serverAddress string, isTLS bool) *postgres.PGX
 	return pg
 }
 
-func validatePostgresKernel(t *testing.T, monitor *Monitor, tls bool, expected *pgebpf.PostgresKernelMsgCount) {
+// createLargeTable It runs a postgres query to create a table large enough to retrieve long responses later.
+func createLargeTable(t *testing.T, pg *postgres.PGXClient, tableValuesCount int) {
+	require.NoError(t, pg.RunQuery(createTableQuery))
+	require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(0, tableValuesCount)...)))
+}
+
+// runQueryForBucket The client sends a SELECT query to postgres with the specified SQL row limit of <N>.
+// For each SELECT request of <N> rows, the TCP response packet from Postgres is expected to contain
+//
+//	4 + <N> postgres messages in the format:
+//
+// "Bind completion", "Row description", "data row" 1...N, "command completion", "ready for query".
+func runQueryForBucket(t *testing.T, pg *postgres.PGXClient, limitCount int) {
+	require.NoError(t, pg.RunQuery(generateSelectLimitQuery(limitCount)))
+}
+
+// validatePostgresKernel Checking telemetry data received for a postgres query
+func validatePostgresKernel(t *testing.T, monitor *Monitor, tls bool, expected [pgebpf.KerMsgCountNumBuckets]bool) {
 	var actual *pgebpf.PostgresKernelMsgCount
 	assert.Eventually(t, func() bool {
 		found, err := getPostgresKernelTelemetry(monitor, tls)
@@ -834,18 +847,15 @@ func validatePostgresKernel(t *testing.T, monitor *Monitor, tls bool, expected *
 	}
 }
 
-// compareMessagesCount returns 'true' if the expected and actual counters have similar non-zero values
-func compareMessagesCount(a *pgebpf.PostgresKernelMsgCount, b *pgebpf.PostgresKernelMsgCount) bool {
-	return compareBucketsFilling(a.Messages_count_buckets, b.Messages_count_buckets)
-}
-
-// compareBucketsFilling returns 'true' if the same buckets have non-zero values
-// For example return true if a[43, 21, 22, 0, 0, 0, 0, 0] and b[1, 1, 1, 0, 0, 0, 0, 0]
-// the first array represents the retrieved counters, while the second array represents
-// the buckets that are expected to be non-empty.
-func compareBucketsFilling(a [pgebpf.KerMsgCountNumBuckets]uint64, b [pgebpf.KerMsgCountNumBuckets]uint64) bool {
-	for i := range a {
-		if a[i] != b[i] && (a[i]*b[i] == 0) {
+// compareMessagesCount returns true if the expected bucket is non-empty
+// The first bucket is expected to have 4 - 6 hits,
+// in another buckets there may be 1 or 2 hits
+func compareMessagesCount(found *pgebpf.PostgresKernelMsgCount, expected [pgebpf.KerMsgCountNumBuckets]bool) bool {
+	for i := range expected {
+		if expected[i] && found.Messages_count_buckets[i] == 0 {
+			return false
+		}
+		if !expected[i] && found.Messages_count_buckets[i] > 0 {
 			return false
 		}
 	}

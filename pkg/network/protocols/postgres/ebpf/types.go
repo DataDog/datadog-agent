@@ -25,5 +25,5 @@ type PostgresKernelMsgCount C.postgres_kernel_msg_count_t
 const (
 	BufferSize            = C.POSTGRES_BUFFER_SIZE
 	KerMsgCountBucketSize = C.PG_KERNEL_MSG_COUNT_BUCKET_SIZE
-	KerMsgCountNumBuckets = C.PG_KERNEL_MSG_COUNT_NUM_BUCKETS + 1
+	KerMsgCountNumBuckets = C.PG_KERNEL_MSG_COUNT_NUM_BUCKETS
 )

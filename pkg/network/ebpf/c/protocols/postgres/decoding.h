@@ -131,7 +131,7 @@ static __always_inline void* get_pg_msg_counts_map(pktbuf_t pkt) {
 // it tries to read up to POSTGRES_MAX_MESSAGES messages, looking for a command complete message.
 // If the message is not a new query or a command complete, it ignores the message.
 // Return the number of detected Postgres messages.
-static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn_tuple, struct pg_message_header *header, __u8 tags) {
+static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn_tuple, struct pg_message_header *header, __u8 tags, postgres_kernel_msg_count_t* pg_msg_counts) {
     // If the message is a new query, we store the query in the in-flight map.
     // If we had a transaction for the connection, we override it and drops the previous one.
     if (header->message_tag == POSTGRES_QUERY_MAGIC_BYTE) {
@@ -151,7 +151,6 @@ static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn
         return;
     }
     __u8 bucket_idx = 1;
-
 #pragma unroll(POSTGRES_MAX_MESSAGES)
     for (__u8 messages_count = 0; messages_count < POSTGRES_MAX_MESSAGES; ++messages_count) {
         if (!read_message_header(pkt, header)) {
@@ -169,11 +168,7 @@ static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn
             bucket_idx++;
         }
     }
-    postgres_kernel_msg_count_t* pg_msg_counts = get_pg_msg_counts_map(pkt);
-    if (pg_msg_counts == NULL) {
-        return;
-    }
-    bucket_idx = (bucket_idx > PG_KERNEL_MSG_COUNT_NUM_BUCKETS) ? PG_KERNEL_MSG_COUNT_NUM_BUCKETS: bucket_idx - 1;
+    bucket_idx = bucket_idx >= PG_KERNEL_MSG_COUNT_NUM_BUCKETS ? (PG_KERNEL_MSG_COUNT_NUM_BUCKETS - 1) : bucket_idx - 1;
     __sync_fetch_and_add(&pg_msg_counts->pg_messages_count_buckets[bucket_idx], 1);
 }
 
@@ -234,12 +229,17 @@ int socket__postgres_process(struct __sk_buff* skb) {
         return 0;
     }
 
+    postgres_kernel_msg_count_t* pg_msg_counts = get_pg_msg_counts_map(pkt);
+    if (pg_msg_counts == NULL) {
+        return 0;
+    }
+
     // If the message is a parse message, we tail call to the dedicated function to handle it.
     if (header.message_tag == POSTGRES_PARSE_MAGIC_BYTE) {
         bpf_tail_call_compat(skb, &protocols_progs, PROG_POSTGRES_PROCESS_PARSE_MESSAGE);
         return 0;
     }
-    postgres_entrypoint(pkt, &conn_tuple, &header, NO_TAGS);
+    postgres_entrypoint(pkt, &conn_tuple, &header, NO_TAGS, pg_msg_counts);
 
     return 0;
 }
@@ -280,12 +280,17 @@ int uprobe__postgres_tls_process(struct pt_regs *ctx) {
     if (!read_message_header(pkt, &header)) {
         return 0;
     }
+
+    postgres_kernel_msg_count_t* pg_msg_counts = get_pg_msg_counts_map(pkt);
+    if (pg_msg_counts == NULL) {
+        return 0;
+    }
     // If the message is a parse message, we tail call to the dedicated function to handle it.
     if (header.message_tag == POSTGRES_PARSE_MAGIC_BYTE) {
         bpf_tail_call_compat(ctx, &tls_process_progs, PROG_POSTGRES_PROCESS_PARSE_MESSAGE);
         return 0;
     }
-    postgres_entrypoint(pkt, &tup, &header, (__u8)args->tags);
+    postgres_entrypoint(pkt, &tup, &header, (__u8)args->tags, pg_msg_counts);
 
     return 0;
 }
