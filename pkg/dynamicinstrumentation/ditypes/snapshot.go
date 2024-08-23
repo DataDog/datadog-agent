@@ -2,12 +2,15 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
 package ditypes
 
 import (
 	"github.com/google/uuid"
 )
 
+// SnapshotUpload is a single message sent to the datadog back containing the
+// snapshot and metadata
 type SnapshotUpload struct {
 	Service  string `json:"service"`
 	Message  string `json:"message"`
@@ -17,7 +20,7 @@ type SnapshotUpload struct {
 		Name       string `json:"name"`
 		Method     string `json:"method"`
 		Version    int    `json:"version,omitempty"`
-		ThreadId   int    `json:"thread_id,omitempty"`
+		ThreadID   int    `json:"thread_id,omitempty"`
 		ThreadName string `json:"thread_name,omitempty"`
 	} `json:"logger"`
 
@@ -31,6 +34,8 @@ type SnapshotUpload struct {
 	DD *TraceCorrelation `json:"dd,omitempty"`
 }
 
+// Snapshot is a single instance of a function invocation and all
+// captured data
 type Snapshot struct {
 	ID        *uuid.UUID `json:"id"`
 	Timestamp int64      `json:"timestamp"`
@@ -45,6 +50,7 @@ type Snapshot struct {
 	Stack []StackFrame `json:"stack"`
 }
 
+// Captures contains captured data at various points during a function invocation
 type Captures struct {
 	Entry  *Capture `json:"entry,omitempty"`
 	Return *Capture `json:"return,omitempty"`
@@ -52,6 +58,7 @@ type Captures struct {
 	Lines map[string]Capture `json:"lines,omitempty"`
 }
 
+// ProbeInSnapshot contains information about the probe that produced a snapshot
 type ProbeInSnapshot struct {
 	ID         string `json:"id"`
 	EvaluateAt string `json:"evaluateAt,omitempty"`
@@ -61,6 +68,7 @@ type ProbeInSnapshot struct {
 	ProbeLocation `json:"location"`
 }
 
+// ProbeLocation represents where a snapshot was originally captured
 type ProbeLocation struct {
 	Type   string   `json:"type,omitempty"`
 	Method string   `json:"method,omitempty"`

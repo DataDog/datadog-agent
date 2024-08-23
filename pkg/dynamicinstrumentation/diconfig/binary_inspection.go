@@ -21,7 +21,7 @@ import (
 func inspectGoBinaries(configEvent ditypes.DIProcs) error {
 	var err error
 	for i := range configEvent {
-		err = analyzeBinary(configEvent[i])
+		err = AnalyzeBinary(configEvent[i])
 		if err != nil {
 			return err
 		}
@@ -29,7 +29,7 @@ func inspectGoBinaries(configEvent ditypes.DIProcs) error {
 	return nil
 }
 
-func analyzeBinary(procInfo *ditypes.ProcessInfo) error {
+func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 	functions := []string{}
 	targetFunctions := map[string]bool{}
 	for _, probe := range procInfo.GetProbes() {
