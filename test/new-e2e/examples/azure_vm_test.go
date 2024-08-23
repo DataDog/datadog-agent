@@ -6,7 +6,7 @@
 package examples
 
 import (
-	azurehost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/azure/host/linux"
+	azurehost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/azure/host/windows"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -14,7 +14,7 @@ import (
 )
 
 type azureVMSuite struct {
-	e2e.BaseSuite[environments.Host]
+	e2e.BaseSuite[environments.WindowsHost]
 }
 
 // TestVMSuite runs tests for the VM interface to ensure its implementation is correct.
@@ -26,7 +26,7 @@ func TestAzureVMSuite(t *testing.T) {
 func (v *azureVMSuite) TestExecute() {
 	vm := v.Env().RemoteHost
 
-	out, err := vm.Execute("dir")
+	out, err := vm.Execute("whoami")
 	v.Require().NoError(err)
 	v.Require().NotEmpty(out)
 }
