@@ -41,11 +41,11 @@ def test(ctx, verbose=False) -> None:
         ctx.run("cat /etc/hosts")
         ctx.run("docker ps")
         os.environ["ORACLE_TEST_PORT"] = "1521"
-        os.environ["ORACLE_TEST_SERVER"] = "127.0.0.1"
-        # if os.environ.get("CI"):
-        #     os.environ["ORACLE_TEST_SERVER"] = ctx.run(
-        #     "docker inspect  -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' compose-oracle-1", hide=True
-        # ).stdout.strip()
+        if os.environ.get("CI"):
+            os.environ["ORACLE_TEST_SERVER"] = "oracle"
+        else:
+            os.environ["ORACLE_TEST_SERVER"] = "localhost"  
+        
         ctx.run("echo port=$ORACLE_TEST_PORT server=$ORACLE_TEST_SERVER")
         with ctx.cd("pkg/collector/corechecks/oracle"):
             print("Running tests...")
