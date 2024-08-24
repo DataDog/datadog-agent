@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package diconfig provides utlity that allows dynamic instrumentation to receive and
+// manage probe configurations from users
 package diconfig
 
 import (
