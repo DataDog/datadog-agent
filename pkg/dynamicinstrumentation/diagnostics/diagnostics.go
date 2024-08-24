@@ -2,6 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
+// Package diagnostics provides a facility for dynamic instrumentation to upload diagnostic information
 package diagnostics
 
 import (
@@ -32,6 +34,7 @@ type probeInstanceID struct {
 	probeID   string
 }
 
+// DiagnosticManager is used to keep track and upload diagnostic information
 type DiagnosticManager struct {
 	state   map[probeInstanceID]*ditypes.DiagnosticUpload
 	Updates chan *ditypes.DiagnosticUpload
@@ -39,6 +42,7 @@ type DiagnosticManager struct {
 	mu sync.Mutex
 }
 
+// NewDiagnosticManager creates a new DiagnosticManager
 func NewDiagnosticManager() *DiagnosticManager {
 	return &DiagnosticManager{
 		state:   make(map[probeInstanceID]*ditypes.DiagnosticUpload),
@@ -46,12 +50,14 @@ func NewDiagnosticManager() *DiagnosticManager {
 	}
 }
 
+// SetStatus associates the status with the specified service/probe
 func (m *DiagnosticManager) SetStatus(service, runtimeID, probeID string, status ditypes.Status) {
 	id := probeInstanceID{service, probeID, runtimeID}
 	d := newDIDiagnostic(service, runtimeID, probeID, status)
 	m.update(id, d)
 }
 
+// SetError associates the error with the specified service/probe
 func (m *DiagnosticManager) SetError(service, runtimeID, probeID, errorType, errorMessage string) {
 	id := probeInstanceID{service, probeID, runtimeID}
 	d := newDIDiagnostic(service, runtimeID, probeID, ditypes.StatusError)
@@ -70,4 +76,5 @@ func (m *DiagnosticManager) update(id probeInstanceID, d *ditypes.DiagnosticUplo
 	}
 }
 
+// Diagnostics is a global instance of a diagnostic manager
 var Diagnostics = NewDiagnosticManager()
