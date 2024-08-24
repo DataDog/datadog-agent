@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
 package codegen
 
 import (
@@ -127,9 +128,9 @@ func hasHeader(kind reflect.Kind) bool {
 
 func randomID() string {
 	length := 6
-	ran_str := make([]byte, length)
+	randomString := make([]byte, length)
 	for i := 0; i < length; i++ {
-		ran_str[i] = byte(65 + rand.Intn(25))
+		randomString[i] = byte(65 + rand.Intn(25))
 	}
-	return string(ran_str)
+	return string(randomString)
 }

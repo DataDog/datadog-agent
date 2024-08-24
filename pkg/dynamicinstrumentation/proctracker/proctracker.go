@@ -57,6 +57,9 @@ func NewProcessTracker(callback processTrackerCallback) *ProcessTracker {
 	return &pt
 }
 
+// Start subscribes to exec and exit events so dynamic instrumentation can be made
+// aware of new processes that may need to be instrumented or instrumented processes
+// that should no longer be instrumented
 func (pt *ProcessTracker) Start() error {
 
 	unsubscribeExec := pt.pm.SubscribeExec(pt.handleProcessStart)
@@ -73,6 +76,7 @@ func (pt *ProcessTracker) Start() error {
 	return nil
 }
 
+// Stop unsubscribes from exec and exit events
 func (pt *ProcessTracker) Stop() {
 	for _, unsubscribe := range pt.unsubscribe {
 		unsubscribe()
@@ -218,7 +222,7 @@ func (pt *ProcessTracker) unregisterProcess(pid pid) {
 	if !ok {
 		return
 	}
-	bin.processCount -= 1
+	bin.processCount--
 	if bin.processCount == 0 {
 		delete(pt.binaries, binID)
 		state := pt.currentState()

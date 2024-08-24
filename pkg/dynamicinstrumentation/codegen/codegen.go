@@ -2,6 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
+// Package codegen is used to generate bpf program source code based on probe definitions
 package codegen
 
 import (
@@ -17,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 )
 
+// BPFProgram represents a bpf program that's created for a single probe
 type BPFProgram struct {
 	ProgramText string
 
@@ -172,9 +175,8 @@ func resolveParameterTemplate(param *ditypes.Parameter) (*template.Template, err
 
 	if param.Location.InReg {
 		return resolveRegisterParameterTemplate(param)
-	} else {
-		return resolveStackParameterTemplate(param)
 	}
+	return resolveStackParameterTemplate(param)
 }
 
 func resolveRegisterParameterTemplate(param *ditypes.Parameter) (*template.Template, error) {
