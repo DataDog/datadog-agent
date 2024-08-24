@@ -16,6 +16,9 @@ import (
 	"reflect"
 )
 
+// to always require the math package
+var _ = math.MaxUint16
+
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	switch field {
 	case "process.ancestors":
