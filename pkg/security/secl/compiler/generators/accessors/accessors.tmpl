@@ -13,6 +13,7 @@ import (
         "{{.}}"
     {{end}}
     "reflect"
+	"math"
 
 	{{if ne $.SourcePkg $.TargetPkg}}"{{.SourcePkg}}"{{end}}
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -446,6 +447,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 					if !ok {
 						return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
 					}
+					{{- if eq $Field.OrigType "uint16" }}
+					if rv < 0 || rv > math.MaxUint16 {
+						return &eval.ErrValueOutOfRange{Field: "{{$Field.Name}}"}
+					}
+					{{- end }}
 					{{$FieldName}} = {{$Field.OrigType}}(rv)
 				{{end}}
 				return nil

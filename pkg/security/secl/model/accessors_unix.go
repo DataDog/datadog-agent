@@ -11,6 +11,7 @@ package model
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"math"
 	"net"
 	"reflect"
 )
@@ -31083,6 +31084,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Bind.AddrFamily"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Bind.AddrFamily"}
+		}
 		ev.Bind.AddrFamily = uint16(rv)
 		return nil
 	case "bind.addr.ip":
@@ -31096,6 +31100,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Bind.Addr.Port"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Bind.Addr.Port"}
 		}
 		ev.Bind.Addr.Port = uint16(rv)
 		return nil
@@ -31273,6 +31280,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Chdir.File.FileFields.Mode"}
+		}
 		ev.Chdir.File.FileFields.Mode = uint16(rv)
 		return nil
 	case "chdir.file.modification_time":
@@ -31332,6 +31342,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Chdir.File.FileFields.Mode"}
 		}
 		ev.Chdir.File.FileFields.Mode = uint16(rv)
 		return nil
@@ -31434,6 +31447,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Chmod.File.FileFields.Mode"}
+		}
 		ev.Chmod.File.FileFields.Mode = uint16(rv)
 		return nil
 	case "chmod.file.modification_time":
@@ -31493,6 +31509,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Chmod.File.FileFields.Mode"}
 		}
 		ev.Chmod.File.FileFields.Mode = uint16(rv)
 		return nil
@@ -31616,6 +31635,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Chown.File.FileFields.Mode"}
+		}
 		ev.Chown.File.FileFields.Mode = uint16(rv)
 		return nil
 	case "chown.file.modification_time":
@@ -31675,6 +31697,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Chown.File.FileFields.Mode"}
 		}
 		ev.Chown.File.FileFields.Mode = uint16(rv)
 		return nil
@@ -31768,12 +31793,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "DNS.ID"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "DNS.ID"}
+		}
 		ev.DNS.ID = uint16(rv)
 		return nil
 	case "dns.question.class":
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "DNS.Class"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "DNS.Class"}
 		}
 		ev.DNS.Class = uint16(rv)
 		return nil
@@ -31782,12 +31813,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "DNS.Count"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "DNS.Count"}
+		}
 		ev.DNS.Count = uint16(rv)
 		return nil
 	case "dns.question.length":
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "DNS.Size"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "DNS.Size"}
 		}
 		ev.DNS.Size = uint16(rv)
 		return nil
@@ -31804,6 +31841,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "DNS.Type"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "DNS.Type"}
 		}
 		ev.DNS.Type = uint16(rv)
 		return nil
@@ -32175,6 +32215,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Exec.Process.FileEvent.FileFields.Mode"}
+		}
 		ev.Exec.Process.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "exec.file.modification_time":
@@ -32264,6 +32307,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Exec.Process.FileEvent.FileFields.Mode"}
 		}
 		ev.Exec.Process.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
@@ -32428,6 +32474,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
 		ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "exec.interpreter.file.modification_time":
@@ -32517,6 +32566,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
 		ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
@@ -33000,6 +33052,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Exit.Process.FileEvent.FileFields.Mode"}
+		}
 		ev.Exit.Process.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "exit.file.modification_time":
@@ -33089,6 +33144,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Exit.Process.FileEvent.FileFields.Mode"}
 		}
 		ev.Exit.Process.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
@@ -33253,6 +33311,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
 		ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "exit.interpreter.file.modification_time":
@@ -33342,6 +33403,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
 		ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
@@ -33598,6 +33662,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Link.Target.FileFields.Mode"}
+		}
 		ev.Link.Target.FileFields.Mode = uint16(rv)
 		return nil
 	case "link.file.destination.modification_time":
@@ -33657,6 +33724,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Link.Target.FileFields.Mode"}
 		}
 		ev.Link.Target.FileFields.Mode = uint16(rv)
 		return nil
@@ -33724,6 +33794,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Link.Source.FileFields.Mode"}
+		}
 		ev.Link.Source.FileFields.Mode = uint16(rv)
 		return nil
 	case "link.file.modification_time":
@@ -33783,6 +33856,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Link.Source.FileFields.Mode"}
 		}
 		ev.Link.Source.FileFields.Mode = uint16(rv)
 		return nil
@@ -33902,6 +33978,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "LoadModule.File.FileFields.Mode"}
+		}
 		ev.LoadModule.File.FileFields.Mode = uint16(rv)
 		return nil
 	case "load_module.file.modification_time":
@@ -33961,6 +34040,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "LoadModule.File.FileFields.Mode"}
 		}
 		ev.LoadModule.File.FileFields.Mode = uint16(rv)
 		return nil
@@ -34070,6 +34152,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Mkdir.File.FileFields.Mode"}
+		}
 		ev.Mkdir.File.FileFields.Mode = uint16(rv)
 		return nil
 	case "mkdir.file.modification_time":
@@ -34129,6 +34214,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Mkdir.File.FileFields.Mode"}
 		}
 		ev.Mkdir.File.FileFields.Mode = uint16(rv)
 		return nil
@@ -34210,6 +34298,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "MMap.File.FileFields.Mode"}
+		}
 		ev.MMap.File.FileFields.Mode = uint16(rv)
 		return nil
 	case "mmap.file.modification_time":
@@ -34269,6 +34360,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "MMap.File.FileFields.Mode"}
 		}
 		ev.MMap.File.FileFields.Mode = uint16(rv)
 		return nil
@@ -34396,6 +34490,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Destination.Port"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "NetworkContext.Destination.Port"}
+		}
 		ev.NetworkContext.Destination.Port = uint16(rv)
 		return nil
 	case "network.device.ifindex":
@@ -34417,12 +34514,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.L3Protocol"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "NetworkContext.L3Protocol"}
+		}
 		ev.NetworkContext.L3Protocol = uint16(rv)
 		return nil
 	case "network.l4_protocol":
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.L4Protocol"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "NetworkContext.L4Protocol"}
 		}
 		ev.NetworkContext.L4Protocol = uint16(rv)
 		return nil
@@ -34444,6 +34547,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Source.Port"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "NetworkContext.Source.Port"}
 		}
 		ev.NetworkContext.Source.Port = uint16(rv)
 		return nil
@@ -34574,6 +34680,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Open.File.FileFields.Mode"}
+		}
 		ev.Open.File.FileFields.Mode = uint16(rv)
 		return nil
 	case "open.file.modification_time":
@@ -34633,6 +34742,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Open.File.FileFields.Mode"}
 		}
 		ev.Open.File.FileFields.Mode = uint16(rv)
 		return nil
@@ -35104,6 +35216,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
+		}
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "process.ancestors.file.modification_time":
@@ -35223,6 +35338,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
 		}
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
@@ -35435,6 +35553,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "process.ancestors.interpreter.file.modification_time":
@@ -35554,6 +35675,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
@@ -36055,6 +36179,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.Mode"}
+		}
 		ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "process.file.modification_time":
@@ -36144,6 +36271,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.Mode"}
 		}
 		ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
@@ -36308,6 +36438,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
 		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "process.interpreter.file.modification_time":
@@ -36397,6 +36530,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
 		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
@@ -36859,6 +36995,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "BaseEvent.ProcessContext.Parent.FileEvent.FileFields.Mode"}
+		}
 		ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "process.parent.file.modification_time":
@@ -36978,6 +37117,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "BaseEvent.ProcessContext.Parent.FileEvent.FileFields.Mode"}
 		}
 		ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
@@ -37190,6 +37332,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
 		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "process.parent.interpreter.file.modification_time":
@@ -37309,6 +37454,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
 		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
@@ -38010,6 +38158,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
+		}
 		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "ptrace.tracee.ancestors.file.modification_time":
@@ -38129,6 +38280,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
 		}
 		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
@@ -38341,6 +38495,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
 		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.modification_time":
@@ -38460,6 +38617,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
 		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
@@ -38961,6 +39121,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "PTrace.Tracee.Process.FileEvent.FileFields.Mode"}
+		}
 		ev.PTrace.Tracee.Process.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "ptrace.tracee.file.modification_time":
@@ -39050,6 +39213,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "PTrace.Tracee.Process.FileEvent.FileFields.Mode"}
 		}
 		ev.PTrace.Tracee.Process.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
@@ -39214,6 +39380,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
 		ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "ptrace.tracee.interpreter.file.modification_time":
@@ -39303,6 +39472,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
 		ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
@@ -39765,6 +39937,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "PTrace.Tracee.Parent.FileEvent.FileFields.Mode"}
+		}
 		ev.PTrace.Tracee.Parent.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "ptrace.tracee.parent.file.modification_time":
@@ -39884,6 +40059,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "PTrace.Tracee.Parent.FileEvent.FileFields.Mode"}
 		}
 		ev.PTrace.Tracee.Parent.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
@@ -40096,6 +40274,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
 		ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "ptrace.tracee.parent.interpreter.file.modification_time":
@@ -40215,6 +40396,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
 		ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
@@ -40554,6 +40738,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "RemoveXAttr.File.FileFields.Mode"}
+		}
 		ev.RemoveXAttr.File.FileFields.Mode = uint16(rv)
 		return nil
 	case "removexattr.file.modification_time":
@@ -40613,6 +40800,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "RemoveXAttr.File.FileFields.Mode"}
 		}
 		ev.RemoveXAttr.File.FileFields.Mode = uint16(rv)
 		return nil
@@ -40701,6 +40891,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Rename.New.FileFields.Mode"}
+		}
 		ev.Rename.New.FileFields.Mode = uint16(rv)
 		return nil
 	case "rename.file.destination.modification_time":
@@ -40760,6 +40953,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Rename.New.FileFields.Mode"}
 		}
 		ev.Rename.New.FileFields.Mode = uint16(rv)
 		return nil
@@ -40827,6 +41023,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Rename.Old.FileFields.Mode"}
+		}
 		ev.Rename.Old.FileFields.Mode = uint16(rv)
 		return nil
 	case "rename.file.modification_time":
@@ -40886,6 +41085,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Rename.Old.FileFields.Mode"}
 		}
 		ev.Rename.Old.FileFields.Mode = uint16(rv)
 		return nil
@@ -40981,6 +41183,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Rmdir.File.FileFields.Mode"}
+		}
 		ev.Rmdir.File.FileFields.Mode = uint16(rv)
 		return nil
 	case "rmdir.file.modification_time":
@@ -41040,6 +41245,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Rmdir.File.FileFields.Mode"}
 		}
 		ev.Rmdir.File.FileFields.Mode = uint16(rv)
 		return nil
@@ -41247,6 +41455,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "SetXAttr.File.FileFields.Mode"}
+		}
 		ev.SetXAttr.File.FileFields.Mode = uint16(rv)
 		return nil
 	case "setxattr.file.modification_time":
@@ -41306,6 +41517,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "SetXAttr.File.FileFields.Mode"}
 		}
 		ev.SetXAttr.File.FileFields.Mode = uint16(rv)
 		return nil
@@ -41763,6 +41977,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
+		}
 		ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "signal.target.ancestors.file.modification_time":
@@ -41882,6 +42099,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
 		}
 		ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
@@ -42094,6 +42314,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
 		ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "signal.target.ancestors.interpreter.file.modification_time":
@@ -42213,6 +42436,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
 		ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
@@ -42714,6 +42940,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Signal.Target.Process.FileEvent.FileFields.Mode"}
+		}
 		ev.Signal.Target.Process.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "signal.target.file.modification_time":
@@ -42803,6 +43032,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Signal.Target.Process.FileEvent.FileFields.Mode"}
 		}
 		ev.Signal.Target.Process.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
@@ -42967,6 +43199,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
 		ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "signal.target.interpreter.file.modification_time":
@@ -43056,6 +43291,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
 		ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
@@ -43518,6 +43756,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Signal.Target.Parent.FileEvent.FileFields.Mode"}
+		}
 		ev.Signal.Target.Parent.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "signal.target.parent.file.modification_time":
@@ -43637,6 +43878,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Signal.Target.Parent.FileEvent.FileFields.Mode"}
 		}
 		ev.Signal.Target.Parent.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
@@ -43849,6 +44093,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
 		ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
 	case "signal.target.parent.interpreter.file.modification_time":
@@ -43968,6 +44215,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
 		ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
 		return nil
@@ -44300,6 +44550,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Splice.File.FileFields.Mode"}
+		}
 		ev.Splice.File.FileFields.Mode = uint16(rv)
 		return nil
 	case "splice.file.modification_time":
@@ -44359,6 +44612,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Splice.File.FileFields.Mode"}
 		}
 		ev.Splice.File.FileFields.Mode = uint16(rv)
 		return nil
@@ -44454,6 +44710,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Unlink.File.FileFields.Mode"}
+		}
 		ev.Unlink.File.FileFields.Mode = uint16(rv)
 		return nil
 	case "unlink.file.modification_time":
@@ -44513,6 +44772,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Unlink.File.FileFields.Mode"}
 		}
 		ev.Unlink.File.FileFields.Mode = uint16(rv)
 		return nil
@@ -44636,6 +44898,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.Mode"}
 		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Utimes.File.FileFields.Mode"}
+		}
 		ev.Utimes.File.FileFields.Mode = uint16(rv)
 		return nil
 	case "utimes.file.modification_time":
@@ -44695,6 +44960,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.Mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "Utimes.File.FileFields.Mode"}
 		}
 		ev.Utimes.File.FileFields.Mode = uint16(rv)
 		return nil
