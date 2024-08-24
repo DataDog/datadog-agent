@@ -44,6 +44,12 @@ jobs:
         uses: github/codeql-action/init@afb54ba388a7dca6ecae48f608c4ff05ff4cc77a # v3.25.15
         with:
           languages: ${{ matrix.language }}
+          config: |
+            paths-ignore:
+              - rtloader/build/rtloader/CMakeFiles/datadog-agent-rtloader.dir
+              - rtloader/build/three/CMakeFiles/datadog-agent-three.dir
+              - rtloader/build/test/CMakeFiles/run.dir
+              - rtloader/build/CMakeFiles/clang-format.dir
 
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@49819abfb41bd9b44fb781159c033dba90353a7c
