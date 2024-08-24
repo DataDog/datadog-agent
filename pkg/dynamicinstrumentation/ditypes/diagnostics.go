@@ -5,6 +5,7 @@
 
 package ditypes
 
+// DiagnosticUpload is the message sent to the DataDog backend conveying diagnostic information
 type DiagnosticUpload struct {
 	Service  string `json:"service"`
 	DDSource string `json:"ddsource"`
@@ -14,6 +15,7 @@ type DiagnosticUpload struct {
 	} `json:"debugger"`
 }
 
+// SetError sets the error in the diagnostic upload
 func (d *DiagnosticUpload) SetError(errorType, errorMessage string) {
 	d.Debugger.Diagnostic.Status = StatusError
 	d.Debugger.Diagnostic.DiagnosticException = &DiagnosticException{
@@ -22,15 +24,17 @@ func (d *DiagnosticUpload) SetError(errorType, errorMessage string) {
 	}
 }
 
+// Status conveys the status of a probe
 type Status string
 
 const (
-	StatusReceived  Status = "RECEIVED"
-	StatusInstalled Status = "INSTALLED"
-	StatusEmitting  Status = "EMITTING"
-	StatusError     Status = "ERROR"
+	StatusReceived  Status = "RECEIVED"  // StatusReceived means the probe configuration was received
+	StatusInstalled Status = "INSTALLED" // StatusInstalled means the probe was installed
+	StatusEmitting  Status = "EMITTING"  // StatusEmitting means the probe is emitting events
+	StatusError     Status = "ERROR"     // StatusError means the probe has an issue
 )
 
+// Diagnostic contains fields relevant for conveying the status of a probe
 type Diagnostic struct {
 	RuntimeID string `json:"runtimeId"`
 	ProbeID   string `json:"probeId"`
@@ -39,6 +43,7 @@ type Diagnostic struct {
 	*DiagnosticException `json:"exception,omitempty"`
 }
 
+// DiagnosticException is used for diagnosing errors in probes
 type DiagnosticException struct {
 	Type    string `json:"type"`
 	Message string `json:"message"`
