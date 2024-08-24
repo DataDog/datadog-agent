@@ -29,6 +29,8 @@ func inspectGoBinaries(configEvent ditypes.DIProcs) error {
 	return nil
 }
 
+// AnalyzeBinary reads the binary associated with the specified process and parses
+// the DWARF information. It populates relevant fields in the process representation
 func AnalyzeBinary(procInfo *ditypes.ProcessInfo) error {
 	functions := []string{}
 	targetFunctions := map[string]bool{}

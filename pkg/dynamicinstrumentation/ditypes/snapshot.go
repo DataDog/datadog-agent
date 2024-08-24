@@ -76,13 +76,16 @@ type ProbeLocation struct {
 	File   string   `json:"file,omitempty"`
 }
 
+// CapturedValueMap maps type names to their values
 type CapturedValueMap = map[string]*CapturedValue
 
+// Capture represents all the captured values in a snapshot
 type Capture struct {
 	Arguments CapturedValueMap `json:"arguments,omitempty"`
 	Locals    CapturedValueMap `json:"locals,omitempty"`
 }
 
+// CapturedValue represents the value of a captured type
 type CapturedValue struct {
 	Type string `json:"type"`
 
@@ -100,11 +103,13 @@ type CapturedValue struct {
 	Truncated bool   `json:"truncated,omitempty"`
 }
 
+// EvaluationError expresses why a value could not be evaluated
 type EvaluationError struct {
 	Expr    string `json:"expr"`
 	Message string `json:"message"`
 }
 
+// TraceCorrelation contains fields that correlate a snapshot with traces
 type TraceCorrelation struct {
 	TraceID string `json:"trace_id,omitempty"`
 	SpanID  string `json:"span_id,omitempty"`
