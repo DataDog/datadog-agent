@@ -1515,6 +1515,12 @@ func validateProduceFetchCount(t *assert.CollectT, kafkaStats map[kafka.Key]*kaf
 	for kafkaKey, kafkaStat := range kafkaStats {
 		requestStats, exists := kafkaStat.ErrorCodeToStat[errorCode]
 		assert.True(t, exists, "Expected error code %d not found in stats", errorCode)
+		// assert does not halt the execution, we need to do it manually.
+		// Thus, if the error code is not found, we should not continue, as we expect it to be found for all stats.
+		// So, we marked this iteration as failed (by calling assert.True), and we should return here.
+		if !exists {
+			return
+		}
 		hasTLSTag := requestStats.StaticTags&network.ConnTagGo != 0
 		if hasTLSTag != validation.tlsEnabled {
 			continue
