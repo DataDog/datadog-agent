@@ -25,6 +25,36 @@ import (
 	"go.opentelemetry.io/collector/service"
 )
 
+type logLevel int
+
+const (
+	off logLevel = iota
+	critical
+	err
+	warn
+	info
+	debug
+	trace
+)
+
+type level struct {
+	value   logLevel
+	mapping string
+}
+
+// datadog agent log levels: trace, debug, info, warn, error, critical, and off
+// otel log levels: disabled, debug, info, warn, error
+var logLevelMap = map[string]level{
+	"off":      {value: off, mapping: "off"},
+	"disabled": {value: off, mapping: "off"},
+	"trace":    {value: trace, mapping: "trace"},
+	"debug":    {value: debug, mapping: "debug"},
+	"info":     {value: info, mapping: "info"},
+	"warn":     {value: warn, mapping: "warn"},
+	"error":    {value: err, mapping: "error"},
+	"critical": {value: critical, mapping: "critical"},
+}
+
 // NewConfigComponent creates a new config component from the given URIs
 func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (config.Component, error) {
 	// Load the configuration from the fileName
@@ -75,6 +105,22 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		}
 	}
 
+	// Set the right log level. The most verbose setting takes precedence.
+	var logLevel string
+	agentLogLevel := pkgconfig.GetString("log_level")
+	telemetryLogLevel := sc.Telemetry.Logs.Level
+	agentLogMapping, ok := logLevelMap[agentLogLevel]
+	if ok {
+		logLevel = agentLogLevel
+	}
+	telemetryLogMapping, ok := logLevelMap[telemetryLogLevel.String()]
+	if ok {
+		if telemetryLogMapping.value > agentLogMapping.value {
+			logLevel = telemetryLogLevel.String()
+		}
+	}
+	pkgconfig.Set("log_level", logLevel, pkgconfigmodel.SourceLocalConfigProcess)
+
 	pkgconfig.SetConfigName("OTel")
 	pkgconfig.SetEnvPrefix("DD")
 	pkgconfig.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
@@ -93,7 +139,6 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	pkgconfig.Set("logs_config.batch_wait", ddc.Logs.BatchWait, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("logs_config.use_compression", ddc.Logs.UseCompression, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("logs_config.compression_level", ddc.Logs.CompressionLevel, pkgconfigmodel.SourceLocalConfigProcess)
-	pkgconfig.Set("log_level", sc.Telemetry.Logs.Level, pkgconfigmodel.SourceLocalConfigProcess)
 
 	// APM & OTel trace configs
 	pkgconfig.Set("apm_config.enabled", true, pkgconfigmodel.SourceLocalConfigProcess)
