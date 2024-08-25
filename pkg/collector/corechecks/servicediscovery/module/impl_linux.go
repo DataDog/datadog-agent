@@ -39,6 +39,7 @@ var _ module.Module = &discovery{}
 // endpoint.
 type serviceInfo struct {
 	name               string
+	language           language.Language
 	apmInstrumentation apm.Instrumentation
 }
 
@@ -214,9 +215,13 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 
 	name := servicediscovery.GetServiceName(cmdline, envs)
 	language := language.FindInArgs(cmdline)
-	apmInstrumentation := apm.Detect(cmdline, envs, language)
+	apmInstrumentation := apm.Detect(int(proc.Pid), cmdline, envs, language)
 
-	return &serviceInfo{name: name, apmInstrumentation: apmInstrumentation}, nil
+	return &serviceInfo{
+		name:               name,
+		language:           language,
+		apmInstrumentation: apmInstrumentation,
+	}, nil
 }
 
 // getService gets information for a single service.
@@ -288,6 +293,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		Name:               info.name,
 		Ports:              ports,
 		APMInstrumentation: string(info.apmInstrumentation),
+		Language:           string(info.language),
 	}
 }
 

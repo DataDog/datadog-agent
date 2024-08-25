@@ -3,15 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
+//go:build linux
 
 package apm
 
 import (
-	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -86,7 +87,7 @@ func Test_javaDetector(t *testing.T) {
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := javaDetector(d.args, d.envs)
+			result := javaDetector(0, d.args, d.envs)
 			if result != d.result {
 				t.Errorf("expected %s got %s", d.result, result)
 			}
@@ -94,52 +95,72 @@ func Test_javaDetector(t *testing.T) {
 	}
 }
 
-func Test_pythonDetector(t *testing.T) {
-	tmpDir := t.TempDir()
-	err := os.MkdirAll(tmpDir+"/lib/python3.11/site-packages/ddtrace", 0700)
-	if err != nil {
-		t.Fatal(err)
-	}
-	tmpDir2 := t.TempDir()
-	err = os.MkdirAll(tmpDir2+"/lib/python3.11/site-packages/notddtrace", 0700)
-	if err != nil {
-		t.Fatal(err)
-	}
+func Test_nodeDetector(t *testing.T) {
+	curDir, err := testutil.CurDir()
+	assert.NoError(t, err)
+
 	data := []struct {
 		name   string
-		args   []string
 		envs   map[string]string
 		result Instrumentation
 	}{
 		{
-			name:   "venv_provided",
-			args:   []string{"./echoer.sh", "nope"},
-			envs:   map[string]string{"VIRTUAL_ENV": tmpDir},
-			result: Provided,
-		},
-		{
-			name:   "venv_none",
-			args:   []string{"./testdata/echoer.sh", "nope"},
-			envs:   map[string]string{"VIRTUAL_ENV": tmpDir2},
+			name: "not instrumented",
+			envs: map[string]string{
+				"PWD": filepath.Join(curDir, "testdata/node/not_instrumented"),
+			},
 			result: None,
 		},
 		{
-			name:   "cmd_provided",
-			args:   []string{"./testdata/cmd_works.sh"},
+			name: "instrumented",
+			envs: map[string]string{
+				"PWD": filepath.Join(curDir, "testdata/node/instrumented"),
+			},
 			result: Provided,
 		},
+	}
+
+	for _, d := range data {
+		t.Run(d.name, func(t *testing.T) {
+			result := nodeDetector(0, nil, d.envs)
+			assert.Equal(t, d.result, result)
+		})
+	}
+}
+
+func Test_pythonDetector(t *testing.T) {
+	data := []struct {
+		name   string
+		maps   string
+		result Instrumentation
+	}{
 		{
-			name:   "cmd_none",
-			args:   []string{"./testdata/cmd_fails.sh"},
+			name:   "empty maps",
+			maps:   "",
 			result: None,
+		},
+		{
+			name: "not in maps",
+			maps: `
+79f6cd47d000-79f6cd47f000 r--p 00000000 fc:04 793163                     /usr/lib/python3.10/lib-dynload/_bz2.cpython-310-x86_64-linux-gnu.so
+79f6cd479000-79f6cd47a000 r-xp 00001000 fc:06 5507018                    /home/foo/.local/lib/python3.10/site-packages/ddtrace_fake/md.cpython-310-x86_64-linux-gnu.so
+			`,
+			result: None,
+		},
+		{
+			name: "in maps",
+			maps: `
+79f6cd47d000-79f6cd47f000 r--p 00000000 fc:04 793163                     /usr/lib/python3.10/lib-dynload/_bz2.cpython-310-x86_64-linux-gnu.so
+79f6cd482000-79f6cd484000 r--p 00005000 fc:04 793163                     /usr/lib/python3.10/lib-dynload/_bz2.cpython-310-x86_64-linux-gnu.so
+79f6cd438000-79f6cd441000 r-xp 00004000 fc:06 7895596                    /home/foo/.local/lib/python3.10/site-packages-internal/ddtrace/internal/datadog/profiling/crashtracker/_crashtracker.cpython-310-x86_64-linux-gnu.so
+			`,
+			result: Provided,
 		},
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := pythonDetector(d.args, d.envs)
-			if result != d.result {
-				t.Errorf("expected %s got %s", d.result, result)
-			}
+			result := pythonDetectorFromMapsReader(strings.NewReader(d.maps))
+			assert.Equal(t, d.result, result)
 		})
 	}
 }

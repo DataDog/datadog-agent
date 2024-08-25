@@ -14,7 +14,7 @@ docker_trigger_internal:
   tags: ["arch:amd64"]
   variables:
     DYNAMIC_BUILD_RENDER_RULES: agent-build-only # fake rule to not trigger the ones in the images repo
-    IMAGE_VERSION: tmpl-v9
+    IMAGE_VERSION: tmpl-v10
     IMAGE_NAME: datadog-agent
     RELEASE_TAG: ${CI_COMMIT_REF_SLUG}-jmx
     BUILD_TAG: ${CI_COMMIT_REF_SLUG}-jmx
@@ -60,7 +60,7 @@ docker_trigger_internal-ot:
   tags: ["arch:amd64"]
   variables:
     DYNAMIC_BUILD_RENDER_RULES: agent-build-only # fake rule to not trigger the ones in the images repo
-    IMAGE_VERSION: tmpl-v9
+    IMAGE_VERSION: tmpl-v10
     IMAGE_NAME: datadog-agent
     RELEASE_TAG: ${CI_COMMIT_REF_SLUG}-ot-beta-jmx
     BUILD_TAG: ${CI_COMMIT_REF_SLUG}-ot-beta-jmx
@@ -106,7 +106,7 @@ docker_trigger_cluster_agent_internal:
   tags: ["arch:amd64"]
   variables:
     DYNAMIC_BUILD_RENDER_RULES: agent-build-only # fake rule to not trigger the ones in the images repo
-    IMAGE_VERSION: tmpl-v4
+    IMAGE_VERSION: tmpl-v5
     IMAGE_NAME: datadog-cluster-agent
     RELEASE_TAG: ${CI_COMMIT_REF_SLUG}
     BUILD_TAG: ${CI_COMMIT_REF_SLUG}
@@ -153,7 +153,7 @@ docker_trigger_cws_instrumentation_internal:
   tags: ["arch:amd64"]
   variables:
     DYNAMIC_BUILD_RENDER_RULES: agent-build-only # fake rule to not trigger the ones in the images repo
-    IMAGE_VERSION: tmpl-v1
+    IMAGE_VERSION: tmpl-v2
     IMAGE_NAME: datadog-cws-instrumentation
     RELEASE_TAG: ${CI_COMMIT_REF_SLUG}
     BUILD_TAG: ${CI_COMMIT_REF_SLUG}

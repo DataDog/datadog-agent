@@ -137,9 +137,10 @@ var (
 		Ports: []uint16{8081},
 	}
 	portTCP5000 = model.Service{
-		PID:   procPythonService.pid,
-		Name:  "python-service",
-		Ports: []uint16{5000},
+		PID:      procPythonService.pid,
+		Name:     "python-service",
+		Language: "python",
+		Ports:    []uint16{5000},
 	}
 	portTCP5432 = model.Service{
 		PID:   procTestService1Repeat.pid,

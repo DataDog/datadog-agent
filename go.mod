@@ -182,7 +182,7 @@ require (
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/cilium/ebpf v0.16.0
 	github.com/clbanning/mxj v1.8.4
-	github.com/containerd/containerd v1.7.18
+	github.com/containerd/containerd v1.7.20
 	github.com/containernetworking/cni v1.2.3
 	github.com/coreos/go-semver v0.3.1
 	github.com/coreos/go-systemd v22.5.0+incompatible
@@ -213,7 +213,7 @@ require (
 	github.com/google/gopacket v1.1.19
 	github.com/google/pprof v0.0.0-20240424215950-a892ee059fd6
 	github.com/gorilla/mux v1.8.1
-	github.com/gosnmp/gosnmp v1.37.1-0.20240115134726-db0c09337869
+	github.com/gosnmp/gosnmp v1.38.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 	github.com/h2non/filetype v1.1.3
@@ -231,7 +231,7 @@ require (
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
 	github.com/mailru/easyjson v0.7.7
 	github.com/mdlayher/netlink v1.7.2
-	github.com/miekg/dns v1.1.61
+	github.com/miekg/dns v1.1.62
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
 	github.com/moby/sys/mountinfo v0.7.2
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
@@ -268,9 +268,9 @@ require (
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/tinylib/msgp v1.1.9
 	github.com/twmb/murmur3 v1.1.8
-	github.com/uptrace/bun v1.1.14
-	github.com/uptrace/bun/dialect/pgdialect v1.1.14
-	github.com/uptrace/bun/driver/pgdriver v1.1.14
+	github.com/uptrace/bun v1.2.1
+	github.com/uptrace/bun/dialect/pgdialect v1.2.1
+	github.com/uptrace/bun/driver/pgdriver v1.2.1
 	github.com/urfave/negroni v1.0.0
 	github.com/vishvananda/netlink v1.2.1-beta.2.0.20230807190133-6afddb37c1f0
 	github.com/vishvananda/netns v0.0.4
@@ -299,13 +299,13 @@ require (
 	go.uber.org/zap v1.27.0
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.9.0
-	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
-	golang.org/x/net v0.27.0
+	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa
+	golang.org/x/net v0.28.0
 	golang.org/x/sync v0.8.0
-	golang.org/x/sys v0.23.0
-	golang.org/x/text v0.16.0
+	golang.org/x/sys v0.24.0
+	golang.org/x/text v0.17.0
 	golang.org/x/time v0.6.0
-	golang.org/x/tools v0.23.0
+	golang.org/x/tools v0.24.0
 	golang.org/x/xerrors v0.0.0-20240716161551-93cc26a95ae9
 	google.golang.org/genproto v0.0.0-20240617180043-68d350f18fd4 // indirect
 	google.golang.org/grpc v1.65.0
@@ -393,7 +393,7 @@ require (
 	github.com/containerd/continuity v0.4.3 // indirect
 	github.com/containerd/fifo v1.1.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.15.1 // indirect
-	github.com/containerd/ttrpc v1.2.4 // indirect
+	github.com/containerd/ttrpc v1.2.5 // indirect
 	github.com/containernetworking/plugins v1.4.1 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
@@ -565,10 +565,10 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.27.0 // indirect
 	go.opentelemetry.io/otel/trace v1.27.0
 	go.opentelemetry.io/proto/otlp v1.2.0 // indirect
-	golang.org/x/crypto v0.25.0 // indirect
+	golang.org/x/crypto v0.26.0 // indirect
 	golang.org/x/mod v0.20.0
 	golang.org/x/oauth2 v0.21.0 // indirect
-	golang.org/x/term v0.22.0 // indirect
+	golang.org/x/term v0.23.0 // indirect
 	gonum.org/v1/gonum v0.15.0 // indirect
 	google.golang.org/api v0.185.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
@@ -594,6 +594,9 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.0.0-00010101000000-000000000000
+	github.com/containerd/containerd/api v1.7.19
+	github.com/containerd/errdefs v0.1.0
+	github.com/distribution/reference v0.6.0
 	github.com/lorenzosaino/go-sysctl v0.3.1
 )
 
@@ -794,12 +797,11 @@ require (
 	github.com/chrusty/protoc-gen-jsonschema v0.0.0-20240212064413-73d5723042b8 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/cncf/xds/go v0.0.0-20240423153145-555b57ec207b // indirect
-	github.com/containerd/errdefs v0.1.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
+	github.com/containerd/platforms v0.2.1 // indirect
 	github.com/csaf-poc/csaf_distribution/v3 v3.0.0 // indirect
 	github.com/dennwc/varint v1.0.0 // indirect
 	github.com/digitalocean/godo v1.109.0 // indirect
-	github.com/distribution/reference v0.5.0 // indirect
 	github.com/eapache/queue/v2 v2.0.0-20230407133247-75960ed334e4 // indirect
 	github.com/ebitengine/purego v0.6.0-alpha.5 // indirect
 	github.com/elastic/go-licenser v0.4.1 // indirect
@@ -927,7 +929,7 @@ require (
 	github.com/prometheus/common/sigv4 v0.1.0 // indirect
 	github.com/prometheus/prometheus v2.5.0+incompatible // indirect
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
-	github.com/rs/zerolog v1.29.1 // indirect
+	github.com/rs/zerolog v1.32.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
