@@ -911,6 +911,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             }
             extra_debug("got error code: %d", error_code);
             response->partition_error_code = error_code;
+            response->transaction.error_code = error_code;
 
             // No need to continue parsing the produce response, as we got the error now
             return RET_DONE;
@@ -1272,7 +1273,7 @@ static __always_inline enum parse_result kafka_continue_parse_response(void *ctx
         }
 
         if (ret == RET_DONE) {
-            extra_debug("enqueue, records_count %d",  response->transaction.records_count);
+            extra_debug("enqueue, records_count %d, error_code %d",  response->transaction.records_count, response->transaction.error_code);
             kafka_batch_enqueue_wrapper(kafka, tup, &response->transaction);
             return ret;
         }
