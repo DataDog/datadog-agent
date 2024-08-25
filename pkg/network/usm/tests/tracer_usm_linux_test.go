@@ -308,10 +308,7 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 		t.Skip("TLS classification platform not supported")
 	}
 
-	const srvPort = 9111
-	srvAddress := fmt.Sprintf("localhost:%d", srvPort)
-
-	srv := testutil.NewTLSServerWithSpecificVersion(srvAddress, func(conn net.Conn) {
+	srv := testutil.NewTLSServerWithSpecificVersion("localhost:0", func(conn net.Conn) {
 		defer conn.Close()
 		// Echo back whatever is received
 		_, err := io.Copy(conn, conn)
@@ -323,6 +320,11 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 	done := make(chan struct{})
 	require.NoError(t, srv.Run(done))
 	t.Cleanup(func() { close(done) })
+	srvAddress := srv.Address()
+	_, srvPortStr, err := net.SplitHostPort(srvAddress)
+	require.NoError(t, err)
+	srvPort, err := strconv.Atoi(srvPortStr)
+	require.NoError(t, err)
 
 	tlsConfig := &tls.Config{
 		MinVersion:         tls.VersionTLS12,
@@ -397,7 +399,7 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 					Port: int(clientPort),
 				},
 			}
-			conn, err := dialer.Dial("tcp", srvAddress)
+			conn, err := dialer.Dial("tcp", srv.Address())
 			require.NoError(t, err)
 			defer conn.Close()
 			tlsConn := tls.Client(conn, tlsConfig)
@@ -408,7 +410,7 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 				Daddr_h:  addrHigh,
 				Daddr_l:  addrLow,
 				Sport:    clientPort,
-				Dport:    srvPort,
+				Dport:    uint16(srvPort),
 				Metadata: uint32(netebpf.TCP),
 			}
 			protocolValue := netebpf.ProtocolStackWrapper{
@@ -426,7 +428,7 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 			require.Eventually(t, func() bool {
 				payload := getConnections(t, tr)
 				for _, c := range payload.Conns {
-					if c.DPort == srvPort || c.SPort == srvPort {
+					if c.DPort == uint16(srvPort) || c.SPort == uint16(srvPort) {
 						return c.ProtocolStack.Contains(protocols.TLS) == tt.shouldBeTLS
 					}
 				}
