@@ -95,6 +95,7 @@ type OracleActivityRow struct {
 //nolint:revive // TODO(DBM) Fix revive linter
 type OracleActivityRowDB struct {
 	Now                        string         `db:"NOW"`
+	UtcMs                      float64        `db:"UTC_MS"`
 	SessionID                  uint64         `db:"SID"`
 	SessionSerial              uint64         `db:"SERIAL#"`
 	User                       sql.NullString `db:"USERNAME"`
@@ -161,6 +162,57 @@ func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, 
 	return SQLRow, nil
 }
 
+func sendPayload(c *Check, sessionRows []OracleActivityRow, timestamp float64) error {
+	var collection_interval float64
+	if c.config.QuerySamples.ActiveSessionHistory {
+		collection_interval = 1
+	} else {
+		collection_interval = float64(c.config.MinCollectionInterval)
+	}
+	var ts float64
+	if timestamp > 0 {
+		ts = timestamp
+	} else {
+		ts = float64(c.clock.Now().UnixMilli())
+	}
+	log.Debugf("%s STIMESTAMP FETCHED %f", c.logPrompt, timestamp)
+	log.Debugf("%s STIMESTAMP UNIX    %f", c.logPrompt, float64(c.clock.Now().UnixMilli()))
+	payload := ActivitySnapshot{
+		Metadata: Metadata{
+			//Timestamp:      float64(c.clock.Now().UnixMilli()),
+			Timestamp:      ts,
+			Host:           c.dbHostname,
+			Source:         common.IntegrationName,
+			DBMType:        "activity",
+			DDAgentVersion: c.agentVersion,
+		},
+		CollectionInterval: collection_interval,
+		Tags:               c.tags,
+		OracleActivityRows: sessionRows,
+	}
+
+	c.lastOracleActivityRows = make([]OracleActivityRow, len(sessionRows))
+	copy(c.lastOracleActivityRows, sessionRows)
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		log.Errorf("%s Error marshalling activity payload: %s", c.logPrompt, err)
+		return err
+	}
+
+	log.Debugf("%s Activity payload %s", c.logPrompt, strings.ReplaceAll(string(payloadBytes), "@", "XX"))
+
+	sender, err := c.GetSender()
+	if err != nil {
+		log.Errorf("%s GetSender SampleSession %s", c.logPrompt, string(payloadBytes))
+		return err
+	}
+	sender.EventPlatformEvent(payloadBytes, "dbm-activity")
+	sendMetric(c, count, "dd.oracle.activity.samples_count", float64(len(sessionRows)), append(c.tags, fmt.Sprintf("sql_substring_length:%d", c.sqlSubstringLength)))
+
+	return nil
+}
+
 //nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) SampleSession() error {
 	activeSessionHistory := c.config.QuerySamples.ActiveSessionHistory
@@ -216,10 +268,18 @@ AND status = 'ACTIVE'`)
 
 	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
 	defer o.Stop()
+	var payloadSent bool
+	var lastNow string
 	for _, sample := range sessionSamples {
 		var sessionRow OracleActivityRow
 
 		sessionRow.Now = sample.Now
+		if lastNow != sessionRow.Now && lastNow != "" {
+			sendPayload(c, sessionRows, sample.UtcMs)
+			payloadSent = true
+		}
+		lastNow = sessionRow.Now
+
 		sessionRow.SessionID = sample.SessionID
 		sessionRow.SessionSerial = sample.SessionSerial
 		if sample.User.Valid {
@@ -393,50 +453,15 @@ AND status = 'ACTIVE'`)
 		}
 		sessionRow.CdbName = c.cdbName
 		sessionRows = append(sessionRows, sessionRow)
-		//sessionRow.SessionID = 17
-		//sessionRow.SessionSerial = 23
-		sessionRow.SQLID = "23"
-		sessionRows = append(sessionRows, sessionRow)
 	}
-
-	var collection_interval float64
-	if activeSessionHistory {
-		collection_interval = 1
-	} else {
-		collection_interval = c.checkInterval
+	if !payloadSent {
+		sendPayload(c, sessionRows, 0)
 	}
-
-	payload := ActivitySnapshot{
-		Metadata: Metadata{
-			Timestamp:      float64(c.clock.Now().UnixMilli()),
-			Host:           c.dbHostname,
-			Source:         common.IntegrationName,
-			DBMType:        "activity",
-			DDAgentVersion: c.agentVersion,
-		},
-		CollectionInterval: collection_interval,
-		Tags:               c.tags,
-		OracleActivityRows: sessionRows,
-	}
-
-	c.lastOracleActivityRows = make([]OracleActivityRow, len(sessionRows))
-	copy(c.lastOracleActivityRows, sessionRows)
-
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		log.Errorf("%s Error marshalling activity payload: %s", c.logPrompt, err)
-		return err
-	}
-
-	log.Debugf("%s Activity payload %s", c.logPrompt, strings.ReplaceAll(string(payloadBytes), "@", "XX"))
-
 	sender, err := c.GetSender()
 	if err != nil {
-		log.Errorf("%s GetSender SampleSession %s", c.logPrompt, string(payloadBytes))
+		log.Errorf("%s GetSender SampleSession", c.logPrompt)
 		return err
 	}
-	sender.EventPlatformEvent(payloadBytes, "dbm-activity")
-	sendMetric(c, count, "dd.oracle.activity.samples_count", float64(len(sessionRows)), append(c.tags, fmt.Sprintf("sql_substring_length:%d", c.sqlSubstringLength)))
 	sendMetricWithDefaultTags(c, gauge, "dd.oracle.activity.time_ms", float64(time.Since(start).Milliseconds()))
 	sender.Commit()
 

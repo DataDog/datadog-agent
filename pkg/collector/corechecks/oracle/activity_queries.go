@@ -218,7 +218,8 @@ AND s.con_id = c.con_id(+)
 AND s.command = comm.command_type(+)`
 
 const activityQueryActiveSessionHistory = `SELECT /*+ push_pred(sq) */ /* DD_ACTIVITY_SAMPLING */
-	sample_time as now,
+	cast (sample_time as date) now,
+	(CAST(sample_time_utc AS DATE) - TO_DATE('1970-01-01', 'YYYY-MM-DD')) * 86400000 as utc_ms,
 	s.session_id sid,
 	s.session_serial# serial#,
 	sess.username,
@@ -272,4 +273,5 @@ WHERE
 	AND ( sq.sql_text NOT LIKE '%DD_ACTIVITY_SAMPLING%' OR sq.sql_text is NULL )
 	AND s.con_id = c.con_id(+)
 	AND sess.sid(+) = s.session_id AND sess.serial#(+) = s.session_serial#
-	AND s.sample_id > :last_sample_id`
+	AND s.sample_id > :last_sample_id
+ORDER BY s.sample_time`
