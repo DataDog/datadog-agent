@@ -320,11 +320,11 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 	done := make(chan struct{})
 	require.NoError(t, srv.Run(done))
 	t.Cleanup(func() { close(done) })
-	srvAddress := srv.Address()
-	_, srvPortStr, err := net.SplitHostPort(srvAddress)
+	_, srvPortStr, err := net.SplitHostPort(srv.Address())
 	require.NoError(t, err)
 	srvPort, err := strconv.Atoi(srvPortStr)
 	require.NoError(t, err)
+	srvPortU16 := uint16(srvPort)
 
 	tlsConfig := &tls.Config{
 		MinVersion:         tls.VersionTLS12,
@@ -410,7 +410,7 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 				Daddr_h:  addrHigh,
 				Daddr_l:  addrLow,
 				Sport:    clientPort,
-				Dport:    uint16(srvPort),
+				Dport:    srvPortU16,
 				Metadata: uint32(netebpf.TCP),
 			}
 			protocolValue := netebpf.ProtocolStackWrapper{
@@ -428,7 +428,7 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 			require.Eventually(t, func() bool {
 				payload := getConnections(t, tr)
 				for _, c := range payload.Conns {
-					if c.DPort == uint16(srvPort) || c.SPort == uint16(srvPort) {
+					if c.DPort == srvPortU16 || c.SPort == srvPortU16 {
 						return c.ProtocolStack.Contains(protocols.TLS) == tt.shouldBeTLS
 					}
 				}
