@@ -1344,7 +1344,7 @@ enum parser_level level, u32 min_api_version, u32 max_api_version, u32 target_ap
 
     enum parse_result result = kafka_continue_parse_response(ctx, kafka, tup, response, pkt,
                                                              data_off, data_end, level,
-                                                             api_version, api_key);
+                                                             api_version, target_api_key);
     switch (result) {
     case RET_EOP:
         // This packet parsed successfully but more data needed, nothing
