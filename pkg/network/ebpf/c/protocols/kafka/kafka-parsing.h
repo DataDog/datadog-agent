@@ -820,6 +820,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
 
     switch (response->state) {
         case KAFKA_PRODUCE_RESPONSE_START:
+            extra_debug("KAFKA_PRODUCE_RESPONSE_START");
             if (flexible) {
                 ret = skip_tagged_fields(response, pkt, &offset, data_end, true);
                 if (ret != RET_DONE) {
@@ -827,15 +828,12 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                 }
             }
 
-            if (api_version >= 1) {
-                offset += sizeof(s32); // Skip throttle_time_ms
-            }
-
             response->state = KAFKA_PRODUCE_RESPONSE_NUM_TOPICS;
             // fallthrough
 
         case KAFKA_PRODUCE_RESPONSE_NUM_TOPICS:
         {
+            extra_debug("KAFKA_PRODUCE_RESPONSE_NUM_TOPICS");
             s64 num_topics = 0;
             ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &num_topics, true,
                                      VARINT_BYTES_NUM_TOPICS);
@@ -852,6 +850,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
 
         case KAFKA_PRODUCE_RESPONSE_TOPIC_NAME_SIZE:
         {
+            extra_debug("KAFKA_PRODUCE_RESPONSE_TOPIC_NAME_SIZE");
             s64 topic_name_size = 0;
             ret = read_varint_or_s16(flexible, response, pkt, &offset, data_end, &topic_name_size, true,
                                      VARINT_BYTES_TOPIC_NAME_SIZE);
@@ -869,6 +868,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
 
         case KAFKA_PRODUCE_RESPONSE_NUM_PARTITIONS:
         {
+            extra_debug("KAFKA_PRODUCE_RESPONSE_NUM_PARTITIONS");
             s64 number_of_partitions = 0;
             ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &number_of_partitions, true,
                                   VARINT_BYTES_NUM_PARTITIONS);
@@ -1603,7 +1603,13 @@ static __always_inline bool kafka_process_new_response(void *ctx, conn_tuple_t *
     kafka->response.transaction = *request;
     bpf_map_delete_elem(&kafka_in_flight, &key);
 
-    kafka->response.state = KAFKA_FETCH_RESPONSE_START;
+    if (request->request_api_key == KAFKA_FETCH) {
+        kafka->response.state = KAFKA_FETCH_RESPONSE_START;
+    } else if (request->request_api_key == KAFKA_PRODUCE) {
+        kafka->response.state = KAFKA_PRODUCE_RESPONSE_START;
+    } else {
+        return false;
+    }
     kafka->response.carry_over_offset = offset - orig_offset;
     kafka->response.expected_tcp_seq = kafka_get_next_tcp_seq(skb_info);
     kafka->response.transaction.response_last_seen = bpf_ktime_get_ns();
