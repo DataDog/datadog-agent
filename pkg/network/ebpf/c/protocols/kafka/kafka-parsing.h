@@ -510,7 +510,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                                                                             u32 data_end,
                                                                             u32 api_version)
 {
-    extra_debug("Parsing produce response");
+    extra_debug("Parsing fetch response");
     u32 orig_offset = offset;
     bool flexible = api_version >= 12;
     enum parse_result ret;
@@ -1755,21 +1755,16 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         return false;
      }
 
-    if (kafka_header.api_key == KAFKA_FETCH) {
-        // Copy to stack required by 4.14 verifier.
-        kafka_transaction_t transaction;
-        kafka_transaction_key_t key;
-        bpf_memset(&key, 0, sizeof(key));
-        bpf_memcpy(&transaction, kafka_transaction, sizeof(transaction));
-        key.correlation_id = kafka_header.correlation_id;
-        bpf_memcpy(&key.tuple, tup, sizeof(key.tuple));
-        // Flip the tuple for the response path.
-        flip_tuple(&key.tuple);
-        bpf_map_update_elem(&kafka_in_flight, &key, &transaction, BPF_NOEXIST);
-        return true;
-    }
-
-    kafka_batch_enqueue_wrapper(kafka, tup, kafka_transaction);
+    // Copy to stack required by 4.14 verifier.
+    kafka_transaction_t transaction;
+    kafka_transaction_key_t key;
+    bpf_memset(&key, 0, sizeof(key));
+    bpf_memcpy(&transaction, kafka_transaction, sizeof(transaction));
+    key.correlation_id = kafka_header.correlation_id;
+    bpf_memcpy(&key.tuple, tup, sizeof(key.tuple));
+    // Flip the tuple for the response path.
+    flip_tuple(&key.tuple);
+    bpf_map_update_elem(&kafka_in_flight, &key, &transaction, BPF_NOEXIST);
     return true;
 }
 
