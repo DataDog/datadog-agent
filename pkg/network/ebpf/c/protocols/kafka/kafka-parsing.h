@@ -805,7 +805,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                                                                             u32 api_version)
 {
     extra_debug("Parsing produce response");
-//    u32 orig_offset = offset;
+    u32 orig_offset = offset;
     bool flexible = api_version >= 9;
     enum parse_result ret;
 
@@ -890,9 +890,37 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             break;
     }
 
-    // TODO: add code
+    switch (response->state) {
+        case KAFKA_PRODUCE_RESPONSE_PARTITION_START:
+            offset += sizeof(s32); // Skip partition_index
+            response->state = KAFKA_PRODUCE_RESPONSE_PARTITION_ERROR_CODE_START;
+            // fallthrough
 
-    return RET_DONE;
+        case KAFKA_PRODUCE_RESPONSE_PARTITION_ERROR_CODE_START:
+        {
+            // Error codes range from -1 to 119 as per the Kafka protocol specification.
+            // For details, refer to: https://kafka.apache.org/protocol.html#protocol_error_codes
+            s16 error_code = 0;
+            ret = read_with_remainder_s16(response, pkt, &offset, data_end, &error_code, true);
+            if (ret != RET_DONE) {
+                return ret;
+            }
+            if (error_code < -1 || error_code > 119) {
+                extra_debug("invalid error code: %d", error_code);
+                return RET_ERR;
+            }
+            extra_debug("got error code: %d", error_code);
+            response->partition_error_code = error_code;
+
+            // No need to continue parsing the produce response, as we got the error now
+            return RET_DONE;
+        }
+        default:
+            break;
+    }
+
+    response->carry_over_offset = offset - orig_offset;
+    return RET_LOOP_END;
 }
 
 static __always_inline enum parse_result kafka_continue_parse_response_record_batches_loop(kafka_info_t *kafka,
