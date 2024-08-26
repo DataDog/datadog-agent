@@ -10,13 +10,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"io"
 	"os"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV1"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
@@ -343,7 +344,7 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 	for {
 		downCount++
 		destroyContext, cancel := context.WithTimeout(ctx, defaultStackDestroyTimeout)
-		_, destroyErr = stack.Destroy(destroyContext, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
+		_, destroyErr = stack.Destroy(destroyContext, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions), optdestroy.Remove())
 		cancel()
 		if destroyErr == nil {
 			sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack destroy", stackID), "", []string{"operation:destroy", "result:ok", fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", downCount)})
@@ -371,10 +372,7 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 		fmt.Printf("Retrying stack on error during stack destroy: %v\n", destroyErr)
 	}
 
-	deleteContext, cancel := context.WithTimeout(ctx, stackDeleteTimeout)
-	defer cancel()
-	err = stack.Workspace().RemoveStack(deleteContext, stack.Name())
-	return err
+	return nil
 }
 
 func (sm *StackManager) getStack(ctx context.Context, name string, deployFunc pulumi.RunFunc, options ...GetStackOption) (*auto.Stack, auto.UpResult, error) {
