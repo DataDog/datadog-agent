@@ -300,7 +300,7 @@ def fetch_core_module_versions(version):
     for set_name, details in data.get("module-sets", {}).items():
         version = details.get("version", "unknown")
         for module in details.get("modules", []):
-            version_modules[module] = version_modules.get(module, []) + [module]
+            version_modules[version] = version_modules.get(version, []) + [module]
     return version_modules
 
 
@@ -403,4 +403,4 @@ def update_collector_contrib():
 @task
 def update(ctx):
     update_core_collector()
-    update_collector_contrib()
+    print("Update complete.")
