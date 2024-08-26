@@ -10,6 +10,7 @@ package uprobes
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -19,13 +20,18 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	eventmonitortestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/process/monitor"
+	procmontestutil "github.com/DataDog/datadog-agent/pkg/process/monitor/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -725,4 +731,173 @@ func TestUprobeAttacher(t *testing.T) {
 
 	require.NotNil(t, mainProbe)
 	require.Equal(t, uint32(cmd.Process.Pid), mainProbe.fpath.PID)
+}
+
+func launchProcessMonitor(t *testing.T, useEventStream bool) {
+	pm := monitor.GetProcessMonitor()
+	t.Cleanup(pm.Stop)
+	require.NoError(t, pm.Initialize(useEventStream))
+	if useEventStream {
+		eventmonitortestutil.StartEventMonitor(t, procmontestutil.RegisterProcessMonitorEventConsumer)
+	}
+}
+
+func createTempTestFile(t *testing.T, name string) (string, utils.PathIdentifier) {
+	fullPath := filepath.Join(t.TempDir(), name)
+
+	f, err := os.Create(fullPath)
+	f.WriteString("foobar")
+	require.NoError(t, err)
+	f.Close()
+	t.Cleanup(func() {
+		os.RemoveAll(fullPath)
+	})
+
+	pathID, err := utils.NewPathIdentifier(fullPath)
+	require.NoError(t, err)
+
+	return fullPath, pathID
+}
+
+type SharedLibrarySuite struct {
+	suite.Suite
+}
+
+func TestAttacherSharedLibrary(t *testing.T) {
+	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(tt *testing.T) {
+		if !sharedlibraries.IsSupported(ddebpf.NewConfig()) {
+			tt.Skip("shared library tracing not supported for this platform")
+		}
+
+		tt.Run("netlink", func(ttt *testing.T) {
+			launchProcessMonitor(ttt, false)
+			suite.Run(ttt, new(SharedLibrarySuite))
+		})
+		tt.Run("event stream", func(ttt *testing.T) {
+
+			launchProcessMonitor(t, true)
+			suite.Run(ttt, new(SharedLibrarySuite))
+		})
+	})
+}
+
+func (s *SharedLibrarySuite) TestSingleFile() {
+	t := s.T()
+	ebpfCfg := ddebpf.NewConfig()
+
+	fooPath1, _ := createTempTestFile(t, "foo-libssl.so")
+
+	attachCfg := AttacherConfig{
+		Rules: []*AttachRule{{
+			LibraryNameRegex: regexp.MustCompile(`foo-libssl.so`),
+			Targets:          AttachToSharedLibraries,
+		}},
+		EbpfConfig: ebpfCfg,
+	}
+
+	ua, err := NewUprobeAttacher("test", attachCfg, &MockManager{}, nil, nil)
+	require.NoError(t, err)
+
+	mockRegistry := &MockFileRegistry{}
+	ua.fileRegistry = mockRegistry
+
+	// Tell mockRegistry to return on any calls, we will check the values later
+	mockRegistry.On("Clear").Return()
+	mockRegistry.On("Unregister", mock.Anything).Return(nil)
+	mockRegistry.On("Register", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	require.NoError(t, ua.Start())
+	t.Cleanup(ua.Stop)
+
+	// open files
+	cmd, err := fileopener.OpenFromAnotherProcess(t, fooPath1)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		return len(mockRegistry.Calls) == 1
+	}, 1500*time.Millisecond, 10*time.Millisecond, "received calls %v", mockRegistry.Calls)
+
+	mockRegistry.AssertCalled(t, "Register", fooPath1, uint32(cmd.Process.Pid), mock.Anything, mock.Anything)
+
+	mockRegistry.Calls = nil
+	require.NoError(t, cmd.Process.Kill())
+
+	require.Eventually(t, func() bool {
+		return len(mockRegistry.Calls) >= 1
+	}, time.Second*10, 100*time.Millisecond, "received calls %v", mockRegistry.Calls)
+
+	mockRegistry.AssertCalled(t, "Unregister", uint32(cmd.Process.Pid))
+}
+
+func (s *SharedLibrarySuite) TestDetectionWithPIDAndRootNamespace() {
+	t := s.T()
+	ebpfCfg := ddebpf.NewConfig()
+
+	_, err := os.Stat("/usr/bin/busybox")
+	if err != nil {
+		t.Skip("skip for the moment as some distro are not friendly with busybox package")
+	}
+
+	tempDir := t.TempDir()
+	root := filepath.Join(tempDir, "root")
+	err = os.MkdirAll(root, 0755)
+	require.NoError(t, err)
+
+	libpath := "/fooroot-crypto.so"
+
+	err = exec.Command("cp", "/usr/bin/busybox", root+"/ash").Run()
+	require.NoError(t, err)
+	err = exec.Command("cp", "/usr/bin/busybox", root+"/sleep").Run()
+	require.NoError(t, err)
+
+	attachCfg := AttacherConfig{
+		Rules: []*AttachRule{{
+			LibraryNameRegex: regexp.MustCompile(`fooroot-crypto.so`),
+			Targets:          AttachToSharedLibraries,
+		}},
+		EbpfConfig: ebpfCfg,
+	}
+
+	ua, err := NewUprobeAttacher("test", attachCfg, &MockManager{}, nil, nil)
+	require.NoError(t, err)
+
+	mockRegistry := &MockFileRegistry{}
+	ua.fileRegistry = mockRegistry
+
+	// Tell mockRegistry to return on any calls, we will check the values later
+	mockRegistry.On("Clear").Return()
+	mockRegistry.On("Unregister", mock.Anything).Return(nil)
+	mockRegistry.On("Register", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	require.NoError(t, ua.Start())
+	t.Cleanup(ua.Stop)
+
+	time.Sleep(10 * time.Millisecond)
+	// simulate a slow (1 second) : open, write, close of the file
+	// in a new pid and mount namespaces
+	o, err := exec.Command("unshare", "--fork", "--pid", "-R", root, "/ash", "-c", fmt.Sprintf("sleep 1 > %s", libpath)).CombinedOutput()
+	if err != nil {
+		t.Log(err, string(o))
+	}
+	require.NoError(t, err)
+
+	time.Sleep(10 * time.Millisecond)
+
+	require.Eventually(t, func() bool {
+		return len(mockRegistry.Calls) >= 1
+	}, time.Second*10, 100*time.Millisecond, "received calls %v", mockRegistry.Calls)
+
+	// assert that soWatcher detected foo-crypto.so being opened and triggered the callback
+	foundCall := false
+	for _, call := range mockRegistry.Calls {
+		if call.Method == "Register" {
+			args := call.Arguments
+			require.True(t, strings.HasSuffix(args[0].(string), libpath))
+			foundCall = true
+		}
+	}
+	require.True(t, foundCall)
+
+	// must fail on the host
+	_, err = os.Stat(libpath)
+	require.Error(t, err)
 }
