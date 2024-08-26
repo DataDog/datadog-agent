@@ -232,7 +232,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	snmpScanCmd.Flags().BoolVar(&connParams.UseUnconnectedUDPSocket, "use-unconnected-udp-socket", defaultUseUnconnectedUDPSocket, "If specified, changes net connection to be unconnected UDP socket")
 
 	// This command does nothing until the backend supports it, so it isn't enabled yet.
-	// snmpCmd.AddCommand(snmpScanCmd)
+	snmpCmd.AddCommand(snmpScanCmd)
 
 	return []*cobra.Command{snmpCmd}
 }
