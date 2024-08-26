@@ -116,6 +116,8 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection) {
 		return
 	}
 	startTime := s.TimeNowFn()
+	var scheduleErrors int
+	var scheduleSuccesses int
 	for _, conn := range conns {
 		remoteAddr := conn.Raddr
 		remotePort := uint16(conn.Raddr.GetPort())
@@ -127,12 +129,17 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection) {
 		sourceContainer := conn.Laddr.GetContainerId()
 		err := s.scheduleOne(remoteAddr.GetIp(), remotePort, protocol, sourceContainer)
 		if err != nil {
+			scheduleErrors++
 			s.logger.Errorf("Error scheduling pathtests: %s", err)
 		}
+		scheduleSuccesses++
 	}
 
 	scheduleDuration := s.TimeNowFn().Sub(startTime)
-	s.statsdClient.Gauge("datadog.network_path.collector.schedule_duration", scheduleDuration.Seconds(), nil, 1) //nolint:errcheck
+	s.statsdClient.Gauge("datadog.network_path.collector.schedule_duration", scheduleDuration.Seconds(), nil, 1)  //nolint:errcheck
+	s.statsdClient.Gauge("datadog.network_path.collector.connections", float64(len(conns)), nil, 1)               //nolint:errcheck
+	s.statsdClient.Gauge("datadog.network_path.collector.schedule_successes", float64(scheduleSuccesses), nil, 1) //nolint:errcheck
+	s.statsdClient.Gauge("datadog.network_path.collector.schedule_errors", float64(scheduleErrors), nil, 1)       //nolint:errcheck
 }
 
 // scheduleOne schedules pathtests.
