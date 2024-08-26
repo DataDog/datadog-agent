@@ -89,13 +89,6 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 		if len(config.Logs) != 0 {
 			log, err := parseJSONObjToData(config.Logs)
 			fmt.Println("ungabunga")
-			wack := integration.Config{
-				Name:                    "wack",
-				InitConfig:              integration.Data(nil),
-				ADIdentifiers:           nil,
-				IgnoreAutodiscoveryTags: config.IgnoreAutodiscoveryTags,
-			}
-			c = wack
 			if err != nil {
 				return nil, err
 			}
