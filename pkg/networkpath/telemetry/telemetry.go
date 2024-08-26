@@ -17,6 +17,7 @@ import (
 )
 
 // NetworkPathCollectorType represent the source of the network path data e.g. network_path_integration
+// TODO: DEPRECATED in favour of Path.Origin
 type NetworkPathCollectorType string
 
 // CollectorTypeNetworkPathIntegration correspond to the Network Path Integration source type
@@ -26,13 +27,20 @@ const CollectorTypeNetworkPathIntegration NetworkPathCollectorType = "network_pa
 const CollectorTypeNetworkPathCollector NetworkPathCollectorType = "network_path_collector"
 
 // SubmitNetworkPathTelemetry submits Network Path related telemetry
-func SubmitNetworkPathTelemetry(sender metricsender.MetricSender, path payload.NetworkPath, pathSource NetworkPathCollectorType, checkDuration time.Duration, checkInterval time.Duration, tags []string) {
+func SubmitNetworkPathTelemetry(sender metricsender.MetricSender, path payload.NetworkPath, checkDuration time.Duration, checkInterval time.Duration, tags []string) {
 	destPortTag := "unspecified"
 	if path.Destination.Port > 0 {
 		destPortTag = strconv.Itoa(int(path.Destination.Port))
 	}
+	var pathSource NetworkPathCollectorType
+	if path.Origin == payload.PathOriginNetworkTraffic {
+		pathSource = CollectorTypeNetworkPathCollector
+	} else {
+		pathSource = CollectorTypeNetworkPathIntegration
+	}
 	newTags := append(utils.CopyStrings(tags), []string{
 		"collector:" + string(pathSource),
+		"origin:" + string(path.Origin),
 		"protocol:" + string(path.Protocol),
 		"destination_hostname:" + path.Destination.Hostname,
 		"destination_port:" + destPortTag,

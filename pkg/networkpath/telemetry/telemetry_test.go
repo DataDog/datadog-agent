@@ -22,6 +22,7 @@ func TestSubmitNetworkPathTelemetry(t *testing.T) {
 		"destination_hostname:abc",
 		"destination_port:unspecified",
 		"foo:bar",
+		"origin:network_path_integration",
 		"protocol:UDP",
 		"tag2:val2",
 	}
@@ -36,6 +37,7 @@ func TestSubmitNetworkPathTelemetry(t *testing.T) {
 		{
 			name: "with hops and interval",
 			path: payload.NetworkPath{
+				Origin:      payload.PathOriginNetworkPathIntegration,
 				Destination: payload.NetworkPathDestination{Hostname: "abc"},
 				Protocol:    payload.ProtocolUDP,
 				Hops: []payload.NetworkPathHop{
@@ -82,6 +84,7 @@ func TestSubmitNetworkPathTelemetry(t *testing.T) {
 		{
 			name: "with last hop successful",
 			path: payload.NetworkPath{
+				Origin:      payload.PathOriginNetworkPathIntegration,
 				Destination: payload.NetworkPathDestination{Hostname: "abc"},
 				Protocol:    payload.ProtocolUDP,
 				Hops: []payload.NetworkPathHop{
@@ -128,6 +131,7 @@ func TestSubmitNetworkPathTelemetry(t *testing.T) {
 		{
 			name: "no hops and no interval",
 			path: payload.NetworkPath{
+				Origin:      payload.PathOriginNetworkPathIntegration,
 				Destination: payload.NetworkPathDestination{Hostname: "abc"},
 				Protocol:    payload.ProtocolUDP,
 				Hops:        []payload.NetworkPathHop{},
@@ -154,7 +158,7 @@ func TestSubmitNetworkPathTelemetry(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sender := &metricsender.MockMetricSender{}
-			SubmitNetworkPathTelemetry(sender, tt.path, CollectorTypeNetworkPathIntegration, tt.checkDuration, tt.checkInterval, tt.tags)
+			SubmitNetworkPathTelemetry(sender, tt.path, tt.checkDuration, tt.checkInterval, tt.tags)
 			assert.Equal(t, tt.expectedMetrics, sender.Metrics)
 		})
 	}
