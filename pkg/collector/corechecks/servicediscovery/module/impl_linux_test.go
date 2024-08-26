@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -389,8 +390,8 @@ func testCaptureWrappedCommands(t *testing.T, script string, commandWrapper []st
 	// Changing permissions
 	require.NoError(t, os.Chmod(script, 0755))
 
-	commandLine := append(commandWrapper, script)
-	cmd := exec.Command(commandLine[0], commandLine[1:]...)
+	commandLineArgs := append(commandWrapper, script)
+	cmd := exec.Command(commandLineArgs[0], commandLineArgs[1:]...)
 	// Running the binary in the background
 	require.NoError(t, cmd.Start())
 
@@ -401,13 +402,21 @@ func testCaptureWrappedCommands(t *testing.T, script string, commandWrapper []st
 		assert.NoError(collect, err)
 	}, 10*time.Second, 100*time.Millisecond)
 
-	if len(commandWrapper) > 0 {
-		require.EventuallyWithT(t, func(collect *assert.CollectT) {
-			children, err := proc.Children()
-			require.NoError(t, err)
-			require.Len(t, children, 1)
-			proc = children[0]
+	cmdline, err := proc.Cmdline()
+	require.NoError(t, err)
+	// If we wrap the script with `sh -c`, we can have differences between a local run and a kmt run, as for
+	// kmt `sh` is symbolic link to bash, while locally it can be a symbolic link to dash. In the dash case, we will
+	// see 2 processes `sh -c script.py` and a sub-process `python3 script.py`, while in the bash case we will see
+	// only `python3 script.py`. We need to check for the command line arguments of the process to make sure we
+	// are looking at the right process.
+	if cmdline == strings.Join(commandLineArgs, " ") && len(commandWrapper) > 0 {
+		var children []*process.Process
+		assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+			children, err = proc.Children()
+			assert.NoError(collect, err)
+			assert.Len(collect, children, 1)
 		}, 10*time.Second, 100*time.Millisecond)
+		proc = children[0]
 	}
 	t.Cleanup(func() { _ = proc.Kill() })
 
