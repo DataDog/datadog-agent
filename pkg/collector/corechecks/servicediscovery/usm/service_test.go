@@ -493,7 +493,8 @@ func TestExtractServiceMetadata(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			meta, ok := ExtractServiceMetadata(tt.cmdline, tt.envs)
+			contextMap := make(DetectorContextMap)
+			meta, ok := ExtractServiceMetadata(tt.cmdline, tt.envs, contextMap)
 			if len(tt.expectedServiceTag) == 0 {
 				require.False(t, ok)
 			} else {
