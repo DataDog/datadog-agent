@@ -15,9 +15,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/processor/processortest"
 	conventions "go.opentelemetry.io/collector/semconv/v1.21.0"
-
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
 type metricNameTest struct {
@@ -125,14 +122,14 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 			next := new(consumertest.MetricsSink)
 			cfg := &Config{
 				Metrics:     MetricInfraAttributes{},
-				Cardinality: types.LowCardinality,
+				Cardinality: LowCardinality,
 			}
 			tc := &testTaggerClient{
 				m: make(map[string][]string),
 			}
 			tc.m["container_id://test"] = []string{"container:id"}
 			tc.m["deployment://namespace/deployment"] = []string{"deployment:name"}
-			tc.m[collectors.GlobalEntityID] = []string{"global:tag"}
+			tc.m[GlobalEntityID] = []string{"global:tag"}
 			factory := NewFactory(tc)
 			fmp, err := factory.CreateMetricsProcessor(
 				context.Background(),

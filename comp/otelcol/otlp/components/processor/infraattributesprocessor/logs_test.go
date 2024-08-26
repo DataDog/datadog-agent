@@ -13,9 +13,6 @@ import (
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/processor/processortest"
-
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
 type logNameTest struct {
@@ -122,14 +119,14 @@ func TestInfraAttributesLogProcessor(t *testing.T) {
 			next := new(consumertest.LogsSink)
 			cfg := &Config{
 				Logs:        LogInfraAttributes{},
-				Cardinality: types.LowCardinality,
+				Cardinality: LowCardinality,
 			}
 			tc := &testTaggerClient{
 				m: make(map[string][]string),
 			}
 			tc.m["container_id://test"] = []string{"container:id"}
 			tc.m["deployment://namespace/deployment"] = []string{"deployment:name"}
-			tc.m[collectors.GlobalEntityID] = []string{"global:tag"}
+			tc.m[GlobalEntityID] = []string{"global:tag"}
 
 			factory := NewFactory(tc)
 			flp, err := factory.CreateLogsProcessor(

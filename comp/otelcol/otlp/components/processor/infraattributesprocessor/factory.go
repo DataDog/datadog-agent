@@ -8,8 +8,6 @@ package infraattributesprocessor
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/processor"
@@ -23,8 +21,8 @@ type factory struct {
 }
 
 type taggerClient interface {
-	Tag(entity string, cardinality types.TagCardinality) ([]string, error)
-	GlobalTags(cardinality types.TagCardinality) ([]string, error)
+	Tag(entity string, cardinality TagCardinality) ([]string, error)
+	GlobalTags(cardinality TagCardinality) ([]string, error)
 }
 
 // NewFactory returns a new factory for the InfraAttributes processor.
@@ -44,7 +42,7 @@ func NewFactory(tagger taggerClient) processor.Factory {
 
 func (f *factory) createDefaultConfig() component.Config {
 	return &Config{
-		Cardinality: types.LowCardinality,
+		Cardinality: LowCardinality,
 	}
 }
 

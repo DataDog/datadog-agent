@@ -13,9 +13,6 @@ import (
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/processor/processortest"
-
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
 type traceNameTest struct {
@@ -116,15 +113,20 @@ func testResourceTraces(twrs []traceWithResource) ptrace.Traces {
 	return td
 }
 
+const (
+	// GlobalEntityID defines the entity ID that holds global tags
+	GlobalEntityID = "internal://global-entity-id"
+)
+
 type testTaggerClient struct {
 	m map[string][]string
 }
 
-func (t *testTaggerClient) Tag(entityID string, cardinality types.TagCardinality) ([]string, error) {
+func (t *testTaggerClient) Tag(entityID string, cardinality TagCardinality) ([]string, error) {
 	return t.m[entityID], nil
 }
-func (t *testTaggerClient) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
-	return t.m[collectors.GlobalEntityID], nil
+func (t *testTaggerClient) GlobalTags(cardinality TagCardinality) ([]string, error) {
+	return t.m[GlobalEntityID], nil
 }
 
 func TestInfraAttributesTraceProcessor(t *testing.T) {
@@ -133,14 +135,14 @@ func TestInfraAttributesTraceProcessor(t *testing.T) {
 			next := new(consumertest.TracesSink)
 			cfg := &Config{
 				Traces:      TraceInfraAttributes{},
-				Cardinality: types.LowCardinality,
+				Cardinality: LowCardinality,
 			}
 			tc := &testTaggerClient{
 				m: make(map[string][]string),
 			}
 			tc.m["container_id://test"] = []string{"container:id"}
 			tc.m["deployment://namespace/deployment"] = []string{"deployment:name"}
-			tc.m[collectors.GlobalEntityID] = []string{"global:tag"}
+			tc.m[GlobalEntityID] = []string{"global:tag"}
 			factory := NewFactory(tc)
 			fmp, err := factory.CreateTracesProcessor(
 				context.Background(),
