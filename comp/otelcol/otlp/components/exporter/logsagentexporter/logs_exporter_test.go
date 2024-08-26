@@ -242,7 +242,7 @@ func TestLogsExporter(t *testing.T) {
 				outputJSON := make(map[string]interface{})
 				json.Unmarshal(output.GetContent(), &outputJSON)
 				assert.Equal(t, tt.args.logSourceName, output.Origin.Source())
-				assert.Equal(t, tt.expectedTags[i], output.Origin.Tags(nil))
+				assert.Equal(t, tt.expectedTags[i], output.Origin.Tags())
 				ans = append(ans, outputJSON)
 			}
 			assert.Equal(t, tt.want, ans)
