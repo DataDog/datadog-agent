@@ -70,7 +70,7 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 	// docker run -l "com.datadoghq.ad.checks="{\"apache\": {\"logs\": [{\"type\":\"file\"}]}}""
 	fmt.Println("andrewq2", namedChecks)
 	for key, val := range namedChecks {
-		fmt.Println("Key:", key, "Logs:", val.Logs)
+		fmt.Println("Key:", key, "wackval:", val)
 	}
 
 	checks := make([]integration.Config, 0, len(namedChecks))
