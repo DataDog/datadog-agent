@@ -1,6 +1,7 @@
 # syntax = docker/dockerfile:experimental
 
 FROM alpine:3.16 as builder
+ARG GOARCH
 
 RUN apk add --no-cache git make musl-dev gcc
 COPY --from=golang:1.22-alpine /usr/local/go/ /usr/lib/go
@@ -20,7 +21,7 @@ WORKDIR /tmp/dd/recorder-extension
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    /usr/lib/go/bin/go build -o recorder-extension main.go;
+    GOOS=linux GOARCH=${GOARCH} /usr/lib/go/bin/go build -o recorder-extension main.go;
 
 # zip the extension
 FROM ubuntu:latest as compresser
