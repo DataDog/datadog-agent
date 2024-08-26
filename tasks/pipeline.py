@@ -1029,11 +1029,17 @@ def compare_to_itself(ctx):
     # Push an empty commit to prevent linking this pipeline to the actual PR
     ctx.run("git commit -m 'Compare to itself' --allow-empty", hide=True)
     ctx.run(f"git push origin {new_branch}")
+
+    from tasks.libs.releasing.json import load_release_json
+
+    release_json = load_release_json()
+
     for file in ['.gitlab-ci.yml', '.gitlab/notify/notify.yml']:
         with open(file) as f:
             content = f.read()
         with open(file, 'w') as f:
-            f.write(content.replace('compare_to: main', f'compare_to: {new_branch}'))
+            f.write(content.replace(f'compare_to: {release_json["base_branch"]}', f'compare_to: {new_branch}'))
+
     ctx.run("git commit -am 'Compare to itself'", hide=True)
     ctx.run(f"git push origin {new_branch}", hide=True)
     max_attempts = 6

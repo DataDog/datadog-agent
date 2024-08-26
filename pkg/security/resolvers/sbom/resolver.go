@@ -258,7 +258,7 @@ func (r *Resolver) Start(ctx context.Context) error {
 				if err := retry.Do(func() error {
 					return r.analyzeWorkload(sbom)
 				}, retry.Attempts(maxSBOMGenerationRetries), retry.Delay(200*time.Millisecond)); err != nil {
-					seclog.Errorf(err.Error())
+					seclog.Errorf("%s", err.Error())
 				}
 			}
 		}

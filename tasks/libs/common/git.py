@@ -45,8 +45,8 @@ def get_staged_files(ctx, commit="HEAD", include_deleted_files=False) -> Iterabl
                 yield file
 
 
-def get_modified_files(ctx) -> list[str]:
-    last_main_commit = ctx.run("git merge-base HEAD origin/main", hide=True).stdout
+def get_modified_files(ctx, base_branch="main") -> list[str]:
+    last_main_commit = ctx.run(f"git merge-base HEAD origin/{base_branch}", hide=True).stdout
     return ctx.run(f"git diff --name-only --no-renames {last_main_commit}", hide=True).stdout.splitlines()
 
 
@@ -168,10 +168,6 @@ def get_last_commit(ctx, repo, branch):
 
 
 def get_last_tag(ctx, repo, pattern):
-    from functools import cmp_to_key
-
-    import semver
-
     tags = ctx.run(
         rf'git ls-remote -t https://github.com/DataDog/{repo} "{pattern}"',
         hide=True,
@@ -184,21 +180,9 @@ def get_last_tag(ctx, repo, pattern):
             ),
             code=1,
         )
-
-    tags_without_suffix = [line for line in tags.splitlines() if not line.endswith("^{}")]
-    last_tag = max(tags_without_suffix, key=lambda x: cmp_to_key(semver.compare)(x.split('/')[-1]))
+    last_tag = tags.splitlines()[-1]
     last_tag_commit, last_tag_name = last_tag.split()
-    tags_with_suffix = [line for line in tags.splitlines() if line.endswith("^{}")]
-    if tags_with_suffix:
-        last_tag_with_suffix = max(
-            tags_with_suffix, key=lambda x: cmp_to_key(semver.compare)(x.split('/')[-1].removesuffix("^{}"))
-        )
-        last_tag_commit_with_suffix, last_tag_name_with_suffix = last_tag_with_suffix.split()
-        if (
-            semver.compare(last_tag_name_with_suffix.split('/')[-1].removesuffix("^{}"), last_tag_name.split("/")[-1])
-            >= 0
-        ):
-            last_tag_commit = last_tag_commit_with_suffix
-            last_tag_name = last_tag_name_with_suffix.removesuffix("^{}")
+    if last_tag_name.endswith("^{}"):
+        last_tag_name = last_tag_name.removesuffix("^{}")
     last_tag_name = last_tag_name.removeprefix("refs/tags/")
     return last_tag_commit, last_tag_name
