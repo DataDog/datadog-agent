@@ -17,6 +17,8 @@ import (
 	collectorcontribimpl "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl"
 	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
+
+	"github.com/knadh/koanf/maps"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/confmap/confmaptest"
 	"gopkg.in/yaml.v3"
@@ -36,7 +38,30 @@ func yamlBytesToMap(bytesConfig []byte) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return configMap, nil
+	return sanitize(configMap).(map[string]any), nil
+}
+
+// copied from https://github.com/open-telemetry/opentelemetry-collector/pull/10618
+func sanitize(a any) any {
+	return sanitizeExpanded(a, false)
+}
+
+func sanitizeExpanded(a any, useOriginal bool) any {
+	switch m := a.(type) {
+	case map[string]any:
+		c := maps.Copy(m)
+		for k, v := range m {
+			c[k] = sanitizeExpanded(v, useOriginal)
+		}
+		return c
+	case []any:
+		var newSlice []any
+		for _, e := range m {
+			newSlice = append(newSlice, sanitizeExpanded(e, useOriginal))
+		}
+		return newSlice
+	}
+	return a
 }
 
 func TestGetConfDump(t *testing.T) {
