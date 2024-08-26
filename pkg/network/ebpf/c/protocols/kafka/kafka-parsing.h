@@ -904,7 +904,6 @@ static __always_inline enum parse_result kafka_continue_parse_response_record_ba
                                                                             u32 api_version)
 {
     u32 orig_offset = offset;
-    // u32 carry_over_offset = response->carry_over_offset;
     enum parse_result ret;
 
     extra_debug("carry_over_offset %d", response->carry_over_offset);
