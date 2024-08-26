@@ -163,11 +163,11 @@ func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, 
 }
 
 func sendPayload(c *Check, sessionRows []OracleActivityRow, timestamp float64) error {
-	var collection_interval float64
+	var collectionInterval float64
 	if c.config.QuerySamples.ActiveSessionHistory {
-		collection_interval = 1
+		collectionInterval = 1
 	} else {
-		collection_interval = float64(c.config.MinCollectionInterval)
+		collectionInterval = float64(c.config.MinCollectionInterval)
 	}
 	var ts float64
 	if timestamp > 0 {
@@ -186,7 +186,7 @@ func sendPayload(c *Check, sessionRows []OracleActivityRow, timestamp float64) e
 			DBMType:        "activity",
 			DDAgentVersion: c.agentVersion,
 		},
-		CollectionInterval: collection_interval,
+		CollectionInterval: collectionInterval,
 		Tags:               c.tags,
 		OracleActivityRows: sessionRows,
 	}
@@ -275,7 +275,10 @@ AND status = 'ACTIVE'`)
 
 		sessionRow.Now = sample.Now
 		if lastNow != sessionRow.Now && lastNow != "" {
-			sendPayload(c, sessionRows, sample.UtcMs)
+			err = sendPayload(c, sessionRows, sample.UtcMs)
+			if err != nil {
+				log.Errorf("%s error sending payload %s", c.logPrompt, err)
+			}
 			payloadSent = true
 		}
 		lastNow = sessionRow.Now
@@ -455,7 +458,10 @@ AND status = 'ACTIVE'`)
 		sessionRows = append(sessionRows, sessionRow)
 	}
 	if !payloadSent {
-		sendPayload(c, sessionRows, 0)
+		err = sendPayload(c, sessionRows, 0)
+		if err != nil {
+			log.Errorf("%s error sending payload %s", c.logPrompt, err)
+		}
 	}
 	sender, err := c.GetSender()
 	if err != nil {
