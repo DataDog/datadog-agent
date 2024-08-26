@@ -1,0 +1,39 @@
+# syntax = docker/dockerfile:experimental
+
+FROM alpine:3.16 as builder
+
+RUN apk add --no-cache git make musl-dev gcc
+COPY --from=golang:1.22-alpine /usr/local/go/ /usr/lib/go
+
+ENV GOROOT /usr/lib/go
+ENV GOPATH /go
+ENV PATH /go/bin:$PATH
+
+RUN mkdir -p ${GOPATH}/src ${GOPATH}/bin
+RUN mkdir -p /tmp/dd/recorder-extension
+
+# Copy Go modules and source files
+COPY go.mod go.sum main.go /tmp/dd/recorder-extension
+
+# build the extension
+WORKDIR /tmp/dd/recorder-extension
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    /usr/lib/go/bin/go build -o recorder-extension main.go;
+
+# zip the extension
+FROM ubuntu:latest as compresser
+RUN apt-get update
+RUN apt-get install -y zip binutils
+RUN mkdir /extensions
+WORKDIR /extensions
+COPY --from=builder /tmp/dd/recorder-extension/recorder-extension /extensions/recorder-extension
+RUN strip /extensions/recorder-extension
+
+RUN zip /recorder_extension.zip /extensions/recorder-extension
+
+# keep the smallest possible docker image
+FROM scratch
+COPY --from=compresser /recorder_extension.zip /
+ENTRYPOINT ["/recorder_extension.zip"]
