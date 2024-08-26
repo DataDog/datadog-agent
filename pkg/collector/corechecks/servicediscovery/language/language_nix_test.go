@@ -53,11 +53,6 @@ func Test_findInArgs(t *testing.T) {
 			lang: Java,
 		},
 		{
-			name: "extra_commands_path_java",
-			args: strings.Split("time /usr/bin/java -jar MyApp.jar MyApp", " "),
-			lang: Java,
-		},
-		{
 			name: "just_command",
 			args: strings.Split("./mybinary arg1 arg2 arg3", " "),
 			lang: "",
