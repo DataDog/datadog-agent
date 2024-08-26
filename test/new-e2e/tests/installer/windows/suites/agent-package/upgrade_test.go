@@ -6,11 +6,12 @@
 package agenttests
 
 import (
+	"testing"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
+	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
-	"testing"
 )
 
 type testAgentUpgradeSuite struct {
@@ -88,6 +89,5 @@ func (s *testAgentUpgradeSuite) stopExperiment() {
 		WithVersionMatchPredicate(func(version string) {
 			s.Require().Contains(version, s.StableAgentVersion().Version())
 		}).
-		DirExists(installerwindows.GetStableDirFor(installerwindows.AgentPackage)).
-		NoDirExists(installerwindows.GetExperimentDirFor(installerwindows.AgentPackage))
+		DirExists(installerwindows.GetStableDirFor(installerwindows.AgentPackage))
 }

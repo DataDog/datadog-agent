@@ -71,7 +71,6 @@ func TestGetOwnerNameAndKind(t *testing.T) {
 			require.Equal(t, found, tt.wantFound)
 			require.Equal(t, name, tt.expectedName)
 			require.Equal(t, kind, tt.expectedKind)
-
 		})
 	}
 }

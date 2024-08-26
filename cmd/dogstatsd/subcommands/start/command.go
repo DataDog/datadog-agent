@@ -65,7 +65,8 @@ import (
 )
 
 type CLIParams struct {
-	confPath string
+	confPath   string
+	socketPath string
 }
 
 type DogstatsdComponents struct {
@@ -93,10 +94,7 @@ func MakeCommand(defaultLogFile string) *cobra.Command {
 
 	// local flags
 	startCmd.PersistentFlags().StringVarP(&cliParams.confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
-
-	var socketPath string
-	startCmd.Flags().StringVarP(&socketPath, "socket", "s", "", "listen to this socket instead of UDP")
-	pkgconfig.Datadog().BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket")) //nolint:errcheck
+	startCmd.PersistentFlags().StringVarP(&cliParams.socketPath, "socket", "s", "", "listen to this socket instead of UDP")
 
 	return startCmd
 }
@@ -109,15 +107,23 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 	params := &Params{
 		DefaultLogFile: defaultLogFile,
 	}
+
+	configOptions := []func(*config.Params){
+		config.WithConfFilePath(cliParams.confPath),
+		config.WithConfigMissingOK(true),
+		config.WithConfigName("dogstatsd"),
+	}
+	if cliParams.socketPath != "" {
+		configOptions = append(configOptions, config.WithCLIOverride("dogstatsd_socket", cliParams.socketPath))
+	}
+
 	return fxutil.OneShot(fct,
 		fx.Supply(cliParams),
 		fx.Supply(params),
 		fx.Supply(config.NewParams(
 			defaultConfPath,
-			config.WithConfFilePath(cliParams.confPath),
-			config.WithConfigMissingOK(true),
-			config.WithConfigName("dogstatsd")),
-		),
+			configOptions...,
+		)),
 		fx.Provide(func(comp secrets.Component) optional.Option[secrets.Component] {
 			return optional.NewOption[secrets.Component](comp)
 		}),

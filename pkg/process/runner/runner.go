@@ -378,6 +378,7 @@ func (l *CheckRunner) basicRunner(c checks.Check) func() {
 		}
 
 		ticker := time.NewTicker(checks.GetInterval(l.config, c.Name()))
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
@@ -497,7 +498,7 @@ func readResponseStatuses(checkName string, responses <-chan defaultforwarder.Re
 		}
 
 		if response.StatusCode >= 300 {
-			log.Errorf("[%s] Invalid response from %s: %d -> %s", checkName, response.Domain, response.StatusCode, response.Err)
+			log.Errorf("[%s] Invalid response from %s: %d -> %v", checkName, response.Domain, response.StatusCode, response.Err)
 			continue
 		}
 

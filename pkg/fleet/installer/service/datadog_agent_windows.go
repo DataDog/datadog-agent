@@ -10,6 +10,8 @@ package service
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
@@ -82,4 +84,9 @@ func RemoveAgent(ctx context.Context) (err error) {
 	}()
 	err = removeProduct("Datadog Agent")
 	return err
+}
+
+// ConfigureAgent noop
+func ConfigureAgent(_ context.Context, _ *cdn.CDN, _ *repository.Repositories) error {
+	return nil
 }
