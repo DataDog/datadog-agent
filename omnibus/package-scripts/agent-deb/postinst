@@ -182,6 +182,8 @@ else
     echo "No datadog.yaml file detected, not starting the agent"
 fi
 
-${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/postinst.py" "${INSTALL_DIR}"
+if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then
+    ${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/postinst.py" "${INSTALL_DIR}"
+fi
 
 exit 0
