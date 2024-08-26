@@ -84,12 +84,16 @@ func init() {
 // PythonCheckLoader is a specific loader for checks living in Python modules
 //
 //nolint:revive // TODO(AML) Fix revive linter
-type PythonCheckLoader struct{}
+type PythonCheckLoader struct {
+	logReceiver optional.Option[integrations.Component]
+}
 
 // NewPythonCheckLoader creates an instance of the Python checks loader
 func NewPythonCheckLoader(senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component]) (*PythonCheckLoader, error) {
 	initializeCheckContext(senderManager, logReceiver)
-	return &PythonCheckLoader{}, nil
+	return &PythonCheckLoader{
+		logReceiver: logReceiver,
+	}, nil
 }
 
 func getRtLoaderError() error {
@@ -218,6 +222,10 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 
 		addExpvarConfigureError(fmt.Sprintf("%s (%s)", moduleName, wheelVersion), err.Error())
 		return c, fmt.Errorf("could not configure check instance for python check %s: %s", moduleName, err.Error())
+	}
+
+	if v, ok := cl.logReceiver.Get(); ok {
+		v.RegisterIntegration(string(c.id), config)
 	}
 
 	c.version = wheelVersion

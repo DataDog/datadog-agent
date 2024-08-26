@@ -55,20 +55,11 @@ lint_macos:
     PYTHON_RUNTIMES: "3"
   # The Gitlab macOS runners are currently long runners, so we need to clean them beforehand.
   before_script:
-    # Remove the Go cache and env if the Go version changed
+    # Selecting the current Go version
     - |
-      GO_REPO_VERSION=$(cat .go-version)
-      GO_VERSION=$(go version | awk '{print $3}' | sed 's/go//')
-      if [ "$GO_REPO_VERSION" != "$GO_VERSION" ]; then
-        echo "Go version $GO_VERSION is different from $GO_REPO_VERSION in .go-version. Cleaning the environment."
-        go clean -cache -modcache -testcache
-        rm -rf $HOME/go/bin
-        echo "Installing Go $GO_REPO_VERSION..."
-        echo "$(gimme $(cat .go-version))"
-        eval $(gimme $(cat .go-version))
-      else
-        echo "Go current version $GO_VERSION is the same as .go-version. Keeping the cache."
-      fi
+      eval $(gimme $(cat .go-version))
+      echo "Don't forget to regularly delete unused versions. Here are the installed versions and their memory usage on the runner:"
+      du -sh $HOME/.gimme/versions/*
     # Remove the Python cache and env if the Python version changed
     - |
       PYTHON_REPO_VERSION=$(cat .python-version)

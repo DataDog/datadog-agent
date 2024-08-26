@@ -46,8 +46,8 @@ import (
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
 	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/leases"
+	"github.com/containerd/errdefs"
 	"github.com/docker/docker/client"
 
 	// This is required to load sqlite based RPM databases

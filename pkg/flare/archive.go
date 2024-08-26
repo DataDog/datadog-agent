@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -92,6 +93,7 @@ func CompleteFlare(fb flaretypes.FlareBuilder, diagnoseDeps diagnose.SuitesDeps)
 	fb.AddFileFromFunc("docker_ps.log", getDockerPs)                                                                                                //nolint:errcheck
 	fb.AddFileFromFunc("k8s/kubelet_config.yaml", getKubeletConfig)                                                                                 //nolint:errcheck
 	fb.AddFileFromFunc("k8s/kubelet_pods.yaml", getKubeletPods)                                                                                     //nolint:errcheck
+	fb.AddFileFromFunc("ecs_metadata.json", getECSMeta)                                                                                             //nolint:errcheck
 
 	getRegistryJSON(fb)
 
@@ -392,6 +394,18 @@ func getHealth() ([]byte, error) {
 	}
 
 	return yamlValue, nil
+}
+
+func getECSMeta() ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+
+	ecsMeta, err := ecs.NewECSMeta(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return json.MarshalIndent(ecsMeta, "", "\t")
 }
 
 // getHTTPCallContent does a GET HTTP call to the given url and

@@ -228,9 +228,11 @@ func (h *autoscalersController) updateExternalMetrics() {
 // processingLoop is a go routine that schedules the garbage collection and the refreshing of external metrics
 // in the GlobalStore.
 func (h *autoscalersController) processingLoop(stopCh <-chan struct{}) {
-	tickerAutoscalerRefreshProcess := time.NewTicker(time.Duration(h.poller.refreshPeriod) * time.Second)
-	gcPeriodSeconds := time.NewTicker(time.Duration(h.poller.gcPeriodSeconds) * time.Second)
 	go func() {
+		tickerAutoscalerRefreshProcess := time.NewTicker(time.Duration(h.poller.refreshPeriod) * time.Second)
+		defer tickerAutoscalerRefreshProcess.Stop()
+		gcPeriodSeconds := time.NewTicker(time.Duration(h.poller.gcPeriodSeconds) * time.Second)
+		defer gcPeriodSeconds.Stop()
 		for {
 			select {
 			case <-stopCh:
