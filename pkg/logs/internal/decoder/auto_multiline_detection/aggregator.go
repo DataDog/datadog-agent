@@ -14,9 +14,13 @@ import (
 )
 
 type bucket struct {
+	tagTruncatedLogs bool
+	tagMultiLineLogs bool
+
 	message   *message.Message
 	buffer    *bytes.Buffer
 	lineCount int
+	truncated bool
 }
 
 func (b *bucket) add(msg *message.Message) {
@@ -39,6 +43,7 @@ func (b *bucket) flush() *message.Message {
 		b.buffer.Reset()
 		b.message = nil
 		b.lineCount = 0
+		b.truncated = false
 	}()
 
 	originalLen := b.buffer.Len()
@@ -46,10 +51,26 @@ func (b *bucket) flush() *message.Message {
 	content := make([]byte, len(data))
 	copy(content, data)
 
-	if b.lineCount > 1 {
-		return message.NewRawMultiLineMessage(content, b.message.Status, originalLen, b.message.ParsingExtra.Timestamp)
+	if b.truncated {
+		content = append(content, message.TruncatedFlag...)
 	}
-	return message.NewRawMessage(content, b.message.Status, originalLen, b.message.ParsingExtra.Timestamp)
+
+	msg := message.NewRawMessage(content, b.message.Status, originalLen, b.message.ParsingExtra.Timestamp)
+
+	if b.lineCount > 1 {
+		msg.ParsingExtra.IsMultiLine = true
+		if b.tagMultiLineLogs {
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.AutoMultiLineTag)
+		}
+	}
+
+	if b.truncated {
+		msg.ParsingExtra.IsTruncated = true
+		if b.tagTruncatedLogs {
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedTag)
+		}
+	}
+	return msg
 }
 
 // Aggregator aggregates multiline logs with a given label.
@@ -62,10 +83,10 @@ type Aggregator struct {
 }
 
 // NewAggregator creates a new aggregator.
-func NewAggregator(outputFn func(m *message.Message), maxContentSize int, flushTimeout time.Duration) *Aggregator {
+func NewAggregator(outputFn func(m *message.Message), maxContentSize int, flushTimeout time.Duration, tagTruncatedLogs bool, tagMultiLineLogs bool) *Aggregator {
 	return &Aggregator{
 		outputFn:       outputFn,
-		bucket:         &bucket{buffer: bytes.NewBuffer(nil)},
+		bucket:         &bucket{buffer: bytes.NewBuffer(nil), tagTruncatedLogs: tagTruncatedLogs, tagMultiLineLogs: tagMultiLineLogs},
 		maxContentSize: maxContentSize,
 		flushTimeout:   flushTimeout,
 	}
@@ -97,9 +118,9 @@ func (a *Aggregator) Aggregate(msg *message.Message, label Label) {
 
 	// At this point we either have `startGroup` with an empty bucket or `aggregate` with a non-empty bucket
 	// so we add the message to the bucket or flush if the bucket will overflow the max content size.
-
 	if msg.RawDataLen+a.bucket.buffer.Len() > a.maxContentSize {
-		a.bucket.flush()
+		a.bucket.truncated = true
+		a.Flush()
 	}
 
 	a.bucket.add(msg)

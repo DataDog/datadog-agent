@@ -22,6 +22,9 @@ var TruncatedFlag = []byte("...TRUNCATED...")
 // TruncatedTag is added to truncated log messages (if enabled).
 const TruncatedTag = "truncated"
 
+// AutoMultiLineTag is added to multiline log messages (if enabled).
+const AutoMultiLineTag = "auto_multiline"
+
 // EscapedLineFeed is used to escape new line character
 // for multiline message.
 // New line character needs to be escaped because they are used
@@ -49,10 +52,7 @@ type Message struct {
 	IngestionTimestamp int64
 	// RawDataLen tracks the original size of the message content before any trimming/transformation.
 	// This is used when calculating the tailer offset - so this will NOT always be equal to `len(Content)`.
-	RawDataLen  int
-	IsMultiLine bool
-	// Tags added on processing
-	ProcessingTags []string
+	RawDataLen int
 	// Extra information from the parsers
 	ParsingExtra
 	// Extra information for Serverless Logs messages
@@ -172,6 +172,7 @@ type ParsingExtra struct {
 	Timestamp   string
 	IsPartial   bool
 	IsTruncated bool
+	IsMultiLine bool
 	Tags        []string
 }
 
@@ -222,26 +223,9 @@ func NewRawMessage(content []byte, status string, rawDataLen int, readTimestamp 
 		RawDataLen:         rawDataLen,
 		IngestionTimestamp: time.Now().UnixNano(),
 		ParsingExtra: ParsingExtra{
-			Timestamp: readTimestamp,
+			Timestamp:   readTimestamp,
+			IsMultiLine: false,
 		},
-		IsMultiLine: false,
-	}
-}
-
-// NewRawMultiLineMessage returns a new encoded message.
-func NewRawMultiLineMessage(content []byte, status string, rawDataLen int, readTimestamp string) *Message {
-	return &Message{
-		MessageContent: MessageContent{
-			content: content,
-			State:   StateUnstructured,
-		},
-		Status:             status,
-		RawDataLen:         rawDataLen,
-		IngestionTimestamp: time.Now().UnixNano(),
-		ParsingExtra: ParsingExtra{
-			Timestamp: readTimestamp,
-		},
-		IsMultiLine: true,
 	}
 }
 
@@ -361,10 +345,10 @@ func (m *Message) GetLatency() int64 {
 
 // Message returns all tags that this message is attached with.
 func (m *Message) Tags() []string {
-	return m.Origin.Tags(m.ProcessingTags)
+	return m.Origin.Tags()
 }
 
 // Message returns all tags that this message is attached with, as a string.
 func (m *Message) TagsToString() string {
-	return m.Origin.TagsToString(m.ProcessingTags)
+	return m.Origin.TagsToString()
 }
