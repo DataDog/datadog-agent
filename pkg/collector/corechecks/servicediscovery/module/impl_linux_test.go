@@ -375,7 +375,7 @@ import socket
 import time
 
 HOST = '127.0.0.1'
-PORT = # Empty port
+PORT = 0 # Empty port
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.bind((HOST, PORT))
