@@ -87,7 +87,7 @@ func (s *BaseInstallerSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 
 	// TODO:FA-779
-	if s.Env().AwsEnvironment.PipelineID() == "" {
+	if s.Env().Environment.PipelineID() == "" {
 		s.FailNow("E2E_PIPELINE_ID env var is not set, this test requires this variable to be set to work")
 	}
 

@@ -3,15 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package model holds model related files
 package model
 
+const (
+	// SIGKILL id for the kill action
+	SIGKILL = iota + 1
+)
+
 var (
-	errorConstants = map[string]int{}
-	// KernelCapabilityConstants list of kernel capabilities
-	KernelCapabilityConstants = map[string]uint64{}
-	// SignalConstants list of signals
-	SignalConstants        = map[string]int{}
+	errorConstants         = map[string]int{}
 	addressFamilyConstants = map[string]uint16{}
+
+	// SignalConstants list of signals
+	SignalConstants = map[string]int{
+		"SIGKILL": SIGKILL,
+	}
 )
 
 func initVMConstants()               {}

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
@@ -105,7 +106,7 @@ func TestWindowsExtractServiceWithSCMReader(t *testing.T) {
 	}
 
 	t.Run("disabled", func(t *testing.T) {
-		cfg := ddconfig.MockSystemProbe(t)
+		cfg := configmock.NewSystemProbe(t)
 		cfg.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
 		cfg.SetWithoutSource("system_probe_config.process_service_inference.use_windows_service_name", false)
 
@@ -117,7 +118,7 @@ func TestWindowsExtractServiceWithSCMReader(t *testing.T) {
 	})
 
 	t.Run("enabled", func(t *testing.T) {
-		cfg := ddconfig.MockSystemProbe(t)
+		cfg := configmock.NewSystemProbe(t)
 		cfg.SetWithoutSource("system_probe_config.process_service_inference.use_windows_service_name", true)
 		cfg.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
 
@@ -131,7 +132,7 @@ func TestWindowsExtractServiceWithSCMReader(t *testing.T) {
 	})
 
 	t.Run("enabled, multiple results", func(t *testing.T) {
-		cfg := ddconfig.MockSystemProbe(t)
+		cfg := configmock.NewSystemProbe(t)
 		cfg.SetWithoutSource("system_probe_config.process_service_inference.use_windows_service_name", true)
 		cfg.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
 
@@ -145,7 +146,7 @@ func TestWindowsExtractServiceWithSCMReader(t *testing.T) {
 	})
 
 	t.Run("fallback_to_parsing", func(t *testing.T) {
-		cfg := ddconfig.MockSystemProbe(t)
+		cfg := configmock.NewSystemProbe(t)
 		cfg.SetWithoutSource("system_probe_config.process_service_inference.use_windows_service_name", true)
 		cfg.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
 
