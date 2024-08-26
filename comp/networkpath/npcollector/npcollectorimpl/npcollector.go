@@ -308,7 +308,6 @@ func (s *npCollectorImpl) sendTelemetry(path payload.NetworkPath, startTime time
 	telemetry.SubmitNetworkPathTelemetry(
 		s.metricSender,
 		path,
-		telemetry.CollectorTypeNetworkPathCollector,
 		checkDuration,
 		checkInterval,
 		[]string{},
