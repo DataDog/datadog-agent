@@ -103,8 +103,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	traceAgentDebugPort := pkgconfig.GetInt("apm_config.debug.port")
 	pkgconfig.Set("apm_config.debug.port", traceAgentDebugPort+1, pkgconfigmodel.SourceLocalConfigProcess) // Default: 5012 is for trace-agent
 
-	otlpTracePort := pkgconfig.GetInt(pkgconfigsetup.OTLPTracePort)
-	pkgconfig.Set(pkgconfigsetup.OTLPTracePort, otlpTracePort+1, pkgconfigmodel.SourceLocalConfigProcess) // Default: 5003 is for trace-agent
+	pkgconfig.Set(pkgconfigsetup.OTLPTracePort, 0, pkgconfigmodel.SourceLocalConfigProcess) // Disabled in the otel-agent
 
 	pkgconfig.Set("otlp_config.traces.span_name_as_resource_name", ddc.Traces.SpanNameAsResourceName, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("otlp_config.traces.span_name_remappings", ddc.Traces.SpanNameRemappings, pkgconfigmodel.SourceLocalConfigProcess)

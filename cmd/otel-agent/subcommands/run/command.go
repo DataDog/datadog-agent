@@ -128,7 +128,6 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			return h.Get, nil
 		}),
 		remotehostnameimpl.Module(),
-		// fx.Supply(optional.NewNoneOption[secrets.Component]()),
 
 		fx.Provide(func(_ coreconfig.Component) log.Params {
 			return log.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
@@ -181,7 +180,6 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		// to allow the agent to work as a service.
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
 
-		// tracecomp.Bundle(),
 		fx.Provide(func(deps traceconfig.Dependencies, _ optional.Option[configsync.Component]) (traceconfig.Component, error) {
 			return traceconfig.NewConfig(deps)
 		}),
