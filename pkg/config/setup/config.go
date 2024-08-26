@@ -357,6 +357,24 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("kubernetes_node_label_as_cluster_name", "")
 	config.BindEnvAndSetDefault("kubernetes_namespace_labels_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("kubernetes_namespace_annotations_as_tags", map[string]string{})
+	// kubernetes_resources_annotations_as_tags should be parseable as map[string]map[string]string
+	// it maps group resources to annotations as tags maps
+	// a group resource has the format `{resource}.{group}`, or simply `{resource}` if it belongs to the empty group
+	// examples of group resources:
+	// 	- `deployments.apps`
+	// 	- `statefulsets.apps`
+	// 	- `pods`
+	// 	- `nodes`
+	config.BindEnvAndSetDefault("kubernetes_resources_annotations_as_tags", map[string]map[string]string{})
+	// kubernetes_resources_labels_as_tags should be parseable as map[string]map[string]string
+	// it maps group resources to labels as tags maps
+	// a group resource has the format `{resource}.{group}`, or simply `{resource}` if it belongs to the empty group
+	// examples of group resources:
+	// 	- `deployments.apps`
+	// 	- `statefulsets.apps`
+	// 	- `pods`
+	// 	- `nodes`
+	config.BindEnvAndSetDefault("kubernetes_resources_labels_as_tags", map[string]map[string]string{})
 	config.BindEnvAndSetDefault("kubernetes_persistent_volume_claims_as_tags", true)
 	config.BindEnvAndSetDefault("container_cgroup_prefix", "")
 
@@ -837,6 +855,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("otelcollector.extension_url", "https://localhost:7777")
 	config.BindEnvAndSetDefault("otelcollector.extension_timeout", 0)         // in seconds, 0 for default value
 	config.BindEnvAndSetDefault("otelcollector.submit_dummy_metadata", false) // dev flag - to be removed
+	config.BindEnvAndSetDefault("otelcollector.converter.enabled", true)
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
@@ -955,6 +974,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("remote_updates", false)
 	config.BindEnvAndSetDefault("installer.registry.url", "")
 	config.BindEnvAndSetDefault("installer.registry.auth", "")
+	config.BindEnv("fleet_policies_dir")
+	config.SetDefault("fleet_layers", []string{})
 
 	// Data Jobs Monitoring config
 	config.BindEnvAndSetDefault("djm_config.enabled", false)
@@ -1053,6 +1074,11 @@ func agent(config pkgconfigmodel.Setup) {
 	// Use to output logs in JSON format
 	config.BindEnvAndSetDefault("log_format_json", false)
 
+	// Agent GUI access host
+	// 		'http://localhost' is preferred over 'http://127.0.0.1' due to Internet Explorer behavior.
+	// 		Internet Explorer High Security Level does not support setting cookies via HTTP Header response.
+	// 		By default, 'http://localhost' is categorized as an "intranet" website, which is considered safer and allowed to use cookies. This is not the case for 'http://127.0.0.1'.
+	config.BindEnvAndSetDefault("GUI_host", "localhost")
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
 	config.BindEnvAndSetDefault("GUI_session_expiration", 0)
@@ -1464,12 +1490,16 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// the downstream logs pipeline to be ready to accept more data
 	config.BindEnvAndSetDefault("logs_config.windows_open_file_timeout", 5)
 	config.BindEnvAndSetDefault("logs_config.experimental_auto_multi_line_detection", false)
+	config.SetKnown("logs_config.auto_multi_line_detection_custom_samples")
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection", false)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_extra_patterns", []string{})
 	// The following auto_multi_line settings are experimental and may change
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_sample_size", 500)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_timeout", 30) // Seconds
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", 0.48)
+
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line.timestamp_detector_match_threshold", 0.5)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line.tokenizer_max_input_bytes", 60)
 
 	// If true, the agent looks for container logs in the location used by podman, rather
 	// than docker.  This is a temporary configuration parameter to support podman logs until
@@ -1504,8 +1534,15 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// more disk I/O at the wildcard log paths
 	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
 
+	// SDS logs blocking mechanism
+	config.BindEnvAndSetDefault("logs_config.sds.wait_for_configuration", "")
+	config.BindEnvAndSetDefault("logs_config.sds.buffer_max_size", 0)
+
 	// Max size in MB to allow for integrations logs files
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
+
+	// Add a tag to file logs that are truncated by the agent
+	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", false)
 }
 
 func vector(config pkgconfigmodel.Setup) {
@@ -1949,7 +1986,7 @@ func LoadCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) e
 	}
 
 	for _, warningMsg := range findUnexpectedUnicode(config) {
-		log.Warnf(warningMsg)
+		log.Warnf("%s", warningMsg)
 	}
 
 	return nil

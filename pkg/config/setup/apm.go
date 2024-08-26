@@ -154,7 +154,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnv("apm_config.obfuscation.credit_cards.luhn", "DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN")
 	config.BindEnvAndSetDefault("apm_config.debug.port", 5012, "DD_APM_DEBUG_PORT")
 	config.BindEnv("apm_config.features", "DD_APM_FEATURES")
-	config.SetEnvKeyTransformer("apm_config.features", func(s string) interface{} {
+	config.ParseEnvAsStringSlice("apm_config.features", func(s string) []string {
 		// Either commas or spaces can be used as separators.
 		// Comma takes precedence as it was the only supported separator in the past.
 		// Mixing separators is not supported.
@@ -170,7 +170,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 		return res
 	})
 
-	config.SetEnvKeyTransformer("apm_config.ignore_resources", func(in string) interface{} {
+	config.ParseEnvAsStringSlice("apm_config.ignore_resources", func(in string) []string {
 		r, err := splitCSVString(in, ',')
 		if err != nil {
 			log.Warnf(`"apm_config.ignore_resources" can not be parsed: %v`, err)
@@ -179,15 +179,12 @@ func setupAPM(config pkgconfigmodel.Setup) {
 		return r
 	})
 
-	config.SetEnvKeyTransformer("apm_config.filter_tags.require", parseKVList("apm_config.filter_tags.require"))
+	config.ParseEnvAsStringSlice("apm_config.filter_tags.require", parseKVList("apm_config.filter_tags.require"))
+	config.ParseEnvAsStringSlice("apm_config.filter_tags.reject", parseKVList("apm_config.filter_tags.reject"))
+	config.ParseEnvAsStringSlice("apm_config.filter_tags_regex.require", parseKVList("apm_config.filter_tags_regex.require"))
+	config.ParseEnvAsStringSlice("apm_config.filter_tags_regex.reject", parseKVList("apm_config.filter_tags_regex.reject"))
 
-	config.SetEnvKeyTransformer("apm_config.filter_tags.reject", parseKVList("apm_config.filter_tags.reject"))
-
-	config.SetEnvKeyTransformer("apm_config.filter_tags_regex.require", parseKVList("apm_config.filter_tags_regex.require"))
-
-	config.SetEnvKeyTransformer("apm_config.filter_tags_regex.reject", parseKVList("apm_config.filter_tags_regex.reject"))
-
-	config.SetEnvKeyTransformer("apm_config.replace_tags", func(in string) interface{} {
+	config.ParseEnvAsSliceMapString("apm_config.replace_tags", func(in string) []map[string]string {
 		var out []map[string]string
 		if err := json.Unmarshal([]byte(in), &out); err != nil {
 			log.Warnf(`"apm_config.replace_tags" can not be parsed: %v`, err)
@@ -195,7 +192,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 		return out
 	})
 
-	config.SetEnvKeyTransformer("apm_config.analyzed_spans", func(in string) interface{} {
+	config.ParseEnvAsMapStringInterface("apm_config.analyzed_spans", func(in string) map[string]interface{} {
 		out, err := parseAnalyzedSpans(in)
 		if err != nil {
 			log.Errorf(`Bad format for "apm_config.analyzed_spans" it should be of the form \"service_name|operation_name=rate,other_service|other_operation=rate\", error: %v`, err)
@@ -204,7 +201,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	})
 
 	config.BindEnv("apm_config.peer_tags", "DD_APM_PEER_TAGS")
-	config.SetEnvKeyTransformer("apm_config.peer_tags", func(in string) interface{} {
+	config.ParseEnvAsStringSlice("apm_config.peer_tags", func(in string) []string {
 		var out []string
 		if err := json.Unmarshal([]byte(in), &out); err != nil {
 			log.Warnf(`"apm_config.peer_tags" can not be parsed: %v`, err)
@@ -213,8 +210,8 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	})
 }
 
-func parseKVList(key string) func(string) interface{} {
-	return func(in string) interface{} {
+func parseKVList(key string) func(string) []string {
+	return func(in string) []string {
 		if len(in) == 0 {
 			return []string{}
 		}
@@ -254,10 +251,10 @@ func parseNameAndRate(token string) (string, float64, error) {
 
 // parseAnalyzedSpans parses the env string to extract a map of spans to be analyzed by service and operation.
 // the format is: service_name|operation_name=rate,other_service|other_operation=rate
-func parseAnalyzedSpans(env string) (analyzedSpans map[string]interface{}, err error) {
-	analyzedSpans = make(map[string]interface{})
+func parseAnalyzedSpans(env string) (map[string]interface{}, error) {
+	analyzedSpans := make(map[string]interface{})
 	if env == "" {
-		return
+		return analyzedSpans, nil
 	}
 	tokens := strings.Split(env, ",")
 	for _, token := range tokens {
@@ -267,5 +264,5 @@ func parseAnalyzedSpans(env string) (analyzedSpans map[string]interface{}, err e
 		}
 		analyzedSpans[name] = rate
 	}
-	return
+	return analyzedSpans, nil
 }

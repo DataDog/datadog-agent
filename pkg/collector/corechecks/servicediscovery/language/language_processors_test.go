@@ -56,7 +56,7 @@ func TestPythonScript(t *testing.T) {
 			name: "works",
 			pi: ProcessInfo{
 				Args: []string{"testdata/python/yes_script.sh"},
-				Envs: []string{"PATH=/usr/bin"},
+				Envs: map[string]string{"PATH": "/usr/bin"},
 			},
 			want: true,
 		},
@@ -64,7 +64,7 @@ func TestPythonScript(t *testing.T) {
 			name: "fails",
 			pi: ProcessInfo{
 				Args: []string{"testdata/python/not_a_script.sh"},
-				Envs: []string{"PATH=/usr/bin"},
+				Envs: map[string]string{"PATH": "/usr/bin"},
 			},
 			want: false,
 		},
@@ -93,7 +93,7 @@ func TestRubyScript(t *testing.T) {
 			name: "works",
 			pi: ProcessInfo{
 				Args: []string{"testdata/ruby/yes_script.sh"},
-				Envs: []string{"PATH=/usr/bin"},
+				Envs: map[string]string{"PATH": "/usr/bin"},
 			},
 			want: true,
 		},
@@ -101,7 +101,7 @@ func TestRubyScript(t *testing.T) {
 			name: "fails",
 			pi: ProcessInfo{
 				Args: []string{"testdata/ruby/not_a_script.sh"},
-				Envs: []string{"PATH=/usr/bin"},
+				Envs: map[string]string{"PATH": "/usr/bin"},
 			},
 			want: false,
 		},
@@ -130,7 +130,7 @@ func TestDotNetBinary(t *testing.T) {
 			name: "works",
 			pi: ProcessInfo{
 				Args: []string{"testdata/dotnet/linuxdotnettest"},
-				Envs: []string{"PATH=/usr/bin"},
+				Envs: map[string]string{"PATH": "/usr/bin"},
 			},
 			want: true,
 		},
@@ -138,7 +138,7 @@ func TestDotNetBinary(t *testing.T) {
 			name: "fails",
 			pi: ProcessInfo{
 				Args: []string{"testdata/dotnet/not_a_script.sh"},
-				Envs: []string{"PATH=/usr/bin"},
+				Envs: map[string]string{"PATH": "/usr/bin"},
 			},
 			want: false,
 		},

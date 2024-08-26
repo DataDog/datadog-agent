@@ -1,14 +1,11 @@
 import unittest
 from unittest.mock import MagicMock
 
-from invoke import MockContext, Result
-
 from tasks.libs.common.git import (
     check_local_branch,
     check_uncommitted_changes,
     get_commit_sha,
     get_current_branch,
-    get_last_tag,
     get_staged_files,
 )
 
@@ -110,60 +107,3 @@ class TestGit(unittest.TestCase):
                     f"git rev-parse {'--short ' if test['short'] else ''}HEAD", hide=True
                 )
                 self.ctx_mock.run.reset_mock()
-
-
-class TestGetLastTag(unittest.TestCase):
-    def test_ordered(self):
-        c = MockContext(
-            run={
-                'git ls-remote -t https://github.com/DataDog/woof "7.56.*"': Result(
-                    "e1b8e9163203b7446c74fac0b8d4153eb24227a0	refs/tags/7.56.0-rc.1\n7c6777bb7add533a789c69293b59e3261711d330	refs/tags/7.56.0-rc.2\n2b8b710b322feb03148f871a77ab92163a0a12de	refs/tags/7.56.0-rc.3"
-                )
-            }
-        )
-        _, name = get_last_tag(c, "woof", "7.56.*")
-        self.assertEqual(name, "7.56.0-rc.3")
-
-    def test_non_ordered(self):
-        c = MockContext(
-            run={
-                'git ls-remote -t https://github.com/DataDog/woof "7.56.*"': Result(
-                    "e1b8e9163203b7446c74fac0b8d4153eb24227a0	refs/tags/7.56.0-rc.1\n7c6777bb7add533a789c69293b59e3261711d330	refs/tags/7.56.0-rc.11\n2b8b710b322feb03148f871a77ab92163a0a12de	refs/tags/7.56.0-rc.3"
-                )
-            }
-        )
-        _, name = get_last_tag(c, "woof", "7.56.*")
-        self.assertEqual(name, "7.56.0-rc.11")
-
-    def test_suffix_lower(self):
-        c = MockContext(
-            run={
-                'git ls-remote -t https://github.com/DataDog/woof "7.56.*"': Result(
-                    "e1b8e9163203b7446c74fac0b8d4153eb24227a0	refs/tags/7.56.0-rc.1\n7c6777bb7add533a789c69293b59e3261711d330	refs/tags/7.56.0-rc.2^{}\n2b8b710b322feb03148f871a77ab92163a0a12de	refs/tags/7.56.0-rc.3"
-                )
-            }
-        )
-        _, name = get_last_tag(c, "woof", "7.56.*")
-        self.assertEqual(name, "7.56.0-rc.3")
-
-    def test_suffix_equal(self):
-        c = MockContext(
-            run={
-                'git ls-remote -t https://github.com/DataDog/woof "7.56.*"': Result(
-                    "e1b8e9163203b7446c74fac0b8d4153eb24227a0	refs/tags/7.56.0-rc.1\n7c6777bb7add533a789c69293b59e3261711d330	refs/tags/7.56.0-rc.3^{}\n2b8b710b322feb03148f871a77ab92163a0a12de	refs/tags/7.56.0-rc.3"
-                )
-            }
-        )
-        commit, _ = get_last_tag(c, "woof", "7.56.*")
-        self.assertEqual(commit, "7c6777bb7add533a789c69293b59e3261711d330")
-
-    def test_suffix_greater(self):
-        c = MockContext(
-            run={
-                'git ls-remote -t https://github.com/DataDog/woof "7.56.*"': Result(
-                    "e1b8e9163203b7446c74fac0b8d4153eb24227a0	refs/tags/7.56.0-rc.1\n7c6777bb7add533a789c69293b59e3261711d330	refs/tags/7.56.0-rc.4^{}\n2b8b710b322feb03148f871a77ab92163a0a12de	refs/tags/7.56.0-rc.3"
-                )
-            }
-        )
-        _, name = get_last_tag(c, "woof", "7.56.*")
-        self.assertEqual(name, "7.56.0-rc.4")

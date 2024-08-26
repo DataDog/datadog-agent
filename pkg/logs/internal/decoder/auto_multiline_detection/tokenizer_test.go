@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
 )
 
 type testCase struct {
@@ -47,26 +49,29 @@ func TestTokenizer(t *testing.T) {
 
 	tokenizer := NewTokenizer(0)
 	for _, tc := range testCases {
-		actualToken := tokensToString(tokenizer.tokenize([]byte(tc.input)))
+		tokens, _ := tokenizer.tokenize([]byte(tc.input))
+		actualToken := tokensToString(tokens)
 		assert.Equal(t, tc.expectedToken, actualToken)
 	}
 }
 
 func TestTokenizerMaxCharRun(t *testing.T) {
-	tokens := tokensToString(NewTokenizer(0).tokenize([]byte("ABCDEFGHIJKLMNOP")))
-	assert.Equal(t, "CCCCCCCCCC", tokens)
+	tokens, indicies := NewTokenizer(0).tokenize([]byte("ABCDEFGHIJKLMNOP"))
+	assert.Equal(t, "CCCCCCCCCC", tokensToString(tokens))
+	assert.Equal(t, []int{0}, indicies)
 }
 
 func TestTokenizerMaxDigitRun(t *testing.T) {
-	tokens := tokensToString(NewTokenizer(0).tokenize([]byte("0123456789012345")))
-	assert.Equal(t, "DDDDDDDDDD", tokens)
+	tokens, indicies := NewTokenizer(0).tokenize([]byte("0123456789012345"))
+	assert.Equal(t, "DDDDDDDDDD", tokensToString(tokens))
+	assert.Equal(t, []int{0}, indicies)
 }
 
 func TestAllSymbolsAreHandled(t *testing.T) {
-	for i := space; i < d1; i++ {
+	for i := tokens.Space; i < tokens.D1; i++ {
 		str := tokenToString(i)
 		assert.NotEmpty(t, str, "Token %d is not converted to a debug string", i)
-		assert.NotEqual(t, getToken(byte(str[0])), c1, "Token %v is not tokenizable", str)
+		assert.NotEqual(t, getToken(byte(str[0])), tokens.C1, "Token %v is not tokenizable", str)
 	}
 }
 
@@ -79,8 +84,20 @@ func TestTokenizerHeuristic(t *testing.T) {
 	msg = &messageContext{rawMessage: []byte("12-12-12T12:12:12.12T12:12Z123")}
 	assert.True(t, tokenizer.Process(msg))
 	assert.Equal(t, "DD-DD-DDTD", tokensToString(msg.tokens), "Tokens should be limited to the first 10 bytes")
+	assert.Equal(t, []int{0, 2, 3, 5, 6, 8, 9}, msg.tokenIndicies)
 
 	msg = &messageContext{rawMessage: []byte("abc 123")}
 	assert.True(t, tokenizer.Process(msg))
 	assert.Equal(t, "CCC DDD", tokensToString(msg.tokens))
+	assert.Equal(t, []int{0, 3, 4}, msg.tokenIndicies)
+
+	msg = &messageContext{rawMessage: []byte("Jan 123")}
+	assert.True(t, tokenizer.Process(msg))
+	assert.Equal(t, "MTH DDD", tokensToString(msg.tokens))
+	assert.Equal(t, []int{0, 3, 4}, msg.tokenIndicies)
+
+	msg = &messageContext{rawMessage: []byte("123Z")}
+	assert.True(t, tokenizer.Process(msg))
+	assert.Equal(t, "DDDZONE", tokensToString(msg.tokens))
+	assert.Equal(t, []int{0, 3}, msg.tokenIndicies)
 }

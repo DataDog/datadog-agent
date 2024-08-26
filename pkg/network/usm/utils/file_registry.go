@@ -80,6 +80,10 @@ func NewFilePath(procRoot, namespacedPath string, pid uint32) (FilePath, error) 
 
 type callback func(FilePath) error
 
+// IgnoreCB is just a dummy callback that doesn't do anything
+// Meant for testing purposes
+var IgnoreCB = func(FilePath) error { return nil }
+
 // NewFileRegistry creates a new `FileRegistry` instance
 func NewFileRegistry(programName string) *FileRegistry {
 	blocklistByID, err := simplelru.NewLRU[PathIdentifier, string](2000, nil)
@@ -118,7 +122,7 @@ var (
 // If no current registration exists for the given `PathIdentifier`, we execute
 // its *activation* callback. Otherwise, we increment the reference counter for
 // the existing registration if and only if `pid` is new;
-func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB callback) error {
+func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB, alreadyRegistered callback) error {
 	if activationCB == nil || deactivationCB == nil {
 		return errCallbackIsMissing
 	}
@@ -152,6 +156,9 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 			r.byPID[pid][pathID] = struct{}{}
 		}
 		r.telemetry.fileAlreadyRegistered.Add(1)
+		if alreadyRegistered != nil {
+			_ = alreadyRegistered(path)
+		}
 		return ErrPathIsAlreadyRegistered
 	}
 
