@@ -174,6 +174,14 @@ func (s SystemdEventSequence) Skipped(unit string) SystemdEventSequence {
 	return s
 }
 
+func (s SystemdEventSequence) SkippedIf(unit string, condition bool) SystemdEventSequence {
+	if !condition {
+		return s
+	}
+
+	return s.Skipped(unit)
+}
+
 // SigtermTimed adds a "SigtermTimed" event to the sequence
 func (s SystemdEventSequence) SigtermTimed(unit string) SystemdEventSequence {
 	s.Events = append(s.Events, []SystemdEvent{{Unit: unit, Pattern: ".*stop-sigterm.*timed out.*"}})
