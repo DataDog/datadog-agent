@@ -833,7 +833,6 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
         if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
             return RET_ERR;
         }
-         // Should we check that topic name matches the topic we expect?
         offset += topic_name_size;
     }
     response->state = KAFKA_PRODUCE_RESPONSE_NUM_PARTITIONS;
