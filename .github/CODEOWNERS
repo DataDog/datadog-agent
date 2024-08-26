@@ -92,7 +92,7 @@
 
 /.gitlab/kitchen_*                                   @DataDog/agent-delivery
 /.gitlab/kitchen_testing/windows.yml                 @DataDog/agent-delivery @DataDog/windows-agent
-/.gitlab/e2e/install_packages/windows.yml            @DataDog/agent-delivery @DataDog/windows-agent
+/.gitlab/e2e_install_packages/windows.yml            @DataDog/agent-delivery @DataDog/windows-agent
 
 /.gitlab/common/                                     @DataDog/agent-devx-infra
 /.gitlab/common/test_infra_version.yml               @DataDog/agent-devx-loops @DataDog/agent-devx-infra
