@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-const procFSUpdateTimeout = 10 * time.Millisecond
+const procFSUpdateTimeout = 100 * time.Millisecond
 
 // ProcInfo holds the information extracted from procfs, to avoid repeat calls to the filesystem.
 type ProcInfo struct {
