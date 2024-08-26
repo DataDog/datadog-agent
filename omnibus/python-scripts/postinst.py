@@ -48,9 +48,11 @@ def create_integrations_file(directory):
     print("Creating integrations file")
     datadog_req_file = os.path.join(directory, '.datadog_requirements.txt')
     
+    output = run_command('datadog-agent integration freeze')
+    sorted_output = '\n'.join(sorted(output.splitlines()))
+    
     with open(datadog_req_file, 'w', encoding='utf-8') as f:
-        output = run_command('datadog-agent integration freeze | sort')
-        f.write(output)
+        f.write(sorted_output)
     
     shutil.chown(datadog_req_file, user='dd-agent', group='dd-agent')
 
@@ -68,9 +70,11 @@ def create_dependencies_file(directory):
     print("Creating dependencies file")
     python_req_file = os.path.join(directory, '.python_requirements.txt')
     
+    output = run_command(f'{directory}/embedded/bin/pip list --format=freeze | grep -v "^datadog-"')
+    sorted_output = '\n'.join(sorted(output.splitlines()))
+
     with open(python_req_file, 'w', encoding='utf-8') as f:
-        output = run_command(f'{directory}/embedded/bin/pip list --format=freeze | grep -v "^datadog-" | sort')
-        f.write(output)
+        f.write(sorted_output)
     
     shutil.chown(python_req_file, user='dd-agent', group='dd-agent')
 
