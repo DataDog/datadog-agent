@@ -157,6 +157,9 @@ func FindInArgs(args []string) Language {
 		Cmdline: args,
 		Comm:    args[0],
 	}}, nil)
+	if len(langs) == 0 {
+		return ""
+	}
 
 	lang := langs[0]
 	if lang == nil {
