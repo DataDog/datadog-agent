@@ -72,10 +72,11 @@ func TestLogsExporter(t *testing.T) {
 					lrr := testutil.GenerateLogsOneLogRecord()
 					ldd := lrr.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
 					ldd.Attributes().PutStr("message", "hello")
+					ldd.Attributes().PutStr("datadog.log.source", "custom_source")
 					return lrr
 				}(),
 				otelSource:    otelSource,
-				logSourceName: LogSourceName,
+				logSourceName: "custom_source",
 			},
 
 			want: testutil.JSONLogs{
@@ -83,6 +84,7 @@ func TestLogsExporter(t *testing.T) {
 					"message":              "hello",
 					"app":                  "server",
 					"instance_num":         "1",
+					"datadog.log.source":   "custom_source",
 					"@timestamp":           testutil.TestLogTime.Format("2006-01-02T15:04:05.000Z07:00"),
 					"status":               "Info",
 					"dd.span_id":           fmt.Sprintf("%d", spanIDToUint64(ld.SpanID())),
@@ -186,7 +188,7 @@ func TestLogsExporter(t *testing.T) {
 					return lrr
 				}(),
 				otelSource:    "datadog_exporter",
-				logSourceName: "custom_source",
+				logSourceName: "",
 			},
 
 			want: testutil.JSONLogs{
