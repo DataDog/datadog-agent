@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package fx provides the fx module for the integrations component
+// Package fx provides the fx module for the lsof component
 package fx
 
 import (
-	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
-	integrationsmock "github.com/DataDog/datadog-agent/comp/logs/integrations/mock"
+	lsof "github.com/DataDog/datadog-agent/comp/core/lsof/def"
+	lsofimpl "github.com/DataDog/datadog-agent/comp/core/lsof/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -16,16 +16,8 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			integrations.NewComponent,
+			lsofimpl.NewComponent,
 		),
-	)
-}
-
-// MockModule provides the mock integrations component to fx
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(
-			integrationsmock.Mock,
-		),
+		fxutil.ProvideOptional[lsof.Component](),
 	)
 }

@@ -43,9 +43,6 @@ func testAgent(os e2eos.Descriptor, arch e2eos.Architecture, method installMetho
 }
 
 func (s *packageAgentSuite) TestInstall() {
-	if s.installMethod == installMethodAnsible {
-		s.Suite.T().Skip()
-	}
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.WaitForUnitActive(agentUnit, traceUnit, processUnit)
@@ -53,7 +50,7 @@ func (s *packageAgentSuite) TestInstall() {
 	state := s.host.State()
 	s.assertUnits(state, false)
 
-	state.AssertFileExists("/etc/datadog-agent/install_info", 0644, "root", "root")
+	state.AssertFileExistsAnyUser("/etc/datadog-agent/install_info", 0644)
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 
 	agentVersion := s.host.AgentStableVersion()
@@ -68,8 +65,7 @@ func (s *packageAgentSuite) TestInstall() {
 	state.AssertFileExists(path.Join(agentDir, "embedded/share/system-probe/ebpf/dns.o"), 0644, "root", "root")
 
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", agentDir, "root", "root")
-	// FIXME: this file is either dd-agent or root depending on the OS for some reason
-	// state.AssertFileExists("/etc/datadog-agent/install.json", 0644, "dd-agent", "dd-agent")
+	state.AssertFileExistsAnyUser("/etc/datadog-agent/install.json", 0644)
 }
 
 func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {

@@ -8,9 +8,11 @@
 package apm
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -89,6 +91,39 @@ func Test_javaDetector(t *testing.T) {
 			if result != d.result {
 				t.Errorf("expected %s got %s", d.result, result)
 			}
+		})
+	}
+}
+
+func Test_nodeDetector(t *testing.T) {
+	curDir, err := testutil.CurDir()
+	assert.NoError(t, err)
+
+	data := []struct {
+		name   string
+		envs   map[string]string
+		result Instrumentation
+	}{
+		{
+			name: "not instrumented",
+			envs: map[string]string{
+				"PWD": filepath.Join(curDir, "testdata/node/not_instrumented"),
+			},
+			result: None,
+		},
+		{
+			name: "instrumented",
+			envs: map[string]string{
+				"PWD": filepath.Join(curDir, "testdata/node/instrumented"),
+			},
+			result: Provided,
+		},
+	}
+
+	for _, d := range data {
+		t.Run(d.name, func(t *testing.T) {
+			result := nodeDetector(0, nil, d.envs)
+			assert.Equal(t, d.result, result)
 		})
 	}
 }

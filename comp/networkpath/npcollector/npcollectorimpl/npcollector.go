@@ -267,6 +267,7 @@ func (s *npCollectorImpl) flushLoop() {
 		// automatic flush sequence
 		case flushTime := <-flushTicker.C:
 			s.flushWrapper(flushTime, lastFlushTime)
+			lastFlushTime = flushTime
 		}
 	}
 }
@@ -277,7 +278,6 @@ func (s *npCollectorImpl) flushWrapper(flushTime time.Time, lastFlushTime time.T
 		flushInterval := flushTime.Sub(lastFlushTime)
 		s.statsdClient.Gauge("datadog.network_path.collector.flush_interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
 	}
-	lastFlushTime = flushTime
 
 	s.flush()
 	s.statsdClient.Gauge("datadog.network_path.collector.flush_duration", s.TimeNowFn().Sub(flushTime).Seconds(), []string{}, 1) //nolint:errcheck
