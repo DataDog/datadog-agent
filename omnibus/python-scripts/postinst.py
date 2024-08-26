@@ -58,7 +58,7 @@ def create_dependencies_file(directory):
     """
     Create a file listing the currently installed Python dependencies, excluding Datadog packages.
 
-    This function runs the `pip freeze` command, filters out Datadog packages, sorts the output,
+    This function runs the `pip list --format=freeze` command, filters out Datadog packages, sorts the output,
     and writes it to a file named '.python_requirements.txt' in the specified directory.
     It also changes the file ownership to 'dd-agent:dd-agent'.
 
@@ -69,7 +69,7 @@ def create_dependencies_file(directory):
     python_req_file = os.path.join(directory, '.python_requirements.txt')
     
     with open(python_req_file, 'w', encoding='utf-8') as f:
-        output = run_command(f'{directory}/embedded/bin/pip freeze | grep -v "^datadog-" | sort')
+        output = run_command(f'{directory}/embedded/bin/pip list --format=freeze | grep -v "^datadog-" | sort')
         f.write(output)
     
     shutil.chown(python_req_file, user='dd-agent', group='dd-agent')
