@@ -444,12 +444,10 @@ func (suite *TailerTestSuite) TestDidRotateNilFullpath() {
 	tailer.fullpath = ""
 	tailer.StartFromBeginning()
 
-	_, err := suite.tailer.DidRotate()
-	suite.NoError(err, "Expected an error due to empty file path")
-
 	suite.NotPanics(func() {
-		suite.tailer.DidRotate()
-	}, "Agent panicked due to empty file path")
+		_, err := suite.tailer.DidRotate()
+		suite.Nil(err)
+	}, "Agent should not have panicked due to empty file path")
 }
 
 func toInt(str string) int {
