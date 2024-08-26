@@ -204,6 +204,8 @@ func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string, port ui
 	// the project before merging
 	if timeout == 0 {
 		timeout = 10 * time.Second
+	} else {
+		timeout = timeout + 10*time.Second // allow extra time for the system probe communication overhead
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
