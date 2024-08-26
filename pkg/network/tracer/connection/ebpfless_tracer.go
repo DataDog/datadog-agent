@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
+//go:build linux_bpf
 
 package connection
 
@@ -113,7 +113,7 @@ func (t *ebpfLessTracer) Start(func(*network.ConnectionStats)) error {
 		parser := gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, &eth, &ip4, &ip6, &tcp, &udp)
 		parser.IgnoreUnsupported = true
 		for {
-			err := t.packetSrc.VisitPackets(t.exit, func(b []byte, info filter.PacketInfo, ts time.Time) error {
+			err := t.packetSrc.VisitPackets(t.exit, func(b []byte, info filter.PacketInfo, _ time.Time) error {
 				if err := parser.DecodeLayers(b, &decoded); err != nil {
 					return fmt.Errorf("error decoding packet layers: %w", err)
 				}
