@@ -218,7 +218,7 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 
 	name := servicediscovery.GetServiceName(cmdline, envs, contextMap)
 	language := language.FindInArgs(cmdline)
-	apmInstrumentation := apm.Detect(int(proc.Pid), cmdline, envs, language)
+	apmInstrumentation := apm.Detect(int(proc.Pid), cmdline, envs, language, contextMap)
 
 	return &serviceInfo{
 		name:               name,

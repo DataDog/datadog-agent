@@ -87,7 +87,7 @@ func Test_javaDetector(t *testing.T) {
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := javaDetector(0, d.args, d.envs)
+			result := javaDetector(0, d.args, d.envs, nil)
 			if result != d.result {
 				t.Errorf("expected %s got %s", d.result, result)
 			}
@@ -122,7 +122,7 @@ func Test_nodeDetector(t *testing.T) {
 
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := nodeDetector(0, nil, d.envs)
+			result := nodeDetector(0, nil, d.envs, nil) // TODO: pass a valid map, and check it.
 			assert.Equal(t, d.result, result)
 		})
 	}
