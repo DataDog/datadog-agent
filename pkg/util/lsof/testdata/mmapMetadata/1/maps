@@ -1,0 +1,113 @@
+00400000-051f9000 r-xp 00000000 fe:01 2700336                            /vscode/vscode-server/bin/linux-arm64/eaa41d57266683296de7d118f574d0c2652e1fc4/node
+0520c000-05210000 r--p 04dfc000 fe:01 2700336                            /vscode/vscode-server/bin/linux-arm64/eaa41d57266683296de7d118f574d0c2652e1fc4/node
+05210000-0524d000 rw-p 04e00000 fe:01 2700336                            /vscode/vscode-server/bin/linux-arm64/eaa41d57266683296de7d118f574d0c2652e1fc4/node
+0524d000-05278000 rw-p 00000000 00:00 0
+20845000-20a14000 rw-p 00000000 00:00 0                                  [heap]
+47d6d4c0000-47d6d4c4000 rw-p 00000000 00:00 0
+6f111880000-6f1118c0000 rw-p 00000000 00:00 0
+bd4dc040000-bd4dc080000 rw-p 00000000 00:00 0
+10c774fc0000-10c775000000 rw-p 00000000 00:00 0
+110f88640000-110f88680000 rw-p 00000000 00:00 0
+11d92bcc0000-11d92bd00000 rw-p 00000000 00:00 0
+123f34200000-123f34240000 rw-p 00000000 00:00 0
+13ba9e700000-13ba9e740000 rw-p 00000000 00:00 0
+16a407400000-16a407440000 rw-p 00000000 00:00 0
+1714928c0000-171492900000 rw-p 00000000 00:00 0
+191d9ca80000-191d9cac0000 rw-p 00000000 00:00 0
+1986a9f40000-1986a9f80000 rw-p 00000000 00:00 0
+1db13ddc0000-1db13de00000 rw-p 00000000 00:00 0
+1e91ef040000-1e91ef07c000 r--p 00000000 00:00 0
+20da0d040000-20da0d080000 rw-p 00000000 00:00 0
+25f793e80000-25f793ec0000 ---p 00000000 00:00 0
+276641500000-276641540000 rw-p 00000000 00:00 0
+27cec5340000-27cec5380000 rw-p 00000000 00:00 0
+2c2e16b00000-2c2e16b40000 ---p 00000000 00:00 0
+33510d900000-33510d940000 rw-p 00000000 00:00 0
+33ea56ac0000-33ea56b00000 rw-p 00000000 00:00 0
+340acfc00000-340acfc42000 rw-p 00000000 00:00 0
+36b130b80000-36b130bc0000 ---p 00000000 00:00 0
+37a8bbc80000-37a8bbcc0000 rw-p 00000000 00:00 0
+3e6850cc0000-3e6850d00000 rw-p 00000000 00:00 0
+3eba17100000-3eba17140000 ---p 00000000 00:00 0
+ffff88000000-ffff88050000 rw-p 00000000 00:00 0
+ffff88050000-ffff8c000000 ---p 00000000 00:00 0
+ffff90000000-ffff9015c000 rw-p 00000000 00:00 0
+ffff9015c000-ffff94000000 ---p 00000000 00:00 0
+ffff94000000-ffff94022000 rw-p 00000000 00:00 0
+ffff94022000-ffff98000000 ---p 00000000 00:00 0
+ffff9b600000-ffff9b610000 ---p 00000000 00:00 0
+ffff9b610000-ffff9be10000 rw-p 00000000 00:00 0
+ffff9c000000-ffff9c04a000 rw-p 00000000 00:00 0
+ffff9c04a000-ffffa0000000 ---p 00000000 00:00 0
+ffffa0200000-ffffa0210000 ---p 00000000 00:00 0
+ffffa0210000-ffffa0a10000 rw-p 00000000 00:00 0
+ffffa0c00000-ffffa0c10000 ---p 00000000 00:00 0
+ffffa0c10000-ffffa1410000 rw-p 00000000 00:00 0
+ffffa1600000-ffffa1610000 ---p 00000000 00:00 0
+ffffa1610000-ffffa1e10000 rw-p 00000000 00:00 0
+ffffa2000000-ffffa2002000 rw-p 00000000 00:00 0
+ffffa2002000-ffffa2003000 ---p 00000000 00:00 0
+ffffa2003000-ffffa203f000 rwxp 00000000 00:00 0
+ffffa203f000-ffffa2040000 ---p 00000000 00:00 0
+ffffa2040000-ffffa2042000 rw-p 00000000 00:00 0
+ffffa2042000-ffffa2043000 ---p 00000000 00:00 0
+ffffa2043000-ffffa207f000 rwxp 00000000 00:00 0
+ffffa207f000-ffffb2000000 ---p 00000000 00:00 0
+ffffb2200000-ffffb2210000 ---p 00000000 00:00 0
+ffffb2210000-ffffb2a10000 rw-p 00000000 00:00 0
+ffffb2c00000-ffffb2c10000 ---p 00000000 00:00 0
+ffffb2c10000-ffffb3410000 rw-p 00000000 00:00 0
+ffffb3600000-ffffb3610000 ---p 00000000 00:00 0
+ffffb3610000-ffffb3e10000 rw-p 00000000 00:00 0
+ffffb4000000-ffffb4021000 rw-p 00000000 00:00 0
+ffffb4021000-ffffb8000000 ---p 00000000 00:00 0
+ffffb8200000-ffffb8210000 ---p 00000000 00:00 0
+ffffb8210000-ffffb8a10000 rw-p 00000000 00:00 0
+ffffb8b60000-ffffb8b61000 r-xp 00000000 00:3d 2238667                    /usr/lib/aarch64-linux-gnu/libutil.so.1
+ffffb8b61000-ffffb8b70000 ---p 00001000 00:3d 2238667                    /usr/lib/aarch64-linux-gnu/libutil.so.1
+ffffb8b70000-ffffb8b71000 r--p 00000000 00:3d 2238667                    /usr/lib/aarch64-linux-gnu/libutil.so.1
+ffffb8b71000-ffffb8b72000 rw-p 00001000 00:3d 2238667                    /usr/lib/aarch64-linux-gnu/libutil.so.1
+ffffb8b80000-ffffb8b84000 rw-p 00000000 00:00 0
+ffffb8b84000-ffffb8c00000 ---p 00000000 00:00 0
+ffffb8c00000-ffffb8c10000 ---p 00000000 00:00 0
+ffffb8c10000-ffffb9410000 rw-p 00000000 00:00 0
+ffffb9430000-ffffb943e000 r-xp 00000000 fe:01 2700855                    /vscode/vscode-server/bin/linux-arm64/eaa41d57266683296de7d118f574d0c2652e1fc4/node_modules/node-pty/build/Release/pty.node
+ffffb943e000-ffffb944d000 ---p 0000e000 fe:01 2700855                    /vscode/vscode-server/bin/linux-arm64/eaa41d57266683296de7d118f574d0c2652e1fc4/node_modules/node-pty/build/Release/pty.node
+ffffb944d000-ffffb944e000 r--p 0000d000 fe:01 2700855                    /vscode/vscode-server/bin/linux-arm64/eaa41d57266683296de7d118f574d0c2652e1fc4/node_modules/node-pty/build/Release/pty.node
+ffffb944e000-ffffb944f000 rw-p 0000e000 fe:01 2700855                    /vscode/vscode-server/bin/linux-arm64/eaa41d57266683296de7d118f574d0c2652e1fc4/node_modules/node-pty/build/Release/pty.node
+ffffb9450000-ffffb95d8000 r-xp 00000000 00:3d 2238543                    /usr/lib/aarch64-linux-gnu/libc.so.6
+ffffb95d8000-ffffb95e7000 ---p 00188000 00:3d 2238543                    /usr/lib/aarch64-linux-gnu/libc.so.6
+ffffb95e7000-ffffb95eb000 r--p 00187000 00:3d 2238543                    /usr/lib/aarch64-linux-gnu/libc.so.6
+ffffb95eb000-ffffb95ed000 rw-p 0018b000 00:3d 2238543                    /usr/lib/aarch64-linux-gnu/libc.so.6
+ffffb95ed000-ffffb95f9000 rw-p 00000000 00:00 0
+ffffb9600000-ffffb980a000 r-xp 00000000 00:3d 2238651                    /usr/lib/aarch64-linux-gnu/libstdc++.so.6.0.30
+ffffb980a000-ffffb9819000 ---p 0020a000 00:3d 2238651                    /usr/lib/aarch64-linux-gnu/libstdc++.so.6.0.30
+ffffb9819000-ffffb9824000 r--p 00209000 00:3d 2238651                    /usr/lib/aarch64-linux-gnu/libstdc++.so.6.0.30
+ffffb9824000-ffffb9827000 rw-p 00214000 00:3d 2238651                    /usr/lib/aarch64-linux-gnu/libstdc++.so.6.0.30
+ffffb9827000-ffffb982a000 rw-p 00000000 00:00 0
+ffffb9830000-ffffb9840000 ---p 00000000 00:00 0
+ffffb9840000-ffffb9860000 rw-p 00000000 00:00 0
+ffffb9860000-ffffb9861000 r-xp 00000000 00:3d 2238637                    /usr/lib/aarch64-linux-gnu/libpthread.so.0
+ffffb9861000-ffffb9870000 ---p 00001000 00:3d 2238637                    /usr/lib/aarch64-linux-gnu/libpthread.so.0
+ffffb9870000-ffffb9871000 r--p 00000000 00:3d 2238637                    /usr/lib/aarch64-linux-gnu/libpthread.so.0
+ffffb9871000-ffffb9872000 rw-p 00001000 00:3d 2238637                    /usr/lib/aarch64-linux-gnu/libpthread.so.0
+ffffb9880000-ffffb9894000 r-xp 00000000 00:3d 2238568                    /usr/lib/aarch64-linux-gnu/libgcc_s.so.1
+ffffb9894000-ffffb98a3000 ---p 00014000 00:3d 2238568                    /usr/lib/aarch64-linux-gnu/libgcc_s.so.1
+ffffb98a3000-ffffb98a4000 r--p 00013000 00:3d 2238568                    /usr/lib/aarch64-linux-gnu/libgcc_s.so.1
+ffffb98a4000-ffffb98a5000 rw-p 00014000 00:3d 2238568                    /usr/lib/aarch64-linux-gnu/libgcc_s.so.1
+ffffb98b0000-ffffb9936000 r-xp 00000000 00:3d 2238595                    /usr/lib/aarch64-linux-gnu/libm.so.6
+ffffb9936000-ffffb9945000 ---p 00086000 00:3d 2238595                    /usr/lib/aarch64-linux-gnu/libm.so.6
+ffffb9945000-ffffb9946000 r--p 00085000 00:3d 2238595                    /usr/lib/aarch64-linux-gnu/libm.so.6
+ffffb9946000-ffffb9947000 rw-p 00086000 00:3d 2238595                    /usr/lib/aarch64-linux-gnu/libm.so.6
+ffffb9950000-ffffb9951000 r-xp 00000000 00:3d 2238557                    /usr/lib/aarch64-linux-gnu/libdl.so.2
+ffffb9951000-ffffb9960000 ---p 00001000 00:3d 2238557                    /usr/lib/aarch64-linux-gnu/libdl.so.2
+ffffb9960000-ffffb9961000 r--p 00000000 00:3d 2238557                    /usr/lib/aarch64-linux-gnu/libdl.so.2
+ffffb9961000-ffffb9962000 rw-p 00001000 00:3d 2238557                    /usr/lib/aarch64-linux-gnu/libdl.so.2
+ffffb9972000-ffffb999d000 r-xp 00000000 00:3d 2238525                    /usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1
+ffffb999d000-ffffb99a2000 rw-p 00000000 00:00 0
+ffffb99a7000-ffffb99a9000 rw-p 00000000 00:00 0
+ffffb99a9000-ffffb99ab000 r--p 00000000 00:00 0                          [vvar]
+ffffb99ab000-ffffb99ac000 r-xp 00000000 00:00 0                          [vdso]
+ffffb99ac000-ffffb99ae000 r--p 0002a000 00:3d 2238525                    /usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1
+ffffb99ae000-ffffb99b0000 rw-p 0002c000 00:3d 2238525                    /usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1
+ffffd2308000-ffffd2329000 rw-p 00000000 00:00 0                          [stack]

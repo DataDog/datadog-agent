@@ -109,9 +109,9 @@ func TestCreateScanner(t *testing.T) {
 	require.True(isActive, "the scanner should now be active")
 
 	require.NotNil(s.Scanner, "the Scanner should've been created, it should not be nil")
-	require.NotNil(s.Scanner.Rules, "the Scanner should use rules")
+	require.NotNil(s.Scanner.RuleConfigs, "the Scanner should use rules")
 
-	require.Len(s.Scanner.Rules, 2, "the Scanner should use two rules")
+	require.Len(s.Scanner.RuleConfigs, 2, "the Scanner should use two rules")
 	require.Len(s.configuredRules, 2, "only two rules should be part of this scanner.")
 
 	// order matters, it's ok to test rules by [] access
@@ -598,10 +598,12 @@ func TestInterpretRC(t *testing.T) {
 
 	rule, err := interpretRCRule(rc, stdRc, StandardRulesDefaults{})
 	require.NoError(err)
+	rxRule, ok := rule.(sds.RegexRuleConfig)
+	require.True(ok)
 
-	require.Equal(rule.Id, "Zero")
-	require.Equal(rule.Pattern, "rule pattern 1")
-	require.Equal(rule.SecondaryValidator, sds.SecondaryValidator(""))
+	require.Equal(rxRule.Id, "Zero")
+	require.Equal(rxRule.Pattern, "rule pattern 1")
+	require.Equal(rxRule.SecondaryValidator, sds.SecondaryValidator(""))
 
 	// add a version with a required capability
 	stdRc.Definitions = append(stdRc.Definitions, StandardRuleDefinition{
@@ -612,10 +614,12 @@ func TestInterpretRC(t *testing.T) {
 
 	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{})
 	require.NoError(err)
+	rxRule, ok = rule.(sds.RegexRuleConfig)
+	require.True(ok)
 
-	require.Equal(rule.Id, "Zero")
-	require.Equal(rule.Pattern, "second pattern")
-	require.Equal(rule.SecondaryValidator, sds.LuhnChecksum)
+	require.Equal(rxRule.Id, "Zero")
+	require.Equal(rxRule.Pattern, "second pattern")
+	require.Equal(rxRule.SecondaryValidator, sds.LuhnChecksum)
 
 	// add a third version with an unknown required capability
 	// it should fallback on using the version 2
@@ -640,10 +644,12 @@ func TestInterpretRC(t *testing.T) {
 
 	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{})
 	require.NoError(err)
+	rxRule, ok = rule.(sds.RegexRuleConfig)
+	require.True(ok)
 
-	require.Equal(rule.Id, "Zero")
-	require.Equal(rule.Pattern, "second pattern")
-	require.Equal(rule.SecondaryValidator, sds.LuhnChecksum)
+	require.Equal(rxRule.Id, "Zero")
+	require.Equal(rxRule.Pattern, "second pattern")
+	require.Equal(rxRule.SecondaryValidator, sds.LuhnChecksum)
 
 	// included keywords
 	// -----------------
@@ -666,13 +672,15 @@ func TestInterpretRC(t *testing.T) {
 
 	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{IncludedKeywordsCharCount: 10})
 	require.NoError(err)
+	rxRule, ok = rule.(sds.RegexRuleConfig)
+	require.True(ok)
 
-	require.Equal(rule.Id, "Zero")
-	require.Equal(rule.Pattern, "second pattern")
-	require.Equal(rule.SecondaryValidator, sds.LuhnChecksum)
-	require.NotNil(rule.ProximityKeywords)
-	require.Equal(rule.ProximityKeywords.LookAheadCharacterCount, uint32(10))
-	require.Equal(rule.ProximityKeywords.IncludedKeywords, []string{"hello"})
+	require.Equal(rxRule.Id, "Zero")
+	require.Equal(rxRule.Pattern, "second pattern")
+	require.Equal(rxRule.SecondaryValidator, sds.LuhnChecksum)
+	require.NotNil(rxRule.ProximityKeywords)
+	require.Equal(rxRule.ProximityKeywords.LookAheadCharacterCount, uint32(10))
+	require.Equal(rxRule.ProximityKeywords.IncludedKeywords, []string{"hello"})
 
 	// make sure we use the user provided information first
 	// even if there is some in the std rule
@@ -683,13 +691,15 @@ func TestInterpretRC(t *testing.T) {
 
 	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{IncludedKeywordsCharCount: 10})
 	require.NoError(err)
+	rxRule, ok = rule.(sds.RegexRuleConfig)
+	require.True(ok)
 
-	require.Equal(rule.Id, "Zero")
-	require.Equal(rule.Pattern, "second pattern")
-	require.Equal(rule.SecondaryValidator, sds.LuhnChecksum)
-	require.NotNil(rule.ProximityKeywords)
-	require.Equal(rule.ProximityKeywords.LookAheadCharacterCount, uint32(42))
-	require.Equal(rule.ProximityKeywords.IncludedKeywords, []string{"custom"})
+	require.Equal(rxRule.Id, "Zero")
+	require.Equal(rxRule.Pattern, "second pattern")
+	require.Equal(rxRule.SecondaryValidator, sds.LuhnChecksum)
+	require.NotNil(rxRule.ProximityKeywords)
+	require.Equal(rxRule.ProximityKeywords.LookAheadCharacterCount, uint32(42))
+	require.Equal(rxRule.ProximityKeywords.IncludedKeywords, []string{"custom"})
 
 	// excluded keywords
 	// -----------------
@@ -715,11 +725,13 @@ func TestInterpretRC(t *testing.T) {
 
 	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{ExcludedKeywordsCharCount: 10})
 	require.NoError(err)
+	rxRule, ok = rule.(sds.RegexRuleConfig)
+	require.True(ok)
 
-	require.Equal(rule.Id, "Zero")
-	require.Equal(rule.Pattern, "second pattern")
-	require.Equal(rule.SecondaryValidator, sds.LuhnChecksum)
-	require.NotNil(rule.ProximityKeywords)
-	require.Equal(rule.ProximityKeywords.LookAheadCharacterCount, uint32(10))
-	require.Equal(rule.ProximityKeywords.ExcludedKeywords, []string{"hello"})
+	require.Equal(rxRule.Id, "Zero")
+	require.Equal(rxRule.Pattern, "second pattern")
+	require.Equal(rxRule.SecondaryValidator, sds.LuhnChecksum)
+	require.NotNil(rxRule.ProximityKeywords)
+	require.Equal(rxRule.ProximityKeywords.LookAheadCharacterCount, uint32(10))
+	require.Equal(rxRule.ProximityKeywords.ExcludedKeywords, []string{"hello"})
 }
