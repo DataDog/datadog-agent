@@ -35,14 +35,23 @@ from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_t
 from tasks.libs.common.utils import clean_nested_paths, get_build_flags, gitlab_section
 from tasks.libs.releasing.json import _get_release_json_value
 from tasks.modules import DEFAULT_MODULES, GoModule
-from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
+from tasks.test_core import (
+    ModuleTestResult,
+    process_input_args,
+    process_module_results,
+    test_core,
+)
 from tasks.testwasher import TestWasher
 from tasks.trace_agent import integration_tests as trace_integration_tests
 from tasks.update_go import PATTERN_MAJOR_MINOR_BUGFIX
 
-GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
+GO_TEST_RESULT_TMP_JSON = "module_test_output.json"
 WINDOWS_MAX_PACKAGES_NUMBER = 150
-TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/source_test/*"]
+TRIGGER_ALL_TESTS_PATHS = [
+    "tasks/gotest.py",
+    "tasks/build_tags.py",
+    ".gitlab/source_test/*",
+]
 OTEL_UPSTREAM_GO_MOD_PATH = (
     "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/main/go.mod"
 )
@@ -55,7 +64,7 @@ class TestProfiler:
     def write(self, txt):
         # Output to stdout
         # NOTE: write to underlying stream on Python 3 to avoid unicode issues when default encoding is not UTF-8
-        getattr(sys.stdout, 'buffer', sys.stdout).write(ensure_bytes(txt))
+        getattr(sys.stdout, "buffer", sys.stdout).write(ensure_bytes(txt))
         # Extract the run time
         for result in self.parser.finditer(txt):
             self.times.append((result.group(1), float(result.group(2))))
@@ -75,7 +84,7 @@ class TestProfiler:
 
 def ensure_bytes(s):
     if not isinstance(s, bytes):
-        return s.encode('utf-8')
+        return s.encode("utf-8")
 
     return s
 
@@ -130,7 +139,7 @@ def test_flavor(
     def command(test_results, module, module_result):
         module_path = module.full_path()
         with ctx.cd(module_path):
-            packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.targets)
+            packages = " ".join(f"{t}/..." if not t.endswith("/...") else t for t in module.targets)
             with CodecovWorkaround(ctx, module_path, coverage, packages, args) as cov_test_path:
                 res = ctx.run(
                     command=cmd.format(
@@ -149,9 +158,14 @@ def test_flavor(
             module_result.failed = True
         else:
             lines = res.stdout.splitlines()
-            if lines is not None and 'DONE 0 tests' in lines[-1]:
+            if lines is not None and "DONE 0 tests" in lines[-1]:
                 cov_path = os.path.join(module_path, PROFILE_COV)
-                print(color_message(f"No tests were run, skipping coverage report. Removing {cov_path}.", "orange"))
+                print(
+                    color_message(
+                        f"No tests were run, skipping coverage report. Removing {cov_path}.",
+                        "orange",
+                    )
+                )
                 try:
                     os.remove(cov_path)
                 except FileNotFoundError as e:
@@ -159,7 +173,7 @@ def test_flavor(
                 return
 
         if save_result_json:
-            with open(save_result_json, 'ab') as json_file, open(module_result.result_json_path, 'rb') as module_file:
+            with open(save_result_json, "ab") as json_file, open(module_result.result_json_path, "rb") as module_file:
                 json_file.write(module_file.read())
 
         if junit_tar:
@@ -220,7 +234,10 @@ def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_
         should_succeed = tw.process_module_results(test_results)
         if should_succeed:
             print(
-                color_message("All failing tests are known to be flaky, marking the test job as successful", "orange")
+                color_message(
+                    "All failing tests are known to be flaky, marking the test job as successful",
+                    "orange",
+                )
             )
             return True
 
@@ -245,8 +262,8 @@ def test(
     python_home_2=None,
     python_home_3=None,
     cpus=None,
-    major_version='7',
-    python_runtimes='3',
+    major_version="7",
+    python_runtimes="3",
     timeout=180,
     cache=True,
     test_run_name="",
@@ -260,6 +277,7 @@ def test(
     skip_flakes=False,
     build_stdlib=False,
     test_washer=False,
+    benchmark=False,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
 ):
     """
@@ -305,7 +323,7 @@ def test(
     covermode_opt = "-covermode=" + ("atomic" if race else "count") if coverage else ""
     build_cpus_opt = f"-p {cpus}" if cpus else ""
 
-    nocache = '-count=1' if not cache else ''
+    nocache = "-count=1" if not cache else ""
 
     if save_result_json and os.path.isfile(save_result_json):
         # Remove existing file since we append to it.
@@ -317,7 +335,7 @@ def test(
 
     stdlib_build_cmd = 'go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
     stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} std cmd'
-    rerun_coverage_fix = '--raw-command {cov_test_path}' if coverage else ""
+    rerun_coverage_fix = "--raw-command {cov_test_path}" if coverage else ""
     gotestsum_flags = (
         '{junit_file_flag} {json_flag} --format {gotestsum_format} {rerun_fails} --packages="{packages}" '
         + rerun_coverage_fix
@@ -325,9 +343,11 @@ def test(
     gobuild_flags = (
         '-mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" {build_cpus} {race_opt}'
     )
-    govet_flags = '-vet=off'
-    gotest_flags = '{verbose} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache}'
-    cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
+    govet_flags = "-vet=off"
+    gotest_flags = "{verbose} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache}"
+    if benchmark:
+        gotest_flags = f"{gotest_flags} -bench"
+    cmd = f"gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}"
     args = {
         "go_mod": go_mod,
         "gcflags": gcflags,
@@ -337,7 +357,7 @@ def test(
         "covermode_opt": covermode_opt,
         "test_run_arg": test_run_arg,
         "timeout": int(timeout),
-        "verbose": '-v' if verbose else '',
+        "verbose": "-v" if verbose else "",
         "nocache": nocache,
         # Used to print failed tests at the end of the go test command
         "rerun_fails": f"--rerun-fails={rerun_fails}" if rerun_fails else "",
@@ -422,7 +442,7 @@ def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow=
     """
     choices = ["gitlab", "dev", "local"]
     if target not in choices:
-        print(f'target {target} not in {choices}')
+        print(f"target {target} not in {choices}")
         raise Exit(code=1)
     if not os.getenv("DATADOG_AGENT_IMAGE"):
         if not agent_image:
@@ -492,7 +512,9 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
 
         # If there are go file matching the build tags in the folder we do not try to run tests
         res = ctx.run(
-            f'go list -tags "{" ".join(build_tags)}" ./{os.path.dirname(modified_file)}/...', hide=True, warn=True
+            f'go list -tags "{" ".join(build_tags)}" ./{os.path.dirname(modified_file)}/...',
+            hide=True,
+            warn=True,
         )
         if res.stderr is not None and "matched no packages" in res.stderr:
             continue
@@ -674,7 +696,9 @@ def get_impacted_packages(ctx, build_tags=None):
         if file.endswith("go.mod") or file.endswith("go.sum"):
             with ctx.cd(os.path.dirname(file)):
                 all_packages = ctx.run(
-                    f'go list -tags "{" ".join(build_tags)}" ./...', hide=True, warn=True
+                    f'go list -tags "{" ".join(build_tags)}" ./...',
+                    hide=True,
+                    warn=True,
                 ).stdout.splitlines()
                 modified_packages.update(set(all_packages))
 
@@ -700,7 +724,7 @@ def create_dependencies(ctx, build_tags=None):
     for modules in DEFAULT_MODULES:
         with ctx.cd(modules):
             res = ctx.run(
-                'go list '
+                "go list "
                 + f'-tags "{" ".join(build_tags)}" '
                 + '-f "{{.ImportPath}} {{.Imports}} {{.TestImports}}" ./...',
                 hide=True,
@@ -794,7 +818,8 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
             if res is not None and res.stderr is not None:
                 for package in res.stderr.splitlines():
                     package_to_remove = os.path.relpath(
-                        package.split(" ")[1].strip(":").replace("github.com/DataDog/datadog-agent/", ""), module
+                        package.split(" ")[1].strip(":").replace("github.com/DataDog/datadog-agent/", ""),
+                        module,
                     ).replace("\\", "/")
                     try:
                         modules_to_test[module].targets.remove(f"./{package_to_remove}")
@@ -817,8 +842,8 @@ def normpath(path):  # Normpath with forward slashes to avoid issues on Windows
 
 
 def get_go_module(path):
-    while path != '/':
-        go_mod_path = os.path.join(path, 'go.mod')
+    while path != "/":
+        go_mod_path = os.path.join(path, "go.mod")
         if os.path.isfile(go_mod_path):
             return path
         path = os.path.dirname(path)
@@ -907,7 +932,7 @@ def check_otel_module_versions(ctx):
     for path, module in DEFAULT_MODULES.items():
         if module.used_by_otel:
             mod_file = f"./{path}/go.mod"
-            with open(mod_file, newline='', encoding='utf-8') as reader:
+            with open(mod_file, newline="", encoding="utf-8") as reader:
                 content = reader.read()
                 matches = re.findall(pattern, content, flags=re.MULTILINE)
                 if len(matches) != 1:
