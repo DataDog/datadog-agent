@@ -68,31 +68,30 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 	}
 	// docker run -l com.datadoghq.ad.checks="{\"<INTEGRATION_NAME>\": {\"instances\": [<INSTANCE_CONFIG>], \"logs\": [<LOGS_CONFIG>]}}"
 	// docker run -l "com.datadoghq.ad.checks="{\"apache\": {\"logs\": [{\"type\":\"file\"}]}}""
-	fmt.Println("andrewq2", namedChecks)
 	for key, val := range namedChecks {
 		fmt.Println("Key:", key, "wackval:", val)
 	}
-
 	checks := make([]integration.Config, 0, len(namedChecks))
 	for name, config := range namedChecks {
 		if config.Name != "" {
 			name = config.Name
 		}
-
 		if len(config.InitConfig) == 0 {
 			config.InitConfig = json.RawMessage("{}")
-		}
-
-		log, err := parseJSONObjToData(config.Logs)
-		if err != nil {
-			return nil, err
 		}
 		c := integration.Config{
 			Name:                    name,
 			InitConfig:              integration.Data(config.InitConfig),
 			ADIdentifiers:           []string{adIdentifier},
-			LogsConfig:              log,
 			IgnoreAutodiscoveryTags: config.IgnoreAutodiscoveryTags,
+		}
+
+		if len(config.Logs) != 0 {
+			log, err := parseJSONObjToData(config.Logs)
+			if err != nil {
+				return nil, err
+			}
+			c.LogsConfig = log
 		}
 
 		for _, i := range config.Instances {
