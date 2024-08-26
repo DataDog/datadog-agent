@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"path"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
@@ -50,6 +51,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 		expectedAdditionalServices []string
 		fromDDService              bool
 		fs                         *SubDirFS
+		skipOnWindows              bool
 	}{
 		{
 			name:               "empty",
@@ -208,6 +210,20 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"./testdata/index.js",
 			},
 			expectedServiceTag: "my-awesome-package",
+			fs:                 &subUsmTestData,
+		},
+		{
+			name: "node js with a symlink to a .js file and valid package.json",
+			cmdline: []string{
+				"/usr/bin/node",
+				"--foo",
+				"./testdata/bins/notjs",
+				"--bar",
+				"./testdata/bins/broken",
+				"./testdata/bins/json-server",
+			},
+			expectedServiceTag: "json-server-package",
+			skipOnWindows:      true,
 			fs:                 &subUsmTestData,
 		},
 		{
@@ -521,6 +537,10 @@ func TestExtractServiceMetadata(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.skipOnWindows && runtime.GOOS == "windows" {
+				t.Skip("Not supported on Windows")
+			}
+
 			var fs fs.SubFS
 			fs = RealFs{}
 			if tt.fs != nil {

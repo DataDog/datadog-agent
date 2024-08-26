@@ -352,6 +352,22 @@ func (s SubDirFS) fixPath(path string) string {
 	return path
 }
 
+// Readlink reads the specified symlink.
+func (s SubDirFS) Readlink(name string) (string, error) {
+	name = s.fixPath(name)
+	return os.Readlink(filepath.Join(s.root, name))
+}
+
+// ReadlinkFS reads the symlink on the provided FS. There is no standard
+// SymlinkFS interface yet https://github.com/golang/go/issues/49580.
+func ReadlinkFS(fsfs fs.FS, name string) (string, error) {
+	if subDirFS, ok := fsfs.(SubDirFS); ok {
+		return subDirFS.Readlink(name)
+	}
+
+	return "", fs.ErrInvalid
+}
+
 // Sub provides a fs.FS for the specified subdirectory.
 func (s SubDirFS) Sub(dir string) (fs.FS, error) {
 	dir = filepath.Join(s.root, s.fixPath(dir))
