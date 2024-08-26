@@ -12,6 +12,8 @@ import (
 )
 
 var (
-	TlmOracleActivityLatency      = telemetry.NewHistogram("oracle", "activity_latency", nil, "Histogram of activity query latency in ms", []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000})
+	// TlmOracleActivityLatency is the time for the activity gathering to complete
+	TlmOracleActivityLatency = telemetry.NewHistogram("oracle", "activity_latency", nil, "Histogram of activity query latency in ms", []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000})
+	// TlmOracleActivitySamplesCount is the number of activity samples collected
 	TlmOracleActivitySamplesCount = telemetry.NewCounter("oracle", "activity_samples_count", nil, "Number of activity samples collected")
 )
