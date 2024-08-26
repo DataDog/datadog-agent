@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
@@ -370,13 +371,16 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 	testCases := map[string]struct {
 		commandline      []string // The command line of the fake server
 		workingDirectory string   // Optional: The working directory to use for the server.
+		language         language.Language
 	}{
 		"java": {
 			commandline: []string{"java", "-javaagent:/path/to/dd-java-agent.jar", "-jar", "foo.jar"},
+			language:    language.Java,
 		},
 		"node": {
 			commandline:      []string{"node"},
 			workingDirectory: filepath.Join(curDir, "testdata"),
+			language:         language.Node,
 		},
 	}
 
@@ -399,6 +403,7 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
 				portMap := getServicesMap(t, url)
 				assert.Contains(collect, portMap, pid)
+				assert.Equal(collect, string(test.language), portMap[pid].Language)
 				assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
 			}, 30*time.Second, 100*time.Millisecond)
 		})
@@ -435,7 +440,7 @@ func TestAPMInstrumentationProvidedPython(t *testing.T) {
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		portMap := getServicesMap(t, url)
 		assert.Contains(collect, portMap, pid)
-		fmt.Println(portMap[pid])
+		assert.Equal(collect, string(language.Python), portMap[pid].Language)
 		assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
 	}, 30*time.Second, 100*time.Millisecond)
 }
