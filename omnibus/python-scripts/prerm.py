@@ -19,6 +19,7 @@ import shutil
 import sys
 
 import pkg_resources
+from packaging import version
 
 def run_command(command):
     """
@@ -122,6 +123,16 @@ def get_requirements_dict(requirements):
     """
     return {req.name: req for req in requirements}
 
+def extract_version(specifier):
+    """
+    Extract version from the specifier string.
+    """
+    try:
+        # Get the first version specifier from the specifier string
+        return str(next(iter(pkg_resources.Requirement.parse(f'{specifier}').specifier)))
+    except Exception:
+        return None
+    
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         print("Usage: script_prerm.py <INSTALL_DIR>")
@@ -137,7 +148,24 @@ if __name__ == '__main__':
 
         old_datadog_requirements = load_requirements(datadog_requirements_file)
         old_datadog_requirements_dict = get_requirements_dict(old_datadog_requirements)
-        print(f"old_datadog_requirements_dict: {old_datadog_requirements_dict}")
+        new_datadog_requirements = load_requirements(new_datadog_requirements_file)
+        new_datadog_requirements_dict = get_requirements_dict(new_datadog_requirements)
+
+        # Find packages that are new or have been upgraded
+        updated_requirements = []
+        for package_name, new_req in new_datadog_requirements_dict.items():
+            old_req = old_datadog_requirements_dict.get(package_name)
+            if old_req:
+                # Extract and compare versions
+                old_version_str = extract_version(str(old_req.specifier))
+                new_version_str = extract_version(str(new_req.specifier))
+                if old_version_str and new_version_str:
+                    if version.parse(new_version_str) > version.parse(old_version_str):
+                        updated_requirements.append(new_req)
+            else:
+                # Package is new in the new file; include it
+                updated_requirements.append(new_req)
+        print(f"updated_requirements: {updated_requirements}")
 
         python_requirements_file = os.path.join(install_directory, '.python_requirements.txt')
         installed_python_requirements_file = os.path.join(install_directory, '.installed_python_requirements.txt')
