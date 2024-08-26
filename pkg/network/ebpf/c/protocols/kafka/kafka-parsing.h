@@ -501,7 +501,7 @@ static enum parser_level parser_state_to_level(kafka_response_state state)
     }
 }
 
-static __always_inline enum parse_result kafka_continue_parse_response_partition_loop(kafka_info_t *kafka,
+static __always_inline enum parse_result kafka_continue_parse_response_partition_loop_fetch(kafka_info_t *kafka,
                                                                             conn_tuple_t *tup,
                                                                             kafka_response_context_t *response,
                                                                             pktbuf_t pkt, u32 offset,
@@ -1202,7 +1202,7 @@ static __always_inline enum parse_result kafka_continue_parse_response(void *ctx
         if (api_key == KAFKA_PRODUCE) {
             ret = kafka_continue_parse_response_partition_loop_produce(kafka, tup, response, pkt, offset, data_end, api_version);
         } else if (api_key == KAFKA_FETCH) {
-            ret = kafka_continue_parse_response_partition_loop(kafka, tup, response, pkt, offset, data_end, api_version);
+            ret = kafka_continue_parse_response_partition_loop_fetch(kafka, tup, response, pkt, offset, data_end, api_version);
         }
         extra_debug("partition loop ret %d record_batches_array_count %u partitions_count %u", ret, response->record_batches_arrays_count, response->partitions_count);
 
