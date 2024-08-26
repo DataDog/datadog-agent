@@ -57,15 +57,15 @@ type StandardRulesDefaults struct {
 
 // RuleConfig of rule as sent by the Remote Configuration.
 type RuleConfig struct {
-	ID               string            `json:"id"`
-	Name             string            `json:"name"`
-	Description      string            `json:"description"`
-	Tags             []string          `json:"tags"`
-	Definition       RuleDefinition    `json:"definition"`
-	MatchAction      MatchAction       `json:"match_action"`
-	IncludedKeywords ProximityKeywords `json:"included_keywords"`
-	ExcludedKeywords ProximityKeywords `json:"excluded_keywords"`
-	IsEnabled        bool              `json:"is_enabled"`
+	ID                     string            `json:"id"`
+	Name                   string            `json:"name"`
+	Description            string            `json:"description"`
+	Tags                   []string          `json:"tags"`
+	Definition             RuleDefinition    `json:"definition"`
+	MatchAction            MatchAction       `json:"match_action"`
+	UseRecommendedKeywords bool              `json:"use_recommended_keywords"`
+	IncludedKeywords       ProximityKeywords `json:"included_keywords"`
+	IsEnabled              bool              `json:"is_enabled"`
 }
 
 // ProximityKeywords definition in RC config.

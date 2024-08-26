@@ -593,6 +593,7 @@ func TestInterpretRC(t *testing.T) {
 			Type:        matchActionRCRedact,
 			Placeholder: "[redacted]",
 		},
+		UseRecommendedKeywords: true,
 	}
 
 	rule, err := interpretRCRule(rc, stdRc, StandardRulesDefaults{})
@@ -648,7 +649,7 @@ func TestInterpretRC(t *testing.T) {
 	// -----------------
 
 	// make sure we use the keywords proximity feature if any's configured
-	// in the std rule definition 
+	// in the std rule definition
 	stdRc.Definitions = []StandardRuleDefinition{
 		{
 			Version:                 2,
@@ -690,12 +691,11 @@ func TestInterpretRC(t *testing.T) {
 	require.Equal(rule.ProximityKeywords.LookAheadCharacterCount, uint32(42))
 	require.Equal(rule.ProximityKeywords.IncludedKeywords, []string{"custom"})
 
-
 	// excluded keywords
 	// -----------------
 
 	// make sure we use the keywords proximity feature if any's configured
-	// in the std rule definition 
+	// in the std rule definition, here the excluded keywords one
 	stdRc.Definitions = []StandardRuleDefinition{
 		{
 			Version:                 2,
@@ -710,6 +710,9 @@ func TestInterpretRC(t *testing.T) {
 		},
 	}
 
+	// we don't want to use the included keywords feature now, but the excluded keywords one
+	rc.UseRecommendedKeywords = false
+
 	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{ExcludedKeywordsCharCount: 10})
 	require.NoError(err)
 
@@ -719,21 +722,4 @@ func TestInterpretRC(t *testing.T) {
 	require.NotNil(rule.ProximityKeywords)
 	require.Equal(rule.ProximityKeywords.LookAheadCharacterCount, uint32(10))
 	require.Equal(rule.ProximityKeywords.ExcludedKeywords, []string{"hello"})
-
-	// make sure we use the user provided information first
-	// even if there is some in the std rule
-	rc.ExcludedKeywords = ProximityKeywords{
-		Keywords:       []string{"custom"},
-		CharacterCount: 42,
-	}
-
-	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{ExcludedKeywordsCharCount: 10})
-	require.NoError(err)
-
-	require.Equal(rule.Id, "Zero")
-	require.Equal(rule.Pattern, "second pattern")
-	require.Equal(rule.SecondaryValidator, sds.LuhnChecksum)
-	require.NotNil(rule.ProximityKeywords)
-	require.Equal(rule.ProximityKeywords.LookAheadCharacterCount, uint32(42))
-	require.Equal(rule.ProximityKeywords.ExcludedKeywords, []string{"custom"})
 }

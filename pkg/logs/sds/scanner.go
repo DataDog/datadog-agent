@@ -312,26 +312,23 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig, defau
 		return sds.Rule{}, fmt.Errorf("unsupported rule with no compatible definition")
 	}
 
-	// we use the filled `CharacterCount` value to decide if we want
-	// to use the user provided configuration for included proximity keywords
-	// or if we have to use the information provided in the std rules instead.
-	if userRule.IncludedKeywords.CharacterCount > 0 {
-		// proximity keywords configuration provided by the user
-		extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(userRule.IncludedKeywords.CharacterCount, userRule.IncludedKeywords.Keywords, nil)
-	} else if len(defToUse.DefaultIncludedKeywords) > 0 && defaults.IncludedKeywordsCharCount > 0 {
-		// the user has not specified proximity keywords
-		// use the proximity keywords provided by the standard rule if any
-		extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(defaults.IncludedKeywordsCharCount, defToUse.DefaultIncludedKeywords, nil)
-	}
-
-	// same thing for excluded proximity keywords
-	// we could either use the user configuration or the std rules configuration instead.
-	if userRule.ExcludedKeywords.CharacterCount > 0 {
-		// proximity keywords configuration provided by the user
-		extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(userRule.ExcludedKeywords.CharacterCount, nil, userRule.ExcludedKeywords.Keywords)
+	// if the checkbox "use recommended keywords" has been explicitely checked
+	// we will use the included keywords, otherwise, we will use the
+	// excluded keywords.
+	if userRule.UseRecommendedKeywords {
+		// we use the filled `CharacterCount` value to decide if we want
+		// to use the user provided configuration for included proximity keywords
+		// or if we have to use the information provided in the std rules instead.
+		if userRule.IncludedKeywords.CharacterCount > 0 {
+			// proximity keywords configuration provided by the user
+			extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(userRule.IncludedKeywords.CharacterCount, userRule.IncludedKeywords.Keywords, nil)
+		} else if len(defToUse.DefaultIncludedKeywords) > 0 && defaults.IncludedKeywordsCharCount > 0 {
+			// the user has not specified proximity keywords
+			// use the proximity keywords provided by the standard rule if any
+			extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(defaults.IncludedKeywordsCharCount, defToUse.DefaultIncludedKeywords, nil)
+		}
 	} else if len(defToUse.DefaultExcludedKeywords) > 0 && defaults.ExcludedKeywordsCharCount > 0 {
-		// the user has not specified proximity keywords
-		// use the proximity keywords provided by the standard rule if any
+		// the user didn't select to use included keywords, use the excluded keywords if any are defined
 		extraConfig.ProximityKeywords = sds.CreateProximityKeywordsConfig(defaults.ExcludedKeywordsCharCount, nil, defToUse.DefaultExcludedKeywords)
 	}
 
