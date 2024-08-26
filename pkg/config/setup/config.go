@@ -450,6 +450,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// Network Path
 	config.BindEnvAndSetDefault("network_path.connections_monitoring.enabled", false)
 	config.BindEnvAndSetDefault("network_path.collector.workers", 4)
+	config.BindEnvAndSetDefault("network_path.collector.timeout", 10000)
+	config.BindEnvAndSetDefault("network_path.collector.max_ttl", 30)
 	config.BindEnvAndSetDefault("network_path.collector.input_chan_size", 1000)
 	config.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 1000)
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 10000)

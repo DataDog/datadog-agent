@@ -762,6 +762,22 @@ network_devices:
 	assert.Equal(t, "dev", config.GetString("network_devices.namespace"))
 }
 
+func TestNetworkPathDefaults(t *testing.T) {
+	datadogYaml := ""
+	config := ConfFromYAML(datadogYaml)
+
+	assert.Equal(t, false, config.GetBool("network_path.connections_monitoring.enabled"))
+	assert.Equal(t, 4, config.GetInt("network_path.collector.workers"))
+	assert.Equal(t, 10000, config.GetInt("network_path.collector.timeout"))
+	assert.Equal(t, 30, config.GetInt("network_path.collector.max_ttl"))
+	assert.Equal(t, 1000, config.GetInt("network_path.collector.input_chan_size"))
+	assert.Equal(t, 1000, config.GetInt("network_path.collector.processing_chan_size"))
+	assert.Equal(t, 10000, config.GetInt("network_path.collector.pathtest_contexts_limit"))
+	assert.Equal(t, 15*time.Minute, config.GetDuration("network_path.collector.pathtest_ttl"))
+	assert.Equal(t, 5*time.Minute, config.GetDuration("network_path.collector.pathtest_interval"))
+	assert.Equal(t, 10*time.Second, config.GetDuration("network_path.collector.flush_interval"))
+}
+
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
 	// If use_podman_logs is true and docker_path_override is set, the config should return an error
 	datadogYaml := `

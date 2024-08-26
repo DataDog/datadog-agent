@@ -24,7 +24,7 @@ const (
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
 	MinCollectionInterval int64 `yaml:"min_collection_interval"`
-	TimeoutMs             int64 `yaml:"timeout"` // millisecond
+	TimeoutMs             int64 `yaml:"timeout"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -40,7 +40,7 @@ type InstanceConfig struct {
 
 	MaxTTL uint8 `yaml:"max_ttl"`
 
-	TimeoutMs int64 `yaml:"timeout"` // millisecond
+	TimeoutMs int64 `yaml:"timeout"`
 
 	MinCollectionInterval int `yaml:"min_collection_interval"`
 
