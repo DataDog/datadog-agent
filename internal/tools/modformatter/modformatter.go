@@ -23,6 +23,7 @@ import (
 var (
 	path       = flag.String("path", ".", "Path to go.mod file to format")
 	formatFile = flag.Bool("formatFile", false, "Enable or Disable formatting of the mod file")
+	repoPath   = flag.String("repoPath", "", "Path to the repository")
 )
 
 // Delete an element from a slice
@@ -64,7 +65,7 @@ func removeExtraLines(lines []string, consecutiveLineNumber int) []string {
 	indexList := make([]int, 0)
 	for idx, content := range lines {
 		if content == "" {
-			lineCounter += 1
+			lineCounter++
 		} else {
 			lineCounter = 0
 		}
@@ -90,7 +91,7 @@ func formatModFile(content string) string {
 	for idx, line := range strings.Split(content, "\n") {
 		if inRequire {
 			lines = deleteElement(lines, idx-totalRemovedLines)
-			totalRemovedLines += 1
+			totalRemovedLines++
 			if strings.Contains(line, ")") {
 				inRequire = false
 			} else {
@@ -98,7 +99,7 @@ func formatModFile(content string) string {
 			}
 		} else if inReplace {
 			lines = deleteElement(lines, idx-totalRemovedLines)
-			totalRemovedLines += 1
+			totalRemovedLines++
 			if strings.Contains(line, ")") {
 				inReplace = false
 			} else {
@@ -107,7 +108,7 @@ func formatModFile(content string) string {
 		} else if strings.HasPrefix(line, "replace") {
 			parts := strings.Split(line, " ")
 			lines = deleteElement(lines, idx-totalRemovedLines)
-			totalRemovedLines += 1
+			totalRemovedLines++
 			if parts[1][0] == '(' {
 				inReplace = true
 			} else {
@@ -116,7 +117,7 @@ func formatModFile(content string) string {
 		} else if strings.HasPrefix(line, "require") {
 			parts := strings.Split(line, " ")
 			lines = deleteElement(lines, idx-totalRemovedLines)
-			totalRemovedLines += 1
+			totalRemovedLines++
 			if parts[1][0] == '(' {
 				inRequire = true
 			} else {
@@ -139,8 +140,12 @@ func formatModFile(content string) string {
 
 func main() {
 	flag.Parse()
-	if *path == "" {
+	if *path == "" || *repoPath == "" {
 		flag.PrintDefaults()
+		os.Exit(1)
+	}
+	if _, err := os.Stat(*repoPath); os.IsNotExist(err) {
+		fmt.Printf("Repository path %s does not exist\n", *repoPath)
 		os.Exit(1)
 	}
 
@@ -148,16 +153,16 @@ func main() {
 	modFilePath := filepath.Join(*path, "go.mod")
 	b, err := os.ReadFile(modFilePath)
 	if err != nil {
-		fmt.Println("Error opening file %q:", err)
+		fmt.Println("Error opening file:", err)
 		return
 	}
-	f, err := modfile.Parse("go.mod", b, func(_, v string) (string, error) {
+	f, _ := modfile.Parse("go.mod", b, func(_, v string) (string, error) {
 		return module.CanonicalVersion(v), nil
 	})
 
 	// Store every dependency already replaced in the go.mod file
 	ReplaceMap := make(map[string]bool)
-	for i := 0; i < len(f.Replace); i += 1 {
+	for i := 0; i < len(f.Replace); i++ {
 		token := f.Replace[i].Syntax.Token
 		if len(token) < 1 {
 			continue
@@ -188,7 +193,7 @@ func main() {
 			if *formatFile {
 				writeNeeded = true
 				trimName := strings.Split(modname, "github.com/DataDog/datadog-agent/")[1]
-				trimPath := strings.Split(*path, "github.com/DataDog/datadog-agent/")[1]
+				trimPath := "." + strings.Split(*path, *repoPath)[1]
 				relativePath, err := filepath.Rel(trimPath, trimName)
 				if err != nil {
 					log.Fatal(err)
