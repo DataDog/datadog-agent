@@ -8,7 +8,9 @@
 package runtime
 
 import (
+	"bytes"
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -40,6 +42,15 @@ func newAsset(filename, hash string) *asset {
 // Compile compiles the asset to an object file, writes it to the configured output directory, and
 // then opens and returns the compiled output
 func (a *asset) Compile(config *ebpf.Config, additionalFlags []string, client statsd.ClientInterface) (CompiledOutput, error) {
+	return a.compile(config, additionalFlags, client, nil)
+}
+
+// CompileWithCallback is the same as Compile, but takes a callback function that is allowed to modify the contents before compilation.
+func (a *asset) CompileWithCallback(config *ebpf.Config, additionalFlags []string, client statsd.ClientInterface, modifyCB func(in io.Reader, out io.Writer) error) (CompiledOutput, error) {
+	return a.compile(config, additionalFlags, client, modifyCB)
+}
+
+func (a *asset) compile(config *ebpf.Config, additionalFlags []string, client statsd.ClientInterface, modifyCB func(in io.Reader, out io.Writer) error) (CompiledOutput, error) {
 	log.Debugf("starting runtime compilation of %s", a.filename)
 
 	start := time.Now()
@@ -65,6 +76,7 @@ func (a *asset) Compile(config *ebpf.Config, additionalFlags []string, client st
 		return nil, fmt.Errorf("unable to find kernel headers")
 	}
 
+	a.tm.compilationResult = verificationError
 	outputDir := config.RuntimeCompilerOutputDir
 
 	p := filepath.Join(config.BPFDir, "runtime", a.filename)
@@ -78,22 +90,61 @@ func (a *asset) Compile(config *ebpf.Config, additionalFlags []string, client st
 		return nil, fmt.Errorf("unable to create compiler output directory %s: %w", outputDir, err)
 	}
 
-	protectedFile, err := createProtectedFile(fmt.Sprintf("%s-%s", a.filename, a.hash), outputDir, f)
+	diskProtectedFile, err := createProtectedFile(fmt.Sprintf("%s-%s", a.filename, a.hash), outputDir, f)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ram backed file from %s: %w", f.Name(), err)
 	}
 	defer func() {
-		if err := protectedFile.Close(); err != nil {
-			log.Debugf("error closing protected file %s: %s", protectedFile.Name(), err)
+		if err := diskProtectedFile.Close(); err != nil {
+			log.Debugf("error closing protected file %s: %s", diskProtectedFile.Name(), err)
 		}
 	}()
+	protectedFile := diskProtectedFile
+	hash := a.hash
 
-	if err = a.verify(protectedFile); err != nil {
-		a.tm.compilationResult = verificationError
+	if err = a.verify(diskProtectedFile); err != nil {
 		return nil, fmt.Errorf("error reading input file: %s", err)
 	}
 
-	out, result, err := compileToObjectFile(protectedFile.Name(), outputDir, a.filename, a.hash, additionalFlags, kernelHeaders)
+	a.tm.compilationResult = compilationErr
+	if modifyCB != nil {
+		outBuf := &bytes.Buffer{}
+		// seek to the start and read all of protected file contents
+		if _, err := diskProtectedFile.Seek(0, io.SeekStart); err != nil {
+			return nil, fmt.Errorf("seek disk protected file: %w", err)
+		}
+
+		// run modify callback
+		if err := modifyCB(diskProtectedFile, outBuf); err != nil {
+			return nil, fmt.Errorf("modify callback: %w", err)
+		}
+		outReader := bytes.NewReader(outBuf.Bytes())
+
+		// update hash
+		hash, err = sha256Reader(outReader)
+		if err != nil {
+			return nil, fmt.Errorf("hash post-modification protected file: %w", err)
+		}
+		if _, err := outReader.Seek(0, io.SeekStart); err != nil {
+			return nil, fmt.Errorf("seek post-modification contents: %w", err)
+		}
+
+		// create new protected file with the post-modification contents
+		postModifyProtectedFile, err := createProtectedFile(fmt.Sprintf("%s-%s", a.filename, hash), outputDir, outReader)
+		if err != nil {
+			return nil, fmt.Errorf("create post-modification protected file: %w", err)
+		}
+		defer func() {
+			if err := postModifyProtectedFile.Close(); err != nil {
+				log.Debugf("close post-modification protected file %s: %s", postModifyProtectedFile.Name(), err)
+			}
+		}()
+
+		// set compilation to use post-modification contents
+		protectedFile = postModifyProtectedFile
+	}
+
+	out, result, err := compileToObjectFile(protectedFile.Name(), outputDir, a.filename, hash, additionalFlags, kernelHeaders)
 	a.tm.compilationResult = result
 
 	return out, err
@@ -111,15 +162,22 @@ func createProtectedFile(name, runtimeDir string, source io.Reader) (ProtectedFi
 
 // verify reads the asset from the reader and verifies the content hash matches what is expected.
 func (a *asset) verify(source ProtectedFile) error {
-	h := sha256.New()
-	if _, err := io.Copy(h, source.Reader()); err != nil {
-		return fmt.Errorf("error hashing file %s: %w", source.Name(), err)
+	sum, err := sha256Reader(source)
+	if err != nil {
+		return fmt.Errorf("hash file %s: %w", source.Name(), err)
 	}
-	if fmt.Sprintf("%x", h.Sum(nil)) != a.hash {
+	if sum != a.hash {
 		return fmt.Errorf("file content hash does not match expected value")
 	}
-
 	return nil
+}
+
+func sha256Reader(r io.Reader) (string, error) {
+	h := sha256.New()
+	if _, err := io.Copy(h, r); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 // GetTelemetry returns the compilation telemetry for this asset
