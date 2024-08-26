@@ -648,7 +648,7 @@ def gen_config_for_stack(
     stack = check_and_get_stack(stack)
     if not stack_exists(stack) and not init_stack:
         raise Exit(
-            f"Stack {stack} does not exist. Please create stack first 'inv kmt.create-stack --stack={stack}, or specify --init-stack option to the current command'"
+            f"Stack {stack} does not exist. Please create stack first 'inv kmt.create-stack --stack={stack}', or specify --init-stack option to the current command"
         )
 
     if init_stack:
