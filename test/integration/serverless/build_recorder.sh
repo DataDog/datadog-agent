@@ -25,7 +25,6 @@ function docker_build_zip {
     echo "Building Docker image for $arch"
     docker buildx build --platform linux/${arch} \
         -t datadog/build-recorder-extension-${arch}:$VERSION \
-        --build-arg GOARCH=${arch} \
         -f ./$BUILD_FILE \
         . --load
 

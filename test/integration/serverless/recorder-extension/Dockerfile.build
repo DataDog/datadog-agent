@@ -1,16 +1,18 @@
 # syntax = docker/dockerfile:experimental
 
-FROM alpine:3.16 as builder
-ARG GOARCH
+FROM public.ecr.aws/lambda/provided:al2 as builder
 
-RUN apk add --no-cache git make musl-dev gcc
-COPY --from=golang:1.22-alpine /usr/local/go/ /usr/lib/go
+RUN yum install -y wget tar gzip gcc
+RUN arch="$(uname -m)"; \
+    if [ "${arch}" = 'aarch64' ]; then \
+    arch='arm64'; \
+    fi; \
+    if [ "${arch}" = 'x86_64' ]; then \
+    arch='amd64'; \
+    fi; \
+    wget -O go1.22.5.linux-${arch}.tar.gz https://go.dev/dl/go1.22.5.linux-${arch}.tar.gz; \
+    tar -C /usr/local -xzf go1.22.5.linux-${arch}.tar.gz
 
-ENV GOROOT /usr/lib/go
-ENV GOPATH /go
-ENV PATH /go/bin:$PATH
-
-RUN mkdir -p ${GOPATH}/src ${GOPATH}/bin
 RUN mkdir -p /tmp/dd/recorder-extension
 
 # Copy Go modules and source files
@@ -21,7 +23,7 @@ WORKDIR /tmp/dd/recorder-extension
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    GOOS=linux GOARCH=${GOARCH} /usr/lib/go/bin/go build -o recorder-extension main.go;
+    /usr/local/go/bin/go build -o recorder-extension main.go;
 
 # zip the extension
 FROM ubuntu:latest as compresser
