@@ -9,37 +9,23 @@ package rules
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-// ActionName defines an action name
-type ActionName = string
-
-const (
-	// KillAction name a the kill action
-	KillAction ActionName = "kill"
-)
-
-// ActionDefinition describes a rule action section
-type ActionDefinition struct {
-	Filter   *string             `yaml:"filter"`
-	Set      *SetDefinition      `yaml:"set"`
-	Kill     *KillDefinition     `yaml:"kill"`
-	CoreDump *CoreDumpDefinition `yaml:"coredump"`
-	Hash     *HashDefinition     `yaml:"hash"`
-
-	// internal
-	InternalCallback *InternalCallbackDefinition `yaml:"-"`
-	FilterEvaluator  *eval.RuleEvaluator         `yaml:"-"`
+// Action represents the action to take when a rule is triggered
+// It can either come from policy a definition or be an internal callback
+type Action struct {
+	Def              *ActionDefinition
+	InternalCallback *InternalCallbackDefinition
+	FilterEvaluator  *eval.RuleEvaluator
 }
 
 // Check returns an error if the action in invalid
 func (a *ActionDefinition) Check(opts PolicyLoaderOpts) error {
-	if a.Set == nil && a.InternalCallback == nil && a.Kill == nil && a.Hash == nil && a.CoreDump == nil {
+	if a.Set == nil && a.Kill == nil && a.Hash == nil && a.CoreDump == nil {
 		return errors.New("either 'set', 'kill', 'hash' or 'coredump' section of an action must be specified")
 	}
 
@@ -74,47 +60,31 @@ func (a *ActionDefinition) Check(opts PolicyLoaderOpts) error {
 }
 
 // CompileFilter compiles the filter expression
-func (a *ActionDefinition) CompileFilter(parsingContext *ast.ParsingContext, model eval.Model, evalOpts *eval.Opts) error {
-	if a.Filter == nil || *a.Filter == "" {
+func (a *Action) CompileFilter(parsingContext *ast.ParsingContext, model eval.Model, evalOpts *eval.Opts) error {
+	if a.Def.Filter == nil || *a.Def.Filter == "" {
 		return nil
 	}
 
-	expression := *a.Filter
+	expression := *a.Def.Filter
 
-	rule := &Rule{
-		Rule: eval.NewRule("action_rule", expression, evalOpts),
-	}
+	eval := eval.NewRule("action_rule", expression, evalOpts)
 
-	if err := rule.Parse(parsingContext); err != nil {
+	if err := eval.Parse(parsingContext); err != nil {
 		return &ErrActionFilter{Expression: expression, Err: err}
 	}
 
-	if err := rule.GenEvaluator(model, parsingContext); err != nil {
+	if err := eval.GenEvaluator(model, parsingContext); err != nil {
 		return &ErrActionFilter{Expression: expression, Err: err}
 	}
 
-	a.FilterEvaluator = rule.GetEvaluator()
+	a.FilterEvaluator = eval.GetEvaluator()
 
 	return nil
 }
 
 // IsAccepted returns whether a filter is accepted and has to be executed
-func (a *ActionDefinition) IsAccepted(ctx *eval.Context) bool {
+func (a *Action) IsAccepted(ctx *eval.Context) bool {
 	return a.FilterEvaluator == nil || a.FilterEvaluator.Eval(ctx)
-}
-
-// Scope describes the scope variables
-type Scope string
-
-// SetDefinition describes the 'set' section of a rule action
-type SetDefinition struct {
-	Name   string        `yaml:"name"`
-	Value  interface{}   `yaml:"value"`
-	Field  string        `yaml:"field"`
-	Append bool          `yaml:"append"`
-	Scope  Scope         `yaml:"scope"`
-	Size   int           `yaml:"size"`
-	TTL    time.Duration `yaml:"ttl"`
 }
 
 // InternalCallbackDefinition describes an internal rule action
@@ -122,8 +92,8 @@ type InternalCallbackDefinition struct{}
 
 // KillDefinition describes the 'kill' section of a rule action
 type KillDefinition struct {
-	Signal string `yaml:"signal,omitempty"`
-	Scope  string `yaml:"scope,omitempty"`
+	Signal string `yaml:"signal"`
+	Scope  string `yaml:"scope"`
 }
 
 // CoreDumpDefinition describes the 'coredump' action

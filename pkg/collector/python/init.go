@@ -8,6 +8,7 @@
 package python
 
 import (
+	"errors"
 	"expvar"
 	"fmt"
 	"os"
@@ -83,6 +84,7 @@ void initLogger(rtloader_t *rtloader) {
 void GetClusterName(char **);
 void GetConfig(char*, char **);
 void GetHostname(char **);
+void GetHostTags(char **);
 void GetVersion(char **);
 void Headers(char **);
 char * ReadPersistentCache(char *);
@@ -100,6 +102,7 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_clustername_cb(rtloader, GetClusterName);
 	set_get_config_cb(rtloader, GetConfig);
 	set_get_hostname_cb(rtloader, GetHostname);
+	set_get_host_tags_cb(rtloader, GetHostTags);
 	set_get_version_cb(rtloader, GetVersion);
 	set_headers_cb(rtloader, Headers);
 	set_send_log_cb(rtloader, SendLog);
@@ -256,7 +259,7 @@ func addExpvarPythonInitErrors(msg string) error {
 	defer pyInitLock.Unlock()
 
 	pyInitErrors = append(pyInitErrors, msg)
-	return fmt.Errorf(msg)
+	return errors.New(msg)
 }
 
 func sendTelemetry(pythonVersion string) {

@@ -162,6 +162,12 @@ func TestGetOTelSpanType(t *testing.T) {
 		expected string
 	}{
 		{
+			name:     "override with span.type attr",
+			spanKind: ptrace.SpanKindInternal,
+			rattrs:   map[string]string{"span.type": "my-type"},
+			expected: "my-type",
+		},
+		{
 			name:     "web span",
 			spanKind: ptrace.SpanKindServer,
 			expected: "web",

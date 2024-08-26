@@ -1023,15 +1023,23 @@ def compare_to_itself(ctx):
         f"git remote set-url origin https://x-access-token:{gh._auth.token}@github.com/DataDog/datadog-agent.git",
         hide=True,
     )
-    ctx.run(f"git config --global user.name '{BOT_NAME}'")
-    ctx.run("git config --global user.email 'github-app[bot]@users.noreply.github.com'")
+    ctx.run(f"git config --global user.name '{BOT_NAME}'", hide=True)
+    ctx.run("git config --global user.email 'github-app[bot]@users.noreply.github.com'", hide=True)
     # The branch must exist in gitlab to be able to "compare_to"
-    ctx.run(f"git push origin {new_branch}", hide=True)
+    # Push an empty commit to prevent linking this pipeline to the actual PR
+    ctx.run("git commit -m 'Compare to itself' --allow-empty", hide=True)
+    ctx.run(f"git push origin {new_branch}")
+
+    from tasks.libs.releasing.json import load_release_json
+
+    release_json = load_release_json()
+
     for file in ['.gitlab-ci.yml', '.gitlab/notify/notify.yml']:
         with open(file) as f:
             content = f.read()
         with open(file, 'w') as f:
-            f.write(content.replace('compare_to: main', f'compare_to: {new_branch}'))
+            f.write(content.replace(f'compare_to: {release_json["base_branch"]}', f'compare_to: {new_branch}'))
+
     ctx.run("git commit -am 'Compare to itself'", hide=True)
     ctx.run(f"git push origin {new_branch}", hide=True)
     max_attempts = 6

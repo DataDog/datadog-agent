@@ -9,24 +9,11 @@ import (
 	"fmt"
 	"testing"
 
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestExampleStoreSubscribe(t *testing.T) {
-
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		config.MockModule(),
-		fx.Supply(wmdef.NewParams()),
-	))
-
-	s := newWorkloadmetaObject(deps)
+	s := newWorkloadmetaObject(t)
 
 	filter := wmdef.NewFilterBuilder().SetSource(wmdef.SourceRuntime).AddKind(wmdef.KindContainer).Build()
 	ch := s.Subscribe("test", wmdef.NormalPriority, filter)

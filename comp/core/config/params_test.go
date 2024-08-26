@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -51,4 +52,9 @@ func TestNewSecurityAgentParams(t *testing.T) {
 		require.Equal(t, path.DefaultConfPath, configComponentParams.defaultConfPath, "defaultConfPath values not matching")
 		require.Equal(t, false, configComponentParams.configMissingOK, "configMissingOK values not matching")
 	}
+}
+
+func TestWithCLIOverride(t *testing.T) {
+	params := NewParams("test_path", WithCLIOverride("test.setting", true), WithCLIOverride("test.setting2", "test"))
+	assert.Equal(t, map[string]interface{}{"test.setting": true, "test.setting2": "test"}, params.cliOverride)
 }

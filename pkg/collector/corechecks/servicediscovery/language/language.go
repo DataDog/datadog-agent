@@ -7,13 +7,14 @@
 package language
 
 import (
-	"fmt"
 	"io"
 	"os"
-	"path"
 	"strings"
 
-	"go.uber.org/zap"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Language represents programming languages.
@@ -41,20 +42,22 @@ const (
 )
 
 var (
-	procToLanguage = map[string]Language{
-		"java":    Java,
-		"node":    Node,
-		"nodemon": Node,
-		"python":  Python,
-		"python3": Python,
-		"dotnet":  DotNet,
-		"ruby":    Ruby,
-		"bundle":  Ruby,
+	// languageNameToLanguageMap translates the constants rom the
+	// languagedetection package to the constants used in this file. The latter
+	// are shared with the backend, and at least java/jvm differs in the name
+	// from the languagedetection package.
+	languageNameToLanguageMap = map[languagemodels.LanguageName]Language{
+		languagemodels.Go:     Go,
+		languagemodels.Node:   Node,
+		languagemodels.Dotnet: DotNet,
+		languagemodels.Python: Python,
+		languagemodels.Java:   Java,
+		languagemodels.Ruby:   Ruby,
 	}
 )
 
 // Detect attempts to detect the Language from the provided process information.
-func (lf Finder) Detect(args []string, envs []string) (Language, bool) {
+func (lf Finder) Detect(args []string, envs map[string]string) (Language, bool) {
 	lang := lf.findLang(ProcessInfo{
 		Args: args,
 		Envs: envs,
@@ -76,7 +79,7 @@ func findFile(fileName string) (io.ReadCloser, bool) {
 // ProcessInfo holds information about a process.
 type ProcessInfo struct {
 	Args []string
-	Envs []string
+	Envs map[string]string
 }
 
 // FileReader attempts to read the most representative file associated to a process.
@@ -89,16 +92,16 @@ func (pi ProcessInfo) FileReader() (io.ReadCloser, bool) {
 	if strings.HasPrefix(fileName, "/") {
 		return findFile(fileName)
 	}
-	for _, env := range pi.Envs {
-		if key, val, _ := strings.Cut(env, "="); key == "PATH" {
-			paths := strings.Split(val, ":")
-			for _, path := range paths {
-				if r, found := findFile(path + string(os.PathSeparator) + fileName); found {
-					return r, true
-				}
+	if val, ok := pi.Envs["PATH"]; ok {
+		paths := strings.Split(val, ":")
+		for _, path := range paths {
+			if r, found := findFile(path + string(os.PathSeparator) + fileName); found {
+				return r, true
 			}
 		}
+
 	}
+
 	// well, just try it as a relative path, maybe it works
 	return findFile(fileName)
 }
@@ -110,9 +113,8 @@ type Matcher interface {
 }
 
 // New returns a new language Finder.
-func New(l *zap.Logger) Finder {
+func New() Finder {
 	return Finder{
-		Logger: l,
 		Matchers: []Matcher{
 			PythonScript{},
 			RubyScript{},
@@ -123,20 +125,17 @@ func New(l *zap.Logger) Finder {
 
 // Finder allows to detect the language for a given process.
 type Finder struct {
-	Logger   *zap.Logger
 	Matchers []Matcher
 }
 
 func (lf Finder) findLang(pi ProcessInfo) Language {
-	lang := findInArgs(pi.Args)
-	lf.Logger.Debug("language found", zap.Any("lang", lang))
+	lang := FindInArgs(pi.Args)
+	log.Debugf("language found: %q", lang)
 
 	// if we can't figure out a language from the command line, try alternate methods
 	if lang == "" {
-		lf.Logger.Debug("trying alternate methods")
 		for _, matcher := range lf.Matchers {
 			if matcher.Match(pi) {
-				lf.Logger.Debug(fmt.Sprintf("%T matched", matcher))
 				lang = matcher.Language()
 				break
 			}
@@ -145,17 +144,30 @@ func (lf Finder) findLang(pi ProcessInfo) Language {
 	return lang
 }
 
-func findInArgs(args []string) Language {
+// FindInArgs tries to detect the language only using the provided command line arguments.
+func FindInArgs(args []string) Language {
 	// empty slice passed in
 	if len(args) == 0 {
 		return ""
 	}
-	for i := 0; i < len(args); i++ {
-		procName := path.Base(args[i])
-		// if procName is a known language, return the pos and the language
-		if lang, ok := procToLanguage[procName]; ok {
-			return lang
-		}
+
+	langs := languagedetection.DetectLanguage([]languagemodels.Process{&procutil.Process{
+		// Pid doesn't matter since sysprobeConfig is nil
+		Pid:     0,
+		Cmdline: args,
+		Comm:    args[0],
+	}}, nil)
+	if len(langs) == 0 {
+		return ""
 	}
+
+	lang := langs[0]
+	if lang == nil {
+		return ""
+	}
+	if outLang, ok := languageNameToLanguageMap[lang.Name]; ok {
+		return outLang
+	}
+
 	return ""
 }

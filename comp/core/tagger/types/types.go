@@ -164,3 +164,16 @@ type EntityEvent struct {
 	EventType EventType
 	Entity    Entity
 }
+
+// EntityIDPrefix represents the prefix of a TagEntity id
+type EntityIDPrefix string
+
+// ToUID builds a unique id from the passed id
+// if the passed id is empty, an empty string is returned
+// else it returns `{entityPrefix}://{id}`
+func (e EntityIDPrefix) ToUID(id string) string {
+	if id == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s://%s", e, id)
+}

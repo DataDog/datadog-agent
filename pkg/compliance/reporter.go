@@ -50,9 +50,8 @@ func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *c
 	logSource := sources.NewLogSource(
 		sourceName,
 		&config.LogsConfig{
-			Type:    sourceType,
-			Service: sourceName,
-			Source:  sourceName,
+			Type:   sourceType,
+			Source: sourceName,
 		},
 	)
 	logChan := pipelineProvider.NextPipelineChan()

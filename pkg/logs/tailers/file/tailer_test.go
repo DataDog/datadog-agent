@@ -351,6 +351,38 @@ func (suite *TailerTestSuite) TestBuildTagsFileDir() {
 	}, tags)
 }
 
+func (suite *TailerTestSuite) TestTruncatedTag() {
+	coreConfig.Datadog().SetWithoutSource("logs_config.max_message_size_bytes", 3)
+	coreConfig.Datadog().SetWithoutSource("logs_config.tag_truncated_logs", true)
+	defer coreConfig.Datadog().SetWithoutSource("logs_config.max_message_size_bytes", coreConfig.DefaultMaxMessageSizeBytes)
+	defer coreConfig.Datadog().SetWithoutSource("logs_config.tag_truncated_logs", false)
+
+	source := sources.NewLogSource("", &config.LogsConfig{
+		Type: config.FileType,
+		Path: suite.testPath,
+	})
+	sleepDuration := 10 * time.Millisecond
+	info := status.NewInfoRegistry()
+
+	tailerOptions := &TailerOptions{
+		OutputChan:    suite.outputChan,
+		File:          NewFile(suite.testPath, source, true),
+		SleepDuration: sleepDuration,
+		Decoder:       decoder.NewDecoderFromSource(suite.source, info),
+		Info:          info,
+	}
+
+	suite.tailer = NewTailer(tailerOptions)
+	suite.tailer.StartFromBeginning()
+
+	_, err := suite.testFile.WriteString("1234\n")
+	suite.Nil(err)
+
+	msg := <-suite.outputChan
+	tags := msg.Tags()
+	suite.Contains(tags, message.TruncatedTag)
+}
+
 func (suite *TailerTestSuite) TestMutliLineAutoDetect() {
 	lines := "Jul 12, 2021 12:55:15 PM test message 1\n"
 	lines += "Jul 12, 2021 12:55:15 PM test message 2\n"

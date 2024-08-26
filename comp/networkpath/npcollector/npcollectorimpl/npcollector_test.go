@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// go:build test
+//go:build test
 
 package npcollectorimpl
 
@@ -148,13 +148,13 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
             "ttl": 0,
             "ip_address": "1.1.1.1",
             "hostname": "hop_1",
-            "success": false
+            "reachable": false
         },
         {
             "ttl": 0,
             "ip_address": "1.1.1.2",
             "hostname": "hop_2",
-            "success": false
+            "reachable": false
         }
     ]
 }
@@ -180,13 +180,13 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
             "ttl": 0,
             "ip_address": "1.1.1.3",
             "hostname": "hop_1",
-            "success": false
+            "reachable": false
         },
         {
             "ttl": 0,
             "ip_address": "1.1.1.4",
             "hostname": "hop_2",
-            "success": false
+            "reachable": false
         }
     ]
 }
@@ -225,6 +225,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	tags := []string{
 		"collector:network_path_collector",
 		"destination_hostname:abc",
+		"destination_ip:10.0.0.4",
 		"destination_port:80",
 		"protocol:UDP",
 	}
@@ -293,16 +294,18 @@ func Test_newNpCollectorImpl_defaultConfigs(t *testing.T) {
 	assert.Equal(t, 4, npCollector.workers)
 	assert.Equal(t, 1000, cap(npCollector.pathtestInputChan))
 	assert.Equal(t, 1000, cap(npCollector.pathtestProcessingChan))
+	assert.Equal(t, 10000, npCollector.collectorConfigs.pathtestContextsLimit)
 	assert.Equal(t, "default", npCollector.networkDevicesNamespace)
 }
 
 func Test_newNpCollectorImpl_overrideConfigs(t *testing.T) {
 	agentConfigs := map[string]any{
-		"network_path.connections_monitoring.enabled": true,
-		"network_path.collector.workers":              2,
-		"network_path.collector.input_chan_size":      300,
-		"network_path.collector.processing_chan_size": 400,
-		"network_devices.namespace":                   "ns1",
+		"network_path.connections_monitoring.enabled":    true,
+		"network_path.collector.workers":                 2,
+		"network_path.collector.input_chan_size":         300,
+		"network_path.collector.processing_chan_size":    400,
+		"network_path.collector.pathtest_contexts_limit": 500,
+		"network_devices.namespace":                      "ns1",
 	}
 
 	_, npCollector := newTestNpCollector(t, agentConfigs)
@@ -311,6 +314,7 @@ func Test_newNpCollectorImpl_overrideConfigs(t *testing.T) {
 	assert.Equal(t, 2, npCollector.workers)
 	assert.Equal(t, 300, cap(npCollector.pathtestInputChan))
 	assert.Equal(t, 400, cap(npCollector.pathtestProcessingChan))
+	assert.Equal(t, 500, npCollector.collectorConfigs.pathtestContextsLimit)
 	assert.Equal(t, "ns1", npCollector.networkDevicesNamespace)
 }
 
@@ -638,6 +642,37 @@ func Test_npCollectorImpl_flush(t *testing.T) {
 	assert.Equal(t, 2, len(npCollector.pathtestProcessingChan))
 }
 
+func Test_npCollectorImpl_flushLoop(t *testing.T) {
+	// GIVEN
+	agentConfigs := map[string]any{
+		"network_path.connections_monitoring.enabled": true,
+		"network_path.collector.workers":              6,
+		"network_path.collector.flush_interval":       "100ms",
+	}
+	_, npCollector := newTestNpCollector(t, agentConfigs)
+	defer npCollector.stop()
+
+	stats := &teststatsd.Client{}
+	npCollector.statsdClient = stats
+	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host1", Port: 53})
+	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host2", Port: 53})
+
+	// WHEN
+	go npCollector.flushLoop()
+
+	// THEN
+	assert.Eventually(t, func() bool {
+		calls := stats.GetGaugeSummaries()["datadog.network_path.collector.flush_interval"]
+		if calls == nil {
+			return false
+		}
+		for _, call := range calls.Calls {
+			assert.Less(t, call.Value, (200 * time.Millisecond).Seconds())
+		}
+		return len(calls.Calls) >= 3
+	}, 3*time.Second, 10*time.Millisecond)
+}
+
 func Test_npCollectorImpl_sendTelemetry(t *testing.T) {
 	// GIVEN
 	agentConfigs := map[string]any{
@@ -673,6 +708,7 @@ func Test_npCollectorImpl_sendTelemetry(t *testing.T) {
 	tags := []string{
 		"collector:network_path_collector",
 		"destination_hostname:abc",
+		"destination_ip:10.0.0.2",
 		"destination_port:80",
 		"protocol:UDP",
 	}

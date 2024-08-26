@@ -20,6 +20,7 @@ func TestSubmitNetworkPathTelemetry(t *testing.T) {
 	expectedTags := []string{
 		"collector:network_path_integration",
 		"destination_hostname:abc",
+		"destination_ip:10.0.0.1",
 		"destination_port:unspecified",
 		"foo:bar",
 		"protocol:UDP",
@@ -36,7 +37,7 @@ func TestSubmitNetworkPathTelemetry(t *testing.T) {
 		{
 			name: "with hops and interval",
 			path: payload.NetworkPath{
-				Destination: payload.NetworkPathDestination{Hostname: "abc"},
+				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "10.0.0.1"},
 				Protocol:    payload.ProtocolUDP,
 				Hops: []payload.NetworkPathHop{
 					{Hostname: "hop_1", IPAddress: "1.1.1.1"},
@@ -82,11 +83,11 @@ func TestSubmitNetworkPathTelemetry(t *testing.T) {
 		{
 			name: "with last hop successful",
 			path: payload.NetworkPath{
-				Destination: payload.NetworkPathDestination{Hostname: "abc"},
+				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "10.0.0.1"},
 				Protocol:    payload.ProtocolUDP,
 				Hops: []payload.NetworkPathHop{
 					{Hostname: "hop_1", IPAddress: "1.1.1.1"},
-					{Hostname: "hop_2", IPAddress: "1.1.1.2", Success: true},
+					{Hostname: "hop_2", IPAddress: "1.1.1.2", Reachable: true},
 				},
 			},
 			checkDuration: 10 * time.Second,
@@ -128,7 +129,7 @@ func TestSubmitNetworkPathTelemetry(t *testing.T) {
 		{
 			name: "no hops and no interval",
 			path: payload.NetworkPath{
-				Destination: payload.NetworkPathDestination{Hostname: "abc"},
+				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "10.0.0.1"},
 				Protocol:    payload.ProtocolUDP,
 				Hops:        []payload.NetworkPathHop{},
 			},

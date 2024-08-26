@@ -14,10 +14,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"go.uber.org/zap"
-
 	"github.com/rickar/props"
 	"github.com/vibrantbyte/go-antpath/antpath"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -82,8 +82,8 @@ func (y *environmentSource) Get(key string) (string, bool) {
 func (y *environmentSource) GetDefault(key string, defVal string) string {
 	return y.m.GetDefault(strings.Map(normalizeEnv, key), defVal)
 }
-func newEnvironmentSource(envs []string) props.PropertyGetter {
-	return &environmentSource{m: newArgumentSource(envs, "")}
+func newEnvironmentSource(envs map[string]string) props.PropertyGetter {
+	return &environmentSource{m: &mapSource{m: envs}}
 }
 
 // normalizeEnv converts a rune into a suitable replacement for an environment variable name.
@@ -224,7 +224,7 @@ func (s springBootParser) scanSourcesFromFileSystem(profilePatterns map[string][
 				// a match is found
 				value, err := s.newPropertySourceFromFile(p)
 				if err != nil {
-					s.ctx.logger.Debug("cannot parse a property source", zap.String("filename", p), zap.Error(err))
+					log.Debugf("cannot parse a property source (filename: %q). Err: %v", p, err)
 					return nil
 				}
 				arr, ok := ret[profile]
@@ -306,7 +306,7 @@ func (s springBootParser) GetSpringBootAppName(jarname string) (string, bool) {
 	if !isSpringBootArchive(reader) {
 		return "", false
 	}
-	s.ctx.logger.Debug("parsing information from spring boot archive", zap.String("filename", jarname))
+	log.Debugf("parsing information from spring boot archive: %q", jarname)
 
 	combined := &props.Combined{Sources: []props.PropertyGetter{
 		newArgumentSource(s.ctx.args, "--"),

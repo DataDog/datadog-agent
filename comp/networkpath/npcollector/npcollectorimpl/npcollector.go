@@ -75,10 +75,11 @@ func newNoopNpCollectorImpl() *npCollectorImpl {
 }
 
 func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, telemetrycomp telemetryComp.Component) *npCollectorImpl {
-	logger.Infof("New NpCollector (workers=%d input_chan_size=%d processing_chan_size=%d pathtest_ttl=%s pathtest_interval=%s flush_interval=%s)",
+	logger.Infof("New NpCollector (workers=%d input_chan_size=%d processing_chan_size=%d pathtest_contexts_limit=%d pathtest_ttl=%s pathtest_interval=%s flush_interval=%s)",
 		collectorConfigs.workers,
 		collectorConfigs.pathtestInputChanSize,
 		collectorConfigs.pathtestProcessingChanSize,
+		collectorConfigs.pathtestContextsLimit,
 		collectorConfigs.pathtestTTL,
 		collectorConfigs.pathtestInterval,
 		collectorConfigs.flushInterval)
@@ -88,7 +89,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		collectorConfigs: collectorConfigs,
 		logger:           logger,
 
-		pathtestStore:          pathteststore.NewPathtestStore(collectorConfigs.pathtestTTL, collectorConfigs.pathtestInterval, logger),
+		pathtestStore:          pathteststore.NewPathtestStore(collectorConfigs.pathtestTTL, collectorConfigs.pathtestInterval, collectorConfigs.pathtestContextsLimit, logger),
 		pathtestInputChan:      make(chan *common.Pathtest, collectorConfigs.pathtestInputChanSize),
 		pathtestProcessingChan: make(chan *pathteststore.PathtestContext, collectorConfigs.pathtestProcessingChanSize),
 		flushInterval:          collectorConfigs.flushInterval,
@@ -266,6 +267,7 @@ func (s *npCollectorImpl) flushLoop() {
 		// automatic flush sequence
 		case flushTime := <-flushTicker.C:
 			s.flushWrapper(flushTime, lastFlushTime)
+			lastFlushTime = flushTime
 		}
 	}
 }
@@ -276,7 +278,6 @@ func (s *npCollectorImpl) flushWrapper(flushTime time.Time, lastFlushTime time.T
 		flushInterval := flushTime.Sub(lastFlushTime)
 		s.statsdClient.Gauge("datadog.network_path.collector.flush_interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
 	}
-	lastFlushTime = flushTime
 
 	s.flush()
 	s.statsdClient.Gauge("datadog.network_path.collector.flush_duration", s.TimeNowFn().Sub(flushTime).Seconds(), []string{}, 1) //nolint:errcheck

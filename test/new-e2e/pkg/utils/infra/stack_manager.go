@@ -17,6 +17,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
+
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV1"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/debug"
@@ -50,19 +52,6 @@ var (
 	stackManager     *StackManager
 	initStackManager sync.Once
 )
-
-type internalError struct {
-	err error
-}
-
-func (i internalError) Error() string {
-	return fmt.Sprintf("E2E INTERNAL ERROR: %v", i.err)
-}
-
-func (i internalError) Is(target error) bool {
-	_, ok := target.(internalError)
-	return ok
-}
 
 // StackManager handles
 type StackManager struct {
@@ -129,7 +118,7 @@ func newStackManager() (*StackManager, error) {
 func (sm *StackManager) GetStack(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool) (_ *auto.Stack, _ auto.UpResult, err error) {
 	defer func() {
 		if err != nil {
-			err = internalError{err}
+			err = common.InternalError{Err: err}
 		}
 	}()
 
@@ -216,7 +205,7 @@ func WithCancelTimeout(cancelTimeout time.Duration) GetStackOption {
 func (sm *StackManager) GetStackNoDeleteOnFailure(ctx context.Context, name string, deployFunc pulumi.RunFunc, options ...GetStackOption) (_ *auto.Stack, _ auto.UpResult, err error) {
 	defer func() {
 		if err != nil {
-			err = internalError{err}
+			err = common.InternalError{Err: err}
 		}
 	}()
 
@@ -227,7 +216,7 @@ func (sm *StackManager) GetStackNoDeleteOnFailure(ctx context.Context, name stri
 func (sm *StackManager) DeleteStack(ctx context.Context, name string, logWriter io.Writer) (err error) {
 	defer func() {
 		if err != nil {
-			err = internalError{err}
+			err = common.InternalError{Err: err}
 		}
 	}()
 
@@ -257,7 +246,7 @@ func (sm *StackManager) DeleteStack(ctx context.Context, name string, logWriter 
 func (sm *StackManager) ForceRemoveStackConfiguration(ctx context.Context, name string) (err error) {
 	defer func() {
 		if err != nil {
-			err = internalError{err}
+			err = common.InternalError{Err: err}
 		}
 	}()
 
@@ -278,7 +267,7 @@ func (sm *StackManager) Cleanup(ctx context.Context) []error {
 	sm.stacks.Range(func(stackID string, stack *auto.Stack) {
 		err := sm.deleteStack(ctx, stackID, stack, nil, nil)
 		if err != nil {
-			errors = append(errors, internalError{err})
+			errors = append(errors, common.InternalError{Err: err})
 		}
 	})
 
@@ -355,7 +344,7 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 	for {
 		downCount++
 		destroyContext, cancel := context.WithTimeout(ctx, defaultStackDestroyTimeout)
-		_, destroyErr = stack.Destroy(destroyContext, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
+		_, destroyErr = stack.Destroy(destroyContext, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions), optdestroy.Remove())
 		cancel()
 		if destroyErr == nil {
 			sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack destroy", stackID), "", []string{"operation:destroy", "result:ok", fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", downCount)})
@@ -383,10 +372,7 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 		fmt.Printf("Retrying stack on error during stack destroy: %v\n", destroyErr)
 	}
 
-	deleteContext, cancel := context.WithTimeout(ctx, stackDeleteTimeout)
-	defer cancel()
-	err = stack.Workspace().RemoveStack(deleteContext, stack.Name())
-	return err
+	return nil
 }
 
 func (sm *StackManager) getStack(ctx context.Context, name string, deployFunc pulumi.RunFunc, options ...GetStackOption) (*auto.Stack, auto.UpResult, error) {
@@ -573,7 +559,7 @@ func sendEventToDatadog(sender datadogEventSender, title string, message string,
 func (sm *StackManager) GetPulumiStackName(name string) (_ string, err error) {
 	defer func() {
 		if err != nil {
-			err = internalError{err}
+			err = common.InternalError{Err: err}
 		}
 	}()
 

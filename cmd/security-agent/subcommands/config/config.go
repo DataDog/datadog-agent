@@ -57,7 +57,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				showRuntimeConfiguration,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
@@ -75,7 +75,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					showRuntimeConfigurationBySource,
 					fx.Supply(cliParams),
 					fx.Supply(core.BundleParams{
-						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 						SecretParams: secrets.NewEnabledParams(),
 						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle(),
@@ -95,7 +95,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					listRuntimeConfigurableValue,
 					fx.Supply(cliParams),
 					fx.Supply(core.BundleParams{
-						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 						SecretParams: secrets.NewEnabledParams(),
 						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle(),
@@ -115,7 +115,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					setConfigValue,
 					fx.Supply(cliParams),
 					fx.Supply(core.BundleParams{
-						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 						SecretParams: secrets.NewEnabledParams(),
 						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle(),
@@ -135,7 +135,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					getConfigValue,
 					fx.Supply(cliParams),
 					fx.Supply(core.BundleParams{
-						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 						SecretParams: secrets.NewEnabledParams(),
 						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle(),
