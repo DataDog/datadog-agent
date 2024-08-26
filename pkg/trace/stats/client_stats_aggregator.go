@@ -101,6 +101,7 @@ func (a *ClientStatsAggregator) Start() {
 // Stop stops the aggregator. Calling Stop twice will panic.
 func (a *ClientStatsAggregator) Stop() {
 	close(a.exit)
+	a.flushTicker.Stop()
 	<-a.done
 }
 

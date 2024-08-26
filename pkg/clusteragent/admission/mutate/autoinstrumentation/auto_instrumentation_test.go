@@ -39,11 +39,14 @@ const commonRegistry = "gcr.io/datadoghq"
 
 func TestInjectAutoInstruConfigV2(t *testing.T) {
 	c := configmock.New(t)
+
 	tests := []struct {
 		name                  string
 		pod                   *corev1.Pod
+		libInfo               extractedPodLibInfo
 		expectedInjectorImage string
-		libsToInject          []libInfo
+		expectedLangsDetected string
+		expectedInstallType   string
 		wantErr               bool
 		config                func()
 	}{
@@ -55,17 +58,21 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			name:                  "nominal case: java",
 			pod:                   common.FakePod("java-pod"),
 			expectedInjectorImage: commonRegistry + "/apm-inject:0",
-			libsToInject: []libInfo{
-				java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+			libInfo: extractedPodLibInfo{
+				libs: []libInfo{
+					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+				},
 			},
 		},
 		{
 			name:                  "nominal case: java & python",
 			pod:                   common.FakePod("java-pod"),
 			expectedInjectorImage: commonRegistry + "/apm-inject:0",
-			libsToInject: []libInfo{
-				java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
-				python.libInfo("", "gcr.io/datadoghq/dd-lib-python-init:v1"),
+			libInfo: extractedPodLibInfo{
+				libs: []libInfo{
+					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+					python.libInfo("", "gcr.io/datadoghq/dd-lib-python-init:v1"),
+				},
 			},
 		},
 		{
@@ -76,8 +83,10 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				},
 			}.Create(),
 			expectedInjectorImage: commonRegistry + "/apm-inject:v0",
-			libsToInject: []libInfo{
-				java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+			libInfo: extractedPodLibInfo{
+				libs: []libInfo{
+					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+				},
 			},
 		},
 		{
@@ -88,16 +97,89 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				},
 			}.Create(),
 			expectedInjectorImage: "docker.io/library/apm-inject-package:v27",
-			libsToInject: []libInfo{
-				java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+			libInfo: extractedPodLibInfo{
+				libs: []libInfo{
+					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+				},
 			},
 		},
 		{
 			name:                  "config injector-image-override",
 			pod:                   common.FakePod("java-pod"),
 			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0.16-1",
-			libsToInject: []libInfo{
-				java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+			libInfo: extractedPodLibInfo{
+				libs: []libInfo{
+					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+				},
+			},
+			config: func() {
+				c.SetWithoutSource("apm_config.instrumentation.injector_image_tag", "0.16-1")
+			},
+		},
+		{
+			name:                  "config language detected env vars",
+			pod:                   common.FakePod("java-pod"),
+			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0.16-1",
+			expectedLangsDetected: "python",
+			expectedInstallType:   "k8s_lib_injection",
+			libInfo: extractedPodLibInfo{
+				languageDetection: &libInfoLanguageDetection{
+					libs: []libInfo{
+						python.defaultLibInfo(commonRegistry, "java-pod-container"),
+					},
+				},
+				libs: []libInfo{
+					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+				},
+				source: libInfoSourceLibInjection,
+			},
+			config: func() {
+				c.SetWithoutSource("apm_config.instrumentation.injector_image_tag", "0.16-1")
+			},
+		},
+		{
+			name:                  "language detected for a different container",
+			pod:                   common.FakePod("java-pod"),
+			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0",
+			expectedLangsDetected: "",
+			libInfo: extractedPodLibInfo{
+				languageDetection: &libInfoLanguageDetection{
+					libs: []libInfo{
+						python.defaultLibInfo(commonRegistry, "not-java-pod-container"),
+					},
+				},
+				libs: []libInfo{
+					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+				},
+			},
+		},
+		{
+			name:                  "language detected but no languages found",
+			pod:                   common.FakePod("java-pod"),
+			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0",
+			expectedLangsDetected: "",
+			libInfo: extractedPodLibInfo{
+				languageDetection: &libInfoLanguageDetection{},
+				libs: []libInfo{
+					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+				},
+			},
+		},
+		{
+			name:                  "with specified install type",
+			pod:                   common.FakePod("java-pod"),
+			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0.16-1",
+			expectedLangsDetected: "python",
+			libInfo: extractedPodLibInfo{
+				languageDetection: &libInfoLanguageDetection{
+					libs: []libInfo{
+						python.defaultLibInfo(commonRegistry, "java-pod-container"),
+					},
+				},
+				libs: []libInfo{
+					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
+				},
+				source: libInfoSourceSingleStepLangaugeDetection,
 			},
 			config: func() {
 				c.SetWithoutSource("apm_config.instrumentation.injector_image_tag", "0.16-1")
@@ -107,11 +189,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			wmeta := fxutil.Test[workloadmeta.Component](
-				t,
-				core.MockBundle(),
-				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-			)
+			wmeta := common.FakeStoreWithDeployment(t, nil)
 
 			c = configmock.New(t)
 			c.SetWithoutSource("apm_config.instrumentation.version", "v2")
@@ -123,7 +201,16 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			require.Equal(t, instrumentationV2, webhook.version)
 			require.True(t, webhook.version.usesInjector())
 
-			err := webhook.injectAutoInstruConfig(tt.pod, tt.libsToInject, false, "")
+			if tt.libInfo.source == libInfoSourceNone {
+				tt.libInfo.source = libInfoSourceSingleStepInstrumentation
+			}
+
+			if tt.expectedInstallType == "" {
+				tt.expectedInstallType = "k8s_single_step"
+			}
+
+			err := webhook.injectAutoInstruConfig(tt.pod, tt.libInfo)
+
 			if tt.wantErr {
 				require.Error(t, err, "expected injectAutoInstruConfig to error")
 			} else {
@@ -142,7 +229,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			requireEnv := func(t *testing.T, key string, ok bool, value string) {
 				t.Helper()
 				val, exists := envsByName[key]
-				require.Equal(t, ok, exists, "expected env %v to be %v", key, ok)
+				require.Equal(t, ok, exists, "expected env %v exists to = %v", key, ok)
 				require.Equal(t, value, val.Value, "expected env %v = %v", key, val)
 			}
 
@@ -150,7 +237,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				requireEnv(t, env.Name, false, "")
 			}
 
-			if len(tt.libsToInject) == 0 {
+			if len(tt.libInfo.libs) == 0 {
 				require.Zero(t, len(tt.pod.Spec.InitContainers), "no libs, no init containers")
 				requireEnv(t, "LD_PRELOAD", false, "")
 				return
@@ -159,21 +246,24 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			require.Equal(t, volumeName, tt.pod.Spec.Volumes[0].Name,
 				"expected datadog volume to be injected")
 
-			require.Equal(t, len(tt.libsToInject)+1, len(tt.pod.Spec.InitContainers),
+			require.Equal(t, etcVolume.Name, tt.pod.Spec.Volumes[1].Name,
+				"expected datadog-etc volume to be injected")
+
+			require.Equal(t, len(tt.libInfo.libs)+1, len(tt.pod.Spec.InitContainers),
 				"expected there to be one more than the number of libs to inject for init containers")
 
 			for i, c := range tt.pod.Spec.InitContainers {
 
 				var injectorMountPath string
 
-				if i == 0 { // check init container
+				if i == 0 { // check inject container
 					require.Equal(t, "datadog-init-apm-inject", c.Name,
 						"expected the first init container to be apm-inject")
 					require.Equal(t, tt.expectedInjectorImage, c.Image,
 						"expected the container image to be %s", tt.expectedInjectorImage)
 					injectorMountPath = c.VolumeMounts[0].MountPath
 				} else { // lib volumes for each of the rest of the containers
-					lib := tt.libsToInject[i-1]
+					lib := tt.libInfo.libs[i-1]
 					require.Equal(t, lib.image, c.Image)
 					require.Equal(t, "opt/datadog/apm/library/"+string(lib.lang), c.VolumeMounts[0].SubPath,
 						"expected a language specific sub-path for the volume mount for lang %s",
@@ -186,18 +276,22 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 
 				// each of the init containers writes a timestamp to their given volume mount path
 				require.Equal(t, 1, len(c.Args), "expected container args")
-				_, suffix, found := strings.Cut(c.Args[0], "&&")
-				require.True(t, found, "expected container args separated by &&")
-				echoDate, toFile, found := strings.Cut(suffix, ">>")
-				require.True(t, found, "expected container args with piping redirection")
-				require.Equal(t, "echo $(date +%s)", strings.TrimSpace(echoDate), "expected container args with date")
-				require.Equal(t, injectorMountPath+"/c-init-time."+c.Name, strings.TrimSpace(toFile),
-					"expected to write to file based on the container name")
+				// the last part of each of the init container's command should be writing
+				// a timestamp based on the name of the container.
+				expectedTimestampPath := injectorMountPath + "/c-init-time." + c.Name
+				cmdTail := "&& echo $(date +%s) >> " + expectedTimestampPath
+				require.Contains(t, c.Args[0], cmdTail, "expected args to contain %s", cmdTail)
+				prefix, found := strings.CutSuffix(c.Args[0], cmdTail)
+				require.True(t, found, "expected args to end with %s ", cmdTail)
+
+				if i == 0 { // inject container
+					require.Contains(t, prefix, "&& echo /opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so > /datadog-etc/ld.so.preload")
+				}
 			}
 
-			// two volume mounts
+			// three volume mounts
 			mounts := tt.pod.Spec.Containers[0].VolumeMounts
-			require.Equal(t, 2, len(mounts), "expected 2 volume mounts in the application container")
+			require.Equal(t, 3, len(mounts), "expected 3 volume mounts in the application container")
 			require.Equal(t, corev1.VolumeMount{
 				Name:      volumeName,
 				MountPath: "/opt/datadog-packages/datadog-apm-inject",
@@ -205,13 +299,29 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				ReadOnly:  true,
 			}, mounts[0], "expected first container volume mount to be the injector")
 			require.Equal(t, corev1.VolumeMount{
+				Name:      etcVolume.Name,
+				MountPath: "/etc/ld.so.preload",
+				SubPath:   "ld.so.preload",
+				ReadOnly:  true,
+			}, mounts[1], "expected first container volume mount to be the injector")
+			require.Equal(t, corev1.VolumeMount{
 				Name:      volumeName,
 				MountPath: "/opt/datadog/apm/library",
 				SubPath:   "opt/datadog/apm/library",
-			}, mounts[1], "expected the second container volume mount to be the language libraries")
+			}, mounts[2], "expected the second container volume mount to be the language libraries")
 
 			requireEnv(t, "LD_PRELOAD", true, "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so")
 			requireEnv(t, "DD_INJECT_SENDER_TYPE", true, "k8s")
+
+			requireEnv(t, "DD_INSTRUMENTATION_INSTALL_TYPE", true, tt.expectedInstallType)
+
+			if tt.libInfo.languageDetection == nil {
+				requireEnv(t, "DD_INSTRUMENTATION_LANGUAGES_DETECTED", false, "")
+				requireEnv(t, "DD_INSTRUMENTATION_LANGUAGE_DETECTION_INJECTION_ENABLED", false, "")
+			} else {
+				requireEnv(t, "DD_INSTRUMENTATION_LANGUAGES_DETECTED", true, tt.expectedLangsDetected)
+				requireEnv(t, "DD_INSTRUMENTATION_LANGUAGE_DETECTION_INJECTION_ENABLED", true, strconv.FormatBool(tt.libInfo.languageDetection.injectionEnabled))
+			}
 		})
 	}
 }
@@ -429,7 +539,10 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			c.SetWithoutSource("apm_config.instrumentation.version", "v1")
 
 			webhook := mustWebhook(t, wmeta)
-			err := webhook.injectAutoInstruConfig(tt.pod, tt.libsToInject, false, "")
+			err := webhook.injectAutoInstruConfig(tt.pod, extractedPodLibInfo{
+				libs:   tt.libsToInject,
+				source: libInfoSourceLibInjection,
+			})
 			if tt.wantErr {
 				require.Error(t, err, "expected injectAutoInstruConfig to error")
 			} else {
@@ -559,18 +672,17 @@ func TestExtractLibInfo(t *testing.T) {
 			containerRegistry:   "registry",
 			expectedPodEligible: pointer.Ptr(true),
 			expectedLibsToInject: []libInfo{
-				{
-					lang:  "python",
-					image: "registry/dd-lib-python-init:v1",
-				},
+				python.libInfo("", "registry/dd-lib-python-init:v1"),
 			},
 		},
 		{
-			name:                 "python with unlabelled injection off",
-			pod:                  common.FakePodWithAnnotation("admission.datadoghq.com/python-lib.version", "v1"),
-			containerRegistry:    "registry",
-			expectedPodEligible:  pointer.Ptr(false),
-			expectedLibsToInject: []libInfo{},
+			name:                "python with unlabelled injection off",
+			pod:                 common.FakePodWithAnnotation("admission.datadoghq.com/python-lib.version", "v1"),
+			containerRegistry:   "registry",
+			expectedPodEligible: pointer.Ptr(false),
+			expectedLibsToInject: []libInfo{
+				python.libInfo("", "registry/dd-lib-python-init:v1"),
+			},
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 			},
@@ -580,10 +692,7 @@ func TestExtractLibInfo(t *testing.T) {
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.custom-image", "custom/image"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
-				{
-					lang:  "java",
-					image: "custom/image",
-				},
+				java.libInfo("", "custom/image"),
 			},
 		},
 		{
@@ -868,8 +977,8 @@ func TestExtractLibInfo(t *testing.T) {
 				require.Equal(t, *tt.expectedPodEligible, webhook.isPodEligible(tt.pod))
 			}
 
-			libsToInject, _ := webhook.extractLibInfo(tt.pod)
-			require.ElementsMatch(t, tt.expectedLibsToInject, libsToInject)
+			extracted := webhook.extractLibInfo(tt.pod)
+			require.ElementsMatch(t, tt.expectedLibsToInject, extracted.libs)
 		})
 	}
 }
@@ -2233,6 +2342,8 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			wantWebhookInitErr: false,
 			setupConfig: funcs{
 				wConfig("admission_controller.auto_instrumentation.inject_auto_detected_libraries", true),
+				wConfig("language_detection.enabled", true),
+				wConfig("language_detection.reporting.enabled", true),
 				enableAPMInstrumentation,
 			},
 		},

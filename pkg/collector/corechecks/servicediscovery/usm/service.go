@@ -14,8 +14,6 @@ import (
 	"slices"
 	"strings"
 	"unicode"
-
-	"go.uber.org/zap"
 )
 
 type detectorCreatorFn func(ctx DetectionContext) detector
@@ -74,35 +72,29 @@ func newDotnetDetector(ctx DetectionContext) detector {
 
 // DetectionContext allows to detect ServiceMetadata.
 type DetectionContext struct {
-	logger *zap.Logger
-	args   []string
-	envs   []string
-	fs     fs.SubFS
+	args []string
+	envs map[string]string
+	fs   fs.SubFS
 }
 
 // NewDetectionContext initializes DetectionContext.
-func NewDetectionContext(logger *zap.Logger, args []string, envs []string, fs fs.SubFS) DetectionContext {
+func NewDetectionContext(args []string, envs map[string]string, fs fs.SubFS) DetectionContext {
 	return DetectionContext{
-		logger: logger,
-		args:   args,
-		envs:   envs,
-		fs:     fs,
+		args: args,
+		envs: envs,
+		fs:   fs,
 	}
 }
 
 // workingDirFromEnvs returns the current working dir extracted from the PWD env
-func workingDirFromEnvs(envs []string) (string, bool) {
+func workingDirFromEnvs(envs map[string]string) (string, bool) {
 	return extractEnvVar(envs, "PWD")
 }
 
-func extractEnvVar(envs []string, name string) (string, bool) {
-	value := ""
-	prefix := name + "="
-	for _, v := range envs {
-		if strings.HasPrefix(v, prefix) {
-			_, value, _ = strings.Cut(v, "=")
-			break
-		}
+func extractEnvVar(envs map[string]string, name string) (string, bool) {
+	value, ok := envs[name]
+	if !ok {
+		return "", false
 	}
 	return value, len(value) > 0
 }
@@ -140,17 +132,14 @@ var binsWithContext = map[string]detectorCreatorFn{
 	"gunicorn":  newGunicornDetector,
 }
 
-func checkForInjectionNaming(envs []string) bool {
+func checkForInjectionNaming(envs map[string]string) bool {
 	fromDDService := true
-outer:
-	for _, v := range envs {
-		if strings.HasPrefix(v, "DD_INJECTION_ENABLED=") {
-			values := strings.Split(v[len("DD_INJECTION_ENABLED="):], ",")
-			for _, v := range values {
-				if v == "service_name" {
-					fromDDService = false
-					break outer
-				}
+	if env, ok := envs["DD_INJECTION_ENABLED"]; ok {
+		values := strings.Split(env, ",")
+		for _, v := range values {
+			if v == "service_name" {
+				fromDDService = false
+				break
 			}
 		}
 	}
@@ -158,12 +147,11 @@ outer:
 }
 
 // ExtractServiceMetadata attempts to detect ServiceMetadata from the given process.
-func ExtractServiceMetadata(logger *zap.Logger, args []string, envs []string) (ServiceMetadata, bool) {
+func ExtractServiceMetadata(args []string, envs map[string]string) (ServiceMetadata, bool) {
 	dc := DetectionContext{
-		logger: logger,
-		args:   args,
-		envs:   envs,
-		fs:     RealFs{},
+		args: args,
+		envs: envs,
+		fs:   RealFs{},
 	}
 	cmd := dc.args
 	if len(cmd) == 0 || len(cmd[0]) == 0 {
@@ -271,20 +259,19 @@ func normalizeExeName(exe string) string {
 
 // chooseServiceNameFromEnvs extracts the service name from usual tracer env variables (DD_SERVICE, DD_TAGS).
 // returns the service name, true if found, otherwise "", false
-func chooseServiceNameFromEnvs(envs []string) (string, bool) {
-	for _, env := range envs {
-		if strings.HasPrefix(env, "DD_SERVICE=") {
-			return strings.TrimPrefix(env, "DD_SERVICE="), true
-		}
-		if strings.HasPrefix(env, "DD_TAGS=") && strings.Contains(env, "service:") {
-			parts := strings.Split(strings.TrimPrefix(env, "DD_TAGS="), ",")
-			for _, p := range parts {
-				if strings.HasPrefix(p, "service:") {
-					return strings.TrimPrefix(p, "service:"), true
-				}
+func chooseServiceNameFromEnvs(envs map[string]string) (string, bool) {
+	if val, ok := envs["DD_SERVICE"]; ok {
+		return val, true
+	}
+	if val, ok := envs["DD_TAGS"]; ok && strings.Contains(val, "service:") {
+		parts := strings.Split(val, ",")
+		for _, p := range parts {
+			if strings.HasPrefix(p, "service:") {
+				return strings.TrimPrefix(p, "service:"), true
 			}
 		}
 	}
+
 	return "", false
 }
 

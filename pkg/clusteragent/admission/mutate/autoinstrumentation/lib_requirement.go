@@ -11,30 +11,40 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+type libRequirementOptions struct {
+	initContainerMutators containerMutators
+	containerMutators     containerMutators
+	podMutators           []podMutator
+}
+
 type libRequirement struct {
-	envVars               []envVar
-	volumeMounts          []volumeMount
-	initContainers        []initContainer
-	volumes               []volume
-	initContainerMutators []containerMutator
+	envVars        []envVar
+	volumeMounts   []volumeMount
+	initContainers []initContainer
+	volumes        []volume
+
+	libRequirementOptions
 }
 
 func (reqs libRequirement) injectPod(pod *corev1.Pod, ctrName string) error {
 	for i, ctr := range pod.Spec.Containers {
-		if ctrName != "" && ctrName != ctr.Name {
-			continue
-		}
 
-		for _, v := range reqs.envVars {
-			if err := v.mutateContainer(&ctr); err != nil {
-				return err
+		if ctrName == "" || ctrName == ctr.Name {
+			for _, v := range reqs.envVars {
+				if err := v.mutateContainer(&ctr); err != nil {
+					return err
+				}
+			}
+
+			for _, v := range reqs.volumeMounts {
+				if err := v.mutateContainer(&ctr); err != nil {
+					return err
+				}
 			}
 		}
 
-		for _, v := range reqs.volumeMounts {
-			if err := v.mutateContainer(&ctr); err != nil {
-				return err
-			}
+		if err := reqs.containerMutators.mutateContainer(&ctr); err != nil {
+			return err
 		}
 
 		pod.Spec.Containers[i] = ctr
@@ -50,6 +60,12 @@ func (reqs libRequirement) injectPod(pod *corev1.Pod, ctrName string) error {
 
 	for _, v := range reqs.volumes {
 		if err := v.mutatePod(pod); err != nil {
+			return err
+		}
+	}
+
+	for _, m := range reqs.podMutators {
+		if err := m.mutatePod(pod); err != nil {
 			return err
 		}
 	}

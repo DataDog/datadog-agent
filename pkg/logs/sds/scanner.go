@@ -86,11 +86,12 @@ const (
 // to apply the reconfiguration.
 // When receiving standard rules, user configuration are reloaded and scanners are
 // recreated to use the newly received standard rules.
+// The boolean return parameter indicates if the SDS scanner has been destroyed.
 // This method is thread safe, a scan can't happen at the same time.
-func (s *Scanner) Reconfigure(order ReconfigureOrder) error {
+func (s *Scanner) Reconfigure(order ReconfigureOrder) (bool, error) {
 	if s == nil {
 		log.Warn("Trying to reconfigure a nil Scanner")
-		return nil
+		return false, nil
 	}
 
 	s.Lock()
@@ -102,24 +103,28 @@ func (s *Scanner) Reconfigure(order ReconfigureOrder) error {
 	case StandardRules:
 		// reconfigure the standard rules
 		err := s.reconfigureStandardRules(order.Config)
+		var isActive bool
 
 		// if we already received a configuration and no errors happened while
 		// reconfiguring the standard rules: reapply the user configuration now.
 		if err == nil && s.rawConfig != nil {
-			if rerr := s.reconfigureRules(s.rawConfig); rerr != nil {
+			var rerr error
+			if isActive, rerr = s.reconfigureRules(s.rawConfig); rerr != nil {
 				log.Error("Can't reconfigure SDS after having received standard rules:", rerr)
-				s.rawConfig = nil // we drop this configuration because it is unusable
+				s.rawConfig = nil // we drop this configuration because it seems unusable
 				if err == nil {
 					err = rerr
 				}
 			}
 		}
-		return err
+		return isActive, err
 	case AgentConfig:
 		return s.reconfigureRules(order.Config)
+	case StopProcessing:
+		return s.reconfigureRules([]byte("{}"))
 	}
 
-	return fmt.Errorf("Scanner.Reconfigure: Unknown order type: %v", order.Type)
+	return false, fmt.Errorf("Scanner.Reconfigure: Unknown order type: %v", order.Type)
 }
 
 // reconfigureStandardRules stores in-memory standard rules received through RC.
@@ -159,25 +164,26 @@ func (s *Scanner) reconfigureStandardRules(rawConfig []byte) error {
 // reconfigureRules reconfigures the internal SDS scanner using the in-memory
 // standard rules. Could possibly delete and recreate the internal SDS scanner if
 // necessary.
+// The boolean return parameter returns if an SDS scanner is active.
 // This method is NOT thread safe, caller has to ensure the thread safety.
-func (s *Scanner) reconfigureRules(rawConfig []byte) error {
+func (s *Scanner) reconfigureRules(rawConfig []byte) (bool, error) {
 	if rawConfig == nil {
 		tlmSDSReconfigError.Inc(s.pipelineID, string(AgentConfig), "nil_config")
-		return fmt.Errorf("Invalid nil raw configuration received for user configuration")
+		return s.Scanner != nil, fmt.Errorf("Invalid nil raw configuration received for user configuration")
 	}
 
 	if s.standardRules == nil || len(s.standardRules) == 0 {
 		// store it for the next try
 		s.rawConfig = rawConfig
 		tlmSDSReconfigError.Inc(s.pipelineID, string(AgentConfig), "no_std_rules")
-		log.Info("Received an user configuration but no SDS standard rules available.")
-		return nil
+		log.Debug("Received an user configuration but no SDS standard rules available.")
+		return s.Scanner != nil, nil
 	}
 
 	var config RulesConfig
 	if err := json.Unmarshal(rawConfig, &config); err != nil {
 		tlmSDSReconfigError.Inc(s.pipelineID, string(AgentConfig), "cant_unmarshal")
-		return fmt.Errorf("Can't unmarshal raw configuration: %v", err)
+		return s.Scanner != nil, fmt.Errorf("Can't unmarshal raw configuration: %v", err)
 	}
 
 	// ignore disabled rules
@@ -197,11 +203,11 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 			s.configuredRules = nil
 			tlmSDSReconfigSuccess.Inc(s.pipelineID, "shutdown")
 		}
-		return nil
+		return false, nil
 	}
 
 	// prepare the scanner rules
-	var sdsRules []sds.Rule
+	var sdsRules []sds.RuleConfig
 	var malformedRulesCount int
 	var unknownStdRulesCount int
 	for _, userRule := range config.Rules {
@@ -231,7 +237,7 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 	var err error
 	if scanner, err = sds.CreateScanner(sdsRules); err != nil {
 		tlmSDSReconfigError.Inc(s.pipelineID, string(AgentConfig), "scanner_error")
-		return fmt.Errorf("while configuring an SDS Scanner: %v", err)
+		return s.Scanner != nil, fmt.Errorf("while configuring an SDS Scanner: %v", err)
 	}
 
 	// destroy the old scanner
@@ -245,7 +251,7 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 	s.rawConfig = rawConfig
 	s.configuredRules = config.Rules
 
-	log.Info("Created an SDS scanner with", len(scanner.Rules), "enabled rules")
+	log.Info("Created an SDS scanner with", len(scanner.RuleConfigs), "enabled rules")
 	for _, rule := range s.configuredRules {
 		log.Debug("Configured rule:", rule.Name)
 	}
@@ -255,14 +261,13 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 	tlmSDSRulesState.Set(float64(totalRulesReceived-len(config.Rules)), s.pipelineID, "disabled")
 	tlmSDSReconfigSuccess.Inc(s.pipelineID, string(AgentConfig))
 
-	return nil
+	return true, nil
 }
 
-// interpretRCRule interprets a rule as received through RC to return
-// an sds.Rule usable with the shared library.
+// interpretRCRule interprets a rule as received through RC to return an sds.Rule usable with the shared library.
 // `standardRule` contains the definition, with the name, pattern, etc.
 // `userRule`     contains the configuration done by the user: match action, etc.
-func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig, defaults StandardRulesDefaults) (sds.Rule, error) {
+func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig, defaults StandardRulesDefaults) (sds.RuleConfig, error) {
 	var extraConfig sds.ExtraConfig
 
 	var defToUse = StandardRuleDefinition{Version: -1}
@@ -303,7 +308,7 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig, defau
 
 	if defToUse.Version == -1 {
 		// TODO(remy): telemetry
-		return sds.Rule{}, fmt.Errorf("unsupported rule with no compatible definition")
+		return nil, fmt.Errorf("unsupported rule with no compatible definition")
 	}
 
 	// we use the filled `CharacterCount` value to decide if we want
@@ -341,7 +346,7 @@ func interpretRCRule(userRule RuleConfig, standardRule StandardRuleConfig, defau
 		return sds.NewHashRule(standardRule.Name, defToUse.Pattern, extraConfig), nil
 	}
 
-	return sds.Rule{}, fmt.Errorf("Unknown MatchAction type (%v) received through RC for rule '%s':", matchAction, standardRule.Name)
+	return nil, fmt.Errorf("Unknown MatchAction type (%v) received through RC for rule '%s':", matchAction, standardRule.Name)
 }
 
 // Scan scans the given `event` using the internal SDS scanner.
@@ -412,7 +417,7 @@ func (s *Scanner) IsReady() bool {
 	if s.Scanner == nil {
 		return false
 	}
-	if len(s.Scanner.Rules) == 0 {
+	if len(s.Scanner.RuleConfigs) == 0 {
 		return false
 	}
 
