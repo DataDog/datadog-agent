@@ -93,12 +93,6 @@ func (pi ProcessInfo) FileReader() (io.ReadCloser, bool) {
 	return findFile(fileName)
 }
 
-// Matcher allows to check if a process matches to a concrete language.
-type Matcher interface {
-	Language() Language
-	Match(pi ProcessInfo) bool
-}
-
 // FindInArgs tries to detect the language only using the provided command line arguments.
 func FindInArgs(args []string) Language {
 	// empty slice passed in
