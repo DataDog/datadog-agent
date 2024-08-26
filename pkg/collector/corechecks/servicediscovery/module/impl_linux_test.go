@@ -28,6 +28,7 @@ import (
 
 	gorillamux "github.com/gorilla/mux"
 	"github.com/prometheus/procfs"
+	"github.com/shirou/gopsutil/v3/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
@@ -365,6 +366,78 @@ func buildFakeServer(t *testing.T) string {
 	}
 
 	return filepath.Dir(serverBin)
+}
+
+const (
+	pythonScript = `#! /usr/bin/python
+
+import socket
+import time
+
+HOST = '127.0.0.1'
+PORT = # Empty port
+
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.bind((HOST, PORT))
+s.listen()
+time.sleep(30)
+`
+)
+
+func TestPythonFromBashScript(t *testing.T) {
+	t.Run("PythonFromBashScript", func(t *testing.T) {
+		testCaptureWrappedCommands(t, "python-*.sh", []byte(pythonScript), []string{"sh", "-c"}, func(service model.Service) bool {
+			return service.Language == string(language.Python)
+		})
+	})
+	t.Run("DirectPythonScript", func(t *testing.T) {
+		testCaptureWrappedCommands(t, "script.py", []byte(pythonScript), nil, func(service model.Service) bool {
+			return service.Language == string(language.Python)
+		})
+	})
+}
+
+func testCaptureWrappedCommands(t *testing.T, scriptName string, scriptContent []byte, commandWrapper []string, validator func(service model.Service) bool) {
+	// Creating tempfile
+	tempfile, err := os.CreateTemp("", scriptName)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		tempfile.Close()
+		os.Remove(tempfile.Name())
+	})
+	_, err = tempfile.Write(scriptContent)
+	require.NoError(t, err)
+	require.NoError(t, tempfile.Close())
+
+	// Changing permissions
+	require.NoError(t, os.Chmod(tempfile.Name(), 0755))
+
+	commandLine := append(commandWrapper, tempfile.Name())
+	cmd := exec.Command(commandLine[0], commandLine[1:]...)
+	// Running the binary in the background
+	require.NoError(t, cmd.Start())
+
+	var proc *process.Process
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		proc, err = process.NewProcess(int32(cmd.Process.Pid))
+		assert.NoError(collect, err)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	if len(commandWrapper) > 0 {
+		children, err := proc.Children()
+		require.NoError(t, err)
+		require.Len(t, children, 1)
+		proc = children[0]
+	}
+	t.Cleanup(func() { _ = proc.Kill() })
+
+	url := setupDiscoveryModule(t)
+	pid := int(proc.Pid)
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		svcMap := getServicesMap(t, url)
+		assert.Contains(collect, svcMap, pid)
+		assert.True(collect, validator(svcMap[pid]))
+	}, 30*time.Second, 100*time.Millisecond)
 }
 
 func TestAPMInstrumentationProvided(t *testing.T) {
