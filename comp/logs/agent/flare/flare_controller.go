@@ -84,3 +84,4 @@ func (fc *FlareController) AddToJournalFiles(files []string) {
 
 	fc.journalFiles = append(fc.journalFiles, files...)
 }
+ 

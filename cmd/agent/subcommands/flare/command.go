@@ -36,8 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	coresetting "github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -93,7 +91,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.args = args
-			configParams := config.NewAgentParams(globalParams.ConfFilePath,
+			config := config.NewAgentParams(globalParams.ConfFilePath,
 				config.WithSecurityAgentConfigFilePaths([]string{
 					path.Join(commonpath.DefaultConfPath, "security-agent.yaml"),
 				}),
@@ -104,12 +102,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(makeFlare,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams:         configParams,
+					ConfigParams:         config,
 					SecretParams:         secrets.NewEnabledParams(),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 					LogParams:            logimpl.ForOneShot(command.LoggerName, "off", false),
 				}),
-				fx.Supply(coresetting.Params{}),
 				fx.Supply(flare.NewLocalParams(
 					commonpath.GetDistPath(),
 					commonpath.PyChecksPath,
@@ -147,7 +144,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return nil
 				}),
 				core.Bundle(),
-				settingsimpl.Module(),
 			)
 		},
 	}

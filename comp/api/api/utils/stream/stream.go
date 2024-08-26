@@ -17,7 +17,7 @@ import (
 
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -106,19 +106,12 @@ func GetStreamFunc(messageReceiverFunc func() MessageReceiver, streamType, agent
 	}
 }
 
-// ExportStreamLogs export output of stream-logs to a file
-func ExportStreamLogs(config config.Component, streamLogParams *LogParams) error {
-	ipcAddress, err := pkgconfig.GetIPCAddress()
-	if err != nil {
-		return err
-	}
-
-	urlstr := fmt.Sprintf("https://%v:%v/agent/stream-logs", ipcAddress, config.GetInt("cmd_port"))
-
+// ExportStreamLogs export output of stream-logs to a file. Currently used for remote config stream logs
+func ExportStreamLogs(la logsAgent.Component, config config.Component, streamLogParams *LogParams) error {
 	var f *os.File
 	var bufWriter *bufio.Writer
 
-	err = apiutils.CheckDirExists(streamLogParams.FilePath)
+	err := apiutils.CheckDirExists(streamLogParams.FilePath)
 	if err != nil {
 		return fmt.Errorf("error creating directory for file %s: %v", streamLogParams.FilePath, err)
 	}
@@ -135,11 +128,30 @@ func ExportStreamLogs(config config.Component, streamLogParams *LogParams) error
 		f.Close()
 	}()
 
-	return apiutils.StreamRequest(urlstr, []byte{}, streamLogParams.Duration, func(chunk []byte) {
-		if bufWriter != nil {
-			if _, err = bufWriter.Write(chunk); err != nil {
-				fmt.Printf("Error writing stream-logs to file %s: %v", streamLogParams.FilePath, err)
+	messageReceiver := la.GetMessageReceiver()
+
+	if !messageReceiver.SetEnabled(true) {
+		return fmt.Errorf("unable to enable message receiver, another client is already streaming logs")
+	}
+	defer messageReceiver.SetEnabled(false)
+
+	var filters diagnostic.Filters
+	done := make(chan struct{})
+	defer close(done)
+
+	logChan := messageReceiver.Filter(&filters, done)
+
+	timer := time.NewTimer(streamLogParams.Duration)
+	defer timer.Stop()
+
+	for {
+		select {
+		case log := <-logChan:
+			if _, err := bufWriter.WriteString(log + "\n"); err != nil {
+				return fmt.Errorf("failed to write to file: %v", err)
 			}
+		case <-timer.C:
+			return nil
 		}
-	})
+	}
 }

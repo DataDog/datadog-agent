@@ -27,8 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	coreSetting "github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
@@ -99,9 +98,6 @@ func MakeCommand() *cobra.Command {
 					LogParams:    logParams,
 				}),
 				core.Bundle(),
-				fx.Provide(func(c config.Component) coreSetting.Params {
-					return coreSetting.Params{}
-				}),
 				// flare
 				fx.Supply(flare.NewParams(
 					path.GetDistPath(),
@@ -128,7 +124,6 @@ func MakeCommand() *cobra.Command {
 				// systray
 				fx.Supply(systrayParams),
 				systrayimpl.Module(),
-				settingsimpl.Module(),
 				// require the systray component, causing it to start
 				fx.Invoke(func(_ systray.Component) {}),
 			)
