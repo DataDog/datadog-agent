@@ -791,105 +791,105 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
     response->carry_over_offset = 0;
 
     switch (response->state) {
-        case KAFKA_PRODUCE_RESPONSE_START:
-            extra_debug("KAFKA_PRODUCE_RESPONSE_START");
-            if (flexible) {
-                ret = skip_tagged_fields(response, pkt, &offset, data_end, true);
-                if (ret != RET_DONE) {
-                    return ret;
-                }
-            }
-
-            response->state = KAFKA_PRODUCE_RESPONSE_NUM_TOPICS;
-            // fallthrough
-
-        case KAFKA_PRODUCE_RESPONSE_NUM_TOPICS:
-        {
-            extra_debug("KAFKA_PRODUCE_RESPONSE_NUM_TOPICS");
-            s64 num_topics = 0;
-            ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &num_topics, true,
-                                     VARINT_BYTES_NUM_TOPICS);
-            extra_debug("num_topics: %lld", num_topics);
+    case KAFKA_PRODUCE_RESPONSE_START:
+        extra_debug("KAFKA_PRODUCE_RESPONSE_START");
+        if (flexible) {
+            ret = skip_tagged_fields(response, pkt, &offset, data_end, true);
             if (ret != RET_DONE) {
                 return ret;
             }
-            if (num_topics <= 0) {
-                return RET_ERR;
-            }
         }
-        response->state = KAFKA_PRODUCE_RESPONSE_TOPIC_NAME_SIZE;
+
+        response->state = KAFKA_PRODUCE_RESPONSE_NUM_TOPICS;
         // fallthrough
 
-        case KAFKA_PRODUCE_RESPONSE_TOPIC_NAME_SIZE:
-        {
-            extra_debug("KAFKA_PRODUCE_RESPONSE_TOPIC_NAME_SIZE");
-            s64 topic_name_size = 0;
-            ret = read_varint_or_s16(flexible, response, pkt, &offset, data_end, &topic_name_size, true,
-                                     VARINT_BYTES_TOPIC_NAME_SIZE);
-            extra_debug("topic_name_size: %lld", topic_name_size);
-            if (ret != RET_DONE) {
-                return ret;
-            }
-            if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
-                return RET_ERR;
-            }
-             // Should we check that topic name matches the topic we expect?
-            offset += topic_name_size;
+    case KAFKA_PRODUCE_RESPONSE_NUM_TOPICS:
+    {
+        extra_debug("KAFKA_PRODUCE_RESPONSE_NUM_TOPICS");
+        s64 num_topics = 0;
+        ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &num_topics, true,
+                                 VARINT_BYTES_NUM_TOPICS);
+        extra_debug("num_topics: %lld", num_topics);
+        if (ret != RET_DONE) {
+            return ret;
         }
-        response->state = KAFKA_PRODUCE_RESPONSE_NUM_PARTITIONS;
-
-        case KAFKA_PRODUCE_RESPONSE_NUM_PARTITIONS:
-        {
-            extra_debug("KAFKA_PRODUCE_RESPONSE_NUM_PARTITIONS");
-            s64 number_of_partitions = 0;
-            ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &number_of_partitions, true,
-                                  VARINT_BYTES_NUM_PARTITIONS);
-            extra_debug("number_of_partitions: %lld", number_of_partitions);
-            if (ret != RET_DONE) {
-                return ret;
-            }
-            if (number_of_partitions <= 0 || number_of_partitions >= 2) {
-                // We only support a single partition for produce requests at the moment
-                return RET_ERR;
-            }
-            response->partitions_count = number_of_partitions;
-            response->state = KAFKA_PRODUCE_RESPONSE_PARTITION_START;
-
+        if (num_topics <= 0) {
+            return RET_ERR;
         }
-            break;
+    }
+    response->state = KAFKA_PRODUCE_RESPONSE_TOPIC_NAME_SIZE;
+    // fallthrough
 
-        default:
-            break;
+    case KAFKA_PRODUCE_RESPONSE_TOPIC_NAME_SIZE:
+    {
+        extra_debug("KAFKA_PRODUCE_RESPONSE_TOPIC_NAME_SIZE");
+        s64 topic_name_size = 0;
+        ret = read_varint_or_s16(flexible, response, pkt, &offset, data_end, &topic_name_size, true,
+                                 VARINT_BYTES_TOPIC_NAME_SIZE);
+        extra_debug("topic_name_size: %lld", topic_name_size);
+        if (ret != RET_DONE) {
+            return ret;
+        }
+        if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
+            return RET_ERR;
+        }
+         // Should we check that topic name matches the topic we expect?
+        offset += topic_name_size;
+    }
+    response->state = KAFKA_PRODUCE_RESPONSE_NUM_PARTITIONS;
+
+    case KAFKA_PRODUCE_RESPONSE_NUM_PARTITIONS:
+    {
+        extra_debug("KAFKA_PRODUCE_RESPONSE_NUM_PARTITIONS");
+        s64 number_of_partitions = 0;
+        ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &number_of_partitions, true,
+                              VARINT_BYTES_NUM_PARTITIONS);
+        extra_debug("number_of_partitions: %lld", number_of_partitions);
+        if (ret != RET_DONE) {
+            return ret;
+        }
+        if (number_of_partitions <= 0 || number_of_partitions >= 2) {
+            // We only support a single partition for produce requests at the moment
+            return RET_ERR;
+        }
+        response->partitions_count = number_of_partitions;
+        response->state = KAFKA_PRODUCE_RESPONSE_PARTITION_START;
+
+    }
+        break;
+
+    default:
+        break;
     }
 
     switch (response->state) {
-        case KAFKA_PRODUCE_RESPONSE_PARTITION_START:
-            offset += sizeof(s32); // Skip partition_index
-            response->state = KAFKA_PRODUCE_RESPONSE_PARTITION_ERROR_CODE_START;
-            // fallthrough
+    case KAFKA_PRODUCE_RESPONSE_PARTITION_START:
+        offset += sizeof(s32); // Skip partition_index
+        response->state = KAFKA_PRODUCE_RESPONSE_PARTITION_ERROR_CODE_START;
+        // fallthrough
 
-        case KAFKA_PRODUCE_RESPONSE_PARTITION_ERROR_CODE_START:
-        {
-            // Error codes range from -1 to 119 as per the Kafka protocol specification.
-            // For details, refer to: https://kafka.apache.org/protocol.html#protocol_error_codes
-            s16 error_code = 0;
-            ret = read_with_remainder_s16(response, pkt, &offset, data_end, &error_code, true);
-            if (ret != RET_DONE) {
-                return ret;
-            }
-            if (error_code < -1 || error_code > 119) {
-                extra_debug("invalid error code: %d", error_code);
-                return RET_ERR;
-            }
-            extra_debug("got error code: %d", error_code);
-            response->partition_error_code = error_code;
-            response->transaction.error_code = error_code;
-
-            // No need to continue parsing the produce response, as we got the error now
-            return RET_DONE;
+    case KAFKA_PRODUCE_RESPONSE_PARTITION_ERROR_CODE_START:
+    {
+        // Error codes range from -1 to 119 as per the Kafka protocol specification.
+        // For details, refer to: https://kafka.apache.org/protocol.html#protocol_error_codes
+        s16 error_code = 0;
+        ret = read_with_remainder_s16(response, pkt, &offset, data_end, &error_code, true);
+        if (ret != RET_DONE) {
+            return ret;
         }
-        default:
-            break;
+        if (error_code < -1 || error_code > 119) {
+            extra_debug("invalid error code: %d", error_code);
+            return RET_ERR;
+        }
+        extra_debug("got error code: %d", error_code);
+        response->partition_error_code = error_code;
+        response->transaction.error_code = error_code;
+
+        // No need to continue parsing the produce response, as we got the error now
+        return RET_DONE;
+    }
+    default:
+        break;
     }
 
     response->carry_over_offset = offset - orig_offset;
