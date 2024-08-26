@@ -29,8 +29,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	integrationsLogs "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/fx"
+	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
@@ -61,10 +60,9 @@ type AgentTestSuite struct {
 type testDeps struct {
 	fx.In
 
-	Config           configComponent.Component
-	Log              log.Component
-	InventoryAgent   inventoryagent.Component
-	IntegrationsLogs integrationsLogs.Component
+	Config         configComponent.Component
+	Log            log.Component
+	InventoryAgent inventoryagent.Component
 }
 
 func (suite *AgentTestSuite) SetupTest() {
@@ -118,7 +116,6 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		hostnameimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
 		inventoryagentimpl.MockModule(),
-		integrations.MockModule(),
 	))
 
 	agent := &logAgent{
@@ -126,7 +123,7 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		config:           deps.Config,
 		inventoryAgent:   deps.InventoryAgent,
 		started:          atomic.NewUint32(0),
-		integrationsLogs: deps.IntegrationsLogs,
+		integrationsLogs: integrationsimpl.NewLogsIntegration(),
 
 		sources:   sources,
 		services:  services,
@@ -399,7 +396,6 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 		inventoryagentimpl.MockModule(),
 		workloadmetafxmock.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		integrations.MockModule(),
 	))
 }
 
