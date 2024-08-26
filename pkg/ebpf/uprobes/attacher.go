@@ -849,7 +849,7 @@ func (ua *UprobeAttacher) detachFromBinary(fpath utils.FilePath) error {
 }
 
 func (ua *UprobeAttacher) getLibrariesFromMapsFile(pid int) ([]string, error) {
-	mapsPath := filepath.Join(ua.config.ProcRoot, strconv.Itoa(int(pid)), "maps")
+	mapsPath := filepath.Join(ua.config.ProcRoot, strconv.Itoa(pid), "maps")
 	mapsFile, err := os.Open(mapsPath)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open maps file at %s: %w", mapsPath, err)
