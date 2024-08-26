@@ -90,7 +90,7 @@ func (p *NativeBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolR
 		}
 
 		if req.IncludeReturnLocations {
-			return nil, false, fmt.Errorf("return locations are not supported by the native binary inspector")
+			return nil, false, errors.New("return locations are not supported by the native binary inspector")
 		}
 	}
 
