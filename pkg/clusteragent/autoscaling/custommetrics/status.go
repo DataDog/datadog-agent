@@ -19,12 +19,12 @@ import (
 // GetStatus returns status info for the Custom Metrics Server.
 func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	status := make(map[string]interface{})
-	if !config.Datadog.GetBool("external_metrics_provider.enabled") {
+	if !config.Datadog().GetBool("external_metrics_provider.enabled") {
 		status["Disabled"] = "The external metrics provider is not enabled on the Cluster Agent"
 		return status
 	}
 
-	if config.Datadog.GetBool("external_metrics_provider.use_datadogmetric_crd") {
+	if config.Datadog().GetBool("external_metrics_provider.use_datadogmetric_crd") {
 		status["NoStatus"] = "External metrics provider uses DatadogMetric - Check status directly from Kubernetes with: `kubectl get datadogmetric`"
 		return status
 	}

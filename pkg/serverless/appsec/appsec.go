@@ -11,10 +11,11 @@ import (
 	"context"
 	"errors"
 	"math/rand"
+	"os"
 	"time"
 
 	appsecLog "github.com/DataDog/appsec-internal-go/log"
-	waf "github.com/DataDog/go-libddwaf/v2"
+	waf "github.com/DataDog/go-libddwaf/v3"
 	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/appsec-internal-go/limiter"
@@ -44,11 +45,16 @@ func NewWithShutdown(demux aggregator.Demultiplexer) (lp *httpsec.ProxyLifecycle
 		return nil, nil, nil // appsec disabled
 	}
 
+	lambdaRuntimeAPI := os.Getenv("AWS_LAMBDA_RUNTIME_API")
+	if lambdaRuntimeAPI == "" {
+		lambdaRuntimeAPI = "127.0.0.1:9001"
+	}
+
 	// AppSec monitors the invocations by acting as a proxy of the AWS Lambda Runtime API.
 	lp = httpsec.NewProxyLifecycleProcessor(appsecInstance, demux)
 	shutdownProxy := proxy.Start(
 		"127.0.0.1:9000",
-		"127.0.0.1:9001",
+		lambdaRuntimeAPI,
 		lp,
 	)
 	log.Debug("appsec: started successfully using the runtime api proxy monitoring mode")
@@ -133,22 +139,25 @@ func (a *AppSec) Close() error {
 // The monitored addresses are all persistent addresses
 func (a *AppSec) Monitor(addresses map[string]any) *waf.Result {
 	log.Debugf("appsec: monitoring the request context %v", addresses)
-	ctx := waf.NewContext(a.handle)
+	ctx, err := a.handle.NewContextWithBudget(a.cfg.WafTimeout)
+	if err != nil {
+		log.Errorf("appsec: failed to create waf context: %v", err)
+		return nil
+	}
 	if ctx == nil {
 		return nil
 	}
 	defer ctx.Close()
-	timeout := a.cfg.WafTimeout
 
 	// Ask the WAF for schema reporting if API security is enabled
 	if a.canExtractSchemas() {
 		addresses["waf.context.processor"] = map[string]any{"extract-schema": true}
 	}
 
-	res, err := ctx.Run(waf.RunAddressData{Persistent: addresses}, timeout)
+	res, err := ctx.Run(waf.RunAddressData{Persistent: addresses})
 	if err != nil {
 		if err == waf.ErrTimeout {
-			log.Debugf("appsec: waf timeout value of %s reached", timeout)
+			log.Debugf("appsec: waf timeout value of %s reached", a.cfg.WafTimeout)
 		} else {
 			log.Errorf("appsec: unexpected waf execution error: %v", err)
 			return nil

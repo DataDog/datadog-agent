@@ -15,6 +15,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TraceMethod represents the method to trace a program.
+type TraceMethod bool
+
+const (
+	// ManualTracingFallbackEnabled is used to enable manual tracing fallback
+	ManualTracingFallbackEnabled TraceMethod = true
+	// ManualTracingFallbackDisabled is used to disable manual tracing fallback
+	ManualTracingFallbackDisabled TraceMethod = false
+)
+
 // GetTracedPrograms returns a list of traced programs by the specific program type
 func GetTracedPrograms(programType string) []TracedProgram {
 	res := debugger.GetTracedPrograms()
@@ -37,16 +47,45 @@ func ResetDebugger() {
 	}
 }
 
-// WaitForProgramsToBeTraced waits for the program to be traced by the debugger
-func WaitForProgramsToBeTraced(t *testing.T, programType string, pid int) {
-	require.Eventuallyf(t, func() bool {
-		traced := GetTracedPrograms(programType)
-		for _, prog := range traced {
-			if slices.Contains[[]uint32](prog.PIDs, uint32(pid)) {
-				return true
-			}
+// IsProgramTraced checks if the process with the provided PID is
+// traced.
+func IsProgramTraced(programType string, pid int) bool {
+	traced := GetTracedPrograms(programType)
+	for _, prog := range traced {
+		if slices.Contains[[]uint32](prog.PIDs, uint32(pid)) {
+			return true
 		}
-		return false
+	}
+	return false
+}
+
+// WaitForProgramsToBeTraced waits for the program to be traced by the debugger
+func WaitForProgramsToBeTraced(t *testing.T, programType string, pid int, traceManually TraceMethod) {
+	// Wait for the program to be traced
+	end := time.Now().Add(time.Second * 5)
+	for time.Now().Before(end) {
+		if IsProgramTraced(programType, pid) {
+			return
+		}
+		time.Sleep(time.Millisecond * 100)
+	}
+
+	// Reaching here means the program is not traced
+	if !traceManually {
+		// We should not apply manual tracing, thus we should fail.
+		t.Fatalf("process %v is not traced by %v", pid, programType)
+	}
+	t.Logf("process %v is not traced by %v, trying to attach manually", pid, programType)
+
+	// Get attacher for the program type
+	attacher, ok := debugger.attachers[programType]
+	require.True(t, ok, "attacher for %v not found", programType)
+	// Try to attach the PID. Any error other than ErrPathIsAlreadyRegistered is a failure.
+	if err := attacher.AttachPID(uint32(pid)); err != ErrPathIsAlreadyRegistered {
+		require.NoError(t, err)
+	}
+	require.Eventuallyf(t, func() bool {
+		return IsProgramTraced(programType, pid)
 	}, time.Second*5, time.Millisecond*100, "process %v is not traced by %v", pid, programType)
 }
 

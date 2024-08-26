@@ -28,7 +28,7 @@ import (
 // An extra timeout duration can be provided depending on the informer
 func SyncInformers(informers map[InformerName]cache.SharedInformer, extraWait time.Duration) error {
 	var g errgroup.Group
-	timeoutConfig := config.Datadog.GetDuration("kube_cache_sync_timeout_seconds") * time.Second
+	timeoutConfig := config.Datadog().GetDuration("kube_cache_sync_timeout_seconds") * time.Second
 	// syncTimeout can be used to wait for the kubernetes client-go cache to sync.
 	// It cannot be retrieved at the package-level due to the package being imported before configs are loaded.
 	syncTimeout := timeoutConfig + extraWait
@@ -60,7 +60,7 @@ type syncInformerResult struct {
 func SyncInformersReturnErrors(informers map[InformerName]cache.SharedInformer, extraWait time.Duration) map[InformerName]error {
 	resultChan := make(chan syncInformerResult)
 	errors := make(map[InformerName]error, len(informers))
-	timeoutConfig := config.Datadog.GetDuration("kube_cache_sync_timeout_seconds") * time.Second
+	timeoutConfig := config.Datadog().GetDuration("kube_cache_sync_timeout_seconds") * time.Second
 	// syncTimeout can be used to wait for the kubernetes client-go cache to sync.
 	// It cannot be retrieved at the package-level due to the package being imported before configs are loaded.
 	syncTimeout := timeoutConfig + extraWait

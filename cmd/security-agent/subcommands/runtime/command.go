@@ -9,6 +9,8 @@
 package runtime
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -17,6 +19,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -27,10 +30,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -91,13 +93,13 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	evalCmd := &cobra.Command{
 		Use:   "eval",
 		Short: "Evaluate given event data against the give rule",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(evalRule,
 				fx.Supply(evalArgs),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", false)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle(),
 			)
 		},
@@ -124,13 +126,13 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 	commonCheckPoliciesCmd := &cobra.Command{
 		Use:   "check",
 		Short: "Check policies and return a report",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(checkPolicies,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", false)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle(),
 			)
 		},
@@ -149,12 +151,12 @@ func commonReloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.C
 	commonReloadPoliciesCmd := &cobra.Command{
 		Use:   "reload",
 		Short: "Reload policies",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(reloadRuntimePolicies,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -167,12 +169,12 @@ func selfTestCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	selfTestCmd := &cobra.Command{
 		Use:   "self-test",
 		Short: "Run runtime self test",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(runRuntimeSelfTest,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -186,6 +188,7 @@ type downloadPolicyCliParams struct {
 
 	check      bool
 	outputPath string
+	source     string
 }
 
 func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -196,13 +199,13 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 	downloadPolicyCmd := &cobra.Command{
 		Use:   "download",
 		Short: "Download policies",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(downloadPolicy,
 				fx.Supply(downloadPolicyArgs),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", false)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle(),
 			)
 		},
@@ -210,6 +213,7 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 
 	downloadPolicyCmd.Flags().BoolVar(&downloadPolicyArgs.check, "check", false, "Check policies after downloading")
 	downloadPolicyCmd.Flags().StringVar(&downloadPolicyArgs.outputPath, "output-path", "", "Output path for downloaded policies")
+	downloadPolicyCmd.Flags().StringVar(&downloadPolicyArgs.source, "source", "all", `Specify wether should download the custom, default or all policies. allowed: "all", "default", "custom"`)
 
 	return []*cobra.Command{downloadPolicyCmd}
 }
@@ -230,13 +234,13 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	processCacheDumpCmd := &cobra.Command{
 		Use:   "dump",
 		Short: "dump the process cache",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(dumpProcessCache,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -268,13 +272,13 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 	dumpNetworkNamespaceCmd := &cobra.Command{
 		Use:   "dump",
 		Short: "dumps the network namespaces held in cache",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(dumpNetworkNamespace,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -296,12 +300,12 @@ func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	dumpDiscardersCmd := &cobra.Command{
 		Use:   "dump",
 		Short: "dump discarders",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(dumpDiscarders,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -476,28 +480,24 @@ func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
 	var ruleSet *rules.RuleSet
 	if args.windowsModel {
 		ruleSet = rules.NewRuleSet(&winmodel.Model{}, newFakeWindowsEvent, ruleOpts, evalOpts)
+		ruleSet.SetFakeEventCtor(newFakeWindowsEvent)
 	} else {
 		ruleSet = rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		ruleSet.SetFakeEventCtor(newFakeEvent)
 	}
-	evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
+	if err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
+		return err
+	}
+
+	report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
 	if err != nil {
 		return err
 	}
-	if err := evaluationSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
-		return err
-	}
 
-	if !args.windowsModel {
-		report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
-		if err != nil {
-			return err
-		}
-
-		content, _ := json.MarshalIndent(report, "", "\t")
-		_, err = fmt.Fprintf(writer, "%s\n", string(content))
-		if err != nil {
-			return fmt.Errorf("unable to write out report: %w", err)
-		}
+	content, _ := json.MarshalIndent(report, "", "\t")
+	_, err = fmt.Fprintf(writer, "%s\n", string(content))
+	if err != nil {
+		return fmt.Errorf("unable to write out report: %w", err)
 	}
 
 	return nil
@@ -600,12 +600,8 @@ func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs
 	} else {
 		ruleSet = rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 	}
-	evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
-	if err != nil {
-		return err
-	}
 
-	if err := evaluationSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
+	if err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
 		return err
 	}
 
@@ -747,7 +743,7 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 		outputWriter = f
 	}
 
-	downloadURL := fmt.Sprintf("https://api.%s/api/v2/security/cloud_workload/policy/download", site)
+	downloadURL := fmt.Sprintf("https://api.%s/api/v2/remote_config/products/cws/policy/download", site)
 	fmt.Fprintf(os.Stderr, "Policy download url: %s\n", downloadURL)
 
 	headers := map[string]string{
@@ -765,7 +761,36 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 	if err != nil {
 		return err
 	}
+
+	// Unzip the downloaded file containing both default and custom policies
 	resBytes := []byte(res)
+	reader, err := zip.NewReader(bytes.NewReader(resBytes), int64(len(resBytes)))
+	if err != nil {
+		return err
+	}
+
+	var defaultPolicy []byte
+	var customPolicies []string
+
+	for _, file := range reader.File {
+		if strings.HasSuffix(file.Name, ".policy") {
+			pf, err := file.Open()
+			if err != nil {
+				return err
+			}
+			policyData, err := io.ReadAll(pf)
+			pf.Close()
+			if err != nil {
+				return err
+			}
+
+			if file.Name == "default.policy" {
+				defaultPolicy = policyData
+			} else {
+				customPolicies = append(customPolicies, string(policyData))
+			}
+		}
+	}
 
 	tempDir, err := os.MkdirTemp("", "policy_check")
 	if err != nil {
@@ -773,9 +798,13 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 	}
 	defer os.RemoveAll(tempDir)
 
-	tempOutputPath := path.Join(tempDir, "check.policy")
-	if err := os.WriteFile(tempOutputPath, resBytes, 0644); err != nil {
+	if err := os.WriteFile(path.Join(tempDir, "default.policy"), defaultPolicy, 0644); err != nil {
 		return err
+	}
+	for i, customPolicy := range customPolicies {
+		if err := os.WriteFile(path.Join(tempDir, fmt.Sprintf("custom%d.policy", i+1)), []byte(customPolicy), 0644); err != nil {
+			return err
+		}
 	}
 
 	if downloadPolicyArgs.check {
@@ -784,7 +813,36 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 		}
 	}
 
-	_, err = outputWriter.Write(resBytes)
+	// Extract and merge rules from custom policies
+	var customRules string
+	for _, customPolicy := range customPolicies {
+		customPolicyLines := strings.Split(customPolicy, "\n")
+		rulesIndex := -1
+		for i, line := range customPolicyLines {
+			if strings.TrimSpace(line) == "rules:" {
+				rulesIndex = i
+				break
+			}
+		}
+		if rulesIndex != -1 && rulesIndex+1 < len(customPolicyLines) {
+			customRules += "\n" + strings.Join(customPolicyLines[rulesIndex+1:], "\n")
+		}
+	}
+
+	// Output depending on user's specification
+	var outputContent string
+	switch downloadPolicyArgs.source {
+	case "all":
+		outputContent = string(defaultPolicy) + customRules
+	case "default":
+		outputContent = string(defaultPolicy)
+	case "custom":
+		outputContent = string(customRules)
+	default:
+		return errors.New("invalid source specified")
+	}
+
+	_, err = outputWriter.Write([]byte(outputContent))
 	if err != nil {
 		return err
 	}

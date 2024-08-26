@@ -9,7 +9,7 @@
 // Should be removed once `github.com/DataDog/agent-payload/v5/process` can be imported with CGO disabled.
 //go:build cgo && linux
 
-//nolint:revive // TODO(PLINT) Fix revive linter
+// Package oomkill contains the OOMKill check.
 package oomkill
 
 import (
@@ -87,7 +87,7 @@ func (m *OOMKillCheck) Run() error {
 	}
 
 	sysProbeUtil, err := process_net.GetRemoteSystemProbeUtil(
-		dd_config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
+		dd_config.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 	if err != nil {
 		return err
 	}
@@ -118,7 +118,7 @@ func (m *OOMKillCheck) Run() error {
 		entityID := containers.BuildTaggerEntityName(containerID)
 		var tags []string
 		if entityID != "" {
-			tags, err = tagger.Tag(entityID, tagger.ChecksCardinality)
+			tags, err = tagger.Tag(entityID, tagger.ChecksCardinality())
 			if err != nil {
 				log.Errorf("Error collecting tags for container %s: %s", containerID, err)
 			}
@@ -132,7 +132,6 @@ func (m *OOMKillCheck) Run() error {
 			triggerTypeText = "This OOM kill was invoked by the system."
 		}
 		tags = append(tags, "trigger_type:"+triggerType)
-
 		tags = append(tags, "trigger_process_name:"+line.FComm)
 		tags = append(tags, "process_name:"+line.TComm)
 
@@ -141,6 +140,7 @@ func (m *OOMKillCheck) Run() error {
 
 		// submit event with a few more details
 		event := event.Event{
+			AlertType:      event.AlertTypeError,
 			Priority:       event.PriorityNormal,
 			SourceTypeName: CheckName,
 			EventType:      CheckName,
@@ -151,10 +151,14 @@ func (m *OOMKillCheck) Run() error {
 
 		var b strings.Builder
 		b.WriteString("%%% \n")
+		var oomScoreAdj string
+		if line.ScoreAdj != 0 {
+			oomScoreAdj = fmt.Sprintf(", oom_score_adj: %d", line.ScoreAdj)
+		}
 		if line.Pid == line.TPid {
-			fmt.Fprintf(&b, "Process `%s` (pid: %d) triggered an OOM kill on itself.", line.FComm, line.Pid)
+			fmt.Fprintf(&b, "Process `%s` (pid: %d, oom_score: %d%s) triggered an OOM kill on itself.", line.FComm, line.Pid, line.Score, oomScoreAdj)
 		} else {
-			fmt.Fprintf(&b, "Process `%s` (pid: %d) triggered an OOM kill on process `%s` (pid: %d).", line.FComm, line.Pid, line.TComm, line.TPid)
+			fmt.Fprintf(&b, "Process `%s` (pid: %d) triggered an OOM kill on process `%s` (pid: %d, oom_score: %d%s).", line.FComm, line.Pid, line.TComm, line.TPid, line.Score, oomScoreAdj)
 		}
 		fmt.Fprintf(&b, "\n The process had reached %d pages in size. \n\n", line.Pages)
 		b.WriteString(triggerTypeText)

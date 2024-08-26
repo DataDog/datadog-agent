@@ -16,7 +16,8 @@ import (
 )
 
 var (
-	compLifecycleType = reflect.TypeOf((*compdef.Lifecycle)(nil)).Elem()
+	compLifecycleType  = reflect.TypeOf((*compdef.Lifecycle)(nil)).Elem()
+	compShutdownerType = reflect.TypeOf((*compdef.Shutdowner)(nil)).Elem()
 
 	compInType  = reflect.TypeOf((*compdef.In)(nil)).Elem()
 	compOutType = reflect.TypeOf((*compdef.Out)(nil)).Elem()
@@ -66,15 +67,15 @@ func ProvideComponentConstructor(compCtorFunc interface{}) fx.Option {
 	}
 	hasZeroArg := ctorFuncType.NumIn() == 0
 
-	inFxType, outFxType, hasErrRet, err := constructFxInAndOut(ctorFuncType)
+	ctorTypes, err := getConstructorTypes(ctorFuncType)
 	if err != nil {
 		return fx.Error(err)
 	}
 
 	// build reflect.Type of the constructor function that will be provided to `fx.Provide`
-	funcFxType := reflect.FuncOf([]reflect.Type{inFxType}, []reflect.Type{outFxType}, false)
-	if hasErrRet {
-		funcFxType = reflect.FuncOf([]reflect.Type{inFxType}, []reflect.Type{outFxType, errorInterface}, false)
+	funcFxType := reflect.FuncOf([]reflect.Type{ctorTypes.inFx}, []reflect.Type{ctorTypes.outFx}, false)
+	if ctorTypes.hasErrRet {
+		funcFxType = reflect.FuncOf([]reflect.Type{ctorTypes.inFx}, []reflect.Type{ctorTypes.outFx, errorInterface}, false)
 	}
 
 	// wrapper that receives fx-aware requirements, converts them into regular requirements, and calls the
@@ -83,12 +84,12 @@ func ProvideComponentConstructor(compCtorFunc interface{}) fx.Option {
 		// invoke the regular constructor with the correct arguments
 		var ctorArgs []reflect.Value
 		if !hasZeroArg {
-			ctorArgs = makeConstructorArgs(args[0])
+			ctorArgs = makeConstructorArgs(args[0], ctorTypes.inPlain)
 		}
 		plainOuts := reflect.ValueOf(compCtorFunc).Call(ctorArgs)
 		// create return value, an fx-ware provides struct and an optional error
-		res := []reflect.Value{makeFxAwareProvides(plainOuts[0], outFxType)}
-		if hasErrRet {
+		res := []reflect.Value{makeFxAwareProvides(plainOuts[0], ctorTypes.outFx)}
+		if ctorTypes.hasErrRet {
 			res = append(res, plainOuts[1])
 		}
 		return res
@@ -149,30 +150,42 @@ func hasEmbedField(typ, embed reflect.Type) bool {
 	return false
 }
 
-// construct fx-aware types for the input and output of the given constructor function
-func constructFxInAndOut(ctorFuncType reflect.Type) (reflect.Type, reflect.Type, bool, error) {
+type ctorTypes struct {
+	inPlain   reflect.Type
+	inFx      reflect.Type
+	outFx     reflect.Type
+	hasErrRet bool
+}
+
+// get the set of types for the input and output of the given constructor function
+func getConstructorTypes(ctorFuncType reflect.Type) (*ctorTypes, error) {
 	ctorInType, err1 := asStruct(getWithinLimit(0, ctorFuncType.In, ctorFuncType.NumIn))
 	ctorOutType, err2 := asStruct(ctorFuncType.Out(0))
 	hasErrRet, err3 := ensureErrorOrNil(getWithinLimit(1, ctorFuncType.Out, ctorFuncType.NumOut))
 	if err := errors.Join(err1, err2, err3); err != nil {
-		return nil, nil, false, err
+		return nil, err
 	}
 
 	if err := ensureFieldsNotAllowed(ctorInType, []reflect.Type{compOutType, fxOutType, fxInType}); err != nil {
-		return nil, nil, false, err
+		return nil, err
 	}
-	if err := ensureFieldsNotAllowed(ctorOutType, []reflect.Type{compInType, compLifecycleType, fxInType, fxOutType}); err != nil {
-		return nil, nil, false, err
+	if err := ensureFieldsNotAllowed(ctorOutType, []reflect.Type{compInType, compLifecycleType, compShutdownerType, fxInType, fxOutType}); err != nil {
+		return nil, err
 	}
 
 	// create types that have fx-aware embed-fields
 	// these are used to construct a function that can build the fx graph
 	inFxType, err := constructFxInType(ctorInType)
 	if err != nil {
-		return nil, nil, hasErrRet, err
+		return nil, err
 	}
 	outFxType, err := constructFxOutType(ctorOutType)
-	return inFxType, outFxType, hasErrRet, err
+	return &ctorTypes{
+		inPlain:   ctorInType,
+		inFx:      inFxType,
+		outFx:     outFxType,
+		hasErrRet: hasErrRet,
+	}, err
 }
 
 func constructFxInType(plainType reflect.Type) (reflect.Type, error) {
@@ -232,9 +245,9 @@ func replaceStructEmbeds(typ, oldEmbed, newEmbed reflect.Type, assumeEmbed bool)
 			continue
 		}
 		if field.Type.Kind() == reflect.Struct && oldEmbed != nil && newEmbed != nil && hasEmbed {
-			field = reflect.StructField{Name: field.Name, Type: replaceStructEmbeds(field.Type, oldEmbed, newEmbed, false)}
+			field = reflect.StructField{Name: field.Name, Type: replaceStructEmbeds(field.Type, oldEmbed, newEmbed, false), Tag: field.Tag}
 		}
-		newFields = append(newFields, reflect.StructField{Name: field.Name, Type: field.Type})
+		newFields = append(newFields, reflect.StructField{Name: field.Name, Type: field.Type, Tag: field.Tag})
 	}
 
 	if hasEmbed && newEmbed != nil {
@@ -245,12 +258,11 @@ func replaceStructEmbeds(typ, oldEmbed, newEmbed reflect.Type, assumeEmbed bool)
 
 // create arguments that are ready to be passed to the plain constructor by
 // removing fx specific fields from the fx-aware requires struct
-func makeConstructorArgs(fxAwareReqs reflect.Value) []reflect.Value {
+func makeConstructorArgs(fxAwareReqs reflect.Value, plainType reflect.Type) []reflect.Value {
 	if fxAwareReqs.Kind() != reflect.Struct {
 		panic("pre-condition failure: must be called with Struct")
 	}
-	plainType := replaceStructEmbeds(fxAwareReqs.Type(), fxInType, nil, false)
-	return []reflect.Value{coerceStructTo(fxAwareReqs, plainType, fxOutType, nil)}
+	return []reflect.Value{coerceStructTo(fxAwareReqs, plainType, fxInType, compInType)}
 }
 
 // change the return value from the plain constructor into an fx-aware provides struct
@@ -282,10 +294,25 @@ func coerceStructTo(input reflect.Value, outType reflect.Type, oldEmbed, newEmbe
 	return result
 }
 
+// FxAgentBase returns all of our adapters from compdef types to fx types
+func FxAgentBase() fx.Option {
+	return fx.Options(
+		FxLoggingOption(),
+		fx.Provide(newFxLifecycleAdapter),
+		fx.Provide(newFxShutdownerAdapter),
+	)
+}
+
+// Lifecycle is a compdef interface compatible with fx.Lifecycle, to provide start/stop hooks
 var _ compdef.Lifecycle = (*fxLifecycleAdapter)(nil)
 
 type fxLifecycleAdapter struct {
 	lc fx.Lifecycle
+}
+
+// FxLifecycleAdapter creates an fx.Option to adapt from compdef.Lifecycle to fx.Lifecycle
+func FxLifecycleAdapter() fx.Option {
+	return fx.Provide(newFxLifecycleAdapter)
 }
 
 func newFxLifecycleAdapter(lc fx.Lifecycle) compdef.Lifecycle {
@@ -297,4 +324,19 @@ func (a *fxLifecycleAdapter) Append(h compdef.Hook) {
 		OnStart: h.OnStart,
 		OnStop:  h.OnStop,
 	})
+}
+
+// Shutdowner is a compdef interface compatible with fx.Shutdowner, to provide the Shutdown method
+var _ compdef.Shutdowner = (*fxShutdownerAdapter)(nil)
+
+type fxShutdownerAdapter struct {
+	sh fx.Shutdowner
+}
+
+func newFxShutdownerAdapter(sh fx.Shutdowner) compdef.Shutdowner {
+	return &fxShutdownerAdapter{sh: sh}
+}
+
+func (a *fxShutdownerAdapter) Shutdown() error {
+	return a.sh.Shutdown()
 }

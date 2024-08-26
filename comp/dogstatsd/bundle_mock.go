@@ -9,7 +9,7 @@ package dogstatsd
 
 import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	replayfx "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -21,7 +21,7 @@ func MockBundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		serverdebugimpl.MockModule(),
 		server.MockModule(),
-		replay.Module(),
+		replayfx.Module(),
 		pidmapimpl.Module())
 }
 

@@ -15,12 +15,14 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/ecs"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestGetRegionAndAWSAccountID(t *testing.T) {
@@ -152,18 +154,20 @@ func testECS(v4 bool, t *testing.T) {
 func prepareTest(v4 bool, env string) (*Check, *fakeWorkloadmetaStore, *fakeSender) {
 	orchConfig := oconfig.NewDefaultOrchestratorConfig()
 	orchConfig.OrchestrationCollectionEnabled = true
-	orchConfig.OrchestrationECSCollectionEnabled = true
 
 	store := &fakeWorkloadmetaStore{
 		EnableV4: v4,
 	}
 	sender := &fakeSender{}
 
+	systemInfo, _ := checks.CollectSystemInfo()
+
 	c := &Check{
 		sender:            sender,
 		workloadmetaStore: store,
 		config:            orchConfig,
 		groupID:           atomic.NewInt32(0),
+		systemInfo:        systemInfo,
 	}
 
 	c.isECSCollectionEnabledFunc = func() bool { return false }
@@ -245,10 +249,8 @@ func container1(v4 bool) *workloadmeta.Container {
 		container.ECSContainer = &workloadmeta.ECSContainer{
 			DisplayName: "log_router_container",
 			Health: &workloadmeta.ContainerHealthStatus{
-				Status: "HEALTHY",
-				ExitCode: func(i uint32) *uint32 {
-					return &i
-				}(2),
+				Status:   "HEALTHY",
+				ExitCode: pointer.Ptr(int64(-2)),
 			},
 			Type: "NORMAL",
 		}
@@ -327,7 +329,7 @@ func expected(v4 bool, groupID int32, ids ...string) *process.CollectorECSTask {
 			container1.Health = &process.ECSContainerHealth{
 				Status: "HEALTHY",
 				ExitCode: &process.ECSContainerExitCode{
-					ExitCode: 2,
+					ExitCode: -2,
 				},
 			}
 
@@ -339,6 +341,8 @@ func expected(v4 bool, groupID int32, ids ...string) *process.CollectorECSTask {
 		tasks = append(tasks, newTask)
 	}
 
+	systemInfo, _ := checks.CollectSystemInfo()
+
 	return &process.CollectorECSTask{
 		AwsAccountID: 123456789012,
 		ClusterName:  "ecs-cluster",
@@ -347,5 +351,6 @@ func expected(v4 bool, groupID int32, ids ...string) *process.CollectorECSTask {
 		GroupId:      groupID,
 		GroupSize:    1,
 		Tasks:        tasks,
+		Info:         systemInfo,
 	}
 }

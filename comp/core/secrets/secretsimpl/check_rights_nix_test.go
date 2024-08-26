@@ -9,8 +9,6 @@ package secretsimpl
 
 import (
 	"os"
-	"os/user"
-	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -78,68 +76,4 @@ func TestGroupOtherRights(t *testing.T) {
 	// other should not have write permission
 	require.Nil(t, os.Chmod(tmpfile.Name(), 0702))
 	require.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
-}
-
-func Test_checkGroupPermission(t *testing.T) {
-	type args struct {
-		stat       *syscall.Stat_t
-		usr        *user.User
-		userGroups []string
-		path       string
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-	}{
-		{
-			name: "User doesn't own the file, but one of his group does => Valid",
-			args: args{
-				stat: &syscall.Stat_t{
-					Uid:  13,
-					Gid:  42,
-					Mode: 0510,
-				},
-				usr:        &user.User{},
-				userGroups: []string{"1", "42"},
-				path:       "/foo",
-			},
-			wantErr: false,
-		},
-		{
-			name: "User doesn't own the file, one of his group does, but Group doesn't have exec",
-			args: args{
-				stat: &syscall.Stat_t{
-					Uid:  13,
-					Gid:  42,
-					Mode: 0500,
-				},
-				usr:        &user.User{},
-				userGroups: []string{"1", "42"},
-				path:       "/foo",
-			},
-			wantErr: true,
-		},
-		{
-			name: "User or User'Group doesn't own the file =. Fail",
-			args: args{
-				stat: &syscall.Stat_t{
-					Uid:  13,
-					Gid:  5,
-					Mode: 0510,
-				},
-				usr:        &user.User{},
-				userGroups: []string{"1", "42"},
-				path:       "/foo",
-			},
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := checkGroupPermission(tt.args.stat, tt.args.usr, tt.args.userGroups, tt.args.path); (err != nil) != tt.wantErr {
-				t.Errorf("checkGroupPermission() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -62,7 +63,7 @@ func TestStatus(t *testing.T) {
 
 func TestNotRunning(t *testing.T) {
 	// Use different ports in case the host is running a real agent
-	cfg := config.Mock(t)
+	cfg := configmock.New(t)
 	cfg.SetWithoutSource("process_config.cmd_port", 8082)
 
 	addressPort, err := config.GetProcessAPIAddressPort()
@@ -78,7 +79,7 @@ func TestNotRunning(t *testing.T) {
 // TestError tests an example error to make sure that the error template prints properly if we get something other than
 // a connection error
 func TestError(t *testing.T) {
-	cfg := config.Mock(t)
+	cfg := configmock.New(t)
 	cfg.SetWithoutSource("cmd_host", "8.8.8.8") // Non-local ip address will cause error in `GetIPCAddress`
 	_, ipcError := config.GetIPCAddress()
 

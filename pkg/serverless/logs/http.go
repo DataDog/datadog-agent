@@ -9,6 +9,8 @@ package logs
 import (
 	"io"
 	"net/http"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // LambdaLogsAPI implements the AWS Lambda Logs API callback
@@ -36,6 +38,7 @@ func (c *LambdaLogsAPIServer) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	defer r.Body.Close()
 	messages, err := parseLogsAPIPayload(data)
 	if err != nil {
+		log.Errorf("Error parsing Logs API payload: %s", err)
 		w.WriteHeader(400)
 	} else {
 		c.out <- messages

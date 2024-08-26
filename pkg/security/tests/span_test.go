@@ -47,6 +47,8 @@ func TestSpan(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	fakeTraceID128b := "136272290892501783905308705057321818530"
+
 	test.Run(t, "open", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		testFile, _, err := test.Path("test-span")
 		if err != nil {
@@ -54,7 +56,7 @@ func TestSpan(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		args := []string{"span-open", "104", "204", testFile}
+		args := []string{"span-open", fakeTraceID128b, "204", testFile}
 		envs := []string{}
 
 		test.WaitSignal(t, func() error {
@@ -71,8 +73,8 @@ func TestSpan(t *testing.T) {
 
 			test.validateSpanSchema(t, event)
 
-			assert.Equal(t, uint64(204), event.SpanContext.SpanID)
-			assert.Equal(t, uint64(104), event.SpanContext.TraceID)
+			assert.Equal(t, "204", fmt.Sprint(event.SpanContext.SpanID))
+			assert.Equal(t, fakeTraceID128b, event.SpanContext.TraceID.String())
 		})
 	})
 
@@ -86,9 +88,9 @@ func TestSpan(t *testing.T) {
 		var args []string
 		var envs []string
 		if kind == dockerWrapperType {
-			args = []string{"span-exec", "104", "204", "/usr/bin/touch", "--reference", "/etc/passwd", testFile}
+			args = []string{"span-exec", fakeTraceID128b, "204", "/usr/bin/touch", "--reference", "/etc/passwd", testFile}
 		} else if kind == stdWrapperType {
-			args = []string{"span-exec", "104", "204", executable, "--reference", "/etc/passwd", testFile}
+			args = []string{"span-exec", fakeTraceID128b, "204", executable, "--reference", "/etc/passwd", testFile}
 		}
 
 		test.WaitSignal(t, func() error {
@@ -103,8 +105,8 @@ func TestSpan(t *testing.T) {
 
 			test.validateSpanSchema(t, event)
 
-			assert.Equal(t, uint64(204), event.SpanContext.SpanID)
-			assert.Equal(t, uint64(104), event.SpanContext.TraceID)
+			assert.Equal(t, "204", fmt.Sprint(event.SpanContext.SpanID))
+			assert.Equal(t, fakeTraceID128b, event.SpanContext.TraceID.String())
 		})
 	})
 }

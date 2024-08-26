@@ -181,7 +181,6 @@ static __always_inline int sk_buff_to_tuple(struct sk_buff *skb, conn_tuple_t *t
         tup->sport = bpf_ntohs(tcph.source);
         tup->dport = bpf_ntohs(tcph.dest);
 
-        //log_debug("tcp recv: trans_len=%u tcphdr.doff=%u", trans_len, tcph.doff*4);
         return trans_len - (tcph.doff * 4);
     }
 

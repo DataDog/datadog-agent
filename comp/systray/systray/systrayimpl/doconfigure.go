@@ -7,12 +7,11 @@
 package systrayimpl
 
 import (
-	"encoding/json"
 	"fmt"
+	"net"
 
-	"github.com/DataDog/datadog-agent/pkg/api/security"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 func onConfigure(s *systrayImpl) {
@@ -31,40 +30,32 @@ func doConfigure(s *systrayImpl) error {
 		return fmt.Errorf("GUI not enabled: to enable, please set an appropriate port in your datadog.yaml file")
 	}
 
-	// Read the authentication token: can only be done if user can read from datadog.yaml
-	authToken, err := security.FetchAuthToken(pkgconfig.Datadog)
+	// 'http://localhost' is preferred over 'http://127.0.0.1' due to Internet Explorer behavior.
+	// Internet Explorer High Security Level does not support setting cookies via HTTP Header response.
+	// By default, 'http://localhost' is categorized as an "intranet" website, which is considered safer and allowed to use cookies. This is not the case for 'http://127.0.0.1'.
+	guiHost, err := system.IsLocalAddress(s.config.GetString("GUI_host"))
+	if err != nil {
+		return fmt.Errorf("GUI server host is not a local address: %s", err)
+	}
+
+	endpoint, err := apiutil.NewIPCEndpoint(s.config, "/agent/gui/intent")
 	if err != nil {
 		return err
 	}
 
-	// Get the CSRF token from the agent
-	c := util.GetClient(false) // FIX: get certificates right then make this true
-	ipcAddress, err := pkgconfig.GetIPCAddress()
-	if err != nil {
-		return err
-	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/gui/csrf-token", ipcAddress, s.config.GetInt("cmd_port"))
-	err = util.SetAuthToken(pkgconfig.Datadog)
+	intentToken, err := endpoint.DoGet()
 	if err != nil {
 		return err
 	}
 
-	csrfToken, err := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
-	if err != nil {
-		var errMap = make(map[string]string)
-		err = json.Unmarshal(csrfToken, &errMap)
-		if e, found := errMap["error"]; found {
-			err = fmt.Errorf(e)
-		}
-		return fmt.Errorf("Could not reach agent: %v \nMake sure the agent is running before attempting to open the GUI", err)
-	}
+	guiAddress := net.JoinHostPort(guiHost, guiPort)
 
 	// Open the GUI in a browser, passing the authorization tokens as parameters
-	err = open("http://127.0.0.1:" + guiPort + "/authenticate?authToken=" + string(authToken) + "&csrf=" + string(csrfToken))
+	err = open("http://" + guiAddress + "/auth?intent=" + string(intentToken))
 	if err != nil {
-		return fmt.Errorf("error opening GUI: " + err.Error())
+		return fmt.Errorf("error opening GUI: %s", err.Error())
 	}
 
-	s.log.Debugf("GUI opened at 127.0.0.1:" + guiPort + "\n")
+	s.log.Debugf("GUI opened at %s\n", guiAddress)
 	return nil
 }

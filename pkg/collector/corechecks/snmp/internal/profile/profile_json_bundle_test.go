@@ -18,7 +18,7 @@ import (
 func Test_loadBundleJSONProfiles(t *testing.T) {
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "zipprofiles.d"))
 	SetGlobalProfileConfigMap(nil)
-	config.Datadog.SetWithoutSource("confd_path", defaultTestConfdPath)
+	config.Datadog().SetWithoutSource("confd_path", defaultTestConfdPath)
 	pth := findProfileBundleFilePath()
 	require.FileExists(t, pth)
 	resolvedProfiles, err := loadBundleJSONProfiles(pth)

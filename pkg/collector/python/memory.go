@@ -28,9 +28,7 @@ import (
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
 */
-import (
-	"C"
-)
+import "C"
 
 var (
 	pointerCache = sync.Map{}
@@ -120,7 +118,7 @@ func TrackedCString(str string) *C.char {
 	cstr := C.CString(str)
 
 	// TODO(memory-tracking): track the origin of the string (for example check name)
-	if config.Datadog.GetBool("memtrack_enabled") {
+	if config.Datadog().GetBool("memtrack_enabled") {
 		MemoryTracker(unsafe.Pointer(cstr), C.size_t(len(str)+1), C.DATADOG_AGENT_RTLOADER_ALLOCATION)
 	}
 

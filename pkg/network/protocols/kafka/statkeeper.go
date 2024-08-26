@@ -16,7 +16,7 @@ import (
 
 // StatKeeper is a struct to hold the stats for the kafka protocol
 type StatKeeper struct {
-	stats      map[Key]*RequestStat
+	stats      map[Key]*RequestStats
 	statsMutex sync.RWMutex
 	maxEntries int
 	telemetry  *Telemetry
@@ -29,7 +29,7 @@ type StatKeeper struct {
 // NewStatkeeper creates a new StatKeeper
 func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
 	return &StatKeeper{
-		stats:      make(map[Key]*RequestStat),
+		stats:      make(map[Key]*RequestStats),
 		maxEntries: c.MaxKafkaStatsBuffered,
 		telemetry:  telemetry,
 		topicNames: make(map[string]string),
@@ -53,18 +53,26 @@ func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 			statKeeper.telemetry.dropped.Add(1)
 			return
 		}
-		requestStats = new(RequestStat)
+		requestStats = NewRequestStats()
 		statKeeper.stats[key] = requestStats
 	}
-	requestStats.Count += int(tx.RecordsCount())
+
+	latency := tx.RequestLatency()
+	// Currently, we only support measuring latency for fetch operations
+	if key.RequestAPIKey == FetchAPIKey && latency <= 0 {
+		statKeeper.telemetry.invalidLatency.Add(1)
+		return
+	}
+
+	requestStats.AddRequest(int32(tx.ErrorCode()), int(tx.RecordsCount()), uint64(tx.Transaction.Tags), latency)
 }
 
 // GetAndResetAllStats returns all the stats and resets the stats
-func (statKeeper *StatKeeper) GetAndResetAllStats() map[Key]*RequestStat {
+func (statKeeper *StatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	statKeeper.statsMutex.RLock()
 	defer statKeeper.statsMutex.RUnlock()
 	ret := statKeeper.stats // No deep copy needed since `statKeeper.stats` gets reset
-	statKeeper.stats = make(map[Key]*RequestStat)
+	statKeeper.stats = make(map[Key]*RequestStats)
 	statKeeper.topicNames = make(map[string]string)
 	return ret
 }

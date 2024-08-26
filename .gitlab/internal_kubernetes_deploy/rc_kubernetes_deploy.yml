@@ -18,21 +18,15 @@ rc_kubernetes_deploy:
   tags: ["arch:amd64"]
   variables:
     OPTION_AUTOMATIC_ROLLOUT: "true"
-    OPTION_PRE_SCRIPT: "patch-cluster-images-operator.sh env=all-staging ${CI_COMMIT_REF_SLUG}-jmx ${CI_COMMIT_REF_SLUG}"
     SKIP_PLAN_CHECK: "true"
     EXPLICIT_WORKFLOWS: "//workflows:deploy_rc.agents_rc"
+    AGENT_IMAGE_TAG: $CI_COMMIT_REF_NAME
   script:
     - source /root/.bashrc
     - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME)
     - "inv pipeline.trigger-child-pipeline --project-name DataDog/k8s-datadog-agent-ops --git-ref main
-      --no-follow
       --variable OPTION_AUTOMATIC_ROLLOUT
       --variable EXPLICIT_WORKFLOWS
       --variable OPTION_PRE_SCRIPT
       --variable SKIP_PLAN_CHECK
-      --variable APPS
-      --variable BAZEL_TARGET
-      --variable DDR
-      --variable DDR_WORKFLOW_ID
-      --variable TARGET_ENV
-      --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+      --variable AGENT_IMAGE_TAG"

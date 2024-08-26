@@ -1,9 +1,16 @@
 import os
+import platform
+import shutil
 import sys
+import zipfile
+from pathlib import Path
 
-from invoke import Exit, task
+from invoke import Context, Exit, task
 
-from tasks.libs.common.utils import collapsed_section, color_message, environ
+from tasks.libs.ciproviders.github_api import GithubAPI
+from tasks.libs.common.go import download_go_dependencies
+from tasks.libs.common.retry import run_command_with_retry
+from tasks.libs.common.utils import bin_name, environ, gitlab_section
 
 TOOL_LIST = [
     'github.com/frapposelli/wwhrd',
@@ -35,35 +42,41 @@ TOOLS = {
 def download_tools(ctx):
     """Download all Go tools for testing."""
     with environ({'GO111MODULE': 'on'}):
-        for path, _ in TOOLS.items():
-            with ctx.cd(path):
-                ctx.run("go mod download")
+        download_go_dependencies(ctx, paths=list(TOOLS.keys()))
 
 
 @task
-def install_tools(ctx):
+def install_tools(ctx: Context, max_retry: int = 3):
     """Install all Go tools for testing."""
-    if os.path.isfile("go.work") or os.path.isfile("go.work.sum"):
-        # Someone reported issues with this command when using a go.work but other people
-        # use a go.work and don't have any issue, so the root cause is unclear.
-        # Printing a warning because it might help someone but not enforcing anything.
-
-        # The issue which was reported was that `go install` would fail with the following error:
-        ### no required module provides package <package>; to add it:
-        ### go get <package>
-        print(
-            color_message(
-                "WARNING: In case of issue, you might want to try disabling go workspaces by setting the environment variable GOWORK=off, or even deleting go.work and go.work.sum",
-                "orange",
-            )
-        )
-
-    with collapsed_section("Installing Go tools"):
+    with gitlab_section("Installing Go tools", collapsed=True):
         with environ({'GO111MODULE': 'on'}):
             for path, tools in TOOLS.items():
                 with ctx.cd(path):
                     for tool in tools:
-                        ctx.run(f"go install {tool}")
+                        run_command_with_retry(ctx, f"go install {tool}", max_retry=max_retry)
+        # Always install the custom golangci-lint not to fail on custom linters run (e.g pkgconfigusage)
+        install_custom_golanci_lint(ctx)
+
+
+def install_custom_golanci_lint(ctx):
+    res = ctx.run("golangci-lint custom -v")
+    if res.ok:
+        gopath = os.getenv('GOPATH')
+        gobin = os.getenv('GOBIN')
+        default_gopath = os.path.join(Path.home(), "go")
+
+        golintci_binary = bin_name('golangci-lint')
+        golintci_lint_backup_binary = bin_name('golangci-lint-backup')
+
+        go_binaries_folder = gobin or os.path.join(gopath or default_gopath, "bin")
+
+        shutil.move(
+            os.path.join(go_binaries_folder, golintci_binary),
+            os.path.join(go_binaries_folder, golintci_lint_backup_binary),
+        )
+        shutil.move(golintci_binary, os.path.join(go_binaries_folder, golintci_binary))
+
+        print("Installed custom golangci-lint binary successfully")
 
 
 @task
@@ -86,6 +99,45 @@ def install_shellcheck(ctx, version="0.8.0", destination="/usr/local/bin"):
     )
     ctx.run(f"cp \"/tmp/shellcheck-v{version}/shellcheck\" {destination}")
     ctx.run(f"rm -rf \"/tmp/shellcheck-v{version}\"")
+
+
+@task
+def install_protoc(ctx, version="26.1"):
+    """
+    Installs the requested version of protoc in the specified folder (by default /usr/local/bin).
+    Required generate the golang code based on .prod (inv generate-protobuf).
+    """
+
+    if sys.platform == 'win32':
+        print("protoc is not supported on Windows")
+        raise Exit(code=1)
+    if sys.platform.startswith('darwin'):
+        platform_os = "osx"
+    if sys.platform.startswith('linux'):
+        platform_os = "linux"
+
+    platform_arch = platform.machine().lower()
+    if platform_arch == "amd64":
+        platform_arch = "x86_64"
+    elif platform_arch in {"aarch64", "arm64"}:
+        platform_arch = "aarch_64"
+
+    # Download the artifact thanks to the Github API class
+    artifact_url = f"https://github.com/protocolbuffers/protobuf/releases/download/v{version}/protoc-{version}-{platform_os}-{platform_arch}.zip"
+    zip_path = "/tmp"
+    zip_name = "protoc"
+    zip_file = os.path.join(zip_path, f"{zip_name}.zip")
+
+    gh = GithubAPI(public_repo=True)
+    # the download_from_url expect to have the path and the name of the file separated and without the extension
+    gh.download_from_url(artifact_url, zip_path, zip_name)
+
+    # Unzip it in the target destination
+    destination = os.path.join(Path.home(), ".local")
+    with zipfile.ZipFile(zip_file, "r") as zip_ref:
+        zip_ref.extract('bin/protoc', path=destination)
+    ctx.run(f"chmod +x {destination}/bin/protoc")
+    ctx.run(f"rm {zip_file}")
 
 
 @task

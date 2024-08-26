@@ -61,7 +61,7 @@ func TestCanObfuscateAutoVacuum(t *testing.T) {
 			out: "autovacuum : VACUUM fake.big_table ( to prevent wraparound )",
 		},
 	} {
-		t.Run("", func(t *testing.T) {
+		t.Run("", func(_ *testing.T) {
 			oq, err := NewObfuscator(Config{}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
@@ -98,13 +98,13 @@ func TestSingleDollarIdentifier(t *testing.T) {
 	MERGE INTO Employees AS target
 	USING EmployeeUpdates AS source
 	ON (target.EmployeeID = source.EmployeeID)
-	WHEN MATCHED THEN 
-		UPDATE SET 
+	WHEN MATCHED THEN
+		UPDATE SET
 			target.Name = source.Name
-	WHEN NOT MATCHED BY TARGET THEN 
+	WHEN NOT MATCHED BY TARGET THEN
 		INSERT (EmployeeID, Name)
 		VALUES (source.EmployeeID, source.Name)
-	WHEN NOT MATCHED BY SOURCE THEN 
+	WHEN NOT MATCHED BY SOURCE THEN
 		DELETE
 	OUTPUT $action, inserted.*, deleted.*;
 	`
@@ -373,7 +373,7 @@ TABLE T4 UNION CORRESPONDING TABLE T3`,
 			},
 		},
 	} {
-		t.Run("", func(t *testing.T) {
+		t.Run("", func(_ *testing.T) {
 			oq, err := NewObfuscator(Config{SQL: tt.cfg}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
@@ -430,7 +430,7 @@ func TestSQLUTF8(t *testing.T) {
 			"SELECT ( ? )",
 		},
 	} {
-		t.Run("", func(t *testing.T) {
+		t.Run("", func(_ *testing.T) {
 			oq, err := NewObfuscator(Config{}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
@@ -1266,7 +1266,7 @@ func TestPGJSONOperators(t *testing.T) {
 			"select * from users where user.custom ?& array [ ? ]",
 		},
 	} {
-		t.Run("", func(t *testing.T) {
+		t.Run("", func(_ *testing.T) {
 			oq, err := NewObfuscator(Config{
 				SQL: SQLConfig{
 					DBMS: DBMSPostgres,
@@ -1311,7 +1311,7 @@ func TestObfuscatorDBMSBehavior(t *testing.T) {
 			},
 		},
 	} {
-		t.Run(tt.cfg.DBMS, func(t *testing.T) {
+		t.Run(tt.cfg.DBMS, func(_ *testing.T) {
 			oq, err := NewObfuscator(Config{SQL: tt.cfg}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
@@ -2365,6 +2365,34 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 			query:                   `SELECT * FROM "users" WHERE id = 1 AND name = 'test'`,
 			expected:                `SELECT * FROM "users" WHERE id = ? AND name = ?`,
 			keepIdentifierQuotation: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:     "normalization with CREATE TABLE",
+			query:    `CREATE TABLE IF NOT EXISTS users (id INT, name VARCHAR(255))`,
+			expected: `CREATE TABLE IF NOT EXISTS users ( id INT, name VARCHAR ( ? ) )`,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"CREATE",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:     "PostgreSQL Select Only",
+			query:    `SELECT * FROM ONLY users WHERE id = 1`,
+			expected: `SELECT * FROM ONLY users WHERE id = ?`,
 			metadata: SQLMetadata{
 				Size:      11,
 				TablesCSV: "users",

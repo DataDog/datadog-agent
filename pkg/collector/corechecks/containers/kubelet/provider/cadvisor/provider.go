@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/prometheus"
@@ -348,7 +348,8 @@ func (p *Provider) getEntityIDIfContainerMetric(labels model.Metric) string {
 			// Return the pod UID so that we can collect metrics from it later on.
 			return p.getPodUID(labels)
 		}
-		return common.GetContainerID(p.store, labels, p.filter)
+		cID, _ := common.GetContainerID(p.store, labels, p.filter)
+		return cID
 	}
 	return ""
 }

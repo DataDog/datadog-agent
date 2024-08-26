@@ -10,10 +10,11 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/stretchr/testify/suite"
@@ -38,7 +39,13 @@ func (suite *eksSuite) SetupSuite() {
 		"dddogstatsd:deploy":    auto.ConfigValue{Value: "true"},
 	}
 
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "eks-cluster", stackConfig, eks.Run, false, nil, nil)
+	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
+		ctx,
+		"eks-cluster",
+		eks.Run,
+		infra.WithConfigMap(stackConfig),
+	)
+
 	if !suite.Assert().NoError(err) {
 		stackName, err := infra.GetStackManager().GetPulumiStackName("eks-cluster")
 		suite.Require().NoError(err)
@@ -66,8 +73,12 @@ func (suite *eksSuite) SetupSuite() {
 	suite.K8sConfig, err = clientcmd.RESTConfigFromKubeConfig([]byte(kubeCluster.KubeConfig))
 	suite.Require().NoError(err)
 
-	suite.AgentLinuxHelmInstallName = stackOutput.Outputs["agent-linux-helm-install-name"].Value.(string)
-	suite.AgentWindowsHelmInstallName = stackOutput.Outputs["agent-windows-helm-install-name"].Value.(string)
+	kubernetesAgent := &components.KubernetesAgent{}
+	kubernetesAgentSerialized, err := json.Marshal(stackOutput.Outputs["dd-KubernetesAgent-aws-datadog-agent"].Value)
+	suite.Require().NoError(err)
+	suite.Require().NoError(kubernetesAgent.Import(kubernetesAgentSerialized, &kubernetesAgent))
+
+	suite.KubernetesAgentRef = kubernetesAgent
 
 	suite.k8sSuite.SetupSuite()
 }

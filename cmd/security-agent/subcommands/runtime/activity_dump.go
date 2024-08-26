@@ -18,8 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -35,7 +34,6 @@ type activityDumpCliParams struct {
 
 	name                     string
 	containerID              string
-	comm                     string
 	file                     string
 	file2                    string
 	timeout                  string
@@ -66,12 +64,12 @@ func listCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpListCmd := &cobra.Command{
 		Use:   "list",
 		Short: "get the list of running activity dumps",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(listActivityDumps,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -88,13 +86,13 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpStopCmd := &cobra.Command{
 		Use:   "stop",
 		Short: "stops the first activity dump that matches the provided selector",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(stopActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -111,12 +109,6 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		"container-id",
 		"",
 		"an containerID can be used to filter the activity dump.",
-	)
-	activityDumpStopCmd.Flags().StringVar(
-		&cliParams.comm,
-		"comm",
-		"",
-		"a process command can be used to filter the activity dump from a specific process.",
 	)
 
 	return []*cobra.Command{activityDumpStopCmd}
@@ -142,24 +134,18 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpGenerateDumpCmd := &cobra.Command{
 		Use:   "dump",
 		Short: "generate an activity dump",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(generateActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
 	}
 
-	activityDumpGenerateDumpCmd.Flags().StringVar(
-		&cliParams.comm,
-		"comm",
-		"",
-		"a process command can be used to filter the activity dump from a specific process.",
-	)
 	activityDumpGenerateDumpCmd.Flags().StringVar(
 		&cliParams.containerID,
 		"container-id",
@@ -220,13 +206,13 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 	activityDumpGenerateEncodingCmd := &cobra.Command{
 		Use:   "encoding",
 		Short: "encode an activity dump to the requested formats",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(generateEncodingFromActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -287,13 +273,13 @@ func diffCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpDiffCmd := &cobra.Command{
 		Use:   "diff",
 		Short: "compute the diff between two activity dumps",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(diffActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -469,7 +455,6 @@ func generateActivityDump(_ log.Component, _ config.Component, _ secrets.Compone
 	}
 
 	output, err := client.GenerateActivityDump(&api.ActivityDumpParams{
-		Comm:              activityDumpArgs.comm,
 		ContainerID:       activityDumpArgs.containerID,
 		Timeout:           activityDumpArgs.timeout,
 		DifferentiateArgs: activityDumpArgs.differentiateArgs,
@@ -537,7 +522,7 @@ func generateEncodingFromActivityDump(_ log.Component, _ config.Component, _ sec
 			return fmt.Errorf("couldn't load configuration: %w", err)
 
 		}
-		storage, err := dump.NewSecurityAgentCommandStorageManager(cfg)
+		storage, err := dump.NewAgentCommandStorageManager(cfg)
 		if err != nil {
 			return fmt.Errorf("couldn't instantiate storage manager: %w", err)
 		}
@@ -619,7 +604,7 @@ func stopActivityDump(_ log.Component, _ config.Component, _ secrets.Component, 
 	}
 	defer client.Close()
 
-	output, err := client.StopActivityDump(activityDumpArgs.name, activityDumpArgs.containerID, activityDumpArgs.comm)
+	output, err := client.StopActivityDump(activityDumpArgs.name, activityDumpArgs.containerID)
 	if err != nil {
 		return fmt.Errorf("unable to send request to system-probe: %w", err)
 	}

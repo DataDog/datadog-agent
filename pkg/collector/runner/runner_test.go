@@ -143,14 +143,14 @@ func assertAsyncBool(t *testing.T, actualValueFunc func() bool, expectedValue bo
 func testSetUp(t *testing.T) {
 	assertAsyncWorkerCount(t, 0)
 	expvars.Reset()
-	config.Datadog.SetWithoutSource("hostname", "myhost")
+	config.Datadog().SetWithoutSource("hostname", "myhost")
 }
 
 // Tests
 
 func TestNewRunner(t *testing.T) {
 	testSetUp(t)
-	config.Datadog.SetWithoutSource("check_runners", "3")
+	config.Datadog().SetWithoutSource("check_runners", "3")
 
 	r := NewRunner(aggregator.NewNoOpSenderManager())
 	require.NotNil(t, r)
@@ -164,7 +164,7 @@ func TestNewRunner(t *testing.T) {
 
 func TestRunnerAddWorker(t *testing.T) {
 	testSetUp(t)
-	config.Datadog.SetWithoutSource("check_runners", "1")
+	config.Datadog().SetWithoutSource("check_runners", "1")
 
 	r := NewRunner(aggregator.NewNoOpSenderManager())
 	require.NotNil(t, r)
@@ -179,7 +179,7 @@ func TestRunnerAddWorker(t *testing.T) {
 
 func TestRunnerStaticUpdateNumWorkers(t *testing.T) {
 	testSetUp(t)
-	config.Datadog.SetWithoutSource("check_runners", "2")
+	config.Datadog().SetWithoutSource("check_runners", "2")
 
 	r := NewRunner(aggregator.NewNoOpSenderManager())
 	require.NotNil(t, r)
@@ -198,7 +198,7 @@ func TestRunnerStaticUpdateNumWorkers(t *testing.T) {
 
 func TestRunnerDynamicUpdateNumWorkers(t *testing.T) {
 	testSetUp(t)
-	config.Datadog.SetWithoutSource("check_runners", "0")
+	config.Datadog().SetWithoutSource("check_runners", "0")
 
 	testCases := [][]int{
 		{0, 10, 4},
@@ -251,7 +251,7 @@ func TestRunner(t *testing.T) {
 func TestRunnerStop(t *testing.T) {
 	testSetUp(t)
 
-	config.Datadog.SetWithoutSource("check_runners", "10")
+	config.Datadog().SetWithoutSource("check_runners", "10")
 	numChecks := 8
 
 	checks := make([]*testCheck, numChecks)
@@ -304,7 +304,7 @@ func TestRunnerStop(t *testing.T) {
 func TestRunnerStopWithStuckCheck(t *testing.T) {
 	testSetUp(t)
 
-	config.Datadog.SetWithoutSource("check_runners", "10")
+	config.Datadog().SetWithoutSource("check_runners", "10")
 	numChecks := 8
 
 	checks := make([]*testCheck, numChecks)
@@ -360,7 +360,7 @@ func TestRunnerStopWithStuckCheck(t *testing.T) {
 
 func TestRunnerStopCheck(t *testing.T) {
 	testSetUp(t)
-	config.Datadog.SetWithoutSource("check_runners", "3")
+	config.Datadog().SetWithoutSource("check_runners", "3")
 
 	testCheck := newCheck(t, "mycheck:123", false, nil)
 	blockedCheck := newCheck(t, "mycheck2:123", false, nil)
@@ -408,7 +408,7 @@ func TestRunnerStopCheck(t *testing.T) {
 
 func TestRunnerScheduler(t *testing.T) {
 	testSetUp(t)
-	config.Datadog.SetWithoutSource("check_runners", "3")
+	config.Datadog().SetWithoutSource("check_runners", "3")
 
 	sched1 := newScheduler()
 	sched2 := newScheduler()
@@ -428,7 +428,7 @@ func TestRunnerScheduler(t *testing.T) {
 
 func TestRunnerShouldAddCheckStats(t *testing.T) {
 	testSetUp(t)
-	config.Datadog.SetWithoutSource("check_runners", "3")
+	config.Datadog().SetWithoutSource("check_runners", "3")
 
 	testCheck := newCheck(t, "test", false, nil)
 	sched := newScheduler()

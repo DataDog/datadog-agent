@@ -11,10 +11,11 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-func setupMultiRegionFailover(config pkgconfigmodel.Config) {
+func setupMultiRegionFailover(config pkgconfigmodel.Setup) {
 	config.BindEnv("multi_region_failover.api_key")
 	config.BindEnv("multi_region_failover.site")
 	config.BindEnv("multi_region_failover.dd_url")
+	config.BindEnv("multi_region_failover.metric_allowlist")
 	config.BindEnvAndSetDefault("multi_region_failover.enabled", false)
 	config.BindEnvAndSetDefault("multi_region_failover.failover_metrics", false)
 	config.BindEnvAndSetDefault("multi_region_failover.failover_logs", false)

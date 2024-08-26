@@ -9,6 +9,7 @@ package clusterchecks
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/fatih/color"
@@ -17,8 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
@@ -57,7 +57,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		Use:   "clusterchecks",
 		Short: "Prints the active cluster check configurations",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			globalParams := globalParamsGetter()
 
 			return fxutil.OneShot(run,
@@ -74,7 +74,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		Use:   "rebalance",
 		Short: "Rebalances cluster checks",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			globalParams := globalParamsGetter()
 
 			return fxutil.OneShot(rebalance,
@@ -93,7 +93,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		Use:   "isolate",
 		Short: "Isolates a single check in the cluster runner",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			globalParams := globalParamsGetter()
 
 			return fxutil.OneShot(isolate,
@@ -113,12 +113,12 @@ func bundleParams(globalParams GlobalParams) core.BundleParams {
 	return core.BundleParams{
 		ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
 		SecretParams: secrets.NewEnabledParams(),
-		LogParams:    logimpl.ForOneShot(loggerName, defaultLogLevel, true),
+		LogParams:    log.ForOneShot(loggerName, defaultLogLevel, true),
 	}
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
-func run(log log.Component, config config.Component, cliParams *cliParams) error {
+func run(_ log.Component, _ config.Component, cliParams *cliParams) error {
 	if err := flare.GetClusterChecks(color.Output, cliParams.checkName); err != nil {
 		return err
 	}
@@ -130,7 +130,7 @@ func rebalance(_ log.Component, config config.Component, cliParams *cliParams) e
 
 	fmt.Println("Requesting a cluster check rebalance...")
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks/rebalance", pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"))
+	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks/rebalance", pkgconfig.Datadog().GetInt("cluster_agent.cmd_port"))
 
 	// Set session token
 	err := util.SetAuthToken(config)
@@ -154,7 +154,7 @@ func rebalance(_ log.Component, config config.Component, cliParams *cliParams) e
 		json.Unmarshal(r, &errMap) //nolint:errcheck
 		// If the error has been marshalled into a json object, check it and return it properly
 		if e, found := errMap["error"]; found {
-			err = fmt.Errorf(e)
+			err = errors.New(e)
 		}
 
 		fmt.Printf(`
@@ -183,7 +183,7 @@ func isolate(_ log.Component, config config.Component, cliParams *cliParams) err
 	if cliParams.checkID == "" {
 		return fmt.Errorf("checkID must be specified")
 	}
-	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks/isolate/check/%s", pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"), cliParams.checkID)
+	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks/isolate/check/%s", pkgconfig.Datadog().GetInt("cluster_agent.cmd_port"), cliParams.checkID)
 
 	// Set session token
 	err := util.SetAuthToken(config)
@@ -197,7 +197,7 @@ func isolate(_ log.Component, config config.Component, cliParams *cliParams) err
 		json.Unmarshal(r, &errMap) //nolint:errcheck
 		// If the error has been marshalled into a json object, check it and return it properly
 		if e, found := errMap["error"]; found {
-			err = fmt.Errorf(e)
+			err = errors.New(e)
 		}
 
 		fmt.Printf(`

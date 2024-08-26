@@ -18,7 +18,8 @@ import (
 
 	tmock "github.com/stretchr/testify/mock"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -146,7 +147,7 @@ func CreateKubeletMock(response EndpointResponse, endpoint string) (*mock.Kubele
 	if response.filename != "" {
 		content, err = os.ReadFile(response.filename)
 		if err != nil {
-			return nil, fmt.Errorf(fmt.Sprintf("unable to read test file at: %s, Err: %v", response.filename, err))
+			return nil, fmt.Errorf("unable to read test file at: %s, Err: %w", response.filename, err)
 		}
 	}
 	kubeletMock.MockReplies[endpoint] = &mock.HTTPReplyMock{
@@ -158,19 +159,19 @@ func CreateKubeletMock(response EndpointResponse, endpoint string) (*mock.Kubele
 }
 
 // StorePopulatedFromFile populates a workloadmeta.Store based on pod data from a given file.
-func StorePopulatedFromFile(store workloadmeta.Mock, filename string, podUtils *common.PodUtils) error {
+func StorePopulatedFromFile(store workloadmetamock.Mock, filename string, podUtils *common.PodUtils) error {
 	if filename == "" {
 		return nil
 	}
 
 	podList, err := os.ReadFile(filename)
 	if err != nil {
-		return fmt.Errorf(fmt.Sprintf("unable to load pod list, Err: %v", err))
+		return fmt.Errorf("unable to load pod list, Err: %w", err)
 	}
 	var pods *kubelet.PodList
 	err = json.Unmarshal(podList, &pods)
 	if err != nil {
-		return fmt.Errorf(fmt.Sprintf("unable to load pod list, Err: %v", err))
+		return fmt.Errorf("unable to load pod list, Err: %w", err)
 	}
 
 	for _, pod := range pods.Items {

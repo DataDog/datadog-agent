@@ -139,6 +139,8 @@ func TestChmod(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChmodSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.chmod.path")
+			validateSyscallContext(t, event, "$.syscall.chmod.mode")
 		})
 	}))
 }

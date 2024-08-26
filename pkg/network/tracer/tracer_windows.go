@@ -19,6 +19,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -61,11 +62,11 @@ type Tracer struct {
 }
 
 // NewTracer returns an initialized tracer struct
-func NewTracer(config *config.Config) (*Tracer, error) {
+func NewTracer(config *config.Config, telemetry telemetry.Component) (*Tracer, error) {
 	if err := driver.Start(); err != nil {
 		return nil, fmt.Errorf("error starting driver: %s", err)
 	}
-	di, err := network.NewDriverInterface(config, driver.NewHandle)
+	di, err := network.NewDriverInterface(config, driver.NewHandle, telemetry)
 
 	if err != nil && errors.Is(err, syscall.ERROR_FILE_NOT_FOUND) {
 		log.Debugf("could not create driver interface: %v", err)
@@ -75,6 +76,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	}
 
 	state := network.NewState(
+		telemetry,
 		config.ClientStateExpiry,
 		config.MaxClosedConnectionsBuffered,
 		config.MaxConnectionsStateBuffered,
@@ -82,13 +84,14 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.MaxHTTPStatsBuffered,
 		config.MaxKafkaStatsBuffered,
 		config.MaxPostgresStatsBuffered,
+		config.MaxRedisStatsBuffered,
 		config.EnableNPMConnectionRollup,
 		config.EnableProcessEventMonitoring,
 	)
 
 	reverseDNS := dns.NewNullReverseDNS()
 	if config.DNSInspection {
-		reverseDNS, err = dns.NewReverseDNS(config)
+		reverseDNS, err = dns.NewReverseDNS(config, telemetry)
 		if err != nil {
 			return nil, err
 		}
@@ -133,7 +136,9 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 				})
 				closedConnStats := tr.closedBuffer.Connections()
 
-				tr.state.StoreClosedConnections(closedConnStats)
+				for i := range closedConnStats {
+					tr.state.StoreClosedConnection(&closedConnStats[i])
+				}
 
 			case windows.WAIT_FAILED:
 				break waitloop
@@ -195,7 +200,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	// check for expired clients in the state
 	t.state.RemoveExpiredClients(time.Now())
 
-	t.state.StoreClosedConnections(closedConnStats)
+	for i := range closedConnStats {
+		t.state.StoreClosedConnection(&closedConnStats[i])
+	}
 
 	var delta network.Delta
 	if t.usmMonitor != nil { //nolint
@@ -257,30 +264,22 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 }
 
 // DebugEBPFMaps is not implemented on this OS for Tracer
-//
-//nolint:revive // TODO(WKIT) Fix revive linter
 func (t *Tracer) DebugEBPFMaps(_ io.Writer, _ ...string) error {
 	return ebpf.ErrNotImplemented
 }
 
 // DebugCachedConntrack is not implemented on this OS for Tracer
-//
-//nolint:revive // TODO(WKIT) Fix revive linter
-func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) {
+func (t *Tracer) DebugCachedConntrack(_ context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
 // DebugHostConntrack is not implemented on this OS for Tracer
-//
-//nolint:revive // TODO(WKIT) Fix revive linter
-func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
+func (t *Tracer) DebugHostConntrack(_ context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
 // DebugDumpProcessCache is not implemented on this OS for Tracer
-//
-//nolint:revive // TODO(WKIT) Fix revive linter
-func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error) {
+func (t *Tracer) DebugDumpProcessCache(_ context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 

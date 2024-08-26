@@ -38,7 +38,7 @@ var hostnameFetcher = cachedfetch.Fetcher{
 	Name: "GCP Hostname",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		hostname, err := getResponseWithMaxLength(ctx, metadataURL+"/instance/hostname",
-			config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+			config.Datadog().GetInt("metadata_endpoints_max_hostname_size"))
 		if err != nil {
 			return "", fmt.Errorf("unable to retrieve hostname from GCE: %s", err)
 		}
@@ -76,7 +76,7 @@ var nameFetcher = cachedfetch.Fetcher{
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		return getResponseWithMaxLength(ctx,
 			metadataURL+"/instance/name",
-			config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+			config.Datadog().GetInt("metadata_endpoints_max_hostname_size"))
 	},
 }
 
@@ -85,7 +85,7 @@ var projectIDFetcher = cachedfetch.Fetcher{
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		projectID, err := getResponseWithMaxLength(ctx,
 			metadataURL+"/project/project-id",
-			config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+			config.Datadog().GetInt("metadata_endpoints_max_hostname_size"))
 		if err != nil {
 			return "", fmt.Errorf("unable to retrieve project ID from GCE: %s", err)
 		}
@@ -123,7 +123,7 @@ var clusterNameFetcher = cachedfetch.Fetcher{
 	Name: "GCP Cluster Name",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		clusterName, err := getResponseWithMaxLength(ctx, metadataURL+"/instance/attributes/cluster-name",
-			config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+			config.Datadog().GetInt("metadata_endpoints_max_hostname_size"))
 		if err != nil {
 			return "", fmt.Errorf("unable to retrieve clustername from GCE: %s", err)
 		}
@@ -140,7 +140,7 @@ var publicIPv4Fetcher = cachedfetch.Fetcher{
 	Name: "GCP Public IP",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		publicIPv4, err := getResponseWithMaxLength(ctx, metadataURL+"/instance/network-interfaces/0/access-configs/0/external-ip",
-			config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+			config.Datadog().GetInt("metadata_endpoints_max_hostname_size"))
 		if err != nil {
 			return "", fmt.Errorf("unable to retrieve public IPv4 from GCE: %s", err)
 		}
@@ -220,7 +220,7 @@ func getResponse(ctx context.Context, url string) (string, error) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
-	res, err := httputils.Get(ctx, url, map[string]string{"Metadata-Flavor": "Google"}, config.Datadog.GetDuration("gce_metadata_timeout")*time.Millisecond, config.Datadog)
+	res, err := httputils.Get(ctx, url, map[string]string{"Metadata-Flavor": "Google"}, config.Datadog().GetDuration("gce_metadata_timeout")*time.Millisecond, config.Datadog())
 	if err != nil {
 		return "", fmt.Errorf("GCE metadata API error: %s", err)
 	}

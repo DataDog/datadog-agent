@@ -201,7 +201,7 @@ func (s *checkSender) sendMetricSample(
 		Timestamp:       timestamp,
 		FlushFirstValue: flushFirstValue,
 		NoIndex:         s.noIndex || noIndex,
-		Source:          metrics.CoreCheckToMetricSource(checkid.IDToCheckName(s.id)),
+		Source:          metrics.CheckNameToMetricSource(checkid.IDToCheckName(s.id)),
 	}
 
 	if hostname == "" && !s.defaultHostnameDisabled {

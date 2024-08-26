@@ -12,10 +12,10 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -40,23 +40,15 @@ func SetupAPIServerHandlers(deps APIServerDeps, r *mux.Router) {
 	r.HandleFunc("/config", deps.Settings.GetFullConfig("process_config")).Methods("GET")
 	r.HandleFunc("/config/all", deps.Settings.GetFullConfig("")).Methods("GET") // Get all fields from process-agent Config object
 	r.HandleFunc("/config/list-runtime", deps.Settings.ListConfigurable).Methods("GET")
-	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		setting := vars["setting"]
-		deps.Settings.GetValue(setting, w, r)
-	}).Methods("GET")
-	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		setting := vars["setting"]
-		deps.Settings.SetValue(setting, w, r)
-	}).Methods("POST")
+	r.HandleFunc("/config/{setting}", deps.Settings.GetValue).Methods("GET")
+	r.HandleFunc("/config/{setting}", deps.Settings.SetValue).Methods("POST")
 
 	r.HandleFunc("/agent/status", injectDeps(deps, statusHandler)).Methods("GET")
 	r.HandleFunc("/agent/tagger-list", injectDeps(deps, getTaggerList)).Methods("GET")
-	r.HandleFunc("/agent/workload-list/short", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/agent/workload-list/short", func(w http.ResponseWriter, _ *http.Request) {
 		workloadList(w, false, deps.WorkloadMeta)
 	}).Methods("GET")
-	r.HandleFunc("/agent/workload-list/verbose", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/agent/workload-list/verbose", func(w http.ResponseWriter, _ *http.Request) {
 		workloadList(w, true, deps.WorkloadMeta)
 	}).Methods("GET")
 	r.HandleFunc("/check/{check}", checkHandler).Methods("GET")

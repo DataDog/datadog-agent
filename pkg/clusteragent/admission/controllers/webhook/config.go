@@ -35,16 +35,16 @@ type Config struct {
 // NewConfig creates a webhook controller configuration
 func NewConfig(admissionV1Enabled, namespaceSelectorEnabled bool) Config {
 	return Config{
-		webhookName:              config.Datadog.GetString("admission_controller.webhook_name"),
-		secretName:               config.Datadog.GetString("admission_controller.certificate.secret_name"),
+		webhookName:              config.Datadog().GetString("admission_controller.webhook_name"),
+		secretName:               config.Datadog().GetString("admission_controller.certificate.secret_name"),
 		namespace:                common.GetResourcesNamespace(),
 		admissionV1Enabled:       admissionV1Enabled,
 		namespaceSelectorEnabled: namespaceSelectorEnabled,
-		svcName:                  config.Datadog.GetString("admission_controller.service_name"),
+		svcName:                  config.Datadog().GetString("admission_controller.service_name"),
 		svcPort:                  int32(443),
-		timeout:                  config.Datadog.GetInt32("admission_controller.timeout_seconds"),
-		failurePolicy:            config.Datadog.GetString("admission_controller.failure_policy"),
-		reinvocationPolicy:       config.Datadog.GetString("admission_controller.reinvocation_policy"),
+		timeout:                  config.Datadog().GetInt32("admission_controller.timeout_seconds"),
+		failurePolicy:            config.Datadog().GetString("admission_controller.failure_policy"),
+		reinvocationPolicy:       config.Datadog().GetString("admission_controller.reinvocation_policy"),
 	}
 }
 

@@ -18,6 +18,7 @@ import (
 	ebpfTelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 // RingBuffer implements the EventStream interface
@@ -25,7 +26,7 @@ import (
 type RingBuffer struct {
 	ringBuffer *manager.RingBuffer
 	handler    func(int, []byte)
-	recordPool *sync.Pool
+	recordPool *ddsync.TypedPool[ringbuf.Record]
 }
 
 // Init the ring buffer
@@ -37,14 +38,10 @@ func (rb *RingBuffer) Init(mgr *manager.Manager, config *config.Config) error {
 
 	rb.ringBuffer.RingBufferOptions = manager.RingBufferOptions{
 		RecordGetter: func() *ringbuf.Record {
-			return rb.recordPool.Get().(*ringbuf.Record)
+			return rb.recordPool.Get()
 		},
 		RecordHandler:    rb.handleEvent,
 		TelemetryEnabled: config.InternalTelemetryEnabled,
-	}
-
-	if config.EventStreamBufferSize != 0 {
-		rb.ringBuffer.RingBufferOptions.RingBufferSize = config.EventStreamBufferSize
 	}
 
 	ebpfTelemetry.ReportRingBufferTelemetry(rb.ringBuffer)
@@ -76,14 +73,8 @@ func (rb *RingBuffer) Resume() error {
 
 // New returns a new ring buffer based event stream.
 func New(handler func(int, []byte)) *RingBuffer {
-	recordPool := &sync.Pool{
-		New: func() interface{} {
-			return new(ringbuf.Record)
-		},
-	}
-
 	return &RingBuffer{
-		recordPool: recordPool,
+		recordPool: ddsync.NewDefaultTypedPool[ringbuf.Record](),
 		handler:    handler,
 	}
 }

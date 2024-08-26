@@ -16,21 +16,15 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"os/signal"
 	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
 
-	"go.uber.org/atomic"
-
 	"github.com/avast/retry-go/v4"
 	"github.com/vmihailenco/msgpack/v5"
-	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 const (
@@ -45,17 +39,40 @@ const (
 var (
 	passwdPath = defaultPasswdPath
 	groupPath  = defaultGroupPath
+	logger     Logger
 )
 
 // Opts defines ptracer options
 type Opts struct {
 	Creds            Creds
 	Verbose          bool
+	Debug            bool
 	Async            bool
 	StatsDisabled    bool
 	ProcScanDisabled bool
 	ScanProcEvery    time.Duration
 	SeccompDisabled  bool
+	AttachedCb       func()
+
+	// internal
+	mode ebpfless.Mode
+}
+
+// CWSPtracerCtx holds the ptracer internal needed variables
+type CWSPtracerCtx struct {
+	Tracer
+
+	opts         *Opts
+	wg           sync.WaitGroup
+	cancel       context.Context
+	cancelFnc    context.CancelFunc
+	containerID  string
+	probeAddr    string
+	client       net.Conn
+	clientReady  chan bool
+	msgDataChan  chan []byte
+	helloMsg     *ebpfless.Message
+	processCache *ProcessCache
 }
 
 type syscallHandlerFunc func(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error
@@ -68,7 +85,7 @@ type syscallID struct {
 }
 
 type syscallHandler struct {
-	IDs        []syscallID        // IDs defines the list of syscall IDs related to this handler
+	ID         syscallID          // ID identifies the syscall related to this handler
 	Func       syscallHandlerFunc // Func defines the entrance handler for those syscalls, can be nil
 	ShouldSend shouldSendFunc     // ShouldSend checks if we should send the event regarding the syscall return value. If nil, acts as false
 	RetFunc    syscallHandlerFunc // RetFunc defines the return handler for those syscalls, can be nil
@@ -114,10 +131,7 @@ func initConn(probeAddr string, nbAttempts uint) (net.Conn, error) {
 		return nil, err
 	}
 
-	var (
-		client net.Conn
-	)
-
+	var client net.Conn
 	err = retry.Do(func() error {
 		client, err = net.DialTCP("tcp", nil, tcpAddr)
 		return err
@@ -128,33 +142,153 @@ func initConn(probeAddr string, nbAttempts uint) (net.Conn, error) {
 	return client, nil
 }
 
-func sendMsgData(client net.Conn, data []byte) error {
+func (ctx *CWSPtracerCtx) connectClient() error {
+	var err error
+	ctx.client, err = initConn(ctx.probeAddr, 600)
+	if err != nil {
+		ctx.clientReady <- false
+		logger.Errorf("connection to system-probe failed!")
+		return err
+	}
+	ctx.clientReady <- true
+	logger.Debugf("connection to system-probe initiated!")
+	return nil
+}
+
+func (ctx *CWSPtracerCtx) tryReconnectClient() {
+	go func() {
+		_ = ctx.connectClient()
+	}()
+}
+
+func (ctx *CWSPtracerCtx) initClientConnection() error {
+	logger.Debugf("connection to system-probe...")
+	if ctx.opts.Async {
+		go func() {
+			_ = ctx.connectClient()
+		}()
+		return nil
+	}
+	return ctx.connectClient()
+}
+
+func (ctx *CWSPtracerCtx) sendMsgData(data []byte) error {
 	// write size
 	var size [4]byte
-	native.Endian.PutUint32(size[:], uint32(len(data)))
-	if _, err := client.Write(size[:]); err != nil {
-		return fmt.Errorf("unabled to send size: %v", err)
+	binary.NativeEndian.PutUint32(size[:], uint32(len(data)))
+	if _, err := ctx.client.Write(size[:]); err != nil {
+		return fmt.Errorf("unable to send size: %v", err)
 	}
 
-	if _, err := client.Write(data); err != nil {
-		return fmt.Errorf("unabled to send message: %v", err)
+	if _, err := ctx.client.Write(data); err != nil {
+		return fmt.Errorf("unable to send message: %v", err)
 	}
 	return nil
 }
 
-// StartCWSPtracer start the ptracer
-func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) error {
-	if len(args) == 0 {
-		return fmt.Errorf("an executable is required")
+func (ctx *CWSPtracerCtx) sendMsg(msg *ebpfless.Message) error {
+	logger.Debugf("sending message: %s", msg)
+
+	if ctx.probeAddr == "" {
+		return nil
 	}
-	entry, err := checkEntryPoint(args[0])
+
+	data, err := msgpack.Marshal(msg)
 	if err != nil {
+		logger.Errorf("unable to marshal message: %v", err)
 		return err
 	}
 
-	logger := Logger{opts.Verbose}
+	select {
+	case ctx.msgDataChan <- data:
+	default:
+		logger.Errorf("unable to send message")
+	}
+	return nil
+}
 
-	logger.Debugf("Run %s %v [%s]", entry, args, os.Getenv("DD_CONTAINER_ID"))
+func (ctx *CWSPtracerCtx) waitClientToBeReady() error {
+	for {
+		select {
+		case <-ctx.cancel.Done():
+			return fmt.Errorf("Exiting")
+		case ready := <-ctx.clientReady:
+			if !ready {
+				time.Sleep(time.Second)
+				// re-init connection
+				logger.Debugf("try to reconnect to system-probe...")
+				ctx.tryReconnectClient()
+				continue
+			}
+
+			// if ready, send an hello message
+			logger.Debugf("sending message: %s", ctx.helloMsg)
+			data, err := msgpack.Marshal(ctx.helloMsg)
+			if err != nil {
+				logger.Errorf("unable to marshal message: %v", err)
+				return err
+			}
+			if err = ctx.sendMsgData(data); err != nil {
+				logger.Debugf("error sending hallo msg: %v", err)
+				ctx.tryReconnectClient()
+				continue
+			}
+			return nil
+		}
+	}
+}
+
+// returns nil if client needs to be reconnected
+func (ctx *CWSPtracerCtx) sendMessagesLoop() error {
+	for {
+		select {
+		case <-ctx.cancel.Done():
+			return fmt.Errorf("Exiting")
+		case data := <-ctx.msgDataChan:
+			if err := ctx.sendMsgData(data); err != nil {
+				logger.Debugf("error sending msg: %v", err)
+				ctx.msgDataChan <- data
+				return nil
+			}
+		}
+	}
+}
+
+func (ctx *CWSPtracerCtx) handleClientConnection() {
+	ctx.wg.Add(1)
+	go func() {
+		defer ctx.wg.Done()
+
+		for {
+			// wait for the client to be ready or stopped
+			if err := ctx.waitClientToBeReady(); err != nil {
+				return
+			}
+			defer ctx.client.Close()
+
+			// unqueue and try to send messages or wait client to be stopped
+			if err := ctx.sendMessagesLoop(); err != nil {
+				return
+			}
+
+			// re-init connection
+			logger.Debugf("try to reconnect to system-probe...")
+			ctx.tryReconnectClient()
+		}
+	}()
+
+}
+
+func registerSyscallHandlers() (map[int]syscallHandler, []string) {
+	handlers := make(map[int]syscallHandler)
+	syscalls := registerFIMHandlers(handlers)
+	syscalls = append(syscalls, registerProcessHandlers(handlers)...)
+	syscalls = append(syscalls, registerERPCHandlers(handlers)...)
+	return handlers, syscalls
+}
+
+func (ctx *CWSPtracerCtx) initCtxCommon() error {
+	logger = Logger{ctx.opts.Verbose, ctx.opts.Debug}
 
 	if path := os.Getenv(EnvPasswdPathOverride); path != "" {
 		passwdPath = path
@@ -163,353 +297,164 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 		groupPath = path
 	}
 
-	var (
-		client      net.Conn
-		clientReady = make(chan bool, 1)
-		wg          sync.WaitGroup
-	)
+	ctx.clientReady = make(chan bool, 1)
 
-	if probeAddr != "" {
-		logger.Debugf("connection to system-probe...")
-		if opts.Async {
-			go func() {
-				// use a local err variable to avoid race condition
-				var err error
-				client, err = initConn(probeAddr, 600)
-				if err != nil {
-					return
-				}
-				clientReady <- true
-				logger.Debugf("connection to system-probe initiated!")
-			}()
-		} else {
-			client, err = initConn(probeAddr, 120)
-			if err != nil {
-				return err
-			}
-			clientReady <- true
-			logger.Debugf("connection to system-probe initiated!")
-		}
-	}
-
-	containerID, err := getCurrentProcContainerID()
+	var err error
+	ctx.containerID, err = getCurrentProcContainerID()
 	if err != nil {
 		logger.Errorf("Retrieve container ID from proc failed: %v\n", err)
 	}
-	containerCtx, err := newContainerContext(containerID)
+	containerCtx, err := newContainerContext(ctx.containerID)
 	if err != nil {
 		return err
 	}
 
-	syscallHandlers := make(map[int]syscallHandler)
-	PtracedSyscalls := registerFIMHandlers(syscallHandlers)
-	PtracedSyscalls = append(PtracedSyscalls, registerProcessHandlers(syscallHandlers)...)
-	PtracedSyscalls = append(PtracedSyscalls, registerSpanHandlers(syscallHandlers)...)
+	ctx.syscallHandlers, ctx.PtracedSyscalls = registerSyscallHandlers()
 
-	tracerOpts := TracerOpts{
-		Syscalls:        PtracedSyscalls,
-		Creds:           opts.Creds,
-		Logger:          logger,
-		SeccompDisabled: opts.SeccompDisabled,
-	}
+	ctx.msgDataChan = make(chan []byte, 100000)
 
-	tracer, err := NewTracer(entry, args, envs, tracerOpts)
-	if err != nil {
-		return err
-	}
+	ctx.processCache = NewProcessCache()
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan,
-		syscall.SIGINT,
-		syscall.SIGTERM,
-		syscall.SIGQUIT)
-	go func() {
-		<-sigChan
-		_ = syscall.Kill(tracer.PID, syscall.SIGTERM)
-	}()
-
-	var (
-		msgDataChan    = make(chan []byte, 100000)
-		traceChan      = make(chan bool)
-		ctx, cancelFnc = context.WithCancel(context.Background())
-		seq            = atomic.NewUint64(0)
-	)
-
-	send := func(msg *ebpfless.Message) {
-		msg.SeqNum = seq.Load()
-		seq.Inc()
-
-		logger.Debugf("sending message: %s", msg)
-
-		if probeAddr == "" {
-			return
-		}
-
-		data, err := msgpack.Marshal(msg)
-		if err != nil {
-			logger.Errorf("unable to marshal message: %v", err)
-			return
-		}
-
-		select {
-		case msgDataChan <- data:
-		default:
-			logger.Errorf("unable to send message")
-		}
-	}
-
-	pc := NewProcessCache()
-
-	// first process
-	process := NewProcess(tracer.PID)
-	pc.Add(tracer.PID, process)
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
-		// start tracing
-		traceChan <- true
-
-		if probeAddr != "" {
-		LOOP:
-			// wait for the client to be ready of stopped
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-clientReady:
-					break LOOP
-				}
-			}
-			defer client.Close()
-		}
-
-		for {
-			select {
-			case data := <-msgDataChan:
-				if err := sendMsgData(client, data); err != nil {
-					logger.Debugf("%v", err)
-				}
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-
-	send(&ebpfless.Message{
+	ctx.helloMsg = &ebpfless.Message{
 		Type: ebpfless.MessageTypeHello,
 		Hello: &ebpfless.HelloMsg{
+			Mode:             ctx.opts.mode,
 			NSID:             getNSID(),
 			ContainerContext: containerCtx,
-			EntrypointArgs:   args,
+			EntrypointArgs:   ctx.Args,
 		},
-	})
-
-	if !opts.ProcScanDisabled {
-		every := opts.ScanProcEvery
-		if every == 0 {
-			every = 500 * time.Millisecond
-		}
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			// introduce a delay before starting to scan procfs to let the tracer event first
-			time.Sleep(2 * time.Second)
-
-			scanProcfs(ctx, tracer.PID, send, every, logger)
-		}()
 	}
 
-	cb := func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus) {
-		process := pc.Get(pid)
-		if process == nil {
-			process = NewProcess(pid)
-			pc.Add(pid, process)
+	ctx.cancel, ctx.cancelFnc = context.WithCancel(context.Background())
+	return nil
+}
+
+func initCWSPtracerWrapp(args []string, envs []string, probeAddr string, opts Opts) (*CWSPtracerCtx, error) {
+	if len(args) == 0 {
+		return nil, fmt.Errorf("an executable is required")
+	}
+	entry, err := checkEntryPoint(args[0])
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := &CWSPtracerCtx{
+		opts:      &opts,
+		probeAddr: probeAddr,
+		Tracer: Tracer{
+			entry: entry,
+			Args:  args,
+			Envs:  envs,
+		},
+	}
+	ctx.opts.mode = ebpfless.WrappedMode
+	if err := ctx.initCtxCommon(); err != nil {
+		return nil, err
+	}
+
+	logger.Debugf("Run %s %v [%s]", ctx.entry, args, os.Getenv("DD_CONTAINER_ID"))
+
+	return ctx, nil
+}
+
+func initCWSPtracerAttach(pids []int, probeAddr string, opts Opts) (*CWSPtracerCtx, error) {
+	ctx := &CWSPtracerCtx{
+		opts:      &opts,
+		probeAddr: probeAddr,
+		Tracer: Tracer{
+			PIDs: pids,
+		},
+	}
+	ctx.opts.mode = ebpfless.AttachedMode
+	// force to true, can't use seccomp with the attach mode
+	ctx.opts.SeccompDisabled = true
+	if err := ctx.initCtxCommon(); err != nil {
+		return nil, err
+	}
+
+	// collect tracees via proc
+	for _, pid := range pids {
+		proc, err := collectProcess(int32(pid))
+		if err != nil {
+			return nil, err
 		}
-
-		sendSyscallMsg := func(msg *ebpfless.SyscallMsg) {
-			if msg == nil {
-				return
+		if msg, err := procToMsg(proc); err == nil {
+			if err := ctx.sendMsg(msg); err != nil {
+				return nil, err
 			}
-			msg.PID = uint32(process.Tgid)
-			msg.Timestamp = uint64(time.Now().UnixNano())
-			msg.ContainerID = containerID
-			send(&ebpfless.Message{
-				Type:    ebpfless.MessageTypeSyscall,
-				Syscall: msg,
-			})
-		}
-
-		switch cbType {
-		case CallbackPreType:
-			syscallMsg := &ebpfless.SyscallMsg{}
-			if nr == ExecveatNr {
-				// special case: sometimes, execveat returns as execve, to handle that, we force
-				// the msg to be put in ExecveNr
-				process.Nr[ExecveNr] = syscallMsg
-			} else {
-				process.Nr[nr] = syscallMsg
-			}
-
-			handler, found := syscallHandlers[nr]
-			if found && handler.Func != nil {
-				err := handler.Func(tracer, process, syscallMsg, regs, opts.StatsDisabled)
-				if err != nil {
-					return
-				}
-			}
-
-			// if available, gather span
-			syscallMsg.SpanContext = fillSpanContext(tracer, process.Tgid, pid, pc.GetSpan(process.Tgid))
-
-			/* internal special cases */
-			switch nr {
-			case ExecveNr:
-				// Top level pid, add opts.Creds. For the other PIDs the creds will be propagated at the probe side
-				if process.Pid == tracer.PID {
-					var uid, gid uint32
-
-					if opts.Creds.UID != nil {
-						uid = *opts.Creds.UID
-					} else {
-						uid = uint32(os.Getuid())
-					}
-
-					if opts.Creds.GID != nil {
-						gid = *opts.Creds.GID
-					} else {
-						gid = uint32(os.Getgid())
-					}
-
-					syscallMsg.Exec.Credentials = &ebpfless.Credentials{
-						UID:  uid,
-						EUID: uid,
-						GID:  gid,
-						EGID: gid,
-					}
-					if !opts.StatsDisabled {
-						syscallMsg.Exec.Credentials.User = getUserFromUID(tracer, int32(syscallMsg.Exec.Credentials.UID))
-						syscallMsg.Exec.Credentials.EUser = getUserFromUID(tracer, int32(syscallMsg.Exec.Credentials.EUID))
-						syscallMsg.Exec.Credentials.Group = getGroupFromGID(tracer, int32(syscallMsg.Exec.Credentials.GID))
-						syscallMsg.Exec.Credentials.EGroup = getGroupFromGID(tracer, int32(syscallMsg.Exec.Credentials.EGID))
-					}
-				}
-
-				// special case for exec since the pre reports the pid while the post reports the tgid
-				if process.Pid != process.Tgid {
-					pc.Add(process.Tgid, process)
-				}
-			case ExecveatNr:
-				// special case for exec since the pre reports the pid while the post reports the tgid
-				if process.Pid != process.Tgid {
-					pc.Add(process.Tgid, process)
-				}
-			case IoctlNr:
-				pc.SetSpan(process.Tgid, handleIoctl(tracer, process, regs))
-
-			}
-		case CallbackPostType:
-			syscallMsg, msgExists := process.Nr[nr]
-			handler, handlerFound := syscallHandlers[nr]
-			if handlerFound && msgExists && (handler.ShouldSend != nil || handler.RetFunc != nil) {
-				if handler.RetFunc != nil {
-					err := handler.RetFunc(tracer, process, syscallMsg, regs, opts.StatsDisabled)
-					if err != nil {
-						return
-					}
-				}
-				if handler.ShouldSend != nil {
-					syscallMsg.Retval = tracer.ReadRet(regs)
-					if handler.ShouldSend(syscallMsg) && syscallMsg.Type != ebpfless.SyscallTypeUnknown {
-						sendSyscallMsg(syscallMsg)
-					}
-				}
-			}
-
-			/* internal special cases */
-			switch nr {
-			case ExecveNr, ExecveatNr:
-				// now the pid is the tgid
-				process.Pid = process.Tgid
-				// remove previously registered TLS
-				pc.UnsetSpan(process.Tgid)
-			case CloneNr:
-				if flags := tracer.ReadArgUint64(regs, 0); flags&uint64(unix.SIGCHLD) == 0 {
-					pc.SetAsThreadOf(process, ppid)
-				} else if parent := pc.Get(ppid); parent != nil {
-					sendSyscallMsg(&ebpfless.SyscallMsg{
-						Type: ebpfless.SyscallTypeFork,
-						Fork: &ebpfless.ForkSyscallMsg{
-							PPID: uint32(parent.Tgid),
-						},
-					})
-				}
-			case Clone3Nr:
-				data, err := tracer.ReadArgData(process.Pid, regs, 0, 8 /*sizeof flags only*/)
-				if err != nil {
-					return
-				}
-				if flags := binary.NativeEndian.Uint64(data); flags&uint64(unix.SIGCHLD) == 0 {
-					pc.SetAsThreadOf(process, ppid)
-				} else if parent := pc.Get(ppid); parent != nil {
-					sendSyscallMsg(&ebpfless.SyscallMsg{
-						Type: ebpfless.SyscallTypeFork,
-						Fork: &ebpfless.ForkSyscallMsg{
-							PPID: uint32(parent.Tgid),
-						},
-					})
-				}
-			case ForkNr, VforkNr:
-				if parent := pc.Get(ppid); parent != nil {
-					sendSyscallMsg(&ebpfless.SyscallMsg{
-						Type: ebpfless.SyscallTypeFork,
-						Fork: &ebpfless.ForkSyscallMsg{
-							PPID: uint32(parent.Tgid),
-						},
-					})
-				}
-			}
-
-		case CallbackExitType:
-			// send exit only for process not threads
-			if process.Pid == process.Tgid && waitStatus != nil {
-				exitCtx := &ebpfless.ExitSyscallMsg{}
-				if waitStatus.Exited() {
-					exitCtx.Cause = model.ExitExited
-					exitCtx.Code = uint32(waitStatus.ExitStatus())
-				} else if waitStatus.CoreDump() {
-					exitCtx.Cause = model.ExitCoreDumped
-					exitCtx.Code = uint32(waitStatus.Signal())
-				} else if waitStatus.Signaled() {
-					exitCtx.Cause = model.ExitSignaled
-					exitCtx.Code = uint32(waitStatus.Signal())
-				} else {
-					exitCtx.Code = uint32(waitStatus.Signal())
-				}
-
-				sendSyscallMsg(&ebpfless.SyscallMsg{
-					Type: ebpfless.SyscallTypeExit,
-					Exit: exitCtx,
-				})
-			}
-
-			pc.Remove(process)
 		}
 	}
 
-	<-traceChan
+	mode := "seccomp"
+	if opts.SeccompDisabled {
+		mode = "standard"
+	}
+	logger.Logf("Run %s %v [%s] using `%s` mode", ctx.entry, ctx.Args, os.Getenv("DD_CONTAINER_ID"), mode)
 
-	defer func() {
-		// stop client and msg chan reader
-		cancelFnc()
-		wg.Wait()
-		close(msgDataChan)
-	}()
+	return ctx, nil
+}
 
-	if err := tracer.Trace(cb); err != nil {
+// CWSCleanup cleans up the ptracer
+func (ctx *CWSPtracerCtx) CWSCleanup() {
+	ctx.cancelFnc()
+	ctx.wg.Wait()
+	close(ctx.msgDataChan)
+	close(ctx.clientReady)
+}
+
+// Attach attach the ptracer
+func Attach(pids []int, probeAddr string, opts Opts) error {
+	ctx, err := initCWSPtracerAttach(pids, probeAddr, opts)
+	if err != nil {
+		return err
+	}
+
+	if err := ctx.AttachTracer(); err != nil {
+		return err
+	}
+
+	if opts.AttachedCb != nil {
+		opts.AttachedCb()
+	}
+
+	return ctx.StartCWSPtracer()
+}
+
+// Wrap the executable
+func Wrap(args []string, envs []string, probeAddr string, opts Opts) error {
+	ctx, err := initCWSPtracerWrapp(args, envs, probeAddr, opts)
+	if err != nil {
+		return err
+	}
+
+	if err := ctx.NewTracer(); err != nil {
+		return err
+	}
+
+	return ctx.StartCWSPtracer()
+}
+
+// StartCWSPtracer start the ptracer
+func (ctx *CWSPtracerCtx) StartCWSPtracer() error {
+	defer ctx.CWSCleanup()
+
+	if ctx.probeAddr != "" {
+		if err := ctx.initClientConnection(); err != nil {
+			return err
+		}
+	}
+
+	if ctx.probeAddr == "" {
+		logger.Debugf("sending message: %s", ctx.helloMsg)
+	} else {
+		ctx.handleClientConnection()
+	}
+
+	if !ctx.opts.ProcScanDisabled {
+		ctx.startScanProcfs()
+	}
+
+	if err := ctx.Trace(); err != nil {
 		return err
 	}
 

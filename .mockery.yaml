@@ -32,3 +32,13 @@ packages:
   github.com/DataDog/datadog-agent/pkg/process/procutil:
     interfaces:
       Probe:
+
+  # serializer
+  github.com/DataDog/datadog-agent/pkg/serializer:
+    interfaces:
+      MetricSerializer:
+        config:
+          mock-build-tags: test
+          replace-type:
+          # https://github.com/vektra/mockery/issues/331
+          - github.com/DataDog/datadog-agent/pkg/serializer/types.stubMessageBody=github.com/DataDog/datadog-agent/pkg/serializer/types.ProcessMessageBody

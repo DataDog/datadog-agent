@@ -9,11 +9,12 @@ package diagnose
 import (
 	"testing"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/stretchr/testify/assert"
 )
 
 type linuxDiagnoseSuite struct {
@@ -21,7 +22,11 @@ type linuxDiagnoseSuite struct {
 }
 
 func TestLinuxDiagnoseSuite(t *testing.T) {
-	e2e.Run(t, &linuxDiagnoseSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
+	t.Parallel()
+	var suite linuxDiagnoseSuite
+	suite.suites = append(suite.suites, commonSuites...)
+	suite.suites = append(suite.suites, "port-conflict")
+	e2e.Run(t, &suite, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
 func (v *linuxDiagnoseSuite) TestDiagnoseOtherCmdPort() {
@@ -41,4 +46,14 @@ func (v *linuxDiagnoseSuite) TestDiagnoseLocalFallback() {
 	v.AssertOutputNotError(diagnose)
 
 	svcManager.Start("datadog-agent")
+}
+
+func (v *linuxDiagnoseSuite) TestDiagnoseInclude() {
+	v.AssertDiagnoseInclude()
+	v.AssertDiagnoseJSONInclude()
+}
+
+func (v *linuxDiagnoseSuite) TestDiagnoseExclude() {
+	v.AssertDiagnoseExclude()
+	v.AssertDiagnoseJSONExclude()
 }

@@ -1,7 +1,7 @@
 <!--
 * New contributors are highly encouraged to read our
   [CONTRIBUTING](/CONTRIBUTING.md) documentation.
-* Both Contributor and Reviewer Checklists are available at https://github.com/DataDog/datadog-agent/blob/main/docs/dev/contributing.md#pull-requests.
+* Both Contributor and Reviewer Checklists are available at https://datadoghq.dev/datadog-agent/guidelines/contributing/#pull-requests.
 * The pull request:
   * Should only fix one issue or add one feature at a time.
   * Must update the test suite for the relevant functionality.

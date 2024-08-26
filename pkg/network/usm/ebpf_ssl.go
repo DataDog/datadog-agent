@@ -18,7 +18,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 	"unsafe"
 
@@ -26,17 +25,19 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 const (
@@ -426,7 +427,7 @@ type sslProgram struct {
 
 func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory {
 	return func(c *config.Config) (protocols.Protocol, error) {
-		if (!c.EnableNativeTLSMonitoring || !http.TLSSupported(c)) && !c.EnableIstioMonitoring && !c.EnableNodeJSMonitoring {
+		if (!c.EnableNativeTLSMonitoring || !usmconfig.TLSSupported(c)) && !c.EnableIstioMonitoring && !c.EnableNodeJSMonitoring {
 			return nil, nil
 		}
 
@@ -437,7 +438,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory 
 
 		procRoot := kernel.ProcFSRoot()
 
-		if c.EnableNativeTLSMonitoring && http.TLSSupported(c) {
+		if c.EnableNativeTLSMonitoring && usmconfig.TLSSupported(c) {
 			watcher, err = sharedlibraries.NewWatcher(c,
 				sharedlibraries.Rule{
 					Re:           regexp.MustCompile(`libssl.so`),
@@ -564,13 +565,12 @@ const (
 )
 
 var (
-	taskCommLenBufferPool = sync.Pool{
-		New: func() any {
-			buf := make([]byte, taskCommLen)
-			return &buf
-		},
-	}
+	taskCommLenBufferPool = ddsync.NewSlicePool[byte](taskCommLen, taskCommLen)
 )
+
+func isContainerdTmpMount(path string) bool {
+	return strings.Contains(path, "tmpmounts/containerd-mount")
+}
 
 func isBuildKit(procRoot string, pid uint32) bool {
 	filePath := filepath.Join(procRoot, strconv.Itoa(int(pid)), "comm")
@@ -588,7 +588,7 @@ func isBuildKit(procRoot string, pid uint32) bool {
 		}
 	}
 
-	buf := taskCommLenBufferPool.Get().(*[]byte)
+	buf := taskCommLenBufferPool.Get()
 	defer taskCommLenBufferPool.Put(buf)
 	n, err := file.Read(*buf)
 	if err != nil {
@@ -602,6 +602,8 @@ func addHooks(m *manager.Manager, procRoot string, probes []manager.ProbesSelect
 	return func(fpath utils.FilePath) error {
 		if isBuildKit(procRoot, fpath.PID) {
 			return fmt.Errorf("process %d is buildkitd, skipping", fpath.PID)
+		} else if isContainerdTmpMount(fpath.HostPath) {
+			return fmt.Errorf("path %s from process %d is tempmount of containerd, skipping", fpath.HostPath, fpath.PID)
 		}
 
 		uid := getUID(fpath.ID)
@@ -699,7 +701,7 @@ func addHooks(m *manager.Manager, procRoot string, probes []manager.ProbesSelect
 					HookFuncName:            symbol,
 				}
 				if err := m.AddHook("", newProbe); err == nil {
-					ebpfcheck.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_tls")
+					ddebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_tls")
 				}
 			}
 			if err := singleProbe.RunValidator(m); err != nil {

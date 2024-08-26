@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 
 	"github.com/fatih/color"
 
@@ -16,33 +17,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-// configCheckURL contains the Agent API endpoint URL exposing the loaded checks
-var configCheckURL string
-
-// GetConfigCheck dump all loaded configurations to the writer
-func GetConfigCheck(w io.Writer, withDebug bool) error {
-	if w != color.Output {
-		color.NoColor = true
-	}
-
+// GetClusterAgentConfigCheck gets config check from the server for cluster agent
+func GetClusterAgentConfigCheck(w io.Writer, withDebug bool) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
-	err := util.SetAuthToken(config.Datadog)
+	err := util.SetAuthToken(config.Datadog())
 	if err != nil {
 		return err
 	}
-	ipcAddress, err := config.GetIPCAddress()
-	if err != nil {
-		return err
+
+	targetURL := url.URL{
+		Scheme: "https",
+		Host:   fmt.Sprintf("localhost:%v", config.Datadog().GetInt("cluster_agent.cmd_port")),
+		Path:   "config-check",
 	}
-	if configCheckURL == "" {
-		configCheckURL = fmt.Sprintf("https://%v:%v/agent/config-check", ipcAddress, config.Datadog.GetInt("cmd_port"))
-	}
-	r, err := util.DoGet(c, configCheckURL, util.LeaveConnectionOpen)
+
+	r, err := util.DoGet(c, targetURL.String(), util.LeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			return fmt.Errorf("the agent ran into an error while checking config: %s", string(r))
@@ -54,6 +47,17 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 	err = json.Unmarshal(r, &cr)
 	if err != nil {
 		return err
+	}
+
+	PrintConfigCheck(w, cr, withDebug)
+
+	return nil
+}
+
+// PrintConfigCheck prints a human-readable representation of the config check response
+func PrintConfigCheck(w io.Writer, cr integration.ConfigCheckResponse, withDebug bool) {
+	if w != color.Output {
+		color.NoColor = true
 	}
 
 	if len(cr.ConfigErrors) > 0 {
@@ -83,31 +87,14 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 				fmt.Fprintf(w, "\n%s: %s\n", color.BlueString("Auto-discovery IDs"), color.YellowString(ids))
 				fmt.Fprintf(w, "%s:\n", color.BlueString("Templates"))
 				for _, config := range configs {
-					printYaml(w, []byte(config.String()))
+					fmt.Fprintln(w, config.String())
 				}
 			}
 		}
 	}
-
-	return nil
 }
 
-// GetClusterAgentConfigCheck proxies GetConfigCheck overidding the URL
-func GetClusterAgentConfigCheck(w io.Writer, withDebug bool) error {
-	configCheckURL = fmt.Sprintf("https://localhost:%v/config-check", config.Datadog.GetInt("cluster_agent.cmd_port"))
-	return GetConfigCheck(w, withDebug)
-}
-
-func printYaml(w io.Writer, data []byte) {
-	scrubbed, err := scrubber.ScrubYaml(data)
-	if err == nil {
-		fmt.Fprintln(w, string(scrubbed))
-	} else {
-		fmt.Fprintf(w, "error scrubbing secrets from config: %s\n", err)
-	}
-}
-
-// PrintConfig prints a human-readable representation of a configuration
+// PrintConfig prints a human-readable representation of a configuration with any secrets scrubbed.
 func PrintConfig(w io.Writer, c integration.Config, checkName string) {
 	if checkName != "" && c.Name != checkName {
 		return
@@ -132,20 +119,20 @@ func PrintConfig(w io.Writer, c integration.Config, checkName string) {
 	for _, inst := range c.Instances {
 		ID := string(checkid.BuildID(c.Name, configDigest, inst, c.InitConfig))
 		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Config for instance ID"), color.CyanString(ID))
-		printYaml(w, inst)
+		fmt.Fprintln(w, string(inst))
 		fmt.Fprintln(w, "~")
 	}
 	if len(c.InitConfig) > 0 {
 		fmt.Fprintf(w, "%s:\n", color.BlueString("Init Config"))
-		printYaml(w, c.InitConfig)
+		fmt.Fprintln(w, string(c.InitConfig))
 	}
 	if len(c.MetricConfig) > 0 {
 		fmt.Fprintf(w, "%s:\n", color.BlueString("Metric Config"))
-		printYaml(w, c.MetricConfig)
+		fmt.Fprintln(w, string(c.MetricConfig))
 	}
 	if len(c.LogsConfig) > 0 {
 		fmt.Fprintf(w, "%s:\n", color.BlueString("Log Config"))
-		printYaml(w, c.LogsConfig)
+		fmt.Fprintln(w, string(c.LogsConfig))
 	}
 	if c.IsTemplate() {
 		fmt.Fprintf(w, "%s:\n", color.BlueString("Auto-discovery IDs"))

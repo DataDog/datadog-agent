@@ -23,7 +23,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/compliance/aptconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
@@ -128,7 +128,7 @@ type Agent struct {
 }
 
 func xccdfEnabled() bool {
-	return config.Datadog.GetBool("compliance_config.xccdf.enabled") || config.Datadog.GetBool("compliance_config.host_benchmarks.enabled")
+	return config.Datadog().GetBool("compliance_config.xccdf.enabled") || config.Datadog().GetBool("compliance_config.host_benchmarks.enabled")
 }
 
 // DefaultRuleFilter implements the default filtering of benchmarks' rules. It
@@ -148,7 +148,7 @@ func DefaultRuleFilter(r *Rule) bool {
 		return false
 	}
 	if len(r.Filters) > 0 {
-		ruleFilterModel, err := rules.NewRuleFilterModel("")
+		ruleFilterModel, err := rules.NewRuleFilterModel(nil, "")
 		if err != nil {
 			log.Errorf("failed to apply rule filters: %v", err)
 			return false
@@ -411,7 +411,7 @@ func (a *Agent) runKubernetesConfigurationsExport(ctx context.Context) {
 }
 
 func (a *Agent) runAptConfigurationExport(ctx context.Context) {
-	ruleFilterModel, err := rules.NewRuleFilterModel("")
+	ruleFilterModel, err := rules.NewRuleFilterModel(nil, "")
 	if err != nil {
 		log.Errorf("failed to run apt configuration export: %v", err)
 		return

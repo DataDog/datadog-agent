@@ -173,7 +173,7 @@ func extractTraceAgentConfig(agentConfig Config, converter *config.LegacyConfigC
 		"trace.receiver.connection_limit":        "apm_config.connection_limit",
 		"trace.receiver.timeout":                 "apm_config.receiver_timeout",
 		"trace.sampler.extra_sample_rate":        "apm_config.extra_sample_rate",
-		"trace.sampler.max_traces_per_second":    "apm_config.max_traces_per_second",
+		"trace.sampler.max_traces_per_second":    "apm_config.target_traces_per_second",
 		"trace.sampler.max_events_per_second":    "apm_config.max_events_per_second",
 		"trace.watchdog.max_memory":              "apm_config.max_memory",
 		"trace.watchdog.max_cpu_percent":         "apm_config.max_cpu_percent",

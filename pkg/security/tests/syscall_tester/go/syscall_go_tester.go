@@ -13,14 +13,21 @@ import (
 	_ "embed"
 	"flag"
 	"fmt"
+	"net/http"
+	"os"
+	"os/exec"
+	"syscall"
+	"time"
+	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/syndtr/gocapability/capability"
+	"github.com/vishvananda/netlink"
 	authenticationv1 "k8s.io/api/authentication/v1"
 
 	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/subcommands/injectcmd"
-
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
+	imdsutils "github.com/DataDog/datadog-agent/pkg/security/tests/imds_utils"
 )
 
 var (
@@ -28,8 +35,16 @@ var (
 	bpfClone              bool
 	capsetProcessCreds    bool
 	k8sUserSession        bool
+	setupAndRunIMDSTest   bool
+	setupIMDSTest         bool
+	cleanupIMDSTest       bool
+	runIMDSTest           bool
 	userSessionExecutable string
 	userSessionOpenPath   string
+	syscallDriftTest      bool
+	loginUIDOpenTest      bool
+	loginUIDExecTest      bool
+	loginUIDExecPath      string
 )
 
 //go:embed ebpf_probe.o
@@ -134,6 +149,123 @@ func K8SUserSessionTest(executable string, openPath string) error {
 	return nil
 }
 
+func SetupAndRunIMDSTest() error {
+	// create dummy interface
+	dummy, err := SetupIMDSTest()
+	defer func() {
+		if err = CleanupIMDSTest(dummy); err != nil {
+			panic(err)
+		}
+	}()
+
+	return RunIMDSTest()
+}
+
+func RunIMDSTest() error {
+	// create fake IMDS server
+	imdsServerAddr := fmt.Sprintf("%s:%v", imdsutils.IMDSTestServerIP, imdsutils.IMDSTestServerPort)
+	imdsServer := imdsutils.CreateIMDSServer(imdsServerAddr)
+	defer func() {
+		if err := imdsutils.StopIMDSserver(imdsServer); err != nil {
+			panic(err)
+		}
+	}()
+
+	// give some time for the server to start
+	time.Sleep(5 * time.Second)
+
+	// make IMDS request
+	response, err := http.Get(fmt.Sprintf("http://%s%s", imdsServerAddr, imdsutils.IMDSSecurityCredentialsURL))
+	if err != nil {
+		return fmt.Errorf("failed to query IMDS server: %v", err)
+	}
+	return response.Body.Close()
+}
+
+func SetupIMDSTest() (*netlink.Dummy, error) {
+	// create dummy interface
+	return imdsutils.CreateDummyInterface(imdsutils.IMDSTestServerIP, imdsutils.CSMDummyInterface)
+}
+
+func CleanupIMDSTest(dummy *netlink.Dummy) error {
+	return imdsutils.RemoveDummyInterface(dummy)
+}
+
+func RunSyscallDriftTest() error {
+	// wait for the syscall monitor period to expire
+	time.Sleep(4 * time.Second)
+
+	f, err := os.CreateTemp("/tmp", "syscall-drift-test")
+	if err != nil {
+		return err
+	}
+	if _, err = f.Write([]byte("Generating drift syscalls ...")); err != nil {
+		return err
+	}
+	if err = f.Close(); err != nil {
+		return err
+	}
+
+	tmpFilePtr, err := syscall.BytePtrFromString(f.Name())
+	if _, _, err := syscall.Syscall(syscall.SYS_UNLINKAT, 0, uintptr(unsafe.Pointer(tmpFilePtr)), 0); err != 0 {
+		return error(err)
+	}
+
+	return nil
+}
+
+func setSelfLoginUID(uid int) error {
+	f, err := os.OpenFile("/proc/self/loginuid", os.O_RDWR, 0755)
+	if err != nil {
+		return fmt.Errorf("couldn't set login_uid: %v", err)
+	}
+
+	if _, err = f.Write([]byte(fmt.Sprintf("%d", uid))); err != nil {
+		return fmt.Errorf("couldn't write to login_uid: %v", err)
+	}
+
+	if err = f.Close(); err != nil {
+		return fmt.Errorf("couldn't close login_uid: %v", err)
+	}
+	return nil
+}
+
+func RunLoginUIDOpenTest() error {
+	if err := setSelfLoginUID(1005); err != nil {
+		return err
+	}
+
+	testAUIDPath := "/tmp/test-auid"
+
+	// open test file to trigger an event
+	f, err := os.OpenFile(testAUIDPath, os.O_RDWR|os.O_CREATE, 0755)
+	if err != nil {
+		return fmt.Errorf("couldn't create test-auid file: %v", err)
+	}
+
+	if err = f.Close(); err != nil {
+		return fmt.Errorf("couldn't close test file: %v", err)
+	}
+
+	if err = os.Remove(testAUIDPath); err != nil {
+		return fmt.Errorf("failed to remove test-auid file: %v", err)
+	}
+	return nil
+}
+
+func RunLoginUIDExecTest() error {
+	if err := setSelfLoginUID(1005); err != nil {
+		return err
+	}
+
+	// exec ls to trigger an execution with auid = 1005
+	cmd := exec.Command(loginUIDExecPath)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("'%s' execution returned an error: %v", loginUIDExecPath, err)
+	}
+	return nil
+}
+
 func main() {
 	flag.BoolVar(&bpfLoad, "load-bpf", false, "load the eBPF progams")
 	flag.BoolVar(&bpfClone, "clone-bpf", false, "clone maps")
@@ -141,6 +273,14 @@ func main() {
 	flag.BoolVar(&k8sUserSession, "k8s-user-session", false, "user session test")
 	flag.StringVar(&userSessionExecutable, "user-session-executable", "", "executable used for the user session test")
 	flag.StringVar(&userSessionOpenPath, "user-session-open-path", "", "file used for the user session test")
+	flag.BoolVar(&setupAndRunIMDSTest, "setup-and-run-imds-test", false, "when set, runs the IMDS test by creating a dummy interface, binding a fake IMDS server to it and sending an IMDS request")
+	flag.BoolVar(&setupIMDSTest, "setup-imds-test", false, "when set, creates a dummy interface and attach the IMDS IP to it")
+	flag.BoolVar(&cleanupIMDSTest, "cleanup-imds-test", false, "when set, removes the dummy interface of the IMDS test")
+	flag.BoolVar(&runIMDSTest, "run-imds-test", false, "when set, binds an IMDS server locally and sends a query to it")
+	flag.BoolVar(&syscallDriftTest, "syscall-drift-test", false, "when set, runs the syscall drift test")
+	flag.BoolVar(&loginUIDOpenTest, "login-uid-open-test", false, "when set, runs the login_uid open test")
+	flag.BoolVar(&loginUIDExecTest, "login-uid-exec-test", false, "when set, runs the login_uid exec test")
+	flag.StringVar(&loginUIDExecPath, "login-uid-exec-path", "", "path to the executable to run during the login_uid exec test")
 
 	flag.Parse()
 
@@ -158,6 +298,52 @@ func main() {
 
 	if k8sUserSession {
 		if err := K8SUserSessionTest(userSessionExecutable, userSessionOpenPath); err != nil {
+			panic(err)
+		}
+	}
+
+	if setupAndRunIMDSTest {
+		if err := SetupAndRunIMDSTest(); err != nil {
+			panic(err)
+		}
+	}
+
+	if setupIMDSTest {
+		if _, err := SetupIMDSTest(); err != nil {
+			panic(err)
+		}
+	}
+
+	if cleanupIMDSTest {
+		if err := CleanupIMDSTest(&netlink.Dummy{
+			LinkAttrs: netlink.LinkAttrs{
+				Name: imdsutils.CSMDummyInterface,
+			},
+		}); err != nil {
+			panic(err)
+		}
+	}
+
+	if runIMDSTest {
+		if err := RunIMDSTest(); err != nil {
+			panic(err)
+		}
+	}
+
+	if syscallDriftTest {
+		if err := RunSyscallDriftTest(); err != nil {
+			panic(err)
+		}
+	}
+
+	if loginUIDOpenTest {
+		if err := RunLoginUIDOpenTest(); err != nil {
+			panic(err)
+		}
+	}
+
+	if loginUIDExecTest {
+		if err := RunLoginUIDExecTest(); err != nil {
 			panic(err)
 		}
 	}

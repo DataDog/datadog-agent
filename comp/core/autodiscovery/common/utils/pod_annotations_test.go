@@ -187,6 +187,7 @@ func TestExtractTemplatesFromAnnotations(t *testing.T) {
 					ADIdentifiers: []string{adID},
 				},
 				{
+					Name:          "apache",
 					LogsConfig:    integration.Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
 					ADIdentifiers: []string{adID},
 				},
@@ -421,6 +422,7 @@ func TestExtractTemplatesFromAnnotations(t *testing.T) {
 					ADIdentifiers: []string{adID},
 				},
 				{
+					Name:          "apache",
 					LogsConfig:    integration.Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
 					ADIdentifiers: []string{adID},
 				},

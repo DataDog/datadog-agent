@@ -21,8 +21,10 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"google.golang.org/protobuf/proto"
 
+	discoverymodel "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
+	nppayload "github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	procEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
 	languagepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
@@ -197,8 +199,8 @@ func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, in
 }
 
 // GetTraceroute returns the results of a traceroute to a host
-func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string, port uint16, maxTTL uint8, timeout uint) ([]byte, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d", tracerouteURL, host, clientID, port, maxTTL, timeout), nil)
+func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string, port uint16, protocol nppayload.Protocol, maxTTL uint8, timeout uint) ([]byte, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d&protocol=%s", tracerouteURL, host, clientID, port, maxTTL, timeout, protocol), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +304,7 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 			},
 		},
 		extendedTimeoutClient: http.Client{
-			Timeout: 25 * time.Second,
+			Timeout: 60 * time.Second,
 			Transport: &http.Transport{
 				MaxIdleConns:    2,
 				IdleConnTimeout: 30 * time.Second,
@@ -310,7 +312,7 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 					return net.Dial(netType, path)
 				},
 				TLSHandshakeTimeout:   1 * time.Second,
-				ResponseHeaderTimeout: 20 * time.Second,
+				ResponseHeaderTimeout: 50 * time.Second,
 				ExpectContinueTimeout: 50 * time.Millisecond,
 			},
 		},
@@ -376,6 +378,30 @@ func (r *RemoteSysProbeUtil) GetPprof(path string) ([]byte, error) {
 	defer res.Body.Close()
 
 	return io.ReadAll(res.Body)
+}
+
+// GetDiscoveryServices returns service information from system-probe.
+func (r *RemoteSysProbeUtil) GetDiscoveryServices() (*discoverymodel.ServicesResponse, error) {
+	req, err := http.NewRequest(http.MethodGet, discoveryServicesURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("got non-success status code: path %s, url: %s, status_code: %d", r.path, discoveryServicesURL, resp.StatusCode)
+	}
+
+	res := &discoverymodel.ServicesResponse{}
+	if err := json.NewDecoder(resp.Body).Decode(res); err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 func (r *RemoteSysProbeUtil) init() error {

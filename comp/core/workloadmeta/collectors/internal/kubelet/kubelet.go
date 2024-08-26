@@ -14,9 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
+	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -24,8 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-
-	"go.uber.org/fx"
 )
 
 const (
@@ -156,6 +155,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 		}
 
 		PodSecurityContext := extractPodSecurityContext(&pod.Spec)
+		RuntimeClassName := extractPodRuntimeClassName(&pod.Spec)
 
 		entity := &workloadmeta.KubernetesPod{
 			EntityID: podID,
@@ -174,6 +174,7 @@ func (c *collector) parsePods(pods []*kubelet.Pod) []workloadmeta.CollectorEvent
 			IP:                         pod.Status.PodIP,
 			PriorityClass:              pod.Spec.PriorityClassName,
 			QOSClass:                   pod.Status.QOSClass,
+			RuntimeClass:               RuntimeClassName,
 			SecurityContext:            PodSecurityContext,
 		}
 
@@ -274,6 +275,13 @@ func (c *collector) parsePodContainers(
 			containerState.FinishedAt = st.FinishedAt
 		}
 
+		// Kubelet considers containers without probe to be ready
+		if container.Ready {
+			containerState.Health = workloadmeta.ContainerHealthHealthy
+		} else {
+			containerState.Health = workloadmeta.ContainerHealthUnhealthy
+		}
+
 		podContainers = append(podContainers, podContainer)
 		events = append(events, workloadmeta.CollectorEvent{
 			Source: workloadmeta.SourceNodeOrchestrator,
@@ -302,6 +310,13 @@ func (c *collector) parsePodContainers(
 	}
 
 	return podContainers, events
+}
+
+func extractPodRuntimeClassName(spec *kubelet.Spec) string {
+	if spec.RuntimeClassName == nil {
+		return ""
+	}
+	return *spec.RuntimeClassName
 }
 
 func extractPodSecurityContext(spec *kubelet.Spec) *workloadmeta.PodSecurityContext {

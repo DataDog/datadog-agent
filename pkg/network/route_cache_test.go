@@ -37,7 +37,7 @@ func TestRouteCacheGet(t *testing.T) {
 		{source: "1.2.3.4", dest: "5.6.7.8", route: Route{}, ok: false, times: 1}, // this will still be (negative) cached
 	}
 
-	cache := NewRouteCache(10, m)
+	cache := NewRouteCache(nil, 10, m)
 	defer cache.Close()
 
 	m.EXPECT().Close()

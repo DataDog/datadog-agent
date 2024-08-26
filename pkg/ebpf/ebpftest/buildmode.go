@@ -7,6 +7,7 @@ package ebpftest
 
 import (
 	"fmt"
+	"os"
 )
 
 // TODO I don't love fentry as a buildmode here...
@@ -15,6 +16,7 @@ var (
 	RuntimeCompiled BuildMode
 	CORE            BuildMode
 	Fentry          BuildMode
+	Ebpfless        BuildMode
 )
 
 func init() {
@@ -22,6 +24,7 @@ func init() {
 	RuntimeCompiled = runtimeCompiled{}
 	CORE = core{}
 	Fentry = fentry{}
+	Ebpfless = ebpfless{}
 }
 
 // BuildMode is an eBPF build mode
@@ -92,4 +95,40 @@ func (f fentry) Env() map[string]string {
 		"DD_ALLOW_RUNTIME_COMPILED_FALLBACK": "false",
 		"DD_ALLOW_PRECOMPILED_FALLBACK":      "false",
 	}
+}
+
+type ebpfless struct{}
+
+func (e ebpfless) String() string {
+	return "eBPFless"
+}
+
+func (e ebpfless) Env() map[string]string {
+	return map[string]string{
+		"NETWORK_TRACER_FENTRY_TESTS":        "false",
+		"DD_ENABLE_RUNTIME_COMPILER":         "false",
+		"DD_ENABLE_CO_RE":                    "false",
+		"DD_ALLOW_RUNTIME_COMPILED_FALLBACK": "false",
+		"DD_ALLOW_PRECOMPILED_FALLBACK":      "false",
+		"DD_NETWORK_CONFIG_ENABLE_EBPFLESS":  "true",
+	}
+}
+
+// GetBuildMode returns which build mode the current environment matches, if any
+func GetBuildMode() BuildMode {
+	for _, mode := range []BuildMode{Prebuilt, RuntimeCompiled, CORE, Fentry} {
+		if hasBuildModeEnv(mode) {
+			return mode
+		}
+	}
+	return nil
+}
+
+func hasBuildModeEnv(mode BuildMode) bool {
+	for k, v := range mode.Env() {
+		if os.Getenv(k) != v {
+			return false
+		}
+	}
+	return true
 }

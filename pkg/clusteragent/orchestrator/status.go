@@ -41,12 +41,12 @@ type stats struct {
 // GetStatus returns status info for the orchestrator explorer.
 func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]interface{} {
 	status := make(map[string]interface{})
-	if !config.Datadog.GetBool("orchestrator_explorer.enabled") {
+	if !config.Datadog().GetBool("orchestrator_explorer.enabled") {
 		status["Disabled"] = "The orchestrator explorer is not enabled on the Cluster Agent"
 		return status
 	}
 
-	if !config.Datadog.GetBool("leader_election") {
+	if !config.Datadog().GetBool("leader_election") {
 		status["Disabled"] = "Leader election is not enabled on the Cluster Agent. The orchestrator explorer needs leader election for resource collection."
 		return status
 	}
@@ -81,7 +81,7 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 	setSkippedResourcesInformationDCAMode(status)
 
 	// rewriting DCA Mode in case we are running in cluster check mode.
-	if orchestrator.KubernetesResourceCache.ItemCount() == 0 && config.Datadog.GetBool("cluster_checks.enabled") {
+	if orchestrator.KubernetesResourceCache.ItemCount() == 0 && config.Datadog().GetBool("cluster_checks.enabled") {
 		// we need to check first whether we have dispatched checks to CLC
 		stats, err := clusterchecks.GetStats()
 		if err != nil {
@@ -102,11 +102,11 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 	}
 
 	// get options
-	if config.Datadog.GetBool("orchestrator_explorer.container_scrubbing.enabled") {
+	if config.Datadog().GetBool("orchestrator_explorer.container_scrubbing.enabled") {
 		status["ContainerScrubbing"] = "Container scrubbing: enabled"
 	}
 
-	if config.Datadog.GetBool("orchestrator_explorer.manifest_collection.enabled") {
+	if config.Datadog().GetBool("orchestrator_explorer.manifest_collection.enabled") {
 		status["ManifestCollection"] = "Manifest collection: enabled"
 	}
 
@@ -252,7 +252,7 @@ func (Provider) HTML(_ bool, _ io.Writer) error {
 func populateStatus(stats map[string]interface{}) {
 	apiCl, apiErr := apiserver.GetAPIClient()
 
-	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
+	if config.Datadog().GetBool("orchestrator_explorer.enabled") {
 		if apiErr != nil {
 			stats["orchestrator"] = map[string]string{"Error": apiErr.Error()}
 		} else {

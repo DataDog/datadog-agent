@@ -34,7 +34,7 @@ type podUnmarshaller struct {
 
 func newPodUnmarshaller() *podUnmarshaller {
 	pu := &podUnmarshaller{
-		podExpirationDuration: config.Datadog.GetDuration("kubernetes_pod_expiration_duration") * time.Second,
+		podExpirationDuration: config.Datadog().GetDuration("kubernetes_pod_expiration_duration") * time.Second,
 		timeNowFunction:       time.Now,
 	}
 

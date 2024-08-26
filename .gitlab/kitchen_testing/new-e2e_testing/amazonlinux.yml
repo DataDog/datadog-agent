@@ -8,7 +8,9 @@
     E2E_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023"
     E2E_CWS_SUPPORTED_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023"
     E2E_BRANCH_OSVERS: "amazonlinux2023"
-  needs: ["deploy_rpm_testing-a6_x64"]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_rpm_testing-a6_x64
 
 .new-e2e_amazonlinux_a6_arm64:
   variables:
@@ -16,7 +18,9 @@
     E2E_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023"
     E2E_CWS_SUPPORTED_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023"
     E2E_BRANCH_OSVERS: "amazonlinux2023"
-  needs: ["deploy_rpm_testing-a6_arm64"]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_rpm_testing-a6_arm64
 
 .new-e2e_amazonlinux_a7_x86_64:
   variables:
@@ -24,7 +28,9 @@
     E2E_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023"
     E2E_CWS_SUPPORTED_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023"
     E2E_BRANCH_OSVERS: "amazonlinux2023"
-  needs: ["deploy_rpm_testing-a7_x64"]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_rpm_testing-a7_x64
 
 .new-e2e_amazonlinux_a7_arm64:
   variables:
@@ -32,7 +38,9 @@
     E2E_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023"
     E2E_CWS_SUPPORTED_OSVERS: "amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023"
     E2E_BRANCH_OSVERS: "amazonlinux2023"
-  needs: ["deploy_rpm_testing-a7_arm64"]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_rpm_testing-a7_arm64
 
 new-e2e-agent-platform-install-script-amazonlinux-a6-x86_64:
   stage: kitchen_testing
@@ -76,7 +84,7 @@ new-e2e-agent-platform-install-script-amazonlinux-a7-arm64:
     - .new-e2e_os_amazonlinux
     - .new-e2e_amazonlinux_a7_arm64
     - .new-e2e_agent_a7
-  rules: !reference [.on_all_new_e2e_tests]
+  rules: !reference [.on_all_install_script_tests]
   variables:
     FLAVOR: datadog-agent
 

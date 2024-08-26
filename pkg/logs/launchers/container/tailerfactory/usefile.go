@@ -30,12 +30,12 @@ func (tf *factory) useFile(source *sources.LogSource) bool {
 	switch logWhat {
 	case containersorpods.LogContainers:
 		// docker_container_use_file is a suggestion
-		if !coreConfig.Datadog.GetBool("logs_config.docker_container_use_file") {
+		if !coreConfig.Datadog().GetBool("logs_config.docker_container_use_file") {
 			return false
 		}
 
 		// docker_container_force_use_file is a requirement
-		if coreConfig.Datadog.GetBool("logs_config.docker_container_force_use_file") {
+		if coreConfig.Datadog().GetBool("logs_config.docker_container_force_use_file") {
 			return true
 		}
 
@@ -51,7 +51,7 @@ func (tf *factory) useFile(source *sources.LogSource) bool {
 		return true
 
 	case containersorpods.LogPods:
-		return coreConfig.Datadog.GetBool("logs_config.k8s_container_use_file")
+		return coreConfig.Datadog().GetBool("logs_config.k8s_container_use_file")
 
 	default:
 		// if this occurs, then sources have been arriving before the

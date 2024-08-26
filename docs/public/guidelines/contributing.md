@@ -216,16 +216,30 @@ The main thing to keep in mind is that the CHANGELOG is written for the agent's 
 
 ## PR labels
 
-For internal PRs (from people in the Datadog organisation), you have few extra labels that can be use:
+For internal PRs (from people in the Datadog organization), you have few extra labels that can be use:
 
 - `community/help-wanted`: for community PRs where help is needed to finish it.
 - `community`: for community PRs.
 - `changelog/no-changelog`: for PRs that don't require a reno releasenote (useful for PRs only changing documentation or tests).
-- `qa/done`, `qa/no-code-change`: if either the `qa/no-code-change` label or the `qa/done` label is set, it will skip the creation of a QA card related to this PR during next release process (example: documentation-only PRs).
+- `qa/done` or `qa/no-code-change`: used to skip the QA week:
+    - `qa/done` label is recommended in case of code changes ***and*** manual / automated QA done before merge.
+    - `qa/no-code-change` is recommended if there's no code changes in the Agent binary code.
+
+    !!! note "Important"
+        Use `qa/no-code-change` if your PR only changes tests or a module/package that does not end up in the Agent build. All of the following do not require QA:
+
+        - Changing the CI configuration without impacting the Agent packaging.
+        - Changing the documentation.
+        - Changing the developer tooling.
+
 - `major_change`: to flag the PR as a major change impacting many/all teams working on the agent and will require deeper QA (example: when we change the Python version shipped in the agent).
 - `need-change/operator`, `need-change/helm`: indicate that the configuration needs to be modified in the operator / helm chart as well.
 - `k8s/<min-version>`: indicate the lowest Kubernetes version compatible with the PR's feature.
-- `backport/<branch-name>`: Add this label to have your changes automatically backported to `<branch-name>`.
+- `backport/<branch-name>`: Add this label to automatically create a PR against the `<branch-name>` branch with your backported changes. The backport PR creation is triggered:
+    - When a PR with the label is merged
+    - When an already-merged PR gets the label
+
+    If there is a conflict, the bot prompts you with a list of instructions to follow ([example](https://github.com/DataDog/datadog-agent/pull/23316#issuecomment-1973207164)) to manually backport your PR.
 
 ## Integrations
 

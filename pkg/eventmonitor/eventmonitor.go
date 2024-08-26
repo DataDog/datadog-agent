@@ -20,7 +20,8 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	procstatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -61,27 +62,6 @@ type EventMonitor struct {
 }
 
 var _ module.Module = &EventMonitor{}
-
-// EventConsumerInterface defines an event consumer
-type EventConsumerInterface interface {
-	// ID returns the ID of the event consumer
-	ID() string
-	// Start starts the event consumer
-	Start() error
-	// Stop stops the event consumer
-	Stop()
-}
-
-// EventConsumerPostProbeStartHandler defines an event consumer that can respond to PostProbeStart events
-type EventConsumerPostProbeStartHandler interface {
-	// PostProbeStart is called after the event stream (the probe) is started
-	PostProbeStart() error
-}
-
-// EventConsumer event consumer
-type EventConsumer interface {
-	probe.EventConsumerInterface
-}
 
 // Register the event monitoring module
 func (m *EventMonitor) Register(_ *module.Router) error {
@@ -250,7 +230,7 @@ func (m *EventMonitor) GetStats() map[string]interface{} {
 }
 
 // NewEventMonitor instantiates an event monitoring system-probe module
-func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, opts Opts, wmeta optional.Option[workloadmeta.Component]) (*EventMonitor, error) {
+func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, opts Opts, wmeta optional.Option[workloadmeta.Component], telemetry telemetry.Component) (*EventMonitor, error) {
 	if opts.StatsdClient == nil {
 		opts.StatsdClient = procstatsd.Client
 	}
@@ -259,7 +239,7 @@ func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, opts Op
 		opts.ProbeOpts.StatsdClient = opts.StatsdClient
 	}
 
-	probe, err := probe.NewProbe(secconfig, opts.ProbeOpts, wmeta)
+	probe, err := probe.NewProbe(secconfig, opts.ProbeOpts, wmeta, telemetry)
 	if err != nil {
 		return nil, err
 	}

@@ -67,7 +67,6 @@ func TestRename(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "rename", event.GetType(), "wrong event type")
 			assertInode(t, event.Rename.New.Inode, getInode(t, testNewFile))
-			test.validateRenameSchema(t, event)
 			assertRights(t, event.Rename.Old.Mode, expectedMode)
 			assertNearTime(t, event.Rename.Old.MTime)
 			assertNearTime(t, event.Rename.Old.CTime)
@@ -77,6 +76,10 @@ func TestRename(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
+
+			test.validateRenameSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.rename.path")
+			validateSyscallContext(t, event, "$.syscall.rename.destination_path")
 		})
 	}))
 
@@ -96,7 +99,6 @@ func TestRename(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "rename", event.GetType(), "wrong event type")
 			assertInode(t, event.Rename.New.Inode, getInode(t, testNewFile))
-			test.validateRenameSchema(t, event)
 			assertRights(t, event.Rename.Old.Mode, expectedMode)
 			assertNearTime(t, event.Rename.Old.MTime)
 			assertNearTime(t, event.Rename.Old.CTime)
@@ -106,6 +108,10 @@ func TestRename(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
+
+			test.validateRenameSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.rename.path")
+			validateSyscallContext(t, event, "$.syscall.rename.destination_path")
 		})
 	})
 
@@ -126,7 +132,6 @@ func TestRename(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "rename", event.GetType(), "wrong event type")
 			assertInode(t, event.Rename.New.Inode, getInode(t, testNewFile))
-			test.validateRenameSchema(t, event)
 			assertRights(t, event.Rename.Old.Mode, expectedMode)
 			assertNearTime(t, event.Rename.Old.MTime)
 			assertNearTime(t, event.Rename.Old.CTime)
@@ -136,6 +141,10 @@ func TestRename(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
+
+			test.validateRenameSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.rename.path")
+			validateSyscallContext(t, event, "$.syscall.rename.destination_path")
 		})
 	})
 

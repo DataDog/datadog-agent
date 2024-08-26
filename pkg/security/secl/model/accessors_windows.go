@@ -10,8 +10,13 @@ package model
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"math"
 	"reflect"
 )
+
+// to always require the math package
+var _ = math.MaxUint16
 
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	switch field {
@@ -22,6 +27,7 @@ func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 }
 func (m *Model) GetEventTypes() []eval.EventType {
 	return []eval.EventType{
+		eval.EventType("change_permission"),
 		eval.EventType("create"),
 		eval.EventType("create_key"),
 		eval.EventType("delete"),
@@ -34,8 +40,67 @@ func (m *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("write"),
 	}
 }
+func (m *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
+	switch field {
+	}
+	return nil
+}
 func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
+	case "change_permission.new_sd":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveNewSecurityDescriptor(ev, &ev.ChangePermission)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "change_permission.old_sd":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveOldSecurityDescriptor(ev, &ev.ChangePermission)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "change_permission.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.ChangePermission.ObjectName
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "change_permission.type":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.ChangePermission.ObjectType
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "change_permission.user_domain":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.ChangePermission.UserDomain
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "change_permission.username":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.ChangePermission.UserName
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "container.created_at":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -50,6 +115,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "container.runtime":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveContainerRuntime(ev, ev.BaseEvent.ContainerContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -99,6 +173,26 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
 				return len(ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.CreateNewFile.File))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "create.file.path":
+		return &eval.StringEvaluator{
+			OpOverrides: eval.WindowsPathCmp,
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.CreateNewFile.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "create.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: eval.WindowsPathCmp,
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFileUserPath(ev, &ev.CreateNewFile.File))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -219,6 +313,26 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "delete.file.path":
+		return &eval.StringEvaluator{
+			OpOverrides: eval.WindowsPathCmp,
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.DeleteFile.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "delete.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: eval.WindowsPathCmp,
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFileUserPath(ev, &ev.DeleteFile.File))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "delete.registry.key_name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -294,6 +408,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+		}, nil
+	case "event.hostname":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "event.origin":
 		return &eval.StringEvaluator{
@@ -1260,6 +1383,26 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "rename.file.destination.path":
+		return &eval.StringEvaluator{
+			OpOverrides: eval.WindowsPathCmp,
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.New)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "rename.file.destination.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: eval.WindowsPathCmp,
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.New))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "rename.file.device_path":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.WindowsPathCmp,
@@ -1296,6 +1439,26 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
 				return len(ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.Old))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "rename.file.path":
+		return &eval.StringEvaluator{
+			OpOverrides: eval.WindowsPathCmp,
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.Old)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "rename.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: eval.WindowsPathCmp,
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.Old))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -1470,18 +1633,47 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "write.file.path":
+		return &eval.StringEvaluator{
+			OpOverrides: eval.WindowsPathCmp,
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.WriteFile.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "write.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: eval.WindowsPathCmp,
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFileUserPath(ev, &ev.WriteFile.File))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	}
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
 func (ev *Event) GetFields() []eval.Field {
 	return []eval.Field{
+		"change_permission.new_sd",
+		"change_permission.old_sd",
+		"change_permission.path",
+		"change_permission.type",
+		"change_permission.user_domain",
+		"change_permission.username",
 		"container.created_at",
 		"container.id",
+		"container.runtime",
 		"container.tags",
 		"create.file.device_path",
 		"create.file.device_path.length",
 		"create.file.name",
 		"create.file.name.length",
+		"create.file.path",
+		"create.file.path.length",
 		"create.registry.key_name",
 		"create.registry.key_name.length",
 		"create.registry.key_path",
@@ -1494,6 +1686,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"delete.file.device_path.length",
 		"delete.file.name",
 		"delete.file.name.length",
+		"delete.file.path",
+		"delete.file.path.length",
 		"delete.registry.key_name",
 		"delete.registry.key_name.length",
 		"delete.registry.key_path",
@@ -1502,6 +1696,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"delete_key.registry.key_name.length",
 		"delete_key.registry.key_path",
 		"delete_key.registry.key_path.length",
+		"event.hostname",
 		"event.origin",
 		"event.os",
 		"event.service",
@@ -1585,10 +1780,14 @@ func (ev *Event) GetFields() []eval.Field {
 		"rename.file.destination.device_path.length",
 		"rename.file.destination.name",
 		"rename.file.destination.name.length",
+		"rename.file.destination.path",
+		"rename.file.destination.path.length",
 		"rename.file.device_path",
 		"rename.file.device_path.length",
 		"rename.file.name",
 		"rename.file.name.length",
+		"rename.file.path",
+		"rename.file.path.length",
 		"set.registry.key_name",
 		"set.registry.key_name.length",
 		"set.registry.key_path",
@@ -1607,14 +1806,30 @@ func (ev *Event) GetFields() []eval.Field {
 		"write.file.device_path.length",
 		"write.file.name",
 		"write.file.name.length",
+		"write.file.path",
+		"write.file.path.length",
 	}
 }
 func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {
+	case "change_permission.new_sd":
+		return ev.FieldHandlers.ResolveNewSecurityDescriptor(ev, &ev.ChangePermission), nil
+	case "change_permission.old_sd":
+		return ev.FieldHandlers.ResolveOldSecurityDescriptor(ev, &ev.ChangePermission), nil
+	case "change_permission.path":
+		return ev.ChangePermission.ObjectName, nil
+	case "change_permission.type":
+		return ev.ChangePermission.ObjectType, nil
+	case "change_permission.user_domain":
+		return ev.ChangePermission.UserDomain, nil
+	case "change_permission.username":
+		return ev.ChangePermission.UserName, nil
 	case "container.created_at":
 		return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)), nil
 	case "container.id":
 		return ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext), nil
+	case "container.runtime":
+		return ev.FieldHandlers.ResolveContainerRuntime(ev, ev.BaseEvent.ContainerContext), nil
 	case "container.tags":
 		return ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext), nil
 	case "create.file.device_path":
@@ -1625,6 +1840,10 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.CreateNewFile.File), nil
 	case "create.file.name.length":
 		return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.CreateNewFile.File), nil
+	case "create.file.path":
+		return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.CreateNewFile.File), nil
+	case "create.file.path.length":
+		return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.CreateNewFile.File), nil
 	case "create.registry.key_name":
 		return ev.CreateRegistryKey.Registry.KeyName, nil
 	case "create.registry.key_name.length":
@@ -1649,6 +1868,10 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.DeleteFile.File), nil
 	case "delete.file.name.length":
 		return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.DeleteFile.File), nil
+	case "delete.file.path":
+		return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.DeleteFile.File), nil
+	case "delete.file.path.length":
+		return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.DeleteFile.File), nil
 	case "delete.registry.key_name":
 		return ev.DeleteRegistryKey.Registry.KeyName, nil
 	case "delete.registry.key_name.length":
@@ -1665,6 +1888,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.DeleteRegistryKey.Registry.KeyPath, nil
 	case "delete_key.registry.key_path.length":
 		return len(ev.DeleteRegistryKey.Registry.KeyPath), nil
+	case "event.hostname":
+		return ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent), nil
 	case "event.origin":
 		return ev.BaseEvent.Origin, nil
 	case "event.os":
@@ -1994,6 +2219,10 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.New), nil
 	case "rename.file.destination.name.length":
 		return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.New), nil
+	case "rename.file.destination.path":
+		return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.New), nil
+	case "rename.file.destination.path.length":
+		return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.New), nil
 	case "rename.file.device_path":
 		return ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.Old), nil
 	case "rename.file.device_path.length":
@@ -2002,6 +2231,10 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.Old), nil
 	case "rename.file.name.length":
 		return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.Old), nil
+	case "rename.file.path":
+		return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.Old), nil
+	case "rename.file.path.length":
+		return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.Old), nil
 	case "set.registry.key_name":
 		return ev.SetRegistryKeyValue.Registry.KeyName, nil
 	case "set.registry.key_name.length":
@@ -2038,17 +2271,35 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.WriteFile.File), nil
 	case "write.file.name.length":
 		return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.WriteFile.File), nil
+	case "write.file.path":
+		return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.WriteFile.File), nil
+	case "write.file.path.length":
+		return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.WriteFile.File), nil
 	}
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
 func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	switch field {
+	case "change_permission.new_sd":
+		return "change_permission", nil
+	case "change_permission.old_sd":
+		return "change_permission", nil
+	case "change_permission.path":
+		return "change_permission", nil
+	case "change_permission.type":
+		return "change_permission", nil
+	case "change_permission.user_domain":
+		return "change_permission", nil
+	case "change_permission.username":
+		return "change_permission", nil
 	case "container.created_at":
-		return "*", nil
+		return "", nil
 	case "container.id":
-		return "*", nil
+		return "", nil
+	case "container.runtime":
+		return "", nil
 	case "container.tags":
-		return "*", nil
+		return "", nil
 	case "create.file.device_path":
 		return "create", nil
 	case "create.file.device_path.length":
@@ -2056,6 +2307,10 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "create.file.name":
 		return "create", nil
 	case "create.file.name.length":
+		return "create", nil
+	case "create.file.path":
+		return "create", nil
+	case "create.file.path.length":
 		return "create", nil
 	case "create.registry.key_name":
 		return "create_key", nil
@@ -2081,6 +2336,10 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "delete", nil
 	case "delete.file.name.length":
 		return "delete", nil
+	case "delete.file.path":
+		return "delete", nil
+	case "delete.file.path.length":
+		return "delete", nil
 	case "delete.registry.key_name":
 		return "delete_key", nil
 	case "delete.registry.key_name.length":
@@ -2097,14 +2356,16 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "delete_key", nil
 	case "delete_key.registry.key_path.length":
 		return "delete_key", nil
+	case "event.hostname":
+		return "", nil
 	case "event.origin":
-		return "*", nil
+		return "", nil
 	case "event.os":
-		return "*", nil
+		return "", nil
 	case "event.service":
-		return "*", nil
+		return "", nil
 	case "event.timestamp":
-		return "*", nil
+		return "", nil
 	case "exec.cmdline":
 		return "exec", nil
 	case "exec.container.id":
@@ -2178,83 +2439,83 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "open_key.registry.key_path.length":
 		return "open_key", nil
 	case "process.ancestors.cmdline":
-		return "*", nil
+		return "", nil
 	case "process.ancestors.container.id":
-		return "*", nil
+		return "", nil
 	case "process.ancestors.created_at":
-		return "*", nil
+		return "", nil
 	case "process.ancestors.envp":
-		return "*", nil
+		return "", nil
 	case "process.ancestors.envs":
-		return "*", nil
+		return "", nil
 	case "process.ancestors.file.name":
-		return "*", nil
+		return "", nil
 	case "process.ancestors.file.name.length":
-		return "*", nil
+		return "", nil
 	case "process.ancestors.file.path":
-		return "*", nil
+		return "", nil
 	case "process.ancestors.file.path.length":
-		return "*", nil
+		return "", nil
 	case "process.ancestors.pid":
-		return "*", nil
+		return "", nil
 	case "process.ancestors.ppid":
-		return "*", nil
+		return "", nil
 	case "process.ancestors.user":
-		return "*", nil
+		return "", nil
 	case "process.ancestors.user_sid":
-		return "*", nil
+		return "", nil
 	case "process.cmdline":
-		return "*", nil
+		return "", nil
 	case "process.container.id":
-		return "*", nil
+		return "", nil
 	case "process.created_at":
-		return "*", nil
+		return "", nil
 	case "process.envp":
-		return "*", nil
+		return "", nil
 	case "process.envs":
-		return "*", nil
+		return "", nil
 	case "process.file.name":
-		return "*", nil
+		return "", nil
 	case "process.file.name.length":
-		return "*", nil
+		return "", nil
 	case "process.file.path":
-		return "*", nil
+		return "", nil
 	case "process.file.path.length":
-		return "*", nil
+		return "", nil
 	case "process.parent.cmdline":
-		return "*", nil
+		return "", nil
 	case "process.parent.container.id":
-		return "*", nil
+		return "", nil
 	case "process.parent.created_at":
-		return "*", nil
+		return "", nil
 	case "process.parent.envp":
-		return "*", nil
+		return "", nil
 	case "process.parent.envs":
-		return "*", nil
+		return "", nil
 	case "process.parent.file.name":
-		return "*", nil
+		return "", nil
 	case "process.parent.file.name.length":
-		return "*", nil
+		return "", nil
 	case "process.parent.file.path":
-		return "*", nil
+		return "", nil
 	case "process.parent.file.path.length":
-		return "*", nil
+		return "", nil
 	case "process.parent.pid":
-		return "*", nil
+		return "", nil
 	case "process.parent.ppid":
-		return "*", nil
+		return "", nil
 	case "process.parent.user":
-		return "*", nil
+		return "", nil
 	case "process.parent.user_sid":
-		return "*", nil
+		return "", nil
 	case "process.pid":
-		return "*", nil
+		return "", nil
 	case "process.ppid":
-		return "*", nil
+		return "", nil
 	case "process.user":
-		return "*", nil
+		return "", nil
 	case "process.user_sid":
-		return "*", nil
+		return "", nil
 	case "rename.file.destination.device_path":
 		return "rename", nil
 	case "rename.file.destination.device_path.length":
@@ -2263,6 +2524,10 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "rename", nil
 	case "rename.file.destination.name.length":
 		return "rename", nil
+	case "rename.file.destination.path":
+		return "rename", nil
+	case "rename.file.destination.path.length":
+		return "rename", nil
 	case "rename.file.device_path":
 		return "rename", nil
 	case "rename.file.device_path.length":
@@ -2270,6 +2535,10 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "rename.file.name":
 		return "rename", nil
 	case "rename.file.name.length":
+		return "rename", nil
+	case "rename.file.path":
+		return "rename", nil
+	case "rename.file.path.length":
 		return "rename", nil
 	case "set.registry.key_name":
 		return "set_key_value", nil
@@ -2306,15 +2575,33 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "write.file.name":
 		return "write", nil
 	case "write.file.name.length":
+		return "write", nil
+	case "write.file.path":
+		return "write", nil
+	case "write.file.path.length":
 		return "write", nil
 	}
 	return "", &eval.ErrFieldNotFound{Field: field}
 }
 func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	switch field {
+	case "change_permission.new_sd":
+		return reflect.String, nil
+	case "change_permission.old_sd":
+		return reflect.String, nil
+	case "change_permission.path":
+		return reflect.String, nil
+	case "change_permission.type":
+		return reflect.String, nil
+	case "change_permission.user_domain":
+		return reflect.String, nil
+	case "change_permission.username":
+		return reflect.String, nil
 	case "container.created_at":
 		return reflect.Int, nil
 	case "container.id":
+		return reflect.String, nil
+	case "container.runtime":
 		return reflect.String, nil
 	case "container.tags":
 		return reflect.String, nil
@@ -2325,6 +2612,10 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "create.file.name":
 		return reflect.String, nil
 	case "create.file.name.length":
+		return reflect.Int, nil
+	case "create.file.path":
+		return reflect.String, nil
+	case "create.file.path.length":
 		return reflect.Int, nil
 	case "create.registry.key_name":
 		return reflect.String, nil
@@ -2350,6 +2641,10 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "delete.file.name.length":
 		return reflect.Int, nil
+	case "delete.file.path":
+		return reflect.String, nil
+	case "delete.file.path.length":
+		return reflect.Int, nil
 	case "delete.registry.key_name":
 		return reflect.String, nil
 	case "delete.registry.key_name.length":
@@ -2366,6 +2661,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "delete_key.registry.key_path.length":
 		return reflect.Int, nil
+	case "event.hostname":
+		return reflect.String, nil
 	case "event.origin":
 		return reflect.String, nil
 	case "event.os":
@@ -2532,6 +2829,10 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "rename.file.destination.name.length":
 		return reflect.Int, nil
+	case "rename.file.destination.path":
+		return reflect.String, nil
+	case "rename.file.destination.path.length":
+		return reflect.Int, nil
 	case "rename.file.device_path":
 		return reflect.String, nil
 	case "rename.file.device_path.length":
@@ -2539,6 +2840,10 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "rename.file.name":
 		return reflect.String, nil
 	case "rename.file.name.length":
+		return reflect.Int, nil
+	case "rename.file.path":
+		return reflect.String, nil
+	case "rename.file.path.length":
 		return reflect.Int, nil
 	case "set.registry.key_name":
 		return reflect.String, nil
@@ -2576,11 +2881,57 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "write.file.name.length":
 		return reflect.Int, nil
+	case "write.file.path":
+		return reflect.String, nil
+	case "write.file.path.length":
+		return reflect.Int, nil
 	}
 	return reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
 }
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	switch field {
+	case "change_permission.new_sd":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ChangePermission.NewSd"}
+		}
+		ev.ChangePermission.NewSd = rv
+		return nil
+	case "change_permission.old_sd":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ChangePermission.OldSd"}
+		}
+		ev.ChangePermission.OldSd = rv
+		return nil
+	case "change_permission.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ChangePermission.ObjectName"}
+		}
+		ev.ChangePermission.ObjectName = rv
+		return nil
+	case "change_permission.type":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ChangePermission.ObjectType"}
+		}
+		ev.ChangePermission.ObjectType = rv
+		return nil
+	case "change_permission.user_domain":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ChangePermission.UserDomain"}
+		}
+		ev.ChangePermission.UserDomain = rv
+		return nil
+	case "change_permission.username":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ChangePermission.UserName"}
+		}
+		ev.ChangePermission.UserName = rv
+		return nil
 	case "container.created_at":
 		if ev.BaseEvent.ContainerContext == nil {
 			ev.BaseEvent.ContainerContext = &ContainerContext{}
@@ -2597,9 +2948,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ContainerContext.ID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ContainerContext.ContainerID"}
 		}
-		ev.BaseEvent.ContainerContext.ID = rv
+		ev.BaseEvent.ContainerContext.ContainerID = containerutils.ContainerID(rv)
+		return nil
+	case "container.runtime":
+		if ev.BaseEvent.ContainerContext == nil {
+			ev.BaseEvent.ContainerContext = &ContainerContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ContainerContext.Runtime"}
+		}
+		ev.BaseEvent.ContainerContext.Runtime = rv
 		return nil
 	case "container.tags":
 		if ev.BaseEvent.ContainerContext == nil {
@@ -2632,6 +2993,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return nil
 	case "create.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "create.file.name.length"}
+	case "create.file.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "CreateNewFile.File.UserPathnameStr"}
+		}
+		ev.CreateNewFile.File.UserPathnameStr = rv
+		return nil
+	case "create.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "create.file.path.length"}
 	case "create.registry.key_name":
 		rv, ok := value.(string)
 		if !ok {
@@ -2686,6 +3056,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return nil
 	case "delete.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "delete.file.name.length"}
+	case "delete.file.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DeleteFile.File.UserPathnameStr"}
+		}
+		ev.DeleteFile.File.UserPathnameStr = rv
+		return nil
+	case "delete.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "delete.file.path.length"}
 	case "delete.registry.key_name":
 		rv, ok := value.(string)
 		if !ok {
@@ -2722,6 +3101,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return nil
 	case "delete_key.registry.key_path.length":
 		return &eval.ErrFieldReadOnly{Field: "delete_key.registry.key_path.length"}
+	case "event.hostname":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.Hostname"}
+		}
+		ev.BaseEvent.Hostname = rv
+		return nil
 	case "event.origin":
 		rv, ok := value.(string)
 		if !ok {
@@ -3526,6 +3912,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return nil
 	case "rename.file.destination.name.length":
 		return &eval.ErrFieldReadOnly{Field: "rename.file.destination.name.length"}
+	case "rename.file.destination.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RenameFile.New.UserPathnameStr"}
+		}
+		ev.RenameFile.New.UserPathnameStr = rv
+		return nil
+	case "rename.file.destination.path.length":
+		return &eval.ErrFieldReadOnly{Field: "rename.file.destination.path.length"}
 	case "rename.file.device_path":
 		rv, ok := value.(string)
 		if !ok {
@@ -3544,6 +3939,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return nil
 	case "rename.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "rename.file.name.length"}
+	case "rename.file.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "RenameFile.Old.UserPathnameStr"}
+		}
+		ev.RenameFile.Old.UserPathnameStr = rv
+		return nil
+	case "rename.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "rename.file.path.length"}
 	case "set.registry.key_name":
 		rv, ok := value.(string)
 		if !ok {
@@ -3630,6 +4034,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return nil
 	case "write.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "write.file.name.length"}
+	case "write.file.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "WriteFile.File.UserPathnameStr"}
+		}
+		ev.WriteFile.File.UserPathnameStr = rv
+		return nil
+	case "write.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "write.file.path.length"}
 	}
 	return &eval.ErrFieldNotFound{Field: field}
 }

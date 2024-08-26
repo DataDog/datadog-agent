@@ -63,7 +63,8 @@
       "Type": "NORMAL",
       "Health": {
         "status": "HEALTHY",
-        "statusSince": "2023-11-20T12:11:16.383262018Z"
+        "statusSince": "2023-11-20T12:11:16.383262018Z",
+        "exitCode": -1
       },
       "Volumes": [
         {

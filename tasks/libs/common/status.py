@@ -1,3 +1,6 @@
+from tasks.libs.common.color import Color
+
+
 class Status:
     OK = "OK"
     WARN = "WARN"
@@ -6,6 +9,6 @@ class Status:
     @staticmethod
     def color(status):
         if status == Status.OK:
-            return "green"
+            return Color.GREEN
 
-        return "orange" if status == Status.WARN else "red"
+        return Color.ORANGE if status == Status.WARN else Color.RED

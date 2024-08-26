@@ -15,7 +15,7 @@ import (
 	"golang.org/x/time/rate"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 )
 

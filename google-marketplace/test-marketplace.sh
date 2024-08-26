@@ -16,4 +16,4 @@ echo "Running docker build"
 docker build --pull --platform linux/amd64 --no-cache --build-arg TAG="$FULL_TAG" --tag "$REGISTRY/deployer:$FULL_TAG" . && docker push "$REGISTRY/deployer:$FULL_TAG"
 # Note: do not use "createAgent": true, as when resources are cleaned up mpdev will orphan the DatadogAgent
 echo "Running mpdev verify"
-mpdev verify --deployer=$REGISTRY/deployer:"$FULL_TAG"
+EXTRA_DOCKER_PARAMS=--platform=linux/amd64 mpdev verify --deployer=$REGISTRY/deployer:"$FULL_TAG"

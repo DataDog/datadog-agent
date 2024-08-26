@@ -15,7 +15,7 @@ import (
 // will be filtered out during config resolution if another config template
 // also has logs configuration.
 func AddContainerCollectAllConfigs(configs []integration.Config, adIdentifier string) []integration.Config {
-	if !config.Datadog.GetBool("logs_config.container_collect_all") {
+	if !config.Datadog().GetBool("logs_config.container_collect_all") {
 		return configs
 	}
 

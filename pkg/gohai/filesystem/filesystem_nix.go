@@ -22,7 +22,7 @@ type fsInfoGetter func(*mountinfo.Info) (uint64, error)
 func sizeKB(mount *mountinfo.Info) (uint64, error) {
 	var statfs unix.Statfs_t
 	if err := unix.Statfs(mount.Mountpoint, &statfs); err != nil {
-		return 0, fmt.Errorf("statfs %s: %w", mount.Source, err)
+		return 0, fmt.Errorf("gohai filesystem collection: statfs %s: %w", mount.Source, err)
 	}
 
 	sizeKB := statfs.Blocks * uint64(statfs.Bsize) / 1024
@@ -150,6 +150,7 @@ func isDummyFS(fsType string) bool {
 		"squashfs":    {}, // added by a patch on ubuntu
 		"subfs":       {},
 		"sysfs":       {},
+		"tracefs":     {}, // debug/tracing was moved out of debugfs
 	}
 
 	_, found := ignoredFSTypes[fsType]

@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	ddErrors "github.com/DataDog/datadog-agent/pkg/errors"
@@ -41,7 +42,7 @@ type ClusterChecksConfigProvider struct {
 // NewClusterChecksConfigProvider returns a new ConfigProvider collecting
 // cluster check configurations from the cluster-agent.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewClusterChecksConfigProvider(providerConfig *config.ConfigurationProviders) (ConfigProvider, error) {
+func NewClusterChecksConfigProvider(providerConfig *config.ConfigurationProviders, _ *telemetry.Store) (ConfigProvider, error) {
 	if providerConfig == nil {
 		providerConfig = &config.ConfigurationProviders{}
 	}
@@ -51,11 +52,11 @@ func NewClusterChecksConfigProvider(providerConfig *config.ConfigurationProvider
 		degradedDuration: defaultDegradedDeadline,
 	}
 
-	c.identifier = config.Datadog.GetString("clc_runner_id")
+	c.identifier = config.Datadog().GetString("clc_runner_id")
 	if c.identifier == "" {
 		c.identifier, _ = hostname.Get(context.TODO())
-		if config.Datadog.GetBool("cloud_foundry") {
-			boshID := config.Datadog.GetString("bosh_id")
+		if config.Datadog().GetBool("cloud_foundry") {
+			boshID := config.Datadog().GetString("bosh_id")
 			if boshID == "" {
 				log.Warn("configuration variable cloud_foundry is set to true, but bosh_id is empty, can't retrieve node name")
 			} else {
@@ -177,7 +178,7 @@ func (c *ClusterChecksConfigProvider) Collect(ctx context.Context) ([]integratio
 // This usually happens when scheduling a lot of checks on a CLC, especially larger checks
 // with `Configure()` implemented, like KSM Core and Orchestrator checks
 func (c *ClusterChecksConfigProvider) heartbeatSender(ctx context.Context) {
-	expirationTimeout := time.Duration(config.Datadog.GetInt("cluster_checks.node_expiration_timeout")) * time.Second
+	expirationTimeout := time.Duration(config.Datadog().GetInt("cluster_checks.node_expiration_timeout")) * time.Second
 	heartTicker := time.NewTicker(time.Second)
 	defer heartTicker.Stop()
 

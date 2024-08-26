@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
 )
 
 func TestExtractTableFunction(t *testing.T) {
@@ -25,6 +27,21 @@ func TestExtractTableFunction(t *testing.T) {
 			tablesName: "test1",
 		},
 		{
+			name:       "extra space between if exists",
+			query:      `DROP TABLE  IF  EXISTS test1`,
+			tablesName: "test1",
+		},
+		{
+			name:       "single table name with small caps",
+			query:      `drop table if exists test1`,
+			tablesName: "test1",
+		},
+		{
+			name:       "single table name with mixed caps",
+			query:      `drop TablE iF ExISts test1`,
+			tablesName: "test1",
+		},
+		{
 			name:       "validate unknown table name",
 			query:      `DROP TABLE`,
 			tablesName: "UNKNOWN",
@@ -32,8 +49,8 @@ func TestExtractTableFunction(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			e := NewEventWrapper(&EbpfEvent{
-				Tx: EbpfTx{
+			e := NewEventWrapper(&ebpf.EbpfEvent{
+				Tx: ebpf.EbpfTx{
 					Request_fragment:    requestFragment([]byte(tt.query)),
 					Original_query_size: uint32(len(tt.query)),
 				},
@@ -45,8 +62,8 @@ func TestExtractTableFunction(t *testing.T) {
 
 func BenchmarkExtractTableName(b *testing.B) {
 	query := "CREATE TABLE dummy"
-	e := NewEventWrapper(&EbpfEvent{
-		Tx: EbpfTx{
+	e := NewEventWrapper(&ebpf.EbpfEvent{
+		Tx: ebpf.EbpfTx{
 			Request_fragment:    requestFragment([]byte(query)),
 			Original_query_size: uint32(len(query)),
 		},
@@ -58,11 +75,11 @@ func BenchmarkExtractTableName(b *testing.B) {
 	}
 }
 
-func requestFragment(fragment []byte) [BufferSize]byte {
-	if len(fragment) >= BufferSize {
-		return *(*[BufferSize]byte)(fragment)
+func requestFragment(fragment []byte) [ebpf.BufferSize]byte {
+	if len(fragment) >= ebpf.BufferSize {
+		return *(*[ebpf.BufferSize]byte)(fragment)
 	}
-	var b [BufferSize]byte
+	var b [ebpf.BufferSize]byte
 	copy(b[:], fragment)
 	return b
 }

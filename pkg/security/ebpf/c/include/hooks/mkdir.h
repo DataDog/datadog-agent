@@ -18,8 +18,7 @@ long __attribute__((always_inline)) trace__sys_mkdir(u8 async, umode_t mode) {
         .policy = policy,
         .async = async,
         .mkdir = {
-            .mode = mode
-        }
+            .mode = mode }
     };
 
     cache_syscall(&syscall);
@@ -27,13 +26,11 @@ long __attribute__((always_inline)) trace__sys_mkdir(u8 async, umode_t mode) {
     return 0;
 }
 
-HOOK_SYSCALL_ENTRY2(mkdir, const char*, filename, umode_t, mode)
-{
+HOOK_SYSCALL_ENTRY2(mkdir, const char *, filename, umode_t, mode) {
     return trace__sys_mkdir(SYNC_SYSCALL, mode);
 }
 
-HOOK_SYSCALL_ENTRY3(mkdirat, int, dirfd, const char*, filename, umode_t, mode)
-{
+HOOK_SYSCALL_ENTRY3(mkdirat, int, dirfd, const char *, filename, umode_t, mode) {
     return trace__sys_mkdir(SYNC_SYSCALL, mode);
 }
 
@@ -48,12 +45,12 @@ int hook_vfs_mkdir(ctx_t *ctx) {
         return 0;
     }
 
-    syscall->mkdir.dentry = (struct dentry *) CTX_PARM2(ctx);
+    syscall->mkdir.dentry = (struct dentry *)CTX_PARM2(ctx);
     // change the register based on the value of vfs_mkdir_dentry_position
     if (get_vfs_mkdir_dentry_position() == VFS_ARG_POSITION3) {
         // prevent the verifier from whining
         bpf_probe_read(&syscall->mkdir.dentry, sizeof(syscall->mkdir.dentry), &syscall->mkdir.dentry);
-        syscall->mkdir.dentry = (struct dentry *) CTX_PARM3(ctx);
+        syscall->mkdir.dentry = (struct dentry *)CTX_PARM3(ctx);
     }
 
     syscall->mkdir.file.path_key.mount_id = get_path_mount_id(syscall->mkdir.path);

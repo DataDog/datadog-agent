@@ -42,12 +42,12 @@ hosts: [ 0.datadog.pool.ntp.org, 1.datadog.pool.ntp.org, 2.datadog.pool.ntp.org,
 )
 
 //nolint:revive // TODO(PLINT) Fix revive linter
-func testNTPQueryError(host string, opt ntp.QueryOptions) (*ntp.Response, error) {
+func testNTPQueryError(_ string, _ ntp.QueryOptions) (*ntp.Response, error) {
 	return nil, fmt.Errorf("test error from NTP")
 }
 
 //nolint:revive // TODO(PLINT) Fix revive linter
-func testNTPQueryInvalid(host string, opt ntp.QueryOptions) (*ntp.Response, error) {
+func testNTPQueryInvalid(_ string, _ ntp.QueryOptions) (*ntp.Response, error) {
 	return &ntp.Response{
 		ClockOffset: time.Duration(offset) * time.Second,
 		Stratum:     20,
@@ -55,7 +55,7 @@ func testNTPQueryInvalid(host string, opt ntp.QueryOptions) (*ntp.Response, erro
 }
 
 //nolint:revive // TODO(PLINT) Fix revive linter
-func testNTPQuery(host string, opt ntp.QueryOptions) (*ntp.Response, error) {
+func testNTPQuery(_ string, _ ntp.QueryOptions) (*ntp.Response, error) {
 	return &ntp.Response{
 		ClockOffset: time.Duration(offset) * time.Second,
 		Stratum:     1,
@@ -150,7 +150,7 @@ func TestNTPError(t *testing.T) {
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 	assert.Error(t, err)
-	assert.EqualError(t, err, "Failed to get clock offset from any ntp host: 0.datadog.pool.ntp.org, 1.datadog.pool.ntp.org, 2.datadog.pool.ntp.org, 3.datadog.pool.ntp.org")
+	assert.EqualError(t, err, "failed to get clock offset from any ntp host: [ 0.datadog.pool.ntp.org, 1.datadog.pool.ntp.org, 2.datadog.pool.ntp.org, 3.datadog.pool.ntp.org ]")
 }
 
 func TestNTPInvalid(t *testing.T) {
@@ -223,7 +223,7 @@ hosts:
 	ntpInitCfg := []byte("")
 
 	offset = 1
-	ntpQuery = func(host string, opt ntp.QueryOptions) (*ntp.Response, error) {
+	ntpQuery = func(host string, _ ntp.QueryOptions) (*ntp.Response, error) {
 		o, _ := strconv.Atoi(host)
 		return &ntp.Response{
 			ClockOffset: time.Duration(o) * time.Second,
@@ -265,7 +265,7 @@ hosts:
 	ntpInitCfg := []byte("")
 
 	offset = 1
-	ntpQuery = func(host string, opt ntp.QueryOptions) (*ntp.Response, error) {
+	ntpQuery = func(host string, _ ntp.QueryOptions) (*ntp.Response, error) {
 		o, _ := strconv.Atoi(host)
 		return &ntp.Response{
 			ClockOffset: time.Duration(o) * time.Second,
@@ -361,7 +361,7 @@ func TestDefaultHostConfig(t *testing.T) {
 
 	expectedHosts := []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
 	testedConfig := []byte(``)
-	config.Datadog.SetWithoutSource("cloud_provider_metadata", []string{})
+	config.Datadog().SetWithoutSource("cloud_provider_metadata", []string{})
 
 	ntpCheck := new(NTPCheck)
 	ntpCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")

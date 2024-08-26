@@ -19,13 +19,13 @@ int __attribute__((always_inline)) start_veth_state_machine() {
 
 HOOK_ENTRY("rtnl_create_link")
 int hook_rtnl_create_link(ctx_t *ctx) {
-    struct rtnl_link_ops *ops = (struct rtnl_link_ops*)CTX_PARM4(ctx);
+    struct rtnl_link_ops *ops = (struct rtnl_link_ops *)CTX_PARM4(ctx);
     if (!ops) {
         return 0;
     }
 
     char *kind_ptr;
-    if (bpf_probe_read(&kind_ptr, sizeof(char*), &ops->kind) < 0 || !kind_ptr) {
+    if (bpf_probe_read(&kind_ptr, sizeof(char *), &ops->kind) < 0 || !kind_ptr) {
         return 0;
     }
 
@@ -185,53 +185,53 @@ int rethook_register_netdevice(ctx_t *ctx) {
 
     // this is a veth pair, update the state machine
     switch (state->state) {
-        case STATE_NEWLINK: {
-            // this is the peer device
-            state->peer_device_key = key;
-            bpf_map_update_elem(&veth_devices, &key, &device, BPF_ANY);
+    case STATE_NEWLINK: {
+        // this is the peer device
+        state->peer_device_key = key;
+        bpf_map_update_elem(&veth_devices, &key, &device, BPF_ANY);
 
-            // update the veth state machine
-            state->state = STATE_REGISTER_PEER_DEVICE;
-            break;
+        // update the veth state machine
+        state->state = STATE_REGISTER_PEER_DEVICE;
+        break;
+    }
+
+    case STATE_REGISTER_PEER_DEVICE: {
+        // this is the host device
+        struct device_ifindex_t lookup_key = state->peer_device_key; // for compatibility with older kernels
+        struct device_t *peer_device = bpf_map_lookup_elem(&veth_devices, &lookup_key);
+        if (peer_device == NULL) {
+            // peer device not found, should never happen
+            return 0;
         }
 
-        case STATE_REGISTER_PEER_DEVICE: {
-            // this is the host device
-            struct device_ifindex_t lookup_key = state->peer_device_key; // for compatibility with older kernels
-            struct device_t *peer_device = bpf_map_lookup_elem(&veth_devices, &lookup_key);
-            if (peer_device == NULL) {
-                // peer device not found, should never happen
-                return 0;
-            }
+        // update the peer device
+        peer_device->peer_netns = key.netns;
+        peer_device->peer_ifindex = key.ifindex;
 
-            // update the peer device
-            peer_device->peer_netns = key.netns;
-            peer_device->peer_ifindex = key.ifindex;
+        // insert new host device
+        device.peer_netns = peer_device->netns;
+        device.peer_ifindex = peer_device->ifindex;
+        bpf_map_update_elem(&veth_devices, &key, &device, BPF_ANY);
 
-            // insert new host device
-            device.peer_netns = peer_device->netns;
-            device.peer_ifindex = peer_device->ifindex;
-            bpf_map_update_elem(&veth_devices, &key, &device, BPF_ANY);
+        // delete state machine entry
+        bpf_map_delete_elem(&veth_state_machine, &id);
 
-            // delete state machine entry
-            bpf_map_delete_elem(&veth_state_machine, &id);
+        // veth pairs can be created with an existing peer netns, if this is the case, send the veth_pair event now
+        if (peer_device->netns != device.netns) {
+            // send event
+            struct veth_pair_event_t evt = {
+                .host_device = device,
+                .peer_device = *peer_device,
+            };
 
-            // veth pairs can be created with an existing peer netns, if this is the case, send the veth_pair event now
-            if (peer_device->netns != device.netns) {
-                // send event
-                struct veth_pair_event_t evt = {
-                    .host_device = device,
-                    .peer_device = *peer_device,
-                };
+            struct proc_cache_t *proc_entry = fill_process_context(&evt.process);
+            fill_container_context(proc_entry, &evt.container);
+            fill_span_context(&evt.span);
 
-                struct proc_cache_t *proc_entry = fill_process_context(&evt.process);
-                fill_container_context(proc_entry, &evt.container);
-                fill_span_context(&evt.span);
-
-                send_event(ctx, EVENT_VETH_PAIR, evt);
-            }
-            break;
+            send_event(ctx, EVENT_VETH_PAIR, evt);
         }
+        break;
+    }
     }
     return 0;
 };

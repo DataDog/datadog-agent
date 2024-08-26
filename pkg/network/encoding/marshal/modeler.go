@@ -25,6 +25,7 @@ type ConnectionsModeler struct {
 	http2Encoder    *http2Encoder
 	kafkaEncoder    *kafkaEncoder
 	postgresEncoder *postgresEncoder
+	redisEncoder    *redisEncoder
 	dnsFormatter    *dnsFormatter
 	ipc             ipCache
 	routeIndex      map[string]RouteIdx
@@ -43,6 +44,7 @@ func NewConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
 		http2Encoder:    newHTTP2Encoder(conns.HTTP2),
 		kafkaEncoder:    newKafkaEncoder(conns.Kafka),
 		postgresEncoder: newPostgresEncoder(conns.Postgres),
+		redisEncoder:    newRedisEncoder(conns.Redis),
 		ipc:             ipc,
 		dnsFormatter:    newDNSFormatter(conns, ipc),
 		routeIndex:      make(map[string]RouteIdx),
@@ -56,19 +58,21 @@ func (c *ConnectionsModeler) Close() {
 	c.http2Encoder.Close()
 	c.kafkaEncoder.Close()
 	c.postgresEncoder.Close()
+	c.redisEncoder.Close()
 }
 
 func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder, conns *network.Connections) {
 	cfgOnce.Do(func() {
 		agentCfg = &model.AgentConfiguration{
-			NpmEnabled: config.SystemProbe.GetBool("network_config.enabled"),
-			UsmEnabled: config.SystemProbe.GetBool("service_monitoring_config.enabled"),
+			NpmEnabled: config.SystemProbe().GetBool("network_config.enabled"),
+			UsmEnabled: config.SystemProbe().GetBool("service_monitoring_config.enabled"),
+			CcmEnabled: config.SystemProbe().GetBool("ccm_network_config.enabled"),
 		}
 	})
 
 	for _, conn := range conns.Conns {
 		builder.AddConns(func(builder *model.ConnectionBuilder) {
-			FormatConnection(builder, conn, c.routeIndex, c.httpEncoder, c.http2Encoder, c.kafkaEncoder, c.postgresEncoder, c.dnsFormatter, c.ipc, c.tagsSet)
+			FormatConnection(builder, conn, c.routeIndex, c.httpEncoder, c.http2Encoder, c.kafkaEncoder, c.postgresEncoder, c.redisEncoder, c.dnsFormatter, c.ipc, c.tagsSet)
 		})
 	}
 
@@ -81,6 +85,7 @@ func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder,
 		w.SetDsmEnabled(agentCfg.DsmEnabled)
 		w.SetNpmEnabled(agentCfg.NpmEnabled)
 		w.SetUsmEnabled(agentCfg.UsmEnabled)
+		w.SetCcmEnabled(agentCfg.CcmEnabled)
 	})
 	for _, d := range c.dnsFormatter.Domains() {
 		builder.AddDomains(d)

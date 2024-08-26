@@ -14,8 +14,11 @@ import (
 	"github.com/opencontainers/runtime-spec/specs-go"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -103,11 +106,11 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 
 			// The container needs to exist in the workloadmeta store and have a
 			// namespace.
-			workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-				logimpl.MockModule(),
+			workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
 				config.MockModule(),
 				fx.Supply(workloadmeta.NewParams()),
-				workloadmeta.MockModuleV2(),
+				workloadmetafxmock.MockModule(),
 			))
 
 			workloadmetaStore.Set(&workloadmeta.Container{
@@ -169,11 +172,11 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 
 			// The container needs to exist in the workloadmeta store and have a
 			// namespace.
-			workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-				logimpl.MockModule(),
+			workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
 				config.MockModule(),
 				fx.Supply(workloadmeta.NewParams()),
-				workloadmeta.MockModuleV2(),
+				workloadmetafxmock.MockModule(),
 			))
 
 			workloadmetaStore.Set(&workloadmeta.Container{

@@ -21,7 +21,7 @@ import (
 )
 
 func initStatus() {
-	InitStatus(pkgConfig.Datadog, testutils.CreateSources([]*sources.LogSource{
+	InitStatus(pkgConfig.Datadog(), testutils.CreateSources([]*sources.LogSource{
 		sources.NewLogSource("foo", &config.LogsConfig{Type: "foo"}),
 		sources.NewLogSource("bar", &config.LogsConfig{Type: "foo"}),
 		sources.NewLogSource("foo", &config.LogsConfig{Type: "foo"}),

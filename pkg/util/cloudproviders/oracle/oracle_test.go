@@ -19,9 +19,9 @@ import (
 )
 
 func TestGetHostAliases(t *testing.T) {
-	holdValue := config.Datadog.Get("cloud_provider_metadata")
-	defer config.Datadog.SetWithoutSource("cloud_provider_metadata", holdValue)
-	config.Datadog.SetWithoutSource("cloud_provider_metadata", []string{"oracle"})
+	holdValue := config.Datadog().Get("cloud_provider_metadata")
+	defer config.Datadog().SetWithoutSource("cloud_provider_metadata", holdValue)
+	config.Datadog().SetWithoutSource("cloud_provider_metadata", []string{"oracle"})
 
 	ctx := context.Background()
 	expected := "ocid1.instance.oc1.iad.anuwcljte6cuweqcz7sarpn43hst2kaaaxbbbccbaaa6vpd66tvcyhgiifsq"
@@ -45,14 +45,14 @@ func TestGetHostAliases(t *testing.T) {
 }
 
 func TestGetNTPHosts(t *testing.T) {
-	holdValue := config.Datadog.Get("cloud_provider_metadata")
-	defer config.Datadog.SetWithoutSource("cloud_provider_metadata", holdValue)
-	config.Datadog.SetWithoutSource("cloud_provider_metadata", []string{"oracle"})
+	holdValue := config.Datadog().Get("cloud_provider_metadata")
+	defer config.Datadog().SetWithoutSource("cloud_provider_metadata", holdValue)
+	config.Datadog().SetWithoutSource("cloud_provider_metadata", []string{"oracle"})
 
 	ctx := context.Background()
 	expectedHosts := []string{"169.254.169.254"}
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/octet-stream")
 		io.WriteString(w, "test")
 	}))

@@ -62,24 +62,24 @@ int hook_security_inode_setattr(ctx_t *ctx) {
 
     u64 event_type = 0;
     switch (syscall->type) {
-        case EVENT_UTIME:
-            if (filter_syscall(syscall, utime_approvers)) {
-                return discard_syscall(syscall);
-            }
-            event_type = EVENT_UTIME;
-            break;
-        case EVENT_CHMOD:
-            if (filter_syscall(syscall, chmod_approvers)) {
-                return discard_syscall(syscall);
-            }
-            event_type = EVENT_CHMOD;
-            break;
-        case EVENT_CHOWN:
-            if (filter_syscall(syscall, chown_approvers)) {
-                return discard_syscall(syscall);
-            }
-            event_type = EVENT_CHOWN;
-            break;
+    case EVENT_UTIME:
+        if (filter_syscall(syscall, utime_approvers)) {
+            return discard_syscall(syscall);
+        }
+        event_type = EVENT_UTIME;
+        break;
+    case EVENT_CHMOD:
+        if (filter_syscall(syscall, chmod_approvers)) {
+            return discard_syscall(syscall);
+        }
+        event_type = EVENT_CHMOD;
+        break;
+    case EVENT_CHOWN:
+        if (filter_syscall(syscall, chown_approvers)) {
+            return discard_syscall(syscall);
+        }
+        event_type = EVENT_CHOWN;
+        break;
     }
 
     syscall->resolver.dentry = syscall->setattr.dentry;

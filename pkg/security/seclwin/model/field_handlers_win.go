@@ -23,9 +23,11 @@ func (ev *Event) resolveFields(forADs bool) {
 	// resolve context fields that are not related to any event type
 	_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)
 	_ = ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
+	_ = ev.FieldHandlers.ResolveContainerRuntime(ev, ev.BaseEvent.ContainerContext)
 	if !forADs {
 		_ = ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
 	}
+	_ = ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, &ev.BaseEvent.ProcessContext.Process)
@@ -58,12 +60,17 @@ func (ev *Event) resolveFields(forADs bool) {
 	_ = ev.FieldHandlers.ResolveUser(ev, &ev.BaseEvent.ProcessContext.Process)
 	// resolve event specific fields
 	switch ev.GetEventType().String() {
+	case "change_permission":
+		_ = ev.FieldHandlers.ResolveOldSecurityDescriptor(ev, &ev.ChangePermission)
+		_ = ev.FieldHandlers.ResolveNewSecurityDescriptor(ev, &ev.ChangePermission)
 	case "create":
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.CreateNewFile.File)
+		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.CreateNewFile.File)
 		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.CreateNewFile.File)
 	case "create_key":
 	case "delete":
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.DeleteFile.File)
+		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.DeleteFile.File)
 		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.DeleteFile.File)
 	case "delete_key":
 	case "exec":
@@ -85,12 +92,15 @@ func (ev *Event) resolveFields(forADs bool) {
 	case "open_key":
 	case "rename":
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.Old)
+		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.Old)
 		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.Old)
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.New)
+		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.New)
 		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.New)
 	case "set_key_value":
 	case "write":
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.WriteFile.File)
+		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.WriteFile.File)
 		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.WriteFile.File)
 	}
 }
@@ -98,13 +108,18 @@ func (ev *Event) resolveFields(forADs bool) {
 type FieldHandlers interface {
 	ResolveContainerCreatedAt(ev *Event, e *ContainerContext) int
 	ResolveContainerID(ev *Event, e *ContainerContext) string
+	ResolveContainerRuntime(ev *Event, e *ContainerContext) string
 	ResolveContainerTags(ev *Event, e *ContainerContext) []string
 	ResolveEventTime(ev *Event, e *BaseEvent) time.Time
 	ResolveEventTimestamp(ev *Event, e *BaseEvent) int
 	ResolveFileBasename(ev *Event, e *FileEvent) string
 	ResolveFilePath(ev *Event, e *FileEvent) string
+	ResolveFileUserPath(ev *Event, e *FimFileEvent) string
 	ResolveFimFileBasename(ev *Event, e *FimFileEvent) string
 	ResolveFimFilePath(ev *Event, e *FimFileEvent) string
+	ResolveHostname(ev *Event, e *BaseEvent) string
+	ResolveNewSecurityDescriptor(ev *Event, e *ChangePermissionEvent) string
+	ResolveOldSecurityDescriptor(ev *Event, e *ChangePermissionEvent) string
 	ResolveProcessCmdLine(ev *Event, e *Process) string
 	ResolveProcessCmdLineScrubbed(ev *Event, e *Process) string
 	ResolveProcessCreatedAt(ev *Event, e *Process) int
@@ -120,32 +135,61 @@ type FakeFieldHandlers struct{}
 func (dfh *FakeFieldHandlers) ResolveContainerCreatedAt(ev *Event, e *ContainerContext) int {
 	return int(e.CreatedAt)
 }
-func (dfh *FakeFieldHandlers) ResolveContainerID(ev *Event, e *ContainerContext) string { return e.ID }
-func (dfh *FakeFieldHandlers) ResolveContainerTags(ev *Event, e *ContainerContext) []string {
-	return e.Tags
+func (dfh *FakeFieldHandlers) ResolveContainerID(ev *Event, e *ContainerContext) string {
+	return string(e.ContainerID)
 }
-func (dfh *FakeFieldHandlers) ResolveEventTime(ev *Event, e *BaseEvent) time.Time { return e.Timestamp }
+func (dfh *FakeFieldHandlers) ResolveContainerRuntime(ev *Event, e *ContainerContext) string {
+	return string(e.Runtime)
+}
+func (dfh *FakeFieldHandlers) ResolveContainerTags(ev *Event, e *ContainerContext) []string {
+	return []string(e.Tags)
+}
+func (dfh *FakeFieldHandlers) ResolveEventTime(ev *Event, e *BaseEvent) time.Time {
+	return time.Time(e.Timestamp)
+}
 func (dfh *FakeFieldHandlers) ResolveEventTimestamp(ev *Event, e *BaseEvent) int {
 	return int(e.TimestampRaw)
 }
 func (dfh *FakeFieldHandlers) ResolveFileBasename(ev *Event, e *FileEvent) string {
-	return e.BasenameStr
+	return string(e.BasenameStr)
 }
-func (dfh *FakeFieldHandlers) ResolveFilePath(ev *Event, e *FileEvent) string { return e.PathnameStr }
+func (dfh *FakeFieldHandlers) ResolveFilePath(ev *Event, e *FileEvent) string {
+	return string(e.PathnameStr)
+}
+func (dfh *FakeFieldHandlers) ResolveFileUserPath(ev *Event, e *FimFileEvent) string {
+	return string(e.UserPathnameStr)
+}
 func (dfh *FakeFieldHandlers) ResolveFimFileBasename(ev *Event, e *FimFileEvent) string {
-	return e.BasenameStr
+	return string(e.BasenameStr)
 }
 func (dfh *FakeFieldHandlers) ResolveFimFilePath(ev *Event, e *FimFileEvent) string {
-	return e.PathnameStr
+	return string(e.PathnameStr)
 }
-func (dfh *FakeFieldHandlers) ResolveProcessCmdLine(ev *Event, e *Process) string { return e.CmdLine }
+func (dfh *FakeFieldHandlers) ResolveHostname(ev *Event, e *BaseEvent) string {
+	return string(e.Hostname)
+}
+func (dfh *FakeFieldHandlers) ResolveNewSecurityDescriptor(ev *Event, e *ChangePermissionEvent) string {
+	return string(e.NewSd)
+}
+func (dfh *FakeFieldHandlers) ResolveOldSecurityDescriptor(ev *Event, e *ChangePermissionEvent) string {
+	return string(e.OldSd)
+}
+func (dfh *FakeFieldHandlers) ResolveProcessCmdLine(ev *Event, e *Process) string {
+	return string(e.CmdLine)
+}
 func (dfh *FakeFieldHandlers) ResolveProcessCmdLineScrubbed(ev *Event, e *Process) string {
-	return e.CmdLineScrubbed
+	return string(e.CmdLineScrubbed)
 }
 func (dfh *FakeFieldHandlers) ResolveProcessCreatedAt(ev *Event, e *Process) int {
 	return int(e.CreatedAt)
 }
-func (dfh *FakeFieldHandlers) ResolveProcessEnvp(ev *Event, e *Process) []string { return e.Envp }
-func (dfh *FakeFieldHandlers) ResolveProcessEnvs(ev *Event, e *Process) []string { return e.Envs }
-func (dfh *FakeFieldHandlers) ResolveService(ev *Event, e *BaseEvent) string     { return e.Service }
-func (dfh *FakeFieldHandlers) ResolveUser(ev *Event, e *Process) string          { return e.User }
+func (dfh *FakeFieldHandlers) ResolveProcessEnvp(ev *Event, e *Process) []string {
+	return []string(e.Envp)
+}
+func (dfh *FakeFieldHandlers) ResolveProcessEnvs(ev *Event, e *Process) []string {
+	return []string(e.Envs)
+}
+func (dfh *FakeFieldHandlers) ResolveService(ev *Event, e *BaseEvent) string {
+	return string(e.Service)
+}
+func (dfh *FakeFieldHandlers) ResolveUser(ev *Event, e *Process) string { return string(e.User) }

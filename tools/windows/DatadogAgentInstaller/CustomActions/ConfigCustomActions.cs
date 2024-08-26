@@ -9,6 +9,9 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Text;
 using Datadog.CustomActions.Interfaces;
+using System.Security.AccessControl;
+using System.Security.Principal;
+using Datadog.CustomActions.Native;
 
 namespace Datadog.CustomActions
 {
@@ -377,6 +380,14 @@ namespace Datadog.CustomActions
                                 })
                             }
                         });
+
+                var auth = Path.Combine(configFolder, "auth_token");
+                if (File.Exists(auth)) // Delete pre-existing auth token
+                {
+                    File.Delete(auth);
+                    session.Log($"Deleting old {auth}");
+                }
+
                 foreach (var c in configFiles)
                 {
                     var configPath = Path.Combine(configFolder, c.Path);
@@ -390,6 +401,10 @@ namespace Datadog.CustomActions
                         {
                             session.Log($"{configPath} exists, not modifying it.");
                         }
+                    }
+                    else
+                    {
+                        session.Log($"{configPath}.example doesn't exists.");
                     }
 
                 }
@@ -407,6 +422,67 @@ namespace Datadog.CustomActions
         public static ActionResult WriteConfig(Session session)
         {
             return WriteConfig(new SessionWrapper(session));
+        }
+
+        private static ActionResult DDCreateFolders(ISession session)
+        {
+            try
+            {
+                var path = session.Property("APPLICATIONDATADIRECTORY");
+
+                // This section is copied from RollbackDataStore.cs
+                // Create DACL for only SYSTEM and Administrators, disable inheritance
+                FileSystemSecurity security = new DirectorySecurity();
+                security.SetAccessRuleProtection(true, false);
+                security.AddAccessRule(new FileSystemAccessRule(
+                    new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+                    FileSystemRights.FullControl,
+                    InheritanceFlags.ObjectInherit | InheritanceFlags.ContainerInherit,
+                    PropagationFlags.None,
+                    AccessControlType.Allow));
+                security.AddAccessRule(new FileSystemAccessRule(
+                    new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+                    FileSystemRights.FullControl,
+                    InheritanceFlags.ObjectInherit | InheritanceFlags.ContainerInherit,
+                    PropagationFlags.None,
+                    AccessControlType.Allow));
+                security.SetOwner(new SecurityIdentifier(
+                    WellKnownSidType.LocalSystemSid, null));
+                security.SetGroup(new SecurityIdentifier(
+                    WellKnownSidType.LocalSystemSid, null));
+
+                if (Directory.Exists(path))
+                {
+                    var _oldACL = Directory.GetAccessControl(path, AccessControlSections.All);
+                    session.Log($"{path} current ACL: {_oldACL.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
+                }
+                else
+                {
+                    session.Log($"Creating {path}");
+                }
+
+                // Create the directory with the above DACL
+                Directory.CreateDirectory(path, (DirectorySecurity)security); // Create directory with ACL if needed
+                session.Log($"Updating ACL on {path}");
+                Directory.SetAccessControl(path, (DirectorySecurity)security); // otherwise update ACL in case directory already existed
+
+                // Log final permissions and owner
+                var _newACL = Directory.GetAccessControl(path, AccessControlSections.All);
+                session.Log($"{path} final ACL: {_newACL.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
+            }
+
+            catch (Exception e)
+            {
+                session.Log($"Application directory could not be created/configured: {e}");
+                return ActionResult.Failure;
+            }
+            return ActionResult.Success;
+        }
+
+        [CustomAction]
+        public static ActionResult DDCreateFolders(Session session)
+        {
+            return DDCreateFolders(new SessionWrapper(session));
         }
     }
 }

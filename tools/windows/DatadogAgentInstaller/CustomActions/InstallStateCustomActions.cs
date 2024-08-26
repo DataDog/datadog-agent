@@ -1,10 +1,12 @@
-using System;
-using System.Security.Principal;
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Microsoft.Deployment.WindowsInstaller;
 using Microsoft.Win32;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Security.Principal;
 using ServiceController = Datadog.CustomActions.Native.ServiceController;
 
 namespace Datadog.CustomActions
@@ -18,21 +20,46 @@ namespace Datadog.CustomActions
         private readonly IRegistryServices _registryServices;
         private readonly IServiceController _serviceController;
 
+        private readonly INativeMethods _nativeMethods;
+
+        public static Dictionary<string, string> PathsToRemoveOnUninstall()
+        {
+            var pathPropertyMap = new Dictionary<string, string>();
+            var paths = new List<string>
+            {
+                "bin\\agent",
+                "embedded3",
+                // embedded2 only exists in Agent 6, so an error will be logged, but install will continue
+                "embedded2",
+            };
+            for (var i = 0; i < paths.Count; i++)
+            {
+                // property names are a maximum of 72 characters (can't find a source for this, but can verify in Property table schema in Orca)
+                // WixRemoveFolderEx creates properties like PROJECTLOCATION_0 so mimic that here.
+                // include lowercase letters so the property isn't made public.
+                pathPropertyMap.Add($"dd_PROJECTLOCATION_{i}", paths[i]);
+            }
+            return pathPropertyMap;
+        }
+
         public InstallStateCustomActions(
             ISession session,
             IRegistryServices registryServices,
-            IServiceController serviceController)
+            IServiceController serviceController,
+            INativeMethods nativeMethods)
         {
             _session = session;
             _registryServices = registryServices;
             _serviceController = serviceController;
+            _nativeMethods = nativeMethods;
         }
 
         public InstallStateCustomActions(ISession session)
             : this(
                 session,
                 new RegistryServices(),
-                new ServiceController())
+                new ServiceController(),
+                new Win32NativeMethods())
         {
         }
 
@@ -122,6 +149,8 @@ namespace Datadog.CustomActions
                 }
 
                 GetWindowsBuildVersion();
+                SetDDDriverRollback();
+                SetRemoveFolderExProperties();
             }
             catch (Exception e)
             {
@@ -130,6 +159,51 @@ namespace Datadog.CustomActions
             }
 
             return ActionResult.Success;
+        }
+
+        /// <summary>
+        /// Sets the properties used by the WiX util RemoveFolderEx to cleanup non-tracked paths.
+        ///
+        /// https://wixtoolset.org/docs/v3/xsd/util/removefolderex/
+        /// </summary>
+        /// <remarks>
+        /// RemoveFolderEx only takes a property as input, not IDs or paths, meaning we can't
+        /// pass something like $PROJECTLOCATION\bin\agent in WiX. Instead, we have to set
+        /// the properties in a custom action.
+        ///
+        /// The RemoveFolderEx elements in WiX are configured to only run at uninstall time,
+        /// so the properties values are only relevant then. However, the WixRemoveFolderEx
+        /// custom action will fail fast if any of the properties are empty. So we must always
+        /// provide a value to the properties to prevent an error in the log and to accomodate other
+        /// uses of RemoveFolderEx that run at other times (at time of writing there are none).
+        /// Though this error does not stop the installer, it will ignore it and continue.
+        ///
+        /// RemoveFolderEx handles rollback and will restore any file paths that it deletes.
+        ///
+        /// We specify specific subdirectories under PROJECTLOCATION instead of specifying PROJECTLOCATION
+        /// itself to reduce the impact when the Agent is erroneously installed to an existing directory.
+        ///
+        /// This action copies PROJECTLOCATION and thus changes to PROJECTLOCATION will not be reflected
+        /// in these properties. This should not be an issue since PROJECTLOCATION should not change during
+        /// uninstallation.
+        /// </remarks>
+        private void SetRemoveFolderExProperties()
+        {
+            var installDir = _session["PROJECTLOCATION"];
+            if (string.IsNullOrEmpty(installDir))
+            {
+                if (!string.IsNullOrEmpty(_session["REMOVE"]))
+                {
+                    _session.Log("PROJECTLOCATION is not set, cannot set RemoveFolderEx properties, some files may be left behind in the installation directory.");
+                }
+                return;
+                // We cannot throw an exception here because the installer will fail. This case can happen, for example,
+                // if the cleanup script deleted the registry keys before running the uninstaller.
+            }
+            foreach (var entry in PathsToRemoveOnUninstall())
+            {
+                _session[entry.Key] = Path.Combine(installDir, entry.Value);
+            }
         }
 
         /// <summary>
@@ -154,10 +228,84 @@ namespace Datadog.CustomActions
             }
         }
 
+        // <summary>
+        // Sets driver-specific properties to 1 if the driver services should be removed on rollback.
+        // </summary>
+        // <remarks>
+        // Previous versions of the installer did not remove the driver services on rollback.
+        // In order to remain compatible with these versions, we must not remove the driver services
+        // when rolling back to these versions.
+        // </remarks>
+        public void SetDDDriverRollback()
+        {
+            var upgradeDetected = _session["WIX_UPGRADE_DETECTED"];
+
+            if (!string.IsNullOrEmpty(upgradeDetected)) // This is an upgrade, conditionally set rollback flags.
+            {
+                var versionString = _nativeMethods.GetVersionString(upgradeDetected);
+                // Using Version class
+                // https://learn.microsoft.com/en-us/dotnet/api/system.version?view=net-8.0
+                var currentVersion = new Version(versionString);
+                Version procmonDriverMinimumVersion;
+                Version driverRollbackMinimumVersion;
+
+                // Check major version
+                if (versionString[0] == '7')
+                {
+                    procmonDriverMinimumVersion = new Version("7.52");
+                    driverRollbackMinimumVersion = new Version("7.56");
+                }
+                else
+                {
+                    procmonDriverMinimumVersion = new Version("6.52");
+                    driverRollbackMinimumVersion = new Version("6.56");
+                }
+
+                var compareResult = currentVersion.CompareTo(driverRollbackMinimumVersion);
+                if (compareResult < 0) // currentVersion is less than minimumVersion
+                {
+                    // case: upgrading from a version that did not implement driver rollback
+                    // Clear NPM flag to ensure NPM service is not deleted on rollback.
+                    _session["DDDRIVERROLLBACK_NPM"] = "";
+
+                    var compare_52 = currentVersion.CompareTo(procmonDriverMinimumVersion);
+                    if (compare_52 < 0) //currentVersion is less than 6.52/7.52
+                    {
+                        // case: upgrading from a version that did not the include procmon driver
+                        // Set PROCMON flag to ensure procmon driver is deleted on rollback.
+                        _session["DDDRIVERROLLBACK_PROCMON"] = "1";
+                    }
+                    else
+                    {
+                        _session["DDDRIVERROLLBACK_PROCMON"] = "";
+                    }
+                }
+                else // currentVersion is not less than minimumVersion
+                {
+                    _session["DDDRIVERROLLBACK_NPM"] = "1";
+                    _session["DDDRIVERROLLBACK_PROCMON"] = "1";
+                }
+            }
+            else  // This is a fresh install, set rollback flags to ensure drivers are deleted on rollback.
+            {
+                _session["DDDRIVERROLLBACK_NPM"] = "1";
+                _session["DDDRIVERROLLBACK_PROCMON"] = "1";
+            }
+            _session.Log($"DDDriverRollback_NPM: {_session["DDDRIVERROLLBACK_NPM"]}");
+            _session.Log($"DDDriverRollback_Procmon: {_session["DDDRIVERROLLBACK_PROCMON"]}");
+        }
+
         [CustomAction]
         public static ActionResult ReadInstallState(Session session)
         {
             return new InstallStateCustomActions(new SessionWrapper(session)).ReadInstallState();
+        }
+
+        [CustomAction]
+        public static ActionResult ReadWindowsVersion(Session session)
+        {
+            new InstallStateCustomActions(new SessionWrapper(session)).GetWindowsBuildVersion();
+            return ActionResult.Success;
         }
 
         /// <summary>

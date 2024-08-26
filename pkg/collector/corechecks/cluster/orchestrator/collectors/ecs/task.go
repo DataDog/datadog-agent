@@ -11,7 +11,7 @@ package ecs
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/ecs"
@@ -70,6 +70,8 @@ func (t *TaskCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Co
 		AWSAccountID: rcfg.AWSAccountID,
 		ClusterName:  rcfg.ClusterName,
 		Region:       rcfg.Region,
+		SystemInfo:   rcfg.SystemInfo,
+		Hostname:     rcfg.HostName,
 	}
 
 	processResult, processed := t.processor.Process(ctx, tasks)

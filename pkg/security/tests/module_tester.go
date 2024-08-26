@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
-	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -110,7 +110,7 @@ func (tm *testModule) Run(t *testing.T, name string, fnc func(t *testing.T, kind
 func (tm *testModule) reloadPolicies() error {
 	log.Debugf("reload policies with cfgDir: %s", commonCfgDir)
 
-	bundledPolicyProvider := rulesmodule.NewBundledPolicyProvider(tm.eventMonitor.Probe.Config.RuntimeSecurity)
+	bundledPolicyProvider := bundled.NewPolicyProvider(tm.eventMonitor.Probe.Config.RuntimeSecurity)
 	policyDirProvider, err := rules.NewPoliciesDirProvider(commonCfgDir, false)
 	if err != nil {
 		return err
@@ -640,7 +640,7 @@ func assertFieldStringArrayIndexedOneOf(tb *testing.T, e *model.Event, field str
 	return false
 }
 
-func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (string, error) {
+func setTestPolicy(dir string, onDemandProbes []rules.OnDemandHookPoint, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (string, error) {
 	testPolicyFile, err := os.Create(path.Join(dir, "secagent-policy.policy"))
 	if err != nil {
 		return "", err
@@ -658,8 +658,9 @@ func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.R
 
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"Rules":  rules,
-		"Macros": macros,
+		"OnDemandProbes": onDemandProbes,
+		"Rules":          rules,
+		"Macros":         macros,
 	}); err != nil {
 		return "", fail(err)
 	}
@@ -725,6 +726,10 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		runtimeSecurityEnabled = false
 	}
 
+	if opts.activityDumpSyscallMonitorPeriod == time.Duration(0) {
+		opts.activityDumpSyscallMonitorPeriod = 60 * time.Second
+	}
+
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
 		"TestPoliciesDir":                            cfgDir,
@@ -744,6 +749,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"ActivityDumpLocalStorageDirectory":          opts.activityDumpLocalStorageDirectory,
 		"ActivityDumpLocalStorageCompression":        opts.activityDumpLocalStorageCompression,
 		"ActivityDumpLocalStorageFormats":            opts.activityDumpLocalStorageFormats,
+		"ActivityDumpSyscallMonitorPeriod":           opts.activityDumpSyscallMonitorPeriod,
 		"EnableSecurityProfile":                      opts.enableSecurityProfile,
 		"SecurityProfileMaxImageTags":                opts.securityProfileMaxImageTags,
 		"SecurityProfileDir":                         opts.securityProfileDir,
@@ -763,8 +769,11 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"EnvsWithValue":                              opts.envsWithValue,
 		"RuntimeSecurityEnabled":                     runtimeSecurityEnabled,
 		"SBOMEnabled":                                opts.enableSBOM,
+		"HostSBOMEnabled":                            opts.enableHostSBOM,
 		"EBPFLessEnabled":                            ebpfLessEnabled,
 		"FIMEnabled":                                 opts.enableFIM, // should only be enabled/disabled on windows
+		"NetworkIngressEnabled":                      opts.networkIngressEnabled,
+		"OnDemandRateLimiterEnabled":                 !opts.disableOnDemandRateLimiter,
 	}); err != nil {
 		return nil, nil, err
 	}
@@ -797,7 +806,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		return nil, nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
 	}
 
-	_, err = spconfig.New(sysprobeConfigName)
+	_, err = spconfig.New(sysprobeConfigName, "")
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to load config: %w", err)
 	}

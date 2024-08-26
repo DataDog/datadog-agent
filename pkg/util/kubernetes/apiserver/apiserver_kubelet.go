@@ -52,13 +52,13 @@ func processKubeServices(nodeList *v1.NodeList, pods []*kubelet.Pod, endpointLis
 	log.Debugf("Identified: %d node, %d pod, %d endpoints", len(nodeList.Items), len(pods), len(endpointList.Items))
 	for _, node := range nodeList.Items {
 		nodeName := node.Name
-		nodeNameCacheKey := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
-		freshness := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName, "freshness")
+		nodeNameCacheKey := cache.BuildAgentKey(MetadataMapperCachePrefix, nodeName)
+		freshness := cache.BuildAgentKey(MetadataMapperCachePrefix, nodeName, "freshness")
 
 		cacheData, found := cache.Cache.Get(nodeNameCacheKey)        // We get the old one with the dead pods. if diff reset metabundle and deleted key. Then compute again.
 		freshnessCache, freshnessFound := cache.Cache.Get(freshness) // if expired, freshness not found deal with that
 
-		newMetaBundle := newMetadataMapperBundle()
+		newMetaBundle := NewMetadataMapperBundle()
 		if !found {
 			cache.Cache.Set(freshness, len(pods), metadataMapExpire)
 		}
@@ -69,7 +69,7 @@ func processKubeServices(nodeList *v1.NodeList, pods []*kubelet.Pod, endpointLis
 			cache.Cache.Set(freshness, len(pods), metadataMapExpire)
 			log.Debugf("Refreshing cache for %s", nodeNameCacheKey)
 		} else {
-			oldMetadataBundle, ok := cacheData.(*metadataMapperBundle)
+			oldMetadataBundle, ok := cacheData.(*MetadataMapperBundle)
 			if ok {
 				newMetaBundle.DeepCopy(oldMetadataBundle)
 			}

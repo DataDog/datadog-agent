@@ -12,23 +12,21 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"sort"
 
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -48,16 +46,8 @@ func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery
 	}).Methods("GET")
 	r.HandleFunc("/config", settings.GetFullConfig("")).Methods("GET")
 	r.HandleFunc("/config/list-runtime", settings.ListConfigurable).Methods("GET")
-	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		setting := vars["setting"]
-		settings.GetValue(setting, w, r)
-	}).Methods("GET")
-	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		setting := vars["setting"]
-		settings.SetValue(setting, w, r)
-	}).Methods("POST")
+	r.HandleFunc("/config/{setting}", settings.GetValue).Methods("GET")
+	r.HandleFunc("/config/{setting}", settings.SetValue).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/workload-list", func(w http.ResponseWriter, r *http.Request) {
 		getWorkloadList(w, r, wmeta)
@@ -72,7 +62,7 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
 		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
-		setJSONError(w, err, 500)
+		httputils.SetJSONError(w, err, 500)
 		return
 	}
 	w.Write(s)
@@ -89,7 +79,7 @@ func getHealth(w http.ResponseWriter, _ *http.Request) {
 	jsonHealth, err := json.Marshal(h)
 	if err != nil {
 		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, h)
-		setJSONError(w, err, 500)
+		httputils.SetJSONError(w, err, 500)
 		return
 	}
 
@@ -109,12 +99,12 @@ func getVersion(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	av, err := version.Agent()
 	if err != nil {
-		setJSONError(w, err, 500)
+		httputils.SetJSONError(w, err, 500)
 		return
 	}
 	j, err := json.Marshal(av)
 	if err != nil {
-		setJSONError(w, err, 500)
+		httputils.SetJSONError(w, err, 500)
 		return
 	}
 	w.Write(j)
@@ -129,7 +119,7 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	}
 	j, err := json.Marshal(hname)
 	if err != nil {
-		setJSONError(w, err, 500)
+		httputils.SetJSONError(w, err, 500)
 		return
 	}
 	w.Write(j)
@@ -154,7 +144,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 		}
 	}
 
-	logFile := config.Datadog.GetString("log_file")
+	logFile := config.Datadog().GetString("log_file")
 	if logFile == "" {
 		logFile = path.DefaultDCALogFile
 	}
@@ -165,7 +155,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 		} else {
 			log.Warnf("The flare failed to be created")
 		}
-		setJSONError(w, err, 500)
+		httputils.SetJSONError(w, err, 500)
 		return
 	}
 	w.Write([]byte(filePath))
@@ -173,25 +163,17 @@ func makeFlare(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 
 //nolint:revive // TODO(CINT) Fix revive linter
 func getConfigCheck(w http.ResponseWriter, _ *http.Request, ac autodiscovery.Component) {
-	var response integration.ConfigCheckResponse
+	w.Header().Set("Content-Type", "application/json")
 
-	configSlice := ac.LoadedConfigs()
-	sort.Slice(configSlice, func(i, j int) bool {
-		return configSlice[i].Name < configSlice[j].Name
-	})
-	response.Configs = configSlice
-	response.ResolveWarnings = autodiscoveryimpl.GetResolveWarnings()
-	response.ConfigErrors = autodiscoveryimpl.GetConfigErrors()
-	response.Unresolved = ac.GetUnresolvedTemplates()
+	configCheck := ac.GetConfigCheck()
 
-	jsonConfig, err := json.Marshal(response)
+	configCheckBytes, err := json.Marshal(configCheck)
 	if err != nil {
-		log.Errorf("Unable to marshal config check response: %s", err)
-		setJSONError(w, err, 500)
+		httputils.SetJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
 		return
 	}
 
-	w.Write(jsonConfig)
+	w.Write(configCheckBytes)
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
@@ -200,7 +182,7 @@ func getTaggerList(w http.ResponseWriter, _ *http.Request) {
 
 	jsonTags, err := json.Marshal(response)
 	if err != nil {
-		setJSONError(w, log.Errorf("Unable to marshal tagger list response: %s", err), 500)
+		httputils.SetJSONError(w, log.Errorf("Unable to marshal tagger list response: %s", err), 500)
 		return
 	}
 	w.Write(jsonTags)
@@ -218,15 +200,9 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 	response := wmeta.Dump(verbose)
 	jsonDump, err := json.Marshal(response)
 	if err != nil {
-		setJSONError(w, log.Errorf("Unable to marshal workload list response: %v", err), 500)
+		httputils.SetJSONError(w, log.Errorf("Unable to marshal workload list response: %v", err), 500)
 		return
 	}
 
 	w.Write(jsonDump)
-}
-
-func setJSONError(w http.ResponseWriter, err error, errorCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	body, _ := json.Marshal(map[string]string{"error": err.Error()})
-	http.Error(w, string(body), errorCode)
 }

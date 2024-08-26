@@ -34,5 +34,5 @@ func GetIPCAddress(config pkgconfigmodel.Reader) (string, error) {
 
 // GetIPCPort returns the IPC port
 func GetIPCPort() string {
-	return Datadog.GetString("cmd_port")
+	return Datadog().GetString("cmd_port")
 }

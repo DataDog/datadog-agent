@@ -1,5 +1,14 @@
 from __future__ import annotations
 
+import itertools
+import shutil
+
+from tasks.github_tasks import pr_commenter
+from tasks.kmt import download_complexity_data
+from tasks.libs.ciproviders.github_api import GithubAPI
+from tasks.libs.common.git import get_commit_sha, get_current_branch
+from tasks.libs.types.arch import Arch
+
 try:
     from termcolor import colored
 except ImportError:
@@ -11,10 +20,11 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from invoke.context import Context
 from invoke.exceptions import Exit
+from invoke.runners import Result
 from invoke.tasks import task
 
 if TYPE_CHECKING:
@@ -27,7 +37,7 @@ try:
 except ImportError:
     tabulate = None
 
-from .system_probe import build_cws_object_files, build_object_files, is_root
+from .system_probe import build_cws_object_files, build_object_files, get_ebpf_build_dir, is_root
 
 VERIFIER_DATA_DIR = Path("ebpf-calculator")
 LOGS_DIR = VERIFIER_DATA_DIR / "logs"
@@ -57,10 +67,9 @@ skip_stat_keys = ["Complexity", "verification_time"]
 
 
 def tabulate_stats(stats):
-    table = list()
+    table = []
     for key, value in stats.items():
-        row = list()
-        row.append(key)
+        row = [key]
         for json_key in verifier_stat_json_keys:
             row.append(value[json_key])
         table.append(row)
@@ -95,12 +104,24 @@ def write_verifier_stats(verifier_stats, f, jsonfmt):
         print(tabulate_stats(verifier_stats), file=f)
 
 
+class ComplexitySummaryEntry(TypedDict):
+    stack_usage: int  # noqa: F841
+    instruction_processed: int  # noqa: F841
+    limit: int  # noqa: F841
+    max_states_per_insn: int  # noqa: F841
+    peak_states: int  # noqa: F841
+    total_states: int  # noqa: F841
+
+
+ComplexitySummary = dict[str, ComplexitySummaryEntry]
+
+
 # the go program return stats in the form {func_name: {stat_name: {Value: X}}}.
 # convert this to {func_name: {stat_name: X}}
-def format_verifier_stats(verifier_stats):
-    filtered = dict()
+def format_verifier_stats(verifier_stats) -> ComplexitySummary:
+    filtered = {}
     for func in verifier_stats:
-        filtered[func] = dict()
+        filtered[func] = {}
         for stat in verifier_stats[func]:
             if stat not in skip_stat_keys:
                 filtered[func][stat] = verifier_stats[func][stat]["Value"]
@@ -134,7 +155,8 @@ def collect_verification_stats(
 
     ctx.run("go build -tags linux_bpf pkg/ebpf/verifier/calculator/main.go")
 
-    env = {"DD_SYSTEM_PROBE_BPF_DIR": "./pkg/ebpf/bytecode/build"}
+    arch = Arch.local()
+    env = {"DD_SYSTEM_PROBE_BPF_DIR": f"./{get_ebpf_build_dir(arch)}"}
 
     # ensure all files are object files
     for f in filter_file or []:
@@ -170,12 +192,12 @@ def collect_verification_stats(
     ctx.run(f"{sudo} chmod a+wr -R {VERIFIER_DATA_DIR}")
     ctx.run(f"{sudo} find {VERIFIER_DATA_DIR} -type d -exec chmod a+xr {{}} +")
 
-    with open(VERIFIER_STATS, "r+") as f:
-        verifier_stats = json.load(f)
+    with open(VERIFIER_STATS, "r+") as file:
+        verifier_stats = json.load(file)
         cleaned_up = format_verifier_stats(verifier_stats)
-        f.seek(0)
-        json.dump(cleaned_up, f, indent=4)
-        f.truncate()
+        file.seek(0)
+        json.dump(cleaned_up, file, indent=4)
+        file.truncate()
 
 
 @task(
@@ -208,16 +230,19 @@ def print_verification_stats(
     with open(base) as f:
         base_verifier_stats = json.load(f)
 
-    stats_diff = dict()
+    stats_diff = {}
     for key, value in verifier_stats.items():
-        stat = dict()
+        stat = {}
         if key not in base_verifier_stats:
             stats_diff[key] = value
             continue
 
         base_value = base_verifier_stats[key]
         for json_key in verifier_stat_json_keys:
-            stat[json_key] = colored_diff(value[json_key], base_value[json_key])
+            if jsonfmt:
+                stat[json_key] = value[json_key] - base_value[json_key]
+            else:
+                stat[json_key] = colored_diff(value[json_key], base_value[json_key])
 
         stats_diff[key] = stat
 
@@ -265,7 +290,7 @@ class ComplexityAssemblyInsn(TypedDict):
     code: str  # noqa: F841
     index: int  # noqa: F841
     times_processed: int  # noqa: F841
-    register_state: dict[str, ComplexityRegisterState]  # noqa: F841
+    register_state: dict[str, ComplexityRegisterState]  # noqa: F841  # Register state after the instruction is executed
     register_state_raw: str  # noqa: F841
 
 
@@ -276,6 +301,11 @@ class ComplexityData(TypedDict):
 
 def get_total_complexity_stats_len(compinfo_widths: tuple[int, int, int]):
     return sum(compinfo_widths) + 7  # 7 = 2 brackets + 2 pipes + 3 letters
+
+
+COMPLEXITY_THRESHOLD_LOW = 5
+COMPLEXITY_THRESHOLD_MEDIUM = 20
+COMPLEXITY_THRESHOLD_HIGH = 50
 
 
 def source_line_to_str(
@@ -294,11 +324,11 @@ def source_line_to_str(
         total = compl["total_instructions_processed"]
         compinfo = f"[{insn:{compinfo_widths[0]}d}i|{passes:{compinfo_widths[1]}d}p|{total:{compinfo_widths[2]}d}t]"
 
-        if total <= 5:
+        if total <= COMPLEXITY_THRESHOLD_LOW:
             color = "green"
-        elif total <= 20:
+        elif total <= COMPLEXITY_THRESHOLD_MEDIUM:
             color = "yellow"
-        elif total <= 50:
+        elif total <= COMPLEXITY_THRESHOLD_HIGH:
             color = "red"
         else:
             color = "magenta"
@@ -359,6 +389,17 @@ def get_complexity_for_function(object_file: str, function: str, debug=False) ->
         return json.load(f)
 
 
+def _get_sorted_list_of_files(complexity_data: ComplexityData):
+    num_asm_insns = len(complexity_data["insn_map"])
+    files_and_min_asm: dict[str, int] = collections.defaultdict(lambda: num_asm_insns)
+    for lineid, compl in complexity_data["source_map"].items():
+        file = lineid.split(":")[0]
+        min_asm_for_line = min(compl["assembly_insns"], default=num_asm_insns)
+        files_and_min_asm[file] = min(files_and_min_asm[file], min_asm_for_line)
+
+    return [x[0] for x in sorted(files_and_min_asm.items(), key=lambda x: x[1])]
+
+
 @task(
     help={
         "object_file": "The program to analyze",
@@ -382,7 +423,7 @@ def annotate_complexity(
 ):
     """Show source code with annotated complexity information for the given program and function"""
     complexity_data = get_complexity_for_function(object_file, function, debug)
-    all_files = {x.split(":")[0] for x in complexity_data["source_map"].keys()}
+    all_files = _get_sorted_list_of_files(complexity_data)
 
     if colored is None:
         raise Exit("termcolor is required to print colored output")
@@ -401,7 +442,7 @@ def annotate_complexity(
 
     compinfo_widths = (len(str(max_insn)), len(str(max_passes)), len(str(max_total)))
 
-    for f in sorted(all_files):
+    for f in all_files:
         if not os.path.exists(f):
             print(f"File {f} not found")
             continue
@@ -418,8 +459,8 @@ def annotate_complexity(
 
                 if compl is not None:
                     # We have complexity information for this line, print everything that we had in buffer
-                    for l in buffer:
-                        print(l)
+                    for lb in buffer:
+                        print(lb)
                     buffer.clear()
 
                     if show_assembly:
@@ -439,39 +480,34 @@ def annotate_complexity(
                                 )
                             )
 
-                            if show_register_state:
+                            # This is the register state after the statement is executed
+                            reg_state = asm_line.get("register_state")
+                            if show_register_state and reg_state is not None:
                                 # Get all the registers that were used in this instruction
                                 registers = re.findall(r"r\d+", asm_code)
 
-                                # The register state after this instruction is found in the next instruction
-                                # Also, JSON map indices are strings so we need to convert the asm_idx to a string
-                                next_insn = str(asm_idx + 1)
-                                if next_insn in complexity_data["insn_map"]:
-                                    next_insn_data = complexity_data["insn_map"][next_insn]
-                                    reg_state = next_insn_data["register_state"]
+                                if show_raw_register_state:
+                                    total_indent = 4 + 3 + get_total_complexity_stats_len(compinfo_widths)
+                                    raw_state = asm_line['register_state_raw'].split(':', 1)[1].strip()
+                                    print(f"{' ' * total_indent} | {colored(raw_state, 'blue', attrs=['dark'])}")
 
-                                    if show_raw_register_state:
-                                        total_indent = 4 + 3 + get_total_complexity_stats_len(compinfo_widths)
-                                        raw_state = next_insn_data['register_state_raw'].split(':', 1)[1].strip()
-                                        print(f"{' ' * total_indent} | {colored(raw_state, 'blue', attrs=['dark'])}")
-
-                                    for reg in registers:
-                                        reg_idx = reg[1:]  # Remove the 'r' prefix
-                                        if reg_idx in reg_state:
-                                            reg_data = reg_state[reg_idx]
-                                            reg_info = register_state_to_str(reg_data, compinfo_widths)
-                                            print(
-                                                colored(
-                                                    reg_info,
-                                                    "blue",
-                                                    attrs=["dark"],
-                                                )
+                                for reg in registers:
+                                    reg_idx = reg[1:]  # Remove the 'r' prefix
+                                    if reg_idx in reg_state:
+                                        reg_data = reg_state[reg_idx]
+                                        reg_info = register_state_to_str(reg_data, compinfo_widths)
+                                        print(
+                                            colored(
+                                                reg_info,
+                                                "blue",
+                                                attrs=["dark"],
                                             )
+                                        )
 
                 elif len(buffer) == 9:
                     # Print the last lines if we have no line information
-                    for l in buffer:
-                        print(l)
+                    for lb in buffer:
+                        print(lb)
 
     print_complexity_legend()
 
@@ -519,7 +555,382 @@ def show_top_complexity_lines(
             )
 
         with open(f) as src:
-            line = next(l for i, l in enumerate(src) if i + 1 == int(lineno))
+            line = next(line for i, line in enumerate(src) if i + 1 == int(lineno))
             print(lineid)
             print(source_line_to_str(int(lineno), line, compl, compinfo_widths))
             print()
+
+
+@task
+def generate_html_report(ctx: Context, dest_folder: str | Path):
+    """Generate an HTML report with the complexity data"""
+    try:
+        from jinja2 import Environment, FileSystemLoader, select_autoescape
+    except ImportError as e:
+        raise Exit("jinja2 is required to generate the HTML report") from e
+
+    if not VERIFIER_STATS.exists() or not COMPLEXITY_DATA_DIR.exists():
+        print("[!] No verifier stats found, regenerating them...")
+        collect_verification_stats(ctx, line_complexity=True)
+
+    dest_folder = Path(dest_folder)
+    dest_folder.mkdir(exist_ok=True, parents=True)
+
+    with open(VERIFIER_STATS) as f:
+        verifier_stats = json.load(f)
+
+    stats_by_object_and_program = collections.defaultdict(dict)
+
+    for prog, stats in verifier_stats.items():
+        object_file, function = prog.split("/")
+        stats_by_object_and_program[object_file][function] = stats
+
+    env = Environment(
+        loader=FileSystemLoader(Path(__file__).parent / "ebpf_verifier/html/templates"),
+        autoescape=select_autoescape(),
+        trim_blocks=True,
+    )
+
+    template = env.get_template("index.html.j2")
+    render = template.render(
+        title=f"eBPF complexity report - {get_current_branch(ctx)} - {get_commit_sha(ctx, short=True)}",
+        verifier_stats=stats_by_object_and_program,
+    )
+
+    index_file = dest_folder / "index.html"
+    index_file.write_text(render)
+
+    for file in COMPLEXITY_DATA_DIR.glob("**/*.json"):
+        object_file = file.parent.name
+        function = file.stem
+
+        if function == "mappings":
+            continue  # Ignore the mappings file
+
+        print(f"Generating report for {object_file}/{function}...")
+
+        with open(file) as f:
+            complexity_data: ComplexityData = json.load(f)
+
+        if "source_map" not in complexity_data:
+            print("Invalid complexity data file", file)
+            continue
+
+        # Define the complexity level for all assembly instructions
+        for insn in complexity_data["insn_map"].values():
+            if insn['times_processed'] <= COMPLEXITY_THRESHOLD_LOW:
+                level = 'low'
+            elif insn['times_processed'] <= COMPLEXITY_THRESHOLD_MEDIUM:
+                level = 'medium'
+            elif insn['times_processed'] <= COMPLEXITY_THRESHOLD_HIGH:
+                level = 'high'
+            else:
+                level = 'extreme'
+            insn['complexity_level'] = level  # type: ignore
+
+        all_files = _get_sorted_list_of_files(complexity_data)
+        file_contents = {}
+        for f in all_files:
+            if not os.path.exists(f):
+                print(f"File {f} not found")
+                continue
+
+            with open(f) as src:
+                file_contents[f] = []
+                for lineno, line in enumerate(src.read().splitlines()):
+                    lineid = f"{f}:{lineno + 1}"
+                    compl = complexity_data["source_map"].get(lineid)
+                    linedata = {"line": line, "complexity": compl}
+                    if compl is not None:
+                        if compl['num_instructions'] <= COMPLEXITY_THRESHOLD_LOW:
+                            linedata['complexity_level'] = 'low'
+                        elif compl['num_instructions'] <= COMPLEXITY_THRESHOLD_MEDIUM:
+                            linedata['complexity_level'] = 'medium'
+                        elif compl['num_instructions'] <= COMPLEXITY_THRESHOLD_HIGH:
+                            linedata['complexity_level'] = 'high'
+                        else:
+                            linedata['complexity_level'] = 'extreme'
+                    else:
+                        linedata['complexity_level'] = 'none'
+
+                    file_contents[f].append(linedata)
+
+        template = env.get_template("program.html.j2")
+        render = template.render(
+            title=f"{object_file}/{function} complexity analysis",
+            object_file=object_file,
+            function=function,
+            complexity_data=complexity_data,
+            file_contents=file_contents,
+        )
+        object_folder = dest_folder / object_file
+        object_folder.mkdir(exist_ok=True, parents=True)
+        complexity_file = object_folder / f"{function}.html"
+        complexity_file.write_text(render)
+
+    # Copy all static files
+    static_files = Path(__file__).parent / "ebpf_verifier/html/static"
+    for file in static_files.glob("*"):
+        print(f"Copying static {file} to {dest_folder}")
+        shutil.copy(file, dest_folder)
+
+
+@task(
+    help={
+        "skip_github_comment": "Do not comment on the PR with the complexity summary",
+        "branch_name": "Branch name to use for the complexity data. By default, the current branch is used",
+        "base_branch": "Base branch to compare against. If not provided, we will try to find a PR for the current branch, and use the base branch from there. If that fails, the main branch will be used",
+    }
+)
+def generate_complexity_summary_for_pr(
+    ctx: Context, skip_github_comment=False, branch_name: str | None = None, base_branch: str | None = None
+):
+    """Task meant to run in CI. Generates a summary of the complexity data for the current PR"""
+    if tabulate is None:
+        raise Exit("tabulate is required to print the complexity summary")
+
+    pr_comment_head = 'eBPF complexity changes'
+
+    if branch_name is None:
+        branch_name = get_current_branch(ctx)
+
+    if base_branch is None:
+        github = GithubAPI()
+        prs = list(github.get_pr_for_branch(branch_name))
+        if len(prs) == 0:
+            print(f"Warning: No PR found for branch {branch_name}, using main branch as base")
+            base_branch = "main"
+        elif len(prs) > 1:
+            print(f"Warning: Multiple PRs found for branch {branch_name}, using main branch as base")
+            base_branch = "main"
+        else:
+            base_branch = prs[0].base.ref
+            print(f"Found PR {prs[0].number} for this branch, using base branch {base_branch}")
+
+    def _exit_or_delete_github_comment(msg: str):
+        if skip_github_comment:
+            raise Exit(msg)
+        else:
+            print(f"{msg}: removing GitHub comment in PR")
+            pr_commenter(ctx, pr_comment_head, delete=True, force_delete=True)
+
+    # First, ensure we have the complexity data for our current branch
+    current_branch_artifacts_path: Path | str | None = os.getenv("DD_AGENT_TESTING_DIR")
+    if current_branch_artifacts_path is None:
+        raise Exit("DD_AGENT_TESTING_DIR is not set, cannot find the complexity data")
+
+    current_branch_artifacts_path = Path(current_branch_artifacts_path)
+    complexity_files = list(current_branch_artifacts_path.glob("verifier-complexity-*.tar.gz"))
+    if len(complexity_files) == 0:
+        _exit_or_delete_github_comment(
+            f"No complexity data found for the current branch at {current_branch_artifacts_path}"
+        )
+        return
+
+    # We have files, now get files for the main branch
+    common_ancestor = cast(
+        Result, ctx.run(f"git merge-base {branch_name} origin/{base_branch}", hide=True)
+    ).stdout.strip()
+    main_branch_complexity_path = Path("/tmp/verifier-complexity-main")
+    print(f"Downloading complexity data for {base_branch} branch (commit {common_ancestor})...")
+    download_complexity_data(ctx, common_ancestor, main_branch_complexity_path)
+
+    main_complexity_files = list(main_branch_complexity_path.glob("verifier-complexity-*"))
+    if len(main_complexity_files) == 0:
+        _exit_or_delete_github_comment(f"No complexity data found for the main branch at {main_branch_complexity_path}")
+        return
+
+    # Uncompress all local complexity files, and store the results
+    program_complexity = collections.defaultdict(list)  # Map each program to a list of
+    for file in complexity_files:
+        folder_name = file.name.replace('.tar.gz', '')
+        target_dir = current_branch_artifacts_path / folder_name
+        ctx.run(f"mkdir -p {target_dir}")
+        ctx.run(f"tar -xzf {file} -C {target_dir}")
+
+        main_data_path = main_branch_complexity_path / folder_name / "verifier_stats.json"
+        if not main_data_path.exists():
+            print(f"Error: Main branch data not found for {main_data_path}, skipping")
+            continue
+
+        branch_data_path = target_dir / "verifier_stats.json"
+        if not branch_data_path.exists():
+            print(f"Error: Branch data not found for {branch_data_path}, skipping")
+            continue
+
+        # Don't care about the splits at the last part of the name (security-agent, system-probe, etc)
+        name_parts = folder_name.split('-', 4)
+        if len(name_parts) != 5:
+            print(f"Error: Invalid folder name {folder_name}, skipping")
+            continue
+
+        arch = name_parts[2]
+        distro = name_parts[3]
+
+        try:
+            main_data = format_verifier_stats(json.loads(main_data_path.read_text()))
+        except Exception as e:
+            print(f"Error: Could not load data for {main_data_path}: {e}")
+            continue
+
+        try:
+            branch_data = format_verifier_stats(json.loads(branch_data_path.read_text()))
+        except Exception as e:
+            print(f"Error: Could not load data for {branch_data_path}: {e}")
+            continue
+
+        for program, stats in branch_data.items():
+            if program not in main_data:
+                print(f"Warn: Program {program} not found in main data for {folder_name}, skipping")
+                continue
+
+            program_complexity[program].append(
+                (
+                    arch,
+                    distro,
+                    stats["instruction_processed"],
+                    main_data[program]["instruction_processed"],
+                    stats["limit"],
+                )
+            )
+
+    if len(program_complexity) == 0:
+        _exit_or_delete_github_comment("No complexity data found, skipping report generation")
+        return
+
+    summarized_complexity_changes = []
+    max_complexity_rel_change = 0
+    max_complexity_abs_change = 0
+    threshold_for_max_limit = 0.85
+    programs_now_below_limit, programs_now_above_limit = 0, 0
+    for program, entries in sorted(program_complexity.items(), key=lambda x: max(e[2] for e in x[1])):
+        avg_new_complexity, avg_old_complexity = 0, 0
+        highest_new_complexity, highest_old_complexity = 0, 0
+        lowest_new_complexity, lowest_old_complexity = 1e9, 1e9  # instruction limit is always < 1e9
+        highest_complexity_platform, lowest_complexity_platform = "", ""
+
+        for arch, distro, new_complexity, old_complexity, limit in entries:
+            avg_new_complexity += new_complexity
+            avg_old_complexity += old_complexity
+
+            if new_complexity > highest_new_complexity:
+                highest_new_complexity = new_complexity
+                highest_old_complexity = old_complexity
+                highest_complexity_platform = f"{distro}/{arch}"
+
+            if new_complexity < lowest_new_complexity:
+                lowest_new_complexity = new_complexity
+                lowest_old_complexity = old_complexity
+                lowest_complexity_platform = f"{distro}/{arch}"
+
+            new_threshold = new_complexity / limit
+            old_threshold = old_complexity / limit
+
+            if new_threshold < threshold_for_max_limit and old_threshold >= threshold_for_max_limit:
+                programs_now_below_limit += 1
+            elif new_threshold >= threshold_for_max_limit and old_threshold < threshold_for_max_limit:
+                programs_now_above_limit += 1
+
+            abs_change = new_complexity - old_complexity
+            max_complexity_rel_change = max(max_complexity_rel_change, abs_change / old_complexity)
+            max_complexity_abs_change = max(max_complexity_abs_change, abs_change)
+
+        avg_new_complexity /= len(entries)
+        avg_old_complexity /= len(entries)
+
+        has_changes = (
+            avg_new_complexity != avg_old_complexity
+            or highest_new_complexity != highest_old_complexity
+            or lowest_new_complexity != lowest_old_complexity
+        )
+
+        row = [
+            program,
+            _format_change(avg_new_complexity, avg_old_complexity),
+            f"{highest_complexity_platform}: {_format_change(highest_new_complexity, highest_old_complexity)}",
+            f"{lowest_complexity_platform}: {_format_change(lowest_new_complexity, lowest_old_complexity)}",
+            has_changes,
+        ]
+        summarized_complexity_changes.append(row)
+
+    headers = ["Program", "Avg. complexity", "Distro with highest complexity", "Distro with lowest complexity"]
+    summarized_complexity_changes = sorted(summarized_complexity_changes, key=lambda x: x[0])
+
+    if max_complexity_rel_change < 0 and max_complexity_abs_change < 0 and programs_now_above_limit == 0:
+        state = "🎉 - improved"
+    elif max_complexity_rel_change < 0.05 and max_complexity_abs_change < 100 and programs_now_above_limit == 0:
+        state = "✅ - stable"
+    elif max_complexity_rel_change < 0.15 or max_complexity_abs_change < 1000 and programs_now_above_limit == 0:
+        state = "❔ - needs attention"
+    else:
+        state = "❗ - significant complexity increases"
+
+    pipeline_id = os.getenv("CI_PIPELINE_ID")
+
+    msg = f"### Summary result: {state}\n\n"
+    msg += f"* Highest complexity change (%): {max_complexity_rel_change * 100:+.2f}%\n"
+    msg += f"* Highest complexity change (abs.): {max_complexity_abs_change:+} instructions\n"
+    msg += f"* Programs that were above the {threshold_for_max_limit * 100}% limit of instructions and are now below: {programs_now_below_limit}\n"
+    msg += f"* Programs that were below the {threshold_for_max_limit * 100}% limit of instructions and are now above: {programs_now_above_limit}\n"
+    msg += "\n\n"
+
+    has_any_changes = False
+    for group, rows in itertools.groupby(summarized_complexity_changes, key=lambda x: x[0].split("/")[0]):
+        if not any(row[-1] for row in rows):
+            continue
+
+        rows = list(rows)  # Convert the iterator to a list, so we can iterate over it multiple times
+
+        def _build_table(orig_rows):
+            # Format rows to make it more compact, remove the changes marker and remove the object name
+            changed_rows = [[row[0].split("/")[1]] + row[1:-1] for row in orig_rows]
+            assert tabulate is not None  # For typing
+            return tabulate(changed_rows, headers=headers, tablefmt="github")
+
+        with_changes = [row for row in rows if row[-1]]
+        without_changes = [row for row in rows if not row[-1]]
+
+        msg += f"\n<details><summary>{group} details</summary>\n\n"
+        msg += f"## {group} [programs with changes]\n\n"
+        msg += _build_table(with_changes)
+        msg += f"\n\n## {group} [programs without changes]\n\n"
+        msg += _build_table(without_changes)
+        msg += "\n\n</details>\n"
+        has_any_changes = True
+
+    curr_commit = get_commit_sha(ctx, short=False)
+    msg += f"\n\nThis report was generated based on the complexity data for the current branch {branch_name} (pipeline [{pipeline_id}](https://gitlab.ddbuild.io/DataDog/datadog-agent/-/pipelines/{pipeline_id}), commit {curr_commit}) and the base branch {base_branch} (commit {common_ancestor}). Objects without changes are not reported. Contact [#ebpf-platform](https://dd.enterprise.slack.com/archives/C0424HA1SJK) if you have any questions/feedback."
+    msg += "\n\nTable complexity legend: 🔵 - new; ⚪ - unchanged; 🟢 - reduced; 🔴 - increased"
+
+    print(msg)
+
+    if skip_github_comment:
+        return
+
+    if not has_any_changes:
+        print("No changes detected, deleting comment")
+        pr_commenter(ctx, pr_comment_head, "", delete=True, force_delete=True)
+        return
+
+    pr_commenter(ctx, pr_comment_head, msg)
+    print("Commented on PR with complexity summary")
+
+
+def _format_change(new: float, old: float):
+    change_abs = new - old
+
+    if old == 0:
+        change_rel_str = "[NEW]"
+        emoji = "🔵"
+    else:
+        change_rel = change_abs / old
+        change_rel_str = f"{change_rel:+.2%}"
+
+        if change_rel == 0:
+            emoji = "⚪"
+        elif change_rel < 0:
+            emoji = "🟢"
+        else:
+            emoji = "🔴"
+
+    return f"{emoji} {new:.1f} ({change_abs:+.1f}, {change_rel_str})"

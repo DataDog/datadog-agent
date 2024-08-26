@@ -7,7 +7,10 @@ package autodiscoveryimpl
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -23,8 +26,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
+	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -37,7 +46,7 @@ type MockProvider struct {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (p *MockProvider) Collect(ctx context.Context) ([]integration.Config, error) {
+func (p *MockProvider) Collect(_ context.Context) ([]integration.Config, error) {
 	p.collectCounter++
 	return []integration.Config{}, nil
 }
@@ -47,7 +56,7 @@ func (p *MockProvider) String() string {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (p *MockProvider) IsUpToDate(ctx context.Context) (bool, error) {
+func (p *MockProvider) IsUpToDate(_ context.Context) (bool, error) {
 	return true, nil
 }
 
@@ -65,7 +74,7 @@ type MockListener struct {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (l *MockListener) Listen(newSvc, delSvc chan<- listeners.Service) {
+func (l *MockListener) Listen(_, _ chan<- listeners.Service) {
 	l.ListenCount++
 }
 
@@ -73,7 +82,7 @@ func (l *MockListener) Stop() {
 	l.stopReceived = true
 }
 
-func (l *MockListener) fakeFactory(listeners.Config) (listeners.ServiceListener, error) {
+func (l *MockListener) fakeFactory(listeners.Config, *acTelemetry.Store) (listeners.ServiceListener, error) {
 	return l, nil
 }
 
@@ -89,7 +98,7 @@ type factoryMock struct {
 	returnError error
 }
 
-func (o *factoryMock) make(listeners.Config) (listeners.ServiceListener, error) {
+func (o *factoryMock) make(listeners.Config, *acTelemetry.Store) (listeners.ServiceListener, error) {
 	o.Lock()
 	defer o.Unlock()
 	if o.callChan != nil {
@@ -127,10 +136,13 @@ func (o *factoryMock) resetCallChan() {
 
 type MockScheduler struct {
 	scheduled map[string]integration.Config
+	mutex     sync.RWMutex
 }
 
 // Schedule implements scheduler.Scheduler#Schedule.
 func (ms *MockScheduler) Schedule(configs []integration.Config) {
+	ms.mutex.Lock()
+	defer ms.mutex.Unlock()
 	for _, cfg := range configs {
 		ms.scheduled[cfg.Digest()] = cfg
 	}
@@ -138,6 +150,8 @@ func (ms *MockScheduler) Schedule(configs []integration.Config) {
 
 // Unchedule implements scheduler.Scheduler#Unchedule.
 func (ms *MockScheduler) Unschedule(configs []integration.Config) {
+	ms.mutex.Lock()
+	defer ms.mutex.Unlock()
 	for _, cfg := range configs {
 		delete(ms.scheduled, cfg.Digest())
 	}
@@ -145,6 +159,12 @@ func (ms *MockScheduler) Unschedule(configs []integration.Config) {
 
 // Stop implements scheduler.Scheduler#Stop.
 func (ms *MockScheduler) Stop() {}
+
+func (ms *MockScheduler) scheduledSize() int {
+	ms.mutex.Lock()
+	defer ms.mutex.Unlock()
+	return len(ms.scheduled)
+}
 
 type AutoConfigTestSuite struct {
 	suite.Suite
@@ -168,15 +188,15 @@ func (suite *AutoConfigTestSuite) SetupTest() {
 	suite.deps = createDeps(suite.T())
 }
 
-func getAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component]) *AutoConfig {
-	ac := createNewAutoConfig(scheduler, secretResolver, wmeta)
+func getAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], taggerComp tagger.Component, logsComp log.Component, telemetryComp telemetry.Component) *AutoConfig {
+	ac := createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp, logsComp, telemetryComp)
 	go ac.serviceListening()
 	return ac
 }
 
 func (suite *AutoConfigTestSuite) TestAddConfigProvider() {
 	mockResolver := MockSecretResolver{suite.T(), nil}
-	ac := getAutoConfig(scheduler.NewMetaScheduler(), &mockResolver, suite.deps.WMeta)
+	ac := getAutoConfig(scheduler.NewController(), &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp, suite.deps.LogsComp, suite.deps.Telemetry)
 	assert.Len(suite.T(), ac.configPollers, 0)
 	mp := &MockProvider{}
 	ac.AddConfigProvider(mp, false, 0)
@@ -193,7 +213,7 @@ func (suite *AutoConfigTestSuite) TestAddConfigProvider() {
 
 func (suite *AutoConfigTestSuite) TestAddListener() {
 	mockResolver := MockSecretResolver{suite.T(), nil}
-	ac := getAutoConfig(scheduler.NewMetaScheduler(), &mockResolver, suite.deps.WMeta)
+	ac := getAutoConfig(scheduler.NewController(), &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp, suite.deps.LogsComp, suite.deps.Telemetry)
 	assert.Len(suite.T(), ac.listeners, 0)
 
 	ml := &MockListener{}
@@ -231,7 +251,7 @@ func (suite *AutoConfigTestSuite) TestDiffConfigs() {
 
 func (suite *AutoConfigTestSuite) TestStop() {
 	mockResolver := MockSecretResolver{suite.T(), nil}
-	ac := getAutoConfig(scheduler.NewMetaScheduler(), &mockResolver, suite.deps.WMeta)
+	ac := getAutoConfig(scheduler.NewController(), &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp, suite.deps.LogsComp, suite.deps.Telemetry)
 
 	ml := &MockListener{}
 	listeners.Register("mock", ml.fakeFactory, ac.serviceListenerFactories)
@@ -244,7 +264,7 @@ func (suite *AutoConfigTestSuite) TestStop() {
 
 func (suite *AutoConfigTestSuite) TestListenerRetry() {
 	mockResolver := MockSecretResolver{suite.T(), nil}
-	ac := getAutoConfig(scheduler.NewMetaScheduler(), &mockResolver, suite.deps.WMeta)
+	ac := getAutoConfig(scheduler.NewController(), &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp, suite.deps.LogsComp, suite.deps.Telemetry)
 
 	// Hack the retry delay to shorten the test run time
 	initialListenerCandidateIntl := listenerCandidateIntl
@@ -347,12 +367,12 @@ func TestResolveTemplate(t *testing.T) {
 	deps := createDeps(t)
 	ctx := context.Background()
 
-	msch := scheduler.NewMetaScheduler()
+	msch := scheduler.NewController()
 	sch := &MockScheduler{scheduled: make(map[string]integration.Config)}
 	msch.Register("mock", sch, false)
 
 	mockResolver := MockSecretResolver{t, nil}
-	ac := getAutoConfig(msch, &mockResolver, deps.WMeta)
+	ac := getAutoConfig(msch, &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry)
 	tpl := integration.Config{
 		Name:          "cpu",
 		ADIdentifiers: []string{"redis"},
@@ -362,7 +382,7 @@ func TestResolveTemplate(t *testing.T) {
 	changes := ac.processNewConfig(tpl)
 	ac.applyChanges(changes) // processNewConfigs does not apply changes
 
-	assert.Len(t, sch.scheduled, 0)
+	assert.Equal(t, sch.scheduledSize(), 0)
 
 	service := dummyService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
@@ -370,8 +390,9 @@ func TestResolveTemplate(t *testing.T) {
 	}
 	// there are no template vars but it's ok
 	ac.processNewService(ctx, &service) // processNewService applies changes
-
-	assert.Len(t, sch.scheduled, 1)
+	assert.Eventually(t, func() bool {
+		return sch.scheduledSize() == 1
+	}, 5*time.Second, 10*time.Millisecond)
 }
 
 func countLoadedConfigs(ac *AutoConfig) int {
@@ -388,7 +409,7 @@ func TestRemoveTemplate(t *testing.T) {
 
 	mockResolver := MockSecretResolver{t, nil}
 
-	ac := getAutoConfig(scheduler.NewMetaScheduler(), &mockResolver, deps.WMeta)
+	ac := getAutoConfig(scheduler.NewController(), &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry)
 	// Add static config
 	c := integration.Config{
 		Name: "memory",
@@ -441,7 +462,7 @@ func TestDecryptConfig(t *testing.T) {
 		},
 	}}
 
-	ac := getAutoConfig(scheduler.NewMetaScheduler(), &mockResolver, deps.WMeta)
+	ac := getAutoConfig(scheduler.NewController(), &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry)
 	ac.processNewService(ctx, &dummyService{ID: "abcd", ADIdentifiers: []string{"redis"}})
 
 	tpl := integration.Config{
@@ -485,7 +506,7 @@ func TestProcessClusterCheckConfigWithSecrets(t *testing.T) {
 			returnedError:  nil,
 		},
 	}}
-	ac := getAutoConfig(scheduler.NewMetaScheduler(), &mockResolver, deps.WMeta)
+	ac := getAutoConfig(scheduler.NewController(), &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry)
 
 	tpl := integration.Config{
 		Provider:     names.ClusterChecks,
@@ -515,11 +536,68 @@ func TestProcessClusterCheckConfigWithSecrets(t *testing.T) {
 	assert.Equal(t, originalCheckID, ac.GetIDOfCheckWithEncryptedSecrets(newCheckID))
 }
 
+func TestWriteConfigEndpoint(t *testing.T) {
+	deps := createDeps(t)
+	configName := "testConfig"
+
+	mockResolver := MockSecretResolver{t, nil}
+	ac := getAutoConfig(scheduler.NewController(), &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry)
+
+	tpl := integration.Config{
+		Provider:     names.ClusterChecks,
+		Name:         configName,
+		InitConfig:   integration.Data{},
+		Instances:    []integration.Data{integration.Data("pass: 1234567")},
+		MetricConfig: integration.Data{},
+		LogsConfig:   integration.Data{},
+	}
+	changes := ac.processNewConfig(tpl)
+
+	require.Len(t, changes.Schedule, 1)
+
+	testCases := []struct {
+		name           string
+		request        *http.Request
+		expectedResult string
+	}{
+		{
+			name:           "With configuration scrubbed",
+			request:        httptest.NewRequest("GET", "http://example.com", nil),
+			expectedResult: "pass: \"********\"",
+		},
+		{
+			name:           "With nil Requet",
+			request:        nil,
+			expectedResult: "pass: \"********\"",
+		},
+		{
+			name:           "Without scrubbing configuration",
+			request:        httptest.NewRequest("GET", "http://example.com?raw=true", nil),
+			expectedResult: "pass: 1234567",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			responseRecorder := httptest.NewRecorder()
+			ac.writeConfigCheck(responseRecorder, tc.request)
+			var result integration.ConfigCheckResponse
+			out := responseRecorder.Body.Bytes()
+			err := json.Unmarshal(out, &result)
+			require.NoError(t, err)
+			assert.Equal(t, string(result.Configs[0].Instances[0]), tc.expectedResult)
+		})
+	}
+}
+
 type Deps struct {
 	fx.In
-	WMeta optional.Option[workloadmeta.Component]
+	WMeta      optional.Option[workloadmeta.Component]
+	TaggerComp tagger.Component
+	LogsComp   log.Component
+	Telemetry  telemetry.Component
 }
 
 func createDeps(t *testing.T) Deps {
-	return fxutil.Test[Deps](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	return fxutil.Test[Deps](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()), fx.Supply(tagger.NewFakeTaggerParams()), taggerimpl.Module())
 }

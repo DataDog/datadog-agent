@@ -12,7 +12,9 @@ import (
 	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	kubetypes "github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
@@ -20,7 +22,6 @@ import (
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -75,7 +76,7 @@ func (h *PodHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource
 		// Tags which should be on the tagger
 		for _, volume := range r.Spec.Volumes {
 			if volume.PersistentVolumeClaim != nil && volume.PersistentVolumeClaim.ClaimName != "" {
-				tag := fmt.Sprintf("%s:%s", kubernetes.PersistentVolumeClaimTagName, strings.ToLower(volume.PersistentVolumeClaim.ClaimName))
+				tag := fmt.Sprintf("%s:%s", tags.KubePersistentVolumeClaim, strings.ToLower(volume.PersistentVolumeClaim.ClaimName))
 				m.Tags = append(m.Tags, tag)
 			}
 		}
@@ -109,6 +110,7 @@ func (h *PodHandlers) BuildMessageBody(ctx processors.ProcessorContext, resource
 		HostName:    pctx.HostName,
 		Pods:        models,
 		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		Info:        pctx.SystemInfo,
 	}
 }
 
@@ -155,7 +157,7 @@ func (h *PodHandlers) ResourceVersion(ctx processors.ProcessorContext, resource,
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *PodHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*corev1.Pod)
-	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
+	redact.RemoveSensitiveAnnotationsAndLabels(r.Annotations, r.Labels)
 }
 
 // ScrubBeforeMarshalling is a handler called to redact the raw resource before

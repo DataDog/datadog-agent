@@ -21,14 +21,14 @@ type ReplaceRule struct {
 	Pattern string `mapstructure:"pattern"`
 
 	// Re holds the compiled Pattern and is only used internally.
-	Re *regexp.Regexp `mapstructure:"-"`
+	Re *regexp.Regexp `mapstructure:"-" json:"-"`
 
 	// Repl specifies the replacement string to be used when Pattern matches.
 	Repl string `mapstructure:"repl"`
 }
 
 func parseReplaceRules(cfg ddconfig.Config, key string) ([]*ReplaceRule, error) {
-	if !config.SystemProbe.IsSet(key) {
+	if !config.SystemProbe().IsSet(key) {
 		return nil, nil
 	}
 

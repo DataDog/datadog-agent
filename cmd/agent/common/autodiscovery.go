@@ -15,10 +15,11 @@ import (
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	confad "github.com/DataDog/datadog-agent/pkg/config/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
@@ -39,10 +40,13 @@ var (
 
 func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, ac autodiscovery.Component) {
 	providers.InitConfigFilesReader(confSearchPaths)
+
+	acTelemetryStore := ac.GetTelemetryStore()
+
 	ac.AddConfigProvider(
-		providers.NewFileConfigProvider(),
-		config.Datadog.GetBool("autoconf_config_files_poll"),
-		time.Duration(config.Datadog.GetInt("autoconf_config_files_poll_interval"))*time.Second,
+		providers.NewFileConfigProvider(acTelemetryStore),
+		config.Datadog().GetBool("autoconf_config_files_poll"),
+		time.Duration(config.Datadog().GetInt("autoconf_config_files_poll_interval"))*time.Second,
 	)
 
 	// Autodiscovery cannot easily use config.RegisterOverrideFunc() due to Unmarshalling
@@ -57,7 +61,7 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 	// Register additional configuration providers
 	var configProviders []config.ConfigurationProviders
 	var uniqueConfigProviders map[string]config.ConfigurationProviders
-	err := config.Datadog.UnmarshalKey("config_providers", &configProviders)
+	err := config.Datadog().UnmarshalKey("config_providers", &configProviders)
 
 	if err == nil {
 		uniqueConfigProviders = make(map[string]config.ConfigurationProviders, len(configProviders)+len(extraEnvProviders)+len(configProviders))
@@ -66,7 +70,7 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 		}
 
 		// Add extra config providers
-		for _, name := range config.Datadog.GetStringSlice("extra_config_providers") {
+		for _, name := range config.Datadog().GetStringSlice("extra_config_providers") {
 			if _, found := uniqueConfigProviders[name]; !found {
 				uniqueConfigProviders[name] = config.ConfigurationProviders{Name: name, Polling: true}
 			} else {
@@ -106,7 +110,7 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 	for _, cp := range uniqueConfigProviders {
 		factory, found := ac.GetProviderCatalog()[cp.Name]
 		if found {
-			configProvider, err := factory(&cp, wmeta)
+			configProvider, err := factory(&cp, wmeta, acTelemetryStore)
 			if err != nil {
 				log.Errorf("Error while adding config provider %v: %v", cp.Name, err)
 				continue
@@ -120,10 +124,10 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 	}
 
 	var listeners []config.Listeners
-	err = config.Datadog.UnmarshalKey("listeners", &listeners)
+	err = config.Datadog().UnmarshalKey("listeners", &listeners)
 	if err == nil {
 		// Add extra listeners
-		for _, name := range config.Datadog.GetStringSlice("extra_listeners") {
+		for _, name := range config.Datadog().GetStringSlice("extra_listeners") {
 			listeners = append(listeners, config.Listeners{Name: name})
 		}
 
@@ -278,7 +282,7 @@ func waitForConfigsFromAD(ctx context.Context,
 	stopChan := make(chan struct{})
 	// add the scheduler in a goroutine, since it will schedule any "catch-up" immediately,
 	// placing items in configChan
-	go ac.AddScheduler("check-cmd", schedulerFunc(func(configs []integration.Config) {
+	go ac.AddScheduler(adtypes.CheckCmdName, schedulerFunc(func(configs []integration.Config) {
 		var errorList []error
 		for _, cfg := range configs {
 			if instanceFilter != "" {

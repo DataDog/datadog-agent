@@ -31,22 +31,21 @@ func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
 	return l.Generate(serie.Name, serie.Host, tagset.NewHashingTagsAccumulatorWithTags(tags))
 }
 
-func testTimeSampler() *TimeSampler {
-	sampler := NewTimeSampler(TimeSamplerID(0), 10, tags.NewStore(false, "test"), "host")
+func testTimeSampler(store *tags.Store) *TimeSampler {
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, "host")
 	return sampler
 }
 
 // TimeSampler
 func TestCalculateBucketStart(t *testing.T) {
-	sampler := testTimeSampler()
+	sampler := testTimeSampler(tags.NewStore(true, "test"))
 
 	assert.Equal(t, int64(123450), sampler.calculateBucketStart(123456.5))
 	assert.Equal(t, int64(123460), sampler.calculateBucketStart(123460.5))
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func testBucketSampling(t *testing.T, store *tags.Store) {
-	sampler := testTimeSampler()
+	sampler := testTimeSampler(store)
 
 	mSample := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -79,9 +78,8 @@ func TestBucketSampling(t *testing.T) {
 	testWithTagsStore(t, testBucketSampling)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func testContextSampling(t *testing.T, store *tags.Store) {
-	sampler := testTimeSampler()
+	sampler := testTimeSampler(store)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name1",
@@ -147,9 +145,8 @@ func TestContextSampling(t *testing.T) {
 	testWithTagsStore(t, testContextSampling)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
-	sampler := testTimeSampler()
+	sampler := testTimeSampler(store)
 
 	math.Abs(1)
 	sampleCounter1 := &metrics.MetricSample{
@@ -159,7 +156,6 @@ func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 	}
-	contextCounter1 := generateContextKey(sampleCounter1)
 
 	sampleCounter2 := &metrics.MetricSample{
 		Name:       "my.counter2",
@@ -168,7 +164,6 @@ func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 	}
-	contextCounter2 := generateContextKey(sampleCounter2)
 
 	sampleGauge3 := &metrics.MetricSample{
 		Name:       "my.gauge",
@@ -181,8 +176,6 @@ func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 	sampler.sample(sampleCounter1, 1004.0)
 	sampler.sample(sampleCounter2, 1002.0)
 	sampler.sample(sampleGauge3, 1003.0)
-	// counterLastSampledByContext should be populated when a sample is added
-	assert.Equal(t, 2, len(sampler.counterLastSampledByContext))
 
 	series, _ := flushSerie(sampler, 1010.0)
 
@@ -217,10 +210,7 @@ func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 	}
 	expectedSeries := metrics.Series{expectedSerie1, expectedSerie2, expectedSerie3}
 
-	require.Equal(t, 2, len(sampler.counterLastSampledByContext))
 	metrics.AssertSeriesEqual(t, expectedSeries, series)
-	assert.Equal(t, 1004.0, sampler.counterLastSampledByContext[contextCounter1])
-	assert.Equal(t, 1002.0, sampler.counterLastSampledByContext[contextCounter2])
 
 	sampleCounter1 = &metrics.MetricSample{
 		Name:       "my.counter1",
@@ -271,27 +261,24 @@ func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 	// Counter1 should have stopped reporting but the context is not expired yet
 	// Counter2 should still report
 	assert.Equal(t, 1, len(series))
-	assert.Equal(t, 1, len(sampler.counterLastSampledByContext))
-	assert.Equal(t, 1, len(sampler.contextResolver.resolver.contextsByKey))
+	assert.Equal(t, 2, len(sampler.contextResolver.resolver.contextsByKey))
 
 	series, _ = flushSerie(sampler, 1800.0)
 	// Everything stopped reporting and is expired
 	assert.Equal(t, 0, len(series))
-	assert.Equal(t, 0, len(sampler.counterLastSampledByContext))
 	assert.Equal(t, 0, len(sampler.contextResolver.resolver.contextsByKey))
 }
 func TestCounterExpirySeconds(t *testing.T) {
 	testWithTagsStore(t, testCounterExpirySeconds)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func testSketch(t *testing.T, store *tags.Store) {
 	const (
 		defaultBucketSize = 10
 	)
 
 	var (
-		sampler = testTimeSampler()
+		sampler = testTimeSampler(store)
 
 		insert = func(t *testing.T, ts float64, name string, tags []string, host string, values ...float64) {
 			t.Helper()
@@ -358,9 +345,8 @@ func TestSketch(t *testing.T) {
 	testWithTagsStore(t, testSketch)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func testSketchBucketSampling(t *testing.T, store *tags.Store) {
-	sampler := testTimeSampler()
+	sampler := testTimeSampler(store)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name",
@@ -405,9 +391,8 @@ func TestSketchBucketSampling(t *testing.T) {
 	testWithTagsStore(t, testSketchBucketSampling)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func testSketchContextSampling(t *testing.T, store *tags.Store) {
-	sampler := testTimeSampler()
+	sampler := testTimeSampler(store)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name1",
@@ -459,9 +444,8 @@ func TestSketchContextSampling(t *testing.T) {
 	testWithTagsStore(t, testSketchContextSampling)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
-	sampler := testTimeSampler()
+	sampler := testTimeSampler(store)
 
 	dSample1 := metrics.MetricSample{
 		Name:       "distribution.metric.name1",
@@ -519,8 +503,8 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 	testWithTagsStore(t, testBucketSamplingWithSketchAndSeries)
 }
 
-func TestFlushMissingContext(t *testing.T) {
-	sampler := testTimeSampler()
+func testFlushMissingContext(t *testing.T, store *tags.Store) {
+	sampler := testTimeSampler(store)
 	sampler.sample(&metrics.MetricSample{
 		Name:       "test.gauge",
 		Value:      1,
@@ -535,7 +519,7 @@ func TestFlushMissingContext(t *testing.T) {
 	}, 1000)
 
 	// Simulate a sutation where contexts are expired prematurely.
-	sampler.contextResolver.expireContexts(10000, nil)
+	sampler.contextResolver.expireContexts(10000)
 
 	assert.Len(t, sampler.contextResolver.resolver.contextsByKey, 0)
 
@@ -543,6 +527,9 @@ func TestFlushMissingContext(t *testing.T) {
 
 	assert.Len(t, metrics, 0)
 	assert.Len(t, sketches, 0)
+}
+func TestFlushMissingContext(t *testing.T) {
+	testWithTagsStore(t, testFlushMissingContext)
 }
 
 func benchmarkTimeSampler(b *testing.B, store *tags.Store) {

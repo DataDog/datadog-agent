@@ -9,7 +9,6 @@ from invoke.context import Context
 from invoke.runners import Result
 
 from tasks.kernel_matrix_testing.infra import (
-    ask_for_ssh,
     build_infrastructure,
     ensure_key_in_agent,
     ensure_key_in_ec2,
@@ -25,7 +24,7 @@ from tasks.kernel_matrix_testing.libvirt import (
     resource_in_stack,
     resume_domains,
 )
-from tasks.kernel_matrix_testing.tool import Exit, NoLibvirt, error, info
+from tasks.kernel_matrix_testing.tool import Exit, NoLibvirt, error, info, warn
 from tasks.kernel_matrix_testing.vars import VMCONFIG
 
 if TYPE_CHECKING:
@@ -117,7 +116,7 @@ def get_all_vms_in_stack(stack: PathOrStr):
     from tasks.kernel_matrix_testing.vmconfig import get_vmconfig
 
     data = get_vmconfig(f"{get_kmt_os().stacks_dir}/{stack}/{VMCONFIG}")
-    vms: list[str] = list()
+    vms: list[str] = []
 
     for vmset in data["vmsets"]:
         for kernel in vmset.get("kernels", []):
@@ -188,7 +187,7 @@ def launch_stack(
 ):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'")
 
     if not vm_config_exists(stack):
         raise Exit(f"No {VMCONFIG} for stack {stack}. Refer to 'inv kmt.gen-config --help'")
@@ -199,12 +198,11 @@ def launch_stack(
     ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
 
     if remote_vms_in_config(vm_config):
-        if ssh_key_obj is None and ask_for_ssh():
+        if ssh_key_obj is None:
             raise Exit("No ssh key provided. Pass with '--ssh-key=<key-name>' or configure it with kmt.config-ssh-key")
 
-        if ssh_key_obj is not None:
-            ensure_key_in_agent(ctx, ssh_key_obj)
-            ensure_key_in_ec2(ctx, ssh_key_obj)
+        ensure_key_in_agent(ctx, ssh_key_obj)
+        ensure_key_in_ec2(ctx, ssh_key_obj)
 
     env = [
         "TEAM=ebpf-platform",
@@ -286,8 +284,15 @@ def destroy_ec2_instances(ctx: Context, stack: str):
     if not os.path.exists(stack_output):
         return
 
-    infra = build_infrastructure(stack)
-    ips: list[str] = list()
+    try:
+        infra = build_infrastructure(stack)
+    except RuntimeError:
+        warn(
+            f"[-] Failed to read stack output file {stack_output}, this might be due to stack not being created properly. If you know there are EC2 instances remaining, please use the AWS console to terminate them."
+        )
+        return
+
+    ips: list[str] = []
     for arch, instance in infra.items():
         if arch != "local":
             ips.append(instance.ip)
@@ -330,7 +335,7 @@ def destroy_stack_force(ctx: Context, stack: str):
     stack_dir = os.path.join(get_kmt_os().stacks_dir, stack)
     vm_config = os.path.join(stack_dir, VMCONFIG)
 
-    if local_vms_in_config(vm_config):
+    if os.path.exists(vm_config) and local_vms_in_config(vm_config):
         if libvirt is None:
             raise NoLibvirt()
 
@@ -374,7 +379,7 @@ def destroy_stack_force(ctx: Context, stack: str):
 def destroy_stack(ctx: Context, stack: str | None, pulumi: bool, ssh_key: str | None):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'")
 
     info(f"[*] Destroying stack {stack}")
     if pulumi:
@@ -388,7 +393,7 @@ def destroy_stack(ctx: Context, stack: str | None, pulumi: bool, ssh_key: str | 
 def pause_stack(stack: str | None = None):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'")
     if libvirt is None:
         raise NoLibvirt()
     conn = libvirt.open(get_kmt_os().libvirt_socket)
@@ -399,7 +404,7 @@ def pause_stack(stack: str | None = None):
 def resume_stack(stack=None):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'")
     if libvirt is None:
         raise NoLibvirt()
     conn = libvirt.open(get_kmt_os().libvirt_socket)

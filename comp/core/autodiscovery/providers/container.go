@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,15 +29,17 @@ type ContainerConfigProvider struct {
 	configErrors      map[string]ErrorMsgSet                   // map[entity name]ErrorMsgSet
 	configCache       map[string]map[string]integration.Config // map[entity name]map[config digest]integration.Config
 	mu                sync.RWMutex
+	telemetryStore    *telemetry.Store
 }
 
 // NewContainerConfigProvider returns a new ConfigProvider subscribed to both container
 // and pods
-func NewContainerConfigProvider(_ *config.ConfigurationProviders, wmeta workloadmeta.Component) (ConfigProvider, error) {
+func NewContainerConfigProvider(_ *config.ConfigurationProviders, wmeta workloadmeta.Component, telemetryStore *telemetry.Store) (ConfigProvider, error) {
 	return &ContainerConfigProvider{
 		workloadmetaStore: wmeta,
 		configCache:       make(map[string]map[string]integration.Config),
 		configErrors:      make(map[string]ErrorMsgSet),
+		telemetryStore:    telemetryStore,
 	}, nil
 }
 
@@ -56,13 +58,11 @@ func (k *ContainerConfigProvider) Stream(ctx context.Context) <-chan integration
 	// need to be generated before any associated services.
 	outCh := make(chan integration.ConfigChanges)
 
-	filterParams := workloadmeta.FilterParams{
-		Kinds:     []workloadmeta.Kind{workloadmeta.KindKubernetesPod, workloadmeta.KindContainer},
-		Source:    workloadmeta.SourceAll,
-		EventType: workloadmeta.EventTypeAll,
-	}
-
-	inCh := k.workloadmetaStore.Subscribe(name, workloadmeta.ConfigProviderPriority, workloadmeta.NewFilter(&filterParams))
+	filter := workloadmeta.NewFilterBuilder().
+		AddKind(workloadmeta.KindContainer).
+		AddKind(workloadmeta.KindKubernetesPod).
+		Build()
+	inCh := k.workloadmetaStore.Subscribe(name, workloadmeta.ConfigProviderPriority, filter)
 
 	go func() {
 		for {
@@ -151,7 +151,9 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 		}
 	}
 
-	telemetry.Errors.Set(float64(len(k.configErrors)), names.KubeContainer)
+	if k.telemetryStore != nil {
+		k.telemetryStore.Errors.Set(float64(len(k.configErrors)), names.KubeContainer)
+	}
 
 	return changes
 }

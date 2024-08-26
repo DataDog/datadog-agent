@@ -12,7 +12,7 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -30,7 +30,7 @@ func NewRuntimeSecurityAgent(statsdClient statsd.ClientInterface, hostname strin
 		return nil, errors.New("failed to initialize the telemetry reporter")
 	}
 	// on windows do no storage manager
-	storage, err := dump.NewSecurityAgentStorageManager()
+	storage, err := dump.NewAgentStorageManager()
 	if err != nil {
 		return nil, err
 	}

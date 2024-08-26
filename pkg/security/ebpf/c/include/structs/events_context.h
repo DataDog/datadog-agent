@@ -5,7 +5,6 @@
 #include "dentry_resolver.h"
 
 struct kevent_t {
-    u64 cpu;
     u64 timestamp;
     u32 type;
     u32 flags;
@@ -15,9 +14,14 @@ struct syscall_t {
     s64 retval;
 };
 
+struct syscall_context_t {
+    u32 id;
+    u32 padding;
+};
+
 struct span_context_t {
-   u64 span_id;
-   u64 trace_id;
+    u64 span_id;
+    u64 trace_id[2];
 };
 
 struct process_context_t {
@@ -28,9 +32,9 @@ struct process_context_t {
     u64 inode;
 };
 
-struct container_context_t {
-    char container_id[CONTAINER_ID_LEN];
-};
+typedef char container_id_t[CONTAINER_ID_LEN];
+
+typedef char cgroup_prefix_t[256];
 
 struct ktimeval {
     long tv_sec;
@@ -53,6 +57,16 @@ struct file_t {
     u32 dev;
     u32 flags;
     struct file_metadata_t metadata;
+};
+
+struct cgroup_context_t {
+    u64 cgroup_flags;
+    struct path_key_t cgroup_file;
+};
+
+struct container_context_t {
+    container_id_t container_id;
+    struct cgroup_context_t cgroup_context;
 };
 
 #endif

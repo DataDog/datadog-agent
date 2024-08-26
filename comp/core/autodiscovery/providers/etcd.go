@@ -8,17 +8,18 @@
 package providers
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"strings"
 	"time"
 
 	"go.etcd.io/etcd/client/v2"
-	"golang.org/x/net/context"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,7 +37,7 @@ type EtcdConfigProvider struct {
 }
 
 // NewEtcdConfigProvider creates a client connection to etcd and create a new EtcdConfigProvider
-func NewEtcdConfigProvider(providerConfig *config.ConfigurationProviders) (ConfigProvider, error) {
+func NewEtcdConfigProvider(providerConfig *config.ConfigurationProviders, _ *telemetry.Store) (ConfigProvider, error) {
 	if providerConfig == nil {
 		providerConfig = &config.ConfigurationProviders{}
 	}

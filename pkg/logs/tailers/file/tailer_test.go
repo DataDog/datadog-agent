@@ -105,7 +105,7 @@ func (suite *TailerTestSuite) TestTialerTimeDurationConfig() {
 	// To satisfy the suite level tailer
 	suite.tailer.StartFromBeginning()
 
-	coreConfig.Datadog.SetWithoutSource("logs_config.close_timeout", 42)
+	coreConfig.Datadog().SetWithoutSource("logs_config.close_timeout", 42)
 	sleepDuration := 10 * time.Millisecond
 	info := status.NewInfoRegistry()
 
@@ -349,6 +349,38 @@ func (suite *TailerTestSuite) TestBuildTagsFileDir() {
 		"filename:" + filepath.Base(suite.testFile.Name()),
 		"dirname:" + filepath.Dir(suite.testFile.Name()),
 	}, tags)
+}
+
+func (suite *TailerTestSuite) TestTruncatedTag() {
+	coreConfig.Datadog().SetWithoutSource("logs_config.max_message_size_bytes", 3)
+	coreConfig.Datadog().SetWithoutSource("logs_config.tag_truncated_logs", true)
+	defer coreConfig.Datadog().SetWithoutSource("logs_config.max_message_size_bytes", coreConfig.DefaultMaxMessageSizeBytes)
+	defer coreConfig.Datadog().SetWithoutSource("logs_config.tag_truncated_logs", false)
+
+	source := sources.NewLogSource("", &config.LogsConfig{
+		Type: config.FileType,
+		Path: suite.testPath,
+	})
+	sleepDuration := 10 * time.Millisecond
+	info := status.NewInfoRegistry()
+
+	tailerOptions := &TailerOptions{
+		OutputChan:    suite.outputChan,
+		File:          NewFile(suite.testPath, source, true),
+		SleepDuration: sleepDuration,
+		Decoder:       decoder.NewDecoderFromSource(suite.source, info),
+		Info:          info,
+	}
+
+	suite.tailer = NewTailer(tailerOptions)
+	suite.tailer.StartFromBeginning()
+
+	_, err := suite.testFile.WriteString("1234\n")
+	suite.Nil(err)
+
+	msg := <-suite.outputChan
+	tags := msg.Tags()
+	suite.Contains(tags, message.TruncatedTag)
 }
 
 func (suite *TailerTestSuite) TestMutliLineAutoDetect() {

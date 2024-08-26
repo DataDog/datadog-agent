@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="kitchen_windows_installer_agent-a6" tests="20" skipped="0" failures="0" errors="0" time="12.321606" timestamp="2024-05-22T12:42:17+00:00" hostname="ddatwin2016">
+<properties>
+<property name="seed" value="6290"/>
+</properties>
+<testcase classname="win-user_spec" name="dd-agent-win-user behaves like an Agent with APM enabled has apm enabled" file="./test/kitchen/test/integration/win-user/rspec_datadog/win-user_spec.rb" time="0.007469"></testcase>
+<testcase classname="win-user_spec" name="dd-agent-win-user behaves like an Agent with process enabled has process enabled" file="./test/kitchen/test/integration/win-user/rspec_datadog/win-user_spec.rb" time="0.001710"></testcase>
+<testcase classname="win-user_spec" name="dd-agent-win-user behaves like an Agent with valid permissions has proper permissions on programdata\datadog" file="./test/kitchen/test/integration/win-user/rspec_datadog/win-user_spec.rb" time="0.307806"></testcase>
+<testcase classname="win-user_spec" name="dd-agent-win-user behaves like an Agent with valid permissions has proper permissions on datadog.yaml" file="./test/kitchen/test/integration/win-user/rspec_datadog/win-user_spec.rb" time="0.287695"></testcase>
+<testcase classname="win-user_spec" name="dd-agent-win-user behaves like an Agent with valid permissions has proper permissions on the conf.d directory" file="./test/kitchen/test/integration/win-user/rspec_datadog/win-user_spec.rb" time="0.305810"></testcase>
+<testcase classname="win-user_spec" name="dd-agent-win-user behaves like an Agent with valid permissions has the proper permissions on the DataDog registry key" file="./test/kitchen/test/integration/win-user/rspec_datadog/win-user_spec.rb" time="0.311728"></testcase>
+<testcase classname="win-user_spec" name="dd-agent-win-user behaves like an Agent with valid permissions has agent.exe running as ddagentuser" file="./test/kitchen/test/integration/win-user/rspec_datadog/win-user_spec.rb" time="0.097883"></testcase>
+<testcase classname="win-user_spec" name="dd-agent-win-user behaves like an Agent with valid permissions has trace agent running as ddagentuser" file="./test/kitchen/test/integration/win-user/rspec_datadog/win-user_spec.rb" time="0.031536"></testcase>
+<testcase classname="win-user_spec" name="dd-agent-win-user behaves like an Agent with valid permissions has process agent running as local_system" file="./test/kitchen/test/integration/win-user/rspec_datadog/win-user_spec.rb" time="0.031709"></testcase>
+<testcase classname="win-user_spec" name="dd-agent-win-user behaves like an Agent with valid permissions has proper security rights assigned" file="./test/kitchen/test/integration/win-user/rspec_datadog/win-user_spec.rb" time="0.000187"></testcase>
+<testcase classname="win-user_spec" name="dd-agent-win-user behaves like an Agent with valid permissions is in proper groups" file="./test/kitchen/test/integration/win-user/rspec_datadog/win-user_spec.rb" time="0.112935"></testcase>
+<testcase classname="win-user_spec" name="dd-agent-win-user behaves like a running Agent with no errors has an agent binary" file="./test/kitchen/test/integration/win-user/rspec_datadog/win-user_spec.rb" time="0.000120"></testcase>
+<testcase classname="win-user_spec" name="dd-agent-win-user behaves like a running Agent with no errors is running" file="./test/kitchen/test/integration/win-user/rspec_datadog/win-user_spec.rb" time="0.171053"></testcase>
+<testcase classname="win-user_spec" name="dd-agent-win-user behaves like a running Agent with no errors has a config file" file="./test/kitchen/test/integration/win-user/rspec_datadog/win-user_spec.rb" time="0.002276"></testcase>
+<testcase classname="win-user_spec" name="dd-agent-win-user behaves like a running Agent with no errors has running checks" file="./test/kitchen/test/integration/win-user/rspec_datadog/win-user_spec.rb" time="1.070137"></testcase>
+<testcase classname="win-user_spec" name="dd-agent-win-user behaves like a running Agent with no errors has an info command" file="./test/kitchen/test/integration/win-user/rspec_datadog/win-user_spec.rb" time="8.120537"></testcase>
+<testcase classname="win-user_spec" name="dd-agent-win-user behaves like a running Agent with no errors has no errors in the info command" file="./test/kitchen/test/integration/win-user/rspec_datadog/win-user_spec.rb" time="1.031190"></testcase>
+<testcase classname="win-user_spec" name="dd-agent-win-user behaves like a running Agent with APM has the apm agent running" file="./test/kitchen/test/integration/win-user/rspec_datadog/win-user_spec.rb" time="0.202797"></testcase>
+<testcase classname="win-user_spec" name="dd-agent-win-user behaves like a running Agent with APM is bound to the port that receives traces by default" file="./test/kitchen/test/integration/win-user/rspec_datadog/win-user_spec.rb" time="0.018135"></testcase>
+<testcase classname="win-user_spec" name="dd-agent-win-user behaves like a running Agent with process enabled has the process agent running" file="./test/kitchen/test/integration/win-user/rspec_datadog/win-user_spec.rb" time="0.203710"></testcase>
+</testsuite>

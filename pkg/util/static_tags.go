@@ -32,7 +32,7 @@ func GetStaticTagsSlice(ctx context.Context) []string {
 	tags := []string{}
 
 	// DD_TAGS / DD_EXTRA_TAGS
-	tags = append(tags, configUtils.GetConfiguredTags(config.Datadog, false)...)
+	tags = append(tags, configUtils.GetConfiguredTags(config.Datadog(), false)...)
 
 	// EKS Fargate specific tags
 	if config.IsFeaturePresent(config.EKSFargate) {

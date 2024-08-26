@@ -456,7 +456,7 @@ func isManagedByHelm(object metav1.Object) bool {
 }
 
 func isLeader() (bool, error) {
-	if !config.Datadog.GetBool("leader_election") {
+	if !config.Datadog().GetBool("leader_election") {
 		return false, errors.New("leader election not enabled. The check will not run")
 	}
 

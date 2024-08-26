@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
@@ -48,41 +49,32 @@ func testServer(t *testing.T, opts ...Option) {
 		assert.Equal(t, "server not running", err.Error())
 	})
 
-	for _, tt := range []struct {
-		name         string
-		opt          Option
-		expectedAddr string
-	}{
-		{
-			name:         "Make sure WithPort sets the port correctly",
-			opt:          WithPort(1234),
-			expectedAddr: "0.0.0.0:1234",
-		},
-		{
-			name:         "Make sure WithAddress sets the port correctly",
-			opt:          WithAddress("127.0.0.1:3456"),
-			expectedAddr: "127.0.0.1:3456",
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			newOpts := append(opts, tt.opt)
-			fi := NewServer(newOpts...)
-			assert.Equal(t, tt.expectedAddr, fi.server.Addr)
-			fi.Start()
-			assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-				assert.True(collect, fi.IsRunning())
-				resp, err := http.Get(fmt.Sprintf("http://%s/fakeintake/health", tt.expectedAddr))
-				assert.NoError(collect, err)
-				if err != nil {
-					return
-				}
-				defer resp.Body.Close()
-				assert.Equal(collect, http.StatusOK, resp.StatusCode)
-			}, 500*time.Millisecond, 10*time.Millisecond)
-			err := fi.Stop()
-			assert.NoError(t, err)
-		})
-	}
+	t.Run("Make sure WithPort sets the port correctly", func(t *testing.T) {
+		// do not start the server to avoid actually binding to 0.0.0.0
+		newOpts := append(opts, WithPort(1234))
+		fi := NewServer(newOpts...)
+		assert.Equal(t, "0.0.0.0:1234", fi.server.Addr)
+	})
+
+	t.Run("Make sure WithAddress sets the port correctly", func(t *testing.T) {
+		expectedAddr := "127.0.0.1:3456"
+		newOpts := append(opts, WithAddress(expectedAddr))
+		fi := NewServer(newOpts...)
+		assert.Equal(t, expectedAddr, fi.server.Addr)
+		fi.Start()
+		assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+			assert.True(collect, fi.IsRunning())
+			resp, err := http.Get(fmt.Sprintf("http://%s/fakeintake/health", expectedAddr))
+			assert.NoError(collect, err)
+			if err != nil {
+				return
+			}
+			defer resp.Body.Close()
+			assert.Equal(collect, http.StatusOK, resp.StatusCode)
+		}, 500*time.Millisecond, 10*time.Millisecond)
+		err := fi.Stop()
+		assert.NoError(t, err)
+	})
 
 	t.Run("should run after start", func(t *testing.T) {
 		newOpts := append(opts, WithClock(clock.NewMock()), WithAddress("127.0.0.1:0"))
@@ -202,14 +194,16 @@ func testServer(t *testing.T, opts ...Option) {
 		expectedResponse := api.APIFakeIntakePayloadsRawGETResponse{
 			Payloads: []api.Payload{
 				{
-					Timestamp: clock.Now().UTC(),
-					Encoding:  "text/plain",
-					Data:      []byte("totoro|7|tag:valid,owner:pducolin"),
+					Timestamp:   clock.Now().UTC(),
+					Encoding:    "text/plain",
+					Data:        []byte("totoro|7|tag:valid,owner:pducolin"),
+					ContentType: "text/plain",
 				},
 				{
-					Timestamp: clock.Now().UTC(),
-					Encoding:  "text/plain",
-					Data:      []byte("totoro|5|tag:valid,owner:kiki"),
+					Timestamp:   clock.Now().UTC(),
+					Encoding:    "text/plain",
+					Data:        []byte("totoro|5|tag:valid,owner:kiki"),
+					ContentType: "text/plain",
 				},
 			},
 		}
@@ -425,7 +419,6 @@ func testServer(t *testing.T, opts ...Option) {
 				json.NewDecoder(cleanedResponse.Body).Decode(&getCleanedResponse)
 				return len(getCleanedResponse.Payloads) == 2
 			}, 5*time.Second, 100*time.Millisecond, "should contain 2 elements after cleanup of only older elements")
-			fi.Stop()
 		})
 	}
 
@@ -603,6 +596,38 @@ func testServer(t *testing.T, opts ...Option) {
 		responseBody, err := io.ReadAll(response.Body)
 		require.NoError(t, err, "Error reading response body")
 		assert.Equal(t, []byte(`{"errors":[]}`), responseBody)
+	})
+
+	t.Run("should contain a Fakeintake-ID header", func(t *testing.T) {
+		fi, _ := InitialiseForTests(t, opts...)
+		defer fi.Stop()
+
+		response, err := http.Get(fi.URL() + "/fakeintake/health")
+		require.NoError(t, err, "Error on GET request")
+		defer response.Body.Close()
+		assert.NotEmpty(t, response.Header.Get("Fakeintake-ID"), "Fakeintake-ID header is empty")
+		assert.Equal(t, http.StatusOK, response.StatusCode, "unexpected code")
+	})
+	t.Run("should forward payload to dddev", func(t *testing.T) {
+		testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			t.Logf("Received request in test %+v", r)
+			responseBody, err := io.ReadAll(r.Body)
+			require.NoError(t, err, "Error reading request body")
+			assert.Equal(t, "totoro|5|tag:valid,owner:toto", string(responseBody))
+			assert.Equal(t, r.Header.Get("DD-API-KEY"), "thisisatestapikey")
+			w.WriteHeader(http.StatusAccepted)
+		}))
+
+		defer testServer.Close()
+		testOpts := append(opts, withForwardEndpoint(testServer.URL), withDDDevAPIKey("thisisatestapikey"), WithDDDevForward())
+		fi, _ := InitialiseForTests(t, testOpts...)
+		defer fi.Stop()
+		res, err := http.Post(fi.URL()+"/totoro", "text/plain", strings.NewReader("totoro|5|tag:valid,owner:toto"))
+		require.NoError(t, err, "Error on POST request")
+		defer res.Body.Close()
+		t.Logf("Response: %v", res)
+		assert.Equal(t, http.StatusOK, res.StatusCode, "unexpected code")
+
 	})
 }
 

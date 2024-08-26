@@ -10,6 +10,19 @@ import (
 	"encoding/json"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"modernc.org/mathutil"
+)
+
+// Mode defines ptrace mode
+type Mode string
+
+const (
+	// UnknownMode unknown mode
+	UnknownMode Mode = "unknown"
+	// WrappedMode ptrace wrapping the binary
+	WrappedMode Mode = "wrapped"
+	// AttachedMode ptrace attached to a pid
+	AttachedMode = "attached"
 )
 
 // MessageType defines the type of a message
@@ -150,6 +163,11 @@ type DupSyscallFakeMsg struct {
 	OldFd int32
 }
 
+// PipeSyscallFakeMsg defines a pipe message
+type PipeSyscallFakeMsg struct {
+	FdsPtr uint64
+}
+
 // ChdirSyscallMsg defines a chdir message
 type ChdirSyscallMsg struct {
 	Dir FileSyscallMsg
@@ -266,7 +284,7 @@ type UnloadModuleSyscallMsg struct {
 // SpanContext stores a span context (if any)
 type SpanContext struct {
 	SpanID  uint64
-	TraceID uint64
+	TraceID mathutil.Int128
 }
 
 // MountSyscallMsg defines a mount message
@@ -314,7 +332,8 @@ type SyscallMsg struct {
 	Umount       *UmountSyscallMsg       `json:",omitempty"`
 
 	// internals
-	Dup *DupSyscallFakeMsg `json:",omitempty"`
+	Dup  *DupSyscallFakeMsg  `json:",omitempty"`
+	Pipe *PipeSyscallFakeMsg `json:",omitempty"`
 }
 
 // String returns string representation
@@ -328,11 +347,11 @@ type HelloMsg struct {
 	NSID             uint64
 	ContainerContext *ContainerContext
 	EntrypointArgs   []string
+	Mode             Mode
 }
 
 // Message defines a message
 type Message struct {
-	SeqNum  uint64
 	Type    MessageType
 	Hello   *HelloMsg   `json:",omitempty"`
 	Syscall *SyscallMsg `json:",omitempty"`
@@ -346,7 +365,6 @@ func (m Message) String() string {
 
 // Reset resets a message
 func (m *Message) Reset() {
-	m.SeqNum = 0
 	m.Type = MessageTypeUnknown
 	m.Hello = nil
 	m.Syscall = nil

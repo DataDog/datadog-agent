@@ -21,17 +21,23 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
-	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log/tracelogimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/trace"
-	"github.com/DataDog/datadog-agent/comp/trace/agent"
+	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
+	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -40,7 +46,6 @@ import (
 
 // MakeCommand returns the run subcommand for the 'trace-agent' command.
 func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Command {
-
 	cliParams := &Params{}
 	runCmd := &cobra.Command{
 		Use:   "run",
@@ -75,24 +80,25 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		// ctx is required to be supplied from here, as Windows needs to inject its own context
 		// to allow the agent to work as a service.
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
-		fx.Supply(coreconfig.NewAgentParams(cliParams.ConfPath)),
+		fx.Supply(coreconfig.NewAgentParams(cliParams.ConfPath, coreconfig.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath))),
 		secretsimpl.Module(),
 		fx.Provide(func(comp secrets.Component) optional.Option[secrets.Component] {
 			return optional.NewOption[secrets.Component](comp)
 		}),
 		fx.Supply(secrets.NewEnabledParams()),
+		telemetryimpl.Module(),
 		coreconfig.Module(),
-		fx.Provide(func() corelogimpl.Params {
-			return corelogimpl.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
+		fx.Provide(func() log.Params {
+			return log.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
 		}),
-		tracelogimpl.Module(),
+		logtracefx.Module(),
 		// setup workloadmeta
-		collectors.GetCatalog(),
+		wmcatalog.GetCatalog(),
 		fx.Supply(workloadmeta.Params{
 			AgentType:  workloadmeta.NodeAgent,
 			InitHelper: common.GetWorkloadmetaInit(),
 		}),
-		workloadmeta.Module(),
+		workloadmetafx.Module(),
 		autoexitimpl.Module(),
 		statsd.Module(),
 		fx.Provide(func(coreConfig coreconfig.Component) tagger.Params {
@@ -105,18 +111,24 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		fx.Invoke(func(_ config.Component) {}),
 		// Required to avoid cyclic imports.
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
-		fx.Supply(&agent.Params{
+		fx.Supply(&traceagentimpl.Params{
 			CPUProfile:  cliParams.CPUProfile,
 			MemProfile:  cliParams.MemProfile,
 			PIDFilePath: cliParams.PIDFilePath,
+		}),
+		fx.Provide(func(cfg config.Component) compression.Component {
+			if cfg.Object().HasFeature("zstd-encoding") {
+				return zstd.NewComponent()
+			}
+			return gzip.NewComponent()
 		}),
 		trace.Bundle(),
 		fetchonlyimpl.Module(),
 		configsyncimpl.OptionalModule(),
 		// Force the instantiation of the components
-		fx.Invoke(func(_ agent.Component, _ optional.Option[configsync.Component], _ autoexit.Component) {}),
+		fx.Invoke(func(_ traceagent.Component, _ optional.Option[configsync.Component], _ autoexit.Component) {}),
 	)
-	if err != nil && errors.Is(err, agent.ErrAgentDisabled) {
+	if err != nil && errors.Is(err, traceagentimpl.ErrAgentDisabled) {
 		return nil
 	}
 	return err

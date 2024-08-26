@@ -7,16 +7,27 @@
 package exec
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+)
+
+const (
+	// StableInstallerPath is the path to the stable installer binary.
+	StableInstallerPath = "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer"
+	// ExperimentInstallerPath is the path to the experiment installer binary.
+	ExperimentInstallerPath = "/opt/datadog-packages/datadog-installer/experiment/bin/installer/installer"
 )
 
 // InstallerExec is an implementation of the Installer interface that uses the installer binary.
@@ -43,7 +54,6 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 	env := i.env.ToEnv()
 	span, ctx := tracer.StartSpanFromContext(ctx, fmt.Sprintf("installer.%s", command))
 	span.SetTag("args", args)
-	span.SetTag("env", env)
 	cmd := exec.CommandContext(ctx, i.installerBinPath, append([]string{command}, args...)...)
 	env = append(os.Environ(), env...)
 	cmd.Cancel = func() error {
@@ -61,7 +71,7 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 }
 
 // Install installs a package.
-func (i *InstallerExec) Install(ctx context.Context, url string) (err error) {
+func (i *InstallerExec) Install(ctx context.Context, url string, _ []string) (err error) {
 	cmd := i.newInstallerCmd(ctx, "install", url)
 	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
 	return cmd.Run()
@@ -107,6 +117,20 @@ func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
 	return cmd.Run()
 }
 
+// InstrumentAPMInjector instruments the APM auto-injector.
+func (i *InstallerExec) InstrumentAPMInjector(ctx context.Context, method string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "apm instrument", method)
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	return cmd.Run()
+}
+
+// UninstrumentAPMInjector uninstruments the APM auto-injector.
+func (i *InstallerExec) UninstrumentAPMInjector(ctx context.Context, method string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "apm uninstrument", method)
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	return cmd.Run()
+}
+
 // IsInstalled checks if a package is installed.
 func (i *InstallerExec) IsInstalled(ctx context.Context, pkg string) (_ bool, err error) {
 	cmd := i.newInstallerCmd(ctx, "is-installed", pkg)
@@ -121,14 +145,53 @@ func (i *InstallerExec) IsInstalled(ctx context.Context, pkg string) (_ bool, er
 	return true, nil
 }
 
+// DefaultPackages returns the default packages to install.
+func (i *InstallerExec) DefaultPackages(ctx context.Context) (_ []string, err error) {
+	cmd := i.newInstallerCmd(ctx, "default-packages")
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err = cmd.Run()
+	if err != nil {
+		return nil, fmt.Errorf("error running default-packages: %w\n%s", err, stderr.String())
+	}
+	var defaultPackages []string
+	for _, line := range strings.Split(stdout.String(), "\n") {
+		if line == "" {
+			continue
+		}
+		defaultPackages = append(defaultPackages, line)
+	}
+	return defaultPackages, nil
+}
+
 // State returns the state of a package.
 func (i *InstallerExec) State(pkg string) (repository.State, error) {
-	repositories := repository.NewRepositories(installer.PackagesPath, installer.LocksPack)
+	repositories := repository.NewRepositories(paths.PackagesPath, paths.LocksPath)
 	return repositories.Get(pkg).GetState()
 }
 
 // States returns the states of all packages.
 func (i *InstallerExec) States() (map[string]repository.State, error) {
-	repositories := repository.NewRepositories(installer.PackagesPath, installer.LocksPack)
-	return repositories.GetState()
+	repositories := repository.NewRepositories(paths.PackagesPath, paths.LocksPath)
+	states, err := repositories.GetState()
+	log.Debugf("repositories states: %v", states)
+	return states, err
+}
+
+func (iCmd *installerCmd) Run() error {
+	var errBuf bytes.Buffer
+	iCmd.Stderr = &errBuf
+	err := iCmd.Cmd.Run()
+	if err == nil {
+		return nil
+	}
+
+	if len(errBuf.Bytes()) == 0 {
+		return fmt.Errorf("run failed: %s", err.Error())
+	}
+
+	return fmt.Errorf("run failed: %s \n%s", strings.TrimSpace(errBuf.String()), err.Error())
 }

@@ -312,6 +312,53 @@ func (client *Client) GetBFDSessionsState() ([]BFDSession, error) {
 	return bfdSessions.Data, nil
 }
 
+// GetHardwareStates gets hardware states
+func (client *Client) GetHardwareStates() ([]HardwareEnvironment, error) {
+	params := map[string]string{
+		"count": client.maxCount,
+	}
+
+	hardwareStates, err := getAllEntries[HardwareEnvironment](client, "/dataservice/data/device/state/HardwareEnvironment", params)
+	if err != nil {
+		return nil, err
+	}
+
+	return hardwareStates.Data, nil
+}
+
+// GetCloudExpressMetrics gets cloud applications metrics
+func (client *Client) GetCloudExpressMetrics() ([]CloudXStatistics, error) {
+	startDate, endDate := client.statisticsTimeRange()
+
+	params := map[string]string{
+		"startDate": startDate,
+		"endDate":   endDate,
+		"timeZone":  "UTC",
+		"count":     client.maxCount,
+	}
+
+	cloudApplications, err := getAllEntries[CloudXStatistics](client, "/dataservice/data/device/statistics/cloudxstatistics", params)
+	if err != nil {
+		return nil, err
+	}
+
+	return cloudApplications.Data, nil
+}
+
+// GetBGPNeighbors gets BGP neighbors
+func (client *Client) GetBGPNeighbors() ([]BGPNeighbor, error) {
+	params := map[string]string{
+		"count": client.maxCount,
+	}
+
+	bgpNeighbors, err := getAllEntries[BGPNeighbor](client, "/dataservice/data/device/state/BGPNeighbor", params)
+	if err != nil {
+		return nil, err
+	}
+
+	return bgpNeighbors.Data, nil
+}
+
 func (client *Client) statisticsTimeRange() (string, string) {
 	endDate := timeNow().UTC()
 	startDate := endDate.Add(-client.lookback)

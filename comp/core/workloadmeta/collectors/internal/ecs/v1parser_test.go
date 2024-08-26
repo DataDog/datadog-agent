@@ -12,8 +12,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
 )
@@ -49,7 +50,7 @@ func TestPullWithV1Parser(t *testing.T) {
 			}
 
 			c.metaV1 = &fakev1EcsClient{
-				mockGetTasks: func(ctx context.Context) ([]v1.Task, error) {
+				mockGetTasks: func(_ context.Context) ([]v1.Task, error) {
 					return []v1.Task{
 						{
 							Arn: entityID,
@@ -61,7 +62,7 @@ func TestPullWithV1Parser(t *testing.T) {
 				},
 			}
 			c.store = &fakeWorkloadmetaStore{}
-			c.metaV3or4 = func(metaURI, metaVersion string) v3or4.Client {
+			c.metaV3or4 = func(_, _ string) v3or4.Client {
 				return &fakev3or4EcsClient{
 					mockGetTaskWithTags: func(context.Context) (*v3or4.Task, error) {
 						return &v3or4.Task{
@@ -77,7 +78,8 @@ func TestPullWithV1Parser(t *testing.T) {
 			c.collectResourceTags = test.collectResourceTags
 			c.taskCollectionParser = c.parseTasksFromV1Endpoint
 
-			c.Pull(context.TODO())
+			err := c.Pull(context.TODO())
+			require.NoError(t, err)
 
 			taskTags := c.resourceTags[entityID].tags
 			assert.Equal(t, taskTags, test.expectedTags)

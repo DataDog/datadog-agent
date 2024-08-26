@@ -17,6 +17,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
@@ -44,6 +45,7 @@ type args struct {
 	serverKeepAliveMaxCount int
 	sshFilePath             string
 	vmCommand               string
+	sendEnvVars             []string
 }
 
 func readArgs() *args {
@@ -54,6 +56,7 @@ func readArgs() *args {
 	serverAliveCountPtr := flag.Int("server-alive-count", 560, "Maximum keep alive messages to send before disconnecting upon no reply")
 	sshFilePathPtr := flag.String("ssh-file", "", "Path to private ssh key")
 	vmCmd := flag.String("vm-cmd", "", "command to run on VM")
+	sendEnvVars := flag.String("send-env-vars", "", "Comma-separated list of environment variables to send through the connection")
 
 	flag.Parse()
 
@@ -65,6 +68,7 @@ func readArgs() *args {
 		serverKeepAliveMaxCount: *serverAliveCountPtr,
 		sshFilePath:             *sshFilePathPtr,
 		vmCommand:               *vmCmd,
+		sendEnvVars:             strings.Split(*sendEnvVars, ","),
 	}
 }
 
@@ -151,8 +155,10 @@ func run() (err error) {
 		return fmt.Errorf("connect: %s", err)
 	}
 
-	if val := os.Getenv("DD_API_KEY"); val != "" {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("DD_API_KEY=%s", val))
+	for _, envVar := range args.sendEnvVars {
+		if val := os.Getenv(envVar); val != "" {
+			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", envVar, val))
+		}
 	}
 
 	cmd.Command = args.vmCommand

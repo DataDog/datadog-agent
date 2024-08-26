@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -301,7 +301,7 @@ func (c *persistentCache) removeOldest() error {
 	}
 
 	evicted := 0
-	if err := c.db.Delete([]string{key}, func(key string, value []byte) error {
+	if err := c.db.Delete([]string{key}, func(_ string, value []byte) error {
 		evicted += len(value)
 		return nil
 	}); err != nil {

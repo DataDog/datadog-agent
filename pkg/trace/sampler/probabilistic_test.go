@@ -31,6 +31,7 @@ func TestProbabilisticSampler(t *testing.T) {
 			ProbabilisticSamplerEnabled:            true,
 			ProbabilisticSamplerHashSeed:           0,
 			ProbabilisticSamplerSamplingPercentage: 41,
+			Features:                               map[string]struct{}{"probabilistic_sampler_full_trace_id": {}},
 		}
 		sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
 		sampled := sampler.Sample(&trace.Span{
@@ -45,6 +46,7 @@ func TestProbabilisticSampler(t *testing.T) {
 			ProbabilisticSamplerEnabled:            true,
 			ProbabilisticSamplerHashSeed:           0,
 			ProbabilisticSamplerSamplingPercentage: 40,
+			Features:                               map[string]struct{}{"probabilistic_sampler_full_trace_id": {}},
 		}
 		sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
 		sampled := sampler.Sample(&trace.Span{
@@ -59,6 +61,7 @@ func TestProbabilisticSampler(t *testing.T) {
 			ProbabilisticSamplerEnabled:            true,
 			ProbabilisticSamplerHashSeed:           0,
 			ProbabilisticSamplerSamplingPercentage: 41,
+			Features:                               map[string]struct{}{"probabilistic_sampler_full_trace_id": {}},
 		}
 		sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
 		sampled := sampler.Sample(&trace.Span{
@@ -73,6 +76,7 @@ func TestProbabilisticSampler(t *testing.T) {
 			ProbabilisticSamplerEnabled:            true,
 			ProbabilisticSamplerHashSeed:           0,
 			ProbabilisticSamplerSamplingPercentage: 40,
+			Features:                               map[string]struct{}{"probabilistic_sampler_full_trace_id": {}},
 		}
 		sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
 		sampled := sampler.Sample(&trace.Span{
@@ -81,29 +85,61 @@ func TestProbabilisticSampler(t *testing.T) {
 		})
 		assert.False(t, sampled)
 	})
-	t.Run("keep-dd-64", func(t *testing.T) {
+	t.Run("keep-dd-64-full", func(t *testing.T) {
 		conf := &config.AgentConfig{
 			ProbabilisticSamplerEnabled:            true,
 			ProbabilisticSamplerHashSeed:           0,
 			ProbabilisticSamplerSamplingPercentage: 40,
+			Features:                               map[string]struct{}{"probabilistic_sampler_full_trace_id": {}},
 		}
 		sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
-		sampled := sampler.Sample(&trace.Span{
+		span := &trace.Span{
 			TraceID: 555,
 			Meta:    map[string]string{},
-		})
+		}
+		sampled := sampler.Sample(span)
 		assert.True(t, sampled)
+		assert.EqualValues(t, .4, span.Metrics["_dd.prob_sr"])
 	})
-	t.Run("drop-dd-64", func(t *testing.T) {
+	t.Run("drop-dd-64-full", func(t *testing.T) {
 		conf := &config.AgentConfig{
 			ProbabilisticSamplerEnabled:            true,
 			ProbabilisticSamplerHashSeed:           0,
 			ProbabilisticSamplerSamplingPercentage: 40,
+			Features:                               map[string]struct{}{"probabilistic_sampler_full_trace_id": {}},
 		}
 		sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
 		sampled := sampler.Sample(&trace.Span{
 			TraceID: 556,
 			Meta:    map[string]string{},
+		})
+		assert.False(t, sampled)
+	})
+	t.Run("keep-dd-128", func(t *testing.T) {
+		tid := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+		conf := &config.AgentConfig{
+			ProbabilisticSamplerEnabled:            true,
+			ProbabilisticSamplerHashSeed:           0,
+			ProbabilisticSamplerSamplingPercentage: 70,
+		}
+		sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
+		sampled := sampler.Sample(&trace.Span{
+			TraceID: binary.BigEndian.Uint64(tid[8:]),
+			Meta:    map[string]string{"_dd.p.tid": hex.EncodeToString(tid[:8])},
+		})
+		assert.True(t, sampled)
+	})
+	t.Run("drop-dd-128", func(t *testing.T) {
+		tid := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+		conf := &config.AgentConfig{
+			ProbabilisticSamplerEnabled:            true,
+			ProbabilisticSamplerHashSeed:           0,
+			ProbabilisticSamplerSamplingPercentage: 68,
+		}
+		sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
+		sampled := sampler.Sample(&trace.Span{
+			TraceID: 555,
+			Meta:    map[string]string{"_dd.p.tid": hex.EncodeToString(tid[:8])},
 		})
 		assert.False(t, sampled)
 	})
@@ -128,7 +164,7 @@ func FuzzConsistentWithOtel(f *testing.F) {
 	hashSeed := uint32(555666)
 	samplingPercent := float32(50)
 	pspFactory := probabilisticsamplerprocessor.NewFactory()
-	cfg := processortest.NewNopCreateSettings()
+	cfg := processortest.NewNopSettings()
 	pspCfg := &probabilisticsamplerprocessor.Config{
 		SamplingPercentage: samplingPercent,
 		HashSeed:           hashSeed,
@@ -138,6 +174,7 @@ func FuzzConsistentWithOtel(f *testing.F) {
 		ProbabilisticSamplerEnabled:            true,
 		ProbabilisticSamplerHashSeed:           hashSeed,
 		ProbabilisticSamplerSamplingPercentage: samplingPercent,
+		Features:                               map[string]struct{}{"probabilistic_sampler_full_trace_id": {}},
 	}
 	sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
 
@@ -177,7 +214,7 @@ func makeOtelTraceWithID(traceID []byte) ptrace.Traces {
 }
 
 func TestProbabilisticSamplerStartStop(t *testing.T) {
-	t.Run("enabled", func(t *testing.T) {
+	t.Run("enabled", func(_ *testing.T) {
 		conf := &config.AgentConfig{
 			ProbabilisticSamplerEnabled:            true,
 			ProbabilisticSamplerHashSeed:           22,
@@ -187,7 +224,7 @@ func TestProbabilisticSamplerStartStop(t *testing.T) {
 		sampler.Start()
 		sampler.Stop()
 	})
-	t.Run("disabled", func(t *testing.T) {
+	t.Run("disabled", func(_ *testing.T) {
 		conf := &config.AgentConfig{
 			ProbabilisticSamplerEnabled:            false,
 			ProbabilisticSamplerHashSeed:           22,

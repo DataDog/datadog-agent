@@ -60,20 +60,20 @@ the filesystem without disrupting anything.
 To run Omnibus and build the package, make the `/opt` folder world readable and run:
 
 ```
-inv omnibus.build --base-dir=$HOME/.omnibus
+deva omnibus.build --base-dir=$HOME/.omnibus
 ```
 
 On Mac, you might want to skip the signing step by running:
 
 ```
-inv omnibus.build --base-dir=$HOME/.omnibus --skip-sign
+deva omnibus.build --base-dir=$HOME/.omnibus --skip-sign
 ```
 
 The path you pass with the `--base-dir` option will contain the sources
 downloaded by Omnibus in the `src` folder, the binaries cached after building
 those sources in the `cache` folder and the final deb/rpm/dmg artifacts in the
 `pkg` folder. You can fine tune an Omnibus run passing more options, see
-`inv omnibus.build --help` for the list of all the available options.
+`deva omnibus.build --help` for the list of all the available options.
 
 **Note:** it's strongly advised to pass `--base-dir` and point to a directory
 outside the Agent repo. By default Omnibus stores packages in the project folder

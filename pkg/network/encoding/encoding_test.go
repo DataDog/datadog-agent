@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"runtime"
 	"sort"
-	"strings"
 	"testing"
 
 	"github.com/golang/protobuf/proto"
@@ -19,7 +18,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
@@ -39,15 +40,6 @@ const (
 	tagOpenSSL connTag = 0x02 // network.ConnTagOpenSSL
 	tagTLS     connTag = 0x10 // network.ConnTagTLS
 )
-
-func newConfig(t *testing.T) {
-	originalConfig := config.SystemProbe
-	t.Cleanup(func() {
-		config.SystemProbe = originalConfig
-	})
-	config.SystemProbe = config.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
-	config.InitSystemProbeConfig(config.SystemProbe)
-}
 
 func getBlobWriter(t *testing.T, assert *assert.Assertions, in *network.Connections, marshalerType string) *bytes.Buffer {
 	marshaler := marshal.GetMarshaler(marshalerType)
@@ -130,8 +122,8 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				DnsStatsByDomain:            dnsByDomain,
 				DnsStatsByDomainByQueryType: dnsByDomainByQuerytype,
 				DnsSuccessfulResponses:      1, // TODO: verify why this was needed
-
-				RouteIdx: -1,
+				TcpFailuresByErrCode:        map[uint32]uint32{110: 1},
+				RouteIdx:                    -1,
 				Protocol: &model.ProtocolStack{
 					Stack: []model.ProtocolType{model.ProtocolType_protocolTLS, model.ProtocolType_protocolHTTP2},
 				},
@@ -265,6 +257,9 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 							},
 						},
 					},
+					TCPFailures: map[uint32]uint32{
+						110: 1,
+					},
 				},
 			},
 		},
@@ -328,8 +323,8 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 	require.NoError(t, err)
 
 	t.Run("requesting application/json serialization (no query types)", func(t *testing.T) {
-		newConfig(t)
-		config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", false)
+		configmock.NewSystemProbe(t)
+		config.SystemProbe().SetWithoutSource("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 		assert := assert.New(t)
 		blobWriter := getBlobWriter(t, assert, in, "application/json")
@@ -350,9 +345,9 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 	})
 
 	t.Run("requesting application/json serialization (with query types)", func(t *testing.T) {
-		newConfig(t)
-		config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", false)
-		config.SystemProbe.SetWithoutSource("network_config.enable_dns_by_querytype", true)
+		configmock.NewSystemProbe(t)
+		config.SystemProbe().SetWithoutSource("system_probe_config.collect_dns_domains", false)
+		config.SystemProbe().SetWithoutSource("network_config.enable_dns_by_querytype", true)
 		out := getExpectedConnections(true, httpOutBlob)
 		assert := assert.New(t)
 
@@ -374,8 +369,8 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 	})
 
 	t.Run("requesting empty serialization", func(t *testing.T) {
-		newConfig(t)
-		config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", false)
+		configmock.NewSystemProbe(t)
+		config.SystemProbe().SetWithoutSource("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 		assert := assert.New(t)
 
@@ -405,8 +400,8 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 	})
 
 	t.Run("requesting unsupported serialization format", func(t *testing.T) {
-		newConfig(t)
-		config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", false)
+		configmock.NewSystemProbe(t)
+		config.SystemProbe().SetWithoutSource("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 
 		assert := assert.New(t)
@@ -461,8 +456,8 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 	})
 
 	t.Run("requesting application/protobuf serialization (no query types)", func(t *testing.T) {
-		newConfig(t)
-		config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", false)
+		configmock.NewSystemProbe(t)
+		config.SystemProbe().SetWithoutSource("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 
 		assert := assert.New(t)
@@ -477,9 +472,9 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		assertConnsEqual(t, out, result)
 	})
 	t.Run("requesting application/protobuf serialization (with query types)", func(t *testing.T) {
-		newConfig(t)
-		config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", false)
-		config.SystemProbe.SetWithoutSource("network_config.enable_dns_by_querytype", true)
+		configmock.NewSystemProbe(t)
+		config.SystemProbe().SetWithoutSource("system_probe_config.collect_dns_domains", false)
+		config.SystemProbe().SetWithoutSource("network_config.enable_dns_by_querytype", true)
 		out := getExpectedConnections(true, httpOutBlob)
 
 		assert := assert.New(t)
@@ -801,7 +796,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 		},
 	}
 
-	encodeAndDecodeHTTP := func(c *network.Connections) *model.HTTPAggregations {
+	encodeAndDecodeHTTP := func(*network.Connections) *model.HTTPAggregations {
 		blobWriter := getBlobWriter(t, assert.New(t), in, "application/protobuf")
 
 		unmarshaler := unmarshal.GetUnmarshaler("application/protobuf")
@@ -867,7 +862,7 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 		},
 	}
 
-	encodeAndDecodeHTTP2 := func(c *network.Connections) *model.HTTP2Aggregations {
+	encodeAndDecodeHTTP2 := func(*network.Connections) *model.HTTP2Aggregations {
 		blobWriter := getBlobWriter(t, assert.New(t), in, "application/protobuf")
 
 		unmarshaler := unmarshal.GetUnmarshaler("application/protobuf")
@@ -978,9 +973,9 @@ func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
-		Kafka: map[kafka.Key]*kafka.RequestStat{
+		Kafka: map[kafka.Key]*kafka.RequestStats{
 			kafkaKey: {
-				Count: 10,
+				ErrorCodeToStat: map[int32]*kafka.RequestStat{0: {Count: 10, FirstLatencySample: 5}},
 			},
 		},
 	}
@@ -993,7 +988,9 @@ func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
 					RequestVersion: apiVersion2,
 				},
 				Topic: topicName,
-				Count: 10,
+				StatsByErrorCode: map[int32]*model.KafkaStats{
+					0: {Count: 10, FirstLatencySample: 5},
+				},
 			},
 		},
 	}

@@ -16,21 +16,22 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/proto"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/proto"
 )
 
 type serverSecure struct {
@@ -58,6 +59,54 @@ func (*serverSecure) GetConfigState(context.Context, *emptypb.Empty) (*pbgo.GetS
 }
 func (s *serverSecure) WorkloadmetaStreamEntities(in *pbgo.WorkloadmetaStreamRequest, out pbgo.AgentSecure_WorkloadmetaStreamEntitiesServer) error {
 	return s.workloadmetaServer.StreamEntities(in, out)
+}
+
+func TestNewCollector(t *testing.T) {
+	tests := []struct {
+		name         string
+		filter       *workloadmeta.Filter
+		expectsError bool
+	}{
+		{
+			name:         "nil filter",
+			filter:       nil,
+			expectsError: false,
+		},
+		{
+			name: "filter with only supported kinds",
+			filter: workloadmeta.NewFilterBuilder().
+				AddKind(workloadmeta.KindContainer).
+				AddKind(workloadmeta.KindKubernetesPod).
+				Build(),
+			expectsError: false,
+		},
+		{
+			name: "filter with unsupported kinds",
+			filter: workloadmeta.NewFilterBuilder().
+				AddKind(workloadmeta.KindContainer).
+				AddKind(workloadmeta.KindContainerImageMetadata /* No Supported */).
+				Build(),
+			expectsError: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			deps := dependencies{
+				Params: Params{
+					Filter: test.filter,
+				},
+			}
+
+			_, err := NewCollector(deps)
+
+			if test.expectsError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestHandleWorkloadmetaStreamResponse(t *testing.T) {
@@ -115,6 +164,14 @@ func TestHandleWorkloadmetaStreamResponse(t *testing.T) {
 			},
 		},
 	}
+	// workloadmeta client store
+	mockClientStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		fx.Supply(workloadmeta.Params{
+			AgentType: workloadmeta.Remote,
+		}),
+		workloadmetafxmock.MockModule(),
+	))
 
 	expectedEvent, err := proto.WorkloadmetaEventFromProtoEvent(protoWorkloadmetaEvent)
 	require.NoError(t, err)
@@ -124,7 +181,7 @@ func TestHandleWorkloadmetaStreamResponse(t *testing.T) {
 	}
 
 	streamhandler := &streamHandler{}
-	collectorEvents, err := streamhandler.HandleResponse(mockResponse)
+	collectorEvents, err := streamhandler.HandleResponse(mockClientStore, mockResponse)
 
 	require.NoError(t, err)
 	assert.Len(t, collectorEvents, 1)
@@ -137,19 +194,19 @@ func TestHandleWorkloadmetaStreamResponse(t *testing.T) {
 
 func TestCollection(t *testing.T) {
 	// Create Auth Token for the client
-	if _, err := os.Stat(security.GetAuthTokenFilepath(pkgconfig.Datadog)); os.IsNotExist(err) {
-		security.CreateOrFetchToken(pkgconfig.Datadog)
+	if _, err := os.Stat(security.GetAuthTokenFilepath(pkgconfig.Datadog())); os.IsNotExist(err) {
+		security.CreateOrFetchToken(pkgconfig.Datadog())
 		defer func() {
 			// cleanup
-			os.Remove(security.GetAuthTokenFilepath(pkgconfig.Datadog))
+			os.Remove(security.GetAuthTokenFilepath(pkgconfig.Datadog()))
 		}()
 	}
 
 	// workloadmeta server
-	mockServerStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	mockServerStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 	server := &serverSecure{workloadmetaServer: server.NewServer(mockServerStore)}
 
@@ -182,7 +239,7 @@ func TestCollection(t *testing.T) {
 	}
 
 	// workloadmeta client store
-	mockClientStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	mockClientStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.Params{
 			AgentType: workloadmeta.Remote,
@@ -193,7 +250,7 @@ func TestCollection(t *testing.T) {
 			},
 				fx.ResultTags(`group:"workloadmeta"`)),
 		),
-		workloadmeta.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	time.Sleep(3 * time.Second)

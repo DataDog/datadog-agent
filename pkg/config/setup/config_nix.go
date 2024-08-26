@@ -14,10 +14,13 @@ var (
 	// InstallPath is the default install path for the agent
 	// It might be overridden at build time
 	InstallPath = "/opt/datadog-agent"
+
+	// defaultRunPath is the default run path
+	// It is set in osinit to take into account InstallPath overrides
+	defaultRunPath = ""
 )
 
 var (
-	defaultRunPath = filepath.Join(InstallPath, "run")
 	// defaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
 	defaultSystemProbeAddress = filepath.Join(InstallPath, "run/sysprobe.sock")
 	// defaultEventMonitorAddress is the default unix socket path to be used for connecting to the event monitor
@@ -36,11 +39,18 @@ const (
 	DefaultSecurityAgentLogFile = "/var/log/datadog/security-agent.log"
 	// DefaultProcessAgentLogFile is the default process-agent log file
 	DefaultProcessAgentLogFile = "/var/log/datadog/process-agent.log"
+	// DefaultOTelAgentLogFile is the default otel-agent log file
+	DefaultOTelAgentLogFile = "/var/log/datadog/otel-agent.log"
 	// defaultSystemProbeLogFilePath is the default system-probe log file
 	defaultSystemProbeLogFilePath = "/var/log/datadog/system-probe.log"
+	// defaultStatsdSocket is the default Unix Domain Socket path on which statsd will listen
+	defaultStatsdSocket = "/var/run/datadog/dsd.socket"
 )
 
 // called by init in config.go, to ensure any os-specific config is done
 // in time
 func osinit() {
+	if defaultRunPath == "" {
+		defaultRunPath = filepath.Join(InstallPath, "run")
+	}
 }

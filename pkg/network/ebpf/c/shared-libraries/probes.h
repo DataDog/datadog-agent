@@ -2,6 +2,8 @@
 #define __SHARED_LIBRARIES_PROBES_H
 
 #include "bpf_telemetry.h"
+#include "bpf_bypass.h"
+
 #include "shared-libraries/types.h"
 
 static __always_inline void fill_path_safe(lib_path_t *path, const char *path_argument) {
@@ -42,7 +44,7 @@ static __always_inline void do_sys_open_helper_enter(const char *filename) {
     return;
 }
 
-static __always_inline void do_sys_open_helper_exit(exit_sys_openat_ctx *args) {
+static __always_inline void do_sys_open_helper_exit(exit_sys_ctx *args) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     // If file couldn't be opened, bail out
@@ -91,26 +93,44 @@ cleanup:
     return;
 }
 
+SEC("tracepoint/syscalls/sys_enter_open")
+int tracepoint__syscalls__sys_enter_open(enter_sys_open_ctx* args) {
+    CHECK_BPF_PROGRAM_BYPASSED()
+    do_sys_open_helper_enter(args->filename);
+    return 0;
+}
+
+SEC("tracepoint/syscalls/sys_exit_open")
+int tracepoint__syscalls__sys_exit_open(exit_sys_ctx *args) {
+    CHECK_BPF_PROGRAM_BYPASSED()
+    do_sys_open_helper_exit(args);
+    return 0;
+}
+
 SEC("tracepoint/syscalls/sys_enter_openat")
 int tracepoint__syscalls__sys_enter_openat(enter_sys_openat_ctx* args) {
+    CHECK_BPF_PROGRAM_BYPASSED()
     do_sys_open_helper_enter(args->filename);
     return 0;
 }
 
 SEC("tracepoint/syscalls/sys_exit_openat")
-int tracepoint__syscalls__sys_exit_openat(exit_sys_openat_ctx *args) {
+int tracepoint__syscalls__sys_exit_openat(exit_sys_ctx *args) {
+    CHECK_BPF_PROGRAM_BYPASSED()
     do_sys_open_helper_exit(args);
     return 0;
 }
 
 SEC("tracepoint/syscalls/sys_enter_openat2")
 int tracepoint__syscalls__sys_enter_openat2(enter_sys_openat2_ctx* args) {
+    CHECK_BPF_PROGRAM_BYPASSED()
     do_sys_open_helper_enter(args->filename);
     return 0;
 }
 
 SEC("tracepoint/syscalls/sys_exit_openat2")
-int tracepoint__syscalls__sys_exit_openat2(exit_sys_openat_ctx *args) {
+int tracepoint__syscalls__sys_exit_openat2(exit_sys_ctx *args) {
+    CHECK_BPF_PROGRAM_BYPASSED()
     do_sys_open_helper_exit(args);
     return 0;
 }

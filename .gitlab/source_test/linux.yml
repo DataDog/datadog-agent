@@ -24,16 +24,16 @@
     KUBERNETES_MEMORY_REQUEST: 16Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
     TEST_OUTPUT_FILE: test_output.json
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   script:
     - !reference [.retrieve_linux_go_tools_deps]
     - inv -e install-tools
+    - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
     - inv -e sds.build-library
+    - inv -e agent.build
     - inv -e test $FLAVORS --include-sds --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG --test-washer
-    # Upload coverage files to Codecov. Never fail on coverage upload.
-    - export CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $CODECOV_TOKEN_SSM_NAME)
-    - inv -e codecov || true
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -42,14 +42,17 @@
       - junit-*.tgz
     reports:
       junit: "**/junit-out-*.xml"
+      annotations:
+        - $EXTERNAL_LINKS_PATH
 
 .upload_junit_source:
   - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
 
-.linux_tests_with_upload:
-  extends: .linux_tests
-  after_script:
-    - !reference [.upload_junit_source]
+.upload_coverage:
+  # Upload coverage files to Codecov. Never fail on coverage upload.
+  - source /root/.bashrc
+  - export CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $CODECOV_TOKEN_SSM_NAME)
+  - inv -e coverage.upload-to-codecov $COVERAGE_CACHE_FLAG || true
 
 .linux_lint:
   stage: source_test
@@ -67,6 +70,7 @@
     - inv -e rtloader.install
     - inv -e install-tools
     - inv -e linter.go --cpus $KUBERNETES_CPU_REQUEST $FLAVORS $EXTRA_OPTS
+
 
 .linux_x64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
@@ -87,8 +91,11 @@ tests_deb-x64-py2:
 tests_deb-x64-py3:
   extends:
     - .rtloader_tests
-    - .linux_tests_with_upload
+    - .linux_tests
     - .linux_x64
+  after_script:
+    - !reference [.upload_junit_source]
+    - !reference [.upload_coverage]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
@@ -97,11 +104,14 @@ lint_linux-x64:
   extends:
     - .linux_lint
     - .linux_x64
+
 tests_flavor_iot_deb-x64:
   extends:
     - .rtloader_tests
-    - .linux_tests_with_upload
+    - .linux_tests
     - .linux_x64
+  after_script:
+    - !reference [.upload_junit_source]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
@@ -117,8 +127,10 @@ lint_flavor_iot_linux-x64:
 tests_flavor_dogstatsd_deb-x64:
   extends:
     - .rtloader_tests
-    - .linux_tests_with_upload
+    - .linux_tests
     - .linux_x64
+  after_script:
+    - !reference [.upload_junit_source]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
@@ -134,8 +146,10 @@ lint_flavor_dogstatsd_linux-x64:
 tests_flavor_heroku_deb-x64:
   extends:
     - .rtloader_tests
-    - .linux_tests_with_upload
+    - .linux_tests
     - .linux_x64
+  after_script:
+    - !reference [.upload_junit_source]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
@@ -167,7 +181,10 @@ tests_rpm-x64-py2:
 tests_rpm-x64-py3:
   extends:
     - .rtloader_tests
-    - .linux_tests_with_upload
+    - .linux_tests
+  after_script:
+    - !reference [.upload_junit_source]
+    - !reference [.upload_coverage]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
@@ -191,6 +208,8 @@ tests_deb-arm64-py3:
   extends:
     - .rtloader_tests
     - .linux_tests
+  after_script:
+    - !reference [.upload_coverage]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
@@ -219,6 +238,8 @@ tests_rpm-arm64-py3:
   extends:
     - .rtloader_tests
     - .linux_tests
+  after_script:
+    - !reference [.upload_coverage]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
@@ -230,8 +251,6 @@ go_mod_tidy_check:
   stage: source_test
   extends: .linux_x64
   needs: ["go_deps"]
-  variables:
-    KUBERNETES_CPU_REQUEST: 4
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
@@ -239,11 +258,12 @@ go_mod_tidy_check:
     - inv -e check-mod-tidy
     - inv -e check-go-mod-replaces
   variables:
-    KUBERNETES_MEMORY_REQUEST: "8Gi"
-    KUBERNETES_MEMORY_LIMIT: "8Gi"
+    KUBERNETES_MEMORY_REQUEST: "16Gi"
+    KUBERNETES_MEMORY_LIMIT: "16Gi"
+    KUBERNETES_CPU_REQUEST: 4
 
 new-e2e-unit-tests:
-  extends: .linux_tests_with_upload
+  extends: .linux_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   before_script:
@@ -254,9 +274,10 @@ new-e2e-unit-tests:
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
   script:
+    - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - inv -e new-e2e-tests.run --targets ./pkg/utils --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS}
   after_script:
-    - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+    - !reference [.upload_junit_source]
   variables:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi

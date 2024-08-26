@@ -148,7 +148,7 @@ func getState(sc clusteragent.ServerContext) func(w http.ResponseWriter, r *http
 		return clusterChecksDisabledHandler
 	}
 
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		// No redirection for this one, internal endpoint
 		response, err := sc.ClusterCheckHandler.GetState()
 		if err != nil {
@@ -193,7 +193,7 @@ func validateClientIP(addr string) (string, error) {
 		return "", fmt.Errorf("cannot parse CLC runner address: %s", addr)
 	}
 
-	if addr == "" && config.Datadog.GetBool("cluster_checks.advanced_dispatching_enabled") {
+	if addr == "" && config.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled") {
 		log.Warn("Cluster check dispatching error: cannot get runner IP from http headers. advanced_dispatching_enabled requires agent 6.17 or above.")
 	}
 

@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
@@ -59,6 +59,7 @@ var (
 // ContainerProvider defines the interface for a container metrics provider
 type ContainerProvider interface {
 	GetContainers(cacheValidity time.Duration, previousContainers map[string]*ContainerRateMetrics) ([]*model.Container, map[string]*ContainerRateMetrics, map[int]string, error)
+	GetPidToCid(cacheValidity time.Duration) map[int]string
 }
 
 // GetSharedContainerProvider returns a shared ContainerProvider
@@ -186,6 +187,43 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 	}
 
 	return processContainers, rateStats, pidToCid, nil
+}
+
+// GetPidToCid returns containers found on the machine
+func (p *containerProvider) GetPidToCid(cacheValidity time.Duration) map[int]string {
+	containersMetadata := p.metadataStore.ListContainersWithFilter(workloadmeta.GetRunningContainers)
+	pidToCid := make(map[int]string)
+	for _, container := range containersMetadata {
+		var annotations map[string]string
+		if pod, err := p.metadataStore.GetKubernetesPodForContainer(container.ID); err == nil {
+			annotations = pod.Annotations
+		}
+
+		if p.filter != nil && p.filter.IsExcluded(annotations, container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel]) {
+			continue
+		}
+
+		collector := p.metricsProvider.GetCollector(provider.NewRuntimeMetadata(
+			string(container.Runtime),
+			string(container.RuntimeFlavor),
+		))
+		if collector == nil {
+			log.Infof("No metrics collector available for runtime: %s, skipping container: %s", container.Runtime, container.ID)
+			continue
+		}
+
+		// Building PID to CID mapping for NPM and Language Detection
+		pids, err := collector.GetPIDs(container.Namespace, container.ID, cacheValidity)
+		if err == nil && pids != nil {
+			for _, pid := range pids {
+				pidToCid[pid] = container.ID
+			}
+		} else {
+			log.Debugf("PIDs for: %+v not available, err: %v", container, err)
+		}
+	}
+
+	return pidToCid
 }
 
 func computeContainerStats(container *workloadmeta.Container, inStats *metrics.ContainerStats, previousStats, outPreviousStats *ContainerRateMetrics, outStats *model.Container) {

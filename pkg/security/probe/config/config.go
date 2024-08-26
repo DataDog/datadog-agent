@@ -128,6 +128,8 @@ type Config struct {
 
 	// NetworkEnabled defines if the network probes should be activated
 	NetworkEnabled bool
+	// NetworkIngressEnabled defines if the network ingress probes should be activated
+	NetworkIngressEnabled bool
 
 	// StatsPollingInterval determines how often metrics should be polled
 	StatsPollingInterval time.Duration
@@ -138,7 +140,7 @@ type Config struct {
 
 // NewConfig returns a new Config object
 func NewConfig() (*Config, error) {
-	sysconfig.Adjust(coreconfig.SystemProbe)
+	sysconfig.Adjust(coreconfig.SystemProbe())
 
 	setEnv()
 
@@ -165,12 +167,13 @@ func NewConfig() (*Config, error) {
 		EventStreamUseFentry:         getEventStreamFentryValue(),
 		EnvsWithValue:                getStringSlice("envs_with_value"),
 		NetworkEnabled:               getBool("network.enabled"),
+		NetworkIngressEnabled:        getBool("network.ingress.enabled"),
 		StatsPollingInterval:         time.Duration(getInt("events_stats.polling_interval")) * time.Second,
 		SyscallsMonitorEnabled:       getBool("syscalls_monitor.enabled"),
 
 		// event server
-		SocketPath:       coreconfig.SystemProbe.GetString(join(evNS, "socket")),
-		EventServerBurst: coreconfig.SystemProbe.GetInt(join(evNS, "event_server.burst")),
+		SocketPath:       coreconfig.SystemProbe().GetString(join(evNS, "socket")),
+		EventServerBurst: coreconfig.SystemProbe().GetInt(join(evNS, "event_server.burst")),
 
 		// runtime compilation
 		RuntimeCompilationEnabled:       getBool("runtime_compilation.enabled"),
@@ -263,41 +266,41 @@ func getAllKeys(key string) (string, string) {
 
 func isSet(key string) bool {
 	deprecatedKey, newKey := getAllKeys(key)
-	return coreconfig.SystemProbe.IsSet(deprecatedKey) || coreconfig.SystemProbe.IsSet(newKey)
+	return coreconfig.SystemProbe().IsSet(deprecatedKey) || coreconfig.SystemProbe().IsSet(newKey)
 }
 
 func getBool(key string) bool {
 	deprecatedKey, newKey := getAllKeys(key)
-	if coreconfig.SystemProbe.IsSet(deprecatedKey) {
+	if coreconfig.SystemProbe().IsSet(deprecatedKey) {
 		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
-		return coreconfig.SystemProbe.GetBool(deprecatedKey)
+		return coreconfig.SystemProbe().GetBool(deprecatedKey)
 	}
-	return coreconfig.SystemProbe.GetBool(newKey)
+	return coreconfig.SystemProbe().GetBool(newKey)
 }
 
 func getInt(key string) int {
 	deprecatedKey, newKey := getAllKeys(key)
-	if coreconfig.SystemProbe.IsSet(deprecatedKey) {
+	if coreconfig.SystemProbe().IsSet(deprecatedKey) {
 		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
-		return coreconfig.SystemProbe.GetInt(deprecatedKey)
+		return coreconfig.SystemProbe().GetInt(deprecatedKey)
 	}
-	return coreconfig.SystemProbe.GetInt(newKey)
+	return coreconfig.SystemProbe().GetInt(newKey)
 }
 
 func getString(key string) string {
 	deprecatedKey, newKey := getAllKeys(key)
-	if coreconfig.SystemProbe.IsSet(deprecatedKey) {
+	if coreconfig.SystemProbe().IsSet(deprecatedKey) {
 		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
-		return coreconfig.SystemProbe.GetString(deprecatedKey)
+		return coreconfig.SystemProbe().GetString(deprecatedKey)
 	}
-	return coreconfig.SystemProbe.GetString(newKey)
+	return coreconfig.SystemProbe().GetString(newKey)
 }
 
 func getStringSlice(key string) []string {
 	deprecatedKey, newKey := getAllKeys(key)
-	if coreconfig.SystemProbe.IsSet(deprecatedKey) {
+	if coreconfig.SystemProbe().IsSet(deprecatedKey) {
 		log.Warnf("%s has been deprecated: please set %s instead", deprecatedKey, newKey)
-		return coreconfig.SystemProbe.GetStringSlice(deprecatedKey)
+		return coreconfig.SystemProbe().GetStringSlice(deprecatedKey)
 	}
-	return coreconfig.SystemProbe.GetStringSlice(newKey)
+	return coreconfig.SystemProbe().GetStringSlice(newKey)
 }

@@ -16,16 +16,16 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func TestRealConfig(t *testing.T) {
 	// point the ConfFilePath to a valid, but empty config file so that it does
 	// not use the config file on the developer's system
 	dir := t.TempDir()
-	_ = os.WriteFile(filepath.Join(dir, "datadog.yaml"), []byte("{}"), 0666)
+	_ = os.WriteFile(filepath.Join(dir, "datadog.yaml"), []byte("{}"), 0o666)
 
 	os.Setenv("DD_DD_URL", "https://example.com")
 	defer func() { os.Unsetenv("DD_DD_URL") }()
@@ -36,9 +36,9 @@ func TestRealConfig(t *testing.T) {
 			WithConfigMissingOK(true),
 			WithConfFilePath(dir),
 		)),
-		fx.Provide(func() optional.Option[secrets.Component] {
-			return optional.NewOption[secrets.Component](secretsimpl.NewMock())
-		}),
+		fxutil.ProvideOptional[secrets.Component](),
+		secretsimpl.MockModule(),
+		nooptelemetry.Module(),
 		Module(),
 	))
 	require.Equal(t, "https://example.com", config.GetString("dd_url"))

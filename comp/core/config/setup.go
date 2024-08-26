@@ -9,12 +9,14 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"path"
 	"runtime"
 	"strings"
 
+	"github.com/DataDog/viper"
+
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/viper"
 )
 
 // setupConfig is copied from cmd/agent/common/helpers.go.
@@ -44,13 +46,18 @@ func setupConfig(config pkgconfigmodel.Config, deps configDependencies) (*pkgcon
 		config.AddConfigPath(defaultConfPath)
 	}
 
+	// load extra config file paths
+	if err := config.AddExtraConfigPaths(p.ExtraConfFilePath); err != nil {
+		return nil, err
+	}
+
 	// load the configuration
 	var err error
 	var warnings *pkgconfigmodel.Warnings
 	if resolver, ok := deps.getSecretResolver(); ok {
-		warnings, err = pkgconfigsetup.LoadWithSecret(config, resolver, pkgconfigsetup.SystemProbe.GetEnvVars())
+		warnings, err = pkgconfigsetup.LoadWithSecret(config, resolver, pkgconfigsetup.SystemProbe().GetEnvVars())
 	} else {
-		warnings, err = pkgconfigsetup.LoadWithoutSecret(config, pkgconfigsetup.SystemProbe.GetEnvVars())
+		warnings, err = pkgconfigsetup.LoadWithoutSecret(config, pkgconfigsetup.SystemProbe().GetEnvVars())
 	}
 
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
@@ -68,5 +75,28 @@ func setupConfig(config pkgconfigmodel.Config, deps configDependencies) (*pkgcon
 		}
 		return warnings, err
 	}
+
+	// Load the remote configuration
+	if p.FleetPoliciesDirPath == "" {
+		p.FleetPoliciesDirPath = config.GetString("fleet_policies_dir")
+	}
+	if p.FleetPoliciesDirPath != "" {
+		// Main config file
+		err := config.MergeFleetPolicy(path.Join(p.FleetPoliciesDirPath, "datadog.yaml"))
+		if err != nil {
+			return warnings, err
+		}
+		if p.configLoadSecurityAgent {
+			err := config.MergeFleetPolicy(path.Join(p.FleetPoliciesDirPath, "security-agent.yaml"))
+			if err != nil {
+				return warnings, err
+			}
+		}
+	}
+
+	for k, v := range p.cliOverride {
+		config.Set(k, v, pkgconfigmodel.SourceCLI)
+	}
+
 	return warnings, nil
 }

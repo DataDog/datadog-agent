@@ -7,4 +7,12 @@
 
 package listeners
 
-var NewContainerListener ServiceListenerFactory
+import (
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+)
+
+type noopServiceListenerFactory func(c Config, wmeta optional.Option[workloadmeta.Component], telemetryStore *telemetry.Store) (ServiceListener, error)
+
+var NewContainerListener noopServiceListenerFactory

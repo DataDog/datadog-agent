@@ -22,8 +22,8 @@ import (
 
 	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
-	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -41,7 +41,7 @@ func Module() fxutil.Module {
 type dependencies struct {
 	fx.In
 
-	Log    logComponent.Component
+	Log    log.Component
 	Config configComponent.Component
 }
 
@@ -56,7 +56,7 @@ type metricStat struct {
 
 type serverDebugImpl struct {
 	sync.Mutex
-	log     logComponent.Component
+	log     log.Component
 	enabled *atomic.Bool
 	Stats   map[ckey.ContextKey]metricStat `json:"stats"`
 	// counting number of metrics processed last X seconds
@@ -74,7 +74,7 @@ type serverDebugImpl struct {
 
 // NewServerlessServerDebug creates a new instance of serverDebug.Component
 func NewServerlessServerDebug() serverdebug.Component {
-	return newServerDebugCompat(logComponentImpl.NewTemporaryLoggerWithoutInit(), config.Datadog)
+	return newServerDebugCompat(logComponentImpl.NewTemporaryLoggerWithoutInit(), config.Datadog())
 }
 
 // newServerDebug creates a new instance of a ServerDebug
@@ -82,9 +82,9 @@ func newServerDebug(deps dependencies) serverdebug.Component {
 	return newServerDebugCompat(deps.Log, deps.Config)
 }
 
-func newServerDebugCompat(log logComponent.Component, cfg config.Reader) serverdebug.Component {
+func newServerDebugCompat(l log.Component, cfg config.Reader) serverdebug.Component {
 	sd := &serverDebugImpl{
-		log:     log,
+		log:     l,
 		enabled: atomic.NewBool(false),
 		Stats:   make(map[ckey.ContextKey]metricStat),
 		metricsCounts: metricsCountBuckets{

@@ -17,15 +17,13 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/kubetags"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
-
-	//nolint:revive // TODO(CINT) Fix revive linter
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
@@ -148,12 +146,15 @@ type KSMConfig struct {
 
 	// Private field containing the label joins configuration built from `LabelJoins`, `LabelsAsTags` and `AnnotationsAsTags`.
 	labelJoins map[string]*joinsConfig
+
+	// UseAPIServerCache enables the use of the API server cache for the check
+	UseAPIServerCache bool `yaml:"use_apiserver_cache"`
 }
 
 // KSMCheck wraps the config and the metric stores needed to run the check
 type KSMCheck struct {
 	core.CheckBase
-	agentConfig          config.Config
+	agentConfig          ddconfig.Config
 	instance             *KSMConfig
 	allStores            [][]cache.Store
 	telemetry            *telemetryCache
@@ -202,7 +203,7 @@ func init() {
 // Configure prepares the configuration of the KSM check instance
 func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	k.BuildID(integrationConfigDigest, config, initConfig)
-	k.agentConfig = ddconfig.Datadog
+	k.agentConfig = ddconfig.Datadog()
 
 	err := k.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
@@ -237,6 +238,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	k.mergeLabelsMapper(defaultLabelsMapper())
 
 	builder := kubestatemetrics.New()
+	builder.WithUsingAPIServerCache(k.instance.UseAPIServerCache)
 
 	// Due to how init is done, we cannot use GetAPIClient in `Run()` method
 	// So we are waiting for a reasonable amount of time here in case.
@@ -305,7 +307,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	resyncPeriod := k.instance.ResyncPeriod
 	if resyncPeriod == 0 {
-		resyncPeriod = ddconfig.Datadog.GetInt("kubernetes_informers_resync_period")
+		resyncPeriod = ddconfig.Datadog().GetInt("kubernetes_informers_resync_period")
 	}
 
 	builder.WithResync(time.Duration(resyncPeriod) * time.Second)
@@ -480,7 +482,7 @@ func (k *KSMCheck) Run() error {
 	// we also do a safety check for dedicated runners to avoid trying the leader election
 	if !k.isCLCRunner || !k.instance.LeaderSkip {
 		// Only run if Leader Election is enabled.
-		if !config.Datadog.GetBool("leader_election") {
+		if !ddconfig.Datadog().GetBool("leader_election") {
 			return log.Error("Leader Election not enabled. The cluster-agent will not run the kube-state-metrics core check.")
 		}
 
@@ -543,16 +545,16 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 			if transform, found := k.metricTransformers[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
-					hostname, tags := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
-					transform(sender, metricFamily.Name, m, hostname, tags, now)
+					hostname, tagList := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
+					transform(sender, metricFamily.Name, m, hostname, tagList, now)
 				}
 				continue
 			}
 			if ddname, found := k.metricNamesMapper[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
-					hostname, tags := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
-					sender.Gauge(ksmMetricPrefix+ddname, m.Val, hostname, tags)
+					hostname, tagList := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
+					sender.Gauge(ksmMetricPrefix+ddname, m.Val, hostname, tagList)
 				}
 				continue
 			}
@@ -583,7 +585,7 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 	labelsToAdd := labelJoiner.getLabelsToAdd(labels)
 
 	// generate a dedicated tags slice
-	tags := make([]string, 0, len(labels)+len(labelsToAdd))
+	tagList := make([]string, 0, len(labels)+len(labelsToAdd))
 
 	ownerKind, ownerName := "", ""
 	for key, value := range labels {
@@ -594,7 +596,7 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 			ownerName = value
 		default:
 			tag, hostTag := k.buildTag(key, value, lMapperOverride)
-			tags = append(tags, tag)
+			tagList = append(tagList, tag)
 			if hostTag != "" {
 				if k.clusterNameRFC1123 != "" {
 					hostname = hostTag + "-" + k.clusterNameRFC1123
@@ -614,7 +616,7 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 			ownerName = label.value
 		default:
 			tag, hostTag := k.buildTag(label.key, label.value, lMapperOverride)
-			tags = append(tags, tag)
+			tagList = append(tagList, tag)
 			if hostTag != "" {
 				if k.clusterNameRFC1123 != "" {
 					hostname = hostTag + "-" + k.clusterNameRFC1123
@@ -626,10 +628,10 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 	}
 
 	if owners := ownerTags(ownerKind, ownerName); len(owners) != 0 {
-		tags = append(tags, owners...)
+		tagList = append(tagList, owners...)
 	}
 
-	return hostname, tags
+	return hostname, tagList
 }
 
 // familyFilter is a metric families filter for label joins
@@ -869,7 +871,7 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig) *KSMCheck {
 		CheckBase:          base,
 		instance:           instance,
 		telemetry:          newTelemetryCache(),
-		isCLCRunner:        config.IsCLCRunner(),
+		isCLCRunner:        ddconfig.IsCLCRunner(),
 		metricNamesMapper:  defaultMetricNamesMapper(),
 		metricAggregators:  defaultMetricAggregators(),
 		metricTransformers: defaultMetricTransformers(),
@@ -954,25 +956,25 @@ func ownerTags(kind, name string) []string {
 		return nil
 	}
 
-	tagKey, found := kubernetes.KindToTagName[kind]
-	if !found {
+	tagKey, err := kubetags.GetTagForKubernetesKind(kind)
+	if err != nil {
 		return nil
 	}
 
 	tagFormat := "%s:%s"
-	tags := []string{fmt.Sprintf(tagFormat, tagKey, name)}
+	tagList := []string{fmt.Sprintf(tagFormat, tagKey, name)}
 	switch kind {
 	case kubernetes.JobKind:
 		if cronjob, _ := kubernetes.ParseCronJobForJob(name); cronjob != "" {
-			return append(tags, fmt.Sprintf(tagFormat, kubernetes.CronJobTagName, cronjob))
+			return append(tagList, fmt.Sprintf(tagFormat, tags.KubeCronjob, cronjob))
 		}
 	case kubernetes.ReplicaSetKind:
 		if deployment := kubernetes.ParseDeploymentForReplicaSet(name); deployment != "" {
-			return append(tags, fmt.Sprintf(tagFormat, kubernetes.DeploymentTagName, deployment))
+			return append(tagList, fmt.Sprintf(tagFormat, tags.KubeDeployment, deployment))
 		}
 	}
 
-	return tags
+	return tagList
 }
 
 // labelsMapperOverride allows overriding the default label mapping for

@@ -31,7 +31,7 @@ var (
 )
 
 func isTagExcluded(tag string) bool {
-	if excludedTags := config.Datadog.GetStringSlice("exclude_ec2_tags"); excludedTags != nil {
+	if excludedTags := config.Datadog().GetStringSlice("exclude_ec2_tags"); excludedTags != nil {
 		for _, excludedTag := range excludedTags {
 			if tag == excludedTag {
 				return true
@@ -42,7 +42,7 @@ func isTagExcluded(tag string) bool {
 }
 
 func fetchEc2Tags(ctx context.Context) ([]string, error) {
-	if config.Datadog.GetBool("collect_ec2_tags_use_imds") {
+	if config.Datadog().GetBool("collect_ec2_tags_use_imds") {
 		// prefer to fetch tags from IMDS, falling back to the API
 		tags, err := fetchEc2TagsFromIMDS(ctx)
 		if err == nil {
@@ -123,7 +123,7 @@ func getTagsWithCreds(ctx context.Context, instanceIdentity *EC2Identity, awsCre
 	// We want to use 'ec2_metadata_timeout' here instead of current context. 'ctx' comes from the agent main and will
 	// only be canceled if the agent is stopped. The default timeout for the AWS SDK is 1 minutes (20s timeout with
 	// 3 retries). Since we call getTagsWithCreds twice in a row, it can be a 2 minutes latency.
-	ctx, cancel := context.WithTimeout(ctx, config.Datadog.GetDuration("ec2_metadata_timeout")*time.Millisecond)
+	ctx, cancel := context.WithTimeout(ctx, config.Datadog().GetDuration("ec2_metadata_timeout")*time.Millisecond)
 	defer cancel()
 
 	ec2Tags, err := connection.DescribeTags(ctx,

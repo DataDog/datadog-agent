@@ -15,7 +15,7 @@ import (
 )
 
 func decryptConfig(conf integration.Config, secretResolver secrets.Component) (integration.Config, error) {
-	if config.Datadog.GetBool("secret_backend_skip_checks") {
+	if config.Datadog().GetBool("secret_backend_skip_checks") {
 		log.Tracef("'secret_backend_skip_checks' is enabled, not decrypting configuration %q", conf.Name)
 		return conf, nil
 	}

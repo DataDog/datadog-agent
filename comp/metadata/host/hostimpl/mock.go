@@ -9,7 +9,9 @@ package hostimpl
 
 import (
 	"context"
+	"net/http"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	hostinterface "github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
@@ -21,6 +23,15 @@ func MockModule() fxutil.Module {
 		fx.Provide(newMock))
 }
 
+// MockProvides is the mock component output
+type MockProvides struct {
+	fx.Out
+
+	Comp          hostinterface.Component
+	Endpoint      api.AgentEndpointProvider
+	GohaiEndpoint api.AgentEndpointProvider
+}
+
 // MockHost is a mocked struct that implements the host component interface
 type MockHost struct{}
 
@@ -30,7 +41,17 @@ func (h *MockHost) GetPayloadAsJSON(_ context.Context) ([]byte, error) {
 	return []byte(str), nil
 }
 
+// handlerFunc is a simple mocked http.Handler function
+func (h *MockHost) handlerFunc(w http.ResponseWriter, _ *http.Request) {
+	w.Write([]byte("OK"))
+}
+
 // newMock returns the mocked host component
-func newMock() hostinterface.Component {
-	return &MockHost{}
+func newMock() MockProvides {
+	h := &MockHost{}
+	return MockProvides{
+		Comp:          h,
+		Endpoint:      api.NewAgentEndpointProvider(h.handlerFunc, "/metadata/v5", "GET"),
+		GohaiEndpoint: api.NewAgentEndpointProvider(h.handlerFunc, "/metadata/gohai", "GET"),
+	}
 }

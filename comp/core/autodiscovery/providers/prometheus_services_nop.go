@@ -7,7 +7,10 @@
 
 package providers
 
-import "github.com/DataDog/datadog-agent/pkg/config"
+import (
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/config"
+)
 
 // NewPrometheusServicesConfigProvider returns a new Prometheus ConfigProvider connected to kube apiserver
-var NewPrometheusServicesConfigProvider func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error)
+var NewPrometheusServicesConfigProvider func(providerConfig *config.ConfigurationProviders, telemetryStore *telemetry.Store) (ConfigProvider, error)

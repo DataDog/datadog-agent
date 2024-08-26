@@ -36,7 +36,7 @@ func exportRemoteConfig(fb flaretypes.FlareBuilder) error {
 	}
 
 	// Dump the state
-	token, err := security.FetchAuthToken(config.Datadog)
+	token, err := security.FetchAuthToken(config.Datadog())
 	if err != nil {
 		return fmt.Errorf("couldn't get auth token: %v", err)
 	}
@@ -64,7 +64,7 @@ func exportRemoteConfig(fb flaretypes.FlareBuilder) error {
 	}
 
 	var haState *pbgo.GetStateConfigResponse
-	if config.Datadog.GetBool("multi_region_failover.enabled") {
+	if config.Datadog().GetBool("multi_region_failover.enabled") {
 		if haState, err = cli.GetConfigStateHA(ctx, in); err != nil {
 			return fmt.Errorf("couldn't get the MRF repositories state: %v", err)
 		}
@@ -97,7 +97,7 @@ func hashRCTargets(raw []byte) []byte {
 func getRemoteConfigDB(fb flaretypes.FlareBuilder) error {
 	dstPath, _ := fb.PrepareFilePath("remote-config.db")
 	tempPath, _ := fb.PrepareFilePath("remote-config.temp.db")
-	srcPath := filepath.Join(config.Datadog.GetString("run_path"), "remote-config.db")
+	srcPath := filepath.Join(config.Datadog().GetString("run_path"), "remote-config.db")
 
 	// Copies the db so it avoids bbolt from being locked
 	// Also avoid concurrent modifications

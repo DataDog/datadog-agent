@@ -19,25 +19,19 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	usmstate "github.com/DataDog/datadog-agent/pkg/network/usm/state"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type monitorState = string
-
-const (
-	disabled   monitorState = "disabled"
-	running    monitorState = "running"
-	notRunning monitorState = "Not running"
-)
-
 var (
-	state        = disabled
 	startupError error
 )
 
@@ -63,7 +57,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap *ebpf.Map) (m *Monitor, 
 	defer func() {
 		// capture error and wrap it
 		if err != nil {
-			state = notRunning
+			usmstate.Set(usmstate.NotRunning)
 			err = fmt.Errorf("could not initialize USM: %w", err)
 			startupError = err
 		}
@@ -75,7 +69,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap *ebpf.Map) (m *Monitor, 
 	}
 
 	if len(mgr.enabledProtocols) == 0 {
-		state = disabled
+		usmstate.Set(usmstate.Disabled)
 		log.Debug("not enabling USM as no protocols monitoring were enabled.")
 		return nil, nil
 	}
@@ -88,7 +82,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap *ebpf.Map) (m *Monitor, 
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
-	ebpfcheck.AddNameMappings(mgr.Manager.Manager, "usm_monitor")
+	ddebpf.AddNameMappings(mgr.Manager.Manager, "usm_monitor")
 
 	closeFilterFn, err := filterpkg.HeadlessSocketFilter(c, filter)
 	if err != nil {
@@ -97,7 +91,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap *ebpf.Map) (m *Monitor, 
 
 	processMonitor := monitor.GetProcessMonitor()
 
-	state = running
+	usmstate.Set(usmstate.Running)
 
 	usmMonitor := &Monitor{
 		cfg:            c,
@@ -139,22 +133,45 @@ func (m *Monitor) Start() error {
 	}
 
 	// Need to explicitly save the error in `err` so the defer function could save the startup error.
-	if m.cfg.EnableNativeTLSMonitoring || m.cfg.EnableGoTLSSupport || m.cfg.EnableJavaTLSSupport || m.cfg.EnableIstioMonitoring || m.cfg.EnableNodeJSMonitoring {
-		err = m.processMonitor.Initialize()
+	if usmconfig.NeedProcessMonitor(m.cfg) {
+		err = m.processMonitor.Initialize(m.cfg.EnableUSMEventStream)
 	}
 
 	return err
 }
 
+// Pause bypasses the eBPF programs in the monitor
+func (m *Monitor) Pause() error {
+	if m == nil {
+		return nil
+	}
+
+	return m.ebpfProgram.Pause()
+}
+
+// Resume enables the previously bypassed eBPF programs in the monitor
+func (m *Monitor) Resume() error {
+	if m == nil {
+		return nil
+	}
+
+	return m.ebpfProgram.Resume()
+}
+
 // GetUSMStats returns the current state of the USM monitor
 func (m *Monitor) GetUSMStats() map[string]interface{} {
 	response := map[string]interface{}{
-		"state": state,
+		"state": usmstate.Get(),
 	}
 
 	if startupError != nil {
 		response["error"] = startupError.Error()
 	}
+
+	response["blocked_processes"] = utils.GetBlockedPathIDsList()
+
+	tracedPrograms := utils.GetTracedProgramList()
+	response["traced_programs"] = tracedPrograms
 
 	if m != nil {
 		response["last_check"] = m.lastUpdateTime
@@ -186,10 +203,11 @@ func (m *Monitor) Stop() {
 
 	m.processMonitor.Stop()
 
-	ebpfcheck.RemoveNameMappings(m.ebpfProgram.Manager.Manager)
+	ddebpf.RemoveNameMappings(m.ebpfProgram.Manager.Manager)
 
 	m.ebpfProgram.Close()
 	m.closeFilterFn()
+	usmstate.Set(usmstate.Stopped)
 }
 
 // DumpMaps dumps the maps associated with the monitor

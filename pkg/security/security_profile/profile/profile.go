@@ -33,7 +33,7 @@ import (
 // EventTypeState defines an event type state
 type EventTypeState struct {
 	lastAnomalyNano uint64
-	state           EventFilteringProfileState
+	state           model.EventFilteringProfileState
 }
 
 // VersionContext holds the context of one version (defined by its image tag)
@@ -169,7 +169,7 @@ func (p *SecurityProfile) generateSyscallsFilters() [64]byte {
 // MatchesSelector is used to control how an event should be added to a profile
 func (p *SecurityProfile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
 	for _, workload := range p.Instances {
-		if entry.ContainerID == workload.ID {
+		if entry.ContainerID == workload.ContainerID {
 			return true
 		}
 	}
@@ -273,7 +273,7 @@ func (p *SecurityProfile) ToSecurityProfileMessage() *api.SecurityProfileMessage
 
 	for _, inst := range p.Instances {
 		msg.Instances = append(msg.Instances, &api.InstanceMessage{
-			ContainerID: inst.ID,
+			ContainerID: string(inst.ContainerID),
 			Tags:        inst.Tags,
 		})
 	}
@@ -281,61 +281,61 @@ func (p *SecurityProfile) ToSecurityProfileMessage() *api.SecurityProfileMessage
 }
 
 // GetState returns the state of a profile for a given imageTag
-func (p *SecurityProfile) GetState(imageTag string) EventFilteringProfileState {
+func (p *SecurityProfile) GetState(imageTag string) model.EventFilteringProfileState {
 	pCtx, ok := p.versionContexts[imageTag]
 	if !ok {
-		return NoProfile
+		return model.NoProfile
 	}
 	if len(pCtx.eventTypeState) == 0 {
-		return AutoLearning
+		return model.AutoLearning
 	}
-	state := StableEventType
+	state := model.StableEventType
 	for _, et := range p.eventTypes {
 		s, ok := pCtx.eventTypeState[et]
 		if !ok {
 			continue
 		}
-		if s.state == UnstableEventType {
-			return UnstableEventType
-		} else if s.state != StableEventType {
-			state = AutoLearning
+		if s.state == model.UnstableEventType {
+			return model.UnstableEventType
+		} else if s.state != model.StableEventType {
+			state = model.AutoLearning
 		}
 	}
 	return state
 }
 
-func (p *SecurityProfile) getGlobalState() EventFilteringProfileState {
-	globalState := AutoLearning
+func (p *SecurityProfile) getGlobalState() model.EventFilteringProfileState {
+	globalState := model.AutoLearning
 	for imageTag := range p.versionContexts {
 		state := p.GetState(imageTag)
-		if state == UnstableEventType {
-			return UnstableEventType
-		} else if state == StableEventType {
-			globalState = StableEventType
+		if state == model.UnstableEventType {
+			return model.UnstableEventType
+		} else if state == model.StableEventType {
+			globalState = model.StableEventType
 		}
 	}
 	return globalState // AutoLearning or StableEventType
 }
 
 // GetGlobalState returns the global state of a profile: AutoLearning, StableEventType or UnstableEventType
-func (p *SecurityProfile) GetGlobalState() EventFilteringProfileState {
+func (p *SecurityProfile) GetGlobalState() model.EventFilteringProfileState {
 	p.versionContextsLock.Lock()
 	defer p.versionContextsLock.Unlock()
 	return p.getGlobalState()
 }
 
 // GetGlobalEventTypeState returns the global state of a profile for a given event type: AutoLearning, StableEventType or UnstableEventType
-func (p *SecurityProfile) GetGlobalEventTypeState(et model.EventType) EventFilteringProfileState {
-	globalState := AutoLearning
+func (p *SecurityProfile) GetGlobalEventTypeState(et model.EventType) model.EventFilteringProfileState {
+	globalState := model.AutoLearning
 	for _, ctx := range p.versionContexts {
 		s, ok := ctx.eventTypeState[et]
 		if !ok {
 			continue
 		}
-		if s.state == UnstableEventType {
-			return UnstableEventType
-		} else if s.state == StableEventType {
-			globalState = StableEventType
+		if s.state == model.UnstableEventType {
+			return model.UnstableEventType
+		} else if s.state == model.StableEventType {
+			globalState = model.StableEventType
 		}
 	}
 	return globalState // AutoLearning or StableEventType
@@ -450,12 +450,12 @@ func (p *SecurityProfile) ListAllVersionStates() {
 	}
 	fmt.Printf("Instances:\n")
 	for _, instance := range p.Instances {
-		fmt.Printf("  - %+v\n", instance.ID)
+		fmt.Printf("  - %+v\n", instance.ContainerID)
 	}
 }
 
 // SetVersionState force a state for a given version (debug purpose only)
-func (p *SecurityProfile) SetVersionState(imageTag string, state EventFilteringProfileState) error {
+func (p *SecurityProfile) SetVersionState(imageTag string, state model.EventFilteringProfileState) error {
 	p.versionContextsLock.Lock()
 	defer p.versionContextsLock.Unlock()
 

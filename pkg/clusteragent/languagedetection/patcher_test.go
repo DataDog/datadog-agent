@@ -26,9 +26,11 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -38,7 +40,7 @@ const (
 	eventuallyTestTick    = 100 * time.Millisecond
 )
 
-func newMockLanguagePatcher(ctx context.Context, mockClient dynamic.Interface, mockStore workloadmeta.Mock, mockLogger log.Mock) languagePatcher {
+func newMockLanguagePatcher(ctx context.Context, mockClient dynamic.Interface, mockStore workloadmetamock.Mock, mockLogger log.Component) languagePatcher {
 	ctx, cancel := context.WithCancel(ctx)
 
 	return languagePatcher{
@@ -60,12 +62,12 @@ func newMockLanguagePatcher(ctx context.Context, mockClient dynamic.Interface, m
 func TestRun(t *testing.T) {
 
 	mockK8sClient := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
-	mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
-	mocklogger := fxutil.Test[log.Component](t, logimpl.MockModule())
+	mocklogger := logmock.New(t)
 
 	ctx := context.Background()
 	lp := newMockLanguagePatcher(ctx, mockK8sClient, mockStore, mocklogger)
@@ -295,12 +297,12 @@ func TestRun(t *testing.T) {
 
 func TestPatcherRetriesFailedPatches(t *testing.T) {
 	mockK8sClient := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
-	mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
-	mocklogger := fxutil.Test[log.Component](t, logimpl.MockModule())
+	mocklogger := logmock.New(t)
 
 	ctx := context.Background()
 	lp := newMockLanguagePatcher(ctx, mockK8sClient, mockStore, mocklogger)

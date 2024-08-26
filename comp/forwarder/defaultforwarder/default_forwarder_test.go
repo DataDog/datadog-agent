@@ -10,8 +10,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
@@ -33,7 +32,7 @@ func TestDefaultForwarderUpdateAPIKey(t *testing.T) {
 		config.MockModule(),
 	))
 	mockConfig.Set("api_key", "api_key1", pkgconfigmodel.SourceAgentRuntime)
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
+	log := logmock.New(t)
 
 	// starting API Keys, before the update
 	keysPerDomains := map[string][]string{

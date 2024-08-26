@@ -9,17 +9,20 @@ package inventorychecksimpl
 import (
 	"context"
 	"encoding/json"
+	"expvar"
 	"fmt"
+	"net/http"
 	"reflect"
 	"sync"
 	"time"
 
 	"go.uber.org/fx"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
@@ -31,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
@@ -103,6 +107,7 @@ type provides struct {
 	Comp          inventorychecks.Component
 	Provider      runnerimpl.Provider
 	FlareProvider flaretypes.Provider
+	Endpoint      api.AgentEndpointProvider
 }
 
 func newInventoryChecksProvider(deps dependencies) provides {
@@ -115,7 +120,7 @@ func newInventoryChecksProvider(deps dependencies) provides {
 		hostname: hname,
 		data:     map[string]instanceMetadata{},
 	}
-	ic.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ic.getPayload, "checks.json")
+	ic.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ic.getPayloadWithConfigs, "checks.json")
 
 	// We want to be notified when the collector add or removed a check.
 	// TODO: (component) - This entire metadata provider should be part of the collector. Once the collector is a
@@ -129,10 +134,19 @@ func newInventoryChecksProvider(deps dependencies) provides {
 		ic.sources.Set(logAgent.GetSources())
 	}
 
+	// Set the expvar callback to the current inventorycheck
+	// This should be removed when migrated to collector component
+	if icExpvar := expvar.Get("inventories"); icExpvar == nil {
+		expvar.Publish("inventories", expvar.Func(func() interface{} {
+			return ic.getPayload(false)
+		}))
+	}
+
 	return provides{
 		Comp:          ic,
 		Provider:      ic.MetadataProvider(),
 		FlareProvider: ic.FlareProvider(),
+		Endpoint:      api.NewAgentEndpointProvider(ic.writePayloadAsJSON, "/metadata/inventory-checks", "GET"),
 	}
 }
 
@@ -177,19 +191,24 @@ func (ic *inventorychecksImpl) GetInstanceMetadata(instanceID string) map[string
 	return res
 }
 
-func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
+func (ic *inventorychecksImpl) getPayloadWithConfigs() marshaler.JSONMarshaler {
+	return ic.getPayload(true)
+}
+
+func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarshaler {
 	ic.m.Lock()
 	defer ic.m.Unlock()
 
 	payloadData := make(checksMetadata)
 	invChecksEnabled := ic.conf.GetBool("inventories_checks_configuration_enabled")
+	withConfigs = withConfigs && invChecksEnabled
 
 	if coll, isSet := ic.coll.Get(); isSet {
 		foundInCollector := map[string]struct{}{}
 
 		coll.MapOverChecks(func(checks []check.Info) {
 			for _, c := range checks {
-				cm := check.GetMetadata(c, invChecksEnabled)
+				cm := check.GetMetadata(c, withConfigs)
 
 				if checkData, found := ic.data[string(c.ID())]; found {
 					for key, val := range checkData.metadata {
@@ -238,9 +257,10 @@ func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
 						"error":  logSource.Status.GetError(),
 						"status": logSource.Status.String(),
 					},
-					"service": logSource.Config.Service,
-					"source":  logSource.Config.Source,
-					"tags":    tags,
+					"service":          logSource.Config.Service,
+					"source":           logSource.Config.Source,
+					"integration_name": logSource.Config.IntegrationName,
+					"tags":             tags,
 				})
 			}
 		}
@@ -253,4 +273,14 @@ func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
 		LogsMetadata: logsMetadata,
 		UUID:         uuid.GetUUID(),
 	}
+}
+
+func (ic *inventorychecksImpl) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
+	// GetAsJSON already return scrubbed data
+	scrubbed, err := ic.GetAsJSON()
+	if err != nil {
+		httputils.SetJSONError(w, err, 500)
+		return
+	}
+	w.Write(scrubbed)
 }

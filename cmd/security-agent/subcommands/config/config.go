@@ -17,8 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -53,18 +52,37 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return getSettingsClient(cmd, args)
 			}
 		},
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(
 				showRuntimeConfiguration,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
 			)
 		},
 	}
+
+	cmd.AddCommand(
+		&cobra.Command{
+			Use:   "by-source",
+			Short: "Show the runtime configuration by source (ie: default, config file, env vars, ...)",
+			Long:  ``,
+			RunE: func(_ *cobra.Command, _ []string) error {
+				return fxutil.OneShot(
+					showRuntimeConfigurationBySource,
+					fx.Supply(cliParams),
+					fx.Supply(core.BundleParams{
+						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+						SecretParams: secrets.NewEnabledParams(),
+						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
+					core.Bundle(),
+				)
+			},
+		},
+	)
 
 	// listRuntime returns a cobra command to list the settings that can be changed at runtime.
 	cmd.AddCommand(
@@ -72,14 +90,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			Use:   "list-runtime",
 			Short: "List settings that can be changed at runtime",
 			Long:  ``,
-			RunE: func(cmd *cobra.Command, args []string) error {
+			RunE: func(_ *cobra.Command, _ []string) error {
 				return fxutil.OneShot(
 					listRuntimeConfigurableValue,
 					fx.Supply(cliParams),
 					fx.Supply(core.BundleParams{
-						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 						SecretParams: secrets.NewEnabledParams(),
-						LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true)}),
+						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle(),
 				)
 			},
@@ -92,14 +110,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			Use:   "set [setting] [value]",
 			Short: "Set, for the current runtime, the value of a given configuration setting",
 			Long:  ``,
-			RunE: func(cmd *cobra.Command, args []string) error {
+			RunE: func(_ *cobra.Command, _ []string) error {
 				return fxutil.OneShot(
 					setConfigValue,
 					fx.Supply(cliParams),
 					fx.Supply(core.BundleParams{
-						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 						SecretParams: secrets.NewEnabledParams(),
-						LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true)}),
+						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle(),
 				)
 			},
@@ -112,14 +130,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			Use:   "get [setting]",
 			Short: "Get, for the current runtime, the value of a given configuration setting",
 			Long:  ``,
-			RunE: func(cmd *cobra.Command, args []string) error {
+			RunE: func(_ *cobra.Command, _ []string) error {
 				return fxutil.OneShot(
 					getConfigValue,
 					fx.Supply(cliParams),
 					fx.Supply(core.BundleParams{
-						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 						SecretParams: secrets.NewEnabledParams(),
-						LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true)}),
+						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle(),
 				)
 			},
@@ -129,13 +147,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
-	err := util.SetAuthToken(pkgconfig.Datadog)
+	err := util.SetAuthToken(pkgconfig.Datadog())
 	if err != nil {
 		return nil, err
 	}
 
 	c := util.GetClient(false)
-	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", pkgconfig.Datadog.GetInt("security_agent.cmd_port"))
+	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", pkgconfig.Datadog().GetInt("security_agent.cmd_port"))
 
 	return settingshttp.NewClient(c, apiConfigURL, "security-agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil
 }
@@ -190,6 +208,22 @@ func getConfigValue(_ log.Component, _ config.Component, _ secrets.Component, pa
 	}
 
 	fmt.Printf("%s is set to: %v\n", params.args[0], value)
+
+	return nil
+}
+
+func showRuntimeConfigurationBySource(_ log.Component, _ config.Component, _ secrets.Component, params *cliParams) error {
+	c, err := params.getClient(params.command, params.args)
+	if err != nil {
+		return err
+	}
+
+	config, err := c.FullConfigBySource()
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(config)
 
 	return nil
 }

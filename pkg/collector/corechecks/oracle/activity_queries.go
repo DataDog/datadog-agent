@@ -14,7 +14,7 @@ const activityQueryOnView12 = `SELECT /* DD_ACTIVITY_SAMPLING */
 	username,
 	status,
     osuser,
-    process, 
+    process,
     machine,
 	port,
     program,
@@ -66,18 +66,13 @@ const activityQueryOnView12 = `SELECT /* DD_ACTIVITY_SAMPLING */
 		'CPU'
 	END wait_class,
 	wait_time_micro,
-	dbms_lob.substr(sql_fulltext, 3500, 1) sql_fulltext,
-	dbms_lob.substr(prev_sql_fulltext, 3500, 1) prev_sql_fulltext,
+	dbms_lob.substr(sql_fulltext, :sql_substr_length, 1) sql_fulltext,
+	dbms_lob.substr(prev_sql_fulltext, :sql_substr_length, 1) prev_sql_fulltext,
 	pdb_name,
 	command_name
 FROM sys.dd_session
-WHERE 
-	( sql_text NOT LIKE '%DD_ACTIVITY_SAMPLING%' OR sql_text is NULL ) 
-	AND (
-		NOT (state = 'WAITING' AND wait_class = 'Idle')
-		OR state = 'WAITING' AND event = 'fbar timer' AND type = 'USER'
-	)
-	AND status = 'ACTIVE'`
+WHERE
+	( sql_text NOT LIKE '%DD_ACTIVITY_SAMPLING%' OR sql_text is NULL )`
 
 const activityQueryOnView11 = `SELECT /* DD_ACTIVITY_SAMPLING */
 	SYSDATE as now,
@@ -86,7 +81,7 @@ const activityQueryOnView11 = `SELECT /* DD_ACTIVITY_SAMPLING */
 	username,
 	status,
     osuser,
-    process, 
+    process,
     machine,
 	port,
     program,
@@ -138,19 +133,15 @@ const activityQueryOnView11 = `SELECT /* DD_ACTIVITY_SAMPLING */
 		'CPU'
 	END wait_class,
 	wait_time_micro,
-	dbms_lob.substr(sql_fulltext, 3500, 1) sql_fulltext,
-	dbms_lob.substr(prev_sql_fulltext, 3500, 1) prev_sql_fulltext,
+	dbms_lob.substr(sql_fulltext, :sql_substr_length, 1) sql_fulltext,
+	dbms_lob.substr(prev_sql_fulltext, :sql_substr_length, 1) prev_sql_fulltext,
 	command_name
 FROM sys.dd_session
-WHERE 
-	( sql_text NOT LIKE '%DD_ACTIVITY_SAMPLING%' OR sql_text is NULL ) 
-	AND (
-		NOT (state = 'WAITING' AND wait_class = 'Idle')
-		OR state = 'WAITING' AND event = 'fbar timer' AND type = 'USER'
-	)
-	AND status = 'ACTIVE'`
+WHERE
+	( sql_text NOT LIKE '%DD_ACTIVITY_SAMPLING%' OR sql_text is NULL )`
 
 const activityQueryDirect = `SELECT /*+ push_pred(sq) push_pred(sq_prev) */ /* DD_ACTIVITY_SAMPLING */
+SYSDATE as now,
 s.sid,
 s.serial#,
 s.username,
@@ -208,8 +199,8 @@ ELSE
 END wait_class,
 s.wait_time_micro,
 c.name as pdb_name,
-dbms_lob.substr(sq.sql_fulltext, 3500, 1) sql_fulltext,
-dbms_lob.substr(sq_prev.sql_fulltext, 3500, 1) prev_sql_fulltext,
+dbms_lob.substr(sq.sql_fulltext, :sql_substr_length, 1) sql_fulltext,
+dbms_lob.substr(sq_prev.sql_fulltext, :sql_substr_length, 1) prev_sql_fulltext,
 comm.command_name
 FROM
 v$session s,
@@ -222,11 +213,6 @@ sq.sql_id(+)   = s.sql_id
 AND sq.child_number(+) = s.sql_child_number
 AND sq_prev.sql_id(+)   = s.prev_sql_id
 AND sq_prev.child_number(+) = s.prev_child_number
-AND ( sq.sql_text NOT LIKE '%DD_ACTIVITY_SAMPLING%' OR sq.sql_text is NULL ) 
-AND (
-	NOT (state = 'WAITING' AND wait_class = 'Idle')
-	OR state = 'WAITING' AND event = 'fbar timer' AND type = 'USER'
-)
-AND status = 'ACTIVE'
+AND ( sq.sql_text NOT LIKE '%DD_ACTIVITY_SAMPLING%' OR sq.sql_text is NULL )
 AND s.con_id = c.con_id(+)
 AND s.command = comm.command_type(+)`

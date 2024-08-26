@@ -40,7 +40,7 @@ type configMapStore struct {
 
 // GetConfigmapName returns the name of the ConfigMap used to store the state of the Custom Metrics Provider
 func GetConfigmapName() string {
-	return config.Datadog.GetString("hpa_configmap_name")
+	return config.Datadog().GetString("hpa_configmap_name")
 }
 
 // NewConfigMapStore returns a new store backed by a configmap. The configmap will be created

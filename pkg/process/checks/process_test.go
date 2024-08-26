@@ -21,8 +21,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -78,11 +80,11 @@ func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
 	metricsProvider.RegisterConcreteCollector(provider.NewRuntimeMetadata(string(provider.RuntimeNameGarden), ""), metricsCollector)
 
 	// Workload meta + tagger
-	metadataProvider := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	metadataProvider := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
@@ -174,6 +176,51 @@ func TestProcessCheckSecondRun(t *testing.T) {
 	assert.Nil(t, actual.RealtimePayloads())
 }
 
+func TestProcessCheckChunking(t *testing.T) {
+	for _, tc := range []struct {
+		name                  string
+		noChunking            bool
+		expectedPayloadLength int
+	}{
+		{
+			name:                  "Chunking",
+			noChunking:            false,
+			expectedPayloadLength: 5,
+		},
+		{
+			name:                  "No chunking",
+			noChunking:            true,
+			expectedPayloadLength: 1,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			processCheck, probe := processCheckWithMockProbe(t)
+
+			// Set small chunk size to force chunking behavior
+			processCheck.maxBatchBytes = 0
+			processCheck.maxBatchSize = 0
+
+			// mock processes
+			now := time.Now().Unix()
+			proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
+			proc2 := makeProcessWithCreateTime(2, "mine-bitcoins -all -x", now+1)
+			proc3 := makeProcessWithCreateTime(3, "foo --version", now+2)
+			proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
+			proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
+
+			processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
+			probe.On("ProcessesByPID", mock.Anything, mock.Anything).
+				Return(processesByPid, nil)
+
+			// Test second check runs without error and has correct number of chunks
+			processCheck.Run(testGroupID(0), getChunkingOption(tc.noChunking))
+			actual, err := processCheck.Run(testGroupID(0), getChunkingOption(tc.noChunking))
+			require.NoError(t, err)
+			assert.Len(t, actual.Payloads(), tc.expectedPayloadLength)
+		})
+	}
+}
+
 func TestProcessCheckWithRealtime(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
 	proc1 := makeProcess(1, "git clone google.com")
@@ -237,7 +284,7 @@ func TestProcessCheckWithRealtime(t *testing.T) {
 }
 
 func TestOnlyEnvConfigArgsScrubbingEnabled(t *testing.T) {
-	cfg := ddconfig.Mock(t)
+	cfg := configmock.New(t)
 
 	t.Setenv("DD_CUSTOM_SENSITIVE_WORDS", "*password*,consul_token,*api_key")
 
@@ -263,7 +310,7 @@ func TestOnlyEnvConfigArgsScrubbingEnabled(t *testing.T) {
 }
 
 func TestOnlyEnvConfigArgsScrubbingDisabled(t *testing.T) {
-	cfg := ddconfig.Mock(t)
+	cfg := configmock.New(t)
 
 	t.Setenv("DD_SCRUB_ARGS", "false")
 	t.Setenv("DD_CUSTOM_SENSITIVE_WORDS", "*password*,consul_token,*api_key")
@@ -461,7 +508,7 @@ func BenchmarkProcessCheck(b *testing.B) {
 
 func TestProcessCheckZombieToggleFalse(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
-	cfg := ddconfig.Mock(t)
+	cfg := configmock.New(t)
 	processCheck.config = cfg
 	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
 
@@ -512,7 +559,7 @@ func TestProcessCheckZombieToggleFalse(t *testing.T) {
 
 func TestProcessCheckZombieToggleTrue(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
-	cfg := ddconfig.Mock(t)
+	cfg := configmock.New(t)
 	processCheck.config = cfg
 	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
 

@@ -7,6 +7,8 @@ package host
 
 import (
 	"encoding/json"
+	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -33,25 +35,82 @@ func (h *Host) LastJournaldTimestamp() JournaldTimestamp {
 	return JournaldTimestamp(log.MonotonicTimestamp)
 }
 
+// AssertUnitProperty asserts that the given systemd unit has the given property
+func (h *Host) AssertUnitProperty(unit, property, value string) {
+	res, err := h.remote.Execute(fmt.Sprintf("sudo systemctl show -p %s %s", property, unit))
+	require.NoError(h.t, err)
+	require.Equal(h.t, fmt.Sprintf("%s=%s\n", property, value), res)
+}
+
+func popIfMatches(searchedEvents []SystemdEvent, log journaldLog) []SystemdEvent {
+	for i, event := range searchedEvents {
+		if eventMatches(log, event) {
+			newEvents := make([]SystemdEvent, 0, len(searchedEvents)-1)
+			newEvents = append(newEvents, searchedEvents[:i]...)
+			newEvents = append(newEvents, searchedEvents[i+1:]...)
+			return newEvents
+		}
+	}
+	return searchedEvents
+}
+
+func eventMatches(log journaldLog, event SystemdEvent) bool {
+	if log.Unit != event.Unit {
+		return false
+	}
+	match, _ := regexp.MatchString(event.Pattern, log.Message)
+	return match
+}
+
+// stripSystemd244 removes the events that are not present for systemd versions
+// before 244: 'ConditionPathExists' is added in 244 and used by
+// system-probe and security-agent
+func (h *Host) stripSystemd244(events []SystemdEvent) []SystemdEvent {
+	if h.systemdVersion >= 244 {
+		return events
+	}
+	newEvents := make([]SystemdEvent, 0, len(events))
+	map244Units := map[string]struct{}{
+		"datadog-agent-sysprobe.service":     {},
+		"datadog-agent-security.service":     {},
+		"datadog-agent-sysprobe-exp.service": {},
+		"datadog-agent-security-exp.service": {},
+	}
+	for _, e := range events {
+		if _, ok := map244Units[e.Unit]; ok {
+			continue
+		}
+		newEvents = append(newEvents, e)
+	}
+	return newEvents
+}
+
 // AssertSystemdEvents asserts that the systemd events have been logged since the given timestamp
 func (h *Host) AssertSystemdEvents(since JournaldTimestamp, events SystemdEventSequence) {
+	var lastSearchedEvents []SystemdEvent
 	success := assert.Eventually(h.t, func() bool {
 		logs := h.journaldLogsSince(since)
 		if len(logs) < len(events.Events) {
 			return false
 		}
-		i := 0
-		j := 0
+		i, j := 0, 0
+		var searchedEvents []SystemdEvent
 		for i < len(logs) && j < len(events.Events) {
-			if logs[i].Unit == events.Events[j].Unit && strings.HasPrefix(logs[i].Message, events.Events[j].MessagePrefix) {
+			if len(searchedEvents) == 0 {
+				searchedEvents = events.Events[j]
 				j++
 			}
+			searchedEvents = h.stripSystemd244(searchedEvents)
+			searchedEvents = popIfMatches(searchedEvents, logs[i])
 			i++
 		}
+		lastSearchedEvents = searchedEvents
 		return j == len(events.Events)
 	}, 30*time.Second, 1*time.Second)
+
 	if !success {
 		logs := h.journaldLogsSince(since)
+		h.t.Logf("Blocked on validating: %v", lastSearchedEvents)
 		h.t.Logf("Expected events: %v", events.Events)
 		h.t.Logf("Actual events: %v", logs)
 	}
@@ -59,13 +118,13 @@ func (h *Host) AssertSystemdEvents(since JournaldTimestamp, events SystemdEventS
 
 // SystemdEvent represents a systemd event
 type SystemdEvent struct {
-	Unit          string
-	MessagePrefix string
+	Unit    string
+	Pattern string
 }
 
 // SystemdEventSequence represents a sequence of systemd events
 type SystemdEventSequence struct {
-	Events []SystemdEvent
+	Events [][]SystemdEvent
 }
 
 // SystemdEvents returns a new SystemdEventSequence
@@ -75,31 +134,65 @@ func SystemdEvents() SystemdEventSequence {
 
 // Starting adds a "Starting" event to the sequence
 func (s SystemdEventSequence) Starting(unit string) SystemdEventSequence {
-	s.Events = append(s.Events, SystemdEvent{Unit: unit, MessagePrefix: "Starting"})
+	s.Events = append(s.Events, []SystemdEvent{{Unit: unit, Pattern: "Starting.*"}})
 	return s
 }
 
 // Started adds a "Started" event to the sequence
 func (s SystemdEventSequence) Started(unit string) SystemdEventSequence {
-	s.Events = append(s.Events, SystemdEvent{Unit: unit, MessagePrefix: "Started"})
+	s.Events = append(s.Events, []SystemdEvent{{Unit: unit, Pattern: "Started.*"}})
 	return s
 }
 
 // Stopping adds a "Stopping" event to the sequence
 func (s SystemdEventSequence) Stopping(unit string) SystemdEventSequence {
-	s.Events = append(s.Events, SystemdEvent{Unit: unit, MessagePrefix: "Stopping"})
+	s.Events = append(s.Events, []SystemdEvent{{Unit: unit, Pattern: "Stopping.*"}})
 	return s
 }
 
 // Stopped adds a "Stopped" event to the sequence
 func (s SystemdEventSequence) Stopped(unit string) SystemdEventSequence {
-	s.Events = append(s.Events, SystemdEvent{Unit: unit, MessagePrefix: "Stopped"})
+	s.Events = append(s.Events, []SystemdEvent{{Unit: unit, Pattern: "Stopped.*"}})
 	return s
 }
 
 // Failed adds a "Failed" event to the sequence
 func (s SystemdEventSequence) Failed(unit string) SystemdEventSequence {
-	s.Events = append(s.Events, SystemdEvent{Unit: unit, MessagePrefix: "Failed"})
+	s.Events = append(s.Events, []SystemdEvent{{Unit: unit, Pattern: "Failed.*"}})
+	return s
+}
+
+// Timed adds a "Timed" event to the sequence
+func (s SystemdEventSequence) Timed(unit string) SystemdEventSequence {
+	s.Events = append(s.Events, []SystemdEvent{{Unit: unit, Pattern: "Timed.*"}})
+	return s
+}
+
+// Skipped adds a "Skipped" event to the sequence
+func (s SystemdEventSequence) Skipped(unit string) SystemdEventSequence {
+	s.Events = append(s.Events, []SystemdEvent{{Unit: unit, Pattern: ".*skipped.*"}})
+	return s
+}
+
+// SigtermTimed adds a "SigtermTimed" event to the sequence
+func (s SystemdEventSequence) SigtermTimed(unit string) SystemdEventSequence {
+	s.Events = append(s.Events, []SystemdEvent{{Unit: unit, Pattern: ".*stop-sigterm.*timed out.*"}})
+	return s
+}
+
+// Sigkill adds a "Sigkill" event to the sequence
+func (s SystemdEventSequence) Sigkill(unit string) SystemdEventSequence {
+	s.Events = append(s.Events, []SystemdEvent{{Unit: unit, Pattern: ".*status=9/KILL.*"}})
+	return s
+}
+
+// Unordered adds an unordered sequence of events to the sequence
+func (s SystemdEventSequence) Unordered(events SystemdEventSequence) SystemdEventSequence {
+	flatten := []SystemdEvent{}
+	for _, e := range events.Events {
+		flatten = append(flatten, e...)
+	}
+	s.Events = append(s.Events, flatten)
 	return s
 }
 

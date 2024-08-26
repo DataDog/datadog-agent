@@ -37,7 +37,7 @@ func New(ac autodiscovery.Component) schedulers.Scheduler {
 
 // Start implements schedulers.Scheduler#Start.
 func (s *Scheduler) Start(sourceMgr schedulers.SourceManager) {
-	if !coreConfig.Datadog.GetBool("logs_config.container_collect_all") {
+	if !coreConfig.Datadog().GetBool("logs_config.container_collect_all") {
 		return
 	}
 	// source to collect all logs from all containers
@@ -52,7 +52,7 @@ func (s *Scheduler) Start(sourceMgr schedulers.SourceManager) {
 	// a hack!
 	go func() {
 		s.blockUntilAutoConfigRanOnce(
-			time.Millisecond * time.Duration(coreConfig.Datadog.GetInt("ac_load_timeout")))
+			time.Millisecond * time.Duration(coreConfig.Datadog().GetInt("ac_load_timeout")))
 		log.Debug("Adding ContainerCollectAll source to the Logs Agent")
 		sourceMgr.AddSource(source)
 		close(s.added)

@@ -16,17 +16,20 @@ static __always_inline __u32 is_version_component_helper(const char *buf, __u32 
         if (offset + i >= buf_size) {
             break;
         }
-        current_char = buf[offset+i];
+
+        current_char = buf[offset + i];
+        if (current_char == delimiter && i > 0) {
+            return i + 1;
+        }
+
         if ('0' <= current_char && current_char <= '9') {
             continue;
         }
-        if (current_char == delimiter && i > 0) {
-            return i+1;
-        }
+
         // Any other character is not supported.
         break;
-   }
-   return 0;
+    }
+    return 0;
 }
 
 // Checks if the given buffer is a null terminated string that represents a version of the format <major>.<minor>.<bugfix>

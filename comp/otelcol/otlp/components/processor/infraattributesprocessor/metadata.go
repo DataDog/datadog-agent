@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	// Type for tag enrichment processor.
+	// Type for infra attributes processor.
 	Type = component.MustNewType("infraattributes")
 )
 
@@ -25,12 +25,12 @@ const (
 	LogsStability = component.StabilityLevelAlpha
 )
 
-// Meter for tag enrichement.
+// Meter for infra attributes processor.
 func Meter(settings component.TelemetrySettings) metric.Meter {
 	return settings.MeterProvider.Meter("otelcol/infraattributes")
 }
 
-// Tracer for tag enrichment.
+// Tracer for infra attributes processor.
 func Tracer(settings component.TelemetrySettings) trace.Tracer {
 	return settings.TracerProvider.Tracer("otelcol/infraattributes")
 }

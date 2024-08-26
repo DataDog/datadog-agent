@@ -25,8 +25,11 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -43,6 +46,12 @@ func TestBuildCollectorEvent(t *testing.T) {
 		},
 	}
 
+	task := &mockedTask{
+		mockPid: func() uint32 {
+			return 12345
+		},
+	}
+
 	container := mockedContainer{
 		mockID: func() string {
 			return containerID
@@ -50,19 +59,22 @@ func TestBuildCollectorEvent(t *testing.T) {
 		mockImage: func() (containerd.Image, error) {
 			return image, nil
 		},
+		mockTask: func() (containerd.Task, error) {
+			return task, nil
+		},
 	}
 
-	exitCode := uint32(137)
+	exitCode := int64(137)
 	exitTime := time.Now()
 	fakeExitInfo := &exitInfo{exitCode: &exitCode, exitTS: exitTime}
 
 	client := containerdClient(&container)
-	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		logimpl.MockModule(),
+	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 	workloadMetaContainer, err := buildWorkloadMetaContainer(namespace, &container, &client, workloadmetaStore)
 	workloadMetaContainer.Namespace = namespace
@@ -308,13 +320,13 @@ func containerdClient(container containerd.Container) fake.MockedContainerdClien
 	createdAt, _ := time.Parse("2006-01-02", "2021-10-11")
 
 	return fake.MockedContainerdClient{
-		MockContainerWithCtx: func(ctx context.Context, namespace string, id string) (containerd.Container, error) {
+		MockContainerWithCtx: func(context.Context, string, string) (containerd.Container, error) {
 			return container, nil
 		},
-		MockLabels: func(namespace string, ctn containerd.Container) (map[string]string, error) {
+		MockLabels: func(string, containerd.Container) (map[string]string, error) {
 			return labels, nil
 		},
-		MockImageOfContainer: func(namespace string, ctn containerd.Container) (containerd.Image, error) {
+		MockImageOfContainer: func(string, containerd.Container) (containerd.Image, error) {
 			return &mockedImage{
 				mockName: func() string {
 					return imgName
@@ -324,16 +336,16 @@ func containerdClient(container containerd.Container) fake.MockedContainerdClien
 				},
 			}, nil
 		},
-		MockInfo: func(namespace string, ctn containerd.Container) (containers.Container, error) {
+		MockInfo: func(string, containerd.Container) (containers.Container, error) {
 			return containers.Container{CreatedAt: createdAt}, nil
 		},
-		MockSpec: func(namespace string, ctn containers.Container) (*oci.Spec, error) {
+		MockSpec: func(string, containers.Container) (*oci.Spec, error) {
 			return &oci.Spec{Hostname: hostName, Process: &specs.Process{Env: envVarStrs}}, nil
 		},
-		MockStatus: func(namespace string, ctn containerd.Container) (containerd.ProcessStatus, error) {
+		MockStatus: func(string, containerd.Container) (containerd.ProcessStatus, error) {
 			return containerd.Running, nil
 		},
-		MockTaskPids: func(namespace string, ctn containerd.Container) ([]containerd.ProcessInfo, error) {
+		MockTaskPids: func(string, containerd.Container) ([]containerd.ProcessInfo, error) {
 			return nil, nil
 		},
 	}

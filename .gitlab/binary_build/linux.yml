@@ -53,9 +53,8 @@ build_dogstatsd-binary_x64:
 
 build_dogstatsd-binary_arm64:
   rules:
-    - !reference [.on_all_builds]
-    - !reference [.on_packaging_change]
-    - !reference [.on_go-version_change]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]

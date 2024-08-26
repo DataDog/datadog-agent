@@ -7,16 +7,18 @@
 package socket
 
 import (
+	"fmt"
 	"io"
 	"net"
+	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Tailer reads data from a net.Conn.  It uses a `read` callback to be generic
@@ -25,14 +27,14 @@ type Tailer struct {
 	source     *sources.LogSource
 	Conn       net.Conn
 	outputChan chan *message.Message
-	read       func(*Tailer) ([]byte, error)
+	read       func(*Tailer) ([]byte, string, error)
 	decoder    *decoder.Decoder
 	stop       chan struct{}
 	done       chan struct{}
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(source *sources.LogSource, conn net.Conn, outputChan chan *message.Message, read func(*Tailer) ([]byte, error)) *Tailer {
+func NewTailer(source *sources.LogSource, conn net.Conn, outputChan chan *message.Message, read func(*Tailer) ([]byte, string, error)) *Tailer {
 	return &Tailer{
 		source:     source,
 		Conn:       conn,
@@ -67,7 +69,7 @@ func (t *Tailer) forwardMessages() {
 	}()
 	for output := range t.decoder.OutputChan {
 		if len(output.GetContent()) > 0 {
-			t.outputChan <- message.NewMessageWithSource(output.GetContent(), message.StatusInfo, t.source, output.IngestionTimestamp)
+			t.outputChan <- message.NewMessage(output.GetContent(), output.Origin, output.Status, output.IngestionTimestamp)
 		}
 	}
 }
@@ -84,7 +86,7 @@ func (t *Tailer) readForever() {
 			// stop reading data from the connection
 			return
 		default:
-			data, err := t.read(t)
+			data, ipAddress, err := t.read(t)
 			if err != nil && err == io.EOF {
 				// connection has been closed client-side, stop from reading new data
 				return
@@ -94,8 +96,22 @@ func (t *Tailer) readForever() {
 				log.Warnf("Couldn't read message from connection: %v", err)
 				return
 			}
-			t.source.RecordBytes(int64(len(data)))
-			t.decoder.InputChan <- decoder.NewInput(data)
+			origin := message.NewOrigin(t.source)
+			copiedTags := make([]string, len(t.source.Config.Tags))
+			copy(copiedTags, t.source.Config.Tags)
+			if ipAddress != "" && coreConfig.Datadog().GetBool("logs_config.use_sourcehost_tag") {
+				lastColonIndex := strings.LastIndex(ipAddress, ":")
+				var ipAddressWithoutPort string
+				if lastColonIndex != -1 {
+					ipAddressWithoutPort = ipAddress[:lastColonIndex]
+				} else {
+					ipAddressWithoutPort = ipAddress
+				}
+				sourceHostTag := fmt.Sprintf("source_host:%s", ipAddressWithoutPort)
+				copiedTags = append(copiedTags, sourceHostTag)
+			}
+			origin.SetTags(copiedTags)
+			t.decoder.InputChan <- message.NewMessage(data, origin, message.StatusInfo, 0)
 		}
 	}
 }

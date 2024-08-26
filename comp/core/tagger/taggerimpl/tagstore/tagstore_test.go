@@ -16,7 +16,11 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors"
+	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type StoreTestSuite struct {
@@ -26,10 +30,12 @@ type StoreTestSuite struct {
 }
 
 func (s *StoreTestSuite) SetupTest() {
+	tel := fxutil.Test[telemetry.Component](s.T(), telemetryimpl.MockModule())
+	telemetryStore := taggerTelemetry.NewStore(tel)
 	s.clock = clock.NewMock()
 	// set the mock clock to the current time
 	s.clock.Add(time.Since(time.Unix(0, 0)))
-	s.store = newTagStoreWithClock(s.clock)
+	s.store = newTagStoreWithClock(s.clock, telemetryStore)
 }
 
 func (s *StoreTestSuite) TestIngest() {
@@ -49,7 +55,7 @@ func (s *StoreTestSuite) TestIngest() {
 	})
 
 	assert.Len(s.T(), s.store.store, 1)
-	assert.Len(s.T(), s.store.store["test"].sourceTags, 2)
+	assert.Len(s.T(), s.store.store["test"].sources(), 2)
 }
 
 func (s *StoreTestSuite) TestLookup() {
@@ -324,34 +330,6 @@ func TestStoreSuite(t *testing.T) {
 	suite.Run(t, &StoreTestSuite{})
 }
 
-func TestGetEntityTags(t *testing.T) {
-	etags := newEntityTags("deadbeef")
-
-	// Get empty tags and make sure cache is now set to valid
-	tags := etags.get(types.HighCardinality)
-	assert.Len(t, tags, 0)
-	assert.True(t, etags.cacheValid)
-
-	// Add tags but don't invalidate the cache, we should return empty arrays
-	etags.sourceTags["source"] = sourceTags{
-		lowCardTags:  []string{"low1", "low2"},
-		highCardTags: []string{"high1", "high2"},
-	}
-	tags = etags.get(types.HighCardinality)
-	assert.Len(t, tags, 0)
-	assert.True(t, etags.cacheValid)
-
-	// Invalidate the cache, we should now get the tags
-	etags.cacheValid = false
-	tags = etags.get(types.HighCardinality)
-	assert.Len(t, tags, 4)
-	assert.ElementsMatch(t, tags, []string{"low1", "low2", "high1", "high2"})
-	assert.True(t, etags.cacheValid)
-	tags = etags.get(types.LowCardinality)
-	assert.Len(t, tags, 2)
-	assert.ElementsMatch(t, tags, []string{"low1", "low2"})
-}
-
 func (s *StoreTestSuite) TestGetExpiredTags() {
 	s.store.ProcessTagInfo([]*types.TagInfo{
 		{
@@ -377,7 +355,7 @@ func (s *StoreTestSuite) TestGetExpiredTags() {
 	assert.NotContains(s.T(), tagsHigh, "expired")
 }
 
-func TestDuplicateSourceTags(t *testing.T) {
+func (s *StoreTestSuite) TestDuplicateSourceTags() {
 	// Mock collector priorities
 	originalCollectorPriorities := collectors.CollectorPriorities
 	collectors.CollectorPriorities = map[string]types.CollectorPriority{
@@ -389,42 +367,55 @@ func TestDuplicateSourceTags(t *testing.T) {
 		collectors.CollectorPriorities = originalCollectorPriorities
 	}()
 
-	etags := newEntityTags("deadbeef")
+	testEntity := "testEntity"
 
-	// Get empty tags and make sure cache is now set to valid
-	tags := etags.get(types.HighCardinality)
-	assert.Len(t, tags, 0)
-	assert.True(t, etags.cacheValid)
-
-	// Add tags but don't invalidate the cache, we should return empty arrays
-	etags.sourceTags["sourceNodeOrchestrator"] = sourceTags{
-		lowCardTags:  []string{"bar", "tag1:sourceHigh", "tag2:sourceHigh"},
-		highCardTags: []string{"tag3:sourceHigh", "tag4:sourceHigh"},
+	// Mock collector priorities
+	collectors.CollectorPriorities = map[string]types.CollectorPriority{
+		"sourceNodeRuntime":         types.NodeRuntime,
+		"sourceNodeOrchestrator":    types.NodeOrchestrator,
+		"sourceClusterOrchestrator": types.ClusterOrchestrator,
 	}
 
-	etags.sourceTags["sourceNodeRuntime"] = sourceTags{
-		lowCardTags:  []string{"foo", "tag1:sourceLow", "tag2:sourceLow"},
-		highCardTags: []string{"tag3:sourceLow", "tag5:sourceLow"},
+	nodeRuntimeTags := types.TagInfo{
+		Source:       "sourceNodeRuntime",
+		Entity:       testEntity,
+		LowCardTags:  []string{"foo", "tag1:sourceLow", "tag2:sourceLow"},
+		HighCardTags: []string{"tag3:sourceLow", "tag5:sourceLow"},
 	}
 
-	etags.sourceTags["sourceClusterOrchestrator"] = sourceTags{
-		lowCardTags:  []string{"tag3:sourceClusterHigh", "tag1:sourceClusterLow"},
-		highCardTags: []string{"tag4:sourceClusterLow"},
+	nodeOrchestractorTags := types.TagInfo{
+		Source:       "sourceNodeOrchestrator",
+		Entity:       testEntity,
+		LowCardTags:  []string{"bar", "tag1:sourceHigh", "tag2:sourceHigh"},
+		HighCardTags: []string{"tag3:sourceHigh", "tag4:sourceHigh"},
 	}
 
-	tags = etags.get(types.HighCardinality)
-	assert.Len(t, tags, 0)
-	assert.True(t, etags.cacheValid)
+	clusterOrchestratorTags := types.TagInfo{
+		Source:       "sourceClusterOrchestrator",
+		Entity:       testEntity,
+		LowCardTags:  []string{"tag1:sourceClusterLow", "tag3:sourceClusterHigh"},
+		HighCardTags: []string{"tag4:sourceClusterLow"},
+	}
 
-	// Invalidate the cache, we should now get the tags
-	etags.cacheValid = false
-	tags = etags.get(types.HighCardinality)
-	assert.Len(t, tags, 7)
-	assert.ElementsMatch(t, tags, []string{"foo", "bar", "tag1:sourceClusterLow", "tag2:sourceHigh", "tag3:sourceClusterHigh", "tag4:sourceClusterLow", "tag5:sourceLow"})
-	assert.True(t, etags.cacheValid)
-	tags = etags.get(types.LowCardinality)
-	assert.Len(t, tags, 5)
-	assert.ElementsMatch(t, tags, []string{"foo", "bar", "tag1:sourceClusterLow", "tag2:sourceHigh", "tag3:sourceClusterHigh"})
+	s.store.ProcessTagInfo([]*types.TagInfo{
+		&nodeRuntimeTags,
+		&nodeOrchestractorTags,
+		&clusterOrchestratorTags,
+	})
+
+	lowCardTags := s.store.Lookup(testEntity, types.LowCardinality)
+	assert.ElementsMatch(
+		s.T(),
+		lowCardTags,
+		[]string{"foo", "bar", "tag1:sourceClusterLow", "tag2:sourceHigh", "tag3:sourceClusterHigh"},
+	)
+
+	highCardTags := s.store.Lookup(testEntity, types.HighCardinality)
+	assert.ElementsMatch(
+		s.T(),
+		highCardTags,
+		[]string{"foo", "bar", "tag1:sourceClusterLow", "tag2:sourceHigh", "tag3:sourceClusterHigh", "tag4:sourceClusterLow", "tag5:sourceLow"},
+	)
 }
 
 type entityEventExpectation struct {
@@ -436,8 +427,10 @@ type entityEventExpectation struct {
 }
 
 func TestSubscribe(t *testing.T) {
+	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryStore := taggerTelemetry.NewStore(tel)
 	clock := clock.NewMock()
-	store := newTagStoreWithClock(clock)
+	store := newTagStoreWithClock(clock, telemetryStore)
 
 	collectors.CollectorPriorities["source2"] = types.ClusterOrchestrator
 	collectors.CollectorPriorities["source"] = types.NodeRuntime

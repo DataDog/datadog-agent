@@ -6,16 +6,12 @@
 package environments
 
 import (
-	"github.com/DataDog/test-infra-definitions/resources/aws"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 )
 
 // Host is an environment that contains a Host, FakeIntake and Agent configured to talk to each other.
 type Host struct {
-	AwsEnvironment *aws.Environment
-	// Components
 	RemoteHost *components.RemoteHost
 	FakeIntake *components.FakeIntake
 	Agent      *components.RemoteHostAgent

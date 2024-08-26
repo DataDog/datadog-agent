@@ -224,7 +224,7 @@ func TestLogsExporter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			testChannel := make(chan *message.Message, 10)
 
-			params := exportertest.NewNopCreateSettings()
+			params := exportertest.NewNopSettings()
 			f := NewFactory(testChannel)
 			cfg := &Config{
 				OtelSource:    tt.args.otelSource,

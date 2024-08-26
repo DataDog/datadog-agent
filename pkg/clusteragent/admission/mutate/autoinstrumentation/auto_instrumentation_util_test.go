@@ -16,8 +16,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -39,15 +42,23 @@ func TestGetOwnerNameAndKind(t *testing.T) {
 			wantFound:    false,
 		},
 		{
-			name:         "Pod with replicaset parent, and no deployment grandparent",
-			pod:          common.FakePodWithParent("default", nil, nil, nil, "replicaset", "dummy-rs"),
+			name: "Pod with replicaset parent, and no deployment grandparent",
+			pod: common.FakePodSpec{
+				NS:         "default",
+				ParentKind: "replicaset",
+				ParentName: "dummy-rs",
+			}.Create(),
 			expectedName: "dummy-rs",
 			expectedKind: "ReplicaSet",
 			wantFound:    true,
 		},
 		{
-			name:         "Pod with replicaset parent, and deployment grandparent",
-			pod:          common.FakePodWithParent("default", nil, nil, nil, "replicaset", "dummy-rs-12344"),
+			name: "Pod with replicaset parent, and deployment grandparent",
+			pod: common.FakePodSpec{
+				NS:         "default",
+				ParentKind: "replicaset",
+				ParentName: "dummy-rs-12344",
+			}.Create(),
 			expectedName: "dummy-rs",
 			expectedKind: "Deployment",
 			wantFound:    true,
@@ -60,7 +71,6 @@ func TestGetOwnerNameAndKind(t *testing.T) {
 			require.Equal(t, found, tt.wantFound)
 			require.Equal(t, name, tt.expectedName)
 			require.Equal(t, kind, tt.expectedKind)
-
 		})
 	}
 }
@@ -83,11 +93,11 @@ func assertEqualLibInjection(actualLibs []libInfo, expectedLibs []libInfo) bool 
 
 func TestGetLibListFromDeploymentAnnotations(t *testing.T) {
 
-	mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		logimpl.MockModule(),
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	//java, js, python, dotnet, ruby
@@ -134,9 +144,9 @@ func TestGetLibListFromDeploymentAnnotations(t *testing.T) {
 			namespace:      "default",
 			registry:       "registry",
 			expectedLibList: []libInfo{
-				{ctrName: "container-1", lang: "java", image: libImageName("registry", "java", "latest")},
-				{ctrName: "container-1", lang: "js", image: libImageName("registry", "js", "latest")},
-				{ctrName: "container-2", lang: "python", image: libImageName("registry", "python", "latest")},
+				java.defaultLibInfo("registry", "container-1"),
+				js.defaultLibInfo("registry", "container-1"),
+				python.defaultLibInfo("registry", "container-2"),
 			},
 		},
 		{
@@ -145,9 +155,9 @@ func TestGetLibListFromDeploymentAnnotations(t *testing.T) {
 			namespace:      "custom",
 			registry:       "registry",
 			expectedLibList: []libInfo{
-				{ctrName: "container-1", lang: "ruby", image: libImageName("registry", "ruby", "latest")},
-				{ctrName: "container-1", lang: "python", image: libImageName("registry", "python", "latest")},
-				{ctrName: "container-2", lang: "java", image: libImageName("registry", "java", "latest")},
+				ruby.defaultLibInfo("registry", "container-1"),
+				python.defaultLibInfo("registry", "container-1"),
+				java.defaultLibInfo("registry", "container-2"),
 			},
 		},
 	}
@@ -155,7 +165,6 @@ func TestGetLibListFromDeploymentAnnotations(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			libList := getLibListFromDeploymentAnnotations(mockStore, tt.deploymentName, tt.namespace, tt.registry)
-
 			if !assertEqualLibInjection(libList, tt.expectedLibList) {
 				t.Fatalf("Expected %s, got %s", tt.expectedLibList, libList)
 			}

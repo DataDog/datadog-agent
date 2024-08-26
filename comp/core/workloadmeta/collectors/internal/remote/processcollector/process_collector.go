@@ -17,18 +17,22 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	collectorID = "process-collector"
+	collectorID       = "process-collector"
+	cacheValidityNoRT = 2 * time.Second
 )
 
 func toLanguage(proto *pbgo.Language) *languagemodels.Language {
@@ -40,50 +44,12 @@ func toLanguage(proto *pbgo.Language) *languagemodels.Language {
 	}
 }
 
-// WorkloadmetaEventFromProcessEventSet converts the given ProcessEventSet into a workloadmeta.Event
-func WorkloadmetaEventFromProcessEventSet(protoEvent *pbgo.ProcessEventSet) (workloadmeta.Event, error) {
-	if protoEvent == nil {
-		return workloadmeta.Event{}, nil
-	}
-
-	return workloadmeta.Event{
-		Type: workloadmeta.EventTypeSet,
-		Entity: &workloadmeta.Process{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindProcess,
-				ID:   strconv.Itoa(int(protoEvent.GetPid())),
-			},
-			NsPid:        protoEvent.GetNspid(),
-			ContainerID:  protoEvent.GetContainerID(),
-			CreationTime: time.UnixMilli(protoEvent.GetCreationTime()), // TODO: confirm what we receive as creation time here
-			Language:     toLanguage(protoEvent.GetLanguage()),
-		},
-	}, nil
-}
-
-// WorkloadmetaEventFromProcessEventUnset converts the given ProcessEventSet into a workloadmeta.Event
-func WorkloadmetaEventFromProcessEventUnset(protoEvent *pbgo.ProcessEventUnset) (workloadmeta.Event, error) {
-	if protoEvent == nil {
-		return workloadmeta.Event{}, nil
-	}
-
-	return workloadmeta.Event{
-		Type: workloadmeta.EventTypeUnset,
-		Entity: &workloadmeta.Process{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindProcess,
-				ID:   strconv.Itoa(int(protoEvent.GetPid())),
-			},
-		},
-	}, nil
-}
-
 type client struct {
 	cl              pbgo.ProcessEntityStreamClient
 	parentCollector *streamHandler
 }
 
-func (c *client) StreamEntities(ctx context.Context, opts ...grpc.CallOption) (remote.Stream, error) { //nolint:revive // TODO fix revive unused-parameter
+func (c *client) StreamEntities(ctx context.Context) (remote.Stream, error) {
 	log.Debug("starting a new stream")
 	streamcl, err := c.cl.StreamEntities(
 		ctx,
@@ -109,13 +75,51 @@ type streamHandler struct {
 	config.Reader
 }
 
+// workloadmetaEventFromProcessEventSet converts the given ProcessEventSet into a workloadmeta.Event
+func workloadmetaEventFromProcessEventSet(protoEvent *pbgo.ProcessEventSet) (workloadmeta.Event, error) {
+	if protoEvent == nil {
+		return workloadmeta.Event{}, nil
+	}
+
+	return workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindProcess,
+				ID:   strconv.Itoa(int(protoEvent.GetPid())),
+			},
+			NsPid:        protoEvent.GetNspid(),
+			ContainerID:  protoEvent.GetContainerID(),
+			CreationTime: time.UnixMilli(protoEvent.GetCreationTime()), // TODO: confirm what we receive as creation time here
+			Language:     toLanguage(protoEvent.GetLanguage()),
+		},
+	}, nil
+}
+
+// workloadmetaEventFromProcessEventUnset converts the given ProcessEventSet into a workloadmeta.Event
+func workloadmetaEventFromProcessEventUnset(protoEvent *pbgo.ProcessEventUnset) (workloadmeta.Event, error) {
+	if protoEvent == nil {
+		return workloadmeta.Event{}, nil
+	}
+
+	return workloadmeta.Event{
+		Type: workloadmeta.EventTypeUnset,
+		Entity: &workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindProcess,
+				ID:   strconv.Itoa(int(protoEvent.GetPid())),
+			},
+		},
+	}, nil
+}
+
 // NewCollector returns a remote process collector for workloadmeta if any
 func NewCollector() (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &remote.GenericCollector{
 			CollectorID: collectorID,
 			// TODO(components): make sure StreamHandler uses the config component not pkg/config
-			StreamHandler: &streamHandler{Reader: config.Datadog},
+			StreamHandler: &streamHandler{Reader: config.Datadog()},
 			Catalog:       workloadmeta.NodeAgent,
 			Insecure:      true, // wlm extractor currently does not support TLS
 		},
@@ -144,7 +148,8 @@ func (s *streamHandler) IsEnabled() bool {
 	if flavor.GetFlavor() != flavor.DefaultAgent {
 		return false
 	}
-	return s.Reader.GetBool("language_detection.enabled")
+
+	return s.Reader.GetBool("language_detection.enabled") && !util.LocalProcessCollectorIsEnabled()
 }
 
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient {
@@ -152,7 +157,7 @@ func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient
 	return &client{cl: pbgo.NewProcessEntityStreamClient(cc), parentCollector: s}
 }
 
-func (s *streamHandler) HandleResponse(resp interface{}) ([]workloadmeta.CollectorEvent, error) {
+func (s *streamHandler) HandleResponse(store workloadmeta.Component, resp interface{}) ([]workloadmeta.CollectorEvent, error) {
 	log.Trace("handling response")
 	response, ok := resp.(*pbgo.ProcessStreamResponse)
 	if !ok {
@@ -160,9 +165,9 @@ func (s *streamHandler) HandleResponse(resp interface{}) ([]workloadmeta.Collect
 	}
 
 	collectorEvents := make([]workloadmeta.CollectorEvent, 0, len(response.SetEvents)+len(response.UnsetEvents))
-
-	collectorEvents = handleEvents(collectorEvents, response.UnsetEvents, WorkloadmetaEventFromProcessEventUnset)
-	collectorEvents = handleEvents(collectorEvents, response.SetEvents, WorkloadmetaEventFromProcessEventSet)
+	collectorEvents = handleEvents(collectorEvents, response.UnsetEvents, workloadmetaEventFromProcessEventUnset)
+	collectorEvents = handleEvents(collectorEvents, response.SetEvents, workloadmetaEventFromProcessEventSet)
+	s.populateMissingContainerID(collectorEvents, store)
 	log.Tracef("collected [%d] events", len(collectorEvents))
 	return collectorEvents, nil
 }
@@ -199,4 +204,32 @@ func (s *streamHandler) HandleResync(store workloadmeta.Component, events []work
 	// processes in the store.
 	log.Debugf("resync, handling [%d] events", len(processes))
 	store.ResetProcesses(processes, workloadmeta.SourceRemoteProcessCollector)
+}
+
+// populateMissingContainerID populates any missing containerID field in the entities of Set events if it is possible to get the
+// container id from the shared container provider
+func (s *streamHandler) populateMissingContainerID(collectorEvents []workloadmeta.CollectorEvent, store workloadmeta.Component) {
+	for idx, event := range collectorEvents {
+		if event.Type != workloadmeta.EventTypeSet {
+			continue
+		}
+
+		processEntity := event.Entity.(*workloadmeta.Process)
+		pid := processEntity.GetID().ID
+		ctrID := processEntity.ContainerID
+
+		if ctrID == "" {
+			pidAsInt, _ := strconv.Atoi(pid)
+			containerProvider := metrics.GetProvider(optional.NewOption(store))
+			ctrIDFromProvider, err := containerProvider.GetMetaCollector().GetContainerIDForPID(pidAsInt, cacheValidityNoRT)
+			if err != nil {
+				log.Debugf("failed to get container id for process %s: %v", pid, err)
+				continue
+			}
+			processEntity.ContainerID = ctrIDFromProvider
+		}
+
+		event.Entity = processEntity
+		collectorEvents[idx] = event
+	}
 }

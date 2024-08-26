@@ -12,7 +12,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,11 +36,22 @@ var (
 	colonSeparator = []byte(":")
 	commaSeparator = []byte(",")
 
-	// containerIDFieldPrefix is the prefix for a common field holding the sender's container ID
-	containerIDFieldPrefix = []byte("c:")
+	// localDataPrefix is the prefix for a common field which contains the local data for Origin Detection.
+	// The Local Data is a list that can contain one or two (split by a ',') of either:
+	// * "cid-<container-id>" or "ci-<container-id>" for the container ID.
+	// * "in-<cgroupv2-inode>" for the cgroupv2 inode.
+	// Possible values:
+	// * "cid-<container-id>"
+	// * "ci-<container-id>,in-<cgroupv2-inode>"
+	localDataPrefix = []byte("c:")
 
-	// containerInodeFieldPrefix is the prefix for a notation holding the sender's container Inode in the containerIDField
-	containerIDFieldInodePrefix = []byte("in-")
+	// externalDataPrefix is the prefix for a common field which contains the external data for Origin Detection.
+	externalDataPrefix = []byte("e:")
+
+	// containerIDPrefix is the prefix for a notation holding the sender's container Inode in the containerIDField
+	containerIDPrefix = []byte("ci-")
+	// inodePrefix is the prefix for a notation holding the sender's container Inode in the containerIDField
+	inodePrefix = []byte("in-")
 )
 
 // parser parses dogstatsd messages
@@ -61,12 +72,12 @@ type parser struct {
 	provider provider.Provider
 }
 
-func newParser(cfg config.Reader, float64List *float64ListPool, workerNum int, wmeta optional.Option[workloadmeta.Component]) *parser {
+func newParser(cfg config.Reader, float64List *float64ListPool, workerNum int, wmeta optional.Option[workloadmeta.Component], stringInternerTelemetry *stringInternerTelemetry) *parser {
 	stringInternerCacheSize := cfg.GetInt("dogstatsd_string_interner_size")
 	readTimestamps := cfg.GetBool("dogstatsd_no_aggregation_pipeline")
 
 	return &parser{
-		interner:         newStringInterner(stringInternerCacheSize, workerNum),
+		interner:         newStringInterner(stringInternerCacheSize, workerNum, stringInternerTelemetry),
 		readTimestamps:   readTimestamps,
 		float64List:      float64List,
 		dsdOriginEnabled: cfg.GetBool("dogstatsd_origin_detection_client"),
@@ -166,6 +177,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 	sampleRate := 1.0
 	var tags []string
 	var containerID []byte
+	var externalData string
 	var optionalField []byte
 	var timestamp time.Time
 	for message != nil {
@@ -194,21 +206,25 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 			}
 			timestamp = time.Unix(ts, 0)
 		// container ID
-		case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, containerIDFieldPrefix):
-			containerID = p.extractContainerID(optionalField)
+		case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, localDataPrefix):
+			containerID = p.resolveContainerIDFromLocalData(optionalField)
+		// external data
+		case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, externalDataPrefix):
+			externalData = string(optionalField[len(externalDataPrefix):])
 		}
 	}
 
 	return dogstatsdMetricSample{
-		name:        p.interner.LoadOrStore(name),
-		value:       value,
-		values:      values,
-		setValue:    string(setValue),
-		metricType:  metricType,
-		sampleRate:  sampleRate,
-		tags:        tags,
-		containerID: containerID,
-		ts:          timestamp,
+		name:         p.interner.LoadOrStore(name),
+		value:        value,
+		values:       values,
+		setValue:     string(setValue),
+		metricType:   metricType,
+		sampleRate:   sampleRate,
+		tags:         tags,
+		containerID:  containerID,
+		externalData: externalData,
+		ts:           timestamp,
 	}, nil
 }
 
@@ -249,28 +265,66 @@ func (p *parser) parseFloat64List(rawFloats []byte) ([]float64, error) {
 	return values, nil
 }
 
-// extractContainerID parses the value of the container ID field.
-// If the field is prefixed by `in-`, it corresponds to the cgroup controller's inode of the source
-// and is used for ContainerID resolution.
-func (p *parser) extractContainerID(rawContainerIDField []byte) []byte {
-	containerIDField := rawContainerIDField[len(containerIDFieldPrefix):]
+// resolveContainerIDFromLocalData returns the container ID for the given Local Data.
+// The Local Data is a list that can contain one or two (split by a ',') of either:
+// * "ci-<container-id>" for the container ID.
+// * "in-<cgroupv2-inode>" for the cgroupv2 inode.
+// Possible values:
+// * "<container-id>"
+// * "ci-<container-id>"
+// * "ci-<container-id>,in-<cgroupv2-inode>"
+func (p *parser) resolveContainerIDFromLocalData(rawLocalData []byte) []byte {
+	// Remove prefix from Local Data
+	localData := rawLocalData[len(localDataPrefix):]
 
-	if bytes.HasPrefix(containerIDField[:len(containerIDFieldInodePrefix)], containerIDFieldInodePrefix) {
-		inodeField, err := strconv.ParseUint(string(containerIDField[len(containerIDFieldPrefix)+1:]), 10, 64)
-		if err != nil {
-			log.Debugf("Failed to parse inode from %s, got %v", containerIDField, err)
-			return nil
-		}
+	var containerID []byte
+	var containerIDFromInode []byte
 
-		containerID, err := p.provider.GetMetaCollector().GetContainerIDForInode(inodeField, cacheValidity)
-		if err != nil {
-			log.Debugf("Failed to get container ID, got %v", err)
-			return nil
+	if bytes.Contains(localData, []byte(",")) {
+		// The Local Data can contain a list
+		items := bytes.Split(localData, []byte{','})
+		for _, item := range items {
+			if bytes.HasPrefix(item, containerIDPrefix) {
+				containerID = item[len(containerIDPrefix):]
+			} else if bytes.HasPrefix(item, inodePrefix) {
+				containerIDFromInode = p.resolveContainerIDFromInode(item[len(inodePrefix):])
+			}
 		}
-		return []byte(containerID)
+		if containerID == nil {
+			containerID = containerIDFromInode
+		}
+	} else {
+		// The Local Data can contain a single value
+		if bytes.HasPrefix(localData, containerIDPrefix) { // Container ID with new format: ci-<container-id>
+			containerID = localData[len(containerIDPrefix):]
+		} else if bytes.HasPrefix(localData, inodePrefix) { // Cgroupv2 inode format: in-<cgroupv2-inode>
+			containerID = p.resolveContainerIDFromInode(localData[len(inodePrefix):])
+		} else { // Container ID with old format: <container-id>
+			containerID = localData
+		}
 	}
 
-	return containerIDField
+	if containerID == nil {
+		log.Debugf("Could not parse container ID from Local Data: %s", localData)
+	}
+
+	return containerID
+}
+
+// resolveContainerIDFromInode returns the container ID for the given cgroupv2 inode.
+func (p *parser) resolveContainerIDFromInode(inode []byte) []byte {
+	inodeField, err := strconv.ParseUint(string(inode), 10, 64)
+	if err != nil {
+		log.Debugf("Failed to parse inode from %s, got %v", inode, err)
+		return nil
+	}
+
+	containerID, err := p.provider.GetMetaCollector().GetContainerIDForInode(inodeField, cacheValidity)
+	if err != nil {
+		log.Debugf("Failed to get container ID, got %v", err)
+		return nil
+	}
+	return []byte(containerID)
 }
 
 // the std API does not have methods to do []byte => float parsing

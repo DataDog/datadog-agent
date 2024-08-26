@@ -53,7 +53,7 @@ This file hierarchy aims to solve a few problems:
 
 ## Bootstrapping components
 
-You can use the [invoke](../setup.md#invoke) task `inv components.new-component comp/<component>` to generate a scaffold for your new component.
+You can use the [invoke](../setup.md#preface) task `deva components.new-component comp/<COMPONENT_NAME>` to generate a scaffold for your new component.
 
 Every public variable, function, struct, and interface of your component **must** be documented. Refer to the [Documentation](#documentation) section below for details.
 
@@ -65,8 +65,8 @@ In the example of a compression component, the def folder looks like this:
 
 === ":octicons-file-code-16: comp/compression/def/component.go"
     ```go
-    // Package compressiondef contains all public type and interfaces for the compression component
-    package def
+    // Package compression contains all public type and interfaces for the compression component
+    package compression
 
     // team: <your team>
 
@@ -80,7 +80,7 @@ In the example of a compression component, the def folder looks like this:
     }
     ```
 
-All component interfaces must be called `Component`, so all imports have the form `def.Component`.
+All component interfaces must be called `Component`, so all imports have the form `<COMPONENT_NAME>.Component`.
 
 You can see that the interface only exposes the bare minimum. You should aim at having the smallest possible interface
 for your component.
@@ -89,7 +89,7 @@ When defining a component interface, avoid using structs or interfaces from thir
 
 !!! warning "Interface using a third-party dependency"
     ```
-    package def
+    package telemetry
 
     import "github.com/prometheus/client_golang/prometheus"
 
@@ -114,25 +114,27 @@ internally by each component (more on this [here TODO]()). -->
 ### The impl folders
 
 The `impl` folder is where the component implementation is written. The details of component implementation are up to the developer.
-The only requirement is that there is a public instantiation function called `NewComponent`.
+The only requirements are that the package name follows the pattern `<COMPONENT_NAME>impl` and that there is a public instantiation function called `NewComponent`.
 
 === ":octicons-file-code-16: comp/compression/impl-zstd/compressor.go"
     ```go
-    package implzstd
+    package compressionimpl
 
     // NewComponent returns a new ZSTD implementation for the compression component
-    func NewComponent(){
+    func NewComponent(reqs Requires) Provides {
         ....
     }
     ```
 
-To access an argument in the  `NewComponent` function, use a special struct named `Requires`. This struct returns a special stuct named `Provides`. This internal nomenclature is used to handle the different component dependencies using Fx groups.
+To require input arguments to the `NewComponent` instantiation function, use a special struct named `Requires`.
+The instantiation function returns a special stuct named `Provides`. This internal nomenclature is used
+to handle the different component dependencies using Fx groups.
 
-In this example, the compression component must access the configuration component and the log component. To express this, define a `Requires` struct with two fields. The name is irrelevant, but the type must be a concrete type.
+In this example, the compression component must access the configuration component and the log component. To express this, define a `Requires` struct with two fields. The name of the fields is irrelevant, but the type must be the concrete type of interface that you require.
 
 === ":octicons-file-code-16: comp/compression/impl-zstd/compressor.go"
     ```go
-    package implzstd
+    package compressionimpl
 
     import (
         "fmt"
@@ -153,12 +155,12 @@ In this example, the compression component must access the configuration compone
 
 !!! Info "Using other components"
     If you want to use another component within your own, add it to the `Requires` struct, and `Fx` will give it to
-    you at initialization. Be careful of cycling dependencies.
+    you at initialization. Be careful of circular dependencies.
 
 For the output of the component, populate the `Provides` struct with the return values.
 === ":octicons-file-code-16: comp/compression/impl-zstd/compressor.go"
     ```go
-    package implzstd
+    package compressionimpl
 
     import (
         // Always import the component def folder, so that you can return a 'compression.Component' type.
@@ -178,7 +180,7 @@ All together, the component code looks like the following:
 
 === ":octicons-file-code-16: comp/compression/impl-zstd/compressor.go"
     ```go
-    package implzstd
+    package compressionimpl
 
     import (
         "fmt"
@@ -258,13 +260,13 @@ the logic. Most `fx/fx.go` file should look the same as this:
 
 === ":octicons-file-code-16: comp/compression/fx-zstd/fx.go"
     ```go
-    package fxzstd
+    package fx
 
     import (
         "github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
         // You must import the implementation you are exposing through FX
-        implzstd "github.com/DataDog/datadog-agent/comp/compression/impl-zstd"
+        compressionimpl "github.com/DataDog/datadog-agent/comp/compression/impl-zstd"
     )
 
     // Module specifies the compression module.
@@ -273,15 +275,17 @@ the logic. Most `fx/fx.go` file should look the same as this:
             // ProvideComponentConstructor will automatically detect the 'Requires' and 'Provides' structs
             // of your constructor function and map them to FX.
             fxutil.ProvideComponentConstructor(
-                implzstd.NewComponent,
+                compressionimpl.NewComponent,
             )
         )
     }
     ```
 
 !!! Info "Optional dependencies"
-    Creating a conversion function to `optional.Option` is done automatically by `ProvideComponentConstructor`.
-    This means that you can depend on any `comp` as an `optional.Option[comp]` if needed.
+
+    To create an optional wrapper type for your component, you can use the helper function `fxutil.ProvideOptional`.
+    This generic function requires the type of the component interface, and will automatically make a conversion
+    function `optional.Option` for that component.
 
     More on this in the [FAQ](faq.md#optional-component).
 
@@ -369,7 +373,7 @@ Never add a Go module to the component folder (for example,`comp/compression`) o
 In the end, a classic component folder should look like:
 
 ```
-comp/<component>/
+comp/<COMPONENT_NAME>/
 ├── def
 │   └── component.go
 ├── fx

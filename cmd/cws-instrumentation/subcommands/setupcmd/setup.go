@@ -30,7 +30,7 @@ func Command() []*cobra.Command {
 	setupCmd := &cobra.Command{
 		Use:   "setup",
 		Short: "Copies the cws-instrumentation binary to the CWS volume mount",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return setupCWSInjector(&params)
 		},
 	}
@@ -68,7 +68,10 @@ func setupCWSInjector(params *setupCliParams) error {
 	targetPath := filepath.Join(params.cwsVolumeMount, filepath.Base(path))
 	target, err := os.Create(targetPath)
 	if err != nil {
-		return fmt.Errorf("couldn't create target cws-instrumentation binary file in the mounted volume")
+		if os.IsPermission(err) && os.Getuid() != 0 {
+			return fmt.Errorf("couldn't copy cws-instrumentation binary file in the mounted volume: %v. Current UID: %d, you may want to use user 0 instead", err, os.Getuid())
+		}
+		return fmt.Errorf("couldn't copy cws-instrumentation binary file in the mounted volume: %v", err)
 	}
 	defer target.Close()
 

@@ -7,7 +7,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_link(u8 async) {
+int __attribute__((always_inline)) trace__sys_link(u8 async, const char *oldpath, const char *newpath) {
     struct policy_t policy = fetch_policy(EVENT_LINK);
     if (is_discarded_by_process(policy.mode, EVENT_LINK)) {
         return 0;
@@ -19,24 +19,27 @@ int __attribute__((always_inline)) trace__sys_link(u8 async) {
         .async = async,
     };
 
+    if (!async) {
+        collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0) | SYSCALL_CTX_ARG_STR(1), (void *)oldpath, (void *)newpath, NULL);
+    }
     cache_syscall(&syscall);
 
     return 0;
 }
 
-HOOK_SYSCALL_ENTRY0(link) {
-    return trace__sys_link(SYNC_SYSCALL);
+HOOK_SYSCALL_ENTRY2(link, const char *, oldpath, const char *, newpath) {
+    return trace__sys_link(SYNC_SYSCALL, oldpath, newpath);
 }
 
-HOOK_SYSCALL_ENTRY0(linkat) {
-    return trace__sys_link(SYNC_SYSCALL);
+HOOK_SYSCALL_ENTRY4(linkat, int, olddirfd, const char *, oldpath, int, newdirfd, const char *, newpath) {
+    return trace__sys_link(SYNC_SYSCALL, oldpath, newpath);
 }
 
 HOOK_ENTRY("do_linkat")
 int hook_do_linkat(ctx_t *ctx) {
-    struct syscall_cache_t* syscall = peek_syscall(EVENT_LINK);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
     if (!syscall) {
-        return trace__sys_link(ASYNC_SYSCALL);
+        return trace__sys_link(ASYNC_SYSCALL, NULL, NULL);
     }
     return 0;
 }
@@ -60,7 +63,7 @@ int hook_vfs_link(ctx_t *ctx) {
     if (get_vfs_link_target_dentry_position() == VFS_ARG_POSITION4) {
         // prevent the verifier from whining
         bpf_probe_read(&syscall->link.target_dentry, sizeof(syscall->link.target_dentry), &syscall->link.target_dentry);
-        syscall->link.target_dentry = (struct dentry *) CTX_PARM4(ctx);
+        syscall->link.target_dentry = (struct dentry *)CTX_PARM4(ctx);
     }
 
     // this is a hard link, source and target dentries are on the same filesystem & mount point
@@ -78,7 +81,7 @@ int hook_vfs_link(ctx_t *ctx) {
     syscall->link.target_file.metadata = syscall->link.src_file.metadata;
 
     // we generate a fake target key as the inode is the same
-    syscall->link.target_file.path_key.ino = FAKE_INODE_MSW<<32 | bpf_get_prandom_u32();
+    syscall->link.target_file.path_key.ino = FAKE_INODE_MSW << 32 | bpf_get_prandom_u32();
     syscall->link.target_file.path_key.mount_id = syscall->link.src_file.path_key.mount_id;
     if (is_overlayfs(src_dentry)) {
         syscall->link.target_file.flags |= UPPER_LAYER;
@@ -187,6 +190,7 @@ int __attribute__((always_inline)) dr_link_dst_callback(void *ctx) {
         .event.type = EVENT_LINK,
         .event.timestamp = bpf_ktime_get_ns(),
         .syscall.retval = retval,
+        .syscall_ctx.id = syscall->ctx_id,
         .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
         .source = syscall->link.src_file,
         .target = syscall->link.target_file,

@@ -42,11 +42,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "remote-config",
 		Short: "Remote configuration state command",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(state,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath)}),
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))}),
 				core.Bundle(),
 			)
 		},
@@ -92,7 +92,7 @@ func state(_ *cliParams, config config.Component) error {
 	}
 
 	var stateHA *pbgo.GetStateConfigResponse
-	if pkgconfig.Datadog.GetBool("multi_region_failover.enabled") {
+	if pkgconfig.Datadog().GetBool("multi_region_failover.enabled") {
 		stateHA, err = cli.GetConfigStateHA(ctx, in)
 		if err != nil {
 			return fmt.Errorf("couldn't get the HA repositories state: %w", err)

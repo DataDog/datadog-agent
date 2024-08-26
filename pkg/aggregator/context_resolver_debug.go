@@ -26,7 +26,8 @@ type ContextDebugRepr struct {
 func (cr *contextResolver) dumpContexts(dest io.Writer) error {
 	enc := json.NewEncoder(dest)
 
-	for _, c := range cr.contextsByKey {
+	for _, e := range cr.contextsByKey {
+		c := e.context
 		err := enc.Encode(ContextDebugRepr{
 			Name:       c.Name,
 			Host:       c.Host,

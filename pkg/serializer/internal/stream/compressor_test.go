@@ -94,11 +94,11 @@ func TestCompressorAddItemErrCodeWithEmptyCompressor(t *testing.T) {
 
 			// While some of these values may look like they should fit, they currently don't due to a combination
 			// of due to overhead in the payload (header and footer) and the CompressBound calculation
-			t.Run("Edge Case from real world", func(t *testing.T) {
+			t.Run("Edge Case from real world", func(_ *testing.T) {
 				checkAddItemErrCode(2_621_440, 4_194_304, 2_620_896)
 			})
 
-			t.Run("Other values from iterative testing", func(t *testing.T) {
+			t.Run("Other values from iterative testing", func(_ *testing.T) {
 				checkAddItemErrCode(17, 32, 1)
 				checkAddItemErrCode(19, 35, 4)
 				checkAddItemErrCode(23, 43, 12)
@@ -155,6 +155,30 @@ func TestMaxCompressedSizePayload(t *testing.T) {
 			mockConfig := pkgconfigsetup.Conf()
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			mockConfig.SetDefault("serializer_max_payload_size", tc.maxPayloadSize)
+
+			builder := NewJSONPayloadBuilder(true, mockConfig, compressionimpl.NewCompressor(mockConfig))
+			payloads, err := BuildJSONPayload(builder, m)
+			require.NoError(t, err)
+			require.Len(t, payloads, 1)
+
+			require.Equal(t, "{[A,B,C]}", payloadToString(payloads[0].GetContent(), mockConfig))
+		})
+	}
+}
+
+func TestZstdCompressionLevel(t *testing.T) {
+	tests := []int{1, 5, 9}
+
+	for _, level := range tests {
+		t.Run(fmt.Sprintf("zstd %d", level), func(t *testing.T) {
+			m := &marshaler.DummyMarshaller{
+				Items:  []string{"A", "B", "C"},
+				Header: "{[",
+				Footer: "]}",
+			}
+			mockConfig := pkgconfigsetup.Conf()
+			mockConfig.SetWithoutSource("serializer_compressor_kind", "zstd")
+			mockConfig.SetDefault("serializer_zstd_compressor_level", level)
 
 			builder := NewJSONPayloadBuilder(true, mockConfig, compressionimpl.NewCompressor(mockConfig))
 			payloads, err := BuildJSONPayload(builder, m)

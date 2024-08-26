@@ -10,7 +10,7 @@
 #include "helpers/iouring.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_openat2(u8 async, int flags, umode_t mode, u64 pid_tgid) {
+int __attribute__((always_inline)) trace__sys_openat2(const char *path, u8 async, int flags, umode_t mode, u64 pid_tgid) {
     struct policy_t policy = fetch_policy(EVENT_OPEN);
     if (is_discarded_by_process(policy.mode, EVENT_OPEN)) {
         return 0;
@@ -30,43 +30,51 @@ int __attribute__((always_inline)) trace__sys_openat2(u8 async, int flags, umode
         syscall.open.pid_tgid = pid_tgid;
     }
 
+    collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0) | SYSCALL_CTX_ARG_INT(1) | SYSCALL_CTX_ARG_INT(2), (void *)path, (void *)&flags, (void *)&mode);
     cache_syscall(&syscall);
 
     return 0;
 }
 
-int __attribute__((always_inline)) trace__sys_openat(u8 async, int flags, umode_t mode) {
-    return trace__sys_openat2(async, flags, mode, 0);
+int __attribute__((always_inline)) trace__sys_openat(const char *path, u8 async, int flags, umode_t mode) {
+    return trace__sys_openat2(path, async, flags, mode, 0);
 }
 
 HOOK_SYSCALL_ENTRY2(creat, const char *, filename, umode_t, mode) {
-    int flags = O_CREAT|O_WRONLY|O_TRUNC;
-    return trace__sys_openat(SYNC_SYSCALL, flags, mode);
+    int flags = O_CREAT | O_WRONLY | O_TRUNC;
+    return trace__sys_openat(filename, SYNC_SYSCALL, flags, mode);
 }
 
 HOOK_SYSCALL_COMPAT_ENTRY3(open_by_handle_at, int, mount_fd, struct file_handle *, handle, int, flags) {
     umode_t mode = 0;
-    return trace__sys_openat(SYNC_SYSCALL, flags, mode);
+    return trace__sys_openat(NULL, SYNC_SYSCALL, flags, mode);
 }
 
-HOOK_SYSCALL_COMPAT_ENTRY0(truncate) {
-    int flags = O_CREAT|O_WRONLY|O_TRUNC;
+HOOK_SYSCALL_COMPAT_ENTRY1(truncate, const char *, filename) {
+    int flags = O_CREAT | O_WRONLY | O_TRUNC;
     umode_t mode = 0;
-    return trace__sys_openat(SYNC_SYSCALL, flags, mode);
+    return trace__sys_openat(filename, SYNC_SYSCALL, flags, mode);
 }
 
-HOOK_SYSCALL_COMPAT_ENTRY3(open, const char*, filename, int, flags, umode_t, mode) {
-    return trace__sys_openat(SYNC_SYSCALL, flags, mode);
+HOOK_SYSCALL_COMPAT_ENTRY0(ftruncate) {
+    int flags = O_CREAT | O_WRONLY | O_TRUNC;
+    umode_t mode = 0;
+    char filename[1] = "";
+    return trace__sys_openat(&filename[0], SYNC_SYSCALL, flags, mode);
 }
 
-HOOK_SYSCALL_COMPAT_ENTRY4(openat, int, dirfd, const char*, filename, int, flags, umode_t, mode) {
-    return trace__sys_openat(SYNC_SYSCALL, flags, mode);
+HOOK_SYSCALL_COMPAT_ENTRY3(open, const char *, filename, int, flags, umode_t, mode) {
+    return trace__sys_openat(filename, SYNC_SYSCALL, flags, mode);
 }
 
-HOOK_SYSCALL_ENTRY4(openat2, int, dirfd, const char*, filename, struct openat2_open_how*, phow, size_t, size) {
+HOOK_SYSCALL_COMPAT_ENTRY4(openat, int, dirfd, const char *, filename, int, flags, umode_t, mode) {
+    return trace__sys_openat(filename, SYNC_SYSCALL, flags, mode);
+}
+
+HOOK_SYSCALL_ENTRY4(openat2, int, dirfd, const char *, filename, struct openat2_open_how *, phow, size_t, size) {
     struct openat2_open_how how;
     bpf_probe_read(&how, sizeof(struct openat2_open_how), phow);
-    return trace__sys_openat(SYNC_SYSCALL, how.flags, how.mode);
+    return trace__sys_openat(filename, SYNC_SYSCALL, how.flags, how.mode);
 }
 
 int __attribute__((always_inline)) handle_open_event(struct syscall_cache_t *syscall, struct file *file, struct path *path, struct inode *inode) {
@@ -88,8 +96,7 @@ int __attribute__((always_inline)) handle_open_event(struct syscall_cache_t *sys
     return 0;
 }
 
-HOOK_ENTRY("vfs_truncate")
-int hook_vfs_truncate(ctx_t *ctx) {
+int __attribute__((always_inline)) handle_truncate_path_dentry(struct path *path, struct dentry *dentry) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_OPEN);
     if (!syscall) {
         return 0;
@@ -98,9 +105,6 @@ int hook_vfs_truncate(ctx_t *ctx) {
     if (syscall->open.dentry) {
         return 0;
     }
-
-    struct path *path = (struct path *)CTX_PARM1(ctx);
-    struct dentry *dentry = get_path_dentry(path);
 
     if (is_non_mountable_dentry(dentry)) {
         pop_syscall(EVENT_OPEN);
@@ -117,6 +121,47 @@ int hook_vfs_truncate(ctx_t *ctx) {
     }
 
     return 0;
+}
+
+int __attribute__((always_inline)) handle_truncate_path(struct path *path) {
+    if (path == NULL) {
+        return 0;
+    }
+
+    struct dentry *dentry = get_path_dentry(path);
+    return handle_truncate_path_dentry(path, dentry);
+}
+
+HOOK_ENTRY("do_truncate")
+int hook_do_truncate(ctx_t *ctx) {
+    struct dentry *dentry = (struct dentry *)CTX_PARM1(ctx);
+    struct file *f = (struct file *)CTX_PARM4(ctx);
+    if (f == NULL) {
+        return 0;
+    }
+    struct path *path = get_file_f_path_addr(f);
+    return handle_truncate_path_dentry(path, dentry);
+}
+
+HOOK_ENTRY("vfs_truncate")
+int hook_vfs_truncate(ctx_t *ctx) {
+    struct path *path = (struct path *)CTX_PARM1(ctx);
+    return handle_truncate_path(path);
+}
+
+HOOK_ENTRY("security_file_truncate")
+int hook_security_file_truncate(ctx_t *ctx) {
+    struct file *f = (struct file *)CTX_PARM1(ctx);
+    if (f == NULL) {
+        return 0;
+    }
+    return handle_truncate_path(get_file_f_path_addr(f));
+}
+
+HOOK_ENTRY("security_path_truncate")
+int hook_security_path_truncate(ctx_t *ctx) {
+    struct path *path = (struct path *)CTX_PARM1(ctx);
+    return handle_truncate_path(path);
 }
 
 HOOK_ENTRY("vfs_open")
@@ -166,7 +211,7 @@ int __attribute__((always_inline)) trace_io_openat(ctx_t *ctx) {
     if (!syscall) {
         unsigned int flags = req.how.flags & VALID_OPEN_FLAGS;
         umode_t mode = req.how.mode & S_IALLUGO;
-        return trace__sys_openat2(ASYNC_SYSCALL, flags, mode, pid_tgid);
+        return trace__sys_openat2(NULL, ASYNC_SYSCALL, flags, mode, pid_tgid);
     } else {
         syscall->open.pid_tgid = get_pid_tgid_from_iouring(raw_req);
     }
@@ -232,6 +277,11 @@ HOOK_SYSCALL_COMPAT_EXIT(truncate) {
     return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
+HOOK_SYSCALL_COMPAT_EXIT(ftruncate) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
+}
+
 HOOK_SYSCALL_COMPAT_EXIT(open) {
     int retval = SYSCALL_PARMRET(ctx);
     return sys_open_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
@@ -260,7 +310,7 @@ int rethook_io_openat2(ctx_t *ctx) {
 
 HOOK_ENTRY("filp_close")
 int hook_filp_close(ctx_t *ctx) {
-    struct file *file = (struct file *) CTX_PARM1(ctx);
+    struct file *file = (struct file *)CTX_PARM1(ctx);
     u32 mount_id = get_file_mount_id(file);
     if (mount_id) {
         dec_mount_ref(ctx, mount_id);
@@ -292,9 +342,10 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx) {
 
     struct open_event_t event = {
         .syscall.retval = retval,
+        .syscall_ctx.id = syscall->ctx_id,
         .event.flags = (syscall->async ? EVENT_FLAGS_ASYNC : 0) |
-            (syscall->resolver.flags&SAVED_BY_ACTIVITY_DUMP ? EVENT_FLAGS_SAVED_BY_AD : 0) |
-            (syscall->resolver.flags&ACTIVITY_DUMP_RUNNING ? EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE : 0),
+                       (syscall->resolver.flags & SAVED_BY_ACTIVITY_DUMP ? EVENT_FLAGS_SAVED_BY_AD : 0) |
+                       (syscall->resolver.flags & ACTIVITY_DUMP_RUNNING ? EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE : 0),
         .file = syscall->open.file,
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,

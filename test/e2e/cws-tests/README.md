@@ -1,17 +1,8 @@
-# CWS & CSPM e2e tests
+# CSPM e2e tests
 
 ## Docker flavors
 
 To run docker flavoured tests, local only, please run:
-
-For CWS:
-```sh
-DD_API_KEY=<API_KEY> \
-DD_APP_KEY=<APP_KEY> \
-DD_SITE=datadoghq.com \
-DD_AGENT_IMAGE=datadog/agent-dev:master \
-python3 tests/test_e2e_cws_docker.py
-```
 
 For CSPM:
 ```sh

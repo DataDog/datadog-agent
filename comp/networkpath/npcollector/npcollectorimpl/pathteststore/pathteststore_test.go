@@ -6,14 +6,18 @@
 package pathteststore
 
 import (
+	"bufio"
+	"bytes"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
+
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
+	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // MockTimeNow mocks time.Now
@@ -31,10 +35,89 @@ func setMockTimeNow(newTime time.Time) {
 }
 
 func Test_pathtestStore_add(t *testing.T) {
-	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
+	testcases := []struct {
+		name             string
+		initialSize      int
+		pathtests        []*common.Pathtest
+		expectedSize     int
+		expectedLogCount int
+		overrideLogTime  bool
+	}{
+		{
+			name:        "Store not full",
+			initialSize: 3,
+			pathtests: []*common.Pathtest{
+				{Hostname: "host1", Port: 53},
+				{Hostname: "host2", Port: 53},
+				{Hostname: "host3", Port: 53},
+			},
+			expectedSize:     3,
+			expectedLogCount: 0,
+			overrideLogTime:  false,
+		},
+		{
+			name:        "Store full, one warning",
+			initialSize: 2,
+			pathtests: []*common.Pathtest{
+				{Hostname: "host1", Port: 53},
+				{Hostname: "host2", Port: 53},
+				{Hostname: "host3", Port: 53},
+				{Hostname: "host4", Port: 53},
+			},
+			expectedSize:     2,
+			expectedLogCount: 1,
+			overrideLogTime:  false,
+		},
+		{
+			name:        "Store full, multiple warnings",
+			initialSize: 2,
+			pathtests: []*common.Pathtest{
+				{Hostname: "host1", Port: 53},
+				{Hostname: "host2", Port: 53},
+				{Hostname: "host3", Port: 53},
+				{Hostname: "host4", Port: 53},
+			},
+			expectedSize:     2,
+			expectedLogCount: 2,
+			overrideLogTime:  true,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			var b bytes.Buffer
+			w := bufio.NewWriter(&b)
+			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			assert.Nil(t, err)
+			utillog.SetupLogger(l, "debug")
+
+			store := NewPathtestStore(10*time.Minute, 1*time.Minute, tc.initialSize, l)
+
+			for _, pt := range tc.pathtests {
+				store.Add(pt)
+				if tc.overrideLogTime {
+					store.contextsMutex.Lock()
+					store.lastContextWarning = MockTimeNow().Add(5 * time.Minute)
+					store.contextsMutex.Unlock()
+				}
+			}
+
+			// TEST START/STOP using logs
+			l.Close() // We need to first close the logger to avoid a race-cond between seelog and out test when calling w.Flush()
+			w.Flush()
+			logs := b.String()
+
+			assert.Equal(t, tc.expectedSize, len(store.contexts))
+			assert.Equal(t, tc.expectedLogCount, strings.Count(logs, "Pathteststore is full"), logs)
+		})
+	}
+}
+
+func Test_pathtestStore_add_when_full(t *testing.T) {
+	logger := logmock.New(t)
 
 	// GIVEN
-	store := NewPathtestStore(10*time.Minute, 1*time.Minute, logger)
+	store := NewPathtestStore(10*time.Minute, 1*time.Minute, 2, logger)
 
 	// WHEN
 	pt1 := &common.Pathtest{Hostname: "host1", Port: 53}
@@ -45,7 +128,7 @@ func Test_pathtestStore_add(t *testing.T) {
 	store.Add(pt3)
 
 	// THEN
-	assert.Equal(t, 3, len(store.contexts))
+	assert.Equal(t, 2, len(store.contexts))
 
 	pt1Ctx := store.contexts[pt1.GetHash()]
 	pt2Ctx := store.contexts[pt2.GetHash()]
@@ -54,13 +137,13 @@ func Test_pathtestStore_add(t *testing.T) {
 }
 
 func Test_pathtestStore_flush(t *testing.T) {
-	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
+	logger := logmock.New(t)
 	timeNow = MockTimeNow
 	runDurationFromDisc := 10 * time.Minute
 	runInterval := 1 * time.Minute
 
 	// GIVEN
-	store := NewPathtestStore(runDurationFromDisc, runInterval, logger)
+	store := NewPathtestStore(runDurationFromDisc, runInterval, 10, logger)
 
 	// WHEN
 	pt := &common.Pathtest{Hostname: "host1", Port: 53}

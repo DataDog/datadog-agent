@@ -1,8 +1,0 @@
-# menci/archlinuxarm:base openssl package is compiled with all protocol tls1.0 tls1.1 tls1.2 tls1.3
-version: '3'
-services:
-  openssl-server:
-    image: menci/archlinuxarm:base
-    entrypoint: bash -c "yes '' | openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 1 -nodes && openssl s_server -key key.pem -cert cert.pem -accept 0.0.0.0:${OPENSSL_PORT} -naccept ${CLIENTS} ${OPENSSL_ARGS}"
-    ports:
-      - ${OPENSSL_PORT}:${OPENSSL_PORT}

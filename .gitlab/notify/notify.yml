@@ -27,7 +27,6 @@ notify:
   script:
     - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN_SSM_NAME)
     - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
-    - !reference [.setup_python_mirror_linux]
     - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
     - |
       # Do not send notifications if this is a child pipeline of another repo
@@ -35,10 +34,14 @@ notify:
       if [ "$CI_PIPELINE_SOURCE" != "pipeline" ]; then
         if [ "$DEPLOY_AGENT" = "true" ]; then
           invoke -e notify.send-message --notification-type "deploy"
+        elif [ "$CI_PIPELINE_SOURCE" != "push" ]; then
+          invoke -e notify.send-message --notification-type "trigger"
         else
           invoke -e notify.send-message --notification-type "merge"
         fi
-        invoke notify.check-consistent-failures
+        if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
+          invoke notify.check-consistent-failures
+        fi
       else
         echo "This pipeline was triggered by another repository, skipping notification."
       fi
@@ -53,7 +56,6 @@ send_pipeline_stats:
     - source /root/.bashrc
     - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN_SSM_NAME)
     - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
-    - !reference [.setup_python_mirror_linux]
     - invoke -e notify.send-stats
 
 notify_github:
@@ -84,5 +86,84 @@ notify_github:
     - echo '```sh' >> "$messagefile"
     - echo "inv create-vm --pipeline-id=$CI_PIPELINE_ID --os-family=ubuntu" >> "$messagefile"
     - echo '```' >> "$messagefile"
+    - 'echo "Note: This applies to commit **$CI_COMMIT_SHORT_SHA**" >> "$messagefile"'
     - cat "$messagefile" | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME" --header="Test changes on VM"
     - rm "$messagefile"
+
+notify_gitlab_ci_changes:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  stage: notify
+  needs: []
+  tags: ["arch:amd64"]
+  rules:
+    - if: $CI_PIPELINE_SOURCE != "push"
+      when: never
+    - changes:
+        paths:
+          - .gitlab-ci.yml
+          - .gitlab/**/*.yml
+        compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+  before_script:
+    # Get main history
+    - git fetch origin main
+    - git checkout main
+    - git checkout -
+  script:
+    - source /root/.bashrc
+    - python3 -m pip install -r tasks/libs/requirements-github.txt
+    - |
+      export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_APP_KEY_SSM_NAME | base64)
+      export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_INTEGRATION_ID_SSM_NAME)
+      export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_INSTALLATION_ID_SSM_NAME)
+      export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME)
+    - inv -e notify.gitlab-ci-diff --pr-comment
+
+.failure_summary_job:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  stage: notify
+  dependencies: []
+  tags: ["arch:amd64"]
+  resource_group: notification
+  timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
+
+.failure_summary_setup:
+  - source /root/.bashrc
+  - export SLACK_API_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SLACK_AGENT_CI_TOKEN_SSM_NAME)
+  - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN_SSM_NAME)
+  - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+  - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
+
+# Upload failure summary data to S3 at the end of each main pipeline
+notify_failure_summary_on_pipeline:
+  extends: .failure_summary_job
+  rules:
+    - if: $CI_PIPELINE_SOURCE != "push" && $CI_PIPELINE_SOURCE != "schedule"
+      when: never
+    - !reference [.on_main_always]
+  script:
+    - !reference [.failure_summary_setup]
+    - inv -e notify.failure-summary-upload-pipeline-data
+
+# Send failure summary notifications daily and weekly
+notify_failure_summary_daily:
+  extends: .failure_summary_job
+  rules:
+    - if: $CI_COMMIT_BRANCH != "main" || $CI_PIPELINE_SOURCE != "schedule"
+      when: never
+    - !reference [.on_deploy_nightly_repo_branch_always]
+  script:
+    - !reference [.failure_summary_setup]
+    - weekday="$(date --utc '+%A')"
+    - |
+      if [ "$weekday" = "Sunday" ] || [ "$weekday" = "Monday" ]; then
+        echo "Skipping daily summary on $weekday"
+        exit
+      fi
+    # Daily
+    - inv -e notify.failure-summary-send-notifications --daily-summary
+    # Send weekly if necessary (note that this workflow is usually triggered early in the morning)
+    - |
+      if [ "$weekday" = "Friday" ]; then
+        echo 'Sending weekly summary'
+        inv -e notify.failure-summary-send-notifications --weekly-summary
+      fi

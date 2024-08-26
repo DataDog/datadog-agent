@@ -33,7 +33,7 @@ func TestTopologyPayload_LLDP(t *testing.T) {
 	timeNow = common.MockTimeNow
 	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
-	config.Datadog.SetWithoutSource("confd_path", invalidPath)
+	config.Datadog().SetWithoutSource("confd_path", invalidPath)
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -616,6 +616,7 @@ profiles:
       "os_name":"LINUX (3.10.0-862.14.4.el7.ve.x86_64)",
       "os_version":"3.10.0-862.14.4.el7.ve.x86_64",
       "os_hostname":"my-linux-f5-server",
+	  "integration": "snmp",
 	  "device_type": "load_balancer"
     }
   ],
@@ -734,7 +735,7 @@ func TestTopologyPayload_CDP(t *testing.T) {
 	timeNow = common.MockTimeNow
 	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
-	config.Datadog.SetWithoutSource("confd_path", invalidPath)
+	config.Datadog().SetWithoutSource("confd_path", invalidPath)
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -1317,6 +1318,7 @@ profiles:
       "os_name":"LINUX (3.10.0-862.14.4.el7.ve.x86_64)",
       "os_version":"3.10.0-862.14.4.el7.ve.x86_64",
       "os_hostname":"my-linux-f5-server",
+	  "integration": "snmp",
 	  "device_type": "load_balancer"
     }
   ],
@@ -1426,7 +1428,7 @@ func TestTopologyPayload_LLDP_CDP(t *testing.T) {
 	timeNow = common.MockTimeNow
 	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
-	config.Datadog.SetWithoutSource("confd_path", invalidPath)
+	config.Datadog().SetWithoutSource("confd_path", invalidPath)
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -2009,6 +2011,7 @@ profiles:
       "os_name":"LINUX (3.10.0-862.14.4.el7.ve.x86_64)",
       "os_version":"3.10.0-862.14.4.el7.ve.x86_64",
       "os_hostname":"my-linux-f5-server",
+	  "integration": "snmp",
 	  "device_type": "load_balancer"
     }
   ],

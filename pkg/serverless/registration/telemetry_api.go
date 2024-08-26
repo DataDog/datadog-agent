@@ -72,7 +72,7 @@ func subscribeTelemetry(id ID, url string, timeout time.Duration, payload json.M
 
 func buildLogRegistrationPayload(callBackURI string, logsType string, timeoutMs int, maxBytes int, maxItems int) *TelemetrySubscriptionPayload {
 	logsTypeArray := getLogTypesToSubscribe(logsType)
-	log.Debug("Subscribing to Telemetry for types:", logsTypeArray)
+	log.Debugf("Subscribing to Telemetry for %v with buffering timeoutMs=%d, maxBytes=%d, maxItems=%d", logsTypeArray, timeoutMs, maxBytes, maxItems)
 	destination := &destination{
 		URI:      callBackURI,
 		Protocol: "HTTP",

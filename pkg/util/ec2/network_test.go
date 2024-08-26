@@ -12,9 +12,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestGetPublicIPv4(t *testing.T) {
@@ -32,7 +33,7 @@ func TestGetPublicIPv4(t *testing.T) {
 
 	defer ts.Close()
 	metadataURL = ts.URL
-	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
+	config.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	val, err := GetPublicIPv4(ctx)
@@ -58,7 +59,7 @@ func TestGetNetworkID(t *testing.T) {
 
 	defer ts.Close()
 	metadataURL = ts.URL
-	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
+	config.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	val, err := GetNetworkID(ctx)
@@ -68,13 +69,13 @@ func TestGetNetworkID(t *testing.T) {
 
 func TestGetInstanceIDNoMac(t *testing.T) {
 	ctx := context.Background()
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		io.WriteString(w, "")
 	}))
 
 	defer ts.Close()
 	metadataURL = ts.URL
-	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
+	config.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	_, err := GetNetworkID(ctx)
@@ -105,7 +106,7 @@ func TestGetInstanceIDMultipleVPC(t *testing.T) {
 
 	defer ts.Close()
 	metadataURL = ts.URL
-	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
+	config.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	_, err := GetNetworkID(ctx)

@@ -46,3 +46,11 @@ func TestGetConfigValueCommand(t *testing.T) {
 		getConfigValue,
 		func() {})
 }
+
+func TestShowConfigBySource(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"config", "by-source"},
+		showRuntimeConfigurationBySource,
+		func() {})
+}

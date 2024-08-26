@@ -18,16 +18,16 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
@@ -56,8 +56,9 @@ type dependencies struct {
 type provides struct {
 	fx.Out
 
-	Comp     Component
-	Endpoint api.AgentEndpointProvider
+	Comp       Component
+	Endpoint   api.AgentEndpointProvider
+	RCListener rcclienttypes.TaskListenerProvider
 }
 
 type flare struct {
@@ -68,7 +69,7 @@ type flare struct {
 	diagnoseDeps diagnose.SuitesDeps
 }
 
-func newFlare(deps dependencies) (provides, rcclienttypes.TaskListenerProvider) {
+func newFlare(deps dependencies) provides {
 	diagnoseDeps := diagnose.NewSuitesDeps(deps.Diagnosesendermanager, deps.Collector, deps.Secrets, deps.WMeta, deps.AC)
 	f := &flare{
 		log:          deps.Log,
@@ -78,12 +79,11 @@ func newFlare(deps dependencies) (provides, rcclienttypes.TaskListenerProvider) 
 		diagnoseDeps: diagnoseDeps,
 	}
 
-	p := provides{
-		Comp:     f,
-		Endpoint: api.NewAgentEndpointProvider(f.createAndReturnFlarePath, "/flare", "POST"),
+	return provides{
+		Comp:       f,
+		Endpoint:   api.NewAgentEndpointProvider(f.createAndReturnFlarePath, "/flare", "POST"),
+		RCListener: rcclienttypes.NewTaskListener(f.onAgentTaskEvent),
 	}
-
-	return p, rcclienttypes.NewTaskListener(f.onAgentTaskEvent)
 }
 
 func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclienttypes.AgentTaskConfig) (bool, error) {
@@ -160,18 +160,19 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 		return "", err
 	}
 
+	fb.Logf("Flare creation time: %s", time.Now().Format(time.RFC3339)) //nolint:errcheck
 	if fb.IsLocal() {
 		// If we have a ipcError we failed to reach the agent process, else the user requested a local flare
 		// from the CLI.
-		msg := []byte("local flare was requested")
+		msg := "local flare was requested"
 		if ipcError != nil {
-			msg = []byte(fmt.Sprintf("unable to contact the agent to retrieve flare: %s", ipcError))
+			msg = fmt.Sprintf("unable to contact the agent to retrieve flare: %s", ipcError)
 		}
-		fb.AddFile("local", msg)
+		fb.AddFile("local", []byte(msg)) //nolint:errcheck
 	}
 
 	for name, data := range pdata {
-		fb.AddFileWithoutScrubbing(filepath.Join("profiles", name), data)
+		fb.AddFileWithoutScrubbing(filepath.Join("profiles", name), data) //nolint:errcheck
 	}
 
 	// Adding legacy and internal providers. Registering then as Provider through FX create cycle dependencies.

@@ -117,6 +117,19 @@ func TestHTTP2Scenarios(t *testing.T) {
 	})
 }
 
+func (s *usmHTTP2Suite) TestLoadHTTP2Binary() {
+	t := s.T()
+
+	cfg := s.getCfg()
+
+	for _, debug := range map[string]bool{"enabled": true, "disabled": false} {
+		t.Run(fmt.Sprintf("debug %v", debug), func(t *testing.T) {
+			cfg.BPFDebug = debug
+			setupUSMTLSMonitor(t, cfg)
+		})
+	}
+}
+
 func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 	t := s.T()
 	cfg := s.getCfg()
@@ -132,7 +145,7 @@ func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 
 	monitor := setupUSMTLSMonitor(t, cfg)
 	if s.isTLS {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 	}
 
 	clients := getHTTP2UnixClientArray(2, unixPath)
@@ -191,6 +204,11 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
+
+	monitor := setupUSMTLSMonitor(t, cfg)
+	if s.isTLS {
+		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
+	}
 
 	tests := []struct {
 		name              string
@@ -261,10 +279,7 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 		for _, clientCount := range []int{1, 2, 5} {
 			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
-				monitor := setupUSMTLSMonitor(t, cfg)
-				if s.isTLS {
-					utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
-				}
+				t.Cleanup(func() { cleanProtocolMaps(t, "http2", monitor.ebpfProgram.Manager.Manager) })
 				tt.runClients(t, clientCount)
 
 				res := make(map[usmhttp.Key]int)
@@ -380,7 +395,7 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 		t.Run(tt.name, func(t *testing.T) {
 			monitor := setupUSMTLSMonitor(t, cfg)
 			if s.isTLS {
-				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 			}
 
 			tt.runClients(t, 1)
@@ -435,7 +450,7 @@ func (s *usmHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 
 	monitor := setupUSMTLSMonitor(t, cfg)
 	if s.isTLS {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 	}
 
 	const (
@@ -490,6 +505,8 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	t := s.T()
 	cfg := s.getCfg()
 
+	usmMonitor := setupUSMTLSMonitor(t, cfg)
+
 	// Start local server and register its cleanup.
 	t.Cleanup(startH2CServer(t, authority, s.isTLS))
 
@@ -498,13 +515,9 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
-	getTLSNumber := func(numberWithoutTLS, numberWithTLS int, isTLS bool) int {
-		if isTLS {
-			return numberWithTLS
-		}
-		return numberWithoutTLS
+	if s.isTLS {
+		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 	}
-
 	tests := []struct {
 		name              string
 		skip              bool
@@ -552,11 +565,13 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 		},
 		{
 			name: "validate max interesting frames limit",
-			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS, which
+			// The purpose of this test is to verify our ability to reach almost to the limit set by HTTP2_MAX_FRAMES_ITERATIONS, which
 			// determines the maximum number of "interesting frames" we can process.
+			// Not testing the max number of frame (240), as the server response can contain other frames, so we might miss EOS
+			// coming after a server side frame, and by that miss a request.
 			messageBuilder: func() [][]byte {
-				const numberWithoutTLS, numberWithTLS = 120, 60
-				iterations := getTLSNumber(numberWithoutTLS, numberWithTLS, s.isTLS)
+				// Generates 119 (requests) * 2 (number of frames per request) = 238 frames
+				const iterations = 119
 				framer := newFramer()
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
@@ -570,7 +585,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
-				}: getTLSNumber(120, 60, s.isTLS),
+				}: 119,
 			},
 		},
 		{
@@ -796,15 +811,19 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			name: "validate http methods",
 			// The purpose of this test is to validate that we are able to capture all http methods.
 			messageBuilder: func() [][]byte {
-				httpMethods = []string{http.MethodGet, http.MethodPost, http.MethodHead, http.MethodDelete,
+				httpMethods := []string{http.MethodGet, http.MethodPost, http.MethodHead, http.MethodDelete,
 					http.MethodPut, http.MethodPatch, http.MethodOptions, http.MethodTrace, http.MethodConnect}
+				// Duplicating the list to have each method appearing twice
+				httpMethods = append(httpMethods, httpMethods...)
 				// Currently, the methods TRACE and CONNECT are not supported by the http.Method package.
 				// Therefore, we mark those requests as incomplete and not expected to be captured.
 				framer := newFramer()
+				var buf bytes.Buffer
+				encoder := hpack.NewEncoder(&buf)
 				for i, method := range httpMethods {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideMethod: method})}).
+						writeHeadersWithEncoder(t, streamID, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideMethod: method})}, encoder, &buf).
 						writeData(t, streamID, endStream, emptyBody)
 				}
 				return [][]byte{framer.bytes()}
@@ -813,31 +832,31 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodGet,
-				}: 1,
+				}: 2,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
-				}: 1,
+				}: 2,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodHead,
-				}: 1,
+				}: 2,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodDelete,
-				}: 1,
+				}: 2,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPut,
-				}: 1,
+				}: 2,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPatch,
-				}: 1,
+				}: 2,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodOptions,
-				}: 1,
+				}: 2,
 			},
 		},
 		{
@@ -1223,11 +1242,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				t.Skip("skipping test")
 			}
 
-			usmMonitor := setupUSMTLSMonitor(t, cfg)
-			if s.isTLS {
-				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
-			}
-
+			t.Cleanup(func() { cleanProtocolMaps(t, "http2", usmMonitor.ebpfProgram.Manager.Manager) })
 			c := dialHTTP2Server(t)
 
 			// Composing a message with the number of setting frames we want to send.
@@ -1299,7 +1314,7 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 
 			usmMonitor := setupUSMTLSMonitor(t, cfg)
 			if s.isTLS {
-				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 			}
 
 			c := dialHTTP2Server(t)
@@ -1385,7 +1400,7 @@ func (s *usmHTTP2Suite) TestRemainderTable() {
 		t.Run(tt.name, func(t *testing.T) {
 			usmMonitor := setupUSMTLSMonitor(t, cfg)
 			if s.isTLS {
-				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 			}
 
 			c := dialHTTP2Server(t)
@@ -1455,7 +1470,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 		t.Run(tt.name, func(t *testing.T) {
 			usmMonitor := setupUSMTLSMonitor(t, cfg)
 			if s.isTLS {
-				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 			}
 
 			c := dialHTTP2Server(t)
@@ -1744,6 +1759,23 @@ func (f *framer) writeHeaders(t *testing.T, streamID uint32, headersFramesOption
 	headersFrame, err := usmhttp2.NewHeadersFrameMessage(headersFramesOptions)
 	require.NoError(t, err, "could not create headers frame")
 
+	if headersFramesOptions.EndStream {
+		require.NoError(t, f.framer.WriteHeaders(http2.HeadersFrameParam{
+			StreamID:      streamID,
+			BlockFragment: headersFrame,
+			EndHeaders:    endHeaders,
+			EndStream:     true,
+		}), "could not write header frames")
+		return f
+	}
+
+	return f.writeRawHeaders(t, streamID, true, headersFrame)
+}
+
+func (f *framer) writeHeadersWithEncoder(t *testing.T, streamID uint32, headersFramesOptions usmhttp2.HeadersFrameOptions, encoder *hpack.Encoder, buf *bytes.Buffer) *framer {
+	require.NoError(t, usmhttp2.NewHeadersFrameMessageWithEncoder(encoder, headersFramesOptions), "could not create headers frame")
+	headersFrame := buf.Bytes()
+	buf.Reset()
 	if headersFramesOptions.EndStream {
 		require.NoError(t, f.framer.WriteHeaders(http2.HeadersFrameParam{
 			StreamID:      streamID,

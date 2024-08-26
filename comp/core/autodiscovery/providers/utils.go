@@ -26,7 +26,7 @@ const (
 )
 
 func buildStoreKey(key ...string) string {
-	parts := []string{config.Datadog.GetString("autoconf_template_dir")}
+	parts := []string{config.Datadog().GetString("autoconf_template_dir")}
 	parts = append(parts, key...)
 	return path.Join(parts...)
 }
@@ -39,7 +39,7 @@ func GetPollInterval(cp config.ConfigurationProviders) time.Duration {
 			return customInterval
 		}
 	}
-	return config.Datadog.GetDuration("ad_config_poll_interval") * time.Second
+	return config.Datadog().GetDuration("ad_config_poll_interval") * time.Second
 }
 
 // providerCache supports monitoring a service for changes either to the number

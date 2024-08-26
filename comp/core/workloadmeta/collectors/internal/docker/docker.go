@@ -26,14 +26,15 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	errorspkg "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -148,13 +149,13 @@ func (c *collector) stream(ctx context.Context) {
 		case ev := <-c.containerEventsCh:
 			err := c.handleContainerEvent(ctx, ev)
 			if err != nil {
-				log.Warnf(err.Error())
+				log.Warnf("%s", err.Error())
 			}
 
 		case ev := <-c.imageEventsCh:
 			err := c.handleImageEvent(ctx, ev, nil)
 			if err != nil {
-				log.Warnf(err.Error())
+				log.Warnf("%s", err.Error())
 			}
 
 		case <-ctx.Done():
@@ -194,7 +195,7 @@ func (c *collector) generateEventsFromContainerList(ctx context.Context, filter 
 			Action:      events.ActionStart,
 		})
 		if err != nil {
-			log.Warnf(err.Error())
+			log.Warnf("%s", err.Error())
 			continue
 		}
 
@@ -219,7 +220,7 @@ func (c *collector) generateEventsFromImageList(ctx context.Context) error {
 	for _, img := range images {
 		imgMetadata, err := c.getImageMetadata(ctx, img.ID, nil)
 		if err != nil {
-			log.Warnf(err.Error())
+			log.Warnf("%s", err.Error())
 			continue
 		}
 
@@ -262,7 +263,6 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 
 	switch ev.Action {
 	case events.ActionStart, events.ActionRename, events.ActionHealthStatusRunning, events.ActionHealthStatusHealthy, events.ActionHealthStatusUnhealthy, events.ActionHealthStatus:
-
 		container, err := c.dockerUtil.InspectNoCache(ctx, ev.ContainerID, false)
 		if err != nil {
 			return event, fmt.Errorf("could not inspect container %q: %s", ev.ContainerID, err)
@@ -310,7 +310,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 			State: workloadmeta.ContainerState{
 				Running:    container.State.Running,
 				Status:     extractStatus(container.State),
-				Health:     extractHealth(container.State.Health),
+				Health:     extractHealth(container.Config.Labels, container.State.Health),
 				StartedAt:  startedAt,
 				FinishedAt: finishedAt,
 				CreatedAt:  createdAt,
@@ -321,13 +321,13 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 		}
 
 	case events.ActionDie, docker.ActionDied:
-		var exitCode *uint32
+		var exitCode *int64
 		if exitCodeString, found := ev.Attributes["exitCode"]; found {
-			exitCodeInt, err := strconv.ParseInt(exitCodeString, 10, 32)
+			exitCodeInt, err := strconv.ParseInt(exitCodeString, 10, 64)
 			if err != nil {
 				log.Debugf("Cannot convert exit code %q: %v", exitCodeString, err)
 			} else {
-				exitCode = pointer.Ptr(uint32(exitCodeInt))
+				exitCode = pointer.Ptr(exitCodeInt)
 			}
 		}
 
@@ -509,7 +509,12 @@ func extractStatus(containerState *types.ContainerState) workloadmeta.ContainerS
 	return workloadmeta.ContainerStatusUnknown
 }
 
-func extractHealth(containerHealth *types.Health) workloadmeta.ContainerHealth {
+func extractHealth(containerLabels map[string]string, containerHealth *types.Health) workloadmeta.ContainerHealth {
+	// When we're running in Kubernetes, do not report health from Docker but from Kubelet readiness
+	if _, ok := containerLabels[kubernetes.CriContainerNamespaceLabel]; ok {
+		return ""
+	}
+
 	if containerHealth == nil {
 		return workloadmeta.ContainerHealthUnknown
 	}

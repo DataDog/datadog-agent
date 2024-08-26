@@ -172,11 +172,11 @@ int hook_check_helper_call(ctx_t *ctx) {
     }
 
     if (func_id >= 128) {
-        syscall->bpf.helpers[2] |= (u64) 1 << (func_id - 128);
+        syscall->bpf.helpers[2] |= (u64)1 << (func_id - 128);
     } else if (func_id >= 64) {
-        syscall->bpf.helpers[1] |= (u64) 1 << (func_id - 64);
+        syscall->bpf.helpers[1] |= (u64)1 << (func_id - 64);
     } else if (func_id >= 0) {
-        syscall->bpf.helpers[0] |= (u64) 1 << (func_id);
+        syscall->bpf.helpers[0] |= (u64)1 << (func_id);
     }
     return 0;
 }

@@ -28,8 +28,8 @@ func Test_BoolToFloat64(t *testing.T) {
 }
 
 func Test_getAgentTags(t *testing.T) {
-	config.Datadog.SetWithoutSource("hostname", "my-host")
-	defer config.Datadog.SetWithoutSource("hostname", "")
+	config.Datadog().SetWithoutSource("hostname", "my-host")
+	defer config.Datadog().SetWithoutSource("hostname", "")
 
 	assert.Equal(t, []string{
 		"agent_host:my-host",

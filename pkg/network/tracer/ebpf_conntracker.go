@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"sync"
 	"time"
 
 	"github.com/cihub/seelog"
@@ -23,13 +22,11 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
-	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -37,18 +34,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 var zero uint32
 
-var tuplePool = sync.Pool{
-	New: func() interface{} {
-		return new(netebpf.ConntrackTuple)
-	},
-}
+var tuplePool = ddsync.NewDefaultTypedPool[netebpf.ConntrackTuple]()
 
 const ebpfConntrackerModuleName = "network_tracer__ebpf_conntracker"
 
@@ -88,7 +83,7 @@ var ebpfConntrackerRCCreator func(cfg *config.Config) (*manager.Manager, error) 
 var ebpfConntrackerPrebuiltCreator func(cfg *config.Config) (*manager.Manager, error) = getPrebuiltConntracker
 
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
-func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
+func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Component) (netlink.Conntracker, error) {
 	allowRC := cfg.EnableRuntimeCompiler
 	var m *manager.Manager
 	var err error
@@ -162,7 +157,7 @@ func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.ConntrackInitTimeout)
 	defer cancel()
 
-	err = e.dumpInitialTables(ctx, cfg)
+	err = e.dumpInitialTables(ctx, cfg, telemetrycomp)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return nil, fmt.Errorf("could not initialize conntrack after %s", cfg.ConntrackInitTimeout)
@@ -173,9 +168,9 @@ func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 	return e, nil
 }
 
-func (e *ebpfConntracker) dumpInitialTables(ctx context.Context, cfg *config.Config) error {
+func (e *ebpfConntracker) dumpInitialTables(ctx context.Context, cfg *config.Config, telemetrycomp telemetryComp.Component) error {
 	var err error
-	e.consumer, err = netlink.NewConsumer(cfg)
+	e.consumer, err = netlink.NewConsumer(cfg, telemetrycomp)
 	if err != nil {
 		return err
 	}
@@ -233,12 +228,12 @@ func (e *ebpfConntracker) GetType() string {
 	return "ebpf"
 }
 
-func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *network.IPTranslation {
+func (e *ebpfConntracker) GetTranslationForConn(stats *network.ConnectionStats) *network.IPTranslation {
 	start := time.Now()
-	src := tuplePool.Get().(*netebpf.ConntrackTuple)
+	src := tuplePool.Get()
 	defer tuplePool.Put(src)
 
-	toConntrackTupleFromStats(src, &stats)
+	toConntrackTupleFromStats(src, stats)
 	if log.ShouldLog(seelog.TraceLvl) {
 		log.Tracef("looking up in conntrack (stats): %s", stats)
 	}
@@ -279,7 +274,7 @@ func (*ebpfConntracker) IsSampling() bool {
 }
 
 func (e *ebpfConntracker) get(src *netebpf.ConntrackTuple) *netebpf.ConntrackTuple {
-	dst := tuplePool.Get().(*netebpf.ConntrackTuple)
+	dst := tuplePool.Get()
 	if err := e.ctMap.Lookup(src, dst); err != nil {
 		if !errors.Is(err, ebpf.ErrKeyNotExist) {
 			log.Warnf("error looking up connection in ebpf conntrack map: %s", err)
@@ -306,11 +301,11 @@ func (e *ebpfConntracker) delete(key *netebpf.ConntrackTuple) {
 	}
 }
 
-func (e *ebpfConntracker) DeleteTranslation(stats network.ConnectionStats) {
-	key := tuplePool.Get().(*netebpf.ConntrackTuple)
+func (e *ebpfConntracker) DeleteTranslation(stats *network.ConnectionStats) {
+	key := tuplePool.Get()
 	defer tuplePool.Put(key)
 
-	toConntrackTupleFromStats(key, &stats)
+	toConntrackTupleFromStats(key, stats)
 
 	dst := e.get(key)
 	e.delete(key)
@@ -325,7 +320,7 @@ func (e *ebpfConntracker) GetTelemetryMap() *ebpf.Map {
 }
 
 func (e *ebpfConntracker) Close() {
-	ebpfcheck.RemoveNameMappings(e.m)
+	ddebpf.RemoveNameMappings(e.m)
 	err := e.m.Stop(manager.CleanAll)
 	if err != nil {
 		log.Warnf("error cleaning up ebpf conntrack: %s", err)
@@ -335,9 +330,9 @@ func (e *ebpfConntracker) Close() {
 
 // DumpCachedTable dumps the cached conntrack NAT entries grouped by network namespace
 func (e *ebpfConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]netlink.DebugConntrackEntry, error) {
-	src := tuplePool.Get().(*netebpf.ConntrackTuple)
+	src := tuplePool.Get()
 	defer tuplePool.Put(src)
-	dst := tuplePool.Get().(*netebpf.ConntrackTuple)
+	dst := tuplePool.Get()
 	defer tuplePool.Put(dst)
 
 	entries := make(map[uint32][]netlink.DebugConntrackEntry)
@@ -446,19 +441,20 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 	if opts.MapEditors == nil {
 		opts.MapEditors = make(map[string]*ebpf.Map)
 	}
-	opts.VerifierOptions.Programs.LogSize = 10 * 1024 * 1024
+	opts.BypassEnabled = cfg.BypassEnabled
 
 	if err := features.HaveMapType(ebpf.LRUHash); err == nil {
 		me := opts.MapSpecEditors[probes.ConntrackMap]
 		me.Type = ebpf.LRUHash
 		me.EditorFlag |= manager.EditType
+		opts.MapSpecEditors[probes.ConntrackMap] = me
 	}
 
 	err = mgr.InitWithOptions(buf, &opts)
 	if err != nil {
 		return nil, err
 	}
-	ebpfcheck.AddNameMappings(mgr.Manager, "npm_conntracker")
+	ddebpf.AddNameMappings(mgr.Manager, "npm_conntracker")
 	return mgr.Manager, nil
 }
 

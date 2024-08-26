@@ -12,10 +12,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
 type sslConfigSuite struct {
@@ -26,6 +27,7 @@ type sslConfigSuite struct {
 var sslMismatchConfig string
 
 func TestSslConfigSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &sslConfigSuite{},
 		e2e.WithProvisioner(
 			awshost.ProvisionerNoFakeIntake(

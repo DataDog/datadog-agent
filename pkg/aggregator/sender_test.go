@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -370,6 +370,21 @@ func TestSenderPopulatingMetricSampleSource(t *testing.T) {
 			name:                 "checkid uptime:1 should have MetricSourceUptime",
 			checkID:              "uptime:1",
 			expectedMetricSource: metrics.MetricSourceUptime,
+		},
+		{
+			name:                 "checkid http_check:1 should have MetricSourceHTTPCheck",
+			checkID:              "http_check:1",
+			expectedMetricSource: metrics.MetricSourceHTTPCheck,
+		},
+		{
+			name:                 "checkid postgres:1 should have MetricSourcePostgres",
+			checkID:              "postgres:1",
+			expectedMetricSource: metrics.MetricSourcePostgres,
+		},
+		{
+			name:                 "checkid tls:1 should have MetricSourceTLS",
+			checkID:              "tls:1",
+			expectedMetricSource: metrics.MetricSourceTLS,
 		},
 	}
 	for _, tt := range tests {

@@ -12,8 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 // filterConfigsDropped applies the given filter to the given configs, and
@@ -119,7 +119,7 @@ func TestServiceFilterTemplatesCCA(t *testing.T) {
 	nothingDropped := []integration.Config{}
 
 	t.Run("no CCA config", func(t *testing.T) {
-		mockConfig := config.Mock(t)
+		mockConfig := configmock.New(t)
 		mockConfig.SetWithoutSource("logs_config.container_collect_all", true)
 
 		assert.Equal(t, nothingDropped,
@@ -127,7 +127,7 @@ func TestServiceFilterTemplatesCCA(t *testing.T) {
 	})
 
 	t.Run("no other logs config", func(t *testing.T) {
-		mockConfig := config.Mock(t)
+		mockConfig := configmock.New(t)
 		mockConfig.SetWithoutSource("logs_config.container_collect_all", true)
 
 		assert.Equal(t, nothingDropped,
@@ -135,7 +135,7 @@ func TestServiceFilterTemplatesCCA(t *testing.T) {
 	})
 
 	t.Run("other logs config", func(t *testing.T) {
-		mockConfig := config.Mock(t)
+		mockConfig := configmock.New(t)
 		mockConfig.SetWithoutSource("logs_config.container_collect_all", true)
 
 		assert.Equal(t, []integration.Config{ccaTpl},
@@ -143,7 +143,7 @@ func TestServiceFilterTemplatesCCA(t *testing.T) {
 	})
 
 	t.Run("other logs config, CCA disabled", func(t *testing.T) {
-		mockConfig := config.Mock(t)
+		mockConfig := configmock.New(t)
 		mockConfig.SetWithoutSource("logs_config.container_collect_all", false)
 
 		assert.Equal(t, nothingDropped,

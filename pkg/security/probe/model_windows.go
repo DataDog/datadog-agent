@@ -17,7 +17,7 @@ import (
 // NewWindowsModel returns a new model with some extra field validation
 func NewWindowsModel(_ *WindowsProbe) *model.Model {
 	return &model.Model{
-		ExtraValidateFieldFnc: func(field eval.Field, fieldValue eval.FieldValue) error {
+		ExtraValidateFieldFnc: func(field eval.Field, _ eval.FieldValue) error {
 			// TODO(safchain) remove this check when multiple model per platform will be supported in the SECL package
 			if !strings.HasPrefix(field, "exec.") &&
 				!strings.HasPrefix(field, "exit.") &&
@@ -27,7 +27,8 @@ func NewWindowsModel(_ *WindowsProbe) *model.Model {
 				!strings.HasPrefix(field, "set.") &&
 				!strings.HasPrefix(field, "delete.") &&
 				!strings.HasPrefix(field, "write.") &&
-				!strings.HasPrefix(field, "process.") {
+				!strings.HasPrefix(field, "process.") &&
+				!strings.HasPrefix(field, "change_permission") {
 				return fmt.Errorf("%s is not available with the Windows version", field)
 			}
 			return nil

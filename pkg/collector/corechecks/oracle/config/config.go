@@ -35,6 +35,7 @@ type InitConfig struct {
 type QuerySamplesConfig struct {
 	Enabled            bool `yaml:"enabled"`
 	IncludeAllSessions bool `yaml:"include_all_sessions"`
+	ForceDirectQuery   bool `yaml:"force_direct_query"`
 }
 
 type queryMetricsTrackerConfig struct {
@@ -158,7 +159,7 @@ type InstanceConfig struct {
 	UseGlobalCustomQueries             string                 `yaml:"use_global_custom_queries"`
 	CustomQueries                      []CustomQuery          `yaml:"custom_queries"`
 	MetricCollectionInterval           int64                  `yaml:"metric_collection_interval"`
-	DatabaseInstanceCollectionInterval uint64                 `yaml:"database_instance_collection_interval"`
+	DatabaseInstanceCollectionInterval int64                  `yaml:"database_instance_collection_interval"`
 	Asm                                asmConfig              `yaml:"asm"`
 	ResourceManager                    resourceManagerConfig  `yaml:"resource_manager"`
 	Locks                              locksConfig            `yaml:"locks"`
@@ -229,7 +230,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	instance.UseGlobalCustomQueries = "true"
 
-	instance.DatabaseInstanceCollectionInterval = 1800
+	instance.DatabaseInstanceCollectionInterval = 300
 
 	instance.Loader = defaultLoader
 	initCfg.Loader = defaultLoader

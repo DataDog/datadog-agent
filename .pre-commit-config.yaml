@@ -18,6 +18,16 @@ repos:
   hooks:
     - id: vulture
       args: ["--ignore-decorators", "@task", "--ignore-names", "test_*,Test*", "tasks"]
+- repo: https://github.com/pre-commit/mirrors-mypy
+  rev: e5ea6670624c24f8321f6328ef3176dbba76db46  # 1.10.0
+  hooks:
+    - id: mypy
+      # Keep in sync with the build image, there's no good way to centralize this.
+      additional_dependencies:
+        - types-pyyaml==6.0.12.20240311
+        - types-requests==2.30.0
+        - types-tabulate==0.9.0.20240106
+        - types-toml==0.10.8.20240310
 - repo: https://github.com/jumanjihouse/pre-commit-hooks
   rev: 7cc5848088fd8412905ab79feea6c8edc3ac76c6 # 2.1.5
   hooks:
@@ -28,52 +38,43 @@ repos:
   hooks:
     - id: go-fmt
       args: [ "-w", "-s" ]
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 2c9f875913ee60ca25ce70243dc24d5b6415598c # v4.6.0
+    hooks:
+      - id: end-of-file-fixer
+        files: release.json
 - repo: local
   hooks:
     - id: protected-branches
       name: protected-branches
       description: checks that the commit isn't created on a protected branch
-      entry: 'python3 tasks/git-hooks/protected-branches.py'
+      entry: 'inv git.check-protected-branch'
       language: system
       pass_filenames: false
-    - id: govet
-      name: govet
-      description: go vet
-      entry: 'python3 tasks/git-hooks/govet.py'
-      language: system
-      require_serial: true
-      files: \.go$
+      stages: [pre-commit, pre-push]
     - id: copyright
       name: copyright
       description: copyright headers
-      entry: 'python3 -m tasks.git-hooks.copyright'
+      entry: 'inv linter.copyrights --only-staged-files'
       language: system
       require_serial: true
       files: \.go$
+      pass_filenames: false
     - id: win-clang-format
       name: win-clang-format
       description: clang-format
-      entry: './tasks/git-hooks/wincpplang.py'
+      entry: 'inv pre-commit.check-winclang-format'
       language: system
       types_or: [c, c++, c#]
-    - id: clang-format
-      name: clang-format
-      description: clang-format
-      entry: 'python3 tasks/git-hooks/clang-format.py'
-      language: system
-      require_serial: true
-      files: '^pkg/(ebpf|network|security)/.*\.(c|h)$'
-      exclude: '^pkg/ebpf/(c/bpf_endian|c/bpf_helpers|compiler/clang-stdarg).h$'
+      pass_filenames: false
     - id: go-mod-tidy
       name: go-mod-tidy
       description: check that all go.mod files are tidy
-      entry: 'python3 -m tasks.git-hooks.go-mod-tidy'
+      entry: 'inv tidy'
       language: system
       require_serial: true
       files: (\.go|^go\.mod|^go\.sum)$
-      # no need to pass filenames, all go.mod have to be tidied anyway
       pass_filenames: false
-      # inv tidy-all takes several seconds so only run it on pre-push
       stages: [pre-push]
     - id: go-test
       name: go-test
@@ -96,7 +97,7 @@ repos:
     - id: shell-check-no-set-x
       name: shell-check-no-set-x
       description: check that no `set -x` is set within github / gitlab workflows
-      entry: inv pre-commit.shell-check-no-set-x
+      entry: 'inv pre-commit.check-set-x'
       language: system
       require_serial: true
       files: (\.yaml|\.yml|\.sh|Dockerfile)$
@@ -116,3 +117,10 @@ repos:
       entry: 'inv linter.update-go'
       language: system
       pass_filenames: false
+    - id: check-go-modules-in-python
+      name: check-go-modules-in-python
+      description: Validate all go modules are declared in Invoke tasks
+      entry: 'inv modules.validate'
+      language: system
+      pass_filenames: false
+      files: .*go\.mod$

@@ -18,6 +18,7 @@ import (
 type FieldHandlers struct {
 	config    *config.Config
 	resolvers *resolvers.Resolvers
+	hostname  string
 }
 
 // ResolveEventTime resolves the monolitic kernel event timestamp to an absolute time
@@ -28,14 +29,14 @@ func (fh *FieldHandlers) ResolveEventTime(ev *model.Event, _ *model.BaseEvent) t
 	return ev.Timestamp
 }
 
-// ResolveContainerContext retrieve the ContainerContext of the event
-func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
-	return ev.ContainerContext, ev.ContainerContext != nil
-}
-
 // ResolveFilePath resolves the inode to a full path
 func (fh *FieldHandlers) ResolveFilePath(_ *model.Event, f *model.FileEvent) string {
 	return f.PathnameStr
+}
+
+// ResolveFileUserPath resolves the inode to a full user path
+func (fh *FieldHandlers) ResolveFileUserPath(_ *model.Event, f *model.FimFileEvent) string {
+	return f.UserPathnameStr
 }
 
 // ResolveFileBasename resolves the inode to a full path
@@ -105,6 +106,16 @@ func (fh *FieldHandlers) ResolveUser(_ *model.Event, process *model.Process) str
 	return fh.resolvers.UserGroupResolver.GetUser(process.OwnerSidString)
 }
 
+// ResolveContainerContext retrieve the ContainerContext of the event
+func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
+	return ev.ContainerContext, ev.ContainerContext != nil
+}
+
+// ResolveContainerRuntime retrieves the container runtime managing the container
+func (fh *FieldHandlers) ResolveContainerRuntime(_ *model.Event, _ *model.ContainerContext) string {
+	return ""
+}
+
 // ResolveContainerCreatedAt resolves the container creation time of the event
 func (fh *FieldHandlers) ResolveContainerCreatedAt(_ *model.Event, e *model.ContainerContext) int {
 	return int(e.CreatedAt)
@@ -112,7 +123,7 @@ func (fh *FieldHandlers) ResolveContainerCreatedAt(_ *model.Event, e *model.Cont
 
 // ResolveContainerID resolves the container ID of the event
 func (fh *FieldHandlers) ResolveContainerID(_ *model.Event, e *model.ContainerContext) string {
-	return e.ID
+	return string(e.ContainerID)
 }
 
 // ResolveContainerTags resolves the container tags of the event
@@ -133,4 +144,27 @@ func (fh *FieldHandlers) ResolveProcessCmdLine(_ *model.Event, e *model.Process)
 // ResolveProcessCreatedAt resolves the process creation time of the event
 func (fh *FieldHandlers) ResolveProcessCreatedAt(_ *model.Event, e *model.Process) int {
 	return int(e.CreatedAt)
+}
+
+// ResolveOldSecurityDescriptor resolves the old security descriptor
+func (fh *FieldHandlers) ResolveOldSecurityDescriptor(_ *model.Event, cp *model.ChangePermissionEvent) string {
+	hrsd, err := fh.resolvers.SecurityDescriptorResolver.GetHumanReadableSD(cp.OldSd)
+	if err != nil {
+		return cp.OldSd
+	}
+	return hrsd
+}
+
+// ResolveNewSecurityDescriptor resolves the old security descriptor
+func (fh *FieldHandlers) ResolveNewSecurityDescriptor(_ *model.Event, cp *model.ChangePermissionEvent) string {
+	hrsd, err := fh.resolvers.SecurityDescriptorResolver.GetHumanReadableSD(cp.NewSd)
+	if err != nil {
+		return cp.NewSd
+	}
+	return hrsd
+}
+
+// ResolveHostname resolve the hostname
+func (fh *FieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent) string {
+	return fh.hostname
 }

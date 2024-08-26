@@ -29,12 +29,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # push commit and branch
+      pull-requests: write
 
     steps:
       - name: Checkout branch
         uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
-        with:
-          ref: ${{ github.head_ref }}
 
       - name: Fetch branch
         # this step needs the github repository to be already cloned locally
@@ -53,13 +52,13 @@ jobs:
           ref: ${{ inputs.branch }}
 
       - name: Setup Python and pip
-        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
+        uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f # v5.1.1
         with:
           # use Python < 3.12 so that distutil is still available by default
           python-version: 3.11
           cache: "pip"
 
-      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+      - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
           # use the go version from the input, not from the .go-version file
           # in case it's a Go update PR
@@ -73,6 +72,11 @@ jobs:
         id: current_go_version
         run: |
           echo "GO_VERSION=$(inv go-version)" >> $GITHUB_OUTPUT
+    
+      - name: Get current buildimage tag
+        id: current_buildimage_tag
+        run: |
+            echo "BUILDIMAGE_TAG=$(inv pipeline.get-gitlab-config-image-tag)" >> $GITHUB_OUTPUT
 
       - name: Update buildimages IDs and Go version
         id: update_build_images
@@ -100,3 +104,46 @@ jobs:
           # the action fetches all branches and tags, in our case the branches we care about are already fetched
           # if they exist, so we can skip the fetch
           skip_fetch: true
+
+      - name: Check if PR exists
+        id: check_pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          base_branch=${{ github.ref }} # Get the full ref
+          base_branch=${base_branch#refs/heads/} # Remove 'refs/heads/' from the ref
+          # prs variable contains the number of PRs already created that match head and base branches
+          prs=$(gh pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --head ${{ inputs.branch }} \
+              --base $base_branch \
+              --json title \
+              --jq 'length')
+          if [ $prs -eq 0 ]; then
+            echo "CREATE_PR=true" >> $GITHUB_OUTPUT
+          fi 
+
+      # Create PR only if there is no pre-existing PR on the branch
+      - name: Create PR
+        if: ${{ steps.check_pr.outputs.CREATE_PR == 'true' }}
+        env:
+          TMP_PR_BODY_PATH: /tmp/pr_body
+          GH_TOKEN: ${{ github.token }}
+          PR_TITLE: "[automated] ${{ steps.update_build_images.outputs.MESSAGE }}"
+          PR_LABELS: "go-update,team/agent-shared-components"
+        run: |
+          # Generate the PR description
+          inv -e buildimages.generate-pr-body \
+          ${{ steps.current_buildimage_tag.outputs.BUILDIMAGE_TAG }} \
+          ${{ inputs.images_id }} \
+          ${{ steps.current_go_version.outputs.GO_VERSION }} \
+          ${{ inputs.go_version }} \
+          ${{ inputs.test_version && '--test-version' || '' }} > $TMP_PR_BODY_PATH
+
+          # Create the PR
+          gh pr create \
+          --base ${{ github.ref }} \
+          --title "$PR_TITLE" \
+          --body-file $TMP_PR_BODY_PATH \
+          --label "$PR_LABELS" \
+          --draft \

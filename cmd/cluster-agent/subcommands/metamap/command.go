@@ -17,8 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -41,14 +40,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 One can easily identify which pods are running on which nodes,
 as well as which services are serving the pods. Or the deployment name for the pod`,
 		Example: "datadog-cluster-agent metamap ip-10-0-115-123",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, command.DefaultLogLevel, true),
+					LogParams:    log.ForOneShot(command.LoggerName, command.DefaultLogLevel, true),
 				}),
 				core.Bundle(),
 			)
@@ -72,13 +71,13 @@ func getMetadataMap(nodeName string) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	var urlstr string
 	if nodeName == "" {
-		urlstr = fmt.Sprintf("https://localhost:%v/api/v1/tags/pod", pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"))
+		urlstr = fmt.Sprintf("https://localhost:%v/api/v1/tags/pod", pkgconfig.Datadog().GetInt("cluster_agent.cmd_port"))
 	} else {
-		urlstr = fmt.Sprintf("https://localhost:%v/api/v1/tags/pod/%s", pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"), nodeName)
+		urlstr = fmt.Sprintf("https://localhost:%v/api/v1/tags/pod/%s", pkgconfig.Datadog().GetInt("cluster_agent.cmd_port"), nodeName)
 	}
 
 	// Set session token
-	e = util.SetAuthToken(pkgconfig.Datadog)
+	e = util.SetAuthToken(pkgconfig.Datadog())
 	if e != nil {
 		return e
 	}

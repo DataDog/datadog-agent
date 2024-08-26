@@ -32,7 +32,7 @@ func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
 		EnableRootNetNs:              true,
 		EnableConntrackAllNamespaces: false,
 	}
-	c, err := NewConsumer(cfg)
+	c, err := NewConsumer(cfg, nil)
 	require.NoError(t, err)
 	require.NotNil(t, c)
 	exited := make(chan struct{})

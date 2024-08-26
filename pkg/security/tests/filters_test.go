@@ -60,7 +60,7 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 		Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/%s"`, basename),
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withDynamicOpts(dynamicTestOpts{disableBundledRules: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,11 +169,19 @@ func TestFilterOpenLeafDiscarder(t *testing.T) {
 func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename =~ "{{.Root}}/no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
+		Expression: `open.filename =~ "/tmp/no-approver-*"`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{enableActivityDump: true}))
@@ -182,63 +190,51 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 	}
 	defer test.Close()
 
-	var fd int
-	var testFile string
-
-	testFile, _, err = test.Path("test-obc-2")
+	if err := test.StopAllActivityDumps(); err != nil {
+		t.Fatal("Can't stop all running activity dumps")
+	}
+	// dockerInstance, err := test.StartACustomDocker("ubuntu")
+	dockerInstance, _, err := test.StartADockerGetDump()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(testFile)
+	defer dockerInstance.stop()
 
-	outputDir := t.TempDir()
-	_, err = test.StartActivityDumpComm("testsuite", outputDir, []string{"protobuf"})
-	if err != nil {
+	cmd := dockerInstance.Command("mkdir", []string{"/tmp/test"}, []string{})
+	if _, err := cmd.CombinedOutput(); err != nil {
 		t.Fatal(err)
 	}
 
-	defer func() {
-		if err := test.StopActivityDump("", "", "testsuite"); err != nil {
-			t.Fatal(err)
-		}
-	}()
+	testFile := "/tmp/test/test-obc-2"
 
 	if err := test.GetEventDiscarder(t, func() error {
-		// The policy file inode is likely to be reused by the kernel after deletion. On deletion, the inode discarder will
-		// be marked as retained in kernel space and will therefore no longer discard events. By waiting for the discard
-		// retention period to expire, we're making sure that a newly created discarder will properly take effect.
-		time.Sleep(probe.DiscardRetention)
-
-		fd, err = openTestFile(test, testFile, syscall.O_CREAT|syscall.O_SYNC)
-		if err != nil {
-			return err
+		cmd := dockerInstance.Command("touch", []string{testFile}, []string{})
+		if _, err = cmd.CombinedOutput(); err != nil {
+			t.Fatal(err)
 		}
-		return syscall.Close(fd)
+		return nil
 	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
 		e := event.(*model.Event)
-		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
+		if e == nil || e.GetEventType() != model.FileOpenEventType {
 			return false
 		}
 		v, _ := e.GetFieldValue("open.file.path")
 		return v == testFile
 	}); err != nil {
-		inode := getInode(t, testFile)
-		parentInode := getInode(t, path.Dir(testFile))
-
-		t.Fatalf("event inode: %d, parent inode: %d, error: %v", inode, parentInode, err)
+		t.Fatal(err)
 	}
 
 	// Check that we get a probe event "saved by activity dumps"
 	if err := test.GetProbeEvent(func() error {
-		fd, err = openTestFile(test, testFile, syscall.O_CREAT|syscall.O_SYNC)
+		cmd := dockerInstance.Command("cat", []string{testFile}, []string{})
+		_, err = cmd.CombinedOutput()
 		if err != nil {
+			t.Fatal(err)
 			return err
 		}
-		return syscall.Close(fd)
+		return nil
 	}, func(event *model.Event) bool {
-		return event.GetType() == "open" &&
-			event.IsSavedByActivityDumps() &&
-			event.Open.File.Inode == getInode(t, testFile)
+		return event.GetType() == "open" && event.IsSavedByActivityDumps()
 	}, 3*time.Second); err != nil {
 		t.Fatal(err)
 	}
@@ -367,7 +363,10 @@ func TestFilterDiscarderMask(t *testing.T) {
 		if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
 			t.Fatal(error(errno))
 		}
-		if err := waitForProbeEvent(test, nil, "utimes.file.path", testFile, model.FileUtimesEventType); err != nil {
+		if err := waitForProbeEvent(test, nil, model.FileUtimesEventType, eventKeyValueFilter{
+			key:   "utimes.file.path",
+			value: testFile,
+		}); err != nil {
 			t.Fatal("should get a utimes event")
 		}
 
@@ -377,7 +376,10 @@ func TestFilterDiscarderMask(t *testing.T) {
 		if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
 			t.Fatal(error(errno))
 		}
-		if err := waitForProbeEvent(test, nil, "utimes.file.path", testFile, model.FileUtimesEventType); err == nil {
+		if err := waitForProbeEvent(test, nil, model.FileUtimesEventType, eventKeyValueFilter{
+			key:   "utimes.file.path",
+			value: testFile,
+		}); err == nil {
 			t.Fatal("shouldn't get a utimes event")
 		}
 

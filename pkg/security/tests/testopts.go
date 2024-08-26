@@ -35,6 +35,7 @@ type testOpts struct {
 	activityDumpLocalStorageDirectory          string
 	activityDumpLocalStorageCompression        bool
 	activityDumpLocalStorageFormats            []string
+	activityDumpSyscallMonitorPeriod           time.Duration
 	enableSecurityProfile                      bool
 	securityProfileMaxImageTags                int
 	securityProfileDir                         string
@@ -53,15 +54,21 @@ type testOpts struct {
 	envsWithValue                              []string
 	disableRuntimeSecurity                     bool
 	enableSBOM                                 bool
+	enableHostSBOM                             bool
 	preStartCallback                           func(test *testModule)
 	tagsResolver                               tags.Resolver
 	snapshotRuleMatchHandler                   func(*testModule, *model.Event, *rules.Rule)
 	enableFIM                                  bool // only valid on windows
+	networkIngressEnabled                      bool
+	disableOnDemandRateLimiter                 bool
+	ebpfLessEnabled                            bool
+	dontWaitEBPFLessClient                     bool
 }
 
 type dynamicTestOpts struct {
 	testDir                  string
 	disableAbnormalPathCheck bool
+	disableBundledRules      bool
 }
 
 type tmOpts struct {
@@ -101,6 +108,7 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.activityDumpCgroupDifferentiateArgs == opts.activityDumpCgroupDifferentiateArgs &&
 		to.activityDumpAutoSuppressionEnabled == opts.activityDumpAutoSuppressionEnabled &&
 		to.activityDumpLoadControllerTimeout == opts.activityDumpLoadControllerTimeout &&
+		to.activityDumpSyscallMonitorPeriod == opts.activityDumpSyscallMonitorPeriod &&
 		reflect.DeepEqual(to.activityDumpTracedEventTypes, opts.activityDumpTracedEventTypes) &&
 		to.activityDumpLocalStorageDirectory == opts.activityDumpLocalStorageDirectory &&
 		to.activityDumpLocalStorageCompression == opts.activityDumpLocalStorageCompression &&
@@ -124,6 +132,10 @@ func (to testOpts) Equal(opts testOpts) bool {
 		reflect.DeepEqual(to.envsWithValue, opts.envsWithValue) &&
 		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
 		to.enableSBOM == opts.enableSBOM &&
+		to.enableHostSBOM == opts.enableHostSBOM &&
 		to.snapshotRuleMatchHandler == nil && opts.snapshotRuleMatchHandler == nil &&
-		to.preStartCallback == nil && opts.preStartCallback == nil
+		to.preStartCallback == nil && opts.preStartCallback == nil &&
+		to.networkIngressEnabled == opts.networkIngressEnabled &&
+		to.disableOnDemandRateLimiter == opts.disableOnDemandRateLimiter &&
+		to.ebpfLessEnabled == opts.ebpfLessEnabled
 }

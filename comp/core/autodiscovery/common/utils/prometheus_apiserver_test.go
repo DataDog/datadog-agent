@@ -220,7 +220,7 @@ func TestConfigsForService(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config.Datadog.SetWithoutSource("prometheus_scrape.version", tt.version)
+			config.Datadog().SetWithoutSource("prometheus_scrape.version", tt.version)
 			assert.NoError(t, tt.check.Init(tt.version))
 			assert.ElementsMatch(t, tt.want, ConfigsForService(tt.check, tt.svc))
 		})

@@ -22,10 +22,11 @@ import (
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/replay"
+	taggerProto "github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/server"
+	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -33,13 +34,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type server struct {
+type grpcServer struct {
 	pb.UnimplementedAgentServer
 }
 
 type serverSecure struct {
 	pb.UnimplementedAgentSecureServer
 	taggerServer       *taggerserver.Server
+	taggerComp         tagger.Component
 	workloadmetaServer *workloadmetaServer.Server
 	configService      optional.Option[rcservice.Component]
 	configServiceMRF   optional.Option[rcservicemrf.Component]
@@ -48,7 +50,7 @@ type serverSecure struct {
 	pidMap             pidmap.Component
 }
 
-func (s *server) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.HostnameReply, error) {
+func (s *grpcServer) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.HostnameReply, error) {
 	h, err := hostname.Get(ctx)
 	if err != nil {
 		return &pb.HostnameReply{}, err
@@ -60,7 +62,7 @@ func (s *server) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.Ho
 // override of the AuthFunc registered with the unary interceptor.
 //
 // see: https://godoc.org/github.com/grpc-ecosystem/go-grpc-middleware/auth#ServiceAuthFuncOverride
-func (s *server) AuthFuncOverride(ctx context.Context, _ string) (context.Context, error) {
+func (s *grpcServer) AuthFuncOverride(ctx context.Context, _ string) (context.Context, error) {
 	return ctx, nil
 }
 
@@ -103,14 +105,33 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 	}
 
 	// FiXME: we should perhaps lock the capture processing while doing this...
-	t := replay.NewTagger()
-	if t == nil {
+	taggerReplay := s.taggerComp.ReplayTagger()
+	if taggerReplay == nil {
 		return &pb.TaggerStateResponse{Loaded: false}, fmt.Errorf("unable to instantiate state")
 	}
-	t.LoadState(req.State)
+	state := make([]taggerTypes.Entity, len(req.State))
+
+	// better stores these as the native type
+	for id, entity := range req.State {
+		entityID, err := taggerProto.Pb2TaggerEntityID(entity.Id)
+		if err != nil {
+			log.Errorf("Error getting identity ID for %v: %v", id, err)
+			continue
+		}
+
+		state = append(state, taggerTypes.Entity{
+			ID:                          entityID,
+			HighCardinalityTags:         entity.HighCardinalityTags,
+			OrchestratorCardinalityTags: entity.OrchestratorCardinalityTags,
+			LowCardinalityTags:          entity.LowCardinalityTags,
+			StandardTags:                entity.StandardTags,
+		})
+	}
+
+	taggerReplay.LoadState(state)
 
 	log.Debugf("API: setting capture state tagger")
-	tagger.SetNewCaptureTagger(t)
+	tagger.SetNewCaptureTagger(taggerReplay)
 	s.pidMap.SetPidMap(req.PidMap)
 
 	log.Debugf("API: loaded state successfully")

@@ -10,11 +10,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"time"
 
+	"go.uber.org/fx"
+
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
@@ -30,9 +34,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
@@ -143,6 +147,7 @@ type provides struct {
 	Comp          inventoryhost.Component
 	Provider      runnerimpl.Provider
 	FlareProvider flaretypes.Provider
+	Endpoint      api.AgentEndpointProvider
 }
 
 func newInventoryHostProvider(deps dependencies) provides {
@@ -159,6 +164,7 @@ func newInventoryHostProvider(deps dependencies) provides {
 		Comp:          ih,
 		Provider:      ih.MetadataProvider(),
 		FlareProvider: ih.FlareProvider(),
+		Endpoint:      api.NewAgentEndpointProvider(ih.writePayloadAsJSON, "/metadata/inventory-host", "GET"),
 	}
 }
 
@@ -254,4 +260,14 @@ func (ih *invHost) getPayload() marshaler.JSONMarshaler {
 		Metadata:  ih.data,
 		UUID:      uuid.GetUUID(),
 	}
+}
+
+func (ih *invHost) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
+	// GetAsJSON already return scrubbed data
+	scrubbed, err := ih.GetAsJSON()
+	if err != nil {
+		httputils.SetJSONError(w, err, 500)
+		return
+	}
+	w.Write(scrubbed)
 }

@@ -1,0 +1,1 @@
+@"C:\Program Files\Datadog\Datadog Agent\embedded3\python.exe" {{.PythonScriptPath}} %*

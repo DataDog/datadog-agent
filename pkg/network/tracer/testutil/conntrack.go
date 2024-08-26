@@ -5,7 +5,6 @@
 
 //go:build linux
 
-//nolint:revive // TODO(NET) Fix revive linter
 package testutil
 
 import (
@@ -33,7 +32,7 @@ func NewDelayedConntracker(ctr netlink.Conntracker, numDelays int) netlink.Connt
 	}
 }
 
-func (ctr *delayedConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {
+func (ctr *delayedConntracker) GetTranslationForConn(c *network.ConnectionStats) *network.IPTranslation {
 	ctr.mux.Lock()
 	defer ctr.mux.Unlock()
 

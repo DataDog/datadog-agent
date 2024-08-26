@@ -10,10 +10,12 @@ package network
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/driver"
 )
 
 type TestDriverHandleInfiniteLoop struct {
@@ -67,16 +69,16 @@ func TestConnectionStatsInfiniteLoop(t *testing.T) {
 	activeBuf := NewConnectionBuffer(startSize, minSize)
 	closedBuf := NewConnectionBuffer(startSize, minSize)
 
-	di, err := NewDriverInterface(config.New(), func(flags uint32, handleType driver.HandleType) (driver.Handle, error) {
+	di, err := NewDriverInterface(config.New(), func(_ uint32, _ driver.HandleType, _ telemetry.Component) (driver.Handle, error) {
 		return &TestDriverHandleInfiniteLoop{t: t}, nil
-	})
+	}, nil)
 	require.NoError(t, err, "Failed to create new driver interface")
 
-	_, err = di.GetClosedConnectionStats(closedBuf, func(c *ConnectionStats) bool {
+	_, err = di.GetClosedConnectionStats(closedBuf, func(_ *ConnectionStats) bool {
 		return true
 	})
 	require.NoError(t, err, "Failed to get connection stats")
-	_, err = di.GetOpenConnectionStats(activeBuf, func(c *ConnectionStats) bool {
+	_, err = di.GetOpenConnectionStats(activeBuf, func(_ *ConnectionStats) bool {
 		return true
 	})
 	require.NoError(t, err, "Failed to get connection stats")

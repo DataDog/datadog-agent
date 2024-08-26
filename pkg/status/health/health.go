@@ -35,12 +35,22 @@ type catalog struct {
 	sync.RWMutex
 	components map[*Handle]*component
 	latestRun  time.Time
+	startup    bool
 }
 
 func newCatalog() *catalog {
 	return &catalog{
 		components: make(map[*Handle]*component),
 		latestRun:  time.Now(), // Start healthy
+		startup:    false,
+	}
+}
+
+func newStartupCatalog() *catalog {
+	return &catalog{
+		components: make(map[*Handle]*component),
+		latestRun:  time.Now(), // Start healthy
+		startup:    true,
 	}
 }
 
@@ -97,6 +107,10 @@ func (c *catalog) pingComponents(healthDeadline time.Time) bool {
 	c.Lock()
 	defer c.Unlock()
 	for _, component := range c.components {
+		// In startup mode, we skip already healthy components.
+		if c.startup && component.healthy {
+			continue
+		}
 		select {
 		case component.healthChan <- healthDeadline:
 			component.healthy = true

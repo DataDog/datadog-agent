@@ -10,6 +10,7 @@ package netlink
 import (
 	"container/list"
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -17,10 +18,13 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/syndtr/gocapability/capability"
 	"golang.org/x/sys/unix"
 
 	"github.com/cihub/seelog"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
+
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -37,16 +41,19 @@ const (
 
 var defaultBuckets = []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000}
 
+// ErrNotPermitted is the error returned when the current process does not have the required permissions for netlink conntracker
+var ErrNotPermitted = errors.New("netlink conntracker requires NET_ADMIN capability")
+
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
 type Conntracker interface {
 	// Describe returns all descriptions of the collector
 	Describe(descs chan<- *prometheus.Desc)
 	// Collect returns the current state of all metrics of the collector
 	Collect(metrics chan<- prometheus.Metric)
-	GetTranslationForConn(network.ConnectionStats) *network.IPTranslation
+	GetTranslationForConn(*network.ConnectionStats) *network.IPTranslation
 	// GetType returns a string describing whether the conntracker is "ebpf" or "netlink"
 	GetType() string
-	DeleteTranslation(network.ConnectionStats)
+	DeleteTranslation(*network.ConnectionStats)
 	DumpCachedTable(context.Context) (map[uint32][]DebugConntrackEntry, error)
 	Close()
 }
@@ -107,16 +114,28 @@ var conntrackerTelemetry = struct {
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
-func NewConntracker(config *config.Config) (Conntracker, error) {
+func NewConntracker(config *config.Config, telemetrycomp telemetryComp.Component) (Conntracker, error) {
 	var (
 		err         error
 		conntracker Conntracker
 	)
 
+	// check if we have the right capabilities for the netlink NewConntracker
+	// NET_ADMIN is required
+	if caps, err := capability.NewPid2(0); err == nil {
+		if err = caps.Load(); err != nil {
+			return nil, fmt.Errorf("could not load process capabilities: %w", err)
+		}
+
+		if !caps.Get(capability.EFFECTIVE, capability.CAP_NET_ADMIN) {
+			return nil, ErrNotPermitted
+		}
+	}
+
 	done := make(chan struct{})
 
 	go func() {
-		conntracker, err = newConntrackerOnce(config)
+		conntracker, err = newConntrackerOnce(config, telemetrycomp)
 		done <- struct{}{}
 	}()
 
@@ -128,8 +147,8 @@ func NewConntracker(config *config.Config) (Conntracker, error) {
 	}
 }
 
-func newConntrackerOnce(cfg *config.Config) (Conntracker, error) {
-	consumer, err := NewConsumer(cfg)
+func newConntrackerOnce(cfg *config.Config, telemetrycomp telemetryComp.Component) (Conntracker, error) {
+	consumer, err := NewConsumer(cfg, telemetrycomp)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +183,7 @@ func (ctr *realConntracker) GetType() string {
 	return "netlink"
 }
 
-func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {
+func (ctr *realConntracker) GetTranslationForConn(c *network.ConnectionStats) *network.IPTranslation {
 	then := time.Now()
 	defer func() {
 		conntrackerTelemetry.getsDuration.Observe(float64(time.Since(then).Nanoseconds()))
@@ -200,7 +219,7 @@ func (ctr *realConntracker) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(conntrackerTelemetry.orphanSize, prometheus.CounterValue, float64(ctr.cache.orphans.Len()))
 }
 
-func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
+func (ctr *realConntracker) DeleteTranslation(c *network.ConnectionStats) {
 	then := time.Now()
 
 	ctr.Lock()

@@ -8,34 +8,33 @@ package flare
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 )
 
 func TestFlareCreation(t *testing.T) {
-	realProvider := func(fb types.FlareBuilder) error { return nil }
+	realProvider := func(_ types.FlareBuilder) error { return nil }
 
-	f, _ := newFlare(
+	f := newFlare(
 		fxutil.Test[dependencies](
 			t,
-			logimpl.MockModule(),
+			fx.Provide(func() log.Component { return logmock.New(t) }),
 			config.MockModule(),
 			secretsimpl.MockModule(),
-			fx.Provide(func(secretMock secrets.Mock) secrets.Component {
-				component := secretMock.(secrets.Component)
-				return component
-			}),
+			nooptelemetry.Module(),
 			fx.Provide(func() diagnosesendermanager.Component { return nil }),
 			fx.Provide(func() Params { return Params{} }),
 			collector.NoneModule(),

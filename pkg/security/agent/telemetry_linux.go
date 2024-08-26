@@ -10,9 +10,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	sectelemetry "github.com/DataDog/datadog-agent/pkg/security/telemetry"
@@ -154,11 +155,22 @@ func (t *telemetry) reportContainers() error {
 		return err
 	}
 
+	var fargate bool
+	if os.Getenv("ECS_FARGATE") == "true" || os.Getenv("DD_ECS_FARGATE") == "true" || os.Getenv("DD_EKS_FARGATE") == "true" {
+		fargate = true
+	}
+
 	var metricName string
 	if cfg.RuntimeEnabled {
 		metricName = metrics.MetricSecurityAgentRuntimeContainersRunning
+		if fargate {
+			metricName = metrics.MetricSecurityAgentFargateRuntimeContainersRunning
+		}
 	} else if cfg.FIMEnabled {
 		metricName = metrics.MetricSecurityAgentFIMContainersRunning
+		if fargate {
+			metricName = metrics.MetricSecurityAgentFargateFIMContainersRunning
+		}
 	} else {
 		// nothing to report
 		return nil

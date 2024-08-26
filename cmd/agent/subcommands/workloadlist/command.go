@@ -17,9 +17,10 @@ import (
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := workloadlistcmd.MakeCommand(func() workloadlistcmd.GlobalParams {
 		return workloadlistcmd.GlobalParams{
-			ConfFilePath: globalParams.ConfFilePath,
-			ConfigName:   command.ConfigName,
-			LoggerName:   command.LoggerName,
+			ConfFilePath:       globalParams.ConfFilePath,
+			ExtraConfFilePaths: globalParams.ExtraConfFilePath,
+			ConfigName:         command.ConfigName,
+			LoggerName:         command.LoggerName,
 		}
 	})
 

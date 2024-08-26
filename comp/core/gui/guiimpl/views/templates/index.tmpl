@@ -49,7 +49,7 @@
         <i class="fa fa-flag fa-fw"> </i>&nbsp;
         Flare
       </li>
-      {{- if .restartEnabled }}
+      {{- if .RestartEnabled }}
       <li id="restart_button" class="nav_item no-active">
         <i class="fa fa-power-off fa-fw"> </i>&nbsp;
         Restart Agent
@@ -61,12 +61,18 @@
     <div id="title">Datadog Agent Manager</div>
     <div id="agent_info">
       <div id="restart_status">Restart Agent to apply changes.</div>
-      <div id="agent_status">Connected <br>to Agent</div>
+      <div id="agent_status" class="disconnected">Not connected<br>to Agent</div>
       <div id="version">Version: </div>
       <div id="hostname">Hostname: </div>
     </div>
   </div>
   <div id="main">
+    <div id="error" class="page">
+      <div id="error_content"></div>
+      <div id="logged_out">
+        {{template "loginInstruction" . }}
+      </div>
+    </div>
     <div id="tests" class="page"></div>
     <div id="general_status" class="page"></div>
     <div id="collector_status" class="page"></div>
@@ -96,5 +102,6 @@
           <input type="button" id="submit_flare" value="Submit"/>
         </form>
     </div>
+
   </div>
 </body>

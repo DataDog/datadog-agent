@@ -20,7 +20,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -74,7 +74,7 @@ func (c *conntrackOffsetGuesser) Manager() *manager.Manager {
 }
 
 func (c *conntrackOffsetGuesser) Close() {
-	ebpfcheck.RemoveNameMappings(c.m)
+	ddebpf.RemoveNameMappings(c.m)
 	if err := c.m.Stop(manager.CleanAll); err != nil {
 		log.Warnf("error stopping conntrack offset guesser: %s", err)
 	}

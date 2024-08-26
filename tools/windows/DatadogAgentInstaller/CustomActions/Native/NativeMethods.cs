@@ -1,3 +1,4 @@
+using Datadog.CustomActions.Interfaces;
 using System;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -6,7 +7,6 @@ using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
-using Datadog.CustomActions.Interfaces;
 
 // ReSharper disable InconsistentNaming
 
@@ -474,11 +474,22 @@ namespace Datadog.CustomActions.Native
             out IntPtr pDOMAIN_CONTROLLER_INFO
         );
 
+        [DllImport("msi.dll", CharSet = CharSet.Unicode)]
+        static extern Int32 MsiGetProductInfo
+        (
+            string product,
+            string property,
+            [Out] StringBuilder valueBuf,
+            ref Int32 len
+        );
+
         #endregion
         #region Public interface
 
         public bool IsServiceAccount(SecurityIdentifier securityIdentifier)
         {
+            // NetIsServiceAccount returns true if NetQueryServiceAccount returns MsaInfoInstalled,
+            // this is the same behavior as the Test-ADServiceAccount cmdlet in PowerShell.
             NetIsServiceAccount(null, securityIdentifier.Translate(typeof(NTAccount)).Value, out var isServiceAccount);
             isServiceAccount |= securityIdentifier.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
                                 securityIdentifier.IsWellKnown(WellKnownSidType.LocalServiceSid) ||
@@ -912,6 +923,16 @@ namespace Datadog.CustomActions.Native
             {
                 throw new Exception($"Unable to lookup SID for current user: {name}");
             }
+        }
+
+        public string GetVersionString(string product)
+        {
+            var len = 512;
+            var builder = new System.Text.StringBuilder(len);
+
+            MsiGetProductInfo(product, "VersionString", builder, ref len);
+
+            return builder.ToString();
         }
 
         #endregion

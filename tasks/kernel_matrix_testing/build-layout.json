@@ -1,11 +1,13 @@
 {
     "layout": [
         "/etc/datadog-agent",
-        "/opt/datadog-agent/run"
+        "/opt/datadog-agent/run",
+        "/etc/datadog-agent/conf.d/ebpf.d"
     ],
     "copy": {
         "tasks/kernel_matrix_testing/default-system-probe.yaml": "/etc/datadog-agent/system-probe.yaml",
-        "tasks/kernel_matrix_testing/default-security-agent.yaml": "/etc/datadog-agent/security-agent.yaml"
+        "tasks/kernel_matrix_testing/default-security-agent.yaml": "/etc/datadog-agent/security-agent.yaml",
+        "tasks/kernel_matrix_testing/default-ebpf-check-conf.yaml": "/etc/datadog-agent/conf.d/ebpf.d/conf.yaml"
     },
     "run": []
 }

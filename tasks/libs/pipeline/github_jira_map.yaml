@@ -32,10 +32,10 @@
 '@datadog/debugger': DEBUG
 '@datadog/database-monitoring': DBMON
 '@datadog/agent-cspm': SEC
-'@datadog/telemetry-and-analytics': DEFAULT_JIRA_PROJECT
+'@datadog/telemetry-and-analytics': AIT
 '@datadog/asm-go': APPSEC
-'@datadog/agent-build-and-releases': BARX
-'@datadog/agent-developer-tools': ADXT
-'@datadog/agent-ci-experience': ACIX
+'@datadog/agent-delivery': BARX
+'@datadog/agent-devx-loops': ADXT
+'@datadog/agent-devx-infra': ACIX
 '@datadog/apm-onboarding': APMON
 '@datadog/agent-processing-and-routing': APR

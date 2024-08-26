@@ -25,6 +25,7 @@ type Stats struct {
 	FileNodes    int64
 	DNSNodes     int64
 	SocketNodes  int64
+	IMDSNodes    int64
 
 	counts map[model.EventType]*statsPerEventType
 }
@@ -55,7 +56,7 @@ func NewActivityTreeNodeStats() *Stats {
 			droppedCount: make(map[NodeDroppedReason]*atomic.Uint64),
 		}
 
-		for _, reason := range allDropReasons {
+		for reason := minNodeDroppedReason; reason <= maxNodeDroppedReason; reason++ {
 			spet.droppedCount[reason] = atomic.NewUint64(0)
 		}
 		ats.counts[i] = spet
@@ -70,6 +71,7 @@ func (stats *Stats) ApproximateSize() int64 {
 	total += stats.FileNodes * int64(unsafe.Sizeof(FileNode{}))       // 80
 	total += stats.DNSNodes * int64(unsafe.Sizeof(DNSNode{}))         // 24
 	total += stats.SocketNodes * int64(unsafe.Sizeof(SocketNode{}))   // 40
+	total += stats.IMDSNodes * int64(unsafe.Sizeof(IMDSNode{}))
 	return total
 }
 
@@ -88,7 +90,7 @@ func (stats *Stats) SendStats(client statsd.ClientInterface, treeType string) er
 		}
 
 		for generationType, count := range count.addedCount {
-			tags := []string{evtTypeTag, fmt.Sprintf("generation_type:%s", generationType), treeTypeTag}
+			tags := []string{evtTypeTag, generationType.Tag(), treeTypeTag}
 			if value := count.Swap(0); value > 0 {
 				if err := client.Count(metrics.MetricActivityDumpEventAdded, int64(value), tags, 1.0); err != nil {
 					return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventAdded, err)

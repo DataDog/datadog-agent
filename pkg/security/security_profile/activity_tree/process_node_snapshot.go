@@ -26,6 +26,7 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -135,6 +136,16 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 
 		evt := newEvent()
 		fullPath := filepath.Join(utils.ProcRootPath(pn.Process.Pid), f)
+		if evt.ProcessContext == nil {
+			evt.ProcessContext = &model.ProcessContext{}
+		}
+		if evt.ContainerContext == nil {
+			evt.ContainerContext = &model.ContainerContext{}
+		}
+		evt.ProcessContext.Process = pn.Process
+		evt.CGroupContext.CGroupID = containerutils.CGroupID(pn.Process.CGroup.CGroupID)
+		evt.CGroupContext.CGroupFlags = pn.Process.CGroup.CGroupFlags
+		evt.ContainerContext.ContainerID = containerutils.ContainerID(pn.Process.ContainerID)
 
 		var fileStats unix.Statx_t
 		if err := unix.Statx(unix.AT_FDCWD, fullPath, 0, unix.STATX_ALL, &fileStats); err != nil {
@@ -186,6 +197,9 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 			evt.Open.File.SetPathnameStr(f)
 		}
 		evt.Open.File.SetBasenameStr(path.Base(evt.Open.File.PathnameStr))
+
+		evt.FieldHandlers.ResolvePackageName(evt, &evt.Open.File)
+		evt.FieldHandlers.ResolvePackageVersion(evt, &evt.Open.File)
 
 		// TODO: add open flags by parsing `/proc/[pid]/fdinfo/fd` + O_RDONLY|O_CLOEXEC for the shared libs
 

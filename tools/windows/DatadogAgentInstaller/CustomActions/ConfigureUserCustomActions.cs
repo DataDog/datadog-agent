@@ -9,7 +9,6 @@ using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Microsoft.Deployment.WindowsInstaller;
-using Datadog.CustomActions.RollbackData;
 using Datadog.CustomActions.Rollback;
 
 namespace Datadog.CustomActions
@@ -179,6 +178,10 @@ namespace Datadog.CustomActions
                 InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
                 PropagationFlags.None,
                 AccessControlType.Allow));
+            fileSystemSecurity.SetOwner(new SecurityIdentifier(
+                WellKnownSidType.LocalSystemSid, null));
+            fileSystemSecurity.SetGroup(new SecurityIdentifier(
+                WellKnownSidType.LocalSystemSid, null));
             UpdateAndLogAccessControl(_session.Property("APPLICATIONDATADIRECTORY"), fileSystemSecurity);
         }
 

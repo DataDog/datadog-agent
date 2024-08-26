@@ -70,7 +70,7 @@ func TestStartInvalidConfig(t *testing.T) {
 type MetricDogStatsDMocked struct{}
 
 //nolint:revive // TODO(SERV) Fix revive linter
-func (m *MetricDogStatsDMocked) NewServer(demux aggregator.Demultiplexer) (dogstatsdServer.ServerlessDogstatsd, error) {
+func (m *MetricDogStatsDMocked) NewServer(_ aggregator.Demultiplexer) (dogstatsdServer.ServerlessDogstatsd, error) {
 	return nil, fmt.Errorf("error")
 }
 
@@ -85,9 +85,9 @@ func TestStartInvalidDogStatsD(t *testing.T) {
 
 func TestStartWithProxy(t *testing.T) {
 	t.SkipNow()
-	originalValues := config.Datadog.GetStringSlice(statsDMetricBlocklistKey)
-	defer config.Datadog.SetWithoutSource(statsDMetricBlocklistKey, originalValues)
-	config.Datadog.SetWithoutSource(statsDMetricBlocklistKey, []string{})
+	originalValues := config.Datadog().GetStringSlice(statsDMetricBlocklistKey)
+	defer config.Datadog().SetWithoutSource(statsDMetricBlocklistKey, originalValues)
+	config.Datadog().SetWithoutSource(statsDMetricBlocklistKey, []string{})
 
 	t.Setenv(proxyEnabledEnvVar, "true")
 
@@ -102,7 +102,7 @@ func TestStartWithProxy(t *testing.T) {
 		ErrorsMetric,
 	}
 
-	setValues := config.Datadog.GetStringSlice(statsDMetricBlocklistKey)
+	setValues := config.Datadog().GetStringSlice(statsDMetricBlocklistKey)
 	assert.Equal(t, expected, setValues)
 }
 
@@ -117,7 +117,7 @@ func TestRaceFlushVersusAddSample(t *testing.T) {
 
 	server := http.Server{
 		Addr: "localhost:8888",
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		Handler: http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 			time.Sleep(10 * time.Millisecond)
 		}),
 	}
@@ -201,7 +201,7 @@ func getAvailableUDPPort() (int, error) {
 func TestRaceFlushVersusParsePacket(t *testing.T) {
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
-	config.Datadog.SetDefault("dogstatsd_port", port)
+	config.Datadog().SetDefault("dogstatsd_port", port)
 
 	demux := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000)
 
@@ -209,7 +209,7 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
-	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
+	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog().GetInt("dogstatsd_port"))
 	conn, err := net.Dial("udp", url)
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
@@ -222,14 +222,14 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 			conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
 			time.Sleep(10 * time.Nanosecond)
 		}
-		finish.Done()
+		wg.Done()
 	}(finish)
 
 	go func(wg *sync.WaitGroup) {
 		for i := 0; i < 1000; i++ {
 			s.ServerlessFlush(time.Second * 10)
 		}
-		finish.Done()
+		wg.Done()
 	}(finish)
 
 	finish.Wait()

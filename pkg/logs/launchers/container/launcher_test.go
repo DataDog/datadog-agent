@@ -14,7 +14,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
@@ -85,7 +85,7 @@ func TestAddsRemovesSource(t *testing.T) {
 func TestCannotMakeTailer(t *testing.T) {
 	l := NewLauncher(nil, optional.NewNoneOption[workloadmeta.Component]())
 	l.tailerFactory = &testFactory{
-		makeTailer: func(source *sources.LogSource) (tailerfactory.Tailer, error) {
+		makeTailer: func(_ *sources.LogSource) (tailerfactory.Tailer, error) {
 			return nil, errors.New("uhoh")
 		},
 	}

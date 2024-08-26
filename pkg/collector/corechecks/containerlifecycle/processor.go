@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/contlcycle"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	types "github.com/DataDog/datadog-agent/pkg/containerlifecycle"
@@ -170,7 +170,7 @@ func (p *processor) processTask(task *workloadmeta.ECSTask) error {
 // processQueues consumes the data available in the queues
 func (p *processor) processQueues(ctx context.Context, pollInterval time.Duration) {
 	ticker := time.NewTicker(pollInterval)
-
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:

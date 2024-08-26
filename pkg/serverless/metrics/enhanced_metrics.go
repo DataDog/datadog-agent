@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/proc"
 	serverlessTags "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -24,6 +25,9 @@ const (
 	x86LambdaPricePerGbSecond = 0.0000166667
 	armLambdaPricePerGbSecond = 0.0000133334
 	msToSec                   = 0.001
+
+	// tmp directory path
+	tmpPath = "/tmp/"
 
 	// Enhanced metrics
 	maxMemoryUsedMetric       = "aws.lambda.enhanced.max_memory_used"
@@ -41,11 +45,29 @@ const (
 	OutOfMemoryMetric = "aws.lambda.enhanced.out_of_memory"
 	timeoutsMetric    = "aws.lambda.enhanced.timeouts"
 	// ErrorsMetric is the name of the errors enhanced Lambda metric
-	ErrorsMetric          = "aws.lambda.enhanced.errors"
-	invocationsMetric     = "aws.lambda.enhanced.invocations"
-	asmInvocationsMetric  = "aws.lambda.enhanced.asm.invocations"
-	enhancedMetricsEnvVar = "DD_ENHANCED_METRICS"
+	ErrorsMetric                 = "aws.lambda.enhanced.errors"
+	invocationsMetric            = "aws.lambda.enhanced.invocations"
+	asmInvocationsMetric         = "aws.lambda.enhanced.asm.invocations"
+	cpuSystemTimeMetric          = "aws.lambda.enhanced.cpu_system_time"
+	cpuUserTimeMetric            = "aws.lambda.enhanced.cpu_user_time"
+	cpuTotalTimeMetric           = "aws.lambda.enhanced.cpu_total_time"
+	cpuTotalUtilizationPctMetric = "aws.lambda.enhanced.cpu_total_utilization_pct"
+	cpuTotalUtilizationMetric    = "aws.lambda.enhanced.cpu_total_utilization"
+	numCoresMetric               = "aws.lambda.enhanced.num_cores"
+	cpuMaxUtilizationMetric      = "aws.lambda.enhanced.cpu_max_utilization"
+	cpuMinUtilizationMetric      = "aws.lambda.enhanced.cpu_min_utilization"
+	rxBytesMetric                = "aws.lambda.enhanced.rx_bytes"
+	txBytesMetric                = "aws.lambda.enhanced.tx_bytes"
+	totalNetworkMetric           = "aws.lambda.enhanced.total_network"
+	tmpUsedMetric                = "aws.lambda.enhanced.tmp_used"
+	tmpMaxMetric                 = "aws.lambda.enhanced.tmp_max"
+	enhancedMetricsEnvVar        = "DD_ENHANCED_METRICS"
+
+	// Bottlecap
+	failoverMetric = "datadog.serverless.extension.failover"
 )
+
+var enhancedMetricsDisabled = strings.ToLower(os.Getenv(enhancedMetricsEnvVar)) == "false"
 
 func getOutOfMemorySubstrings() []string {
 	return []string{
@@ -117,6 +139,7 @@ func GenerateEnhancedMetricsFromRuntimeDoneLog(args GenerateEnhancedMetricsFromR
 func ContainsOutOfMemoryLog(logString string) bool {
 	for _, substring := range getOutOfMemorySubstrings() {
 		if strings.Contains(logString, substring) {
+			log.Debug("Found out of memory substring in function log line")
 			return true
 		}
 	}
@@ -240,10 +263,311 @@ func SendASMInvocationEnhancedMetric(tags []string, demux aggregator.Demultiplex
 	incrementEnhancedMetric(asmInvocationsMetric, tags, float64(time.Now().UnixNano())/float64(time.Second), demux, true)
 }
 
+type generateCPUEnhancedMetricsArgs struct {
+	UserCPUTimeMs   float64
+	SystemCPUTimeMs float64
+	Uptime          float64
+	Tags            []string
+	Demux           aggregator.Demultiplexer
+	Time            float64
+}
+
+type GenerateCPUUtilizationEnhancedMetricArgs struct {
+	IndividualCPUIdleTimes       map[string]float64
+	IndividualCPUIdleOffsetTimes map[string]float64
+	IdleTimeMs                   float64
+	IdleTimeOffsetMs             float64
+	UptimeMs                     float64
+	UptimeOffsetMs               float64
+	Tags                         []string
+	Demux                        aggregator.Demultiplexer
+	Time                         float64
+}
+
+// generateCPUEnhancedMetrics generates enhanced metrics for CPU time spent running the function in kernel mode,
+// in user mode, and in total
+func generateCPUEnhancedMetrics(args generateCPUEnhancedMetricsArgs) {
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       cpuSystemTimeMetric,
+		Value:      args.SystemCPUTimeMs,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       cpuUserTimeMetric,
+		Value:      args.UserCPUTimeMs,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       cpuTotalTimeMetric,
+		Value:      args.SystemCPUTimeMs + args.UserCPUTimeMs,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+}
+
+func SendFailoverReasonMetric(tags []string, demux aggregator.Demultiplexer) {
+	demux.AggregateSample(metrics.MetricSample{
+		Name:       failoverMetric,
+		Value:      1.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  float64(time.Now().UnixNano()) / float64(time.Second),
+	})
+}
+
+// SendCPUEnhancedMetrics sends CPU enhanced metrics for the invocation
+func SendCPUEnhancedMetrics(cpuOffsetData *proc.CPUData, uptimeOffset float64, tags []string, demux aggregator.Demultiplexer) {
+	if enhancedMetricsDisabled {
+		return
+	}
+	cpuData, err := proc.GetCPUData()
+	if err != nil {
+		log.Debug("Could not emit CPU enhanced metrics")
+		return
+	}
+
+	now := float64(time.Now().UnixNano()) / float64(time.Second)
+	generateCPUEnhancedMetrics(generateCPUEnhancedMetricsArgs{
+		UserCPUTimeMs:   cpuData.TotalUserTimeMs - cpuOffsetData.TotalUserTimeMs,
+		SystemCPUTimeMs: cpuData.TotalSystemTimeMs - cpuOffsetData.TotalSystemTimeMs,
+		Tags:            tags,
+		Demux:           demux,
+		Time:            now,
+	})
+
+	perCoreData := cpuData.IndividualCPUIdleTimes
+	if perCoreData != nil {
+		uptimeMs, err := proc.GetUptime()
+		if err != nil {
+			log.Debug("Could not emit CPU enhanced metrics")
+			return
+		}
+		GenerateCPUUtilizationEnhancedMetrics(GenerateCPUUtilizationEnhancedMetricArgs{
+			cpuData.IndividualCPUIdleTimes,
+			cpuOffsetData.IndividualCPUIdleTimes,
+			cpuData.TotalIdleTimeMs,
+			cpuOffsetData.TotalIdleTimeMs,
+			uptimeMs,
+			uptimeOffset,
+			tags,
+			demux,
+			now,
+		})
+	}
+
+}
+
+func GenerateCPUUtilizationEnhancedMetrics(args GenerateCPUUtilizationEnhancedMetricArgs) {
+	maxIdleTime := 0.0
+	minIdleTime := math.MaxFloat64
+	for cpuName, cpuIdleTime := range args.IndividualCPUIdleTimes {
+		adjustedIdleTime := cpuIdleTime - args.IndividualCPUIdleOffsetTimes[cpuName]
+		// Maximally utilized CPU is the one with the least time spent in the idle process
+		if adjustedIdleTime < minIdleTime {
+			minIdleTime = adjustedIdleTime
+		}
+		// Minimally utilized CPU is the one with the most time spent in the idle process
+		if adjustedIdleTime >= maxIdleTime {
+			maxIdleTime = adjustedIdleTime
+		}
+	}
+
+	adjustedUptime := args.UptimeMs - args.UptimeOffsetMs
+
+	maxUtilizedPercent := 100 * (adjustedUptime - minIdleTime) / adjustedUptime
+	minUtilizedPercent := 100 * (adjustedUptime - maxIdleTime) / adjustedUptime
+
+	numberCPUs := float64(len(args.IndividualCPUIdleTimes))
+	adjustedIdleTime := args.IdleTimeMs - args.IdleTimeOffsetMs
+	totalUtilizedDecimal := (adjustedUptime*numberCPUs - adjustedIdleTime) / (adjustedUptime * numberCPUs)
+	totalUtilizedPercent := 100 * totalUtilizedDecimal
+	totalUtilizedCores := numberCPUs * totalUtilizedDecimal
+
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       cpuTotalUtilizationPctMetric,
+		Value:      totalUtilizedPercent,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       cpuTotalUtilizationMetric,
+		Value:      totalUtilizedCores,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       numCoresMetric,
+		Value:      float64(len(args.IndividualCPUIdleTimes)),
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       cpuMaxUtilizationMetric,
+		Value:      maxUtilizedPercent,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       cpuMinUtilizationMetric,
+		Value:      minUtilizedPercent,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+}
+
+func SendNetworkEnhancedMetrics(networkOffsetData *proc.NetworkData, tags []string, demux aggregator.Demultiplexer) {
+	if enhancedMetricsDisabled {
+		return
+	}
+
+	networkData, err := proc.GetNetworkData()
+	if err != nil {
+		log.Debug("Could not emit network enhanced metrics")
+		return
+	}
+
+	now := float64(time.Now().UnixNano()) / float64(time.Second)
+	generateNetworkEnhancedMetrics(generateNetworkEnhancedMetricArgs{
+		networkOffsetData.RxBytes,
+		networkData.RxBytes,
+		networkOffsetData.TxBytes,
+		networkData.TxBytes,
+		tags,
+		demux,
+		now,
+	})
+}
+
+type generateNetworkEnhancedMetricArgs struct {
+	RxBytesOffset float64
+	RxBytes       float64
+	TxBytesOffset float64
+	TxBytes       float64
+	Tags          []string
+	Demux         aggregator.Demultiplexer
+	Time          float64
+}
+
+func generateNetworkEnhancedMetrics(args generateNetworkEnhancedMetricArgs) {
+	adjustedRxBytes := args.RxBytes - args.RxBytesOffset
+	adjustedTxBytes := args.TxBytes - args.TxBytesOffset
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       rxBytesMetric,
+		Value:      adjustedRxBytes,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       txBytesMetric,
+		Value:      adjustedTxBytes,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       totalNetworkMetric,
+		Value:      adjustedRxBytes + adjustedTxBytes,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+}
+
+type generateTmpEnhancedMetricsArgs struct {
+	TmpMax  float64
+	TmpUsed float64
+	Tags    []string
+	Demux   aggregator.Demultiplexer
+	Time    float64
+}
+
+// generateTmpEnhancedMetrics generates enhanced metrics for space used and available in the /tmp directory
+func generateTmpEnhancedMetrics(args generateTmpEnhancedMetricsArgs) {
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       tmpUsedMetric,
+		Value:      args.TmpUsed,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       tmpMaxMetric,
+		Value:      args.TmpMax,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+}
+
+func SendTmpEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *ServerlessMetricAgent) {
+	if enhancedMetricsDisabled {
+		return
+	}
+
+	bsize, blocks, bavail, err := statfs(tmpPath)
+	if err != nil {
+		log.Debugf("Could not emit tmp enhanced metrics. %v", err)
+		return
+	}
+	tmpMax := blocks * bsize
+	tmpUsed := bsize * (blocks - bavail)
+
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case _, open := <-sendMetrics:
+			if !open {
+				generateTmpEnhancedMetrics(generateTmpEnhancedMetricsArgs{
+					TmpMax:  tmpMax,
+					TmpUsed: tmpUsed,
+					Tags:    tags,
+					Demux:   metricAgent.Demux,
+					Time:    float64(time.Now().UnixNano()) / float64(time.Second),
+				})
+				return
+			}
+		case <-ticker.C:
+			bsize, blocks, bavail, err = statfs(tmpPath)
+			if err != nil {
+				log.Debugf("Could not emit tmp enhanced metrics. %v", err)
+				return
+			}
+			tmpUsed = math.Max(tmpUsed, bsize*(blocks-bavail))
+		}
+	}
+
+}
+
 // incrementEnhancedMetric sends an enhanced metric with a value of 1 to the metrics channel
 func incrementEnhancedMetric(name string, tags []string, timestamp float64, demux aggregator.Demultiplexer, force bool) {
 	// TODO - pass config here, instead of directly looking up var
-	if !force && strings.ToLower(os.Getenv(enhancedMetricsEnvVar)) == "false" {
+	if !force && enhancedMetricsDisabled {
 		return
 	}
 	demux.AggregateSample(metrics.MetricSample{

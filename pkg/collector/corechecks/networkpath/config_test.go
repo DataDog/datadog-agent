@@ -11,11 +11,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNewCheckConfig(t *testing.T) {
-	coreconfig.Datadog.SetDefault("network_devices.namespace", "my-namespace")
+	coreconfig.Datadog().SetDefault("network_devices.namespace", "my-namespace")
 	tests := []struct {
 		name           string
 		rawInstance    integration.Data
@@ -92,6 +93,64 @@ hostname: 1.2.3.4
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(1) * time.Minute,
 				Namespace:             "my-namespace",
+			},
+		},
+		{
+			name: "source and destination service config",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+source_service: service-a
+destination_service: service-b
+`),
+			rawInitConfig: []byte(``),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				SourceService:         "service-a",
+				DestinationService:    "service-b",
+				MinCollectionInterval: time.Duration(60) * time.Second,
+				Namespace:             "my-namespace",
+			},
+		},
+		{
+			name: "lower case protocol",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+protocol: udp
+`),
+			rawInitConfig: []byte(``),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(60) * time.Second,
+				Namespace:             "my-namespace",
+				Protocol:              payload.ProtocolUDP,
+			},
+		},
+		{
+			name: "lower case protocol",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+protocol: UDP
+`),
+			rawInitConfig: []byte(``),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(60) * time.Second,
+				Namespace:             "my-namespace",
+				Protocol:              payload.ProtocolUDP,
+			},
+		},
+		{
+			name: "lower case protocol",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+protocol: TCP
+`),
+			rawInitConfig: []byte(``),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(60) * time.Second,
+				Namespace:             "my-namespace",
+				Protocol:              payload.ProtocolTCP,
 			},
 		},
 	}

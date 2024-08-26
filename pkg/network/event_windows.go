@@ -119,9 +119,22 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 
 		tf := flow.TCPFlow()
 		if tf != nil {
+			cs.TCPFailures = make(map[uint32]uint32)
 			cs.Monotonic.Retransmits = uint32(tf.RetransmitCount)
 			cs.RTT = uint32(tf.SRTT)
 			cs.RTTVar = uint32(tf.RttVariance)
+
+			switch driver.ConnectionStatus(tf.ConnectionStatus) {
+			case driver.ConnectionStatusACKRST:
+				cs.TCPFailures[111] = 1 // ECONNREFUSED in posix is 111
+			case driver.ConnectionStatusTimeout:
+				cs.TCPFailures[110] = 1 // ETIMEDOUT in posix is 110
+			case driver.ConnectionStatusSentRst:
+				fallthrough
+			case driver.ConnectionStatusRecvRst:
+				cs.TCPFailures[104] = 1 // ECONNRESET in posix is 104
+			}
+
 		}
 
 		if isTCPFlowEstablished(flow) {

@@ -7,7 +7,8 @@ import sys
 
 from invoke import task
 
-from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags, get_version_numeric_only
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
+from tasks.libs.releasing.version import get_version_numeric_only
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
@@ -15,7 +16,7 @@ AGENT_TAG = "datadog/agent:master"
 
 
 @task
-def build(ctx, debug=False, console=False, rebuild=False, race=False, major_version='7', arch="x64", go_mod="mod"):
+def build(ctx, debug=False, console=False, rebuild=False, race=False, major_version='7', go_mod="mod"):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -35,9 +36,6 @@ def build(ctx, debug=False, console=False, rebuild=False, race=False, major_vers
     build_maj, build_min, build_patch = ver.split(".")
     env = {}
     windres_target = "pe-x86-64"
-    if arch == "x86":
-        env["GOARCH"] = "386"
-        windres_target = "pe-i386"
 
     command = f"windres -v  --target {windres_target} --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} "
     command += "-i cmd/systray/systray.rc -O coff -o cmd/systray/rsrc.syso"

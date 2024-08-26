@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	cconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -47,12 +47,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	topCmd := &cobra.Command{
 		Use:   "top",
 		Short: "Display metrics with most contexts in the aggregator",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(topContexts,
 				fx.Supply(&topFlags),
 				fx.Supply(core.BundleParams{
-					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true)}),
+					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath, cconfig.WithExtraConfFiles(globalParams.ExtraConfFilePath), cconfig.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
 			)
 		},
@@ -66,12 +66,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	c.AddCommand(&cobra.Command{
 		Use:   "dump-contexts",
 		Short: "Write currently tracked contexts as JSON",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(dumpContexts,
 				fx.Supply(core.BundleParams{
-					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true)}),
-
+					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath, cconfig.WithExtraConfFiles(globalParams.ExtraConfFilePath), cconfig.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
 			)
 		},
@@ -108,7 +107,7 @@ func triggerDump(config cconfig.Component) (string, error) {
 	return path, nil
 }
 
-func dumpContexts(config cconfig.Component) error {
+func dumpContexts(config cconfig.Component, _ log.Component) error {
 	path, err := triggerDump(config)
 	if err != nil {
 		return err
@@ -124,7 +123,7 @@ type metric struct {
 	tags  map[string]struct{}
 }
 
-func topContexts(config cconfig.Component, flags *topFlags) error {
+func topContexts(config cconfig.Component, flags *topFlags, _ log.Component) error {
 	var err error
 
 	path := flags.path

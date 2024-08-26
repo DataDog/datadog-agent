@@ -49,7 +49,7 @@ func getToken(ctx context.Context) (string, time.Time, error) {
 			"Metadata-Flavor": "ibm",
 		},
 		[]byte("{\"expires_in\": 3600}"),
-		config.Datadog.GetDuration("ibm_metadata_timeout")*time.Second, config.Datadog)
+		config.Datadog().GetDuration("ibm_metadata_timeout")*time.Second, config.Datadog())
 	if err != nil {
 		token.ExpirationDate = time.Now()
 		return "", time.Time{}, err
@@ -96,7 +96,7 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 			map[string]string{
 				"Authorization": fmt.Sprintf("Bearer %s", t),
 			},
-			config.Datadog.GetDuration("ibm_metadata_timeout")*time.Second, config.Datadog)
+			config.Datadog().GetDuration("ibm_metadata_timeout")*time.Second, config.Datadog())
 		if err != nil {
 			return nil, fmt.Errorf("IBM HostAliases: unable to query metadata endpoint: %s", err)
 		}

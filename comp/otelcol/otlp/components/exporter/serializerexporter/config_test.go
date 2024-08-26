@@ -103,7 +103,7 @@ func TestUnmarshalSendCountSum(t *testing.T) {
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
 			cfg := newDefaultConfig().(*ExporterConfig)
-			err := cfg.Unmarshal(testInstance.configMap)
+			err := testInstance.configMap.Unmarshal(cfg)
 			require.NoError(t, err)
 			assert.Equal(t, testInstance.shouldSend, cfg.Metrics.HistConfig.SendAggregations)
 			assert.ElementsMatch(t, testInstance.warnings, cfg.warnings)

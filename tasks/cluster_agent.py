@@ -16,7 +16,7 @@ from tasks.build_tags import get_build_tags, get_default_build_tags
 from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from tasks.cws_instrumentation import BIN_PATH as CWS_INSTRUMENTATION_BIN_PATH
 from tasks.go import deps
-from tasks.libs.common.utils import load_release_versions
+from tasks.libs.releasing.version import load_release_versions
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
@@ -132,7 +132,7 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
         arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
 
     if arch is None:
-        print("Unable to determine architecture to build, please set `arch` parameter")
+        print("Unable to determine architecture to build, please set `arch`", file=sys.stderr)
         raise Exit(code=1)
 
     dca_binary = glob.glob(os.path.join(BIN_PATH, "datadog-cluster-agent"))
@@ -187,9 +187,17 @@ def hacky_dev_image_build(
     target_image="cluster-agent",
     push=False,
     signed_pull=False,
+    arch=None,
 ):
     os.environ["DELVE"] = "1"
     build(ctx)
+
+    if arch is None:
+        arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
+
+    if arch is None:
+        print("Unable to determine architecture to build, please set `arch`", file=sys.stderr)
+        raise Exit(code=1)
 
     if base_image is None:
         import requests
@@ -243,7 +251,7 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
         pull_env = {}
         if signed_pull:
             pull_env['DOCKER_CONTENT_TRUST'] = '1'
-        ctx.run(f'docker build -t {target_image} -f {dockerfile.name} .', env=pull_env)
+        ctx.run(f'docker build --platform linux/{arch} -t {target_image} -f {dockerfile.name} .', env=pull_env)
 
         if push:
             ctx.run(f'docker push {target_image}')
@@ -259,21 +267,3 @@ def version(ctx, url_safe=False, git_sha_length=7):
                     (the windows builder and the default ubuntu version have such an incompatibility)
     """
     version_common(ctx, url_safe, git_sha_length)
-
-
-@task
-def update_generated_code(ctx):
-    """
-    Re-generate 'pkg/clusteragent/autoscaling/custommetrics/api/generated/openapi/zz_generated.openapi.go'.
-    """
-    ctx.run("go install -mod=readonly k8s.io/kube-openapi/cmd/openapi-gen")
-    ctx.run(
-        "$GOPATH/bin/openapi-gen \
---logtostderr \
--i k8s.io/metrics/pkg/apis/custom_metrics,k8s.io/metrics/pkg/apis/custom_metrics/v1beta1,k8s.io/metrics/pkg/apis/custom_metrics/v1beta2,k8s.io/metrics/pkg/apis/external_metrics,k8s.io/metrics/pkg/apis/external_metrics/v1beta1,k8s.io/metrics/pkg/apis/metrics,k8s.io/metrics/pkg/apis/metrics/v1beta1,k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/api/resource,k8s.io/apimachinery/pkg/version,k8s.io/api/core/v1 \
--h ./tools/boilerplate.go.txt \
--p ./pkg/clusteragent/autoscaling/custommetrics/api/generated/openapi \
--O zz_generated.openapi \
--o ./ \
--r /dev/null"
-    )

@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -91,6 +91,7 @@ func (cr *collectorRegistry) run(c context.Context, cache *Cache, wmeta optional
 
 func (cr *collectorRegistry) collectorDiscovery(c context.Context, cache *Cache, wmeta optional.Option[workloadmeta.Component]) {
 	ticker := time.NewTicker(minRetryInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-c.Done():

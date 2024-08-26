@@ -64,7 +64,7 @@ func NewCheckBaseWithInterval(name string, defaultInterval time.Duration) CheckB
 		checkName:     name,
 		checkID:       checkid.ID(name),
 		checkInterval: defaultInterval,
-		telemetry:     utils.IsCheckTelemetryEnabled(name, config.Datadog),
+		telemetry:     utils.IsCheckTelemetryEnabled(name, config.Datadog()),
 	}
 }
 

@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -41,7 +41,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "stream-event-platform",
 		Short: "Stream the event platform payloads being processed by a running agent",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(streamEventPlatform,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
@@ -55,7 +55,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
-func streamEventPlatform(log log.Component, config config.Component, cliParams *cliParams) error {
+func streamEventPlatform(_ log.Component, config config.Component, cliParams *cliParams) error {
 	ipcAddress, err := pkgconfig.GetIPCAddress()
 	if err != nil {
 		return err
@@ -78,7 +78,7 @@ func streamRequest(url string, body []byte, onChunk func([]byte)) error {
 	c := util.GetClient(false)
 
 	// Set session token
-	e = util.SetAuthToken(pkgconfig.Datadog)
+	e = util.SetAuthToken(pkgconfig.Datadog())
 	if e != nil {
 		return e
 	}

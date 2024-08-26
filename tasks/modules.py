@@ -1,11 +1,14 @@
+import json
 import os
 import subprocess
 import sys
+from collections import defaultdict
 from contextlib import contextmanager
+from pathlib import Path
 
-from invoke import Context, task
+from invoke import Context, Exit, task
 
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 
 AGENT_MODULE_PATH_PREFIX = "github.com/DataDog/datadog-agent/"
 
@@ -27,7 +30,6 @@ class GoModule:
         independent=False,
         lint_targets=None,
         used_by_otel=False,
-        legacy_go_mod_version=False,
     ):
         self.path = path
         self.targets = targets if targets else ["."]
@@ -41,7 +43,6 @@ class GoModule:
         self.importable = importable
         self.independent = independent
         self.used_by_otel = used_by_otel
-        self.legacy_go_mod_version = legacy_go_mod_version
 
         self._dependencies = None
 
@@ -131,130 +132,177 @@ DEFAULT_MODULES = {
         ".",
         targets=["./pkg", "./cmd", "./comp"],
     ),
-    "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
-    "internal/tools/proto": GoModule("internal/tools/proto", condition=lambda: False, should_tag=False),
-    "internal/tools/modparser": GoModule("internal/tools/modparser", condition=lambda: False, should_tag=False),
-    "internal/tools/independent-lint": GoModule(
-        "internal/tools/independent-lint", condition=lambda: False, should_tag=False
+    "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True, used_by_otel=True),
+    "comp/api/api/def": GoModule("comp/api/api/def", independent=True, used_by_otel=True),
+    "comp/core/config": GoModule("comp/core/config", independent=True, used_by_otel=True),
+    "comp/core/flare/builder": GoModule("comp/core/flare/builder", independent=True, used_by_otel=True),
+    "comp/core/flare/types": GoModule("comp/core/flare/types", independent=True, used_by_otel=True),
+    "comp/core/hostname/hostnameinterface": GoModule(
+        "comp/core/hostname/hostnameinterface", independent=True, used_by_otel=True
     ),
-    "internal/tools/modformatter": GoModule("internal/tools/modformatter", condition=lambda: False, should_tag=False),
-    "test/e2e/containers/otlp_sender": GoModule(
-        "test/e2e/containers/otlp_sender", condition=lambda: False, should_tag=False
-    ),
-    "test/new-e2e": GoModule(
-        "test/new-e2e",
-        independent=True,
-        targets=["./pkg/runner", "./pkg/utils/e2e/client"],
-        lint_targets=["."],
-    ),
-    "test/fakeintake": GoModule("test/fakeintake", independent=True),
-    "pkg/aggregator/ckey": GoModule("pkg/aggregator/ckey", independent=True),
-    "pkg/errors": GoModule("pkg/errors", independent=True),
-    "pkg/obfuscate": GoModule("pkg/obfuscate", independent=True, used_by_otel=True),
-    "pkg/gohai": GoModule("pkg/gohai", independent=True, importable=False),
-    "pkg/proto": GoModule("pkg/proto", independent=True, used_by_otel=True),
-    "pkg/trace": GoModule("pkg/trace", independent=True, used_by_otel=True),
-    "pkg/tagger/types": GoModule("pkg/tagger/types", independent=True),
-    "pkg/tagset": GoModule("pkg/tagset", independent=True),
-    "pkg/metrics": GoModule("pkg/metrics", independent=True),
-    "pkg/telemetry": GoModule("pkg/telemetry", independent=True),
-    "comp/core/flare/types": GoModule("comp/core/flare/types", independent=True),
-    "comp/core/hostname/hostnameinterface": GoModule("comp/core/hostname/hostnameinterface", independent=True),
-    "comp/core/config": GoModule("comp/core/config", independent=True),
-    "comp/core/log": GoModule("comp/core/log", independent=True),
-    "comp/core/secrets": GoModule("comp/core/secrets", independent=True),
-    "comp/core/status": GoModule("comp/core/status", independent=True),
+    "comp/core/log/def": GoModule("comp/core/log/def", independent=True, used_by_otel=True),
+    "comp/core/log/impl": GoModule("comp/core/log/impl", independent=True, used_by_otel=True),
+    "comp/core/log/impl-trace": GoModule("comp/core/log/impl-trace", independent=True),
+    "comp/core/log/mock": GoModule("comp/core/log/mock", independent=True, used_by_otel=True),
+    "comp/core/secrets": GoModule("comp/core/secrets", independent=True, used_by_otel=True),
+    "comp/core/status": GoModule("comp/core/status", independent=True, used_by_otel=True),
     "comp/core/status/statusimpl": GoModule("comp/core/status/statusimpl", independent=True),
-    "comp/def": GoModule("comp/def", independent=True),
-    "comp/serializer/compression": GoModule("comp/serializer/compression", independent=True),
-    "comp/core/telemetry": GoModule("comp/core/telemetry", independent=True),
-    "comp/forwarder/defaultforwarder": GoModule("comp/forwarder/defaultforwarder", independent=True),
+    "comp/core/tagger/utils": GoModule("comp/core/tagger/utils", independent=True, used_by_otel=True),
+    "comp/core/telemetry": GoModule("comp/core/telemetry", independent=True, used_by_otel=True),
+    "comp/def": GoModule("comp/def", independent=True, used_by_otel=True),
+    "comp/forwarder/defaultforwarder": GoModule("comp/forwarder/defaultforwarder", independent=True, used_by_otel=True),
     "comp/forwarder/orchestrator/orchestratorinterface": GoModule(
-        "comp/forwarder/orchestrator/orchestratorinterface", independent=True
+        "comp/forwarder/orchestrator/orchestratorinterface", independent=True, used_by_otel=True
     ),
-    "comp/otelcol/logsagentpipeline": GoModule("comp/otelcol/logsagentpipeline", independent=True),
-    "comp/otelcol/logsagentpipeline/logsagentpipelineimpl": GoModule(
-        "comp/otelcol/logsagentpipeline/logsagentpipelineimpl", independent=True
-    ),
-    "comp/otelcol/otlp/components/exporter/serializerexporter": GoModule(
-        "comp/otelcol/otlp/components/exporter/serializerexporter", independent=True
-    ),
-    "comp/otelcol/otlp/components/exporter/logsagentexporter": GoModule(
-        "comp/otelcol/otlp/components/exporter/logsagentexporter", independent=True
-    ),
-    "comp/otelcol/otlp/components/exporter/datadogexporter": GoModule(
-        "comp/otelcol/otlp/components/exporter/datadogexporter", independent=True
-    ),
-    "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True),
+    "comp/logs/agent/config": GoModule("comp/logs/agent/config", independent=True, used_by_otel=True),
+    "comp/netflow/payload": GoModule("comp/netflow/payload", independent=True),
     "comp/otelcol/collector-contrib/def": GoModule(
         "comp/otelcol/collector-contrib/def", independent=True, used_by_otel=True
     ),
     "comp/otelcol/collector-contrib/impl": GoModule(
         "comp/otelcol/collector-contrib/impl", independent=True, used_by_otel=True
     ),
-    "comp/logs/agent/config": GoModule("comp/logs/agent/config", independent=True),
-    "comp/netflow/payload": GoModule("comp/netflow/payload", independent=True),
-    "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True),
-    "pkg/api": GoModule("pkg/api", independent=True),
-    "pkg/config/model": GoModule("pkg/config/model", independent=True),
-    "pkg/config/env": GoModule("pkg/config/env", independent=True),
-    "pkg/config/setup": GoModule("pkg/config/setup", independent=True),
-    "pkg/config/utils": GoModule("pkg/config/utils", independent=True),
-    "pkg/config/logs": GoModule("pkg/config/logs", independent=True),
-    "pkg/config/remote": GoModule("pkg/config/remote", independent=True),
-    "pkg/logs/auditor": GoModule("pkg/logs/auditor", independent=True),
-    "pkg/logs/client": GoModule("pkg/logs/client", independent=True),
-    "pkg/logs/diagnostic": GoModule("pkg/logs/diagnostic", independent=True),
-    "pkg/logs/processor": GoModule("pkg/logs/processor", independent=True),
-    "pkg/logs/util/testutils": GoModule("pkg/logs/util/testutils", independent=True),
-    "pkg/logs/message": GoModule("pkg/logs/message", independent=True),
-    "pkg/logs/metrics": GoModule("pkg/logs/metrics", independent=True),
-    "pkg/logs/pipeline": GoModule("pkg/logs/pipeline", independent=True),
-    "pkg/logs/sds": GoModule("pkg/logs/sds", independent=True),
-    "pkg/logs/sender": GoModule("pkg/logs/sender", independent=True),
-    "pkg/logs/sources": GoModule("pkg/logs/sources", independent=True),
-    "pkg/logs/status/statusinterface": GoModule("pkg/logs/status/statusinterface", independent=True),
-    "pkg/logs/status/utils": GoModule("pkg/logs/status/utils", independent=True),
-    "pkg/serializer": GoModule("pkg/serializer", independent=True),
-    "pkg/security/secl": GoModule("pkg/security/secl", independent=True, legacy_go_mod_version=True),
-    "pkg/security/seclwin": GoModule(
-        "pkg/security/seclwin", independent=True, condition=lambda: False, legacy_go_mod_version=True
+    "comp/otelcol/configstore/def": GoModule("comp/otelcol/configstore/def", independent=True, used_by_otel=True),
+    "comp/otelcol/configstore/impl": GoModule("comp/otelcol/configstore/impl", independent=True, used_by_otel=True),
+    "comp/otelcol/converter/def": GoModule("comp/otelcol/converter/def", independent=True, used_by_otel=True),
+    "comp/otelcol/converter/impl": GoModule("comp/otelcol/converter/impl", independent=True, used_by_otel=True),
+    "comp/otelcol/extension/def": GoModule("comp/otelcol/extension/def", independent=True, used_by_otel=True),
+    "comp/otelcol/extension/impl": GoModule("comp/otelcol/extension/impl", independent=True, used_by_otel=True),
+    "comp/otelcol/logsagentpipeline": GoModule("comp/otelcol/logsagentpipeline", independent=True, used_by_otel=True),
+    "comp/otelcol/logsagentpipeline/logsagentpipelineimpl": GoModule(
+        "comp/otelcol/logsagentpipeline/logsagentpipelineimpl", independent=True, used_by_otel=True
     ),
-    "pkg/status/health": GoModule("pkg/status/health", independent=True),
+    "comp/otelcol/otlp/components/exporter/datadogexporter": GoModule(
+        "comp/otelcol/otlp/components/exporter/datadogexporter", independent=True, used_by_otel=True
+    ),
+    "comp/otelcol/otlp/components/exporter/logsagentexporter": GoModule(
+        "comp/otelcol/otlp/components/exporter/logsagentexporter", independent=True, used_by_otel=True
+    ),
+    "comp/otelcol/otlp/components/exporter/serializerexporter": GoModule(
+        "comp/otelcol/otlp/components/exporter/serializerexporter", independent=True, used_by_otel=True
+    ),
+    "comp/otelcol/otlp/components/metricsclient": GoModule(
+        "comp/otelcol/otlp/components/metricsclient", independent=True, used_by_otel=True
+    ),
+    "comp/otelcol/otlp/components/statsprocessor": GoModule(
+        "comp/otelcol/otlp/components/statsprocessor", independent=True, used_by_otel=True
+    ),
+    "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True, used_by_otel=True),
+    "comp/serializer/compression": GoModule("comp/serializer/compression", independent=True, used_by_otel=True),
+    "comp/trace/agent/def": GoModule("comp/trace/agent/def", independent=True, used_by_otel=True),
+    "comp/trace/compression/def": GoModule("comp/trace/compression/def", independent=True, used_by_otel=True),
+    "comp/trace/compression/impl-gzip": GoModule(
+        "comp/trace/compression/impl-gzip", independent=True, used_by_otel=True
+    ),
+    "comp/trace/compression/impl-zstd": GoModule(
+        "comp/trace/compression/impl-zstd", independent=True, used_by_otel=True
+    ),
+    "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
+    "internal/tools/independent-lint": GoModule(
+        "internal/tools/independent-lint", condition=lambda: False, should_tag=False
+    ),
+    "internal/tools/modformatter": GoModule("internal/tools/modformatter", condition=lambda: False, should_tag=False),
+    "internal/tools/modparser": GoModule("internal/tools/modparser", condition=lambda: False, should_tag=False),
+    "internal/tools/proto": GoModule("internal/tools/proto", condition=lambda: False, should_tag=False),
+    "pkg/aggregator/ckey": GoModule("pkg/aggregator/ckey", independent=True, used_by_otel=True),
+    "pkg/api": GoModule("pkg/api", independent=True),
+    "pkg/collector/check/defaults": GoModule("pkg/collector/check/defaults", independent=True, used_by_otel=True),
+    "pkg/config/env": GoModule("pkg/config/env", independent=True, used_by_otel=True),
+    "pkg/config/mock": GoModule("pkg/config/mock", independent=True, used_by_otel=True),
+    "pkg/config/model": GoModule("pkg/config/model", independent=True, used_by_otel=True),
+    "pkg/config/remote": GoModule("pkg/config/remote", independent=True),
+    "pkg/config/setup": GoModule("pkg/config/setup", independent=True, used_by_otel=True),
+    "pkg/config/utils": GoModule("pkg/config/utils", independent=True, used_by_otel=True),
+    "pkg/errors": GoModule("pkg/errors", independent=True),
+    "pkg/gohai": GoModule("pkg/gohai", independent=True, importable=False),
+    "pkg/linters/components/pkgconfigusage": GoModule("pkg/linters/components/pkgconfigusage", should_tag=False),
+    "pkg/logs/auditor": GoModule("pkg/logs/auditor", independent=True, used_by_otel=True),
+    "pkg/logs/client": GoModule("pkg/logs/client", independent=True, used_by_otel=True),
+    "pkg/logs/diagnostic": GoModule("pkg/logs/diagnostic", independent=True, used_by_otel=True),
+    "pkg/logs/message": GoModule("pkg/logs/message", independent=True, used_by_otel=True),
+    "pkg/logs/metrics": GoModule("pkg/logs/metrics", independent=True, used_by_otel=True),
+    "pkg/logs/pipeline": GoModule("pkg/logs/pipeline", independent=True, used_by_otel=True),
+    "pkg/logs/processor": GoModule("pkg/logs/processor", independent=True, used_by_otel=True),
+    "pkg/logs/sds": GoModule("pkg/logs/sds", independent=True, used_by_otel=True),
+    "pkg/logs/sender": GoModule("pkg/logs/sender", independent=True, used_by_otel=True),
+    "pkg/logs/sources": GoModule("pkg/logs/sources", independent=True, used_by_otel=True),
+    "pkg/logs/status/statusinterface": GoModule("pkg/logs/status/statusinterface", independent=True, used_by_otel=True),
+    "pkg/logs/status/utils": GoModule("pkg/logs/status/utils", independent=True, used_by_otel=True),
+    "pkg/logs/util/testutils": GoModule("pkg/logs/util/testutils", independent=True, used_by_otel=True),
+    "pkg/metrics": GoModule("pkg/metrics", independent=True, used_by_otel=True),
+    "pkg/networkdevice/profile": GoModule("pkg/networkdevice/profile", independent=True),
+    "pkg/obfuscate": GoModule("pkg/obfuscate", independent=True, used_by_otel=True),
+    "pkg/orchestrator/model": GoModule("pkg/orchestrator/model", independent=True, used_by_otel=True),
+    "pkg/process/util/api": GoModule("pkg/process/util/api", independent=True, used_by_otel=True),
+    "pkg/proto": GoModule("pkg/proto", independent=True, used_by_otel=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True, used_by_otel=True),
+    "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
+    "pkg/security/seclwin": GoModule("pkg/security/seclwin", independent=True, condition=lambda: False),
+    "pkg/serializer": GoModule("pkg/serializer", independent=True, used_by_otel=True),
+    "pkg/status/health": GoModule("pkg/status/health", independent=True, used_by_otel=True),
+    "pkg/tagger/types": GoModule("pkg/tagger/types", independent=True, used_by_otel=True),
+    "pkg/tagset": GoModule("pkg/tagset", independent=True, used_by_otel=True),
+    "pkg/telemetry": GoModule("pkg/telemetry", independent=True, used_by_otel=True),
+    "pkg/trace": GoModule("pkg/trace", independent=True, used_by_otel=True),
+    "pkg/trace/stats/oteltest": GoModule("pkg/trace/stats/oteltest", independent=True, used_by_otel=True),
+    "pkg/util/backoff": GoModule("pkg/util/backoff", independent=True, used_by_otel=True),
+    "pkg/util/buf": GoModule("pkg/util/buf", independent=True, used_by_otel=True),
+    "pkg/util/cache": GoModule("pkg/util/cache", independent=True),
     "pkg/util/cgroups": GoModule(
         "pkg/util/cgroups", independent=True, condition=lambda: sys.platform == "linux", used_by_otel=True
     ),
-    "pkg/util/http": GoModule("pkg/util/http", independent=True),
+    "pkg/util/common": GoModule("pkg/util/common", independent=True, used_by_otel=True),
+    "pkg/util/executable": GoModule("pkg/util/executable", independent=True, used_by_otel=True),
+    "pkg/util/filesystem": GoModule("pkg/util/filesystem", independent=True, used_by_otel=True),
+    "pkg/util/flavor": GoModule("pkg/util/flavor", independent=True),
+    "pkg/util/fxutil": GoModule("pkg/util/fxutil", independent=True, used_by_otel=True),
+    "pkg/util/grpc": GoModule("pkg/util/grpc", independent=True),
+    "pkg/util/hostname/validate": GoModule("pkg/util/hostname/validate", independent=True, used_by_otel=True),
+    "pkg/util/http": GoModule("pkg/util/http", independent=True, used_by_otel=True),
+    "pkg/util/json": GoModule("pkg/util/json", independent=True, used_by_otel=True),
     "pkg/util/log": GoModule("pkg/util/log", independent=True, used_by_otel=True),
+    "pkg/util/log/setup": GoModule("pkg/util/log/setup", independent=True, used_by_otel=True),
+    "pkg/util/optional": GoModule("pkg/util/optional", independent=True, used_by_otel=True),
     "pkg/util/pointer": GoModule("pkg/util/pointer", independent=True, used_by_otel=True),
     "pkg/util/scrubber": GoModule("pkg/util/scrubber", independent=True, used_by_otel=True),
-    "pkg/util/startstop": GoModule("pkg/util/startstop", independent=True),
-    "pkg/util/backoff": GoModule("pkg/util/backoff", independent=True),
-    "pkg/util/cache": GoModule("pkg/util/cache", independent=True),
-    "pkg/util/common": GoModule("pkg/util/common", independent=True),
-    "pkg/util/executable": GoModule("pkg/util/executable", independent=True),
-    "pkg/util/flavor": GoModule("pkg/util/flavor", independent=True),
-    "pkg/util/filesystem": GoModule("pkg/util/filesystem", independent=True),
-    "pkg/util/fxutil": GoModule("pkg/util/fxutil", independent=True),
-    "pkg/util/buf": GoModule("pkg/util/buf", independent=True),
-    "pkg/util/hostname/validate": GoModule("pkg/util/hostname/validate", independent=True),
-    "pkg/util/json": GoModule("pkg/util/json", independent=True),
-    "pkg/util/sort": GoModule("pkg/util/sort", independent=True),
-    "pkg/util/optional": GoModule("pkg/util/optional", independent=True),
-    "pkg/util/statstracker": GoModule("pkg/util/statstracker", independent=True),
-    "pkg/util/system": GoModule("pkg/util/system", independent=True),
-    "pkg/util/system/socket": GoModule("pkg/util/system/socket", independent=True),
-    "pkg/util/testutil": GoModule("pkg/util/testutil", independent=True),
+    "pkg/util/sort": GoModule("pkg/util/sort", independent=True, used_by_otel=True),
+    "pkg/util/startstop": GoModule("pkg/util/startstop", independent=True, used_by_otel=True),
+    "pkg/util/statstracker": GoModule("pkg/util/statstracker", independent=True, used_by_otel=True),
+    "pkg/util/system": GoModule("pkg/util/system", independent=True, used_by_otel=True),
+    "pkg/util/system/socket": GoModule("pkg/util/system/socket", independent=True, used_by_otel=True),
+    "pkg/util/testutil": GoModule("pkg/util/testutil", independent=True, used_by_otel=True),
     "pkg/util/uuid": GoModule("pkg/util/uuid", independent=True),
-    "pkg/util/winutil": GoModule("pkg/util/winutil", independent=True),
-    "pkg/util/grpc": GoModule("pkg/util/grpc", independent=True),
-    "pkg/version": GoModule("pkg/version", independent=True),
-    "pkg/networkdevice/profile": GoModule("pkg/networkdevice/profile", independent=True),
-    "pkg/collector/check/defaults": GoModule("pkg/collector/check/defaults", independent=True),
-    "pkg/orchestrator/model": GoModule("pkg/orchestrator/model", independent=True),
-    "pkg/process/util/api": GoModule("pkg/process/util/api", independent=True),
+    "pkg/util/winutil": GoModule("pkg/util/winutil", independent=True, used_by_otel=True),
+    "pkg/version": GoModule("pkg/version", independent=True, used_by_otel=True),
+    "test/e2e/containers/otlp_sender": GoModule(
+        "test/e2e/containers/otlp_sender", condition=lambda: False, should_tag=False
+    ),
+    "test/fakeintake": GoModule("test/fakeintake", independent=True),
+    "test/new-e2e": GoModule(
+        "test/new-e2e",
+        independent=True,
+        targets=["./pkg/runner", "./pkg/utils/e2e/client"],
+        lint_targets=[".", "./examples"],  # need to explicitly list "examples", otherwise it is skipped
+    ),
+    "test/otel": GoModule("test/otel", independent=True, used_by_otel=True),
+    "tools/retry_file_dump": GoModule("tools/retry_file_dump", condition=lambda: False, should_tag=False),
 }
+
+# Folder containing a `go.mod` file but that should not be added to the DEFAULT_MODULES
+IGNORED_MODULE_PATHS = [
+    # Test files
+    Path("./internal/tools/modparser/testdata/badformat"),
+    Path("./internal/tools/modparser/testdata/match"),
+    Path("./internal/tools/modparser/testdata/nomatch"),
+    Path("./internal/tools/modparser/testdata/patchgoversion"),
+    # This `go.mod` is a hack
+    Path("./pkg/process/procutil/resources"),
+    # We have test files in the tasks folder
+    Path("./tasks"),
+    # Test files
+    Path("./test/integration/serverless/recorder-extension"),
+    Path("./test/integration/serverless/src"),
+]
 
 MAIN_TEMPLATE = """package main
 
@@ -294,7 +342,18 @@ def generate_dummy_package(ctx, folder):
                 if mod.path != ".":
                     ctx.run(f"go mod edit -require={mod.dependency_path('0.0.0')}")
                     ctx.run(f"go mod edit -replace {mod.import_path}=../{mod.path}")
-
+                    # todo: remove once datadogconnector fix is released.
+                    if mod.import_path == "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl":
+                        ctx.run(
+                            "go mod edit -replace github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector=github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector@v0.103.0"
+                        )
+                    if (
+                        mod.import_path == "github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl"
+                        or mod.import_path == "github.com/DataDog/datadog-agent/comp/otelcol/configstore/def"
+                    ):
+                        ctx.run("go mod edit -exclude github.com/knadh/koanf/maps@v0.1.1")
+                        ctx.run("go mod edit -exclude github.com/knadh/koanf/providers/confmap@v0.1.0")
+                        ctx.run("go mod edit -exclude github.com/knadh/koanf/providers/confmap@v0.1.0-dev0")
         # yield folder waiting for a "with" block to be executed (https://docs.python.org/3/library/contextlib.html)
         yield folder
 
@@ -339,12 +398,101 @@ def go_work(_: Context):
 
 
 @task
-def for_each(ctx: Context, cmd: str, skip_untagged: bool = False):
+def for_each(
+    ctx: Context,
+    cmd: str,
+    skip_untagged: bool = False,
+    ignore_errors: bool = False,
+    use_targets_path: bool = False,
+    use_lint_targets_path: bool = False,
+    skip_condition: bool = False,
+):
     """
     Run the given command in the directory of each module.
     """
+    assert not (
+        use_targets_path and use_lint_targets_path
+    ), "Only one of use_targets_path and use_lint_targets_path can be set"
+
     for mod in DEFAULT_MODULES.values():
         if skip_untagged and not mod.should_tag:
             continue
-        with ctx.cd(mod.full_path()):
-            ctx.run(cmd)
+        if skip_condition and not mod.condition():
+            continue
+
+        targets = [mod.full_path()]
+        if use_targets_path:
+            targets = [os.path.join(mod.full_path(), target) for target in mod.targets]
+        if use_lint_targets_path:
+            targets = [os.path.join(mod.full_path(), target) for target in mod.lint_targets]
+
+        for target in targets:
+            with ctx.cd(target):
+                res = ctx.run(cmd, warn=True)
+                assert res is not None
+                if res.failed and not ignore_errors:
+                    raise Exit(f"Command failed in {target}")
+
+
+@task
+def validate(_: Context):
+    """
+    Test if every module was properly added in the DEFAULT_MODULES list.
+    """
+    missing_modules: list[str] = []
+    default_modules_paths = {Path(p) for p in DEFAULT_MODULES}
+
+    # Find all go.mod files and make sure they are registered in DEFAULT_MODULES
+    for root, dirs, files in os.walk("."):
+        dirs[:] = [d for d in dirs if Path(root) / d not in IGNORED_MODULE_PATHS]
+
+        if "go.mod" in files and Path(root) not in default_modules_paths:
+            missing_modules.append(root)
+
+    if missing_modules:
+        message = f"{color_message('ERROR', Color.RED)}: some modules are missing from DEFAULT_MODULES\n"
+        for module in missing_modules:
+            message += f"  {module} is missing from DEFAULT_MODULES\n"
+
+        message += "Please add them to the DEFAULT_MODULES list or exclude them from the validation."
+
+        raise Exit(message)
+
+
+@task
+def validate_used_by_otel(ctx: Context):
+    """
+    Verify whether indirect local dependencies of modules labeled "used_by_otel" are also marked with the "used_by_otel" tag.
+    """
+    otel_mods = [path for path, module in DEFAULT_MODULES.items() if module.used_by_otel]
+    missing_used_by_otel_label: dict[str, list[str]] = defaultdict(list)
+
+    # for every module labeled as "used_by_otel"
+    for otel_mod in otel_mods:
+        gomod_path = f"{otel_mod}/go.mod"
+        # get the go.mod data
+        result = ctx.run(f"go mod edit -json {gomod_path}", hide='both')
+        if result.failed:
+            raise Exit(f"Error running go mod edit -json on {gomod_path}: {result.stderr}")
+
+        go_mod_json = json.loads(result.stdout)
+        # get module dependencies
+        reqs = go_mod_json.get("Require", [])
+        if not reqs:  # Module don't have dependencies, continue
+            continue
+        for require in reqs:
+            # we are only interested into local modules
+            if not require["Path"].startswith("github.com/DataDog/datadog-agent/"):
+                continue
+            # we need the relative path of module (without github.com/DataDog/datadog-agent/ prefix)
+            rel_path = require['Path'].removeprefix("github.com/DataDog/datadog-agent/")
+            # check if indirect module is labeled as "used_by_otel"
+            if rel_path not in DEFAULT_MODULES or not DEFAULT_MODULES[rel_path].used_by_otel:
+                missing_used_by_otel_label[rel_path].append(otel_mod)
+    if missing_used_by_otel_label:
+        message = f"{color_message('ERROR', Color.RED)}: some indirect local dependencies of modules labeled \"used_by_otel\" are not correctly labeled in DEFAULT_MODULES\n"
+        for k, v in missing_used_by_otel_label.items():
+            message += f"\t{color_message(k, Color.RED)} is missing (used by {v})\n"
+        message += "Please label them as \"used_by_otel\" in the DEFAULT_MODULES list."
+
+        raise Exit(message)

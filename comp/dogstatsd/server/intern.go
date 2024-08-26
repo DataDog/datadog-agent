@@ -7,32 +7,6 @@ package server
 
 import (
 	"fmt"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
-)
-
-var (
-	// There are multiple instances of the interner, one per worker (depends on # of virtual CPUs).
-	// Most metrics are tagged with the instance ID, however some are left as global
-	// Note `New` vs `NewSimple`
-	tlmSIResets = telemetry.NewCounter("dogstatsd", "string_interner_resets", []string{"interner_id"},
-		"Amount of resets of the string interner used in dogstatsd")
-	tlmSIRSize = telemetry.NewGauge("dogstatsd", "string_interner_entries", []string{"interner_id"},
-		"Number of entries in the string interner")
-	tlmSIRBytes = telemetry.NewGauge("dogstatsd", "string_interner_bytes", []string{"interner_id"},
-		"Number of bytes stored in the string interner")
-	tlmSIRHits = telemetry.NewCounter("dogstatsd", "string_interner_hits", []string{"interner_id"},
-		"Number of times string interner returned an existing string")
-	tlmSIRMiss = telemetry.NewCounter("dogstatsd", "string_interner_miss", []string{"interner_id"},
-		"Number of times string interner created a new string object")
-	//nolint:unused // TODO(AML) Fix unused linter
-	tlmSIRNew = telemetry.NewSimpleCounter("dogstatsd", "string_interner_new",
-		"Number of times string interner was created")
-	tlmSIRStrBytes = telemetry.NewSimpleHistogram("dogstatsd", "string_interner_str_bytes",
-		"Number of times string with specific length were added",
-		[]float64{1, 2, 4, 8, 16, 32, 64, 128})
 )
 
 // stringInterner is a string cache providing a longer life for strings,
@@ -54,43 +28,21 @@ type stringInterner struct {
 	maxSize int
 	id      string
 
-	telemetry siTelemetry
+	telemetry *stringInternerInstanceTelemetry
 }
 
-type siTelemetry struct {
-	enabled  bool
-	curBytes int
+func newStringInterner(maxSize int, internerID int, siTelemetry *stringInternerTelemetry) *stringInterner {
+	// telemetryOnce.Do(func() { initGlobalTelemetry(telemetrycomp) })
 
-	resets telemetry.SimpleCounter
-	size   telemetry.SimpleGauge
-	bytes  telemetry.SimpleGauge
-	hits   telemetry.SimpleCounter
-	miss   telemetry.SimpleCounter
-}
-
-func newStringInterner(maxSize int, internerID int) *stringInterner {
+	id := fmt.Sprintf("interner_%d", internerID)
 	i := &stringInterner{
-		strings: make(map[string]string),
-		id:      fmt.Sprintf("interner_%d", internerID),
-		maxSize: maxSize,
-		telemetry: siTelemetry{
-			enabled: utils.IsTelemetryEnabled(config.Datadog),
-		},
-	}
-
-	if i.telemetry.enabled {
-		i.prepareTelemetry()
+		strings:   make(map[string]string),
+		id:        id,
+		maxSize:   maxSize,
+		telemetry: siTelemetry.PrepareForID(id),
 	}
 
 	return i
-}
-
-func (i *stringInterner) prepareTelemetry() {
-	i.telemetry.resets = tlmSIResets.WithValues(i.id)
-	i.telemetry.size = tlmSIRSize.WithValues(i.id)
-	i.telemetry.bytes = tlmSIRBytes.WithValues(i.id)
-	i.telemetry.hits = tlmSIRHits.WithValues(i.id)
-	i.telemetry.miss = tlmSIRMiss.WithValues(i.id)
 }
 
 // LoadOrStore always returns the string from the cache, adding it into the
@@ -104,18 +56,12 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	// for this string.
 	// See https://github.com/golang/go/commit/f5f5a8b6209f84961687d993b93ea0d397f5d5bf
 	if s, found := i.strings[string(key)]; found {
-		if i.telemetry.enabled {
-			i.telemetry.hits.Inc()
-		}
+		i.telemetry.Hit()
 		return s
 	}
+
 	if len(i.strings) >= i.maxSize {
-		if i.telemetry.enabled {
-			i.telemetry.resets.Inc()
-			i.telemetry.bytes.Sub(float64(i.telemetry.curBytes))
-			i.telemetry.size.Sub(float64(len(i.strings)))
-			i.telemetry.curBytes = 0
-		}
+		i.telemetry.Reset(len(i.strings))
 
 		i.strings = make(map[string]string)
 	}
@@ -123,13 +69,7 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	s := string(key)
 	i.strings[s] = s
 
-	if i.telemetry.enabled {
-		i.telemetry.miss.Inc()
-		i.telemetry.size.Inc()
-		i.telemetry.bytes.Add(float64(len(s)))
-		tlmSIRStrBytes.Observe(float64(len(s)))
-		i.telemetry.curBytes += len(s)
-	}
+	i.telemetry.Miss(len(s))
 
 	return s
 }

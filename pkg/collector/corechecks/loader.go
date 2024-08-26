@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
@@ -60,7 +61,7 @@ func (gl *GoCheckLoader) Load(senderManger sender.SenderManager, config integrat
 	factory, found := catalog[config.Name]
 	if !found {
 		msg := fmt.Sprintf("Check %s not found in Catalog", config.Name)
-		return c, fmt.Errorf(msg)
+		return c, errors.New(msg)
 	}
 
 	c = factory()
@@ -70,7 +71,7 @@ func (gl *GoCheckLoader) Load(senderManger sender.SenderManager, config integrat
 		}
 		log.Errorf("core.loader: could not configure check %s: %s", c, err)
 		msg := fmt.Sprintf("Could not configure check %s: %s", c, err)
-		return c, fmt.Errorf(msg)
+		return c, errors.New(msg)
 	}
 
 	return c, nil
@@ -81,7 +82,7 @@ func (gl *GoCheckLoader) String() string {
 }
 
 func init() {
-	factory := func(sender.SenderManager) (check.Loader, error) {
+	factory := func(sender.SenderManager, optional.Option[integrations.Component]) (check.Loader, error) {
 		return NewGoCheckLoader()
 	}
 

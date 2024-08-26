@@ -13,22 +13,27 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/confmap/confmaptest"
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/processor/processortest"
+
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 )
 
 func TestType(t *testing.T) {
-	factory := NewFactory()
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	defer fakeTagger.ResetTagger()
+	factory := NewFactory(fakeTagger)
 	pType := factory.Type()
 
 	assert.Equal(t, pType, Type)
 }
 
 func TestCreateDefaultConfig(t *testing.T) {
-	factory := NewFactory()
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	defer fakeTagger.ResetTagger()
+	factory := NewFactory(fakeTagger)
 	cfg := factory.CreateDefaultConfig()
 	assert.NoError(t, componenttest.CheckConfigStruct(cfg))
 }
@@ -50,24 +55,26 @@ func TestCreateProcessors(t *testing.T) {
 		t.Run(tt.configName, func(t *testing.T) {
 			cm, err := confmaptest.LoadConf(filepath.Join("testdata", tt.configName))
 			require.NoError(t, err)
+			fakeTagger := taggerimpl.SetupFakeTagger(t)
+			defer fakeTagger.ResetTagger()
 
 			for k := range cm.ToStringMap() {
 				// Check if all processor variations that are defined in test config can be actually created
-				factory := NewFactory()
+				factory := NewFactory(fakeTagger)
 				cfg := factory.CreateDefaultConfig()
 
 				sub, err := cm.Sub(k)
 				require.NoError(t, err)
-				require.NoError(t, component.UnmarshalConfig(sub, cfg))
+				require.NoError(t, sub.Unmarshal(&cfg))
 
 				tp, tErr := factory.CreateTracesProcessor(
 					context.Background(),
-					processortest.NewNopCreateSettings(),
+					processortest.NewNopSettings(),
 					cfg, consumertest.NewNop(),
 				)
 				mp, mErr := factory.CreateMetricsProcessor(
 					context.Background(),
-					processortest.NewNopCreateSettings(),
+					processortest.NewNopSettings(),
 					cfg,
 					consumertest.NewNop(),
 				)

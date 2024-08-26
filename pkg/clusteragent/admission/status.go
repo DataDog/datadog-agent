@@ -29,14 +29,14 @@ import (
 // GetStatus returns status info for the secret and webhook controllers.
 func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	status := make(map[string]interface{})
-	if !config.Datadog.GetBool("admission_controller.enabled") {
+	if !config.Datadog().GetBool("admission_controller.enabled") {
 		status["Disabled"] = "The admission controller is not enabled on the Cluster Agent"
 		return status
 	}
 
 	ns := common.GetResourcesNamespace()
-	webhookName := config.Datadog.GetString("admission_controller.webhook_name")
-	secretName := config.Datadog.GetString("admission_controller.certificate.secret_name")
+	webhookName := config.Datadog().GetString("admission_controller.webhook_name")
+	secretName := config.Datadog().GetString("admission_controller.certificate.secret_name")
 	status["WebhookName"] = webhookName
 	status["SecretName"] = fmt.Sprintf("%s/%s", ns, secretName)
 

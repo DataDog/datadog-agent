@@ -13,7 +13,7 @@ import (
 	dockerTypes "github.com/docker/docker/api/types"
 	dockerNetworkTypes "github.com/docker/docker/api/types/network"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
@@ -89,7 +89,7 @@ func TestDockerNetworkExtension(t *testing.T) {
 		},
 	}
 
-	getRoutesFunc = func(procPath string, pid int) ([]system.NetworkRoute, error) {
+	getRoutesFunc = func(_ string, pid int) ([]system.NetworkRoute, error) {
 		return routeForPID[pid], nil
 	}
 

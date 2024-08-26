@@ -62,3 +62,16 @@ func IsUserAnAdmin() (bool, error) {
 	}
 	return true, nil
 }
+
+// GetLocalSystemSID returns the SID of the Local System account
+// the returned SID must be freed by windows.FreeSid()
+func GetLocalSystemSID() (*windows.SID, error) {
+	var localSystem *windows.SID
+	err := windows.AllocateAndInitializeSid(&windows.SECURITY_NT_AUTHORITY,
+		1, // local system has 1 valid subauth
+		windows.SECURITY_LOCAL_SYSTEM_RID,
+		0, 0, 0, 0, 0, 0, 0,
+		&localSystem)
+
+	return localSystem, err
+}

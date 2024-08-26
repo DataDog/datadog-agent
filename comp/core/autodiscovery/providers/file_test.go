@@ -11,17 +11,25 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestCollect(t *testing.T) {
 	ctx := context.Background()
-	config.Datadog.SetWithoutSource("ignore_autoconf", []string{"ignored"})
+	config.Datadog().SetWithoutSource("ignore_autoconf", []string{"ignored"})
 	paths := []string{"tests", "foo/bar"}
+
+	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryStore := acTelemetry.NewStore(telemetry)
+
 	ResetReader(paths)
-	provider := NewFileConfigProvider()
+	provider := NewFileConfigProvider(telemetryStore)
 	configs, err := provider.Collect(ctx)
 
 	assert.Nil(t, err)
@@ -73,10 +81,10 @@ func TestCollect(t *testing.T) {
 	assert.Equal(t, 0, len(get("ignored")))
 
 	// total number of configurations found
-	assert.Equal(t, 16, len(configs))
+	assert.Equal(t, 17, len(configs))
 
-	// incorrect configs get saved in the Errors map (invalid.yaml & notaconfig.yaml & ad_deprecated.yaml)
-	assert.Equal(t, 3, len(provider.Errors))
+	// incorrect configs get saved in the Errors map (invalid.yaml & notaconfig.yaml & ad_deprecated.yaml & null_instances.yml)
+	assert.Equal(t, 4, len(provider.Errors))
 }
 
 func TestEnvVarReplacement(t *testing.T) {
@@ -86,7 +94,10 @@ func TestEnvVarReplacement(t *testing.T) {
 
 	paths := []string{"tests"}
 	ResetReader(paths)
-	provider := NewFileConfigProvider()
+	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryStore := acTelemetry.NewStore(telemetry)
+
+	provider := NewFileConfigProvider(telemetryStore)
 	configs, err := provider.Collect(ctx)
 
 	assert.Nil(t, err)

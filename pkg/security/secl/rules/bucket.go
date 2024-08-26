@@ -21,8 +21,8 @@ type RuleBucket struct {
 // AddRule adds a rule to the bucket
 func (rb *RuleBucket) AddRule(rule *Rule) error {
 	for _, r := range rb.rules {
-		if r.ID == rule.ID {
-			return &ErrRuleLoad{Definition: rule.Definition, Err: ErrDefinitionIDConflict}
+		if r.Def.ID == rule.Def.ID {
+			return &ErrRuleLoad{Rule: rule.PolicyRule, Err: ErrDefinitionIDConflict}
 		}
 	}
 

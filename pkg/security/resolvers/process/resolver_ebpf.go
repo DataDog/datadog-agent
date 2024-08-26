@@ -11,6 +11,7 @@ package process
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -27,6 +28,7 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/shirou/gopsutil/v3/process"
 	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -39,6 +41,7 @@ import (
 	spath "github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -97,7 +100,7 @@ type EBPFResolver struct {
 	inodeErrStats             *atomic.Int64
 
 	entryCache    map[uint32]*model.ProcessCacheEntry
-	argsEnvsCache *simplelru.LRU[uint32, *argsEnvsCacheEntry]
+	argsEnvsCache *simplelru.LRU[uint64, *argsEnvsCacheEntry]
 
 	processCacheEntryPool *Pool
 
@@ -337,7 +340,7 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	}
 
 	// Retrieve the container ID of the process from /proc
-	containerID, err := p.containerResolver.GetContainerID(pid)
+	containerID, containerFlags, err := p.containerResolver.GetContainerContext(pid)
 	if err != nil {
 		return fmt.Errorf("snapshot failed for %d: couldn't parse container ID: %w", proc.Pid, err)
 	}
@@ -345,7 +348,29 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	entry.FileEvent.FileFields = *info
 	setPathname(&entry.FileEvent, pathnameStr)
 
-	entry.Process.ContainerID = string(containerID)
+	// force mount from procfs/snapshot
+	entry.FileEvent.MountOrigin = model.MountOriginProcfs
+	entry.FileEvent.MountSource = model.MountSourceSnapshot
+
+	var id containerutils.CGroupID
+	id, entry.Process.ContainerID = containerutils.GetCGroupContext(containerID, containerFlags)
+	entry.Process.CGroup.CGroupID = id
+	entry.Process.CGroup.CGroupFlags = containerFlags
+	var fileStats unix.Statx_t
+
+	taskPath := utils.CgroupTaskPath(pid, pid)
+	if err := unix.Statx(unix.AT_FDCWD, taskPath, 0, unix.STATX_ALL, &fileStats); err == nil {
+		entry.Process.CGroup.CGroupFile.MountID = uint32(fileStats.Mnt_id)
+		entry.Process.CGroup.CGroupFile.Inode = fileStats.Ino
+	} else {
+		// Get the file fields of the cgroup file
+		info, err := p.retrieveExecFileFields(taskPath)
+		if err != nil {
+			seclog.Debugf("snapshot failed for %d: couldn't retrieve inode info: %s", proc.Pid, err)
+		} else {
+			entry.Process.CGroup.CGroupFile.MountID = info.MountID
+		}
+	}
 
 	if entry.FileEvent.IsFileless() {
 		entry.FileEvent.Filesystem = model.TmpFS
@@ -374,6 +399,12 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 		entry.Credentials.EGID = uint32(filledProc.Gids[1])
 		entry.Credentials.FSGID = uint32(filledProc.Gids[3])
 	}
+	// fetch login_uid
+	entry.Credentials.AUID, err = utils.GetLoginUID(uint32(proc.Pid))
+	if err != nil {
+		return fmt.Errorf("snapshot failed for %d: couldn't get login UID: %w", proc.Pid, err)
+	}
+
 	entry.Credentials.CapEffective, entry.Credentials.CapPermitted, err = utils.CapEffCapEprm(uint32(proc.Pid))
 	if err != nil {
 		return fmt.Errorf("snapshot failed for %d: couldn't parse kernel capabilities: %w", proc.Pid, err)
@@ -560,7 +591,7 @@ func (p *EBPFResolver) deleteEntry(pid uint32, exitTime time.Time) {
 	}
 
 	if p.cgroupResolver != nil {
-		p.cgroupResolver.DelPIDWithID(entry.ContainerID, entry.Pid)
+		p.cgroupResolver.DelPIDWithID(string(entry.ContainerID), entry.Pid)
 	}
 
 	entry.Exit(exitTime)
@@ -621,17 +652,19 @@ func (p *EBPFResolver) resolve(pid, tid uint32, inode uint64, useProcFS bool) *m
 	return nil
 }
 
-func (p *EBPFResolver) resolveFileFieldsPath(e *model.FileFields, pce *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) (string, error) {
+func (p *EBPFResolver) resolveFileFieldsPath(e *model.FileFields, pce *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) (string, string, model.MountSource, model.MountOrigin, error) {
 	var (
-		pathnameStr   string
-		err           error
-		maxDepthRetry = 3
+		pathnameStr, mountPath string
+		source                 model.MountSource
+		origin                 model.MountOrigin
+		err                    error
+		maxDepthRetry          = 3
 	)
 
 	for maxDepthRetry > 0 {
-		pathnameStr, err = p.pathResolver.ResolveFileFieldsPath(e, &pce.PIDContext, ctrCtx)
+		pathnameStr, mountPath, source, origin, err = p.pathResolver.ResolveFileFieldsPath(e, &pce.PIDContext, ctrCtx)
 		if err == nil {
-			return pathnameStr, nil
+			return pathnameStr, mountPath, source, origin, nil
 		}
 		parent, exists := p.entryCache[pce.PPid]
 		if !exists {
@@ -642,7 +675,7 @@ func (p *EBPFResolver) resolveFileFieldsPath(e *model.FileFields, pce *model.Pro
 		maxDepthRetry--
 	}
 
-	return pathnameStr, err
+	return pathnameStr, mountPath, source, origin, err
 }
 
 // SetProcessPath resolves process file path
@@ -660,11 +693,14 @@ func (p *EBPFResolver) SetProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 		return onError("", &model.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID})
 	}
 
-	pathnameStr, err := p.resolveFileFieldsPath(&fileEvent.FileFields, pce, ctrCtx)
+	pathnameStr, mountPath, source, origin, err := p.resolveFileFieldsPath(&fileEvent.FileFields, pce, ctrCtx)
 	if err != nil {
 		return onError(pathnameStr, err)
 	}
 	setPathname(fileEvent, pathnameStr)
+	fileEvent.MountPath = mountPath
+	fileEvent.MountSource = source
+	fileEvent.MountOrigin = origin
 
 	return fileEvent.PathnameStr, nil
 }
@@ -686,7 +722,7 @@ func (p *EBPFResolver) SetProcessSymlink(entry *model.ProcessCacheEntry) {
 // SetProcessFilesystem resolves process file system
 func (p *EBPFResolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) (string, error) {
 	if entry.FileEvent.MountID != 0 {
-		fs, err := p.mountResolver.ResolveFilesystem(entry.FileEvent.MountID, entry.FileEvent.Device, entry.Pid, entry.ContainerID)
+		fs, err := p.mountResolver.ResolveFilesystem(entry.FileEvent.MountID, entry.FileEvent.Device, entry.Pid, string(entry.ContainerID))
 		if err != nil {
 			return "", err
 		}
@@ -799,12 +835,18 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64) *mod
 		return nil
 	}
 
-	if _, err := entry.UnmarshalProcEntryBinary(procCache[read:]); err != nil {
+	var cgroupCtx model.CGroupContext
+	cgroupRead, err := cgroupCtx.UnmarshalBinary(procCache)
+	if err != nil {
+		return nil
+	}
+
+	if _, err := entry.UnmarshalProcEntryBinary(procCache[read+cgroupRead:]); err != nil {
 		return nil
 	}
 
 	// check that the cache entry correspond to the event
-	if entry.FileEvent.Inode != entry.ExecInode {
+	if entry.FileEvent.Inode != 0 && entry.FileEvent.Inode != entry.ExecInode {
 		return nil
 	}
 
@@ -823,9 +865,10 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64) *mod
 	// the parent is in a container. In other words, we have to fall back to /proc to query the container ID of the
 	// process.
 	if entry.ContainerID == "" {
-		containerID, err := p.containerResolver.GetContainerID(pid)
+		containerID, containerFlags, err := p.containerResolver.GetContainerContext(pid)
 		if err == nil {
-			entry.ContainerID = string(containerID)
+			entry.CGroup.CGroupFlags = containerFlags
+			entry.CGroup.CGroupID = containerutils.GetCgroupFromContainer(containerID, containerFlags)
 		}
 	}
 
@@ -983,13 +1026,13 @@ func (p *EBPFResolver) SetProcessTTY(pce *model.ProcessCacheEntry) string {
 
 // SetProcessUsersGroups resolves and set users and groups
 func (p *EBPFResolver) SetProcessUsersGroups(pce *model.ProcessCacheEntry) {
-	pce.User, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.UID), pce.ContainerID)
-	pce.EUser, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.EUID), pce.ContainerID)
-	pce.FSUser, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.FSUID), pce.ContainerID)
+	pce.User, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.UID), string(pce.ContainerID))
+	pce.EUser, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.EUID), string(pce.ContainerID))
+	pce.FSUser, _ = p.userGroupResolver.ResolveUser(int(pce.Credentials.FSUID), string(pce.ContainerID))
 
-	pce.Group, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.GID), pce.ContainerID)
-	pce.EGroup, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.EGID), pce.ContainerID)
-	pce.FSGroup, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.FSGID), pce.ContainerID)
+	pce.Group, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.GID), string(pce.ContainerID))
+	pce.EGroup, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.EGID), string(pce.ContainerID))
+	pce.FSGroup, _ = p.userGroupResolver.ResolveGroup(int(pce.Credentials.FSGID), string(pce.ContainerID))
 }
 
 // Get returns the cache entry for a specified pid
@@ -1050,6 +1093,67 @@ func (p *EBPFResolver) UpdateCapset(pid uint32, e *model.Event) {
 		entry.Credentials.CapEffective = e.Capset.CapEffective
 		entry.Credentials.CapPermitted = e.Capset.CapPermitted
 	}
+}
+
+// UpdateLoginUID updates the AUID of the provided pid
+func (p *EBPFResolver) UpdateLoginUID(pid uint32, e *model.Event) {
+	if e.ProcessContext.Pid != e.ProcessContext.Tid {
+		return
+	}
+
+	p.Lock()
+	defer p.Unlock()
+	entry := p.entryCache[pid]
+	if entry != nil {
+		entry.Credentials.AUID = e.LoginUIDWrite.AUID
+	}
+}
+
+// UpdateAWSSecurityCredentials updates the list of AWS Security Credentials
+func (p *EBPFResolver) UpdateAWSSecurityCredentials(pid uint32, e *model.Event) {
+	if len(e.IMDS.AWS.SecurityCredentials.AccessKeyID) == 0 {
+		return
+	}
+
+	p.Lock()
+	defer p.Unlock()
+
+	entry := p.entryCache[pid]
+	if entry != nil {
+		// check if this key is already in cache
+		for _, key := range entry.AWSSecurityCredentials {
+			if key.AccessKeyID == e.IMDS.AWS.SecurityCredentials.AccessKeyID {
+				return
+			}
+		}
+		entry.AWSSecurityCredentials = append(entry.AWSSecurityCredentials, e.IMDS.AWS.SecurityCredentials)
+	}
+}
+
+// FetchAWSSecurityCredentials returns the list of AWS Security Credentials valid at the time of the event, and prunes
+// expired entries
+func (p *EBPFResolver) FetchAWSSecurityCredentials(e *model.Event) []model.AWSSecurityCredentials {
+	p.Lock()
+	defer p.Unlock()
+
+	entry := p.entryCache[e.ProcessContext.Pid]
+	if entry != nil {
+		// check if we should delete
+		var toDelete []int
+		for id, key := range entry.AWSSecurityCredentials {
+			if key.Expiration.Before(e.ResolveEventTime()) {
+				toDelete = append([]int{id}, toDelete...)
+			}
+		}
+
+		// delete expired entries
+		for _, id := range toDelete {
+			entry.AWSSecurityCredentials = append(entry.AWSSecurityCredentials[0:id], entry.AWSSecurityCredentials[id+1:]...)
+		}
+
+		return entry.AWSSecurityCredentials
+	}
+	return nil
 }
 
 // Start starts the resolver
@@ -1164,7 +1268,7 @@ func (p *EBPFResolver) syncCache(proc *process.Process, filledProc *utils.Filled
 	bootTime := p.timeResolver.GetBootTime()
 
 	// insert new entry in kernel maps
-	procCacheEntryB := make([]byte, 224)
+	procCacheEntryB := make([]byte, 248)
 	_, err := entry.Process.MarshalProcCache(procCacheEntryB, bootTime)
 	if err != nil {
 		seclog.Errorf("couldn't marshal proc_cache entry: %s", err)
@@ -1173,7 +1277,7 @@ func (p *EBPFResolver) syncCache(proc *process.Process, filledProc *utils.Filled
 			seclog.Errorf("couldn't push proc_cache entry to kernel space: %s", err)
 		}
 	}
-	pidCacheEntryB := make([]byte, 80)
+	pidCacheEntryB := make([]byte, 88)
 	_, err = entry.Process.MarshalPidCache(pidCacheEntryB, bootTime)
 	if err != nil {
 		seclog.Errorf("couldn't marshal pid_cache entry: %s", err)
@@ -1188,7 +1292,45 @@ func (p *EBPFResolver) syncCache(proc *process.Process, filledProc *utils.Filled
 	return entry, true
 }
 
-func (p *EBPFResolver) dumpEntry(writer io.Writer, entry *model.ProcessCacheEntry, already map[string]bool, withArgs bool) {
+// ToJSON return a json version of the cache
+func (p *EBPFResolver) ToJSON() ([]byte, error) {
+	dump := struct {
+		Entries []json.RawMessage
+	}{}
+
+	p.Walk(func(entry *model.ProcessCacheEntry) {
+		e := struct {
+			PID             uint32
+			PPID            uint32
+			Path            string
+			Inode           uint64
+			MountID         uint32
+			Source          string
+			ExecInode       uint64
+			IsThread        bool
+			IsParentMissing bool
+		}{
+			PID:             entry.Pid,
+			PPID:            entry.PPid,
+			Path:            entry.FileEvent.PathnameStr,
+			Inode:           entry.FileEvent.Inode,
+			MountID:         entry.FileEvent.MountID,
+			Source:          model.ProcessSourceToString(entry.Source),
+			ExecInode:       entry.ExecInode,
+			IsThread:        entry.IsThread,
+			IsParentMissing: entry.IsParentMissing,
+		}
+
+		d, err := json.Marshal(e)
+		if err == nil {
+			dump.Entries = append(dump.Entries, d)
+		}
+	})
+
+	return json.Marshal(dump)
+}
+
+func (p *EBPFResolver) toDot(writer io.Writer, entry *model.ProcessCacheEntry, already map[string]bool, withArgs bool) {
 	for entry != nil {
 		label := fmt.Sprintf("%s:%d", entry.Comm, entry.Pid)
 		if _, exists := already[label]; !exists {
@@ -1220,8 +1362,8 @@ func (p *EBPFResolver) dumpEntry(writer io.Writer, entry *model.ProcessCacheEntr
 	}
 }
 
-// Dump create a temp file and dump the cache
-func (p *EBPFResolver) Dump(withArgs bool) (string, error) {
+// ToDot create a temp file and dump the cache
+func (p *EBPFResolver) ToDot(withArgs bool) (string, error) {
 	dump, err := os.CreateTemp("/tmp", "process-cache-dump-")
 	if err != nil {
 		return "", err
@@ -1240,7 +1382,7 @@ func (p *EBPFResolver) Dump(withArgs bool) (string, error) {
 
 	already := make(map[string]bool)
 	for _, entry := range p.entryCache {
-		p.dumpEntry(dump, entry, already, withArgs)
+		p.toDot(dump, entry, already, withArgs)
 	}
 
 	fmt.Fprintf(dump, `}`)
@@ -1283,7 +1425,7 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver mount.ResolverInterface,
 	cgroupResolver *cgroup.Resolver, userGroupResolver *usergroup.Resolver, timeResolver *stime.Resolver,
 	pathResolver spath.ResolverInterface, opts *ResolverOpts) (*EBPFResolver, error) {
-	argsEnvsCache, err := simplelru.NewLRU[uint32, *argsEnvsCacheEntry](maxParallelArgsEnvs, nil)
+	argsEnvsCache, err := simplelru.NewLRU[uint64, *argsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err
 	}

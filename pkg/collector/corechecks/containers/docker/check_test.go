@@ -19,7 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
@@ -209,7 +211,7 @@ func TestDockerCustomPart(t *testing.T) {
 			Enabled:         true,
 			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
 		},
-		store: fxutil.Test[workloadmeta.Mock](t, core.MockBundle(), fx.Supply(workloadmeta.NewParams()), workloadmeta.MockModule()),
+		store: fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), fx.Supply(workloadmeta.NewParams()), workloadmetafxmock.MockModule()),
 	}
 
 	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList)
@@ -288,7 +290,7 @@ func TestContainersRunning(t *testing.T) {
 		instance:        &DockerConfig{},
 		dockerHostname:  "testhostname",
 		containerFilter: &containers.Filter{},
-		store:           fxutil.Test[workloadmeta.Mock](t, core.MockBundle(), fx.Supply(workloadmeta.NewParams()), workloadmeta.MockModule()),
+		store:           fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), fx.Supply(workloadmeta.NewParams()), workloadmetafxmock.MockModule()),
 	}
 
 	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList)

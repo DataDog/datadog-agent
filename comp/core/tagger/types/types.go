@@ -67,8 +67,6 @@ type Entity struct {
 	OrchestratorCardinalityTags []string
 	LowCardinalityTags          []string
 	StandardTags                []string
-
-	hash string
 }
 
 // GetTags flattens all tags from all cardinalities into a single slice of tag
@@ -86,15 +84,6 @@ func (e Entity) GetTags(cardinality TagCardinality) []string {
 	}
 
 	return utils.ConcatenateTags(tagArrays...)
-}
-
-// GetHash returns a computed hash of all of the entity's tags.
-func (e Entity) GetHash() string {
-	if e.hash == "" {
-		e.hash = utils.ComputeTagsHash(e.GetTags(HighCardinality))
-	}
-
-	return e.hash
 }
 
 // Copy returns a copy of the Entity containing only tags at the supplied
@@ -174,4 +163,17 @@ const (
 type EntityEvent struct {
 	EventType EventType
 	Entity    Entity
+}
+
+// EntityIDPrefix represents the prefix of a TagEntity id
+type EntityIDPrefix string
+
+// ToUID builds a unique id from the passed id
+// if the passed id is empty, an empty string is returned
+// else it returns `{entityPrefix}://{id}`
+func (e EntityIDPrefix) ToUID(id string) string {
+	if id == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s://%s", e, id)
 }

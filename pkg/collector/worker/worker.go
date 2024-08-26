@@ -179,7 +179,7 @@ func (w *Worker) Run() {
 		}
 
 		if sender != nil && !longRunning {
-			if config.Datadog.GetBool("integration_check_status_enabled") {
+			if config.Datadog().GetBool("integration_check_status_enabled") {
 				sender.ServiceCheck(serviceCheckStatusKey, serviceCheckStatus, hname, serviceCheckTags, "")
 			}
 			// FIXME(remy): this `Commit()` should be part of the `if` above, we keep

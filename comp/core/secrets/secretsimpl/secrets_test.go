@@ -15,6 +15,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 var (
@@ -271,8 +275,9 @@ func TestIsEnc(t *testing.T) {
 }
 
 func TestResolveNoCommand(t *testing.T) {
-	resolver := newEnabledSecretResolver()
-	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
 		return nil, fmt.Errorf("some error")
 	}
 
@@ -283,10 +288,11 @@ func TestResolveNoCommand(t *testing.T) {
 }
 
 func TestResolveSecretError(t *testing.T) {
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 
-	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
 		return nil, fmt.Errorf("some error")
 	}
 
@@ -295,7 +301,8 @@ func TestResolveSecretError(t *testing.T) {
 }
 
 func TestResolveDoestSendDuplicates(t *testing.T) {
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 
 	// test configuration has handle "pass1" appear twice, but fetch should only get one handle
@@ -476,7 +483,7 @@ func TestResolve(t *testing.T) {
 			expectedSecretOrigin: testConfOrigin,
 			expectedScrubbedKey:  []string{"password", "password"},
 			secretCache:          map[string]string{"pass1": "password1", "pass2": "password2"},
-			secretFetchCB: func(secrets []string) (map[string]string, error) {
+			secretFetchCB: func(_ []string) (map[string]string, error) {
 				require.Fail(currentTest, "Secret Cache was not used properly")
 				return nil, nil
 			},
@@ -487,7 +494,9 @@ func TestResolve(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			currentTest = t
 
-			resolver := newEnabledSecretResolver()
+			tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+
+			resolver := newEnabledSecretResolver(tel)
 			resolver.backendCommand = "some_command"
 			if tc.secretCache != nil {
 				resolver.cache = tc.secretCache
@@ -509,11 +518,12 @@ func TestResolve(t *testing.T) {
 func TestResolveNestedWithSubscribe(t *testing.T) {
 	testConf := testConfNestedMultiple
 
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 	resolver.cache = map[string]string{"pass3": "password3"}
 
-	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
 		return map[string]string{
 			"pass1": "password1",
 			"pass2": "password2",
@@ -523,7 +533,7 @@ func TestResolveNestedWithSubscribe(t *testing.T) {
 	topLevelResolved := 0
 	secondLevelResolved := 0
 	thirdLevelResolved := 0
-	resolver.SubscribeToChanges(func(handle, origin string, path []string, oldValue, newValue any) {
+	resolver.SubscribeToChanges(func(_, _ string, path []string, _, newValue any) {
 		switch strings.Join(path, "/") {
 		case "top_level":
 			assert.Equal(t, "password1", newValue)
@@ -551,12 +561,13 @@ func TestResolveNestedWithSubscribe(t *testing.T) {
 func TestResolveCached(t *testing.T) {
 	testConf := testConfNested
 
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 	resolver.cache = map[string]string{"pass1": "password1"}
 
 	fetchHappened := 0
-	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
 		fetchHappened++
 		return map[string]string{
 			"pass1": "password1",
@@ -564,7 +575,7 @@ func TestResolveCached(t *testing.T) {
 	}
 
 	totalResolved := []string{}
-	resolver.SubscribeToChanges(func(handle, origin string, path []string, oldValue, newValue any) {
+	resolver.SubscribeToChanges(func(handle, _ string, _ []string, _, _ any) {
 		totalResolved = append(totalResolved, handle)
 	})
 	_, err := resolver.Resolve(testConf, "test")
@@ -583,7 +594,8 @@ func TestResolveThenRefresh(t *testing.T) {
 	allowlistPaths = nil
 	defer func() { allowlistPaths = originalAllowlistPaths }()
 
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 	resolver.cache = map[string]string{}
 
@@ -591,14 +603,14 @@ func TestResolveThenRefresh(t *testing.T) {
 	keysResolved := []string{}
 	oldValues := []string{}
 	newValues := []string{}
-	resolver.SubscribeToChanges(func(handle, origin string, path []string, oldValue, newValue any) {
+	resolver.SubscribeToChanges(func(_, _ string, path []string, oldValue, newValue any) {
 		keysResolved = append(keysResolved, strings.Join(path, "/"))
 		oldValues = append(oldValues, fmt.Sprintf("%s", oldValue))
 		newValues = append(newValues, fmt.Sprintf("%s", newValue))
 	})
 
 	// initial 3 values for these passwords
-	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
 		return map[string]string{
 			"pass1": "password1",
 			"pass2": "password2",
@@ -614,7 +626,7 @@ func TestResolveThenRefresh(t *testing.T) {
 	assert.Equal(t, []string{"some/encoded/third_level", "some/second_level", "top_level"}, keysResolved)
 
 	// change the secret value of the handle 'pass2'
-	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
 		return map[string]string{
 			"pass1": "password1",
 			"pass2": "update-second",
@@ -633,7 +645,7 @@ func TestResolveThenRefresh(t *testing.T) {
 	assert.NotContains(t, output, "update-second")
 
 	// change the secret values of the other two handles
-	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
 		return map[string]string{
 			"pass1": "update-first",
 			"pass2": "update-second",
@@ -658,7 +670,8 @@ func TestResolveThenRefresh(t *testing.T) {
 
 // test that the allowlist only lets setting paths that match it get Refreshed
 func TestRefreshAllowlist(t *testing.T) {
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 	resolver.cache = map[string]string{"handle": "value"}
 	resolver.origin = handleToContext{
@@ -670,13 +683,13 @@ func TestRefreshAllowlist(t *testing.T) {
 		},
 	}
 
-	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
 		return map[string]string{
 			"handle": "second_value",
 		}, nil
 	}
 	changes := []string{}
-	resolver.SubscribeToChanges(func(handle, origin string, path []string, oldValue, newValue any) {
+	resolver.SubscribeToChanges(func(_, _ string, _ []string, _, newValue any) {
 		changes = append(changes, fmt.Sprintf("%s", newValue))
 	})
 
@@ -703,10 +716,11 @@ func TestRefreshAllowlist(t *testing.T) {
 // test that only setting paths that match the allowlist will get notifications
 // about changed secret values from a Refresh
 func TestRefreshAllowlistAppliesToEachSettingPath(t *testing.T) {
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 
-	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
 		return map[string]string{
 			"pass1": "password1",
 		}, nil
@@ -724,12 +738,12 @@ func TestRefreshAllowlistAppliesToEachSettingPath(t *testing.T) {
 
 	// subscribe to changes made during Refresh, keep track of updated setting paths
 	changedPaths := []string{}
-	resolver.SubscribeToChanges(func(handle, origin string, path []string, oldValue, newValue any) {
+	resolver.SubscribeToChanges(func(_, _ string, path []string, _, _ any) {
 		changedPaths = append(changedPaths, strings.Join(path, "/"))
 	})
 
 	// the secret has a new value, will be picked up by next Refresh
-	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
 		return map[string]string{
 			"pass1": "second_password",
 		}, nil
@@ -750,7 +764,8 @@ func TestRefreshAddsToAuditFile(t *testing.T) {
 	allowlistPaths = map[string]struct{}{"another/config/setting": {}}
 	defer func() { allowlistPaths = originalAllowlistPaths }()
 
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 	resolver.cache = map[string]string{"handle": "value"}
 	resolver.origin = handleToContext{
@@ -764,7 +779,7 @@ func TestRefreshAddsToAuditFile(t *testing.T) {
 	resolver.auditFilename = tmpfile.Name()
 	resolver.auditFileMaxSize = 1000 // enough to add a few rows
 
-	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
 		return map[string]string{
 			"handle": "second_value",
 		}, nil
@@ -775,7 +790,7 @@ func TestRefreshAddsToAuditFile(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, auditFileNumRows(tmpfile.Name()), 1)
 
-	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
 		return map[string]string{
 			"handle": "third_value",
 		}, nil
@@ -786,7 +801,7 @@ func TestRefreshAddsToAuditFile(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, auditFileNumRows(tmpfile.Name()), 2)
 
-	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
 		return map[string]string{
 			"handle": "fourth_value",
 		}, nil

@@ -21,13 +21,19 @@ func getMMapProbes() []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "tracepoint_syscalls_sys_enter_mmap",
+				EBPFFuncName: "hook_vm_mmap_pgoff",
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "tracepoint_syscalls_sys_exit_mmap",
+				EBPFFuncName: "rethook_vm_mmap_pgoff",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_get_unmapped_area",
 			},
 		},
 	}

@@ -37,7 +37,7 @@ func RetrieveUnifiedServiceTags(labels map[string]string) []string {
 	if tagValue, found := labels[kubernetes.EnvTagLabelKey]; found {
 		tags = append(tags, fmt.Sprintf("%s:%s", labelToTagKeys[kubernetes.EnvTagLabelKey], tagValue))
 	} else {
-		if envTag := config.Datadog.GetString("env"); envTag != "" {
+		if envTag := config.Datadog().GetString("env"); envTag != "" {
 			tags = append(tags, fmt.Sprintf("%s:%s", tagKeyEnv, envTag))
 		}
 	}

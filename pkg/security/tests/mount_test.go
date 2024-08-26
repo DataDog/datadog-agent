@@ -357,21 +357,26 @@ func TestMountSnapshot(t *testing.T) {
 	checkSnapshotAndModelMatch := func(mntInfo *mountinfo.Info) {
 		dev := utils.Mkdev(uint32(mntInfo.Major), uint32(mntInfo.Minor))
 
-		mount, err := mountResolver.ResolveMount(uint32(mntInfo.ID), dev, pid, "")
+		mount, mountSource, mountOrigin, err := mountResolver.ResolveMount(uint32(mntInfo.ID), dev, pid, "")
 		if err != nil {
 			t.Errorf(err.Error())
 			return
 		}
+		assert.Equal(t, model.MountSourceMountID, mountSource)
+		assert.NotEqual(t, model.MountOriginUnknown, mountOrigin)
 		assert.Equal(t, uint32(mntInfo.ID), mount.MountID, "snapshot and model mount ID mismatch")
 		assert.Equal(t, uint32(mntInfo.Parent), mount.ParentPathKey.MountID, "snapshot and model parent mount ID mismatch")
 		assert.Equal(t, dev, mount.Device, "snapshot and model device mismatch")
 		assert.Equal(t, mntInfo.FSType, mount.FSType, "snapshot and model fstype mismatch")
 		assert.Equal(t, mntInfo.Root, mount.RootStr, "snapshot and model root mismatch")
-		mountPointPath, err := mountResolver.ResolveMountPath(mount.MountID, dev, pid, "")
+
+		mountPointPath, mountSource, mountOrigin, err := mountResolver.ResolveMountPath(mount.MountID, dev, pid, "")
 		if err != nil {
 			t.Errorf("failed to resolve mountpoint path of mountpoint with id %d", mount.MountID)
 		}
 		assert.Equal(t, mntInfo.Mountpoint, mountPointPath, "snapshot and model mountpoint path mismatch")
+		assert.Equal(t, model.MountSourceMountID, mountSource)
+		assert.NotEqual(t, model.MountOriginUnknown, mountOrigin)
 	}
 
 	mntResolved := 0
@@ -465,6 +470,9 @@ func TestMountEvent(t *testing.T) {
 			assertFieldEqual(t, event, "process.file.path", executable)
 
 			test.validateMountSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.mount.path")
+			validateSyscallContext(t, event, "$.syscall.mount.destination_path")
+			validateSyscallContext(t, event, "$.syscall.mount.fs_type")
 		})
 	})
 
@@ -488,6 +496,9 @@ func TestMountEvent(t *testing.T) {
 			assertFieldEqual(t, event, "process.file.path", executable)
 
 			test.validateMountSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.mount.path")
+			validateSyscallContext(t, event, "$.syscall.mount.destination_path")
+			validateSyscallContext(t, event, "$.syscall.mount.fs_type")
 		})
 	})
 
@@ -516,6 +527,9 @@ func TestMountEvent(t *testing.T) {
 			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
 
 			test.validateMountSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.mount.path")
+			validateSyscallContext(t, event, "$.syscall.mount.destination_path")
+			validateSyscallContext(t, event, "$.syscall.mount.fs_type")
 		})
 	})
 

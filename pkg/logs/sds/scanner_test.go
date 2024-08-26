@@ -72,15 +72,16 @@ func TestCreateScanner(t *testing.T) {
 
 	require.NotNil(s, "the scanner should not be nil after a creation")
 
-	err := s.Reconfigure(ReconfigureOrder{
+	isActive, err := s.Reconfigure(ReconfigureOrder{
 		Type:   StandardRules,
 		Config: standardRules,
 	})
 
 	require.NoError(err, "configuring the standard rules should not fail")
+	require.False(isActive, "with only standard rules, the scanner can't be active")
 
 	// now that we have some definitions, we can configure the scanner
-	err = s.Reconfigure(ReconfigureOrder{
+	isActive, err = s.Reconfigure(ReconfigureOrder{
 		Type:   AgentConfig,
 		Config: agentConfig,
 	})
@@ -88,6 +89,7 @@ func TestCreateScanner(t *testing.T) {
 	require.NoError(err, "this one shouldn't fail, all rules are disabled but it's OK as long as there are no rules in the scanner")
 
 	require.NotNil(s, "the scanner should not become a nil object")
+	require.False(isActive, "all rules are disabled, the scanner should not be active")
 
 	if s != nil && len(s.configuredRules) > 0 {
 		t.Errorf("No rules should be configured, they're all disabled. Got (%v) rules configured instead.", len(s.configuredRules))
@@ -98,17 +100,18 @@ func TestCreateScanner(t *testing.T) {
 
 	agentConfig = bytes.Replace(agentConfig, []byte("\"is_enabled\":false"), []byte("\"is_enabled\":true"), 2)
 
-	err = s.Reconfigure(ReconfigureOrder{
+	isActive, err = s.Reconfigure(ReconfigureOrder{
 		Type:   AgentConfig,
 		Config: agentConfig,
 	})
 
 	require.NoError(err, "this one should not fail since two rules are enabled: %v", err)
+	require.True(isActive, "the scanner should now be active")
 
 	require.NotNil(s.Scanner, "the Scanner should've been created, it should not be nil")
-	require.NotNil(s.Scanner.Rules, "the Scanner should use rules")
+	require.NotNil(s.Scanner.RuleConfigs, "the Scanner should use rules")
 
-	require.Len(s.Scanner.Rules, 2, "the Scanner should use two rules")
+	require.Len(s.Scanner.RuleConfigs, 2, "the Scanner should use two rules")
 	require.Len(s.configuredRules, 2, "only two rules should be part of this scanner.")
 
 	// order matters, it's ok to test rules by [] access
@@ -152,13 +155,14 @@ func TestCreateScanner(t *testing.T) {
         ]}
     `)
 
-	err = s.Reconfigure(ReconfigureOrder{
+	isActive, err = s.Reconfigure(ReconfigureOrder{
 		Type:   AgentConfig,
 		Config: agentConfig,
 	})
 
 	require.NoError(err, "this one should not fail since one rule is enabled")
 	require.Len(s.configuredRules, 1, "only one rules should be part of this scanner")
+	require.True(isActive, "the scanner should be active as one rule is enabled")
 
 	// order matters, it's ok to test rules by [] access
 	require.Equal(s.configuredRules[0].Name, "one", "incorrect rule selected for configuration")
@@ -194,13 +198,14 @@ func TestCreateScanner(t *testing.T) {
         ]}
     `)
 
-	err = s.Reconfigure(ReconfigureOrder{
+	isActive, err = s.Reconfigure(ReconfigureOrder{
 		Type:   AgentConfig,
 		Config: agentConfig,
 	})
 
 	require.NoError(err, "no error should happen")
 	require.Len(s.configuredRules, 0, "The group is disabled, no rules should be configured.")
+	require.False(isActive, "the scanner should've been disabled")
 }
 
 // TestEmptyConfiguration validates that the scanner is destroyed when receiving
@@ -244,27 +249,29 @@ func TestEmptyConfiguration(t *testing.T) {
 
 	require.NotNil(s, "the scanner should not be nil after a creation")
 
-	err := s.Reconfigure(ReconfigureOrder{
+	isActive, err := s.Reconfigure(ReconfigureOrder{
 		Type:   StandardRules,
 		Config: standardRules,
 	})
 
 	require.NoError(err, "configuring the standard rules should not fail")
+	require.False(isActive, "with only standard rules, the scanner can't be active")
 
 	// configure with one rule
 
-	err = s.Reconfigure(ReconfigureOrder{
+	isActive, err = s.Reconfigure(ReconfigureOrder{
 		Type:   AgentConfig,
 		Config: agentConfig,
 	})
 
 	require.NoError(err, "this one should not fail since one rule is enabled")
 	require.Len(s.configuredRules, 1, "only one rules should be part of this scanner")
+	require.True(isActive, "one rule is enabled, the scanner should be active")
 	require.NotNil(s.Scanner)
 
 	// empty reconfiguration
 
-	err = s.Reconfigure(ReconfigureOrder{
+	isActive, err = s.Reconfigure(ReconfigureOrder{
 		Type:   AgentConfig,
 		Config: []byte("{}"),
 	})
@@ -272,6 +279,31 @@ func TestEmptyConfiguration(t *testing.T) {
 	require.NoError(err)
 	require.Len(s.configuredRules, 0)
 	require.Nil(s.Scanner)
+	require.False(isActive, "no active rule, the scanner should be disabled")
+
+	// re-enabling with on rule
+
+	isActive, err = s.Reconfigure(ReconfigureOrder{
+		Type:   AgentConfig,
+		Config: agentConfig,
+	})
+
+	require.NoError(err, "this one should not fail since one rule is enabled")
+	require.Len(s.configuredRules, 1, "only one rules should be part of this scanner")
+	require.True(isActive, "one rule is enabled, the scanner should be active")
+	require.NotNil(s.Scanner)
+
+	// the StopProcessing signal
+
+	isActive, err = s.Reconfigure(ReconfigureOrder{
+		Type:   StopProcessing,
+		Config: nil,
+	})
+
+	require.NoError(err)
+	require.Len(s.configuredRules, 0)
+	require.Nil(s.Scanner)
+	require.False(isActive, "no active rule, the scanner should be disabled")
 }
 
 func TestIsReady(t *testing.T) {
@@ -323,21 +355,23 @@ func TestIsReady(t *testing.T) {
 	require.NotNil(s, "the scanner should not be nil after a creation")
 	require.False(s.IsReady(), "at this stage, the scanner should not be considered ready, no definitions received")
 
-	err := s.Reconfigure(ReconfigureOrder{
+	isActive, err := s.Reconfigure(ReconfigureOrder{
 		Type:   StandardRules,
 		Config: standardRules,
 	})
 
 	require.NoError(err, "configuring the definitions should not fail")
 	require.False(s.IsReady(), "at this stage, the scanner should not be considered ready, no user config received")
+	require.False(isActive, "only standard rules configured, the scanner should not be active")
 
 	// now that we have some definitions, we can configure the scanner
-	err = s.Reconfigure(ReconfigureOrder{
+	isActive, err = s.Reconfigure(ReconfigureOrder{
 		Type:   AgentConfig,
 		Config: agentConfig,
 	})
 
 	require.True(s.IsReady(), "at this stage, the scanner should be considered ready")
+	require.True(isActive, "the scanner has some enabled rules, it should be active")
 }
 
 // TestScan validates that everything fits and works. It's not validating
@@ -389,16 +423,21 @@ func TestScan(t *testing.T) {
 	s := CreateScanner(0)
 	require.NotNil(s, "the returned scanner should not be nil")
 
-	_ = s.Reconfigure(ReconfigureOrder{
+	isActive, _ := s.Reconfigure(ReconfigureOrder{
 		Type:   StandardRules,
 		Config: standardRules,
 	})
-	_ = s.Reconfigure(ReconfigureOrder{
+
+	require.False(isActive, "only standard rules, the scanner should be disabled")
+
+	isActive, _ = s.Reconfigure(ReconfigureOrder{
 		Type:   AgentConfig,
 		Config: agentConfig,
 	})
 
 	require.True(s.IsReady(), "at this stage, the scanner should be considered ready")
+	require.True(isActive, "rules are configured, the scanner should be active")
+
 	type result struct {
 		matched    bool
 		event      string
@@ -473,16 +512,18 @@ func TestCloseCycleScan(t *testing.T) {
 		s := CreateScanner(0)
 		require.NotNil(s, "the returned scanner should not be nil")
 
-		_ = s.Reconfigure(ReconfigureOrder{
+		_, _ = s.Reconfigure(ReconfigureOrder{
 			Type:   StandardRules,
 			Config: standardRules,
 		})
-		_ = s.Reconfigure(ReconfigureOrder{
+		isActive, _ := s.Reconfigure(ReconfigureOrder{
 			Type:   AgentConfig,
 			Config: agentConfig,
 		})
 
 		require.True(s.IsReady(), "at this stage, the scanner should be considered ready")
+		require.True(isActive, "the scanner should be active")
+
 		type result struct {
 			matched    bool
 			event      string
@@ -516,7 +557,7 @@ func TestCloseCycleScan(t *testing.T) {
 
 		go func() {
 			for {
-				for k, _ := range tests {
+				for k := range tests {
 					msg := message.Message{}
 					s.Scan([]byte(k), &msg)
 				}
@@ -556,10 +597,12 @@ func TestInterpretRC(t *testing.T) {
 
 	rule, err := interpretRCRule(rc, stdRc, StandardRulesDefaults{})
 	require.NoError(err)
+	rxRule, ok := rule.(sds.RegexRuleConfig)
+	require.True(ok)
 
-	require.Equal(rule.Id, "Zero")
-	require.Equal(rule.Pattern, "rule pattern 1")
-	require.Equal(rule.SecondaryValidator, sds.SecondaryValidator(""))
+	require.Equal(rxRule.Id, "Zero")
+	require.Equal(rxRule.Pattern, "rule pattern 1")
+	require.Equal(rxRule.SecondaryValidator, sds.SecondaryValidator(""))
 
 	// add a version with a required capability
 	stdRc.Definitions = append(stdRc.Definitions, StandardRuleDefinition{
@@ -570,10 +613,12 @@ func TestInterpretRC(t *testing.T) {
 
 	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{})
 	require.NoError(err)
+	rxRule, ok = rule.(sds.RegexRuleConfig)
+	require.True(ok)
 
-	require.Equal(rule.Id, "Zero")
-	require.Equal(rule.Pattern, "second pattern")
-	require.Equal(rule.SecondaryValidator, sds.LuhnChecksum)
+	require.Equal(rxRule.Id, "Zero")
+	require.Equal(rxRule.Pattern, "second pattern")
+	require.Equal(rxRule.SecondaryValidator, sds.LuhnChecksum)
 
 	// add a third version with an unknown required capability
 	// it should fallback on using the version 2
@@ -598,10 +643,12 @@ func TestInterpretRC(t *testing.T) {
 
 	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{})
 	require.NoError(err)
+	rxRule, ok = rule.(sds.RegexRuleConfig)
+	require.True(ok)
 
-	require.Equal(rule.Id, "Zero")
-	require.Equal(rule.Pattern, "second pattern")
-	require.Equal(rule.SecondaryValidator, sds.LuhnChecksum)
+	require.Equal(rxRule.Id, "Zero")
+	require.Equal(rxRule.Pattern, "second pattern")
+	require.Equal(rxRule.SecondaryValidator, sds.LuhnChecksum)
 
 	// make sure we use the keywords proximity feature if any's configured
 	// in the std rule definition 	stdRc.Definitions = []StandardRuleDefinition{
@@ -621,13 +668,15 @@ func TestInterpretRC(t *testing.T) {
 
 	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{IncludedKeywordsCharCount: 10})
 	require.NoError(err)
+	rxRule, ok = rule.(sds.RegexRuleConfig)
+	require.True(ok)
 
-	require.Equal(rule.Id, "Zero")
-	require.Equal(rule.Pattern, "second pattern")
-	require.Equal(rule.SecondaryValidator, sds.LuhnChecksum)
-	require.NotNil(rule.ProximityKeywords)
-	require.Equal(rule.ProximityKeywords.LookAheadCharacterCount, uint32(10))
-	require.Equal(rule.ProximityKeywords.IncludedKeywords, []string{"hello"})
+	require.Equal(rxRule.Id, "Zero")
+	require.Equal(rxRule.Pattern, "second pattern")
+	require.Equal(rxRule.SecondaryValidator, sds.LuhnChecksum)
+	require.NotNil(rxRule.ProximityKeywords)
+	require.Equal(rxRule.ProximityKeywords.LookAheadCharacterCount, uint32(10))
+	require.Equal(rxRule.ProximityKeywords.IncludedKeywords, []string{"hello"})
 
 	// make sure we use the user provided information first
 	// even if there is some in the std rule
@@ -638,11 +687,13 @@ func TestInterpretRC(t *testing.T) {
 
 	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{IncludedKeywordsCharCount: 10})
 	require.NoError(err)
+	rxRule, ok = rule.(sds.RegexRuleConfig)
+	require.True(ok)
 
-	require.Equal(rule.Id, "Zero")
-	require.Equal(rule.Pattern, "second pattern")
-	require.Equal(rule.SecondaryValidator, sds.LuhnChecksum)
-	require.NotNil(rule.ProximityKeywords)
-	require.Equal(rule.ProximityKeywords.LookAheadCharacterCount, uint32(42))
-	require.Equal(rule.ProximityKeywords.IncludedKeywords, []string{"custom"})
+	require.Equal(rxRule.Id, "Zero")
+	require.Equal(rxRule.Pattern, "second pattern")
+	require.Equal(rxRule.SecondaryValidator, sds.LuhnChecksum)
+	require.NotNil(rxRule.ProximityKeywords)
+	require.Equal(rxRule.ProximityKeywords.LookAheadCharacterCount, uint32(42))
+	require.Equal(rxRule.ProximityKeywords.IncludedKeywords, []string{"custom"})
 }

@@ -53,7 +53,7 @@ type Runner struct {
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
 func NewRunner(senderManager sender.SenderManager) *Runner {
-	numWorkers := config.Datadog.GetInt("check_runners")
+	numWorkers := config.Datadog().GetInt("check_runners")
 
 	r := &Runner{
 		senderManager:       senderManager,

@@ -7,12 +7,14 @@ package checks
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -118,6 +120,12 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 	if len(containers)%c.maxBatchSize != 0 {
 		groupSize++
 	}
+
+	// For no chunking, set groupsize as 1 to ensure one chunk
+	if options != nil && options.NoChunking {
+		groupSize = 1
+	}
+
 	chunked := chunkContainers(containers, groupSize)
 	messages := make([]model.MessageBody, 0, groupSize)
 	groupID := nextGroupID()
@@ -134,7 +142,8 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 	}
 
 	numContainers := float64(len(containers))
-	statsd.Client.Gauge("datadog.process.containers.host_count", numContainers, []string{}, 1) //nolint:errcheck
+	agentNameTag := fmt.Sprintf("agent:%s", flavor.GetFlavor())
+	statsd.Client.Gauge("datadog.process.containers.host_count", numContainers, []string{agentNameTag}, 1) //nolint:errcheck
 	log.Debugf("collected %d containers in %s", int(numContainers), time.Since(startTime))
 	return StandardRunResult(messages), nil
 }
@@ -144,7 +153,7 @@ func (c *ContainerCheck) Cleanup() {}
 
 // chunkContainers formats and chunks the ctrList into a slice of chunks using a specific number of chunks.
 func chunkContainers(containers []*model.Container, chunks int) [][]*model.Container {
-	perChunk := (len(containers) / chunks) + 1
+	perChunk := int(math.Ceil(float64(len(containers)) / float64(chunks)))
 	chunked := make([][]*model.Container, 0, chunks)
 	chunk := make([]*model.Container, 0, perChunk)
 

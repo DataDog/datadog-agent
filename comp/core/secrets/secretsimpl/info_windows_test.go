@@ -16,10 +16,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestGetExecutablePermissionsError(t *testing.T) {
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 
 	res, err := resolver.getExecutablePermissions()
@@ -48,7 +53,8 @@ func setupSecretCommmand(t *testing.T, resolver *secretResolver) {
 }
 
 func TestGetExecutablePermissionsSuccess(t *testing.T) {
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	setupSecretCommmand(t, resolver)
 
 	res, err := resolver.getExecutablePermissions()

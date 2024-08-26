@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -34,8 +35,11 @@ type Component interface {
 	GetIDOfCheckWithEncryptedSecrets(checkID checkid.ID) checkid.ID
 	GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet
 	GetProviderCatalog() map[string]providers.ConfigProviderFactory
+	GetTelemetryStore() *telemetry.Store
 	// TODO (component): deprecate start/stop methods
 	Start()
 	Stop()
+	// TODO (component): once cluster agent uses the API component remove this function
+	GetConfigCheck() integration.ConfigCheckResponse
 	IsStarted() bool
 }

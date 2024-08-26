@@ -62,14 +62,14 @@ jobs:
           sparse-checkout: ${{ matrix.cone }}
 
       - name: Install python
-        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
+        uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f # v5.1.1
         with:
           python-version: 3.11
           cache: 'pip'
       - run: pip install -r requirements.txt
 
       - name: Install go
-        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
           go-version-file: '.go-version'
 
@@ -98,14 +98,14 @@ jobs:
           ref: ${{ inputs.base_branch || 'main' }}
 
       - name: Install python
-        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
+        uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f # v5.1.1
         with:
-          python-version: '3.9'
+          python-version: 3.11
           cache: 'pip'
       - run: pip install -r requirements.txt
 
       - name: Install go
-        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
           go-version-file: '.go-version'
 

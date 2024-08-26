@@ -10,12 +10,16 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 var testAdditionalEndpointsConf = []byte(`
@@ -45,7 +49,7 @@ func TestProxyWithSecret(t *testing.T) {
 	cases := []testCase{
 		{
 			name: "secrets from configuration for proxy",
-			setup: func(t *testing.T, config pkgconfigmodel.Config, configPath string, resolver secrets.Mock) {
+			setup: func(_ *testing.T, config pkgconfigmodel.Config, _ string, resolver secrets.Mock) {
 				resolver.SetFetchHookFunc(func(_ []string) (map[string]string, error) {
 					return map[string]string{
 						"http_handle":       "http_url",
@@ -72,7 +76,7 @@ func TestProxyWithSecret(t *testing.T) {
 		},
 		{
 			name: "secrets fron DD env vars for proxy",
-			setup: func(t *testing.T, config pkgconfigmodel.Config, configPath string, resolver secrets.Mock) {
+			setup: func(t *testing.T, config pkgconfigmodel.Config, _ string, resolver secrets.Mock) {
 				resolver.SetFetchHookFunc(func(_ []string) (map[string]string, error) {
 					return map[string]string{
 						"http_handle":       "http_url",
@@ -99,7 +103,7 @@ func TestProxyWithSecret(t *testing.T) {
 		},
 		{
 			name: "secrets fron UNIX env vars for proxy",
-			setup: func(t *testing.T, config pkgconfigmodel.Config, configPath string, resolver secrets.Mock) {
+			setup: func(t *testing.T, config pkgconfigmodel.Config, _ string, resolver secrets.Mock) {
 				resolver.SetFetchHookFunc(func(_ []string) (map[string]string, error) {
 					return map[string]string{
 						"http_handle":       "http_url",
@@ -126,7 +130,7 @@ func TestProxyWithSecret(t *testing.T) {
 		},
 		{
 			name: "secrets from maps with keys containing dots (ie 'additional_endpoints')",
-			setup: func(t *testing.T, config pkgconfigmodel.Config, configPath string, resolver secrets.Mock) {
+			setup: func(_ *testing.T, _ pkgconfigmodel.Config, configPath string, resolver secrets.Mock) {
 				resolver.SetFetchHookFunc(func(_ []string) (map[string]string, error) {
 					return map[string]string{
 						"api_key_1": "resolved_api_key_1",
@@ -165,12 +169,15 @@ func TestProxyWithSecret(t *testing.T) {
 			os.WriteFile(configPath, nil, 0600)
 			config.SetConfigFile(configPath)
 
-			resolver := secretsimpl.NewMock()
+			resolver := fxutil.Test[secrets.Component](t, fx.Options(
+				secretsimpl.MockModule(),
+				nooptelemetry.Module(),
+			))
 			if c.setup != nil {
-				c.setup(t, config, configPath, resolver)
+				c.setup(t, config, configPath, resolver.(secrets.Mock))
 			}
 
-			_, err := LoadCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+			_, err := LoadDatadogCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)

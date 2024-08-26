@@ -10,8 +10,10 @@ import (
 	"bufio"
 	"bytes"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -26,8 +28,10 @@ import (
 	"golang.org/x/exp/maps"
 	yaml "gopkg.in/yaml.v2"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -38,14 +42,17 @@ const auditFileBasename = "secret-audit-file.json"
 type provides struct {
 	fx.Out
 
-	Comp          secrets.Component
-	FlareProvider flaretypes.Provider
+	Comp            secrets.Component
+	FlareProvider   flaretypes.Provider
+	InfoEndpoint    api.AgentEndpointProvider
+	RefreshEndpoint api.AgentEndpointProvider
 }
 
 type dependencies struct {
 	fx.In
 
-	Params secrets.Params
+	Params    secrets.Params
+	Telemetry telemetry.Component
 }
 
 // Module defines the fx options for this component.
@@ -94,24 +101,34 @@ type secretResolver struct {
 	commandHookFunc func(string) ([]byte, error)
 	fetchHookFunc   func([]string) (map[string]string, error)
 	scrubHookFunc   func([]string)
+
+	// Telemetry
+	tlmSecretBackendElapsed telemetry.Gauge
+	tlmSecretUnmarshalError telemetry.Counter
+	tlmSecretResolveError   telemetry.Counter
 }
 
 var _ secrets.Component = (*secretResolver)(nil)
 
-func newEnabledSecretResolver() *secretResolver {
+func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 	return &secretResolver{
-		cache:   make(map[string]string),
-		origin:  make(handleToContext),
-		enabled: true,
+		cache:                   make(map[string]string),
+		origin:                  make(handleToContext),
+		enabled:                 true,
+		tlmSecretBackendElapsed: telemetry.NewGauge("secret_backend", "elapsed_ms", []string{"command", "exit_code"}, "Elapsed time of secret backend invocation"),
+		tlmSecretUnmarshalError: telemetry.NewCounter("secret_backend", "unmarshal_errors_count", []string{}, "Count of errors when unmarshalling the output of the secret binary"),
+		tlmSecretResolveError:   telemetry.NewCounter("secret_backend", "resolve_errors_count", []string{"error_kind", "handle"}, "Count of errors when resolving a secret"),
 	}
 }
 
 func newSecretResolverProvider(deps dependencies) provides {
-	resolver := newEnabledSecretResolver()
+	resolver := newEnabledSecretResolver(deps.Telemetry)
 	resolver.enabled = deps.Params.Enabled
 	return provides{
-		Comp:          resolver,
-		FlareProvider: flaretypes.NewProvider(resolver.fillFlare),
+		Comp:            resolver,
+		FlareProvider:   flaretypes.NewProvider(resolver.fillFlare),
+		InfoEndpoint:    api.NewAgentEndpointProvider(resolver.writeDebugInfo, "/secrets", "GET"),
+		RefreshEndpoint: api.NewAgentEndpointProvider(resolver.handleRefresh, "/secret/refresh", "GET"),
 	}
 }
 
@@ -121,9 +138,30 @@ func (r *secretResolver) fillFlare(fb flaretypes.FlareBuilder) error {
 	writer := bufio.NewWriter(&buffer)
 	r.GetDebugInfo(writer)
 	writer.Flush()
-	fb.AddFile("secrets.log", buffer.Bytes())
-	fb.CopyFile(r.auditFilename)
+	fb.AddFile("secrets.log", buffer.Bytes()) //nolint:errcheck
+	fb.CopyFile(r.auditFilename)              //nolint:errcheck
 	return nil
+}
+
+func (r *secretResolver) writeDebugInfo(w http.ResponseWriter, _ *http.Request) {
+	r.GetDebugInfo(w)
+}
+
+func (r *secretResolver) handleRefresh(w http.ResponseWriter, _ *http.Request) {
+	result, err := r.Refresh()
+	if err != nil {
+		setJSONError(w, err, 500)
+		return
+	}
+	w.Write([]byte(result))
+}
+
+// setJSONError writes a server error as JSON with the correct http error code
+// NOTE: this is copied from comp/api/api/utils to avoid requiring that to be a go module
+func setJSONError(w http.ResponseWriter, err error, errorCode int) {
+	w.Header().Set("Content-Type", "application/json")
+	body, _ := json.Marshal(map[string]string{"error": err.Error()})
+	http.Error(w, string(body), errorCode)
 }
 
 // assocate with the handle itself the origin (filename) and path where the handle appears
@@ -331,7 +369,7 @@ func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
 // allowlistPaths restricts what config settings may be updated
 // tests can override this to exercise functionality: by setting this to nil, allow all settings
 // NOTE: Related feature to `authorizedConfigPathsCore` in `comp/api/api/apiimpl/internal/config/endpoint.go`
-var allowlistPaths = map[string]struct{}{"api_key": {}}
+var allowlistPaths = map[string]struct{}{"api_key": {}, "app_key": {}, "external_metrics_provider/api_key": {}, "external_metrics_provider/app_key": {}}
 
 // matchesAllowlist returns whether the handle is allowed, by matching all setting paths that
 // handle appears at against the allowlist

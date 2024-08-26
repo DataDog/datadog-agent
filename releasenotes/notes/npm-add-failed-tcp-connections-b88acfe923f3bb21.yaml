@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    NPM - Adds the capability to track and report failed TCP connections to the Datadog backend. This feature is disabled by default.

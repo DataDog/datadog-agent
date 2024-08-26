@@ -19,8 +19,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -118,11 +121,33 @@ func FakePodWithAnnotation(k, v string) *corev1.Pod {
 	return withContainer(pod, "-container")
 }
 
-// FakePodWithParent returns a pod with the given parent kind and name
-func FakePodWithParent(ns string, as, ls map[string]string, es []corev1.EnvVar, parentKind, parentName string) *corev1.Pod {
+// FakePodSpec describes a pod we are going to create.
+type FakePodSpec struct {
+	NS          string
+	Name        string
+	Labels      map[string]string
+	Annotations map[string]string
+	Envs        []corev1.EnvVar
+	ParentKind  string
+	ParentName  string
+}
+
+// Create makes a Pod from a FakePodSpec setting up sane defaults.
+func (f FakePodSpec) Create() *corev1.Pod {
+	if f.NS == "" {
+		f.NS = "ns"
+	}
+	if f.Name == "" {
+		f.Name = "pod"
+	}
+	return fakePodWithParent(f.NS, f.Name, f.Annotations, f.Labels, f.Envs, f.ParentKind, f.ParentName)
+}
+
+// fakePodWithParent returns a pod with the given parent kind and name
+func fakePodWithParent(ns, name string, as, ls map[string]string, es []corev1.EnvVar, parentKind, parentName string) *corev1.Pod {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            "pod",
+			Name:            name,
 			Namespace:       ns,
 			Annotations:     as,
 			Labels:          ls,
@@ -231,12 +256,12 @@ type MockDeployment struct {
 // FakeStoreWithDeployment sets up a fake workloadmeta with the given
 // deployments
 func FakeStoreWithDeployment(t *testing.T, deployments []MockDeployment) workloadmeta.Component {
-	mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		logimpl.MockModule(),
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		coreconfig.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	for _, d := range deployments {

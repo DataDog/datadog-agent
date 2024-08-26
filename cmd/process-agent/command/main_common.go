@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -33,8 +33,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
@@ -54,7 +55,6 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -96,7 +96,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 	var appInitDeps struct {
 		fx.In
 
-		Logger logComponent.Component
+		Logger logcomp.Component
 
 		Checks       []types.CheckComponent `group:"check"`
 		Syscfg       sysprobeconfig.Component
@@ -108,8 +108,9 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			core.BundleParams{
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(
 					sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath),
+					sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
 				),
-				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
+				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 				SecretParams: secrets.NewEnabledParams(),
 				LogParams:    DaemonLogParams,
 			},
@@ -150,7 +151,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		remoteconfig.Bundle(),
 
 		// Provide workloadmeta module
-		workloadmeta.Module(),
+		workloadmetafx.Module(),
 
 		// Provide tagger module
 		taggerimpl.Module(),
@@ -172,7 +173,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		autoexitimpl.Module(),
 
 		// Provide the corresponding workloadmeta Params to configure the catalog
-		collectors.GetCatalog(),
+		wmcatalog.GetCatalog(),
 		fx.Provide(func(c config.Component) workloadmeta.Params {
 			var catalog workloadmeta.AgentType
 
@@ -193,8 +194,8 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			return tagger.NewTaggerParams()
 		}),
 
-		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
-		fxutil.FxLoggingOption(),
+		// Provides specific features to our own fx wrapper (logging, lifecycle, shutdowner)
+		fxutil.FxAgentBase(),
 
 		// Set the pid file path
 		fx.Supply(pidimpl.NewParams(globalParams.PidFilePath)),
@@ -303,22 +304,16 @@ type miscDeps struct {
 	Lc fx.Lifecycle
 
 	Config       config.Component
-	Statsd       compstatsd.Component
 	Syscfg       sysprobeconfig.Component
 	HostInfo     hostinfo.Component
 	WorkloadMeta workloadmeta.Component
-	Logger       logComponent.Component
+	Logger       logcomp.Component
 }
 
 // initMisc initializes modules that cannot, or have not yet been componetized.
-// Todo: (Components) WorkloadMeta, remoteTagger, statsd
+// Todo: (Components) WorkloadMeta, remoteTagger
 // Todo: move metadata/workloadmeta/collector to workloadmeta
 func initMisc(deps miscDeps) error {
-	if err := statsd.Configure(ddconfig.GetBindHost(), deps.Config.GetInt("dogstatsd_port"), deps.Statsd.CreateForHostPort); err != nil {
-		deps.Logger.Criticalf("Error configuring statsd: %s", err)
-		return err
-	}
-
 	if err := ddutil.SetupCoreDump(deps.Config); err != nil {
 		deps.Logger.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
@@ -331,7 +326,6 @@ func initMisc(deps miscDeps) error {
 	appCtx, stopApp := context.WithCancel(context.Background())
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
-
 			if collector.Enabled(deps.Config) {
 				err := processCollectionServer.Start(appCtx, deps.WorkloadMeta)
 				if err != nil {
