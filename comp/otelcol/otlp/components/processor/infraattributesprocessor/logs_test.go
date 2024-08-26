@@ -14,7 +14,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/processor/processortest"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
@@ -125,12 +124,14 @@ func TestInfraAttributesLogProcessor(t *testing.T) {
 				Logs:        LogInfraAttributes{},
 				Cardinality: types.LowCardinality,
 			}
-			fakeTagger := taggerimpl.SetupFakeTagger(t)
-			defer fakeTagger.ResetTagger()
-			fakeTagger.SetTags("container_id://test", "test", []string{"container:id"}, nil, nil, nil)
-			fakeTagger.SetTags("deployment://namespace/deployment", "test", []string{"deployment:name"}, nil, nil, nil)
-			fakeTagger.SetTags(collectors.GlobalEntityID, "test", []string{"global:tag"}, nil, nil, nil)
-			factory := NewFactory(fakeTagger)
+			tc := &testTaggerClient{
+				m: make(map[string][]string),
+			}
+			tc.m["container_id://test"] = []string{"container:id"}
+			tc.m["deployment://namespace/deployment"] = []string{"deployment:name"}
+			tc.m[collectors.GlobalEntityID] = []string{"global:tag"}
+
+			factory := NewFactory(tc)
 			flp, err := factory.CreateLogsProcessor(
 				context.Background(),
 				processortest.NewNopSettings(),
