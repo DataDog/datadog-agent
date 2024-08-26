@@ -100,6 +100,9 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		time.Duration(initConfig.TimeoutMs)*time.Millisecond,
 		defaultTimeout,
 	)
+	if c.Timeout <= 0 {
+		return nil, fmt.Errorf("timeout must be > 0")
+	}
 
 	c.Tags = instance.Tags
 	c.Namespace = coreconfig.Datadog().GetString("network_devices.namespace")

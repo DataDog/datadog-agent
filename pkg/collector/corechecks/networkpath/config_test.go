@@ -34,6 +34,7 @@ hostname: 1.2.3.4
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(60) * time.Second,
 				Namespace:             "my-namespace",
+				Timeout:               defaultTimeout,
 			},
 		},
 		{
@@ -68,6 +69,7 @@ min_collection_interval: 10
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(42) * time.Second,
 				Namespace:             "my-namespace",
+				Timeout:               defaultTimeout,
 			},
 		},
 		{
@@ -82,6 +84,7 @@ min_collection_interval: 10
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(10) * time.Second,
 				Namespace:             "my-namespace",
+				Timeout:               defaultTimeout,
 			},
 		},
 		{
@@ -93,6 +96,7 @@ hostname: 1.2.3.4
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(1) * time.Minute,
 				Namespace:             "my-namespace",
+				Timeout:               defaultTimeout,
 			},
 		},
 		{
@@ -109,6 +113,7 @@ destination_service: service-b
 				DestinationService:    "service-b",
 				MinCollectionInterval: time.Duration(60) * time.Second,
 				Namespace:             "my-namespace",
+				Timeout:               defaultTimeout,
 			},
 		},
 		{
@@ -123,6 +128,7 @@ protocol: udp
 				MinCollectionInterval: time.Duration(60) * time.Second,
 				Namespace:             "my-namespace",
 				Protocol:              payload.ProtocolUDP,
+				Timeout:               defaultTimeout,
 			},
 		},
 		{
@@ -137,6 +143,7 @@ protocol: UDP
 				MinCollectionInterval: time.Duration(60) * time.Second,
 				Namespace:             "my-namespace",
 				Protocol:              payload.ProtocolUDP,
+				Timeout:               defaultTimeout,
 			},
 		},
 		{
@@ -151,7 +158,88 @@ protocol: TCP
 				MinCollectionInterval: time.Duration(60) * time.Second,
 				Namespace:             "my-namespace",
 				Protocol:              payload.ProtocolTCP,
+				Timeout:               defaultTimeout,
 			},
+		},
+		{
+			name: "timeout from instance config",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+timeout: 50000
+min_collection_interval: 42
+`),
+			rawInitConfig: []byte(`
+min_collection_interval: 10
+`),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(42) * time.Second,
+				Namespace:             "my-namespace",
+				Timeout:               50000 * time.Millisecond,
+			},
+		},
+		{
+			name: "timeout from instance config preferred over init config",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+timeout: 50000
+min_collection_interval: 42
+`),
+			rawInitConfig: []byte(`
+min_collection_interval: 10
+timeout: 70000
+`),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(42) * time.Second,
+				Namespace:             "my-namespace",
+				Timeout:               50000 * time.Millisecond,
+			},
+		},
+		{
+			name: "timeout from init config",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+min_collection_interval: 42
+`),
+			rawInitConfig: []byte(`
+min_collection_interval: 10
+timeout: 70000
+`),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(42) * time.Second,
+				Namespace:             "my-namespace",
+				Timeout:               70000 * time.Millisecond,
+			},
+		},
+		{
+			name: "default timeout",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+min_collection_interval: 42
+`),
+			rawInitConfig: []byte(`
+min_collection_interval: 10
+`),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(42) * time.Second,
+				Namespace:             "my-namespace",
+				Timeout:               defaultTimeout,
+			},
+		},
+		{
+			name: "negative timeout returns an error",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+min_collection_interval: 42
+`),
+			rawInitConfig: []byte(`
+min_collection_interval: 10
+timeout: -1
+`),
+			expectedError: "timeout must be > 0",
 		},
 	}
 	for _, tt := range tests {
