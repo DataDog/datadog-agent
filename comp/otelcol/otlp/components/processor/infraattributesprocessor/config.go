@@ -7,20 +7,8 @@ package infraattributesprocessor
 
 import (
 	"go.opentelemetry.io/collector/component"
-)
 
-// COPIED FROM comp/core/tagger/types.go
-// TagCardinality indicates the cardinality-level of a tag.
-// It can be low cardinality (in the host count order of magnitude)
-// orchestrator cardinality (tags that change value for each pod, task, etc.)
-// high cardinality (typically tags that change value for each web request, each container, etc.)
-type TagCardinality int
-
-// List of possible container cardinality
-const (
-	LowCardinality TagCardinality = iota
-	OrchestratorCardinality
-	HighCardinality
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
 // Config defines configuration for processor.
@@ -29,7 +17,7 @@ type Config struct {
 	Logs    LogInfraAttributes    `mapstructure:"logs"`
 	Traces  TraceInfraAttributes  `mapstructure:"traces"`
 
-	Cardinality TagCardinality `mapstructure:"cardinality"`
+	Cardinality types.TagCardinality `mapstructure:"cardinality"`
 }
 
 // MetricInfraAttributes - configuration for metrics.
