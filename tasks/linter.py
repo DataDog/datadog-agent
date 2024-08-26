@@ -544,6 +544,7 @@ def job_change_path(ctx, job_files=None):
         'new-e2e-agent-platform-install-script-ubuntu-heroku-agent-a6-x86_64',
         'new-e2e-agent-platform-install-script-ubuntu-heroku-agent-a7-x86_64',
         'new-e2e-agent-platform-install-script-ubuntu-iot-agent-a7-x86_64',
+        'new-e2e-agent-platform-install-script-docker',
         'new-e2e-agent-platform-install-script-upgrade6-amazonlinux-x64',
         'new-e2e-agent-platform-install-script-upgrade6-centos-fips-x86_64',
         'new-e2e-agent-platform-install-script-upgrade6-centos-x86_64',

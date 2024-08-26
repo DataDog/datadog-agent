@@ -32,12 +32,10 @@ jobs:
 
       - name: Setup env variables
         run: |
-          echo "CODEQL_PYTHON=$(which python3)" >> $GITHUB_ENV
-          echo "$GOPATH/bin" >> $GITHUB_PATH
           echo "CGO_LDFLAGS= -L${GITHUB_WORKSPACE}/rtloader/build/rtloader -ldl " >> $GITHUB_ENV
           echo "CGO_CFLAGS= -I${GITHUB_WORKSPACE}/rtloader/include  -I${GITHUB_WORKSPACE}/rtloader/common " >> $GITHUB_ENV
 
-      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+      - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
           go-version-file: ".go-version"
 
@@ -45,7 +43,12 @@ jobs:
         uses: github/codeql-action/init@afb54ba388a7dca6ecae48f608c4ff05ff4cc77a # v3.25.15
         with:
           languages: ${{ matrix.language }}
-          setup-python-dependencies: false
+          config: |
+            paths-ignore:
+              - rtloader/build/rtloader/CMakeFiles/datadog-agent-rtloader.dir
+              - rtloader/build/three/CMakeFiles/datadog-agent-three.dir
+              - rtloader/build/test/CMakeFiles/run.dir
+              - rtloader/build/CMakeFiles/clang-format.dir
 
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@49819abfb41bd9b44fb781159c033dba90353a7c
@@ -54,7 +57,7 @@ jobs:
 
       - name: Build DataDog agent
         run: |
-          invoke install-tools --no-custom-golangci-lint
+          invoke install-tools
           invoke deps
           invoke agent.build --build-exclude=systemd
 
