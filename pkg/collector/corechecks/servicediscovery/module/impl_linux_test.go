@@ -368,56 +368,34 @@ func buildFakeServer(t *testing.T) string {
 	return filepath.Dir(serverBin)
 }
 
-const (
-	pythonScript = `#! /usr/bin/python
-
-import socket
-import time
-
-HOST = '127.0.0.1'
-PORT = 0 # Empty port
-
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.bind((HOST, PORT))
-s.listen()
-time.sleep(30)
-`
-)
-
 func TestPythonFromBashScript(t *testing.T) {
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err)
+	pythonScriptPath := filepath.Join(curDir, "testdata", "script.py")
+
 	t.Run("PythonFromBashScript", func(t *testing.T) {
-		testCaptureWrappedCommands(t, "python-*.sh", []byte(pythonScript), []string{"sh", "-c"}, func(service model.Service) bool {
+		testCaptureWrappedCommands(t, pythonScriptPath, []string{"sh", "-c"}, func(service model.Service) bool {
 			return service.Language == string(language.Python)
 		})
 	})
 	t.Run("DirectPythonScript", func(t *testing.T) {
-		testCaptureWrappedCommands(t, "script.py", []byte(pythonScript), nil, func(service model.Service) bool {
+		testCaptureWrappedCommands(t, pythonScriptPath, nil, func(service model.Service) bool {
 			return service.Language == string(language.Python)
 		})
 	})
 }
 
-func testCaptureWrappedCommands(t *testing.T, scriptName string, scriptContent []byte, commandWrapper []string, validator func(service model.Service) bool) {
-	// Creating tempfile
-	tempfile, err := os.CreateTemp("", scriptName)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		tempfile.Close()
-		os.Remove(tempfile.Name())
-	})
-	_, err = tempfile.Write(scriptContent)
-	require.NoError(t, err)
-	require.NoError(t, tempfile.Close())
-
+func testCaptureWrappedCommands(t *testing.T, script string, commandWrapper []string, validator func(service model.Service) bool) {
 	// Changing permissions
-	require.NoError(t, os.Chmod(tempfile.Name(), 0755))
+	require.NoError(t, os.Chmod(script, 0755))
 
-	commandLine := append(commandWrapper, tempfile.Name())
+	commandLine := append(commandWrapper, script)
 	cmd := exec.Command(commandLine[0], commandLine[1:]...)
 	// Running the binary in the background
 	require.NoError(t, cmd.Start())
 
 	var proc *process.Process
+	var err error
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		proc, err = process.NewProcess(int32(cmd.Process.Pid))
 		assert.NoError(collect, err)
