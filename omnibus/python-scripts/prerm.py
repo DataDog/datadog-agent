@@ -18,6 +18,8 @@ import subprocess
 import shutil
 import sys
 
+import pkg_resources
+
 def run_command(command):
     """
     Execute a shell command and return its output.
@@ -107,6 +109,19 @@ def cleanup_files(*files):
             print(f"Removing file: {file}")
             os.remove(file)
 
+def load_requirements(filename):
+    """
+    Load requirements from a file.
+    """
+    with open(filename, 'r', encoding='utf-8') as f:
+        return list(pkg_resources.parse_requirements(f))
+
+def get_requirements_dict(requirements):
+    """
+    Create a dictionary from requirements with package names as keys and versions as values.
+    """
+    return {req.name: req for req in requirements}
+
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         print("Usage: script_prerm.py <INSTALL_DIR>")
@@ -115,22 +130,21 @@ if __name__ == '__main__':
     install_directory = sys.argv[1]
     
     if os.path.exists(install_directory):
-        # Define file paths
-        datadog_req_file = os.path.join(install_directory, '.datadog_requirements.txt')
-        installed_datadog_req_file = os.path.join(install_directory, '.installed_datadog_requirements.txt')
+        datadog_requirements_file = os.path.join(install_directory, '.datadog_requirements.txt')
+        installed_datadog_requirements_file = os.path.join(install_directory, '.installed_datadog_requirements.txt')
+        new_datadog_requirements_file = create_new_integrations_file(install_directory)
+        compare_and_update_files(datadog_requirements_file, new_datadog_requirements_file, installed_datadog_requirements_file)
 
-        python_req_file = os.path.join(install_directory, '.python_requirements.txt')
-        installed_python_req_file = os.path.join(install_directory, '.installed_python_requirements.txt')
+        old_datadog_requirements = load_requirements(datadog_requirements_file)
+        old_datadog_requirements_dict = get_requirements_dict(old_datadog_requirements)
+        print(f"old_datadog_requirements_dict: {old_datadog_requirements_dict}")
 
-        # Create new files and compare them
-        new_datadog_file = create_new_integrations_file(install_directory)
-        compare_and_update_files(datadog_req_file, new_datadog_file, installed_datadog_req_file)
-
+        python_requirements_file = os.path.join(install_directory, '.python_requirements.txt')
+        installed_python_requirements_file = os.path.join(install_directory, '.installed_python_requirements.txt')
         new_python_file = create_new_dependencies_file(install_directory)
-        compare_and_update_files(python_req_file, new_python_file, installed_python_req_file)
+        compare_and_update_files(python_requirements_file, new_python_file, installed_python_requirements_file)
 
-        # Clean up old and new temporary files
-        cleanup_files(datadog_req_file, new_datadog_file, python_req_file, new_python_file)
+        cleanup_files(datadog_requirements_file, new_datadog_requirements_file, python_requirements_file, new_python_file)
     else:
         print(f"Directory {install_directory} does not exist.")
         sys.exit(1)
