@@ -11,7 +11,7 @@ import (
 	"io/fs"
 	"path"
 
-	"go.uber.org/zap"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type (
@@ -101,7 +101,7 @@ func (we websphereExtractor) findDeployedApps(domainHome string) ([]jeeDeploymen
 				dt:   ear,
 			})
 		} else if err != nil {
-			we.ctx.logger.Debug("websphere: unable to know if an application is deployed", zap.String("path", m), zap.Error(err))
+			log.Debugf("websphere: unable to know if an application is deployed (path %q). Err: %v", m, err)
 		}
 	}
 	return apps, len(apps) > 0

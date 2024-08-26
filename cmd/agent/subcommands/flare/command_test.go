@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -99,7 +98,7 @@ func (c *commandTestSuite) TestReadProfileData() {
 	mockConfig.SetWithoutSource("process_config.expvar_port", port)
 	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
 
-	mockSysProbeConfig := config.MockSystemProbe(t)
+	mockSysProbeConfig := configmock.NewSystemProbe(t)
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
 	if runtime.GOOS == "windows" {
 		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", u.Host)
@@ -167,7 +166,7 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 	mockConfig.SetWithoutSource("process_config.expvar_port", port)
 	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
 
-	mockSysProbeConfig := config.MockSystemProbe(t)
+	mockSysProbeConfig := configmock.NewSystemProbe(t)
 	mockSysProbeConfig.SetWithoutSource("system_probe_config.enabled", true)
 	if runtime.GOOS == "windows" {
 		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", u.Host)

@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -27,7 +27,7 @@ import (
 
 func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 	t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
-	cfg := aconfig.MockSystemProbe(t)
+	cfg := configmock.NewSystemProbe(t)
 	sysconfig.Adjust(cfg)
 
 	if sysconfig.ProcessEventDataStreamSupported() {

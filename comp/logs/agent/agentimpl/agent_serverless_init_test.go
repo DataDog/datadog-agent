@@ -9,6 +9,7 @@ package agentimpl
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
@@ -26,4 +27,5 @@ func TestBuildServerlessEndpoints(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "http-intake.logs.datadoghq.com", endpoints.Main.Host)
 	assert.Equal(t, "lambda-extension", string(endpoints.Main.Origin))
+	assert.True(t, endpoints.Main.BatchWait > config.BatchWait*time.Second)
 }

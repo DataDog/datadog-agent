@@ -19,7 +19,9 @@
 /.go-version                            @DataDog/agent-shared-components @DataDog/agent-delivery
 # Go linters and pre-commit config
 /.golangci.yml                          @DataDog/agent-devx-loops
+/.custom-gcl.yml                        @DataDog/agent-devx-loops
 /.pre-commit-config.yaml                @DataDog/agent-devx-loops
+/.vscode/                               @DataDog/agent-devx-loops
 
 /CHANGELOG.rst                          @DataDog/agent-delivery
 /CHANGELOG-DCA.rst                      @DataDog/container-integrations @DataDog/container-platform
@@ -252,7 +254,6 @@
 /comp/core @DataDog/agent-shared-components
 /comp/dogstatsd @DataDog/agent-metrics-logs
 /comp/forwarder @DataDog/agent-processing-and-routing
-/comp/languagedetection @DataDog/container-platform
 /comp/logs @DataDog/agent-metrics-logs
 /comp/metadata @DataDog/agent-shared-components
 /comp/ndmtmp @DataDog/network-device-monitoring
@@ -280,6 +281,7 @@
 /comp/trace/etwtracer @DataDog/windows-agent
 /comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/etw @DataDog/windows-agent
+/comp/languagedetection/client @DataDog/container-platform
 /comp/rdnsquerier @DataDog/network-device-monitoring
 /comp/serializer/compression @DataDog/agent-metrics-logs
 # END COMPONENTS
@@ -298,7 +300,9 @@
 /pkg/gohai                              @DataDog/agent-shared-components
 /pkg/jmxfetch/                          @DataDog/agent-metrics-logs
 /pkg/metrics/                           @DataDog/agent-metrics-logs
+/pkg/metrics/metricsource.go            @DataDog/agent-metrics-logs @DataDog/agent-integrations
 /pkg/serializer/                        @DataDog/agent-processing-and-routing
+/pkg/serializer/internal/metrics/origin_mapping.go  @DataDog/agent-processing-and-routing @DataDog/agent-integrations
 /pkg/serverless/                        @DataDog/serverless
 /pkg/serverless/appsec/                 @DataDog/asm-go
 /pkg/status/                            @DataDog/agent-shared-components
@@ -356,7 +360,7 @@
 /pkg/collector/corechecks/system/winkmem/         @DataDog/windows-agent
 /pkg/collector/corechecks/system/winproc/         @DataDog/windows-agent
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
-/pkg/collector/corechecks/nvidia/       @DataDog/agent-devx-infra
+/pkg/collector/corechecks/nvidia/       @DataDog/platform-integrations
 /pkg/collector/corechecks/windows_event_log/ @DataDog/windows-agent
 /pkg/config/                            @DataDog/agent-shared-components
 /pkg/config/config_template.yaml        @DataDog/agent-shared-components @DataDog/documentation
@@ -398,7 +402,6 @@
 /pkg/proto/datadog/workloadmeta         @DataDog/container-platform
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-shared-components
-/pkg/serializer/                        @DataDog/agent-processing-and-routing
 /pkg/tagset/                            @DataDog/agent-shared-components
 /pkg/util/                              @DataDog/agent-shared-components
 /pkg/util/aggregatingqueue              @DataDog/container-integrations @DataDog/container-platform
@@ -426,6 +429,8 @@
 /pkg/util/testutil/flake                @DataDog/agent-devx-loops
 /pkg/util/trie                          @DataDog/container-integrations
 /pkg/languagedetection                  @DataDog/processes @DataDog/universal-service-monitoring
+/pkg/linters/                           @DataDog/agent-devx-loops
+/pkg/linters/components/                @DataDog/agent-shared-components
 /pkg/logs/                              @DataDog/agent-metrics-logs
 /pkg/logs/launchers/windowsevent        @DataDog/agent-metrics-logs @DataDog/windows-agent
 /pkg/logs/tailers/windowsevent          @DataDog/agent-metrics-logs @DataDog/windows-agent
@@ -587,11 +592,13 @@
 /test/new-e2e/tests/agent-shared-components   @DataDog/agent-shared-components
 /test/new-e2e/tests/agent-subcommands         @DataDog/agent-shared-components
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
+/test/new-e2e/tests/discovery                 @DataDog/apm-onboarding @DataDog/universal-service-monitoring
 /test/new-e2e/tests/language-detection        @DataDog/processes
 /test/new-e2e/tests/ndm                       @DataDog/network-device-monitoring
 /test/new-e2e/tests/npm                       @DataDog/Networks
 /test/new-e2e/tests/npm/ec2_1host_wkit_test.go @DataDog/Networks @DataDog/windows-kernel-integrations
 /test/new-e2e/tests/orchestrator              @DataDog/container-app
+/test/new-e2e/tests/otel                      @DataDog/opentelemetry
 /test/new-e2e/tests/process                   @DataDog/processes
 /test/new-e2e/tests/sysprobe-functional     @DataDog/windows-kernel-integrations
 /test/new-e2e/tests/security-agent-functional     @DataDog/windows-kernel-integrations

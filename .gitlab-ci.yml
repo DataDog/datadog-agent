@@ -384,6 +384,7 @@ workflow:
         GO_TEST_SKIP_FLAKE: "false"
     - <<: *if_release_branch
     - <<: *if_deploy
+    - <<: *if_deploy_installer
     - if: $CI_COMMIT_TAG == null
 
 #
@@ -590,7 +591,6 @@ workflow:
 .except_deploy:
   - <<: *if_deploy
     when: never
-  - when: on_success
 
 .except_no_tests_no_deploy:
   - if: $DEPLOY_AGENT == "false" && $DDR_WORKFLOW_ID == null && $RUN_E2E_TESTS == "off"
@@ -816,6 +816,7 @@ workflow:
         - comp/core/autodiscovery/listeners/**/*
         - comp/core/autodiscovery/providers/**/*
         - comp/languagedetection/**/*
+        - pkg/clusteragent/admission/mutate/**/*
         - pkg/collector/corechecks/cluster/**/*
         - pkg/collector/corechecks/containers/**/*
         - pkg/collector/corechecks/containerimage/**/*
@@ -876,6 +877,14 @@ workflow:
       paths:
         # TODO: Add paths that should trigger tests for npm
         - test/new-e2e/tests/npm/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.on_discovery_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - test/new-e2e/tests/discovery/**/*
+        - pkg/collector/corechecks/servicediscovery/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_aml_or_e2e_changes:
@@ -980,6 +989,15 @@ workflow:
     when: on_success
   - when: manual
     allow_failure: true
+
+.on_otel_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - comp/otelcol/**/*
+        - test/new-e2e/tests/otel/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
 
 .on_windows_service_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]

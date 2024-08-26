@@ -13,6 +13,10 @@ import (
 	"strings"
 )
 
+const (
+	tempDirPrefix = "tmp-i-"
+)
+
 // Repositories manages multiple repositories.
 type Repositories struct {
 	rootPath  string
@@ -44,8 +48,12 @@ func (r *Repositories) loadRepositories() (map[string]*Repository, error) {
 		if !d.IsDir() {
 			continue
 		}
-		if strings.HasPrefix(d.Name(), "tmp-install") {
-			// Temporary extraction dir, ignore
+		if strings.HasPrefix(d.Name(), tempDirPrefix) {
+			// Temporary dir created by Repositories.MkdirTemp, ignore
+			continue
+		}
+		if d.Name() == "run" {
+			// run dir, ignore
 			continue
 		}
 		repo := r.newRepository(d.Name())
@@ -115,4 +123,11 @@ func (r *Repositories) Cleanup() error {
 		}
 	}
 	return nil
+}
+
+// MkdirTemp creates a temporary directory in the same partition as the root path.
+// This ensures that the temporary directory can be moved to the root path without copying.
+// The caller is responsible for cleaning up the directory.
+func (r *Repositories) MkdirTemp() (string, error) {
+	return os.MkdirTemp(r.rootPath, tempDirPrefix+"*")
 }
