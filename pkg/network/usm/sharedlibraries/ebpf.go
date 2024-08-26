@@ -57,8 +57,8 @@ func IsSupported(cfg *ddebpf.Config) bool {
 		return kversion >= kernel.VersionCode(5, 5, 0) && (cfg.EnableRuntimeCompiler || cfg.EnableCORE)
 	}
 
-	// Required 4.10 to have LRU per-cpu maps
-	return kversion >= kernel.VersionCode(4, 10, 0)
+	// Minimum version for shared libraries monitoring is 4.14
+	return kversion >= kernel.VersionCode(4, 14, 0)
 }
 
 // NewEBPFProgram creates a new EBPFProgram to monitor shared libraries
