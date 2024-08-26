@@ -58,12 +58,19 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 		Name                    string          `json:"name"`
 		InitConfig              json.RawMessage `json:"init_config"`
 		Instances               []interface{}   `json:"instances"`
+		Logs                    json.RawMessage `json:"logs"`
 		IgnoreAutodiscoveryTags bool            `json:"ignore_autodiscovery_tags"`
 	}
-
+	fmt.Println("andrewq", checksJSON)
 	err := json.Unmarshal([]byte(checksJSON), &namedChecks)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse check configuration: %w", err)
+	}
+	// docker run -l com.datadoghq.ad.checks="{\"<INTEGRATION_NAME>\": {\"instances\": [<INSTANCE_CONFIG>], \"logs\": [<LOGS_CONFIG>]}}"
+	// docker run -l "com.datadoghq.ad.checks="{\"apache\": {\"logs\": [{\"type\":\"file\"}]}}""
+	fmt.Println("andrewq2", namedChecks)
+	for key, val := range namedChecks {
+		fmt.Println("Key:", key, "Logs:", val.Logs)
 	}
 
 	checks := make([]integration.Config, 0, len(namedChecks))
@@ -76,10 +83,15 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 			config.InitConfig = json.RawMessage("{}")
 		}
 
+		log, err := parseJSONObjToData(config.Logs)
+		if err != nil {
+			return nil, err
+		}
 		c := integration.Config{
 			Name:                    name,
 			InitConfig:              integration.Data(config.InitConfig),
 			ADIdentifiers:           []string{adIdentifier},
+			LogsConfig:              log,
 			IgnoreAutodiscoveryTags: config.IgnoreAutodiscoveryTags,
 		}
 
