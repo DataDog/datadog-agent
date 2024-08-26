@@ -240,7 +240,7 @@ type ProbeManager interface {
 
 // FileRegistry is an interface that defines the methods that a FileRegistry implements, so that we can replace it in tests for a mock object
 type FileRegistry interface {
-	Register(namespacedPath string, pid uint32, activationCB, deactivationCB func(utils.FilePath) error) error
+	Register(namespacedPath string, pid uint32, activationCB, deactivationCB utils.Callback) error
 	Unregister(uint32) error
 	Clear()
 	GetRegisteredProcesses() map[uint32]struct{}
