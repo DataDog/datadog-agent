@@ -143,7 +143,7 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 		return
 	}
 
-	samples := p.sumValuesByContext(metricFam, p.getEntityIDIfContainerMetric)
+	samples := p.latestValueByContext(metricFam, p.getEntityIDIfContainerMetric)
 	for containerID, sample := range samples {
 		var tags []string
 
@@ -229,7 +229,7 @@ func (p *Provider) processUsageMetric(metricName string, metricFam *prom.MetricF
 		seenKeys[k] = false
 	}
 
-	samples := p.latestValueByContext(metricFam, p.getEntityIDIfContainerMetric)
+	samples := p.sumValuesByContext(metricFam, p.getEntityIDIfContainerMetric)
 	for containerID, sample := range samples {
 		containerName := string(sample.Metric["name"])
 		if containerName == "" {
