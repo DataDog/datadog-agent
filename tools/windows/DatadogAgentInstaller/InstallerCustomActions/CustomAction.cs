@@ -37,6 +37,12 @@ namespace Datadog.InstallerCustomActions
         }
 
         [CustomAction]
+        public static ActionResult UninstallWriteInstallState(Session session)
+        {
+            return new WriteInstallStateCA(new SessionWrapper(session)).UninstallWriteInstallState();
+        }
+
+        [CustomAction]
         public static ActionResult ReadConfig(Session session)
         {
             return Datadog.CustomActions.ConfigCustomActions.ReadConfig(session);

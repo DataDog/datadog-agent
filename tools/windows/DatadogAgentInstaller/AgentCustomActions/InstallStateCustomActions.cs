@@ -254,18 +254,7 @@ namespace Datadog.AgentCustomActions
                     return ActionResult.Success;
                 }
 
-                foreach (var value in new[] { "installedDomain", "installedUser" })
-                {
-                    try
-                    {
-                        subkey.DeleteValue(value);
-                    }
-                    catch (Exception e)
-                    {
-                        // Don't print stack trace as it may be seen as a terminal error by readers of the log.
-                        _session.Log($"Warning, cannot removing registry value: {e.Message}");
-                    }
-                }
+                RemoveAgentUserInRegistry(subkey);
             }
             catch (Exception e)
             {
@@ -276,6 +265,4 @@ namespace Datadog.AgentCustomActions
             return ActionResult.Success;
         }
     }
-
-
 }

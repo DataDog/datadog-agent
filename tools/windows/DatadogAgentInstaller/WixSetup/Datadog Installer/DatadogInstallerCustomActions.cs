@@ -10,6 +10,9 @@ namespace WixSetup.Datadog_Installer
         public ManagedAction WriteConfig { get; }
         public ManagedAction ReadInstallState { get; }
         public ManagedAction WriteInstallState { get; }
+        public ManagedAction RollbackWriteInstallState { get; }
+        public ManagedAction UninstallWriteInstallState { get; }
+        public ManagedAction RollbackUninstallWriteInstallState { get; }
         public ManagedAction OpenMsiLog { get; }
         public ManagedAction ProcessDdAgentUserCredentials { get; }
 
@@ -110,7 +113,60 @@ namespace WixSetup.Datadog_Installer
                 Impersonate = false
             }
                 .SetProperties("DDAGENTUSER_PROCESSED_DOMAIN=[DDAGENTUSER_PROCESSED_DOMAIN], " +
-                               "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME]");
+                               "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME], " +
+                               "DDAGENT_installedDomain=[DDAGENT_installedDomain], " +
+                               "DDAGENT_installedUser=[DDAGENT_installedUser]");
+
+            RollbackWriteInstallState = new CustomAction<CustomActions>(
+                    new Id(nameof(RollbackWriteInstallState)),
+                    CustomActions.UninstallWriteInstallState,
+                    Return.check,
+                    When.Before,
+                    new Step(WriteInstallState.Id),
+                    // Run unless we are being uninstalled.
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                )
+            {
+                Execute = Execute.rollback,
+                Impersonate = false,
+            }
+                .SetProperties("DDAGENTUSER_PROCESSED_DOMAIN=[DDAGENTUSER_PROCESSED_DOMAIN], " +
+                               "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME], " +
+                               "DDAGENT_installedDomain=[DDAGENT_installedDomain], " +
+                               "DDAGENT_installedUser=[DDAGENT_installedUser]");
+
+            UninstallWriteInstallState = new CustomAction<CustomActions>(
+                new Id(nameof(UninstallWriteInstallState)),
+                CustomActions.UninstallWriteInstallState,
+                Return.check,
+                // Since this CA removes registry values it must run before the built-in RemoveRegistryValues
+                // so that the built-in registry keys can be removed if they are empty.
+                When.Before,
+                Step.RemoveRegistryValues,
+                Conditions.Uninstalling | Conditions.RemovingForUpgrade
+            )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            };
+
+
+            RollbackUninstallWriteInstallState = new CustomAction<CustomActions>(
+                new Id(nameof(RollbackUninstallWriteInstallState)),
+                CustomActions.WriteInstallState,
+                Return.check,
+                When.Before,
+                new Step(UninstallWriteInstallState.Id),
+                Conditions.Uninstalling | Conditions.RemovingForUpgrade
+            )
+            {
+                Execute = Execute.rollback,
+                Impersonate = false,
+            }
+                .SetProperties("DDAGENTUSER_PROCESSED_DOMAIN=[DDAGENTUSER_PROCESSED_DOMAIN], " +
+                               "DDAGENTUSER_PROCESSED_NAME=[DDAGENTUSER_PROCESSED_NAME], " +
+                               "DDAGENT_installedDomain=[DDAGENT_installedDomain], " +
+                               "DDAGENT_installedUser=[DDAGENT_installedUser]");
         }
     }
 }

@@ -80,5 +80,47 @@ namespace Datadog.InstallerCustomActions
 
             return ActionResult.Success;
         }
+
+        /// <summary>
+        /// Uninstall CA that removes the changes from the WriteInstallState CA
+        /// </summary>
+        public ActionResult UninstallWriteInstallState()
+        {
+            try
+            {
+                using var subkey =
+                    _registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogInstallerRegistryKey,
+                        writable: true);
+                if (subkey == null)
+                {
+                    // registry key does not exist, nothing to do
+                    _session.Log(
+                        $"Registry key HKLM\\{Constants.DatadogInstallerRegistryKey} does not exist, there are no values to remove.");
+                    return ActionResult.Success;
+                }
+
+                RemoveAgentUserInRegistry(subkey);
+
+                // Remove the registry key if it is empty.
+                // This mimics MSI behavior. If in the future the registry key is added as a component
+                // then we can remove this code.
+                try
+                {
+                    _registryServices.DeleteSubKey(Registries.LocalMachine, Constants.DatadogInstallerRegistryKey);
+                }
+                catch (Exception e)
+                {
+                    _session.Log($"Warning, could not remove registry key {Constants.DatadogInstallerRegistryKey}: {e}");
+                    // This step can fail without failing the un-installation.
+                }
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Warning, could not access registry key {Constants.DatadogInstallerRegistryKey}: {e}");
+                // This step can fail without failing the un-installation.
+            }
+
+            return ActionResult.Success;
+        }
     }
 }

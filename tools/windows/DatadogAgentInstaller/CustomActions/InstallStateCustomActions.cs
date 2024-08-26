@@ -95,6 +95,7 @@ namespace Datadog.CustomActions
         /// </remarks>
         protected void LoadAgentUserProperty(IRegistryKey subkey)
         {
+            // handle user input property
             RegistryProperty(_session, "DDAGENTUSER_NAME",
                 () =>
                 {
@@ -107,16 +108,53 @@ namespace Datadog.CustomActions
 
                     return string.Empty;
                 });
+            // also separately store the registry values for use in rollback
+            RegistryValueProperty(_session, "DDAGENT_installedDomain", subkey, "installedDomain");
+            RegistryValueProperty(_session, "DDAGENT_installedUser", subkey, "installedUser");
         }
 
         protected void StoreAgentUserInRegistry(IRegistryKey subkey)
         {
-            _session.Log($"Storing installedDomain={_session.Property("DDAGENTUSER_PROCESSED_DOMAIN")}");
-            subkey.SetValue("installedDomain", _session.Property("DDAGENTUSER_PROCESSED_DOMAIN"),
-                RegistryValueKind.String);
-            _session.Log($"Storing installedUser={_session.Property("DDAGENTUSER_PROCESSED_NAME")}");
-            subkey.SetValue("installedUser", _session.Property("DDAGENTUSER_PROCESSED_NAME"),
-                RegistryValueKind.String);
+            // Store the agent user in the registry
+            // The agent user is stored in the registry as separate domain and user values.
+            // Store the processes values from ProcessDDAgentUserCredentials if they exist.
+            // Fallback to the original values if they don't (e.g. uninstall doesn't run ProcessDDAgentUserCredentials).
+            var domain = _session.Property("DDAGENTUSER_PROCESSED_DOMAIN");
+            if (string.IsNullOrEmpty(domain))
+            {
+                domain = _session.Property("DDAGENT_installedDomain");
+            }
+            if (!string.IsNullOrEmpty(domain))
+            {
+                _session.Log($"Storing installedDomain={domain}");
+                subkey.SetValue("installedDomain", domain, RegistryValueKind.String);
+            }
+            var user = _session.Property("DDAGENTUSER_PROCESSED_NAME");
+            if (string.IsNullOrEmpty(user))
+            {
+                user = _session.Property("DDAGENT_installedUser");
+            }
+            if (!string.IsNullOrEmpty(user))
+            {
+                _session.Log($"Storing installedUser={user}");
+                subkey.SetValue("installedUser", user, RegistryValueKind.String);
+            }
+        }
+
+        protected void RemoveAgentUserInRegistry(IRegistryKey subkey)
+        {
+            foreach (var value in new[] { "installedDomain", "installedUser" })
+            {
+                try
+                {
+                    subkey.DeleteValue(value);
+                }
+                catch (Exception e)
+                {
+                    // Don't print stack trace as it may be seen as a terminal error by readers of the log.
+                    _session.Log($"Warning, cannot removing registry value: {e.Message}");
+                }
+            }
         }
 
         /// <summary>
