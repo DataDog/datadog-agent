@@ -113,7 +113,7 @@ DOGSTATSD_TAGS = {"containerd", "docker", "kubelet", "podman", "zlib", "zstd"}
 IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib", "zstd"}
 
 # KA_AGENT_TAGS lists the tags needed when building the Kernel agent
-KA_AGENT_TAGS = {"zlib", "zstd"}
+KA_AGENT_TAGS = {"zlib", "zstd", "docker", "kubelet"}
 
 # LOGS_AGENT_TAGS lists the tags needed when building the Logs agent
 LOGS_AGENT_TAGS = {"docker", "kubelet"}

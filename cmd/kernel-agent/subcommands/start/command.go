@@ -52,6 +52,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -197,6 +198,8 @@ func RunKernelAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 		fx.Provide(tagger.NewTaggerParams),
 		// Can the tagger works without the workloadmeta?
 		taggerimpl.Module(),
+		// workloadmeta setup
+		collectors.GetCatalog(),
 		fx.Provide(workloadmeta.NewParams),
 		workloadmetafx.Module(),
 
