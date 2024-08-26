@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Language represents programming languages.
@@ -55,18 +54,6 @@ var (
 		languagemodels.Ruby:   Ruby,
 	}
 )
-
-// Detect attempts to detect the Language from the provided process information.
-func (lf Finder) Detect(args []string, envs map[string]string) (Language, bool) {
-	lang := lf.findLang(ProcessInfo{
-		Args: args,
-		Envs: envs,
-	})
-	if lang == "" {
-		return Unknown, false
-	}
-	return lang, true
-}
 
 func findFile(fileName string) (io.ReadCloser, bool) {
 	f, err := os.Open(fileName)
@@ -110,38 +97,6 @@ func (pi ProcessInfo) FileReader() (io.ReadCloser, bool) {
 type Matcher interface {
 	Language() Language
 	Match(pi ProcessInfo) bool
-}
-
-// New returns a new language Finder.
-func New() Finder {
-	return Finder{
-		Matchers: []Matcher{
-			PythonScript{},
-			RubyScript{},
-			DotNetBinary{},
-		},
-	}
-}
-
-// Finder allows to detect the language for a given process.
-type Finder struct {
-	Matchers []Matcher
-}
-
-func (lf Finder) findLang(pi ProcessInfo) Language {
-	lang := FindInArgs(pi.Args)
-	log.Debugf("language found: %q", lang)
-
-	// if we can't figure out a language from the command line, try alternate methods
-	if lang == "" {
-		for _, matcher := range lf.Matchers {
-			if matcher.Match(pi) {
-				lang = matcher.Language()
-				break
-			}
-		}
-	}
-	return lang
 }
 
 // FindInArgs tries to detect the language only using the provided command line arguments.
