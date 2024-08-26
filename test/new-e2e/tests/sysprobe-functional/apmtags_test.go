@@ -61,7 +61,7 @@ type usmTaggingTest struct {
 	name        string
 	description string
 
-	clientJsonFile  string
+	clientJSONFile  string
 	clientAppConfig string
 
 	defaultFiles usmTaggingFiles
@@ -81,7 +81,7 @@ var usmTaggingTests = []usmTaggingTest{
 	{
 		name:            "all values json test 1",
 		description:     "Basic test with all values from json",
-		clientJsonFile:  "usmtest/client_all.json",
+		clientJSONFile:  "usmtest/client_all.json",
 		clientAppConfig: "",
 		defaultFiles: usmTaggingFiles{
 			jsonFile:      "usmtest/defaultsite_all.json",
@@ -106,7 +106,7 @@ var usmTaggingTests = []usmTaggingTest{
 	{
 		name:            "all values xml test 1",
 		description:     "Test with both json and app config provided, xml supercedes json",
-		clientJsonFile:  "usmtest/client_all.json",
+		clientJSONFile:  "usmtest/client_all.json",
 		clientAppConfig: "usmtest/client_all.xml",
 		defaultFiles: usmTaggingFiles{
 			jsonFile:      "usmtest/defaultsite_all.json",
@@ -131,7 +131,7 @@ var usmTaggingTests = []usmTaggingTest{
 	{
 		name:            "test different site",
 		description:     "Test different site in same IIS server, tests correct path discovery",
-		clientJsonFile:  "usmtest/client_all.json",
+		clientJSONFile:  "usmtest/client_all.json",
 		clientAppConfig: "",
 		defaultFiles: usmTaggingFiles{
 			jsonFile:      "usmtest/defaultsite_all.json",
@@ -161,7 +161,7 @@ var usmTaggingTests = []usmTaggingTest{
 	{
 		name:            "test site with application",
 		description:     "Test different site in same IIS server, tests correct path discovery with an application",
-		clientJsonFile:  "usmtest/client_all.json",
+		clientJSONFile:  "usmtest/client_all.json",
 		clientAppConfig: "",
 		defaultFiles: usmTaggingFiles{
 			jsonFile:      "usmtest/defaultsite_all.json",
@@ -203,7 +203,7 @@ var usmTaggingTests = []usmTaggingTest{
 	{
 		name:            "test site with second application",
 		description:     "Test different site in same IIS server, tests correct path discovery with an application",
-		clientJsonFile:  "usmtest/client_all.json",
+		clientJSONFile:  "usmtest/client_all.json",
 		clientAppConfig: "",
 		defaultFiles: usmTaggingFiles{
 			jsonFile:      "usmtest/defaultsite_all.json",
@@ -245,7 +245,7 @@ var usmTaggingTests = []usmTaggingTest{
 	{
 		name:            "test site with nested application",
 		description:     "Test different site in same IIS server, tests correct path discovery with an application",
-		clientJsonFile:  "usmtest/client_all.json",
+		clientJSONFile:  "usmtest/client_all.json",
 		clientAppConfig: "",
 		defaultFiles: usmTaggingFiles{
 			jsonFile:      "usmtest/defaultsite_all.json",
@@ -430,14 +430,14 @@ func setupTest(vm *components.RemoteHost, test usmTaggingTest) error {
 
 	testRoot := path.Join("c:", "users", "administrator")
 
-	clientJsonFile := path.Join(testRoot, "datadog.json")
+	clientJSONFile := path.Join(testRoot, "datadog.json")
 	clientAppConfig := path.Join(testRoot, "app.config")
 
-	removeIfExists(vm, clientJsonFile)
+	removeIfExists(vm, clientJSONFile)
 	removeIfExists(vm, clientAppConfig)
 
-	if test.clientJsonFile != "" {
-		vm.CopyFile(test.clientJsonFile, clientJsonFile)
+	if test.clientJSONFile != "" {
+		vm.CopyFile(test.clientJSONFile, clientJSONFile)
 	}
 
 	if test.clientAppConfig != "" {
@@ -515,7 +515,7 @@ func (v *apmvmSuite) TestUSMAutoTaggingSuite() {
 		v.Run(test.name, func() {
 			t := v.T()
 
-			t.Logf(test.description)
+			t.Logf("%s", test.description)
 
 			err := setupTest(vm, test)
 			require.NoError(t, err)

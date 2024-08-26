@@ -18,17 +18,18 @@ import (
 // IISApplicationDefinition represents an IIS application definition
 type IISApplicationDefinition struct {
 	Name string // name of the application.  this will also be the path
-				// e.g. app1/dir2
+	// e.g. app1/dir2
 	PhysicalPath string // physical path to the application
-						// this must exist prior to creation of the application, or it will fail
+	// this must exist prior to creation of the application, or it will fail
 }
+
 // IISSiteDefinition represents an IIS site definition
 type IISSiteDefinition struct {
 	Name        string //  name of the site
 	BindingPort string // port to bind to, of the form '*:8081'
-	SiteDir		string // directory to create for the site
-					   // can be empty for default.
-	AssetsDir   string // directory to copy for assets
+	SiteDir     string // directory to create for the site
+	// can be empty for default.
+	AssetsDir    string // directory to copy for assets
 	Applications []IISApplicationDefinition
 }
 
@@ -101,7 +102,7 @@ func CreateIISSite(host *components.RemoteHost, site []IISSiteDefinition) error 
 			}`
 			physpath := strings.Replace(app.PhysicalPath, "/", "\\", -1)
 
-			// make the physical path first since it's required 
+			// make the physical path first since it's required
 			err := host.MkdirAll(physpath)
 			if err != nil {
 				return err
