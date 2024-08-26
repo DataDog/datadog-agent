@@ -300,7 +300,7 @@ func TestMonitor(t *testing.T) {
 	cmd, err := fileopener.OpenFromAnotherProcess(t, lib)
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
-		return len(mockRegistry.Calls) >= 2 // Once for the library, another for the process itself
+		return methodHasBeenCalledAtLeastTimes(mockRegistry, "Register", 2)
 	}, 1500*time.Millisecond, 10*time.Millisecond, "received calls %v", mockRegistry.Calls)
 
 	mockRegistry.AssertCalled(t, "Register", lib, uint32(cmd.Process.Pid), mock.Anything, mock.Anything)
@@ -813,7 +813,7 @@ func (s *SharedLibrarySuite) TestSingleFile() {
 	cmd, err := fileopener.OpenFromAnotherProcess(t, fooPath1)
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
-		return len(mockRegistry.Calls) == 1
+		return methodHasBeenCalledTimes(mockRegistry, "Register", 1)
 	}, 1500*time.Millisecond, 10*time.Millisecond, "received calls %v", mockRegistry.Calls)
 
 	mockRegistry.AssertCalled(t, "Register", fooPath1, uint32(cmd.Process.Pid), mock.Anything, mock.Anything)
@@ -822,7 +822,8 @@ func (s *SharedLibrarySuite) TestSingleFile() {
 	require.NoError(t, cmd.Process.Kill())
 
 	require.Eventually(t, func() bool {
-		return len(mockRegistry.Calls) >= 1
+		// Other processes might have finished and forced the Unregister call to the registry
+		return methodHasBeenCalledAtLeastTimes(mockRegistry, "Unregister", 1)
 	}, time.Second*10, 100*time.Millisecond, "received calls %v", mockRegistry.Calls)
 
 	mockRegistry.AssertCalled(t, "Unregister", uint32(cmd.Process.Pid))
@@ -883,7 +884,7 @@ func (s *SharedLibrarySuite) TestDetectionWithPIDAndRootNamespace() {
 	time.Sleep(10 * time.Millisecond)
 
 	require.Eventually(t, func() bool {
-		return len(mockRegistry.Calls) >= 1
+		return methodHasBeenCalledTimes(mockRegistry, "Register", 1)
 	}, time.Second*10, 100*time.Millisecond, "received calls %v", mockRegistry.Calls)
 
 	// assert that soWatcher detected foo-crypto.so being opened and triggered the callback
@@ -900,4 +901,24 @@ func (s *SharedLibrarySuite) TestDetectionWithPIDAndRootNamespace() {
 	// must fail on the host
 	_, err = os.Stat(libpath)
 	require.Error(t, err)
+}
+
+func methodHasBeenCalledTimes(registry *MockFileRegistry, methodName string, times int) bool {
+	calls := 0
+	for _, call := range registry.Calls {
+		if call.Method == methodName {
+			calls++
+		}
+	}
+	return calls == times
+}
+
+func methodHasBeenCalledAtLeastTimes(registry *MockFileRegistry, methodName string, times int) bool {
+	calls := 0
+	for _, call := range registry.Calls {
+		if call.Method == methodName {
+			calls++
+		}
+	}
+	return calls >= times
 }
