@@ -179,7 +179,8 @@ func (d *DatadogInstaller) Install(opts ...Option) error {
 	if err != nil {
 		return nil
 	}
-	msiPath := ""
+	// MSI can install from a URL or a local file
+	msiPath := params.installerURL
 	if localMSIPath, exists := os.LookupEnv("DD_INSTALLER_MSI_URL"); exists {
 		// developer provided a local file, put it on the remote host
 		msiPath, err = windowsCommon.GetTemporaryFile(d.env.RemoteHost)
@@ -194,8 +195,8 @@ func (d *DatadogInstaller) Install(opts ...Option) error {
 		if err != nil {
 			return err
 		}
+		// update URL
 		params.installerURL = artifactURL
-		// MSI will handle downloading from the URL
 		msiPath = params.installerURL
 	}
 	logPath := d.logPath
