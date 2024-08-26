@@ -89,6 +89,8 @@ jobs:
     name: Summary
     runs-on: ubuntu-latest
     needs: [baseline, current]
+    permissions:
+      pull-requests: write
 
     steps:
       - name: Install Go
