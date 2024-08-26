@@ -14,8 +14,8 @@ github.com/DataDog/datadog-api-client-go/v2 v2.27.0 h1:AGZj41frjnjMufQHQbJH2fzmi
 github.com/DataDog/datadog-api-client-go/v2 v2.27.0/go.mod h1:QKOu6vscsh87fMY1lHfLEmNSunyXImj8BUaUWJXOehc=
 github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a h1:m9REhmyaWD5YJ0P53ygRHxKKo+KM+nw+zz0hEdKztMo=
 github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
-github.com/DataDog/test-infra-definitions v0.0.0-20240823123857-8aaa61cc1c42 h1:UUuDmxKyUZcv5fdby5b3IngIMZ3XvYKndKum8sC5Ue8=
-github.com/DataDog/test-infra-definitions v0.0.0-20240823123857-8aaa61cc1c42/go.mod h1:UhYXFql0whe7NWU7d0Rv/8LSeKmZSXfqrFTWdszcK5M=
+github.com/DataDog/test-infra-definitions v0.0.0-20240826143845-2a36c6740689 h1:UuxXg/p7fVORqZPac8ppZpHaQZPwzIo1yxzkICmjsu8=
+github.com/DataDog/test-infra-definitions v0.0.0-20240826143845-2a36c6740689/go.mod h1:UhYXFql0whe7NWU7d0Rv/8LSeKmZSXfqrFTWdszcK5M=
 github.com/DataDog/zstd v1.5.2 h1:vUG4lAyuPCXO0TLbXvPv7EB7cNK1QV/luu55UHLrrn8=
 github.com/DataDog/zstd v1.5.2/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
 github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f h1:5Vuo4niPKFkfwW55jV4vY0ih3VQ9RaQqeqY67fvRn8A=
