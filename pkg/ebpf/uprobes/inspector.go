@@ -21,11 +21,14 @@ import (
 
 // BinaryInspector implementors are responsible for extracting the metadata required to attach from a binary.
 type BinaryInspector interface {
-	// Inspect returns the metadata required to attach to a binary. The first return is the metadata, the second
-	// return is a boolean indicating whether this binary is compatible and can be attached or not.
-	// It is encouraged to return early if the binary is not compatible, to avoid unnecessary work.
-	// In the future, the first and second return values should be merged into a single struct, but for
-	// now this allows us to keep the API compatible with the existing implementation.
+	// Inspect returns the metadata required to attach to a binary. The first
+	// return is a map of symbol names to their corresponding metadata, the
+	// second return is a boolean indicating whether this binary is compatible
+	// and can be attached or not. It is encouraged to return early if the
+	// binary is not compatible, to avoid unnecessary work. In the future, the
+	// first and second return values should be merged into a single struct, but
+	// for now this allows us to keep the API compatible with the existing
+	// implementation.
 	Inspect(fpath utils.FilePath, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, bool, error)
 
 	// Cleanup is called when a certain file path is not needed anymore, the implementation can clean up
