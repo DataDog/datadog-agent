@@ -9,9 +9,11 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	commonconfig "github.com/DataDog/test-infra-definitions/common/config"
 	infraaws "github.com/DataDog/test-infra-definitions/resources/aws"
+	infraazure "github.com/DataDog/test-infra-definitions/resources/azure"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 )
@@ -40,6 +42,13 @@ const (
 	AWSPrivateKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultPrivateKeyPath
 	// AWSPrivateKeyPassword pulumi config parameter name
 	AWSPrivateKeyPassword = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultPrivateKeyPassword
+
+	// AzurePublicKeyPath pulumi config paramater name
+	AzurePublicKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infraazure.DDInfraDefaultPublicKeyPath
+	// AzurePrivateKeyPath pulumi config paramater name
+	AzurePrivateKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infraazure.DDInfraDefaultPrivateKeyPath
+	// AzurePrivateKeyPassword pulumi config paramater name
+	AzurePrivateKeyPassword = commonconfig.DDInfraConfigNamespace + ":" + infraazure.DDInfraDefaultPrivateKeyPassword
 )
 
 // ConfigMap type alias to auto.ConfigMap
@@ -100,33 +109,38 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 
 	// Parameters from profile
 	cm.Set(InfraEnvironmentVariables, profile.EnvironmentNames(), false)
-	params := map[parameters.StoreKey]string{
-		parameters.KeyPairName:        AWSKeyPairName,
-		parameters.PublicKeyPath:      AWSPublicKeyPath,
-		parameters.PrivateKeyPath:     AWSPrivateKeyPath,
-		parameters.ExtraResourcesTags: InfraExtraResourcesTags,
-		parameters.PipelineID:         AgentPipelineID,
-		parameters.CommitSHA:          AgentCommitSHA,
+	params := map[parameters.StoreKey][]string{
+		parameters.KeyPairName:        {AWSKeyPairName},
+		parameters.PublicKeyPath:      {AWSPublicKeyPath, AzurePublicKeyPath},
+		parameters.PrivateKeyPath:     {AWSPrivateKeyPath, AzurePrivateKeyPath},
+		parameters.ExtraResourcesTags: {InfraExtraResourcesTags},
+		parameters.PipelineID:         {AgentPipelineID},
+		parameters.CommitSHA:          {AgentCommitSHA},
 	}
 
-	for storeKey, configMapKey := range params {
-		err = SetConfigMapFromParameter(profile.ParamStore(), cm, storeKey, configMapKey)
-		if err != nil {
-			return nil, err
+	for storeKey, configMapKeys := range params {
+		for _, configMapKey := range configMapKeys {
+
+			err = SetConfigMapFromParameter(profile.ParamStore(), cm, storeKey, configMapKey)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
 	// Secret parameters from profile store
-	secretParams := map[parameters.StoreKey]string{
-		parameters.APIKey:             AgentAPIKey,
-		parameters.APPKey:             AgentAPPKey,
-		parameters.PrivateKeyPassword: AWSPrivateKeyPassword,
+	secretParams := map[parameters.StoreKey][]string{
+		parameters.APIKey:             {AgentAPIKey},
+		parameters.APPKey:             {AgentAPPKey},
+		parameters.PrivateKeyPassword: {AWSPrivateKeyPassword, AzurePrivateKeyPassword},
 	}
 
-	for storeKey, configMapKey := range secretParams {
-		err = SetConfigMapFromSecret(profile.SecretStore(), cm, storeKey, configMapKey)
-		if err != nil {
-			return nil, err
+	for storeKey, configMapKeys := range secretParams {
+		for _, configMapKey := range configMapKeys {
+			err = SetConfigMapFromSecret(profile.SecretStore(), cm, storeKey, configMapKey)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 

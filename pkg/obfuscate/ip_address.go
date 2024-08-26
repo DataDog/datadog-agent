@@ -57,8 +57,8 @@ func splitPrefix(raw string) (prefix, after string) {
 // quantizeIP quantizes the ip address in the provided string, only if it exactly matches an ip with an optional port
 // if the string is not an ip then empty string is returned
 func quantizeIP(raw string) string {
-	prefix, raw := splitPrefix(raw)
-	host, port, suffix := parseIPAndPort(raw)
+	prefix, rawNoPrefix := splitPrefix(raw)
+	host, port, suffix := parseIPAndPort(rawNoPrefix)
 	if host == "" {
 		// not an ip address
 		return raw
