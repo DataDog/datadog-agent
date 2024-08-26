@@ -9,6 +9,7 @@ package uprobes
 
 import (
 	"debug/elf"
+	"errors"
 	"fmt"
 	"runtime"
 

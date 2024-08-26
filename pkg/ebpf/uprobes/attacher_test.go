@@ -620,7 +620,7 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 	// We need to retrieve the calls from the registry and manually call the callback
 	// to simulate the process being registered
 	registry.AssertExpectations(t)
-	cb := registry.Calls[0].Arguments[2].(func(utils.FilePath) error)
+	cb := registry.Calls[0].Arguments[2].(utils.Callback)
 	require.NoError(t, cb(target))
 
 	inspector.AssertExpectations(t)

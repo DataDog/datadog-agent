@@ -55,7 +55,7 @@ type MockFileRegistry struct {
 }
 
 // Register is a mock implementation of the FileRegistry.Register method.
-func (m *MockFileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB func(utils.FilePath) error) error {
+func (m *MockFileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB utils.Callback) error {
 	args := m.Called(namespacedPath, pid, activationCB, deactivationCB)
 	return args.Error(0)
 }
