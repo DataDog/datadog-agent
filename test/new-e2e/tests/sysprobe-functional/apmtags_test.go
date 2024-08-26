@@ -492,8 +492,8 @@ func setupTest(vm *components.RemoteHost, test usmTaggingTest) error {
 							return err
 						}
 					}
+					break
 				}
-				break
 			}
 		}
 	}
