@@ -424,10 +424,12 @@ func testCaptureWrappedCommands(t *testing.T, scriptName string, scriptContent [
 	}, 10*time.Second, 100*time.Millisecond)
 
 	if len(commandWrapper) > 0 {
-		children, err := proc.Children()
-		require.NoError(t, err)
-		require.Len(t, children, 1)
-		proc = children[0]
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			children, err := proc.Children()
+			require.NoError(t, err)
+			require.Len(t, children, 1)
+			proc = children[0]
+		}, 10*time.Second, 100*time.Millisecond)
 	}
 	t.Cleanup(func() { _ = proc.Kill() })
 
