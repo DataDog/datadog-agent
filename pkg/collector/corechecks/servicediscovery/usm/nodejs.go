@@ -55,19 +55,33 @@ func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 // FindNameFromNearestPackageJSON finds the package.json walking up from the abspath.
 // if a package.json is found, returns the value of the field name if declared
 func (n nodeDetector) findNameFromNearestPackageJSON(absFilePath string) (string, bool) {
+	var (
+		value           string
+		currentFilePath string
+		ok              bool
+	)
+
 	current := path.Dir(absFilePath)
 	up := path.Dir(current)
-	for run := true; run; run = current != up {
-		value, ok := n.maybeExtractServiceName(path.Join(current, "package.json"))
-		if ok {
-			return value, ok && len(value) > 0
+
+	for {
+		currentFilePath = path.Join(current, "package.json")
+		value, ok = n.maybeExtractServiceName(currentFilePath)
+		if ok || current == up {
+			break
 		}
+
 		current = up
 		up = path.Dir(current)
 	}
-	value, ok := n.maybeExtractServiceName(path.Join(current, "package.json")) // this is for the root folder
-	return value, ok && len(value) > 0
 
+	foundServiceName := ok && len(value) > 0
+	if foundServiceName {
+		// Save package.json path for the instrumentation detector to use.
+		n.ctx.contextMap[NodePackageJsonPath] = currentFilePath
+	}
+
+	return value, foundServiceName
 }
 
 // maybeExtractServiceName return true if a package.json has been found and eventually the value of its name field inside.

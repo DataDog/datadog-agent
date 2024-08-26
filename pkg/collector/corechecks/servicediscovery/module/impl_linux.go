@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -213,7 +214,9 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 		return nil, err
 	}
 
-	name := servicediscovery.GetServiceName(cmdline, envs)
+	contextMap := make(usm.DetectorContextMap)
+
+	name := servicediscovery.GetServiceName(cmdline, envs, contextMap)
 	language := language.FindInArgs(cmdline)
 	apmInstrumentation := apm.Detect(int(proc.Pid), cmdline, envs, language)
 
