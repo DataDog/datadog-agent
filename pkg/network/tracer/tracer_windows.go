@@ -123,7 +123,10 @@ func NewTracer(config *config.Config, telemetry telemetry.Component) (*Tracer, e
 		if tr.processCache, err = newProcessCache(config.MaxProcessesTracked); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
 		}
-		telemetry.RegisterCollector(tr.processCache)
+		if telemetry != nil {
+			// the tests don't have a telemetry component
+			telemetry.RegisterCollector(tr.processCache)
+		}
 
 		if err = events.Init(); err != nil {
 			return nil, fmt.Errorf("could not initialize event monitoring: %w", err)
