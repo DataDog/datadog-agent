@@ -1270,12 +1270,17 @@ func testUDPPacketSumming(t *testing.T, udpnet, ip string) {
 		_, err := c.Write(msg[:i+1])
 		require.NoError(t, err)
 	}
+	expectedBytes := 1 + 2 + 3 + 4
 
 	buf := make([]byte, 256)
+	recvBytes := 0
 	for range msg {
-		_, _, err := ln.ReadFrom(buf)
+		n, _, err := ln.ReadFrom(buf)
 		require.NoError(t, err)
+		recvBytes += n
 	}
+	// sanity check: did userspace get all four expected packets?
+	require.Equal(t, recvBytes, expectedBytes)
 
 	var incoming *network.ConnectionStats
 	var outgoing *network.ConnectionStats
@@ -1291,9 +1296,8 @@ func testUDPPacketSumming(t *testing.T, udpnet, ip string) {
 		return outgoing != nil && incoming != nil
 	}, 3*time.Second, 100*time.Millisecond, "couldn't find incoming and outgoing connections matching")
 
-	totalLen := 1 + 2 + 3 + 4
 	m := outgoing.Monotonic
-	require.Equal(t, totalLen, int(m.SentBytes))
+	require.Equal(t, expectedBytes, int(m.SentBytes))
 	require.Equal(t, 0, int(m.RecvBytes))
 	require.Equal(t, int(len(msg)), int(m.SentPackets))
 	require.Equal(t, 0, int(m.RecvPackets))
@@ -1302,7 +1306,7 @@ func testUDPPacketSumming(t *testing.T, udpnet, ip string) {
 	// make sure the inverse values are seen for the other message
 	m = incoming.Monotonic
 	require.Equal(t, 0, int(m.SentBytes))
-	require.Equal(t, totalLen, int(m.RecvBytes))
+	require.Equal(t, expectedBytes, int(m.RecvBytes))
 	require.Equal(t, 0, int(m.SentPackets))
 	require.Equal(t, int(len(msg)), int(m.RecvPackets))
 	require.True(t, incoming.IntraHost)
