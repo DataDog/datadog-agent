@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package installertests implements E2E tests for the Datadog installer package on Windows
 package installertests
 
 import (
@@ -17,12 +16,11 @@ type testInstallerRollbackSuite struct {
 	baseInstallerSuite
 }
 
-// TestInstaller tests the installation of the Datadog installer on a system.
+// TestInstallerRollback tests the MSI rollback of the Datadog Installer on a system.
 func TestInstallerRollback(t *testing.T) {
 	e2e.Run(t, &testInstallerRollbackSuite{}, e2e.WithProvisioner(awsHostWindows.ProvisionerNoAgentNoFakeIntake()))
 }
 
-// TestInstalls tests installing and uninstalling the latest version of the Datadog installer from the pipeline.
 func (s *testInstallerRollbackSuite) TestInstallerRollback() {
 	s.Run("Fresh install rollback", s.installRollback)
 	s.Run("Fresh install", s.freshInstall)
