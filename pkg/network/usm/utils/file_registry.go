@@ -78,6 +78,7 @@ func NewFilePath(procRoot, namespacedPath string, pid uint32) (FilePath, error) 
 	return FilePath{HostPath: path, ID: pathID, PID: pid}, nil
 }
 
+// Callback is a function that is executed when a file becomes active or inactive
 type Callback func(FilePath) error
 
 // NewFileRegistry creates a new `FileRegistry` instance
