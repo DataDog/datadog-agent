@@ -3,6 +3,7 @@ import platform
 import re
 import shutil
 import subprocess
+from sys import version
 import tempfile
 import urllib.request
 
@@ -304,29 +305,50 @@ def fetch_core_module_versions(version):
     return version_modules
 
 
-def update_go_mod_file(go_mod_path, collector_version, collector_modules):
-    print(f"Updating {go_mod_path} with version {collector_version}")
-    updated_lines = []
+def update_go_mod_file(go_mod_path, collector_version_modules):
+    print(f"Updating {go_mod_path}")
+    # Read all lines from the go.mod file
     with open(go_mod_path) as file:
-        for line in file:
-            for module in collector_modules:
-                module_regex = re.compile(rf"^(\s*{re.escape(module)}\S*)\s+v[\d\.]+")
+        lines = file.readlines()
+
+    updated_lines = []
+    file_updated = False  # To check if the file was modified
+
+    # Compile a regex for each module to match the module name exactly
+    compiled_modules = {
+        module: re.compile(rf"^\s*{re.escape(module)}\s+v[\d\.]+")
+        for version, modules in collector_version_modules.items()
+        for module in modules
+    }
+    for line in lines:
+        updated_line = line
+        for version, modules in collector_version_modules.items():
+            for module in modules:
+                module_regex = compiled_modules[module]
                 match = module_regex.match(line)
                 if match:
-                    print(f"Updating {module} in {go_mod_path}")
-                    # Replace the version with the new version
-                    line = f"{match.group(1)} {collector_version}\n"
-                updated_lines.append(line)
-    # Write the updated lines back to the file
-    with open(go_mod_path, "w") as file:
-        file.writelines(updated_lines)
+                    print(f"Updating {module} to version {version} in {go_mod_path}")
+                    updated_line = f"{match.group(0).split()[0]} {version}\n"
+                    file_updated = True
+                    break  # Stop checking other modules once we find a match
+            if updated_line != line:
+                break  # If the line was updated, stop checking other versions
+        updated_lines.append(updated_line)
+
+    # Write the updated lines back to the file only if changes were made
+    if file_updated:
+        with open(go_mod_path, "w") as file:
+            file.writelines(updated_lines)
+        print(f"{go_mod_path} updated.")
+    else:
+        print(f"No changes made to {go_mod_path}.")
 
 
-def update_all_go_mod(collector_version, collector_modules):
+def update_all_go_mod(collector_version_modules):
     for root, _, files in os.walk("."):
         if "go.mod" in files:
             go_mod_path = os.path.join(root, "go.mod")
-            update_go_mod_file(go_mod_path, collector_version, collector_modules)
+            update_go_mod_file(go_mod_path, collector_version_modules)
     print("All go.mod files updated.")
 
 
@@ -362,13 +384,11 @@ def update_core_collector():
         "Updating the core collector version in all go.mod files and manifest.yaml file."
     )
     repo = "open-telemetry/opentelemetry-collector"
-    modules = ["go.opentelemetry.io/collector"]
     collector_version = fetch_latest_release(repo)
     if collector_version:
         print(f"Latest release for {repo}: {collector_version}")
         version_modules = fetch_core_module_versions(collector_version)
-        for version, modules in version_modules.items():
-            update_all_go_mod(version, modules)
+        update_all_go_mod(version_modules)
         manifest_path = "./comp/otelcol/collector-contrib/impl/manifest.yaml"
         old_version = read_old_version(manifest_path)
         if old_version:
@@ -394,7 +414,10 @@ def update_collector_contrib():
     collector_version = fetch_latest_release(repo)
     if collector_version:
         print(f"Latest release for {repo}: {collector_version}")
-        update_all_go_mod(collector_version, modules)
+        version_modules = {
+            collector_version: modules,
+        }
+        update_all_go_mod(version_modules)
     else:
         print(f"Failed to fetch the latest release for {repo}")
     print("Collector-contrib update complete.")
@@ -403,4 +426,5 @@ def update_collector_contrib():
 @task
 def update(ctx):
     update_core_collector()
+    update_collector_contrib()
     print("Update complete.")
