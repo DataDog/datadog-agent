@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 
