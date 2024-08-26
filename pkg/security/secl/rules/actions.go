@@ -89,20 +89,3 @@ func (a *Action) IsAccepted(ctx *eval.Context) bool {
 
 // InternalCallbackDefinition describes an internal rule action
 type InternalCallbackDefinition struct{}
-
-// KillDefinition describes the 'kill' section of a rule action
-type KillDefinition struct {
-	Signal string `yaml:"signal"`
-	Scope  string `yaml:"scope"`
-}
-
-// CoreDumpDefinition describes the 'coredump' action
-type CoreDumpDefinition struct {
-	Process       bool `yaml:"process"`
-	Mount         bool `yaml:"mount"`
-	Dentry        bool `yaml:"dentry"`
-	NoCompression bool `yaml:"no_compression"`
-}
-
-// HashDefinition describes the 'hash' section of a rule action
-type HashDefinition struct{}
