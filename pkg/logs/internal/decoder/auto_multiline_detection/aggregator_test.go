@@ -142,9 +142,9 @@ func TestTagTruncatedLogs(t *testing.T) {
 	assertMessageContent(t, msg, "1234567890...TRUNCATED...")
 
 	msg = <-outputChan
-	assert.False(t, msg.ParsingExtra.IsTruncated)
-	assert.Empty(t, msg.ParsingExtra.Tags)
-	assertMessageContent(t, msg, "1")
+	assert.True(t, msg.ParsingExtra.IsTruncated)
+	assert.Equal(t, msg.ParsingExtra.Tags, []string{message.TruncatedTag})
+	assertMessageContent(t, msg, "...TRUNCATED...1")
 
 	msg = <-outputChan
 	assert.False(t, msg.ParsingExtra.IsTruncated)
@@ -170,9 +170,9 @@ func TestTagMultiLineLogs(t *testing.T) {
 
 	msg = <-outputChan
 	assert.False(t, msg.ParsingExtra.IsMultiLine)
-	assert.False(t, msg.ParsingExtra.IsTruncated)
+	assert.True(t, msg.ParsingExtra.IsTruncated)
 	assert.Empty(t, msg.ParsingExtra.Tags)
-	assertMessageContent(t, msg, "1")
+	assertMessageContent(t, msg, "...TRUNCATED...1")
 
 	msg = <-outputChan
 	assert.False(t, msg.ParsingExtra.IsMultiLine)

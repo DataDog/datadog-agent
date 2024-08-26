@@ -36,7 +36,7 @@ func (o *Origin) Tags() []string {
 }
 
 // TagsPayload returns the raw tag payload of the origin.
-func (o *Origin) TagsPayload(processingTags []string) []byte {
+func (o *Origin) TagsPayload() []byte {
 	var tagsPayload []byte
 
 	source := o.Source()
@@ -51,7 +51,6 @@ func (o *Origin) TagsPayload(processingTags []string) []byte {
 	var tags []string
 	tags = append(tags, o.LogSource.Config.Tags...)
 	tags = append(tags, o.tags...)
-	tags = append(tags, processingTags...)
 
 	if len(tags) > 0 {
 		tagsPayload = append(tagsPayload, []byte("[dd ddtags=\""+strings.Join(tags, ",")+"\"]")...)
