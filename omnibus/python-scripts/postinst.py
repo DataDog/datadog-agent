@@ -17,6 +17,7 @@ import os
 import subprocess
 import shutil
 import sys
+import importlib.metadata
 
 def run_command(command):
     """
@@ -120,6 +121,10 @@ if __name__ == '__main__':
     if len(sys.argv) != 2:
         print("Usage: script.py <INSTALL_DIR>")
         sys.exit(1)
+
+    installed_packages = importlib.metadata.distributions()
+    for dist in installed_packages:
+        print(f"{dist.metadata['Name']}=={dist.version}")
 
     # Use a different variable name here to avoid conflict
     install_directory = sys.argv[1]
