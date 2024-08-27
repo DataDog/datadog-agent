@@ -47,7 +47,9 @@ func ExtractCheckNamesFromPodAnnotations(annotations map[string]string, adIdenti
 func ExtractTemplatesFromAnnotations(entityName string, annotations map[string]string, adIdentifier string) ([]integration.Config, []error) {
 	prefix := fmt.Sprintf(podAnnotationFormat, adIdentifier)
 	legacyPrefix := fmt.Sprintf(legacyPodAnnotationFormat, adIdentifier)
+	fmt.Println("ANDREWQ 9")
 	res, err := extractTemplatesFromMapWithV2(entityName, annotations, prefix, legacyPrefix)
+	fmt.Println("ANDREWQ 10 ", res)
 	return res, err
 }
 
@@ -58,7 +60,7 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 		Name                    string          `json:"name"`
 		InitConfig              json.RawMessage `json:"init_config"`
 		Instances               []interface{}   `json:"instances"`
-		Logs                    json.RawMessage `json:"logs"`
+		Logs                    []interface{}   `json:"logs"`
 		IgnoreAutodiscoveryTags bool            `json:"ignore_autodiscovery_tags"`
 	}
 	fmt.Println("andrewq", checksJSON)
@@ -69,9 +71,7 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 	// docker run -l com.datadoghq.ad.checks="{\"<INTEGRATION_NAME>\": {\"instances\": [<INSTANCE_CONFIG>], \"logs\": [<LOGS_CONFIG>]}}"
 	// docker run -l "com.datadoghq.ad.checks="{\"apache\": {\"logs\": [{\"type\":\"file\"}]}}""
 	fmt.Println("WACK PRINTING KEY/VALS")
-	for key, val := range namedChecks {
-		fmt.Println("Key:", key, "wackval:", val)
-	}
+
 	checks := make([]integration.Config, 0, len(namedChecks))
 	for name, config := range namedChecks {
 		if config.Name != "" {
@@ -86,15 +86,17 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 			ADIdentifiers:           []string{adIdentifier},
 			IgnoreAutodiscoveryTags: config.IgnoreAutodiscoveryTags,
 		}
+		for _, i := range config.Logs {
+			log, err := parseJSONObjToData(i)
+			// fmt.Println("hickity", log)
+			// fmt.Println("hickity", integration.Data("{\"service\":\"any_service\",\"source\":\"any_source\"}"))
+			// fmt.Println("hickity", i)
+			if err != nil {
+				return nil, err
+			}
 
-		if len(config.Logs) != 0 {
-			log := integration.Data(config.Logs)
-			fmt.Println("UNGABUNGA WACK ANDREWQ", log)
-			fmt.Println("hmmmm?")
 			c.LogsConfig = log
-			fmt.Println("hmmmm?2", c)
 		}
-
 		for _, i := range config.Instances {
 			instance, err := parseJSONObjToData(i)
 			if err != nil {
@@ -103,9 +105,19 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 
 			c.Instances = append(c.Instances, instance)
 		}
-
+		fmt.Println("---------------------------")
+		fmt.Println("wacktest11", c)
+		fmt.Println("LOGS CONFIG IS ", c.LogsConfig)
+		fmt.Println("---------------------------")
 		checks = append(checks, c)
 	}
+
+	/*
+		------------------------------------------------------------------------
+		[{apache [[123 34 97 112 97 99 104 101 95 115 116 97 116 117 115 95 117 114 108 34 58 34 104 116 116 112 58 47 47 37 37 104 111 115 116 37 37 47 115 101 114 118 101 114 45 115 116 97 116 117 115 63 97 117 116 111 50 34 125]] [123 125] [] [91 10 9 9 9 9 9 9 9 123 34 115 101 114 118 105 99 101 34 58 34 97 110 121 95 115 101 114 118 105 99 101 34 44 32 34 115 111 117 114 99 101 34 58 34 97 110 121 95 115 111 117 114 99 101 34 125 10 9 9 9 9 9 9 93] [docker://foobar] []    false   false false false}]
+		------------------------------------------------------------------------
+		[{apache [[123 34 97 112 97 99 104 101 95 115 116 97 116 117 115 95 117 114 108 34 58 34 104 116 116 112 58 47 47 37 37 104 111 115 116 37 37 47 115 101 114 118 101 114 45 115 116 97 116 117 115 63 97 117 116 111 50 34 125]] [123 125] [] [] [docker://foobar] []    false   false false false} {apache [] [] [] [91 123 34 115 101 114 118 105 99 101 34 58 34 97 110 121 95 115 101 114 118 105 99 101 34 44 34 115 111 117 114 99 101 34 58 34 97 110 121 95 115 111 117 114 99 101 34 125 93] [docker://foobar] []    false   false false false}]
+	*/
 
 	return checks, nil
 }

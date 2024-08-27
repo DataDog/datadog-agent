@@ -7,6 +7,7 @@ package utils
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -428,11 +429,60 @@ func TestExtractTemplatesFromAnnotations(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "v2 annotations label logs",
+			annotations: map[string]string{
+				"ad.datadoghq.com/foobar.checks": `{
+					"apache": {
+						"instances": [
+							{"apache_status_url":"http://%%host%%/server-status?auto2"}
+						],
+						"logs": [
+							{"service":"any_service",
+							"source":"any_source"}
+						]
+					}
+				}`,
+			},
+			adIdentifier: "foobar",
+			output: []integration.Config{
+				{
+					Name:          "apache",
+					Instances:     []integration.Data{integration.Data(`{"apache_status_url":"http://%%host%%/server-status?auto2"}`)},
+					InitConfig:    integration.Data("{}"),
+					ADIdentifiers: []string{adID},
+				},
+				{
+					Name:          "apache",
+					LogsConfig:    integration.Data("{\"service\":\"any_service\",\"source\":\"any_source\"}"),
+					ADIdentifiers: []string{adID},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.name == "v2 annotations label logs" {
+				fmt.Println("test100")
+				fmt.Println("------------------------------------------------------------------------")
+				fmt.Println("------------------------------------------------------------------------")
+				fmt.Println("------------------------------------------------------------------------")
+
+			}
 			configs, errs := ExtractTemplatesFromAnnotations(adID, tt.annotations, tt.adIdentifier)
+			if tt.name == "v2 annotations label logs" {
+				fmt.Println("test111")
+				fmt.Println("------------------------------------------------------------------------")
+				fmt.Println(configs)
+				fmt.Println("------------------------------------------------------------------------")
+				fmt.Println(tt.output)
+				fmt.Println("------------------------------------------------------------------------")
+
+			}
+			fmt.Println("------------------------------------------------------------------------")
+			fmt.Println("------------------------------------------------------------------------")
+			fmt.Println("------------------------------------------------------------------------")
 			assert.ElementsMatch(t, tt.output, configs)
 			assert.ElementsMatch(t, tt.errs, errs)
 		})
