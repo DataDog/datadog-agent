@@ -1,15 +1,14 @@
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 // General Information about an assembly is controlled through the following
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 [assembly: AssemblyTitle("AgentCustomActions")]
-[assembly: AssemblyDescription("")]
-[assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("AgentCustomActions")]
-[assembly: AssemblyCopyright("Copyright ©  2024")]
+[assembly: AssemblyDescription("Custom Actions for the Datadog Agent installer")]
+[assembly: AssemblyCompany("Datadog")]
+[assembly: AssemblyProduct("Datadog Agent")]
+[assembly: AssemblyCopyright("Copyright ©  Datadog")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
