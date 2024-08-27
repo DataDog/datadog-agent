@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -56,11 +57,11 @@ func getProvidersDefinitions(conf config.Reader) map[string]*providerDef {
 		providers["ec2"] = &providerDef{10, ec2.GetTags}
 	}
 
-	if config.IsFeaturePresent(config.Kubernetes) {
+	if env.IsFeaturePresent(env.Kubernetes) {
 		providers["kubernetes"] = &providerDef{10, k8s.NewKubeNodeTagsProvider(conf).GetTags}
 	}
 
-	if config.IsFeaturePresent(config.Docker) {
+	if env.IsFeaturePresent(env.Docker) {
 		providers["docker"] = &providerDef{1, docker.GetTags}
 	}
 	return providers
