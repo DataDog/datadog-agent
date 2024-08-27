@@ -92,6 +92,7 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 			fmt.Println("UNGABUNGA WACK ANDREWQ", log)
 			fmt.Println("hmmmm?")
 			c.LogsConfig = log
+			fmt.Println("hmmmm?2", c)
 		}
 
 		for _, i := range config.Instances {

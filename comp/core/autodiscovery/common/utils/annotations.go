@@ -215,14 +215,16 @@ func extractCheckNamesFromMap(annotations map[string]string, prefix string, lega
 		var adIdentifier string
 		checks, err := parseChecksJSON(adIdentifier, checksJSON)
 		if err != nil {
+			fmt.Println("WACK ERROR")
 			return nil, err
 		}
-
+		fmt.Println("andrewq 3", checks)
 		checkNames := make([]string, 0, len(checks))
+		fmt.Println("andrewq 4", checkNames)
 		for _, config := range checks {
 			checkNames = append(checkNames, config.Name)
 		}
-
+		fmt.Println("andrewq 5", checkNames)
 		return checkNames, nil
 	}
 
