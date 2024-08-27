@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -59,6 +60,7 @@ type Requires struct {
 	Log                 log.Component
 	Provider            confmap.Converter
 	ConfigStore         configstore.Component
+	Config              config.Component
 	CollectorContrib    collectorcontrib.Component
 	Serializer          serializer.MetricSerializer
 	TraceAgent          traceagent.Component
@@ -127,7 +129,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	addFactories(reqs, factories)
 
-	err = reqs.ConfigStore.AddConfigs(newConfigProviderSettings(reqs, false), newConfigProviderSettings(reqs, true), factories)
+	converterEnabled := reqs.Config.GetBool("otelcollector.converter.enabled")
+	err = reqs.ConfigStore.AddConfigs(newConfigProviderSettings(reqs, false), newConfigProviderSettings(reqs, converterEnabled), factories)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -148,7 +151,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		Factories: func() (otelcol.Factories, error) {
 			return factories, nil
 		},
-		ConfigProviderSettings: newConfigProviderSettings(reqs, true),
+		ConfigProviderSettings: newConfigProviderSettings(reqs, converterEnabled),
 	}
 	col, err := otelcol.NewCollector(set)
 	if err != nil {

@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"syscall"
@@ -35,9 +36,13 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
+	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -278,7 +283,9 @@ func TestServiceName(t *testing.T) {
 
 	cmd := exec.CommandContext(ctx, "sleep", "1000")
 	cmd.Dir = "/tmp/"
+	cmd.Env = append(cmd.Env, "OTHER_ENV=test")
 	cmd.Env = append(cmd.Env, "DD_SERVICE=foobar")
+	cmd.Env = append(cmd.Env, "YET_OTHER_ENV=test")
 	err = cmd.Start()
 	require.NoError(t, err)
 	f.Close()
@@ -289,6 +296,155 @@ func TestServiceName(t *testing.T) {
 		portMap := getServicesMap(t, url)
 		assert.Contains(collect, portMap, pid)
 		assert.Equal(t, "foobar", portMap[pid].Name)
+		assert.Equal(t, "provided", portMap[pid].NameSource)
+	}, 30*time.Second, 100*time.Millisecond)
+}
+
+func TestInjectedServiceName(t *testing.T) {
+	url := setupDiscoveryModule(t)
+
+	createEnvsMemfd(t, []string{
+		"OTHER_ENV=test",
+		"DD_SERVICE=injected-service-name",
+		"DD_INJECTION_ENABLED=service_name",
+		"YET_ANOTHER_ENV=test",
+	})
+
+	listener, err := net.Listen("tcp", "")
+	require.NoError(t, err)
+	t.Cleanup(func() { listener.Close() })
+
+	pid := os.Getpid()
+	portMap := getServicesMap(t, url)
+	require.Contains(t, portMap, pid)
+	require.Equal(t, "injected-service-name", portMap[pid].Name)
+	require.Equal(t, "generated", portMap[pid].NameSource)
+}
+
+func TestAPMInstrumentationInjected(t *testing.T) {
+	url := setupDiscoveryModule(t)
+
+	createEnvsMemfd(t, []string{
+		"DD_INJECTION_ENABLED=service_name,tracer",
+	})
+
+	listener, err := net.Listen("tcp", "")
+	require.NoError(t, err)
+	t.Cleanup(func() { listener.Close() })
+
+	pid := os.Getpid()
+	portMap := getServicesMap(t, url)
+	require.Contains(t, portMap, pid)
+	require.Equal(t, string(apm.Injected), portMap[pid].APMInstrumentation)
+}
+
+func makeAlias(t *testing.T, alias string, serverBin string) string {
+	binDir := filepath.Dir(serverBin)
+	aliasPath := filepath.Join(binDir, alias)
+
+	target, err := os.Readlink(aliasPath)
+	if err == nil && target == serverBin {
+		return aliasPath
+	}
+
+	os.Remove(aliasPath)
+	err = os.Symlink(serverBin, aliasPath)
+	require.NoError(t, err)
+
+	return aliasPath
+}
+
+func buildFakeServer(t *testing.T) string {
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err)
+	serverBin, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "fake_server")
+	require.NoError(t, err)
+
+	for _, alias := range []string{"java", "node"} {
+		makeAlias(t, alias, serverBin)
+	}
+
+	return filepath.Dir(serverBin)
+}
+
+func TestAPMInstrumentationProvided(t *testing.T) {
+	curDir, err := testutil.CurDir()
+	assert.NoError(t, err)
+
+	testCases := map[string]struct {
+		commandline      []string // The command line of the fake server
+		workingDirectory string   // Optional: The working directory to use for the server.
+		language         language.Language
+	}{
+		"java": {
+			commandline: []string{"java", "-javaagent:/path/to/dd-java-agent.jar", "-jar", "foo.jar"},
+			language:    language.Java,
+		},
+		"node": {
+			commandline:      []string{"node"},
+			workingDirectory: filepath.Join(curDir, "testdata"),
+			language:         language.Node,
+		},
+	}
+
+	serverDir := buildFakeServer(t)
+	url := setupDiscoveryModule(t)
+
+	for name, test := range testCases {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(func() { cancel() })
+
+			bin := filepath.Join(serverDir, test.commandline[0])
+			cmd := exec.CommandContext(ctx, bin, test.commandline[1:]...)
+			cmd.Dir = test.workingDirectory
+			err := cmd.Start()
+			require.NoError(t, err)
+
+			pid := cmd.Process.Pid
+
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				portMap := getServicesMap(t, url)
+				assert.Contains(collect, portMap, pid)
+				assert.Equal(collect, string(test.language), portMap[pid].Language)
+				assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
+			}, 30*time.Second, 100*time.Millisecond)
+		})
+	}
+}
+
+func TestAPMInstrumentationProvidedPython(t *testing.T) {
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err)
+
+	fmapper := fileopener.BuildFmapper(t)
+	fakePython := makeAlias(t, "python", fmapper)
+
+	// We need the process to map something in a directory called
+	// "site-packages/ddtrace". The actual mapped file does not matter.
+	ddtrace := filepath.Join(curDir, "..", "..", "..", "..", "network", "usm", "testdata", "site-packages", "ddtrace")
+	lib := filepath.Join(ddtrace, fmt.Sprintf("libssl.so.%s", runtime.GOARCH))
+
+	// Give the process a listening socket
+	listener, err := net.Listen("tcp", "")
+	require.NoError(t, err)
+	f, err := listener.(*net.TCPListener).File()
+	listener.Close()
+	require.NoError(t, err)
+	t.Cleanup(func() { f.Close() })
+	disableCloseOnExec(t, f)
+
+	cmd, err := fileopener.OpenFromProcess(t, fakePython, lib)
+	require.NoError(t, err)
+
+	url := setupDiscoveryModule(t)
+
+	pid := cmd.Process.Pid
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		portMap := getServicesMap(t, url)
+		assert.Contains(collect, portMap, pid)
+		assert.Equal(collect, string(language.Python), portMap[pid].Language)
+		assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
@@ -430,7 +586,8 @@ func TestCache(t *testing.T) {
 
 	for i, cmd := range cmds {
 		pid := int32(cmd.Process.Pid)
-		require.Contains(t, discovery.cache[pid].serviceName, serviceNames[i])
+		require.Contains(t, discovery.cache[pid].name, serviceNames[i])
+		require.True(t, discovery.cache[pid].nameFromDDService)
 	}
 
 	cancel()

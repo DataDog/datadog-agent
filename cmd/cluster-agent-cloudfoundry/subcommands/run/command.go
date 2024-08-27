@@ -95,10 +95,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(demultiplexerimpl.NewDefaultParams()),
 				// setup workloadmeta
 				wmcatalog.GetCatalog(),
-				fx.Supply(workloadmeta.Params{
+				workloadmetafx.Module(workloadmeta.Params{
 					InitHelper: common.GetWorkloadmetaInit(),
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
-				workloadmetafx.Module(),
 				fx.Provide(tagger.NewTaggerParams),
 				taggerimpl.Module(),
 				collectorimpl.Module(),
