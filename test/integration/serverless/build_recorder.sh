@@ -10,9 +10,6 @@ if [ -z "$ARCHITECTURE" ]; then
     exit 1
 fi
 
-# GOOS=linux CGO_ENABLED=1 GOARCH=$ARCHITECTURE go build -o extensions/recorder-extension main.go
-# zip -rq ext.zip extensions/recorder-extension
-
 BUILD_FILE=Dockerfile.build
 
 function docker_build_zip {
@@ -33,8 +30,6 @@ function docker_build_zip {
 
     echo "Copying ZIP file from Docker container"
     docker cp $dockerId:/recorder_extension.zip ./ext.zip
-    # echo "Unzipping extension zip file"
-    # unzip ext.zip -d ext
 
     # Clean up the Docker container
     docker rm $dockerId
