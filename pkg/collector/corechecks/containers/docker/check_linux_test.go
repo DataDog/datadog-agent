@@ -139,7 +139,8 @@ func TestDockerNetworkExtension(t *testing.T) {
 		ID:    "kube-host-network",
 		State: string(workloadmeta.ContainerStatusRunning),
 		HostConfig: struct {
-			NetworkMode string "json:\",omitempty\""
+			NetworkMode string            "json:\",omitempty\""
+			Annotations map[string]string "json:\",omitempty\""
 		}{NetworkMode: "host"},
 		NetworkSettings: &dockerTypes.SummaryNetworkSettings{
 			Networks: map[string]*dockerNetworkTypes.EndpointSettings{
@@ -169,7 +170,8 @@ func TestDockerNetworkExtension(t *testing.T) {
 		ID:    "kube-app",
 		State: string(workloadmeta.ContainerStatusRunning),
 		HostConfig: struct {
-			NetworkMode string "json:\",omitempty\""
+			NetworkMode string            "json:\",omitempty\""
+			Annotations map[string]string "json:\",omitempty\""
 		}{NetworkMode: "container:kube-app-pause"},
 		NetworkSettings: &dockerTypes.SummaryNetworkSettings{
 			Networks: map[string]*dockerNetworkTypes.EndpointSettings{},
@@ -181,7 +183,8 @@ func TestDockerNetworkExtension(t *testing.T) {
 		ID:    "kube-app-pause",
 		State: string(workloadmeta.ContainerStatusRunning),
 		HostConfig: struct {
-			NetworkMode string "json:\",omitempty\""
+			NetworkMode string            "json:\",omitempty\""
+			Annotations map[string]string "json:\",omitempty\""
 		}{NetworkMode: "none"},
 		NetworkSettings: &dockerTypes.SummaryNetworkSettings{
 			Networks: map[string]*dockerNetworkTypes.EndpointSettings{
