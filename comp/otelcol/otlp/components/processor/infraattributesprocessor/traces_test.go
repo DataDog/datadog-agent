@@ -120,10 +120,10 @@ type testTaggerClient struct {
 	m map[string][]string
 }
 
-func (t *testTaggerClient) Tag(entityID string, cardinality types.TagCardinality) ([]string, error) {
+func (t *testTaggerClient) Tag(entityID string, _ types.TagCardinality) ([]string, error) {
 	return t.m[entityID], nil
 }
-func (t *testTaggerClient) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
+func (t *testTaggerClient) GlobalTags(_ types.TagCardinality) ([]string, error) {
 	return t.m[collectors.GlobalEntityID], nil
 }
 
