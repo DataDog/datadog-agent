@@ -18,6 +18,8 @@ import (
 // TimeNow useful for mocking
 var TimeNow = time.Now
 
+const deviceUserTagResourcePrefix = "dd.internal.resource:ndm_device_user_tags"
+
 // GetDevicesMetadata process devices API payloads to build metadata
 func GetDevicesMetadata(namespace string, devices []client.Device) []devicemetadata.DeviceMetadata {
 	var devicesMetadata []devicemetadata.DeviceMetadata
@@ -32,6 +34,7 @@ func GetDevicesTags(namespace string, devices []client.Device) map[string][]stri
 	deviceTags := make(map[string][]string)
 	for _, device := range devices {
 		deviceTags[device.SystemIP] = buildDeviceTags(namespace, device)
+		deviceTags[device.SystemIP] = append(deviceTags[device.SystemIP], fmt.Sprintf("%s:%s", deviceUserTagResourcePrefix, buildDeviceID(namespace, device)))
 	}
 	return deviceTags
 }

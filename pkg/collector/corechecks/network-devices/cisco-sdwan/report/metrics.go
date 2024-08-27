@@ -74,12 +74,14 @@ func (ms *SDWanSender) SendInterfaceMetrics(interfaceStats []client.InterfaceSta
 
 	for _, entry := range interfaceStats {
 		deviceTags := ms.getDeviceTags(entry.VmanageSystemIP)
+
+		itfID := fmt.Sprintf("%s:%s", entry.VmanageSystemIP, entry.Interface)
+
 		interfaceTags := []string{
 			"interface:" + entry.Interface,
 			fmt.Sprintf("vpn_id:%d", int(entry.VpnID)),
 		}
 
-		itfID := fmt.Sprintf("%s:%s", entry.VmanageSystemIP, entry.Interface)
 		itf, foundInterface := interfacesMap[itfID]
 
 		tags := append(deviceTags, interfaceTags...)
@@ -88,6 +90,7 @@ func (ms *SDWanSender) SendInterfaceMetrics(interfaceStats []client.InterfaceSta
 			index, err := itf.Index()
 			if err == nil {
 				tags = append(tags, fmt.Sprintf("interface_index:%d", index))
+				tags = append(tags, fmt.Sprintf("dd.internal.resource:ndm_interface_user_tags:%s:%s:%d", ms.namespace, entry.VmanageSystemIP, index))
 			}
 			statusTags := append(tags, "oper_status:"+itf.OperStatus().AsString(), "admin_status:"+itf.AdminStatus().AsString())
 
