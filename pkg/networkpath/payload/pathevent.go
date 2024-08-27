@@ -54,7 +54,7 @@ type NetworkPathDestination struct {
 type NetworkPath struct {
 	Timestamp   int64                  `json:"timestamp"`
 	Namespace   string                 `json:"namespace"` // namespace used to resolve NDM resources
-	PathID      string                 `json:"path_id"`
+	PathtraceID string                 `json:"pathtrace_id"`
 	Protocol    Protocol               `json:"protocol"`
 	Source      NetworkPathSource      `json:"source"`
 	Destination NetworkPathDestination `json:"destination"`

@@ -66,6 +66,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
+	lsof "github.com/DataDog/datadog-agent/comp/core/lsof/fx"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
@@ -327,7 +328,7 @@ func run(log log.Component,
 
 func getSharedFxOption() fx.Option {
 	return fx.Options(
-		fx.Supply(flare.NewParams(
+		flare.Module(flare.NewParams(
 			path.GetDistPath(),
 			path.PyChecksPath,
 			path.DefaultLogFile,
@@ -335,8 +336,8 @@ func getSharedFxOption() fx.Option {
 			path.DefaultDogstatsDLogFile,
 			path.DefaultStreamlogsLogFile,
 		)),
-		flare.Module(),
 		core.Bundle(),
+		lsof.Module(),
 		fx.Supply(dogstatsdServer.Params{
 			Serverless: false,
 		}),
@@ -444,9 +445,6 @@ func getSharedFxOption() fx.Option {
 		}),
 		fx.Provide(func(ms serializer.MetricSerializer) optional.Option[serializer.MetricSerializer] {
 			return optional.NewOption[serializer.MetricSerializer](ms)
-		}),
-		fx.Provide(func(logReceiver integrations.Component) optional.Option[integrations.Component] {
-			return optional.NewOption[integrations.Component](logReceiver)
 		}),
 		ndmtmp.Bundle(),
 		netflow.Bundle(),
