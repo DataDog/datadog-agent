@@ -47,9 +47,7 @@ func ExtractCheckNamesFromPodAnnotations(annotations map[string]string, adIdenti
 func ExtractTemplatesFromAnnotations(entityName string, annotations map[string]string, adIdentifier string) ([]integration.Config, []error) {
 	prefix := fmt.Sprintf(podAnnotationFormat, adIdentifier)
 	legacyPrefix := fmt.Sprintf(legacyPodAnnotationFormat, adIdentifier)
-	fmt.Println("ANDREWQ 9")
 	res, err := extractTemplatesFromMapWithV2(entityName, annotations, prefix, legacyPrefix)
-	fmt.Println("ANDREWQ 10 ", res)
 	return res, err
 }
 
@@ -63,14 +61,12 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 		Logs                    []interface{}   `json:"logs"`
 		IgnoreAutodiscoveryTags bool            `json:"ignore_autodiscovery_tags"`
 	}
-	fmt.Println("andrewq", checksJSON)
 	err := json.Unmarshal([]byte(checksJSON), &namedChecks)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse check configuration: %w", err)
 	}
 	// docker run -l com.datadoghq.ad.checks="{\"<INTEGRATION_NAME>\": {\"instances\": [<INSTANCE_CONFIG>], \"logs\": [<LOGS_CONFIG>]}}"
 	// docker run -l "com.datadoghq.ad.checks="{\"apache\": {\"logs\": [{\"type\":\"file\"}]}}""
-	fmt.Println("WACK PRINTING KEY/VALS")
 
 	checks := make([]integration.Config, 0, len(namedChecks))
 	for name, config := range namedChecks {
@@ -88,9 +84,6 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 		}
 		for _, i := range config.Logs {
 			log, err := parseJSONObjToData(i)
-			// fmt.Println("hickity", log)
-			// fmt.Println("hickity", integration.Data("{\"service\":\"any_service\",\"source\":\"any_source\"}"))
-			// fmt.Println("hickity", i)
 			if err != nil {
 				return nil, err
 			}
@@ -105,19 +98,9 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 
 			c.Instances = append(c.Instances, instance)
 		}
-		fmt.Println("---------------------------")
-		fmt.Println("wacktest11", c)
-		fmt.Println("LOGS CONFIG IS ", c.LogsConfig)
-		fmt.Println("---------------------------")
+
 		checks = append(checks, c)
 	}
-
-	/*
-		------------------------------------------------------------------------
-		[{apache [[123 34 97 112 97 99 104 101 95 115 116 97 116 117 115 95 117 114 108 34 58 34 104 116 116 112 58 47 47 37 37 104 111 115 116 37 37 47 115 101 114 118 101 114 45 115 116 97 116 117 115 63 97 117 116 111 50 34 125]] [123 125] [] [91 10 9 9 9 9 9 9 9 123 34 115 101 114 118 105 99 101 34 58 34 97 110 121 95 115 101 114 118 105 99 101 34 44 32 34 115 111 117 114 99 101 34 58 34 97 110 121 95 115 111 117 114 99 101 34 125 10 9 9 9 9 9 9 93] [docker://foobar] []    false   false false false}]
-		------------------------------------------------------------------------
-		[{apache [[123 34 97 112 97 99 104 101 95 115 116 97 116 117 115 95 117 114 108 34 58 34 104 116 116 112 58 47 47 37 37 104 111 115 116 37 37 47 115 101 114 118 101 114 45 115 116 97 116 117 115 63 97 117 116 111 50 34 125]] [123 125] [] [] [docker://foobar] []    false   false false false} {apache [] [] [] [91 123 34 115 101 114 118 105 99 101 34 58 34 97 110 121 95 115 101 114 118 105 99 101 34 44 34 115 111 117 114 99 101 34 58 34 97 110 121 95 115 111 117 114 99 101 34 125 93] [docker://foobar] []    false   false false false}]
-	*/
 
 	return checks, nil
 }

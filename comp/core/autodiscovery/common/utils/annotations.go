@@ -215,16 +215,12 @@ func extractCheckNamesFromMap(annotations map[string]string, prefix string, lega
 		var adIdentifier string
 		checks, err := parseChecksJSON(adIdentifier, checksJSON)
 		if err != nil {
-			fmt.Println("WACK ERROR")
 			return nil, err
 		}
-		fmt.Println("andrewq 3", checks)
 		checkNames := make([]string, 0, len(checks))
-		fmt.Println("andrewq 4", checkNames)
 		for _, config := range checks {
 			checkNames = append(checkNames, config.Name)
 		}
-		fmt.Println("andrewq 5", checkNames)
 		return checkNames, nil
 	}
 
@@ -269,13 +265,10 @@ func extractTemplatesFromMapWithV2(entityName string, annotations map[string]str
 		// AD annotations v2: "ad.datadoghq.com/redis.checks"
 		actualPrefix = prefix
 		c, err := parseChecksJSON(entityName, checksJSON)
-		fmt.Println("andrewq annotations.go ", c)
 		if err != nil {
-			fmt.Println("UBER WACK ERROR")
 			errors = append(errors, err)
 		} else {
 			configs = append(configs, c...)
-			fmt.Println("hehexd2", configs)
 		}
 	} else {
 		// AD annotations v1: "ad.datadoghq.com/redis.check_names"
