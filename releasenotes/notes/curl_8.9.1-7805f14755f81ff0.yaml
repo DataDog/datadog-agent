@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-upgrade:
+security:
   - |
     Update cURL to 8.9.1.
