@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -48,12 +49,16 @@ type serviceInfo struct {
 type discovery struct {
 	// cache maps pids to data that should be cached between calls to the endpoint.
 	cache map[int32]*serviceInfo
+
+	// privilegedDetector is used to detect the language of a process.
+	privilegedDetector privileged.LanguageDetector
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
 func NewDiscoveryModule(*sysconfigtypes.Config, optional.Option[workloadmeta.Component], telemetry.Component) (module.Module, error) {
 	return &discovery{
-		cache: make(map[int32]*serviceInfo),
+		cache:              make(map[int32]*serviceInfo),
+		privilegedDetector: privileged.NewLanguageDetector(),
 	}, nil
 }
 
@@ -215,12 +220,15 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 	}
 
 	name, fromDDService := servicediscovery.GetServiceName(cmdline, envs)
-	language := language.FindInArgs(cmdline)
-	apmInstrumentation := apm.Detect(int(proc.Pid), cmdline, envs, language)
+	lang := language.FindInArgs(cmdline)
+	if lang == "" {
+		lang = language.FindUsingPrivilegedDetector(s.privilegedDetector, proc.Pid)
+	}
+	apmInstrumentation := apm.Detect(int(proc.Pid), cmdline, envs, lang)
 
 	return &serviceInfo{
 		name:               name,
-		language:           language,
+		language:           lang,
 		apmInstrumentation: apmInstrumentation,
 		nameFromDDService:  fromDDService,
 	}, nil
