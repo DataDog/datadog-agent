@@ -28,7 +28,7 @@ type Component interface {
 	GetAllConfigs() []integration.Config
 	AddListeners(listenerConfigs []config.Listeners)
 	AddScheduler(name string, s scheduler.Scheduler, replayConfigs bool)
-	GetServerChannel() chan *integration.Config
+	GetServerChannels() (chan *integration.Config, chan *integration.Config)
 	RemoveScheduler(name string)
 	MapOverLoadedConfigs(f func(map[string]integration.Config))
 	LoadedConfigs() []integration.Config

@@ -28,30 +28,76 @@ import (
 //
 // This type implements  pkg/logs/schedulers.Scheduler.
 type Scheduler struct {
-	mgr schedulers.SourceManager
+	mgr               schedulers.SourceManager
+	scheduleConfigs   chan []integration.Config
+	unscheduleConfigs chan []integration.Config
+	started           bool
 }
 
 // New creates a new scheduler.
 func New() *Scheduler {
-	sch := &Scheduler{}
+	sch := &Scheduler{
+		scheduleConfigs:   make(chan []integration.Config),
+		unscheduleConfigs: make(chan []integration.Config),
+	}
 	return sch
+}
+
+func (s *Scheduler) Schedule(configs []integration.Config) {
+	if !s.started {
+		return
+	}
+	s.scheduleConfigs <- configs
+}
+
+func (s *Scheduler) UnSchedule(configs []integration.Config) {
+	if !s.started {
+		return
+	}
+	s.unscheduleConfigs <- configs
+}
+
+func (s *Scheduler) Started() bool {
+	return s.started
 }
 
 // Start implements schedulers.Scheduler#Start.
 func (s *Scheduler) Start(sourceMgr schedulers.SourceManager) {
 	s.mgr = sourceMgr
+
+	go func() {
+		for {
+			select {
+			case configs, ok := <-s.scheduleConfigs:
+				if !ok {
+					return
+				}
+				s.schedule(configs)
+			case configs, ok := <-s.unscheduleConfigs:
+				if !ok {
+					return
+				}
+				s.unschedule(configs)
+			}
+		}
+	}()
+
+	s.started = true
 }
 
 // Stop implements schedulers.Scheduler#Stop.
 func (s *Scheduler) Stop() {
 	s.mgr = nil
+	s.started = false
+	close(s.scheduleConfigs)
+	close(s.unscheduleConfigs)
 }
 
 // Schedule creates new sources and services from a list of integration configs.
 // An integration config can be mapped to a list of sources when it contains a Provider,
 // while an integration config can be mapped to a service when it contains an Entity.
 // An entity represents a unique identifier for a process that be reused to query logs.
-func (s *Scheduler) Schedule(configs []integration.Config) {
+func (s *Scheduler) schedule(configs []integration.Config) {
 	for _, config := range configs {
 		if !config.IsLogConfig() {
 			continue
@@ -78,8 +124,11 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 	}
 }
 
-// Unschedule removes all the sources and services matching the integration configs.
-func (s *Scheduler) Unschedule(configs []integration.Config) {
+// Schedule creates new sources and services from a list of integration configs.
+// An integration config can be mapped to a list of sources when it contains a Provider,
+// while an integration config can be mapped to a service when it contains an Entity.
+// An entity represents a unique identifier for a process that be reused to query logs.
+func (s *Scheduler) unschedule(configs []integration.Config) {
 	for _, config := range configs {
 		if !config.IsLogConfig() || config.HasFilter(containers.LogsFilter) {
 			continue

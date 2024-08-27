@@ -201,7 +201,6 @@ func (a *logAgent) start(context.Context) error {
 	}
 
 	remoteAdScheduler := remoteAdScheduler.New()
-	configsChannel := make(chan []integration.Config)
 
 	// Start a stream using the grpc Client to consume autodiscovery updates for the different configurations
 	go func() {
@@ -214,27 +213,35 @@ func (a *logAgent) start(context.Context) error {
 				}
 			}
 
-			streamConfigs, err := a.autodiscoveryStream.Recv()
+			if remoteAdScheduler.Started() {
+				streamConfigs, err := a.autodiscoveryStream.Recv()
 
-			if err != nil {
-				a.autodiscoveryStreamCancel()
+				if err != nil {
+					a.autodiscoveryStreamCancel()
 
-				a.autodiscoveryStream = nil
+					a.autodiscoveryStream = nil
 
-				if err != io.EOF {
-					a.log.Warnf("error received from autodiscovery stream workloadmeta: %s", err)
+					if err != io.EOF {
+						a.log.Warnf("error received from autodiscovery stream workloadmeta: %s", err)
+					}
+
+					continue
 				}
 
-				continue
+				scheduleConfigs := []integration.Config{}
+				unscheduleConfigs := []integration.Config{}
+
+				for _, config := range streamConfigs.Configs {
+					if config.EventType == core.ConfigEventType_SCHEDULE {
+						scheduleConfigs = append(scheduleConfigs, autodiscoveryConfigFromprotobufConfig(config))
+					} else if config.EventType == core.ConfigEventType_UNSCHEDULE {
+						unscheduleConfigs = append(unscheduleConfigs, autodiscoveryConfigFromprotobufConfig(config))
+					}
+				}
+
+				remoteAdScheduler.Schedule(scheduleConfigs)
+				remoteAdScheduler.UnSchedule(unscheduleConfigs)
 			}
-
-			configs := []integration.Config{}
-
-			for _, config := range streamConfigs.Configs {
-				configs = append(configs, autodiscoveryConfigFromprotobufConfig(config))
-			}
-
-			configsChannel <- configs
 		}
 	}()
 
@@ -247,16 +254,6 @@ func (a *logAgent) start(context.Context) error {
 	a.startPipeline()
 
 	a.log.Info("logs-agent started")
-
-	go func() {
-		for {
-			select {
-			case configs := <-configsChannel:
-				remoteAdScheduler.Schedule(configs)
-			default:
-			}
-		}
-	}()
 
 	return nil
 }

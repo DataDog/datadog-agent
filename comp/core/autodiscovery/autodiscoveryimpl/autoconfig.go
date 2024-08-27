@@ -381,8 +381,8 @@ func (ac *AutoConfig) Stop() {
 	}
 }
 
-func (ac *AutoConfig) GetServerChannel() chan *integration.Config {
-	return ac.schedulerController.GetServerChannel()
+func (ac *AutoConfig) GetServerChannels() (chan *integration.Config, chan *integration.Config) {
+	return ac.schedulerController.GetServerChannels()
 }
 
 // AddConfigProvider adds a new configuration provider to AutoConfig.

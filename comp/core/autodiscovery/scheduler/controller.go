@@ -44,7 +44,7 @@ type Controller struct {
 	serverScheduleChannel chan *integration.Config
 
 	// serverUnScheduleChannel is the channel we use to unschedule configuration changes over gRPC
-	// serverUnScheduleChannel chan *integration.Config
+	serverUnScheduleChannel chan *integration.Config
 
 	started     bool
 	stopChannel chan struct{}
@@ -139,8 +139,8 @@ func (ms *Controller) ApplyChanges(changes integration.ConfigChanges) {
 	}
 }
 
-func (ms *Controller) GetServerChannel() chan *integration.Config {
-	return ms.serverScheduleChannel
+func (ms *Controller) GetServerChannels() (chan *integration.Config, chan *integration.Config) {
+	return ms.serverScheduleChannel, ms.serverUnScheduleChannel
 }
 
 func (ms *Controller) worker() {
@@ -181,11 +181,19 @@ func (ms *Controller) processNextWorkItem() bool {
 	}
 	log.Tracef("Controller starts processing config %s: currentState: %d, desiredState: %d", configName, currentState, desiredState)
 	ms.m.Lock() //lock on activeSchedulers
+
+	if desiredState == Scheduled {
+		//to be scheduled
+		ms.serverScheduleChannel <- desiredConfigState.config
+	} else {
+		//to be unscheduled
+		ms.serverUnScheduleChannel <- desiredConfigState.config
+	}
+
 	for _, scheduler := range ms.activeSchedulers {
 		if desiredState == Scheduled {
 			//to be scheduled
 			scheduler.Schedule(([]integration.Config{*desiredConfigState.config})) // TODO: check status of action
-			ms.serverScheduleChannel <- desiredConfigState.config
 		} else {
 			//to be unscheduled
 			scheduler.Unschedule(([]integration.Config{*desiredConfigState.config})) // TODO: check status of action

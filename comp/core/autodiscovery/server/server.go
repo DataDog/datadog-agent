@@ -28,16 +28,17 @@ type Server struct {
 
 // StreamEntities streams entities from the workloadmeta store applying the given filter
 func (s *Server) StreamConfig(out pb.AgentSecure_AutodiscoveryStreamConfigServer) error {
-	serverChannel := s.ac.GetServerChannel()
+	scheduleChannel, unscheduleChannel := s.ac.GetServerChannels()
 
 	for {
 		select {
-		case config, ok := <-serverChannel:
+		case config, ok := <-scheduleChannel:
 			if !ok {
 				return nil
 			}
 
 			protobufConfig := protobufConfigFromAutodiscoveryConfig(config)
+			protobufConfig.EventType = pb.ConfigEventType_SCHEDULE
 
 			err := grpc.DoWithTimeout(func() error {
 				return out.Send(&pb.AutodiscoveryStreamResponse{
@@ -46,7 +47,25 @@ func (s *Server) StreamConfig(out pb.AgentSecure_AutodiscoveryStreamConfigServer
 			}, 1*time.Minute)
 
 			if err != nil {
-				log.Warnf("error sending autodiscovbery event: %s", err)
+				log.Warnf("error sending schedule autodiscovbery event: %s", err)
+				return err
+			}
+		case config, ok := <-unscheduleChannel:
+			if !ok {
+				return nil
+			}
+
+			protobufConfig := protobufConfigFromAutodiscoveryConfig(config)
+			protobufConfig.EventType = pb.ConfigEventType_UNSCHEDULE
+
+			err := grpc.DoWithTimeout(func() error {
+				return out.Send(&pb.AutodiscoveryStreamResponse{
+					Configs: []*pb.Config{protobufConfig},
+				})
+			}, 1*time.Minute)
+
+			if err != nil {
+				log.Warnf("error sending unschedule autodiscovbery event: %s", err)
 				return err
 			}
 

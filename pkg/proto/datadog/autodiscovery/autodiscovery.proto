@@ -4,6 +4,10 @@ package datadog.autodiscovery;
 
 option go_package = "pkg/proto/pbgo/core"; // golang\
 
+enum ConfigEventType {
+  SCHEDULE = 0;
+  UNSCHEDULE = 1;
+}
 
 message KubeNamespacedName {
   string name = 1;
@@ -32,6 +36,7 @@ message Config {
   bool ignoreAutodiscoveryTags = 14;
   bool metricsExcluded = 15;
   bool logsExcluded = 16;
+  ConfigEventType eventType = 17;
 }
 
 message AutodiscoveryStreamResponse {
