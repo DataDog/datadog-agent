@@ -9,6 +9,7 @@ package privileged
 
 import (
 	"os/exec"
+	"strconv"
 	"testing"
 	"time"
 
@@ -34,8 +35,8 @@ func (p cmdWrapper) GetCmdline() []string {
 	return p.Args
 }
 
-func forkExecForTest(t *testing.T) *exec.Cmd {
-	cmd := exec.Command("sleep", "20")
+func forkExecForTest(t *testing.T, timeout int) *exec.Cmd {
+	cmd := exec.Command("sleep", strconv.Itoa(timeout))
 	err := cmd.Start()
 
 	time.Sleep(250 * time.Millisecond)
@@ -52,7 +53,7 @@ func forkExecForTest(t *testing.T) *exec.Cmd {
 
 func TestPrivilegedDetectorCaching(t *testing.T) {
 	t.Run("cache entry does not exist", func(t *testing.T) {
-		cmd1 := cmdWrapper{forkExecForTest(t)}
+		cmd1 := cmdWrapper{forkExecForTest(t, 20)}
 		d := NewLanguageDetector()
 		d.DetectWithPrivileges([]languagemodels.Process{cmd1})
 
@@ -68,7 +69,7 @@ func TestPrivilegedDetectorCaching(t *testing.T) {
 			- `simplelru.LRUCache` has 10 methods which all have to be stubbed out, and add unnecessary bloat to the tests.
 			- `simplelru.LRUCache` is an external dependency; if the interface ever changed then the test would have to be fixed.
 		*/
-		cmd1 := cmdWrapper{forkExecForTest(t)}
+		cmd1 := cmdWrapper{forkExecForTest(t, 20)}
 		d := NewLanguageDetector()
 
 		binID, err := d.getBinID(cmd1)
@@ -81,7 +82,7 @@ func TestPrivilegedDetectorCaching(t *testing.T) {
 }
 
 func TestGetBinID(t *testing.T) {
-	cmd1, cmd2 := forkExecForTest(t), forkExecForTest(t)
+	cmd1, cmd2 := forkExecForTest(t, 20), forkExecForTest(t, 20)
 	d := NewLanguageDetector()
 
 	// Assert cmd1 and cmd2 are not the same processes
@@ -94,4 +95,16 @@ func TestGetBinID(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, binID1, binID2)
+}
+
+func TestShortLivingProc(t *testing.T) {
+	cmd := forkExecForTest(t, 1)
+	_, err := cmd.Process.Wait()
+	require.NoError(t, err)
+
+	d := NewLanguageDetector()
+	res := d.DetectWithPrivileges([]languagemodels.Process{cmdWrapper{cmd}})
+	require.Len(t, res, 1)
+	require.Equal(t, languagemodels.Language{}, res[0])
+	require.Zero(t, d.binaryIDCache.Len())
 }

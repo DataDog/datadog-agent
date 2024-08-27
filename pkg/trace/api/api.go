@@ -853,3 +853,12 @@ func getMediaType(req *http.Request) string {
 	}
 	return mt
 }
+
+// normalizeHTTPHeader takes a raw string and normalizes the value to be compatible
+// with an HTTP header value.
+func normalizeHTTPHeader(val string) string {
+	val = strings.ReplaceAll(val, "\r\n", "_")
+	val = strings.ReplaceAll(val, "\r", "_")
+	val = strings.ReplaceAll(val, "\n", "_")
+	return val
+}
