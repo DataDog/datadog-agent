@@ -12,13 +12,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // populateStatus populates the status stats
 func populateStatus(ac autodiscovery.Component, stats map[string]interface{}) {
-	stats["adEnabledFeatures"] = config.GetDetectedFeatures()
+	stats["adEnabledFeatures"] = env.GetDetectedFeatures()
 	stats["adConfigErrors"] = ac.GetAutodiscoveryErrors()
 	stats["filterErrors"] = containers.GetFilterErrors()
 }
@@ -33,7 +33,7 @@ type Provider struct {
 
 // GetProvider if agent is running in a container environment returns status.Provider otherwise returns nil
 func GetProvider(acComp autodiscovery.Component) status.Provider {
-	if config.IsContainerized() {
+	if env.IsContainerized() {
 		return Provider{ac: acComp}
 	}
 

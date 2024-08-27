@@ -33,7 +33,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -223,7 +223,7 @@ func (p *EBPFProbe) VerifyOSVersion() error {
 // VerifyEnvironment returns an error if the current environment seems to be misconfigured
 func (p *EBPFProbe) VerifyEnvironment() *multierror.Error {
 	var err *multierror.Error
-	if aconfig.IsContainerized() {
+	if env.IsContainerized() {
 		if mounted, _ := mountinfo.Mounted("/etc/passwd"); !mounted {
 			err = multierror.Append(err, errors.New("/etc/passwd doesn't seem to be a mountpoint"))
 		}
