@@ -35,10 +35,6 @@ overrides:
   "github.com/JohnCGriffin/overflow": MIT
   # https://github.com/GoogleCloudPlatform/grpc-gcp-go/blob/main/LICENSE
   "github.com/GoogleCloudPlatform/grpc-gcp-go": Apache-2.0
-  # https://github.com/jonboulle/clockwork/blob/master/LICENSE
-  "github.com/jonboulle/clockwork": Apache-2.0
-  # https://github.com/moby/docker-image-spec/blob/main/LICENSE
-  "github.com/moby/docker-image-spec": Apache-2.0
 
 exceptions:
   - "golang.org/x/mobile/..."
