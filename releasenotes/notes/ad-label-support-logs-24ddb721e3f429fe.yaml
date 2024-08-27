@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    Added missing support for the logs config key to work with AD annotations V2.
+    Adds missing support for the logs config key to work with AD annotations V2.
 
