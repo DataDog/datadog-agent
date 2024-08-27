@@ -2544,6 +2544,7 @@ core,go.uber.org/automaxprocs/internal/cgroups,MIT,"Copyright (c) 2017 Uber Tech
 core,go.uber.org/automaxprocs/internal/runtime,MIT,"Copyright (c) 2017 Uber Technologies, Inc"
 core,go.uber.org/automaxprocs/maxprocs,MIT,"Copyright (c) 2017 Uber Technologies, Inc"
 core,go.uber.org/dig,MIT,"Copyright (c) 2017-2018 Uber Technologies, Inc"
+core,go.uber.org/dig/internal/digclock,MIT,"Copyright (c) 2017-2018 Uber Technologies, Inc"
 core,go.uber.org/dig/internal/digerror,MIT,"Copyright (c) 2017-2018 Uber Technologies, Inc"
 core,go.uber.org/dig/internal/digreflect,MIT,"Copyright (c) 2017-2018 Uber Technologies, Inc"
 core,go.uber.org/dig/internal/dot,MIT,"Copyright (c) 2017-2018 Uber Technologies, Inc"
