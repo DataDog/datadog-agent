@@ -96,9 +96,9 @@ func CreateIISSite(host *components.RemoteHost, site []IISSiteDefinition) error 
 		for _, app := range s.Applications {
 			// create the application
 			script := `
-			$res = Get-WebApplication -Name %s
+			$res = Get-WebApplication -Name '%s'
 			if ($res -eq $null) {
-				New-WebApplication -Site %s -Name %s -PhysicalPath %s
+				New-WebApplication -Site '%s' -Name '%s' -PhysicalPath '%s'
 			}`
 			physpath := strings.Replace(app.PhysicalPath, "/", "\\", -1)
 
