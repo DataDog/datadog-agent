@@ -14,7 +14,6 @@ import (
 )
 
 func TestSysmetrics(t *testing.T) {
-	t.Skip()
 	c, _ := newDefaultCheck(t, "dbm: true", "")
 	defer c.Teardown()
 	c.Run()

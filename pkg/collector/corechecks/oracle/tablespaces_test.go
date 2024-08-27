@@ -26,20 +26,18 @@ import (
  */
 
 func TestTablespaces(t *testing.T) {
-	t.Skip()
 	c, s := newDefaultCheck(t, "", "")
 	defer c.Teardown()
 	err := c.Run()
 	require.NoError(t, err)
 	s.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	expectedPdb := getExpectedPdb(&c)
-	tags := []string{fmt.Sprintf("pdb:%s", expectedPdb), "tablespace:tbs_test"}
+	tags := []string{fmt.Sprintf("pdb:%s", expectedPdb), "tablespace:TBS_TEST"}
 	s.AssertMetricOnce(t, "Gauge", "oracle.tablespace.size", 104857600, c.dbHostname, tags)
 	s.AssertMetricOnce(t, "Gauge", "oracle.tablespace.offline", 0, c.dbHostname, tags)
 }
 
 func TestTablespacesOffline(t *testing.T) {
-	t.Skip()
 	c, s := newDefaultCheck(t, "", "")
 	defer c.Teardown()
 	connection := getConnectData(t, useSysUser)
@@ -47,7 +45,7 @@ func TestTablespacesOffline(t *testing.T) {
 	conn, err2 := sql.Open("oracle", databaseUrl)
 	require.NoError(t, err2)
 
-	const tablespaceName = "tbs_test_offline"
+	const tablespaceName = "TBS_TEST_OFFLINE"
 
 	defer func() {
 		_, err := conn.Exec(fmt.Sprintf("ALTER TABLESPACE %s ONLINE", tablespaceName))

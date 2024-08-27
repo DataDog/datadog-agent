@@ -8,7 +8,7 @@ from invoke.exceptions import Exit
 @task
 def test(ctx, verbose=False) -> None:
     # print(os.environ)
-    if not os.environ.get("CI"):
+    if not os.environ.get("CI") and not os.environ.get("SKIP_DOCKER"):
         # Start a local oracle instance
         with ctx.cd("pkg/collector/corechecks/oracle/compose"):
             print("Launching docker...")
