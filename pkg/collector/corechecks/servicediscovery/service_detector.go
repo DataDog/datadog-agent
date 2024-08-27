@@ -43,8 +43,8 @@ func makeFinalName(meta usm.ServiceMetadata) string {
 
 // GetServiceName gets the service name based on the command line arguments and
 // the list of environment variables.
-func GetServiceName(cmdline []string, env map[string]string, root string) string {
+func GetServiceName(cmdline []string, env map[string]string, root string) (string, bool) {
 	fs := usm.NewSubDirFS(root)
 	meta, _ := usm.ExtractServiceMetadata(cmdline, env, fs)
-	return makeFinalName(meta)
+	return makeFinalName(meta), meta.FromDDService
 }
