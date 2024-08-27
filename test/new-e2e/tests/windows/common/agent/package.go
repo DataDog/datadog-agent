@@ -117,6 +117,7 @@ func GetPipelineMSIURL(pipelineID string, majorVersion string, arch string) (str
 	s3Client := s3.NewFromConfig(config)
 
 	// Manual URL example: https://s3.amazonaws.com/dd-agent-mstesting?prefix=pipelines/A7/25309493
+	fmt.Printf("Looking for agent MSI for pipeline majorVersion %v %v\n", majorVersion, pipelineID)
 	result, err := s3Client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{
 		Bucket: aws.String(agentS3BucketTesting),
 		Prefix: aws.String(fmt.Sprintf("pipelines/A%s/%s", majorVersion, pipelineID)),
