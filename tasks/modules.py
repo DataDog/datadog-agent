@@ -215,7 +215,9 @@ DEFAULT_MODULES = {
     "pkg/config/utils": GoModule("pkg/config/utils", independent=True, used_by_otel=True),
     "pkg/errors": GoModule("pkg/errors", independent=True),
     "pkg/gohai": GoModule("pkg/gohai", independent=True, importable=False),
-    "pkg/languagedetection/languagemodels": GoModule("pkg/languagedetection/languagemodels", independent=True,used_by_otel=True),
+    "pkg/languagedetection/languagemodels": GoModule(
+        "pkg/languagedetection/languagemodels", independent=True, used_by_otel=True
+    ),
     "pkg/linters/components/pkgconfigusage": GoModule("pkg/linters/components/pkgconfigusage", should_tag=False),
     "pkg/logs/auditor": GoModule("pkg/logs/auditor", independent=True, used_by_otel=True),
     "pkg/logs/client": GoModule("pkg/logs/client", independent=True, used_by_otel=True),
