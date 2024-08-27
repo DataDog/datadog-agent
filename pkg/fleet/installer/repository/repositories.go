@@ -52,6 +52,10 @@ func (r *Repositories) loadRepositories() (map[string]*Repository, error) {
 			// Temporary dir created by Repositories.MkdirTemp, ignore
 			continue
 		}
+		if d.Name() == "run" {
+			// run dir, ignore
+			continue
+		}
 		repo := r.newRepository(d.Name())
 		repositories[d.Name()] = repo
 	}
