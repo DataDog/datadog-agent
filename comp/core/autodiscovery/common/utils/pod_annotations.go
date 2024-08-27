@@ -61,6 +61,7 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 		Logs                    []interface{}   `json:"logs"`
 		IgnoreAutodiscoveryTags bool            `json:"ignore_autodiscovery_tags"`
 	}
+
 	err := json.Unmarshal([]byte(checksJSON), &namedChecks)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse check configuration: %w", err)
