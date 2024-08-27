@@ -34,7 +34,6 @@ func assertMessageContent(t *testing.T, m *message.Message, content string) {
 }
 
 func TestNoAggregate(t *testing.T) {
-
 	outputChan, outputFn := makeHandler()
 	ag := NewAggregator(outputFn, 100, time.Duration(1*time.Second), false, false)
 
@@ -62,7 +61,6 @@ func TestNoAggregateEndsGroup(t *testing.T) {
 }
 
 func TestAggregateGroups(t *testing.T) {
-
 	outputChan, outputFn := makeHandler()
 	ag := NewAggregator(outputFn, 100, time.Duration(1*time.Second), false, false)
 
@@ -83,7 +81,6 @@ func TestAggregateGroups(t *testing.T) {
 }
 
 func TestAggregateDoesntStartGroup(t *testing.T) {
-
 	outputChan, outputFn := makeHandler()
 	ag := NewAggregator(outputFn, 100, time.Duration(1*time.Second), false, false)
 
@@ -97,7 +94,6 @@ func TestAggregateDoesntStartGroup(t *testing.T) {
 }
 
 func TestForceFlush(t *testing.T) {
-
 	outputChan, outputFn := makeHandler()
 	ag := NewAggregator(outputFn, 100, time.Duration(1*time.Second), false, false)
 
@@ -110,7 +106,6 @@ func TestForceFlush(t *testing.T) {
 }
 
 func TestAggregationTimer(t *testing.T) {
-
 	outputChan, outputFn := makeHandler()
 	ag := NewAggregator(outputFn, 100, time.Duration(1*time.Second), false, false)
 
@@ -128,7 +123,6 @@ func TestAggregationTimer(t *testing.T) {
 }
 
 func TestTagTruncatedLogs(t *testing.T) {
-
 	outputChan, outputFn := makeHandler()
 	ag := NewAggregator(outputFn, 10, time.Duration(1*time.Second), true, false)
 
@@ -153,7 +147,6 @@ func TestTagTruncatedLogs(t *testing.T) {
 }
 
 func TestTagMultiLineLogs(t *testing.T) {
-
 	outputChan, outputFn := makeHandler()
 	ag := NewAggregator(outputFn, 10, time.Duration(1*time.Second), false, true)
 
