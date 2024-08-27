@@ -217,7 +217,8 @@ func TestDockerNetworkExtension(t *testing.T) {
 		ID:    "docker-app",
 		State: string(workloadmeta.ContainerStatusRunning),
 		HostConfig: struct {
-			NetworkMode string "json:\",omitempty\""
+			NetworkMode string            "json:\",omitempty\""
+			Annotations map[string]string "json:\",omitempty\""
 		}{NetworkMode: "ubuntu_default"},
 		NetworkSettings: &dockerTypes.SummaryNetworkSettings{
 			Networks: map[string]*dockerNetworkTypes.EndpointSettings{
