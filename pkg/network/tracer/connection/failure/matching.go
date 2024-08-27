@@ -155,11 +155,6 @@ func (fc *FailedConns) setupMapCleaner(m *manager.Manager) {
 		log.Errorf("error getting %v map: %s", probes.ConnCloseFlushed, err)
 		return
 	}
-	tcpOngoingConnectMap, _, err := m.GetMap(probes.TCPConnectSockPidMap)
-	if err != nil {
-		log.Errorf("error getting %v map: %s", probes.TCPConnectSockPidMap, err)
-		return
-	}
 	connFlushedCleaner, err := ddebpf.NewMapCleaner[ebpf.ConnTuple, int64](connCloseFlushMap, 1024)
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
@@ -170,19 +165,25 @@ func (fc *FailedConns) setupMapCleaner(m *manager.Manager) {
 		return val > 0 && now-val > connClosedFlushMapTTL
 	})
 
-	tcpOngoingConnectCleaner, err := ddebpf.NewMapCleaner[ebpf.ConnTuple, int64](tcpOngoingConnectMap, 1024)
-	if err != nil {
-		log.Errorf("error creating map cleaner: %s", err)
-		return
-	}
+	//tcpOngoingConnectMap, _, err := m.GetMap(probes.TCPConnectSockPidMap)
+	//if err != nil {
+	//	log.Errorf("error getting %v map: %s", probes.TCPConnectSockPidMap, err)
+	//	return
+	//}
 
-	tcpOngoingConnectCleaner.Clean(time.Second*30, nil, nil, func(now int64, _ ebpf.ConnTuple, val int64) bool {
-		remove := val > 0 && now-val > tcpOngoingConnectMapTTL
-		if remove {
-			failureTelemetry.orphanOngoingConns.Inc()
-		}
-		return remove
-	})
+	//tcpOngoingConnectCleaner, err := ddebpf.NewMapCleaner[ebpf.ConnTuple, int64](tcpOngoingConnectMap, 1024)
+	//if err != nil {
+	//	log.Errorf("error creating map cleaner: %s", err)
+	//	return
+	//}
+	//
+	//tcpOngoingConnectCleaner.Clean(time.Minute*30, nil, nil, func(now int64, _ ebpf.ConnTuple, val int64) bool {
+	//	remove := val > 0 && now-val > tcpOngoingConnectMapTTL
+	//	if remove {
+	//		failureTelemetry.orphanOngoingConns.Inc()
+	//	}
+	//	return remove
+	//})
 
 	fc.mapCleaner = connFlushedCleaner
 }
