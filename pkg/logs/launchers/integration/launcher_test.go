@@ -203,6 +203,8 @@ func (suite *LauncherTestSuite) TestFileExceedsSingleFileLimit() {
 	filename := "sample_integration_123.log"
 	file, err := os.Create(filepath.Join(suite.s.runPath, filename))
 	assert.Nil(suite.T(), err)
+	defer file.Close()
+	defer os.Remove(filename)
 
 	file.Write(make([]byte, oneMB))
 
@@ -229,6 +231,7 @@ func (suite *LauncherTestSuite) TestScanInitialFiles() {
 	file, err := os.Create(filepath.Join(suite.s.runPath, filename))
 	assert.Nil(suite.T(), err)
 	defer file.Close()
+	defer os.Remove(filename)
 
 	data := make([]byte, fileSize)
 	_, err = file.Write(data)
@@ -255,13 +258,17 @@ func (suite *LauncherTestSuite) TestSentLogExceedsTotalUsage() {
 
 	file1, err := os.Create(filepath.Join(suite.s.runPath, filename1))
 	assert.Nil(suite.T(), err)
-	defer file1.Close()
 	file2, err := os.Create(filepath.Join(suite.s.runPath, filename2))
 	assert.Nil(suite.T(), err)
-	defer file2.Close()
 	file3, err := os.Create(filepath.Join(suite.s.runPath, filename3))
 	assert.Nil(suite.T(), err)
+
+	defer file1.Close()
+	defer file2.Close()
 	defer file3.Close()
+	defer os.Remove(filename1)
+	defer os.Remove(filename2)
+	defer os.Remove(filename3)
 
 	dataOneMB := make([]byte, 1*1024*1024)
 	file1.Write(dataOneMB)
@@ -303,8 +310,10 @@ func (suite *LauncherTestSuite) TestInitialLogsExceedTotalUsageMultipleFiles() {
 
 	file1, err := os.Create(filepath.Join(suite.s.runPath, filename1))
 	assert.Nil(suite.T(), err)
+	defer file1.Close()
 	file2, err := os.Create(filepath.Join(suite.s.runPath, filename2))
 	assert.Nil(suite.T(), err)
+	defer file2.Close()
 
 	file1.Write(dataOneMB)
 	file2.Write(dataOneMB)
@@ -326,6 +335,7 @@ func (suite *LauncherTestSuite) TestInitialLogExceedsTotalUsageSingleFile() {
 
 	file, err := os.Create(filepath.Join(suite.s.runPath, filename))
 	assert.Nil(suite.T(), err)
+	defer file.Close()
 
 	file.Write(dataTwoMB)
 
