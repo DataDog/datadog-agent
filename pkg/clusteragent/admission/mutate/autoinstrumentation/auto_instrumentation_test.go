@@ -532,7 +532,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			wantErr: true,
 		},
 	}
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := configmock.New(t)
@@ -960,8 +960,7 @@ func TestExtractLibInfo(t *testing.T) {
 			wmeta := fxutil.Test[workloadmeta.Component](t,
 				core.MockBundle(),
 				fx.Replace(configComp.MockParams{Overrides: overrides}),
-				workloadmetafxmock.MockModule(),
-				fx.Supply(workloadmeta.NewParams()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			)
 			mockConfig = configmock.New(t)
 			for k, v := range overrides {
@@ -1183,7 +1182,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 		},
 	}
 
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conf := configmock.New(t)
@@ -3136,7 +3135,7 @@ func TestShouldInject(t *testing.T) {
 			want:        false,
 		},
 	}
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig = configmock.New(t)

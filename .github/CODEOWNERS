@@ -198,6 +198,7 @@
 /cmd/system-probe/modules/traceroute*   @DataDog/network-device-monitoring @Datadog/Networks
 /cmd/system-probe/modules/ping*         @DataDog/network-device-monitoring
 /cmd/system-probe/modules/service_discover* @DataDog/apm-onboarding @DataDog/universal-service-monitoring
+/cmd/system-probe/modules/language_detection* @DataDog/processes @DataDog/universal-service-monitoring
 /cmd/system-probe/runtime/              @DataDog/agent-security
 /cmd/system-probe/windows/              @DataDog/windows-kernel-integrations
 /cmd/system-probe/windows_resources/    @DataDog/windows-kernel-integrations

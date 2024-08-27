@@ -281,6 +281,7 @@ func (li *linuxImpl) getServiceInfo(p proc, service model.Service) (*serviceInfo
 		Language:           service.Language,
 		Type:               string(serviceType),
 		APMInstrumentation: service.APMInstrumentation,
+		NameSource:         service.NameSource,
 	}
 
 	return &serviceInfo{
