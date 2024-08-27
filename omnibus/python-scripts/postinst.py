@@ -14,10 +14,12 @@ Usage:
 """
 
 import os
-import subprocess
-import shutil
+# import subprocess
+# import shutil
 import sys
 import importlib.metadata
+import pwd
+import grp
 
 # def run_command(command):
 #     """
@@ -130,6 +132,7 @@ if __name__ == '__main__':
             installed_packages = importlib.metadata.distributions()
             for dist in installed_packages:
                 f.write(f"{dist.metadata['Name']}=={dist.version}\n")
+        os.chown(python_installed_packages_file, pwd.getpwnam('dd-agent').pw_uid, grp.getgrnam('dd-agent').gr_gid)
         # create_integrations_file(install_directory)
         # create_dependencies_file(install_directory)
         # install_integrations(install_directory)
