@@ -47,14 +47,13 @@ func (suite *LauncherTestSuite) SetupTest() {
 	suite.testPath = filepath.Join(suite.testDir, "logs_integration_test.log")
 
 	suite.source = sources.NewLogSource(suite.T().Name(), &config.LogsConfig{Type: config.IntegrationType, Path: suite.testPath})
-
 	// Override `logs_config.run_path` before calling `sources.NewLogSources()` as otherwise
 	// it will try and create `/opt/datadog` directory and fail
 	pkgConfig.Datadog().SetWithoutSource("logs_config.run_path", suite.testDir)
 
 	suite.s = NewLauncher(sources.NewLogSources(), suite.integrationsComp)
 	status.InitStatus(pkgConfig.Datadog(), util.CreateSources([]*sources.LogSource{suite.source}))
-	suite.s.fileSizeMax = 1
+	suite.s.fileSizeMax = 10 * 1024 * 1024
 	suite.s.runPath = suite.testDir
 }
 
@@ -76,7 +75,7 @@ func (suite *LauncherTestSuite) TestSendLog() {
 
 	filepathChan := make(chan string)
 	fileLogChan := make(chan string)
-	suite.s.writeFunction = func(logFilePath, log string) error {
+	suite.s.writeLogToFileFunction = func(logFilePath, log string) error {
 		fileLogChan <- log
 		filepathChan <- logFilePath
 		return nil
@@ -94,7 +93,7 @@ func (suite *LauncherTestSuite) TestSendLog() {
 	assert.Equal(suite.T(), foundSource.Config.Type, config.FileType)
 	assert.Equal(suite.T(), foundSource.Config.Source, "foo")
 	assert.Equal(suite.T(), foundSource.Config.Service, "bar")
-	expectedPath := suite.s.integrationToFile[id]
+	expectedPath := filepath.Join(suite.s.runPath, suite.s.integrationToFile[id].filename)
 
 	assert.Equal(suite.T(), logSample, <-fileLogChan)
 	assert.Equal(suite.T(), expectedPath, <-filepathChan)
@@ -102,7 +101,7 @@ func (suite *LauncherTestSuite) TestSendLog() {
 
 func (suite *LauncherTestSuite) TestWriteLogToFile() {
 	logText := "hello world"
-	err := suite.s.writeFunction(suite.testPath, logText)
+	err := suite.s.writeLogToFileFunction(suite.testPath, logText)
 	require.Nil(suite.T(), err)
 
 	fileContents, err := os.ReadFile(suite.testPath)
@@ -113,13 +112,13 @@ func (suite *LauncherTestSuite) TestWriteLogToFile() {
 
 func (suite *LauncherTestSuite) TestWriteMultipleLogsToFile() {
 	var err error
-	err = suite.s.writeFunction(suite.testPath, "line 1")
+	err = suite.s.writeLogToFileFunction(suite.testPath, "line 1")
 	require.Nil(suite.T(), err, "error writing line 1")
 
-	err = suite.s.writeFunction(suite.testPath, "line 2")
+	err = suite.s.writeLogToFileFunction(suite.testPath, "line 2")
 	require.Nil(suite.T(), err, "error writing line 2")
 
-	err = suite.s.writeFunction(suite.testPath, "line 3")
+	err = suite.s.writeLogToFileFunction(suite.testPath, "line 3")
 	require.Nil(suite.T(), err, "error writing line 3")
 
 	fileContents, err := os.ReadFile(suite.testPath)
@@ -170,13 +169,170 @@ func (suite *LauncherTestSuite) TestIntegrationLogFilePath() {
 
 	id = "1234 5678:myIntegration"
 	actualFilePath = suite.s.integrationLogFilePath(id)
-	expectedFilePath = filepath.Join(suite.s.runPath, "1234-5678_myIntegration.log")
+	expectedFilePath = filepath.Join(suite.s.runPath, "1234 5678_myIntegration.log")
 	assert.Equal(suite.T(), expectedFilePath, actualFilePath)
 }
 
-// TestIntegrationFileDeletion ...
-func (suite *LauncherTestSuite) TestIntegrationFileDeletion() {
+// TestFileNameToID ensures file names are decoded to their proper id
+func (suite *LauncherTestSuite) TestFileNameToID() {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"file_name_1234.log", "file_name:1234"},
+		{"example_test_5678abcd.log", "example_test:5678abcd"},
+		{"integration with spaces_5678.log", "integration with spaces:5678"},
+		{"file_with_multiple_underscores_9999.log", "file_with_multiple_underscores:9999"},
+	}
 
+	for _, tt := range tests {
+		suite.T().Run(tt.input, func(_ *testing.T) {
+			result := fileNameToID(tt.input)
+			assert.Equal(suite.T(), tt.expected, result)
+		})
+	}
+}
+
+// TestFileExceedsSingleFileLimit ensures individual files cannot exceed file
+// limit sizes
+func (suite *LauncherTestSuite) TestFileExceedsSingleFileLimit() {
+	oneMB := int64(1 * 1024 * 1024)
+	suite.s.combinedUsageMax = 2 * oneMB
+	suite.s.fileSizeMax = oneMB
+
+	filename := "sample_integration_123.log"
+	file, err := os.Create(filepath.Join(suite.s.runPath, filename))
+	assert.Nil(suite.T(), err)
+
+	file.Write(make([]byte, oneMB))
+
+	suite.s.Start(nil, nil, nil, nil)
+
+	integrationLog := integrations.IntegrationLog{
+		Log:           "sample log",
+		IntegrationID: "sample_integration:123",
+	}
+
+	suite.s.receiveLogs(integrationLog)
+
+	assert.Equal(suite.T(), int64(len(integrationLog.Log)+1), suite.s.combinedUsageSize)
+	assert.Equal(suite.T(), int64(len(integrationLog.Log)+1), suite.s.integrationToFile["sample_integration:123"].size)
+	assert.Equal(suite.T(), 1, len(suite.s.integrationToFile))
+}
+
+// TestScanInitialFiles ensures files already present in the runPath for the
+// launcher are detected and managed upon launcher start
+func (suite *LauncherTestSuite) TestScanInitialFiles() {
+	filename := "sample_integration_123.log"
+	fileSize := int64(1 * 1024 * 1024)
+
+	file, err := os.Create(filepath.Join(suite.s.runPath, filename))
+	assert.Nil(suite.T(), err)
+	defer file.Close()
+
+	data := make([]byte, fileSize)
+	_, err = file.Write(data)
+	assert.Nil(suite.T(), err)
+
+	suite.s.scanInitialFiles(suite.s.runPath)
+	fileID := fileNameToID(filename)
+	actualFileInfo := suite.s.integrationToFile[fileID]
+
+	assert.NotEmpty(suite.T(), suite.s.integrationToFile)
+	assert.Equal(suite.T(), actualFileInfo.filename, filename)
+	assert.Equal(suite.T(), fileSize, actualFileInfo.size)
+	assert.Equal(suite.T(), fileSize, suite.s.combinedUsageSize)
+}
+
+// TestSentLogExceedsTotalUsage ensures files are deleted when a sent log causes a
+// disk usage overage
+func (suite *LauncherTestSuite) TestSentLogExceedsTotalUsage() {
+	suite.s.combinedUsageMax = 3 * 1024 * 1024
+
+	filename1 := "sample_integration1_123.log"
+	filename2 := "sample_integration2_123.log"
+	filename3 := "sample_integration3_123.log"
+
+	file1, err := os.Create(filepath.Join(suite.s.runPath, filename1))
+	assert.Nil(suite.T(), err)
+	defer file1.Close()
+	file2, err := os.Create(filepath.Join(suite.s.runPath, filename2))
+	assert.Nil(suite.T(), err)
+	defer file2.Close()
+	file3, err := os.Create(filepath.Join(suite.s.runPath, filename3))
+	assert.Nil(suite.T(), err)
+	defer file3.Close()
+
+	dataOneMB := make([]byte, 1*1024*1024)
+	file1.Write(dataOneMB)
+	file2.Write(dataOneMB)
+	file3.Write(dataOneMB)
+
+	suite.s.Start(nil, nil, nil, nil)
+
+	integrationLog := integrations.IntegrationLog{
+		Log:           "sample log",
+		IntegrationID: "sample_integration1:123",
+	}
+
+	suite.s.receiveLogs(integrationLog)
+
+	file1Stat, err := os.Stat(filepath.Join(suite.s.runPath, filename1))
+	assert.Nil(suite.T(), err)
+	file2Stat, err := os.Stat(filepath.Join(suite.s.runPath, filename2))
+	assert.Nil(suite.T(), err)
+	file3Stat, err := os.Stat(filepath.Join(suite.s.runPath, filename3))
+	assert.Nil(suite.T(), err)
+
+	actualSize := file1Stat.Size() + file2Stat.Size() + file3Stat.Size()
+
+	assert.Equal(suite.T(), suite.s.combinedUsageSize, actualSize)
+	assert.Equal(suite.T(), suite.s.integrationToFile["sample_integration2:123"], suite.s.leastRecentlyModifiedFile)
+}
+
+// TestInitialLogsExceedTotalUsageMultipleFiles ensures initial files are deleted if they
+// exceed total allowed disk space
+func (suite *LauncherTestSuite) TestInitialLogsExceedTotalUsageMultipleFiles() {
+	oneMB := int64(1 * 1024 * 1024)
+	suite.s.combinedUsageMax = oneMB
+
+	filename1 := "sample_integration1_123.log"
+	filename2 := "sample_integration2_123.log"
+
+	dataOneMB := make([]byte, oneMB)
+
+	file1, err := os.Create(filepath.Join(suite.s.runPath, filename1))
+	assert.Nil(suite.T(), err)
+	file2, err := os.Create(filepath.Join(suite.s.runPath, filename2))
+	assert.Nil(suite.T(), err)
+
+	file1.Write(dataOneMB)
+	file2.Write(dataOneMB)
+
+	suite.s.Start(nil, nil, nil, nil)
+
+	assert.Equal(suite.T(), oneMB, suite.s.combinedUsageSize)
+	assert.Equal(suite.T(), 2, len(suite.s.integrationToFile))
+}
+
+// TestInitialLogExceedsTotalUsageSingleFile ensures an initial file won't
+// exceed the total allowed disk usage space
+func (suite *LauncherTestSuite) TestInitialLogExceedsTotalUsageSingleFile() {
+	oneMB := int64(1 * 1024 * 1024)
+	suite.s.combinedUsageMax = oneMB
+
+	filename := "sample_integration1_123.log"
+	dataTwoMB := make([]byte, 2*oneMB)
+
+	file, err := os.Create(filepath.Join(suite.s.runPath, filename))
+	assert.Nil(suite.T(), err)
+
+	file.Write(dataTwoMB)
+
+	suite.s.Start(nil, nil, nil, nil)
+
+	assert.Equal(suite.T(), int64(0), suite.s.combinedUsageSize)
+	assert.Equal(suite.T(), 1, len(suite.s.integrationToFile))
 }
 
 func TestLauncherTestSuite(t *testing.T) {

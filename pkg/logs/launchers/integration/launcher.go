@@ -48,8 +48,8 @@ type Launcher struct {
 	writeLogToFileFunction func(filepath, log string) error
 }
 
-// Information about each file is needed in order to keep track of the combined
-// overall disk usage by the logs files
+// FileInfo stores information about each file that is needed in order to keep
+// track of the combined and overall disk usage by the logs files
 type FileInfo struct {
 	filename     string
 	lastModified time.Time
@@ -93,7 +93,10 @@ func NewLauncher(sources *sources.LogSources, integrationsLogsComp integrations.
 
 // Start starts the launcher and launches the run loop in a go function
 func (s *Launcher) Start(_ launchers.SourceProvider, _ pipeline.Provider, _ auditor.Registry, _ *tailers.TailerTracker) {
-	s.scanInitialFiles(s.runPath)
+	err := s.scanInitialFiles(s.runPath)
+	if err != nil {
+		ddLog.Warn("Unable to scan existing log files: ", err)
+	}
 
 	go s.run()
 }
@@ -131,50 +134,62 @@ func (s *Launcher) run() {
 			}
 
 		case log := <-s.integrationsLogsChan:
-			fileToUpdate := s.integrationToFile[log.IntegrationID]
-
-			// Ensure the individual file doesn't exceed integrations_logs_files_max_size
-			logSize := int64(len(log.Log))
-			if fileToUpdate.size+logSize > s.fileSizeMax {
-				s.combinedUsageSize -= fileToUpdate.size
-				err := s.deleteAndRemakeFile(fileToUpdate.filename)
-				if err != nil {
-					ddLog.Warn("Failed to get file size: ", err)
-					continue
-				}
-			}
-
-			err := s.writeLogToFileFunction(fileToUpdate.filename, log.Log)
-			if err != nil {
-				ddLog.Warn("Error writing log to file: ", err)
-			}
-
-			// Update information for the modified file
-			fileToUpdate.lastModified = time.Now()
-			fileToUpdate.size = logSize
-
-			// Ensure combined logs usage doesn't exceed integrations_logs_total_usage
-			for s.combinedUsageSize+logSize > s.combinedUsageMax {
-				s.deleteLeastRecentlyModified()
-				s.updateLeastRecentlyModifiedFile()
-			}
-			s.combinedUsageSize += logSize
-
-			// Update leastRecentlyModifiedFile
-			if s.leastRecentlyModifiedFile == fileToUpdate && len(s.integrationToFile) > 1 {
-				s.updateLeastRecentlyModifiedFile()
-			}
-
+			s.receiveLogs(log)
 		case <-s.stop:
 			return
 		}
 	}
 }
 
+// receiveLogs handles writing incoming logs to their respective file as well as
+// enforcing size limitations
+func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
+	fileToUpdate := s.integrationToFile[log.IntegrationID]
+
+	// Ensure the individual file doesn't exceed integrations_logs_files_max_size
+	// Add 1 because we write the \n at the end as well
+	logSize := int64(len(log.Log)) + 1
+	if fileToUpdate.size+logSize > s.fileSizeMax {
+		s.combinedUsageSize -= fileToUpdate.size
+		err := s.deleteAndRemakeFile(fileToUpdate.filename)
+		if err != nil {
+			ddLog.Warn("Failed to delete and remake oversize file", err)
+			return
+		}
+
+		fileToUpdate.size = 0
+	}
+
+	// Ensure combined logs usage doesn't exceed integrations_logs_total_usage
+	for s.combinedUsageSize+logSize > s.combinedUsageMax {
+		s.deleteLeastRecentlyModified()
+		s.updateLeastRecentlyModifiedFile()
+	}
+
+	err := s.writeLogToFileFunction(filepath.Join(s.runPath, fileToUpdate.filename), log.Log)
+	if err != nil {
+		ddLog.Warn("Error writing log to file: ", err)
+	}
+	s.combinedUsageSize += logSize
+
+	// Update information for the modified file
+	fileToUpdate.lastModified = time.Now()
+	fileToUpdate.size += logSize
+
+	// Update leastRecentlyModifiedFile
+	if s.leastRecentlyModifiedFile == fileToUpdate && len(s.integrationToFile) > 1 {
+		s.updateLeastRecentlyModifiedFile()
+	}
+
+}
+
 // deleteLeastRecentlyModified deletes and remakes the least recently log file
 func (s *Launcher) deleteLeastRecentlyModified() {
 	s.combinedUsageSize -= s.leastRecentlyModifiedFile.size
-	s.deleteAndRemakeFile(s.leastRecentlyModifiedFile.filename)
+	err := s.deleteAndRemakeFile(filepath.Join(s.runPath, s.leastRecentlyModifiedFile.filename))
+	if err != nil {
+		ddLog.Warn("Unable to delete and remake least recently modified file: ", err)
+	}
 
 	s.leastRecentlyModifiedFile.size = 0
 	s.leastRecentlyModifiedFile.lastModified = time.Now()
@@ -185,7 +200,7 @@ func (s *Launcher) deleteLeastRecentlyModified() {
 // leastRecentlyModifiedFile to that file
 func (s *Launcher) updateLeastRecentlyModifiedFile() {
 	leastRecentlyModifiedTime := time.Now()
-	var leastRecentlyModifiedFile *FileInfo = nil
+	var leastRecentlyModifiedFile *FileInfo
 
 	for _, fileInfo := range s.integrationToFile {
 		if fileInfo.lastModified.Before(leastRecentlyModifiedTime) {
@@ -259,8 +274,7 @@ func (s *Launcher) createFile(source string) (*FileInfo, error) {
 
 // integrationLoglogFilePath returns a file path to use for an integration log file
 func (s *Launcher) integrationLogFilePath(id string) string {
-	fileName := strings.ReplaceAll(id, " ", "-")
-	fileName = strings.ReplaceAll(fileName, ":", "_") + ".log"
+	fileName := strings.ReplaceAll(id, ":", "_") + ".log"
 	logFilePath := filepath.Join(s.runPath, fileName)
 
 	return logFilePath
@@ -307,13 +321,11 @@ func computeMaxDiskUsage(runPath string, logsTotalUsageSetting int64, usageRatio
 // scanInitialFiles scans the run path for initial files and then adds them to
 // be managed by the launcher
 func (s *Launcher) scanInitialFiles(dir string) error {
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(dir, func(_ string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
 
-		// TODO make sure the name is properly tied to the file
-		// Add found files to be managed by the launcher
 		if !info.IsDir() {
 			fileInfo := &FileInfo{
 				filename:     info.Name(),
@@ -321,13 +333,37 @@ func (s *Launcher) scanInitialFiles(dir string) error {
 				lastModified: info.ModTime(),
 			}
 
-			integrationID := strings.TrimSuffix(filepath.Base(info.Name()), filepath.Ext(info.Name()))
+			integrationID := fileNameToID(fileInfo.filename)
 
 			s.integrationToFile[integrationID] = fileInfo
+
+			if s.leastRecentlyModifiedFile == nil {
+				s.leastRecentlyModifiedFile = fileInfo
+			} else if fileInfo.lastModified.Before(s.leastRecentlyModifiedFile.lastModified) {
+				s.leastRecentlyModifiedFile = fileInfo
+			}
+
+			for s.combinedUsageSize+info.Size() > s.combinedUsageMax {
+				s.deleteLeastRecentlyModified()
+				s.updateLeastRecentlyModifiedFile()
+			}
+
+			s.combinedUsageSize += info.Size()
 		}
 
 		return nil
 	})
 
 	return err
+}
+
+func fileNameToID(fileName string) string {
+	baseName := strings.TrimSuffix(filepath.Base(fileName), filepath.Ext(fileName))
+	lastUnderscoreIndex := strings.LastIndex(baseName, "_")
+	if lastUnderscoreIndex == -1 {
+		return baseName
+	}
+
+	integrationID := baseName[:lastUnderscoreIndex] + ":" + baseName[lastUnderscoreIndex+1:]
+	return integrationID
 }
