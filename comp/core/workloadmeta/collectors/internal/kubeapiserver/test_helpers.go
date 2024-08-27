@@ -48,8 +48,7 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 		core.MockBundle(),
 		fx.Replace(config.MockParams{Overrides: overrides}),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	ctx := context.TODO()
 
@@ -113,8 +112,7 @@ func testCollectMetadataEvent(t *testing.T, createObjects func() []runtime.Objec
 	wlm := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	ctx := context.TODO()
 

@@ -40,6 +40,7 @@ var _ module.Module = &discovery{}
 // endpoint.
 type serviceInfo struct {
 	name               string
+	nameFromDDService  bool
 	language           language.Language
 	apmInstrumentation apm.Instrumentation
 }
@@ -216,7 +217,7 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 
 	contextMap := make(usm.DetectorContextMap)
 
-	name := servicediscovery.GetServiceName(cmdline, envs, contextMap)
+	name, fromDDService := servicediscovery.GetServiceName(cmdline, envs, contextMap)
 	language := language.FindInArgs(cmdline)
 	apmInstrumentation := apm.Detect(int(proc.Pid), cmdline, envs, language, contextMap)
 
@@ -224,6 +225,7 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 		name:               name,
 		language:           language,
 		apmInstrumentation: apmInstrumentation,
+		nameFromDDService:  fromDDService,
 	}, nil
 }
 
@@ -291,9 +293,15 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		s.cache[pid] = info
 	}
 
+	nameSource := "generated"
+	if info.nameFromDDService {
+		nameSource = "provided"
+	}
+
 	return &model.Service{
 		PID:                int(pid),
 		Name:               info.name,
+		NameSource:         nameSource,
 		Ports:              ports,
 		APMInstrumentation: string(info.apmInstrumentation),
 		Language:           string(info.language),

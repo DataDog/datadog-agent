@@ -9,10 +9,11 @@ package language
 import (
 	"io"
 	"os"
-	"path"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
 // Language represents programming languages.
@@ -40,29 +41,19 @@ const (
 )
 
 var (
-	procToLanguage = map[string]Language{
-		"java":    Java,
-		"node":    Node,
-		"nodemon": Node,
-		"python":  Python,
-		"python3": Python,
-		"dotnet":  DotNet,
-		"ruby":    Ruby,
-		"bundle":  Ruby,
+	// languageNameToLanguageMap translates the constants rom the
+	// languagedetection package to the constants used in this file. The latter
+	// are shared with the backend, and at least java/jvm differs in the name
+	// from the languagedetection package.
+	languageNameToLanguageMap = map[languagemodels.LanguageName]Language{
+		languagemodels.Go:     Go,
+		languagemodels.Node:   Node,
+		languagemodels.Dotnet: DotNet,
+		languagemodels.Python: Python,
+		languagemodels.Java:   Java,
+		languagemodels.Ruby:   Ruby,
 	}
 )
-
-// Detect attempts to detect the Language from the provided process information.
-func (lf Finder) Detect(args []string, envs map[string]string) (Language, bool) {
-	lang := lf.findLang(ProcessInfo{
-		Args: args,
-		Envs: envs,
-	})
-	if lang == "" {
-		return Unknown, false
-	}
-	return lang, true
-}
 
 func findFile(fileName string) (io.ReadCloser, bool) {
 	f, err := os.Open(fileName)
@@ -102,56 +93,30 @@ func (pi ProcessInfo) FileReader() (io.ReadCloser, bool) {
 	return findFile(fileName)
 }
 
-// Matcher allows to check if a process matches to a concrete language.
-type Matcher interface {
-	Language() Language
-	Match(pi ProcessInfo) bool
-}
-
-// New returns a new language Finder.
-func New() Finder {
-	return Finder{
-		Matchers: []Matcher{
-			PythonScript{},
-			RubyScript{},
-			DotNetBinary{},
-		},
-	}
-}
-
-// Finder allows to detect the language for a given process.
-type Finder struct {
-	Matchers []Matcher
-}
-
-func (lf Finder) findLang(pi ProcessInfo) Language {
-	lang := FindInArgs(pi.Args)
-	log.Debugf("language found: %q", lang)
-
-	// if we can't figure out a language from the command line, try alternate methods
-	if lang == "" {
-		for _, matcher := range lf.Matchers {
-			if matcher.Match(pi) {
-				lang = matcher.Language()
-				break
-			}
-		}
-	}
-	return lang
-}
-
 // FindInArgs tries to detect the language only using the provided command line arguments.
 func FindInArgs(args []string) Language {
 	// empty slice passed in
 	if len(args) == 0 {
 		return ""
 	}
-	for i := 0; i < len(args); i++ {
-		procName := path.Base(args[i])
-		// if procName is a known language, return the pos and the language
-		if lang, ok := procToLanguage[procName]; ok {
-			return lang
-		}
+
+	langs := languagedetection.DetectLanguage([]languagemodels.Process{&procutil.Process{
+		// Pid doesn't matter since sysprobeConfig is nil
+		Pid:     0,
+		Cmdline: args,
+		Comm:    args[0],
+	}}, nil)
+	if len(langs) == 0 {
+		return ""
 	}
+
+	lang := langs[0]
+	if lang == nil {
+		return ""
+	}
+	if outLang, ok := languageNameToLanguageMap[lang.Name]; ok {
+		return outLang
+	}
+
 	return ""
 }
