@@ -98,6 +98,7 @@ type Check struct {
 	metricLastRun                           time.Time
 	statementsLastRun                       time.Time
 	dbInstanceLastRun                       time.Time
+	tablespaceLastRun                       time.Time
 	filePath                                string
 	sqlTraceRunsCount                       int
 	sqlSubstringLength                      int
@@ -251,12 +252,6 @@ func (c *Check) Run() error {
 				allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect sysmetrics %w", c.logPrompt, err))
 			}
 		}
-		if c.config.Tablespaces.Enabled {
-			err := c.Tablespaces()
-			if err != nil {
-				allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect tablespaces %w", c.logPrompt, err))
-			}
-		}
 		if c.config.ProcessMemory.Enabled || c.config.InactiveSessions.Enabled {
 			err := c.ProcessMemory()
 			if err != nil {
@@ -268,6 +263,14 @@ func (c *Check) Run() error {
 			if err != nil {
 				allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to execute custom queries %w", c.logPrompt, err))
 			}
+		}
+	}
+
+	tablespaceIntervalExpired := checkIntervalExpired(&c.tablespaceLastRun, c.config.Tablespaces.CollectionInterval)
+	if c.config.Tablespaces.Enabled && tablespaceIntervalExpired {
+		err := c.Tablespaces()
+		if err != nil {
+			allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect tablespaces %w", c.logPrompt, err))
 		}
 	}
 
