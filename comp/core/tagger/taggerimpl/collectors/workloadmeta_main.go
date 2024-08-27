@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -169,8 +169,8 @@ func NewWorkloadMetaCollector(_ context.Context, store workloadmeta.Component, p
 		tagProcessor:                      p,
 		store:                             store,
 		children:                          make(map[string]map[string]struct{}),
-		collectEC2ResourceTags:            config.Datadog().GetBool("ecs_collect_resource_tags_ec2"),
-		collectPersistentVolumeClaimsTags: config.Datadog().GetBool("kubernetes_persistent_volume_claims_as_tags"),
+		collectEC2ResourceTags:            pkgconfigsetup.Datadog().GetBool("ecs_collect_resource_tags_ec2"),
+		collectPersistentVolumeClaimsTags: pkgconfigsetup.Datadog().GetBool("kubernetes_persistent_volume_claims_as_tags"),
 	}
 
 	containerLabelsAsTags := mergeMaps(
@@ -185,7 +185,7 @@ func NewWorkloadMetaCollector(_ context.Context, store workloadmeta.Component, p
 	c.initContainerMetaAsTags(containerLabelsAsTags, containerEnvAsTags)
 
 	// kubernetes resources metadata as tags
-	metadataAsTags := configutils.GetMetadataAsTags(config.Datadog())
+	metadataAsTags := configutils.GetMetadataAsTags(pkgconfigsetup.Datadog())
 	c.initK8sResourcesMetaAsTags(metadataAsTags.GetResourcesLabelsAsTags(), metadataAsTags.GetResourcesAnnotationsAsTags())
 
 	return c
@@ -194,7 +194,7 @@ func NewWorkloadMetaCollector(_ context.Context, store workloadmeta.Component, p
 // retrieveMappingFromConfig gets a stringmapstring config key and
 // lowercases all map keys to make envvar and yaml sources consistent
 func retrieveMappingFromConfig(configKey string) map[string]string {
-	labelsList := config.Datadog().GetStringMapString(configKey)
+	labelsList := pkgconfigsetup.Datadog().GetStringMapString(configKey)
 	for label, value := range labelsList {
 		delete(labelsList, label)
 		labelsList[strings.ToLower(label)] = value
