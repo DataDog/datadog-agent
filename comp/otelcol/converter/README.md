@@ -24,6 +24,10 @@ If it finds datadogexporters which are not defined in a pipeline with the promet
 
 For any prometheus receiver collecting collector health metrics, and sending these to Datadog, it will update the job name to `datadog-agent`. This ensures the health metrics are tagged by `service:datadog-agent` and differentiable from collector health metrics.
 
+### API Key and API Site
+
+If `api_key` is unset, set to an empty string or set to a secret, the converter will fetch the api key from the agent configuration. It will also fetch the the site from the agent config if unset in collector.
+
 ### Datadog Connector
 
 The converter will automatically set `datadogconnector` config `trace.span_name_as_resource_name` to true in any datadog connectors in your configuration.
