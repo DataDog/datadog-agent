@@ -42,7 +42,7 @@ func TestClearSanity(t *testing.T) {
 		cmd, err := testutil.OpenFromAnotherProcess(t, target)
 		require.NoError(t, err)
 		path1Pids = append(path1Pids, uint32(cmd.Process.Pid))
-		_ = r.Register(target, uint32(cmd.Process.Pid), verifyPIDInFilePath(t), verifyPIDInFilePath(t))
+		_ = r.Register(target, uint32(cmd.Process.Pid), verifyPIDInFilePath(t), verifyPIDInFilePath(t), IgnoreCB)
 	}
 	path2Pids := make([]uint32, 0)
 	for i := 0; i < 2; i++ {
@@ -51,7 +51,7 @@ func TestClearSanity(t *testing.T) {
 		cmd, err := testutil.OpenFromAnotherProcess(t, target)
 		require.NoError(t, err)
 		path2Pids = append(path2Pids, uint32(cmd.Process.Pid))
-		_ = r.Register(target, uint32(cmd.Process.Pid), verifyPIDInFilePath(t), verifyPIDInFilePath(t))
+		_ = r.Register(target, uint32(cmd.Process.Pid), verifyPIDInFilePath(t), verifyPIDInFilePath(t), IgnoreCB)
 	}
 
 	assert.Len(t, r.byPID, len(path1Pids)+len(path2Pids))
@@ -87,7 +87,7 @@ func TestClearLeakedPathID(t *testing.T) {
 		cmd, err := testutil.OpenFromAnotherProcess(t, target)
 		require.NoError(t, err)
 		path1Pids = append(path1Pids, uint32(cmd.Process.Pid))
-		_ = r.Register(target, uint32(cmd.Process.Pid), verifyPIDInFilePath(t), verifyPIDInFilePath(t))
+		_ = r.Register(target, uint32(cmd.Process.Pid), verifyPIDInFilePath(t), verifyPIDInFilePath(t), IgnoreCB)
 	}
 
 	assert.Len(t, r.byPID, len(path1Pids))
