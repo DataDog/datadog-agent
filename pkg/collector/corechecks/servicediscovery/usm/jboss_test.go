@@ -230,19 +230,19 @@ func TestJbossFindDeployedApps(t *testing.T) {
 			args: []string{
 				"-Djboss.home.dir=" + jbossTestAppRoot,
 			},
-			domainHome: "/testdata/a" + "/standalone",
+			domainHome: jbossTestAppRootAbsolute + "/standalone",
 			expected: []jeeDeployment{
 				{
 					name: "app.ear",
-					path: "" + jbossTestAppRootAbsolute + "/standalone/data/content/38/e/content",
+					path: jbossTestAppRootAbsolute + "/standalone/data/content/38/e/content",
 				},
 				{
 					name: "web3.war",
-					path: "" + jbossTestAppRootAbsolute + "/standalone/data/content/8b/e62d23ec32e3956fecf9b5c35e8405510a825f/content",
+					path: jbossTestAppRootAbsolute + "/standalone/data/content/8b/e62d23ec32e3956fecf9b5c35e8405510a825f/content",
 				},
 				{
 					name: "web4.war",
-					path: "" + jbossTestAppRootAbsolute + "/standalone/data/content/f0/c/content",
+					path: jbossTestAppRootAbsolute + "/standalone/data/content/f0/c/content",
 				},
 			},
 			fs: sub,
