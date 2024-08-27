@@ -18,21 +18,12 @@ import (
 )
 
 type mockMetadataAsTags struct {
+	configutils.MetadataAsTags
 	nodeLabelsAsTags      map[string]string
 	nodeAnnotationsAsTags map[string]string
 }
 
 var _ configutils.MetadataAsTags = &mockMetadataAsTags{}
-
-// GetPodLabelsAsTags implements MetadataAsTags#GetPodLabelsAsTags
-func (m *mockMetadataAsTags) GetPodLabelsAsTags() map[string]string {
-	panic("not implemented")
-}
-
-// GetPodAnnotationsAsTags implements MetadataAsTags#GetPodAnnotationsAsTags
-func (m *mockMetadataAsTags) GetPodAnnotationsAsTags() map[string]string {
-	panic("not implemented")
-}
 
 // GetNodeLabelsAsTags implements MetadataAsTags#GetNodeLabelsAsTags
 func (m *mockMetadataAsTags) GetNodeLabelsAsTags() map[string]string {
@@ -42,26 +33,6 @@ func (m *mockMetadataAsTags) GetNodeLabelsAsTags() map[string]string {
 // GetNodeAnnotationsAsTags implements MetadataAsTags#GetNodeAnnotationsAsTags
 func (m *mockMetadataAsTags) GetNodeAnnotationsAsTags() map[string]string {
 	return m.nodeAnnotationsAsTags
-}
-
-// GetNamespaceLabelsAsTags implements MetadataAsTags#GetNamespaceLabelsAsTags
-func (m *mockMetadataAsTags) GetNamespaceLabelsAsTags() map[string]string {
-	panic("not implemented")
-}
-
-// GetNamespaceAnnotationsAsTags implements MetadataAsTags#GetNamespaceAnnotationsAsTags
-func (m *mockMetadataAsTags) GetNamespaceAnnotationsAsTags() map[string]string {
-	panic("not implemented")
-}
-
-// GetResourcesLabelsAsTags implements MetadataAsTags#GetResourcesLabelsAsTags
-func (m *mockMetadataAsTags) GetResourcesLabelsAsTags() map[string]map[string]string {
-	panic("not implemented")
-}
-
-// GetResourcesAnnotationsAsTags implements MetadataAsTags#GetResourcesAnnotationsAsTags
-func (m *mockMetadataAsTags) GetResourcesAnnotationsAsTags() map[string]map[string]string {
-	panic("not implemented")
 }
 
 func newMockMetadataAsTags(nodeLabelsAsTags, nodeAnnotationsAsTags map[string]string) configutils.MetadataAsTags {

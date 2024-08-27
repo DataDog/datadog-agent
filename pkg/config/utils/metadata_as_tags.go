@@ -15,6 +15,12 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
+const (
+	pods       string = "pods"
+	nodes      string = "nodes"
+	namespaces string = "namespaces"
+)
+
 // MetadataAsTags contains the labels as tags and annotations as tags for each kubernetes resource based on the user configurations of the following options ordered in increasing order of priority:
 //
 // kubernetes_pod_labels_as_tags
@@ -57,32 +63,32 @@ var _ MetadataAsTags = &metadataAsTags{}
 
 // GetPodLabelsAsTags implements MetadataAsTags#GetPodLabelsAsTags
 func (m *metadataAsTags) GetPodLabelsAsTags() map[string]string {
-	return m.labelsAsTags["pods"]
+	return m.labelsAsTags[pods]
 }
 
 // GetPodAnnotationsAsTags implements MetadataAsTags#GetPodAnnotationsAsTags
 func (m *metadataAsTags) GetPodAnnotationsAsTags() map[string]string {
-	return m.annotationsAsTags["pods"]
+	return m.annotationsAsTags[pods]
 }
 
 // GetNodeLabelsAsTags implements MetadataAsTags#GetNodeLabelsAsTags
 func (m *metadataAsTags) GetNodeLabelsAsTags() map[string]string {
-	return m.labelsAsTags["nodes"]
+	return m.labelsAsTags[nodes]
 }
 
 // GetNodeAnnotationsAsTags implements MetadataAsTags#GetNodeAnnotationsAsTags
 func (m *metadataAsTags) GetNodeAnnotationsAsTags() map[string]string {
-	return m.annotationsAsTags["nodes"]
+	return m.annotationsAsTags[nodes]
 }
 
 // GetNamespaceLabelsAsTags implements MetadataAsTags#GetNamespaceLabelsAsTags
 func (m *metadataAsTags) GetNamespaceLabelsAsTags() map[string]string {
-	return m.labelsAsTags["namespaces"]
+	return m.labelsAsTags[namespaces]
 }
 
 // GetNamespaceAnnotationsAsTags implements MetadataAsTags#GetNamespaceAnnotationsAsTags
 func (m *metadataAsTags) GetNamespaceAnnotationsAsTags() map[string]string {
-	return m.annotationsAsTags["namespaces"]
+	return m.annotationsAsTags[namespaces]
 }
 
 // GetResourcesLabelsAsTags implements MetadataAsTags#GetResourcesLabelsAsTags
@@ -137,26 +143,26 @@ func GetMetadataAsTags(c pkgconfigmodel.Reader) MetadataAsTags {
 
 	// node labels/annotations as tags
 	if nodeLabelsAsTags := c.GetStringMapString("kubernetes_node_labels_as_tags"); nodeLabelsAsTags != nil {
-		metadataAsTags.labelsAsTags["nodes"] = lowerCaseMapKeys(nodeLabelsAsTags)
+		metadataAsTags.labelsAsTags[nodes] = lowerCaseMapKeys(nodeLabelsAsTags)
 	}
 	if nodeAnnotationsAsTags := c.GetStringMapString("kubernetes_node_annotations_as_tags"); nodeAnnotationsAsTags != nil {
-		metadataAsTags.annotationsAsTags["nodes"] = lowerCaseMapKeys(nodeAnnotationsAsTags)
+		metadataAsTags.annotationsAsTags[nodes] = lowerCaseMapKeys(nodeAnnotationsAsTags)
 	}
 
 	// namespace labels/annotations as tags
 	if namespaceLabelsAsTags := c.GetStringMapString("kubernetes_namespace_labels_as_tags"); namespaceLabelsAsTags != nil {
-		metadataAsTags.labelsAsTags["namespaces"] = lowerCaseMapKeys(namespaceLabelsAsTags)
+		metadataAsTags.labelsAsTags[namespaces] = lowerCaseMapKeys(namespaceLabelsAsTags)
 	}
 	if namespaceAnnotationsAsTags := c.GetStringMapString("kubernetes_namespace_annotations_as_tags"); namespaceAnnotationsAsTags != nil {
-		metadataAsTags.annotationsAsTags["namespaces"] = lowerCaseMapKeys(namespaceAnnotationsAsTags)
+		metadataAsTags.annotationsAsTags[namespaces] = lowerCaseMapKeys(namespaceAnnotationsAsTags)
 	}
 
 	// pod labels/annotations as tags
 	if podLabelsAsTags := c.GetStringMapString("kubernetes_pod_labels_as_tags"); podLabelsAsTags != nil {
-		metadataAsTags.labelsAsTags["pods"] = lowerCaseMapKeys(podLabelsAsTags)
+		metadataAsTags.labelsAsTags[pods] = lowerCaseMapKeys(podLabelsAsTags)
 	}
 	if podAnnotationsAsTags := c.GetStringMapString("kubernetes_pod_annotations_as_tags"); podAnnotationsAsTags != nil {
-		metadataAsTags.annotationsAsTags["pods"] = lowerCaseMapKeys(podAnnotationsAsTags)
+		metadataAsTags.annotationsAsTags[pods] = lowerCaseMapKeys(podAnnotationsAsTags)
 	}
 
 	// generic resources labels/annotations as tags
