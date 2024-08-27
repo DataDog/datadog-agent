@@ -94,6 +94,11 @@ type kafkaParsingValidationWithErrorCodes struct {
 	expectedAPIVersionFetch         int
 }
 
+type groupInfo struct {
+	numSets int
+	msgs    []Message
+}
+
 func skipTestIfKernelNotSupported(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
@@ -1193,54 +1198,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 
 		formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
 
-		type groupInfo struct {
-			numSets int
-			msgs    []Message
-		}
-
-		var groups []groupInfo
-		var info groupInfo
-
-		for splitIdx := 0; splitIdx < 500; splitIdx++ {
-			reqData := formatter.AppendRequest(make([]byte, 0), &req, int32(splitIdx))
-			respData := appendResponse(make([]byte, 0), &resp, uint32(splitIdx))
-
-			// There is an assumption in the code that there are no splits
-			// inside the header.
-			minSegSize := 8
-
-			segSize := min(minSegSize+splitIdx, len(respData))
-			if segSize >= len(respData) {
-				break
-			}
-
-			var msgs []Message
-			msgs = append(msgs, Message{request: reqData})
-			msgs = append(msgs, Message{response: respData[0:segSize]})
-
-			if segSize+8 >= len(respData) {
-				msgs = append(msgs, Message{response: respData[segSize:]})
-			} else {
-				// Three segments tests other code paths than two, for example
-				// it will fail if the tcp_seq is not updated in the response
-				// parsing continuation path.
-				msgs = append(msgs, Message{response: respData[segSize : segSize+8]})
-				msgs = append(msgs, Message{response: respData[segSize+8:]})
-			}
-
-			if info.numSets >= 20 {
-				groups = append(groups, info)
-				info.numSets = 0
-				info.msgs = make([]Message, 0)
-			}
-
-			info.numSets++
-			info.msgs = append(info.msgs, msgs...)
-		}
-
-		if info.numSets > 0 {
-			groups = append(groups, info)
-		}
+		groups := getSplitGroups(&req, &resp, formatter)
 
 		for groupIdx, group := range groups {
 			name := fmt.Sprintf("split/%s/group%d", tt.name, groupIdx)
@@ -1413,14 +1371,8 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 			})
 			req := tt.buildRequest(tt.topic)
 			var msgs []Message
-			if tt.buildResponse == nil {
-				formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
-				data := formatter.AppendRequest(make([]byte, 0), &req, int32(99))
-				msgs = []Message{{request: data}}
-			} else {
-				resp := tt.buildResponse(tt.topic)
-				msgs = appendMessages(msgs, 99, &req, &resp)
-			}
+			resp := tt.buildResponse(tt.topic)
+			msgs = appendMessages(msgs, 99, &req, &resp)
 
 			can.runClient(msgs)
 
@@ -1430,7 +1382,77 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 				tlsEnabled:                      tls,
 			}, tt.errorCode)
 		})
+
+		req := tt.buildRequest(tt.topic)
+		resp := tt.buildResponse(tt.topic)
+		formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
+
+		groups := getSplitGroups(&req, &resp, formatter)
+
+		for groupIdx, group := range groups {
+			name := fmt.Sprintf("split/%s/group%d", tt.name, groupIdx)
+			t.Run(name, func(t *testing.T) {
+				t.Cleanup(func() {
+					cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
+				})
+
+				can.runClient(group.msgs)
+
+				getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
+					expectedNumberOfProduceRequests: tt.numProducedRecords * group.numSets,
+					expectedAPIVersionProduce:       apiVersion,
+					tlsEnabled:                      tls,
+				}, tt.errorCode)
+			})
+		}
 	}
+}
+
+func getSplitGroups(req kmsg.Request, resp kmsg.Response, formatter *kmsg.RequestFormatter) []groupInfo {
+	var groups []groupInfo
+	var info groupInfo
+
+	for splitIdx := 0; splitIdx < 500; splitIdx++ {
+		reqData := formatter.AppendRequest(make([]byte, 0), req, int32(splitIdx))
+		respData := appendResponse(make([]byte, 0), resp, uint32(splitIdx))
+
+		// There is an assumption in the code that there are no splits
+		// inside the header.
+		minSegSize := 8
+
+		segSize := min(minSegSize+splitIdx, len(respData))
+		if segSize >= len(respData) {
+			break
+		}
+
+		var msgs []Message
+		msgs = append(msgs, Message{request: reqData})
+		msgs = append(msgs, Message{response: respData[0:segSize]})
+
+		if segSize+8 >= len(respData) {
+			msgs = append(msgs, Message{response: respData[segSize:]})
+		} else {
+			// Three segments tests other code paths than two, for example
+			// it will fail if the tcp_seq is not updated in the response
+			// parsing continuation path.
+			msgs = append(msgs, Message{response: respData[segSize : segSize+8]})
+			msgs = append(msgs, Message{response: respData[segSize+8:]})
+		}
+
+		if info.numSets >= 20 {
+			groups = append(groups, info)
+			info.numSets = 0
+			info.msgs = make([]Message, 0)
+		}
+
+		info.numSets++
+		info.msgs = append(info.msgs, msgs...)
+	}
+
+	if info.numSets > 0 {
+		groups = append(groups, info)
+	}
+	return groups
 }
 
 func (s *KafkaProtocolParsingSuite) TestKafkaProduceRaw() {
