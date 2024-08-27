@@ -1,5 +1,5 @@
 ---
 fixes:
   - |
-    Change ``datadog-security-agent`` display name from  ``Datadog Security Service`` to
+    Change the ``datadog-security-agent`` Windows service display name from  ``Datadog Security Service`` to
     ``Datadog Security Agent`` for consistency with other Agent services.
