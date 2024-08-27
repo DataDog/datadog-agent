@@ -15,7 +15,6 @@ def test(ctx, verbose=False) -> None:
         start_docker(ctx, verbose)
 
     try:
-        # ctx.run("docker ps")
         os.environ["ORACLE_TEST_PORT"] = "1521"
         if os.environ.get("CI"):
             os.environ["ORACLE_TEST_SERVER"] = "oracle"
