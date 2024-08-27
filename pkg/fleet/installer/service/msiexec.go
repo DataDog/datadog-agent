@@ -39,30 +39,30 @@ type Product struct {
 	UninstallString string
 }
 
-func findProductCode(name string) (error, *Product) {
+func findProductCode(name string) (*Product, error) {
 	rootPath := "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall"
 	reg, err := registry.OpenKey(registry.LOCAL_MACHINE, rootPath, registry.ENUMERATE_SUB_KEYS)
 	if err != nil {
-		return err, nil
+		return nil, err
 	}
 	defer reg.Close()
 	keys, err := reg.ReadSubKeyNames(0)
 	if err != nil {
-		return err, nil
+		return nil, err
 	}
 	for _, key := range keys {
-		err, product := processKey(rootPath, key, name)
+		product, err := processKey(rootPath, key, name)
 		if err == nil && product != nil {
-			return nil, product
+			return product, err
 		}
 	}
 	return nil, nil
 }
 
-func processKey(rootPath, key, name string) (error, *Product) {
+func processKey(rootPath, key, name string) (*Product, error) {
 	subkey, err := registry.OpenKey(registry.LOCAL_MACHINE, rootPath+"\\"+key, registry.QUERY_VALUE)
 	if err != nil {
-		return err, nil
+		return nil, err
 	}
 	defer subkey.Close()
 
@@ -71,7 +71,7 @@ func processKey(rootPath, key, name string) (error, *Product) {
 		product := &Product{}
 		product.UninstallString, _, _ = subkey.GetStringValue("UninstallString")
 		product.Code = key
-		return nil, product
+		return product, nil
 	}
 
 	return nil, nil
@@ -84,7 +84,7 @@ func processKey(rootPath, key, name string) (error, *Product) {
 // reflect the installed version, and using those installers can lead to undefined behavior (either failure to uninstall,
 // or weird bugs from uninstalling a product with an installer from a different version).
 func removeProduct(productName string) error {
-	err, product := findProductCode(productName)
+	product, err := findProductCode(productName)
 	if err != nil {
 		return fmt.Errorf("error trying to find product %s: %w", productName, err)
 	}
