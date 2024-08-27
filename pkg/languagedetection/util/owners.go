@@ -7,10 +7,11 @@ package util
 
 import (
 	"fmt"
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"strings"
+
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
+	kubehelpers "github.com/DataDog/datadog-agent/pkg/util/kubernetes/helpers"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 const (
@@ -58,7 +59,7 @@ func GetNamespacedBaseOwnerReference(podDetails *pbgo.PodLanguageDetails) Namesp
 	apiVersion := "apps/v1"
 	if kind == KindReplicaset {
 		kind = KindDeployment
-		name = kubernetes.ParseDeploymentForReplicaSet(name)
+		name = kubehelpers.ParseDeploymentForReplicaSet(name)
 	}
 
 	return NamespacedOwnerReference{
