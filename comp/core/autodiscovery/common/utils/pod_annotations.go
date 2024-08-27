@@ -68,6 +68,7 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 	}
 	// docker run -l com.datadoghq.ad.checks="{\"<INTEGRATION_NAME>\": {\"instances\": [<INSTANCE_CONFIG>], \"logs\": [<LOGS_CONFIG>]}}"
 	// docker run -l "com.datadoghq.ad.checks="{\"apache\": {\"logs\": [{\"type\":\"file\"}]}}""
+	fmt.Println("WACK PRINTING KEY/VALS")
 	for key, val := range namedChecks {
 		fmt.Println("Key:", key, "wackval:", val)
 	}
@@ -88,10 +89,12 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 
 		if len(config.Logs) != 0 {
 			log, err := parseJSONObjToData(config.Logs)
-			fmt.Println("ungabunga")
+
+			fmt.Println("UNGABUNGA WACK ANDREWQ")
 			if err != nil {
 				return nil, err
 			}
+			fmt.Println("NO ERROR? XD?")
 			c.LogsConfig = log
 		}
 
