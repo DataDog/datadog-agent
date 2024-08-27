@@ -122,6 +122,43 @@ func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
 	assert.Equal(t, startInvocationTime, testProcessor.GetExecutionInfo().startTime)
 }
 
+func TestStartExecutionSpanStepFunctionEvent(t *testing.T) {
+	extraTags := &logs.Tags{
+		Tags: []string{"functionname:test-function"},
+	}
+	demux := createDemultiplexer(t)
+	mockProcessTrace := func(*api.Payload) {}
+	mockDetectLambdaLibrary := func() bool { return false }
+
+	eventPayload := `{"Execution":{"Id":"arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:bc9f281c-3daa-4e5a-9a60-471a3810bf44","Input":{},"StartTime":"2024-07-30T19:55:52.976Z","Name":"bc9f281c-3daa-4e5a-9a60-471a3810bf44","RoleArn":"arn:aws:iam::425362996713:role/test-serverless-stepfunctions-dev-AgocsTestSFRole-tRkeFXScjyk4","RedriveCount":0},"StateMachine":{"Id":"arn:aws:states:us-east-1:425362996713:stateMachine:agocsTestSF","Name":"agocsTestSF"},"State":{"Name":"agocsTest1","EnteredTime":"2024-07-30T19:55:53.018Z","RetryCount":0}}`
+	startInvocationTime := time.Now()
+	startDetails := InvocationStartDetails{
+		StartTime:             startInvocationTime,
+		InvokeEventRawPayload: []byte(eventPayload),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+	}
+
+	testProcessor := LifecycleProcessor{
+		ExtraTags:           extraTags,
+		ProcessTrace:        mockProcessTrace,
+		DetectLambdaLibrary: mockDetectLambdaLibrary,
+		Demux:               demux,
+	}
+
+	testProcessor.OnInvokeStart(&startDetails)
+
+	assert.NotNil(t, testProcessor.GetExecutionInfo())
+
+	assert.Equal(t, uint64(0), testProcessor.GetExecutionInfo().SpanID)
+	assert.Equal(t, uint64(5744042798732701615), testProcessor.GetExecutionInfo().TraceID)
+	assert.Equal(t, uint64(2902498116043018663), testProcessor.GetExecutionInfo().parentID)
+	assert.Equal(t, sampler.SamplingPriority(1), testProcessor.GetExecutionInfo().SamplingPriority)
+	upper64, ok := testProcessor.requestHandler.GetMetaTag(ddTraceIDUpper64BitsHeader)
+	assert.True(t, ok)
+	assert.Equal(t, "1914fe7789eb32be", upper64)
+	assert.Equal(t, startInvocationTime, testProcessor.GetExecutionInfo().startTime)
+}
+
 func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 	t.Setenv(functionNameEnvVar, "TestFunction")
 

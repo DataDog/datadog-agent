@@ -790,6 +790,14 @@ func Test_stringToDdTraceIds(t *testing.T) {
 			1680583253837593461,
 			"60ee1db79e4803f8",
 		},
+		{
+			"lifecycle_test.go TestStartExecutionSpanStepFunctionEvent test case",
+			args{
+				"arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:bc9f281c-3daa-4e5a-9a60-471a3810bf44",
+			},
+			5744042798732701615,
+			"1914fe7789eb32be",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

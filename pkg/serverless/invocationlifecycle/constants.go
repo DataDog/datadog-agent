@@ -47,4 +47,5 @@ const (
 	sns                     = "sns"
 	sqs                     = "sqs"
 	functionURL             = "lambda-function-url"
+	stepFunction            = "step-function"
 )

@@ -1,0 +1,19 @@
+{
+  "Execution": {
+    "Id": "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:bc9f281c-3daa-4e5a-9a60-471a3810bf44",
+    "Input": {},
+    "StartTime": "2024-07-30T19:55:52.976Z",
+    "Name": "bc9f281c-3daa-4e5a-9a60-471a3810bf44",
+    "RoleArn": "arn:aws:iam::425362996713:role/test-serverless-stepfunctions-dev-AgocsTestSFRole-tRkeFXScjyk4",
+    "RedriveCount": 0
+  },
+  "StateMachine": {
+    "Id": "arn:aws:states:us-east-1:425362996713:stateMachine:agocsTestSF",
+    "Name": "agocsTestSF"
+  },
+  "State": {
+    "Name": "agocsTest1",
+    "EnteredTime": "2024-07-30T19:55:53.018Z",
+    "RetryCount": 0
+  }
+}

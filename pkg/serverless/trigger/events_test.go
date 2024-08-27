@@ -37,6 +37,7 @@ func TestEventPayloadParsing(t *testing.T) {
 		"sns.json":                            isSNSEvent,
 		"sqs.json":                            isSQSEvent,
 		"lambdaurl.json":                      isLambdaFunctionURLEvent,
+		"stepfunction.json":                   isStepFunctionEvent,
 	}
 	for testFile, testFunc := range testCases {
 		file, err := os.Open(fmt.Sprintf("%v/%v", testDir, testFile))
@@ -115,6 +116,7 @@ func TestGetEventType(t *testing.T) {
 		"sns.json":                            SNSEvent,
 		"sqs.json":                            SQSEvent,
 		"lambdaurl.json":                      LambdaFunctionURLEvent,
+		"stepfunction.json":                   StepFunctionEvent,
 	}
 
 	for testFile, expectedEventType := range testCases {

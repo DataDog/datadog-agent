@@ -96,7 +96,6 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	if err != nil {
 		log.Debugf("[lifecycle] Failed to parse event payload: %v", err)
 	}
-
 	eventType := trigger.GetEventType(lowercaseEventPayload)
 	if eventType == trigger.Unknown {
 		log.Debugf("[lifecycle] Failed to extract event type")
@@ -232,12 +231,21 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 		}
 		ev = event
 		lp.initFromLambdaFunctionURLEvent(event, region, account, resource)
+	case trigger.StepFunctionEvent:
+		var event events.StepFunctionEvent
+		if err := json.Unmarshal(payloadBytes, &event); err != nil && arnParseErr != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", stepFunction, err)
+			break
+		}
+		ev = event
+		lp.initFromStepFunctionEvent(event)
 	default:
 		log.Debug("Skipping adding trigger types and inferred spans as a non-supported payload was received.")
 	}
 
 	if lp.SubProcessor != nil {
 		lp.SubProcessor.OnInvokeStart(startDetails, lp.requestHandler)
+
 	}
 
 	if !lp.DetectLambdaLibrary() {

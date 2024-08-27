@@ -76,6 +76,9 @@ const (
 
 	// LambdaFunctionURLEvent describes an event from an HTTP lambda function URL invocation
 	LambdaFunctionURLEvent
+
+	// StepFunctionEvent describes an event with a Step Function execution context
+	StepFunctionEvent
 )
 
 // eventParseFunc defines the signature of AWS event parsing functions
@@ -110,6 +113,7 @@ var (
 		{isAppSyncResolverEvent, AppSyncResolverEvent},
 		{isEventBridgeEvent, EventBridgeEvent},
 		{isLambdaFunctionURLEvent, LambdaFunctionURLEvent},
+		{isStepFunctionEvent, StepFunctionEvent},
 		// Ultimately check this is a Kong API Gateway event as a last resort.
 		// This is because Kong API Gateway events are a subset of API Gateway events
 		// as of https://github.com/Kong/kong/blob/348c980/kong/plugins/aws-lambda/request-util.lua#L248-L260
@@ -270,6 +274,14 @@ func isLambdaFunctionURLEvent(event map[string]any) bool {
 	return strings.Contains(lambdaURL, "lambda-url")
 }
 
+func isStepFunctionEvent(event map[string]any) bool {
+	execId := json.GetNestedValue(event, "execution", "id")
+	stateName := json.GetNestedValue(event, "state", "name")
+	stateEnteredTime := json.GetNestedValue(event, "state", "enteredtime")
+
+	return execId != nil && stateName != nil && stateEnteredTime != nil
+}
+
 func eventRecordsKeyExists(event map[string]any, key string) bool {
 	records, ok := json.GetNestedValue(event, "records").([]interface{})
 	if !ok {
@@ -336,6 +348,8 @@ func (et AWSEventType) String() string {
 		return "EventBridgeEvent"
 	case LambdaFunctionURLEvent:
 		return "LambdaFunctionURLEvent"
+	case StepFunctionEvent:
+		return "StepFunctionEvent"
 	default:
 		return fmt.Sprintf("EventType(%d)", et)
 	}
