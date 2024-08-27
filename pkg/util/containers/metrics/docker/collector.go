@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -169,7 +170,7 @@ func (d *dockerCollector) GetSelfContainerID() (string, error) {
 }
 
 // stats returns stats by container ID
-func (d *dockerCollector) stats(containerID string) (*types.StatsJSON, error) {
+func (d *dockerCollector) stats(containerID string) (*container.StatsResponse, error) {
 	stats, err := d.du.GetContainerStats(context.TODO(), containerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get container stats for %s: %w", containerID, err)
@@ -237,7 +238,7 @@ func computeMemoryLimit(containerStats *provider.ContainerStats, spec *types.Con
 	}
 }
 
-func convertNetworkStats(stats *types.StatsJSON) *provider.ContainerNetworkStats {
+func convertNetworkStats(stats *container.StatsResponse) *provider.ContainerNetworkStats {
 	containerNetworkStats := &provider.ContainerNetworkStats{
 		Timestamp:   stats.Read,
 		BytesSent:   pointer.Ptr(0.0),
