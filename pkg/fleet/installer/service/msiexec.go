@@ -91,7 +91,6 @@ func removeProduct(productName string) error {
 	if product != nil {
 		cmd := exec.Command("msiexec", "/x", product.Code, "/qn", "MSIFASTINSTALL=7")
 		return cmd.Run()
-	} else {
-		return fmt.Errorf("product %s not found", productName)
 	}
+	return fmt.Errorf("product %s not found", productName)
 }
