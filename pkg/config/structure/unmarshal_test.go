@@ -24,14 +24,13 @@ type UserV3 struct {
 
 // Type that gets parsed out of config
 type TrapsConfig struct {
-	Enabled               bool     `yaml:"enabled"`
-	Port                  uint16   `yaml:"port"`
-	Users                 []UserV3 `yaml:"users"`
-	CommunityStrings      []string `yaml:"community_strings"`
-	BindHost              string   `yaml:"bind_host"`
-	StopTimeout           int      `yaml:"stop_timeout"`
-	Namespace             string   `yaml:"namespace"`
-	authoritativeEngineID string   `yaml:"-"`
+	Enabled          bool     `yaml:"enabled"`
+	Port             uint16   `yaml:"port"`
+	Users            []UserV3 `yaml:"users"`
+	CommunityStrings []string `yaml:"community_strings"`
+	BindHost         string   `yaml:"bind_host"`
+	StopTimeout      int      `yaml:"stop_timeout"`
+	Namespace        string   `yaml:"namespace"`
 }
 
 func TestUnmarshalKeyTrapsConfig(t *testing.T) {
