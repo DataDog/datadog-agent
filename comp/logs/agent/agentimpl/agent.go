@@ -392,10 +392,6 @@ func (a *logAgent) stop(context.Context) error {
 		a.diagnosticMessageReceiver,
 	)
 
-	a.grpcClient.Cancel()
-	a.autodiscoveryStream = nil
-	a.autodiscoveryStreamCancel()
-
 	// This will try to stop everything in order, including the potentially blocking
 	// parts like the sender. After StopTimeout it will just stop the last part of the
 	// pipeline, disconnecting it from the auditor, to make sure that the pipeline is
@@ -430,6 +426,11 @@ func (a *logAgent) stop(context.Context) error {
 			}
 		}
 	}
+
+	a.grpcClient.Cancel()
+	a.autodiscoveryStreamCancel()
+	a.autodiscoveryStream = nil
+
 	a.log.Info("logs-agent stopped")
 	return nil
 }
