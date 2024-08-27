@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
@@ -131,7 +132,7 @@ func TestGetHostTagsSuccessThenError(t *testing.T) {
 
 func TestGetHostTagsWithNonDefaultTagFilters(t *testing.T) {
 	ctx := context.Background()
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	defaultExclude := mockConfig.GetStringSlice("exclude_gce_tags")
 	defer mockConfig.SetWithoutSource("exclude_gce_tags", defaultExclude)
 

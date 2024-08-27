@@ -18,7 +18,7 @@ func NewGetMetricNamesCommand(cl **client.Client) (cmd *cobra.Command) {
 	cmd = &cobra.Command{
 		Use:   "names",
 		Short: "Get metric names",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			names, err := (*cl).GetMetricNames()
 			if err != nil {
 				return err

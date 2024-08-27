@@ -77,7 +77,7 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	assert.NoError(t, err)
 
 	_, err = bundle.runCfg.OrchestratorInformerFactory.InformerFactory.Core().V1().Nodes().Informer().AddEventHandler(&cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(_ interface{}) {
 			wg.Done()
 		},
 	})

@@ -648,7 +648,7 @@ def gen_config_for_stack(
     stack = check_and_get_stack(stack)
     if not stack_exists(stack) and not init_stack:
         raise Exit(
-            f"Stack {stack} does not exist. Please create stack first 'inv kmt.stack-create --stack={stack}, or specify --init-stack option'"
+            f"Stack {stack} does not exist. Please create stack first 'inv kmt.create-stack --stack={stack}', or specify --init-stack option to the current command"
         )
 
     if init_stack:
@@ -658,6 +658,11 @@ def gen_config_for_stack(
 
     ## get all possible (recipe, version, arch) combinations we can support.
     vmconfig_file = f"{get_kmt_os().stacks_dir}/{stack}/{VMCONFIG}"
+    if os.path.exists(vmconfig_file):
+        raise Exit(
+            "Editing configuration is current not supported. Destroy the stack first to change the configuration."
+        )
+
     if new or not os.path.exists(vmconfig_file):
         empty_config(vmconfig_file)
 

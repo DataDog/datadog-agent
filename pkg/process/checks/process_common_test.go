@@ -21,6 +21,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
+// Returns chunking and no chunking RunOptions
+func getChunkingOption(noChunking bool) *RunOptions {
+	return &RunOptions{RunStandard: true, NoChunking: noChunking}
+}
+
+func testGroupID(groupID int32) func() int32 {
+	return func() int32 {
+		return groupID
+	}
+}
+
 //nolint:deadcode,unused
 func procsToHash(procs []*procutil.Process) (procsByPid map[int32]*procutil.Process) {
 	procsByPid = make(map[int32]*procutil.Process)

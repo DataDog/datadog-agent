@@ -76,7 +76,7 @@ func OTLPTracesToConcentratorInputs(
 			chunks[ckey] = chunk
 		}
 		_, isTop := topLevelSpans[spanID]
-		chunk.Spans = append(chunk.Spans, otelSpanToDDSpan(otelspan, otelres, scopeByID[spanID], isTop, conf))
+		chunk.Spans = append(chunk.Spans, otelSpanToDDSpan(otelspan, otelres, scopeByID[spanID], isTop, topLevelByKind, conf))
 	}
 
 	inputs := make([]Input, 0, len(chunks))
@@ -105,7 +105,7 @@ func otelSpanToDDSpan(
 	otelspan ptrace.Span,
 	otelres pcommon.Resource,
 	lib pcommon.InstrumentationScope,
-	isTopLevel bool,
+	isTopLevel, topLevelByKind bool,
 	conf *config.AgentConfig,
 ) *pb.Span {
 	ddspan := &pb.Span{
@@ -119,7 +119,8 @@ func otelSpanToDDSpan(
 		Duration: int64(otelspan.EndTimestamp()) - int64(otelspan.StartTimestamp()),
 		Type:     traceutil.GetOTelSpanType(otelspan, otelres),
 	}
-	traceutil.SetMeta(ddspan, "span.kind", traceutil.OTelSpanKindName(otelspan.Kind()))
+	spanKind := otelspan.Kind()
+	traceutil.SetMeta(ddspan, "span.kind", traceutil.OTelSpanKindName(spanKind))
 	code := traceutil.GetOTelStatusCode(otelspan)
 	if code != 0 {
 		traceutil.SetMetric(ddspan, tagStatusCode, float64(code))
@@ -130,12 +131,18 @@ func otelSpanToDDSpan(
 	if isTopLevel {
 		traceutil.SetTopLevel(ddspan, true)
 	}
-	if conf.PeerTagsAggregation {
-		peerTagKeys := preparePeerTags(append(defaultPeerTags, conf.PeerTags...)...)
-		for _, peerTagKey := range peerTagKeys {
-			if peerTagVal := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, false, peerTagKey); peerTagVal != "" {
-				traceutil.SetMeta(ddspan, peerTagKey, peerTagVal)
-			}
+	if isMeasured := traceutil.GetOTelAttrVal(otelspan.Attributes(), false, "_dd.measured"); isMeasured == "1" {
+		traceutil.SetMeasured(ddspan, true)
+	} else if topLevelByKind && (spanKind == ptrace.SpanKindClient || spanKind == ptrace.SpanKindProducer) {
+		// When enable_otlp_compute_top_level_by_span_kind is true, compute stats for client-side spans
+		traceutil.SetMeasured(ddspan, true)
+	}
+	// TODO(knusbaum): Should we be getting the peer tags on every span? This is a somewhat heavy operation requiring merging,
+	// sorting, deduplicating of a list of tags.
+	peerTagKeys := conf.ConfiguredPeerTags()
+	for _, peerTagKey := range peerTagKeys {
+		if peerTagVal := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, false, peerTagKey); peerTagVal != "" {
+			traceutil.SetMeta(ddspan, peerTagKey, peerTagVal)
 		}
 	}
 	return ddspan

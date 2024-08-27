@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import itertools
 import json
 import os
@@ -15,6 +16,7 @@ from glob import glob
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+import yaml
 from invoke.context import Context
 from invoke.tasks import task
 
@@ -35,14 +37,18 @@ from tasks.kernel_matrix_testing.infra import (
     try_get_ssh_key,
 )
 from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system
+from tasks.kernel_matrix_testing.kmt_os import flare as flare_kmt_os
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+from tasks.libs.common.git import get_current_branch
 from tasks.libs.common.utils import get_build_flags
 from tasks.libs.pipeline.tools import loop_status
+from tasks.libs.releasing.version import VERSION_RE, check_version
 from tasks.libs.types.arch import Arch, KMTArchName
 from tasks.security_agent import build_functional_tests, build_stress_tests
 from tasks.system_probe import (
@@ -109,6 +115,8 @@ def create_stack(ctx, stack=None):
         "use-local-if-possible": "(Only when --from-ci-pipeline is used) If the VM is for the same architecture as the host, use the local VM instead of the remote one.",
         "vmconfig_template": "Template to use for the generated vmconfig.json file. Defaults to 'system-probe'. A file named 'vmconfig-<vmconfig_template>.json' must exist in 'tasks/new-e2e/system-probe/config/'",
         "yes": "Do not ask for confirmation",
+        "ci": "Generate a vmconfig.json file for the KMT CI, that is, with all available VMs for the given architecture.",
+        "arch": "(Only when --ci is used) Architecture to select when generating the vmconfig for all posible VMs.",
     }
 )
 def gen_config(
@@ -131,6 +139,13 @@ def gen_config(
     """
     Generate a vmconfig.json file with the given VMs.
     """
+    if not ci and arch != "":
+        # The argument is not used later on, so better notify the user early to avoid confusion
+        raise Exit(
+            "Error: Architecture (--arch argument) can only be specified when generating from a CI pipeline (--ci argument). "
+            "To specify the architecture of the VMs, use the VM specifier (e.g., x64-ubuntu_22-distro or local-ubuntu_22-distro for local VMs)"
+        )
+
     if from_ci_pipeline is not None:
         return gen_config_from_ci_pipeline(
             ctx,
@@ -197,15 +212,26 @@ def gen_config_from_ci_pipeline(
                     info(f"[+] setting vcpu to {vcpu}")
 
     failed_packages: set[str] = set()
+    failed_tests: set[str] = set()
     for test_job in test_jobs:
         if test_job.status == "failed" and job.component == vmconfig_template:
             vm_arch = test_job.arch
             if use_local_if_possible and vm_arch == local_arch:
                 vm_arch = local_arch
 
-            failed_tests = test_job.get_test_results()
-            failed_packages.update({test.split(':')[0] for test in failed_tests.keys()})
-            vms.add(f"{vm_arch}-{test_job.distro}-distro")
+            results = test_job.get_test_results()
+            for test, result in results.items():
+                if result is False:
+                    package, test = test.split(":")
+                    failed_tests.add(test)
+                    failed_packages.add(package)
+
+            vm_name = f"{vm_arch}-{test_job.distro}-distro"
+            info(f"[+] Adding {vm_name} from failed job {test_job.name}")
+            vms.add(vm_name)
+
+    if len(vms) == 0:
+        raise Exit(f"No failed jobs found in pipeline {pipeline}")
 
     info(f"[+] generating {output_file} file for VMs {vms}")
     vcpu = DEFAULT_VCPU if vcpu is None else vcpu
@@ -214,7 +240,7 @@ def gen_config_from_ci_pipeline(
         ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template, yes=yes
     )
     info("[+] You can run the following command to execute only packages with failed tests")
-    print(f"inv kmt.test --packages=\"{' '.join(failed_packages)}\"")
+    print(f"inv kmt.test --packages=\"{' '.join(failed_packages)}\" --run='^{'|'.join(failed_tests)}$'")
 
 
 @task
@@ -225,8 +251,34 @@ def launch_stack(
     x86_ami: str = X86_AMI_ID_SANDBOX,
     arm_ami: str = ARM_AMI_ID_SANDBOX,
     provision_microvms: bool = True,
+    provision_script: str | None = None,
 ):
+    stack = check_and_get_stack(stack)
+    if not stacks.stack_exists(stack):
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'")
+
     stacks.launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami, provision_microvms)
+    if provision_script is not None:
+        provision_stack(ctx, provision_script, stack, ssh_key)
+
+
+@task
+def provision_stack(
+    ctx: Context,
+    provision_script: str,
+    stack: str | None = None,
+    ssh_key: str | None = None,
+):
+    stack = check_and_get_stack(stack)
+    if not stacks.stack_exists(stack):
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'")
+
+    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
+    infra = build_infrastructure(stack, ssh_key_obj)
+    for arch in infra:
+        for domain in infra[arch].microvms:
+            domain.copy(ctx, provision_script, "/tmp/provision.sh")
+            domain.run_cmd(ctx, "chmod +x /tmp/provision.sh && /tmp/provision.sh", verbose=True)
 
 
 @task
@@ -511,6 +563,21 @@ def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths,
         variables={"mode": "-m744"},
     )
 
+    verifier_files = glob("pkg/ebpf/verifier/**/*.go")
+    nw.build(
+        rule="gobin",
+        pool="gobuild",
+        inputs=["./pkg/ebpf/verifier/calculator/main.go"],
+        outputs=[os.fspath(kmt_paths.dependencies / "verifier-calculator")],
+        implicit=verifier_files,
+        variables={
+            "go": go_path,
+            "chdir": "true",
+            "env": env_str,
+            "tags": f"-tags=\"{','.join(get_sysprobe_buildtags(False, False))}\"",
+        },
+    )
+
 
 def ninja_copy_ebpf_files(
     nw: NinjaWriter,
@@ -614,14 +681,18 @@ def prepare(
         raise Exit(
             f"Architecture {arch} (inferred {arch_obj}) is not supported. Supported architectures are amd64 and arm64"
         )
-    cc = get_compiler(ctx)
 
-    if arch_obj.is_cross_compiling():
-        cc.ensure_ready_for_cross_compile()
+    if not ci:
+        cc = get_compiler(ctx)
+
+        if arch_obj.is_cross_compiling():
+            cc.ensure_ready_for_cross_compile()
 
     pkgs = ""
     if packages:
         pkgs = f"--packages {packages}"
+
+    inv_echo = "-e" if ctx.config.run["echo"] else ""
 
     info(f"[+] Compiling artifacts for {arch_obj}, component = {component}")
     if component == "security-agent":
@@ -629,7 +700,7 @@ def prepare(
             kmt_secagent_prepare(ctx, vms, stack, arch_obj, ssh_key, packages, verbose, ci)
         else:
             cc.exec(
-                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e kmt.kmt-secagent-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
+                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv {inv_echo} kmt.kmt-secagent-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
                 run_dir=CONTAINER_AGENT_PATH,
             )
     elif component == "system-probe":
@@ -637,7 +708,7 @@ def prepare(
             kmt_sysprobe_prepare(ctx, arch_obj, ci=True)
         else:
             cc.exec(
-                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e kmt.kmt-sysprobe-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
+                f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv {inv_echo} kmt.kmt-sysprobe-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
                 run_dir=CONTAINER_AGENT_PATH,
             )
     else:
@@ -660,6 +731,7 @@ def prepare(
             clang_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/clang-bpf",
             llc_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/llc-bpf",
             "flakes.yaml": paths.dependencies / "flakes.yaml",
+            ".github/CODEOWNERS": paths.dependencies / "CODEOWNERS",
         }
 
         for src, dst in copy_static_files.items():
@@ -898,6 +970,7 @@ def kmt_sysprobe_prepare(
                 "external_unix_proxy_server",
                 "fmapper",
                 "prefetch_file",
+                "fake_server",
             ]:
                 src_file_path = os.path.join(pkg, f"{gobin}.go")
                 if os.path.isdir(pkg) and os.path.isfile(src_file_path):
@@ -1072,12 +1145,11 @@ def build_layout(ctx, domains, layout: str, verbose: bool):
         todo: DependenciesLayout = cast('DependenciesLayout', json.load(lf))
 
     for d in domains:
-        mkdir = []
-        for dirs in todo["layout"]:
-            mkdir.append(f"mkdir -p {dirs} &&")
+        info(f"[+] apply layout to vm {d.name}")
 
-        cmd = ' '.join(mkdir)
-        d.run_cmd(ctx, cmd.rstrip('&'), verbose)
+        cmd = ' && '.join(f'mkdir -p {dirs}' for dirs in todo["layout"])
+        if len(cmd) > 0:
+            d.run_cmd(ctx, cmd.rstrip('&'), verbose)
 
         for src, dst in todo["copy"].items():
             if not os.path.exists(src):
@@ -1097,6 +1169,7 @@ def build_layout(ctx, domains, layout: str, verbose: bool):
         "verbose": "Enable full output of all commands executed",
         "arch": "Architecture to build the system-probe for",
         "layout": "Path to file specifying the expected layout on the target VMs",
+        "override_agent": "Assume that the datadog-agent has been installed with `kmt.install-ddagent`, and replace the system-probe binary in its package with a local build. This also overrides the configuration files as defined in tasks/kernel-matrix-testing/build-layout.json",
     }
 )
 def build(
@@ -1109,6 +1182,7 @@ def build(
     component: Component = "system-probe",
     layout: str = "tasks/kernel_matrix_testing/build-layout.json",
     compile_only=False,
+    override_agent=False,
 ):
     stack = check_and_get_stack(stack)
     assert stacks.stack_exists(
@@ -1124,11 +1198,12 @@ def build(
 
     cc = get_compiler(ctx)
 
-    cc.exec(f"cd {CONTAINER_AGENT_PATH} && inv -e system-probe.object-files")
+    inv_echo = "-e" if ctx.config.run["echo"] else ""
+    cc.exec(f"cd {CONTAINER_AGENT_PATH} && inv {inv_echo} system-probe.object-files")
 
     build_task = "build-sysprobe-binary" if component == "system-probe" else "build"
     cc.exec(
-        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e {component}.{build_task} --no-bundle --arch={arch_obj.name}",
+        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv {inv_echo} {component}.{build_task} --no-bundle --arch={arch_obj.name}",
     )
 
     cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
@@ -1153,7 +1228,12 @@ def build(
 
     build_layout(ctx, domains, layout, verbose)
     for d in domains:
-        d.copy(ctx, f"./bin/{component}", "/root/")
+        if override_agent:
+            d.run_cmd(ctx, f"[ -f /opt/datadog-agent/embedded/bin/{component} ]", verbose=False)
+            d.copy(ctx, f"./bin/{component}/{component}", "/opt/datadog-agent/embedded/bin/{component}")
+        else:
+            d.copy(ctx, f"./bin/{component}", "/root/")
+
         d.copy(ctx, f"kmt-deps/{stack}/build-embedded-dir.tar", "/")
         d.run_cmd(ctx, "tar xf /build-embedded-dir.tar -C /", verbose=verbose)
         info(f"[+] {component} built for {d.name} @ /root")
@@ -1166,8 +1246,6 @@ def clean(ctx: Context, stack: str | None = None, container=False, image=False):
         stack
     ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
 
-    cc = get_compiler(ctx)
-    cc.exec("inv -e system-probe.clean", run_dir=CONTAINER_AGENT_PATH)
     ctx.run("rm -rf ./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg")
     ctx.run(f"rm -rf kmt-deps/{stack}", warn=True)
     ctx.run(f"rm {get_kmt_os().shared_dir}/*.tar.gz", warn=True)
@@ -1498,12 +1576,25 @@ def validate_platform_info(ctx: Context):
 
 
 @task
-def explain_ci_failure(_, pipeline: str):
+def explain_ci_failure(ctx: Context, pipeline: str | None = None):
     """Show a summary of KMT failures in the given pipeline."""
     if tabulate is None:
         raise Exit("tabulate module is not installed, please install it to continue")
 
-    info(f"[+] retrieving all CI jobs for pipeline {pipeline}")
+    gitlab = get_gitlab_repo()
+
+    if pipeline is None:
+        branch = get_current_branch(ctx)
+        info(f"[+] searching for the latest pipeline for this branch ({branch})")
+        pipelines = cast(list[Any], gitlab.pipelines.list(ref=branch, per_page=1))
+        if len(pipelines) != 1:
+            raise Exit(f"[!] Could not find a pipeline for branch {branch}")
+        pipeline = cast(str, pipelines[0].id)
+
+    pipeline_data = gitlab.pipelines.get(pipeline)
+    info(
+        f"[+] retrieving all CI jobs for pipeline {pipeline} ({pipeline_data.web_url}), {pipeline_data.status}, created {pipeline_data.created_at} last updated {pipeline_data.updated_at}"
+    )
     setup_jobs, test_jobs = get_all_jobs_for_pipeline(pipeline)
 
     failed_setup_jobs = [j for j in setup_jobs if j.status == "failed"]
@@ -1542,8 +1633,8 @@ def explain_ci_failure(_, pipeline: str):
         failreasons[failed_job.name] = failreason
 
     # Check setup-env jobs that failed, they are infra failures for all related test jobs
-    for job in failed_setup_jobs:
-        for test_job in job.associated_test_jobs:
+    for setup_job in failed_setup_jobs:
+        for test_job in setup_job.associated_test_jobs:
             failreasons[test_job.name] = infrafail
             failed_jobs.append(test_job)
 
@@ -1567,8 +1658,8 @@ def explain_ci_failure(_, pipeline: str):
             if test_job.component != component or test_job.vmset != vmset:
                 continue
 
-            failreason = failreasons.get(job.name, ok)
-            distros[test_job.distro][job.arch] = failreason
+            failreason = failreasons.get(test_job.name, ok)
+            distros[test_job.distro][test_job.arch] = failreason
             if failreason == testfail:
                 distro_arch_with_test_failures.append((test_job.distro, test_job.arch))
 
@@ -1752,9 +1843,9 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
     assert tabulate is not None, "tabulate module is not installed, please install it to continue"
 
     paths = KMTPaths(stack, Arch.local())
-    results: dict[str, dict[str, tuple[int, int, int]]] = defaultdict(dict)
+    results: dict[str, dict[str, tuple[int, int, int, int]]] = defaultdict(dict)
     vm_list: list[str] = []
-    total_by_vm: dict[str, tuple[int, int, int]] = defaultdict(lambda: (0, 0, 0))
+    total_by_vm: dict[str, tuple[int, int, int, int]] = defaultdict(lambda: (0, 0, 0, 0))
     sum_failures = 0
 
     for vm_folder in paths.test_results.iterdir():
@@ -1763,42 +1854,66 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
 
         vm_name = "-".join(vm_folder.name.split('-')[:2])
         vm_list.append(vm_name)
+        test_results: dict[str, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
 
         for file in vm_folder.glob("*.xml"):
             xml = ET.parse(file)
 
-            for testsuite in xml.findall(".//testsuite"):
-                pkgname = testsuite.get("name")
-                if pkgname is None:
+            for testcase in xml.findall(".//testcase"):
+                pkgname = testcase.get("classname")
+                testname = testcase.get("name")
+                if pkgname is None or testname is None:
                     continue
+                failed = testcase.find("failure") is not None
+                skipped = testcase.find("skipped") is not None
 
-                tests = int(testsuite.get("tests") or "0")
-                failures = int(testsuite.get("failures") or "0")
-                sum_failures += failures
-                errors = int(testsuite.get("errors") or "0")
-                skipped = int(testsuite.get("skipped") or "0")
-                successes = tests - failures - errors - skipped
-                result_tuple = (successes, failures, skipped)
+                if failed:
+                    result = "failed"
+                elif skipped:
+                    result = "skipped"
+                else:
+                    result = "success"
 
-                results[pkgname][vm_name] = result_tuple
-                total_by_vm[vm_name] = tuple(x + y for x, y in zip(result_tuple, total_by_vm[vm_name], strict=True))  # type: ignore
+                test_results[pkgname][testname].add(result)
 
-    def _color_result(result: tuple[int, int, int]) -> str:
+        for pkgname, tests in test_results.items():
+            failures, successes_on_retry, successes, skipped = 0, 0, 0, 0
+
+            for testresults in tests.values():
+                if len(testresults) == 1:
+                    result = next(iter(testresults))
+                    if result == "failed":
+                        failures += 1
+                        sum_failures += 1
+                    elif result == "success":
+                        successes += 1
+                    elif result == "skipped":
+                        skipped += 1
+                elif "failed" in testresults and "success" in testresults:
+                    successes_on_retry += 1
+
+            result_tuple = (successes, successes_on_retry, failures, skipped)
+
+            results[pkgname][vm_name] = result_tuple
+            total_by_vm[vm_name] = tuple(x + y for x, y in zip(result_tuple, total_by_vm[vm_name], strict=True))  # type: ignore
+
+    def _color_result(result: tuple[int, int, int, int]) -> str:
         success = colored(str(result[0]), "green" if result[0] > 0 else None)
-        failures = colored(str(result[1]), "red" if result[1] > 0 else None)
-        skipped = colored(str(result[2]), "yellow" if result[2] > 0 else None)
+        success_on_retry = colored(str(result[1]), "blue" if result[1] > 0 else None)
+        failures = colored(str(result[2]), "red" if result[2] > 0 else None)
+        skipped = colored(str(result[3]), "yellow" if result[3] > 0 else None)
 
-        return f"{success}/{failures}/{skipped}"
+        return f"{success}/{success_on_retry}/{failures}/{skipped}"
 
     table: list[list[str]] = []
     for package, vm_results in sorted(results.items(), key=lambda x: x[0]):
-        row = [package] + [_color_result(vm_results.get(vm, (0, 0, 0))) for vm in vm_list]
+        row = [package] + [_color_result(vm_results.get(vm, (0, 0, 0, 0))) for vm in vm_list]
         table.append(row)
 
     table.append(["Total"] + [_color_result(total_by_vm[vm]) for vm in vm_list])
 
     print(tabulate(table, headers=["Package"] + vm_list))
-    print("\nLegend: Successes/Failures/Skipped")
+    print("\nLegend: Successes/Successes on retry/Failures/Skipped")
 
     if sum_failures:
         sys.exit(1)
@@ -1808,6 +1923,7 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
 def tag_ci_job(ctx: Context):
     """Add extra tags to the CI job"""
     tags: dict[str, str] = {}
+    metrics: dict[str, str] = {}
 
     # Retrieve tags from environment variables, with a renaming for convenience
     environment_vars_to_tags = {
@@ -1862,6 +1978,17 @@ def tag_ci_job(ctx: Context):
             tags["failure_reason"] = "infra_ssh-config"
         else:
             tags["failure_reason"] = "infra-unknown"
+
+        # Tag complexity results
+        should_collect_complexity = os.getenv("COLLECT_COMPLEXITY") == "yes"
+        collected_complexity = any(agent_testing_dir.glob("verifier-complexity-*.tar.gz"))
+
+        if not should_collect_complexity:
+            tags["complexity_collection"] = "skipped"
+        elif collected_complexity:
+            tags["complexity_collection"] = "success"
+        else:
+            tags["complexity_collection"] = "failure"
     elif job_type == "setup":
         if "kmt_setup_env" in job_name:
             tags["setup_stage"] = "infra-provision"
@@ -1885,12 +2012,16 @@ def tag_ci_job(ctx: Context):
 
         e2e_retry_count = ci_project_dir / "e2e-retry-count"
         if e2e_retry_count.is_file():
-            tags["e2e_retry_count"] = e2e_retry_count.read_text().strip()
+            metrics["pulumi_retry_count"] = e2e_retry_count.read_text().strip()
 
     tag_prefix = "kmt."
     tags_str = " ".join(f"--tags '{tag_prefix}{k}:{v}'" for k, v in tags.items())
 
     ctx.run(f"datadog-ci tag --level job {tags_str}")
+
+    if len(metrics) > 0:
+        metrics_str = " ".join(f"--metrics '{tag_prefix}{k}:{v}'" for k, v in metrics.items())
+        ctx.run(f"datadog-ci metric --level job {metrics_str}")
 
 
 @task
@@ -1912,3 +2043,142 @@ def wait_for_setup_job(ctx: Context, pipeline_id: int, arch: str | Arch, compone
 
     loop_status(_check_status, timeout_sec=timeout_sec)
     info(f"[+] Setup job {setup_job.name} finished with status {setup_job.status}")
+
+
+# by default the PyYaml dumper does not indent lists correctly using to problem when
+# starting the agent. The following solution is taken from
+# https://stackoverflow.com/questions/25108581/python-yaml-dump-bad-indentation
+class IndentedDumper(yaml.Dumper):
+    def increase_indent(self, flow=False, indentless=False):
+        return super().increase_indent(flow, indentless)
+
+
+@task
+def install_ddagent(
+    ctx: Context,
+    api_key: str,
+    vms: str | None = None,
+    stack: str | None = None,
+    ssh_key: str | None = None,
+    verbose=True,
+    arch: str | None = None,
+    version: str | None = None,
+    datadog_yaml: str | None = None,
+    layout: str | None = None,
+):
+    stack = check_and_get_stack(stack)
+    assert stacks.stack_exists(
+        stack
+    ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
+
+    if arch is None:
+        arch = "local"
+
+    arch_obj = Arch.from_str(arch)
+
+    if vms is None:
+        vms = ",".join(stacks.get_all_vms_in_stack(stack))
+
+    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
+    infra = build_infrastructure(stack, ssh_key_obj)
+    domains = filter_target_domains(vms, infra, arch_obj)
+
+    assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
+
+    if version is not None:
+        check_version(version)
+    else:
+        with open("release.json") as f:
+            release = json.load(f)
+        version = release["last_stable"]["7"]
+
+    match = VERSION_RE.match(version)
+    if not match:
+        raise Exit(f"Version {version} not of expected pattern")
+
+    groups = match.groups()
+    major = groups[1]
+    minor = groups[2]
+    env = [
+        f"DD_API_KEY={api_key}",
+        f"DD_AGENT_MAJOR_VERSION={major}",
+        f"DD_AGENT_MINOR_VERSION={minor}",
+        "DD_INSTALL_ONLY=true",
+    ]
+
+    if datadog_yaml is not None:
+        with open(datadog_yaml) as f:
+            ddyaml = yaml.load(f, Loader=yaml.SafeLoader)
+
+    for d in domains:
+        d.run_cmd(
+            ctx,
+            f"curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent{major}.sh > /tmp/install-script.sh",
+            verbose=verbose,
+        )
+        d.run_cmd(ctx, f"{' '.join(env)} bash /tmp/install-script.sh", verbose=verbose)
+
+        # setup datadog yaml
+        if datadog_yaml is not None:
+            # hostnames with '_' are not accepted according to RFC1123
+            ddyaml["hostname"] = f"{os.getlogin()}_{d.tag}".replace("_", "-")
+            ddyaml["api_key"] = api_key
+            with tempfile.NamedTemporaryFile(mode='w') as tmp:
+                yaml.dump(ddyaml, tmp, Dumper=IndentedDumper, default_flow_style=False)
+                tmp.flush()
+                d.copy(ctx, tmp.name, "/etc/datadog-agent/datadog.yaml")
+
+    if layout is not None:
+        build_layout(ctx, domains, layout, verbose)
+
+
+@task(
+    help={
+        "commit": "The commit to download the complexity data for",
+        "dest_path": "The path to save the complexity data to",
+        "keep_compressed_archives": "Keep the compressed archives after extracting the data. Useful for testing, as it replicates the exact state of the artifacts in CI",
+    }
+)
+def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path, keep_compressed_archives: bool = False):
+    gitlab = get_gitlab_repo()
+    dest_path = Path(dest_path)
+
+    # We can't get all the pipelines associated with a commit directly, so we get it by the commit statuses
+    commit_statuses = gitlab.commits.get(commit, lazy=True).statuses.list(all=True)
+    pipeline_ids = {status.pipeline_id for status in commit_statuses if 'pipeline_id' in status.asdict()}
+    print(f"Found pipelines {pipeline_ids}")
+
+    for pipeline_id in pipeline_ids:
+        pipeline = gitlab.pipelines.get(pipeline_id)
+        if pipeline.source != "push":
+            print(f"Ignoring pipeline {pipeline_id}, only using push pipelines")
+            continue
+
+        _, test_jobs = get_all_jobs_for_pipeline(pipeline_id)
+        for job in test_jobs:
+            complexity_name = f"verifier-complexity-{job.arch}-{job.distro}-{job.component}"
+            complexity_data_fname = f"test/kitchen/{complexity_name}.tar.gz"
+            data = job.artifact_file_binary(complexity_data_fname, ignore_not_found=True)
+            if data is None:
+                print(f"Complexity data not found for {job.name} - filename {complexity_data_fname} not found")
+                continue
+
+            if keep_compressed_archives:
+                with open(dest_path / f"{complexity_name}.tar.gz", "wb") as f:
+                    f.write(data)
+
+            tar = tarfile.open(fileobj=io.BytesIO(data))
+            job_folder = dest_path / complexity_name
+            job_folder.mkdir(parents=True, exist_ok=True)
+            tar.extractall(dest_path / job_folder)
+            print(f"Extracted complexity data for {job.name} successfully, filename {complexity_data_fname}")
+
+
+@task
+def flare(ctx: Context, dest_folder: Path | str | None = None, keep_uncompressed_files: bool = False):
+    if dest_folder is None:
+        dest_folder = "."
+    dest_folder = Path(dest_folder)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        flare_kmt_os(ctx, Path(tmpdir), dest_folder, keep_uncompressed_files)

@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -39,7 +40,7 @@ type testSuite struct {
 }
 
 func TestSuiteKube(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	s := &testSuite{}
 
 	// Env detection
@@ -95,7 +96,7 @@ func (suite *testSuite) SetupTest() {
 }
 
 func (suite *testSuite) TestKubeEvents() {
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 	resVer := ""
 	eventReadTimeout := int64(1)
 	lastList := time.Now()
@@ -166,7 +167,7 @@ func (suite *testSuite) TestKubeEvents() {
 
 func (suite *testSuite) TestHostnameProvider() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	// Init own client to write the events
 	mockConfig.SetWithoutSource("kubernetes_kubeconfig_path", suite.kubeConfigPath)

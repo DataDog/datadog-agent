@@ -9,7 +9,7 @@ package server
 import (
 	"context"
 
-	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"

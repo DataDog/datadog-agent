@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
@@ -29,34 +30,34 @@ import (
 
 func TestGetGRPCStreamPort(t *testing.T) {
 	t.Run("invalid port", func(t *testing.T) {
-		cfg := config.Mock(t)
+		cfg := configmock.New(t)
 		cfg.SetWithoutSource("process_config.language_detection.grpc_port", "lorem ipsum")
 
 		assert.Equal(t, config.DefaultProcessEntityStreamPort, getGRPCStreamPort(cfg))
 	})
 
 	t.Run("valid port", func(t *testing.T) {
-		cfg := config.Mock(t)
+		cfg := configmock.New(t)
 		cfg.SetWithoutSource("process_config.language_detection.grpc_port", "1234")
 
 		assert.Equal(t, 1234, getGRPCStreamPort(cfg))
 	})
 
 	t.Run("default", func(t *testing.T) {
-		cfg := config.Mock(t)
+		cfg := configmock.New(t)
 		assert.Equal(t, config.DefaultProcessEntityStreamPort, getGRPCStreamPort(cfg))
 	})
 }
 
 func TestStartStop(t *testing.T) {
-	cfg := config.Mock(t)
+	cfg := configmock.New(t)
 	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
 
 	extractor := NewWorkloadMetaExtractor(cfg)
 
 	port := testutil.FreeTCPPort(t)
 	cfg.SetWithoutSource("process_config.language_detection.grpc_port", port)
-	srv := NewGRPCServer(config.Mock(t), extractor)
+	srv := NewGRPCServer(configmock.New(t), extractor)
 
 	err := srv.Start()
 	assert.NoError(t, err)
@@ -83,7 +84,7 @@ func TestStreamServer(t *testing.T) {
 		proc3 = testProc(Pid3, []string{"corrina", "--at-her-best"})
 	)
 
-	cfg := config.Mock(t)
+	cfg := configmock.New(t)
 	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
 	extractor := NewWorkloadMetaExtractor(cfg)
 
@@ -163,7 +164,7 @@ func TestStreamServerDropRedundantCacheDiff(t *testing.T) {
 		proc3 = testProc(Pid3, []string{"corrina", "--at-her-best"})
 	)
 
-	cfg := config.Mock(t)
+	cfg := configmock.New(t)
 	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
 	extractor := NewWorkloadMetaExtractor(cfg)
 
@@ -365,7 +366,7 @@ func toEventUnset(proc *procutil.Process) *pbgo.ProcessEventUnset {
 func setupGRPCTest(t *testing.T) (*WorkloadMetaExtractor, *GRPCServer, *grpc.ClientConn, pbgo.ProcessEntityStream_StreamEntitiesClient) {
 	t.Helper()
 
-	cfg := config.Mock(t)
+	cfg := configmock.New(t)
 	port, err := testutil.FindTCPPort()
 	require.NoError(t, err)
 	cfg.SetWithoutSource("process_config.language_detection.grpc_port", port)

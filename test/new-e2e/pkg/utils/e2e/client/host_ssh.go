@@ -7,13 +7,14 @@ package client
 
 import (
 	"fmt"
-	"net"
-	"os"
-	"path"
-
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"io"
+	"net"
+	"os"
+	"path"
+	"strings"
 )
 
 func execute(sshClient *ssh.Client, command string) (string, error) {
@@ -77,12 +78,16 @@ func getSSHClient(user, host string, privateKey, privateKeyPassphrase []byte) (*
 	return client, nil
 }
 
-func copyFile(sftpClient *sftp.Client, src string, dst string) error {
-	srcFile, err := os.Open(src)
-	if err != nil {
-		return err
+func copyFileFromIoReader(sftpClient *sftp.Client, srcFile io.Reader, dst string) error {
+	lastSlashIdx := strings.LastIndex(dst, "/")
+	if lastSlashIdx >= 0 {
+		// Ensure the target directory exists
+		// otherwise sftpClient.Create will return an error
+		err := sftpClient.MkdirAll(dst[:lastSlashIdx])
+		if err != nil {
+			return err
+		}
 	}
-	defer srcFile.Close()
 
 	dstFile, err := sftpClient.Create(dst)
 	if err != nil {
@@ -94,6 +99,15 @@ func copyFile(sftpClient *sftp.Client, src string, dst string) error {
 		return err
 	}
 	return nil
+}
+
+func copyFile(sftpClient *sftp.Client, src string, dst string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+	return copyFileFromIoReader(sftpClient, srcFile, dst)
 }
 
 func copyFolder(sftpClient *sftp.Client, srcFolder string, dstFolder string) error {

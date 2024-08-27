@@ -15,7 +15,6 @@ import traceback
 from collections import defaultdict
 from collections.abc import Iterable
 from pathlib import Path
-from time import sleep
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -24,6 +23,8 @@ import tasks.modules
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import check_uncommitted_changes
+from tasks.libs.common.go import download_go_dependencies
+from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import TimedOperationResult, get_build_flags, timed
 from tasks.licenses import get_licenses_list
 from tasks.modules import DEFAULT_MODULES, generate_dummy_package
@@ -99,9 +100,12 @@ def internal_deps_checker(ctx, formatFile=False):
     """
     Check that every required internal dependencies are correctly replaced
     """
+    repo_path = os.getcwd()
     extra_params = "--formatFile true" if formatFile else ""
     for mod in DEFAULT_MODULES.values():
-        ctx.run(f"go run ./internal/tools/modformatter/modformatter.go --path={mod.full_path()} {extra_params}")
+        ctx.run(
+            f"go run ./internal/tools/modformatter/modformatter.go --path={mod.full_path()} --repoPath={repo_path} {extra_params}"
+        )
 
 
 @task
@@ -109,20 +113,8 @@ def deps(ctx, verbose=False):
     """
     Setup Go dependencies
     """
-    max_retry = 3
-    print("downloading dependencies")
-    with timed("go mod download"):
-        verbosity = ' -x' if verbose else ''
-        for mod in DEFAULT_MODULES.values():
-            with ctx.cd(mod.full_path()):
-                for retry in range(max_retry):
-                    result = ctx.run(f"go mod download{verbosity}")
-                    if result.exited is None or result.exited > 0:
-                        wait = 10 ** (retry + 1)
-                        print(f"[{(retry + 1) / max_retry}] Failed downloading {mod.path}, retrying in {wait} seconds")
-                        sleep(wait)
-                        continue
-                    break
+    paths = [mod.full_path() for mod in DEFAULT_MODULES.values()]
+    download_go_dependencies(ctx, paths, verbose=verbose)
 
 
 @task
@@ -323,13 +315,14 @@ def generate_protobuf(ctx):
         # mockgen
         pbgo_dir = os.path.join(proto_root, "pbgo")
         mockgen_out = os.path.join(proto_root, "pbgo", "mocks")
+        pbgo_rel = os.path.relpath(pbgo_dir, repo_root)
         try:
             os.mkdir(mockgen_out)
         except FileExistsError:
             print(f"{mockgen_out} folder already exists")
 
         # TODO: this should be parametrized
-        ctx.run(f"mockgen -source={pbgo_dir}/core/api.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go")
+        ctx.run(f"mockgen -source={pbgo_rel}/core/api.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go")
 
     # generate messagepack marshallers
     for pkg, files in msgp_targets.items():
@@ -375,7 +368,9 @@ def check_go_mod_replaces(_):
             for line in f:
                 if "github.com/datadog/datadog-agent" in line.lower():
                     err_mod = line.split()[0]
-                    errors_found.add(f"{mod.import_path}/go.mod is missing a replace for {err_mod}")
+
+                    if (Path(err_mod.removeprefix("github.com/DataDog/datadog-agent/")) / "go.mod").exists():
+                        errors_found.add(f"{mod.import_path}/go.mod is missing a replace for {err_mod}")
 
     if errors_found:
         message = "\nErrors found:\n"
@@ -455,7 +450,7 @@ def tidy(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.22.5 linux/amd64"
+    # result is like "go version go1.22.6 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:
@@ -651,7 +646,7 @@ def create_module(ctx, path: str, no_verify: bool = False):
         # Restore files if user wants to
         if sys.stdin.isatty():
             print(color_message("Failed to create module", "red"))
-            if input('Do you want to restore all files ? [N/y]').strip() in 'yY':
+            if yes_no_question('Do you want to restore all files ?', default=False):
                 print(color_message("Restoring files", "blue"))
 
                 ctx.run('git clean -f')

@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/viper"
 	"github.com/spf13/afero"
-	"github.com/spf13/pflag"
 )
 
 // Proxy represents the configuration for proxies in the agent
@@ -111,7 +110,15 @@ type Setup interface {
 	SetEnvPrefix(in string)
 	BindEnv(input ...string)
 	SetEnvKeyReplacer(r *strings.Replacer)
+
+	// SetEnvKeyTransformer is deprecated in favor of ParseEnvAs* functions
 	SetEnvKeyTransformer(key string, fn func(string) interface{})
+	// The following helpers allow a type to be enforce when parsing environment variables. Most of them exists to
+	// support historic behavior. Refrain from adding more as it's most likely a sign of poorly design configuration
+	// layout.
+	ParseEnvAsStringSlice(key string, fx func(string) []string)
+	ParseEnvAsMapStringInterface(key string, fx func(string) map[string]interface{})
+	ParseEnvAsSliceMapString(key string, fx func(string) []map[string]string)
 
 	// SetKnown adds a key to the set of known valid config keys
 	SetKnown(key string)
@@ -137,14 +144,13 @@ type Compound interface {
 	ReadConfig(in io.Reader) error
 	MergeConfig(in io.Reader) error
 	MergeConfigMap(cfg map[string]any) error
+	MergeFleetPolicy(configPath string) error
 
 	AddConfigPath(in string)
 	AddExtraConfigPaths(in []string) error
 	SetConfigName(in string)
 	SetConfigFile(in string)
 	SetConfigType(in string)
-
-	BindPFlag(key string, flag *pflag.Flag) error
 }
 
 // Config represents an object that can load and store configuration parameters

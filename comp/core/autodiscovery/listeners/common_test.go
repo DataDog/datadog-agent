@@ -10,8 +10,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
-	"github.com/DataDog/datadog-agent/pkg/config"
-
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -195,7 +194,7 @@ func TestGetPrometheusIncludeAnnotations(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig := config.Mock(t)
+			mockConfig := configmock.New(t)
 
 			val := mockConfig.GetString("prometheus_scrape.checks")
 			assert.Equal(t, val, "")

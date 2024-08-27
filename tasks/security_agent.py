@@ -197,14 +197,13 @@ def run_functional_tests(ctx, testsuite, verbose=False, testflags='', fentry=Fal
 
 
 @task
-def run_ebpfless_functional_tests(ctx, cws_instrumentation, testsuite, verbose=False, testflags=''):
+def run_ebpfless_functional_tests(ctx, testsuite, verbose=False, testflags=''):
     cmd = '{testsuite} -trace {verbose_opt} {testflags}'
 
     if os.getuid() != 0:
         cmd = 'sudo -E PATH={path} ' + cmd
 
     args = {
-        "cws_instrumentation": cws_instrumentation,
         "testsuite": testsuite,
         "verbose_opt": "-test.v" if verbose else "",
         "testflags": testflags,
@@ -515,7 +514,6 @@ def ebpfless_functional_tests(
     testflags='',
     skip_linters=False,
     kernel_release=None,
-    cws_instrumentation='bin/cws-instrumentation/cws-instrumentation',
 ):
     build_functional_tests(
         ctx,
@@ -529,7 +527,6 @@ def ebpfless_functional_tests(
 
     run_ebpfless_functional_tests(
         ctx,
-        cws_instrumentation,
         testsuite=output,
         verbose=verbose,
         testflags=testflags,
@@ -667,11 +664,6 @@ def cws_go_generate(ctx, verbose=False):
         shutil.copy(
             "./pkg/security/serializers/serializers_linux_easyjson.mock",
             "./pkg/security/serializers/serializers_linux_easyjson.go",
-        )
-
-        shutil.copy(
-            "./pkg/security/security_profile/dump/activity_dump_easyjson.mock",
-            "./pkg/security/security_profile/dump/activity_dump_easyjson.go",
         )
 
     ctx.run("go generate ./pkg/security/...")
@@ -899,7 +891,7 @@ def sync_secl_win_pkg(ctx):
         ("events.go", None),
         ("args_envs.go", None),
         ("consts_common.go", None),
-        ("consts_other.go", None),
+        ("consts_windows.go", "consts_win.go"),
         ("consts_map_names_linux.go", None),
         ("model_windows.go", "model_win.go"),
         ("field_handlers_windows.go", "field_handlers_win.go"),

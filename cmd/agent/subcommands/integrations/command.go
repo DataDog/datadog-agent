@@ -26,8 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -113,8 +112,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		return fxutil.OneShot(callback,
 			fx.Supply(cliParams),
 			fx.Supply(core.BundleParams{
-				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigMissingOK(true), config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
-				LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true),
+				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigMissingOK(true), config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+				LogParams:    log.ForOneShot(command.LoggerName, "off", true),
 			}),
 			core.Bundle(),
 		)
@@ -127,7 +126,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 You must specify a version of the package to install using the syntax: <package>==<version>, with
  - <package> of the form datadog-<integration-name>
  - <version> of the form x.y.z`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 			return runOneShot(install)
 		},
@@ -148,7 +147,7 @@ You must specify a version of the package to install using the syntax: <package>
 		Use:   "remove [package]",
 		Short: "Remove Datadog integration core/extra packages",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 			return runOneShot(remove)
 		},
@@ -159,7 +158,7 @@ You must specify a version of the package to install using the syntax: <package>
 		Use:   "freeze",
 		Short: "Print the list of installed packages in the agent's python environment",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 			return runOneShot(list)
 		},
@@ -171,7 +170,7 @@ You must specify a version of the package to install using the syntax: <package>
 		Short: "Print out information about [package]",
 		Args:  cobra.ExactArgs(1),
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 			return runOneShot(show)
 		},
@@ -861,7 +860,7 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 		)))
 	}
 	if errorMsg != "" {
-		return fmt.Errorf(errorMsg)
+		return errors.New(errorMsg)
 	}
 	return nil
 }

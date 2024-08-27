@@ -8,8 +8,10 @@
 package serializers
 
 import (
+	"slices"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -21,6 +23,8 @@ import (
 type CGroupContextSerializer struct {
 	// CGroup ID
 	ID string `json:"id,omitempty"`
+	// CGroup manager
+	Manager string `json:"manager,omitempty"`
 }
 
 // ContainerContextSerializer serializes a container context to JSON
@@ -190,15 +194,6 @@ type DNSEventSerializer struct {
 	Question DNSQuestionSerializer `json:"question"`
 }
 
-// DDContextSerializer serializes a span context to JSON
-// easyjson:json
-type DDContextSerializer struct {
-	// Span ID used for APM correlation
-	SpanID uint64 `json:"span_id,omitempty"`
-	// Trace ID used for APM correlation
-	TraceID uint64 `json:"trace_id,omitempty"`
-}
-
 // ExitEventSerializer serializes an exit event to JSON
 // easyjson:json
 type ExitEventSerializer struct {
@@ -353,6 +348,10 @@ func newVariablesContext(e *model.Event, opts *eval.Opts, prefix string) (variab
 		store := opts.VariableStore
 		for name, variable := range store.Variables {
 			if _, found := model.SECLVariables[name]; found {
+				continue
+			}
+
+			if slices.Contains(bundled.InternalVariables[:], name) {
 				continue
 			}
 

@@ -342,6 +342,30 @@ const (
 	UpperLayer
 )
 
+// SyscallDriftEventReason describes why a syscall drift event was sent
+type SyscallDriftEventReason uint64
+
+const (
+	// SyscallMonitorPeriodReason means that the event was sent because the syscall cache entry was dirty for longer than syscall_monitor.period
+	SyscallMonitorPeriodReason SyscallDriftEventReason = iota + 1
+	// ExitReason means that the event was sent because a pid that was about to exit had a dirty cache entry
+	ExitReason
+	// ExecveReason means that the event was sent because an execve syscall was detected on a pid with a dirty cache entry
+	ExecveReason
+)
+
+func (r SyscallDriftEventReason) String() string {
+	switch r {
+	case SyscallMonitorPeriodReason:
+		return "MonitorPeriod"
+	case ExecveReason:
+		return "Execve"
+	case ExitReason:
+		return "Exit"
+	}
+	return "Unknown"
+}
+
 func initErrorConstants() {
 	for k, v := range errorConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: v}
@@ -425,6 +449,7 @@ func initConstants() {
 	initAddressFamilyConstants()
 	initExitCauseConstants()
 	initBPFMapNamesConstants()
+	initAUIDConstants()
 	usersession.InitUserSessionTypes()
 }
 

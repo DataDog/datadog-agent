@@ -10,6 +10,8 @@ package sysctl
 
 import (
 	"encoding/binary"
+	"errors"
+	"os"
 	"strings"
 	"syscall"
 	"time"
@@ -19,6 +21,7 @@ type sctl struct {
 	ttl      time.Duration
 	lastRead time.Time
 	path     string
+	err      error
 }
 
 func newSCtl(sysctl string, cacheFor time.Duration) *sctl {
@@ -33,12 +36,17 @@ func newSCtl(sysctl string, cacheFor time.Duration) *sctl {
 // indicates the duration hasn't exceeded, false withn
 // error indicates actual error.
 func (s *sctl) get(now time.Time) (string, bool, error) {
-	if !s.lastRead.IsZero() && s.lastRead.Add(s.ttl).After(now) {
-		return "", false, nil
+	if s.err != nil || (!s.lastRead.IsZero() && s.lastRead.Add(s.ttl).After(now)) {
+		return "", false, s.err
 	}
 
 	content, err := syscall.Sysctl(s.path)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, os.ErrPermission) {
+			// sticky error, we won't try again
+			s.err = err
+		}
+
 		return "", false, err
 	}
 

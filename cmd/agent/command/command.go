@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
 
 const (
@@ -44,6 +44,10 @@ type GlobalParams struct {
 	// LogStreamFilePath holds the path to the logstream log path
 	LogStreamFilePath string
 
+	// FleetPoliciesDirPath holds the path to the folder containing the remotely received agent
+	// configuration files, to allow overrides from the command line
+	FleetPoliciesDirPath string
+
 	// NoColor is a flag to disable color output
 	NoColor bool
 }
@@ -55,8 +59,8 @@ type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
 // without secrets and logger disabled).
 func GetDefaultCoreBundleParams(globalParams *GlobalParams) core.BundleParams {
 	return core.BundleParams{
-		ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
-		LogParams:    logimpl.ForOneShot(LoggerName, "off", true)}
+		ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+		LogParams:    log.ForOneShot(LoggerName, "off", true)}
 }
 
 // MakeCommand makes the top-level Cobra command for this app.
@@ -82,6 +86,8 @@ monitoring and performance data.`,
 	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
 	agentCmd.PersistentFlags().StringArrayVarP(&globalParams.ExtraConfFilePath, "extracfgpath", "E", []string{}, "specify additional configuration files to be loaded sequentially after the main datadog.yaml")
 	agentCmd.PersistentFlags().StringVarP(&globalParams.SysProbeConfFilePath, "sysprobecfgpath", "", "", "path to directory containing system-probe.yaml")
+	agentCmd.PersistentFlags().StringVarP(&globalParams.FleetPoliciesDirPath, "fleetcfgpath", "", "", "path to the directory containing fleet policies")
+	_ = agentCmd.PersistentFlags().MarkHidden("fleetcfgpath")
 
 	// github.com/fatih/color sets its global color.NoColor to a default value based on
 	// whether the process is running in a tty.  So, we only want to override that when

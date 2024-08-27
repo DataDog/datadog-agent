@@ -3,34 +3,50 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package impl defines the OpenTelemetry Extension implementation.
-package impl
+// Package extensionimpl defines the OpenTelemetry Extension implementation.
+package extensionimpl
 
 import (
 	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 
+	collectorcontribimpl "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl"
 	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl"
 	extension "github.com/DataDog/datadog-agent/comp/otelcol/extension/def"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
+	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
+	"go.uber.org/zap"
 )
 
-var testOtelConfig = &otelcol.Config{}
+var cpSettings = otelcol.ConfigProviderSettings{
+	ResolverSettings: confmap.ResolverSettings{
+		URIs: []string{filepath.Join("testdata", "config.yaml")},
+		ProviderFactories: []confmap.ProviderFactory{
+			fileprovider.NewFactory(),
+			yamlprovider.NewFactory(),
+		},
+	},
+}
 
 func getExtensionTestConfig(t *testing.T) *Config {
 	cf, err := configstore.NewConfigStore()
 	assert.NoError(t, err)
 
-	cf.AddEnhancedConf(testOtelConfig)
-	cf.AddProvidedConf(testOtelConfig)
+	factories, err := collectorcontribimpl.NewComponent().OTelComponentFactories()
+	assert.NoError(t, err)
 
+	cf.AddConfigs(cpSettings, cpSettings, factories)
 	return &Config{
 		HTTPConfig: &confighttp.ServerConfig{
 			Endpoint: "localhost:0",
@@ -72,6 +88,15 @@ func TestExtensionHTTPHandler(t *testing.T) {
 	require.NoError(t, err)
 
 	ddExt := ext.(*ddExtension)
+	ddExt.telemetry.Logger = zap.New(zap.NewNop().Core())
+
+	host := newHostWithExtensions(
+		map[component.ID]component.Component{
+			component.MustNewIDWithName("pprof", "custom"): nil,
+		},
+	)
+
+	ddExt.Start(context.TODO(), host)
 
 	// Call the handler's ServeHTTP method
 	ddExt.ServeHTTP(rr, req)
@@ -91,6 +116,7 @@ func TestExtensionHTTPHandler(t *testing.T) {
 		"runtime_override_configuration",
 		"environment_variable_configuration",
 		"environment",
+		"sources",
 	}
 	var response map[string]interface{}
 	json.Unmarshal(rr.Body.Bytes(), &response)
@@ -99,9 +125,20 @@ func TestExtensionHTTPHandler(t *testing.T) {
 		_, ok := response[key]
 		assert.True(t, ok)
 	}
+}
 
-	// There will be no sources configured and thus, that key
-	// should not be present
-	_, ok := response["sources"]
-	assert.False(t, ok)
+type hostWithExtensions struct {
+	component.Host
+	exts map[component.ID]component.Component
+}
+
+func newHostWithExtensions(exts map[component.ID]component.Component) component.Host {
+	return &hostWithExtensions{
+		Host: componenttest.NewNopHost(),
+		exts: exts,
+	}
+}
+
+func (h *hostWithExtensions) GetExtensions() map[component.ID]component.Component {
+	return h.exts
 }

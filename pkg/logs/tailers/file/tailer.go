@@ -17,10 +17,11 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/benbjohnson/clock"
+
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
@@ -343,7 +344,17 @@ func (t *Tailer) forwardMessages() {
 		origin := message.NewOrigin(t.file.Source.UnderlyingSource())
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
-		origin.SetTags(append(t.tags, t.tagProvider.GetTags()...))
+
+		tags := make([]string, len(t.tags))
+		copy(tags, t.tags)
+		tags = append(tags, t.tagProvider.GetTags()...)
+
+		if output.ParsingExtra.IsTruncated && coreConfig.Datadog().GetBool("logs_config.tag_truncated_logs") {
+			tags = append(tags, message.TruncatedTag)
+		}
+
+		tags = append(tags, output.ParsingExtra.Tags...)
+		origin.SetTags(tags)
 		// Ignore empty lines once the registry offset is updated
 		if len(output.GetContent()) == 0 {
 			continue

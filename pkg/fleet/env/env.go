@@ -9,7 +9,6 @@ package env
 import (
 	"fmt"
 	"os"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -21,6 +20,7 @@ const (
 	envAPIKey                = "DD_API_KEY"
 	envSite                  = "DD_SITE"
 	envRemoteUpdates         = "DD_REMOTE_UPDATES"
+	envRemotePolicies        = "DD_REMOTE_POLICIES"
 	envRegistryURL           = "DD_INSTALLER_REGISTRY_URL"
 	envRegistryAuth          = "DD_INSTALLER_REGISTRY_AUTH"
 	envDefaultPackageVersion = "DD_INSTALLER_DEFAULT_PKG_VERSION"
@@ -55,26 +55,12 @@ type ApmLibLanguage string
 // ApmLibVersion is the version of the library defined in DD_APM_INSTRUMENTATION_LIBRARIES env var
 type ApmLibVersion string
 
-var fullSemverRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+`)
-
-// AsVersionTag returns the version tag associated with the version of the library defined in DD_APM_INSTRUMENTATION_LIBRARIES
-// if the value is empty we return latest
-func (v ApmLibVersion) AsVersionTag() string {
-	if v == "" {
-		return "latest"
-	}
-	versionTag, _ := strings.CutPrefix(string(v), "v")
-	if fullSemverRe.MatchString(versionTag) {
-		return versionTag + "-1"
-	}
-	return versionTag
-}
-
 // Env contains the configuration for the installer.
 type Env struct {
-	APIKey        string
-	Site          string
-	RemoteUpdates bool
+	APIKey         string
+	Site           string
+	RemoteUpdates  bool
+	RemotePolicies bool
 
 	RegistryOverride            string
 	RegistryAuthOverride        string
@@ -95,16 +81,17 @@ type Env struct {
 // FromEnv returns an Env struct with values from the environment.
 func FromEnv() *Env {
 	return &Env{
-		APIKey:        getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
-		Site:          getEnvOrDefault(envSite, defaultEnv.Site),
-		RemoteUpdates: os.Getenv(envRemoteUpdates) == "true",
+		APIKey:         getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
+		Site:           getEnvOrDefault(envSite, defaultEnv.Site),
+		RemoteUpdates:  strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
+		RemotePolicies: strings.ToLower(os.Getenv(envRemotePolicies)) == "true",
 
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
 		RegistryAuthOverride:        getEnvOrDefault(envRegistryAuth, defaultEnv.RegistryAuthOverride),
 		RegistryOverrideByImage:     overridesByNameFromEnv(envRegistryURL, func(s string) string { return s }),
 		RegistryAuthOverrideByImage: overridesByNameFromEnv(envRegistryAuth, func(s string) string { return s }),
 
-		DefaultPackagesInstallOverride: overridesByNameFromEnv(envDefaultPackageInstall, func(s string) bool { return s == "true" }),
+		DefaultPackagesInstallOverride: overridesByNameFromEnv(envDefaultPackageInstall, func(s string) bool { return strings.ToLower(s) == "true" }),
 		DefaultPackagesVersionOverride: overridesByNameFromEnv(envDefaultPackageVersion, func(s string) string { return s }),
 
 		ApmLibraries: parseApmLibrariesEnv(),

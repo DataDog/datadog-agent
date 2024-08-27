@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -56,7 +56,7 @@ func TestProviderIsSupported(t *testing.T) {
 }
 
 func TestApplyProviderOverrides(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	hostPathType := corev1.HostPathDirectoryOrCreate
 
 	tests := []struct {

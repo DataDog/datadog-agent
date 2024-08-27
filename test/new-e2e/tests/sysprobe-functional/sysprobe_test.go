@@ -56,7 +56,7 @@ func (v *vmSuite) SetupSuite() {
 	v.testspath = filepath.Join(kitchenDir, "dd-system-probe-check", "files", "default", "tests")
 }
 
-func (v *vmSuite) TestSystemProbeSuite() {
+func (v *vmSuite) TestSystemProbeNPMSuite() {
 	v.BaseSuite.SetupSuite()
 	t := v.T()
 	// get the remote host
@@ -127,5 +127,5 @@ func (v *vmSuite) TestSystemProbeSuite() {
 	_, err = vm.Execute("start-service ddnpm")
 	require.NoError(t, err)
 
-	rs.RunTests()
+	rs.RunTests("")
 }

@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package impl implements the systemprobe metadata providers interface
-package impl
+// Package systemprobeimpl implements the systemprobe metadata providers interface
+package systemprobeimpl
 
 import (
 	"encoding/json"
@@ -20,13 +20,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
+	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -54,7 +54,7 @@ func setupFetcher(t *testing.T) {
 }
 
 func getSystemProbeComp(t *testing.T, enableConfig bool) *systemprobe {
-	l := fxutil.Test[log.Component](t, logimpl.MockModule())
+	l := logmock.New(t)
 
 	cfg := fxutil.Test[config.Component](t, config.MockModule())
 	cfg.Set("inventories_configuration_enabled", enableConfig, model.SourceUnknown)
@@ -62,7 +62,7 @@ func getSystemProbeComp(t *testing.T, enableConfig bool) *systemprobe {
 	r := Requires{
 		Log:        l,
 		Config:     cfg,
-		Serializer: &serializer.MockSerializer{},
+		Serializer: serializermock.NewMetricSerializer(t),
 		AuthToken: fxutil.Test[authtoken.Component](t,
 			authtokenimpl.Module(),
 			fx.Provide(func() log.Component { return l }),

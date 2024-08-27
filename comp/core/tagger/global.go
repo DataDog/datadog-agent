@@ -52,14 +52,6 @@ func Tag(entity string, cardinality types.TagCardinality) ([]string, error) {
 	return globalTagger.Tag(entity, cardinality)
 }
 
-// AccumulateTagsFor is an interface function that queries taggerclient singleton
-func AccumulateTagsFor(entity string, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
-	if globalTagger == nil {
-		return fmt.Errorf("a global tagger must be set before calling AccumulateTagsFor")
-	}
-	return globalTagger.AccumulateTagsFor(entity, cardinality, tb)
-}
-
 // GetEntityHash is an interface function that queries taggerclient singleton
 func GetEntityHash(entity string, cardinality types.TagCardinality) string {
 	if globalTagger != nil {

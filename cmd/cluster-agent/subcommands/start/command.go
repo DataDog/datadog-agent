@@ -32,6 +32,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
+	datadogclientmodule "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/fx"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -40,8 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
@@ -50,7 +51,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
@@ -58,6 +59,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
@@ -120,7 +122,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "start",
 		Short: "Start the Cluster Agent",
 		Long:  `Runs Datadog Cluster agent in the foreground`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			// TODO: once the cluster-agent is represented as a component, and
 			// not a function (start), this will use `fxutil.Run` instead of
 			// `fxutil.OneShot`.
@@ -129,7 +131,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForDaemon(command.LoggerName, "log_file", path.DefaultDCALogFile),
+					LogParams:    log.ForDaemon(command.LoggerName, "log_file", path.DefaultDCALogFile),
 				}),
 				core.Bundle(),
 				forwarder.Bundle(),
@@ -147,13 +149,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				eventplatformreceiverimpl.Module(),
 				fx.Supply(demultiplexerimpl.NewDefaultParams()),
 				// setup workloadmeta
-				collectors.GetCatalog(),
-				fx.Supply(workloadmeta.Params{
+				wmcatalog.GetCatalog(),
+				workloadmetafx.Module(workloadmeta.Params{
 					InitHelper: common.GetWorkloadmetaInit(),
 					AgentType:  workloadmeta.ClusterAgent,
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
 				fx.Supply(context.Background()),
-				workloadmetafx.Module(),
 				fx.Provide(tagger.NewTaggerParams),
 				taggerimpl.Module(),
 				fx.Supply(
@@ -169,6 +170,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				),
 				fx.Provide(func(config config.Component) status.HeaderInformationProvider {
 					return status.NewHeaderInformationProvider(hostnameStatus.NewProvider(config))
+				}),
+				fx.Provide(func() optional.Option[integrations.Component] {
+					return optional.NewNoneOption[integrations.Component]()
 				}),
 				statusimpl.Module(),
 				collectorimpl.Module(),
@@ -198,6 +202,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 				}),
 				settingsimpl.Module(),
+				datadogclientmodule.Module(),
 			)
 		},
 	}
@@ -212,10 +217,12 @@ func start(log log.Component,
 	demultiplexer demultiplexer.Component,
 	wmeta workloadmeta.Component,
 	ac autodiscovery.Component,
+	dc optional.Option[datadogclient.Component],
 	secretResolver secrets.Component,
 	statusComponent status.Component,
 	collector collector.Component,
 	rcService optional.Option[rccomp.Component],
+	logReceiver optional.Option[integrations.Component],
 	_ healthprobe.Component,
 	settings settings.Component,
 ) error {
@@ -313,9 +320,10 @@ func start(log log.Component,
 		EventRecorder:          eventRecorder,
 		WorkloadMeta:           wmeta,
 		StopCh:                 stopCh,
+		DatadogClient:          dc,
 	}
 
-	if aggErr := controllers.StartControllers(ctx); aggErr != nil {
+	if aggErr := controllers.StartControllers(&ctx); aggErr != nil {
 		for _, err := range aggErr.Errors() {
 			pkglog.Warnf("Error while starting controller: %v", err)
 		}
@@ -338,22 +346,25 @@ func start(log log.Component,
 	var rcClient *rcclient.Client
 	rcserv, isSet := rcService.Get()
 	if pkgconfig.IsRemoteConfigEnabled(config) && isSet {
-		// TODO: Is APM Tracing always required? I am not sure
-		products := []string{state.ProductAPMTracing}
-
+		var products []string
+		if config.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
+			products = append(products, state.ProductAPMTracing)
+		}
 		if config.GetBool("autoscaling.workload.enabled") {
 			products = append(products, state.ProductContainerAutoscalingSettings, state.ProductContainerAutoscalingValues)
 		}
 
-		var err error
-		rcClient, err = initializeRemoteConfigClient(rcserv, config, clusterName, clusterID, products...)
-		if err != nil {
-			log.Errorf("Failed to start remote-configuration: %v", err)
-		} else {
-			rcClient.Start()
-			defer func() {
-				rcClient.Close()
-			}()
+		if len(products) > 0 {
+			var err error
+			rcClient, err = initializeRemoteConfigClient(rcserv, config, clusterName, clusterID, products...)
+			if err != nil {
+				log.Errorf("Failed to start remote-configuration: %v", err)
+			} else {
+				rcClient.Start()
+				defer func() {
+					rcClient.Close()
+				}()
+			}
 		}
 	}
 
@@ -367,7 +378,7 @@ func start(log log.Component,
 
 	// Set up check collector
 	registerChecks()
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
+	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver), true)
 
 	// start the autoconfig, this will immediately run any configured check
 	ac.LoadAndRun(mainCtx)
@@ -394,7 +405,7 @@ func start(log log.Component,
 		go func() {
 			defer wg.Done()
 
-			errServ := custommetrics.RunServer(mainCtx, apiCl)
+			errServ := custommetrics.RunServer(mainCtx, apiCl, dc)
 			if errServ != nil {
 				pkglog.Errorf("Error in the External Metrics API Server: %v", errServ)
 			}
@@ -412,7 +423,7 @@ func start(log log.Component,
 			log.Error("Admission controller is disabled, vertical autoscaling requires the admission controller to be enabled. Vertical scaling will be disabled.")
 		}
 
-		if adapter, err := workload.StartWorkloadAutoscaling(mainCtx, apiCl, rcClient, wmeta); err != nil {
+		if adapter, err := workload.StartWorkloadAutoscaling(mainCtx, clusterID, apiCl, rcClient, wmeta, demultiplexer); err != nil {
 			pkglog.Errorf("Error while starting workload autoscaling: %v", err)
 		} else {
 			pa = adapter

@@ -26,8 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
@@ -60,10 +59,10 @@ type CliParams struct {
 func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	return commandsWrapped(func() core.BundleParams {
 		return core.BundleParams{
-			ConfigParams:         config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+			ConfigParams:         config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 			SecretParams:         secrets.NewEnabledParams(),
-			SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-			LogParams:            logimpl.ForOneShot(command.LoggerName, "info", true),
+			SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+			LogParams:            log.ForOneShot(command.LoggerName, "info", true),
 		}
 	})
 }
@@ -82,12 +81,12 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 		Use:   "check",
 		Short: "Run compliance check(s)",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			checkArgs.args = args
 
 			bundleParams := bundleParamsFactory()
 			if checkArgs.verbose {
-				bundleParams.LogParams = logimpl.ForOneShot(bundleParams.LogParams.LoggerName(), "trace", true)
+				bundleParams.LogParams = log.ForOneShot(bundleParams.LogParams.LoggerName(), "trace", true)
 			}
 
 			return fxutil.OneShot(RunCheck,

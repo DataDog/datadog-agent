@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"slices"
 	"testing"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 //go:generate $GOPATH/bin/include_headers pkg/network/ebpf/c/runtime/offsetguess-test.c pkg/ebpf/bytecode/build/runtime/offsetguess-test.c pkg/ebpf/c pkg/ebpf/c/protocols pkg/network/ebpf/c/runtime pkg/network/ebpf/c
@@ -170,7 +172,7 @@ func testOffsetGuess(t *testing.T) {
 	require.NoError(t, mgr.Start())
 	t.Cleanup(func() { mgr.Stop(manager.CleanAll) })
 
-	server := tracertestutil.NewTCPServer(func(c net.Conn) {})
+	server := tracertestutil.NewTCPServer(func(_ net.Conn) {})
 	require.NoError(t, server.Run())
 	t.Cleanup(func() { server.Shutdown() })
 
@@ -276,32 +278,52 @@ func testOffsetGuess(t *testing.T) {
 		}
 	}
 
-	for o := offsetSaddr; o < offsetMax; o++ {
-		switch o {
-		case offsetSkBuffHead, offsetSkBuffSock, offsetSkBuffTransportHeader:
-			if kv < kernel.VersionCode(4, 7, 0) {
+	testOffsets := func(t *testing.T, includeOffsets, excludeOffsets []offsetT) {
+		for o := offsetSaddr; o < offsetMax; o++ {
+			if slices.Contains(excludeOffsets, o) {
 				continue
 			}
-		case offsetSaddrFl6, offsetDaddrFl6, offsetSportFl6, offsetDportFl6:
-			// TODO: offset guessing for these fields is currently broken on kernels 5.18+
-			// see https://datadoghq.atlassian.net/browse/NET-2984
-			if kv >= kernel.VersionCode(5, 18, 0) {
-				continue
-			}
-		case offsetCtOrigin, offsetCtIno, offsetCtNetns, offsetCtReply:
-			// offset guessing for conntrack fields is broken on pre-4.14 kernels
-			if !ebpfPrebuiltConntrackerSupportedOnKernelT(t) {
-				continue
-			}
-		}
 
-		var offset uint64
-		//nolint:revive // TODO(NET) Fix revive linter
-		var name offsetT = o
-		require.NoError(t, mp.Lookup(&name, &offset))
-		assert.Equal(t, offset, consts[o], "unexpected offset for %s", o)
-		t.Logf("offset %s expected: %d guessed: %d", o, offset, consts[o])
+			if len(includeOffsets) > 0 && !slices.Contains(includeOffsets, o) {
+				continue
+			}
+
+			switch o {
+			case offsetSkBuffHead, offsetSkBuffSock, offsetSkBuffTransportHeader:
+				if kv < kernel.VersionCode(4, 7, 0) {
+					continue
+				}
+			case offsetSaddrFl6, offsetDaddrFl6, offsetSportFl6, offsetDportFl6:
+				// TODO: offset guessing for these fields is currently broken on kernels 5.18+
+				// see https://datadoghq.atlassian.net/browse/NET-2984
+				if kv >= kernel.VersionCode(5, 18, 0) {
+					continue
+				}
+			case offsetCtOrigin, offsetCtIno, offsetCtNetns, offsetCtReply:
+				// offset guessing for conntrack fields is broken on pre-4.14 kernels
+				if !ebpfPrebuiltConntrackerSupportedOnKernelT(t) {
+					continue
+				}
+			}
+
+			var offset uint64
+			//nolint:revive // TODO(NET) Fix revive linter
+			var name offsetT = o
+			require.NoError(t, mp.Lookup(&name, &offset))
+			assert.Equal(t, offset, consts[o], "unexpected offset for %s", o)
+			t.Logf("offset %s expected: %d guessed: %d", o, offset, consts[o])
+		}
 	}
+
+	t.Run("without RTT offsets", func(t *testing.T) {
+		testOffsets(t, nil, []offsetT{offsetRtt, offsetRttVar})
+	})
+
+	t.Run("only RTT offsets", func(t *testing.T) {
+		flake.Mark(t)
+		testOffsets(t, []offsetT{offsetRtt, offsetRttVar}, nil)
+	})
+
 }
 
 func TestOffsetGuessPortIPv6Overlap(t *testing.T) {

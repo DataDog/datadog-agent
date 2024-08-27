@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compStatus "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/process"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
@@ -74,7 +74,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "status",
 		Short: "Print the current status",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(runStatus,
 				fx.Supply(cliParams, command.GetCoreBundleParamsForOneShot(globalParams)),
 				fx.Supply(

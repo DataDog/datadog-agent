@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 type KubeletOrchestratorTestSuite struct {
@@ -24,7 +25,7 @@ type KubeletOrchestratorTestSuite struct {
 
 // Make sure globalKubeUtil is deleted before each test
 func (suite *KubeletOrchestratorTestSuite) SetupTest() {
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	ResetGlobalKubeUtil()
 	ResetCache()
@@ -45,7 +46,7 @@ func (suite *KubeletOrchestratorTestSuite) SetupTest() {
 
 func (suite *KubeletOrchestratorTestSuite) TestGetRawLocalPodList() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 const (
@@ -29,7 +30,7 @@ func TestChoose(t *testing.T) {
 		return func(t *testing.T) {
 			config.SetFeatures(t, features...)
 
-			mockConfig := config.Mock(t)
+			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("logs_config.k8s_container_use_file", k8sContainerUseFile)
 
 			chsr := chooser{
