@@ -99,10 +99,14 @@ extensions:
     configstore: {}
     cors: null
     endpoint: localhost:7777
+    idle_timeout: 0s
     include_metadata: false
     max_request_body_size: 0
+    read_header_timeout: 0s
+    read_timeout: 0s
     response_headers: {}
     tls: null
+    write_timeout: 0s
   health_check/dd-autoconfigured:
     auth: null
     check_collector_pipeline:
@@ -112,12 +116,16 @@ extensions:
     compression_algorithms: []
     cors: null
     endpoint: localhost:13133
+    idle_timeout: 0s
     include_metadata: false
     max_request_body_size: 0
     path: /
+    read_header_timeout: 0s
+    read_timeout: 0s
     response_body: null
     response_headers: {}
     tls: null
+    write_timeout: 0s
   pprof/dd-autoconfigured:
     block_profile_fraction: 0
     dialer:
@@ -130,10 +138,14 @@ extensions:
     compression_algorithms: []
     cors: null
     endpoint: localhost:55679
+    idle_timeout: 0s
     include_metadata: false
     max_request_body_size: 0
+    read_header_timeout: 0s
+    read_timeout: 0s
     response_headers: {}
     tls: null
+    write_timeout: 0s
 processors:
   infraattributes/dd-autoconfigured:
     cardinality: 0
@@ -176,7 +188,7 @@ receivers:
           scrape_timeout: 5s
           static_configs:
             - targets:
-                - 0.0.0.0:8888
+              - 0.0.0.0:8888
           track_timestamps_staleness: false
     report_extra_scrape_metrics: false
     start_time_metric_regex: ""
