@@ -120,7 +120,7 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 				fx.Supply(cliParams, bundleParams),
 				core.Bundle(),
 				// Provide workloadmeta module
-				workloadmetafx.Module(),
+
 				// Provide eventplatformimpl module
 				eventplatformreceiverimpl.Module(),
 				eventplatformimpl.Module(),
@@ -128,7 +128,7 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 				npcollectorimpl.Module(),
 				// Provide the corresponding workloadmeta Params to configure the catalog
 				wmcatalog.GetCatalog(),
-				fx.Provide(func(config config.Component) workloadmeta.Params {
+				workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
 
 					var catalog workloadmeta.AgentType
 					if config.GetBool("process_config.remote_workloadmeta") {

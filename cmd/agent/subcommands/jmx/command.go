@@ -48,6 +48,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
@@ -134,10 +135,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			}),
 			// workloadmeta setup
 			wmcatalog.GetCatalog(),
-			fx.Supply(workloadmeta.Params{
-				InitHelper: common.GetWorkloadmetaInit(),
-			}),
-			workloadmetafx.Module(),
+			workloadmetafx.Module(defaults.DefaultParams()),
 			apiimpl.Module(),
 			authtokenimpl.Module(),
 			// The jmx command do not have settings that change are runtime

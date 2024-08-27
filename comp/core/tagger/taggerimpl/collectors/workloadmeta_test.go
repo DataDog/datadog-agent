@@ -21,6 +21,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -68,9 +69,8 @@ func TestHandleKubePod(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -877,9 +877,8 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	), fx.Replace(config.MockParams{Overrides: map[string]any{
 		"kubernetes_persistent_volume_claims_as_tags": false,
 	}}))
@@ -1020,9 +1019,8 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -1143,9 +1141,8 @@ func TestHandleKubeMetadata(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -1194,6 +1191,132 @@ func TestHandleKubeMetadata(t *testing.T) {
 				GVR: &schema.GroupVersionResource{
 					Version:  "v1",
 					Resource: "namespaces",
+				},
+			},
+			expected: nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
+
+			collector.initK8sResourcesMetaAsTags(test.k8sResourcesLabelsAsTags, test.k8sResourcesAnnotationsAsTags)
+
+			actual := collector.handleKubeMetadata(workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: &test.kubeMetadata,
+			})
+
+			assertTagInfoListEqual(tt, test.expected, actual)
+		})
+	}
+}
+
+func TestHandleKubeDeployment(t *testing.T) {
+	const deploymentName = "fooapp"
+
+	kubeMetadataID := string(util.GenerateKubeMetadataEntityID("apps", "deployments", "default", deploymentName))
+
+	kubeMetadataEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesMetadata,
+		ID:   kubeMetadataID,
+	}
+
+	taggerEntityID := fmt.Sprintf("kubernetes_metadata://%s", kubeMetadataEntityID.ID)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		config.MockModule(),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesMetadata,
+			ID:   kubeMetadataID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      deploymentName,
+			Namespace: "default",
+		},
+	})
+
+	tests := []struct {
+		name                          string
+		k8sResourcesAnnotationsAsTags map[string]map[string]string
+		k8sResourcesLabelsAsTags      map[string]map[string]string
+		kubeMetadata                  workloadmeta.KubernetesMetadata
+		expected                      []*types.TagInfo
+	}{
+		{
+			name: "deployment with no matching labels/annotations for annotations/labels as tags. should return nil to avoid empty tagger entity",
+			k8sResourcesAnnotationsAsTags: map[string]map[string]string{
+				"deployments.apps": {
+					"depl_tier":   "depl_tier",
+					"depl_custom": "custom_generic_annotation",
+				},
+			},
+			k8sResourcesLabelsAsTags: map[string]map[string]string{
+				"deployments.apps": {
+					"depl_env":    "depl_env",
+					"depl_custom": "custom_generic_label",
+				},
+			},
+			kubeMetadata: workloadmeta.KubernetesMetadata{
+				EntityID: kubeMetadataEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: deploymentName,
+					Labels: map[string]string{
+						"a": "dev",
+					},
+					Annotations: map[string]string{
+						"b": "some_tier",
+					},
+				},
+				GVR: &schema.GroupVersionResource{
+					Version:  "v1",
+					Group:    "apps",
+					Resource: "deployments",
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "deployment with generic annotations/labels as tags",
+			k8sResourcesAnnotationsAsTags: map[string]map[string]string{
+				"deployments.apps": {
+					"depl_tier":   "depl_tier",
+					"depl_custom": "custom_generic_annotation",
+				},
+			},
+			k8sResourcesLabelsAsTags: map[string]map[string]string{
+				"deployments.apps": {
+					"depl_env":    "depl_env",
+					"depl_custom": "custom_generic_label",
+				},
+			},
+			kubeMetadata: workloadmeta.KubernetesMetadata{
+				EntityID: kubeMetadataEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: deploymentName,
+					Labels: map[string]string{
+						"depl_env":       "dev",
+						"depl_ownerteam": "containers",
+						"foo":            "bar",
+						"depl_custom":    "zoo",
+					},
+					Annotations: map[string]string{
+						"depl_tier":     "some_tier",
+						"depl_security": "critical",
+						"depl_custom":   "gee",
+					},
+				},
+				GVR: &schema.GroupVersionResource{
+					Version:  "v1",
+					Group:    "apps",
+					Resource: "deployments",
 				},
 			},
 			expected: []*types.TagInfo{
@@ -1246,8 +1369,7 @@ func TestHandleECSTask(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	), fx.Replace(config.MockParams{Overrides: map[string]any{
 		"ecs_collect_resource_tags_ec2": true,
 	}}))
@@ -2059,8 +2181,7 @@ func TestHandleDelete(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -2135,8 +2256,7 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 	fakeStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	collector := NewWorkloadMetaCollector(context.Background(), fakeStore, &fakeProcessor{collectorCh})
 	collector.children = map[string]map[string]struct{}{
