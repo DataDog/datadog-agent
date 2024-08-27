@@ -7,7 +7,10 @@ from invoke.exceptions import Exit
 
 @task
 def test(ctx, verbose=False) -> None:
-    # print(os.environ)
+    """
+    Runs oracle functional tests against a containerized database.
+    """
+
     if not os.environ.get("CI") and not os.environ.get("SKIP_DOCKER"):
         start_docker(ctx, verbose)
 
@@ -30,6 +33,10 @@ def test(ctx, verbose=False) -> None:
 
 @task
 def start_docker(ctx, verbose=False) -> None:
+    """
+    Starts a local oracle instance in docker. Used when running individual oracle tests.
+    """
+
     # Start a local oracle instance
     with ctx.cd("pkg/collector/corechecks/oracle/compose"):
         print("Launching docker...")
@@ -61,6 +68,9 @@ def start_docker(ctx, verbose=False) -> None:
 
 @task
 def clean(ctx, verbose=False) -> None:
+    """
+    Stops the local oracle instance in docker.
+    """
     print("Cleaning up...")
     if not os.environ.get("CI"):
         with ctx.cd("pkg/collector/corechecks/oracle/compose"):

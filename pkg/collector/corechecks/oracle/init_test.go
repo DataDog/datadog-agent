@@ -29,13 +29,15 @@ func TestTags(t *testing.T) {
 	assert.Contains(t, c.tags, "foo1:bar1", "Config tag not in tags")
 }
 
-func TestAgain(t *testing.T) {
+// This test is just used for debugging database init issues
+// To use, set the assert to always fail then run the test
+func TestNoop(t *testing.T) {
 	assert.True(t, true)
 }
 
 func TestMain(m *testing.M) {
 	print("Running initdb.d sql files...")
-	// This is a bit of a hack to get a db connection
+	// This is a bit of a hack to get a db connection without a testing.T
 	// Ideally we should pull the connection logic out
 	// to make it more accessible for testing
 	sysCheck, _ := newSysCheck(nil, "", "")

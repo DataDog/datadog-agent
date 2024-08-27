@@ -40,12 +40,9 @@ const (
 
 func getConnectData(t *testing.T, userType int) config.ConnectionConfig {
 	handleRealConnection := func(userType int) config.ConnectionConfig {
-		username := "c##datadog"
-		password := "datadog"
-		server := "localhost"
-		serviceName := "XE"
 		var userEnvVariable string
 		var passwordEnvVariable string
+
 		serverEnvVariable := "ORACLE_TEST_SERVER"
 		serviceNameEnvVariable := "ORACLE_TEST_SERVICE_NAME"
 		portEnvVariable := "ORACLE_TEST_PORT"
@@ -60,17 +57,30 @@ func getConnectData(t *testing.T, userType int) config.ConnectionConfig {
 		case useSysUser:
 			userEnvVariable = "ORACLE_TEST_SYS_USER"
 			passwordEnvVariable = "ORACLE_TEST_SYS_PASSWORD"
-			username = "sys"
-			password = "datad0g"
 		}
 
-		server = os.Getenv(serverEnvVariable)
+		server := os.Getenv(serverEnvVariable)
 		if server == "" {
 			server = "localhost"
 		}
-		// serviceName = os.Getenv(serviceNameEnvVariable)
-		// username = os.Getenv(userEnvVariable)
-		// password = os.Getenv(passwordEnvVariable)
+		serviceName := os.Getenv(serviceNameEnvVariable)
+		if serviceName == "" {
+			serviceName = "XE"
+		}
+
+		username := os.Getenv(userEnvVariable)
+		password := os.Getenv(passwordEnvVariable)
+		if username == "" {
+			switch userType {
+			case useDefaultUser:
+				username = "c##datadog"
+				password = "datadog"
+			case useSysUser:
+				username = "sys"
+				password = "datad0g"
+			}
+		}
+
 		port, err := strconv.Atoi(os.Getenv(portEnvVariable))
 		if port == 0 || err != nil {
 			port = 1521
