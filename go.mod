@@ -96,7 +96,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model => ./pkg/orchestrator/model
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ./pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/proto => ./pkg/proto
-	github.com/DataDog/pkg/proto/pbgo/process => ./pkg/proto/pbgo/process
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ./pkg/remoteconfig/state
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/security/seclwin => ./pkg/security/seclwin
@@ -671,7 +670,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/proto/pbgo/process v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/security/seclwin v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/serializer v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/status/health v0.56.0-rc.3
