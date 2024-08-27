@@ -21,7 +21,7 @@ func justTokens(tokens []tokens.Token, _ []int) []tokens.Token {
 func TestPatternTable(t *testing.T) {
 
 	tokenizer := NewTokenizer(0)
-	pt := NewPatternTable(5, 1, true)
+	pt := NewPatternTable(5, 1)
 
 	pt.insert(justTokens(tokenizer.tokenize([]byte("abc 123 !"))), aggregate)
 	pt.insert(justTokens(tokenizer.tokenize([]byte("abc 123 @"))), aggregate)
@@ -94,32 +94,4 @@ func TestPatternTable(t *testing.T) {
 	assert.Equal(t, "no_aggregate", dump[2].LabelString)
 	assert.Equal(t, "aggregate", dump[3].LabelString)
 	assert.Equal(t, "start_group", dump[4].LabelString)
-}
-
-func TestPatternTableProcess(t *testing.T) {
-
-	tokenizer := NewTokenizer(60)
-	pt := NewPatternTable(5, 1, true)
-
-	process := func(input string, label Label, continueProcessing bool) *messageContext {
-		context := &messageContext{
-			rawMessage: []byte(input),
-			label:      label,
-		}
-
-		assert.True(t, tokenizer.Process(context))
-		assert.Equal(t, continueProcessing, pt.Process(context))
-		return context
-	}
-
-	for i := 0; i < 10; i++ {
-		assert.Equal(t, startGroup, process("start group", startGroup, true).label)
-	}
-
-	for i := 0; i < 10; i++ {
-		assert.Equal(t, aggregate, process("aggregate", aggregate, true).label)
-	}
-
-	// One more aggregate puts it at the top, which will trigger the heuristic to change the label to noAggregate
-	assert.Equal(t, noAggregate, process("aggregate", aggregate, false).label)
 }

@@ -27,29 +27,26 @@ type DiagnosticRow struct {
 }
 
 // PatternTable is a table of patterns that occur over time from a log source.
-// This heuristic is used to prevent certain classes of false positives in multiline detection
-// as well as collect diagnostic data for fine tuning and debugging.
-// The patternt table is always sorted by the frequency of the patterns. When the table
+// The pattern table is always sorted by the frequency of the patterns. When the table
 // becomes full, the least recently updated pattern is evicted.
 type PatternTable struct {
-	table                           []*row
-	index                           int64
-	maxTableSize                    int
-	matchThreshold                  float64
-	dontAggregateUnmatchedTopFormat bool
+	table          []*row
+	index          int64
+	maxTableSize   int
+	matchThreshold float64
 }
 
 // NewPatternTable returns a new PatternTable heuristic.
-func NewPatternTable(maxTableSize int, matchThreshold float64, dontAggregateUnmatchedTopFormat bool) *PatternTable {
+func NewPatternTable(maxTableSize int, matchThreshold float64) *PatternTable {
 	return &PatternTable{
-		table:                           make([]*row, 0, maxTableSize),
-		index:                           0,
-		maxTableSize:                    maxTableSize,
-		matchThreshold:                  matchThreshold,
-		dontAggregateUnmatchedTopFormat: dontAggregateUnmatchedTopFormat,
+		table:          make([]*row, 0, maxTableSize),
+		index:          0,
+		maxTableSize:   maxTableSize,
+		matchThreshold: matchThreshold,
 	}
 }
 
+// insert adds a pattern to the table and returns the index
 func (p *PatternTable) insert(tokens []tokens.Token, label Label) int {
 	p.index++
 	foundIdx := -1
@@ -122,7 +119,7 @@ func (p *PatternTable) DumpTable() []DiagnosticRow {
 }
 
 // Process adds a pattern to the table and updates its label based on it's frequency.
-// This implements the Herustic interface - so we should stop processing if the label was changed
+// This implements the Herustic interfce - so we should stop processing if the label was changed
 // due to pattern detection.
 func (p *PatternTable) Process(context *messageContext) bool {
 
@@ -131,16 +128,6 @@ func (p *PatternTable) Process(context *messageContext) bool {
 		return true
 	}
 
-	idx := p.insert(context.tokens, context.label)
-
-	// If the log has an aggregate (default) label, but is the most popular,
-	// we shouldn't aggreaget it. This is a common false positive case where
-	// a log file with multiple formats can sometimes have log lines that are detected
-	// to have a timestamp but are not actually the start of a multiline message.
-	if p.dontAggregateUnmatchedTopFormat && idx == 0 && context.label == aggregate {
-		context.label = noAggregate
-		return false
-	}
-
+	p.insert(context.tokens, context.label)
 	return true
 }

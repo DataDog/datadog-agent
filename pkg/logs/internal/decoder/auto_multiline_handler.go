@@ -31,7 +31,6 @@ func NewAutoMultilineHandler(outputFn func(m *message.Message), maxContentSize i
 		automultilinedetection.NewPatternTable(
 			config.Datadog().GetInt("logs_config.auto_multi_line.pattern_table_max_size"),
 			config.Datadog().GetFloat64("logs_config.auto_multi_line.pattern_table_match_threshold"),
-			config.Datadog().GetBool("logs_config.auto_multi_line.dont_aggregate_unmatched_top_format"),
 		),
 	}
 
