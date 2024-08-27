@@ -38,6 +38,7 @@ var (
 func SetupEventsMap() error {
 	var err error
 	events, err := ebpf.NewMap(&ebpf.MapSpec{
+		Name:       "events",
 		Type:       ebpf.RingBuf,
 		MaxEntries: 1 << 24,
 	})
@@ -45,6 +46,28 @@ func SetupEventsMap() error {
 		return fmt.Errorf("could not create bpf map for sharing events with userspace: %w", err)
 	}
 	ditypes.EventsRingbuffer = events
+	return nil
+}
+
+// SetupHeaders sets up the needed header files for probes in a temporary directory
+func SetupHeaders() error {
+	var err error
+	globalTempDirPath, err = os.MkdirTemp("/tmp", "dd-go-di*")
+	if err != nil {
+		return err
+	}
+
+	tempDir, err := os.MkdirTemp(globalTempDirPath, "run-*")
+	if err != nil {
+		return fmt.Errorf("couldn't create temp directory: %w", err)
+	}
+
+	headersPath, err := loadHeadersToTmpfs(tempDir)
+	if err != nil {
+		return fmt.Errorf("couldn't load headers to tmpfs: %w", err)
+	}
+
+	globalHeadersPath = headersPath
 	return nil
 }
 
@@ -68,11 +91,30 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 		return fmt.Errorf("could not create bpf collection for probe %s: %w", probe.ID, err)
 	}
 
+	mapReplacements := map[string]*ebpf.Map{}
+	if probe.ID != ditypes.ConfigBPFProbeID {
+		// config probe is special and should not be on the same ringbuffer
+		// as the rest of regular events. Despite having the same "events" name,
+		// not using the pinned map means the config program uses a different
+		// ringbuffer.
+		mapReplacements["events"] = ditypes.EventsRingbuffer
+	} else {
+		configEvents, err := ebpf.NewMap(&ebpf.MapSpec{
+			Type:       ebpf.RingBuf,
+			MaxEntries: 1 << 24,
+		})
+		if err != nil {
+			return fmt.Errorf("could not create bpf map for receiving probe configurations: %w", err)
+		}
+		mapReplacements["events"] = configEvents
+	}
+
 	// Load the ebpf object
 	opts := ebpf.CollectionOptions{
 		Maps: ebpf.MapOptions{
 			PinPath: bpffs,
 		},
+		MapReplacements: mapReplacements,
 	}
 
 	bpfObject, err := ebpf.NewCollectionWithOptions(spec, opts)
@@ -83,23 +125,6 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 		}
 		diagnostics.Diagnostics.SetError(procInfo.ServiceName, procInfo.RuntimeID, probe.ID, "ATTACH_ERROR", err.Error())
 		return fmt.Errorf("could not load bpf collection for probe %s: %w", probe.ID, err)
-	}
-
-	if probe.ID != ditypes.ConfigBPFProbeID {
-		// config probe is special and should not be on the same ringbuffer
-		// as the rest of regular events. Despite having the same "events" name,
-		// not using the pinned map means the config program uses a different
-		// ringbuffer.
-		bpfObject.Maps["events"] = ditypes.EventsRingbuffer
-	} else {
-		configEvents, err := ebpf.NewMap(&ebpf.MapSpec{
-			Type:       ebpf.RingBuf,
-			MaxEntries: 1 << 24,
-		})
-		if err != nil {
-			return fmt.Errorf("could not create bpf map for receiving probe configurations: %w", err)
-		}
-		bpfObject.Maps["events"] = configEvents
 	}
 
 	procInfo.InstrumentationObjects[probe.ID] = bpfObject

@@ -68,6 +68,10 @@ func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 	if err != nil {
 		return nil, err
 	}
+	err = ebpf.SetupHeaders()
+	if err != nil {
+		return nil, err
+	}
 
 	if opts.Offline {
 		cm, err := diconfig.NewFileConfigManager(opts.ProbesFilePath)
