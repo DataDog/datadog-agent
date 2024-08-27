@@ -12,7 +12,6 @@ import (
 	"bufio"
 	"io"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -143,30 +142,21 @@ func isNodeInstrumented(f *os.File) bool {
 // To check for APM instrumentation, we try to find a package.json in
 // the parent directories of the service. If found, we then check for a
 // `dd-trace` entry to be present.
-func nodeDetector(_ int, _ []string, envs map[string]string, _ usm.DetectorContextMap) Instrumentation {
-	processWorkingDirectory := ""
-	if val, ok := envs["PWD"]; ok {
-		processWorkingDirectory = filepath.Clean(val)
-	} else {
-		log.Debug("unable to determine working directory, assuming uninstrumented")
+func nodeDetector(_ int, _ []string, _ map[string]string, contextMap usm.DetectorContextMap) Instrumentation {
+	pkgJSONPath, ok := contextMap[usm.NodePackageJsonPath]
+	if !ok {
 		return None
 	}
 
-	for curDir := processWorkingDirectory; len(curDir) > 1; curDir = filepath.Dir(curDir) {
-		pkgJSONPath := filepath.Join(curDir, "package.json")
-		pkgJSONFile, err := os.Open(pkgJSONPath)
-		if err != nil {
-			log.Debugf("could not open package.json: %s", err)
-			continue
-		}
-		log.Debugf("found package.json: %s", pkgJSONPath)
+	pkgJSONFile, err := os.Open(pkgJSONPath.(string))
+	if err != nil {
+		log.Debugf("could not open package.json: %s", err)
+		return None
+	}
+	defer pkgJSONFile.Close()
 
-		isInstrumented := isNodeInstrumented(pkgJSONFile)
-		_ = pkgJSONFile.Close()
-
-		if isInstrumented {
-			return Provided
-		}
+	if isNodeInstrumented(pkgJSONFile) {
+		return Provided
 	}
 
 	return None
