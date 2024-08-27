@@ -16,10 +16,7 @@ def test(ctx, verbose=False) -> None:
 
     try:
         os.environ["ORACLE_TEST_PORT"] = "1521"
-        if os.environ.get("CI"):
-            os.environ["ORACLE_TEST_SERVER"] = "oracle"
-        else:
-            os.environ["ORACLE_TEST_SERVER"] = "localhost"
+        os.environ["ORACLE_TEST_SERVER"] = "oracle"  if os.environ.get("CI") else "localhost"
 
         with ctx.cd("pkg/collector/corechecks/oracle"):
             print("Running tests...")
