@@ -199,7 +199,7 @@ require (
 	github.com/freddierice/go-losetup v0.0.0-20220711213114-2a14873012db
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/go-delve/delve v1.20.1
-	github.com/go-ini/ini v1.67.0
+	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-ole/go-ole v1.3.0
 	github.com/go-redis/redis/v9 v9.0.0-rc.2
 	github.com/go-sql-driver/mysql v1.8.1
@@ -223,7 +223,7 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95
 	github.com/iceber/iouring-go v0.0.0-20230403020409-002cfd2e2a90
-	github.com/imdario/mergo v0.3.16
+	github.com/imdario/mergo v0.3.16 // indirect
 	github.com/invopop/jsonschema v0.12.0
 	github.com/itchyny/gojq v0.12.16
 	github.com/json-iterator/go v1.1.12
@@ -594,6 +594,7 @@ require (
 )
 
 require (
+	dario.cat/mergo v1.0.0
 	github.com/containerd/containerd/api v1.7.19
 	github.com/containerd/errdefs v0.1.0
 	github.com/distribution/reference v0.6.0
@@ -687,7 +688,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/http v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/json v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v1.0.0
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.56.0-rc.3
@@ -749,7 +750,6 @@ require (
 	code.cloudfoundry.org/go-diodes v0.0.0-20240604201846-c756bfed2ed3 // indirect
 	code.cloudfoundry.org/go-loggregator v7.4.0+incompatible // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20201103192249-000122071b78 // indirect
-	dario.cat/mergo v1.0.0 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 // indirect
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20230306123547-8075edf89bb0 // indirect

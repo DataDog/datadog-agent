@@ -18,7 +18,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
@@ -53,7 +53,7 @@ type containerdCollector struct {
 func newContainerdCollector(cache *provider.Cache) (provider.CollectorMetadata, error) {
 	var collectorMetadata provider.CollectorMetadata
 
-	if !config.IsFeaturePresent(config.Containerd) {
+	if !pkgconfigenv.IsFeaturePresent(pkgconfigenv.Containerd) {
 		return collectorMetadata, provider.ErrPermaFail
 	}
 
