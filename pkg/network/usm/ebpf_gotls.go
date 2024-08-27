@@ -338,7 +338,9 @@ func (p *goTLSProgram) AttachPID(pid uint32) error {
 
 	// Check go process
 	probeList := make([]manager.ProbeIdentificationPair, 0)
-	return p.registry.Register(binPath, pid, registerCBCreator(p.manager, p.offsetsDataMap, &probeList, p.binAnalysisMetric, p.binNoSymbolsMetric), unregisterCBCreator(p.manager, &probeList, p.offsetsDataMap))
+	return p.registry.Register(binPath, pid, registerCBCreator(p.manager, p.offsetsDataMap, &probeList, p.binAnalysisMetric, p.binNoSymbolsMetric),
+		unregisterCBCreator(p.manager, &probeList, p.offsetsDataMap),
+		utils.IgnoreCB)
 }
 
 func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs *[]manager.ProbeIdentificationPair, binAnalysisMetric, binNoSymbolsMetric *libtelemetry.Counter) func(path utils.FilePath) error {

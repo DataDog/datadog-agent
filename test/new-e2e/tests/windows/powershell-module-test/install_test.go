@@ -195,7 +195,7 @@ func (v *vmSuite) setupTestHost() {
 			v.T().Logf("Register-PSRepository failed %s", err)
 		}
 		return false
-	}, 1*time.Minute, 10*time.Second) {
+	}, 5*time.Minute, 10*time.Second) {
 		v.FailNow("Failed to set PSGallery as a trusted repository")
 	}
 	vm.MustExecute("Install-Module powershell-yaml -Repository PSGallery")

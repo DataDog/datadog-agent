@@ -296,6 +296,7 @@ func TestServiceName(t *testing.T) {
 		portMap := getServicesMap(t, url)
 		assert.Contains(collect, portMap, pid)
 		assert.Equal(t, "foobar", portMap[pid].Name)
+		assert.Equal(t, "provided", portMap[pid].NameSource)
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
@@ -305,6 +306,7 @@ func TestInjectedServiceName(t *testing.T) {
 	createEnvsMemfd(t, []string{
 		"OTHER_ENV=test",
 		"DD_SERVICE=injected-service-name",
+		"DD_INJECTION_ENABLED=service_name",
 		"YET_ANOTHER_ENV=test",
 	})
 
@@ -316,6 +318,7 @@ func TestInjectedServiceName(t *testing.T) {
 	portMap := getServicesMap(t, url)
 	require.Contains(t, portMap, pid)
 	require.Equal(t, "injected-service-name", portMap[pid].Name)
+	require.Equal(t, "generated", portMap[pid].NameSource)
 }
 
 func TestAPMInstrumentationInjected(t *testing.T) {
@@ -584,6 +587,7 @@ func TestCache(t *testing.T) {
 	for i, cmd := range cmds {
 		pid := int32(cmd.Process.Pid)
 		require.Contains(t, discovery.cache[pid].name, serviceNames[i])
+		require.True(t, discovery.cache[pid].nameFromDDService)
 	}
 
 	cancel()

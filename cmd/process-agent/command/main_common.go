@@ -150,9 +150,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		// Provide remote config client bundle
 		remoteconfig.Bundle(),
 
-		// Provide workloadmeta module
-		workloadmetafx.Module(),
-
 		// Provide tagger module
 		taggerimpl.Module(),
 
@@ -174,7 +171,9 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Provide the corresponding workloadmeta Params to configure the catalog
 		wmcatalog.GetCatalog(),
-		fx.Provide(func(c config.Component) workloadmeta.Params {
+
+		// Provide workloadmeta module
+		workloadmetafx.ModuleWithProvider(func(c config.Component) workloadmeta.Params {
 			var catalog workloadmeta.AgentType
 
 			if c.GetBool("process_config.remote_workloadmeta") {
