@@ -227,7 +227,7 @@ def _merge_dev_in_main_coverage(main_cov_file: str, dev_cov_file: str) -> None:
         if file_path not in browsed_dev_files:
             final_file_lines.append(line)
 
-    final_file_lines = main_mode_line + sorted(final_file_lines + dev_cov_lines)
+    final_file_lines = [main_mode_line] + sorted(final_file_lines + dev_cov_lines)
     with open(main_cov_file, 'w', encoding='utf-8') as main_cov:
         main_cov.writelines(final_file_lines)
 
