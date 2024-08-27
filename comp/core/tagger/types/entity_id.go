@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	taggerutils "github.com/DataDog/datadog-agent/pkg/util/tagger"
 )
 
 // EntityID represents a tagger entityID
@@ -91,7 +91,7 @@ func newCompositeEntityID(prefix EntityIDPrefix, id string) EntityID {
 // Currently, it defaults to the default implementation of EntityID as a plain string
 func NewEntityID(prefix EntityIDPrefix, id string) EntityID {
 	// TODO: use composite entity id always or use component framework for config component
-	if config.Datadog().GetBool("tagger.tagstore_use_composite_entity_id") {
+	if taggerutils.ShouldUseCompositeStore() {
 		return newCompositeEntityID(prefix, id)
 	}
 	return newDefaultEntityID(fmt.Sprintf("%s://%s", prefix, id))
@@ -99,7 +99,7 @@ func NewEntityID(prefix EntityIDPrefix, id string) EntityID {
 
 // NewEntityIDFromString constructs EntityID from a plain string id
 func NewEntityIDFromString(plainStringID string) (EntityID, error) {
-	if config.Datadog().GetBool("tagger.tagstore_use_composite_entity_id") {
+	if taggerutils.ShouldUseCompositeStore() {
 		if !strings.Contains(plainStringID, "://") {
 			return nil, fmt.Errorf("unsupported tagger entity id format %q, correct format is `{prefix}://{id}`", plainStringID)
 		}
