@@ -75,6 +75,7 @@ func (l *LanguageDetector) DetectWithPrivileges(procs []languagemodels.Process) 
 		if err != nil {
 			handleDetectorError(err)
 			log.Debug("failed to get binID:", err)
+			continue
 		}
 
 		if lang, ok := l.binaryIDCache.Get(bin); ok {

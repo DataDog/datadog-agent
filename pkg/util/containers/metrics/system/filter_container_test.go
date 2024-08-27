@@ -95,8 +95,7 @@ func TestListenWorkloadmeta(t *testing.T) {
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	cf := newContainerFilter(wlm)
 	go cf.start()

@@ -33,7 +33,6 @@ func TestBundleDependencies(t *testing.T) {
 		demultiplexerimpl.Module(),
 		fx.Supply(demultiplexerimpl.NewDefaultParams()),
 		fx.Supply(jmxloggerimpl.NewDefaultParams()),
-		workloadmetafxmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
 }
