@@ -10,7 +10,10 @@ package collectorimpl
 
 import (
 	"context"
+	"net/http"
+	"time"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -22,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -43,6 +47,9 @@ type Requires struct {
 
 	// Log specifies the logging component.
 	Log log.Component
+
+	// Authtoken specifies the authentication token component.
+	Authtoken authtoken.Component
 
 	// Serializer specifies the metrics serializer that is used to export metrics
 	// to Datadog.
@@ -67,6 +74,7 @@ type Provides struct {
 }
 
 type collectorImpl struct {
+	authToken      authtoken.Component
 	col            *otlp.Pipeline
 	config         config.Component
 	log            log.Component
@@ -74,6 +82,8 @@ type collectorImpl struct {
 	logsAgent      optional.Option[logsagentpipeline.Component]
 	inventoryAgent inventoryagent.Component
 	tagger         tagger.Component
+	client         *http.Client
+	ctx            context.Context
 }
 
 func (c *collectorImpl) start(context.Context) error {
@@ -96,11 +106,8 @@ func (c *collectorImpl) start(context.Context) error {
 		return nil
 	}
 	c.col = col
-	// the context passed to this function has a startup deadline which
-	// will shutdown the collector prematurely
-	ctx := context.Background()
 	go func() {
-		if err := col.Run(ctx); err != nil {
+		if err := col.Run(c.ctx); err != nil {
 			c.log.Errorf("Error running the OTLP ingest pipeline: %v", err)
 		}
 	}()
@@ -121,13 +128,23 @@ func (c *collectorImpl) Status() datatype.CollectorStatus {
 
 // NewComponent creates a new Component for this module and returns any errors on failure.
 func NewComponent(reqs Requires) (Provides, error) {
+
+	timeoutSeconds := reqs.Config.GetInt("otelcollector.extension_timeout")
+	if timeoutSeconds == 0 {
+		timeoutSeconds = defaultExtensionTimeout
+	}
+	client := apiutil.GetClientWithTimeout(time.Duration(timeoutSeconds)*time.Second, false)
+
 	collector := &collectorImpl{
+		authToken:      reqs.Authtoken,
 		config:         reqs.Config,
 		log:            reqs.Log,
 		serializer:     reqs.Serializer,
 		logsAgent:      reqs.LogsAgent,
 		inventoryAgent: reqs.InventoryAgent,
 		tagger:         reqs.Tagger,
+		client:         client,
+		ctx:            context.Background(),
 	}
 
 	reqs.Lc.Append(compdef.Hook{

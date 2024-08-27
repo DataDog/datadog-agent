@@ -18,7 +18,20 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/gorilla/mux"
 )
+
+// validateToken - validates token for legacy API
+func validateToken(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := util.Validate(w, r); err != nil {
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
 
 func buildHTTPServer(endpoint string, handler http.Handler) (*http.Server, net.Listener, error) {
 
@@ -90,10 +103,15 @@ func buildHTTPServer(endpoint string, handler http.Handler) (*http.Server, net.L
 		MinVersion:   tls.VersionTLS12,
 	}
 
+	r := mux.NewRouter()
+	r.Handle("/", handler)
+
+	r.Use(validateToken)
+
 	server := &http.Server{
 		Addr:      endpoint,
 		TLSConfig: tlsConfig,
-		Handler:   handler,
+		Handler:   r,
 	}
 
 	listener, err := net.Listen("tcp", endpoint)
