@@ -76,6 +76,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/utils => ./pkg/config/utils/
 	github.com/DataDog/datadog-agent/pkg/errors => ./pkg/errors
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
+	github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels => ./pkg/languagedetection/languagemodels
 	github.com/DataDog/datadog-agent/pkg/logs/auditor => ./pkg/logs/auditor
 	github.com/DataDog/datadog-agent/pkg/logs/client => ./pkg/logs/client
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ./pkg/logs/diagnostic
@@ -95,6 +96,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model => ./pkg/orchestrator/model
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ./pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/proto => ./pkg/proto
+	github.com/DataDog/pkg/proto/pbgo/process => ./pkg/proto/pbgo/process
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ./pkg/remoteconfig/state
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/security/seclwin => ./pkg/security/seclwin
@@ -651,6 +653,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/errors v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.56.0-rc.3
@@ -668,6 +671,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/proto/pbgo/process v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/security/seclwin v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/serializer v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/status/health v0.56.0-rc.3
