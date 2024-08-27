@@ -308,10 +308,13 @@ def _destroy_stack(ctx: Context, stack: str):
         )
         if ret is not None and ret.exited != 0:
             if "No valid credential sources found" in ret.stdout:
-                print("No valid credentials sources found, you need to set the `AWS_PROFILE` env variable")
+                print(
+                    "No valid credentials sources found, if you set the AWS_PROFILE environment variable ensure it is valid"
+                )
+                print(ret.stdout)
                 raise Exit(
                     color_message(
-                        f"Failed to destroy stack {stack}, no valid credentials sources found, you need to set the `AWS_PROFILE` env variable",
+                        f"Failed to destroy stack {stack}, no valid credentials sources found, if you set the AWS_PROFILE environment variable ensure it is valid",
                         "red",
                     ),
                     1,
