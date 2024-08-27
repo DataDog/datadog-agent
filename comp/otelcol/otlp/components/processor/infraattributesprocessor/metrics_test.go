@@ -130,7 +130,7 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 			tc := newTestTaggerClient()
 			tc.tagMap["container_id://test"] = []string{"container:id"}
 			tc.tagMap["deployment://namespace/deployment"] = []string{"deployment:name"}
-			tc.tagMap[collectors.GlobalEntityID] = []string{"global:tag"}
+			tc.tagMap[collectors.GlobalEntityID.String()] = []string{"global:tag"}
 			factory := NewFactory(tc)
 			fmp, err := factory.CreateMetricsProcessor(
 				context.Background(),
