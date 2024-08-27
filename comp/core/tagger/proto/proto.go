@@ -59,12 +59,12 @@ func Tagger2PbEntityEvent(event types.EntityEvent) (*pb.StreamTagsEvent, error) 
 }
 
 // Pb2TaggerEntityID helper to convert a protobuf Entity ID to its expected format.
-func Pb2TaggerEntityID(entityID *pb.EntityId) (string, error) {
+func Pb2TaggerEntityID(entityID *pb.EntityId) (types.EntityID, error) {
 	if entityID == nil {
-		return "", errors.New("Invalid entityID argument")
+		return nil, errors.New("Invalid entityID argument")
 	}
 
-	return fmt.Sprintf("%s://%s", entityID.Prefix, entityID.Uid), nil
+	return types.NewEntityID(types.EntityIDPrefix(entityID.Prefix), entityID.Uid), nil
 }
 
 // Pb2TaggerCardinality helper to convert protobuf cardinality to native tag cardinality.

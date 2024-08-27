@@ -24,6 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	genericstore "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/generic_store"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -110,12 +111,13 @@ func setupIPCAddress(t *testing.T, confMock model.Config, URL string) {
 }
 
 func TestGetAgentTaggerList(t *testing.T) {
-	tagMap := make(map[string]types.TaggerListEntity)
-	tagMap["random_entity_name"] = types.TaggerListEntity{
+	tagMap := genericstore.NewObjectStore[types.TaggerListEntity](configmock.New(t))
+	tagMap.Set(types.NewEntityID("random_prefix", "random_id"), types.TaggerListEntity{
 		Tags: map[string][]string{
 			"docker_source_name": {"docker_image:custom-agent:latest", "image_name:custom-agent"},
 		},
-	}
+	})
+
 	resp := types.TaggerListResponse{
 		Entities: tagMap,
 	}
@@ -131,7 +133,7 @@ func TestGetAgentTaggerList(t *testing.T) {
 	content, err := getAgentTaggerList()
 	require.NoError(t, err)
 
-	assert.Contains(t, string(content), "random_entity_name")
+	assert.Contains(t, string(content), "random_prefix://random_id")
 	assert.Contains(t, string(content), "docker_source_name")
 	assert.Contains(t, string(content), "docker_image:custom-agent:latest")
 	assert.Contains(t, string(content), "image_name:custom-agent")

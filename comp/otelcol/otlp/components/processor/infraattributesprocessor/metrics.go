@@ -39,38 +39,39 @@ func newInfraAttributesMetricProcessor(set processor.Settings, cfg *Config, tagg
 // TODO: Replace OriginIDFromAttributes in opentelemetry-mapping-go with this method
 // entityIDsFromAttributes gets the entity IDs from resource attributes.
 // If not found, an empty string slice is returned.
-func entityIDsFromAttributes(attrs pcommon.Map) []string {
-	entityIDs := make([]string, 0, 8)
+func entityIDsFromAttributes(attrs pcommon.Map) []types.EntityID {
+	entityIDs := make([]types.EntityID, 0, 8)
 	// Prefixes come from pkg/util/kubernetes/kubelet and pkg/util/containers.
 	if containerID, ok := attrs.Get(conventions.AttributeContainerID); ok {
-		entityIDs = append(entityIDs, fmt.Sprintf("container_id://%v", containerID.AsString()))
+		entityIDs = append(entityIDs, types.NewEntityID(types.ContainerID, containerID.AsString()))
 	}
 	if containerImageID, ok := attrs.Get(conventions.AttributeContainerImageID); ok {
 		splitImageID := strings.SplitN(containerImageID.AsString(), "@sha256:", 2)
 		if len(splitImageID) == 2 {
-			entityIDs = append(entityIDs, fmt.Sprintf("container_image_metadata://sha256:%v", splitImageID[1]))
+			entityIDs = append(entityIDs, types.NewEntityID(types.ContainerImageMetadata, splitImageID[1]))
 		}
 	}
 	if ecsTaskArn, ok := attrs.Get(conventions.AttributeAWSECSTaskARN); ok {
-		entityIDs = append(entityIDs, fmt.Sprintf("ecs_task://%v", ecsTaskArn.AsString()))
+		entityIDs = append(entityIDs, types.NewEntityID(types.ECSTask, ecsTaskArn.AsString()))
 	}
 	if deploymentName, ok := attrs.Get(conventions.AttributeK8SDeploymentName); ok {
 		namespace, namespaceOk := attrs.Get(conventions.AttributeK8SNamespaceName)
 		if namespaceOk {
-			entityIDs = append(entityIDs, fmt.Sprintf("deployment://%v/%v", namespace.AsString(), deploymentName.AsString()))
+			entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesDeployment, fmt.Sprintf("%s/%s", namespace.AsString(), deploymentName.AsString())))
 		}
 	}
 	if namespace, ok := attrs.Get(conventions.AttributeK8SNamespaceName); ok {
-		entityIDs = append(entityIDs, fmt.Sprintf("kubernetes_metadata://%s", string(util.GenerateKubeMetadataEntityID("", "namespaces", "", namespace.AsString()))))
+		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "namespaces", "", namespace.AsString()))))
 	}
+
 	if nodeName, ok := attrs.Get(conventions.AttributeK8SNodeName); ok {
-		entityIDs = append(entityIDs, fmt.Sprintf("kubernetes_metadata://%s", string(util.GenerateKubeMetadataEntityID("", "nodes", "", nodeName.AsString()))))
+		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "nodes", "", nodeName.AsString()))))
 	}
 	if podUID, ok := attrs.Get(conventions.AttributeK8SPodUID); ok {
-		entityIDs = append(entityIDs, fmt.Sprintf("kubernetes_pod_uid://%v", podUID.AsString()))
+		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesPodUID, podUID.AsString()))
 	}
 	if processPid, ok := attrs.Get(conventions.AttributeProcessPID); ok {
-		entityIDs = append(entityIDs, fmt.Sprintf("process://%v", processPid.AsString()))
+		entityIDs = append(entityIDs, types.NewEntityID(types.Process, processPid.AsString()))
 	}
 	return entityIDs
 }
@@ -92,9 +93,9 @@ func (iamp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md
 
 		// Get all unique tags from resource attributes and global tags
 		for _, entityID := range entityIDs {
-			entityTags, err := iamp.tagger.Tag(entityID, iamp.cardinality)
+			entityTags, err := iamp.tagger.Tag(entityID.String(), iamp.cardinality)
 			if err != nil {
-				iamp.logger.Error("Cannot get tags for entity", zap.String("entityID", entityID), zap.Error(err))
+				iamp.logger.Error("Cannot get tags for entity", zap.String("entityID", entityID.String()), zap.Error(err))
 				continue
 			}
 			for _, tag := range entityTags {
