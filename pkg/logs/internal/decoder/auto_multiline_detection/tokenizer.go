@@ -345,5 +345,5 @@ func isMatch(seqA []tokens.Token, seqB []tokens.Token, thresh float64) bool {
 		}
 	}
 
-	return match >= requiredMatches
+	return true
 }
