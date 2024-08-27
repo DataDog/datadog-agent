@@ -42,6 +42,4 @@ if [ -d $TUF_REPO_DIR ]; then
     rm -rf $TUF_REPO_DIR
 fi
 
-echo "preinst!!!!"
-
 exit 0
