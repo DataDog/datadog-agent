@@ -81,11 +81,49 @@ func TestSendAggregations(t *testing.T) {
 		t.Run(testInstance.name, func(t *testing.T) {
 			f := NewFactory(nil, nil, nil, nil, nil)
 			cfg := f.CreateDefaultConfig().(*Config)
-			err := testInstance.cfgMap.Unmarshal(&cfg)
+			err := testInstance.cfgMap.Unmarshal(cfg)
 			if err != nil || testInstance.err != "" {
-				assert.EqualError(t, err, testInstance.err)
+				assert.ErrorContains(t, err, testInstance.err)
 			} else {
 				assert.Equal(t, testInstance.expectedAggrValue, cfg.Metrics.HistConfig.SendAggregations)
+				var warningStr []string
+				for _, warning := range cfg.warnings {
+					warningStr = append(warningStr, warning.Error())
+				}
+				assert.ElementsMatch(t, testInstance.warnings, warningStr)
+			}
+		})
+	}
+}
+
+func TestPeerTags(t *testing.T) {
+	tests := []struct {
+		name                  string
+		cfgMap                *confmap.Conf
+		expectedPeerTagsValue bool
+		warnings              []string
+		err                   string
+	}{
+		{
+			name: "traces::peer_tags_aggregation set",
+			cfgMap: confmap.NewFromStringMap(map[string]any{
+				"traces": map[string]any{
+					"peer_tags_aggregation": true,
+				},
+			}),
+			expectedPeerTagsValue: true,
+		},
+	}
+
+	for _, testInstance := range tests {
+		t.Run(testInstance.name, func(t *testing.T) {
+			f := NewFactory(nil, nil, nil, nil, nil)
+			cfg := f.CreateDefaultConfig().(*Config)
+			err := testInstance.cfgMap.Unmarshal(cfg)
+			if err != nil || testInstance.err != "" {
+				assert.ErrorContains(t, err, testInstance.err)
+			} else {
+				assert.Equal(t, testInstance.expectedPeerTagsValue, cfg.Traces.PeerTagsAggregation)
 				var warningStr []string
 				for _, warning := range cfg.warnings {
 					warningStr = append(warningStr, warning.Error())
