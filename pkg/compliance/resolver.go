@@ -28,8 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	dockertypes "github.com/docker/docker/api/types"
 	dockerimage "github.com/docker/docker/api/types/image"
+	dockernetwork "github.com/docker/docker/api/types/network"
 	docker "github.com/docker/docker/client"
 
 	"github.com/shirou/gopsutil/v3/process"
@@ -598,7 +598,7 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 			})
 		}
 	case "network":
-		networks, err := cl.NetworkList(ctx, dockertypes.NetworkListOptions{})
+		networks, err := cl.NetworkList(ctx, dockernetwork.ListOptions{})
 		if err != nil {
 			return nil, err
 		}
