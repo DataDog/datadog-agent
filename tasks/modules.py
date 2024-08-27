@@ -236,7 +236,6 @@ DEFAULT_MODULES = {
     "pkg/orchestrator/model": GoModule("pkg/orchestrator/model", independent=True, used_by_otel=True),
     "pkg/process/util/api": GoModule("pkg/process/util/api", independent=True, used_by_otel=True),
     "pkg/proto": GoModule("pkg/proto", independent=True, used_by_otel=True),
-    "pkg/proto/pbgo/process": GoModule("pkg/proto/pbgo/process", independent=True, used_by_otel=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True, used_by_otel=True),
     "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
     "pkg/security/seclwin": GoModule("pkg/security/seclwin", independent=True, condition=lambda: False),
