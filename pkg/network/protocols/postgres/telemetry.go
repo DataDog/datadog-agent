@@ -110,44 +110,12 @@ func (t *Telemetry) Log() {
 	log.Debugf("postgres stats summary: %s", t.metricGroup.Summary())
 }
 
-// tlsAwareCounter has a plain counter and a counter for TLS.
-// It enables the use of a single metric that increments based on the encryption, avoiding the need for separate metrics for each use-case.
-type tlsAwareCounter struct {
-	counterPlain *libtelemetry.Counter
-	counterTLS   *libtelemetry.Counter
-}
-
-// NewTLSAwareCounter creates and returns a new instance of the struct
-func newTLSAwareCounter(metricGroup *libtelemetry.MetricGroup, metricName string, tags ...string) *tlsAwareCounter {
-	return &tlsAwareCounter{
-		counterPlain: metricGroup.NewCounter(metricName, append(tags, "encrypted:false")...),
-		counterTLS:   metricGroup.NewCounter(metricName, append(tags, "encrypted:true")...),
-	}
-}
-
-// Add adds the given delta to the counter based on the encryption.
-func (c *tlsAwareCounter) add(delta int64, isTLS bool) {
-	if isTLS {
-		c.counterTLS.Add(delta)
-		return
-	}
-	c.counterPlain.Add(delta)
-}
-
-// Get returns the counter value based on the encryption.
-func (c *tlsAwareCounter) get(isTLS bool) int64 {
-	if isTLS {
-		return c.counterTLS.Get()
-	}
-	return c.counterPlain.Get()
-}
-
 // PGKernelTelemetry	provides empirical kernel statistics about the number of messages in each TCP packet
 type PGKernelTelemetry struct {
 	// metricGroup is used here mostly for building the log message below
 	metricGroup *libtelemetry.MetricGroup
 	// pgMessagesCountBuckets		count Postgres messages and divide the count into buckets
-	pgMessagesCountBuckets [ebpf.KerMsgCountNumBuckets]*tlsAwareCounter
+	pgMessagesCountBuckets [ebpf.KerMsgCountNumBuckets]*libtelemetry.TLSAwareCounter
 	// pgKernelMsgCountPlainPrev	save the last counters observed from the kernel, plain messages
 	pgKernelMsgCountPlainPrev ebpf.PostgresKernelMsgCount
 	// pgKernelMsgCountPrev			save the last counters observed from the kernel, TLS messages
@@ -167,13 +135,13 @@ func newPGKernelTelemetry() *PGKernelTelemetry {
 
 func (t *PGKernelTelemetry) createMessagesCountBuckets(metricGroup *libtelemetry.MetricGroup) {
 	for bucketIndex := range t.pgMessagesCountBuckets {
-		t.pgMessagesCountBuckets[bucketIndex] = newTLSAwareCounter(metricGroup,
+		t.pgMessagesCountBuckets[bucketIndex] = libtelemetry.NewTLSAwareCounter(metricGroup,
 			"messages_count_bucket_"+(strconv.Itoa(bucketIndex+1)))
 	}
 }
 
 // update the Postgres message counter store with new counters from the kernel.
-// return if nothing to add, in this case also metric group summary ignores unmodified metrics.
+// return if nothing to add, metric group summary ignores unmodified metrics anyway.
 func (t *PGKernelTelemetry) update(kernMsgCounts *ebpf.PostgresKernelMsgCount, isTLS bool) {
 	if kernMsgCounts == nil {
 		return
@@ -182,13 +150,10 @@ func (t *PGKernelTelemetry) update(kernMsgCounts *ebpf.PostgresKernelMsgCount, i
 		log.Debugf("postgres kernel telemetry empty.")
 		return
 	}
-	delta := t.getDiff(kernMsgCounts, isTLS)
-	if isEmptyCounts(delta) {
-		log.Debugf("postgres kernel telemetry, no difference with previous counters.")
-		return
-	}
+
 	for bucketIndex := range t.pgMessagesCountBuckets {
-		t.pgMessagesCountBuckets[bucketIndex].add(int64(delta.Messages_count_buckets[bucketIndex]), isTLS)
+		v := kernMsgCounts.Messages_count_buckets[bucketIndex]
+		t.pgMessagesCountBuckets[bucketIndex].Set(int64(v), isTLS)
 	}
 	if isTLS {
 		t.pgKernelMsgCountTlsPrev = *kernMsgCounts
@@ -197,33 +162,6 @@ func (t *PGKernelTelemetry) update(kernMsgCounts *ebpf.PostgresKernelMsgCount, i
 	}
 	s := t.metricGroup.Summary()
 	log.Debugf("postgres kernel telemetry, isTLS=%t, summary: %s", isTLS, s)
-}
-
-func (t *PGKernelTelemetry) getDiff(kernMsgCounts *ebpf.PostgresKernelMsgCount, isTLS bool) *ebpf.PostgresKernelMsgCount {
-	if isTLS {
-		return subtractCounts(kernMsgCounts, &t.pgKernelMsgCountTlsPrev)
-	}
-	return subtractCounts(kernMsgCounts, &t.pgKernelMsgCountPlainPrev)
-}
-
-// subtractCounts create a new PostgresKernelMsgCount by subtracting the counts of 'b' from 'a'.
-func subtractCounts(a *ebpf.PostgresKernelMsgCount, b *ebpf.PostgresKernelMsgCount) *ebpf.PostgresKernelMsgCount {
-	res := &ebpf.PostgresKernelMsgCount{}
-	res.Messages_count_buckets = subtractArrays(a.Messages_count_buckets, b.Messages_count_buckets)
-	return res
-}
-
-// subtractArrays returns new array[] = a[] - b[]
-// note that if b > a then the result is negative, although it is stored as an unsigned value giving a very large result.
-func subtractArrays(a, b [ebpf.KerMsgCountNumBuckets]uint64) [ebpf.KerMsgCountNumBuckets]uint64 {
-	var result [ebpf.KerMsgCountNumBuckets]uint64
-	for i := 0; i < ebpf.KerMsgCountNumBuckets; i++ {
-		result[i] = a[i] - b[i]
-		if b[i] > a[i] {
-			log.Debugf("postgres kernel telemetry, unexpected result(%u) = a(%u) - b(%u)", result[i], a[i], b[i])
-		}
-	}
-	return result
 }
 
 func isEmptyCounts(p *ebpf.PostgresKernelMsgCount) bool {
