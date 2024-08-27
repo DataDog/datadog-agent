@@ -87,7 +87,7 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	evalCmd := &cobra.Command{
 		Use:   "eval",
 		Short: "Evaluate given event data against the give rule",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(evalRule,
 				fx.Supply(evalArgs),
 				fx.Supply(core.BundleParams{
@@ -120,7 +120,7 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 	commonCheckPoliciesCmd := &cobra.Command{
 		Use:   "check",
 		Short: "Check policies and return a report",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(checkPolicies,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
@@ -145,7 +145,7 @@ func commonReloadPoliciesCommands(_ *command.GlobalParams) []*cobra.Command {
 	commonReloadPoliciesCmd := &cobra.Command{
 		Use:   "reload",
 		Short: "Reload policies",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(reloadRuntimePolicies,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
@@ -163,7 +163,7 @@ func selfTestCommands(_ *command.GlobalParams) []*cobra.Command {
 	selfTestCmd := &cobra.Command{
 		Use:   "self-test",
 		Short: "Run runtime self test",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(runRuntimeSelfTest,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
@@ -193,7 +193,7 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 	downloadPolicyCmd := &cobra.Command{
 		Use:   "download",
 		Short: "Download policies",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(downloadPolicy,
 				fx.Supply(downloadPolicyArgs),
 				fx.Supply(core.BundleParams{
@@ -228,7 +228,7 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	processCacheDumpCmd := &cobra.Command{
 		Use:   "dump",
 		Short: "dump the process cache",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(dumpProcessCache,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
@@ -266,7 +266,7 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 	dumpNetworkNamespaceCmd := &cobra.Command{
 		Use:   "dump",
 		Short: "dumps the network namespaces held in cache",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(dumpNetworkNamespace,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
@@ -294,7 +294,7 @@ func discardersCommands(_ *command.GlobalParams) []*cobra.Command {
 	dumpDiscardersCmd := &cobra.Command{
 		Use:   "dump",
 		Short: "dump discarders",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(dumpDiscarders,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),

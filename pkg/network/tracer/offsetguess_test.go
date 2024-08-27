@@ -172,7 +172,7 @@ func testOffsetGuess(t *testing.T) {
 	require.NoError(t, mgr.Start())
 	t.Cleanup(func() { mgr.Stop(manager.CleanAll) })
 
-	server := tracertestutil.NewTCPServer(func(c net.Conn) {})
+	server := tracertestutil.NewTCPServer(func(_ net.Conn) {})
 	require.NoError(t, server.Run())
 	t.Cleanup(func() { server.Shutdown() })
 

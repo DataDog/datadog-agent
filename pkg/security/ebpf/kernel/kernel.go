@@ -18,10 +18,11 @@ import (
 	"github.com/acobaugh/osrelease"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/link"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -155,7 +156,7 @@ func newKernelVersion() (*Version, error) {
 
 	// Then look if `/host` is mounted in the container
 	// since this can be done without the env variable being set
-	if config.IsContainerized() && filesystem.FileExists("/host") {
+	if env.IsContainerized() && filesystem.FileExists("/host") {
 		osReleasePaths = append(
 			osReleasePaths,
 			filepath.Join("/host", osrelease.UsrLibOsRelease),
@@ -364,4 +365,10 @@ func (k *Version) HaveFentrySupport() bool {
 // SupportBPFSendSignal returns true if the eBPF function bpf_send_signal is available
 func (k *Version) SupportBPFSendSignal() bool {
 	return k.Code != 0 && k.Code >= Kernel5_3
+}
+
+// SupportCORE returns is CORE is supported
+func (k *Version) SupportCORE() bool {
+	_, err := btf.LoadKernelSpec()
+	return err == nil
 }

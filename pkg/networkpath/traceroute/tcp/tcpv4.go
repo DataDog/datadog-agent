@@ -93,7 +93,7 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 		return nil, fmt.Errorf("failed to create TCP listener: %w", err)
 	}
 	defer tcpConn.Close()
-	log.Debugf("Listening for TCP on: %s\n", addr.IP.String()+":"+addr.AddrPort().String())
+	log.Tracef("Listening for TCP on: %s\n", addr.IP.String()+":"+addr.AddrPort().String())
 	// RawConn is necessary to set the TTL and ID fields
 	rawTCPConn, err := ipv4.NewRawConn(tcpConn)
 	if err != nil {
@@ -152,7 +152,6 @@ func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawCo
 		log.Errorf("failed to listen for packets: %s", err.Error())
 		return nil, err
 	}
-	log.Debugf("Finished loop for TTL %d", ttl)
 
 	rtt := time.Duration(0)
 	if !hopIP.Equal(net.IP{}) {

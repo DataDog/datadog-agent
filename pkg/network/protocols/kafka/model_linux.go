@@ -10,6 +10,7 @@ package kafka
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
@@ -43,6 +44,14 @@ func (tx *EbpfTx) RecordsCount() uint32 {
 // ErrorCode returns the error code in the transaction
 func (tx *EbpfTx) ErrorCode() int8 {
 	return tx.Transaction.Error_code
+}
+
+// RequestLatency returns the latency of the request in nanoseconds
+func (tx *EbpfTx) RequestLatency() float64 {
+	if uint64(tx.Transaction.Request_started) == 0 || uint64(tx.Transaction.Response_last_seen) == 0 {
+		return 0
+	}
+	return protocols.NSTimestampToFloat(tx.Transaction.Response_last_seen - tx.Transaction.Request_started)
 }
 
 // String returns a string representation of the kafka eBPF telemetry.

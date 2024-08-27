@@ -55,20 +55,20 @@ func Test_telemetrySender(t *testing.T) {
 
 	svc := serviceInfo{
 		process: processInfo{
-			PID:     0,
-			CmdLine: nil,
+			PID:     99,
+			CmdLine: []string{"test-service", "--args"},
 			Env:     nil,
-			Cwd:     "",
 			Stat: procStat{
 				StartTime: uint64(now.Add(-20 * time.Minute).Unix()),
 			},
-			Ports: nil,
+			Ports: []uint16{80, 8080},
 		},
-		meta: serviceMetadata{
+		meta: ServiceMetadata{
 			Name:               "test-service",
 			Language:           "jvm",
 			Type:               "web_service",
 			APMInstrumentation: "injected",
+			NameSource:         "generated",
 		},
 		LastHeartbeat: now,
 	}
@@ -92,6 +92,9 @@ func Test_telemetrySender(t *testing.T) {
 				LastSeen:            1715558400,
 				APMInstrumentation:  "injected",
 				ServiceNameSource:   "generated",
+				Ports:               []uint16{80, 8080},
+				PID:                 99,
+				CommandLine:         []string{"test-service", "--args"},
 			},
 		},
 		{
@@ -108,6 +111,9 @@ func Test_telemetrySender(t *testing.T) {
 				LastSeen:            1715558400,
 				APMInstrumentation:  "injected",
 				ServiceNameSource:   "generated",
+				Ports:               []uint16{80, 8080},
+				PID:                 99,
+				CommandLine:         []string{"test-service", "--args"},
 			},
 		},
 		{
@@ -124,6 +130,9 @@ func Test_telemetrySender(t *testing.T) {
 				LastSeen:            1715558400,
 				APMInstrumentation:  "injected",
 				ServiceNameSource:   "generated",
+				Ports:               []uint16{80, 8080},
+				PID:                 99,
+				CommandLine:         []string{"test-service", "--args"},
 			},
 		},
 	}
@@ -154,21 +163,20 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 
 	svc := serviceInfo{
 		process: processInfo{
-			PID:     0,
-			CmdLine: nil,
+			PID:     55,
+			CmdLine: []string{"foo", "--option"},
 			Env:     nil,
-			Cwd:     "",
 			Stat: procStat{
 				StartTime: uint64(now.Add(-20 * time.Minute).Unix()),
 			},
 			Ports: nil,
 		},
-		meta: serviceMetadata{
+		meta: ServiceMetadata{
 			Name:               "test-service",
 			Language:           "jvm",
 			Type:               "web_service",
 			APMInstrumentation: "injected",
-			FromDDService:      true,
+			NameSource:         "provided",
 		},
 		LastHeartbeat: now,
 	}
@@ -192,6 +200,8 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 				LastSeen:            1715558400,
 				APMInstrumentation:  "injected",
 				ServiceNameSource:   "provided",
+				PID:                 55,
+				CommandLine:         []string{"foo", "--option"},
 			},
 		},
 		{
@@ -208,6 +218,8 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 				LastSeen:            1715558400,
 				APMInstrumentation:  "injected",
 				ServiceNameSource:   "provided",
+				PID:                 55,
+				CommandLine:         []string{"foo", "--option"},
 			},
 		},
 		{
@@ -224,6 +236,8 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 				LastSeen:            1715558400,
 				APMInstrumentation:  "injected",
 				ServiceNameSource:   "provided",
+				PID:                 55,
+				CommandLine:         []string{"foo", "--option"},
 			},
 		},
 	}

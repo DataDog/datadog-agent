@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"sync"
 	"testing"
@@ -35,6 +36,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestStartDoesNotBlock(t *testing.T) {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" && runtime.GOARCH == "amd64" {
+		t.Skip("TestStartDoesNotBlock is known to fail on the macOS Gitlab runners because of the already running Agent")
+	}
 	config.LoadWithoutSecret()
 	metricAgent := &ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
@@ -70,7 +74,7 @@ func TestStartInvalidConfig(t *testing.T) {
 type MetricDogStatsDMocked struct{}
 
 //nolint:revive // TODO(SERV) Fix revive linter
-func (m *MetricDogStatsDMocked) NewServer(demux aggregator.Demultiplexer) (dogstatsdServer.ServerlessDogstatsd, error) {
+func (m *MetricDogStatsDMocked) NewServer(_ aggregator.Demultiplexer) (dogstatsdServer.ServerlessDogstatsd, error) {
 	return nil, fmt.Errorf("error")
 }
 
@@ -107,6 +111,9 @@ func TestStartWithProxy(t *testing.T) {
 }
 
 func TestRaceFlushVersusAddSample(t *testing.T) {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" && runtime.GOARCH == "amd64" {
+		t.Skip("TestRaceFlushVersusAddSample is known to fail on the macOS Gitlab runners because of the already running Agent")
+	}
 	metricAgent := &ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
 	}
@@ -117,7 +124,7 @@ func TestRaceFlushVersusAddSample(t *testing.T) {
 
 	server := http.Server{
 		Addr: "localhost:8888",
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		Handler: http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 			time.Sleep(10 * time.Millisecond)
 		}),
 	}
@@ -222,14 +229,14 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 			conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
 			time.Sleep(10 * time.Nanosecond)
 		}
-		finish.Done()
+		wg.Done()
 	}(finish)
 
 	go func(wg *sync.WaitGroup) {
 		for i := 0; i < 1000; i++ {
 			s.ServerlessFlush(time.Second * 10)
 		}
-		finish.Done()
+		wg.Done()
 	}(finish)
 
 	finish.Wait()

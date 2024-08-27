@@ -17,25 +17,24 @@ import (
 
 var bpfCapabilities = Capabilities{
 	"bpf.cmd": {
-		PolicyFlags:     PolicyFlagFlags,
-		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
+		ValueTypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
 }
 
-func bpfOnNewApprovers(approvers rules.Approvers) (ActiveApprovers, error) {
-	var bpfApprovers []activeApprover
+func bpfKFilters(approvers rules.Approvers) (ActiveKFilters, error) {
+	var bpfKFilters []activeKFilter
 
 	for field, values := range approvers {
 		switch field {
 		case "bpf.cmd":
-			approver, err := approveEnums("bpf_cmd_approvers", intValues[int64](values)...)
+			kfilter, err := getEnumsKFilters("bpf_cmd_approvers", intValues[int64](values)...)
 			if err != nil {
 				return nil, err
 			}
-			bpfApprovers = append(bpfApprovers, approver)
+			bpfKFilters = append(bpfKFilters, kfilter)
 		default:
 			return nil, fmt.Errorf("unknown field '%s'", field)
 		}
 	}
-	return newActiveKFilters(bpfApprovers...), nil
+	return newActiveKFilters(bpfKFilters...), nil
 }

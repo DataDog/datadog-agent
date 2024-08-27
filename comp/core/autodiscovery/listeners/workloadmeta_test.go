@@ -37,7 +37,7 @@ type testWorkloadmetaListener struct {
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
-func (l *testWorkloadmetaListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
+func (l *testWorkloadmetaListener) Listen(_ chan<- Service, _ chan<- Service) {
 	panic("not implemented")
 }
 
@@ -94,8 +94,7 @@ func newTestWorkloadmetaListener(t *testing.T) *testWorkloadmetaListener {
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	return &testWorkloadmetaListener{

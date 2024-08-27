@@ -13,12 +13,14 @@ from tasks.libs.ciproviders.gitlab_api import (
 from tasks.libs.common.utils import gitlab_section
 from tasks.test_core import ModuleTestResult
 
+FLAKY_TEST_INDICATOR = "flakytest: this is a known flaky test"
+
 
 class TestWasher:
     def __init__(
         self,
         test_output_json_file="module_test_output.json",
-        flaky_test_indicator="flakytest: this is a known flaky test",
+        flaky_test_indicator=FLAKY_TEST_INDICATOR,
         flakes_file_path="flakes.yaml",
     ):
         self.test_output_json_file = test_output_json_file
@@ -212,7 +214,7 @@ def generate_flake_finder_pipeline(ctx, n=3):
         for i in range(n):
             new_job = copy.deepcopy(kept_job[job])
             new_job["stage"] = f"flake-finder-{i}"
-            new_job["dependencies"] = []
+            new_job["dependencies"] = ["go_e2e_deps"]
             if 'variables' in new_job:
                 if (
                     'E2E_PIPELINE_ID' in new_job['variables']

@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/log/impl
 
-go 1.21.0
+go 1.22.0
 
 replace github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../../pkg/util/scrubber
 
@@ -24,7 +24,7 @@ replace github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../
 
 replace github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../comp/core/flare/builder
 
-replace github.com/DataDog/datadog-agent/pkg/config/logs => ../../../../pkg/config/logs
+replace github.com/DataDog/datadog-agent/pkg/config/mock => ../../../../pkg/config/mock
 
 replace github.com/DataDog/datadog-agent/pkg/config/env => ../../../../pkg/config/env
 
@@ -39,6 +39,8 @@ replace github.com/DataDog/datadog-agent/comp/core/config => ../../../../comp/co
 replace github.com/DataDog/datadog-agent/comp/core/log/def => ../../../../comp/core/log/def
 
 replace github.com/DataDog/datadog-agent/pkg/util/log => ../../../../pkg/util/log
+
+replace github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../../pkg/util/log/setup
 
 replace github.com/DataDog/datadog-agent/pkg/config/model => ../../../../pkg/config/model
 
@@ -58,8 +60,10 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/config/logs v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.0.0-20240726104123-0f372a5f7b15
 	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.0.0-00010101000000-000000000000
+	github.com/stretchr/testify v1.9.0
 )
 
 require (
@@ -104,7 +108,6 @@ require (
 	github.com/spf13/cobra v1.7.0 // indirect
 	github.com/spf13/jwalterweatherman v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/stretchr/testify v1.9.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
@@ -113,11 +116,12 @@ require (
 	go.uber.org/fx v1.18.2 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	go.uber.org/zap v1.26.0 // indirect
-	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
-	golang.org/x/mod v0.17.0 // indirect
-	golang.org/x/sys v0.20.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
-	golang.org/x/tools v0.18.0 // indirect
+	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa // indirect
+	golang.org/x/mod v0.20.0 // indirect
+	golang.org/x/sync v0.8.0 // indirect
+	golang.org/x/sys v0.24.0 // indirect
+	golang.org/x/text v0.17.0 // indirect
+	golang.org/x/tools v0.24.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

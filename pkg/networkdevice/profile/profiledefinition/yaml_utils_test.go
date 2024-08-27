@@ -14,7 +14,7 @@ import (
 )
 
 type MyStringArray struct {
-	SomeIds StringArray `yaml:"my_field"`
+	SomeIDs StringArray `yaml:"my_field"`
 }
 
 type MySymbolStruct struct {
@@ -47,7 +47,7 @@ metric_tags:
 
 func TestStringArray_UnmarshalYAML_array(t *testing.T) {
 	myStruct := MyStringArray{}
-	expected := MyStringArray{SomeIds: StringArray{"aaa", "bbb"}}
+	expected := MyStringArray{SomeIDs: StringArray{"aaa", "bbb"}}
 
 	yaml.Unmarshal([]byte(`
 my_field:
@@ -60,7 +60,7 @@ my_field:
 
 func TestStringArray_UnmarshalYAML_string(t *testing.T) {
 	myStruct := MyStringArray{}
-	expected := MyStringArray{SomeIds: StringArray{"aaa"}}
+	expected := MyStringArray{SomeIDs: StringArray{"aaa"}}
 
 	yaml.Unmarshal([]byte(`
 my_field: aaa

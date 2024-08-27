@@ -152,7 +152,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 			nodeInfo := &NodeInfo{
 				client:              ku,
 				getClusterAgentFunc: clusteragent.GetClusterAgentClient,
-				apiserverNodeLabelsFunc: func(ctx context.Context, nodeName string) (map[string]string, error) {
+				apiserverNodeLabelsFunc: func(context.Context, string) (map[string]string, error) {
 					return tt.nodeLabels, nil
 				},
 			}

@@ -3,39 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
+//go:build linux
 
 package language
 
 import (
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 
-	"go.uber.org/zap"
-)
+	"github.com/stretchr/testify/require"
 
-func TestNew(t *testing.T) {
-	f := New(zap.NewNop())
-	// make sure all alternatives are registered
-	if f.Logger == nil {
-		t.Error("Logger is nil")
-	}
-	count := 0
-	for _, v := range f.Matchers {
-		switch v.(type) {
-		case PythonScript:
-			count |= 1
-		case RubyScript:
-			count |= 2
-		case DotNetBinary:
-			count |= 4
-		}
-	}
-	if count != 7 {
-		t.Error("Missing a matcher")
-	}
-}
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
+)
 
 func Test_findInArgs(t *testing.T) {
 	data := []struct {
@@ -59,11 +40,6 @@ func Test_findInArgs(t *testing.T) {
 			lang: Java,
 		},
 		{
-			name: "extra_commands_path_java",
-			args: strings.Split("time /usr/bin/java -jar MyApp.jar MyApp", " "),
-			lang: Java,
-		},
-		{
 			name: "just_command",
 			args: strings.Split("./mybinary arg1 arg2 arg3", " "),
 			lang: "",
@@ -71,7 +47,7 @@ func Test_findInArgs(t *testing.T) {
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := findInArgs(d.args)
+			result := FindInArgs(d.args)
 			if result != d.lang {
 				t.Errorf("got %v, want %v", result, d.lang)
 			}
@@ -79,156 +55,35 @@ func Test_findInArgs(t *testing.T) {
 	}
 }
 
-func TestFinder_findLang(t *testing.T) {
-	f := New(zap.NewNop())
+func TestFindUsingPrivilegedDetector(t *testing.T) {
+	cmd := exec.Command("sh", "-c", "sleep -n 20")
+	require.NoError(t, cmd.Start())
+	t.Cleanup(func() {
+		_ = cmd.Process.Kill()
+	})
+
 	data := []struct {
 		name string
-		pi   ProcessInfo
-		lang Language
+		pid  int32
+		res  Language
 	}{
 		{
-			name: "dotnet binary",
-			pi: ProcessInfo{
-				Args: strings.Split("testdata/dotnet/linuxdotnettest a b c", " "),
-				Envs: []string{"PATH=/usr/bin"},
-			},
-			lang: DotNet,
+			name: "current proc",
+			pid:  int32(os.Getpid()),
+			res:  Go,
 		},
 		{
-			name: "dotnet",
-			pi: ProcessInfo{
-				Args: strings.Split("dotnet run mydll.dll a b c", " "),
-				Envs: []string{"PATH=/usr/bin"},
-			},
-			lang: DotNet,
-		},
-		{
-			name: "native",
-			pi: ProcessInfo{
-				Args: strings.Split("./myproc a b c", " "),
-				Envs: []string{"PATH=/usr/bin"},
-			},
-			lang: "",
+			name: "not go",
+			pid:  int32(cmd.Process.Pid),
+			res:  "",
 		},
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := f.findLang(d.pi)
-			if result != d.lang {
-				t.Errorf("got %v, want %v", result, d.lang)
-			}
-		})
-	}
-}
+			detector := privileged.NewLanguageDetector()
+			lang := FindUsingPrivilegedDetector(detector, d.pid)
 
-func TestProcessInfoFileReader(t *testing.T) {
-	// create a temp file
-	tempDir := t.TempDir()
-	fullPath := tempDir + "/" + "my_file"
-	err := os.WriteFile(fullPath, []byte("hello"), 0600)
-	if err != nil {
-		t.Fatal(err)
-	}
-	data := []struct {
-		name    string
-		args    []string
-		envs    []string
-		success bool
-	}{
-		{
-			name:    "full",
-			args:    []string{fullPath},
-			envs:    []string{"PATH=" + tempDir},
-			success: true,
-		},
-		{
-			name:    "full_missing",
-			args:    []string{tempDir + "/" + "not_my_file"},
-			envs:    []string{"PATH=" + tempDir},
-			success: false,
-		},
-		{
-			name:    "relative_in_path",
-			args:    []string{"my_file"},
-			envs:    []string{"PATH=" + tempDir},
-			success: true,
-		},
-		{
-			name:    "relative_in_path_missing",
-			args:    []string{"not_my_file"},
-			envs:    []string{"PATH=" + tempDir},
-			success: false,
-		},
-		{
-			name:    "relative_not_in_path",
-			args:    []string{"testdata/dotnet/linuxdotnettest"},
-			envs:    []string{"PATH=" + tempDir},
-			success: true,
-		},
-		{
-			name:    "relative_not_in_path_missing",
-			args:    []string{"testdata/dotnet/not_my_file"},
-			envs:    []string{"PATH=" + tempDir},
-			success: false,
-		},
-	}
-	for _, d := range data {
-		t.Run(d.name, func(t *testing.T) {
-			pi := ProcessInfo{
-				Args: d.args,
-				Envs: d.envs,
-			}
-			rc, ok := pi.FileReader()
-			if ok != d.success {
-				t.Errorf("got %v, want %v", ok, d.success)
-			}
-			if rc != nil {
-				rc.Close()
-			}
-		})
-	}
-}
-
-func TestFinderDetect(t *testing.T) {
-	f := New(zap.NewNop())
-	data := []struct {
-		name string
-		args []string
-		envs []string
-		lang Language
-		ok   bool
-	}{
-		{
-			name: "dotnet binary",
-			args: strings.Split("testdata/dotnet/linuxdotnettest a b c", " "),
-			envs: []string{"PATH=/usr/bin"},
-			lang: DotNet,
-			ok:   true,
-		},
-		{
-			name: "dotnet",
-			args: strings.Split("dotnet run mydll.dll a b c", " "),
-			envs: []string{"PATH=/usr/bin"},
-			lang: DotNet,
-			ok:   true,
-		},
-		{
-			name: "native",
-			args: strings.Split("./myproc a b c", " "),
-			envs: []string{"PATH=/usr/bin"},
-			lang: Unknown,
-			ok:   false,
-		},
-	}
-	for _, d := range data {
-		t.Run(d.name, func(t *testing.T) {
-			result, ok := f.Detect(d.args, d.envs)
-			if ok != d.ok {
-				t.Errorf("got %v, want %v", ok, d.ok)
-			}
-			if result != d.lang {
-				t.Errorf("got %v, want %v", result, d.lang)
-			}
+			require.Equal(t, d.res, lang)
 		})
 	}
 }

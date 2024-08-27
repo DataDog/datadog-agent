@@ -8,6 +8,7 @@ package decoder
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	automultilinedetection "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
@@ -24,6 +25,9 @@ func NewAutoMultilineHandler(outputFn func(m *message.Message), maxContentSize i
 	// Order is important
 	heuristics := []automultilinedetection.Heuristic{
 		automultilinedetection.NewJSONDetector(),
+		automultilinedetection.NewTokenizer(config.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")),
+		automultilinedetection.NewUserSamples(config.Datadog()),
+		automultilinedetection.NewTimestampDetector(config.Datadog().GetFloat64("logs_config.auto_multi_line.timestamp_detector_match_threshold")),
 	}
 
 	return &AutoMultilineHandler{

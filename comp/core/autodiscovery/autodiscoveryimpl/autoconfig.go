@@ -26,13 +26,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	autodiscoveryStatus "github.com/DataDog/datadog-agent/comp/core/autodiscovery/status"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -58,6 +59,7 @@ type dependencies struct {
 	TaggerComp tagger.Component
 	Secrets    secrets.Component
 	WMeta      optional.Option[workloadmeta.Component]
+	Telemetry  telemetry.Component
 }
 
 // AutoConfig implements the agent's autodiscovery mechanism.  It is
@@ -82,6 +84,7 @@ type AutoConfig struct {
 	wmeta                    optional.Option[workloadmeta.Component]
 	taggerComp               tagger.Component
 	logs                     logComp.Component
+	telemetryStore           *acTelemetry.Store
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
@@ -123,23 +126,24 @@ func newProvides(deps dependencies) provides {
 var _ autodiscovery.Component = (*AutoConfig)(nil)
 
 type listenerCandidate struct {
-	factory listeners.ServiceListenerFactory
-	config  listeners.Config
+	factory        listeners.ServiceListenerFactory
+	config         listeners.Config
+	telemetryStore *acTelemetry.Store
 }
 
 func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
-	return l.factory(l.config)
+	return l.factory(l.config, l.telemetryStore)
 }
 
 // newAutoConfig creates an AutoConfig instance and starts it.
 func newAutoConfig(deps dependencies) autodiscovery.Component {
-	ac := createNewAutoConfig(scheduler.NewController(), deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log)
+	ac := createNewAutoConfig(scheduler.NewController(), deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry)
 	deps.Lc.Append(fx.Hook{
-		OnStart: func(c context.Context) error {
+		OnStart: func(_ context.Context) error {
 			ac.Start()
 			return nil
 		},
-		OnStop: func(c context.Context) error {
+		OnStop: func(_ context.Context) error {
 			ac.Stop()
 			return nil
 		},
@@ -148,7 +152,7 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component) *AutoConfig {
+func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component) *AutoConfig {
 	cfgMgr := newReconcilingConfigManager(secretResolver)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
@@ -168,6 +172,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		wmeta:                    wmeta,
 		taggerComp:               taggerComp,
 		logs:                     logs,
+		telemetryStore:           acTelemetry.NewStore(telemetryComp),
 	}
 	return ac
 }
@@ -386,7 +391,7 @@ func (ac *AutoConfig) AddConfigProvider(provider providers.ConfigProvider, shoul
 		log.Warnf("Polling interval <= 0 for AD provider: %s, deactivating polling", provider.String())
 		shouldPoll = false
 	}
-	cp := newConfigPoller(provider, shouldPoll, pollInterval)
+	cp := newConfigPoller(provider, shouldPoll, pollInterval, ac.telemetryStore)
 
 	ac.m.Lock()
 	defer ac.m.Unlock()
@@ -448,6 +453,11 @@ func (ac *AutoConfig) GetAllConfigs() []integration.Config {
 	return configs
 }
 
+// GetTelemetryStore returns autodiscovery telemetry store.
+func (ac *AutoConfig) GetTelemetryStore() *acTelemetry.Store {
+	return ac.telemetryStore
+}
+
 // processNewConfig store (in template cache) and resolves a given config,
 // returning the changes to be made.
 func (ac *AutoConfig) processNewConfig(config integration.Config) integration.ConfigChanges {
@@ -497,7 +507,7 @@ func (ac *AutoConfig) addListenerCandidates(listenerConfigs []config.Listeners) 
 			continue
 		}
 		log.Debugf("Listener %s was registered", c.Name)
-		ac.listenerCandidates[c.Name] = &listenerCandidate{factory: factory, config: &c}
+		ac.listenerCandidates[c.Name] = &listenerCandidate{factory: factory, config: &c, telemetryStore: ac.telemetryStore}
 	}
 }
 
@@ -658,17 +668,23 @@ func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providers.E
 
 // applyChanges applies a configChanges object. This always unschedules first.
 func (ac *AutoConfig) applyChanges(changes integration.ConfigChanges) {
+	telemetryStorePresent := ac.telemetryStore != nil
+
 	if len(changes.Unschedule) > 0 {
 		for _, conf := range changes.Unschedule {
 			log.Tracef("Unscheduling %s\n", conf.Dump(false))
-			telemetry.ScheduledConfigs.Dec(conf.Provider, configType(conf))
+			if telemetryStorePresent {
+				ac.telemetryStore.ScheduledConfigs.Dec(conf.Provider, configType(conf))
+			}
 		}
 	}
 
 	if len(changes.Schedule) > 0 {
 		for _, conf := range changes.Schedule {
 			log.Tracef("Scheduling %s\n", conf.Dump(false))
-			telemetry.ScheduledConfigs.Inc(conf.Provider, configType(conf))
+			if telemetryStorePresent {
+				ac.telemetryStore.ScheduledConfigs.Inc(conf.Provider, configType(conf))
+			}
 		}
 	}
 	ac.schedulerController.ApplyChanges(changes)
@@ -722,6 +738,7 @@ type optionalModuleDeps struct {
 	TaggerComp optional.Option[tagger.Component]
 	Secrets    secrets.Component
 	WMeta      optional.Option[workloadmeta.Component]
+	Telemetry  telemetry.Component
 }
 
 // OptionalModule defines the fx options when ac should be used as an optional and not started
@@ -739,5 +756,5 @@ func newOptionalAutoConfig(deps optionalModuleDeps) optional.Option[autodiscover
 		return optional.NewNoneOption[autodiscovery.Component]()
 	}
 	return optional.NewOption[autodiscovery.Component](
-		createNewAutoConfig(scheduler.NewController(), deps.Secrets, deps.WMeta, taggerComp, deps.Log))
+		createNewAutoConfig(scheduler.NewController(), deps.Secrets, deps.WMeta, taggerComp, deps.Log, deps.Telemetry))
 }

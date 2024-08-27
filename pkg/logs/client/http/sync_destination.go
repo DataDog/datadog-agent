@@ -50,7 +50,7 @@ func (d *SyncDestination) Target() string {
 }
 
 // Start starts reading the input channel
-func (d *SyncDestination) Start(input chan *message.Payload, output chan *message.Payload, isRetrying chan bool) (stopChan <-chan struct{}) {
+func (d *SyncDestination) Start(input chan *message.Payload, output chan *message.Payload, _ chan bool) (stopChan <-chan struct{}) {
 	stop := make(chan struct{})
 	go d.run(input, output, stop)
 	return stop

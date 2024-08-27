@@ -12,13 +12,14 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestGetClusterName(t *testing.T) {
 	ctx := context.Background()
 	mockConfig := configmock.New(t)
-	config.SetFeatures(t, config.Kubernetes)
+	config.SetFeatures(t, env.Kubernetes)
 	data := newClusterNameData()
 
 	testClusterName := "laika"
@@ -64,7 +65,7 @@ func TestGetClusterName(t *testing.T) {
 	// Test lowercase
 	wantedClustername := "foo"
 	discoveredClustername := "FoO"
-	dummyFunc := func(c context.Context) (string, error) { return discoveredClustername, nil }
+	dummyFunc := func(context.Context) (string, error) { return discoveredClustername, nil }
 	setProviderCatalog(map[string]Provider{"dummyProvider": dummyFunc})
 	assert.Equal(t, wantedClustername, getClusterName(ctx, newClusterNameData(), "hostname"))
 }

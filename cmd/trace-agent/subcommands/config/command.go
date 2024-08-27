@@ -28,7 +28,7 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 		Long:  ``,
 		RunE: func(*cobra.Command, []string) error {
 			return fxutil.OneShot(printConfig,
-				fx.Supply(config.NewAgentParams(globalParamsGetter().ConfPath)),
+				fx.Supply(config.NewAgentParams(globalParamsGetter().ConfPath, config.WithFleetPoliciesDirPath(globalParamsGetter().FleetPoliciesDirPath))),
 				fx.Supply(optional.NewNoneOption[secrets.Component]()),
 				config.Module(),
 			)

@@ -24,7 +24,7 @@ type Hello struct {
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
-func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *Hello) ServeHTTP(_ http.ResponseWriter, _ *http.Request) {
 	log.Debug("Hit on the serverless.Hello route.")
 	h.daemon.LambdaLibraryStateLock.Lock()
 	defer h.daemon.LambdaLibraryStateLock.Unlock()
@@ -38,7 +38,7 @@ type Flush struct {
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
-func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (f *Flush) ServeHTTP(_ http.ResponseWriter, _ *http.Request) {
 	log.Debug("Hit on the serverless.Flush route.")
 	if os.Getenv(LocalTestEnvVar) == "true" || os.Getenv(LocalTestEnvVar) == "1" {
 		// used only for testing purpose as the Logs API is not supported by the Lambda Emulator
@@ -138,7 +138,7 @@ type TraceContext struct {
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
-func (tc *TraceContext) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (tc *TraceContext) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	executionInfo := tc.daemon.InvocationProcessor.GetExecutionInfo()
 	log.Debug("Hit on the serverless.TraceContext route.")
 	w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", executionInfo.TraceID))

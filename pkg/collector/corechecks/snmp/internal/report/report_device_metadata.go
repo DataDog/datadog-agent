@@ -416,7 +416,7 @@ func buildNetworkTopologyMetadataWithLLDP(deviceID string, store *metadata.Store
 }
 
 //nolint:revive // TODO(NDM) Fix revive linter
-func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store, interfaces []devicemetadata.InterfaceMetadata) []devicemetadata.TopologyLinkMetadata {
+func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store, _ []devicemetadata.InterfaceMetadata) []devicemetadata.TopologyLinkMetadata {
 	indexes := store.GetColumnIndexes("cdp_remote.interface_id") // using `cdp_remote.interface_id` to get indexes since it's expected to be always present
 	if len(indexes) == 0 {
 		log.Debugf("Unable to build links metadata: no cdp_remote indexes found")

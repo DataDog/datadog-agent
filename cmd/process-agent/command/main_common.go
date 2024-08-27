@@ -33,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -108,8 +108,9 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			core.BundleParams{
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(
 					sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath),
+					sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
 				),
-				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
+				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 				SecretParams: secrets.NewEnabledParams(),
 				LogParams:    DaemonLogParams,
 			},
@@ -149,9 +150,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		// Provide remote config client bundle
 		remoteconfig.Bundle(),
 
-		// Provide workloadmeta module
-		workloadmetafx.Module(),
-
 		// Provide tagger module
 		taggerimpl.Module(),
 
@@ -172,8 +170,10 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		autoexitimpl.Module(),
 
 		// Provide the corresponding workloadmeta Params to configure the catalog
-		collectors.GetCatalog(),
-		fx.Provide(func(c config.Component) workloadmeta.Params {
+		wmcatalog.GetCatalog(),
+
+		// Provide workloadmeta module
+		workloadmetafx.ModuleWithProvider(func(c config.Component) workloadmeta.Params {
 			var catalog workloadmeta.AgentType
 
 			if c.GetBool("process_config.remote_workloadmeta") {
@@ -193,11 +193,8 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			return tagger.NewTaggerParams()
 		}),
 
-		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
-		fxutil.FxLoggingOption(),
-
-		// Inject the Lifecycle adapter for non fx-aware components.
-		fxutil.FxLifecycleAdapter(),
+		// Provides specific features to our own fx wrapper (logging, lifecycle, shutdowner)
+		fxutil.FxAgentBase(),
 
 		// Set the pid file path
 		fx.Supply(pidimpl.NewParams(globalParams.PidFilePath)),
@@ -316,7 +313,6 @@ type miscDeps struct {
 // Todo: (Components) WorkloadMeta, remoteTagger
 // Todo: move metadata/workloadmeta/collector to workloadmeta
 func initMisc(deps miscDeps) error {
-
 	if err := ddutil.SetupCoreDump(deps.Config); err != nil {
 		deps.Logger.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
@@ -329,7 +325,6 @@ func initMisc(deps miscDeps) error {
 	appCtx, stopApp := context.WithCancel(context.Background())
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
-
 			if collector.Enabled(deps.Config) {
 				err := processCollectionServer.Start(appCtx, deps.WorkloadMeta)
 				if err != nil {

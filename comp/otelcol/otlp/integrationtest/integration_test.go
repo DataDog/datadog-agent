@@ -83,7 +83,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 		forwarder.Bundle(),
 		logtrace.Module(),
 		inventoryagentimpl.Module(),
-		workloadmetafx.Module(),
+		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Supply(metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{})),
 		fx.Provide(func(client *metricsclient.StatsdClientWrapper) statsd.Component {
 			return statsd.NewOTelStatsd(client)
@@ -105,9 +105,6 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 			pkgconfigenv.DetectFeatures(c)
 			return c, nil
 		}),
-		fx.Provide(func() workloadmeta.Params {
-			return workloadmeta.NewParams()
-		}),
 		fx.Provide(func() []string {
 			return append(params.ConfPaths, params.Sets...)
 		}),
@@ -117,7 +114,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 		hostnameinterface.MockModule(),
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 
-		fx.Provide(func(c coreconfig.Component) logdef.Params {
+		fx.Provide(func(_ coreconfig.Component) logdef.Params {
 			return logdef.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 		}),
 		logsagentpipelineimpl.Module(),

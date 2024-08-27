@@ -65,7 +65,7 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "Starting OpenTelemetry Collector",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			globalParams := globalConfGetter()
 			return runOTelAgentCommand(context.Background(), globalParams)
 		},
@@ -96,7 +96,6 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		forwarder.Bundle(),
 		logtracefx.Module(),
 		inventoryagentimpl.Module(),
-		workloadmetafx.Module(),
 		fx.Supply(metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{})),
 		fx.Provide(func(client *metricsclient.StatsdClientWrapper) statsd.Component {
 			return statsd.NewOTelStatsd(client)
@@ -118,9 +117,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			pkgconfigenv.DetectFeatures(c)
 			return c, nil
 		}),
-		fx.Provide(func() workloadmeta.Params {
-			return workloadmeta.NewParams()
-		}),
+		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Provide(func() []string {
 			return append(params.ConfPaths, params.Sets...)
 		}),
@@ -130,7 +127,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		remotehostnameimpl.Module(),
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 
-		fx.Provide(func(c coreconfig.Component) log.Params {
+		fx.Provide(func(_ coreconfig.Component) log.Params {
 			return log.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 		}),
 		logsagentpipelineimpl.Module(),

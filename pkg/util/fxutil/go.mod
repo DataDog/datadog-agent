@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/fxutil
 
-go 1.21.0
+go 1.22.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3
@@ -25,6 +25,6 @@ require (
 	go.uber.org/dig v1.17.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.23.0 // indirect
-	golang.org/x/sys v0.19.0 // indirect
+	golang.org/x/sys v0.24.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

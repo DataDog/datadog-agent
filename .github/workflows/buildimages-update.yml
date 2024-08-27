@@ -52,13 +52,13 @@ jobs:
           ref: ${{ inputs.branch }}
 
       - name: Setup Python and pip
-        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
+        uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f # v5.1.1
         with:
           # use Python < 3.12 so that distutil is still available by default
           python-version: 3.11
           cache: "pip"
 
-      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+      - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
           # use the go version from the input, not from the .go-version file
           # in case it's a Go update PR

@@ -7,7 +7,10 @@
 
 package providers
 
-import "github.com/DataDog/datadog-agent/pkg/config"
+import (
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/config"
+)
 
 // NewEtcdConfigProvider creates a client connection to etcd and create a new EtcdConfigProvider
-var NewEtcdConfigProvider func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error)
+var NewEtcdConfigProvider func(providerConfig *config.ConfigurationProviders, telemetryStore *telemetry.Store) (ConfigProvider, error)

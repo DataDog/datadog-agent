@@ -18,7 +18,7 @@ func NewRegistry() *Registry {
 }
 
 // GetOffset returns the offset.
-func (r *Registry) GetOffset(identifier string) string { //nolint:revive // TODO fix revive unused-parameter
+func (r *Registry) GetOffset(_ string) string {
 	return r.offset
 }
 
@@ -28,7 +28,7 @@ func (r *Registry) SetOffset(offset string) {
 }
 
 // GetTailingMode returns the tailing mode.
-func (r *Registry) GetTailingMode(identifier string) string { //nolint:revive // TODO fix revive unused-parameter
+func (r *Registry) GetTailingMode(_ string) string {
 	return r.tailingMode
 }
 

@@ -449,6 +449,7 @@ func initConstants() {
 	initAddressFamilyConstants()
 	initExitCauseConstants()
 	initBPFMapNamesConstants()
+	initAUIDConstants()
 	usersession.InitUserSessionTypes()
 }
 

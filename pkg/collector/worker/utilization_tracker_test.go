@@ -18,7 +18,7 @@ import (
 // Helpers
 
 //nolint:revive // TODO(AML) Fix revive linter
-func newTracker(t *testing.T) (*UtilizationTracker, *clock.Mock) {
+func newTracker(_ *testing.T) (*UtilizationTracker, *clock.Mock) {
 	clk := clock.NewMock()
 	ut := newUtilizationTrackerWithClock(
 		"worker",

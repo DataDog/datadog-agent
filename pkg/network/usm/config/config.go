@@ -9,6 +9,8 @@
 package config
 
 import (
+	"errors"
+	"fmt"
 	"runtime"
 	"strings"
 
@@ -19,6 +21,9 @@ import (
 
 // MinimumKernelVersion indicates the minimum kernel version required for HTTP monitoring
 var MinimumKernelVersion kernel.Version
+
+// ErrNotSupported is the error returned if USM is not supported on this platform
+var ErrNotSupported = errors.New("Universal Service Monitoring (USM) is not supported")
 
 func init() {
 	MinimumKernelVersion = kernel.VersionCode(4, 14, 0)
@@ -44,21 +49,31 @@ func TLSSupported(c *config.Config) bool {
 	return kversion >= MinimumKernelVersion
 }
 
-// IsUSMSupported We only support http with kernel >= 4.14.0.
-func IsUSMSupported() bool {
-	kversion, err := kernel.HostVersion()
-	if err != nil {
-		log.Warn("could not determine the current kernel version. USM disabled.")
-		return false
+// CheckUSMSupported returns an error if USM is not supported
+// on this platform. Callers can check `errors.Is(err, ErrNotSupported)`
+// to verify if USM is supported
+func CheckUSMSupported(cfg *config.Config) error {
+	// TODO: remove this once USM is supported on ebpf-less
+	if cfg.EnableEbpfless {
+		return fmt.Errorf("%w: eBPF-less is not supported", ErrNotSupported)
 	}
 
-	return kversion >= MinimumKernelVersion
+	kversion, err := kernel.HostVersion()
+	if err != nil {
+		return fmt.Errorf("%w: could not determine the current kernel version: %w", ErrNotSupported, err)
+	}
+
+	if kversion < MinimumKernelVersion {
+		return fmt.Errorf("%w: a Linux kernel version of %s or higher is required; we detected %s", ErrNotSupported, MinimumKernelVersion, kversion)
+	}
+
+	return nil
 }
 
 // IsUSMSupportedAndEnabled returns true if USM is supported and enabled
 func IsUSMSupportedAndEnabled(config *config.Config) bool {
 	// http.Supported is misleading, it should be named usm.Supported.
-	return config.ServiceMonitoringEnabled && IsUSMSupported()
+	return config.ServiceMonitoringEnabled && CheckUSMSupported(config) == nil
 }
 
 // NeedProcessMonitor returns true if the process monitor is needed for the given configuration

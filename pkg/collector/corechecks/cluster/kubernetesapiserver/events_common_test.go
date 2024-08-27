@@ -58,7 +58,7 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 	telemetryComponent := fxutil.Test[coretelemetry.Component](t, telemetryimpl.MockModule())
 	telemetryStore := telemetry.NewStore(telemetryComponent)
 	taggerInstance := local.NewFakeTagger(telemetryStore)
-	taggerInstance.SetTags("kubernetes_metadata://namespaces//default", "workloadmeta-kubernetes_node", []string{"team:container-int"}, nil, nil, nil)
+	taggerInstance.SetTags("kubernetes_metadata:///namespaces//default", "workloadmeta-kubernetes_node", []string{"team:container-int"}, nil, nil, nil)
 	tests := []struct {
 		name           string
 		involvedObject v1.ObjectReference
@@ -259,6 +259,152 @@ func Test_getEventSource(t *testing.T) {
 			if got := getEventSource(tt.controllerName, tt.sourceComponent); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("getEventSource() = %v, want %v", got, tt.want)
 			}
+		})
+	}
+}
+
+func Test_shouldCollect(t *testing.T) {
+	tests := []struct {
+		name           string
+		ev             *v1.Event
+		collectedTypes []collectedEventType
+		shouldCollect  bool
+	}{
+		{
+			name: "kubernetes event collection matches based on kind",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+					Host:      "my-node-1",
+				},
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Kind: "Pod",
+				},
+			},
+			shouldCollect: true,
+		},
+		{
+			name: "kubernetes event collection matches based on source",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+					Host:      "my-node-1",
+				},
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Source: "kubelet",
+				},
+			},
+			shouldCollect: true,
+		},
+		{
+			name: "kubernetes event collection matches based on reason",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+					Host:      "my-node-1",
+				},
+				Reason: "CrashLoopBackOff",
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Reasons: []string{"CrashLoopBackOff"},
+				},
+			},
+			shouldCollect: true,
+		},
+		{
+			name: "kubernetes event collection matches by kind and reason",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+					Host:      "my-node-1",
+				},
+				Reason: "CrashLoopBackOff",
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Kind:    "Pod",
+					Reasons: []string{"Failed", "BackOff", "Unhealthy", "FailedScheduling", "FailedMount", "FailedAttachVolume"},
+				},
+				{
+					Kind:    "Node",
+					Reasons: []string{"TerminatingEvictedPod", "NodeNotReady", "Rebooted", "HostPortConflict"},
+				},
+				{
+					Kind:    "CronJob",
+					Reasons: []string{"SawCompletedJob"},
+				},
+				{
+					Reasons: []string{"CrashLoopBackOff"},
+				},
+			},
+			shouldCollect: true,
+		},
+		{
+			name: "kubernetes event collection matches by source and reason",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+					Host:      "my-node-1",
+				},
+				Reason: "CrashLoopBackOff",
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Source:  "kubelet",
+					Reasons: []string{"CrashLoopBackOff"},
+				},
+			},
+			shouldCollect: true,
+		},
+		{
+			name: "kubernetes event collection matches none",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+				},
+				Reason: "something",
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Source:  "kubelet",
+					Reasons: []string{"CrashLoopBackOff"},
+				},
+			},
+			shouldCollect: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.shouldCollect, shouldCollect(tt.ev, tt.collectedTypes))
 		})
 	}
 }

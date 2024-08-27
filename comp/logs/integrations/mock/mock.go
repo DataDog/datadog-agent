@@ -8,22 +8,16 @@ package mock
 
 import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 )
 
 type mockIntegrations struct {
-}
-
-// Subscribe returns an integrationLog channel
-func (l *mockIntegrations) Subscribe() chan integrations.IntegrationLog {
-	return make(chan integrations.IntegrationLog)
-}
-
-// SendLog does nothing
-func (l *mockIntegrations) SendLog(_, _ string) {
-
+	*integrationsimpl.Logsintegration
 }
 
 // Mock returns a mock for integrations component.
 func Mock() integrations.Component {
-	return &mockIntegrations{}
+	return &mockIntegrations{
+		Logsintegration: integrationsimpl.NewLogsIntegration(),
+	}
 }

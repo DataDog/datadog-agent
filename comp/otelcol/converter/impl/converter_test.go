@@ -52,6 +52,21 @@ func TestConvert(t *testing.T) {
 		expectedResult string
 	}{
 		{
+			name:           "connectors/no-dd-connector",
+			provided:       "connectors/no-dd-connector/config.yaml",
+			expectedResult: "connectors/no-dd-connector/config.yaml",
+		},
+		{
+			name:           "connectors/already-set",
+			provided:       "connectors/already-set/config.yaml",
+			expectedResult: "connectors/already-set/config.yaml",
+		},
+		{
+			name:           "connectors/set-default",
+			provided:       "connectors/set-default/config.yaml",
+			expectedResult: "connectors/set-default/config-result.yaml",
+		},
+		{
 			name:           "extensions/no-extensions",
 			provided:       "extensions/no-extensions/config.yaml",
 			expectedResult: "extensions/no-extensions/config-result.yaml",
@@ -87,6 +102,11 @@ func TestConvert(t *testing.T) {
 			expectedResult: "processors/no-changes/config.yaml",
 		},
 		{
+			name:           "receivers/job-name-change",
+			provided:       "receivers/job-name-change/config.yaml",
+			expectedResult: "receivers/job-name-change/config-result.yaml",
+		},
+		{
 			name:           "receivers/no-changes",
 			provided:       "receivers/no-changes/config.yaml",
 			expectedResult: "receivers/no-changes/config.yaml",
@@ -115,6 +135,16 @@ func TestConvert(t *testing.T) {
 			name:           "receivers/no-receivers-defined",
 			provided:       "receivers/no-receivers-defined/config.yaml",
 			expectedResult: "receivers/no-receivers-defined/config-result.yaml",
+		},
+		{
+			name:           "processors/dd-connector",
+			provided:       "processors/dd-connector/config.yaml",
+			expectedResult: "processors/dd-connector/config-result.yaml",
+		},
+		{
+			name:           "processors/dd-connector-multi-pipelines",
+			provided:       "processors/dd-connector-multi-pipelines/config.yaml",
+			expectedResult: "processors/dd-connector-multi-pipelines/config-result.yaml",
 		},
 	}
 

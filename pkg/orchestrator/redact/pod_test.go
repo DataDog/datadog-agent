@@ -13,31 +13,49 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestRemoveLastAppliedConfigurationAnnotation(t *testing.T) {
-	objectMeta := metav1.ObjectMeta{Annotations: map[string]string{
-		v1.LastAppliedConfigAnnotation: `{"apiVersion":"v1","kind":"Pod","metadata":{"annotations":{},"name":"quota","namespace":"default"},"spec":{"containers":[{"args":["-c","while true; do echo hello; sleep 10;done"],"command":["/bin/sh"],"image":"ubuntu","name":"high-priority","resources":{"limits":{"cpu":"500m","memory":"10Gi"},"requests":{"cpu":"500m","memory":"10Gi"}}}],"priorityClassName":"high-priority"}}`,
-	}}
-	RemoveLastAppliedConfigurationAnnotation(objectMeta.Annotations)
-	actual := objectMeta.Annotations[v1.LastAppliedConfigAnnotation]
-	assert.Equal(t, redactedAnnotationValue, actual)
+func TestRemoveSensitiveAnnotations(t *testing.T) {
+	objectMeta := metav1.ObjectMeta{
+		Annotations: map[string]string{
+			v1.LastAppliedConfigAnnotation: `{"apiVersion":"v1","kind":"Pod","metadata":{"annotations":{},"name":"quota","namespace":"default"},"spec":{"containers":[{"args":["-c","while true; do echo hello; sleep 10;done"],"command":["/bin/sh"],"image":"ubuntu","name":"high-priority","resources":{"limits":{"cpu":"500m","memory":"10Gi"},"requests":{"cpu":"500m","memory":"10Gi"}}}],"priorityClassName":"high-priority"}}`,
+			consulOriginalPodAnnotation:    `{"content": "previous pod definition"}`,
+		},
+		Labels: map[string]string{
+			v1.LastAppliedConfigAnnotation: `{"apiVersion":"v1","kind":"Pod","metadata":{"annotations":{},"name":"quota","namespace":"default"},"spec":{"containers":[{"args":["-c","while true; do echo hello; sleep 10;done"],"command":["/bin/sh"],"image":"ubuntu","name":"high-priority","resources":{"limits":{"cpu":"500m","memory":"10Gi"},"requests":{"cpu":"500m","memory":"10Gi"}}}],"priorityClassName":"high-priority"}}`,
+			consulOriginalPodAnnotation:    `{"content": "previous pod definition"}`,
+			"other-labels":                 "value",
+		},
+	}
+	RemoveSensitiveAnnotationsAndLabels(objectMeta.Annotations, objectMeta.Labels)
+	expected := metav1.ObjectMeta{
+		Annotations: map[string]string{
+			v1.LastAppliedConfigAnnotation: redactedAnnotationValue,
+			consulOriginalPodAnnotation:    redactedAnnotationValue,
+		},
+		Labels: map[string]string{
+			v1.LastAppliedConfigAnnotation: redactedAnnotationValue,
+			consulOriginalPodAnnotation:    redactedAnnotationValue,
+			"other-labels":                 "value",
+		},
+	}
+	assert.Equal(t, expected, objectMeta)
 }
 
-func TestRemoveLastAppliedConfigurationAnnotationNotPresent(t *testing.T) {
+func TestRemoveSensitiveAnnotationsNotPresent(t *testing.T) {
 	objectMeta := metav1.ObjectMeta{Annotations: map[string]string{
 		"not.last.applied.annotation": "value",
 	}}
 
-	RemoveLastAppliedConfigurationAnnotation(objectMeta.Annotations)
+	RemoveSensitiveAnnotationsAndLabels(objectMeta.Annotations, objectMeta.Labels)
 	actual := objectMeta.Annotations[v1.LastAppliedConfigAnnotation]
 	assert.Equal(t, "", actual)
 }
 
-func TestRemoveLastAppliedConfigurationAnnotationEmpty(t *testing.T) {
+func TestRemoveSensitiveAnnotationsEmpty(t *testing.T) {
 	objectMeta := metav1.ObjectMeta{Annotations: map[string]string{
 		v1.LastAppliedConfigAnnotation: "",
 	}}
 
-	RemoveLastAppliedConfigurationAnnotation(objectMeta.Annotations)
+	RemoveSensitiveAnnotationsAndLabels(objectMeta.Annotations, objectMeta.Labels)
 	actual := objectMeta.Annotations[v1.LastAppliedConfigAnnotation]
 	assert.Equal(t, redactedAnnotationValue, actual)
 }

@@ -143,7 +143,7 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 		return
 	}
 
-	samples := p.sumValuesByContext(metricFam, p.getEntityIDIfContainerMetric)
+	samples := p.latestValueByContext(metricFam, p.getEntityIDIfContainerMetric)
 	for containerID, sample := range samples {
 		var tags []string
 
@@ -348,7 +348,8 @@ func (p *Provider) getEntityIDIfContainerMetric(labels model.Metric) string {
 			// Return the pod UID so that we can collect metrics from it later on.
 			return p.getPodUID(labels)
 		}
-		return common.GetContainerID(p.store, labels, p.filter)
+		cID, _ := common.GetContainerID(p.store, labels, p.filter)
+		return cID
 	}
 	return ""
 }

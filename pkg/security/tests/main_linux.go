@@ -98,6 +98,8 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestChown32",
 			"TestMountEvent/mount-in-container-root",
 			"TestChdir/syscall-context",
+			"TestLoginUID/login-uid-open-test",
+			"TestLoginUID/login-uid-exec-test",
 		}
 
 		if disableSeccomp {

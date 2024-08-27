@@ -163,7 +163,7 @@ func generateAndCountEvents(ti eventlog_test.APITester, check *Check, senderEven
 	eventsCollected := uint(0)
 	done := make(chan struct{})
 	if numEvents > 0 {
-		senderEventCall.Run(func(args mock.Arguments) {
+		senderEventCall.Run(func(_ mock.Arguments) {
 			eventsCollected++
 			if eventsCollected == numEvents {
 				close(done)
@@ -194,7 +194,7 @@ func countEvents(check *Check, senderEventCall *mock.Call, numEvents uint) uint 
 	eventsCollected := uint(0)
 	done := make(chan struct{})
 	if numEvents > 0 {
-		senderEventCall.Run(func(args mock.Arguments) {
+		senderEventCall.Run(func(_ mock.Arguments) {
 			eventsCollected++
 			if eventsCollected == numEvents {
 				close(done)

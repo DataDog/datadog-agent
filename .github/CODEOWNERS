@@ -17,6 +17,11 @@
 # changing the config of mockery will regenerate the mocks, so owners will have to review anyway
 /.mockery.yaml                          # do not notify anyone
 /.go-version                            @DataDog/agent-shared-components @DataDog/agent-delivery
+# Go linters and pre-commit config
+/.golangci.yml                          @DataDog/agent-devx-loops
+/.custom-gcl.yml                        @DataDog/agent-devx-loops
+/.pre-commit-config.yaml                @DataDog/agent-devx-loops
+/.vscode/                               @DataDog/agent-devx-loops
 
 /CHANGELOG.rst                          @DataDog/agent-delivery
 /CHANGELOG-DCA.rst                      @DataDog/container-integrations @DataDog/container-platform
@@ -30,14 +35,14 @@
 # Todo: is this file still needed?
 /Makefile.trace                         @DataDog/agent-delivery
 
+/mkdocs.yml                             @DataDog/agent-devx-infra
 /release.json                           @DataDog/agent-delivery @DataDog/agent-metrics-logs @DataDog/windows-kernel-integrations @DataDog/agent-release-management @DataDog/agent-security
 /requirements.txt                       @DataDog/agent-devx-infra
 /pyproject.toml                         @DataDog/agent-devx-infra @DataDog/agent-devx-loops
-/setup.cfg                              @DataDog/agent-devx-infra
 /repository.datadog.yml                 @DataDog/agent-devx-infra
 /generate_tools.go                      @DataDog/agent-devx-infra
 /service.datadog.yaml                   @DataDog/agent-delivery
-/.pre-commit-config.yaml                @DataDog/agent-devx-loops
+/static-analysis.datadog.yaml           @DataDog/software-integrity-and-trust @DataDog/agent-devx-infra
 
 /.circleci/                             @DataDog/agent-devx-infra
 
@@ -192,14 +197,16 @@
 /cmd/system-probe/modules/tcp_queue_tracer* @DataDog/container-integrations
 /cmd/system-probe/modules/traceroute*   @DataDog/network-device-monitoring @Datadog/Networks
 /cmd/system-probe/modules/ping*         @DataDog/network-device-monitoring
+/cmd/system-probe/modules/service_discover* @DataDog/apm-onboarding @DataDog/universal-service-monitoring
+/cmd/system-probe/modules/language_detection* @DataDog/processes @DataDog/universal-service-monitoring
 /cmd/system-probe/runtime/              @DataDog/agent-security
 /cmd/system-probe/windows/              @DataDog/windows-kernel-integrations
 /cmd/system-probe/windows_resources/    @DataDog/windows-kernel-integrations
 /cmd/system-probe/main_windows*.go      @DataDog/windows-kernel-integrations
 /cmd/systray/                           @DataDog/windows-agent
 /cmd/security-agent/                    @DataDog/agent-security
-/cmd/updater/                           @DataDog/fleet
-/cmd/installer/                         @DataDog/fleet
+/cmd/updater/                           @DataDog/fleet @DataDog/windows-agent
+/cmd/installer/                         @DataDog/fleet @DataDog/windows-agent
 
 /dev/                                   @DataDog/agent-devx-loops
 /devenv/                                @DataDog/agent-devx-loops
@@ -248,7 +255,6 @@
 /comp/core @DataDog/agent-shared-components
 /comp/dogstatsd @DataDog/agent-metrics-logs
 /comp/forwarder @DataDog/agent-processing-and-routing
-/comp/languagedetection @DataDog/container-platform
 /comp/logs @DataDog/agent-metrics-logs
 /comp/metadata @DataDog/agent-shared-components
 /comp/ndmtmp @DataDog/network-device-monitoring
@@ -260,7 +266,7 @@
 /comp/snmptraps @DataDog/network-device-monitoring
 /comp/systray @DataDog/windows-agent
 /comp/trace @DataDog/agent-apm
-/comp/updater @DataDog/fleet
+/comp/updater @DataDog/fleet @DataDog/windows-agent
 /comp/agent/cloudfoundrycontainer @DataDog/platform-integrations
 /comp/agent/jmxlogger @DataDog/agent-metrics-logs
 /comp/aggregator/diagnosesendermanager @DataDog/agent-shared-components
@@ -274,7 +280,9 @@
 /comp/core/workloadmeta @DataDog/container-platform
 /comp/metadata/packagesigning @DataDog/agent-delivery
 /comp/trace/etwtracer @DataDog/windows-agent
+/comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/etw @DataDog/windows-agent
+/comp/languagedetection/client @DataDog/container-platform
 /comp/rdnsquerier @DataDog/network-device-monitoring
 /comp/serializer/compression @DataDog/agent-metrics-logs
 # END COMPONENTS
@@ -293,7 +301,9 @@
 /pkg/gohai                              @DataDog/agent-shared-components
 /pkg/jmxfetch/                          @DataDog/agent-metrics-logs
 /pkg/metrics/                           @DataDog/agent-metrics-logs
+/pkg/metrics/metricsource.go            @DataDog/agent-metrics-logs @DataDog/agent-integrations
 /pkg/serializer/                        @DataDog/agent-processing-and-routing
+/pkg/serializer/internal/metrics/origin_mapping.go  @DataDog/agent-processing-and-routing @DataDog/agent-integrations
 /pkg/serverless/                        @DataDog/serverless
 /pkg/serverless/appsec/                 @DataDog/asm-go
 /pkg/status/                            @DataDog/agent-shared-components
@@ -343,7 +353,7 @@
 /pkg/collector/corechecks/net/          @DataDog/platform-integrations
 /pkg/collector/corechecks/oracle        @DataDog/database-monitoring
 /pkg/collector/corechecks/sbom/         @DataDog/container-integrations
-/pkg/collector/corechecks/servicediscovery/ @DataDog/apm-onboarding
+/pkg/collector/corechecks/servicediscovery/ @DataDog/apm-onboarding @DataDog/universal-service-monitoring
 /pkg/collector/corechecks/snmp/         @DataDog/network-device-monitoring
 /pkg/collector/corechecks/system/                 @DataDog/platform-integrations
 /pkg/collector/corechecks/system/**/*_windows*.go @DataDog/platform-integrations @DataDog/windows-agent
@@ -351,7 +361,7 @@
 /pkg/collector/corechecks/system/winkmem/         @DataDog/windows-agent
 /pkg/collector/corechecks/system/winproc/         @DataDog/windows-agent
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
-/pkg/collector/corechecks/nvidia/       @DataDog/agent-devx-infra
+/pkg/collector/corechecks/nvidia/       @DataDog/platform-integrations
 /pkg/collector/corechecks/windows_event_log/ @DataDog/windows-agent
 /pkg/config/                            @DataDog/agent-shared-components
 /pkg/config/config_template.yaml        @DataDog/agent-shared-components @DataDog/documentation
@@ -380,7 +390,7 @@
 /pkg/flare/*_win.go                     @Datadog/windows-agent
 /pkg/flare/*_windows.go                 @Datadog/windows-agent
 /pkg/flare/*_windows_test.go            @Datadog/windows-agent
-/pkg/fleet/                             @DataDog/fleet
+/pkg/fleet/                             @DataDog/fleet @DataDog/windows-agent
 /pkg/otlp/                              @DataDog/opentelemetry
 /pkg/otlp/*_serverless*.go              @DataDog/serverless
 /pkg/otlp/*_not_serverless*.go          @DataDog/opentelemetry
@@ -393,7 +403,6 @@
 /pkg/proto/datadog/workloadmeta         @DataDog/container-platform
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-shared-components
-/pkg/serializer/                        @DataDog/agent-processing-and-routing
 /pkg/tagset/                            @DataDog/agent-shared-components
 /pkg/util/                              @DataDog/agent-shared-components
 /pkg/util/aggregatingqueue              @DataDog/container-integrations @DataDog/container-platform
@@ -421,6 +430,8 @@
 /pkg/util/testutil/flake                @DataDog/agent-devx-loops
 /pkg/util/trie                          @DataDog/container-integrations
 /pkg/languagedetection                  @DataDog/processes @DataDog/universal-service-monitoring
+/pkg/linters/                           @DataDog/agent-devx-loops
+/pkg/linters/components/                @DataDog/agent-shared-components
 /pkg/logs/                              @DataDog/agent-metrics-logs
 /pkg/logs/launchers/windowsevent        @DataDog/agent-metrics-logs @DataDog/windows-agent
 /pkg/logs/tailers/windowsevent          @DataDog/agent-metrics-logs @DataDog/windows-agent
@@ -439,7 +450,7 @@
 /pkg/process/metadata/parser/           @DataDog/universal-service-monitoring @DataDog/processes @DataDog/Networks
 /pkg/process/metadata/parser/*windows*  @DataDog/universal-service-monitoring @DataDog/processes @DataDog/Networks @DataDog/windows-kernel-integrations
 /pkg/process/monitor/                   @DataDog/universal-service-monitoring
-/pkg/process/net/                       @DataDog/processes @DataDog/Networks
+/pkg/process/net/                       @DataDog/universal-service-monitoring @DataDog/processes @DataDog/Networks
 /pkg/proto/datadog/remoteconfig/        @DataDog/remote-config
 /pkg/proto/pbgo/                        # do not notify anyone
 /pkg/proto/pbgo/trace                   @DataDog/agent-apm
@@ -582,11 +593,13 @@
 /test/new-e2e/tests/agent-shared-components   @DataDog/agent-shared-components
 /test/new-e2e/tests/agent-subcommands         @DataDog/agent-shared-components
 /test/new-e2e/tests/containers                @DataDog/container-integrations @DataDog/container-platform
+/test/new-e2e/tests/discovery                 @DataDog/apm-onboarding @DataDog/universal-service-monitoring
 /test/new-e2e/tests/language-detection        @DataDog/processes
 /test/new-e2e/tests/ndm                       @DataDog/network-device-monitoring
 /test/new-e2e/tests/npm                       @DataDog/Networks
 /test/new-e2e/tests/npm/ec2_1host_wkit_test.go @DataDog/Networks @DataDog/windows-kernel-integrations
 /test/new-e2e/tests/orchestrator              @DataDog/container-app
+/test/new-e2e/tests/otel                      @DataDog/opentelemetry
 /test/new-e2e/tests/process                   @DataDog/processes
 /test/new-e2e/tests/sysprobe-functional     @DataDog/windows-kernel-integrations
 /test/new-e2e/tests/security-agent-functional     @DataDog/windows-kernel-integrations
@@ -595,8 +608,8 @@
 /test/new-e2e/tests/windows                   @DataDog/windows-agent @DataDog/windows-kernel-integrations
 /test/new-e2e/tests/apm                       @DataDog/agent-apm
 /test/new-e2e/tests/remote-config             @DataDog/remote-config
-/test/new-e2e/tests/updater                   @DataDog/fleet
-/test/new-e2e/tests/installer                 @DataDog/fleet
+/test/new-e2e/tests/updater                   @DataDog/fleet @DataDog/windows-agent
+/test/new-e2e/tests/installer                 @DataDog/fleet @DataDog/windows-agent
 /test/otel/                                   @DataDog/opentelemetry
 /test/system/                                 @DataDog/agent-shared-components
 /test/system/dogstatsd/                       @DataDog/agent-metrics-logs

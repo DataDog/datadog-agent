@@ -52,7 +52,7 @@ func TestExtractStatusHandler(t *testing.T) {
 			var statusCode int
 			statusMiddleware := extractStatusCodeHandler(&statusCode)
 
-			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(tcStatus)
 			})
 
@@ -78,7 +78,7 @@ func TestTimeHandler(t *testing.T) {
 		var duration time.Duration
 		timeMiddleware := timeHandler(clock, &duration)
 
-		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			clock.Add(tcDuration)
 			w.WriteHeader(http.StatusOK)
 		})

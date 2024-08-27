@@ -40,7 +40,7 @@ var errWorkloadmetaStreamNotStarted = errors.New("workloadmeta stream not starte
 // GrpcClient interface that represents a gRPC client for the remote workloadmeta.
 type GrpcClient interface {
 	// StreamEntities establishes the stream between the client and the remote gRPC server.
-	StreamEntities(ctx context.Context, opts ...grpc.CallOption) (Stream, error)
+	StreamEntities(ctx context.Context) (Stream, error)
 }
 
 // Stream is an interface that represents a gRPC stream.
@@ -94,7 +94,7 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 
 	c.ctx, c.cancel = context.WithCancel(ctx)
 
-	opts := []grpc.DialOption{grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
+	opts := []grpc.DialOption{grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
 		return net.Dial("tcp", url)
 	})}
 

@@ -183,6 +183,13 @@ build do
     move 'bin/agent/dist/security-agent.yaml', "#{conf_dir}/security-agent.yaml.example"
   end
 
+  # CWS Instrumentation
+  cws_inst_support = !heroku_target? && linux_target?
+  if cws_inst_support
+    command "invoke -e cws-instrumentation.build", :env => env
+    copy 'bin/cws-instrumentation/cws-instrumentation', "#{install_dir}/embedded/bin"
+  end
+
   # OTel agent - can never be bundled
   if ot_target?
     unless windows_target?

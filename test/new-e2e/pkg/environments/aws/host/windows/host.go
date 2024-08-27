@@ -8,7 +8,7 @@ package winawshost
 
 import (
 	"fmt"
-
+	installer "github.com/DataDog/datadog-agent/test/new-e2e/pkg/components/datadog-installer"
 	"github.com/DataDog/test-infra-definitions/components/activedirectory"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
@@ -40,6 +40,7 @@ type ProvisionerParams struct {
 	fakeintakeOptions      []fakeintake.Option
 	activeDirectoryOptions []activedirectory.Option
 	defenderoptions        []defender.Option
+	installerOptions       []installer.Option
 }
 
 // ProvisionerOption is a provisioner option.
@@ -117,12 +118,23 @@ func WithDefenderOptions(opts ...defender.Option) ProvisionerOption {
 	}
 }
 
+// WithInstaller configures Datadog Installer on an EC2 VM.
+func WithInstaller(opts ...installer.Option) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.installerOptions = []installer.Option{}
+		params.installerOptions = append(params.installerOptions, opts...)
+		return nil
+	}
+}
+
 // Run deploys a Windows environment given a pulumi.Context
 func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *ProvisionerParams) error {
 	awsEnv, err := aws.NewEnvironment(ctx)
 	if err != nil {
 		return err
 	}
+
+	env.Environment = &awsEnv
 
 	// Make sure to override any OS other than Windows
 	// TODO: Make the Windows version configurable
@@ -203,12 +215,25 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 		env.Agent = nil
 	}
 
+	if params.installerOptions != nil {
+		installer, err := installer.NewInstaller(&awsEnv, host, params.installerOptions...)
+		if err != nil {
+			return err
+		}
+		err = installer.Export(ctx, &env.Installer.Output)
+		if err != nil {
+			return err
+		}
+	} else {
+		env.Installer = nil
+	}
+
 	return nil
 }
 
 func getProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 	params := &ProvisionerParams{
-		name:               "",
+		name:               defaultVMName,
 		instanceOptions:    []ec2.VMOption{},
 		agentOptions:       []agentparams.Option{},
 		agentClientOptions: []agentclientparams.Option{},
@@ -240,7 +265,7 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Wi
 
 // ProvisionerNoAgent wraps Provisioner with hardcoded WithoutAgent options.
 func ProvisionerNoAgent(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.WindowsHost] {
-	mergedOpts := make([]ProvisionerOption, 0, len(opts)+2)
+	mergedOpts := make([]ProvisionerOption, 0, len(opts)+1)
 	mergedOpts = append(mergedOpts, opts...)
 	mergedOpts = append(mergedOpts, WithoutAgent())
 

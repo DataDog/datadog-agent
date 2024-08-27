@@ -61,7 +61,7 @@ func TestCanObfuscateAutoVacuum(t *testing.T) {
 			out: "autovacuum : VACUUM fake.big_table ( to prevent wraparound )",
 		},
 	} {
-		t.Run("", func(t *testing.T) {
+		t.Run("", func(_ *testing.T) {
 			oq, err := NewObfuscator(Config{}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
@@ -373,7 +373,7 @@ TABLE T4 UNION CORRESPONDING TABLE T3`,
 			},
 		},
 	} {
-		t.Run("", func(t *testing.T) {
+		t.Run("", func(_ *testing.T) {
 			oq, err := NewObfuscator(Config{SQL: tt.cfg}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
@@ -430,7 +430,7 @@ func TestSQLUTF8(t *testing.T) {
 			"SELECT ( ? )",
 		},
 	} {
-		t.Run("", func(t *testing.T) {
+		t.Run("", func(_ *testing.T) {
 			oq, err := NewObfuscator(Config{}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
@@ -1266,7 +1266,7 @@ func TestPGJSONOperators(t *testing.T) {
 			"select * from users where user.custom ?& array [ ? ]",
 		},
 	} {
-		t.Run("", func(t *testing.T) {
+		t.Run("", func(_ *testing.T) {
 			oq, err := NewObfuscator(Config{
 				SQL: SQLConfig{
 					DBMS: DBMSPostgres,
@@ -1311,7 +1311,7 @@ func TestObfuscatorDBMSBehavior(t *testing.T) {
 			},
 		},
 	} {
-		t.Run(tt.cfg.DBMS, func(t *testing.T) {
+		t.Run(tt.cfg.DBMS, func(_ *testing.T) {
 			oq, err := NewObfuscator(Config{SQL: tt.cfg}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
@@ -2384,6 +2384,20 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 				TablesCSV: "users",
 				Commands: []string{
 					"CREATE",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:     "PostgreSQL Select Only",
+			query:    `SELECT * FROM ONLY users WHERE id = 1`,
+			expected: `SELECT * FROM ONLY users WHERE id = ?`,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
 				},
 				Comments:   []string{},
 				Procedures: []string{},
