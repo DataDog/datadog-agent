@@ -28,9 +28,9 @@ type messageContext struct {
 
 // Heuristic is an interface representing a strategy to label log messages.
 type Heuristic interface {
-	// Process processes a log message and annotates the context with a label. It returns false if the message should be done processing.
+	// ProcessAndContinue processes a log message and annotates the context with a label. It returns false if the message should be done processing.
 	// Heuristic implementations may mutate the message context but must do so synchronously.
-	Process(*messageContext) bool
+	ProcessAndContinue(*messageContext) bool
 }
 
 // Labeler labels log messages based on a set of heuristics.
@@ -55,7 +55,7 @@ func (l *Labeler) Label(rawMessage []byte) Label {
 		label:      aggregate,
 	}
 	for _, h := range l.heuristics {
-		if !h.Process(context) {
+		if !h.ProcessAndContinue(context) {
 			return context.label
 		}
 	}

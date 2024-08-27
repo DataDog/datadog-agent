@@ -37,9 +37,9 @@ func NewTokenizer(maxEvalBytes int) *Tokenizer {
 	}
 }
 
-// Process enriches the message context with tokens.
+// ProcessAndContinue enriches the message context with tokens.
 // This implements the Herustic interface - this heuristic does not stop processing.
-func (t *Tokenizer) Process(context *messageContext) bool {
+func (t *Tokenizer) ProcessAndContinue(context *messageContext) bool {
 	maxBytes := len(context.rawMessage)
 	if maxBytes > t.maxEvalBytes {
 		maxBytes = t.maxEvalBytes

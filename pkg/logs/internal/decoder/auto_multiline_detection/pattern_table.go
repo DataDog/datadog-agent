@@ -118,10 +118,10 @@ func (p *PatternTable) DumpTable() []DiagnosticRow {
 	return debug
 }
 
-// Process adds a pattern to the table and updates its label based on it's frequency.
+// ProcessAndContinue adds a pattern to the table and updates its label based on it's frequency.
 // This implements the Herustic interfce - so we should stop processing if the label was changed
 // due to pattern detection.
-func (p *PatternTable) Process(context *messageContext) bool {
+func (p *PatternTable) ProcessAndContinue(context *messageContext) bool {
 
 	if context.tokens == nil {
 		log.Error("Tokens are required to process patterns")
