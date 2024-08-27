@@ -2763,8 +2763,8 @@ go.opentelemetry.io/collector/receiver/nopreceiver v0.104.0 h1:xkfiTIGEXMXosYbZe
 go.opentelemetry.io/collector/receiver/nopreceiver v0.104.0/go.mod h1:9vZPqdvOBDh9fKugWiv8WIINkF+TFpOw7RhvZxctZ9w=
 go.opentelemetry.io/collector/receiver/otlpreceiver v0.104.0 h1:t9cACuSc7kY09guws7VyB/z9QnG7/zWLC1NQ29WH4+o=
 go.opentelemetry.io/collector/receiver/otlpreceiver v0.104.0/go.mod h1:sPIIO4F6uit1i/XQgfe2WryvdO5Hr16bQgZTaXcR8mM=
-go.opentelemetry.io/collector/semconv v0.104.0 h1:dUvajnh+AYJLEW/XOPk0T0BlwltSdi3vrjO7nSOos3k=
-go.opentelemetry.io/collector/semconv v0.104.0/go.mod h1:yMVUCNoQPZVq/IPfrHrnntZTWsLf5YGZ7qwKulIl5hw=
+go.opentelemetry.io/collector/semconv v0.108.0 h1:UoRMrcJsp5aLHQOyoWoBxuKVOeNn4Aq8FUoDAGmgvJg=
+go.opentelemetry.io/collector/semconv v0.108.0/go.mod h1:zCJ5njhWpejR+A40kiEoeFm1xq1uzyZwMnRNX6/D82A=
 go.opentelemetry.io/collector/service v0.104.0 h1:DTpkoX4C6qiA3v3cfB2cHv/cH705o5JI9J3P77SFUrE=
 go.opentelemetry.io/collector/service v0.104.0/go.mod h1:eq68zgpqRDYaVp60NeRu973J0rA5vZJkezfw/EzxLXc=
 go.opentelemetry.io/contrib/config v0.7.0 h1:b1rK5tGTuhhPirJiMxOcyQfZs76j2VapY6ODn3b2Dbs=
