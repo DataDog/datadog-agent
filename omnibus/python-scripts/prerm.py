@@ -20,6 +20,10 @@ import sys
 
 import pkg_resources
 from packaging import version
+import importlib.metadata
+import pwd
+import grp
+import packages
 
 def run_command(command):
     """
@@ -135,44 +139,38 @@ def extract_version(specifier):
     
 if __name__ == '__main__':
     if len(sys.argv) != 2:
-        print("Usage: script_prerm.py <INSTALL_DIR>")
+        print("Usage: prerm.py <INSTALL_DIR>")
         sys.exit(1)
 
     install_directory = sys.argv[1]
     
     if os.path.exists(install_directory):
-        datadog_requirements_file = os.path.join(install_directory, '.datadog_requirements.txt')
-        installed_datadog_requirements_file = os.path.join(install_directory, '.installed_datadog_requirements.txt')
-        new_datadog_requirements_file = create_new_integrations_file(install_directory)
-        compare_and_update_files(datadog_requirements_file, new_datadog_requirements_file, installed_datadog_requirements_file)
+        postinst_python_installed_packages_file = os.path.join(install_directory, '.postinst_python_installed_packages.txt')
+        if os.path.exists(postinst_python_installed_packages_file):
+            prerm_python_installed_packages_file = os.path.join(install_directory, '.prerm_python_installed_packages.txt')
+            packages.create_python_installed_packages_file(prerm_python_installed_packages_file)
 
-        old_datadog_requirements = load_requirements(datadog_requirements_file)
-        old_datadog_requirements_dict = get_requirements_dict(old_datadog_requirements)
-        new_datadog_requirements = load_requirements(new_datadog_requirements_file)
-        new_datadog_requirements_dict = get_requirements_dict(new_datadog_requirements)
+            postinst_python_installed_packages = packages.load_requirements(postinst_python_installed_packages_file)
+            prerm_python_installed_packages = packages.load_requirements(prerm_python_installed_packages_file)
 
-        # Find packages that are new or have been upgraded
-        updated_requirements = []
-        for package_name, new_req in new_datadog_requirements_dict.items():
-            old_req = old_datadog_requirements_dict.get(package_name)
-            if old_req:
-                # Extract and compare versions
-                old_version_str = extract_version(str(old_req.specifier))
-                new_version_str = extract_version(str(new_req.specifier))
-                if old_version_str and new_version_str:
-                    if version.parse(new_version_str) > version.parse(old_version_str):
-                        updated_requirements.append(new_req)
-            else:
-                # Package is new in the new file; include it
-                updated_requirements.append(new_req)
-        print(f"updated_requirements: {updated_requirements}")
-
-        python_requirements_file = os.path.join(install_directory, '.python_requirements.txt')
-        installed_python_requirements_file = os.path.join(install_directory, '.installed_python_requirements.txt')
-        new_python_file = create_new_dependencies_file(install_directory)
-        compare_and_update_files(python_requirements_file, new_python_file, installed_python_requirements_file)
-
-        cleanup_files(datadog_requirements_file, new_datadog_requirements_file, python_requirements_file, new_python_file)
+            # Find packages that are new or have been upgraded
+            updated_requirements = []
+            for package_name, new_req in prerm_python_installed_packages.items():
+                old_req = postinst_python_installed_packages.get(package_name)
+                if old_req:
+                    # Extract and compare versions
+                    old_version_str = extract_version(str(old_req.specifier))
+                    new_version_str = extract_version(str(new_req.specifier))
+                    if old_version_str and new_version_str:
+                        if version.parse(new_version_str) > version.parse(old_version_str):
+                            updated_requirements.append(new_req)
+                else:
+                    # Package is new in the new file; include it
+                    updated_requirements.append(new_req)
+            print(f"updated_requirements: {updated_requirements}")
+        else:
+            print(f"File {postinst_python_installed_packages_file} does not exist.")
+            sys.exit(1)
     else:
         print(f"Directory {install_directory} does not exist.")
         sys.exit(1)
