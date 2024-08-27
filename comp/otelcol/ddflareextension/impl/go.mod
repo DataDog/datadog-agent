@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-agent/comp/otelcol/extension/impl
+module github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl
 
 go 1.22.0
 
@@ -16,7 +16,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl => ../../collector-contrib/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def => ../../configstore/def
 	github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl => ../../configstore/impl
-	github.com/DataDog/datadog-agent/comp/otelcol/extension/def => ../../extension/def
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def => ../../ddflareextension/def
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ../../logsagentpipeline
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl => ../../logsagentpipeline/logsagentpipelineimpl
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter => ../../otlp/components/exporter/logsagentexporter
@@ -73,7 +73,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.57.0-rc.5
 	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def v0.57.0-rc.5
 	github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl v0.57.0-rc.5
-	github.com/DataDog/datadog-agent/comp/otelcol/extension/def v0.57.0-rc.5
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.0.0-00010101000000-000000000000
 	github.com/stretchr/testify v1.9.0
 	go.opentelemetry.io/collector/component v0.104.0
 	go.opentelemetry.io/collector/config/confighttp v0.104.0

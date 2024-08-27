@@ -379,9 +379,9 @@ Package configstore defines the otel agent configstore component.
 
 Package converter defines the otel agent converter component.
 
-### [comp/otelcol/extension](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/extension)
+### [comp/otelcol/ddflareextension](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension)
 
-Package extension defines the OpenTelemetry Extension component.
+Package ddflareextension defines the OpenTelemetry Extension component.
 
 ### [comp/otelcol/logsagentpipeline](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline)
 
