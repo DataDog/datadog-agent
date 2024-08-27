@@ -257,8 +257,8 @@ var defaultProfiles = `
         - name: logs.destination_http_resp
           aggregate_tags:
             - status_code
-		- name: oracle.activity_samples_count
-		- name: oracle.activity_latency
+        - name: oracle.activity_samples_count
+        - name: oracle.activity_latency
         - name: transactions.input_count
         - name: transactions.requeued
         - name: transactions.retries
