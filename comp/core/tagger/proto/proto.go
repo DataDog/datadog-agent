@@ -9,7 +9,6 @@ package proto
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -19,15 +18,11 @@ import (
 )
 
 // Tagger2PbEntityID helper to convert an Entity ID to its expected protobuf format.
-func Tagger2PbEntityID(entityID string) (*pb.EntityId, error) {
-	parts := strings.SplitN(entityID, "://", 2)
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid entity id %q", entityID)
-	}
+func Tagger2PbEntityID(entityID types.EntityID) (*pb.EntityId, error) {
 
 	return &pb.EntityId{
-		Prefix: parts[0],
-		Uid:    parts[1],
+		Prefix: string(entityID.GetPrefix()),
+		Uid:    entityID.GetID(),
 	}, nil
 }
 

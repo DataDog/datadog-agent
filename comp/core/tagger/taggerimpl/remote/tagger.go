@@ -21,13 +21,13 @@ import (
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/metadata"
 
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
+	genericstore "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/generic_store"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -48,6 +48,8 @@ type Tagger struct {
 	store   *tagStore
 	ready   bool
 	options Options
+
+	cfg config.Component
 
 	conn   *grpc.ClientConn
 	client pb.AgentSecureClient
@@ -72,7 +74,7 @@ type Options struct {
 }
 
 // NodeAgentOptions returns the tagger options used in the node agent.
-func NodeAgentOptions(config configComponent.Component) (Options, error) {
+func NodeAgentOptions(config config.Component) (Options, error) {
 	return Options{
 		Target:       fmt.Sprintf(":%v", config.GetInt("cmd_port")),
 		TokenFetcher: func() (string, error) { return security.FetchAuthToken(config) },
@@ -82,15 +84,15 @@ func NodeAgentOptions(config configComponent.Component) (Options, error) {
 // NodeAgentOptionsForSecurityResolvers is a legacy function that returns the
 // same options as NodeAgentOptions, but it's used by the tag security resolvers only
 // TODO (component): remove this function once the security resolver migrates to component
-func NodeAgentOptionsForSecurityResolvers() (Options, error) {
+func NodeAgentOptionsForSecurityResolvers(cfg config.Component) (Options, error) {
 	return Options{
-		Target:       fmt.Sprintf(":%v", config.Datadog().GetInt("cmd_port")),
-		TokenFetcher: func() (string, error) { return security.FetchAuthToken(config.Datadog()) },
+		Target:       fmt.Sprintf(":%v", cfg.GetInt("cmd_port")),
+		TokenFetcher: func() (string, error) { return security.FetchAuthToken(cfg) },
 	}, nil
 }
 
 // CLCRunnerOptions returns the tagger options used in the CLC Runner.
-func CLCRunnerOptions(config configComponent.Component) (Options, error) {
+func CLCRunnerOptions(config config.Component) (Options, error) {
 	opts := Options{
 		Disabled: !config.GetBool("clc_runner_remote_tagger_enabled"),
 	}
@@ -111,10 +113,11 @@ func CLCRunnerOptions(config configComponent.Component) (Options, error) {
 
 // NewTagger returns an allocated tagger. You still have to run Init()
 // once the config package is ready.
-func NewTagger(options Options, telemetryStore *telemetry.Store) *Tagger {
+func NewTagger(options Options, cfg config.Component, telemetryStore *telemetry.Store) *Tagger {
 	return &Tagger{
 		options:        options,
-		store:          newTagStore(telemetryStore),
+		cfg:            cfg,
+		store:          newTagStore(cfg, telemetryStore),
 		telemetryStore: telemetryStore,
 	}
 }
@@ -150,7 +153,7 @@ func (t *Tagger) Start(ctx context.Context) error {
 
 	t.client = pb.NewAgentSecureClient(t.conn)
 
-	timeout := time.Duration(config.Datadog().GetInt("remote_tagger_timeout_seconds")) * time.Second
+	timeout := time.Duration(t.cfg.GetInt("remote_tagger_timeout_seconds")) * time.Second
 	err = t.startTaggerStream(timeout)
 	if err != nil {
 		// tagger stopped before being connected
@@ -196,7 +199,8 @@ func (t *Tagger) GetTaggerTelemetryStore() *telemetry.Store {
 
 // Tag returns tags for a given entity at the desired cardinality.
 func (t *Tagger) Tag(entityID string, cardinality types.TagCardinality) ([]string, error) {
-	entity := t.store.getEntity(entityID)
+	id, _ := types.NewEntityIDFromString(entityID)
+	entity := t.store.getEntity(id)
 	if entity != nil {
 		t.telemetryStore.QueriesByCardinality(cardinality).Success.Inc()
 		return entity.GetTags(cardinality), nil
@@ -219,7 +223,8 @@ func (t *Tagger) AccumulateTagsFor(entityID string, cardinality types.TagCardina
 
 // Standard returns the standard tags for a given entity.
 func (t *Tagger) Standard(entityID string) ([]string, error) {
-	entity := t.store.getEntity(entityID)
+	id, _ := types.NewEntityIDFromString(entityID)
+	entity := t.store.getEntity(id)
 	if entity == nil {
 		return []string{}, nil
 	}
@@ -229,7 +234,8 @@ func (t *Tagger) Standard(entityID string) ([]string, error) {
 
 // GetEntity returns the entity corresponding to the specified id and an error
 func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
-	entity := t.store.getEntity(entityID)
+	id, _ := types.NewEntityIDFromString(entityID)
+	entity := t.store.getEntity(id)
 	if entity == nil {
 		return nil, fmt.Errorf("Entity not found for entityID")
 	}
@@ -241,15 +247,15 @@ func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
 func (t *Tagger) List() types.TaggerListResponse {
 	entities := t.store.listEntities()
 	resp := types.TaggerListResponse{
-		Entities: make(map[string]types.TaggerListEntity),
+		Entities: genericstore.NewObjectStore[types.TaggerListEntity](t.cfg),
 	}
 
 	for _, e := range entities {
-		resp.Entities[e.ID] = types.TaggerListEntity{
+		resp.Entities.Set(e.ID, types.TaggerListEntity{
 			Tags: map[string][]string{
 				remoteSource: e.GetTags(types.HighCardinality),
 			},
-		}
+		})
 	}
 
 	return resp
@@ -339,7 +345,7 @@ func (t *Tagger) processResponse(response *pb.StreamTagsResponse) error {
 		events = append(events, types.EntityEvent{
 			EventType: eventType,
 			Entity: types.Entity{
-				ID:                          convertEntityID(entity.Id),
+				ID:                          types.NewEntityID(types.EntityIDPrefix(entity.Id.Prefix), entity.Id.Uid),
 				HighCardinalityTags:         entity.HighCardinalityTags,
 				OrchestratorCardinalityTags: entity.OrchestratorCardinalityTags,
 				LowCardinalityTags:          entity.LowCardinalityTags,
@@ -417,10 +423,6 @@ func convertEventType(t pb.EventType) (types.EventType, error) {
 	}
 
 	return types.EventTypeAdded, fmt.Errorf("unknown event type: %q", t)
-}
-
-func convertEntityID(id *pb.EntityId) string {
-	return fmt.Sprintf("%s://%s", id.Prefix, id.Uid)
 }
 
 // TODO(components): verify the grpclog is initialized elsewhere and cleanup

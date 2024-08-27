@@ -794,6 +794,13 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// Remote process collector
 	config.BindEnvAndSetDefault("workloadmeta.local_process_collector.collection_interval", DefaultLocalProcessCollectorInterval)
 
+	// Tagger Component
+	// This is a temporary/transient flag used to slowly migrate to a new internal implementation of the tagger.
+	// If set to true, the tagger will store all entities in a 2-layered map, the first map is indexed by prefix, and the second one is indexed by id.
+	// If set to false, the tagger will use the default implementation by storing entities in a one-layer map from plain strings to Tag Entities.
+	// TODO: remove this config option when the migration is finalised.
+	config.BindEnvAndSetDefault("tagger.tagstore_use_composite_entity_id", false)
+
 	// SBOM configuration
 	config.BindEnvAndSetDefault("sbom.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "sbom.")

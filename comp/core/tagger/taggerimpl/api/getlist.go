@@ -45,11 +45,11 @@ func GetTaggerList(w io.Writer, url string) error {
 
 // printTaggerEntities use to print Tagger entities into an io.Writer
 func printTaggerEntities(w io.Writer, tr *types.TaggerListResponse) {
-	for entity, tagItem := range tr.Entities {
-		fmt.Fprintf(w, "\n=== Entity %s ===\n", color.GreenString(entity))
+	tr.Entities.ForEach(func(entityID types.EntityID, tle types.TaggerListEntity) {
+		fmt.Fprintf(w, "\n=== Entity %s ===\n", color.GreenString(entityID.String()))
 
-		sources := make([]string, 0, len(tagItem.Tags))
-		for source := range tagItem.Tags {
+		sources := make([]string, 0, len(tle.Tags))
+		for source := range tle.Tags {
 			sources = append(sources, source)
 		}
 
@@ -64,7 +64,7 @@ func printTaggerEntities(w io.Writer, tr *types.TaggerListResponse) {
 			fmt.Fprint(w, "Tags: [")
 
 			// sort tags for easy comparison
-			tags := tagItem.Tags[source]
+			tags := tle.Tags[source]
 			sort.Slice(tags, func(i, j int) bool {
 				return tags[i] < tags[j]
 			})
@@ -81,5 +81,6 @@ func printTaggerEntities(w io.Writer, tr *types.TaggerListResponse) {
 		}
 
 		fmt.Fprintln(w, "===")
-	}
+	})
+
 }
