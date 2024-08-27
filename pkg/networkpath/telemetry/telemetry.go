@@ -42,6 +42,7 @@ func SubmitNetworkPathTelemetry(sender metricsender.MetricSender, path payload.N
 		"collector:" + string(pathSource),
 		"origin:" + string(path.Origin),
 		"protocol:" + string(path.Protocol),
+		"destination_ip:" + path.Destination.IPAddress,
 		"destination_hostname:" + path.Destination.Hostname,
 		"destination_port:" + destPortTag,
 	}...)

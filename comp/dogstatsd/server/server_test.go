@@ -10,13 +10,14 @@ package server
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"net"
 	"runtime"
 	"sort"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -95,8 +96,7 @@ func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string
 		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmetafxmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		Module(),
 	))
 }
@@ -117,8 +117,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmetafxmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		Module(),
 	))
 }
@@ -148,8 +147,7 @@ func TestStopServer(t *testing.T) {
 		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmetafxmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
@@ -196,8 +194,7 @@ func TestNoRaceOriginTagMaps(t *testing.T) {
 		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmetafxmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
@@ -776,8 +773,7 @@ func TestParseMetricMessageTelemetry(t *testing.T) {
 		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmetafxmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
@@ -941,8 +937,7 @@ func TestParseEventMessageTelemetry(t *testing.T) {
 		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmetafxmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
@@ -992,8 +987,7 @@ func TestParseServiceCheckMessageTelemetry(t *testing.T) {
 		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmetafxmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)

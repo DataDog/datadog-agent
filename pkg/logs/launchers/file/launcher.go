@@ -277,6 +277,10 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 		if s.tailers.Count() >= s.tailingLimit {
 			return
 		}
+
+		if fileprovider.ShouldIgnore(s.validatePodContainerID, file) {
+			continue
+		}
 		if tailer, isTailed := s.tailers.Get(file.GetScanKey()); isTailed {
 			// the file is already tailed, update the existing tailer's source so that the tailer
 			// uses this new source going forward

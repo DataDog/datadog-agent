@@ -69,9 +69,8 @@ func TestHandleKubePod(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -887,9 +886,8 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	), fx.Replace(config.MockParams{Overrides: map[string]any{
 		"kubernetes_persistent_volume_claims_as_tags": false,
 	}}))
@@ -1028,9 +1026,8 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -1147,9 +1144,8 @@ func TestHandleKubeMetadata(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -1236,9 +1232,8 @@ func TestHandleKubeDeployment(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -1378,8 +1373,7 @@ func TestHandleECSTask(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	), fx.Replace(config.MockParams{Overrides: map[string]any{
 		"ecs_collect_resource_tags_ec2": true,
 	}}))
@@ -2191,8 +2185,7 @@ func TestHandleDelete(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -2267,8 +2260,7 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 	fakeStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	collector := NewWorkloadMetaCollector(context.Background(), fakeStore, &fakeProcessor{collectorCh})
 	collector.children = map[string]map[string]struct{}{
