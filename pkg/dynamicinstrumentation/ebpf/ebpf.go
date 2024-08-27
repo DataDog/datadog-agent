@@ -34,105 +34,17 @@ var (
 	globalHeadersPath string
 )
 
-// SetupRingBufferAndHeaders compiles/loads the ringbuffer bpf object
-// and sets up the needed header files for probes in a temporary directory
-func SetupRingBufferAndHeaders() {
-	tempDir, err := os.MkdirTemp("/tmp", "dd-go-di*")
+// SetupEventsMap creates the ringbuffer which all programs will use for sending output
+func SetupEventsMap() error {
+	var err error
+	events, err := ebpf.NewMap(&ebpf.MapSpec{
+		Type:       ebpf.RingBuf,
+		MaxEntries: 1 << 24,
+	})
 	if err != nil {
-		log.Info(err)
+		return fmt.Errorf("could not create bpf map for sharing events with userspace: %w", err)
 	}
-
-	globalTempDirPath = tempDir
-
-	err = setupRingbufferAndHeaders()
-	if err != nil {
-		log.Errorf("couldn't establish bpf ringbuffer: %s", err)
-	}
-}
-
-func setupRingbufferAndHeaders() error {
-	tempDir, err := os.MkdirTemp(globalTempDirPath, "run-*")
-	if err != nil {
-		return fmt.Errorf("couldn't create temp directory: %w", err)
-	}
-
-	headersPath, err := loadHeadersToTmpfs(tempDir)
-	if err != nil {
-		return fmt.Errorf("couldn't load headers to tmpfs: %w", err)
-	}
-
-	globalHeadersPath = headersPath
-
-	objFilePath := filepath.Join(globalTempDirPath, "ringbuffer-go-di.bpf.o")
-	cFlags := []string{
-		"-O2",
-		"-g",
-		"--target=bpf",
-		fmt.Sprintf("-I%s", globalHeadersPath),
-		"-o",
-		objFilePath,
-	}
-
-	// Read ringbuffer source file
-	ringbufferSource, err := os.ReadFile(filepath.Join(headersPath, "ringbuffer.h"))
-	if err != nil {
-		return fmt.Errorf("could not read ringbuffer source code: %w", err)
-	}
-
-	ringbufferSourcePath := filepath.Join(globalTempDirPath, "ringbuffer-go-di.bpf.c")
-
-	err = os.WriteFile(ringbufferSourcePath, ringbufferSource, 0644)
-	if err != nil {
-		return fmt.Errorf("could not write to ringbuffer source code file: %w", err)
-	}
-
-	// // Compile ringbuffer source file
-	// cfg := ddebpf.NewConfig()
-	// khOpts := kernel.HeaderOptions{
-	// 	DownloadEnabled: cfg.EnableKernelHeaderDownload,
-	// 	Dirs:            cfg.KernelHeadersDirs,
-	// 	DownloadDir:     cfg.KernelHeadersDownloadDir,
-	// 	AptConfigDir:    cfg.AptConfigDir,
-	// 	YumReposDir:     cfg.YumReposDir,
-	// 	ZypperReposDir:  cfg.ZypperReposDir,
-	// }
-	// kernelHeaders := kernel.GetKernelHeaders(khOpts, nil)
-	// if len(kernelHeaders) == 0 {
-	// 	return fmt.Errorf("unable to find kernel headers!")
-	// }
-
-	// err = compiler.CompileToObjectFile(ringbufferSourcePath, objFilePath, cFlags, []string{})
-	err = clang(cFlags, ringbufferSourcePath, withStdout(os.Stdout))
-	if err != nil {
-		return fmt.Errorf("could not compile ringbuffer object: %w", err)
-	}
-
-	objFileReader, err := os.Open(objFilePath)
-	if err != nil {
-		return fmt.Errorf("could not open ringbuffer object: %w", err)
-	}
-
-	// Parse the compiled bpf object ELF file
-	spec, err := ebpf.LoadCollectionSpecFromReader(objFileReader)
-	if err != nil {
-		return fmt.Errorf("could not create ringbuffer collection: %w", err)
-	}
-	spec.Maps["events"].Pinning = ebpf.PinByName
-
-	// Load the ebpf object
-	opts := ebpf.CollectionOptions{
-		Maps: ebpf.MapOptions{
-			PinPath: bpffs,
-			LoadPinOptions: ebpf.LoadPinOptions{
-				ReadOnly: true,
-			},
-		},
-	}
-	_, err = ebpf.NewCollectionWithOptions(spec, opts)
-	if err != nil {
-		return fmt.Errorf("could not load ringbuffer collection: %w", err)
-	}
-
+	ditypes.EventsRingbuffer = events
 	return nil
 }
 
@@ -156,14 +68,6 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 		return fmt.Errorf("could not create bpf collection for probe %s: %w", probe.ID, err)
 	}
 
-	if probe.ID != ditypes.ConfigBPFProbeID {
-		// config probe is special and should not be on the same ringbuffer
-		// as the rest of regular events. Despite having the same "events" name,
-		// not using the pinned map means the config program uses a different
-		// ringbuffer.
-		spec.Maps["events"].Pinning = ebpf.PinByName
-	}
-
 	// Load the ebpf object
 	opts := ebpf.CollectionOptions{
 		Maps: ebpf.MapOptions{
@@ -179,6 +83,23 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 		}
 		diagnostics.Diagnostics.SetError(procInfo.ServiceName, procInfo.RuntimeID, probe.ID, "ATTACH_ERROR", err.Error())
 		return fmt.Errorf("could not load bpf collection for probe %s: %w", probe.ID, err)
+	}
+
+	if probe.ID != ditypes.ConfigBPFProbeID {
+		// config probe is special and should not be on the same ringbuffer
+		// as the rest of regular events. Despite having the same "events" name,
+		// not using the pinned map means the config program uses a different
+		// ringbuffer.
+		bpfObject.Maps["events"] = ditypes.EventsRingbuffer
+	} else {
+		configEvents, err := ebpf.NewMap(&ebpf.MapSpec{
+			Type:       ebpf.RingBuf,
+			MaxEntries: 1 << 24,
+		})
+		if err != nil {
+			return fmt.Errorf("could not create bpf map for receiving probe configurations: %w", err)
+		}
+		bpfObject.Maps["events"] = configEvents
 	}
 
 	procInfo.InstrumentationObjects[probe.ID] = bpfObject

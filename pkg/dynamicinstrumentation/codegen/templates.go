@@ -10,13 +10,17 @@ var programTemplateText = `
 #include "bpf_helpers.h"
 #include "bpf_tracing.h"
 #include "go_runtime_types.bpf.h"
-#include "ringbuffer.h"
 
 #define MAX_STRING_SIZE {{.Probe.InstrumentationInfo.InstrumentationOptions.StringMaxSize}}
 #define PARAM_BUFFER_SIZE {{.Probe.InstrumentationInfo.InstrumentationOptions.ArgumentsMaxSize}}
 #define STACK_DEPTH_LIMIT 10
 #define MAX_SLICE_SIZE 1800
 #define MAX_SLICE_LENGTH 20
+
+struct bpf_map_def SEC("maps") events = {
+    .type        = BPF_MAP_TYPE_RINGBUF,
+    .max_entries = 1<<24,
+};
 
 struct bpf_map_def SEC("maps") zeroval = {
     .type        = BPF_MAP_TYPE_ARRAY,

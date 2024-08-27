@@ -64,7 +64,10 @@ type DIOptions struct {
 func RunDynamicInstrumentation(opts *DIOptions) (*GoDI, error) {
 	var goDI *GoDI
 
-	ebpf.SetupRingBufferAndHeaders()
+	err := ebpf.SetupEventsMap()
+	if err != nil {
+		return nil, err
+	}
 
 	if opts.Offline {
 		cm, err := diconfig.NewFileConfigManager(opts.ProbesFilePath)

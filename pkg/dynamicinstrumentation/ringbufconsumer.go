@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/eventparser"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ratelimiter"
-	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/ringbuf"
 )
 
@@ -25,15 +24,7 @@ var (
 
 // startRingbufferConsumer opens the pinned bpf ringbuffer map
 func (goDI *GoDI) startRingbufferConsumer() (func(), error) {
-
-	// Open ringbuffer bpffs pinned map
-	// start consuming, call callback on each
-	m, err := ebpf.LoadPinnedMap(globalEventsRingbufferPinPath, nil)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't load pinned map: %w", err)
-	}
-
-	r, err := ringbuf.NewReader(m)
+	r, err := ringbuf.NewReader(ditypes.EventsRingbuffer)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't set up reader for ringbuffer: %w", err)
 	}

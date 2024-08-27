@@ -5,6 +5,12 @@
 
 package ditypes
 
+import "github.com/cilium/ebpf"
+
+// EventsRingbuffer is the shared ringbuffer which all bpf programs use for communication
+// with userspace
+var EventsRingbuffer *ebpf.Map
+
 // DIEvent represents a single invocation of a function and it's captured information
 type DIEvent struct {
 	ProbeID  string
