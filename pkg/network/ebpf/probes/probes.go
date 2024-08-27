@@ -192,8 +192,8 @@ const (
 	TCPStatsMap BPFMapName = "tcp_stats"
 	// TCPRetransmitsMap is the map storing TCP retransmits
 	TCPRetransmitsMap BPFMapName = "tcp_retransmits"
-	// TCPConnectSockPidMap is the map storing the PIDs of ongoing TCP connections
-	TCPConnectSockPidMap BPFMapName = "tcp_ongoing_connect_pid"
+	// TCPOngoingConnectPid is a map storing ongoing TCP connection PIDs by socket
+	TCPOngoingConnectPid BPFMapName = "tcp_ongoing_connect_pid"
 	// TCPFailureTelemetryMap is the map storing legacy telemetry for failed connections
 	TCPFailureTelemetryMap BPFMapName = "tcp_failed_connect_telemetry"
 	// ConnCloseFlushed is the map storing closed connections that were already flushed

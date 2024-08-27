@@ -21,7 +21,7 @@ func initManager(mgr *ddebpf.Manager, connCloseEventHandler ddebpf.EventHandler,
 	mgr.Maps = []*manager.Map{
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
-		{Name: probes.TCPConnectSockPidMap},
+		{Name: probes.TCPOngoingConnectPid},
 		{Name: probes.TCPFailureTelemetryMap},
 		{Name: probes.ConnCloseFlushed},
 		{Name: probes.ConnCloseBatchMap},

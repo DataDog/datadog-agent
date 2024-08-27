@@ -35,12 +35,10 @@ var failureTelemetry = struct {
 	failedConnMatches  telemetry.Counter
 	failedConnOrphans  telemetry.Counter
 	failedConnsDropped telemetry.Counter
-	orphanOngoingConns telemetry.Counter
 }{
 	telemetry.NewCounter(telemetryModuleName, "matches", []string{"type"}, "Counter measuring the number of successful matches of failed connections with closed connections"),
 	telemetry.NewCounter(telemetryModuleName, "orphans", []string{}, "Counter measuring the number of orphans after associating failed connections with a closed connection"),
 	telemetry.NewCounter(telemetryModuleName, "dropped", []string{}, "Counter measuring the number of dropped failed connections"),
-	telemetry.NewCounter(telemetryModuleName, "orphan_ongoing_conns", []string{}, "Counter measuring the number of orphaned ongoing connections"),
 }
 
 // FailedConnStats is a wrapper to help document the purpose of the underlying map
@@ -164,26 +162,6 @@ func (fc *FailedConns) setupMapCleaner(m *manager.Manager) {
 	connFlushedCleaner.Clean(time.Second*1, nil, nil, func(now int64, _ ebpf.ConnTuple, val int64) bool {
 		return val > 0 && now-val > connClosedFlushMapTTL
 	})
-
-	//tcpOngoingConnectMap, _, err := m.GetMap(probes.TCPConnectSockPidMap)
-	//if err != nil {
-	//	log.Errorf("error getting %v map: %s", probes.TCPConnectSockPidMap, err)
-	//	return
-	//}
-
-	//tcpOngoingConnectCleaner, err := ddebpf.NewMapCleaner[ebpf.ConnTuple, int64](tcpOngoingConnectMap, 1024)
-	//if err != nil {
-	//	log.Errorf("error creating map cleaner: %s", err)
-	//	return
-	//}
-	//
-	//tcpOngoingConnectCleaner.Clean(time.Minute*30, nil, nil, func(now int64, _ ebpf.ConnTuple, val int64) bool {
-	//	remove := val > 0 && now-val > tcpOngoingConnectMapTTL
-	//	if remove {
-	//		failureTelemetry.orphanOngoingConns.Inc()
-	//	}
-	//	return remove
-	//})
 
 	fc.mapCleaner = connFlushedCleaner
 }
