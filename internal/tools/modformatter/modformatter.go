@@ -193,7 +193,7 @@ func main() {
 			if *formatFile {
 				writeNeeded = true
 				trimName := strings.Split(modname, "github.com/DataDog/datadog-agent/")[1]
-				trimPath := "." + strings.Split(*path, *repoPath)[1]
+				trimPath := "." + strings.TrimPrefix(*path, *repoPath)
 				relativePath, err := filepath.Rel(trimPath, trimName)
 				if err != nil {
 					log.Fatal(err)
