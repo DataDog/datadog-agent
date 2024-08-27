@@ -92,9 +92,10 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 
 			fmt.Println("UNGABUNGA WACK ANDREWQ")
 			if err != nil {
+				fmt.Println("andrewq ERROR IS", err)
 				return nil, err
 			}
-			fmt.Println("NO ERROR? XD?")
+			fmt.Println("andrewq NO ERROR? XD?")
 			c.LogsConfig = log
 		}
 
