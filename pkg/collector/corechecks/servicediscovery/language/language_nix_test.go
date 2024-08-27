@@ -13,24 +13,6 @@ import (
 	"testing"
 )
 
-func TestNew(t *testing.T) {
-	f := New()
-	count := 0
-	for _, v := range f.Matchers {
-		switch v.(type) {
-		case PythonScript:
-			count |= 1
-		case RubyScript:
-			count |= 2
-		case DotNetBinary:
-			count |= 4
-		}
-	}
-	if count != 7 {
-		t.Error("Missing a matcher")
-	}
-}
-
 func Test_findInArgs(t *testing.T) {
 	data := []struct {
 		name string
@@ -61,48 +43,6 @@ func Test_findInArgs(t *testing.T) {
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
 			result := FindInArgs(d.args)
-			if result != d.lang {
-				t.Errorf("got %v, want %v", result, d.lang)
-			}
-		})
-	}
-}
-
-func TestFinder_findLang(t *testing.T) {
-	f := New()
-	data := []struct {
-		name string
-		pi   ProcessInfo
-		lang Language
-	}{
-		{
-			name: "dotnet binary",
-			pi: ProcessInfo{
-				Args: strings.Split("testdata/dotnet/linuxdotnettest a b c", " "),
-				Envs: map[string]string{"PATH": "/usr/bin"},
-			},
-			lang: DotNet,
-		},
-		{
-			name: "dotnet",
-			pi: ProcessInfo{
-				Args: strings.Split("dotnet run mydll.dll a b c", " "),
-				Envs: map[string]string{"PATH": "/usr/bin"},
-			},
-			lang: DotNet,
-		},
-		{
-			name: "native",
-			pi: ProcessInfo{
-				Args: strings.Split("./myproc a b c", " "),
-				Envs: map[string]string{"PATH": "/usr/bin"},
-			},
-			lang: "",
-		},
-	}
-	for _, d := range data {
-		t.Run(d.name, func(t *testing.T) {
-			result := f.findLang(d.pi)
 			if result != d.lang {
 				t.Errorf("got %v, want %v", result, d.lang)
 			}
@@ -173,50 +113,6 @@ func TestProcessInfoFileReader(t *testing.T) {
 			}
 			if rc != nil {
 				rc.Close()
-			}
-		})
-	}
-}
-
-func TestFinderDetect(t *testing.T) {
-	f := New()
-	data := []struct {
-		name string
-		args []string
-		envs map[string]string
-		lang Language
-		ok   bool
-	}{
-		{
-			name: "dotnet binary",
-			args: strings.Split("testdata/dotnet/linuxdotnettest a b c", " "),
-			envs: map[string]string{"PATH": "/usr/bin"},
-			lang: DotNet,
-			ok:   true,
-		},
-		{
-			name: "dotnet",
-			args: strings.Split("dotnet run mydll.dll a b c", " "),
-			envs: map[string]string{"PATH": "/usr/bin"},
-			lang: DotNet,
-			ok:   true,
-		},
-		{
-			name: "native",
-			args: strings.Split("./myproc a b c", " "),
-			envs: map[string]string{"PATH": "/usr/bin"},
-			lang: Unknown,
-			ok:   false,
-		},
-	}
-	for _, d := range data {
-		t.Run(d.name, func(t *testing.T) {
-			result, ok := f.Detect(d.args, d.envs)
-			if ok != d.ok {
-				t.Errorf("got %v, want %v", ok, d.ok)
-			}
-			if result != d.lang {
-				t.Errorf("got %v, want %v", result, d.lang)
 			}
 		})
 	}
