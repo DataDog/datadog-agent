@@ -426,10 +426,9 @@ func TestNodeDocker(t *testing.T) {
 	pid := int(nodeJSPID)
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		portMap := getServicesMap(t, url)
-		assert.Contains(collect, portMap, pid)
-		fmt.Println(portMap[pid])
-		assert.Equal(collect, "nodejs-https-server", portMap[pid].Name)
+		svcMap := getServicesMap(t, url)
+		assert.Contains(collect, svcMap, pid)
+		assert.Equal(collect, "nodejs-https-server", svcMap[pid].Name)
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
