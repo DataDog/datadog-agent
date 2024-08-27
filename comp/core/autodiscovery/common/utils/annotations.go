@@ -217,10 +217,12 @@ func extractCheckNamesFromMap(annotations map[string]string, prefix string, lega
 		if err != nil {
 			return nil, err
 		}
+
 		checkNames := make([]string, 0, len(checks))
 		for _, config := range checks {
 			checkNames = append(checkNames, config.Name)
 		}
+
 		return checkNames, nil
 	}
 

@@ -65,17 +65,17 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse check configuration: %w", err)
 	}
-	// docker run -l com.datadoghq.ad.checks="{\"<INTEGRATION_NAME>\": {\"instances\": [<INSTANCE_CONFIG>], \"logs\": [<LOGS_CONFIG>]}}"
-	// docker run -l "com.datadoghq.ad.checks="{\"apache\": {\"logs\": [{\"type\":\"file\"}]}}""
 
 	checks := make([]integration.Config, 0, len(namedChecks))
 	for name, config := range namedChecks {
 		if config.Name != "" {
 			name = config.Name
 		}
+
 		if len(config.InitConfig) == 0 {
 			config.InitConfig = json.RawMessage("{}")
 		}
+
 		c := integration.Config{
 			Name:                    name,
 			InitConfig:              integration.Data(config.InitConfig),
