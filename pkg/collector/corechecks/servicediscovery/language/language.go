@@ -9,10 +9,6 @@
 package language
 
 import (
-	"io"
-	"os"
-	"strings"
-
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
@@ -58,42 +54,10 @@ var (
 	}
 )
 
-func findFile(fileName string) (io.ReadCloser, bool) {
-	f, err := os.Open(fileName)
-	if err != nil {
-		return nil, false
-	}
-	return f, true
-}
-
 // ProcessInfo holds information about a process.
 type ProcessInfo struct {
 	Args []string
 	Envs map[string]string
-}
-
-// FileReader attempts to read the most representative file associated to a process.
-func (pi ProcessInfo) FileReader() (io.ReadCloser, bool) {
-	if len(pi.Args) == 0 {
-		return nil, false
-	}
-	fileName := pi.Args[0]
-	// if it's an absolute path, use it
-	if strings.HasPrefix(fileName, "/") {
-		return findFile(fileName)
-	}
-	if val, ok := pi.Envs["PATH"]; ok {
-		paths := strings.Split(val, ":")
-		for _, path := range paths {
-			if r, found := findFile(path + string(os.PathSeparator) + fileName); found {
-				return r, true
-			}
-		}
-
-	}
-
-	// well, just try it as a relative path, maybe it works
-	return findFile(fileName)
 }
 
 // FindInArgs tries to detect the language only using the provided command line arguments.
