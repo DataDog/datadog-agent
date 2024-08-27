@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Change ``datadog-security-agent`` display name from  ``Datadog Security Service`` to
+    ``Datadog Security Agent`` for consistency with other Agent services.
