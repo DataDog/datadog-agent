@@ -32,6 +32,7 @@ import (
 	corecomp "github.com/DataDog/datadog-agent/comp/core/config"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -2203,20 +2204,20 @@ func TestLoadEnv(t *testing.T) {
 
 func TestFargateConfig(t *testing.T) {
 	type testData struct {
-		features             []coreconfig.Feature
+		features             []env.Feature
 		expectedOrchestrator traceconfig.FargateOrchestratorName
 	}
 	for _, data := range []testData{
 		{
-			features:             []coreconfig.Feature{coreconfig.ECSFargate},
+			features:             []env.Feature{env.ECSFargate},
 			expectedOrchestrator: traceconfig.OrchestratorECS,
 		},
 		{
-			features:             []coreconfig.Feature{coreconfig.EKSFargate},
+			features:             []env.Feature{env.EKSFargate},
 			expectedOrchestrator: traceconfig.OrchestratorEKS,
 		},
 		{
-			features:             []coreconfig.Feature{},
+			features:             []env.Feature{},
 			expectedOrchestrator: traceconfig.OrchestratorUnknown,
 		},
 	} {

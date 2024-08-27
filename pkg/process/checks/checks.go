@@ -13,6 +13,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -132,7 +133,7 @@ func canEnableContainerChecks(config ddconfig.Reader, displayFeatureWarning bool
 	if config.GetBool("process_config.process_collection.enabled") {
 		return false
 	}
-	if !ddconfig.IsAnyContainerFeaturePresent() {
+	if !env.IsAnyContainerFeaturePresent() {
 		if displayFeatureWarning {
 			_ = log.Warn("Disabled container checks because no container environment detected (see list of detected features in `agent status`)")
 		}

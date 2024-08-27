@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 )
 
 // newMock exported mock builder to allow modifying mocks that might be
@@ -28,7 +29,7 @@ func newMock(deps Dependencies, _ testing.TB) (Component, error) {
 		AgentConfig: traceCfg,
 	}
 
-	c.SetMaxMemCPU(pkgconfig.IsContainerized())
+	c.SetMaxMemCPU(env.IsContainerized())
 
 	return &c, nil
 }

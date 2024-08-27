@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
 	"github.com/stretchr/testify/assert"

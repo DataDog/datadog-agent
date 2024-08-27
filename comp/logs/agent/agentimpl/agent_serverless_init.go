@@ -12,8 +12,9 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -69,5 +70,13 @@ func (a *logAgent) SetupPipeline(
 
 // buildEndpoints builds endpoints for the logs agent
 func buildEndpoints(coreConfig pkgConfig.Reader) (*config.Endpoints, error) {
-	return config.BuildServerlessEndpoints(coreConfig, intakeTrackType, config.DefaultIntakeProtocol)
+	config, err := config.BuildServerlessEndpoints(coreConfig, intakeTrackType, config.DefaultIntakeProtocol)
+	if err != nil {
+		return nil, err
+	}
+	if env.IsServerless() {
+		// in AWS Lambda, we never want the batch strategy to flush with a tick
+		config.BatchWait = 365 * 24 * time.Hour
+	}
+	return config, nil
 }
