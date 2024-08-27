@@ -836,6 +836,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
         offset += topic_name_size;
     }
     response->state = KAFKA_PRODUCE_RESPONSE_NUM_PARTITIONS;
+    // fallthrough
 
     case KAFKA_PRODUCE_RESPONSE_NUM_PARTITIONS:
     {
