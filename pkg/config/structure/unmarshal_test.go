@@ -112,3 +112,22 @@ endpoints:
 	assert.Equal(t, endpoints[2].Name, "health")
 	assert.Equal(t, endpoints[2].APIKey, "abc3")
 }
+
+type FeatureConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+func TestUnmarshalKeyParseStringAsBool(t *testing.T) {
+	confYaml := `
+feature:
+  enabled: "true"
+`
+	mockConfig := pkgconfigsetup.ConfFromYAML(confYaml)
+	mockConfig.SetKnown("feature")
+
+	var feature = FeatureConfig{}
+	err := UnmarshalKey(mockConfig, "feature", &feature)
+	assert.NoError(t, err)
+
+	assert.Equal(t, feature.Enabled, true)
+}

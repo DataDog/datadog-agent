@@ -181,8 +181,14 @@ func (n *leafimpl) GetBool() (bool, error) {
 	if n.val.Kind() == reflect.Bool {
 		return n.val.Bool(), nil
 	}
+	if n.val.Kind() == reflect.String {
+		if n.val.String() == "true" {
+			return true, nil
+		} else if n.val.String() == "false" {
+			return false, nil
+		}
+	}
 	return false, conversionError(n.val, "bool")
-
 }
 
 // GetInt returns the scalar as a int, or an error otherwise
