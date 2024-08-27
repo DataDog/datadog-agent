@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package extensionimpl defines the OpenTelemetry Extension implementation.
-package extensionimpl
+// Package ddflareextensionimpl defines the OpenTelemetry Extension implementation.
+package ddflareextensionimpl
 
 import (
 	"testing"

@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package extensionfx provides fx access for the provider component
-package extensionfx
+// Package ddflareextensionfx provides fx access for the provider component
+package ddflareextensionfx
 
 import (
-	extension "github.com/DataDog/datadog-agent/comp/otelcol/extension/def"
-	extensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/extension/impl"
+	extension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
+	extensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

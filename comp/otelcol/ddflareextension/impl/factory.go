@@ -3,15 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package extensionimpl defines the OpenTelemetry Extension implementation.
-package extensionimpl
+// Package ddflareextensionimpl defines the OpenTelemetry Extension implementation.
+package ddflareextensionimpl
 
 import (
 	"context"
 	"fmt"
 
 	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/def"
-	"github.com/DataDog/datadog-agent/comp/otelcol/extension/impl/internal/metadata"
+	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/extension"

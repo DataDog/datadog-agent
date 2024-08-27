@@ -10,10 +10,8 @@ import (
 	"go.opentelemetry.io/collector/component"
 )
 
-var (
-	// Type is the OpenTelemetry type for the extenstion
-	Type = component.MustNewType("datadog")
-)
+// Type is the OpenTelemetry type for the extenstion
+var Type = component.MustNewType("ddflare")
 
 const (
 	// ExtensionStability is the OpenTelemetry current stability level for the extenstion
