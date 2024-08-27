@@ -108,7 +108,6 @@ func TestObjectStore_Size(t *testing.T) {
 }
 
 func TestObjectStore_ListObjects(t *testing.T) {
-
 	test := func(t *testing.T, isComposite bool) {
 		// initialise store
 		cfg := configmock.New(t)

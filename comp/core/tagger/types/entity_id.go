@@ -29,25 +29,19 @@ type defaultEntityID string
 
 // GetID implements EntityID#GetID
 func (de defaultEntityID) GetID() string {
-	if strings.Contains(string(de), "://") {
-		return string(de)
-	}
+	parts := strings.SplitN(string(de), "://", 2)
 
-	parts := strings.Split(string(de), "://")
 	if len(parts) != 2 {
 		return ""
 	}
 
-	return parts[0]
+	return parts[1]
 }
 
 // GetPrefix implements EntityID#GetPrefix
 func (de defaultEntityID) GetPrefix() EntityIDPrefix {
-	if strings.Contains(string(de), "://") {
-		return EntityIDPrefix(de)
-	}
+	parts := strings.SplitN(string(de), "://", 2)
 
-	parts := strings.Split(string(de), "://")
 	if len(parts) != 2 {
 		return ""
 	}
@@ -96,6 +90,7 @@ func newCompositeEntityID(prefix EntityIDPrefix, id string) EntityID {
 // NewEntityID builds and returns an EntityID object based on plain string uid
 // Currently, it defaults to the default implementation of EntityID as a plain string
 func NewEntityID(prefix EntityIDPrefix, id string) EntityID {
+	// TODO: use composite entity id always or use component framework for config component
 	if config.Datadog().GetBool("tagger.tagstore_use_composite_entity_id") {
 		return newCompositeEntityID(prefix, id)
 	}
@@ -132,17 +127,3 @@ const (
 	// Process is the prefix `process`
 	Process EntityIDPrefix = "process"
 )
-
-// AllPrefixesSet returns a set of all possible entity id prefixes that can be used in the tagger
-func AllPrefixesSet() map[EntityIDPrefix]struct{} {
-	return map[EntityIDPrefix]struct{}{
-		ContainerID:            {},
-		ContainerImageMetadata: {},
-		ECSTask:                {},
-		Host:                   {},
-		KubernetesDeployment:   {},
-		KubernetesMetadata:     {},
-		KubernetesPodUID:       {},
-		Process:                {},
-	}
-}
