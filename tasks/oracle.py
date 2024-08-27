@@ -27,6 +27,7 @@ def test(ctx, verbose=False) -> None:
     finally:
         clean(ctx, verbose)
 
+
 @task
 def start_docker(ctx, verbose=False) -> None:
     # Start a local oracle instance
@@ -56,6 +57,7 @@ def start_docker(ctx, verbose=False) -> None:
             ctx.run("docker inspect --format \"{{json .State.Health }}\" compose-oracle-1 | jq")
             ctx.run("docker logs compose-oracle-1")
             raise Exit(message='docker failed to start', code=1)
+
 
 @task
 def clean(ctx, verbose=False) -> None:
