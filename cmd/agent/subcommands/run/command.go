@@ -351,8 +351,7 @@ func getSharedFxOption() fx.Option {
 
 		// workloadmeta setup
 		wmcatalog.GetCatalog(),
-		fx.Provide(defaults.DefaultParams),
-		workloadmetafx.Module(),
+		workloadmetafx.Module(defaults.DefaultParams()),
 		fx.Supply(
 			status.Params{
 				PythonVersionGetFunc: python.GetPythonVersion,
