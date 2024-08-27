@@ -25,7 +25,7 @@ type DetectorContextMap map[int]interface{}
 
 // DetectorContextMap keys enum
 const (
-	NodePackageJsonPath = iota
+	NodePackageJSONPath = iota
 )
 
 const (

@@ -143,7 +143,7 @@ func isNodeInstrumented(f *os.File) bool {
 // the parent directories of the service. If found, we then check for a
 // `dd-trace` entry to be present.
 func nodeDetector(_ int, _ []string, _ map[string]string, contextMap usm.DetectorContextMap) Instrumentation {
-	pkgJSONPath, ok := contextMap[usm.NodePackageJsonPath]
+	pkgJSONPath, ok := contextMap[usm.NodePackageJSONPath]
 	if !ok {
 		return None
 	}

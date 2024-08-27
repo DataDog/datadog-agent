@@ -372,18 +372,16 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 	assert.NoError(t, err)
 
 	testCases := map[string]struct {
-		commandline      []string // The command line of the fake server
-		workingDirectory string   // Optional: The working directory to use for the server.
-		language         language.Language
+		commandline []string // The command line of the fake server
+		language    language.Language
 	}{
 		"java": {
 			commandline: []string{"java", "-javaagent:/path/to/dd-java-agent.jar", "-jar", "foo.jar"},
 			language:    language.Java,
 		},
 		"node": {
-			commandline:      []string{"node"},
-			workingDirectory: filepath.Join(curDir, "testdata"),
-			language:         language.Node,
+			commandline: []string{"node", filepath.Join(curDir, "testdata", "server.js")},
+			language:    language.Node,
 		},
 	}
 
@@ -397,7 +395,6 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 
 			bin := filepath.Join(serverDir, test.commandline[0])
 			cmd := exec.CommandContext(ctx, bin, test.commandline[1:]...)
-			cmd.Dir = test.workingDirectory
 			err := cmd.Start()
 			require.NoError(t, err)
 
