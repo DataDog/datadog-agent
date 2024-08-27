@@ -1,10 +1,11 @@
+using Datadog.CustomActions.Extensions;
+using Datadog.CustomActions.Interfaces;
+using Microsoft.Deployment.WindowsInstaller;
 using System;
 using System.IO;
 using System.Reflection;
-using Datadog.CustomActions.Extensions;
-using Microsoft.Deployment.WindowsInstaller;
 
-namespace Datadog.CustomActions.Interfaces
+namespace Datadog.CustomActions
 {
     public class InstallInfoCustomActions
     {
@@ -46,7 +47,6 @@ install_method:
             return ActionResult.Success;
         }
 
-        [CustomAction]
         public static ActionResult WriteInstallInfo(Session session)
         {
             return WriteInstallInfo(new SessionWrapper(session));
