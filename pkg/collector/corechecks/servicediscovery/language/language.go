@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
@@ -114,6 +115,21 @@ func FindInArgs(args []string) Language {
 	if lang == nil {
 		return ""
 	}
+	if outLang, ok := languageNameToLanguageMap[lang.Name]; ok {
+		return outLang
+	}
+
+	return ""
+}
+
+// FindUsingPrivilegedDetector tries to detect the language using the provided command line arguments
+func FindUsingPrivilegedDetector(detector privileged.LanguageDetector, pid int32) Language {
+	langs := detector.DetectWithPrivileges([]languagemodels.Process{&procutil.Process{Pid: pid}})
+	if len(langs) == 0 {
+		return ""
+	}
+
+	lang := langs[0]
 	if outLang, ok := languageNameToLanguageMap[lang.Name]; ok {
 		return outLang
 	}
