@@ -411,7 +411,7 @@ func testCaptureWrappedCommands(t *testing.T, script string, commandWrapper []st
 	// are looking at the right process.
 	if cmdline == strings.Join(commandLineArgs, " ") && len(commandWrapper) > 0 {
 		var children []*process.Process
-		assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			children, err = proc.Children()
 			assert.NoError(collect, err)
 			assert.Len(collect, children, 1)
