@@ -240,7 +240,7 @@ type ProbeManager interface {
 
 // FileRegistry is an interface that defines the methods that a FileRegistry implements, so that we can replace it in tests for a mock object
 type FileRegistry interface {
-	Register(namespacedPath string, pid uint32, activationCB, deactivationCB utils.Callback) error
+	Register(namespacedPath string, pid uint32, activationCB, deactivationCB, alreadyRegistered utils.Callback) error
 	Unregister(uint32) error
 	Clear()
 	GetRegisteredProcesses() map[uint32]struct{}
@@ -540,7 +540,7 @@ func (ua *UprobeAttacher) AttachLibrary(path string, pid uint32) error {
 
 	registerCB, unregisterCB := ua.buildRegisterCallbacks(matchingRules, NewProcInfo(ua.config.ProcRoot, pid))
 
-	return ua.fileRegistry.Register(path, pid, registerCB, unregisterCB)
+	return ua.fileRegistry.Register(path, pid, registerCB, unregisterCB, utils.IgnoreCB)
 }
 
 // getRulesForLibrary returns the rules that match the given library path
@@ -629,7 +629,7 @@ func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) er
 
 		if len(matchingRules) != 0 {
 			registerCB, unregisterCB := ua.buildRegisterCallbacks(matchingRules, procInfo)
-			err = ua.fileRegistry.Register(binPath, pid, registerCB, unregisterCB)
+			err = ua.fileRegistry.Register(binPath, pid, registerCB, unregisterCB, utils.IgnoreCB)
 			if err != nil {
 				return err
 			}

@@ -4,6 +4,7 @@ import base64
 import json
 import os
 import platform
+import re
 import subprocess
 from collections.abc import Iterable
 from functools import lru_cache
@@ -14,6 +15,7 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import GITHUB_REPO_NAME
 
 try:
+    import semver
     from github import Auth, Github, GithubException, GithubIntegration, GithubObject, PullRequest
     from github.NamedUser import NamedUser
 except ImportError:
@@ -23,6 +25,8 @@ except ImportError:
 from invoke.exceptions import Exit
 
 __all__ = ["GithubAPI"]
+
+RELEASE_BRANCH_PATTERN = re.compile(r"\d+\.\d+\.x")
 
 
 class GithubAPI:
@@ -197,6 +201,25 @@ class GithubAPI:
     def latest_release(self) -> str:
         release = self._repository.get_latest_release()
         return release.title
+
+    def latest_unreleased_release_branches(self):
+        """
+        Get all the release branches that are newer than the latest release.
+        """
+        release = self._repository.get_latest_release()
+        released_version = semver.VersionInfo.parse(release.title)
+
+        for branch in self.release_branches():
+            if semver.VersionInfo.parse(branch.name.replace("x", "0")) > released_version:
+                yield branch
+
+    def release_branches(self):
+        """
+        Yield all the branches that match the release branch pattern (A.B.x).
+        """
+        for branch in self._repository.get_branches():
+            if RELEASE_BRANCH_PATTERN.match(branch.name):
+                yield branch
 
     def get_rate_limit_info(self):
         """

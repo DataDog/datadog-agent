@@ -228,6 +228,7 @@ func (m *nodeJSMonitor) AttachPID(pid uint32) error {
 		pid,
 		m.registerCB,
 		m.unregisterCB,
+		utils.IgnoreCB,
 	)
 }
 

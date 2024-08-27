@@ -291,7 +291,7 @@ func TestMonitor(t *testing.T) {
 	// Tell mockRegistry to return on any calls, we will check the values later
 	mockRegistry.On("Clear").Return()
 	mockRegistry.On("Unregister", mock.Anything).Return(nil)
-	mockRegistry.On("Register", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mockRegistry.On("Register", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	lib := getLibSSLPath(t)
 
 	require.NoError(t, ua.Start())
@@ -303,8 +303,8 @@ func TestMonitor(t *testing.T) {
 		return methodHasBeenCalledAtLeastTimes(mockRegistry, "Register", 2)
 	}, 1500*time.Millisecond, 10*time.Millisecond, "received calls %v", mockRegistry.Calls)
 
-	mockRegistry.AssertCalled(t, "Register", lib, uint32(cmd.Process.Pid), mock.Anything, mock.Anything)
-	mockRegistry.AssertCalled(t, "Register", cmd.Path, uint32(cmd.Process.Pid), mock.Anything, mock.Anything)
+	mockRegistry.AssertCalled(t, "Register", lib, uint32(cmd.Process.Pid), mock.Anything, mock.Anything, mock.Anything)
+	mockRegistry.AssertCalled(t, "Register", cmd.Path, uint32(cmd.Process.Pid), mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestSync(t *testing.T) {
@@ -339,8 +339,8 @@ func TestSync(t *testing.T) {
 		ua.fileRegistry = mockRegistry
 
 		// Tell mockRegistry which two processes to expect
-		mockRegistry.On("Register", "/bin/bash", uint32(1), mock.Anything, mock.Anything).Return(nil)
-		mockRegistry.On("Register", "/bin/bash", uint32(2), mock.Anything, mock.Anything).Return(nil)
+		mockRegistry.On("Register", "/bin/bash", uint32(1), mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		mockRegistry.On("Register", "/bin/bash", uint32(2), mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 		err = ua.Sync(true, false)
 		require.NoError(tt, err)
@@ -371,8 +371,8 @@ func TestSync(t *testing.T) {
 		ua.fileRegistry = mockRegistry
 
 		// Tell mockRegistry which two processes to expect
-		mockRegistry.On("Register", "/bin/bash", uint32(1), mock.Anything, mock.Anything).Return(nil)
-		mockRegistry.On("Register", "/bin/bash", uint32(2), mock.Anything, mock.Anything).Return(nil)
+		mockRegistry.On("Register", "/bin/bash", uint32(1), mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		mockRegistry.On("Register", "/bin/bash", uint32(2), mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		mockRegistry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{})
 
 		err = ua.Sync(true, true)
@@ -610,7 +610,7 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 	mockMan.On("AddHook", mock.Anything, expectedProbe).Return(nil)
 
 	// Tell the registry to expect the process
-	registry.On("Register", target.HostPath, uint32(proc.Pid), mock.Anything, mock.Anything).Return(nil)
+	registry.On("Register", target.HostPath, uint32(proc.Pid), mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// if this function calls the manager adding a probe with a different name than the one we requested, the test
 	// will fail
@@ -804,7 +804,7 @@ func (s *SharedLibrarySuite) TestSingleFile() {
 	// Tell mockRegistry to return on any calls, we will check the values later
 	mockRegistry.On("Clear").Return()
 	mockRegistry.On("Unregister", mock.Anything).Return(nil)
-	mockRegistry.On("Register", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mockRegistry.On("Register", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	require.NoError(t, ua.Start())
 	t.Cleanup(ua.Stop)
@@ -816,7 +816,7 @@ func (s *SharedLibrarySuite) TestSingleFile() {
 		return methodHasBeenCalledTimes(mockRegistry, "Register", 1)
 	}, 1500*time.Millisecond, 10*time.Millisecond, "received calls %v", mockRegistry.Calls)
 
-	mockRegistry.AssertCalled(t, "Register", fooPath1, uint32(cmd.Process.Pid), mock.Anything, mock.Anything)
+	mockRegistry.AssertCalled(t, "Register", fooPath1, uint32(cmd.Process.Pid), mock.Anything, mock.Anything, mock.Anything)
 
 	mockRegistry.Calls = nil
 	require.NoError(t, cmd.Process.Kill())
@@ -867,7 +867,7 @@ func (s *SharedLibrarySuite) TestDetectionWithPIDAndRootNamespace() {
 	// Tell mockRegistry to return on any calls, we will check the values later
 	mockRegistry.On("Clear").Return()
 	mockRegistry.On("Unregister", mock.Anything).Return(nil)
-	mockRegistry.On("Register", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mockRegistry.On("Register", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	require.NoError(t, ua.Start())
 	t.Cleanup(ua.Stop)

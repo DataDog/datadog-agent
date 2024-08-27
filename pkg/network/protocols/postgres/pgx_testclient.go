@@ -12,6 +12,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -44,6 +45,24 @@ func (c *PGXClient) Ping() error {
 	return c.DB.Ping(ctx)
 }
 
+// Begin starts a new transaction.
+func (c *PGXClient) Begin() (pgx.Tx, error) {
+	if c.DB == nil {
+		return nil, errors.New("db handle is nil")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	return c.DB.Begin(ctx)
+}
+
+// Commit commits the transaction.
+func (c *PGXClient) Commit(tx pgx.Tx) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return tx.Commit(ctx)
+}
+
 // Close closes the connection to the database.
 func (c *PGXClient) Close() {
 	c.DB.Close()
@@ -51,9 +70,38 @@ func (c *PGXClient) Close() {
 
 // RunQuery runs a query on the database.
 func (c *PGXClient) RunQuery(query string, args ...any) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	res, err := c.DB.Query(ctx, query, args...)
 	res.Close()
 	return err
+}
+
+// RunQueryTX runs a query on the database in the context of a transaction.
+func (c *PGXClient) RunQueryTX(tx pgx.Tx, query string, args ...any) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	res, err := tx.Query(ctx, query, args...)
+	res.Close()
+	return err
+}
+
+// SendBatch sends a batch of queries to the database.
+func (c *PGXClient) SendBatch(queries ...string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	batch := &pgx.Batch{}
+	for _, query := range queries {
+		batch.Queue(query)
+	}
+	batchObj := c.DB.SendBatch(ctx, batch)
+	defer batchObj.Close()
+	for i := 0; i < len(queries); i++ {
+		_, err := batchObj.Exec()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

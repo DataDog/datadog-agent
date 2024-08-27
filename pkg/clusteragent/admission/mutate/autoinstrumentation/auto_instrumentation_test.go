@@ -246,6 +246,9 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			require.Equal(t, volumeName, tt.pod.Spec.Volumes[0].Name,
 				"expected datadog volume to be injected")
 
+			require.Equal(t, etcVolume.Name, tt.pod.Spec.Volumes[1].Name,
+				"expected datadog-etc volume to be injected")
+
 			require.Equal(t, len(tt.libInfo.libs)+1, len(tt.pod.Spec.InitContainers),
 				"expected there to be one more than the number of libs to inject for init containers")
 
@@ -253,7 +256,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 
 				var injectorMountPath string
 
-				if i == 0 { // check init container
+				if i == 0 { // check inject container
 					require.Equal(t, "datadog-init-apm-inject", c.Name,
 						"expected the first init container to be apm-inject")
 					require.Equal(t, tt.expectedInjectorImage, c.Image,
@@ -273,18 +276,22 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 
 				// each of the init containers writes a timestamp to their given volume mount path
 				require.Equal(t, 1, len(c.Args), "expected container args")
-				_, suffix, found := strings.Cut(c.Args[0], "&&")
-				require.True(t, found, "expected container args separated by &&")
-				echoDate, toFile, found := strings.Cut(suffix, ">>")
-				require.True(t, found, "expected container args with piping redirection")
-				require.Equal(t, "echo $(date +%s)", strings.TrimSpace(echoDate), "expected container args with date")
-				require.Equal(t, injectorMountPath+"/c-init-time."+c.Name, strings.TrimSpace(toFile),
-					"expected to write to file based on the container name")
+				// the last part of each of the init container's command should be writing
+				// a timestamp based on the name of the container.
+				expectedTimestampPath := injectorMountPath + "/c-init-time." + c.Name
+				cmdTail := "&& echo $(date +%s) >> " + expectedTimestampPath
+				require.Contains(t, c.Args[0], cmdTail, "expected args to contain %s", cmdTail)
+				prefix, found := strings.CutSuffix(c.Args[0], cmdTail)
+				require.True(t, found, "expected args to end with %s ", cmdTail)
+
+				if i == 0 { // inject container
+					require.Contains(t, prefix, "&& echo /opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so > /datadog-etc/ld.so.preload")
+				}
 			}
 
-			// two volume mounts
+			// three volume mounts
 			mounts := tt.pod.Spec.Containers[0].VolumeMounts
-			require.Equal(t, 2, len(mounts), "expected 2 volume mounts in the application container")
+			require.Equal(t, 3, len(mounts), "expected 3 volume mounts in the application container")
 			require.Equal(t, corev1.VolumeMount{
 				Name:      volumeName,
 				MountPath: "/opt/datadog-packages/datadog-apm-inject",
@@ -292,10 +299,16 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				ReadOnly:  true,
 			}, mounts[0], "expected first container volume mount to be the injector")
 			require.Equal(t, corev1.VolumeMount{
+				Name:      etcVolume.Name,
+				MountPath: "/etc/ld.so.preload",
+				SubPath:   "ld.so.preload",
+				ReadOnly:  true,
+			}, mounts[1], "expected first container volume mount to be the injector")
+			require.Equal(t, corev1.VolumeMount{
 				Name:      volumeName,
 				MountPath: "/opt/datadog/apm/library",
 				SubPath:   "opt/datadog/apm/library",
-			}, mounts[1], "expected the second container volume mount to be the language libraries")
+			}, mounts[2], "expected the second container volume mount to be the language libraries")
 
 			requireEnv(t, "LD_PRELOAD", true, "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so")
 			requireEnv(t, "DD_INJECT_SENDER_TYPE", true, "k8s")
@@ -519,7 +532,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			wantErr: true,
 		},
 	}
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := configmock.New(t)
@@ -947,8 +960,7 @@ func TestExtractLibInfo(t *testing.T) {
 			wmeta := fxutil.Test[workloadmeta.Component](t,
 				core.MockBundle(),
 				fx.Replace(configComp.MockParams{Overrides: overrides}),
-				workloadmetafxmock.MockModule(),
-				fx.Supply(workloadmeta.NewParams()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			)
 			mockConfig = configmock.New(t)
 			for k, v := range overrides {
@@ -1170,7 +1182,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 		},
 	}
 
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conf := configmock.New(t)
@@ -3123,7 +3135,7 @@ func TestShouldInject(t *testing.T) {
 			want:        false,
 		},
 	}
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig = configmock.New(t)

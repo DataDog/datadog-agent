@@ -158,7 +158,7 @@ func (w *Watcher) AttachPID(pid uint32) error {
 		// Iterate over the rule, and look for a match.
 		for _, r := range w.rules {
 			if r.Re.MatchString(path) {
-				if err := w.registry.Register(path, pid, r.RegisterCB, r.UnregisterCB); err != nil {
+				if err := w.registry.Register(path, pid, r.RegisterCB, r.UnregisterCB, utils.IgnoreCB); err != nil {
 					registerErrors = append(registerErrors, err)
 				} else {
 					successfulMatches = append(successfulMatches, path)
@@ -212,7 +212,7 @@ func (w *Watcher) Start() {
 			// Iterate over the rule, and look for a match.
 			for _, r := range w.rules {
 				if r.Re.MatchString(path) {
-					_ = w.registry.Register(path, uint32(pid), r.RegisterCB, r.UnregisterCB)
+					_ = w.registry.Register(path, uint32(pid), r.RegisterCB, r.UnregisterCB, utils.IgnoreCB)
 					break
 				}
 			}
@@ -269,7 +269,7 @@ func (w *Watcher) Start() {
 				for _, r := range w.rules {
 					if r.Re.Match(path) {
 						w.libMatches.Add(1)
-						_ = w.registry.Register(string(path), lib.Pid, r.RegisterCB, r.UnregisterCB)
+						_ = w.registry.Register(string(path), lib.Pid, r.RegisterCB, r.UnregisterCB, utils.IgnoreCB)
 						break
 					}
 				}
