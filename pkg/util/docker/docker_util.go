@@ -105,7 +105,7 @@ func ConnectToDocker(ctx context.Context) (*client.Client, error) {
 func (d *DockerUtil) Images(ctx context.Context, includeIntermediate bool) ([]image.Summary, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
-	images, err := d.cli.ImageList(ctx, types.ImageListOptions{All: includeIntermediate})
+	images, err := d.cli.ImageList(ctx, image.ListOptions{All: includeIntermediate})
 	if err != nil {
 		return nil, fmt.Errorf("unable to list docker images: %s", err)
 	}
@@ -401,7 +401,6 @@ func (d *DockerUtil) ContainerLogs(ctx context.Context, container string, option
 
 // GetContainerPIDs returns a list of containerID's running PIDs
 func (d *DockerUtil) GetContainerPIDs(ctx context.Context, containerID string) ([]int, error) {
-
 	// Index into the returned [][]string slice for process IDs
 	pidIdx := -1
 

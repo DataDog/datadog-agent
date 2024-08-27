@@ -370,3 +370,6 @@ github.com/vibrantbyte/go-antpath/extend: vibrantbyte <codingrun@163.com>|suchao
 github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp: Copyright 2024 gRPC authors.
 github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp/grpc_gcp: Copyright 2024 gRPC authors.
 github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp/multiendpoint: Copyright 2024 gRPC authors.
+
+github.com/jonboulle/clockwork: Copyright 2013 Jon Boulle
+github.com/moby/docker-image-spec: Copyright 2017-2019 Docker Inc.
