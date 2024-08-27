@@ -7,6 +7,6 @@ namespace Datadog.CustomActions.Interfaces
         IRegistryKey CreateRegistryKey(Registries registry, string path);
         IRegistryKey OpenRegistryKey(Registries registry, string path);
         IRegistryKey OpenRegistryKey(Registries registry, string path, bool writable);
-        public void DeleteSubKey(Registries registry, string path);
+        void DeleteSubKey(Registries registry, string path);
     }
 }
