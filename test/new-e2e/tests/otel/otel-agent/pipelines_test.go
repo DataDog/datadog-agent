@@ -3,9 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package localkubernetes contains the provisioner for the local Kubernetes based environments
-
-package otel_agent
+// Package otelagent contains e2e otel agent tests
+package otelagent
 
 import (
 	"context"
