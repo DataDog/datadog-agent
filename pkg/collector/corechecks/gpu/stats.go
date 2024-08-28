@@ -36,9 +36,7 @@ func (sp *StatsProcessor) processKernelSpan(span *model.KernelSpan, sendEvent bo
 	tsStart := sp.timeResolver.ResolveMonotonicTimestamp(span.Start)
 	tsEnd := sp.timeResolver.ResolveMonotonicTimestamp(span.End)
 
-	if sp.firstKernelStart.IsZero() {
-		sp.firstKernelStart = tsStart
-	} else if tsStart.Before(sp.firstKernelStart) {
+	if sp.firstKernelStart.IsZero() || tsStart.Before(sp.firstKernelStart) {
 		sp.firstKernelStart = tsStart
 	}
 
