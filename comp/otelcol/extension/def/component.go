@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package ddflareextension defines the OpenTelemetry Extension component.
-package ddflareextension
+// Package extension defines the OpenTelemetry Extension component.
+package extension
 
 import (
 	"net/http"

@@ -32,7 +32,7 @@ extensions:
   health_check/user-defined:
   zpages/user-defined:
     endpoint: "localhost:55679"
-  ddflare/user-defined:
+  datadog/user-defined:
 
 service:
   extensions:
@@ -40,7 +40,7 @@ service:
       pprof/user-defined,
       zpages/user-defined,
       health_check/user-defined,
-      ddflare/user-defined,
+      datadog/user-defined,
     ]
   pipelines:
     traces:
