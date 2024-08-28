@@ -7,12 +7,14 @@ package gpu
 
 import (
 	"sync"
+	"time"
 	"unsafe"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -73,6 +75,8 @@ func (c *CudaEventConsumer) Start() {
 
 	c.wg.Add(1)
 	go func() {
+		processSync := time.NewTicker(5 * time.Second)
+
 		defer func() {
 			cleanupExit()
 			err := health.Deregister()
@@ -90,6 +94,8 @@ func (c *CudaEventConsumer) Start() {
 			case <-c.closed:
 				return
 			case <-health.C:
+			case <-processSync.C:
+				c.checkClosedProcesses()
 			case batchData, ok := <-dataChannel:
 				if !ok {
 					return
@@ -150,6 +156,22 @@ func (c *CudaEventConsumer) handleProcessExit(pid uint32) {
 	for key, handler := range c.streamHandlers {
 		if key.Pid == pid {
 			log.Debugf("Process %d ended, marking stream as ended", pid)
+			// the probe is responsible for deleting the stream handler
+			_ = handler.markEnd()
+		}
+	}
+}
+
+func (c *CudaEventConsumer) checkClosedProcesses() {
+	seenPIDs := make(map[uint32]struct{})
+	_ = kernel.WithAllProcs("/proc", func(pid int) error {
+		seenPIDs[uint32(pid)] = struct{}{}
+		return nil
+	})
+
+	for key, handler := range c.streamHandlers {
+		if _, ok := seenPIDs[key.Pid]; !ok {
+			log.Debugf("Process %d ended, marking stream as ended", key.Pid)
 			_ = handler.markEnd()
 		}
 	}
