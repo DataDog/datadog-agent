@@ -46,7 +46,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.57.0-rc.5
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect; v2.6
 	github.com/stretchr/testify v1.9.0
-	go.uber.org/fx v1.18.2 // indirect
+	go.uber.org/fx v1.22.2 // indirect
 )
 
 require (
@@ -99,7 +99,7 @@ require (
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	go.uber.org/dig v1.17.1 // indirect
+	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa // indirect

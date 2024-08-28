@@ -26,7 +26,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.57.0-rc.5
 	github.com/benbjohnson/clock v1.3.0
 	github.com/stretchr/testify v1.9.0
-	go.uber.org/fx v1.18.2
+	go.uber.org/fx v1.22.2
 	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa
 	golang.org/x/sys v0.24.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -60,9 +60,9 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.27.0 // indirect
 	go.opentelemetry.io/otel/trace v1.27.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	go.uber.org/dig v1.17.1 // indirect
-	go.uber.org/multierr v1.10.0 // indirect
-	go.uber.org/zap v1.26.0 // indirect
+	go.uber.org/dig v1.18.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
+	go.uber.org/zap v1.27.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
