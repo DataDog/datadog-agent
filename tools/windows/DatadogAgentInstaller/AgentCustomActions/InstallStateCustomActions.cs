@@ -68,28 +68,19 @@ namespace Datadog.AgentCustomActions
         // </remarks>
         private void SetDDDriverRollback()
         {
-            var upgradeDetected = _session["WIX_UPGRADE_DETECTED"];
+            // On a fresh install, set rollback flags to ensure drivers are deleted on rollback.
+            _session["DDDRIVERROLLBACK_NPM"] = "1";
+            _session["DDDRIVERROLLBACK_PROCMON"] = "1";
 
+            var upgradeDetected = _session["WIX_UPGRADE_DETECTED"];
             if (!string.IsNullOrEmpty(upgradeDetected)) // This is an upgrade, conditionally set rollback flags.
             {
                 var versionString = _nativeMethods.GetVersionString(upgradeDetected);
                 // Using Version class
                 // https://learn.microsoft.com/en-us/dotnet/api/system.version?view=net-8.0
                 var currentVersion = new Version(versionString);
-                Version procmonDriverMinimumVersion;
-                Version driverRollbackMinimumVersion;
-
-                // Check major version
-                if (versionString[0] == '7')
-                {
-                    procmonDriverMinimumVersion = new Version("7.52");
-                    driverRollbackMinimumVersion = new Version("7.56");
-                }
-                else
-                {
-                    procmonDriverMinimumVersion = new Version("6.52");
-                    driverRollbackMinimumVersion = new Version("6.56");
-                }
+                var procmonDriverMinimumVersion = new Version(currentVersion.Major, 52);
+                var driverRollbackMinimumVersion = new Version(currentVersion.Major, 56);
 
                 var compareResult = currentVersion.CompareTo(driverRollbackMinimumVersion);
                 if (compareResult < 0) // currentVersion is less than minimumVersion
@@ -99,27 +90,13 @@ namespace Datadog.AgentCustomActions
                     _session["DDDRIVERROLLBACK_NPM"] = "";
 
                     var compare_52 = currentVersion.CompareTo(procmonDriverMinimumVersion);
-                    if (compare_52 < 0) //currentVersion is less than 6.52/7.52
+                    if (compare_52 >= 0) //currentVersion is greater or equal to 6.52/7.52
                     {
-                        // case: upgrading from a version that did not the include procmon driver
-                        // Set PROCMON flag to ensure procmon driver is deleted on rollback.
-                        _session["DDDRIVERROLLBACK_PROCMON"] = "1";
-                    }
-                    else
-                    {
+                        // case: upgrading from a version that did include the procmon driver
+                        // Clear PROCMON flag to ensure procmon driver is kept on rollback for compatibility.
                         _session["DDDRIVERROLLBACK_PROCMON"] = "";
                     }
                 }
-                else // currentVersion is not less than minimumVersion
-                {
-                    _session["DDDRIVERROLLBACK_NPM"] = "1";
-                    _session["DDDRIVERROLLBACK_PROCMON"] = "1";
-                }
-            }
-            else // This is a fresh install, set rollback flags to ensure drivers are deleted on rollback.
-            {
-                _session["DDDRIVERROLLBACK_NPM"] = "1";
-                _session["DDDRIVERROLLBACK_PROCMON"] = "1";
             }
 
             _session.Log($"DDDriverRollback_NPM: {_session["DDDRIVERROLLBACK_NPM"]}");
