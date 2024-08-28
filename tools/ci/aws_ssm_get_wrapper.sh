@@ -18,7 +18,7 @@ while [[ $retry_count -lt $max_retries ]]; do
     fi
     if [[ "$error" =~ "Unable to locate credentials" ]]; then
         # See 5th row in https://docs.google.com/spreadsheets/d/1JvdN0N-RdNEeOJKmW_ByjBsr726E3ZocCKU8QoYchAc
-        >&2 echo "Credentials won't be retrieved, no need to retry"
+        >&2 echo "Permanent error: unable to locate AWS credentials, not retrying"
         exit 1
     fi
     retry_count=$((retry_count+1))

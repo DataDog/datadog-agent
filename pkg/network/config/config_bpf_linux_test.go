@@ -14,20 +14,21 @@ import (
 	"github.com/stretchr/testify/require"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 	t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(true))
-	cfg := aconfig.MockSystemProbe(t)
+	cfg := configmock.NewSystemProbe(t)
 	sysconfig.Adjust(cfg)
 
 	if sysconfig.ProcessEventDataStreamSupported() {
@@ -38,7 +39,11 @@ func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 
 		opts := eventmonitor.Opts{}
 		telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
-		evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts, optional.NewNoneOption[workloadmeta.Component](), telemetry)
+		wmeta := fxutil.Test[workloadmeta.Component](t,
+			core.MockBundle(),
+			wmmock.MockModule(workloadmeta.NewParams()),
+		)
+		evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts, wmeta, telemetry)
 		require.NoError(t, err)
 		require.NoError(t, evm.Init())
 	} else {

@@ -10,6 +10,7 @@ package netlink
 import (
 	"container/list"
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/syndtr/gocapability/capability"
 	"golang.org/x/sys/unix"
 
 	"github.com/cihub/seelog"
@@ -38,6 +40,9 @@ const (
 )
 
 var defaultBuckets = []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000}
+
+// ErrNotPermitted is the error returned when the current process does not have the required permissions for netlink conntracker
+var ErrNotPermitted = errors.New("netlink conntracker requires NET_ADMIN capability")
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
 type Conntracker interface {
@@ -117,6 +122,18 @@ func NewConntracker(config *config.Config, telemetrycomp telemetryComp.Component
 		err         error
 		conntracker Conntracker
 	)
+
+	// check if we have the right capabilities for the netlink NewConntracker
+	// NET_ADMIN is required
+	if caps, err := capability.NewPid2(0); err == nil {
+		if err = caps.Load(); err != nil {
+			return nil, fmt.Errorf("could not load process capabilities: %w", err)
+		}
+
+		if !caps.Get(capability.EFFECTIVE, capability.CAP_NET_ADMIN) {
+			return nil, ErrNotPermitted
+		}
+	}
 
 	done := make(chan struct{})
 

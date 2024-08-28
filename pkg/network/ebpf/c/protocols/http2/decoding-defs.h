@@ -71,11 +71,11 @@
 #define HTTP2_END_OF_STREAM 0x1
 
 // Http2 max batch size.
-#define HTTP2_BATCH_SIZE 15
+#define HTTP2_BATCH_SIZE (MAX_BATCH_SIZE(http2_event_t))
 
 // The max number of events we can have in a single page in the batch_events array.
 // See more details in the comments of the USM_EVENTS_INIT.
-#define HTTP2_TERMINATED_BATCH_SIZE 80
+#define HTTP2_TERMINATED_BATCH_SIZE (MAX_BATCH_SIZE(conn_tuple_t))
 
 // MAX_4_BITS represents the maximum number that can be represented with 4 bits or less.
 // 1 << 4 - 1

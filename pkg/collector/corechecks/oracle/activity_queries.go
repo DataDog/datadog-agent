@@ -216,3 +216,62 @@ AND sq_prev.child_number(+) = s.prev_child_number
 AND ( sq.sql_text NOT LIKE '%DD_ACTIVITY_SAMPLING%' OR sq.sql_text is NULL )
 AND s.con_id = c.con_id(+)
 AND s.command = comm.command_type(+)`
+
+const activityQueryActiveSessionHistory = `SELECT /*+ push_pred(sq) */ /* DD_ACTIVITY_SAMPLING */
+	cast (sample_time as date) now,
+	(CAST(sample_time_utc AS DATE) - TO_DATE('1970-01-01', 'YYYY-MM-DD')) * 86400000 as utc_ms,
+	s.session_id sid,
+	s.session_serial# serial#,
+	sess.username,
+	'ACTIVE' status,
+	sess.osuser,
+	sess.process,
+	s.machine,
+	s.port,
+	s.program,
+	s.session_type type,
+	s.sql_id,
+	sq.force_matching_signature as force_matching_signature,
+	sq.plan_hash_value sql_plan_hash_value,
+	s.sql_exec_start,
+	s.module,
+	s.action,
+	sess.logon_time,
+	s.client_id client_identifier,
+	CASE WHEN s.blocking_session_status = 'VALID' THEN
+		s.blocking_inst_id
+	ELSE
+		null
+	END blocking_instance,
+	CASE WHEN s.blocking_session_status = 'VALID' THEN
+		s.blocking_session
+	ELSE
+		null
+	END blocking_session,
+	CASE WHEN session_state = 'WAITING' THEN
+		s.event
+	ELSE
+		'CPU'
+	END event,
+	CASE WHEN session_state = 'WAITING' THEN
+		s.wait_class
+	ELSE
+		'CPU'
+	END wait_class,
+	s.wait_time * 10000 wait_time_micro,
+	c.name as pdb_name,
+	dbms_lob.substr(sq.sql_fulltext, :sql_substr_length, 1) sql_fulltext,
+	s.sql_opname command_name
+FROM
+	v$active_session_history s,
+	v$session sess,
+	v$sql sq,
+	v$containers c
+WHERE
+	sq.sql_id(+)   = s.sql_id
+	AND sq.child_number(+) = s.sql_child_number
+	AND ( sq.sql_text NOT LIKE '%DD_ACTIVITY_SAMPLING%' OR sq.sql_text is NULL )
+	AND s.con_id = c.con_id(+)
+	AND sess.sid(+) = s.session_id AND sess.serial#(+) = s.session_serial#
+	AND s.sample_id > :last_sample_id
+ORDER BY s.sample_time`

@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -54,23 +55,27 @@ func (s *linuxTestSuite) TestOTLPTraces() {
 	s.T().Log("Starting telemetrygen")
 	s.createTelemetrygenJob(ctx, "traces", []string{"--service", service, "--traces", fmt.Sprint(numTraces)})
 
+	var traces []*aggregator.TracePayload
+	var err error
 	s.T().Log("Waiting for traces")
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		traces, err := s.Env().FakeIntake.Client().GetTraces()
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		traces, err = s.Env().FakeIntake.Client().GetTraces()
 		assert.NoError(c, err)
 		assert.NotEmpty(c, traces)
-		trace := traces[0]
-		assert.Equal(c, "none", trace.Env)
-		assert.NotEmpty(c, trace.TracerPayloads)
-		tp := trace.TracerPayloads[0]
-		assert.NotEmpty(c, tp.Chunks)
-		assert.NotEmpty(c, tp.Chunks[0].Spans)
-		spans := tp.Chunks[0].Spans
-		for _, sp := range spans {
-			assert.Equal(c, service, sp.Service)
-			assert.Equal(c, "telemetrygen", sp.Meta["otel.library.name"])
-		}
 	}, 2*time.Minute, 10*time.Second)
+
+	require.NotEmpty(s.T(), traces)
+	trace := traces[0]
+	assert.Equal(s.T(), "none", trace.Env)
+	require.NotEmpty(s.T(), trace.TracerPayloads)
+	tp := trace.TracerPayloads[0]
+	require.NotEmpty(s.T(), tp.Chunks)
+	require.NotEmpty(s.T(), tp.Chunks[0].Spans)
+	spans := tp.Chunks[0].Spans
+	for _, sp := range spans {
+		assert.Equal(s.T(), service, sp.Service)
+		assert.Equal(s.T(), "telemetrygen", sp.Meta["otel.library.name"])
+	}
 }
 
 func (s *linuxTestSuite) TestOTLPMetrics() {
@@ -84,7 +89,7 @@ func (s *linuxTestSuite) TestOTLPMetrics() {
 	s.createTelemetrygenJob(ctx, "metrics", []string{"--metrics", fmt.Sprint(numMetrics), "--otlp-attributes", serviceAttribute})
 
 	s.T().Log("Waiting for metrics")
-	s.EventuallyWithT(func(c *assert.CollectT) {
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		serviceTag := "service:" + service
 		metrics, err := s.Env().FakeIntake.Client().FilterMetrics("gen", fakeintake.WithTags[*aggregator.MetricSeries]([]string{serviceTag}))
 		assert.NoError(c, err)
@@ -103,15 +108,19 @@ func (s *linuxTestSuite) TestOTLPLogs() {
 	s.T().Log("Starting telemetrygen")
 	s.createTelemetrygenJob(ctx, "logs", []string{"--logs", fmt.Sprint(numLogs), "--otlp-attributes", serviceAttribute, "--body", logBody})
 
+	var logs []*aggregator.Log
+	var err error
 	s.T().Log("Waiting for logs")
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		logs, err := s.Env().FakeIntake.Client().FilterLogs(service)
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		logs, err = s.Env().FakeIntake.Client().FilterLogs(service)
 		assert.NoError(c, err)
 		assert.NotEmpty(c, logs)
-		for _, log := range logs {
-			assert.Contains(c, log.Message, logBody)
-		}
 	}, 2*time.Minute, 10*time.Second)
+
+	require.NotEmpty(s.T(), logs)
+	for _, log := range logs {
+		assert.Contains(s.T(), log.Message, logBody)
+	}
 }
 
 func (s *linuxTestSuite) TestOTelFlare() {
@@ -120,13 +129,13 @@ func (s *linuxTestSuite) TestOTelFlare() {
 	s.T().Log("Starting flare")
 	agent := s.getAgentPod()
 	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agent.Name, "agent", []string{"agent", "flare", "--email", "e2e@test.com", "--send"})
-	assert.NoError(s.T(), err, "Failed to execute flare")
-	assert.Empty(s.T(), stderr)
-	assert.NotNil(s.T(), stdout)
+	require.NoError(s.T(), err, "Failed to execute flare")
+	require.Empty(s.T(), stderr)
+	require.NotNil(s.T(), stdout)
 
 	s.T().Log("Getting latest flare")
 	flare, err := s.Env().FakeIntake.Client().GetLatestFlare()
-	assert.NoError(s.T(), err, "Failed to get latest flare")
+	require.NoError(s.T(), err, "Failed to get latest flare")
 	otelFolder, otelFlareFolder := false, false
 	var otelResponse string
 	for _, filename := range flare.GetFilenames() {
@@ -143,8 +152,8 @@ func (s *linuxTestSuite) TestOTelFlare() {
 	assert.True(s.T(), otelFolder)
 	assert.True(s.T(), otelFlareFolder)
 	otelResponseContent, err := flare.GetFileContent(otelResponse)
-	assert.NoError(s.T(), err)
-	expectedContents := []string{"otel-agent", "datadog/dd-autoconfigured:", "health_check/dd-autoconfigured:", "pprof/dd-autoconfigured:", "zpages/dd-autoconfigured:", "infraattributes/dd-autoconfigured:", "prometheus/dd-autoconfigured:", "key: '[REDACTED]'"}
+	require.NoError(s.T(), err)
+	expectedContents := []string{"otel-agent", "ddflare/dd-autoconfigured:", "health_check/dd-autoconfigured:", "pprof/dd-autoconfigured:", "zpages/dd-autoconfigured:", "infraattributes/dd-autoconfigured:", "prometheus/dd-autoconfigured:", "key: '[REDACTED]'"}
 	for _, expected := range expectedContents {
 		assert.Contains(s.T(), otelResponseContent, expected)
 	}
@@ -154,8 +163,8 @@ func (s *linuxTestSuite) getAgentPod() corev1.Pod {
 	res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
 	})
-	assert.NoError(s.T(), err)
-	assert.NotEmpty(s.T(), res.Items)
+	require.NoError(s.T(), err)
+	require.NotEmpty(s.T(), res.Items)
 	return res.Items[0]
 }
 
@@ -188,5 +197,5 @@ func (s *linuxTestSuite) createTelemetrygenJob(ctx context.Context, telemetry st
 	}
 
 	_, err := s.Env().KubernetesCluster.Client().BatchV1().Jobs("datadog").Create(ctx, jobSpec, metav1.CreateOptions{})
-	assert.NoError(s.T(), err, "Could not properly start job")
+	require.NoError(s.T(), err, "Could not properly start job")
 }

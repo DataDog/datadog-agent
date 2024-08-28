@@ -18,7 +18,17 @@ import (
 // team: container-platform
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
+func Module(params wmdef.Params) fxutil.Module {
+	return module(fx.Supply(params))
+}
+
+// ModuleWithProvider defines the fx options for this component using a provider to get the parameter.
+// T is the type of a component, typically component.Config.
+func ModuleWithProvider[T any](paramsProvider func(T) wmdef.Params) fxutil.Module {
+	return module(fx.Provide(paramsProvider))
+}
+
+func module(options ...fx.Option) fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
 			workloadmeta.NewWorkloadMeta,
@@ -26,5 +36,6 @@ func Module() fxutil.Module {
 		fx.Provide(func(wmeta wmdef.Component) optional.Option[wmdef.Component] {
 			return optional.NewOption(wmeta)
 		}),
+		fx.Options(options...),
 	)
 }

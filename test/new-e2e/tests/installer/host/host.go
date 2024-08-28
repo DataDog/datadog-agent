@@ -598,6 +598,15 @@ func (s *State) AssertPathDoesNotExist(path string) {
 	assert.False(s.t, ok, "something exists at path", path)
 }
 
+// AssertFileExistsAnyUser asserts that a file exists on the host with the given perms.
+func (s *State) AssertFileExistsAnyUser(path string, perms fs.FileMode) {
+	path = evalSymlinkPath(path, s.FS)
+	fileInfo, ok := s.FS[path]
+	assert.True(s.t, ok, "file %v does not exist", path)
+	assert.False(s.t, fileInfo.IsDir, "%v is not a file", path)
+	assert.Equal(s.t, perms, fileInfo.Perms, "%v has unexpected perms", path)
+}
+
 // AssertFileExists asserts that a file exists on the host with the given perms, user, and group.
 func (s *State) AssertFileExists(path string, perms fs.FileMode, user string, group string) {
 	path = evalSymlinkPath(path, s.FS)
@@ -612,7 +621,7 @@ func (s *State) AssertFileExists(path string, perms fs.FileMode, user string, gr
 // AssertSymlinkExists asserts that a symlink exists on the host with the given target, user, and group.
 func (s *State) AssertSymlinkExists(path string, target string, user string, group string) {
 	fileInfo, ok := s.FS[path]
-	assert.True(s.t, ok, "syminlk %v does not exist", path)
+	assert.True(s.t, ok, "symlink %v does not exist", path)
 	assert.True(s.t, fileInfo.IsSymlink, "%v is not a symlink", path)
 	assert.Equal(s.t, target, fileInfo.Link, "%v has unexpected target", path)
 	assert.Equal(s.t, user, fileInfo.User, "%v has unexpected user", path)

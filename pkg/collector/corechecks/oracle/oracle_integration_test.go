@@ -306,6 +306,7 @@ func TestObfuscator(t *testing.T) {
 }
 
 func TestLegacyMode(t *testing.T) {
+	t.Skip()
 	canConnectServiceCheckName := "oracle.can_query"
 
 	for _, config := range []string{

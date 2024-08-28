@@ -44,6 +44,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
+	"runtime"
 
 	"github.com/cilium/ebpf"
 )
@@ -252,7 +254,11 @@ func getSourceMap(file string, spec *ebpf.CollectionSpec) (map[string]map[int]*S
 		prevAddress = int(line.Address)
 
 		startPoint := progStartPoint{sequenceIndex, int64(line.Address)}
-		lineinfo := fmt.Sprintf("%s:%d", line.File.Name, line.Line)
+		absFilePath, err := ensureSourceFilePathIsAbsolute(line.File.Name)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot get absolute path for %s: %w", line.File.Name, err)
+		}
+		lineinfo := fmt.Sprintf("%s:%d", absFilePath, line.Line)
 
 		// Reset the current program only if it's the first time we see it. Multiple
 		// assembly instructions might point to the first source line of a program
@@ -309,4 +315,19 @@ func getSourceMap(file string, spec *ebpf.CollectionSpec) (map[string]map[int]*S
 	}
 
 	return sourceMap, funcsPerSection, nil
+}
+
+func ensureSourceFilePathIsAbsolute(path string) (string, error) {
+	if filepath.IsAbs(path) {
+		return path, nil
+	}
+
+	_, b, _, _ := runtime.Caller(0)
+	basepath := filepath.Dir(b)
+	repoRoot, err := filepath.Abs(filepath.Join(basepath, "..", "..", ".."))
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(repoRoot, path), nil
 }
