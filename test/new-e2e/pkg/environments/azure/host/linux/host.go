@@ -7,7 +7,6 @@
 package azurehost
 
 import (
-	"fmt"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/resources/azure"
@@ -32,9 +31,6 @@ const (
 func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Host] {
 	// We need to build params here to be able to use params.name in the provisioner name
 	params := GetProvisionerParams(opts...)
-
-	//TODO: Remove when https://datadoghq.atlassian.net/browse/ADXT-479 is done
-	fmt.Println("PLEASE DO NOT USE THIS PROVIDER FOR TESTING ON THE CI YET. WE NEED TO FIND A WAY TO CLEAN INSTANCES FIRST")
 
 	provisioner := e2e.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.Host) error {
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
