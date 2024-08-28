@@ -109,17 +109,11 @@ func MockPrivilegedDetectors(t *testing.T, newDetectors []languagemodels.Detecto
 func (l *LanguageDetector) getBinID(process languagemodels.Process) (binaryID, error) {
 	procPath := filepath.Join(l.hostProc, strconv.Itoa(int(process.GetPid())))
 	exePath := filepath.Join(procPath, "exe")
-	binPath, err := os.Readlink(exePath)
-	if err != nil {
-		return binaryID{}, fmt.Errorf("readlink %s: %v", exePath, err)
-	}
-
-	binPath = filepath.Join(procPath, "root", binPath)
 
 	var stat syscall.Stat_t
-	err = syscall.Stat(binPath, &stat)
+	err := syscall.Stat(exePath, &stat)
 	if err != nil {
-		return binaryID{}, fmt.Errorf("stat binary path %s: %v", binPath, err)
+		return binaryID{}, fmt.Errorf("stat binary path %s: %v", exePath, err)
 	}
 
 	return binaryID{

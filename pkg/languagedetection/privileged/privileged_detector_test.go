@@ -8,7 +8,9 @@
 package privileged
 
 import (
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
@@ -95,6 +97,38 @@ func TestGetBinID(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, binID1, binID2)
+}
+
+func copyForkExecDelete(t *testing.T, timeout int) *exec.Cmd {
+	sleepBin := filepath.Join(t.TempDir(), "sleep")
+	require.NoError(t, exec.Command("cp", "/bin/sleep", sleepBin).Run())
+
+	cmd := exec.Command(sleepBin, strconv.Itoa(timeout))
+	err := cmd.Start()
+
+	time.Sleep(250 * time.Millisecond)
+	require.NoError(t, err)
+
+	// cmd.Start() waits for the exec to happen so deleting the file should be
+	// safe immediately. Unclear what the sleep above is for; it's copied from
+	// the other tests.
+	os.Remove((sleepBin))
+
+	t.Cleanup(func() {
+		err := cmd.Process.Kill()
+		if err != nil {
+			t.Log("failed to kill pid:", cmd.Process.Pid)
+		}
+		cmd.Process.Wait()
+	})
+	return cmd
+}
+
+func TestGetBinIDDeleted(t *testing.T) {
+	cmd := copyForkExecDelete(t, 20)
+	d := NewLanguageDetector()
+	_, err := d.getBinID(cmdWrapper{cmd})
+	require.NoError(t, err)
 }
 
 func TestShortLivingProc(t *testing.T) {
