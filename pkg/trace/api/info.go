@@ -36,19 +36,21 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		Memcached            obfuscate.MemcachedConfig `json:"memcached"`
 	}
 	type reducedConfig struct {
-		DefaultEnv             string                        `json:"default_env"`
-		TargetTPS              float64                       `json:"target_tps"`
-		MaxEPS                 float64                       `json:"max_eps"`
-		ReceiverPort           int                           `json:"receiver_port"`
-		ReceiverSocket         string                        `json:"receiver_socket"`
-		ConnectionLimit        int                           `json:"connection_limit"`
-		ReceiverTimeout        int                           `json:"receiver_timeout"`
-		MaxRequestBytes        int64                         `json:"max_request_bytes"`
-		StatsdPort             int                           `json:"statsd_port"`
-		MaxMemory              float64                       `json:"max_memory"`
-		MaxCPU                 float64                       `json:"max_cpu"`
-		AnalyzedSpansByService map[string]map[string]float64 `json:"analyzed_spans_by_service"`
-		Obfuscation            reducedObfuscationConfig      `json:"obfuscation"`
+		DefaultEnv                  string                        `json:"default_env"`
+		TargetTPS                   float64                       `json:"target_tps"`
+		MaxEPS                      float64                       `json:"max_eps"`
+		ReceiverPort                int                           `json:"receiver_port"`
+		ReceiverSocket              string                        `json:"receiver_socket"`
+		ConnectionLimit             int                           `json:"connection_limit"`
+		ReceiverTimeout             int                           `json:"receiver_timeout"`
+		MaxRequestBytes             int64                         `json:"max_request_bytes"`
+		StatsdPort                  int                           `json:"statsd_port"`
+		MaxMemory                   float64                       `json:"max_memory"`
+		MaxCPU                      float64                       `json:"max_cpu"`
+		AnalyzedSpansByService      map[string]map[string]float64 `json:"analyzed_spans_by_service"`
+		ProbabilisticSamplerEnabled bool                          `json:"probabilistic_sampler_enabled"`
+		ComputeStatsBySpanKind      bool                          `json:"compute_stats_by_span_kind"`
+		Obfuscation                 reducedObfuscationConfig      `json:"obfuscation"`
 	}
 	var oconf reducedObfuscationConfig
 	if o := r.conf.Obfuscation; o != nil {
@@ -82,19 +84,21 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		LongRunningSpans:       true,
 		EvpProxyAllowedHeaders: EvpProxyAllowedHeaders,
 		Config: reducedConfig{
-			DefaultEnv:             r.conf.DefaultEnv,
-			TargetTPS:              r.conf.TargetTPS,
-			MaxEPS:                 r.conf.MaxEPS,
-			ReceiverPort:           r.conf.ReceiverPort,
-			ReceiverSocket:         r.conf.ReceiverSocket,
-			ConnectionLimit:        r.conf.ConnectionLimit,
-			ReceiverTimeout:        r.conf.ReceiverTimeout,
-			MaxRequestBytes:        r.conf.MaxRequestBytes,
-			StatsdPort:             r.conf.StatsdPort,
-			MaxMemory:              r.conf.MaxMemory,
-			MaxCPU:                 r.conf.MaxCPU,
-			AnalyzedSpansByService: r.conf.AnalyzedSpansByService,
-			Obfuscation:            oconf,
+			DefaultEnv:                  r.conf.DefaultEnv,
+			TargetTPS:                   r.conf.TargetTPS,
+			MaxEPS:                      r.conf.MaxEPS,
+			ReceiverPort:                r.conf.ReceiverPort,
+			ReceiverSocket:              r.conf.ReceiverSocket,
+			ConnectionLimit:             r.conf.ConnectionLimit,
+			ReceiverTimeout:             r.conf.ReceiverTimeout,
+			MaxRequestBytes:             r.conf.MaxRequestBytes,
+			StatsdPort:                  r.conf.StatsdPort,
+			MaxMemory:                   r.conf.MaxMemory,
+			MaxCPU:                      r.conf.MaxCPU,
+			AnalyzedSpansByService:      r.conf.AnalyzedSpansByService,
+			ProbabilisticSamplerEnabled: r.conf.ProbabilisticSamplerEnabled,
+			ComputeStatsBySpanKind:      r.conf.ComputeStatsBySpanKind,
+			Obfuscation:                 oconf,
 		},
 		PeerTags: r.conf.ConfiguredPeerTags(),
 	}, "", "\t")
