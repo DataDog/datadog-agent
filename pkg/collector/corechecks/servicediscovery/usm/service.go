@@ -163,7 +163,7 @@ func ExtractServiceMetadata(args []string, envs map[string]string, fs fs.SubFS, 
 	dc := DetectionContext{
 		args:       args,
 		envs:       envs,
-		fs:   fs,
+		fs:         fs,
 		contextMap: contextMap,
 	}
 	cmd := dc.args
