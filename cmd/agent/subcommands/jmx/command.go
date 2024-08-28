@@ -46,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -132,7 +133,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return diagnoseSenderManager.LazyGetSenderManager()
 			}),
 			// workloadmeta setup
-			fx.Provide(defaults.DefaultParams),
+			fx.Provide(wmcatalog.GetCatalog),
 			workloadmetafx.Module(defaults.DefaultParams()),
 			apiimpl.Module(),
 			authtokenimpl.Module(),
