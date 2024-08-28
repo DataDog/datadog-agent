@@ -153,6 +153,7 @@ func nodeDetector(_ int, _ []string, _ map[string]string, contextMap usm.Detecto
 	fs, ok := contextMap[usm.ServiceSubFS]
 	if !ok {
 		log.Debugf("could not get SubFS for package.json")
+		return None
 	}
 
 	pkgJSONFile, err := fs.(usm.SubDirFS).Open(pkgJSONPath.(string))

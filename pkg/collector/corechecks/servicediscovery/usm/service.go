@@ -25,8 +25,10 @@ type DetectorContextMap map[int]interface{}
 
 // DetectorContextMap keys enum
 const (
+	// The path to the Node service's package.json
 	NodePackageJSONPath = iota
-	ServiceSubFS        = iota
+	// The SubdirFS instance package.json path is valid in.
+	ServiceSubFS = iota
 )
 
 const (
