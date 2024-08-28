@@ -38,7 +38,6 @@ type StandardRuleDefinition struct {
 	Version                 int      `json:"version"`
 	Pattern                 string   `json:"pattern"`
 	DefaultIncludedKeywords []string `json:"default_included_keywords"`
-	DefaultExcludedKeywords []string `json:"default_excluded_keywords"`
 	RequiredCapabilities    []string `json:"required_capabilities"`
 }
 
@@ -51,27 +50,28 @@ type StandardRulesConfig struct {
 // StandardRulesDefaults contains consts defaults information for
 // standard rules.
 type StandardRulesDefaults struct {
-	IncludedKeywordsCharCount uint32 `json:"included_keywords_char_count"`
-	ExcludedKeywordsCharCount uint32 `json:"excluded_keywords_char_count"`
+	IncludedKeywordsCharCount uint32   `json:"included_keywords_char_count"`
+	ExcludedKeywordsCharCount uint32   `json:"excluded_keywords_char_count"`
+	ExcludedKeywords          []string `json:"excluded_keywords"`
 }
 
 // RuleConfig of rule as sent by the Remote Configuration.
 type RuleConfig struct {
-	ID                     string            `json:"id"`
-	Name                   string            `json:"name"`
-	Description            string            `json:"description"`
-	Tags                   []string          `json:"tags"`
-	Definition             RuleDefinition    `json:"definition"`
-	MatchAction            MatchAction       `json:"match_action"`
-	UseRecommendedKeywords bool              `json:"use_recommended_keywords"`
-	IncludedKeywords       ProximityKeywords `json:"included_keywords"`
-	IsEnabled              bool              `json:"is_enabled"`
+	ID               string            `json:"id"`
+	Name             string            `json:"name"`
+	Description      string            `json:"description"`
+	Tags             []string          `json:"tags"`
+	Definition       RuleDefinition    `json:"definition"`
+	MatchAction      MatchAction       `json:"match_action"`
+	IncludedKeywords ProximityKeywords `json:"included_keywords"`
+	IsEnabled        bool              `json:"is_enabled"`
 }
 
 // ProximityKeywords definition in RC config.
 type ProximityKeywords struct {
-	Keywords       []string `json:"keywords"`
-	CharacterCount uint32   `json:"character_count"`
+	Keywords               []string `json:"keywords"`
+	CharacterCount         uint32   `json:"character_count"`
+	UseRecommendedKeywords bool     `json:"use_recommended_keywords"`
 }
 
 // RuleDefinition definition in RC config.

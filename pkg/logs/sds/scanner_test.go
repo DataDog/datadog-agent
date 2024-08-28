@@ -572,6 +572,12 @@ func TestCloseCycleScan(t *testing.T) {
 func TestInterpretRC(t *testing.T) {
 	require := require.New(t)
 
+	defaults := StandardRulesDefaults{
+		IncludedKeywordsCharCount: 10,
+		ExcludedKeywordsCharCount: 10,
+		ExcludedKeywords:          []string{"trace-id"},
+	}
+
 	stdRc := StandardRuleConfig{
 		ID:          "0",
 		Name:        "Zero",
@@ -593,10 +599,12 @@ func TestInterpretRC(t *testing.T) {
 			Type:        matchActionRCRedact,
 			Placeholder: "[redacted]",
 		},
-		UseRecommendedKeywords: true,
+		IncludedKeywords: ProximityKeywords{
+			UseRecommendedKeywords: true,
+		},
 	}
 
-	rule, err := interpretRCRule(rc, stdRc, StandardRulesDefaults{})
+	rule, err := interpretRCRule(rc, stdRc, defaults)
 	require.NoError(err)
 	rxRule, ok := rule.(sds.RegexRuleConfig)
 	require.True(ok)
@@ -612,7 +620,7 @@ func TestInterpretRC(t *testing.T) {
 		RequiredCapabilities: []string{RCSecondaryValidationLuhnChecksum},
 	})
 
-	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{})
+	rule, err = interpretRCRule(rc, stdRc, defaults)
 	require.NoError(err)
 	rxRule, ok = rule.(sds.RegexRuleConfig)
 	require.True(ok)
@@ -642,7 +650,7 @@ func TestInterpretRC(t *testing.T) {
 		},
 	}
 
-	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{})
+	rule, err = interpretRCRule(rc, stdRc, defaults)
 	require.NoError(err)
 	rxRule, ok = rule.(sds.RegexRuleConfig)
 	require.True(ok)
@@ -670,7 +678,7 @@ func TestInterpretRC(t *testing.T) {
 		},
 	}
 
-	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{IncludedKeywordsCharCount: 10})
+	rule, err = interpretRCRule(rc, stdRc, defaults)
 	require.NoError(err)
 	rxRule, ok = rule.(sds.RegexRuleConfig)
 	require.True(ok)
@@ -685,11 +693,12 @@ func TestInterpretRC(t *testing.T) {
 	// make sure we use the user provided information first
 	// even if there is some in the std rule
 	rc.IncludedKeywords = ProximityKeywords{
-		Keywords:       []string{"custom"},
-		CharacterCount: 42,
+		Keywords:               []string{"custom"},
+		CharacterCount:         42,
+		UseRecommendedKeywords: false,
 	}
 
-	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{IncludedKeywordsCharCount: 10})
+	rule, err = interpretRCRule(rc, stdRc, defaults)
 	require.NoError(err)
 	rxRule, ok = rule.(sds.RegexRuleConfig)
 	require.True(ok)
@@ -704,14 +713,21 @@ func TestInterpretRC(t *testing.T) {
 	// excluded keywords
 	// -----------------
 
+	// make sure we use the user provided information first
+	// even if there is some in the std rule
+	rc.IncludedKeywords = ProximityKeywords{
+		Keywords:               nil,
+		CharacterCount:         0,
+		UseRecommendedKeywords: false,
+	}
+
 	// make sure we use the keywords proximity feature if any's configured
 	// in the std rule definition, here the excluded keywords one
 	stdRc.Definitions = []StandardRuleDefinition{
 		{
-			Version:                 2,
-			Pattern:                 "second pattern",
-			RequiredCapabilities:    []string{RCSecondaryValidationLuhnChecksum},
-			DefaultExcludedKeywords: []string{"hello"},
+			Version:              2,
+			Pattern:              "second pattern",
+			RequiredCapabilities: []string{RCSecondaryValidationLuhnChecksum},
 		},
 		{
 			Version:              1,
@@ -720,10 +736,7 @@ func TestInterpretRC(t *testing.T) {
 		},
 	}
 
-	// we don't want to use the included keywords feature now, but the excluded keywords one
-	rc.UseRecommendedKeywords = false
-
-	rule, err = interpretRCRule(rc, stdRc, StandardRulesDefaults{ExcludedKeywordsCharCount: 10})
+	rule, err = interpretRCRule(rc, stdRc, defaults)
 	require.NoError(err)
 	rxRule, ok = rule.(sds.RegexRuleConfig)
 	require.True(ok)
@@ -733,5 +746,5 @@ func TestInterpretRC(t *testing.T) {
 	require.Equal(rxRule.SecondaryValidator, sds.LuhnChecksum)
 	require.NotNil(rxRule.ProximityKeywords)
 	require.Equal(rxRule.ProximityKeywords.LookAheadCharacterCount, uint32(10))
-	require.Equal(rxRule.ProximityKeywords.ExcludedKeywords, []string{"hello"})
+	require.Equal(rxRule.ProximityKeywords.ExcludedKeywords, []string{"trace-id"})
 }
