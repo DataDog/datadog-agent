@@ -36,6 +36,8 @@ const (
 	ServiceName string = "Datadog Installer"
 	// ConfigPath is the location of the Datadog Installer's configuration on disk
 	ConfigPath string = "C:\\ProgramData\\Datadog\\datadog.yaml"
+	// RegistryKeyPath is the root registry key that the Datadog Installer uses to store some state
+	RegistryKeyPath string = `HKLM:\SOFTWARE\Datadog\Datadog Installer`
 )
 
 var (
@@ -211,7 +213,13 @@ func (d *DatadogInstaller) Install(opts ...Option) error {
 }
 
 // Uninstall will attempt to uninstall the Datadog Installer on the remote host.
-func (d *DatadogInstaller) Uninstall() error {
+func (d *DatadogInstaller) Uninstall(opts ...Option) error {
+	params := Params{}
+	err := optional.ApplyOptions(&params, opts)
+	if err != nil {
+		return nil
+	}
+
 	productCode, err := windowsCommon.GetProductCodeByName(d.env.RemoteHost, "Datadog Installer")
 	if err != nil {
 		return err
@@ -221,7 +229,11 @@ func (d *DatadogInstaller) Uninstall() error {
 	if logPath == "" {
 		logPath = filepath.Join(os.TempDir(), "uninstall.log")
 	}
-	return windowsCommon.UninstallMSI(d.env.RemoteHost, productCode, logPath)
+	msiArgs := ""
+	if params.msiArgs != nil {
+		msiArgs = strings.Join(params.msiArgs, " ")
+	}
+	return windowsCommon.MsiExec(d.env.RemoteHost, "/x", productCode, msiArgs, logPath)
 }
 
 // GetExperimentDirFor is the path to the experiment symbolic link on disk
