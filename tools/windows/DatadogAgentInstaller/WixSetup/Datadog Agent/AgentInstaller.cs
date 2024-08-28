@@ -517,7 +517,7 @@ namespace WixSetup.Datadog_Agent
             var securityAgentService = GenerateDependentServiceInstaller(
                 new Id("ddagentsecurityservice"),
                 Constants.SecurityAgentServiceName,
-                "Datadog Security Service",
+                "Datadog Security Agent",
                 "Send Security events to Datadog",
                 "[DDAGENTUSER_PROCESSED_FQ_NAME]",
                 "[DDAGENTUSER_PROCESSED_PASSWORD]");
