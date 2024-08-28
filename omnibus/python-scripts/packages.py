@@ -40,7 +40,7 @@ def create_diff_installed_packages_file(postinst_file, prerm_file, diff_file):
                 prerm_version_str = extract_version(str(prerm_req.specifier))
                 if postinst_version_str and prerm_version_str:
                     if version.parse(prerm_version_str) > version.parse(postinst_version_str):
-                        f.write(f"str({prerm_req})\n")
+                        f.write(f"{prerm_req}\n")
             else:
                 # Package is new in the new file; include it
                 f.write(f"str({prerm_req})\n")
