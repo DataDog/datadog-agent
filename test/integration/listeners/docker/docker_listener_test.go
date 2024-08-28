@@ -89,6 +89,7 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		taggerimpl.Module(),
 		fx.Supply(tagger.NewTaggerParams()),
 	))
+	env.SetFeatures(suite.T(), env.Docker)
 	suite.wmeta = deps.WMeta
 	suite.telemetryStore = acTelemetry.NewStore(deps.Telemetry)
 	suite.dockerutil, err = docker.GetDockerUtil()

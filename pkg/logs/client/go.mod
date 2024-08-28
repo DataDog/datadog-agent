@@ -15,6 +15,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../comp/logs/agent/config
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../config/env
+	github.com/DataDog/datadog-agent/pkg/config/mock => ../../config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../config/setup
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../config/utils

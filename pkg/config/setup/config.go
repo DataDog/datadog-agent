@@ -19,6 +19,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -108,29 +109,26 @@ const (
 var (
 	datadog     pkgconfigmodel.Config
 	systemProbe pkgconfigmodel.Config
-)
 
-// Datadog returns the current agent configuration
-func Datadog() pkgconfigmodel.Config {
-	return datadog
-}
+	datadogMutex     = sync.RWMutex{}
+	systemProbeMutex = sync.RWMutex{}
+)
 
 // SetDatadog sets the the reference to the agent configuration.
 // This is currently used by the legacy converter and config mocks and should not be user anywhere else. Once the
 // legacy converter and mock have been migrated we will remove this function.
 func SetDatadog(cfg pkgconfigmodel.Config) {
+	datadogMutex.Lock()
+	defer datadogMutex.Unlock()
 	datadog = cfg
-}
-
-// SystemProbe returns the current SystemProbe configuration
-func SystemProbe() pkgconfigmodel.Config {
-	return systemProbe
 }
 
 // SetSystemProbe sets the the reference to the systemProbe configuration.
 // This is currently used by the config mocks and should not be user anywhere else. Once the mocks have been migrated we
 // will remove this function.
 func SetSystemProbe(cfg pkgconfigmodel.Config) {
+	systemProbeMutex.Lock()
+	defer systemProbeMutex.Unlock()
 	systemProbe = cfg
 }
 
@@ -1876,9 +1874,7 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 	err := LoadCustom(config, additionalKnownEnvVars)
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
-			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
-		} else {
-			log.Warnf("Error loading config: %v", err)
+			return warnings, log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
 		}
 		return warnings, err
 	}
