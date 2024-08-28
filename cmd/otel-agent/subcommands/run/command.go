@@ -162,11 +162,13 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ optional.Option[logsagentpipeline.Component]) {
 		}),
 
+		// TODO: don't rely on this pattern; remove this `OptionalModuleWithParams` thing
+		//       and instead adapt OptionalModule to allow parameter passing naturally.
+		//       See: https://github.com/DataDog/datadog-agent/pull/28386
 		configsyncimpl.OptionalModuleWithParams(),
 		fx.Provide(func() configsyncimpl.Params {
-			return configsyncimpl.NewParams(params.SyncTO, params.SyncDelay, true)
+			return configsyncimpl.NewParams(params.SyncTimeout, params.SyncDelay, true)
 		}),
-		fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
 
 		fx.Provide(tagger.NewTaggerParams),
 		taggerimpl.Module(),
@@ -180,7 +182,11 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		// to allow the agent to work as a service.
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
 
+		// TODO: consider adding configsync.Component as an explicit dependency for traceconfig
+		//       to avoid this sort of dependency tree hack.
 		fx.Provide(func(deps traceconfig.Dependencies, _ optional.Option[configsync.Component]) (traceconfig.Component, error) {
+			// TODO: this would be much better if we could leverage traceconfig.Module
+			//       Must add a new parameter to traconfig.Module to handle this.
 			return traceconfig.NewConfig(deps)
 		}),
 		fx.Supply(traceconfig.Params{FailIfAPIKeyMissing: false}),

@@ -22,7 +22,7 @@ type GlobalParams struct {
 	ConfigName   string
 	LoggerName   string
 	SyncDelay    time.Duration
-	SyncTO       time.Duration
+	SyncTimeout  time.Duration
 }
 
 // Set is called by Cobra when a flag is set.

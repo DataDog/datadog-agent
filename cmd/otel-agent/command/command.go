@@ -83,7 +83,7 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 const configFlag = "config"
 const coreConfigFlag = "core-config"
 const syncDelayFlag = "sync-delay"
-const syncTOFlag = "sync-to"
+const syncTimeoutFlag = "sync-to"
 
 func flags(reg *featuregate.Registry, cfgs *subcommands.GlobalParams) *flag.FlagSet {
 	flagSet := new(flag.FlagSet)
@@ -91,7 +91,7 @@ func flags(reg *featuregate.Registry, cfgs *subcommands.GlobalParams) *flag.Flag
 		" single location can be set per flag entry e.g. `--config=file:/path/to/first --config=file:path/to/second`.")
 	flagSet.StringVar(&cfgs.CoreConfPath, coreConfigFlag, "", "Location to the Datadog Agent config file.")
 	flagSet.DurationVar(&cfgs.SyncDelay, syncDelayFlag, 0, "Delay before first config sync.")
-	flagSet.DurationVar(&cfgs.SyncTO, syncTOFlag, 3*time.Second, "Timeout for sync requests.")
+	flagSet.DurationVar(&cfgs.SyncTimeout, syncTimeoutFlag, 3*time.Second, "Timeout for sync requests.")
 
 	flagSet.Func("set",
 		"Set arbitrary component config property. The component has to be defined in the config file and the flag"+

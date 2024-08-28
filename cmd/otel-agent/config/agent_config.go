@@ -99,10 +99,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	pkgconfig.Set("apm_config.enabled", true, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("apm_config.apm_non_local_traffic", true, pkgconfigmodel.SourceLocalConfigProcess)
 
-	// Port cannot be shared with trace-agent, so just use the next one
-	traceAgentDebugPort := pkgconfig.GetInt("apm_config.debug.port")
-	pkgconfig.Set("apm_config.debug.port", traceAgentDebugPort+1, pkgconfigmodel.SourceLocalConfigProcess) // Default: 5012 is for trace-agent
-
+	pkgconfig.Set("apm_config.debug.port", 0, pkgconfigmodel.SourceLocalConfigProcess)      // Disabled in the otel-agent
 	pkgconfig.Set(pkgconfigsetup.OTLPTracePort, 0, pkgconfigmodel.SourceLocalConfigProcess) // Disabled in the otel-agent
 
 	pkgconfig.Set("otlp_config.traces.span_name_as_resource_name", ddc.Traces.SpanNameAsResourceName, pkgconfigmodel.SourceLocalConfigProcess)
