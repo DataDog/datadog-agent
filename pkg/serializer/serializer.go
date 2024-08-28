@@ -436,7 +436,6 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 	sketchesSerializer := metricsserializer.SketchSeriesList{SketchesSource: sketches}
 	if s.enableSketchProtobufStream {
 		failoverActive, allowlist := s.getFailoverAllowlist()
-		log.Infof("Failover active: %t, allowlist: %v, SendSketch", failoverActive, allowlist)
 		if failoverActive && len(allowlist) > 0 {
 			payloads, filteredPayloads, err := sketchesSerializer.MarshalSplitCompressMultiple(s.config, s.Strategy, func(ss *metrics.SketchSeries) bool {
 				_, allowed := allowlist[ss.Name]

@@ -143,10 +143,7 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 // The seond contains only those that pass the provided MRF filter function.
 // The third contains only those that pass the provided autoscaling local failover filter function.
 // This function exists because we need a way to build both payloads in a single pass over the input data, which cannot be iterated over twice.
-func (series *IterableSeries) MarshalSplitCompressMultiple(config config.Component,
-	strategy compression.Component,
-	filterFuncForMRF func(s *metrics.Serie) bool,
-	filterFuncForAutoscaling func(s *metrics.Serie) bool) (transaction.BytesPayloads, transaction.BytesPayloads, transaction.BytesPayloads, error) {
+func (series *IterableSeries) MarshalSplitCompressMultiple(config config.Component, strategy compression.Component, filterFuncForMRF func(s *metrics.Serie) bool, filterFuncForAutoscaling func(s *metrics.Serie) bool) (transaction.BytesPayloads, transaction.BytesPayloads, transaction.BytesPayloads, error) {
 	pbs := make([]*PayloadsBuilder, 3) // 0: all, 1: MRF, 2: autoscaling
 	for i := range pbs {
 		bufferContext := marshaler.NewBufferContext()

@@ -190,7 +190,7 @@ func NewOptionsWithResolvers(config config.Component, log log.Component, domainR
 		} else if authToken, err := security.GetClusterAgentAuthToken(config); err != nil {
 			log.Errorf("Failed to get cluster agent auth token: ", err)
 		} else {
-			log.Info("Setting cluster agent domain resolver: %s", domain)
+			log.Infof("Setting cluster agent domain resolver: %s", domain)
 			option.DomainResolvers[domain] = pkgresolver.NewLocalDomainResolver(domain, authToken)
 		}
 	}
@@ -495,7 +495,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 		for domain, dr := range f.domainResolvers {
 			drDomain, destinationType := dr.Resolve(endpoint) // drDomain is the domain with agent version if not local
 			if payload.Destination == transaction.LocalOnly {
-				// if for local payload, we should not send it to the remote endpoint
+				// if it is local payload, we should not send it to the remote endpoint
 				if destinationType == pkgresolver.Local && endpoint == endpoints.SeriesEndpoint {
 					t := transaction.NewHTTPTransaction()
 					t.Domain = drDomain
