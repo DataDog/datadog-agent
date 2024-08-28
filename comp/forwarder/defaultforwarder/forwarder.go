@@ -31,7 +31,8 @@ type provides struct {
 }
 
 func newForwarder(dep dependencies) provides {
-	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, dep.Params.options, dep.Params.UseNoopForwarder)
+	options := dep.Params.CreationOptions(dep.Config, dep.Log)
+	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, options, dep.Params.UseNoopForwarder)
 }
 
 // NewForwarder returns a new forwarder component.

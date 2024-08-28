@@ -10,33 +10,50 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Params contains the parameters to create a forwarder.
 type Params struct {
-	UseNoopForwarder bool
-	// TODO: (components) When the code of the forwarder will be
-	// in /comp/forwarder move the content of forwarder.options inside this struct.
-	options *Options
+	UseNoopForwarder              bool
+	withResolver                  bool
+	disableAPIKeyCheckingOverride optional.Option[bool]
+	features                      []Features
 }
 
 // NewParams initializes a new Params struct
 func NewParams(config config.Component, log log.Component) Params {
-	return Params{options: NewOptions(config, log, getMultipleEndpoints(config, log))}
+	return Params{withResolver: false}
 }
 
 // NewParamsWithResolvers initializes a new Params struct with resolvers
 func NewParamsWithResolvers(config config.Component, log log.Component) Params {
-	keysPerDomain := getMultipleEndpoints(config, log)
-	return Params{options: NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(keysPerDomain))}
+	return Params{withResolver: true}
+}
+
+func (p *Params) CreationOptions(config config.Component, log log.Component) *Options {
+	var options *Options
+	if !p.withResolver {
+		options = NewOptions(config, log, getMultipleEndpoints(config, log))
+	} else {
+		keysPerDomain := getMultipleEndpoints(config, log)
+		options = NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(keysPerDomain))
+	}
+	if disableAPIKeyChecking, ok := p.disableAPIKeyCheckingOverride.Get(); ok {
+		options.DisableAPIKeyChecking = disableAPIKeyChecking
+	}
+	for _, feature := range p.features {
+		options.EnabledFeatures = SetFeature(options.EnabledFeatures, feature)
+	}
+	return options
 }
 
 func (p *Params) DisableAPIKeyChecking() {
-	p.options.DisableAPIKeyChecking = true
+	p.disableAPIKeyCheckingOverride.Set(true)
 }
 
 func (p *Params) SetFeature(feature Features) {
-	p.options.EnabledFeatures = SetFeature(p.options.EnabledFeatures, feature)
+	p.features = append(p.features, feature)
 }
 
 func getMultipleEndpoints(config config.Component, log log.Component) map[string][]string {
