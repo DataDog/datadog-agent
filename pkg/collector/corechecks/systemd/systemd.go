@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -272,7 +272,7 @@ func (c *SystemdCheck) getDbusConnection() (*dbus.Conn, error) {
 		conn, err = c.getPrivateSocketConnection(c.config.instance.PrivateSocket)
 	} else {
 		defaultPrivateSocket := "/run/systemd/private"
-		if config.IsContainerized() {
+		if env.IsContainerized() {
 			conn, err = c.getPrivateSocketConnection("/host" + defaultPrivateSocket)
 		} else {
 			conn, err = c.getSystemBusSocketConnection()

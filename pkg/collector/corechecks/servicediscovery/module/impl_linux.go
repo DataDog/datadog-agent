@@ -222,7 +222,8 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 
 	contextMap := make(usm.DetectorContextMap)
 
-	name, fromDDService := servicediscovery.GetServiceName(cmdline, envs, contextMap)
+	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
+	name, fromDDService := servicediscovery.GetServiceName(cmdline, envs, root, contextMap)
 	lang := language.FindInArgs(cmdline)
 	if lang == "" {
 		lang = language.FindUsingPrivilegedDetector(s.privilegedDetector, proc.Pid)
