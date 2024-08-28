@@ -276,10 +276,10 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	result, err := c.handleScaling(ctx, podAutoscaler, &podAutoscalerInternal)
 
 	// Update current replicas
-	targetGVK, err := podAutoscalerInternal.TargetGVK()
-	if err != nil {
-		podAutoscalerInternal.SetError(err)
-		return autoscaling.NoRequeue, err
+	targetGVK, targetErr := podAutoscalerInternal.TargetGVK()
+	if targetErr != nil {
+		podAutoscalerInternal.SetError(targetErr)
+		return autoscaling.NoRequeue, targetErr
 	}
 	target := NamespacedPodOwner{
 		Namespace: podAutoscalerInternal.Namespace(),
