@@ -84,8 +84,7 @@ func TestTelemetry_Count(t *testing.T) {
 			},
 		},
 		{
-			name:          "exceeded query length bucket for each bucket ones with telemetry config",
-			maxBufferSize: telemetryTestBufferSize,
+			name: "exceeded query length bucket for each bucket ones with telemetry config",
 			tx: []*ebpf.EbpfEvent{
 				createEbpfEvent(telemetryTestBufferSize - 2*bucketLength),
 				createEbpfEvent(telemetryTestBufferSize - bucketLength),
@@ -98,6 +97,29 @@ func TestTelemetry_Count(t *testing.T) {
 				createEbpfEvent(telemetryTestBufferSize + 5*bucketLength + 1),
 				createEbpfEvent(telemetryTestBufferSize + 6*bucketLength + 1),
 			},
+			maxBufferSize: telemetryTestBufferSize,
+
+			expectedTelemetry: telemetryResults{
+				queryLength:               [bucketLength]int64{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+				failedOperationExtraction: 10,
+				failedTableNameExtraction: 10,
+			},
+		},
+		{
+			name: "validating max buffer size which creates negative first bucket lower boundary",
+			tx: []*ebpf.EbpfEvent{
+				createEbpfEvent(ebpf.BufferSize - 2*bucketLength),
+				createEbpfEvent(ebpf.BufferSize - bucketLength),
+				createEbpfEvent(ebpf.BufferSize),
+				createEbpfEvent(ebpf.BufferSize + 1),
+				createEbpfEvent(ebpf.BufferSize + bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 2*bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 3*bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 4*bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 5*bucketLength + 1),
+				createEbpfEvent(ebpf.BufferSize + 6*bucketLength + 1),
+			},
+			maxBufferSize: 1,
 
 			expectedTelemetry: telemetryResults{
 				queryLength:               [bucketLength]int64{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
