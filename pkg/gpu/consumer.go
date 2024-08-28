@@ -22,6 +22,7 @@ type CudaEventConsumer struct {
 	once           sync.Once
 	closed         chan struct{}
 	streamHandlers map[StreamKey]*StreamHandler
+	wg             sync.WaitGroup
 }
 
 func NewCudaEventConsumer(eventHandler ddebpf.EventHandler) *CudaEventConsumer {
@@ -56,6 +57,7 @@ func (c *CudaEventConsumer) Stop() {
 		return
 	}
 	c.eventHandler.Stop()
+	c.wg.Wait()
 	c.once.Do(func() {
 		close(c.closed)
 	})
@@ -67,14 +69,18 @@ func (c *CudaEventConsumer) Start() {
 	}
 	health := health.RegisterLiveness("gpu-tracer-cuda-events")
 	processMonitor := monitor.GetProcessMonitor()
-	processMonitor.SubscribeExit(c.handleProcessExit)
+	cleanupExit := processMonitor.SubscribeExit(c.handleProcessExit)
 
+	c.wg.Add(1)
 	go func() {
 		defer func() {
+			cleanupExit()
 			err := health.Deregister()
 			if err != nil {
 				log.Warnf("error de-registering health check: %s", err)
 			}
+			c.wg.Done()
+			log.Infof("CUDA event consumer stopped")
 		}()
 
 		dataChannel := c.eventHandler.DataChannel()
@@ -137,6 +143,7 @@ func (c *CudaEventConsumer) Start() {
 			}
 		}
 	}()
+	log.Infof("CUDA event consumer started")
 }
 
 func (c *CudaEventConsumer) handleProcessExit(pid uint32) {
