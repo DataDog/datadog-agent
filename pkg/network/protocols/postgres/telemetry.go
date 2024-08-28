@@ -32,9 +32,11 @@ type Telemetry struct {
 	failedTableNameExtraction *libtelemetry.Counter
 	// failedOperationExtraction holds the counter for the failed operation extraction
 	failedOperationExtraction *libtelemetry.Counter
-	// telemetryBufferSize size is set by default to the ebpf.BufferSize
-	// but can be overridden by the max_postgres_telemetry_buffer configuration.
-	telemetryBufferSize int
+	// firstBucketLowerBoundary is the lower boundary of the first bucket.
+	// We add 1 in order to include BufferSize as the upper boundary of the third bucket.
+	// Then the first three buckets will include query lengths shorter or equal to BufferSize,
+	// and the rest will include sizes equal to or above the buffer size.
+	firstBucketLowerBoundary int
 }
 
 // createQueryLengthBuckets initializes the query length buckets
@@ -66,18 +68,13 @@ func NewTelemetry(cfg *config.Config) *Telemetry {
 		queryLengthBuckets:        createQueryLengthBuckets(metricGroup),
 		failedTableNameExtraction: metricGroup.NewCounter("failed_table_name_extraction", libtelemetry.OptStatsd),
 		failedOperationExtraction: metricGroup.NewCounter("failed_operation_extraction", libtelemetry.OptStatsd),
-		telemetryBufferSize:       cfg.MaxPostgresTelemetryBuffer,
+		firstBucketLowerBoundary:  cfg.MaxPostgresTelemetryBuffer - numberOfBucketsSmallerThanMaxBufferSize*bucketLength + 1,
 	}
 }
 
 // getBucketIndex returns the index of the bucket for the given query size
 func (t *Telemetry) getBucketIndex(querySize int) int {
-	// firstBucketLowerBoundary is the lower boundary of the first bucket.
-	// We add 1 in order to include BufferSize as the upper boundary of the third bucket.
-	// Then the first three buckets will include query lengths shorter or equal to BufferSize,
-	// and the rest will include sizes equal to or above the buffer size.
-	firstBucketLowerBoundary := t.telemetryBufferSize - numberOfBucketsSmallerThanMaxBufferSize*bucketLength + 1
-	bucketIndex := max(0, querySize-firstBucketLowerBoundary) / bucketLength
+	bucketIndex := max(0, querySize-t.firstBucketLowerBoundary) / bucketLength
 	return min(bucketIndex, numberOfBuckets-1)
 }
 

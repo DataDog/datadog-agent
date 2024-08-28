@@ -8,7 +8,6 @@
 package postgres
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -59,7 +58,7 @@ func TestTelemetry_Count(t *testing.T) {
 	tests := []struct {
 		name              string
 		query             string
-		telemetryConfig   int
+		maxBufferSize     int
 		tx                []*ebpf.EbpfEvent
 		expectedTelemetry telemetryResults
 	}{
@@ -85,8 +84,8 @@ func TestTelemetry_Count(t *testing.T) {
 			},
 		},
 		{
-			name:            "exceeded query length bucket for each bucket ones with telemetry config",
-			telemetryConfig: telemetryTestBufferSize,
+			name:          "exceeded query length bucket for each bucket ones with telemetry config",
+			maxBufferSize: telemetryTestBufferSize,
 			tx: []*ebpf.EbpfEvent{
 				createEbpfEvent(telemetryTestBufferSize - 2*bucketLength),
 				createEbpfEvent(telemetryTestBufferSize - bucketLength),
@@ -138,11 +137,11 @@ func TestTelemetry_Count(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			telemetry.Clear()
-			if tt.telemetryConfig > 0 {
-				t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_POSTGRES_TELEMETRY_BUFFER", fmt.Sprint(tt.telemetryConfig))
-			}
 
 			cfg := config.New()
+			if tt.maxBufferSize > 0 {
+				cfg.MaxPostgresTelemetryBuffer = tt.maxBufferSize
+			}
 			tel := NewTelemetry(cfg)
 			if tt.query != "" {
 				tt.tx[0].Tx.Original_query_size = uint32(len(tt.query))
