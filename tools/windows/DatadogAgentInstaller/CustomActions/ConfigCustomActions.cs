@@ -1,17 +1,16 @@
-using System;
-using System.IO;
 using Datadog.CustomActions.Extensions;
-using Microsoft.Deployment.WindowsInstaller;
-using YamlDotNet.Serialization.NamingConventions;
-using YamlDotNet.Serialization;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text.RegularExpressions;
-using System.Text;
 using Datadog.CustomActions.Interfaces;
+using Microsoft.Deployment.WindowsInstaller;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Security.AccessControl;
 using System.Security.Principal;
-using Datadog.CustomActions.Native;
+using System.Text;
+using System.Text.RegularExpressions;
+using YamlDotNet.Serialization;
+using YamlDotNet.Serialization.NamingConventions;
 
 namespace Datadog.CustomActions
 {
@@ -69,7 +68,6 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        [CustomAction]
         public static ActionResult ReadConfig(Session session)
         {
             return ReadConfig(new SessionWrapper(session));
@@ -418,7 +416,6 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        [CustomAction]
         public static ActionResult WriteConfig(Session session)
         {
             return WriteConfig(new SessionWrapper(session));
@@ -479,7 +476,6 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        [CustomAction]
         public static ActionResult DDCreateFolders(Session session)
         {
             return DDCreateFolders(new SessionWrapper(session));

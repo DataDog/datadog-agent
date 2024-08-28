@@ -91,11 +91,13 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 		found := foundMap["python.server"]
 		if assert.NotNil(c, found) {
 			assert.Equal(c, "none", found.Payload.APMInstrumentation)
+			assert.Equal(c, "generated", found.Payload.ServiceNameSource)
 		}
 
 		found = foundMap["python.instrumented"]
 		if assert.NotNil(c, found) {
 			assert.Equal(c, "provided", found.Payload.APMInstrumentation)
+			assert.Equal(c, "generated", found.Payload.ServiceNameSource)
 		}
 
 		assert.Contains(c, foundMap, "json-server")

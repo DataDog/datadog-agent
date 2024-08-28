@@ -316,7 +316,10 @@ func (t *Tailer) forwardMessages() {
 			origin.Offset = output.ParsingExtra.Timestamp
 			t.setLastSince(output.ParsingExtra.Timestamp)
 			origin.Identifier = t.Identifier()
-			origin.SetTags(t.tagProvider.GetTags())
+			tags := []string{}
+			tags = append(tags, output.ParsingExtra.Tags...)
+			tags = append(tags, t.tagProvider.GetTags()...)
+			origin.SetTags(tags)
 			// XXX(remy): is it OK recreating a message here?
 			t.outputChan <- message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp)
 		}
