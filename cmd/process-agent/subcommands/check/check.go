@@ -123,8 +123,7 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 
 				// Provide eventplatformimpl module
 				eventplatformreceiverimpl.Module(),
-				eventplatformimpl.Module(),
-				fx.Supply(eventplatformimpl.NewDefaultParams()),
+				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				npcollectorimpl.Module(),
 				// Provide the corresponding workloadmeta Params to configure the catalog
 				wmcatalog.GetCatalog(),

@@ -196,7 +196,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				orchestratorimpl.Module(),
 				fx.Provide(
 					orchestratorimpl.NewDefaultParams,
-					eventplatformimpl.NewDefaultParams,
 					demultiplexerimpl.NewDefaultParams,
 				),
 			)
