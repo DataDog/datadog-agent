@@ -58,10 +58,11 @@ func (c *Config) Unmarshal(conf *confmap.Conf) error {
 	return nil
 }
 
-func zPagesExtractEndpoint(c *confmap.Conf) (string, bool, error) {
-	endpoint, err := regularStringEndpointExtractor(c)
-	return endpoint, true, err
-}
+// todo: uncomment once zpages data is re-added to flare
+// func zPagesExtractEndpoint(c *confmap.Conf) (string, bool, error) {
+// 	endpoint, err := regularStringEndpointExtractor(c)
+// 	return endpoint, true, err
+// }
 
 func pprofExtractEndpoint(c *confmap.Conf) (string, bool, error) {
 	endpoint, err := regularStringEndpointExtractor(c)
