@@ -23,11 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-const (
-	defaultLogFilePath = commonpath.DefaultStreamlogsLogFile
-	streamLogDuration  = 60 * time.Second
-)
-
 // Requires defines the dependencies for the streamlogs component
 type Requires struct {
 	compdef.In
@@ -67,7 +62,7 @@ func NewRCStreamLogFlare(reqs Requires) (Provides, error) {
 }
 
 // exportStreamLogsIfEnabled streams logs when runtime is enabled
-func (sl *streamlogsimpl) exportStreamLogsIfEnabled(logAgent logsAgent.Component) error {
+func (sl *streamlogsimpl) exportStreamLogsIfEnabled(logAgent logsAgent.Component, streamlogsLogFilePath string) error {
 	// If the streamlog runtime setting is set, start streaming log to default file
 	enableStreamLog, err := sl.coresetting.GetRuntimeSetting("enable_stream_logs")
 	if err != nil {
@@ -77,8 +72,8 @@ func (sl *streamlogsimpl) exportStreamLogsIfEnabled(logAgent logsAgent.Component
 	if values, ok := enableStreamLog.([]interface{}); ok && len(values) > 1 {
 		if enable, ok := values[1].(bool); ok && enable {
 			streamLogParams := stream.LogParams{
-				FilePath: defaultLogFilePath,
-				Duration: streamLogDuration,
+				FilePath: streamlogsLogFilePath,
+				Duration: 60 * time.Second, // Default duration is 60 seconds
 			}
 			if err := stream.ExportStreamLogs(logAgent, &streamLogParams); err != nil {
 				return fmt.Errorf("failed to export stream logs: %w", err)
@@ -91,7 +86,7 @@ func (sl *streamlogsimpl) exportStreamLogsIfEnabled(logAgent logsAgent.Component
 func (sl *streamlogsimpl) fillFlare(fb flaretypes.FlareBuilder) error {
 	streamlogsLogFile := sl.config.GetString("streamlogs_log_file")
 	if streamlogsLogFile == "" {
-		streamlogsLogFile = defaultLogFilePath
+		streamlogsLogFile = commonpath.DefaultStreamlogsLogFile
 	}
 
 	la, ok := sl.logAgent.Get()
@@ -99,7 +94,7 @@ func (sl *streamlogsimpl) fillFlare(fb flaretypes.FlareBuilder) error {
 		return fmt.Errorf("log agent not found, unable to export stream logs")
 	}
 
-	if err := sl.exportStreamLogsIfEnabled(la); err != nil {
+	if err := sl.exportStreamLogsIfEnabled(la, streamlogsLogFile); err != nil {
 		return err
 	}
 
