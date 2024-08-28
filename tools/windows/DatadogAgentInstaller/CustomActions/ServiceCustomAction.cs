@@ -1,16 +1,15 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.AccessControl;
-using System.Security.Authentication.ExtendedProtection;
-using System.Security.Principal;
-using System.ServiceProcess;
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Datadog.CustomActions.Rollback;
 using Microsoft.Deployment.WindowsInstaller;
 using Microsoft.Win32;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.AccessControl;
+using System.Security.Principal;
+using System.ServiceProcess;
 using ServiceController = Datadog.CustomActions.Native.ServiceController;
 
 namespace Datadog.CustomActions
@@ -105,7 +104,6 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        [CustomAction]
         public static ActionResult EnsureNpmServiceDependency(Session session)
         {
             return EnsureNpmServiceDependendency(new SessionWrapper(session));
@@ -261,7 +259,6 @@ namespace Datadog.CustomActions
             }
         }
 
-        [CustomAction]
         public static ActionResult ConfigureServices(Session session)
         {
             return new ServiceCustomAction(new SessionWrapper(session), "ConfigureServices").ConfigureServices();
@@ -281,7 +278,6 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        [CustomAction]
         public static ActionResult ConfigureServicesRollback(Session session)
         {
             return new ServiceCustomAction(new SessionWrapper(session), "ConfigureServices").ConfigureServicesRollback();
@@ -396,7 +392,6 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        [CustomAction]
         public static ActionResult StopDDServices(Session session)
         {
             return new ServiceCustomAction(new SessionWrapper(session)).StopDDServices(false);
@@ -424,7 +419,6 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        [CustomAction]
         public static ActionResult StartDDServices(Session session)
         {
             return new ServiceCustomAction(new SessionWrapper(session)).StartDDServices();
@@ -437,7 +431,6 @@ namespace Datadog.CustomActions
             return StopDDServices(true);
         }
 
-        [CustomAction]
         public static ActionResult StartDDServicesRollback(Session session)
         {
             return new ServiceCustomAction(new SessionWrapper(session)).StartDDServicesRollback();

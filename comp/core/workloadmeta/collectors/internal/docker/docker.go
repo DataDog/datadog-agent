@@ -29,7 +29,7 @@ import (
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	errorspkg "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -81,7 +81,7 @@ func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	if !pkgconfig.IsFeaturePresent(pkgconfig.Docker) {
+	if !env.IsFeaturePresent(env.Docker) {
 		return errorspkg.NewDisabled(componentName, "Agent is not running on Docker")
 	}
 

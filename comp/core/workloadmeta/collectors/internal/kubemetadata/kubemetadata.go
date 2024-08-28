@@ -20,7 +20,7 @@ import (
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -64,7 +64,7 @@ func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
 
 // Start tries to connect to the kubelet, the DCA and the API Server if the DCA is not available.
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
-	if !pkgconfig.IsFeaturePresent(pkgconfig.Kubernetes) {
+	if !env.IsFeaturePresent(env.Kubernetes) {
 		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}
 

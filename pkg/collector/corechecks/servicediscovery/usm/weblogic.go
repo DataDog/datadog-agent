@@ -78,7 +78,9 @@ func (we weblogicExtractor) findDeployedApps(domainHome string) ([]jeeDeployment
 	for _, di := range deployInfos.AppDeployment {
 		if di.StagingMode == "stage" && di.Target == serverName {
 			_, name := path.Split(di.SourcePath)
-			deployments = append(deployments, jeeDeployment{name: name, path: di.SourcePath})
+			// The original code did not have the domainHome addition here,
+			// unlike in jboss/tomcat.
+			deployments = append(deployments, jeeDeployment{name: name, path: abs(di.SourcePath, domainHome)})
 		}
 	}
 	return deployments, len(deployments) > 0

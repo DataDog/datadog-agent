@@ -33,8 +33,7 @@ func TestTagBuilder(t *testing.T) {
 		fx.Supply(log.Params{}),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())

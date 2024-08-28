@@ -55,10 +55,9 @@ func setUpCollectorTest(t *testing.T, configOverrides map[string]interface{}) co
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Replace(config.MockParams{Overrides: configOverrides}),
-		fx.Supply(workloadmeta.Params{
+		workloadmetafxmock.MockModule(workloadmeta.Params{
 			AgentType: workloadmeta.NodeAgent,
 		}),
-		workloadmetafxmock.MockModule(),
 	))
 	mockConfig := pkgconfigmock.New(t)
 

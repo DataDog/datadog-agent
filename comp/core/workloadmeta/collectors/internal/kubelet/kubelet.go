@@ -18,7 +18,7 @@ import (
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -54,7 +54,7 @@ func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
 }
 
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
-	if !pkgconfig.IsFeaturePresent(pkgconfig.Kubernetes) {
+	if !env.IsFeaturePresent(env.Kubernetes) {
 		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}
 

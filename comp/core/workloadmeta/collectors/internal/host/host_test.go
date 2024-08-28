@@ -44,9 +44,8 @@ func TestHostCollector(t *testing.T) {
 	deps := fxutil.Test[testDeps](t, fx.Options(
 		fx.Replace(config.MockParams{Overrides: overrides}),
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	mockClock := clock.NewMock()

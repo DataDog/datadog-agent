@@ -19,6 +19,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -108,29 +109,26 @@ const (
 var (
 	datadog     pkgconfigmodel.Config
 	systemProbe pkgconfigmodel.Config
-)
 
-// Datadog returns the current agent configuration
-func Datadog() pkgconfigmodel.Config {
-	return datadog
-}
+	datadogMutex     = sync.RWMutex{}
+	systemProbeMutex = sync.RWMutex{}
+)
 
 // SetDatadog sets the the reference to the agent configuration.
 // This is currently used by the legacy converter and config mocks and should not be user anywhere else. Once the
 // legacy converter and mock have been migrated we will remove this function.
 func SetDatadog(cfg pkgconfigmodel.Config) {
+	datadogMutex.Lock()
+	defer datadogMutex.Unlock()
 	datadog = cfg
-}
-
-// SystemProbe returns the current SystemProbe configuration
-func SystemProbe() pkgconfigmodel.Config {
-	return systemProbe
 }
 
 // SetSystemProbe sets the the reference to the systemProbe configuration.
 // This is currently used by the config mocks and should not be user anywhere else. Once the mocks have been migrated we
 // will remove this function.
 func SetSystemProbe(cfg pkgconfigmodel.Config) {
+	systemProbeMutex.Lock()
+	defer systemProbeMutex.Unlock()
 	systemProbe = cfg
 }
 
@@ -365,7 +363,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// 	- `statefulsets.apps`
 	// 	- `pods`
 	// 	- `nodes`
-	config.BindEnvAndSetDefault("kubernetes_resources_annotations_as_tags", map[string]map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_resources_annotations_as_tags", "{}")
 	// kubernetes_resources_labels_as_tags should be parseable as map[string]map[string]string
 	// it maps group resources to labels as tags maps
 	// a group resource has the format `{resource}.{group}`, or simply `{resource}` if it belongs to the empty group
@@ -374,7 +372,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// 	- `statefulsets.apps`
 	// 	- `pods`
 	// 	- `nodes`
-	config.BindEnvAndSetDefault("kubernetes_resources_labels_as_tags", map[string]map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_resources_labels_as_tags", "{}")
 	config.BindEnvAndSetDefault("kubernetes_persistent_volume_claims_as_tags", true)
 	config.BindEnvAndSetDefault("container_cgroup_prefix", "")
 
@@ -855,6 +853,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("otelcollector.extension_url", "https://localhost:7777")
 	config.BindEnvAndSetDefault("otelcollector.extension_timeout", 0)         // in seconds, 0 for default value
 	config.BindEnvAndSetDefault("otelcollector.submit_dummy_metadata", false) // dev flag - to be removed
+	config.BindEnvAndSetDefault("otelcollector.converter.enabled", true)
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
@@ -875,7 +874,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("security_agent.remote_workloadmeta", false) // TODO: switch this to true when ready
 
 	// debug config to enable a remote client to receive data from the workloadmeta agent without a timeout
-	config.BindEnvAndSetDefault("workloadmeta.remote.recv_without_timeout", false)
+	config.BindEnvAndSetDefault("workloadmeta.remote.recv_without_timeout", true)
 
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.enabled", false, "DD_SECURITY_AGENT_INTERNAL_PROFILING_ENABLED")
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.site", DefaultSite, "DD_SECURITY_AGENT_INTERNAL_PROFILING_SITE", "DD_SITE")
@@ -974,6 +973,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("installer.registry.url", "")
 	config.BindEnvAndSetDefault("installer.registry.auth", "")
 	config.BindEnv("fleet_policies_dir")
+	config.SetDefault("fleet_layers", []string{})
 
 	// Data Jobs Monitoring config
 	config.BindEnvAndSetDefault("djm_config.enabled", false)
@@ -1072,6 +1072,11 @@ func agent(config pkgconfigmodel.Setup) {
 	// Use to output logs in JSON format
 	config.BindEnvAndSetDefault("log_format_json", false)
 
+	// Agent GUI access host
+	// 		'http://localhost' is preferred over 'http://127.0.0.1' due to Internet Explorer behavior.
+	// 		Internet Explorer High Security Level does not support setting cookies via HTTP Header response.
+	// 		By default, 'http://localhost' is categorized as an "intranet" website, which is considered safer and allowed to use cookies. This is not the case for 'http://127.0.0.1'.
+	config.BindEnvAndSetDefault("GUI_host", "localhost")
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
 	config.BindEnvAndSetDefault("GUI_session_expiration", 0)
@@ -1482,7 +1487,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// maximum time that the windows tailer will hold a log file open, while waiting for
 	// the downstream logs pipeline to be ready to accept more data
 	config.BindEnvAndSetDefault("logs_config.windows_open_file_timeout", 5)
-	config.BindEnvAndSetDefault("logs_config.experimental_auto_multi_line_detection", false)
+
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection", false)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_extra_patterns", []string{})
 	// The following auto_multi_line settings are experimental and may change
@@ -1490,8 +1495,16 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_timeout", 30) // Seconds
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", 0.48)
 
+	// Experimental auto multiline detection settings (these are subject to change until the feature is no longer experimental)
+	config.BindEnvAndSetDefault("logs_config.experimental_auto_multi_line_detection", false)
+	config.SetKnown("logs_config.auto_multi_line_detection_custom_samples")
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.timestamp_detector_match_threshold", 0.5)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.tokenizer_max_input_bytes", 60)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_max_size", 20)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_match_threshold", 0.75)
+	config.BindEnvAndSetDefault("logs_config.tag_auto_multi_line_logs", false)
+	// Add a tag to logs that are truncated by the agent
+	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", false)
 
 	// If true, the agent looks for container logs in the location used by podman, rather
 	// than docker.  This is a temporary configuration parameter to support podman logs until
@@ -1532,9 +1545,6 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// Max size in MB to allow for integrations logs files
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
-
-	// Add a tag to file logs that are truncated by the agent
-	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", false)
 }
 
 func vector(config pkgconfigmodel.Setup) {
@@ -1899,9 +1909,7 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 	err := LoadCustom(config, additionalKnownEnvVars)
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
-			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
-		} else {
-			log.Warnf("Error loading config: %v", err)
+			return warnings, log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
 		}
 		return warnings, err
 	}

@@ -115,8 +115,7 @@ func (s *service) Run(svcctx context.Context) error {
 
 		// workloadmeta setup
 		fx.Provide(wmcatalog.GetCatalog),
-		workloadmetafx.Module(),
-		fx.Provide(func(config config.Component) workloadmeta.Params {
+		workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {
 
 			catalog := workloadmeta.NodeAgent
 

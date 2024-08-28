@@ -19,6 +19,7 @@ import (
 	"github.com/opencontainers/image-spec/identity"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -26,11 +27,11 @@ import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/containers"
-	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/leases"
 	"github.com/containerd/containerd/mount"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/oci"
+	"github.com/containerd/errdefs"
 )
 
 const (
@@ -453,7 +454,7 @@ func (c *ContainerdUtil) getMounts(ctx context.Context, expiration time.Duration
 	}
 
 	// Transforming mounts in case we're running in a container
-	if config.IsContainerized() {
+	if env.IsContainerized() {
 		for i := range mounts {
 			mounts[i].Source = strings.ReplaceAll(mounts[i].Source, "/var/lib", "/host/var/lib")
 			for j := range mounts[i].Options {

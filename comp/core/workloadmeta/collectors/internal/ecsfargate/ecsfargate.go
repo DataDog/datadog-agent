@@ -16,7 +16,7 @@ import (
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/wmcatalog/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
@@ -53,7 +53,7 @@ func NewCollector(cfg config.Component) (wmcatalog.Collector, error) {
 }
 
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
-	if !pkgconfig.IsFeaturePresent(pkgconfig.ECSFargate) {
+	if !env.IsFeaturePresent(env.ECSFargate) {
 		return errors.NewDisabled(componentName, "Agent is not running on ECS Fargate")
 	}
 

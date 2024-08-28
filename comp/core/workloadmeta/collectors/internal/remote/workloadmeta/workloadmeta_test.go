@@ -165,10 +165,7 @@ func TestHandleWorkloadmetaStreamResponse(t *testing.T) {
 	// workloadmeta client store
 	mockClientStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.Params{
-			AgentType: workloadmeta.Remote,
-		}),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.Params{AgentType: workloadmeta.Remote}),
 	))
 
 	expectedEvent, err := proto.WorkloadmetaEventFromProtoEvent(protoWorkloadmetaEvent)
@@ -203,8 +200,7 @@ func TestCollection(t *testing.T) {
 	// workloadmeta server
 	mockServerStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	server := &serverSecure{workloadmetaServer: server.NewServer(mockServerStore)}
 
@@ -239,16 +235,13 @@ func TestCollection(t *testing.T) {
 	// workloadmeta client store
 	mockClientStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.Params{
-			AgentType: workloadmeta.Remote,
-		}),
 		fx.Provide(
 			fx.Annotate(func() wmcatalog.Collector {
 				return collector
 			},
 				fx.ResultTags(`group:"workloadmeta"`)),
 		),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.Params{AgentType: workloadmeta.Remote}),
 	))
 
 	time.Sleep(3 * time.Second)

@@ -95,15 +95,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				core.Bundle(),
 				// workloadmeta setup
 				fx.Provide(wmcatalog.GetCatalog),
-				fx.Provide(func() workloadmeta.Params {
-					return workloadmeta.Params{
-						AgentType:  workloadmeta.NodeAgent,
-						InitHelper: common.GetWorkloadmetaInit(),
-						NoInstance: !cliParams.runLocal,
-					}
+				workloadmetafx.Module(workloadmeta.Params{
+					AgentType:  workloadmeta.NodeAgent,
+					InitHelper: common.GetWorkloadmetaInit(),
+					NoInstance: !cliParams.runLocal,
 				}),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
-				workloadmetafx.Module(),
 				taggerimpl.Module(),
 				fx.Provide(func(config config.Component) tagger.Params { return tagger.NewTaggerParamsForCoreAgent(config) }),
 				autodiscoveryimpl.Module(),

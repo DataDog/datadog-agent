@@ -46,7 +46,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -133,9 +132,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return diagnoseSenderManager.LazyGetSenderManager()
 			}),
 			// workloadmeta setup
-			fx.Provide(wmcatalog.GetCatalog),
 			fx.Provide(defaults.DefaultParams),
-			workloadmetafx.Module(),
+			workloadmetafx.Module(defaults.DefaultParams()),
 			apiimpl.Module(),
 			authtokenimpl.Module(),
 			// The jmx command do not have settings that change are runtime

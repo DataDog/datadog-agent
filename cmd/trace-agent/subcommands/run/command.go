@@ -94,11 +94,10 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		logtracefx.Module(),
 		// setup workloadmeta
 		fx.Provide(wmcatalog.GetCatalog),
-		fx.Supply(workloadmeta.Params{
+		workloadmetafx.Module(workloadmeta.Params{
 			AgentType:  workloadmeta.NodeAgent,
 			InitHelper: common.GetWorkloadmetaInit(),
 		}),
-		workloadmetafx.Module(),
 		autoexitimpl.Module(),
 		statsd.Module(),
 		fx.Provide(func(coreConfig coreconfig.Component) tagger.Params {

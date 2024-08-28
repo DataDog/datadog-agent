@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
@@ -120,7 +121,7 @@ func setup() (workloadmeta.Component, error) {
 	if err != nil {
 		return nil, err
 	}
-	config.SetFeaturesNoCleanup(config.Docker)
+	config.SetFeaturesNoCleanup(env.Docker)
 
 	// Note: workloadmeta will be started by fx with the App
 	var deps testDeps
@@ -131,9 +132,8 @@ func setup() (workloadmeta.Component, error) {
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 		fx.Supply(logdef.ForOneShot("TEST", "info", false)),
 		logfx.Module(),
-		fx.Supply(workloadmeta.NewParams()),
 		fx.Provide(wmcatalog.GetCatalog),
-		workloadmetafx.Module(),
+		workloadmetafx.Module(workloadmeta.NewParams()),
 		taggerimpl.Module(),
 		fx.Supply(tagger.NewTaggerParams()),
 		telemetryimpl.Module(),

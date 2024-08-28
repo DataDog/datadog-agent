@@ -179,14 +179,25 @@ func (d *DatadogInstaller) Install(opts ...Option) error {
 	if err != nil {
 		return nil
 	}
-	if params.installerURL == "" {
-		artifactURL, err := pipeline.GetPipelineArtifact(d.env.AwsEnvironment.PipelineID(), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
+	// MSI can install from a URL or a local file
+	msiPath := params.installerURL
+	if localMSIPath, exists := os.LookupEnv("DD_INSTALLER_MSI_URL"); exists {
+		// developer provided a local file, put it on the remote host
+		msiPath, err = windowsCommon.GetTemporaryFile(d.env.RemoteHost)
+		if err != nil {
+			return err
+		}
+		d.env.RemoteHost.CopyFile(localMSIPath, msiPath)
+	} else if params.installerURL == "" {
+		artifactURL, err := pipeline.GetPipelineArtifact(d.env.Environment.PipelineID(), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
 			return strings.Contains(artifact, "datadog-installer") && strings.HasSuffix(artifact, ".msi")
 		})
 		if err != nil {
 			return err
 		}
+		// update URL
 		params.installerURL = artifactURL
+		msiPath = params.installerURL
 	}
 	logPath := d.logPath
 	if logPath == "" {
@@ -196,7 +207,7 @@ func (d *DatadogInstaller) Install(opts ...Option) error {
 	if params.msiArgs != nil {
 		msiArgs = strings.Join(params.msiArgs, " ")
 	}
-	return windowsCommon.InstallMSI(d.env.RemoteHost, params.installerURL, msiArgs, logPath)
+	return windowsCommon.InstallMSI(d.env.RemoteHost, msiPath, msiArgs, logPath)
 }
 
 // Uninstall will attempt to uninstall the Datadog Installer on the remote host.
