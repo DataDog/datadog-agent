@@ -134,6 +134,12 @@ instances:
       #
       # enabled: true
 
+      ## @param active_session_history - boolean - optional - default: false
+      ## Collect activity samples from `v$active_session_history` instead of the Agent performing sampling.
+      ## WARNING: Querying `v$active_session_history` requires optional Oracle licences and may result in additional costs if enabled.
+      #
+      # active_session_history: false
+
     ## Configure collection of query metrics
     #
     # query_metrics:

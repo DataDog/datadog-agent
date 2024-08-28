@@ -137,12 +137,8 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		// Provide process agent bundle so fx knows where to find components
 		process.Bundle(),
 
-		// Provide ep forwarder bundle so fx knows where to find components
-		fx.Provide(func() eventplatformimpl.Params {
-			return eventplatformimpl.NewDefaultParams()
-		}),
 		eventplatformreceiverimpl.Module(),
-		eventplatformimpl.Module(),
+		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 
 		// Provide network path bundle
 		networkpath.Bundle(),

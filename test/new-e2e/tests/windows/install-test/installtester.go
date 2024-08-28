@@ -553,6 +553,15 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 		}
 		assert.False(tt, out.AreAccessRulesProtected, "%s should inherit access rules", path)
 	}
+
+	// ensure the agent user does not have an ACE on the install dir
+	out, err := windows.GetSecurityInfoForPath(t.host, t.expectedInstallPath)
+	require.NoError(tt, err)
+	if !windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
+		assert.Empty(tt, windows.FilterRulesForIdentity(out.Access, ddAgentUserIdentity),
+			"%s should not have permissions on %s", ddAgentUserIdentity, t.expectedInstallPath)
+	}
+	assert.False(tt, out.AreAccessRulesProtected, "%s should inherit access rules", t.expectedInstallPath)
 }
 
 // TestInstallExpectations tests the current agent installation meets the expectations provided to the Tester

@@ -22,9 +22,19 @@ type Component interface {
 }
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
+func Module(params Params) fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newForwarder))
+		fx.Provide(newForwarder),
+		fx.Supply(params),
+	)
+}
+
+// ModuleWithProvider defines the fx options for this component.
+func ModuleWithProvider[T1 any, T2 any](provider func(T1, T2) Params) fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newForwarder),
+		fx.Provide(provider),
+	)
 }
 
 // Mock implements mock-specific methods.

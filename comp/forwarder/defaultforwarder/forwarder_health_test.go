@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestCheckValidAPIKey(t *testing.T) {
@@ -38,7 +37,7 @@ func TestCheckValidAPIKey(t *testing.T) {
 		ts2.URL: {"key3"},
 	}
 	log := logmock.New(t)
-	cfg := fxutil.Test[config.Component](t, config.MockModule())
+	cfg := config.NewMock(t)
 	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolver.NewSingleDomainResolvers(keysPerDomains)}
 	fh.init()
 	assert.True(t, fh.checkValidAPIKey())
@@ -119,7 +118,7 @@ func TestCheckValidAPIKeyErrors(t *testing.T) {
 		ts3.URL: {"key4"},
 	}
 	log := logmock.New(t)
-	cfg := fxutil.Test[config.Component](t, config.MockModule())
+	cfg := config.NewMock(t)
 	fh := forwarderHealth{log: log, config: cfg}
 	fh.init()
 	fh.keysPerAPIEndpoint = keysPerAPIEndpoint
@@ -166,7 +165,7 @@ func TestUpdateAPIKey(t *testing.T) {
 	}
 
 	log := logmock.New(t)
-	cfg := fxutil.Test[config.Component](t, config.MockModule())
+	cfg := config.NewMock(t)
 
 	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolver.NewSingleDomainResolvers(keysPerDomains)}
 	fh.init()

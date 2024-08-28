@@ -8,10 +8,55 @@
 package hostinfo
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
+
+type mockMetadataAsTags struct {
+	configutils.MetadataAsTags
+	nodeLabelsAsTags      map[string]string
+	nodeAnnotationsAsTags map[string]string
+}
+
+var _ configutils.MetadataAsTags = &mockMetadataAsTags{}
+
+// GetNodeLabelsAsTags implements MetadataAsTags#GetNodeLabelsAsTags
+func (m *mockMetadataAsTags) GetNodeLabelsAsTags() map[string]string {
+	return m.nodeLabelsAsTags
+}
+
+// GetNodeAnnotationsAsTags implements MetadataAsTags#GetNodeAnnotationsAsTags
+func (m *mockMetadataAsTags) GetNodeAnnotationsAsTags() map[string]string {
+	return m.nodeAnnotationsAsTags
+}
+
+func newMockMetadataAsTags(nodeLabelsAsTags, nodeAnnotationsAsTags map[string]string) configutils.MetadataAsTags {
+	return &mockMetadataAsTags{
+		nodeLabelsAsTags:      nodeLabelsAsTags,
+		nodeAnnotationsAsTags: nodeAnnotationsAsTags,
+	}
+}
+
+func TestKubeNodeTagsProvider__getNodeLabelsAsTags(t *testing.T) {
+	labelsAsTagsFromConfig := map[string]string{
+		"foo": "bar",
+	}
+
+	expectedNodeLabelsAsTags := map[string]string{
+		"foo":               "bar",
+		NormalizedRoleLabel: kubernetes.KubeNodeRoleTagName,
+	}
+
+	metadataAsTags := newMockMetadataAsTags(labelsAsTagsFromConfig, map[string]string{})
+	kubeNodeTagsProvider := KubeNodeTagsProvider{metadataAsTags}
+	labelsAsTags := kubeNodeTagsProvider.getNodeLabelsAsTags()
+	assert.Truef(t, reflect.DeepEqual(labelsAsTags, expectedNodeLabelsAsTags), "Expected %v, found %v", expectedNodeLabelsAsTags, labelsAsTags)
+}
 
 func TestExtractTags(t *testing.T) {
 	gkeLabels := map[string]string{

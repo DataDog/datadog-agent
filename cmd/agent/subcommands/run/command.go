@@ -341,8 +341,7 @@ func getSharedFxOption() fx.Option {
 		fx.Supply(dogstatsdServer.Params{
 			Serverless: false,
 		}),
-		forwarder.Bundle(),
-		fx.Provide(func(config config.Component, log log.Component) defaultforwarder.Params {
+		forwarder.BundleWithProvider(func(config config.Component, log log.Component) defaultforwarder.Params {
 			params := defaultforwarder.NewParams(config, log)
 			// Enable core agent specific features like persistence-to-disk
 			params.Options.EnabledFeatures = defaultforwarder.SetFeature(params.Options.EnabledFeatures, defaultforwarder.CoreFeatures)
@@ -434,8 +433,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
-		eventplatformimpl.Module(),
-		fx.Supply(eventplatformimpl.NewDefaultParams()),
+		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 		eventplatformreceiverimpl.Module(),
 
 		// injecting the shared Serializer to FX until we migrate it to a proper component. This allows other

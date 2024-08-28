@@ -108,7 +108,7 @@ host_heartbeat_validity_seconds: 1000000
 }
 
 func TestFactory(t *testing.T) {
-	cfg := fxutil.Test[config.Component](t, config.MockModule())
+	cfg := config.NewMock(t)
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
