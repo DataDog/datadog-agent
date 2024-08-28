@@ -344,7 +344,7 @@ func getSharedFxOption() fx.Option {
 		forwarder.BundleWithProvider(func(config config.Component, log log.Component) defaultforwarder.Params {
 			params := defaultforwarder.NewParams(config, log)
 			// Enable core agent specific features like persistence-to-disk
-			params.Options.EnabledFeatures = defaultforwarder.SetFeature(params.Options.EnabledFeatures, defaultforwarder.CoreFeatures)
+			params.SetFeature(defaultforwarder.CoreFeatures)
 			return params
 		}),
 

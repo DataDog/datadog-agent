@@ -136,7 +136,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				core.Bundle(),
 				forwarder.BundleWithProvider(func(config config.Component, log log.Component) defaultforwarder.Params {
 					params := defaultforwarder.NewParamsWithResolvers(config, log)
-					params.Options.DisableAPIKeyChecking = true
+					params.DisableAPIKeyChecking()
 					return params
 				}),
 				compressionimpl.Module(),
