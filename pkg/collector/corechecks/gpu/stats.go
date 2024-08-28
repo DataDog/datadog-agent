@@ -29,6 +29,7 @@ type StatsProcessor struct {
 	lastKernelEnd          time.Time
 	firstKernelStart       time.Time
 	sentEvents             int
+	maxTimestampLastMetric time.Time
 }
 
 func (sp *StatsProcessor) processKernelSpan(span *model.KernelSpan, sendEvent bool) {
@@ -126,6 +127,10 @@ func (sp *StatsProcessor) markInterval(now time.Time) {
 			sp.sender.GaugeWithTimestamp("gjulian.cudapoc.utilization", utilization, "", sp.getTags(), float64(sp.firstKernelStart.Unix()))
 		}
 		sp.sender.GaugeWithTimestamp("gjulian.cudapoc.utilization", utilization, "", sp.getTags(), float64(sp.lastKernelEnd.Unix()))
+
+		if sp.lastKernelEnd.After(sp.maxTimestampLastMetric) {
+			sp.maxTimestampLastMetric = sp.lastKernelEnd
+		}
 	}
 
 	fmt.Printf("past: %+v, current: %+v\n", sp.pastAllocs, sp.currentAllocs)
@@ -173,6 +178,9 @@ func (sp *StatsProcessor) markInterval(now time.Time) {
 		if point.ts > uint64(lastCheckEpoch) && (totalMemBytes > 0 || hadMemory) {
 			fmt.Printf("gjulian.cudapoc.memory: %d, ts %d\n", totalMemBytes, point.ts)
 			sp.sender.GaugeWithTimestamp("gjulian.cudapoc.memory", float64(totalMemBytes), "", sp.getTags(), float64(point.ts))
+			if int64(point.ts) > sp.maxTimestampLastMetric.Unix() {
+				sp.maxTimestampLastMetric = time.Unix(int64(point.ts), 0)
+			}
 		}
 	}
 
@@ -181,8 +189,16 @@ func (sp *StatsProcessor) markInterval(now time.Time) {
 	sp.sentEvents++
 }
 
+// finish ensures that all metrics sent by this processor are properly closed with a 0 value
 func (sp *StatsProcessor) finish(now time.Time) {
-	sp.sender.GaugeWithTimestamp("gjulian.cudapoc.memory", 0, "", sp.getTags(), float64(now.Unix()))
-	sp.sender.GaugeWithTimestamp("gjulian.cudapoc.max_memory", 0, "", sp.getTags(), float64(now.Unix()))
-	sp.sender.GaugeWithTimestamp("gjulian.cudapoc.utilization", 0, "", sp.getTags(), float64(now.Unix()))
+	lastTs := now
+
+	// Don't mark events as lasting more than what they should.
+	if !sp.maxTimestampLastMetric.IsZero() {
+		lastTs = sp.maxTimestampLastMetric.Add(time.Second)
+	}
+
+	sp.sender.GaugeWithTimestamp("gjulian.cudapoc.memory", 0, "", sp.getTags(), float64(lastTs.Unix()))
+	sp.sender.GaugeWithTimestamp("gjulian.cudapoc.max_memory", 0, "", sp.getTags(), float64(lastTs.Unix()))
+	sp.sender.GaugeWithTimestamp("gjulian.cudapoc.utilization", 0, "", sp.getTags(), float64(lastTs.Unix()))
 }
