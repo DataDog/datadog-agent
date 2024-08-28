@@ -228,17 +228,12 @@ func assertContainersCollected(t *testing.T, payloads []*aggregator.ProcessPaylo
 
 // assertContainersNotCollected asserts that the given containers are not collected
 func assertContainersNotCollected(t *testing.T, payloads []*aggregator.ProcessPayload, containers []string) {
-	defer func() {
-		if t.Failed() {
-			t.Logf("Payloads:\n%+v\n", payloads)
-		}
-	}()
-
 	for _, container := range containers {
 		var found bool
 		for _, payload := range payloads {
 			if findContainer(container, payload.Containers) {
 				found = true
+				t.Logf("Payload:\n%+v\n", payload)
 				break
 			}
 		}
