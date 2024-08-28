@@ -65,15 +65,15 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 	processForwarderOpts := createParams(deps.Config, deps.Logger, queueBytes, processAPIEndpoints)
 
 	return &forwardersComp{
-		eventForwarder:       createForwarder(deps, eventForwarderOpts),
-		processForwarder:     createForwarder(deps, processForwarderOpts),
-		rtProcessForwarder:   createForwarder(deps, processForwarderOpts),
-		connectionsForwarder: createForwarder(deps, processForwarderOpts),
+		eventForwarder:       createForwarder(deps, eventForwarderOpts.Options, eventForwarderOpts.UseNoopForwarder),
+		processForwarder:     createForwarder(deps, processForwarderOpts.Options, processForwarderOpts.UseNoopForwarder),
+		rtProcessForwarder:   createForwarder(deps, processForwarderOpts.Options, processForwarderOpts.UseNoopForwarder),
+		connectionsForwarder: createForwarder(deps, processForwarderOpts.Options, processForwarderOpts.UseNoopForwarder),
 	}, nil
 }
 
-func createForwarder(deps dependencies, params defaultforwarder.Params) defaultforwarder.Component {
-	return defaultforwarder.NewForwarder(deps.Config, deps.Logger, deps.Lc, false, params).Comp
+func createForwarder(deps dependencies, options *defaultforwarder.Options, useNoopForwarder bool) defaultforwarder.Component {
+	return defaultforwarder.NewForwarder(deps.Config, deps.Logger, deps.Lc, false, options, useNoopForwarder).Comp
 }
 
 func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint) defaultforwarder.Params {

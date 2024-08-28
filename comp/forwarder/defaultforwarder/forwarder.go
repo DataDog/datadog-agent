@@ -31,19 +31,19 @@ type provides struct {
 }
 
 func newForwarder(dep dependencies) provides {
-	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, dep.Params)
+	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, dep.Params.Options, dep.Params.UseNoopForwarder)
 }
 
 // NewForwarder returns a new forwarder component.
 //
 //nolint:revive
-func NewForwarder(config config.Component, log log.Component, lc fx.Lifecycle, ignoreLifeCycleError bool, params Params) provides {
-	if params.UseNoopForwarder {
+func NewForwarder(config config.Component, log log.Component, lc fx.Lifecycle, ignoreLifeCycleError bool, options *Options, useNoopForwarder bool) provides {
+	if useNoopForwarder {
 		return provides{
 			Comp: NoopForwarder{},
 		}
 	}
-	forwarder := NewDefaultForwarder(config, log, params.Options)
+	forwarder := NewDefaultForwarder(config, log, options)
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
