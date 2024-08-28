@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def
+module github.com/DataDog/datadog-agent/comp/otelcol/extension/def
 
 go 1.22.0
 

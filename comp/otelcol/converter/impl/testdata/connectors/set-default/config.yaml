@@ -18,7 +18,7 @@ extensions:
   health_check/user-defined:
   zpages/user-defined:
     endpoint: "localhost:55679"
-  ddflare/user-defined:
+  datadog/user-defined:
 
 processors:
   infraattributes/user-defined:
@@ -33,7 +33,7 @@ connectors:
         instrumentation:express.server: express
 
 service:
-    extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflare/user-defined]
+    extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, datadog/user-defined]
     pipelines:
         traces:
             receivers: [nop]

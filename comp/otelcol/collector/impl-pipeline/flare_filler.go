@@ -23,7 +23,7 @@ import (
 	"github.com/gocolly/colly/v2"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	extension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
+	extension "github.com/DataDog/datadog-agent/comp/otelcol/extension/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
