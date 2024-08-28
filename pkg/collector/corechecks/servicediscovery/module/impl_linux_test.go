@@ -488,6 +488,7 @@ func TestNodeDocker(t *testing.T) {
 		svcMap := getServicesMap(t, url)
 		assert.Contains(collect, svcMap, pid)
 		assert.Equal(collect, "nodejs-https-server", svcMap[pid].Name)
+		assert.Equal(collect, "provided", svcMap[pid].APMInstrumentation)
 	}, 30*time.Second, 100*time.Millisecond)
 }
 

@@ -97,6 +97,7 @@ func (n nodeDetector) findNameFromNearestPackageJSON(absFilePath string) (string
 	if foundServiceName {
 		// Save package.json path for the instrumentation detector to use.
 		n.ctx.contextMap[NodePackageJSONPath] = currentFilePath
+		n.ctx.contextMap[ServiceSubFS] = n.ctx.fs
 	}
 
 	return value, foundServiceName
