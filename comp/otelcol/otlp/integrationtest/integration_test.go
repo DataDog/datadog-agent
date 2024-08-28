@@ -80,10 +80,10 @@ import (
 
 func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) error {
 	return fxutil.Run(
-		forwarder.Bundle(),
+		forwarder.BundleWithProvider(defaultforwarder.NewParams),
 		logtrace.Module(),
 		inventoryagentimpl.Module(),
-		workloadmetafx.Module(),
+		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Supply(metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{})),
 		fx.Provide(func(client *metricsclient.StatsdClientWrapper) statsd.Component {
 			return statsd.NewOTelStatsd(client)
@@ -104,9 +104,6 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 			}
 			pkgconfigenv.DetectFeatures(c)
 			return c, nil
-		}),
-		fx.Provide(func() workloadmeta.Params {
-			return workloadmeta.NewParams()
 		}),
 		fx.Provide(func() []string {
 			return append(params.ConfPaths, params.Sets...)
@@ -132,7 +129,6 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 			return s
 		}),
 		fx.Supply("test-host"),
-		fx.Provide(defaultforwarder.NewParams),
 		fx.Provide(func(c defaultforwarder.Component) (defaultforwarder.Forwarder, error) {
 			return defaultforwarder.Forwarder(c), nil
 		}),

@@ -78,26 +78,60 @@ func TestAllSymbolsAreHandled(t *testing.T) {
 func TestTokenizerHeuristic(t *testing.T) {
 	tokenizer := NewTokenizer(10)
 	msg := &messageContext{rawMessage: []byte("1234567890abcdefg")}
-	assert.True(t, tokenizer.Process(msg))
+	assert.True(t, tokenizer.ProcessAndContinue(msg))
 	assert.Equal(t, "DDDDDDDDDD", tokensToString(msg.tokens), "Tokens should be limited to 10 digits")
 
 	msg = &messageContext{rawMessage: []byte("12-12-12T12:12:12.12T12:12Z123")}
-	assert.True(t, tokenizer.Process(msg))
+	assert.True(t, tokenizer.ProcessAndContinue(msg))
 	assert.Equal(t, "DD-DD-DDTD", tokensToString(msg.tokens), "Tokens should be limited to the first 10 bytes")
 	assert.Equal(t, []int{0, 2, 3, 5, 6, 8, 9}, msg.tokenIndicies)
 
 	msg = &messageContext{rawMessage: []byte("abc 123")}
-	assert.True(t, tokenizer.Process(msg))
+	assert.True(t, tokenizer.ProcessAndContinue(msg))
 	assert.Equal(t, "CCC DDD", tokensToString(msg.tokens))
 	assert.Equal(t, []int{0, 3, 4}, msg.tokenIndicies)
 
 	msg = &messageContext{rawMessage: []byte("Jan 123")}
-	assert.True(t, tokenizer.Process(msg))
+	assert.True(t, tokenizer.ProcessAndContinue(msg))
 	assert.Equal(t, "MTH DDD", tokensToString(msg.tokens))
 	assert.Equal(t, []int{0, 3, 4}, msg.tokenIndicies)
 
 	msg = &messageContext{rawMessage: []byte("123Z")}
-	assert.True(t, tokenizer.Process(msg))
+	assert.True(t, tokenizer.ProcessAndContinue(msg))
 	assert.Equal(t, "DDDZONE", tokensToString(msg.tokens))
 	assert.Equal(t, []int{0, 3}, msg.tokenIndicies)
+}
+
+func TestIsMatch(t *testing.T) {
+	tokenizer := NewTokenizer(0)
+	// A string of 10 tokens to make math easier.
+	ta, _ := tokenizer.tokenize([]byte("! @ # $ %"))
+	tb, _ := tokenizer.tokenize([]byte("! @ # $ %"))
+
+	assert.True(t, isMatch(ta, tb, 1))
+
+	ta, _ = tokenizer.tokenize([]byte("! @ # $ % "))
+	tb, _ = tokenizer.tokenize([]byte("! @ #1a1a1"))
+
+	assert.True(t, isMatch(ta, tb, 0.5))
+	assert.False(t, isMatch(ta, tb, 0.55))
+
+	ta, _ = tokenizer.tokenize([]byte("! @ # $ % "))
+	tb, _ = tokenizer.tokenize([]byte("#1a1a1$ $ "))
+
+	assert.False(t, isMatch(ta, tb, 0.5))
+	assert.True(t, isMatch(ta, tb, 0.3))
+
+	ta, _ = tokenizer.tokenize([]byte("! @ # $ % "))
+	tb, _ = tokenizer.tokenize([]byte(""))
+
+	assert.False(t, isMatch(ta, tb, 0.5))
+	assert.False(t, isMatch(ta, tb, 0))
+	assert.False(t, isMatch(ta, tb, 1))
+
+	ta, _ = tokenizer.tokenize([]byte("! @ # $ % "))
+	tb, _ = tokenizer.tokenize([]byte("!"))
+
+	assert.True(t, isMatch(ta, tb, 1))
+	assert.True(t, isMatch(ta, tb, 0.01))
 }

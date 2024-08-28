@@ -3,18 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
+
 // Package language provides functionality to detect the programming language for a given process.
 package language
 
 import (
-	"io"
-	"os"
-	"strings"
-
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Language represents programming languages.
@@ -56,92 +54,10 @@ var (
 	}
 )
 
-// Detect attempts to detect the Language from the provided process information.
-func (lf Finder) Detect(args []string, envs map[string]string) (Language, bool) {
-	lang := lf.findLang(ProcessInfo{
-		Args: args,
-		Envs: envs,
-	})
-	if lang == "" {
-		return Unknown, false
-	}
-	return lang, true
-}
-
-func findFile(fileName string) (io.ReadCloser, bool) {
-	f, err := os.Open(fileName)
-	if err != nil {
-		return nil, false
-	}
-	return f, true
-}
-
 // ProcessInfo holds information about a process.
 type ProcessInfo struct {
 	Args []string
 	Envs map[string]string
-}
-
-// FileReader attempts to read the most representative file associated to a process.
-func (pi ProcessInfo) FileReader() (io.ReadCloser, bool) {
-	if len(pi.Args) == 0 {
-		return nil, false
-	}
-	fileName := pi.Args[0]
-	// if it's an absolute path, use it
-	if strings.HasPrefix(fileName, "/") {
-		return findFile(fileName)
-	}
-	if val, ok := pi.Envs["PATH"]; ok {
-		paths := strings.Split(val, ":")
-		for _, path := range paths {
-			if r, found := findFile(path + string(os.PathSeparator) + fileName); found {
-				return r, true
-			}
-		}
-
-	}
-
-	// well, just try it as a relative path, maybe it works
-	return findFile(fileName)
-}
-
-// Matcher allows to check if a process matches to a concrete language.
-type Matcher interface {
-	Language() Language
-	Match(pi ProcessInfo) bool
-}
-
-// New returns a new language Finder.
-func New() Finder {
-	return Finder{
-		Matchers: []Matcher{
-			PythonScript{},
-			RubyScript{},
-			DotNetBinary{},
-		},
-	}
-}
-
-// Finder allows to detect the language for a given process.
-type Finder struct {
-	Matchers []Matcher
-}
-
-func (lf Finder) findLang(pi ProcessInfo) Language {
-	lang := FindInArgs(pi.Args)
-	log.Debugf("language found: %q", lang)
-
-	// if we can't figure out a language from the command line, try alternate methods
-	if lang == "" {
-		for _, matcher := range lf.Matchers {
-			if matcher.Match(pi) {
-				lang = matcher.Language()
-				break
-			}
-		}
-	}
-	return lang
 }
 
 // FindInArgs tries to detect the language only using the provided command line arguments.
@@ -165,6 +81,21 @@ func FindInArgs(args []string) Language {
 	if lang == nil {
 		return ""
 	}
+	if outLang, ok := languageNameToLanguageMap[lang.Name]; ok {
+		return outLang
+	}
+
+	return ""
+}
+
+// FindUsingPrivilegedDetector tries to detect the language using the provided command line arguments
+func FindUsingPrivilegedDetector(detector privileged.LanguageDetector, pid int32) Language {
+	langs := detector.DetectWithPrivileges([]languagemodels.Process{&procutil.Process{Pid: pid}})
+	if len(langs) == 0 {
+		return ""
+	}
+
+	lang := langs[0]
 	if outLang, ok := languageNameToLanguageMap[lang.Name]; ok {
 		return outLang
 	}

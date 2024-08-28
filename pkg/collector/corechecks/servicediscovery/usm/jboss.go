@@ -98,6 +98,13 @@ func (j jbossExtractor) findDeployedApps(domainHome string) ([]jeeDeployment, bo
 		log.Debug("jboss: unable to extract the home directory")
 		return nil, false
 	}
+	// Add cwd if jboss.home.dir is relative. It's unclear if this is likely in
+	// real life, but the tests do do it. JBoss/WildFly docs imply that this is
+	// normally an absolute path (since it's set to JBOSS_HOME by default and a
+	// lot of other paths are resolved relative to this one).
+	if cwd, ok := workingDirFromEnvs(j.cxt.envs); ok {
+		baseDir = abs(baseDir, cwd)
+	}
 	serverName, domainMode := jbossExtractServerName(j.cxt.args)
 	if domainMode && len(serverName) == 0 {
 		log.Debug("jboss: domain mode with missing server name")

@@ -124,12 +124,14 @@ var (
 		Name:               "test-service-1",
 		Ports:              []uint16{8080},
 		APMInstrumentation: string(apm.None),
+		NameSource:         "provided",
 	}
 	portTCP8080DifferentPID = model.Service{
 		PID:                procTestService1DifferentPID.pid,
 		Name:               "test-service-1",
 		Ports:              []uint16{8080},
 		APMInstrumentation: string(apm.Injected),
+		NameSource:         "generated",
 	}
 	portTCP8081 = model.Service{
 		PID:   procIgnoreService1.pid,
@@ -285,6 +287,7 @@ func Test_linuxImpl(t *testing.T) {
 						PID:                 99,
 						CommandLine:         []string{"test-service-1"},
 						APMInstrumentation:  "none",
+						ServiceNameSource:   "provided",
 					},
 				},
 				{
@@ -302,6 +305,7 @@ func Test_linuxImpl(t *testing.T) {
 						PID:                 99,
 						CommandLine:         []string{"test-service-1"},
 						APMInstrumentation:  "none",
+						ServiceNameSource:   "provided",
 					},
 				},
 				{
@@ -319,6 +323,7 @@ func Test_linuxImpl(t *testing.T) {
 						PID:                 99,
 						CommandLine:         []string{"test-service-1"},
 						APMInstrumentation:  "none",
+						ServiceNameSource:   "provided",
 					},
 				},
 				{
@@ -449,6 +454,7 @@ func Test_linuxImpl(t *testing.T) {
 						PID:                 99,
 						CommandLine:         []string{"test-service-1"},
 						APMInstrumentation:  "none",
+						ServiceNameSource:   "provided",
 					},
 				},
 				{
@@ -498,6 +504,7 @@ func Test_linuxImpl(t *testing.T) {
 						PID:                 99,
 						CommandLine:         []string{"test-service-1"},
 						APMInstrumentation:  "none",
+						ServiceNameSource:   "provided",
 					},
 				},
 			},
@@ -572,6 +579,7 @@ func Test_linuxImpl(t *testing.T) {
 						PID:                 99,
 						CommandLine:         []string{"test-service-1"},
 						APMInstrumentation:  "none",
+						ServiceNameSource:   "provided",
 					},
 				},
 				{
@@ -589,6 +597,7 @@ func Test_linuxImpl(t *testing.T) {
 						PID:                 102,
 						CommandLine:         []string{"test-service-1"},
 						APMInstrumentation:  "injected",
+						ServiceNameSource:   "generated",
 					},
 				},
 			},
