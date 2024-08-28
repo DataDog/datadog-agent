@@ -3,8 +3,6 @@ module github.com/DataDog/datadog-agent/comp/otelcol/converter/impl
 go 1.22.0
 
 replace (
-	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../../collector-contrib/def/
-	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl => ../../collector-contrib/impl/
 	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def => ../../configstore/def/
 	github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl => ../../configstore/impl/
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def => ../def
@@ -27,7 +25,6 @@ require (
 )
 
 require (
-	cloud.google.com/go/compute/metadata v0.3.0 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
