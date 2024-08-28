@@ -21,6 +21,8 @@ import (
 const ciscoSDWANMetricPrefix = "cisco_sdwan."
 const timestampExpiration = 6 * time.Hour
 
+const interfaceUserTagResourcePrefix = "dd.internal.resource:ndm_interface_user_tags"
+
 // SDWanSender implements methods for sending Cisco SD-Wan metrics and metadata
 type SDWanSender struct {
 	sender       sender.Sender
@@ -90,7 +92,7 @@ func (ms *SDWanSender) SendInterfaceMetrics(interfaceStats []client.InterfaceSta
 			index, err := itf.Index()
 			if err == nil {
 				tags = append(tags, fmt.Sprintf("interface_index:%d", index))
-				tags = append(tags, fmt.Sprintf("dd.internal.resource:ndm_interface_user_tags:%s:%s:%d", ms.namespace, entry.VmanageSystemIP, index))
+				tags = append(tags, fmt.Sprintf("%s:%s:%s:%d", interfaceUserTagResourcePrefix, ms.namespace, entry.VmanageSystemIP, index))
 			}
 			statusTags := append(tags, "oper_status:"+itf.OperStatus().AsString(), "admin_status:"+itf.AdminStatus().AsString())
 
