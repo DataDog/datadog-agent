@@ -365,7 +365,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// 	- `statefulsets.apps`
 	// 	- `pods`
 	// 	- `nodes`
-	config.BindEnvAndSetDefault("kubernetes_resources_annotations_as_tags", map[string]map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_resources_annotations_as_tags", "{}")
 	// kubernetes_resources_labels_as_tags should be parseable as map[string]map[string]string
 	// it maps group resources to labels as tags maps
 	// a group resource has the format `{resource}.{group}`, or simply `{resource}` if it belongs to the empty group
@@ -374,7 +374,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// 	- `statefulsets.apps`
 	// 	- `pods`
 	// 	- `nodes`
-	config.BindEnvAndSetDefault("kubernetes_resources_labels_as_tags", map[string]map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_resources_labels_as_tags", "{}")
 	config.BindEnvAndSetDefault("kubernetes_persistent_volume_claims_as_tags", true)
 	config.BindEnvAndSetDefault("container_cgroup_prefix", "")
 
