@@ -109,6 +109,7 @@ func Test_nodeDetector(t *testing.T) {
 			name: "not instrumented",
 			contextMap: usm.DetectorContextMap{
 				usm.NodePackageJSONPath: filepath.Join(curDir, "testdata/node/not_instrumented/package.json"),
+				usm.ServiceSubFS:        usm.NewSubDirFS("/"),
 			},
 			result: None,
 		},
@@ -116,6 +117,7 @@ func Test_nodeDetector(t *testing.T) {
 			name: "instrumented",
 			contextMap: usm.DetectorContextMap{
 				usm.NodePackageJSONPath: filepath.Join(curDir, "testdata/node/instrumented/package.json"),
+				usm.ServiceSubFS:        usm.NewSubDirFS("/"),
 			},
 			result: Provided,
 		},
