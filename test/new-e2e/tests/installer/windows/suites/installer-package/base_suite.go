@@ -27,7 +27,7 @@ func (s *baseInstallerSuite) freshInstall() {
 	s.Require().NoError(s.Installer().Install())
 
 	// Assert
-	s.assertInstalled()
+	s.requireInstalled()
 	s.Require().Host(s.Env().RemoteHost).
 		HasAService(installerwindows.ServiceName).
 		// the service cannot start because of the missing API key
@@ -47,7 +47,7 @@ func (s *baseInstallerSuite) startServiceWithConfigFile() {
 		WithStatus("Running")
 }
 
-func (s *baseInstallerSuite) assertInstalled() {
+func (s *baseInstallerSuite) requireInstalled() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasBinary(installerwindows.BinaryPath).
 		WithSignature(agent.GetCodeSignatureThumbprints()).
@@ -60,7 +60,7 @@ func (s *baseInstallerSuite) assertInstalled() {
 		WithValueEqual("installedUser", agent.DefaultAgentUserName)
 }
 
-func (s *baseInstallerSuite) assertUninstalled() {
+func (s *baseInstallerSuite) requireUninstalled() {
 	s.Require().Host(s.Env().RemoteHost).
 		NoFileExists(installerwindows.BinaryPath).
 		HasNoService(installerwindows.ServiceName).

@@ -37,7 +37,7 @@ func (s *testInstallerRollbackSuite) installRollback() {
 	s.Require().Error(msiErr)
 
 	// Assert
-	s.assertUninstalled()
+	s.requireUninstalled()
 }
 
 // uninstallRollback
@@ -49,5 +49,5 @@ func (s *testInstallerRollbackSuite) uninstallRollback() {
 	s.Require().Error(msiErr)
 
 	// Assert
-	s.assertInstalled()
+	s.requireInstalled()
 }

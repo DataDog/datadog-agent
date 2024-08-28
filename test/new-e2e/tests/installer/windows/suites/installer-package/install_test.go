@@ -58,7 +58,7 @@ func (s *testInstallerSuite) uninstall() {
 	s.Require().NoError(s.Installer().Uninstall())
 
 	// Assert
-	s.assertUninstalled()
+	s.requireUninstalled()
 	s.Require().Host(s.Env().RemoteHost).
 		FileExists(installerwindows.ConfigPath)
 }
@@ -70,7 +70,7 @@ func (s *testInstallerSuite) installWithExistingConfigFile() {
 	s.Require().NoError(s.Installer().Install())
 
 	// Assert
-	s.assertInstalled()
+	s.requireInstalled()
 	s.Require().Host(s.Env().RemoteHost).
 		HasAService(installerwindows.ServiceName).
 		WithStatus("Running")
@@ -85,7 +85,7 @@ func (s *testInstallerSuite) repair() {
 	s.Require().NoError(s.Installer().Install())
 
 	// Assert
-	s.assertInstalled()
+	s.requireInstalled()
 	s.Require().Host(s.Env().RemoteHost).
 		HasAService(installerwindows.ServiceName).
 		WithStatus("Running")
