@@ -90,6 +90,9 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 		// ingestionTs is an internal field used for latency tracking on the status page, not the actual log timestamp.
 		ingestionTs := time.Now().UnixNano()
 		message := message.NewMessage(content, origin, status, ingestionTs)
+		if ddLog.Hostname != nil {
+			message.Hostname = *ddLog.Hostname
+		}
 
 		e.logsAgentChannel <- message
 	}
