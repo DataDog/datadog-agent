@@ -8,6 +8,7 @@ package logsagentexporter
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -66,6 +67,7 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 
 	payloads := e.translator.MapLogs(ctx, ld)
 	for _, ddLog := range payloads {
+		fmt.Printf("ddLog.Hostname: %v\n", ddLog.Hostname)
 		tags := strings.Split(ddLog.GetDdtags(), ",")
 		// Tags are set in the message origin instead
 		ddLog.Ddtags = nil
@@ -90,6 +92,11 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 		// ingestionTs is an internal field used for latency tracking on the status page, not the actual log timestamp.
 		ingestionTs := time.Now().UnixNano()
 		message := message.NewMessage(content, origin, status, ingestionTs)
+		fmt.Printf("message.Hostname before: %v\n", message.Hostname)
+		if ddLog.Hostname != nil {
+			message.Hostname = *ddLog.Hostname
+		}
+		fmt.Printf("message.Hostname after: %v\n", message.Hostname)
 
 		e.logsAgentChannel <- message
 	}

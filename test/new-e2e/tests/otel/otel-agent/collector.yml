@@ -9,9 +9,13 @@ exporters:
   datadog:
     traces:
       span_name_as_resource_name: true
+    metrics:
+      resource_attributes_as_tags: true
     hostname: "otelcol-docker"
     api:
       key: ${DD_API_KEY}
+  debug:
+    verbosity: detailed
 processors:
   batch:
 connectors:
@@ -20,8 +24,12 @@ connectors:
     traces:
       span_name_as_resource_name: true
       compute_stats_by_span_kind: true
+      compute_top_level_by_span_kind: true
       peer_tags_aggregation: true
 service:
+  telemetry:
+    logs:
+      level: debug
   pipelines:
     traces:
       receivers: [otlp]
@@ -38,4 +46,4 @@ service:
     logs:
       receivers: [otlp]
       processors: [batch]
-      exporters: [datadog]
+      exporters: [datadog, debug]
