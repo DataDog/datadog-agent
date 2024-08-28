@@ -868,8 +868,10 @@ func (c *Check) StatementMetrics() (int, error) {
 
 	sender.EventPlatformEvent(payloadBytes, "dbm-metrics")
 	sendMetricWithDefaultTags(c, gauge, "dd.oracle.statements_metrics.time_ms", float64(time.Since(start).Milliseconds()))
+	TlmOracleStatementMetricsLatency.Observe(float64(time.Since(start).Milliseconds()))
 	if c.config.ExecutionPlans.Enabled {
 		sendMetricWithDefaultTags(c, gauge, "dd.oracle.plan_errors.count", float64(planErrors))
+		TlmOracleStatementMetricsErrorCount.Add(float64(planErrors))
 	}
 	sender.Commit()
 

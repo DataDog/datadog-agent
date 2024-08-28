@@ -259,6 +259,8 @@ var defaultProfiles = `
             - status_code
         - name: oracle.activity_samples_count
         - name: oracle.activity_latency
+        - name: oracle.statement_metrics
+        - name: oracle.statement_plan_errors
         - name: transactions.input_count
         - name: transactions.requeued
         - name: transactions.retries

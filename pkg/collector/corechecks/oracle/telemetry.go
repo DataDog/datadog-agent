@@ -16,4 +16,8 @@ var (
 	TlmOracleActivityLatency = telemetry.NewHistogram("oracle", "activity_latency", nil, "Histogram of activity query latency in ms", []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000})
 	// TlmOracleActivitySamplesCount is the number of activity samples collected
 	TlmOracleActivitySamplesCount = telemetry.NewCounter("oracle", "activity_samples_count", nil, "Number of activity samples collected")
+	// TlmOracleStatementMetricsLatency is the time for the statement metrics gathering to complete
+	TlmOracleStatementMetricsLatency = telemetry.NewHistogram("oracle", "statement_metrics", nil, "Histogram of statement metrics latency in ms", []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000})
+	// TlmOracleStatementMetricsErrorCount is the number of statement plan errors
+	TlmOracleStatementMetricsErrorCount = telemetry.NewCounter("oracle", "statement_plan_errors", nil, "Number of statement plan errors")
 )

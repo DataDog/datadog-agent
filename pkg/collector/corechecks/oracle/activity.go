@@ -414,7 +414,7 @@ AND status = 'ACTIVE'`)
 	sender.EventPlatformEvent(payloadBytes, "dbm-activity")
 	sendMetric(c, count, "dd.oracle.activity.samples_count", float64(len(sessionRows)), append(c.tags, fmt.Sprintf("sql_substring_length:%d", c.sqlSubstringLength)))
 	sendMetricWithDefaultTags(c, gauge, "dd.oracle.activity.time_ms", float64(time.Since(start).Milliseconds()))
-	TlmOracleActivityLatency.Observe(time.Since(start).Seconds())
+	TlmOracleActivityLatency.Observe(float64(time.Since(start).Milliseconds()))
 	TlmOracleActivitySamplesCount.Add(float64(len(sessionRows)))
 
 	sender.Commit()
