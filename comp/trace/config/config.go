@@ -18,6 +18,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -60,7 +61,7 @@ func newConfig(deps dependencies) (Component, error) {
 		AgentConfig: tracecfg,
 		coreConfig:  deps.Config,
 	}
-	c.SetMaxMemCPU(pkgconfig.IsContainerized())
+	c.SetMaxMemCPU(env.IsContainerized())
 
 	return &c, nil
 }
