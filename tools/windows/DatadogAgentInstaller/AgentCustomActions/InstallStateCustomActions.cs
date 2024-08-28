@@ -66,7 +66,7 @@ namespace Datadog.AgentCustomActions
         // In order to remain compatible with these versions, we must not remove the driver services
         // when rolling back to these versions.
         // </remarks>
-        public void SetDDDriverRollback()
+        private void SetDDDriverRollback()
         {
             var upgradeDetected = _session["WIX_UPGRADE_DETECTED"];
 
