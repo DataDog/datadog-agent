@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
@@ -111,12 +112,12 @@ func ExportStreamLogs(la logsAgent.Component, streamLogParams *LogParams) error 
 	var f *os.File
 	var bufWriter *bufio.Writer
 
-	err := apiutils.CheckDirExists(streamLogParams.FilePath)
+	err := CheckDirExists(streamLogParams.FilePath)
 	if err != nil {
 		return fmt.Errorf("error creating directory for file %s: %v", streamLogParams.FilePath, err)
 	}
 
-	f, bufWriter, err = apiutils.OpenFileForWriting(streamLogParams.FilePath)
+	f, bufWriter, err = OpenFileForWriting(streamLogParams.FilePath)
 	if err != nil {
 		return fmt.Errorf("error opening file %s for writing: %v", streamLogParams.FilePath, err)
 	}
@@ -154,4 +155,28 @@ func ExportStreamLogs(la logsAgent.Component, streamLogParams *LogParams) error 
 			return nil
 		}
 	}
+}
+
+// OpenFileForWriting opens a file for writing
+func OpenFileForWriting(filePath string) (*os.File, *bufio.Writer, error) {
+	log.Infof("opening file %s for writing", filePath)
+	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error opening file %s: %v", filePath, err)
+	}
+	bufWriter := bufio.NewWriter(f) // default 4096 bytes buffer
+	return f, bufWriter, nil
+}
+
+// CheckDirExists checks if the directory for the given path exists, if not then create it.
+func CheckDirExists(path string) error {
+	dir := filepath.Dir(path)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
+	return nil
 }

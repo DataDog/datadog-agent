@@ -5,16 +5,15 @@
 
 //go:build test
 
+// Package mock implements a streamlogs component to be used in tests
 package mock
 
 import (
-	"testing"
-
 	streamlogs "github.com/DataDog/datadog-agent/comp/logs/streamlogs/def"
 )
 
 // Mock returns a mock for streamlogs component.
-func Mock(t *testing.T) streamlogs.Component {
+func Mock() streamlogs.Component {
 	// TODO: Implement the streamlogs mock
 	return nil
 }
