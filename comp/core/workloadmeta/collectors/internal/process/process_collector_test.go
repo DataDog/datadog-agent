@@ -21,8 +21,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -52,14 +52,22 @@ type collectorTest struct {
 }
 
 func setUpCollectorTest(t *testing.T, configOverrides map[string]interface{}) collectorTest {
+	mockConfig := pkgconfigmock.New(t)
+	for k, v := range configOverrides {
+		mockConfig.SetWithoutSource(k, v)
+	}
+
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		core.MockBundle(),
-		fx.Replace(config.MockParams{Overrides: configOverrides}),
+		fx.Provide(func() config.Component {
+			return mockConfig
+		}),
+		fx.Supply(log.Params{}),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+
 		workloadmetafxmock.MockModule(workloadmeta.Params{
 			AgentType: workloadmeta.NodeAgent,
 		}),
 	))
-	mockConfig := pkgconfigmock.New(t)
 
 	wlmExtractor := processwlm.NewWorkloadMetaExtractor(mockStore.GetConfig())
 	mockProcessData, probe := NewProcessDataWithMockProbe(t)
