@@ -197,7 +197,6 @@ func TestTooManyEntries(t *testing.T) {
 // allocated/used by Conntracker to store maxStateSize entries.
 // Example: go test -run TestConntrackerMemoryAllocation -memprofile mem.prof .
 //
-//nolint:revive // TODO(NET) Fix revive linter
 func TestConntrackerMemoryAllocation(t *testing.T) {
 	rt := newConntracker(10000)
 	ipGen := randomIPGen()

@@ -11,7 +11,6 @@ import (
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	//nolint:revive // TODO(NET) Fix revive linter
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 

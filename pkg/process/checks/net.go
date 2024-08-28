@@ -408,7 +408,6 @@ func batchConnections(
 				continue
 			}
 
-			//nolint:revive // TODO(NET) Fix revive linter
 			new := int32(len(newRouteIndices))
 			newRouteIndices[c.RouteIdx] = new
 			batchRoutes = append(batchRoutes, routes[c.RouteIdx])

@@ -15,12 +15,10 @@ import (
 // NetworkConsumer describes a process monitoring object
 type NetworkConsumer struct{}
 
-//nolint:revive // TODO(NET) Fix revive linter
 func (n *NetworkConsumer) Start() error {
 	return nil
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
 func (n *NetworkConsumer) Stop() {
 }
 

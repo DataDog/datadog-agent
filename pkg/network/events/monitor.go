@@ -70,7 +70,6 @@ func Initialized() bool {
 	return theMonitor.Load() != nil
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
 type ProcessEventHandler interface {
 	HandleProcessEvent(*Process)
 }
