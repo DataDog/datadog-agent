@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package ddflareextensionimpl defines the OpenTelemetry Extension implementation.
-package ddflareextensionimpl
+// Package extensionimpl defines the OpenTelemetry Extension implementation.
+package extensionimpl
 
 import (
 	"errors"
@@ -24,7 +24,7 @@ var (
 		"health_check": healthExtractEndpoint,
 		// disabled zpages from flare until solution to display data.
 		// "zpages":       zPagesExtractEndpoint,
-		"pprof": pprofExtractEndpoint,
+		"pprof":        pprofExtractEndpoint,
 	}
 )
 
@@ -58,10 +58,11 @@ func (c *Config) Unmarshal(conf *confmap.Conf) error {
 	return nil
 }
 
-func zPagesExtractEndpoint(c *confmap.Conf) (string, bool, error) {
-	endpoint, err := regularStringEndpointExtractor(c)
-	return endpoint, true, err
-}
+// todo: uncomment once we re-add zpages to flare.
+// func zPagesExtractEndpoint(c *confmap.Conf) (string, bool, error) {
+// 	endpoint, err := regularStringEndpointExtractor(c)
+// 	return endpoint, true, err
+// }
 
 func pprofExtractEndpoint(c *confmap.Conf) (string, bool, error) {
 	endpoint, err := regularStringEndpointExtractor(c)

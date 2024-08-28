@@ -101,7 +101,7 @@ func (ext *ddExtension) Start(_ context.Context, host component.Host) error {
 		} else {
 			ext.telemetry.Logger.Info("Found debug extension at", zap.String("uri", uri))
 			ext.debug.Sources[extension.String()] = extensionDef.OTelFlareSource{
-				URLs:   uris,
+				URLs:  uris,
 				Crawl: crawl,
 			}
 		}
