@@ -103,7 +103,8 @@ func (c *Collector) run(ctx context.Context, containerProvider proccontainers.Co
 
 // Enabled checks to see if we should enable the local process collector.
 // Since it's job is to collect processes when the process check is disabled, we only enable it when `process_config.process_collection.enabled` == false
-// Additionally, if the remote process collector is not enabled in the core agent, there is no reason to collect processes. Therefore, we check `language_detection.enabled`
+// Additionally, if the remote process collector is not enabled in the core agent, there is no reason to collect processes. Therefore, we check `language_detection.enabled`.
+// We also check `process_config.run_in_core_agent.enabled` because this collector should only be used when the core agent collector is not running.
 // Finally, we only want to run this collector in the process agent, so if we're running as anything else we should disable the collector.
 func Enabled(cfg config.Reader) bool {
 	if cfg.GetBool("process_config.process_collection.enabled") {
@@ -113,5 +114,10 @@ func Enabled(cfg config.Reader) bool {
 	if !cfg.GetBool("language_detection.enabled") {
 		return false
 	}
+
+	if cfg.GetBool("process_config.run_in_core_agent.enabled") {
+		return false
+	}
+
 	return true
 }

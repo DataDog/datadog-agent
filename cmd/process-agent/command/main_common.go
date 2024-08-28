@@ -63,16 +63,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-const (
-	agent6DisabledMessage = `process-agent not enabled.
-Set env var DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED=true or add
-process_config:
-  process_collection:
-    enabled: true
-to your datadog.yaml file.
-Exiting.`
-)
-
 // errAgentDisabled indicates that the process-agent wasn't enabled through environment variable or config.
 var errAgentDisabled = errors.New("process-agent not enabled")
 
@@ -234,33 +224,23 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		settingsimpl.Module(),
 	)
 
-	if err := app.Err(); err != nil {
-
-		if errors.Is(err, errAgentDisabled) {
-			log.Info("process-agent is not enabled, exiting...")
-			return nil
-		}
-
-		// At this point it is not guaranteed that the logger has been successfully initialized. We should fall back to
-		// stdout just in case.
-		if appInitDeps.Logger == nil {
-			fmt.Println("Failed to initialize the process agent: ", fxutil.UnwrapIfErrArgumentsFailed(err))
-		} else {
-			appInitDeps.Logger.Critical("Failed to initialize the process agent: ", fxutil.UnwrapIfErrArgumentsFailed(err))
-		}
-		return err
-	}
-
-	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
-	if !shouldEnableProcessAgent(appInitDeps.Checks, appInitDeps.Config) {
-		log.Infof(agent6DisabledMessage)
-		return nil
-	}
-
 	err := app.Start(ctx)
 	if err != nil {
-		log.Criticalf("Failed to start process agent: %v", err)
-		return err
+		if errors.Is(err, errAgentDisabled) {
+			if !shouldStayAlive(appInitDeps.Config) {
+				log.Info("process-agent is not enabled, exiting...")
+				return nil
+			}
+		} else {
+			// At this point it is not guaranteed that the logger has been successfully initialized. We should fall back to
+			// stdout just in case.
+			if appInitDeps.Logger == nil {
+				fmt.Println("Failed to initialize the process agent: ", fxutil.UnwrapIfErrArgumentsFailed(err))
+			} else {
+				appInitDeps.Logger.Critical("Failed to initialize the process agent: ", fxutil.UnwrapIfErrArgumentsFailed(err))
+			}
+			return err
+		}
 	}
 
 	// Wait for exit signal
@@ -279,19 +259,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 	}
 
 	return nil
-}
-
-func anyChecksEnabled(checks []types.CheckComponent) bool {
-	for _, check := range checks {
-		if check.Object().IsEnabled() {
-			return true
-		}
-	}
-	return false
-}
-
-func shouldEnableProcessAgent(checks []types.CheckComponent, cfg ddconfig.Reader) bool {
-	return anyChecksEnabled(checks) || collector.Enabled(cfg)
 }
 
 type miscDeps struct {
@@ -338,4 +305,23 @@ func initMisc(deps miscDeps) error {
 	})
 
 	return nil
+}
+
+// shouldStayAlive determines whether the process agent should stay alive when no checks are running.
+// The first scenario this can occur is when the local process collector is running to provide
+// language data for the core agent. The second is when the checks are running on the core agent
+// but a process agent container is still brought up. The process-agent is kept alive to prevent
+// crash loops.
+func shouldStayAlive(cfg ddconfig.Reader) bool {
+	if collector.Enabled(cfg) {
+		log.Info("No checks are running, but the process agent is staying alive to provide language detection data for the core agent.")
+		return true
+	}
+
+	if ddconfig.IsKubernetes() && cfg.GetBool("process_config.run_in_core_agent.enabled") {
+		log.Warn("The process-agent is staying alive to prevent crash loops due to the checks running on the core agent. Thus, the process-agent is idle. Update your installer to the latest version to prevent this.")
+		return true
+	}
+
+	return false
 }
