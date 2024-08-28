@@ -24,9 +24,9 @@ golang_deps_diff:
 
 golang_deps_commenter:
   stage: source_test
-  image: 
+  image:
     name: 486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:2
-    entrypoint: ["/bin/bash"]
+    entrypoint: ["/bin/bash", "-c"]
   tags: ["arch:amd64"]
   rules: # this should only run on dev branches
     - !reference [.except_main_or_release_branch]
