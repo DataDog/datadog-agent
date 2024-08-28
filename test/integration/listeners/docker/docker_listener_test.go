@@ -83,13 +83,13 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		core.MockBundle(),
 		fx.Replace(compcfg.MockParams{
 			Overrides: overrides,
-			Features:  []env.Feature{env.Docker},
 		}),
 		wmcatalog.GetCatalog(),
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		taggerimpl.Module(),
 		fx.Supply(tagger.NewTaggerParams()),
 	))
+	env.SetFeatures(suite.T(), env.Docker)
 	suite.wmeta = deps.WMeta
 	suite.telemetryStore = acTelemetry.NewStore(deps.Telemetry)
 	suite.dockerutil, err = docker.GetDockerUtil()

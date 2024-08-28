@@ -51,7 +51,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.58.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.0.0-00010101000000-000000000000
 )
 
