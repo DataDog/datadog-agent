@@ -162,9 +162,9 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
-        public static ActionResult UninstallWriteInstallState(Session session)
+        public static ActionResult DeleteInstallState(Session session)
         {
-            return new WriteInstallStateCA(new SessionWrapper(session)).UninstallWriteInstallState();
+            return new WriteInstallStateCA(new SessionWrapper(session)).DeleteInstallState();
         }
 
         [CustomAction]

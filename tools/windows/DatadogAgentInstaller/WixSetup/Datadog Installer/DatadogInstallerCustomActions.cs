@@ -11,8 +11,8 @@ namespace WixSetup.Datadog_Installer
         public ManagedAction ReadInstallState { get; }
         public ManagedAction WriteInstallState { get; }
         public ManagedAction RollbackWriteInstallState { get; }
-        public ManagedAction UninstallWriteInstallState { get; }
-        public ManagedAction RollbackUninstallWriteInstallState { get; }
+        public ManagedAction DeleteInstallState { get; }
+        public ManagedAction RollbackDeleteInstallState { get; }
         public ManagedAction OpenMsiLog { get; }
         public ManagedAction ProcessDdAgentUserCredentials { get; }
 
@@ -119,7 +119,7 @@ namespace WixSetup.Datadog_Installer
 
             RollbackWriteInstallState = new CustomAction<CustomActions>(
                     new Id(nameof(RollbackWriteInstallState)),
-                    CustomActions.UninstallWriteInstallState,
+                    CustomActions.DeleteInstallState,
                     Return.check,
                     When.Before,
                     new Step(WriteInstallState.Id),
@@ -135,9 +135,9 @@ namespace WixSetup.Datadog_Installer
                                "DDAGENT_installedDomain=[DDAGENT_installedDomain], " +
                                "DDAGENT_installedUser=[DDAGENT_installedUser]");
 
-            UninstallWriteInstallState = new CustomAction<CustomActions>(
-                new Id(nameof(UninstallWriteInstallState)),
-                CustomActions.UninstallWriteInstallState,
+            DeleteInstallState = new CustomAction<CustomActions>(
+                new Id(nameof(DeleteInstallState)),
+                CustomActions.DeleteInstallState,
                 Return.check,
                 // Since this CA removes registry values it must run before the built-in RemoveRegistryValues
                 // so that the built-in registry keys can be removed if they are empty.
@@ -151,12 +151,12 @@ namespace WixSetup.Datadog_Installer
             };
 
 
-            RollbackUninstallWriteInstallState = new CustomAction<CustomActions>(
-                new Id(nameof(RollbackUninstallWriteInstallState)),
+            RollbackDeleteInstallState = new CustomAction<CustomActions>(
+                new Id(nameof(RollbackDeleteInstallState)),
                 CustomActions.WriteInstallState,
                 Return.check,
                 When.Before,
-                new Step(UninstallWriteInstallState.Id),
+                new Step(DeleteInstallState.Id),
                 Conditions.Uninstalling | Conditions.RemovingForUpgrade
             )
             {

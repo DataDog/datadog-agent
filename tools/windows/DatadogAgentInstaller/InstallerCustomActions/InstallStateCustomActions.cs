@@ -84,7 +84,7 @@ namespace Datadog.InstallerCustomActions
         /// <summary>
         /// Uninstall CA that removes the changes from the WriteInstallState CA
         /// </summary>
-        public ActionResult UninstallWriteInstallState()
+        public ActionResult DeleteInstallState()
         {
             try
             {

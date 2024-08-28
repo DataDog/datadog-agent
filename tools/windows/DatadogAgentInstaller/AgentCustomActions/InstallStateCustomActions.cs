@@ -239,7 +239,7 @@ namespace Datadog.AgentCustomActions
         /// <remarks>
         /// If these registry values are not removed then MSI won't remove the key.
         /// </remarks>
-        public ActionResult UninstallWriteInstallState()
+        public ActionResult DeleteInstallState()
         {
             try
             {
