@@ -152,6 +152,10 @@ Package hostnameinterface describes the interface for hostname methods
 
 Package log implements a component to handle logging internal to the agent.
 
+### [comp/core/lsof](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/lsof)
+
+Package lsof provides a flare file with data about files opened by the agent process
+
 ### [comp/core/pid](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/pid)
 
 Package pid writes the current PID to a file, ensuring that the file
@@ -267,7 +271,8 @@ Package agent contains logs agent component.
 Package streamlogs is metadata provider for streamlogs
 ### [comp/logs/integrations](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/integrations)
 
-Package integrations adds a go interface for integrations to send logs.
+Package integrations adds a go interface for integrations to register and
+send logs.
 
 ## [comp/metadata](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata) (Component Bundle)
 
@@ -381,9 +386,9 @@ Package configstore defines the otel agent configstore component.
 
 Package converter defines the otel agent converter component.
 
-### [comp/otelcol/extension](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/extension)
+### [comp/otelcol/ddflareextension](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension)
 
-Package extension defines the OpenTelemetry Extension component.
+Package ddflareextension defines the OpenTelemetry Extension component.
 
 ### [comp/otelcol/logsagentpipeline](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline)
 

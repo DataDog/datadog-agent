@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
@@ -20,7 +21,7 @@ func TestStaticTags(t *testing.T) {
 	mockConfig.SetWithoutSource("kubernetes_kubelet_nodename", "eksnode")
 	defer mockConfig.SetWithoutSource("kubernetes_kubelet_nodename", "")
 
-	config.SetFeatures(t, config.EKSFargate)
+	config.SetFeatures(t, env.EKSFargate)
 
 	t.Run("just tags", func(t *testing.T) {
 		mockConfig.SetWithoutSource("tags", []string{"some:tag", "another:tag", "nocolon"})
@@ -62,7 +63,7 @@ func TestStaticTagsSlice(t *testing.T) {
 	mockConfig.SetWithoutSource("kubernetes_kubelet_nodename", "eksnode")
 	defer mockConfig.SetWithoutSource("kubernetes_kubelet_nodename", "")
 
-	config.SetFeatures(t, config.EKSFargate)
+	config.SetFeatures(t, env.EKSFargate)
 
 	t.Run("just tags", func(t *testing.T) {
 		mockConfig.SetWithoutSource("tags", []string{"some:tag", "another:tag", "nocolon"})

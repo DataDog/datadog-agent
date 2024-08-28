@@ -381,6 +381,7 @@ def build_functional_tests(
     env["CGO_ENABLED"] = "1"
 
     build_tags = build_tags.split(",")
+    build_tags.append("test")
     if not is_windows:
         build_tags.append("linux_bpf")
         build_tags.append("trivy")
@@ -891,7 +892,7 @@ def sync_secl_win_pkg(ctx):
         ("events.go", None),
         ("args_envs.go", None),
         ("consts_common.go", None),
-        ("consts_other.go", None),
+        ("consts_windows.go", "consts_win.go"),
         ("consts_map_names_linux.go", None),
         ("model_windows.go", "model_win.go"),
         ("field_handlers_windows.go", "field_handlers_win.go"),

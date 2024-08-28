@@ -7,8 +7,9 @@ package usm
 
 import (
 	"io"
-	"os"
+	"io/fs"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/valyala/fastjson"
@@ -24,8 +25,13 @@ func newNodeDetector(ctx DetectionContext) detector {
 	return &nodeDetector{ctx: ctx}
 }
 
+func isJs(path string) bool {
+	return strings.HasSuffix(strings.ToLower(path), ".js")
+}
+
 func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 	skipNext := false
+	cwd, _ := workingDirFromEnvs(n.ctx.envs)
 	for _, a := range args {
 		if skipNext {
 			skipNext = false
@@ -37,11 +43,23 @@ func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 				skipNext = !strings.ContainsRune(a, '=') // in this case the value is already in this arg
 				continue
 			}
-		} else if strings.HasSuffix(strings.ToLower(a), ".js") {
-			cwd, _ := workingDirFromEnvs(n.ctx.envs)
+		} else {
 			absFile := abs(path.Clean(a), cwd)
-			if _, err := os.Stat(absFile); err == nil {
-				value, ok := n.findNameFromNearestPackageJSON(absFile)
+			entryPoint := ""
+			if isJs(a) {
+				entryPoint = absFile
+			} else if target, err := ReadlinkFS(n.ctx.fs, absFile); err == nil {
+				if !isJs(target) {
+					continue
+				}
+
+				entryPoint = abs(target, filepath.Dir(absFile))
+			} else {
+				continue
+			}
+
+			if _, err := fs.Stat(n.ctx.fs, absFile); err == nil {
+				value, ok := n.findNameFromNearestPackageJSON(entryPoint)
 				if ok {
 					return NewServiceMetadata(value), true
 				}
@@ -78,6 +96,7 @@ func (n nodeDetector) maybeExtractServiceName(filename string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
+	defer file.Close()
 	ok, err := canSafelyParse(file)
 	if err != nil {
 		//file not accessible or don't exist. Continuing searching up

@@ -568,8 +568,7 @@ func (w *Webhook) initContainerMutators() containerMutators {
 	}
 }
 
-func (w *Webhook) newInjector(startTime time.Time, pod *corev1.Pod) podMutator {
-	var opts []injectorOption
+func (w *Webhook) newInjector(startTime time.Time, pod *corev1.Pod, opts ...injectorOption) podMutator {
 	for _, e := range []annotationExtractor[injectorOption]{
 		injectorVersionAnnotationExtractor,
 		injectorImageAnnotationExtractor,
@@ -599,9 +598,11 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, config extractedPodLib
 		injectionType  = config.source.injectionType()
 		autoDetected   = config.source.isFromLanguageDetection()
 
-		injector              = w.newInjector(time.Now(), pod)
 		initContainerMutators = w.initContainerMutators()
-		containerMutators     = containerMutators{
+		injector              = w.newInjector(time.Now(), pod, injectorWithLibRequirementOptions(libRequirementOptions{
+			initContainerMutators: initContainerMutators,
+		}))
+		containerMutators = containerMutators{
 			config.languageDetection.containerMutator(w.version),
 		}
 	)
