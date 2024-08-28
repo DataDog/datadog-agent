@@ -11,9 +11,12 @@ package runtime
 import (
 	"fmt"
 	"os"
+	"regexp"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -23,9 +26,11 @@ import (
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/wconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -57,6 +62,7 @@ func activityDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpCmd.AddCommand(listCommands(globalParams)...)
 	activityDumpCmd.AddCommand(stopCommands(globalParams)...)
 	activityDumpCmd.AddCommand(diffCommands(globalParams)...)
+	activityDumpCmd.AddCommand(ActivityDumpToWorkloadPolicyCommands(globalParams)...)
 	return []*cobra.Command{activityDumpCmd}
 }
 
@@ -614,4 +620,272 @@ func stopActivityDump(_ log.Component, _ config.Component, _ secrets.Component, 
 
 	fmt.Println("done!")
 	return nil
+}
+
+type ActivityDumpToWorkloadPolicyCliParams struct {
+	*command.GlobalParams
+
+	input     string
+	output    string
+	kill      bool
+	allowlist bool
+	lineage   bool
+	service   string
+	imageName string
+	imageTag  string
+	fim       bool
+}
+
+func ActivityDumpToWorkloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &ActivityDumpToWorkloadPolicyCliParams{
+		GlobalParams: globalParams,
+	}
+
+	ActivityDumpWorkloadPolicyCmd := &cobra.Command{
+		Use:   "workload-policy",
+		Short: "convert an activity dump to a workload policy",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fxutil.OneShot(ActivityDumpToWorkloadPolicy,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					SecretParams: secrets.NewEnabledParams(),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
+				core.Bundle(),
+			)
+		},
+	}
+
+	ActivityDumpWorkloadPolicyCmd.Flags().StringVar(
+		&cliParams.input,
+		"input",
+		"",
+		"path to the activity-dump file",
+	)
+
+	ActivityDumpWorkloadPolicyCmd.Flags().StringVar(
+		&cliParams.output,
+		"output",
+		"",
+		"path to the generated workload policy file",
+	)
+
+	ActivityDumpWorkloadPolicyCmd.Flags().BoolVar(
+		&cliParams.kill,
+		"kill",
+		false,
+		"generate kill action with the workload policy",
+	)
+
+	ActivityDumpWorkloadPolicyCmd.Flags().BoolVar(
+		&cliParams.fim,
+		"fim",
+		false,
+		"generate fim rules with the workload policy",
+	)
+
+	ActivityDumpWorkloadPolicyCmd.Flags().BoolVar(
+		&cliParams.allowlist,
+		"allowlist",
+		false,
+		"generate allow list rules",
+	)
+
+	ActivityDumpWorkloadPolicyCmd.Flags().BoolVar(
+		&cliParams.lineage,
+		"lineage",
+		false,
+		"generate lineage rules",
+	)
+
+	ActivityDumpWorkloadPolicyCmd.Flags().StringVar(
+		&cliParams.service,
+		"service",
+		"",
+		"apply on specified service",
+	)
+
+	ActivityDumpWorkloadPolicyCmd.Flags().StringVar(
+		&cliParams.imageTag,
+		"image-tag",
+		"",
+		"apply on specified image tag",
+	)
+
+	ActivityDumpWorkloadPolicyCmd.Flags().StringVar(
+		&cliParams.imageName,
+		"image-name",
+		"",
+		"apply on specified image name",
+	)
+
+	return []*cobra.Command{ActivityDumpWorkloadPolicyCmd}
+}
+
+func ActivityDumpToWorkloadPolicy(_ log.Component, _ config.Component, _ secrets.Component, args *ActivityDumpToWorkloadPolicyCliParams) error {
+
+	ads, err := dump.LoadActivityDumpsFromFiles(args.input)
+	if err != nil {
+		return err
+	}
+	var mergedRules []*rules.RuleDefinition
+	switch ads.(type) {
+	case *dump.ActivityDump:
+		rules, err := generateRules(ads, args)
+		if err != nil {
+			return err
+		}
+		mergedRules = rules
+	case []*dump.ActivityDump: // the provided path is a directory containing several activity dumps
+
+		for _, ad := range ads.([]*dump.ActivityDump) {
+
+			rules, err := generateRules(ad, args)
+			if err != nil {
+				return err
+			}
+			mergedRules = append(mergedRules, rules...)
+
+		}
+		mergedRules = factorise(mergedRules, args)
+
+	}
+
+	wp := wconfig.WorkloadPolicy{
+		ID:   "workload",
+		Name: "workload",
+		Kind: "secl",
+		SECLPolicy: wconfig.SECLPolicy{
+			Rules: mergedRules,
+		},
+	}
+
+	b, err := yaml.Marshal(wp)
+	if err != nil {
+		return err
+	}
+
+	output := os.Stdout
+	if args.output != "" && args.output != "-" {
+		output, err = os.Create(args.output)
+		if err != nil {
+			return err
+		}
+		defer output.Close()
+	}
+
+	fmt.Fprint(output, string(b))
+
+	return nil
+}
+
+func generateRules(ad interface{}, args *ActivityDumpToWorkloadPolicyCliParams) ([]*rules.RuleDefinition, error) {
+	opts := dump.SECLRuleOpts{
+		EnableKill: args.kill,
+		AllowList:  args.allowlist,
+		Lineage:    args.lineage,
+		Service:    args.service,
+		ImageName:  args.imageName,
+		ImageTag:   args.imageTag,
+		FIM:        args.fim,
+	}
+
+	rules, err := ad.(*dump.ActivityDump).ToSECLRules(opts)
+	if err != nil {
+		return nil, err
+	}
+	return rules, nil
+}
+
+// factorise function to combine rules with the same fields, operations, and paths
+func factorise(ruleset []*rules.RuleDefinition, args *ActivityDumpToWorkloadPolicyCliParams) []*rules.RuleDefinition {
+	// Map to store combined paths by their field + operation keys
+	expressionMap := make(map[string][]string)
+
+	for _, rule := range ruleset {
+		// Extract the field and operation as the key
+		key := extractFieldAndOperation(rule.Expression)
+		// Extract the paths from the expression
+		paths := extractPaths(rule.Expression)
+
+		// Add the paths to the corresponding key in the map
+		expressionMap[key] = append(expressionMap[key], paths...)
+	}
+
+	// Clear the original rules slice
+	var res []*rules.RuleDefinition
+
+	// Rebuild the rules with combined paths
+	for key, paths := range expressionMap {
+		var combinedExpression string
+
+		if strings.HasPrefix(key, "!") { // if it's lineage, just append it to the list of rules
+			combinedExpression = key
+		} else {
+
+			// Remove duplicates and format the paths list
+			uniquePaths := unique(paths)
+			combinedPaths := strings.Join(uniquePaths, ", ")
+
+			// Construct the combined expression
+			combinedExpression = fmt.Sprintf("%s not in [%s]", key, combinedPaths)
+		}
+		// Add image name and image tag args
+		if args.imageName != "" {
+			combinedExpression = fmt.Sprintf("%s && container.tags == \"image_name:%s\"", combinedExpression, args.imageName)
+		}
+		if args.imageTag != "" {
+			combinedExpression = fmt.Sprintf("%s && container.tags == \"image_tag:%s\"", combinedExpression, args.imageTag)
+		}
+		// Add the new combined rule to the rules slice
+
+		tmp := rules.RuleDefinition{Expression: combinedExpression}
+		if args.kill {
+			tmp.Actions = []*rules.ActionDefinition{
+				{
+					Kill: &rules.KillDefinition{
+						Signal: "SIGKILL",
+					},
+				},
+			}
+		}
+		res = append(res, &tmp)
+	}
+	return res
+}
+
+// extractFieldAndOperation extracts the field and operation from an expression
+func extractFieldAndOperation(expression string) string {
+	// Extract the part of the expression before the "not in"
+	re := regexp.MustCompile(`(\S+\.\S+)\snot\s+in`)
+	match := re.FindStringSubmatch(expression)
+	if len(match) > 1 {
+		return match[1]
+	}
+	return expression
+}
+
+// extractPaths extracts the paths from the "not in [ ... ]" part of the expression
+func extractPaths(expression string) []string {
+	// Regular expression to match the paths inside the square brackets
+	re := regexp.MustCompile(`\[(.*?)\]`)
+	match := re.FindStringSubmatch(expression)
+	if len(match) > 1 {
+		// Split the matched paths by commas
+		return strings.Split(match[1], ",")
+	}
+	return nil
+}
+
+// unique removes duplicate paths from a slice
+func unique(paths []string) []string {
+	seen := make(map[string]bool)
+	result := []string{}
+	for _, path := range paths {
+		if _, ok := seen[path]; !ok {
+			seen[path] = true
+			result = append(result, path)
+		}
+	}
+	return result
 }

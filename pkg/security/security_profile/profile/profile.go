@@ -14,7 +14,6 @@ import (
 	"io"
 	"math"
 	"os"
-	"path/filepath"
 	"slices"
 	"sync"
 	"time"
@@ -26,11 +25,9 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 // EventTypeState defines an event type state
@@ -58,9 +55,6 @@ type LoadOpts struct {
 	DNSMatchMaxDepth  int
 	DifferentiateArgs bool
 }
-
-// SECLRuleOpts see sub type
-type SECLRuleOpts = activity_tree.SECLRuleOpts
 
 // SecurityProfile defines a security profile
 type SecurityProfile struct {
@@ -192,51 +186,6 @@ func (p *SecurityProfile) NewProcessNodeCallback(_ *activity_tree.ProcessNode) {
 	// TODO: debounce and regenerate profile filters & programs
 }
 
-// LoadProtoFromFiles loads proto profile from a directory or a file
-func LoadProtoFromFiles(path string) (interface{}, error) {
-
-	fileInfo, err := os.Stat(path)
-	if os.IsNotExist(err) {
-		return nil, fmt.Errorf("The path %s does not exist.\n", path)
-	} else if err != nil {
-		return nil, fmt.Errorf("Error checking the path: %s\n", err)
-	}
-
-	if fileInfo.IsDir() {
-		dir, err := os.Open(path)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to open directory: %s", err)
-		}
-		defer dir.Close()
-
-		// Read the directory contents
-		files, err := dir.Readdir(-1)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to read directory: %s", err)
-		}
-
-		// Iterate through the files
-		pps := []*proto.SecurityProfile{}
-
-		for _, file := range files {
-			pp, err := LoadProtoFromFile(filepath.Join(path, file.Name()))
-
-			if err != nil {
-
-				log.Debugf("Error while decoding one of the profiles: %w", err)
-			} else {
-				pps = append(pps, pp)
-
-			}
-		}
-
-		return pps, nil
-
-	} else { // it's a file
-		return LoadProtoFromFile(path)
-	}
-}
-
 // LoadProtoFromFile loads proto profile from file
 func LoadProtoFromFile(filepath string) (*proto.SecurityProfile, error) {
 	f, err := os.Open(filepath)
@@ -249,6 +198,9 @@ func LoadProtoFromFile(filepath string) (*proto.SecurityProfile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("couldn't read profile: %w", err)
 	}
+
+	// Check if the file is a dump
+	// Then convert it to a profile
 
 	pp := &proto.SecurityProfile{}
 	if err = pp.UnmarshalVT(raw); err != nil {
@@ -537,9 +489,4 @@ func (p *SecurityProfile) GetVersions() []string {
 		versions = append(versions, version)
 	}
 	return versions
-}
-
-// ToSECL return SECL rules matching the activity of the given tree
-func (p *SecurityProfile) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition, error) {
-	return p.ActivityTree.ToSECLRules(opts)
 }

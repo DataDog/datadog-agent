@@ -954,6 +954,8 @@ func processToSECLExecRules(processNode *ProcessNode, opts SECLRuleOpts) *rules.
 
 // ToSECL return SECL rules matching the activity of the given tree
 func (at *ActivityTree) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition, error) {
+	fmt.Println("-------- ad :", at)
+	fmt.Println("-------- opts :", opts)
 	var (
 		execPath    []string
 		ruleDefs    []*rules.RuleDefinition

@@ -71,17 +71,17 @@ func (p *AllowPolicy) convert(wp *WorkloadPolicy) ([]*rules.RuleDefinition, erro
 		processes = append(processes, fmt.Sprintf(`~"%s"`, allow))
 	}
 
-	policy := &rules.Policy{
-		Name:   wp.Name,
-		Source: rules.PolicyProviderTypeWorkload,
-	}
+	// policy := &rules.Policy{
+	// 	Name:   wp.Name,
+	// 	Source: rules.PolicyProviderTypeWorkload,
+	// }
 
 	ruleDef := &rules.RuleDefinition{
 		ID:          "workload_policy_" + wp.ID,
 		GroupID:     "workload_policy",
 		Description: "Workload policy",
 		Expression:  fmt.Sprintf(`exec.file.path not in [%s] and container.id == "%s"`, strings.Join(processes, ","), wp.ID),
-		Policy:      policy,
+		// Policy:      policy,
 	}
 
 	if p.Action == "kill" {
@@ -100,15 +100,15 @@ func (p *AllowPolicy) convert(wp *WorkloadPolicy) ([]*rules.RuleDefinition, erro
 
 func (p *WorkloadPolicy) convert() (*rules.Policy, error) {
 	var (
-		ruleDefs []*rules.RuleDefinition
-		err      error
+		// ruleDefs []*rules.RuleDefinition
+		err error
 	)
 
-	if p.Kind == "secl" {
-		ruleDefs, err = p.SECLPolicy.convert(p)
-	} else {
-		ruleDefs, err = p.AllowPolicy.convert(p)
-	}
+	// if p.Kind == "secl" {
+	// 	ruleDefs, err = p.SECLPolicy.convert(p)
+	// } else {
+	// 	ruleDefs, err = p.AllowPolicy.convert(p)
+	// }
 
 	if err != nil {
 		return nil, err
@@ -119,11 +119,11 @@ func (p *WorkloadPolicy) convert() (*rules.Policy, error) {
 		Source: rules.PolicyProviderTypeWorkload,
 	}
 
-	for _, ruleDef := range ruleDefs {
-		ruleDef.Policy = policy
-	}
+	// for _, ruleDef := range ruleDefs {
+	// 	ruleDef.Policy = policy
+	// }
 
-	policy.Rules = ruleDefs
+	// policy.Rules = ruleDefs
 
 	return policy, nil
 }

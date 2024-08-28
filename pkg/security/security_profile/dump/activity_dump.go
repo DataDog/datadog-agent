@@ -31,6 +31,7 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	stime "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
@@ -101,6 +102,9 @@ type ActivityDumpHeader struct {
 	// instead of in the protobuf payload.
 	DNSNames *utils.StringKeys `json:"dns_names"`
 }
+
+// SECLRuleOpts see sub type
+type SECLRuleOpts = activity_tree.SECLRuleOpts
 
 // NewActivityDumpLoadConfig returns a new instance of ActivityDumpLoadConfig
 func NewActivityDumpLoadConfig(evt []model.EventType, timeout time.Duration, waitListTimeout time.Duration, rate int, start time.Time, resolver *stime.Resolver) *model.ActivityDumpLoadConfig {
@@ -883,4 +887,59 @@ func (ad *ActivityDump) DecodeJSON(reader io.Reader) error {
 	protoToActivityDump(ad, reducer, inter)
 
 	return nil
+}
+
+// LoadActivityDumpsFromFiles load ads from a file or a directory
+func LoadActivityDumpsFromFiles(path string) (interface{}, error) {
+
+	fileInfo, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		return nil, fmt.Errorf("The path %s does not exist.\n", path)
+	} else if err != nil {
+		return nil, fmt.Errorf("Error checking the path: %s\n", err)
+	}
+
+	if fileInfo.IsDir() {
+		dir, err := os.Open(path)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to open directory: %s", err)
+		}
+		defer dir.Close()
+
+		// Read the directory contents
+		files, err := dir.Readdir(-1)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to read directory: %s", err)
+		}
+
+		ads := []*ActivityDump{}
+		for _, file := range files {
+			f, err := os.Open(filepath.Join(path, file.Name()))
+			if err != nil {
+				return nil, fmt.Errorf("couldn't open secdump: %w", err)
+			}
+			defer f.Close()
+			ad := NewEmptyActivityDump(nil)
+			ad.DecodeProtobuf(f)
+
+			ads = append(ads, ad)
+		}
+		return ads, nil
+
+	} else { // it's a file
+		f, err := os.Open(path)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't open secdump: %w", err)
+		}
+		defer f.Close()
+		ad := NewEmptyActivityDump(nil)
+		ad.DecodeProtobuf(f)
+		return ad, nil
+
+	}
+}
+
+// ToSECL return SECL rules matching the activity of the given tree
+func (ad *ActivityDump) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition, error) {
+	return ad.ActivityTree.ToSECLRules(opts)
 }
