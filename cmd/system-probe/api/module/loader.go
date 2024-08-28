@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 var l *loader
@@ -64,7 +63,7 @@ func withModule(name sysconfigtypes.ModuleName, fn func()) {
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
 // * Register the gRPC server;
-func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []Factory, wmeta optional.Option[workloadmeta.Component], telemetry telemetry.Component) error {
+func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []Factory, wmeta workloadmeta.Component, telemetry telemetry.Component) error {
 	var enabledModulesFactories []Factory
 	for _, factory := range factories {
 		if !cfg.ModuleIsEnabled(factory.Name) {
@@ -140,7 +139,7 @@ func GetStats() map[string]interface{} {
 }
 
 // RestartModule triggers a module restart
-func RestartModule(factory Factory, wmeta optional.Option[workloadmeta.Component], telemetry telemetry.Component) error {
+func RestartModule(factory Factory, wmeta workloadmeta.Component, telemetry telemetry.Component) error {
 	l.Lock()
 	defer l.Unlock()
 
@@ -200,6 +199,7 @@ func updateStats() {
 	then := time.Now()
 	now := time.Now()
 	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
 
 	for {
 		l.Lock()

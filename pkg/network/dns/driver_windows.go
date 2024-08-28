@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/network/filter"
 )
 
 const (
@@ -99,7 +100,7 @@ func (d *dnsDriver) SetDataFilters(filters []driver.FilterDefinition) error {
 }
 
 // ReadDNSPacket visits a raw DNS packet if one is available.
-func (d *dnsDriver) ReadDNSPacket(visit func([]byte, time.Time) error) (didRead bool, err error) {
+func (d *dnsDriver) ReadDNSPacket(visit func(data []byte, info filter.PacketInfo, t time.Time) error) (didRead bool, err error) {
 	var bytesRead uint32
 	var key uintptr // returned by GetQueuedCompletionStatus, then ignored
 	var ol *windows.Overlapped
@@ -125,7 +126,7 @@ func (d *dnsDriver) ReadDNSPacket(visit func([]byte, time.Time) error) (didRead 
 
 	start := driver.FilterPacketHeaderSize
 
-	if err := visit(buf.data[start:], captureTime); err != nil {
+	if err := visit(buf.data[start:], nil, captureTime); err != nil {
 		return false, err
 	}
 

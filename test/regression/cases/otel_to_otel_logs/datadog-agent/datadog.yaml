@@ -1,11 +1,14 @@
 auth_token_file_path: /tmp/agent-auth-token
 
-confd_path: /etc/datadog-agent/conf.d
-
 # Disable cloud detection. This stops the Agent from poking around the
 # execution environment & network. This is particularly important if the target
 # has network access.
 cloud_provider_metadata: []
+
+dd_url: http://127.0.0.1:9092
+process_config.process_dd_url: http://localhost:9093
+
+telemetry.enabled: true
 
 apm_config:
   enabled: true
@@ -17,7 +20,7 @@ apm_config:
 
 logs_enabled: true
 logs_config:
-  logs_dd_url: 127.0.0.1:9091
+  logs_dd_url: 127.0.0.1:9094
   logs_no_ssl: true
 
 otlp_config:

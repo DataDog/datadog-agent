@@ -13,7 +13,7 @@ import (
 	"path"
 	"strings"
 
-	"go.uber.org/zap"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -95,12 +95,19 @@ func newJbossExtractor(ctx DetectionContext) vendorExtractor {
 func (j jbossExtractor) findDeployedApps(domainHome string) ([]jeeDeployment, bool) {
 	baseDir, ok := extractJavaPropertyFromArgs(j.cxt.args, jbossHomeDirSysProp)
 	if !ok {
-		j.cxt.logger.Debug("jboss: unable to extract the home directory")
+		log.Debug("jboss: unable to extract the home directory")
 		return nil, false
+	}
+	// Add cwd if jboss.home.dir is relative. It's unclear if this is likely in
+	// real life, but the tests do do it. JBoss/WildFly docs imply that this is
+	// normally an absolute path (since it's set to JBOSS_HOME by default and a
+	// lot of other paths are resolved relative to this one).
+	if cwd, ok := workingDirFromEnvs(j.cxt.envs); ok {
+		baseDir = abs(baseDir, cwd)
 	}
 	serverName, domainMode := jbossExtractServerName(j.cxt.args)
 	if domainMode && len(serverName) == 0 {
-		j.cxt.logger.Debug("jboss: domain mode with missing server name")
+		log.Debug("jboss: domain mode with missing server name")
 		return nil, false
 	}
 	configFile := jbossExtractConfigFileName(j.cxt.args, domainMode)
@@ -111,7 +118,7 @@ func (j jbossExtractor) findDeployedApps(domainHome string) ([]jeeDeployment, bo
 		baseDir = path.Join(baseDir, jbossDomainBase)
 		sub, err = j.cxt.fs.Sub(baseDir)
 		if err != nil {
-			j.cxt.logger.Debug("jboss: cannot open jboss home", zap.String("path", baseDir), zap.Error(err))
+			log.Debugf("jboss: cannot open jboss home %q. Err: %v", baseDir, err)
 			return nil, false
 		}
 		deployments, err = jbossDomainFindDeployments(sub, configFile, serverName)
@@ -120,13 +127,13 @@ func (j jbossExtractor) findDeployedApps(domainHome string) ([]jeeDeployment, bo
 		baseDir = path.Join(baseDir, jbossStandaloneBase)
 		sub, err = j.cxt.fs.Sub(baseDir)
 		if err != nil {
-			j.cxt.logger.Debug("jboss: cannot open jboss home", zap.String("path", baseDir), zap.Error(err))
+			log.Debugf("jboss: cannot open jboss home %q. Err: %v", baseDir, err)
 			return nil, false
 		}
 		deployments, err = jbossStandaloneFindDeployments(sub, configFile)
 	}
 	if err != nil || len(deployments) == 0 {
-		j.cxt.logger.Debug("jboss: cannot find deployments", zap.Error(err))
+		log.Debugf("jboss: cannot find deployments. Err: %v", err)
 		return nil, false
 	}
 

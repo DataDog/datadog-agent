@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -51,7 +52,7 @@ func TestMain(m *testing.M) {
 
 func setupTracer(t testing.TB, cfg *config.Config) *tracer.Tracer {
 	if ebpftest.GetBuildMode() == ebpftest.Fentry {
-		ddconfig.SetFeatures(t, ddconfig.ECSFargate)
+		ddconfig.SetFeatures(t, env.ECSFargate)
 		// protocol classification not yet supported on fargate
 		cfg.ProtocolClassificationEnabled = false
 	}

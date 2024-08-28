@@ -158,6 +158,7 @@ upload_minimized_btfs*            @DataDog/ebpf-platform
 kmt_*                             @DataDog/ebpf-platform
 upload_secagent_tests*            @DataDog/ebpf-platform
 upload_sysprobe_tests*            @DataDog/ebpf-platform
+notify_ebpf_complexity_changes    @DataDog/ebpf-platform
 pull_test_dockers*                @DataDog/universal-service-monitoring
 
 # Single machine performance

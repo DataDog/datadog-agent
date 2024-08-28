@@ -36,8 +36,8 @@ import (
 //go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=epforwarder_mockgen.go
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(fx.Provide(newEventPlatformForwarder))
+func Module(params Params) fxutil.Module {
+	return fxutil.Component(fx.Provide(newEventPlatformForwarder), fx.Supply(params))
 }
 
 const (
