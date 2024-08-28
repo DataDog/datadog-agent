@@ -43,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -473,6 +474,24 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 			}, 30*time.Second, 100*time.Millisecond)
 		})
 	}
+}
+
+func TestNodeDocker(t *testing.T) {
+	cert, key, err := testutil.GetCertsPaths()
+	require.NoError(t, err)
+
+	require.NoError(t, nodejs.RunServerNodeJS(t, key, cert, "4444"))
+	nodeJSPID, err := nodejs.GetNodeJSDockerPID()
+	require.NoError(t, err)
+
+	url := setupDiscoveryModule(t)
+	pid := int(nodeJSPID)
+
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		svcMap := getServicesMap(t, url)
+		assert.Contains(collect, svcMap, pid)
+		assert.Equal(collect, "nodejs-https-server", svcMap[pid].Name)
+	}, 30*time.Second, 100*time.Millisecond)
 }
 
 func TestAPMInstrumentationProvidedPython(t *testing.T) {
