@@ -73,6 +73,29 @@ remove_py_compiled_files()
     fi
 }
 
+remove_custom_integrations()
+{
+    # Since 6.18.0, a file containing all integrations files which have been installed by
+    # the package is available. We use it to remove only the datadog-related check files which
+    # have *NOT* been installed by the package (eg: installed using the `integration` command).
+
+    if [ -f "$INSTALL_DIR/embedded/.installed_by_pkg.txt" ]; then
+        echo "Removing integrations installed with the 'agent integration' command"
+
+        # List all files in the embedded dir of the datadog-agent install dir
+        PREV_DIR=$(pwd)
+        cd "$INSTALL_DIR" || return
+        find . -depth -path './embedded/lib/python*/site-packages/datadog_*' > $INSTALL_DIR/embedded/.all-integrations.txt
+
+        # List all files in the embedded dir of the datadog-agent install dir
+        # which were not installed by the package and rm them.
+        grep -Fxv -f $INSTALL_DIR/embedded/.installed_by_pkg.txt $INSTALL_DIR/embedded/.all-integrations.txt | grep -v '^#' | xargs --no-run-if-empty -I '{}' rm -r $INSTALL_DIR/{}
+
+        rm $INSTALL_DIR/embedded/.all-integrations.txt
+        cd "$PREV_DIR" || return
+    fi
+}
+
 remove_version_history()
 {
     # Since 6.22.0/7.22.0, a file containing the version history of the currently installed
@@ -135,11 +158,12 @@ remove_apm_remote_config()
     fi
 }
 
-stop_agent
-deregister_agent
 if [ -f "$INSTALL_DIR/embedded/bin/python" ]; then  
     ${INSTALL_DIR}/embedded/bin/python "${INSTALL_DIR}/python-scripts/prerm.py" "${INSTALL_DIR}"
 fi
+stop_agent
+deregister_agent
+remove_custom_integrations
 remove_py_compiled_files
 
 case "$1" in
