@@ -37,7 +37,7 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.17.0
 	github.com/DataDog/sketches-go v1.4.6
 	github.com/stretchr/testify v1.9.0
-	go.opentelemetry.io/collector/pdata v1.13.0
+	go.opentelemetry.io/collector/pdata v1.14.1
 	google.golang.org/protobuf v1.34.2
 )
 

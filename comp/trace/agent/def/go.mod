@@ -7,7 +7,7 @@ replace github.com/DataDog/datadog-agent/pkg/proto => ../../../../pkg/proto
 require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc.3
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1
-	go.opentelemetry.io/collector/pdata v1.13.0
+	go.opentelemetry.io/collector/pdata v1.14.1
 )
 
 require (
@@ -17,9 +17,9 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/philhofer/fwd v1.1.2 // indirect
 	github.com/tinylib/msgp v1.1.8 // indirect
-	go.opentelemetry.io/collector/component v0.107.0 // indirect
-	go.opentelemetry.io/collector/config/configtelemetry v0.107.0 // indirect
-	go.opentelemetry.io/collector/semconv v0.107.0 // indirect
+	go.opentelemetry.io/collector/component v0.108.1 // indirect
+	go.opentelemetry.io/collector/config/configtelemetry v0.108.1 // indirect
+	go.opentelemetry.io/collector/semconv v0.108.1 // indirect
 	go.opentelemetry.io/otel v1.28.0 // indirect
 	go.opentelemetry.io/otel/metric v1.28.0 // indirect
 	go.opentelemetry.io/otel/trace v1.28.0 // indirect

@@ -87,6 +87,17 @@ def find_matching_components(
                 res.append(component)
     return res
 
+def versions_equal(version1, version2):
+    # strip leading 'v' if present
+    if version1.startswith('v'):
+        version1 = version1[1:]
+    if version2.startswith('v'):
+        version2 = version2[1:]
+    # Split the version strings by '.'
+    parts1 = version1.split('.')
+    parts2 = version2.split('.')
+    # Compare the first two parts (major and minor versions)
+    return parts1[0] == parts2[0] and parts1[1] == parts2[1]
 
 def validate_manifest(manifest) -> list:
     """Return a list of components to remove, or empty list if valid.
@@ -94,7 +105,7 @@ def validate_manifest(manifest) -> list:
 
     # validate collector version matches ocb version
     manifest_version = manifest.get("dist", {}).get("otelcol_version")
-    if manifest_version and manifest_version != OCB_VERSION:
+    if manifest_version and not versions_equal(manifest_version, OCB_VERSION):
         raise YAMLValidationError(
             f"Collector version ({manifest_version}) in manifest does not match required OCB version ({OCB_VERSION})"
         )
@@ -106,7 +117,9 @@ def validate_manifest(manifest) -> list:
         if components:
             for component in components:
                 for module in component.values():
-                    if module.find(OCB_VERSION) == -1:
+                    print(f"module: {module}")
+                    module_version = module.split(" ")[1]
+                    if not versions_equal(module_version, OCB_VERSION):
                         raise YAMLValidationError(
                             f"Component {module}) in manifest does not match required OCB version ({OCB_VERSION})"
                         )
@@ -198,7 +211,7 @@ def generate(ctx):
     output_path = None
     components_to_remove = []
     try:
-        with open(config_path) as file:
+        with open(MANIFEST_FILE) as file:
             manifest = yaml.safe_load(file)
             output_path = manifest["dist"]["output_path"]
             components_to_remove = validate_manifest(manifest)
@@ -209,7 +222,7 @@ def generate(ctx):
         ) from e
 
     if components_to_remove:
-        strip_invalid_components(config_path, components_to_remove)
+        strip_invalid_components(MANIFEST_FILE, components_to_remove)
 
     if output_path != impl_path:
         files_to_copy = ["components.go", "go.mod"]
@@ -317,7 +330,7 @@ def update_go_mod_file(go_mod_path, collector_version_modules):
     # Compile a regex for each module to match the module name exactly
     compiled_modules = {
         module: re.compile(rf"^\s*{re.escape(module)}\s+v[\d\.]+")
-        for version, modules in collector_version_modules.items()
+        for _, modules in collector_version_modules.items()
         for module in modules
     }
     for line in lines:
@@ -412,7 +425,7 @@ def update_core_collector():
 
 
 def update_versions_in_yaml(yaml_file_path, new_version, component_prefix):
-    with open(yaml_file_path, "r") as file:
+    with open(yaml_file_path) as file:
         data = yaml.safe_load(file)
 
     # Function to update versions in a list of components
@@ -425,7 +438,7 @@ def update_versions_in_yaml(yaml_file_path, new_version, component_prefix):
                     components[i]["gomod"] = " ".join(parts)
 
     # Update extensions, receivers, processors, and exporters
-    for key in ["extensions", "receivers", "processors", "exporters"]:
+    for key in ["extensions", "receivers", "processors", "exporters", "connectors"]:
         if key in data:
             update_component_versions(data[key])
 

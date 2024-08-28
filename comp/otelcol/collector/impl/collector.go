@@ -140,7 +140,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	set := otelcol.CollectorSettings{
 		BuildInfo: component.BuildInfo{
-			Version:     "v0.107.0",
+			Version:     "v0.108.1",
 			Command:     "otel-agent",
 			Description: "Datadog Agent OpenTelemetry Collector",
 		},
