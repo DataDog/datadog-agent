@@ -34,7 +34,7 @@ type provides struct {
 
 func newForwarder(dep dependencies) provides {
 	options := creationOptions(dep.Params, dep.Config, dep.Log)
-	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, options, dep.Params.UseNoopForwarder)
+	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, options, dep.Params.useNoopForwarder)
 }
 
 func creationOptions(params Params, config config.Component, log log.Component) *Options {

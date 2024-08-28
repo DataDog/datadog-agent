@@ -11,7 +11,7 @@ import (
 
 // Params contains the parameters to create a forwarder.
 type Params struct {
-	UseNoopForwarder              bool
+	useNoopForwarder              bool
 	withResolver                  bool
 	disableAPIKeyCheckingOverride optional.Option[bool]
 	features                      []Features
@@ -27,10 +27,17 @@ func NewParamsWithResolvers() Params {
 	return Params{withResolver: true}
 }
 
+// DisableAPIKeyChecking disables the API key checking
 func (p *Params) DisableAPIKeyChecking() {
 	p.disableAPIKeyCheckingOverride.Set(true)
 }
 
+// SetFeature adds a feature to the forwarder
 func (p *Params) SetFeature(feature Features) {
 	p.features = append(p.features, feature)
+}
+
+// UseNoopForwarder sets the forwarder to use the noop forwarder
+func (p *Params) UseNoopForwarder() {
+	p.useNoopForwarder = true
 }
