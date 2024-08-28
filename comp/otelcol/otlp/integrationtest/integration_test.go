@@ -80,7 +80,7 @@ import (
 
 func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) error {
 	return fxutil.Run(
-		forwarder.BundleWithProvider(defaultforwarder.NewParams),
+		forwarder.Bundle(defaultforwarder.NewParams()),
 		logtrace.Module(),
 		inventoryagentimpl.Module(),
 		workloadmetafx.Module(workloadmeta.NewParams()),

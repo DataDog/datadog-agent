@@ -6,8 +6,6 @@
 package defaultforwarder
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -20,12 +18,12 @@ type Params struct {
 }
 
 // NewParams initializes a new Params struct
-func NewParams(config config.Component, log log.Component) Params {
+func NewParams() Params {
 	return Params{withResolver: false}
 }
 
 // NewParamsWithResolvers initializes a new Params struct with resolvers
-func NewParamsWithResolvers(config config.Component, log log.Component) Params {
+func NewParamsWithResolvers() Params {
 	return Params{withResolver: true}
 }
 

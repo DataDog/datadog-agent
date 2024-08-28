@@ -327,6 +327,11 @@ func run(log log.Component,
 }
 
 func getSharedFxOption() fx.Option {
+
+	defaultforwarderParams := defaultforwarder.NewParams()
+	// Enable core agent specific features like persistence-to-disk
+	defaultforwarderParams.SetFeature(defaultforwarder.CoreFeatures)
+
 	return fx.Options(
 		flare.Module(flare.NewParams(
 			path.GetDistPath(),
@@ -341,13 +346,7 @@ func getSharedFxOption() fx.Option {
 		fx.Supply(dogstatsdServer.Params{
 			Serverless: false,
 		}),
-		forwarder.BundleWithProvider(func(config config.Component, log log.Component) defaultforwarder.Params {
-			params := defaultforwarder.NewParams(config, log)
-			// Enable core agent specific features like persistence-to-disk
-			params.SetFeature(defaultforwarder.CoreFeatures)
-			return params
-		}),
-
+		forwarder.Bundle(defaultforwarderParams),
 		// workloadmeta setup
 		wmcatalog.GetCatalog(),
 		workloadmetafx.Module(defaults.DefaultParams()),
