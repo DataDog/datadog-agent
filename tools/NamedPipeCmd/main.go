@@ -10,6 +10,7 @@ package namedpipecmd
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -21,22 +22,32 @@ import (
 	winio "github.com/Microsoft/go-winio"
 )
 
-func usage() {
-	fmt.Println("Usage: NamedPipeCmd.exe <GET | POST> <URI path> [POST Payload]")
-	fmt.Println("  Example: NamedPipeCmd.exe GET /debug/stats")
-	fmt.Println()
-}
+var (
+	quiet = flag.Bool("quiet", false, "Only return the exit code on failure, or the JSON output on success")
+)
 
 func exitWithError(err error) {
 	fmt.Printf("\nError: %s\n", err.Error())
 	os.Exit(1)
 }
 
-func main() {
-	if len(os.Args) < 3 {
-		usage()
-		return
+func exitWithErrorCode(err int) {
+	fmt.Printf("Error: %d\n", err)
+	os.Exit(err)
+}
+
+func fprintf(format string, a ...interface{}) {
+	if(!*quiet) {
+		fmt.Printf(format, a...)
 	}
+}
+
+func main() {
+
+	method := flag.String("method", "", "GET or POST")
+	path := flag.String("path", "", "URI path")
+	//payload := flag.String(payload, "", "POST payload")
+	flag.Parse()
 
 	// This should match SystemProbeProductionPipeName in
 	// "github.com/DataDog/datadog-agent/pkg/process/net"
@@ -51,10 +62,10 @@ func main() {
 		return
 	}
 
-	fmt.Println("connected")
+	fprintf("connected")
 
 	defer func() {
-		fmt.Printf("\nClosing named pipe...\n")
+		fprintf("\nClosing named pipe...\n")
 		pipeClient.Close()
 
 	}()
@@ -65,8 +76,8 @@ func main() {
 	uriPath := os.Args[2]
 	url := "http://localhost" + uriPath
 
-	if (method != "GET") && (method != "POST") {
-		fmt.Printf("Invalid HTTP method: %s\n", method)
+	if (*method != "GET") && (*method != "POST") {
+		fprintf("Invalid HTTP method: %s\n", *method)
 		os.Exit(1)
 	}
 
@@ -86,7 +97,7 @@ func main() {
 		},
 	}
 
-	fmt.Printf("Setting up options. ")
+	fprintf("Setting up options. ")
 
 	options := &util.ReqOptions{Conn: 1}
 	if options.Authtoken == "" {
@@ -97,9 +108,9 @@ func main() {
 		options.Ctx = context.Background()
 	}
 
-	fmt.Printf("Creating request. \n")
+	fprintf("Creating request. \n")
 
-	req, err := http.NewRequestWithContext(options.Ctx, method, url, nil)
+	req, err := http.NewRequestWithContext(options.Ctx, *method, url, nil)
 	if err != nil {
 		exitWithError(err)
 	}
@@ -111,7 +122,7 @@ func main() {
 		req.Close = true
 	}
 
-	fmt.Printf("Sending HTTP request...\n")
+	fprintf("Sending HTTP request...\n")
 
 	result, err := httpClient.Do(req)
 	if err != nil {
@@ -124,7 +135,7 @@ func main() {
 		exitWithError(err)
 	}
 
-	fmt.Printf("Received %d bytes. Status %d\n", len(body), result.StatusCode)
+	fprintf("Received %d bytes. Status %d\n", len(body), result.StatusCode)
 
 	fmt.Printf("\n---------------------------------------\n\n")
 	fmt.Printf("%s\n", body)
