@@ -84,7 +84,7 @@ k8s-e2e-otlp-main:
   stage: e2e
   image:
     name: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-    entrypoint: ["/bin/bash", "-c"]
+    entrypoint: [""]
   tags: ["arch:amd64"]
   needs:
     - !reference [.needs_new_e2e_template]
