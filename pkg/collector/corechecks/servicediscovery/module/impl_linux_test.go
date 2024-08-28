@@ -33,7 +33,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -57,8 +56,7 @@ func setupDiscoveryModule(t *testing.T) string {
 
 	wmeta := fxutil.Test[workloadmeta.Component](t,
 		core.MockBundle(),
-		wmmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		wmmock.MockModule(workloadmeta.NewParams()),
 	)
 	mux := gorillamux.NewRouter()
 	cfg := &types.Config{
@@ -636,8 +634,7 @@ func TestDocker(t *testing.T) {
 func TestCache(t *testing.T) {
 	wmeta := fxutil.Test[workloadmeta.Component](t,
 		core.MockBundle(),
-		wmmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		wmmock.MockModule(workloadmeta.NewParams()),
 	)
 	module, err := NewDiscoveryModule(nil, wmeta, nil)
 	require.NoError(t, err)

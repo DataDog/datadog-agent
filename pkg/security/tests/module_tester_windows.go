@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -269,8 +268,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	wmeta := fxutil.Test[workloadmeta.Component](t,
 		core.MockBundle(),
-		wmmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		wmmock.MockModule(workloadmeta.NewParams()),
 	)
 	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, wmeta, telemetry)
 	if err != nil {

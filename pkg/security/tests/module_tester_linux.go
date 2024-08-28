@@ -32,7 +32,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -794,8 +793,7 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	wmeta := fxutil.Test[workloadmeta.Component](t,
 		core.MockBundle(),
-		wmmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		wmmock.MockModule(workloadmeta.NewParams()),
 	)
 	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, wmeta, telemetry)
 	if err != nil {

@@ -109,8 +109,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				systemprobeloggerfx.Module(),
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
-				workloadmetafx.Module(),
-				fx.Supply(workloadmeta.Params{
+				workloadmetafx.Module(workloadmeta.Params{
 					AgentType: workloadmeta.Remote,
 				}),
 				autoexitimpl.Module(),
@@ -272,8 +271,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		healthprobefx.Module(),
 		// workloadmeta setup
 		wmcatalog.GetCatalog(),
-		workloadmetafx.Module(),
-		fx.Supply(workloadmeta.Params{
+		workloadmetafx.Module(workloadmeta.Params{
 			AgentType: workloadmeta.Remote,
 		}),
 		systemprobeloggerfx.Module(),

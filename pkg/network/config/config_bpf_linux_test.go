@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -42,8 +41,7 @@ func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 		telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 		wmeta := fxutil.Test[workloadmeta.Component](t,
 			core.MockBundle(),
-			wmmock.MockModule(),
-			fx.Supply(workloadmeta.NewParams()),
+			wmmock.MockModule(workloadmeta.NewParams()),
 		)
 		evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts, wmeta, telemetry)
 		require.NoError(t, err)
