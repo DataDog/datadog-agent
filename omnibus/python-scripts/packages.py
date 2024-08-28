@@ -43,7 +43,7 @@ def create_diff_installed_packages_file(postinst_file, prerm_file, diff_file):
                         f.write(f"{prerm_req}\n")
             else:
                 # Package is new in the new file; include it
-                f.write(f"str({prerm_req})\n")
+                f.write(f"{prerm_req}\n")
 
 def load_requirements(filename):
     """
