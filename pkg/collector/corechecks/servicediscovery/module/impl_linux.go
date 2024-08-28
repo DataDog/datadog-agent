@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
@@ -54,7 +55,7 @@ type discovery struct {
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
-func NewDiscoveryModule(*sysconfigtypes.Config, workloadmeta.Component, telemetry.Component) (module.Module, error) {
+func NewDiscoveryModule(*sysconfigtypes.Config, workloadmeta.Component, telemetry.Component, tagger.Component) (module.Module, error) {
 	return &discovery{
 		cache:              make(map[int32]*serviceInfo),
 		privilegedDetector: privileged.NewLanguageDetector(),
