@@ -13,6 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 type dependencies struct {
@@ -31,8 +33,34 @@ type provides struct {
 }
 
 func newForwarder(dep dependencies) provides {
-	options := dep.Params.CreationOptions(dep.Config, dep.Log)
+	options := creationOptions(dep.Params, dep.Config, dep.Log)
 	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, options, dep.Params.UseNoopForwarder)
+}
+
+func creationOptions(params Params, config config.Component, log log.Component) *Options {
+	var options *Options
+	if !params.withResolver {
+		options = NewOptions(config, log, getMultipleEndpoints(config, log))
+	} else {
+		keysPerDomain := getMultipleEndpoints(config, log)
+		options = NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(keysPerDomain))
+	}
+	if disableAPIKeyChecking, ok := params.disableAPIKeyCheckingOverride.Get(); ok {
+		options.DisableAPIKeyChecking = disableAPIKeyChecking
+	}
+	for _, feature := range params.features {
+		options.EnabledFeatures = SetFeature(options.EnabledFeatures, feature)
+	}
+	return options
+}
+
+func getMultipleEndpoints(config config.Component, log log.Component) map[string][]string {
+	// Inject the config to make sure we can call GetMultipleEndpoints.
+	keysPerDomain, err := utils.GetMultipleEndpoints(config)
+	if err != nil {
+		log.Error("Misconfiguration of agent endpoints: ", err)
+	}
+	return keysPerDomain
 }
 
 // NewForwarder returns a new forwarder component.
