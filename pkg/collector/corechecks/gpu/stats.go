@@ -30,6 +30,7 @@ type StatsProcessor struct {
 	firstKernelStart       time.Time
 	sentEvents             int
 	maxTimestampLastMetric time.Time
+	utilizationNormFactor  float64
 }
 
 func (sp *StatsProcessor) processKernelSpan(span *model.KernelSpan, sendEvent bool) {
@@ -114,11 +115,24 @@ type memAllocTsPoint struct {
 	size int64
 }
 
-func (sp *StatsProcessor) markInterval(now time.Time) {
+func (sp *StatsProcessor) getGPUUtilization() float64 {
 	intervalSecs := sp.measuredInterval.Seconds()
 	if intervalSecs > 0 {
 		availableThreadSeconds := float64(sp.gpuMaxThreads) * intervalSecs
-		utilization := sp.totalThreadSecondsUsed / availableThreadSeconds
+		return sp.totalThreadSecondsUsed / availableThreadSeconds
+	}
+
+	return 0
+}
+
+func (sp *StatsProcessor) setGPUUtilizationNormalizationFactor(factor float64) {
+	sp.utilizationNormFactor = factor
+}
+
+func (sp *StatsProcessor) markInterval(now time.Time) {
+	intervalSecs := sp.measuredInterval.Seconds()
+	if intervalSecs > 0 {
+		utilization := sp.getGPUUtilization() / sp.utilizationNormFactor
 		fmt.Printf("GPU utilization: %f, totalUsed %f\n", utilization, sp.totalThreadSecondsUsed)
 
 		if sp.sentEvents == 0 {
