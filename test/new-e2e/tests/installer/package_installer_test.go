@@ -15,9 +15,9 @@ type packageInstallerSuite struct {
 	packageBaseSuite
 }
 
-func testInstaller(os e2eos.Descriptor, arch e2eos.Architecture) packageSuite {
+func testInstaller(os e2eos.Descriptor, arch e2eos.Architecture, method installMethodOption) packageSuite {
 	return &packageInstallerSuite{
-		packageBaseSuite: newPackageSuite("installer", os, arch, awshost.WithoutFakeIntake()),
+		packageBaseSuite: newPackageSuite("installer", os, arch, method, awshost.WithoutFakeIntake()),
 	}
 }
 
@@ -36,8 +36,8 @@ func (s *packageInstallerSuite) TestInstall() {
 
 	state.AssertDirExists("/etc/datadog-agent", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/var/log/datadog", 0755, "dd-agent", "dd-agent")
-	state.AssertDirExists("/var/run/datadog-installer", 0755, "dd-agent", "dd-agent")
-	state.AssertDirExists("/var/run/datadog-installer/locks", 0777, "root", "root")
+	state.AssertDirExists("/opt/datadog-packages/run", 0755, "dd-agent", "dd-agent")
+	state.AssertDirExists("/opt/datadog-packages/run/locks", 0777, "root", "root")
 
 	state.AssertDirExists("/opt/datadog-installer", 0755, "root", "root")
 	state.AssertDirExists("/opt/datadog-installer/tmp", 0755, "dd-agent", "dd-agent")
@@ -77,7 +77,6 @@ func (s *packageInstallerSuite) TestUninstall() {
 
 	// state that should get removed
 	state.AssertPathDoesNotExist("/opt/datadog-installer")
-	state.AssertPathDoesNotExist("/var/run/datadog-installer")
 	state.AssertPathDoesNotExist("/opt/datadog-packages")
 
 	state.AssertPathDoesNotExist("/usr/bin/datadog-bootstrap")
@@ -116,5 +115,11 @@ func (s *packageInstallerSuite) TestUpdateInstallerOCI() {
 	assert.NoError(s.T(), err)
 
 	version = s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version")
-	assert.Contains(s.T(), version, "-devel+git")
+	assert.NotEqual(s.T(), "7.55.0-installer-0.2.1\n", version)
+}
+
+func (s *packageInstallerSuite) TestInstallWithUmask() {
+	oldmask := s.host.SetUmask("0027")
+	defer s.host.SetUmask(oldmask)
+	s.TestInstall()
 }

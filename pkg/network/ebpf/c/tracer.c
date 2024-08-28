@@ -194,7 +194,6 @@ SEC("kprobe/tcp_done")
 int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    sk = (struct sock *)PT_REGS_PARM1(ctx);
     __u64 *failed_conn_pid = NULL;
 
     if (!tcp_failed_connections_enabled()) {
@@ -221,10 +220,11 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
 
     // connection timeouts will have 0 pids as they are cleaned up by an idle process.
     // get the pid from the ongoing failure map in this case, as it should have been set in connect().
-    if (pid_tgid == 0) {
-        failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &sk);
-    }
+    failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &sk);
     if (failed_conn_pid) {
+        if (*failed_conn_pid != pid_tgid) {
+            increment_telemetry_count(tcp_done_pid_mismatch);
+        }
         bpf_probe_read_kernel_with_telemetry(&pid_tgid, sizeof(pid_tgid), failed_conn_pid);
         t.pid = pid_tgid >> 32;
     }
@@ -232,17 +232,24 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
         return 0;
     }
 
-    cleanup_conn(ctx, &t, sk, false);
+    // check if this connection was already flushed and ensure we don't flush again
+    // upsert the timestamp to the map and delete if it already exists, flush connection otherwise
+    // skip EEXIST errors for telemetry since it is an expected error
+    __u64 timestamp = bpf_ktime_get_ns();
+    if (bpf_map_update_with_telemetry(conn_close_flushed, &t, &timestamp, BPF_NOEXIST, -EEXIST) == 0) {
+        cleanup_conn(ctx, &t, sk);
+    } else {
+        bpf_map_delete_elem(&conn_close_flushed, &t);
+        increment_telemetry_count(double_flush_attempts_done);
+    }
+
     flush_tcp_failure(ctx, &t, err);
 
-    // mark this connection as already flushed
-    __u64 timestamp = bpf_ktime_get_ns();
-    bpf_map_update_with_telemetry(conn_close_flushed, &sk, &timestamp, BPF_ANY);
     return 0;
 }
 
 SEC("kretprobe/tcp_done")
-int BPF_KRETPROBE(kretprobe__tcp_done_flush)  {
+int BPF_KRETPROBE(kretprobe__tcp_done_flush) {
     flush_conn_close_if_full(ctx);
     return 0;
 }
@@ -251,8 +258,6 @@ SEC("kprobe/tcp_close")
 int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    sk = (struct sock *)PT_REGS_PARM1(ctx);
-    bool skip_new_conn_create = false;
 
     // increment telemetry for connections that were never established
     if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
@@ -273,12 +278,15 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
     }
 
     // check if this connection was already flushed and ensure we don't flush again
-    if (tcp_failed_connections_enabled() && (bpf_map_delete_elem(&conn_close_flushed, &sk) == 0)) {
+    // upsert the timestamp to the map and delete if it already exists, flush connection otherwise
+    // skip EEXIST errors for telemetry since it is an expected error
+    __u64 timestamp = bpf_ktime_get_ns();
+    if (!tcp_failed_connections_enabled() || (bpf_map_update_with_telemetry(conn_close_flushed, &t, &timestamp, BPF_NOEXIST, -EEXIST) == 0)) {
+        cleanup_conn(ctx, &t, sk);
+    } else {
+        bpf_map_delete_elem(&conn_close_flushed, &t);
         increment_telemetry_count(double_flush_attempts_close);
-        skip_new_conn_create = true;
     }
-
-    cleanup_conn(ctx, &t, sk, skip_new_conn_create);
 
     return 0;
 }
@@ -962,7 +970,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_finish_connect, struct sock *skp) {
     handle_tcp_stats(&t, skp, TCP_ESTABLISHED);
     handle_message(&t, 0, 0, CONN_DIRECTION_OUTGOING, 0, 0, PACKET_COUNT_NONE, skp);
 
-    log_debug("kprobe/tcp_connect: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
+    log_debug("kprobe/tcp_finish_connect: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
     return 0;
 }
@@ -1016,7 +1024,7 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *skp) 
 
     __u16 lport = 0;
     if (valid_tuple) {
-        cleanup_conn(ctx, &tup, skp, false);
+        cleanup_conn(ctx, &tup, skp);
         lport = tup.sport;
     } else {
         lport = read_sport(skp);
@@ -1100,7 +1108,7 @@ static __always_inline struct sock *sk_buff_sk(struct sk_buff *skb) {
 SEC("tracepoint/net/net_dev_queue")
 int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx *ctx) {
     CHECK_BPF_PROGRAM_BYPASSED()
-    struct sk_buff* skb = ctx->skb;
+    struct sk_buff *skb = ctx->skb;
     if (!skb) {
         return 0;
     }
@@ -1130,7 +1138,9 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx *ctx) {
     if (!is_equal(&skb_tup, &sock_tup)) {
         normalize_tuple(&skb_tup);
         normalize_tuple(&sock_tup);
-        bpf_map_update_with_telemetry(conn_tuple_to_socket_skb_conn_tuple, &sock_tup, &skb_tup, BPF_NOEXIST);
+        // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
+        // and do not provide any useful signal since the key is expected to be present sometimes.
+        bpf_map_update_with_telemetry(conn_tuple_to_socket_skb_conn_tuple, &sock_tup, &skb_tup, BPF_NOEXIST, -EEXIST);
     }
 
     return 0;

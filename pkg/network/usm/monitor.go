@@ -24,6 +24,7 @@ import (
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -140,7 +141,7 @@ func (m *Monitor) Start() error {
 	}
 
 	// Need to explicitly save the error in `err` so the defer function could save the startup error.
-	if m.cfg.EnableNativeTLSMonitoring || m.cfg.EnableGoTLSSupport || m.cfg.EnableJavaTLSSupport || m.cfg.EnableIstioMonitoring || m.cfg.EnableNodeJSMonitoring {
+	if usmconfig.NeedProcessMonitor(m.cfg) {
 		err = m.processMonitor.Initialize(m.cfg.EnableUSMEventStream)
 	}
 
@@ -174,6 +175,8 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 	if startupError != nil {
 		response["error"] = startupError.Error()
 	}
+
+	response["blocked_processes"] = utils.GetBlockedPathIDsList()
 
 	tracedPrograms := utils.GetTracedProgramList()
 	response["traced_programs"] = tracedPrograms

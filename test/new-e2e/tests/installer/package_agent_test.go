@@ -7,11 +7,16 @@ package installer
 
 import (
 	"fmt"
+	"path"
 	"path/filepath"
+	"strings"
+	"time"
 
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/stretchr/testify/assert"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -31,13 +36,16 @@ type packageAgentSuite struct {
 	packageBaseSuite
 }
 
-func testAgent(os e2eos.Descriptor, arch e2eos.Architecture) packageSuite {
+func testAgent(os e2eos.Descriptor, arch e2eos.Architecture, method installMethodOption) packageSuite {
 	return &packageAgentSuite{
-		packageBaseSuite: newPackageSuite("agent", os, arch, awshost.WithoutFakeIntake()),
+		packageBaseSuite: newPackageSuite("agent", os, arch, method, awshost.WithoutFakeIntake()),
 	}
 }
 
 func (s *packageAgentSuite) TestInstall() {
+	if s.installMethod == installMethodAnsible {
+		s.Suite.T().Skip()
+	}
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.WaitForUnitActive(agentUnit, traceUnit, processUnit)
@@ -47,6 +55,19 @@ func (s *packageAgentSuite) TestInstall() {
 
 	state.AssertFileExists("/etc/datadog-agent/install_info", 0644, "root", "root")
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
+
+	agentVersion := s.host.AgentStableVersion()
+	agentDir := fmt.Sprintf("/opt/datadog-packages/datadog-agent/%s", agentVersion)
+
+	state.AssertDirExists(agentDir, 0755, "dd-agent", "dd-agent")
+
+	state.AssertFileExists(path.Join(agentDir, "embedded/bin/system-probe"), 0755, "root", "root")
+	state.AssertFileExists(path.Join(agentDir, "embedded/bin/security-agent"), 0755, "root", "root")
+	state.AssertDirExists(path.Join(agentDir, "embedded/share/system-probe/java"), 0755, "root", "root")
+	state.AssertDirExists(path.Join(agentDir, "embedded/share/system-probe/ebpf"), 0755, "root", "root")
+	state.AssertFileExists(path.Join(agentDir, "embedded/share/system-probe/ebpf/dns.o"), 0644, "root", "root")
+
+	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", agentDir, "root", "root")
 	// FIXME: this file is either dd-agent or root depending on the OS for some reason
 	// state.AssertFileExists("/etc/datadog-agent/install.json", 0644, "dd-agent", "dd-agent")
 }
@@ -124,6 +145,9 @@ func (s *packageAgentSuite) TestUpgrade_Agent_OCI_then_DebRpm() {
 }
 
 func (s *packageAgentSuite) TestExperimentTimeout() {
+	if s.installMethod == installMethodAnsible {
+		s.Suite.T().Skip()
+	}
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
@@ -186,6 +210,9 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 }
 
 func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
+	if s.installMethod == installMethodAnsible {
+		s.Suite.T().Skip()
+	}
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
@@ -258,6 +285,9 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 }
 
 func (s *packageAgentSuite) TestExperimentExits() {
+	if s.installMethod == installMethodAnsible {
+		s.Suite.T().Skip()
+	}
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
@@ -314,6 +344,9 @@ func (s *packageAgentSuite) TestExperimentExits() {
 }
 
 func (s *packageAgentSuite) TestExperimentStopped() {
+	if s.installMethod == installMethodAnsible {
+		s.Suite.T().Skip()
+	}
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
@@ -372,6 +405,25 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 	}
 }
 
+func (s *packageAgentSuite) TestRunPath() {
+	s.RunInstallScript(envForceInstall("datadog-agent"))
+	defer s.Purge()
+	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
+
+	var rawConfig string
+	var err error
+	assert.Eventually(s.T(), func() bool {
+		rawConfig, err = s.host.AgentRuntimeConfig()
+		return err == nil
+	}, 30*time.Second, 5*time.Second, "failed to get agent runtime config: %v", err)
+	var config map[string]interface{}
+	err = yaml.Unmarshal([]byte(rawConfig), &config)
+	assert.NoError(s.T(), err)
+	runPath, ok := config["run_path"].(string)
+	assert.True(s.T(), ok, "run_path not found in runtime config")
+	assert.True(s.T(), strings.HasPrefix(runPath, "/opt/datadog-packages/datadog-agent/"), "run_path is not in the expected location: %s", runPath)
+}
+
 func (s *packageAgentSuite) purgeAgentDebInstall() {
 	pkgManager := s.host.GetPkgManager()
 	switch pkgManager {
@@ -392,7 +444,7 @@ func (s *packageAgentSuite) installDebRPMAgent() {
 	case "apt":
 		s.Env().RemoteHost.Execute("sudo apt-get install -y --force-yes datadog-agent")
 	case "yum":
-		s.Env().RemoteHost.Execute("sudo yum -y install datadog-agent")
+		s.Env().RemoteHost.Execute("sudo yum -y install --disablerepo=* --enablerepo=datadog datadog-agent")
 	case "zypper":
 		s.Env().RemoteHost.Execute("sudo zypper install -y datadog-agent")
 	default:

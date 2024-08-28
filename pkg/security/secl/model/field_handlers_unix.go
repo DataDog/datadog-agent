@@ -23,8 +23,11 @@ func (ev *Event) ResolveFieldsForAD() {
 }
 func (ev *Event) resolveFields(forADs bool) {
 	// resolve context fields that are not related to any event type
+	_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.CGroupContext)
+	_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.CGroupContext)
 	_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)
 	_ = ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
+	_ = ev.FieldHandlers.ResolveContainerRuntime(ev, ev.BaseEvent.ContainerContext)
 	if !forADs {
 		_ = ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
 	}
@@ -32,10 +35,14 @@ func (ev *Event) resolveFields(forADs bool) {
 	_ = ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
+	_ = ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkContext.Device)
 	_ = ev.FieldHandlers.ResolveProcessArgs(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessArgsTruncated(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessArgv(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.BaseEvent.ProcessContext.Process)
+	_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.BaseEvent.ProcessContext.Process.CGroup)
+	_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.BaseEvent.ProcessContext.Process.CGroup)
+	_ = ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process)
@@ -115,6 +122,15 @@ func (ev *Event) resolveFields(forADs bool) {
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() {
 		_ = ev.FieldHandlers.ResolveProcessArgv0(ev, ev.BaseEvent.ProcessContext.Parent)
+	}
+	if ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.BaseEvent.ProcessContext.Parent.CGroup)
+	}
+	if ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.BaseEvent.ProcessContext.Parent.CGroup)
+	}
+	if ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveProcessContainerID(ev, ev.BaseEvent.ProcessContext.Parent)
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() {
 		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.BaseEvent.ProcessContext.Parent)
@@ -222,7 +238,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chdir.File)
 		}
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chdir.SyscallContext)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chdir.SyscallContext)
+		}
 	case "chmod":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Chmod.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Chmod.File.FileFields)
@@ -236,8 +254,12 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chmod.File)
 		}
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chmod.SyscallContext)
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chmod.SyscallContext)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chmod.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chmod.SyscallContext)
+		}
 	case "chown":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Chown.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Chown.File.FileFields)
@@ -253,8 +275,16 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		_ = ev.FieldHandlers.ResolveChownUID(ev, &ev.Chown)
 		_ = ev.FieldHandlers.ResolveChownGID(ev, &ev.Chown)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chown.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chown.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Chown.SyscallContext)
+		}
 	case "dns":
-		_ = ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkContext.Device)
 	case "exec":
 		if ev.Exec.Process.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exec.Process.FileEvent.FileFields)
@@ -288,6 +318,9 @@ func (ev *Event) resolveFields(forADs bool) {
 				_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exec.Process.FileEvent)
 			}
 		}
+		_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.Exec.Process.CGroup)
+		_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Exec.Process.CGroup)
+		_ = ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Exec.Process)
 		if ev.Exec.Process.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exec.Process.LinuxBinprm.FileEvent.FileFields)
 		}
@@ -331,7 +364,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Exec.Process)
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Exec.SyscallContext)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Exec.SyscallContext)
+		}
 	case "exit":
 		if ev.Exit.Process.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exit.Process.FileEvent.FileFields)
@@ -365,6 +400,9 @@ func (ev *Event) resolveFields(forADs bool) {
 				_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exit.Process.FileEvent)
 			}
 		}
+		_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.Exit.Process.CGroup)
+		_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Exit.Process.CGroup)
+		_ = ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Exit.Process)
 		if ev.Exit.Process.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields)
 		}
@@ -434,6 +472,12 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Link.Target)
 		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Link.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Link.SyscallContext)
+		}
 	case "load_module":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.LoadModule.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.LoadModule.File.FileFields)
@@ -479,7 +523,26 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveMountPointPath(ev, &ev.Mount)
 		_ = ev.FieldHandlers.ResolveMountSourcePath(ev, &ev.Mount)
 		_ = ev.FieldHandlers.ResolveMountRootPath(ev, &ev.Mount)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mount.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Mount.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Mount.SyscallContext)
+		}
 	case "mprotect":
+	case "ondemand":
+		_ = ev.FieldHandlers.ResolveOnDemandName(ev, &ev.OnDemand)
+		_ = ev.FieldHandlers.ResolveOnDemandArg1Str(ev, &ev.OnDemand)
+		_ = ev.FieldHandlers.ResolveOnDemandArg1Uint(ev, &ev.OnDemand)
+		_ = ev.FieldHandlers.ResolveOnDemandArg2Str(ev, &ev.OnDemand)
+		_ = ev.FieldHandlers.ResolveOnDemandArg2Uint(ev, &ev.OnDemand)
+		_ = ev.FieldHandlers.ResolveOnDemandArg3Str(ev, &ev.OnDemand)
+		_ = ev.FieldHandlers.ResolveOnDemandArg3Uint(ev, &ev.OnDemand)
+		_ = ev.FieldHandlers.ResolveOnDemandArg4Str(ev, &ev.OnDemand)
+		_ = ev.FieldHandlers.ResolveOnDemandArg4Uint(ev, &ev.OnDemand)
 	case "open":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Open.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Open.File.FileFields)
@@ -493,9 +556,15 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Open.File)
 		}
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Open.SyscallContext)
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Open.SyscallContext)
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Open.SyscallContext)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Open.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Open.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Open.SyscallContext)
+		}
 	case "ptrace":
 		if ev.PTrace.Tracee.Process.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.PTrace.Tracee.Process.FileEvent.FileFields)
@@ -529,6 +598,9 @@ func (ev *Event) resolveFields(forADs bool) {
 				_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Process.FileEvent)
 			}
 		}
+		_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.PTrace.Tracee.Process.CGroup)
+		_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.PTrace.Tracee.Process.CGroup)
+		_ = ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.PTrace.Tracee.Process)
 		if ev.PTrace.Tracee.Process.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields)
 		}
@@ -603,6 +675,15 @@ func (ev *Event) resolveFields(forADs bool) {
 			if !forADs {
 				_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Parent.FileEvent)
 			}
+		}
+		if ev.PTrace.Tracee.HasParent() {
+			_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.PTrace.Tracee.Parent.CGroup)
+		}
+		if ev.PTrace.Tracee.HasParent() {
+			_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.PTrace.Tracee.Parent.CGroup)
+		}
+		if ev.PTrace.Tracee.HasParent() {
+			_ = ev.FieldHandlers.ResolveProcessContainerID(ev, ev.PTrace.Tracee.Parent)
 		}
 		if ev.PTrace.Tracee.HasParent() && ev.PTrace.Tracee.Parent.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields)
@@ -709,6 +790,12 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rename.New)
 		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Rename.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Rename.SyscallContext)
+		}
 	case "rmdir":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Rmdir.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Rmdir.File.FileFields)
@@ -780,6 +867,9 @@ func (ev *Event) resolveFields(forADs bool) {
 				_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Process.FileEvent)
 			}
 		}
+		_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.Signal.Target.Process.CGroup)
+		_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Signal.Target.Process.CGroup)
+		_ = ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.Signal.Target.Process)
 		if ev.Signal.Target.Process.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields)
 		}
@@ -854,6 +944,15 @@ func (ev *Event) resolveFields(forADs bool) {
 			if !forADs {
 				_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Parent.FileEvent)
 			}
+		}
+		if ev.Signal.Target.HasParent() {
+			_ = ev.FieldHandlers.ResolveCGroupID(ev, &ev.Signal.Target.Parent.CGroup)
+		}
+		if ev.Signal.Target.HasParent() {
+			_ = ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Signal.Target.Parent.CGroup)
+		}
+		if ev.Signal.Target.HasParent() {
+			_ = ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Signal.Target.Parent)
 		}
 		if ev.Signal.Target.HasParent() && ev.Signal.Target.Parent.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields)
@@ -946,6 +1045,15 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Unlink.File)
 		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Unlink.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Unlink.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Unlink.SyscallContext)
+		}
 	case "unload_module":
 	case "utimes":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Utimes.File.FileFields)
@@ -960,15 +1068,21 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Utimes.File)
 		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Utimes.SyscallContext)
+		}
 	}
 }
 
 type FieldHandlers interface {
 	ResolveAsync(ev *Event) bool
+	ResolveCGroupID(ev *Event, e *CGroupContext) string
+	ResolveCGroupManager(ev *Event, e *CGroupContext) string
 	ResolveChownGID(ev *Event, e *ChownEvent) string
 	ResolveChownUID(ev *Event, e *ChownEvent) string
 	ResolveContainerCreatedAt(ev *Event, e *ContainerContext) int
 	ResolveContainerID(ev *Event, e *ContainerContext) string
+	ResolveContainerRuntime(ev *Event, e *ContainerContext) string
 	ResolveContainerTags(ev *Event, e *ContainerContext) []string
 	ResolveEventTime(ev *Event, e *BaseEvent) time.Time
 	ResolveEventTimestamp(ev *Event, e *BaseEvent) int
@@ -989,6 +1103,15 @@ type FieldHandlers interface {
 	ResolveMountRootPath(ev *Event, e *MountEvent) string
 	ResolveMountSourcePath(ev *Event, e *MountEvent) string
 	ResolveNetworkDeviceIfName(ev *Event, e *NetworkDeviceContext) string
+	ResolveOnDemandArg1Str(ev *Event, e *OnDemandEvent) string
+	ResolveOnDemandArg1Uint(ev *Event, e *OnDemandEvent) int
+	ResolveOnDemandArg2Str(ev *Event, e *OnDemandEvent) string
+	ResolveOnDemandArg2Uint(ev *Event, e *OnDemandEvent) int
+	ResolveOnDemandArg3Str(ev *Event, e *OnDemandEvent) string
+	ResolveOnDemandArg3Uint(ev *Event, e *OnDemandEvent) int
+	ResolveOnDemandArg4Str(ev *Event, e *OnDemandEvent) string
+	ResolveOnDemandArg4Uint(ev *Event, e *OnDemandEvent) int
+	ResolveOnDemandName(ev *Event, e *OnDemandEvent) string
 	ResolvePackageName(ev *Event, e *FileEvent) string
 	ResolvePackageSourceVersion(ev *Event, e *FileEvent) string
 	ResolvePackageVersion(ev *Event, e *FileEvent) string
@@ -1001,6 +1124,7 @@ type FieldHandlers interface {
 	ResolveProcessArgv0(ev *Event, e *Process) string
 	ResolveProcessArgvScrubbed(ev *Event, e *Process) []string
 	ResolveProcessCmdArgv(ev *Event, e *Process) []string
+	ResolveProcessContainerID(ev *Event, e *Process) string
 	ResolveProcessCreatedAt(ev *Event, e *Process) int
 	ResolveProcessEnvp(ev *Event, e *Process) []string
 	ResolveProcessEnvs(ev *Event, e *Process) []string
@@ -1027,104 +1151,187 @@ type FieldHandlers interface {
 }
 type FakeFieldHandlers struct{}
 
-func (dfh *FakeFieldHandlers) ResolveAsync(ev *Event) bool                     { return ev.Async }
-func (dfh *FakeFieldHandlers) ResolveChownGID(ev *Event, e *ChownEvent) string { return e.Group }
-func (dfh *FakeFieldHandlers) ResolveChownUID(ev *Event, e *ChownEvent) string { return e.User }
+func (dfh *FakeFieldHandlers) ResolveAsync(ev *Event) bool { return bool(ev.Async) }
+func (dfh *FakeFieldHandlers) ResolveCGroupID(ev *Event, e *CGroupContext) string {
+	return string(e.CGroupID)
+}
+func (dfh *FakeFieldHandlers) ResolveCGroupManager(ev *Event, e *CGroupContext) string {
+	return string(e.CGroupManager)
+}
+func (dfh *FakeFieldHandlers) ResolveChownGID(ev *Event, e *ChownEvent) string {
+	return string(e.Group)
+}
+func (dfh *FakeFieldHandlers) ResolveChownUID(ev *Event, e *ChownEvent) string { return string(e.User) }
 func (dfh *FakeFieldHandlers) ResolveContainerCreatedAt(ev *Event, e *ContainerContext) int {
 	return int(e.CreatedAt)
 }
-func (dfh *FakeFieldHandlers) ResolveContainerID(ev *Event, e *ContainerContext) string { return e.ID }
-func (dfh *FakeFieldHandlers) ResolveContainerTags(ev *Event, e *ContainerContext) []string {
-	return e.Tags
+func (dfh *FakeFieldHandlers) ResolveContainerID(ev *Event, e *ContainerContext) string {
+	return string(e.ContainerID)
 }
-func (dfh *FakeFieldHandlers) ResolveEventTime(ev *Event, e *BaseEvent) time.Time { return e.Timestamp }
+func (dfh *FakeFieldHandlers) ResolveContainerRuntime(ev *Event, e *ContainerContext) string {
+	return string(e.Runtime)
+}
+func (dfh *FakeFieldHandlers) ResolveContainerTags(ev *Event, e *ContainerContext) []string {
+	return []string(e.Tags)
+}
+func (dfh *FakeFieldHandlers) ResolveEventTime(ev *Event, e *BaseEvent) time.Time {
+	return time.Time(e.Timestamp)
+}
 func (dfh *FakeFieldHandlers) ResolveEventTimestamp(ev *Event, e *BaseEvent) int {
 	return int(e.TimestampRaw)
 }
 func (dfh *FakeFieldHandlers) ResolveFileBasename(ev *Event, e *FileEvent) string {
-	return e.BasenameStr
+	return string(e.BasenameStr)
 }
-func (dfh *FakeFieldHandlers) ResolveFileFieldsGroup(ev *Event, e *FileFields) string { return e.Group }
+func (dfh *FakeFieldHandlers) ResolveFileFieldsGroup(ev *Event, e *FileFields) string {
+	return string(e.Group)
+}
 func (dfh *FakeFieldHandlers) ResolveFileFieldsInUpperLayer(ev *Event, e *FileFields) bool {
-	return e.InUpperLayer
+	return bool(e.InUpperLayer)
 }
-func (dfh *FakeFieldHandlers) ResolveFileFieldsUser(ev *Event, e *FileFields) string { return e.User }
+func (dfh *FakeFieldHandlers) ResolveFileFieldsUser(ev *Event, e *FileFields) string {
+	return string(e.User)
+}
 func (dfh *FakeFieldHandlers) ResolveFileFilesystem(ev *Event, e *FileEvent) string {
-	return e.Filesystem
+	return string(e.Filesystem)
 }
-func (dfh *FakeFieldHandlers) ResolveFilePath(ev *Event, e *FileEvent) string { return e.PathnameStr }
+func (dfh *FakeFieldHandlers) ResolveFilePath(ev *Event, e *FileEvent) string {
+	return string(e.PathnameStr)
+}
 func (dfh *FakeFieldHandlers) ResolveHashesFromEvent(ev *Event, e *FileEvent) []string {
-	return e.Hashes
+	return []string(e.Hashes)
 }
-func (dfh *FakeFieldHandlers) ResolveHostname(ev *Event, e *BaseEvent) string { return e.Hostname }
+func (dfh *FakeFieldHandlers) ResolveHostname(ev *Event, e *BaseEvent) string {
+	return string(e.Hostname)
+}
 func (dfh *FakeFieldHandlers) ResolveK8SGroups(ev *Event, e *UserSessionContext) []string {
-	return e.K8SGroups
+	return []string(e.K8SGroups)
 }
-func (dfh *FakeFieldHandlers) ResolveK8SUID(ev *Event, e *UserSessionContext) string { return e.K8SUID }
+func (dfh *FakeFieldHandlers) ResolveK8SUID(ev *Event, e *UserSessionContext) string {
+	return string(e.K8SUID)
+}
 func (dfh *FakeFieldHandlers) ResolveK8SUsername(ev *Event, e *UserSessionContext) string {
-	return e.K8SUsername
+	return string(e.K8SUsername)
 }
-func (dfh *FakeFieldHandlers) ResolveModuleArgs(ev *Event, e *LoadModuleEvent) string { return e.Args }
+func (dfh *FakeFieldHandlers) ResolveModuleArgs(ev *Event, e *LoadModuleEvent) string {
+	return string(e.Args)
+}
 func (dfh *FakeFieldHandlers) ResolveModuleArgv(ev *Event, e *LoadModuleEvent) []string {
-	return e.Argv
+	return []string(e.Argv)
 }
 func (dfh *FakeFieldHandlers) ResolveMountPointPath(ev *Event, e *MountEvent) string {
-	return e.MountPointPath
+	return string(e.MountPointPath)
 }
 func (dfh *FakeFieldHandlers) ResolveMountRootPath(ev *Event, e *MountEvent) string {
-	return e.MountRootPath
+	return string(e.MountRootPath)
 }
 func (dfh *FakeFieldHandlers) ResolveMountSourcePath(ev *Event, e *MountEvent) string {
-	return e.MountSourcePath
+	return string(e.MountSourcePath)
 }
 func (dfh *FakeFieldHandlers) ResolveNetworkDeviceIfName(ev *Event, e *NetworkDeviceContext) string {
-	return e.IfName
+	return string(e.IfName)
 }
-func (dfh *FakeFieldHandlers) ResolvePackageName(ev *Event, e *FileEvent) string { return e.PkgName }
+func (dfh *FakeFieldHandlers) ResolveOnDemandArg1Str(ev *Event, e *OnDemandEvent) string {
+	return string(e.Arg1Str)
+}
+func (dfh *FakeFieldHandlers) ResolveOnDemandArg1Uint(ev *Event, e *OnDemandEvent) int {
+	return int(e.Arg1Uint)
+}
+func (dfh *FakeFieldHandlers) ResolveOnDemandArg2Str(ev *Event, e *OnDemandEvent) string {
+	return string(e.Arg2Str)
+}
+func (dfh *FakeFieldHandlers) ResolveOnDemandArg2Uint(ev *Event, e *OnDemandEvent) int {
+	return int(e.Arg2Uint)
+}
+func (dfh *FakeFieldHandlers) ResolveOnDemandArg3Str(ev *Event, e *OnDemandEvent) string {
+	return string(e.Arg3Str)
+}
+func (dfh *FakeFieldHandlers) ResolveOnDemandArg3Uint(ev *Event, e *OnDemandEvent) int {
+	return int(e.Arg3Uint)
+}
+func (dfh *FakeFieldHandlers) ResolveOnDemandArg4Str(ev *Event, e *OnDemandEvent) string {
+	return string(e.Arg4Str)
+}
+func (dfh *FakeFieldHandlers) ResolveOnDemandArg4Uint(ev *Event, e *OnDemandEvent) int {
+	return int(e.Arg4Uint)
+}
+func (dfh *FakeFieldHandlers) ResolveOnDemandName(ev *Event, e *OnDemandEvent) string {
+	return string(e.Name)
+}
+func (dfh *FakeFieldHandlers) ResolvePackageName(ev *Event, e *FileEvent) string {
+	return string(e.PkgName)
+}
 func (dfh *FakeFieldHandlers) ResolvePackageSourceVersion(ev *Event, e *FileEvent) string {
-	return e.PkgSrcVersion
+	return string(e.PkgSrcVersion)
 }
 func (dfh *FakeFieldHandlers) ResolvePackageVersion(ev *Event, e *FileEvent) string {
-	return e.PkgVersion
+	return string(e.PkgVersion)
 }
-func (dfh *FakeFieldHandlers) ResolveProcessArgs(ev *Event, e *Process) string        { return e.Args }
-func (dfh *FakeFieldHandlers) ResolveProcessArgsFlags(ev *Event, e *Process) []string { return e.Argv }
+func (dfh *FakeFieldHandlers) ResolveProcessArgs(ev *Event, e *Process) string { return string(e.Args) }
+func (dfh *FakeFieldHandlers) ResolveProcessArgsFlags(ev *Event, e *Process) []string {
+	return []string(e.Argv)
+}
 func (dfh *FakeFieldHandlers) ResolveProcessArgsOptions(ev *Event, e *Process) []string {
-	return e.Argv
+	return []string(e.Argv)
 }
 func (dfh *FakeFieldHandlers) ResolveProcessArgsScrubbed(ev *Event, e *Process) string {
-	return e.ArgsScrubbed
+	return string(e.ArgsScrubbed)
 }
 func (dfh *FakeFieldHandlers) ResolveProcessArgsTruncated(ev *Event, e *Process) bool {
-	return e.ArgsTruncated
+	return bool(e.ArgsTruncated)
 }
-func (dfh *FakeFieldHandlers) ResolveProcessArgv(ev *Event, e *Process) []string { return e.Argv }
-func (dfh *FakeFieldHandlers) ResolveProcessArgv0(ev *Event, e *Process) string  { return e.Argv0 }
+func (dfh *FakeFieldHandlers) ResolveProcessArgv(ev *Event, e *Process) []string {
+	return []string(e.Argv)
+}
+func (dfh *FakeFieldHandlers) ResolveProcessArgv0(ev *Event, e *Process) string {
+	return string(e.Argv0)
+}
 func (dfh *FakeFieldHandlers) ResolveProcessArgvScrubbed(ev *Event, e *Process) []string {
-	return e.ArgvScrubbed
+	return []string(e.ArgvScrubbed)
 }
-func (dfh *FakeFieldHandlers) ResolveProcessCmdArgv(ev *Event, e *Process) []string { return e.Argv }
+func (dfh *FakeFieldHandlers) ResolveProcessCmdArgv(ev *Event, e *Process) []string {
+	return []string(e.Argv)
+}
+func (dfh *FakeFieldHandlers) ResolveProcessContainerID(ev *Event, e *Process) string {
+	return string(e.ContainerID)
+}
 func (dfh *FakeFieldHandlers) ResolveProcessCreatedAt(ev *Event, e *Process) int {
 	return int(e.CreatedAt)
 }
-func (dfh *FakeFieldHandlers) ResolveProcessEnvp(ev *Event, e *Process) []string { return e.Envp }
-func (dfh *FakeFieldHandlers) ResolveProcessEnvs(ev *Event, e *Process) []string { return e.Envs }
+func (dfh *FakeFieldHandlers) ResolveProcessEnvp(ev *Event, e *Process) []string {
+	return []string(e.Envp)
+}
+func (dfh *FakeFieldHandlers) ResolveProcessEnvs(ev *Event, e *Process) []string {
+	return []string(e.Envs)
+}
 func (dfh *FakeFieldHandlers) ResolveProcessEnvsTruncated(ev *Event, e *Process) bool {
-	return e.EnvsTruncated
+	return bool(e.EnvsTruncated)
 }
 func (dfh *FakeFieldHandlers) ResolveRights(ev *Event, e *FileFields) int { return int(e.Mode) }
 func (dfh *FakeFieldHandlers) ResolveSELinuxBoolName(ev *Event, e *SELinuxEvent) string {
-	return e.BoolName
+	return string(e.BoolName)
 }
-func (dfh *FakeFieldHandlers) ResolveService(ev *Event, e *BaseEvent) string        { return e.Service }
-func (dfh *FakeFieldHandlers) ResolveSetgidEGroup(ev *Event, e *SetgidEvent) string { return e.EGroup }
+func (dfh *FakeFieldHandlers) ResolveService(ev *Event, e *BaseEvent) string {
+	return string(e.Service)
+}
+func (dfh *FakeFieldHandlers) ResolveSetgidEGroup(ev *Event, e *SetgidEvent) string {
+	return string(e.EGroup)
+}
 func (dfh *FakeFieldHandlers) ResolveSetgidFSGroup(ev *Event, e *SetgidEvent) string {
-	return e.FSGroup
+	return string(e.FSGroup)
 }
-func (dfh *FakeFieldHandlers) ResolveSetgidGroup(ev *Event, e *SetgidEvent) string  { return e.Group }
-func (dfh *FakeFieldHandlers) ResolveSetuidEUser(ev *Event, e *SetuidEvent) string  { return e.EUser }
-func (dfh *FakeFieldHandlers) ResolveSetuidFSUser(ev *Event, e *SetuidEvent) string { return e.FSUser }
-func (dfh *FakeFieldHandlers) ResolveSetuidUser(ev *Event, e *SetuidEvent) string   { return e.User }
+func (dfh *FakeFieldHandlers) ResolveSetgidGroup(ev *Event, e *SetgidEvent) string {
+	return string(e.Group)
+}
+func (dfh *FakeFieldHandlers) ResolveSetuidEUser(ev *Event, e *SetuidEvent) string {
+	return string(e.EUser)
+}
+func (dfh *FakeFieldHandlers) ResolveSetuidFSUser(ev *Event, e *SetuidEvent) string {
+	return string(e.FSUser)
+}
+func (dfh *FakeFieldHandlers) ResolveSetuidUser(ev *Event, e *SetuidEvent) string {
+	return string(e.User)
+}
 func (dfh *FakeFieldHandlers) ResolveSyscallCtxArgsInt1(ev *Event, e *SyscallContext) int {
 	return int(e.IntArg1)
 }
@@ -1135,15 +1342,17 @@ func (dfh *FakeFieldHandlers) ResolveSyscallCtxArgsInt3(ev *Event, e *SyscallCon
 	return int(e.IntArg3)
 }
 func (dfh *FakeFieldHandlers) ResolveSyscallCtxArgsStr1(ev *Event, e *SyscallContext) string {
-	return e.StrArg1
+	return string(e.StrArg1)
 }
 func (dfh *FakeFieldHandlers) ResolveSyscallCtxArgsStr2(ev *Event, e *SyscallContext) string {
-	return e.StrArg2
+	return string(e.StrArg2)
 }
 func (dfh *FakeFieldHandlers) ResolveSyscallCtxArgsStr3(ev *Event, e *SyscallContext) string {
-	return e.StrArg3
+	return string(e.StrArg3)
 }
-func (dfh *FakeFieldHandlers) ResolveXAttrName(ev *Event, e *SetXAttrEvent) string { return e.Name }
+func (dfh *FakeFieldHandlers) ResolveXAttrName(ev *Event, e *SetXAttrEvent) string {
+	return string(e.Name)
+}
 func (dfh *FakeFieldHandlers) ResolveXAttrNamespace(ev *Event, e *SetXAttrEvent) string {
-	return e.Namespace
+	return string(e.Namespace)
 }

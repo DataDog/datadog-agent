@@ -88,6 +88,7 @@ func GetStreamFunc(messageReceiverFunc func() MessageReceiver, streamType, agent
 		defer close(done)
 		logChan := messageReceiver.Filter(&filters, done)
 		flushTimer := time.NewTicker(time.Second)
+		defer flushTimer.Stop()
 		for {
 			// Handlers for detecting a closed connection (from either the server or client)
 			select {

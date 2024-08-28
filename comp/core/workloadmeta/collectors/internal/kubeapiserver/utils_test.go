@@ -11,7 +11,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func Test_filterMapStringKey(t *testing.T) {
@@ -27,7 +30,10 @@ func Test_filterMapStringKey(t *testing.T) {
 		"ad.datadoghq.com/tags":             `["bar","foo"]`,
 	}
 
-	defaultExclude := config.Datadog().GetStringSlice("cluster_agent.kubernetes_resources_collection.pod_annotations_exclude")
+	conf := fxutil.Test[config.Component](t, fx.Options(
+		config.MockModule(),
+	))
+	defaultExclude := conf.GetStringSlice("cluster_agent.kubernetes_resources_collection.pod_annotations_exclude")
 	extraExclude := append(defaultExclude, "foo")
 
 	tests := []struct {

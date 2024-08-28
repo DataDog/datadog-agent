@@ -972,7 +972,7 @@ api_key:
 
   ## @param batch_wait - integer - optional - default: 5
   ## @env DD_LOGS_CONFIG_BATCH_WAIT - integer - optional - default: 5
-  ## The maximum time the Datadog Agent waits to fill each batch of logs before sending.
+  ## The maximum time (in seconds) the Datadog Agent waits to fill each batch of logs before sending.
   #
   # batch_wait: 5
 
@@ -1013,6 +1013,12 @@ api_key:
   #
   # max_message_size_bytes: 256000
 
+  ## @param integrations_logs_files_max_size - integer - optional - default: 100
+  ## @env DD_LOGS_CONFIG_INTEGRATIONS_LOGS_FILES_MAX_SIZE - integer - optional - default: 100
+  ## The combined size in MB of all the integration logs files the Agent is allowed to write.
+  #
+  # integrations_logs_files_max_size
+
 {{ end -}}
 {{- if .TraceAgent }}
 
@@ -1049,12 +1055,23 @@ api_key:
   #
   # receiver_port: 8126
 
-  ## @param receiver_socket - string - optional
-  ## @env DD_APM_RECEIVER_SOCKET - string - optional
+{{- if (eq .OS "windows")}}
+  ## Please note that UDS receiver is not available in Windows.
+  #@ Enabling this setting may result in unexpected behavior.
+  ## @param receiver_socket - string - optional - default: ""
+  ## @env DD_APM_RECEIVER_SOCKET - string - optional - default: ""
   ## Accept traces through Unix Domain Sockets.
-  ## It is off by default. When set, it must point to a valid socket file.
+  ## Set to "" to disable the UDS receiver.
   #
-  # receiver_socket: <UNIX_SOCKET_PATH>
+  # receiver_socket: ""
+{{else}}
+  ## @param receiver_socket - string - optional - default: unix:///var/run/datadog/apm.socket
+  ## @env DD_APM_RECEIVER_SOCKET - string - optional - default: unix:///var/run/datadog/apm.socket
+  ## Accept traces through Unix Domain Sockets.
+  ## Set to "" to disable the UDS receiver.
+  #
+  # receiver_socket: /var/run/datadog/apm.socket
+{{ end }}
 
   ## @param apm_non_local_traffic - boolean - optional - default: false
   ## @env DD_APM_NON_LOCAL_TRAFFIC - boolean - optional - default: false
@@ -1626,6 +1643,39 @@ api_key:
   # enabled: false
 
 {{ end }}
+
+{{- if .NetworkPath }}
+{{- if (ne .OS "darwin")}}
+
+########################################
+## Network Path Configuration         ##
+########################################
+
+# network_path:
+  ## @param connections_monitoring - custom object - optional
+  ## Specific configurations for monitoring network connections via Network Path.
+  #
+  # connections_monitoring:
+
+    ## @param enabled - bool - optional - default: false
+    ## @env DD_NETWORK_PATH_CONNECTIONS_MONITORING_ENABLED - bool - optional - default: false
+    ## [Beta] Enables monitoring network connections via Network Path.
+    #
+    # enabled: false
+
+  ## @param collector - custom object - optional
+  ## Configuration related to Network Path Collector.
+  #
+  # collector:
+
+    ## @param workers - integer - optional - default: 4
+    ## @env DD_WORKERS - integer - optional - default: 4
+    ## The `workers` refers to the number of concurrent workers available for network path execution.
+    #
+    # workers: 4
+
+{{ end -}}
+{{ end -}}
 {{ end -}}
 {{- if .Compliance }}
 #############################################
@@ -1811,6 +1861,21 @@ api_key:
 # ping:
   ## @param enabled - boolean - optional - default: false
   ## Set to true to enable the Ping Module of the System Probe
+  #
+  # enabled: false
+
+{{ end -}}
+
+
+{{- if .TracerouteModule }}
+
+###########################################
+## System Probe Traceroute Configuration ##
+###########################################
+
+# traceroute:
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable the Traceroute Module of the System Probe
   #
   # enabled: false
 
@@ -2015,11 +2080,23 @@ api_key:
 #
 # bind_host: localhost
 
+{{- if (eq .OS "windows")}}
+## Please note that UDS receiver is not available in Windows.
+#@ Enabling this setting may result in unexpected behavior.
 ## @param dogstatsd_socket - string - optional - default: ""
 ## @env DD_DOGSTATSD_SOCKET - string - optional - default: ""
-## Listen for Dogstatsd metrics on a Unix Socket (*nix only). Set to a valid filesystem path to enable.
+## Listen for Dogstatsd metrics on a Unix Socket (*nix only).
+## Set to "" to disable this feature.
 #
 # dogstatsd_socket: ""
+{{else}}
+## @param dogstatsd_socket - string - optional - default: "/var/run/datadog/dsd.socket"
+## @env DD_DOGSTATSD_SOCKET - string - optional - default: "/var/run/datadog/dsd.socket"
+## Listen for Dogstatsd metrics on a Unix Socket (*nix only).
+## Set to "" to disable this feature.
+#
+# dogstatsd_socket: "/var/run/datadog/dsd.socket"
+{{ end }}
 
 ## @param dogstatsd_origin_detection - boolean - optional - default: false
 ## @env DD_DOGSTATSD_ORIGIN_DETECTION - boolean - optional - default: false
@@ -2970,6 +3047,16 @@ api_key:
       ## Configures the memory request and limit for the init containers.
       #
       # memory:
+
+    ## @param init_security_context - json - optional
+    ## @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_SECURITY_CONTEXT - json - optional
+    ## Security context for the init containers in JSON format. Follows the Kubernetes security context spec,
+    ## https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#securitycontext-v1-core,
+    ## ignores unknown properties.
+    #
+    # init_security_context: '{"privileged": false}'
+    #
+    # DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_SECURITY_CONTEXT='{"privileged": false}'
 {{ end -}}
 {{- if .DockerTagging }}
 
@@ -3108,6 +3195,13 @@ api_key:
 ## Timeout in milliseconds on calls to the AWS ECS metadata endpoints.
 #
 # ecs_metadata_timeout: 500
+
+## @param ecs_task_collection_enabled - boolean - optional - default: false
+## @env DD_ECS_TASK_COLLECTION_ENABLED - boolean - optional - default: false
+## The Agent can collect detailed task information from the metadata API exposed by the ECS Agent,
+## which is used for the orchestrator ECS check.
+#
+# ecs_task_collection_enabled: false
 
 {{ end -}}
 {{- if .CRI }}
@@ -3971,6 +4065,83 @@ api_key:
     #
     # stop_timeout: 5
 
+    ## @param reverse_dns_enrichment_enabled - boolean - optional - default: false
+    ## Set to true to enable reverse DNS enrichment of private source and destination IP addresses in NetFlow records.
+    # reverse_dns_enrichment_enabled: false
+
+## @param reverse_dns_enrichment - custom object - optional
+## This section configures the reverse DNS enrichment component that can be used by other components in the Datadog Agent.
+# reverse_dns_enrichment:
+
+  ## @param workers - integer - optional - default: 10
+  ## The number of concurrent workers used to perform reverse DNS lookups.
+  # workers: 10
+
+  ## @param chan_size - integer - optional - default: 5000
+  ## The size of the channel used to send reverse DNS lookup requests to the workers.
+  # chan_size: 5000
+
+  ## @param cache - custom object - optional
+  ## This section configures the cache used by the reverse DNS enrichment component.
+  # cache:
+
+    ## @param enabled - boolean - optional - default: true
+    ## Set to true to enable reverse DNS enrichment caching.
+    #
+    # enabled: true
+
+    ## @param entry_ttl - duration - optional - default: 24h
+    ## The amount of time that a cache entry remains valid before it is expired and removed from the cache.
+    # entry_ttl: 24h
+
+    ## @param clean_interval - duration - optional - default: 2h
+    ## An interval that specifies how often expired entries are removed from the cache to free space.
+    # clean_interval: 2h
+
+    ## @param persist_interval - duration - optional - default: 2h
+    ## An interval that specifies how often the cache is persisted to disk so the cache can be reloaded when the Agent is upgraded or restarted.
+    # persist_interval: 2h
+
+    ## @param max_retries - integer - optional - default: 10
+    ## The maximum number of retries to perform when a DNS lookup operation fails, after which the hostname "" is returned and cached for the IP address.
+    # max_retries: 10
+
+    ## @param max_size - integer - optional - default: 1000000
+    ## The maximum size in entries of the cache, above which additional entries will not be cached.
+    #
+    # max_size: 1000000
+
+  ## @param rate_limiter - custom object - optional
+  ## This section configures the rate limiter used by the reverse DNS enrichment component.
+  # rate_limiter:
+
+    ## @param enabled - boolean - optional - default: true
+    ## Set to true to enable the reverse DNS enrichment rate limiter.
+    #
+    # enabled: true
+
+    ## @param limit_per_sec - integer - optional - default: 1000
+    ## The maximum number of reverse DNS lookups allowed per second by the rate limiter.
+    # limit_per_sec: 1000
+
+    ## @param limit_throttled_per_sec - integer - optional - default: 1
+    ## The maximum number of reverse DNS lookups allowed per second when the rate limiter is throttled due to errors exceeding the threshold.
+    # limit_throttled_per_sec: 1
+
+    ## @param throttle_error_threshold - integer - optional - default: 10
+    ## The number of consecutive errors that will trigger the rate limiter to throttle down to limit_throttled_per_sec.
+    # throttle_error_threshold: 10
+
+    ## @param recovery_intervals - integer - optional - default: 5
+    ## The number of intervals over which to increase the rate limit back to limit_per_sec when lookups are again successful after being throttled due to errors.
+    # recovery_intervals: 5
+
+    ## @param recovery_interval - duration - optional - default: 5s
+    ## The interval between incrementally increasing the rate limit back to limit_per_sec when lookups are again successful after being throttled due to errors.
+    ## The rate limit will be increased by (limit_per_sec - limit_throttled_per_sec) / recovery_intervals every recovery_interval, until it reaches
+    ## limit_per_sec.  For example, with limit_per_sec=1000, limit_throttled_per_sec=1, recovery_intervals=5, recovery_interval=5s, the limit will
+    ## be increased by 200 every 5 seconds until reaching 1000.
+    # recovery_interval: 5s
 
 {{end -}}
 {{- if .OTLP }}

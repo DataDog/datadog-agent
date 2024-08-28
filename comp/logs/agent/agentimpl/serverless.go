@@ -7,8 +7,9 @@ package agentimpl
 
 import (
 	"context"
+	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	logComponent "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
@@ -22,11 +23,12 @@ func NewServerlessLogsAgent() agent.ServerlessLogsAgent {
 	logsAgent := &logAgent{
 		log:     logComponent.NewTemporaryLoggerWithoutInit(),
 		config:  pkgConfig.Datadog(),
-		started: atomic.NewBool(false),
+		started: atomic.NewUint32(0),
 
-		sources:  sources.NewLogSources(),
-		services: service.NewServices(),
-		tracker:  tailers.NewTailerTracker(),
+		sources:         sources.NewLogSources(),
+		services:        service.NewServices(),
+		tracker:         tailers.NewTailerTracker(),
+		flarecontroller: flareController.NewFlareController(),
 	}
 	return logsAgent
 }

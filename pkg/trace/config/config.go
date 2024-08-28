@@ -287,7 +287,6 @@ type AgentConfig struct {
 	// Concentrator
 	BucketInterval         time.Duration // the size of our pre-aggregation per bucket
 	ExtraAggregators       []string      // DEPRECATED
-	PeerServiceAggregation bool          // TO BE DEPRECATED - enables/disables stats aggregation for peer.service, used by Concentrator and ClientStatsAggregator
 	PeerTagsAggregation    bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
 	ComputeStatsBySpanKind bool          // enables/disables the computing of stats based on a span's `span.kind` field
 	PeerTags               []string      // additional tags to use for peer entity stats aggregation
@@ -311,6 +310,7 @@ type AgentConfig struct {
 	ProbabilisticSamplerSamplingPercentage float32
 
 	// Receiver
+	ReceiverEnabled bool // specifies whether Receiver listeners are enabled. Unless OTLPReceiver is used, this should always be true.
 	ReceiverHost    string
 	ReceiverPort    int
 	ReceiverSocket  string // if not empty, UDS will be enabled on unix://<receiver_socket>
@@ -339,6 +339,8 @@ type AgentConfig struct {
 	// case, the sender will drop failed payloads when it is unable to enqueue
 	// them for another retry.
 	MaxSenderRetries int
+	// HTTP client used in writer connections. If nil, default client values will be used.
+	HTTPClientFunc func() *http.Client `json:"-"`
 
 	// internal telemetry
 	StatsdEnabled  bool
@@ -485,6 +487,7 @@ func New() *AgentConfig {
 		RareSamplerCooldownPeriod: 5 * time.Minute,
 		RareSamplerCardinality:    200,
 
+		ReceiverEnabled:        true,
 		ReceiverHost:           "localhost",
 		ReceiverPort:           8126,
 		MaxRequestBytes:        25 * 1024 * 1024, // 25MB
@@ -495,6 +498,7 @@ func New() *AgentConfig {
 		StatsWriter:             new(WriterConfig),
 		TraceWriter:             new(WriterConfig),
 		ConnectionResetInterval: 0, // disabled
+		MaxSenderRetries:        4,
 
 		StatsdHost:    "localhost",
 		StatsdPort:    8125,
@@ -554,6 +558,10 @@ func (c *AgentConfig) APIKey() string {
 // NewHTTPClient returns a new http.Client to be used for outgoing connections to the
 // Datadog API.
 func (c *AgentConfig) NewHTTPClient() *ResetClient {
+	// If a custom HTTPClientFunc been set, use it. Otherwise use default client values
+	if c.HTTPClientFunc != nil {
+		return NewResetClient(c.ConnectionResetInterval, c.HTTPClientFunc)
+	}
 	return NewResetClient(c.ConnectionResetInterval, func() *http.Client {
 		return &http.Client{
 			Timeout:   10 * time.Second,
@@ -597,8 +605,17 @@ func (c *AgentConfig) AllFeatures() []string {
 	return feats
 }
 
+// ConfiguredPeerTags returns the set of peer tags that should be used
+// for aggregation based on the various config values and the base set of tags.
+func (c *AgentConfig) ConfiguredPeerTags() []string {
+	if !c.PeerTagsAggregation {
+		return nil
+	}
+	return preparePeerTags(append(basePeerTags, c.PeerTags...))
+}
+
 func inAzureAppServices() bool {
-	_, existsLinux := os.LookupEnv("APPSVC_RUN_ZIP")
+	_, existsLinux := os.LookupEnv("WEBSITE_STACK")
 	_, existsWin := os.LookupEnv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED")
 	return existsLinux || existsWin
 }

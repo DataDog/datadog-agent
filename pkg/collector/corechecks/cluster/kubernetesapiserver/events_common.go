@@ -8,6 +8,7 @@
 package kubernetesapiserver
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -17,8 +18,10 @@ import (
 	"github.com/patrickmn/go-cache"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/kubetags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,6 +35,195 @@ type eventHostInfo struct {
 	hostname   string
 	nodename   string
 	providerID string
+}
+
+// controllerToIntegration is a mapping of Kubernetes controller names to integrations
+var controllerToIntegration = map[string]string{
+	"targetgroupbinding":                             "amazon elb",
+	"cilium-sidekick":                                "cilium",
+	"datadogagent":                                   "datadog operator",
+	"ExtendedDaemonSet":                              "datadog operator",
+	"datadog-operator-manager":                       "datadog operator",
+	"source-controller":                              "fluxcd",
+	"kustomize-controller":                           "fluxcd",
+	"karpenter":                                      "karpenter",
+	"deployment-controller":                          "kubernetes",
+	"job-controller":                                 "kubernetes",
+	"node-controller":                                "kubernetes",
+	"PodTemplate":                                    "kubernetes",
+	"taint-controller":                               "kubernetes",
+	"cronjob-controller":                             "kubernetes",
+	"draino":                                         "kubernetes",
+	"attachdetach-controller":                        "kubernetes",
+	"horizontal-pod-autoscaler":                      "kubernetes",
+	"daemonset-controller":                           "kubernetes",
+	"cloud-node-controller":                          "kubernetes",
+	"service-controller":                             "kubernetes",
+	"taint-eviction-controller":                      "kubernetes",
+	"cloud-controller-manager":                       "kubernetes",
+	"wpa_controller":                                 "kubernetes",
+	"workflow-controller":                            "kubernetes",
+	"persistentvolume-controller":                    "kubernetes",
+	"compute-diagnostics":                            "kubernetes",
+	"disruption-budget-manager":                      "kubernetes",
+	"vpa-updater":                                    "kubernetes",
+	"serviceaccount-token-controller":                "kubernetes",
+	"endpoints-controller":                           "kubernetes",
+	"endpointslice-controller":                       "kubernetes",
+	"endpointslice-mirroring-controller":             "kubernetes",
+	"replicationcontroller-controller":               "kubernetes",
+	"pod-garbage-collector-controller":               "kubernetes",
+	"resourcequota-controller":                       "kubernetes",
+	"namespace-controller":                           "kubernetes",
+	"serviceaccount-controller":                      "kubernetes",
+	"garbage-collector-controller":                   "kubernetes",
+	"horizontal-pod-autoscaler-controller":           "kubernetes",
+	"disruption-controller":                          "kubernetes",
+	"statefulset-controller":                         "kubernetes",
+	"certificatesigningrequest-signing-controller":   "kubernetes",
+	"certificatesigningrequest-approving-controller": "kubernetes",
+	"certificatesigningrequest-cleaner-controller":   "kubernetes",
+	"ttl-controller":                                 "kubernetes",
+	"bootstrap-signer-controller":                    "kubernetes",
+	"token-cleaner-controller":                       "kubernetes",
+	"node-ipam-controller":                           "kubernetes",
+	"node-lifecycle-controller":                      "kubernetes",
+	"persistentvolume-binder-controller":             "kubernetes",
+	"persistentvolume-attach-detach-controller":      "kubernetes",
+	"persistentvolume-expander-controller":           "kubernetes",
+	"clusterrole-aggregation-controller":             "kubernetes",
+	"persistentvolumeclaim-protection-controller":    "kubernetes",
+	"persistentvolume-protection-controller":         "kubernetes",
+	"ttl-after-finished-controller":                  "kubernetes",
+	"storageversion-garbage-collector-controller":    "kubernetes",
+	"resourceclaim-controller":                       "kubernetes",
+	"legacy-serviceaccount-token-cleaner-controller": "kubernetes",
+	"validatingadmissionpolicy-status-controller":    "kubernetes",
+	"service-cidr-controller":                        "kubernetes",
+	"storage-version-migrator-controller":            "kubernetes",
+	"kubelet":                                        "kubernetes",
+	"cluster-autoscaler":                             "kubernetes cluster autoscaler",
+	"endpoint-controller":                            "kubernetes controller manager",
+	"endpoint-slice-controller":                      "kubernetes controller manager",
+	"replicaset-controller":                          "kubernetes controller manager",
+	"kube-controller-manager":                        "kubernetes controller manager",
+	"default-scheduler":                              "kube_scheduler",
+	"spark-operator":                                 "spark",
+	"vaultd":                                         "vault",
+}
+
+// defaultEventSource is the source that should be used for kubernetes events emitted by
+// a controller not in the controllerToIntegration map.
+const defaultEventSource = "kubernetes"
+
+// kubernetesEventSource is the name of the source for kubernetes events
+const kubernetesEventSource = "kubernetes"
+
+// customEventSourceSuffix is the suffix that will be added to the event source type when
+// filtering is enabled and the event does not exist within integrationToCollectedEventTypes.
+const customEventSourceSuffix = "custom"
+
+var integrationToCollectedEventTypes = map[string][]collectedEventType{
+	"kubernetes": {
+		{
+			Kind:    "Pod",
+			Reasons: []string{"Failed", "BackOff", "Unhealthy", "FailedScheduling", "FailedMount", "FailedAttachVolume"},
+		},
+		{
+			Kind:    "Node",
+			Reasons: []string{"TerminatingEvictedPod", "NodeNotReady", "Rebooted", "HostPortConflict"},
+		},
+		{
+			Kind:    "CronJob",
+			Reasons: []string{"SawCompletedJob"},
+		},
+	},
+	"kube_scheduler": {
+		{
+			Kind:    "Pod",
+			Reasons: []string{"Failed", "BackOff", "Unhealthy", "FailedScheduling", "FailedMount", "FailedAttachVolume"},
+		},
+		{
+			Kind:    "Node",
+			Reasons: []string{"TerminatingEvictedPod", "NodeNotReady", "Rebooted", "HostPortConflict"},
+		},
+		{
+			Kind:    "CronJob",
+			Reasons: []string{"SawCompletedJob"},
+		},
+	},
+	"kubernetes controller manager": {
+		{
+			Kind:    "Pod",
+			Reasons: []string{"Failed", "BackOff", "Unhealthy", "FailedScheduling", "FailedMount", "FailedAttachVolume"},
+		},
+		{
+			Kind:    "Node",
+			Reasons: []string{"TerminatingEvictedPod", "NodeNotReady", "Rebooted", "HostPortConflict"},
+		},
+		{
+			Kind:    "CronJob",
+			Reasons: []string{"SawCompletedJob"},
+		},
+	},
+	"karpenter": {
+		{
+			Source: "karpenter",
+			Reasons: []string{
+				"DisruptionBlocked",
+				"DisruptionLaunching",
+				"DisruptionTerminating",
+				"DisruptionWaitingReadiness",
+				"FailedDraining",
+				"InstanceTerminating",
+				"SpotInterrupted",
+				"SpotRebalanceRecommendation",
+				"TerminatingOnInterruption",
+			},
+		},
+	},
+	"datadog-operator": {
+		{
+			Source: "datadog-operator",
+		},
+	},
+	"amazon elb": {
+		{
+			Source: "amazon elb",
+		},
+	},
+	"cilium": {
+		{
+			Source: "cilium",
+		},
+	},
+	"fluxcd": {
+		{
+			Source: "fluxcd",
+		},
+	},
+	"kubernetes cluster autoscaler": {
+		{
+
+			Source: "kubernetes cluster autoscaler",
+		},
+	},
+	"spark": {
+		{
+			Source: "spark",
+		},
+	},
+	"vault": {
+
+		{
+			Source: "vault",
+		},
+	},
+	"default": {
+		{
+			Reasons: []string{"BackOff"}, // Change tracking consumes all CLB events
+		},
+	},
 }
 
 // getDDAlertType converts kubernetes event types into datadog alert types
@@ -68,7 +260,7 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 			fmt.Sprintf("namespace:%s", involvedObject.Namespace),
 		)
 
-		namespaceEntityID := fmt.Sprintf("kubernetes_metadata://namespaces//%s", involvedObject.Namespace)
+		namespaceEntityID := fmt.Sprintf("kubernetes_metadata://%s", string(util.GenerateKubeMetadataEntityID("", "namespaces", "", involvedObject.Namespace)))
 		namespaceEntity, err := taggerInstance.GetEntity(namespaceEntityID)
 		if err == nil {
 			tagList = append(tagList, namespaceEntity.GetTags(types.HighCardinality)...)
@@ -102,11 +294,20 @@ func getEventHostInfoImpl(hostProviderIDFunc func(string) string, clusterName st
 
 	switch ev.InvolvedObject.Kind {
 	case podKind:
-		info.nodename = ev.Source.Host
-		// works fine with Pod's events generated by the kubelet, but not with other
-		// source like the draino controller.
-		// We should be able to resolve this issue with the workloadmetadatastore
-		// in the cluster-agent
+		sourceHost := ev.Source.Host
+		if sourceHost != "" {
+			info.nodename = sourceHost
+			break
+		}
+		c, err := apiserver.GetAPIClient()
+		if err == nil {
+			ctx := context.TODO()
+			node, err := c.GetNodeForPod(ctx, ev.InvolvedObject.Namespace, ev.InvolvedObject.Name)
+			if err == nil {
+				sourceHost = node
+			}
+		}
+		info.nodename = sourceHost
 	case nodeKind:
 		// on Node the host is not always provided in the ev.Source.Host
 		// But it is always available in `ev.InvolvedObject.Name`
@@ -164,7 +365,7 @@ func getHostProviderID(nodename string) string {
 // object kinds are supported by the tagger. It returns an empty string if the
 // kind doesn't correspond to a known/supported kind tag.
 func getKindTag(kind, name string) string {
-	tagName, err := tags.GetTagForKind(kind)
+	tagName, err := kubetags.GetTagForKubernetesKind(kind)
 	if err != nil {
 		return ""
 	}
@@ -182,4 +383,51 @@ func buildReadableKey(obj v1.ObjectReference) string {
 
 func init() {
 	hostProviderIDCache = cache.New(time.Hour, time.Hour)
+}
+
+func getEventSource(controllerName string, sourceComponent string) string {
+	if !ddConfig.Datadog().GetBool("kubernetes_events_source_detection.enabled") {
+		return kubernetesEventSource
+	}
+
+	if v, ok := controllerToIntegration[controllerName]; ok {
+		return v
+	}
+	if v, ok := controllerToIntegration[sourceComponent]; ok {
+		return v
+	}
+	return defaultEventSource
+}
+
+func shouldCollectByDefault(ev *v1.Event) bool {
+	if v, ok := integrationToCollectedEventTypes[getEventSource(ev.ReportingController, ev.Source.Component)]; ok {
+		return shouldCollect(ev, append(v, integrationToCollectedEventTypes["default"]...))
+	}
+	return shouldCollect(ev, integrationToCollectedEventTypes["default"])
+}
+
+func shouldCollect(ev *v1.Event, collectedTypes []collectedEventType) bool {
+	involvedObject := ev.InvolvedObject
+
+	for _, f := range collectedTypes {
+		if f.Kind != "" && f.Kind != involvedObject.Kind {
+			continue
+		}
+
+		if f.Source != "" && f.Source != ev.Source.Component {
+			continue
+		}
+
+		if len(f.Reasons) == 0 {
+			return true
+		}
+
+		for _, r := range f.Reasons {
+			if ev.Reason == r {
+				return true
+			}
+		}
+	}
+
+	return false
 }

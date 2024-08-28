@@ -202,6 +202,8 @@
 #define SYSCALL_COMPAT_TIME_KPROBE6(name, ...) SYSCALL_COMPAT_TIME_HOOKx(6, kprobe, KPROBE, _##name, __VA_ARGS__)
 
 #define SYSCALL_TIME_FENTRY0(name, ...) SYSCALL_TIME_HOOKx(0, fentry, FENTRY, _##name, __VA_ARGS__)
+#define SYSCALL_TIME_FENTRY1(name, ...) SYSCALL_TIME_HOOKx(1, fentry, FENTRY, _##name, __VA_ARGS__)
+#define SYSCALL_TIME_FENTRY2(name, ...) SYSCALL_TIME_HOOKx(2, fentry, FENTRY, _##name, __VA_ARGS__)
 
 #define SYSCALL_TIME_FEXIT(name) SYSCALL_TIME_HOOKx(0, fexit, FEXIT, _##name, __VA_ARGS__)
 

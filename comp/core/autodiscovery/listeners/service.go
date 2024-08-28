@@ -24,6 +24,7 @@ import (
 // workloadmeta.Store.
 type service struct {
 	entity          workloadmeta.Entity
+	tagsHash        string
 	adIdentifiers   []string
 	hosts           map[string]string
 	ports           []ContainerPort
@@ -38,6 +39,24 @@ type service struct {
 
 var _ Service = &service{}
 
+// Equal returns whether the two service are equal
+func (s *service) Equal(o Service) bool {
+	s2, ok := o.(*service)
+	if !ok {
+		return false
+	}
+
+	return s.GetServiceID() == s2.GetServiceID() &&
+		s.tagsHash == s2.tagsHash &&
+		reflect.DeepEqual(s.hosts, s2.hosts) &&
+		reflect.DeepEqual(s.ports, s2.ports) &&
+		reflect.DeepEqual(s.adIdentifiers, s2.adIdentifiers) &&
+		reflect.DeepEqual(s.checkNames, s2.checkNames) &&
+		s.hostname == s2.hostname &&
+		s.pid == s2.pid &&
+		s.ready == s2.ready
+}
+
 // GetServiceID returns the AD entity ID of the service.
 func (s *service) GetServiceID() string {
 	switch e := s.entity.(type) {
@@ -45,20 +64,6 @@ func (s *service) GetServiceID() string {
 		return containers.BuildEntityName(string(e.Runtime), e.ID)
 	case *workloadmeta.KubernetesPod:
 		return kubelet.PodUIDToEntityName(e.ID)
-	default:
-		entityID := s.entity.GetID()
-		log.Errorf("cannot build AD entity ID for kind %q, ID %q", entityID.Kind, entityID.ID)
-		return ""
-	}
-}
-
-// GetTaggerEntity returns the Tagger entity ID of the service.
-func (s *service) GetTaggerEntity() string {
-	switch e := s.entity.(type) {
-	case *workloadmeta.Container:
-		return containers.BuildTaggerEntityName(e.ID)
-	case *workloadmeta.KubernetesPod:
-		return kubelet.PodUIDToTaggerEntityName(e.ID)
 	default:
 		entityID := s.entity.GetID()
 		log.Errorf("cannot build AD entity ID for kind %q, ID %q", entityID.Kind, entityID.ID)
@@ -83,7 +88,18 @@ func (s *service) GetPorts(_ context.Context) ([]ContainerPort, error) {
 
 // GetTags returns the tags associated with the service.
 func (s *service) GetTags() ([]string, error) {
-	return tagger.Tag(s.GetTaggerEntity(), tagger.ChecksCardinality())
+	taggerEntity := ""
+	switch e := s.entity.(type) {
+	case *workloadmeta.Container:
+		taggerEntity = containers.BuildTaggerEntityName(e.ID)
+	case *workloadmeta.KubernetesPod:
+		taggerEntity = kubelet.PodUIDToTaggerEntityName(e.ID)
+	default:
+		entityID := s.entity.GetID()
+		log.Errorf("cannot build AD entity ID for kind %q, ID %q", entityID.Kind, entityID.ID)
+	}
+
+	return tagger.Tag(taggerEntity, tagger.ChecksCardinality())
 }
 
 // GetPid returns the process ID of the service.
@@ -99,11 +115,6 @@ func (s *service) GetHostname(_ context.Context) (string, error) {
 // IsReady returns whether the service is ready.
 func (s *service) IsReady(_ context.Context) bool {
 	return s.ready
-}
-
-// GetCheckNames returns the check names of the service.
-func (s *service) GetCheckNames(_ context.Context) []string {
-	return s.checkNames
 }
 
 // HasFilter returns whether the service should not collect certain data (logs
@@ -201,58 +212,4 @@ func (s *service) GetExtraConfig(key string) (string, error) {
 	}
 
 	return result, nil
-}
-
-// svcEqual checks that two Services are equal to each other by doing a deep
-// equality check on data returned by most of Service's methods. Methods not
-// checked are HasFilter and GetExtraConfig.
-func svcEqual(a, b Service) bool {
-	ctx := context.Background()
-
-	var (
-		errA error
-		errB error
-	)
-
-	entityA := a.GetServiceID()
-	entityB := b.GetServiceID()
-	if entityA != entityB {
-		return false
-	}
-
-	hostsA, errA := a.GetHosts(ctx)
-	hostsB, errB := b.GetHosts(ctx)
-	if errA != errB || !reflect.DeepEqual(hostsA, hostsB) {
-		return false
-	}
-
-	portsA, errA := a.GetPorts(ctx)
-	portsB, errB := b.GetPorts(ctx)
-	if errA != errB && !reflect.DeepEqual(portsA, portsB) {
-		return false
-	}
-
-	adA, errA := a.GetADIdentifiers(ctx)
-	adB, errB := b.GetADIdentifiers(ctx)
-	if errA != errB || !reflect.DeepEqual(adA, adB) {
-		return false
-	}
-
-	if !reflect.DeepEqual(a.GetCheckNames(ctx), b.GetCheckNames(ctx)) {
-		return false
-	}
-
-	hostnameA, errA := a.GetHostname(ctx)
-	hostnameB, errB := b.GetHostname(ctx)
-	if errA != errB || hostnameA != hostnameB {
-		return false
-	}
-
-	pidA, errA := a.GetPid(ctx)
-	pidB, errB := b.GetPid(ctx)
-	if errA != errB || pidA != pidB {
-		return false
-	}
-
-	return a.IsReady(ctx) == b.IsReady(ctx)
 }

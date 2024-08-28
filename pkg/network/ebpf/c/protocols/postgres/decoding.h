@@ -113,13 +113,12 @@ static int __always_inline skip_string(pktbuf_t pkt, int message_len) {
 // it tries to read up to POSTGRES_MAX_MESSAGES messages, looking for a command complete message.
 // If the message is not a new query or a command complete, it ignores the message.
 static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn_tuple, struct pg_message_header *header, __u8 tags) {
-    // Read first message header
-    // Advance the data offset to the end of the first message header.
-    pktbuf_advance(pkt, sizeof(struct pg_message_header));
-
     // If the message is a new query, we store the query in the in-flight map.
     // If we had a transaction for the connection, we override it and drops the previous one.
     if (header->message_tag == POSTGRES_QUERY_MAGIC_BYTE) {
+        // Read first message header
+        // Advance the data offset to the end of the first message header.
+        pktbuf_advance(pkt, sizeof(struct pg_message_header));
         // message_len includes size of the payload, 4 bytes of the message length itself, but not the message tag.
         // So if we want to know the size of the payload, we need to subtract the size of the message length.
         handle_new_query(pkt, conn_tuple, header->message_len - sizeof(__u32), tags);
@@ -132,20 +131,6 @@ static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn
     if (!transaction) {
         return;
     }
-
-    // If the message is a command complete, we enqueue the transaction and delete it from the in-flight map.
-    if (header->message_tag == POSTGRES_COMMAND_COMPLETE_MAGIC_BYTE) {
-        handle_command_complete(conn_tuple, transaction);
-        return;
-    }
-
-    // We're in the middle of a transaction, and the message is not a command complete, but it can be a chain of
-    // messages. So we try to read up to POSTGRES_MAX_MESSAGES messages, looking for a command complete message.
-
-    // Advance the data offset to the end of the first message (after the payload). The message length includes the size
-    // of the payload, 4 bytes of the message length itself, but not the message tag. Since we already moved the data
-    // offset to the end of the message header, we want to jump over the payload.
-    pktbuf_advance(pkt, header->message_len - sizeof(__u32));
 
 #pragma unroll(POSTGRES_MAX_MESSAGES)
     for (__u32 iteration = 0; iteration < POSTGRES_MAX_MESSAGES; ++iteration) {

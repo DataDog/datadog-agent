@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation/k8scp"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation/k8sexec"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -63,9 +64,11 @@ const (
 	cwsNilCommandReason                    = "nil_command"
 	cwsClusterAgentServiceAccountReason    = "cluster_agent_service_account"
 	cwsClusterAgentKubectlCPReason         = "cluster_agent_kubectl_cp"
+	cwsClusterAgentKubectlExecHealthReason = "cluster_agent_kubectl_exec_health"
 	cwsExcludedResourceReason              = "excluded_resource"
 	cwsDescribePodErrorReason              = "describe_pod_error"
 	cwsExcludedByAnnotationReason          = "excluded_by_annotation"
+	cwsExcludedByLabelReason               = "excluded_by_label"
 	cwsPodNotInstrumentedReason            = "pod_not_instrumented"
 	cwsReadonlyFilesystemReason            = "readonly_filesystem"
 	cwsMissingArchReason                   = "missing_arch"
@@ -191,8 +194,8 @@ func (w *WebhookForCommands) Operations() []admiv1.OperationType {
 
 // LabelSelectors returns the label selectors that specify when the webhook
 // should be invoked
-func (w *WebhookForCommands) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
-	return labelSelectors(useNamespaceSelector)
+func (w *WebhookForCommands) LabelSelectors(_ bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
+	return nil, nil
 }
 
 // MutateFunc returns the function that mutates the resources
@@ -268,6 +271,8 @@ type CWSInstrumentation struct {
 	mode InstrumentationMode
 	// mountVolumeForRemoteCopy
 	mountVolumeForRemoteCopy bool
+	// directoryForRemoteCopy
+	directoryForRemoteCopy string
 	// clusterAgentServiceAccount holds the service account name of the cluster agent
 	clusterAgentServiceAccount string
 
@@ -317,6 +322,7 @@ func NewCWSInstrumentation(wmeta workloadmeta.Component) (*CWSInstrumentation, e
 		return nil, fmt.Errorf("can't initiatilize CWS Instrumentation: %v", err)
 	}
 	ci.mountVolumeForRemoteCopy = config.Datadog().GetBool("admission_controller.cws_instrumentation.remote_copy.mount_volume")
+	ci.directoryForRemoteCopy = config.Datadog().GetString("admission_controller.cws_instrumentation.remote_copy.directory")
 
 	if ci.mode == RemoteCopy {
 		// build the cluster agent service account
@@ -358,7 +364,7 @@ func (ci *CWSInstrumentation) injectForCommand(request *admission.MutateRequest)
 func (ci *CWSInstrumentation) resolveNodeArch(nodeName string, apiClient kubernetes.Interface) (string, error) {
 	var arch string
 	// try with the wmeta
-	entityID := util.GenerateKubeMetadataEntityID("nodes", "", nodeName)
+	entityID := util.GenerateKubeMetadataEntityID("", "nodes", "", nodeName)
 
 	out, err := ci.wmeta.GetKubernetesMetadata(entityID)
 	if err == nil && out != nil {
@@ -429,7 +435,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 		}
 
 		// fall back in case the service account filter somehow didn't work
-		if len(exec.Command) > len(k8scp.CWSRemoteCopyCommand) && slices.Equal(exec.Command[0:len(k8scp.CWSRemoteCopyCommand)], k8scp.CWSRemoteCopyCommand) {
+		if len(exec.Command) >= len(k8scp.CWSRemoteCopyCommand) && slices.Equal(exec.Command[0:len(k8scp.CWSRemoteCopyCommand)], k8scp.CWSRemoteCopyCommand) {
 			log.Debugf("Ignoring kubectl cp requests to %s from the cluster agent", name)
 			metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsClusterAgentKubectlCPReason)
 			return false, nil
@@ -448,6 +454,12 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 		log.Errorf("couldn't describe pod %s in namespace %s from the API server: %v", name, ns, err)
 		metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsDescribePodErrorReason)
 		return false, errors.New(metrics.InternalError)
+	}
+
+	// is the pod excluded explicitly ? (we can filter out with labels in the webhook selector on pods / exec creation)
+	if pod.Labels != nil && pod.Labels[PodLabelEnabled] == "false" {
+		metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsExcludedByLabelReason)
+		return false, nil
 	}
 
 	// is the pod targeted by the instrumentation ?
@@ -469,6 +481,8 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 			return false, nil
 		}
 	case RemoteCopy:
+		cwsInstrumentationRemotePath = filepath.Join(ci.directoryForRemoteCopy, "/cws-instrumentation")
+
 		// if we're using a shared volume, we need to make sure the pod is instrumented first
 		if ci.mountVolumeForRemoteCopy {
 			if !isPodCWSInstrumentationReady(pod.Annotations) {
@@ -477,7 +491,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 				metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsPodNotInstrumentedReason)
 				return false, nil
 			}
-			cwsInstrumentationRemotePath = filepath.Join(cwsMountPath, "cws-instrumentation")
+			cwsInstrumentationRemotePath = filepath.Join(cwsMountPath, cwsInstrumentationRemotePath)
 		} else {
 			// check if the target pod has a read only filesystem
 			if readOnly := ci.hasReadonlyRootfs(pod, exec.Container); readOnly {
@@ -486,7 +500,14 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 				metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsReadonlyFilesystemReason)
 				return false, errors.New(metrics.InvalidInput)
 			}
-			cwsInstrumentationRemotePath = "/cws-instrumentation"
+		}
+
+		// Now that we have computed the remote path of cws-instrumentation, we can make sure the current command isn't
+		// remote health command from the cluster-agent (in which case we should simply ignore this request)
+		if len(exec.Command) >= 2 && slices.Equal(exec.Command[0:2], []string{cwsInstrumentationRemotePath, k8sexec.CWSHealthCommand}) {
+			log.Debugf("Ignoring kubectl health check exec requests to %s from the cluster agent", name)
+			metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsClusterAgentKubectlExecHealthReason)
+			return false, nil
 		}
 
 		arch, err := ci.resolveNodeArch(pod.Spec.NodeName, apiClient)
@@ -514,7 +535,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 
 		// copy CWS instrumentation directly to the target container
 		if err := ci.injectCWSCommandInstrumentationRemoteCopy(pod, container.Name, cwsInstrumentationLocalPath, cwsInstrumentationRemotePath); err != nil {
-			log.Errorf("Ignoring exec request into %s, remote copy failed: %v", common.PodString(pod), err)
+			log.Warnf("Ignoring exec request into %s, remote copy failed: %v", common.PodString(pod), err)
 			metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsRemoteCopyFailedReason)
 			return false, errors.New(metrics.InternalError)
 		}
@@ -574,7 +595,13 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentationRemoteCopy(pod *cor
 	}
 
 	cp := k8scp.NewCopy(apiclient)
-	return cp.CopyToPod(cwsInstrumentationLocalPath, cwsInstrumentationRemotePath, pod, container)
+	if err = cp.CopyToPod(cwsInstrumentationLocalPath, cwsInstrumentationRemotePath, pod, container); err != nil {
+		return err
+	}
+
+	// check cws-instrumentation was properly copied by running "cws-instrumentation health"
+	health := k8sexec.NewHealthCommand(apiclient)
+	return health.Run(cwsInstrumentationRemotePath, pod, container)
 }
 
 func (ci *CWSInstrumentation) injectForPod(request *admission.MutateRequest) ([]byte, error) {
@@ -769,10 +796,6 @@ func mutatePodExecOptions(rawPodExecOptions []byte, name string, ns string, muta
 	var exec corev1.PodExecOptions
 	if err := json.Unmarshal(rawPodExecOptions, &exec); err != nil {
 		return nil, fmt.Errorf("failed to decode raw object: %v", err)
-	}
-
-	if _, err := m(&exec, name, ns, userInfo, dc, apiClient); err != nil {
-		return nil, err
 	}
 
 	if injected, err := m(&exec, name, ns, userInfo, dc, apiClient); err != nil {

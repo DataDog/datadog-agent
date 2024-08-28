@@ -2,9 +2,6 @@ name: "Serverless Binary Size"
 
 on:
   pull_request:
-  push:
-    branches:
-      - mq-working-branch-*
 
 env:
   SIZE_ALLOWANCE: fromJSON(1000000) # 1 MB
@@ -20,9 +17,14 @@ jobs:
 
       - name: Checkout datadog-agent base branch
         run: |
-          cd go/src/github.com/DataDog/datadog-agent
-          git fetch origin $GITHUB_BASE_REF --depth 1
-          git checkout $GITHUB_BASE_REF
+          # on pull request, use the merge-base
+          # on merge queue, just use the latest main
+          if [ -n "$GITHUB_HEAD_REF" ]; then
+            cd go/src/github.com/DataDog/datadog-agent
+            git fetch origin $GITHUB_HEAD_REF $GITHUB_BASE_REF
+            TARGET=$(git merge-base origin/$GITHUB_HEAD_REF origin/$GITHUB_BASE_REF)
+            git checkout $TARGET
+          fi
 
       - name: Checkout the datadog-lambda-extension repository
         uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
@@ -31,7 +33,7 @@ jobs:
           path: go/src/github.com/DataDog/datadog-lambda-extension
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb # v3.3.0
+        uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
 
       - name: Previous binary size and dependencies
         id: previous

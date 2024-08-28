@@ -19,6 +19,7 @@ from invoke.tasks import task
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
 from tasks.libs.common.git import get_commit_sha
+from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.utils import REPO_PATH, color_message, running_in_ci
 from tasks.modules import DEFAULT_MODULES
 
@@ -33,6 +34,8 @@ from tasks.modules import DEFAULT_MODULES
         'verbose': 'Verbose output: log all tests as they are run (same as gotest -v) [default: True]',
         'run': 'Only run tests matching the regular expression',
         'skip': 'Only run tests not matching the regular expression',
+        'agent_image': 'Full image path for the agent image (e.g. "repository:tag") to run the e2e tests with',
+        'cluster_agent_image': 'Full image path for the cluster agent image (e.g. "repository:tag") to run the e2e tests with',
     },
 )
 def run(
@@ -58,6 +61,8 @@ def run(
     junit_tar="",
     test_run_name="",
     test_washer=False,
+    agent_image="",
+    cluster_agent_image="",
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -73,19 +78,25 @@ def run(
     if targets:
         e2e_module.targets = targets
 
-    envVars = {}
+    env_vars = {}
     if profile:
-        envVars["E2E_PROFILE"] = profile
+        env_vars["E2E_PROFILE"] = profile
 
-    parsedParams = {}
+    parsed_params = {}
     for param in configparams:
         parts = param.split("=", 1)
         if len(parts) != 2:
             raise Exit(message=f"wrong format given for config parameter, expects key=value, actual: {param}", code=1)
-        parsedParams[parts[0]] = parts[1]
+        parsed_params[parts[0]] = parts[1]
 
-    if parsedParams:
-        envVars["E2E_STACK_PARAMS"] = json.dumps(parsedParams)
+    if agent_image:
+        parsed_params["ddagent:fullImagePath"] = agent_image
+
+    if cluster_agent_image:
+        parsed_params["ddagent:clusterAgentFullImagePath"] = cluster_agent_image
+
+    if parsed_params:
+        env_vars["E2E_STACK_PARAMS"] = json.dumps(parsed_params)
 
     gotestsum_format = "standard-verbose" if verbose else "pkgname"
 
@@ -127,7 +138,7 @@ def run(
         modules=[e2e_module],
         args=args,
         cmd=cmd,
-        env=envVars,
+        env=env_vars,
         junit_tar=junit_tar,
         save_result_json="",
         test_profiler=None,
@@ -138,16 +149,13 @@ def run(
     if running_in_ci():
         # Do not print all the params, they could contain secrets needed only in the CI
         params = [f'--targets {t}' for t in targets]
-        pre_command = (
-            f"E2E_PIPELINE_ID={os.environ.get('CI_PIPELINE_ID')} aws-vault exec sso-agent-sandbox-account-admin"
-        )
 
         param_keys = ('osversion', 'platform', 'arch')
         for param_key in param_keys:
             if args.get(param_key):
                 params.append(f'-{args[param_key]}')
 
-        command = f"{pre_command} -- inv -e new-e2e-tests.run {' '.join(params)}"
+        command = f"E2E_PIPELINE_ID={os.environ.get('CI_PIPELINE_ID')} inv -e new-e2e-tests.run {' '.join(params)}"
         print(
             f'To run this test locally, use: `{command}`. '
             'You can also add `E2E_DEV_MODE="true"` to run in dev mode which will leave the environment up after the tests.'
@@ -183,6 +191,14 @@ def clean(ctx, locks=True, stacks=False, output=False):
 
     if output:
         _clean_output()
+
+
+@task
+def deps(ctx, verbose=False):
+    """
+    Setup Go dependencies
+    """
+    download_go_dependencies(ctx, paths=["test/new-e2e"], verbose=verbose, max_retry=3)
 
 
 def _get_default_env():
@@ -289,12 +305,10 @@ def _destroy_stack(ctx: Context, stack: str):
         )
         if ret is not None and ret.exited != 0:
             if "No valid credential sources found" in ret.stdout:
-                print(
-                    "No valid credentials sources found, you need to wrap the invoke command in aws-vault exec <account> --"
-                )
+                print("No valid credentials sources found, you need to set the `AWS_PROFILE` env variable")
                 raise Exit(
                     color_message(
-                        f"Failed to destroy stack {stack}, no valid credentials sources found, you need to wrap the invoke command in aws-vault exec <account> --",
+                        f"Failed to destroy stack {stack}, no valid credentials sources found, you need to set the `AWS_PROFILE` env variable",
                         "red",
                     ),
                     1,

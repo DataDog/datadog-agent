@@ -75,7 +75,7 @@ AGENT_CORECHECKS = [
     "orchestrator_pod",
     "orchestrator_ecs",
     "cisco_sdwan",
-    "service_discovery",
+    "network_path",
 ]
 
 WINDOWS_CORECHECKS = [
@@ -142,6 +142,10 @@ def build(
         inv agent.build --build-exclude=systemd
     """
     flavor = AgentFlavor[flavor]
+
+    if flavor.is_ot():
+        # for agent build purposes the UA agent is just like base
+        flavor = AgentFlavor.base
 
     if not exclude_rtloader and not flavor.is_iot():
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs

@@ -28,11 +28,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
 	vmsgp "github.com/vmihailenco/msgpack/v4"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // Traces shouldn't come from more than 5 different sources
@@ -63,6 +64,7 @@ func newTestReceiverConfig() *config.AgentConfig {
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "test"
 	conf.DecoderTimeout = 10000
+	conf.ReceiverPort = 8326 // use non-default port to avoid conflict with a running agent
 
 	return conf
 }
@@ -165,6 +167,8 @@ func TestStateHeaders(t *testing.T) {
 	assert := assert.New(t)
 	cfg := newTestReceiverConfig()
 	cfg.AgentVersion = "testVersion"
+	url := fmt.Sprintf("http://%s:%d",
+		cfg.ReceiverHost, cfg.ReceiverPort)
 	r := newTestReceiverFromConfig(cfg)
 	r.Start()
 	defer r.Stop()
@@ -182,7 +186,7 @@ func TestStateHeaders(t *testing.T) {
 		"/v0.5/traces",
 		"/v0.7/traces",
 	} {
-		resp, err := http.Post("http://localhost:8126"+e, "application/msgpack", bytes.NewReader(data))
+		resp, err := http.Post(url+e, "application/msgpack", bytes.NewReader(data))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -215,7 +219,7 @@ func TestLegacyReceiver(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			// start testing server
 			server := httptest.NewServer(
 				tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces),
@@ -280,7 +284,7 @@ func TestReceiverJSONDecoder(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			// start testing server
 			server := httptest.NewServer(
 				tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces),
@@ -340,7 +344,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf(tc.name), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			// start testing server
 			server := httptest.NewServer(
 				tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces),
@@ -434,7 +438,7 @@ func TestReceiverDecodingError(t *testing.T) {
 	data := []byte("} invalid json")
 	var client http.Client
 
-	t.Run("no-header", func(t *testing.T) {
+	t.Run("no-header", func(_ *testing.T) {
 		req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
 		assert.NoError(err)
 		req.Header.Set("Content-Type", "application/json")
@@ -446,7 +450,7 @@ func TestReceiverDecodingError(t *testing.T) {
 		assert.EqualValues(0, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError.Load())
 	})
 
-	t.Run("with-header", func(t *testing.T) {
+	t.Run("with-header", func(_ *testing.T) {
 		req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
 		assert.NoError(err)
 		traceCount := 10
@@ -572,7 +576,7 @@ func TestDecodeV05(t *testing.T) {
 	req, err := http.NewRequest("POST", "/v0.5/traces", bytes.NewReader(b))
 	assert.NoError(err)
 	req.Header.Set(header.ContainerID, "abcdef123789456")
-	tp, _, err := decodeTracerPayload(v05, req, NewIDProvider(""), "python", "3.8.1", "1.2.3")
+	tp, err := decodeTracerPayload(v05, req, NewIDProvider(""), "python", "3.8.1", "1.2.3")
 	assert.NoError(err)
 	assert.EqualValues(tp, &pb.TracerPayload{
 		ContainerID:     "abcdef123789456",

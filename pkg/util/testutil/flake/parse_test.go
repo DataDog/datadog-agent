@@ -18,7 +18,8 @@ func TestIsFlaky(t *testing.T) {
 	kf.Add("", "TestEKSSuite/TestCPU")
 
 	assert.True(t, kf.IsFlaky("", "TestEKSSuite/TestCPU/TestCPUUtilization"))
-	assert.True(t, kf.IsFlaky("", "TestEKSSuite"))
+	// parents cannot be considered flaky without test results to ensure it may have failed because of a flaky subtest
+	assert.False(t, kf.IsFlaky("", "TestEKSSuite"))
 	assert.False(t, kf.IsFlaky("", "TestEKSSuite/TestMemory"))
 	assert.True(t, kf.IsFlaky("", "TestEKSSuite/TestCPU"))
 	assert.False(t, kf.IsFlaky("", "TestECSSuite/TestCPU"))

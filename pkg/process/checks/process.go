@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 	"time"
@@ -163,14 +164,18 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 	p.extractors = append(p.extractors, p.serviceExtractor)
 
 	if !oneShot && workloadmeta.Enabled(p.config) {
-		p.workloadMetaExtractor = workloadmeta.NewWorkloadMetaExtractor(ddconfig.SystemProbe)
-		p.workloadMetaServer = workloadmeta.NewGRPCServer(p.config, p.workloadMetaExtractor)
-		err = p.workloadMetaServer.Start()
-		if err != nil {
-			return log.Error("Failed to start the workloadmeta process entity gRPC server:", err)
-		} else { //nolint:revive // TODO(PROC) Fix revive linter
-			p.extractors = append(p.extractors, p.workloadMetaExtractor)
+		p.workloadMetaExtractor = workloadmeta.GetSharedWorkloadMetaExtractor(ddconfig.SystemProbe())
+
+		// The server is only needed on the process agent
+		if !p.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
+			p.workloadMetaServer = workloadmeta.NewGRPCServer(p.config, p.workloadMetaExtractor)
+			err = p.workloadMetaServer.Start()
+			if err != nil {
+				return log.Error("Failed to start the workloadmeta process entity gRPC server:", err)
+			}
 		}
+
+		p.extractors = append(p.extractors, p.workloadMetaExtractor)
 	}
 	return nil
 }
@@ -371,6 +376,19 @@ func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
 func (p *ProcessCheck) Run(nextGroupID func() int32, options *RunOptions) (RunResult, error) {
 	if options == nil {
 		return p.run(nextGroupID(), false)
+	}
+
+	// For no chunking, set max batch size to max value to ensure one chunk
+	if options.NoChunking {
+		oldMaxBatchSize := p.maxBatchSize
+		oldMaxBatchBytes := p.maxBatchBytes
+		p.maxBatchSize = math.MaxInt
+		p.maxBatchBytes = math.MaxInt
+
+		defer func() {
+			p.maxBatchSize = oldMaxBatchSize
+			p.maxBatchBytes = oldMaxBatchBytes
+		}()
 	}
 
 	if options.RunStandard {
@@ -618,7 +636,8 @@ func skipProcess(
 	}
 	if _, ok := lastProcs[fp.Pid]; !ok {
 		// Skipping any processes that didn't exist in the previous run.
-		// This means short-lived processes (<2s) will never be captured.
+		// The check runs every 10 seconds by default, so this means
+		// processes that live less than 20 seconds may not be captured.
 		return true
 	}
 	// Skipping zombie processes (defined in docs as Status = "Z") if the config

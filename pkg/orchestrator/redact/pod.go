@@ -13,13 +13,32 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-// RemoveLastAppliedConfigurationAnnotation redacts the whole
+const consulOriginalPodAnnotation = "consul.hashicorp.com/original-pod"
+
+var sensitiveAnnotationsAndLabels = []string{v1.LastAppliedConfigAnnotation, consulOriginalPodAnnotation}
+
+// RemoveSensitiveAnnotationsAndLabels redacts sensitive annotations and labels like the whole
 // "kubectl.kubernetes.io/last-applied-configuration" annotation value. As it
 // may contain duplicate information and secrets.
-func RemoveLastAppliedConfigurationAnnotation(annotations map[string]string) {
-	if _, found := annotations[v1.LastAppliedConfigAnnotation]; found {
-		annotations[v1.LastAppliedConfigAnnotation] = redactedAnnotationValue
+func RemoveSensitiveAnnotationsAndLabels(annotations map[string]string, labels map[string]string) {
+	for _, v := range sensitiveAnnotationsAndLabels {
+		if _, found := annotations[v]; found {
+			annotations[v] = redactedAnnotationValue
+		}
+		if _, found := labels[v]; found {
+			labels[v] = redactedAnnotationValue
+		}
 	}
+}
+
+// UpdateSensitiveAnnotationsAndLabels adds new sensitive annotations or labels key to the list to redact.
+func UpdateSensitiveAnnotationsAndLabels(annotationsAndLabels []string) {
+	sensitiveAnnotationsAndLabels = append(sensitiveAnnotationsAndLabels, annotationsAndLabels...)
+}
+
+// GetSensitiveAnnotationsAndLabels returns the list of sensitive annotations and labels.
+func GetSensitiveAnnotationsAndLabels() []string {
+	return sensitiveAnnotationsAndLabels
 }
 
 // ScrubPodTemplateSpec scrubs a pod template.

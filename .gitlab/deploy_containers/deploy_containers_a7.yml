@@ -2,6 +2,11 @@
 # deploy containers stage
 # Contains jobs which deploy Agent 6 & 7 to staging repositories and to Dockerhub / GCR.
 
+# Notes: this defines a child pipline of the datadog-agent repository. Therefore:
+# - Only blocks defined in this file or the included files below can be used.
+#   In particular, blocks defined in the main .gitlab-ci.yml are unavailable.
+# - Dependencies / needs on jobs not defined in this file or the included files cannot be made.
+
 stages:
   - deploy_containers
 
@@ -80,6 +85,27 @@ deploy_containers-a7_internal-rc:
     !reference [.on_internal_rc]
   variables:
     VERSION: 7-rc
+
+
+deploy_containers-ot:
+  extends: .docker_publish_job_definition
+  stage: deploy_containers
+  rules:
+    - when: manual
+      allow_failure: true
+  variables:
+    AGENT_REPOSITORY: agent
+    IMG_REGISTRIES: public
+    VERSION: 7
+  dependencies: []
+  before_script:
+    - source /root/.bashrc
+  parallel:
+    matrix:
+      - IMG_SOURCES: ${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-arm64
+        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:${VERSION}-ot-beta
+      - IMG_SOURCES: ${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx-arm64
+        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:${VERSION}-ot-beta-jmx
 
 
 #

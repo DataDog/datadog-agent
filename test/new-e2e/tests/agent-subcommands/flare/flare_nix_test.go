@@ -11,10 +11,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
 //go:embed fixtures/datadog-agent.yaml
@@ -31,6 +32,7 @@ type linuxFlareSuite struct {
 }
 
 func TestLinuxFlareSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &linuxFlareSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 

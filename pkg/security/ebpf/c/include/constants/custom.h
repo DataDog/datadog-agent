@@ -52,6 +52,7 @@ enum DENTRY_RESOLVER_KEYS
 {
     DR_DENTRY_RESOLVER_KERN_KEY,
     DR_AD_FILTER_KEY,
+    DR_DENTRY_RESOLVER_KERN_INPUTS,
     DR_ERPC_KEY,
 };
 
@@ -126,7 +127,7 @@ enum TC_TAIL_CALL_KEYS
         O_NOATIME | O_CLOEXEC | O_PATH | __O_TMPFILE)
 #endif
 
-#define MAX_SYSCALL_CTX_ENTRIES 1024
+#define MAX_SYSCALL_CTX_ENTRIES 8192
 #define MAX_SYSCALL_ARG_MAX_SIZE 128
 #define MAX_SYSCALL_CTX_SIZE MAX_SYSCALL_ARG_MAX_SIZE * 3 + 4 + 1 // id + types octet + 3 args
 
@@ -194,5 +195,11 @@ static __attribute__((always_inline)) u64 get_imds_ip() {
     LOAD_CONSTANT("imds_ip", imds_ip);
     return imds_ip;
 };
+
+#define CGROUP_MANAGER_DOCKER 1
+#define CGROUP_MANAGER_CRIO 2
+#define CGROUP_MANAGER_PODMAN 3
+#define CGROUP_MANAGER_CRI 4
+#define CGROUP_MANAGER_SYSTEMD 5
 
 #endif

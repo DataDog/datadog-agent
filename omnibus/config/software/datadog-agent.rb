@@ -34,6 +34,7 @@ build do
 
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
+  flavor_arg = ENV['AGENT_FLAVOR']
   if windows_target?
     env = {
         'GOPATH' => gopath.to_path,
@@ -44,7 +45,6 @@ build do
     }
     major_version_arg = "%MAJOR_VERSION%"
     py_runtimes_arg = "%PY_RUNTIMES%"
-    flavor_arg = "%AGENT_FLAVOR%"
   else
     env = {
         'GOPATH' => gopath.to_path,
@@ -57,7 +57,6 @@ build do
     }
     major_version_arg = "$MAJOR_VERSION"
     py_runtimes_arg = "$PY_RUNTIMES"
-    flavor_arg = "$AGENT_FLAVOR"
   end
 
   unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
@@ -182,6 +181,23 @@ build do
       copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
     end
     move 'bin/agent/dist/security-agent.yaml', "#{conf_dir}/security-agent.yaml.example"
+  end
+
+  # CWS Instrumentation
+  cws_inst_support = !heroku_target? && linux_target?
+  if cws_inst_support
+    command "invoke -e cws-instrumentation.build", :env => env
+    copy 'bin/cws-instrumentation/cws-instrumentation', "#{install_dir}/embedded/bin"
+  end
+
+  # OTel agent - can never be bundled
+  if ot_target?
+    unless windows_target?
+      command "invoke -e otel-agent.build", :env => env
+      copy 'bin/otel-agent/otel-agent', "#{install_dir}/embedded/bin"
+
+      move 'bin/otel-agent/dist/otel-config.yaml', "#{conf_dir}/otel-config.yaml.example"
+    end
   end
 
   # APM Injection agent

@@ -16,7 +16,7 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
@@ -28,16 +28,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newRemoteConfigClient),
-		fx.Provide(func(c rcclient.Component) optional.Option[rcclient.Component] {
-			return optional.NewOption[rcclient.Component](c)
-		}),
+		fxutil.ProvideOptional[rcclient.Component](),
 	)
 }
 
@@ -360,6 +357,7 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, a
 					// Check if the task was processed at least once
 					processed = oneProcessed || processed
 					if oneErr != nil {
+						pkglog.Errorf("Error while processing agent task %s: %s", configPath, oneErr)
 						if err == nil {
 							err = oneErr
 						} else {

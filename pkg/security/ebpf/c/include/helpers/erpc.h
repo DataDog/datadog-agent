@@ -118,9 +118,6 @@ int __attribute__((always_inline)) handle_erpc_request(ctx_t *ctx) {
         return handle_discard_inode(data);
     case DISCARD_PID_OP:
         return handle_discard_pid(data);
-    }
-
-    switch (op) {
     case RESOLVE_PATH_OP:
         return handle_dr_request(ctx, data, DR_ERPC_KEY);
     case USER_SESSION_CONTEXT_OP:

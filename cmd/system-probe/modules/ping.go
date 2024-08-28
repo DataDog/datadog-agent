@@ -38,7 +38,7 @@ type pinger struct{}
 var Pinger = module.Factory{
 	Name:             config.PingModule,
 	ConfigNamespaces: []string{"ping"},
-	Fn: func(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], _ telemetry.Component) (module.Module, error) {
+	Fn: func(_ *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], _ telemetry.Component) (module.Module, error) {
 		return &pinger{}, nil
 	},
 	NeedsEBPF: func() bool {

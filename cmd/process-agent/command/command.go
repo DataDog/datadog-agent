@@ -15,8 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
-	logComponentimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -27,10 +26,10 @@ import (
 const LoggerName config.LoggerName = "PROCESS"
 
 // DaemonLogParams are the log params should be given to the `core.BundleParams` for when the process agent is running as a daemon
-var DaemonLogParams = logComponentimpl.ForDaemon(string(LoggerName), "process_config.log_file", config.DefaultProcessAgentLogFile)
+var DaemonLogParams = log.ForDaemon(string(LoggerName), "process_config.log_file", config.DefaultProcessAgentLogFile)
 
 // OneShotLogParams are the log params that are given to commands
-var OneShotLogParams = logComponentimpl.ForOneShot(string(LoggerName), "info", true)
+var OneShotLogParams = log.ForOneShot(string(LoggerName), "info", true)
 
 // GlobalParams contains the values of agent-global Cobra flags.
 //
@@ -47,6 +46,9 @@ type GlobalParams struct {
 	// SysProbeConfFilePath holds the path to the folder containing the system-probe
 	// configuration file, to allow overrides from the command line
 	SysProbeConfFilePath string
+
+	// FleetPoliciesDirPath holds the path to the folder containing the fleet policies
+	FleetPoliciesDirPath string
 
 	// PidFilePath specifies the path to the pid file
 	PidFilePath string
@@ -85,6 +87,8 @@ func MakeCommand(subcommandFactories []SubcommandFactory, winParams bool, rootCm
 	}
 
 	rootCmd.PersistentFlags().StringVar(&globalParams.ConfFilePath, flags.CfgPath, flags.DefaultConfPath, "Path to datadog.yaml config")
+	rootCmd.PersistentFlags().StringVar(&globalParams.FleetPoliciesDirPath, flags.FleetCfgPath, "", "Path to the directory containing fleet policies")
+	_ = rootCmd.PersistentFlags().MarkHidden(flags.FleetCfgPath)
 
 	if flags.DefaultSysProbeConfPath != "" {
 		rootCmd.PersistentFlags().StringVar(&globalParams.SysProbeConfFilePath, flags.SysProbeConfig, flags.DefaultSysProbeConfPath, "Path to system-probe.yaml config")
@@ -122,7 +126,7 @@ func MakeCommand(subcommandFactories []SubcommandFactory, winParams bool, rootCm
 }
 
 // SetHostMountEnv sets HOST_PROC and HOST_SYS mounts if applicable in containerized environments
-func SetHostMountEnv(logger logComponent.Component) {
+func SetHostMountEnv(logger log.Component) {
 	// Set default values for proc/sys paths if unset.
 	// Generally only applicable for container-only cases like Fargate.
 	// This is primarily used by gopsutil to correlate cpu metrics with host processes

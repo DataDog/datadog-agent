@@ -21,20 +21,23 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
-	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log/tracelogimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/trace"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
+	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -77,7 +80,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		// ctx is required to be supplied from here, as Windows needs to inject its own context
 		// to allow the agent to work as a service.
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
-		fx.Supply(coreconfig.NewAgentParams(cliParams.ConfPath)),
+		fx.Supply(coreconfig.NewAgentParams(cliParams.ConfPath, coreconfig.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath))),
 		secretsimpl.Module(),
 		fx.Provide(func(comp secrets.Component) optional.Option[secrets.Component] {
 			return optional.NewOption[secrets.Component](comp)
@@ -85,12 +88,12 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		fx.Supply(secrets.NewEnabledParams()),
 		telemetryimpl.Module(),
 		coreconfig.Module(),
-		fx.Provide(func() corelogimpl.Params {
-			return corelogimpl.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
+		fx.Provide(func() log.Params {
+			return log.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
 		}),
-		tracelogimpl.Module(),
+		logtracefx.Module(),
 		// setup workloadmeta
-		collectors.GetCatalog(),
+		wmcatalog.GetCatalog(),
 		fx.Supply(workloadmeta.Params{
 			AgentType:  workloadmeta.NodeAgent,
 			InitHelper: common.GetWorkloadmetaInit(),
@@ -112,6 +115,12 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 			CPUProfile:  cliParams.CPUProfile,
 			MemProfile:  cliParams.MemProfile,
 			PIDFilePath: cliParams.PIDFilePath,
+		}),
+		fx.Provide(func(cfg config.Component) compression.Component {
+			if cfg.Object().HasFeature("zstd-encoding") {
+				return zstd.NewComponent()
+			}
+			return gzip.NewComponent()
 		}),
 		trace.Bundle(),
 		fetchonlyimpl.Module(),

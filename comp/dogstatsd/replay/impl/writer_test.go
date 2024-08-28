@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-package replay
+package replayimpl
 
 import (
 	"io"
@@ -20,10 +20,13 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetrynoop "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 func writerTest(t *testing.T, z bool) {
@@ -37,12 +40,17 @@ func writerTest(t *testing.T, z bool) {
 
 	writer := NewTrafficCaptureWriter(1)
 
-	// register pools
-	manager := packets.NewPoolManager(packets.NewPool(cfg.GetInt("dogstatsd_buffer_size")))
-	oobManager := packets.NewPoolManager(packets.NewPool(32))
+	// initialize telemeytry store
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	telemetryStore := packets.NewTelemetryStore(nil, telemetryComponent)
 
-	writer.RegisterSharedPoolManager(manager)
-	writer.RegisterOOBPoolManager(oobManager)
+	// register pools
+
+	manager := packets.NewPoolManager[packets.Packet](packets.NewPool(cfg.GetInt("dogstatsd_buffer_size"), telemetryStore))
+	oobManager := packets.NewPoolManager[[]byte](ddsync.NewSlicePool[byte](32, 32))
+
+	require.NoError(t, writer.RegisterSharedPoolManager(manager))
+	require.NoError(t, writer.RegisterOOBPoolManager(oobManager))
 
 	var wg sync.WaitGroup
 	const (
@@ -67,7 +75,7 @@ func writerTest(t *testing.T, z bool) {
 
 			for i := 0; i < iterations; i++ {
 				buff := new(replay.CaptureBuffer)
-				pkt := manager.Get().(*packets.Packet)
+				pkt := manager.Get()
 				pkt.Buffer = []byte("foo.bar|5|#some:tag")
 				pkt.Source = packets.UDS
 				pkt.Contents = pkt.Buffer

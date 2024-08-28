@@ -112,7 +112,7 @@ func TestFactory(t *testing.T) {
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 	checkFactory := Factory(mockStore, cfg)
 	assert.NotNil(t, checkFactory)
@@ -168,7 +168,7 @@ func TestConfigure(t *testing.T) {
 			AgentType:  workloadmeta.NodeAgent,
 			InitHelper: common.GetWorkloadmetaInit(),
 		}),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 	cfg := app.Cfg
 	mockStore := app.Store

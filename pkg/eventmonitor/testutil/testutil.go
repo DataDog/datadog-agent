@@ -15,10 +15,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -38,7 +41,8 @@ func StartEventMonitor(t *testing.T, callback PreStartCallback) {
 	require.NoError(t, os.MkdirAll("/opt/datadog-agent/run/", 0755))
 
 	opts := eventmonitor.Opts{}
-	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts, optional.NewNoneOption[workloadmeta.Component]())
+	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts, optional.NewNoneOption[workloadmeta.Component](), telemetry)
 	require.NoError(t, err)
 	require.NoError(t, evm.Init())
 	callback(t, evm)

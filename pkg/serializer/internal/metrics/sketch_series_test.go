@@ -287,3 +287,41 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 		})
 	}
 }
+
+func TestSketchSeriesMarshalSplitCompressMultiple(t *testing.T) {
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: compressionimpl.ZlibKind},
+		"zstd": {kind: compressionimpl.ZstdKind},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockConfig := pkgconfigsetup.Conf()
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			sl := metrics.NewSketchesSourceTest()
+
+			for i := 0; i < 2; i++ {
+				sl.Append(Makeseries(i))
+			}
+
+			sl.Reset()
+			serializer2 := SketchSeriesList{SketchesSource: sl}
+			strategy := compressionimpl.NewCompressor(mockConfig)
+			payloads, filteredPayloads, err := serializer2.MarshalSplitCompressMultiple(mockConfig, strategy, func(ss *metrics.SketchSeries) bool {
+				return ss.Name == "name.0"
+			})
+			require.NoError(t, err)
+
+			assert.Equal(t, 1, len(payloads))
+			assert.Equal(t, 1, len(filteredPayloads))
+
+			firstPayload := payloads[0]
+			assert.Equal(t, 11, firstPayload.GetPointCount())
+
+			firstFilteredPayload := filteredPayloads[0]
+			assert.Equal(t, 5, firstFilteredPayload.GetPointCount())
+		})
+	}
+
+}

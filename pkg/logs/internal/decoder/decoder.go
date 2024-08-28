@@ -29,23 +29,6 @@ func NewInput(content []byte) *message.Message {
 	return message.NewMessage(content, nil, "", time.Now().UnixNano())
 }
 
-// NewMessage returns a new encoded message.
-func NewMessage(content []byte, status string, rawDataLen int, readTimestamp string) *message.Message {
-	msg := message.Message{
-		MessageContent: message.MessageContent{
-			State: message.StateEncoded,
-		},
-		Status:             status,
-		RawDataLen:         rawDataLen,
-		IngestionTimestamp: time.Now().UnixNano(),
-		ParsingExtra: message.ParsingExtra{
-			Timestamp: readTimestamp,
-		},
-	}
-	msg.SetContent(content)
-	return &msg
-}
-
 // Decoder translates a sequence of byte buffers (such as from a file or a
 // network socket) into log messages.
 //
@@ -100,7 +83,7 @@ func syncSourceInfo(source *sources.ReplaceableSource, lh *MultiLineHandler) {
 func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Parser, framing framer.Framing, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry) *Decoder {
 	inputChan := make(chan *message.Message)
 	outputChan := make(chan *message.Message)
-	lineLimit := config.MaxMessageSizeBytes(pkgConfig.Datadog())
+	maxContentSize := config.MaxMessageSizeBytes(pkgConfig.Datadog())
 	detectedPattern := &DetectedPattern{}
 
 	outputFn := func(m *message.Message) { outputChan <- m }
@@ -109,13 +92,16 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 	var lineHandler LineHandler
 	for _, rule := range source.Config().ProcessingRules {
 		if rule.Type == config.MultiLine {
-			lh := NewMultiLineHandler(outputFn, rule.Regex, config.AggregationTimeout(pkgConfig.Datadog()), lineLimit, false, tailerInfo)
+			lh := NewMultiLineHandler(outputFn, rule.Regex, config.AggregationTimeout(pkgConfig.Datadog()), maxContentSize, false, tailerInfo)
 			syncSourceInfo(source, lh)
 			lineHandler = lh
 		}
 	}
 	if lineHandler == nil {
-		if source.Config().AutoMultiLineEnabled(pkgConfig.Datadog()) {
+		if pkgConfig.Datadog().GetBool("logs_config.experimental_auto_multi_line_detection") {
+			lineHandler = NewAutoMultilineHandler(outputFn, maxContentSize, config.AggregationTimeout(pkgConfig.Datadog()))
+
+		} else if source.Config().AutoMultiLineEnabled(pkgConfig.Datadog()) {
 			log.Infof("Auto multi line log detection enabled")
 
 			if multiLinePattern != nil {
@@ -124,32 +110,32 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 				// Save the pattern again for the next rotation
 				detectedPattern.Set(multiLinePattern)
 
-				lh := NewMultiLineHandler(outputFn, multiLinePattern, config.AggregationTimeout(pkgConfig.Datadog()), lineLimit, true, tailerInfo)
+				lh := NewMultiLineHandler(outputFn, multiLinePattern, config.AggregationTimeout(pkgConfig.Datadog()), maxContentSize, true, tailerInfo)
 				syncSourceInfo(source, lh)
 				lineHandler = lh
 			} else {
-				lineHandler = buildAutoMultilineHandlerFromConfig(outputFn, lineLimit, source, detectedPattern, tailerInfo)
+				lineHandler = buildLegacyAutoMultilineHandlerFromConfig(outputFn, maxContentSize, source, detectedPattern, tailerInfo)
 			}
 		} else {
-			lineHandler = NewSingleLineHandler(outputFn, lineLimit)
+			lineHandler = NewSingleLineHandler(outputFn, maxContentSize)
 		}
 	}
 
 	// construct the lineParser, wrapping the parser
 	var lineParser LineParser
 	if parser.SupportsPartialLine() {
-		lineParser = NewMultiLineParser(lineHandler.process, config.AggregationTimeout(pkgConfig.Datadog()), parser, lineLimit)
+		lineParser = NewMultiLineParser(lineHandler, config.AggregationTimeout(pkgConfig.Datadog()), parser, maxContentSize)
 	} else {
-		lineParser = NewSingleLineParser(lineHandler.process, parser)
+		lineParser = NewSingleLineParser(lineHandler, parser)
 	}
 
 	// construct the framer
-	framer := framer.NewFramer(lineParser.process, framing, lineLimit)
+	framer := framer.NewFramer(lineParser.process, framing, maxContentSize)
 
 	return New(inputChan, outputChan, framer, lineParser, lineHandler, detectedPattern)
 }
 
-func buildAutoMultilineHandlerFromConfig(outputFn func(*message.Message), lineLimit int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) *AutoMultilineHandler {
+func buildLegacyAutoMultilineHandlerFromConfig(outputFn func(*message.Message), maxContentSize int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) *LegacyAutoMultilineHandler {
 	linesToSample := source.Config().AutoMultiLineSampleSize
 	if linesToSample <= 0 {
 		linesToSample = pkgConfig.Datadog().GetInt("logs_config.auto_multi_line_default_sample_size")
@@ -171,9 +157,9 @@ func buildAutoMultilineHandlerFromConfig(outputFn func(*message.Message), lineLi
 	}
 
 	matchTimeout := time.Second * pkgConfig.Datadog().GetDuration("logs_config.auto_multi_line_default_match_timeout")
-	return NewAutoMultilineHandler(
+	return NewLegacyAutoMultilineHandler(
 		outputFn,
-		lineLimit,
+		maxContentSize,
 		linesToSample,
 		matchThreshold,
 		matchTimeout,

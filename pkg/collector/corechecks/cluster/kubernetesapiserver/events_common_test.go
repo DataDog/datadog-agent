@@ -16,7 +16,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/local"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestGetDDAlertType(t *testing.T) {
@@ -50,8 +55,10 @@ func TestGetDDAlertType(t *testing.T) {
 }
 
 func Test_getInvolvedObjectTags(t *testing.T) {
-	taggerInstance := local.NewFakeTagger()
-	taggerInstance.SetTags("kubernetes_metadata://namespaces//default", "workloadmeta-kubernetes_node", []string{"team:container-int"}, nil, nil, nil)
+	telemetryComponent := fxutil.Test[coretelemetry.Component](t, telemetryimpl.MockModule())
+	telemetryStore := telemetry.NewStore(telemetryComponent)
+	taggerInstance := local.NewFakeTagger(telemetryStore)
+	taggerInstance.SetTags("kubernetes_metadata:///namespaces//default", "workloadmeta-kubernetes_node", []string{"team:container-int"}, nil, nil, nil)
 	tests := []struct {
 		name           string
 		involvedObject v1.ObjectReference
@@ -204,6 +211,200 @@ func Test_getEventHostInfoImpl(t *testing.T) {
 			if got := getEventHostInfoImpl(providerIDFunc, tt.args.clusterName, tt.args.ev); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("getEventHostInfo() = %v, want %v", got, tt.want)
 			}
+		})
+	}
+}
+
+func Test_getEventSource(t *testing.T) {
+	tests := []struct {
+		name                                  string
+		controllerName                        string
+		sourceComponent                       string
+		kubernetesEventSourceDetectionEnabled bool
+		want                                  string
+	}{
+		{
+			name:                                  "kubernetes event source detection maps controller name",
+			kubernetesEventSourceDetectionEnabled: true,
+			controllerName:                        "datadog-operator-manager",
+			sourceComponent:                       "",
+			want:                                  "datadog operator",
+		},
+		{
+			name:                                  "kubernetes event source detection source component name",
+			kubernetesEventSourceDetectionEnabled: true,
+			controllerName:                        "",
+			sourceComponent:                       "datadog-operator-manager",
+			want:                                  "datadog operator",
+		},
+		{
+			name:                                  "kubernetes event source detection uses default value if controller name not found",
+			kubernetesEventSourceDetectionEnabled: true,
+			controllerName:                        "abcd-test-controller",
+			sourceComponent:                       "abcd-test-source",
+			want:                                  "kubernetes",
+		},
+		{
+			name:                                  "kubernetes event source detection uses default value if source detection disabled",
+			kubernetesEventSourceDetectionEnabled: false,
+			controllerName:                        "datadog-operator-manager",
+			sourceComponent:                       "datadog-operator-manager",
+			want:                                  "kubernetes",
+		},
+	}
+	for _, tt := range tests {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource("kubernetes_events_source_detection.enabled", tt.kubernetesEventSourceDetectionEnabled)
+		t.Run(tt.name, func(t *testing.T) {
+			if got := getEventSource(tt.controllerName, tt.sourceComponent); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("getEventSource() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_shouldCollect(t *testing.T) {
+	tests := []struct {
+		name           string
+		ev             *v1.Event
+		collectedTypes []collectedEventType
+		shouldCollect  bool
+	}{
+		{
+			name: "kubernetes event collection matches based on kind",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+					Host:      "my-node-1",
+				},
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Kind: "Pod",
+				},
+			},
+			shouldCollect: true,
+		},
+		{
+			name: "kubernetes event collection matches based on source",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+					Host:      "my-node-1",
+				},
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Source: "kubelet",
+				},
+			},
+			shouldCollect: true,
+		},
+		{
+			name: "kubernetes event collection matches based on reason",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+					Host:      "my-node-1",
+				},
+				Reason: "CrashLoopBackOff",
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Reasons: []string{"CrashLoopBackOff"},
+				},
+			},
+			shouldCollect: true,
+		},
+		{
+			name: "kubernetes event collection matches by kind and reason",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+					Host:      "my-node-1",
+				},
+				Reason: "CrashLoopBackOff",
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Kind:    "Pod",
+					Reasons: []string{"Failed", "BackOff", "Unhealthy", "FailedScheduling", "FailedMount", "FailedAttachVolume"},
+				},
+				{
+					Kind:    "Node",
+					Reasons: []string{"TerminatingEvictedPod", "NodeNotReady", "Rebooted", "HostPortConflict"},
+				},
+				{
+					Kind:    "CronJob",
+					Reasons: []string{"SawCompletedJob"},
+				},
+				{
+					Reasons: []string{"CrashLoopBackOff"},
+				},
+			},
+			shouldCollect: true,
+		},
+		{
+			name: "kubernetes event collection matches by source and reason",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+					Host:      "my-node-1",
+				},
+				Reason: "CrashLoopBackOff",
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Source:  "kubelet",
+					Reasons: []string{"CrashLoopBackOff"},
+				},
+			},
+			shouldCollect: true,
+		},
+		{
+			name: "kubernetes event collection matches none",
+			ev: &v1.Event{
+				InvolvedObject: v1.ObjectReference{
+					Name: "my-pod-1",
+					Kind: podKind,
+				},
+				Source: v1.EventSource{
+					Component: "kubelet",
+				},
+				Reason: "something",
+			},
+			collectedTypes: []collectedEventType{
+				{
+					Source:  "kubelet",
+					Reasons: []string{"CrashLoopBackOff"},
+				},
+			},
+			shouldCollect: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.shouldCollect, shouldCollect(tt.ev, tt.collectedTypes))
 		})
 	}
 }

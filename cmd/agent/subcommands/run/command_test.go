@@ -24,7 +24,7 @@ func TestCommand(t *testing.T) {
 		Commands(newGlobalParamsTest(t)),
 		[]string{"run"},
 		run,
-		func(pidParam pidimpl.Params, coreParams core.BundleParams, secretParams secrets.Params) {
+		func(_ pidimpl.Params, _ core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, true, secretParams.Enabled)
 		})
 }
@@ -34,7 +34,7 @@ func TestCommandPidfile(t *testing.T) {
 		Commands(newGlobalParamsTest(t)),
 		[]string{"run", "--pidfile", "/pid/file"},
 		run,
-		func(pidParams pidimpl.Params, coreParams core.BundleParams, secretParams secrets.Params) {
+		func(pidParams pidimpl.Params, _ core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, "/pid/file", pidParams.PIDfilePath)
 			require.Equal(t, true, secretParams.Enabled)
 		})

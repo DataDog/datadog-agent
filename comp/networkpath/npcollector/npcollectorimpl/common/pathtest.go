@@ -8,13 +8,15 @@ package common
 import (
 	"encoding/binary"
 	"hash/fnv"
+
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
 // Pathtest details of information necessary to run a traceroute (pathtrace)
 type Pathtest struct {
 	Hostname          string
 	Port              uint16
-	Protocol          string
+	Protocol          payload.Protocol
 	SourceContainerID string
 }
 

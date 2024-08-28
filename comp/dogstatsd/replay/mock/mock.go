@@ -61,12 +61,12 @@ func (tc *mockTrafficCapture) StopCapture() {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (tc *mockTrafficCapture) RegisterSharedPoolManager(p *packets.PoolManager) error {
+func (tc *mockTrafficCapture) RegisterSharedPoolManager(p *packets.PoolManager[packets.Packet]) error {
 	return nil
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (tc *mockTrafficCapture) RegisterOOBPoolManager(p *packets.PoolManager) error {
+func (tc *mockTrafficCapture) RegisterOOBPoolManager(p *packets.PoolManager[[]byte]) error {
 	return nil
 }
 

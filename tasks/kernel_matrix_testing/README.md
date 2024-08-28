@@ -121,7 +121,7 @@ inv -e kmt.launch-stack --stack=demo-stack
 You can generate a SSH config file to connect to the VMs using the following command:
 
 ```bash
-inv -e kmt.ssh-config --stack=demo-stack > ~/.ssh/kmt_ssh_config
+inv -e kmt.ssh-config > ~/.ssh/kmt_ssh_config
 ```
 
 This will generate a file `kmt_ssh_config` in the `~/.ssh` directory, which you can include in your config by using the line `Include ~/.ssh/kmt_ssh_config` in your `~/.ssh/config` file. Then you can then connect to the VMs using the following command:

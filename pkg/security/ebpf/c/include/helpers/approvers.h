@@ -149,9 +149,11 @@ int __attribute__((always_inline)) approve_by_flags(struct syscall_cache_t *sysc
     u32 flags = *flags_ptr;
     if ((flags == 0 && syscall->open.flags == 0) || ((syscall->open.flags & flags) > 0)) {
         monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
-#ifdef DEBUG
+
+#if defined(DEBUG_APPROVERS)
         bpf_printk("open flags %d approved", syscall->open.flags);
 #endif
+
         return 1;
     }
     return 0;

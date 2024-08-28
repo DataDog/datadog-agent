@@ -312,6 +312,9 @@ def build_installer(ctx, vstudio_root=None, arch="x64", debug=False):
     Build the MSI installer for the agent
     """
     env = {}
+    env['PACKAGE_VERSION'] = get_version(
+        ctx, include_git=True, url_safe=True, major_version="7", include_pipeline_id=True
+    )
     env['NUGET_PACKAGES_DIR'] = f'{NUGET_PACKAGES_DIR}'
     env['AGENT_INSTALLER_OUTPUT_DIR'] = f'{BUILD_OUTPUT_DIR}'
     configuration = _msbuild_configuration(debug=debug)
@@ -337,7 +340,7 @@ def build_installer(ctx, vstudio_root=None, arch="x64", debug=False):
         )
 
     with timed("Building MSI"):
-        msi_name = "datadog-installer-1-x86_64"
+        msi_name = f"datadog-installer-{env['PACKAGE_VERSION']}-1-x86_64"
         _build_msi(ctx, env, build_outdir, msi_name, DATADOG_INSTALLER_MSI_ALLOW_LIST)
 
         # And copy it to the final output path as a build artifact

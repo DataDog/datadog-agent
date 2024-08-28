@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
@@ -105,7 +106,7 @@ func getHealth(w http.ResponseWriter, _ *http.Request) {
 	jsonHealth, err := json.Marshal(h)
 	if err != nil {
 		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, h)
-		utils.SetJSONError(w, err, 500)
+		httputils.SetJSONError(w, err, 500)
 		return
 	}
 
@@ -136,31 +137,31 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.S
 	// Indicate that we are already running in Agent process (and flip RunLocal)
 	diagCfg.RunLocal = true
 
-	var diagnoses []diagnosis.Diagnoses
+	var diagnoseResult *diagnosis.DiagnoseResult
 	var err error
 
 	// Get diagnoses via API
 	// TODO: Once API component will be refactored, clean these dependencies
 	collector, ok := diagnoseDeps.Collector.Get()
 	if ok {
-		diagnoses, err = diagnose.RunInAgentProcess(diagCfg, diagnose.NewSuitesDepsInAgentProcess(collector))
+		diagnoseResult, err = diagnose.RunInAgentProcess(diagCfg, diagnose.NewSuitesDepsInAgentProcess(collector))
 	} else {
 		ac, ok := diagnoseDeps.AC.Get()
 		if ok {
-			diagnoses, err = diagnose.RunInCLIProcess(diagCfg, diagnose.NewSuitesDepsInCLIProcess(diagnoseDeps.SenderManager, diagnoseDeps.SecretResolver, diagnoseDeps.WMeta, ac))
+			diagnoseResult, err = diagnose.RunInCLIProcess(diagCfg, diagnose.NewSuitesDepsInCLIProcess(diagnoseDeps.SenderManager, diagnoseDeps.SecretResolver, diagnoseDeps.WMeta, ac))
 		} else {
 			err = errors.New("collector or autoDiscovery not found")
 		}
 	}
 	if err != nil {
-		utils.SetJSONError(w, log.Errorf("Running diagnose in Agent process failed: %s", err), 500)
+		httputils.SetJSONError(w, log.Errorf("Running diagnose in Agent process failed: %s", err), 500)
 		return
 	}
 
 	// Serizalize diagnoses (and implicitly write result to the response)
 	w.Header().Set("Content-Type", "application/json")
-	err = json.NewEncoder(w).Encode(diagnoses)
+	err = json.NewEncoder(w).Encode(diagnoseResult)
 	if err != nil {
-		utils.SetJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
+		httputils.SetJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
 	}
 }

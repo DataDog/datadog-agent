@@ -10,7 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -71,13 +73,14 @@ func TestTraceExporter(t *testing.T) {
 
 	params := exportertest.NewNopSettings()
 	tcfg := config.New()
+	tcfg.ReceiverEnabled = false
 	tcfg.TraceWriter.FlushPeriodSeconds = 0.1
 	tcfg.Endpoints[0].APIKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	tcfg.Endpoints[0].Host = server.URL
 	ctx := context.Background()
-	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{})
+	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
-	f := NewFactory(testComponent{traceagent}, nil, nil, nil)
+	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}))
 	exporter, err := f.CreateTracesExporter(ctx, params, &cfg)
 	assert.NoError(t, err)
 
@@ -102,10 +105,11 @@ func TestNewTracesExporter(t *testing.T) {
 	tcfg := config.New()
 	tcfg.Endpoints[0].APIKey = "ddog_32_characters_long_api_key1"
 	ctx := context.Background()
-	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{})
+	tcfg.ReceiverEnabled = false
+	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
 
 	// The client should have been created correctly
-	f := NewFactory(testComponent{traceagent}, nil, nil, nil)
+	f := NewFactory(testComponent{traceagent}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}))
 	exp, err := f.CreateTracesExporter(context.Background(), params, cfg)
 	assert.NoError(t, err)
 	assert.NotNil(t, exp)

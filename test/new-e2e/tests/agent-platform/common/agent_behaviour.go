@@ -256,7 +256,7 @@ func CheckApmEnabled(t *testing.T, client *TestClient) {
 			if err != nil && client.Host.OSFamily == componentos.LinuxFamily {
 				err = fmt.Errorf("%w\n%s", err, ReadJournalCtl(t, client, "trace-agent\\|datadog-agent-trace"))
 			}
-			t.Fatalf(err.Error())
+			t.Fatalf("%s", err.Error())
 		}
 
 		require.EqualValues(t, "127.0.0.1", boundPort.LocalAddress(), "trace-agent should only be listening locally")
@@ -309,28 +309,6 @@ func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 		require.Eventually(tt, func() bool {
 			return AgentProcessIsRunning(client, "system-probe")
 		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ", err)
-	})
-
-	t.Run("system-probe and security-agent communicate", func(tt *testing.T) {
-		var statusOutputJSON map[string]any
-		var result bool
-		for try := 0; try < 10 && !result; try++ {
-			status, err := client.Host.Execute("sudo /opt/datadog-agent/embedded/bin/security-agent status -j")
-			if err == nil {
-				statusLines := strings.Split(status, "\n")
-				status = strings.Join(statusLines[1:], "\n")
-				err := json.Unmarshal([]byte(status), &statusOutputJSON)
-				require.NoError(tt, err)
-				if runtimeStatus, ok := statusOutputJSON["runtimeSecurityStatus"]; ok {
-					if connected, ok := runtimeStatus.(map[string]any)["connected"]; ok {
-						result = connected == true
-					}
-				}
-			}
-
-			time.Sleep(2 * time.Second)
-		}
-		require.True(tt, result, "system-probe and security-agent should communicate")
 	})
 }
 

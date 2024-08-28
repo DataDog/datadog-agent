@@ -19,6 +19,7 @@ always_build true
 build do
     license :project_license
 
+    flavor_arg = ENV['AGENT_FLAVOR']
     # TODO too many things done here, should be split
     block do
         # Conf files
@@ -50,9 +51,6 @@ build do
 
             # load isn't supported by windows
             delete "#{conf_dir}/load.d"
-
-            # service_discovery isn't supported by windows
-            delete "#{conf_dir}/service_discovery.d"
 
             # Remove .pyc files from embedded Python
             command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
@@ -108,6 +106,10 @@ build do
               if debian_target? || redhat_target?
                 move "#{install_dir}/etc/datadog-agent/selinux", "/etc/datadog-agent/selinux"
               end
+            end
+
+            if ot_target?
+              move "#{install_dir}/etc/datadog-agent/otel-config.yaml.example", "/etc/datadog-agent"
             end
 
             # Create empty directories so that they're owned by the package

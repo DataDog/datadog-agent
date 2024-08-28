@@ -120,11 +120,18 @@ func (wp *WinProcmon) OnError(err error) {
 
 	// if we get this error notification, then the driver can't continue.
 	// stop the notifications so that the driver can't get backed up
-	wp.Stop()
+	wp.sendStopIoctl()
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter
 func (wp *WinProcmon) Stop() {
+	wp.sendStopIoctl()
+	wp.reader.Stop()
+
+	_ = driver.StopDriverService(driverName, false)
+}
+
+func (wp *WinProcmon) sendStopIoctl() {
 	// since we're stopping, if for some reason this ioctl fails, there's nothing we can
 	// do, we're on our way out.  Closing the handle will ultimately cause the same cleanup
 	// to happen.
@@ -135,9 +142,7 @@ func (wp *WinProcmon) Stop() {
 		0,
 		nil,
 		nil)
-	wp.reader.Stop()
 
-	_ = driver.StopDriverService(driverName, false)
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter

@@ -9,38 +9,35 @@ package failure
 
 import (
 	"fmt"
-	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"golang.org/x/sys/unix"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
-	allowListErrs = map[uint32]struct{}{
-		ebpf.TCPFailureConnReset:   {}, // Connection reset by peer
-		ebpf.TCPFailureConnTimeout: {}, // Connection timed out
-		ebpf.TCPFailureConnRefused: {}, // Connection refused
-	}
-
 	telemetryModuleName = "network_tracer__tcp_failure"
-	mapTTL              = 60 * time.Second.Nanoseconds()
+	mapTTL              = 10 * time.Millisecond.Nanoseconds()
 )
 
 var failureTelemetry = struct {
-	failedConnOrphans telemetry.Counter
-	failedConnMatches telemetry.Counter
+	failedConnMatches  telemetry.Counter
+	failedConnOrphans  telemetry.Counter
+	failedConnsDropped telemetry.Counter
 }{
-	telemetry.NewCounter(telemetryModuleName, "orphans", []string{}, "Counter measuring the number of orphans after associating failed connections with a closed connection"),
 	telemetry.NewCounter(telemetryModuleName, "matches", []string{"type"}, "Counter measuring the number of successful matches of failed connections with closed connections"),
+	telemetry.NewCounter(telemetryModuleName, "orphans", []string{}, "Counter measuring the number of orphans after associating failed connections with a closed connection"),
+	telemetry.NewCounter(telemetryModuleName, "dropped", []string{}, "Counter measuring the number of dropped failed connections"),
 }
 
 // FailedConnStats is a wrapper to help document the purpose of the underlying map
@@ -61,15 +58,19 @@ type FailedConnMap map[ebpf.ConnTuple]*FailedConnStats
 
 // FailedConns is a struct to hold failed connections
 type FailedConns struct {
-	FailedConnMap map[ebpf.ConnTuple]*FailedConnStats
-	mapCleaner    *ddebpf.MapCleaner[uint64, int64]
-	sync.RWMutex
+	FailedConnMap       map[ebpf.ConnTuple]*FailedConnStats
+	maxFailuresBuffered uint32
+	failureTuple        *ebpf.ConnTuple
+	mapCleaner          *ddebpf.MapCleaner[ebpf.ConnTuple, int64]
+	sync.Mutex
 }
 
 // NewFailedConns returns a new FailedConns struct
-func NewFailedConns(m *manager.Manager) *FailedConns {
+func NewFailedConns(m *manager.Manager, maxFailedConnsBuffered uint32) *FailedConns {
 	fc := &FailedConns{
-		FailedConnMap: make(map[ebpf.ConnTuple]*FailedConnStats),
+		FailedConnMap:       make(map[ebpf.ConnTuple]*FailedConnStats),
+		maxFailuresBuffered: maxFailedConnsBuffered,
+		failureTuple:        &ebpf.ConnTuple{},
 	}
 	fc.setupMapCleaner(m)
 	return fc
@@ -77,13 +78,18 @@ func NewFailedConns(m *manager.Manager) *FailedConns {
 
 // upsertConn adds or updates the failed connection in the failed connection map
 func (fc *FailedConns) upsertConn(failedConn *ebpf.FailedConn) {
-	if _, exists := allowListErrs[failedConn.Reason]; !exists {
+	if fc == nil {
 		return
 	}
-	connTuple := failedConn.Tup
 
 	fc.Lock()
 	defer fc.Unlock()
+
+	if len(fc.FailedConnMap) >= int(fc.maxFailuresBuffered) {
+		failureTelemetry.failedConnsDropped.Inc()
+		return
+	}
+	connTuple := failedConn.Tup
 
 	stats, ok := fc.FailedConnMap[connTuple]
 	if !ok {
@@ -99,25 +105,23 @@ func (fc *FailedConns) upsertConn(failedConn *ebpf.FailedConn) {
 
 // MatchFailedConn increments the failed connection counters for a given connection based on the failed connection map
 func (fc *FailedConns) MatchFailedConn(conn *network.ConnectionStats) {
-	if fc == nil {
+	if fc == nil || conn.Type != network.TCP {
 		return
 	}
-	if conn.Type != network.TCP {
-		return
-	}
-	connTuple := connStatsToTuple(conn)
 
-	fc.RLock()
-	defer fc.RUnlock()
+	fc.Lock()
+	defer fc.Unlock()
 
-	if failedConn, ok := fc.FailedConnMap[connTuple]; ok {
+	util.ConnStatsToTuple(conn, fc.failureTuple)
+
+	if failedConn, ok := fc.FailedConnMap[*fc.failureTuple]; ok {
 		// found matching failed connection
-		conn.TCPFailures = make(map[uint32]uint32)
+		conn.TCPFailures = failedConn.CountByErrCode
 
-		for errCode, count := range failedConn.CountByErrCode {
-			failureTelemetry.failedConnMatches.Add(1, strconv.Itoa(int(errCode)))
-			conn.TCPFailures[errCode] += count
+		for errCode := range failedConn.CountByErrCode {
+			failureTelemetry.failedConnMatches.Add(1, unix.ErrnoName(syscall.Errno(errCode)))
 		}
+		delete(fc.FailedConnMap, *fc.failureTuple)
 	}
 }
 
@@ -142,45 +146,19 @@ func (fc *FailedConns) RemoveExpired() {
 	failureTelemetry.failedConnOrphans.Add(float64(removed))
 }
 
-// connStatsToTuple converts a ConnectionStats to a ConnTuple
-func connStatsToTuple(c *network.ConnectionStats) ebpf.ConnTuple {
-	var tup ebpf.ConnTuple
-	tup.Sport = c.SPort
-	tup.Dport = c.DPort
-	tup.Netns = c.NetNS
-	tup.Pid = c.Pid
-	if c.Family == network.AFINET {
-		tup.SetFamily(ebpf.IPv4)
-	} else {
-		tup.SetFamily(ebpf.IPv6)
-	}
-	if c.Type == network.TCP {
-		tup.SetType(ebpf.TCP)
-	} else {
-		tup.SetType(ebpf.UDP)
-	}
-	if !c.Source.IsZero() {
-		tup.Saddr_l, tup.Saddr_h = util.ToLowHigh(c.Source)
-	}
-	if !c.Dest.IsZero() {
-		tup.Daddr_l, tup.Daddr_h = util.ToLowHigh(c.Dest)
-	}
-	return tup
-}
-
 func (fc *FailedConns) setupMapCleaner(m *manager.Manager) {
 	connCloseFlushMap, _, err := m.GetMap(probes.ConnCloseFlushed)
 	if err != nil {
 		log.Errorf("error getting %v map: %s", probes.ConnCloseFlushed, err)
 		return
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner[uint64, int64](connCloseFlushMap, 1024)
+	mapCleaner, err := ddebpf.NewMapCleaner[ebpf.ConnTuple, int64](connCloseFlushMap, 1024)
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
 	}
 
-	mapCleaner.Clean(time.Minute*5, nil, nil, func(now int64, _key uint64, val int64) bool {
+	mapCleaner.Clean(time.Second*1, nil, nil, func(now int64, _ ebpf.ConnTuple, val int64) bool {
 		return val > 0 && now-val > mapTTL
 	})
 

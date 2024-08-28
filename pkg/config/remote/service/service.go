@@ -99,7 +99,7 @@ type Service struct {
 
 	clock         clock.Clock
 	hostname      string
-	tags          []string
+	tagsGetter    func() []string
 	traceAgentEnv string
 	db            *bbolt.DB
 	uptane        uptaneClient
@@ -286,7 +286,7 @@ func WithClientTTL(interval time.Duration, cfgPath string) func(s *options) {
 }
 
 // NewService instantiates a new remote configuration management service
-func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tags []string, telemetryReporter RcTelemetryReporter, agentVersion string, opts ...Option) (*Service, error) {
+func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGetter func() []string, telemetryReporter RcTelemetryReporter, agentVersion string, opts ...Option) (*Service, error) {
 	options := defaultOptions
 	for _, opt := range opts {
 		opt(&options)
@@ -359,7 +359,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tags []st
 		products:                       make(map[rdata.Product]struct{}),
 		newProducts:                    make(map[rdata.Product]struct{}),
 		hostname:                       hostname,
-		tags:                           tags,
+		tagsGetter:                     tagsGetter,
 		clock:                          clock,
 		traceAgentEnv:                  options.traceAgentEnv,
 		db:                             db,
@@ -525,7 +525,7 @@ func (s *Service) refresh() error {
 		return err
 	}
 
-	request := buildLatestConfigsRequest(s.hostname, s.agentVersion, s.tags, s.traceAgentEnv, orgUUID, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState)
+	request := buildLatestConfigsRequest(s.hostname, s.agentVersion, s.tagsGetter(), s.traceAgentEnv, orgUUID, previousState, activeClients, s.products, s.newProducts, s.lastUpdateErr, clientState)
 	s.Unlock()
 	ctx := context.Background()
 	response, err := s.api.Fetch(ctx, request)

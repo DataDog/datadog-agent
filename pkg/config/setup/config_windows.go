@@ -35,6 +35,8 @@ var (
 	DefaultDDAgentBin = "c:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"
 	// InstallPath is the default install path for the agent
 	InstallPath = "c:\\Program Files\\Datadog\\Datadog Agent"
+	// defaultStatsdSocket is the default Unix Domain Socket path on which statsd will listen
+	defaultStatsdSocket = ""
 )
 
 func osinit() {

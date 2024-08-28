@@ -83,12 +83,18 @@ func (s *KafkaSuite) TestFormatKafkaStats() {
 				defaultConnection,
 			},
 		},
-		Kafka: map[kafka.Key]*kafka.RequestStat{
+		Kafka: map[kafka.Key]*kafka.RequestStats{
 			kafkaKey1: {
-				Count: 10,
+				ErrorCodeToStat: map[int32]*kafka.RequestStat{
+					0: {Count: 10},
+					1: {Count: 2},
+				},
 			},
 			kafkaKey2: {
-				Count: 2,
+				ErrorCodeToStat: map[int32]*kafka.RequestStat{
+					0:  {Count: 2},
+					10: {Count: 5},
+				},
 			},
 		},
 	}
@@ -99,16 +105,16 @@ func (s *KafkaSuite) TestFormatKafkaStats() {
 					RequestType:    kafka.ProduceAPIKey,
 					RequestVersion: apiVersion1,
 				},
-				Topic: "TopicName",
-				Count: 10,
+				Topic:            "TopicName",
+				StatsByErrorCode: map[int32]*model.KafkaStats{0: {Count: 10}, 1: {Count: 2}},
 			},
 			{
 				Header: &model.KafkaRequestHeader{
 					RequestType:    kafka.FetchAPIKey,
 					RequestVersion: apiVersion2,
 				},
-				Topic: "TopicName",
-				Count: 2,
+				Topic:            "TopicName",
+				StatsByErrorCode: map[int32]*model.KafkaStats{0: {Count: 2}, 10: {Count: 5}},
 			},
 		},
 	}
@@ -156,9 +162,11 @@ func (s *KafkaSuite) TestKafkaIDCollisionRegression() {
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
-		Kafka: map[kafka.Key]*kafka.RequestStat{
+		Kafka: map[kafka.Key]*kafka.RequestStats{
 			kafkaKey: {
-				Count: 10,
+				ErrorCodeToStat: map[int32]*kafka.RequestStat{
+					0: {Count: 10},
+				},
 			},
 		},
 	}
@@ -169,7 +177,7 @@ func (s *KafkaSuite) TestKafkaIDCollisionRegression() {
 
 	// assert that the first connection matching the Kafka data will get back a non-nil result
 	assert.Equal(topicName, aggregations.KafkaAggregations[0].Topic)
-	assert.Equal(uint32(10), aggregations.KafkaAggregations[0].Count)
+	assert.Equal(uint32(10), aggregations.KafkaAggregations[0].StatsByErrorCode[0].Count)
 
 	// assert that the other connections sharing the same (source,destination)
 	// addresses but different PIDs *won't* be associated with the Kafka stats
@@ -215,9 +223,11 @@ func (s *KafkaSuite) TestKafkaLocalhostScenario() {
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
-		Kafka: map[kafka.Key]*kafka.RequestStat{
+		Kafka: map[kafka.Key]*kafka.RequestStats{
 			kafkaKey: {
-				Count: 10,
+				ErrorCodeToStat: map[int32]*kafka.RequestStat{
+					0: {Count: 10},
+				},
 			},
 		},
 	}
@@ -230,7 +240,7 @@ func (s *KafkaSuite) TestKafkaLocalhostScenario() {
 	for _, conn := range in.Conns {
 		aggregations := getKafkaAggregations(t, encoder, conn)
 		assert.Equal(topicName, aggregations.KafkaAggregations[0].Topic)
-		assert.Equal(uint32(10), aggregations.KafkaAggregations[0].Count)
+		assert.Equal(uint32(10), aggregations.KafkaAggregations[0].StatsByErrorCode[0].Count)
 	}
 }
 
@@ -255,7 +265,7 @@ func generateBenchMarkPayloadKafka(entries uint16) network.Connections {
 		BufferedData: network.BufferedData{
 			Conns: make([]network.ConnectionStats, 1),
 		},
-		Kafka: map[kafka.Key]*kafka.RequestStat{},
+		Kafka: map[kafka.Key]*kafka.RequestStats{},
 	}
 
 	payload.Conns[0].Dest = localhost
@@ -272,8 +282,8 @@ func generateBenchMarkPayloadKafka(entries uint16) network.Connections {
 			fmt.Sprintf("%s-%d", topicName, index+1),
 			kafka.ProduceAPIKey,
 			apiVersion1,
-		)] = &kafka.RequestStat{
-			Count: 10,
+		)] = &kafka.RequestStats{
+			ErrorCodeToStat: map[int32]*kafka.RequestStat{0: {Count: 10}},
 		}
 	}
 

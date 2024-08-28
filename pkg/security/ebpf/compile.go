@@ -19,7 +19,7 @@ import (
 // TODO change probe.c path to runtime-compilation specific version
 //go:generate $GOPATH/bin/include_headers pkg/security/ebpf/c/prebuilt/probe.c pkg/ebpf/bytecode/build/runtime/runtime-security.c pkg/security/ebpf/c/include pkg/ebpf/c
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/runtime-security.c pkg/ebpf/bytecode/runtime/runtime-security.go runtime
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/model/bpf_maps_generator -runtime-path ../../ebpf/bytecode/build/runtime/runtime-security.c -output ../../security/secl/model/consts_map_names.go -pkg-name model
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/model/bpf_maps_generator -runtime-path ../../ebpf/bytecode/build/runtime/runtime-security.c -output ../../security/secl/model/consts_map_names_linux.go -pkg-name model
 
 func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useFentry, useRingBuffer bool, client statsd.ClientInterface) (bytecode.AssetReader, error) {
 	var cflags []string

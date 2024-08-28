@@ -102,6 +102,10 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                // set this property to anything to indicate to the merge module that on install rollback, it should
+                // execute the install custom action rollback; otherwise it won't.
+                new Property("DDDRIVERROLLBACK_NPM", "1"),
+                new Property("DDDRIVERROLLBACK_PROCMON", "1"),
                 // Add a checkbox at the end of the setup to launch the Datadog Agent Manager
                 new LaunchCustomApplicationFromExitDialog(
                     _agentBinaries.TrayId,
@@ -356,14 +360,27 @@ namespace WixSetup.Datadog_Agent
                 new DirFiles($@"{InstallerSource}\LICENSE"),
                 new DirFiles($@"{InstallerSource}\*.json"),
                 new DirFiles($@"{InstallerSource}\*.txt"),
-                new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3"),
-                // Recursively delete/backup all files/folders in PROJECTLOCATION, they will be restored
-                // on rollback. By default WindowsInstller only removes the files it tracks, and embedded3 isn't tracked
-                new RemoveFolderEx { On = InstallEvent.uninstall, Property = "PROJECTLOCATION" }
+                new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3")
             );
             if (_agentPython.IncludePython2)
             {
                 datadogAgentFolder.AddFile(new CompressedDir(this, "embedded2", $@"{InstallerSource}\embedded2"));
+            }
+
+            // Recursively delete/backup all files/folders in these paths, they will be restored
+            // on rollback. By default WindowsInstller only removes the files it tracks, and these paths
+            // may contain untracked files.
+            // These properties are set in the ReadInstallState custom action.
+            // https://wixtoolset.org/docs/v3/xsd/util/removefolderex/
+            foreach (var property in InstallStateCustomActions.PathsToRemoveOnUninstall().Keys)
+            {
+                datadogAgentFolder.Add(
+                    new RemoveFolderEx
+                    {
+                        On = InstallEvent.uninstall,
+                        Property = property
+                    }
+                );
             }
 
             return new Dir(new Id("DatadogAppRoot"), "%ProgramFiles%\\Datadog", datadogAgentFolder);

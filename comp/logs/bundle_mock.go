@@ -9,11 +9,13 @@ package logs //nolint:revive // TODO(AML) Fix revive linter
 
 import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
+	logsIntegrationFx "github.com/DataDog/datadog-agent/comp/logs/integrations/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // MockBundle defines the mock fx options for this bundle.
 func MockBundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
-		agentimpl.MockModule())
+		agentimpl.MockModule(),
+		logsIntegrationFx.MockModule())
 }

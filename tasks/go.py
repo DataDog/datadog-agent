@@ -12,6 +12,7 @@ import shutil
 import sys
 import textwrap
 import traceback
+from collections import defaultdict
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -22,6 +23,8 @@ import tasks.modules
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import check_uncommitted_changes
+from tasks.libs.common.go import download_go_dependencies
+from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import TimedOperationResult, get_build_flags, timed
 from tasks.licenses import get_licenses_list
 from tasks.modules import DEFAULT_MODULES, generate_dummy_package
@@ -107,13 +110,8 @@ def deps(ctx, verbose=False):
     """
     Setup Go dependencies
     """
-
-    print("downloading dependencies")
-    with timed("go mod download"):
-        verbosity = ' -x' if verbose else ''
-        for mod in DEFAULT_MODULES.values():
-            with ctx.cd(mod.full_path()):
-                ctx.run(f"go mod download{verbosity}")
+    paths = [mod.full_path() for mod in DEFAULT_MODULES.values()]
+    download_go_dependencies(ctx, paths, verbose=verbose)
 
 
 @task
@@ -247,7 +245,6 @@ def generate_protobuf(ctx):
         'trace': [
             ('0001-Customize-msgpack-parsing.patch', '-p4'),
             ('0002-Make-nil-map-deserialization-retrocompatible.patch', '-p4'),
-            ('0003-pkg-trace-traceutil-credit-card-obfuscation-9213.patch', '-p4'),
         ],
     }
 
@@ -315,13 +312,14 @@ def generate_protobuf(ctx):
         # mockgen
         pbgo_dir = os.path.join(proto_root, "pbgo")
         mockgen_out = os.path.join(proto_root, "pbgo", "mocks")
+        pbgo_rel = os.path.relpath(pbgo_dir, repo_root)
         try:
             os.mkdir(mockgen_out)
         except FileExistsError:
             print(f"{mockgen_out} folder already exists")
 
         # TODO: this should be parametrized
-        ctx.run(f"mockgen -source={pbgo_dir}/core/api.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go")
+        ctx.run(f"mockgen -source={pbgo_rel}/core/api.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go")
 
     # generate messagepack marshallers
     for pkg, files in msgp_targets.items():
@@ -367,7 +365,9 @@ def check_go_mod_replaces(_):
             for line in f:
                 if "github.com/datadog/datadog-agent" in line.lower():
                     err_mod = line.split()[0]
-                    errors_found.add(f"{mod.import_path}/go.mod is missing a replace for {err_mod}")
+
+                    if (Path(err_mod.removeprefix("github.com/DataDog/datadog-agent/")) / "go.mod").exists():
+                        errors_found.add(f"{mod.import_path}/go.mod is missing a replace for {err_mod}")
 
     if errors_found:
         message = "\nErrors found:\n"
@@ -447,7 +447,7 @@ def tidy(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.22.4 linux/amd64"
+    # result is like "go version go1.22.6 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:
@@ -643,7 +643,7 @@ def create_module(ctx, path: str, no_verify: bool = False):
         # Restore files if user wants to
         if sys.stdin.isatty():
             print(color_message("Failed to create module", "red"))
-            if input('Do you want to restore all files ? [N/y]').strip() in 'yY':
+            if yes_no_question('Do you want to restore all files ?', default=False):
                 print(color_message("Restoring files", "blue"))
 
                 ctx.run('git clean -f')
@@ -654,3 +654,70 @@ def create_module(ctx, path: str, no_verify: bool = False):
         print(color_message("Not removing changed files", "red"))
 
         raise Exit(code=1) from e
+
+
+@task(iterable=['targets'])
+def mod_diffs(_, targets):
+    """
+    Lists differences in versions of libraries in the repo,
+    optionally compared to a list of target go.mod files.
+
+    Parameters:
+    - targets: list of paths to target go.mod files.
+    """
+    # Find all go.mod files in the repo
+    all_go_mod_files = []
+    for module in DEFAULT_MODULES:
+        all_go_mod_files.append(os.path.join(module, 'go.mod'))
+
+    # Validate the provided targets
+    for target in targets:
+        if target not in all_go_mod_files:
+            raise Exit(f"Error: Target go.mod file '{target}' not found.")
+
+    for target in targets:
+        all_go_mod_files.remove(target)
+
+    # Dictionary to store library versions
+    library_versions = defaultdict(lambda: defaultdict(set))
+
+    # Regular expression to match require statements in go.mod
+    require_pattern = re.compile(r'^\s*([a-zA-Z0-9.\-/]+)\s+([a-zA-Z0-9.\-+]+)')
+
+    # Process each go.mod file
+    for go_mod_file in all_go_mod_files + targets:
+        with open(go_mod_file) as f:
+            inside_require_block = False
+            for line in f:
+                line = line.strip()
+                if line == "require (":
+                    inside_require_block = True
+                    continue
+                elif inside_require_block and line == ")":
+                    inside_require_block = False
+                    continue
+                if inside_require_block or line.startswith("require "):
+                    match = require_pattern.match(line)
+                    if match:
+                        library, version = match.groups()
+                        if not library.startswith("github.com/DataDog/datadog-agent/"):
+                            library_versions[library][version].add(go_mod_file)
+
+    # List libraries with multiple versions
+    for library, versions in library_versions.items():
+        if targets:
+            relevant_paths = {path for version_paths in versions.values() for path in version_paths if path in targets}
+            if relevant_paths:
+                print(f"Library {library} differs in:")
+                for version, paths in versions.items():
+                    intersecting_paths = set(paths).intersection(targets)
+                    if intersecting_paths:
+                        print(f"  - Version {version} in:")
+                        for path in intersecting_paths:
+                            print(f"    * {path}")
+        elif len(versions) > 1:
+            print(f"Library {library} has different versions:")
+            for version, paths in versions.items():
+                print(f"  - Version {version} in:")
+                for path in paths:
+                    print(f"    * {path}")

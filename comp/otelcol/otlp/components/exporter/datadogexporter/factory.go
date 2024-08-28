@@ -40,11 +40,12 @@ type factory struct {
 	attributesErr          error
 	onceSetupTraceAgentCmp sync.Once
 
-	registry      *featuregate.Registry
-	s             serializer.MetricSerializer
-	logsAgent     logsagentpipeline.Component
-	h             serializerexporter.SourceProviderFunc
-	traceagentcmp traceagent.Component
+	registry       *featuregate.Registry
+	s              serializer.MetricSerializer
+	logsAgent      logsagentpipeline.Component
+	h              serializerexporter.SourceProviderFunc
+	traceagentcmp  traceagent.Component
+	mclientwrapper *metricsclient.StatsdClientWrapper
 }
 
 // setupTraceAgentCmp sets up the trace agent component.
@@ -58,8 +59,8 @@ func (f *factory) setupTraceAgentCmp(set component.TelemetrySettings) error {
 			return
 		}
 		f.traceagentcmp.SetOTelAttributeTranslator(attributesTranslator)
-		// TODO(OASIS-12): use this statsd client in trace agent
-		_ = metricsclient.InitializeMetricClient(set.MeterProvider, metricsclient.ExporterSourceTag)
+		otelmclient := metricsclient.InitializeMetricClient(set.MeterProvider, metricsclient.ExporterSourceTag)
+		f.mclientwrapper.SetDelegate(otelmclient)
 	})
 	return f.attributesErr
 }
@@ -70,13 +71,15 @@ func newFactoryWithRegistry(
 	s serializer.MetricSerializer,
 	logsagent logsagentpipeline.Component,
 	h serializerexporter.SourceProviderFunc,
+	mclientwrapper *metricsclient.StatsdClientWrapper,
 ) exporter.Factory {
 	f := &factory{
-		registry:      registry,
-		s:             s,
-		logsAgent:     logsagent,
-		traceagentcmp: traceagentcmp,
-		h:             h,
+		registry:       registry,
+		s:              s,
+		logsAgent:      logsagent,
+		traceagentcmp:  traceagentcmp,
+		h:              h,
+		mclientwrapper: mclientwrapper,
 	}
 
 	return exporter.NewFactory(
@@ -108,8 +111,9 @@ func NewFactory(
 	s serializer.MetricSerializer,
 	logsAgent logsagentpipeline.Component,
 	h serializerexporter.SourceProviderFunc,
+	mclientwrapper *metricsclient.StatsdClientWrapper,
 ) exporter.Factory {
-	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h)
+	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h, mclientwrapper)
 }
 
 func defaultClientConfig() confighttp.ClientConfig {
@@ -131,6 +135,9 @@ func CreateDefaultConfig() component.Config {
 		},
 
 		Metrics: serializerexporter.MetricsConfig{
+			TCPAddrConfig: confignet.TCPAddrConfig{
+				Endpoint: "https://api.datadoghq.com",
+			},
 			DeltaTTL: 3600,
 			ExporterConfig: serializerexporter.MetricsExporterConfig{
 				ResourceAttributesAsTags:           false,
@@ -160,8 +167,11 @@ func CreateDefaultConfig() component.Config {
 
 		Logs: LogsConfig{
 			TCPAddrConfig: confignet.TCPAddrConfig{
-				Endpoint: "https://http-intake.logs.datadoghq.com",
+				Endpoint: "https://agent-http-intake.logs.datadoghq.com",
 			},
+			UseCompression:   true,
+			CompressionLevel: 6,
+			BatchWait:        5,
 		},
 
 		HostMetadata: HostMetadataConfig{

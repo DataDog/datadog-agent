@@ -4,6 +4,7 @@ ${COPYRIGHT_HEADER}
 package fx
 
 import (
+	${COMPONENT_NAME} "github.com/DataDog/datadog-agent/${COMPONENT_PATH}/def"
 	${COMPONENT_NAME}impl "github.com/DataDog/datadog-agent/${COMPONENT_PATH}/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -14,5 +15,6 @@ func Module() fxutil.Module {
 		fxutil.ProvideComponentConstructor(
 			${COMPONENT_NAME}impl.NewComponent,
 		),
+		fxutil.ProvideOptional[${COMPONENT_NAME}.Component](),
 	)
 }

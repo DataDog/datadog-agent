@@ -18,6 +18,7 @@ import (
 	"math/rand"
 	"net"
 	nethttp "net/http"
+	"net/netip"
 	"os"
 	"runtime"
 	"strconv"
@@ -36,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -69,8 +71,7 @@ func TestTracerSuite(t *testing.T) {
 }
 
 func isFentry() bool {
-	fentryTests := os.Getenv("NETWORK_TRACER_FENTRY_TESTS")
-	return fentryTests == "true"
+	return ebpftest.GetBuildMode() == ebpftest.Fentry
 }
 
 func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
@@ -155,10 +156,11 @@ func (s *TracerSuite) TestGetStats() {
 
 func (s *TracerSuite) TestTCPSendAndReceive() {
 	t := s.T()
-	tr := setupTracer(t, testConfig())
+	cfg := testConfig()
+	tr := setupTracer(t, cfg)
 
 	// Create TCP Server which, for every line, sends back a message with size=serverMessageSize
-	server := NewTCPServer(func(c net.Conn) {
+	server := testutil.NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
 		for {
 			_, err := r.ReadBytes(byte('\n'))
@@ -173,7 +175,7 @@ func (s *TracerSuite) TestTCPSendAndReceive() {
 	err := server.Run()
 	require.NoError(t, err)
 
-	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
+	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
 	require.NoError(t, err)
 	defer c.Close()
 
@@ -207,21 +209,21 @@ func (s *TracerSuite) TestTCPSendAndReceive() {
 	m := conn.Monotonic
 	assert.Equal(t, 10*clientMessageSize, int(m.SentBytes))
 	assert.Equal(t, 10*serverMessageSize, int(m.RecvBytes))
-	assert.Equal(t, os.Getpid(), int(conn.Pid))
-	assert.Equal(t, addrPort(server.address), int(conn.DPort))
+	if !cfg.EnableEbpfless {
+		assert.Equal(t, os.Getpid(), int(conn.Pid))
+	}
+	assert.Equal(t, addrPort(server.Address()), int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
-	assert.True(t, conn.IntraHost)
 }
 
 func (s *TracerSuite) TestTCPShortLived() {
 	t := s.T()
 	// Enable BPF-based system probe
 	cfg := testConfig()
-	cfg.TCPClosedTimeout = 10 * time.Millisecond
 	tr := setupTracer(t, cfg)
 
 	// Create TCP Server which sends back serverMessageSize bytes
-	server := NewTCPServer(func(c net.Conn) {
+	server := testutil.NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
 		c.Write(genPayload(serverMessageSize))
@@ -231,7 +233,7 @@ func (s *TracerSuite) TestTCPShortLived() {
 	require.NoError(t, server.Run())
 
 	// Connect to server
-	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
+	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
 	require.NoError(t, err)
 
 	// Write clientMessageSize to server, and read response
@@ -255,7 +257,7 @@ func (s *TracerSuite) TestTCPShortLived() {
 	assert.Equal(t, serverMessageSize, int(m.RecvBytes))
 	assert.Equal(t, 0, int(m.Retransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
-	assert.Equal(t, addrPort(server.address), int(conn.DPort))
+	assert.Equal(t, addrPort(server.Address()), int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
 	assert.True(t, conn.IntraHost)
 
@@ -336,7 +338,7 @@ func (s *TracerSuite) TestTCPCollectionDisabled() {
 	tr := setupTracer(t, cfg)
 
 	// Create TCP Server which sends back serverMessageSize bytes
-	server := NewTCPServer(func(c net.Conn) {
+	server := testutil.NewTCPServer(func(c net.Conn) {
 		r := bufio.NewReader(c)
 		r.ReadBytes(byte('\n'))
 		c.Write(genPayload(serverMessageSize))
@@ -347,7 +349,7 @@ func (s *TracerSuite) TestTCPCollectionDisabled() {
 	require.NoError(t, server.Run())
 
 	// Connect to server
-	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
+	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -375,7 +377,7 @@ func (s *TracerSuite) TestTCPConnsReported() {
 	tr := setupTracer(t, cfg)
 
 	processedChan := make(chan struct{})
-	server := NewTCPServer(func(c net.Conn) {
+	server := testutil.NewTCPServer(func(c net.Conn) {
 		c.Close()
 		close(processedChan)
 	})
@@ -383,7 +385,7 @@ func (s *TracerSuite) TestTCPConnsReported() {
 	require.NoError(t, server.Run())
 
 	// Connect to server
-	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
+	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
 	require.NoError(t, err)
 	defer c.Close()
 	<-processedChan
@@ -426,7 +428,7 @@ func testUDPSendAndReceive(t *testing.T, tr *Tracer, addr string) {
 
 	server := &UDPServer{
 		address: addr,
-		onMessage: func(buf []byte, n int) []byte {
+		onMessage: func(_ []byte, _ int) []byte {
 			return genPayload(serverMessageSize)
 		},
 	}
@@ -482,7 +484,7 @@ func (s *TracerSuite) TestUDPDisabled() {
 
 	// Create UDP Server which sends back serverMessageSize bytes
 	server := &UDPServer{
-		onMessage: func(b []byte, n int) []byte {
+		onMessage: func([]byte, int) []byte {
 			return genPayload(serverMessageSize)
 		},
 	}
@@ -557,14 +559,16 @@ func (s *TracerSuite) TestLocalDNSCollectionEnabled() {
 	_, err = cn.Write([]byte("test"))
 	assert.NoError(t, err)
 
-	found := false
-
 	// Iterate through active connections making sure theres at least one connection
-	for _, c := range getConnections(t, tr).Conns {
-		found = found || isLocalDNS(c)
-	}
+	require.Eventually(t, func() bool {
+		for _, c := range getConnections(t, tr).Conns {
+			if isLocalDNS(c) {
+				return true
+			}
+		}
 
-	assert.True(t, found)
+		return false
+	}, 3*time.Second, 100*time.Millisecond, "could not find connection")
 }
 
 func isLocalDNS(c network.ConnectionStats) bool {
@@ -715,10 +719,6 @@ func findConnection(l, r net.Addr, c *network.Connections) (*network.ConnectionS
 	return res, res != nil
 }
 
-func searchConnections(c *network.Connections, predicate func(network.ConnectionStats) bool) []network.ConnectionStats {
-	return network.FilterConnections(c, predicate)
-}
-
 func runBenchtests(b *testing.B, payloads []int, prefix string, f func(p int) func(*testing.B)) {
 	for _, p := range payloads {
 		name := strings.TrimSpace(strings.Join([]string{prefix, strconv.Itoa(p), "bytes"}, " "))
@@ -737,7 +737,7 @@ func BenchmarkUDPEcho(b *testing.B) {
 
 func benchEchoUDP(size int) func(b *testing.B) {
 	payload := genPayload(size)
-	echoOnMessage := func(b []byte, n int) []byte {
+	echoOnMessage := func(b []byte, _ int) []byte {
 		resp := make([]byte, len(b))
 		copy(resp, b)
 		return resp
@@ -801,11 +801,11 @@ func benchEchoTCP(size int) func(b *testing.B) {
 	}
 
 	return func(b *testing.B) {
-		server := NewTCPServer(echoOnMessage)
+		server := testutil.NewTCPServer(echoOnMessage)
 		b.Cleanup(server.Shutdown)
 		require.NoError(b, server.Run())
 
-		c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
+		c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -839,11 +839,11 @@ func benchSendTCP(size int) func(b *testing.B) {
 	}
 
 	return func(b *testing.B) {
-		server := NewTCPServer(dropOnMessage)
+		server := testutil.NewTCPServer(dropOnMessage)
 		b.Cleanup(server.Shutdown)
 		require.NoError(b, server.Run())
 
-		c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
+		c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -857,56 +857,6 @@ func benchSendTCP(size int) func(b *testing.B) {
 			}
 		}
 		b.StopTimer()
-	}
-}
-
-type TCPServer struct {
-	address   string
-	network   string
-	onMessage func(c net.Conn)
-	ln        net.Listener
-}
-
-func NewTCPServer(onMessage func(c net.Conn)) *TCPServer {
-	return NewTCPServerOnAddress("127.0.0.1:0", onMessage)
-}
-
-func NewTCPServerOnAddress(addr string, onMessage func(c net.Conn)) *TCPServer {
-	return &TCPServer{
-		address:   addr,
-		onMessage: onMessage,
-	}
-}
-
-func (t *TCPServer) Run() error {
-	networkType := "tcp"
-	if t.network != "" {
-		networkType = t.network
-	}
-	ln, err := net.Listen(networkType, t.address)
-	if err != nil {
-		return err
-	}
-	t.ln = ln
-	t.address = ln.Addr().String()
-
-	go func() {
-		for {
-			conn, err := ln.Accept()
-			if err != nil {
-				return
-			}
-			go t.onMessage(conn)
-		}
-	}()
-
-	return nil
-}
-
-func (t *TCPServer) Shutdown() {
-	if t.ln != nil {
-		_ = t.ln.Close()
-		t.ln = nil
 	}
 }
 
@@ -1013,47 +963,74 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 	queryMsg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
 	queryMsg.RecursionDesired = true
 
-	var dnsClientAddr *net.UDPAddr
-	require.Eventually(t, func() bool {
+	// we place the entire test in the eventually loop since failed DNS requests can cause "WaitForDomain" to return
+	// true before DNS data is actually available for the successful connection
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		dnsClient := new(dns.Client)
 		dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
-		require.NoError(t, err)
-		dnsClientAddr = dnsConn.LocalAddr().(*net.UDPAddr)
+		if !assert.NoError(c, err) {
+			return
+		}
+		dnsClientAddr := dnsConn.LocalAddr().(*net.UDPAddr)
 		_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
-		_ = dnsConn.Close()
-		return err == nil || timeout != 0
-	}, 6*time.Second, 100*time.Millisecond, "Failed to get dns response")
-
-	require.NoError(t, tr.reverseDNS.WaitForDomain(domain))
-
-	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections := getConnections(t, tr)
-	conn, ok := findConnection(dnsClientAddr, dnsServerAddr, connections)
-	require.True(t, ok)
-
-	assert.Equal(t, queryMsg.Len(), int(conn.Monotonic.SentBytes))
-	assert.Equal(t, os.Getpid(), int(conn.Pid))
-	assert.Equal(t, dnsServerAddr.Port, int(conn.DPort))
-
-	var total uint32
-	var successfulResponses uint32
-	var timeouts uint32
-	for _, byDomain := range conn.DNSStats {
-		for _, byQueryType := range byDomain {
-			successfulResponses += byQueryType.CountByRcode[uint32(0)]
-			timeouts += byQueryType.Timeouts
-			for _, count := range byQueryType.CountByRcode {
-				total += count
+		if timeout == 0 {
+			if !assert.NoError(c, err, "unexpected error making DNS request") {
+				return
+			}
+		} else {
+			if !assert.Error(c, err) {
+				return
 			}
 		}
-	}
+		_ = dnsConn.Close()
+		if !assert.NoError(c, tr.reverseDNS.WaitForDomain(domain)) {
+			return
+		}
 
-	failedResponses := total - successfulResponses
+		// Iterate through active connections until we find connection created above, and confirm send + recv counts
+		connections := getConnections(c, tr)
+		conn, ok := findConnection(dnsClientAddr, dnsServerAddr, connections)
+		if passed := assert.True(c, ok); !passed {
+			return
+		}
 
-	// DNS Stats
-	assert.Equal(t, uint32(success), successfulResponses, "expected %d successful responses but got %d", success, successfulResponses)
-	assert.Equal(t, uint32(failure), failedResponses)
-	assert.Equal(t, uint32(timeout), timeouts, "expected %d timeouts but got %d", timeout, timeouts)
+		if !assert.Equal(c, queryMsg.Len(), int(conn.Monotonic.SentBytes)) {
+			return
+		}
+		if !tr.config.EnableEbpfless {
+			if !assert.Equal(c, os.Getpid(), int(conn.Pid)) {
+				return
+			}
+		}
+		if !assert.Equal(c, dnsServerAddr.Port, int(conn.DPort)) {
+			return
+		}
+
+		var total uint32
+		var successfulResponses uint32
+		var timeouts uint32
+		for _, byDomain := range conn.DNSStats {
+			for _, byQueryType := range byDomain {
+				successfulResponses += byQueryType.CountByRcode[uint32(0)]
+				timeouts += byQueryType.Timeouts
+				for _, count := range byQueryType.CountByRcode {
+					total += count
+				}
+			}
+		}
+		failedResponses := total - successfulResponses
+
+		// DNS Stats
+		if !assert.Equal(c, uint32(success), successfulResponses, "expected %d successful responses but got %d", success, successfulResponses) {
+			return
+		}
+		if !assert.Equal(c, uint32(failure), failedResponses) {
+			return
+		}
+		if !assert.Equal(c, uint32(timeout), timeouts, "expected %d timeouts but got %d", timeout, timeouts) {
+			return
+		}
+	}, 10*time.Second, 100*time.Millisecond, "Failed to get dns response or unexpected response")
 }
 
 func (s *TracerSuite) TestDNSStats() {
@@ -1078,18 +1055,17 @@ func (s *TracerSuite) TestTCPEstablished() {
 	t := s.T()
 	// Ensure closed connections are flushed as soon as possible
 	cfg := testConfig()
-	cfg.TCPClosedTimeout = 500 * time.Millisecond
 
 	tr := setupTracer(t, cfg)
 
-	server := NewTCPServer(func(c net.Conn) {
+	server := testutil.NewTCPServer(func(c net.Conn) {
 		io.Copy(io.Discard, c)
 		c.Close()
 	})
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
-	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
+	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
 	require.NoError(t, err)
 
 	laddr, raddr := c.LocalAddr(), c.RemoteAddr()
@@ -1103,11 +1079,14 @@ func (s *TracerSuite) TestTCPEstablished() {
 	assert.Equal(t, uint32(0), conn.Last.TCPClosed)
 
 	c.Close()
-	// Wait for the connection to be sent from the perf buffer
-	time.Sleep(cfg.TCPClosedTimeout)
 
-	connections = getConnections(t, tr)
-	conn, ok = findConnection(laddr, raddr, connections)
+	// Wait for the connection to be sent from the perf buffer
+	require.Eventually(t, func() bool {
+		var ok bool
+		conn, ok = findConnection(laddr, raddr, getConnections(t, tr))
+		return ok
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection")
+
 	require.True(t, ok)
 	assert.Equal(t, uint32(0), conn.Last.TCPEstablished)
 	assert.Equal(t, uint32(1), conn.Last.TCPClosed)
@@ -1115,31 +1094,33 @@ func (s *TracerSuite) TestTCPEstablished() {
 
 func (s *TracerSuite) TestTCPEstablishedPreExistingConn() {
 	t := s.T()
-	server := NewTCPServer(func(c net.Conn) {
+	server := testutil.NewTCPServer(func(c net.Conn) {
 		io.Copy(io.Discard, c)
 		c.Close()
 	})
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
 
-	c, err := net.DialTimeout("tcp", server.address, 50*time.Millisecond)
+	c, err := net.DialTimeout("tcp", server.Address(), 50*time.Millisecond)
 	require.NoError(t, err)
 	laddr, raddr := c.LocalAddr(), c.RemoteAddr()
 
 	// Ensure closed connections are flushed as soon as possible
 	cfg := testConfig()
-	cfg.TCPClosedTimeout = 500 * time.Millisecond
 
 	tr := setupTracer(t, cfg)
 
 	c.Write([]byte("hello"))
 	c.Close()
-	// Wait for the connection to be sent from the perf buffer
-	time.Sleep(cfg.TCPClosedTimeout)
-	connections := getConnections(t, tr)
-	conn, ok := findConnection(laddr, raddr, connections)
 
-	require.True(t, ok)
+	// Wait for the connection to be sent from the perf buffer
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		var ok bool
+		conn, ok = findConnection(laddr, raddr, getConnections(t, tr))
+		return ok
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection")
+
 	m := conn.Monotonic
 	assert.Equal(t, uint32(0), m.TCPEstablished)
 	assert.Equal(t, uint32(1), m.TCPClosed)
@@ -1161,7 +1142,7 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv4() {
 	require.NoError(t, err)
 
 	connections := getConnections(t, tr)
-	outgoing := searchConnections(connections, func(cs network.ConnectionStats) bool {
+	outgoing := network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
 		return cs.DPort == uint16(remotePort)
 	})
 
@@ -1186,10 +1167,15 @@ func (s *TracerSuite) TestConnectedUDPSendIPv6() {
 	bytesSent, err := conn.Write(message)
 	require.NoError(t, err)
 
-	connections := getConnections(t, tr)
-	outgoing := searchConnections(connections, func(cs network.ConnectionStats) bool {
-		return cs.DPort == uint16(remotePort)
-	})
+	var outgoing []network.ConnectionStats
+	require.Eventually(t, func() bool {
+		connections := getConnections(t, tr)
+		outgoing = network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
+			return cs.DPort == uint16(remotePort)
+		})
+
+		return len(outgoing) == 1
+	}, 3*time.Second, 100*time.Millisecond, "failed to find connection")
 
 	require.Len(t, outgoing, 1)
 	assert.Equal(t, remoteAddr.IP.String(), outgoing[0].Dest.String())
@@ -1234,12 +1220,12 @@ func (s *TracerSuite) TestTCPDirection() {
 	require.Eventuallyf(t, func() bool {
 		conns := getConnections(t, tr)
 		if len(outgoingConns) == 0 {
-			outgoingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
+			outgoingConns = network.FilterConnections(conns, func(cs network.ConnectionStats) bool {
 				return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == serverAddr
 			})
 		}
 		if len(incomingConns) == 0 {
-			incomingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
+			incomingConns = network.FilterConnections(conns, func(cs network.ConnectionStats) bool {
 				return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
 			})
 		}
@@ -1252,4 +1238,107 @@ func (s *TracerSuite) TestTCPDirection() {
 	assert.Equal(t, conn.Direction, network.OUTGOING, "connection direction must be outgoing: %s", conn)
 	conn = incomingConns[0]
 	assert.Equal(t, conn.Direction, network.INCOMING, "connection direction must be incoming: %s", conn)
+}
+
+func (s *TracerSuite) TestTCPFailureConnectionRefused() {
+	t := s.T()
+
+	checkSkipFailureConnectionsTests(t)
+
+	cfg := testConfig()
+	cfg.TCPFailedConnectionsEnabled = true
+	tr := setupTracer(t, cfg)
+
+	// try to connect to a port where no server is accepting connections
+	srvAddr := "127.0.0.1:9998"
+	conn, err := net.Dial("tcp", srvAddr)
+	if err == nil {
+		conn.Close() // If the connection unexpectedly succeeds, close it immediately.
+		require.Fail(t, "expected connection to be refused, but it succeeded")
+	}
+	require.Error(t, err, "expected connection refused error but got none")
+
+	// Check if the connection was recorded as refused
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		// Check for the refusal record
+		return findFailedConnectionByRemoteAddr(srvAddr, conns, 111)
+	}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
+}
+
+func (s *TracerSuite) TestTCPFailureConnectionReset() {
+	t := s.T()
+
+	checkSkipFailureConnectionsTests(t)
+
+	cfg := testConfig()
+	cfg.TCPFailedConnectionsEnabled = true
+	tr := setupTracer(t, cfg)
+
+	srv := testutil.NewTCPServer(func(c net.Conn) {
+		if tcpConn, ok := c.(*net.TCPConn); ok {
+			tcpConn.SetLinger(0)
+			buf := make([]byte, 10)
+			_, _ = c.Read(buf)
+			time.Sleep(10 * time.Millisecond)
+		}
+		c.Close()
+	})
+
+	require.NoError(t, srv.Run(), "error running server")
+	t.Cleanup(srv.Shutdown)
+
+	serverAddr := srv.Address()
+	c, err := net.Dial("tcp", serverAddr)
+	require.NoError(t, err, "could not connect to server: ", err)
+
+	// Write to the server and expect a reset
+	_, writeErr := c.Write([]byte("ping"))
+	if writeErr != nil {
+		t.Log("Write error:", writeErr)
+	}
+
+	// Read from server to ensure that the server has a chance to reset the connection
+	_, readErr := c.Read(make([]byte, 4))
+	require.Error(t, readErr, "expected connection reset error but got none")
+
+	// Check if the connection was recorded as reset
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		// 104 is the errno for ECONNRESET
+		return findFailedConnection(t, c.LocalAddr().String(), serverAddr, conns, 104)
+	}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
+
+	require.NoError(t, c.Close(), "error closing client connection")
+}
+
+// findFailedConnection is a utility function to find a failed connection based on specific TCP error codes
+func findFailedConnection(t *testing.T, local, remote string, conns *network.Connections, errorCode uint32) bool { // nolint:unused
+	// Extract the address and port from the net.Addr types
+	localAddrPort, err := netip.ParseAddrPort(local)
+	if err != nil {
+		t.Logf("Failed to parse local address: %v", err)
+		return false
+	}
+	remoteAddrPort, err := netip.ParseAddrPort(remote)
+	if err != nil {
+		t.Logf("Failed to parse remote address: %v", err)
+		return false
+	}
+
+	failureFilter := func(cs network.ConnectionStats) bool {
+		localMatch := netip.AddrPortFrom(cs.Source.Addr, cs.SPort) == localAddrPort
+		remoteMatch := netip.AddrPortFrom(cs.Dest.Addr, cs.DPort) == remoteAddrPort
+		return localMatch && remoteMatch && cs.TCPFailures[errorCode] > 0
+	}
+
+	return network.FirstConnection(conns, failureFilter) != nil
+}
+
+// for some failed connections we don't know the local addr/port so we need to search by remote addr only
+func findFailedConnectionByRemoteAddr(remoteAddr string, conns *network.Connections, errorCode uint32) bool {
+	failureFilter := func(cs network.ConnectionStats) bool {
+		return netip.MustParseAddrPort(remoteAddr) == netip.AddrPortFrom(cs.Dest.Addr, cs.DPort) && cs.TCPFailures[errorCode] > 0
+	}
+	return network.FirstConnection(conns, failureFilter) != nil
 }

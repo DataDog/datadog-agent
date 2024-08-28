@@ -10,12 +10,13 @@ package aws
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 type mockrdsServiceConfigurer func(k *MockrdsService)
@@ -24,14 +25,14 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 	testCases := []struct {
 		name                           string
 		configureClient                mockrdsServiceConfigurer
-		clusterIds                     []string
+		clusterIDs                     []string
 		expectedAuroraClusterEndpoints map[string]*AuroraCluster
 		expectedErr                    error
 	}{
 		{
 			name:            "no cluster ids given",
-			configureClient: func(k *MockrdsService) {},
-			clusterIds:      nil,
+			configureClient: func(*MockrdsService) {},
+			clusterIDs:      nil,
 			expectedErr:     errors.New("at least one database cluster identifier is required"),
 		},
 		{
@@ -39,7 +40,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 			configureClient: func(k *MockrdsService) {
 				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(&rds.DescribeDBInstancesOutput{}, nil).Times(1)
 			},
-			clusterIds:                     []string{"test-cluster"},
+			clusterIDs:                     []string{"test-cluster"},
 			expectedAuroraClusterEndpoints: nil,
 			expectedErr:                    errors.New("no endpoints found for aurora clusters with id(s): test-cluster"),
 		},
@@ -48,7 +49,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 			configureClient: func(k *MockrdsService) {
 				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(nil, errors.New("big time error")).Times(1)
 			},
-			clusterIds:                     []string{"test-cluster"},
+			clusterIDs:                     []string{"test-cluster"},
 			expectedAuroraClusterEndpoints: nil,
 			expectedErr:                    errors.New("error running GetAuroraClusterEndpoints big time error"),
 		},
@@ -71,7 +72,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 					},
 				}, nil).Times(1)
 			},
-			clusterIds: []string{"test-cluster"},
+			clusterIDs: []string{"test-cluster"},
 			expectedAuroraClusterEndpoints: map[string]*AuroraCluster{
 				"test-cluster": {
 					Instances: []*Instance{
@@ -126,7 +127,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 					},
 				}, nil).Times(1)
 			},
-			clusterIds: []string{"test-cluster"},
+			clusterIDs: []string{"test-cluster"},
 			expectedAuroraClusterEndpoints: map[string]*AuroraCluster{
 				"test-cluster": {
 					Instances: []*Instance{
@@ -193,7 +194,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 					},
 				}, nil).Times(1)
 			},
-			clusterIds: []string{"test-cluster"},
+			clusterIDs: []string{"test-cluster"},
 			expectedAuroraClusterEndpoints: map[string]*AuroraCluster{
 				"test-cluster": {
 					Instances: []*Instance{
@@ -226,7 +227,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 					},
 				}, nil).Times(1)
 			},
-			clusterIds: []string{"test-cluster", "test-cluster-2"},
+			clusterIDs: []string{"test-cluster", "test-cluster-2"},
 			expectedAuroraClusterEndpoints: map[string]*AuroraCluster{
 				"test-cluster": {
 					Instances: []*Instance{
@@ -281,7 +282,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 					},
 				}, nil).Times(1)
 			},
-			clusterIds: []string{"test-cluster", "test-cluster-2"},
+			clusterIDs: []string{"test-cluster", "test-cluster-2"},
 			expectedAuroraClusterEndpoints: map[string]*AuroraCluster{
 				"test-cluster": {
 					Instances: []*Instance{
@@ -319,7 +320,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 			mockClient := NewMockrdsService(ctrl)
 			tt.configureClient(mockClient)
 			client := &Client{client: mockClient}
-			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusterIds)
+			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusterIDs)
 			if tt.expectedErr != nil {
 				assert.EqualError(t, err, tt.expectedErr.Error())
 				return
@@ -340,7 +341,7 @@ func TestGetAuroraClustersFromTags(t *testing.T) {
 	}{
 		{
 			name:            "no filter tags supplied",
-			configureClient: func(k *MockrdsService) {},
+			configureClient: func(_ *MockrdsService) {},
 			tags:            []string{},
 			expectedErr:     errors.New("at least one tag filter is required"),
 		},
@@ -598,12 +599,12 @@ func TestGetAuroraClustersFromTags(t *testing.T) {
 	}
 }
 
-func createDescribeDBInstancesRequest(clusterIds []string) *rds.DescribeDBInstancesInput {
+func createDescribeDBInstancesRequest(clusterIDs []string) *rds.DescribeDBInstancesInput {
 	return &rds.DescribeDBInstancesInput{
 		Filters: []types.Filter{
 			{
 				Name:   aws.String("db-cluster-id"),
-				Values: clusterIds,
+				Values: clusterIDs,
 			},
 		},
 	}

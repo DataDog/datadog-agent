@@ -15,6 +15,7 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -22,8 +23,6 @@ import (
 
 	winio "github.com/Microsoft/go-winio"
 )
-
-var namedPipeTelemetry = newListenerTelemetry("named_pipe", "Named Pipe")
 
 const pipeNamePrefix = `\\.\pipe\`
 
@@ -34,28 +33,38 @@ type NamedPipeListener struct {
 	pipe          net.Listener
 	packetManager *packets.PacketManager
 	// TODO: Migrate to `ConnectionTracker` instead
-	connections    *namedPipeConnections
-	trafficCapture replay.Component // Currently ignored
-	listenWg       sync.WaitGroup
+	connections       *namedPipeConnections
+	trafficCapture    replay.Component // Currently ignored
+	listenWg          sync.WaitGroup
+	telemetryStore    *TelemetryStore
+	internalTelemetry *listenerTelemetry
 }
 
 // NewNamedPipeListener returns an named pipe Statsd listener
 func NewNamedPipeListener(pipeName string, packetOut chan packets.Packets,
-	sharedPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component) (*NamedPipeListener, error) {
+	sharedPacketPoolManager *packets.PoolManager[packets.Packet], cfg config.Reader, capture replay.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetrycomp telemetry.Component) (*NamedPipeListener, error) {
 
 	bufferSize := cfg.GetInt("dogstatsd_buffer_size")
 	return newNamedPipeListener(
 		pipeName,
 		bufferSize,
-		packets.NewPacketManagerFromConfig(packetOut, sharedPacketPoolManager, cfg),
-		capture)
+		packets.NewPacketManagerFromConfig(packetOut, sharedPacketPoolManager, cfg, packetsTelemetryStore),
+		capture,
+		telemetryStore,
+		telemetrycomp,
+	)
 }
 
 func newNamedPipeListener(
 	pipeName string,
 	bufferSize int,
 	packetManager *packets.PacketManager,
-	capture replay.Component) (*NamedPipeListener, error) {
+	capture replay.Component,
+	telemetryStore *TelemetryStore,
+	telemetrycomp telemetry.Component,
+) (*NamedPipeListener, error) {
+
+	namedPipeTelemetry := newListenerTelemetry("named_pipe", "named_pipe", telemetrycomp)
 
 	config := winio.PipeConfig{
 		InputBufferSize:  int32(bufferSize),
@@ -78,7 +87,9 @@ func newNamedPipeListener(
 			allConnsClosed:  make(chan struct{}),
 			activeConnCount: atomic.NewInt32(0),
 		},
-		trafficCapture: capture,
+		trafficCapture:    capture,
+		telemetryStore:    telemetryStore,
+		internalTelemetry: namedPipeTelemetry,
 	}
 
 	log.Debugf("dogstatsd-named-pipes: %s successfully initialized", pipe.Addr())
@@ -176,7 +187,7 @@ func (l *NamedPipeListener) listenConnection(conn net.Conn, buffer []byte) {
 				break
 			}
 			log.Errorf("dogstatsd-named-pipes: error reading packet: %v", err.Error())
-			namedPipeTelemetry.onReadError()
+			l.internalTelemetry.onReadError()
 		} else {
 			endIndex := startWriteIndex + bytesRead
 
@@ -184,7 +195,7 @@ func (l *NamedPipeListener) listenConnection(conn net.Conn, buffer []byte) {
 			// If there is a '\n', at least one message is completed and '\n' is part of this message.
 			messageSize := bytes.LastIndexByte(buffer[:endIndex], '\n') + 1
 			if messageSize > 0 {
-				namedPipeTelemetry.onReadSuccess(messageSize)
+				l.internalTelemetry.onReadSuccess(messageSize)
 
 				// PacketAssembler merges multiple packets together and sends them when its buffer is full
 				l.packetManager.PacketAssembler.AddMessage(buffer[:messageSize])
@@ -201,7 +212,7 @@ func (l *NamedPipeListener) listenConnection(conn net.Conn, buffer []byte) {
 		}
 
 		t2 = time.Now()
-		tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "named_pipe", "named_pipe", "named_pipe")
+		l.telemetryStore.tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "named_pipe", "named_pipe", "named_pipe")
 	}
 	l.connections.connToClose <- conn
 }

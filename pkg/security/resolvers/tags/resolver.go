@@ -10,7 +10,9 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/remote"
+	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -89,14 +91,14 @@ func (t *DefaultResolver) Stop() error {
 }
 
 // NewResolver returns a new tags resolver
-func NewResolver(config *config.Config) Resolver {
+func NewResolver(config *config.Config, telemetry telemetry.Component) Resolver {
 	if config.RemoteTaggerEnabled {
-		options, err := remote.NodeAgentOptionsForSecruityResolvers()
+		options, err := remote.NodeAgentOptionsForSecurityResolvers()
 		if err != nil {
 			log.Errorf("unable to configure the remote tagger: %s", err)
 		} else {
 			return &DefaultResolver{
-				tagger: remote.NewTagger(options),
+				tagger: remote.NewTagger(options, taggerTelemetry.NewStore(telemetry)),
 			}
 		}
 	}

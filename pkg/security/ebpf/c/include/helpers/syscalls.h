@@ -14,6 +14,7 @@
 #define SYSCALL_CTX_ARG(type, pos) (type << (pos * 2))
 #define SYSCALL_CTX_ARG_STR(pos) SYSCALL_CTX_ARG(SYSCALL_CTX_STR_TYPE, pos)
 #define SYSCALL_CTX_ARG_INT(pos) SYSCALL_CTX_ARG(SYSCALL_CTX_INT_TYPE, pos)
+#define SYSCALL_CTX_ARG_MASK(pos) (SYSCALL_CTX_ARG_STR(pos) | SYSCALL_CTX_ARG_INT(pos))
 
 #define IS_SYSCALL_CTX_ARG(types, type, pos) (types & (type << (pos * 2)))
 #define IS_SYSCALL_CTX_ARG_STR(types, pos) IS_SYSCALL_CTX_ARG(types, SYSCALL_CTX_STR_TYPE, pos)
@@ -36,9 +37,10 @@ void __attribute__((always_inline)) collect_syscall_ctx(struct syscall_cache_t *
     u32 *id_ptr = (u32 *)&data[0];
     id_ptr[0] = *id;
 
-    data[4] = types;
+    u8 effective_types = 0;
 
     if (arg1) {
+        effective_types |= (types & SYSCALL_CTX_ARG_MASK(0));
         if (IS_SYSCALL_CTX_ARG_STR(types, 0)) {
             bpf_probe_read_str(&data[5], MAX_SYSCALL_ARG_MAX_SIZE, arg1);
         } else {
@@ -48,6 +50,7 @@ void __attribute__((always_inline)) collect_syscall_ctx(struct syscall_cache_t *
     }
 
     if (arg2) {
+        effective_types |= (types & SYSCALL_CTX_ARG_MASK(1));
         if (IS_SYSCALL_CTX_ARG_STR(types, 1)) {
             bpf_probe_read_str(&data[5 + MAX_SYSCALL_ARG_MAX_SIZE], MAX_SYSCALL_ARG_MAX_SIZE, arg2);
         } else {
@@ -57,6 +60,7 @@ void __attribute__((always_inline)) collect_syscall_ctx(struct syscall_cache_t *
     }
 
     if (arg3) {
+        effective_types |= (types & SYSCALL_CTX_ARG_MASK(2));
         if (IS_SYSCALL_CTX_ARG_STR(types, 2)) {
             bpf_probe_read_str(&data[5 + MAX_SYSCALL_ARG_MAX_SIZE * 2], MAX_SYSCALL_ARG_MAX_SIZE, arg3);
         } else {
@@ -64,6 +68,8 @@ void __attribute__((always_inline)) collect_syscall_ctx(struct syscall_cache_t *
             addr[0] = *(s64 *)arg3;
         }
     }
+
+    data[4] = effective_types;
 
     syscall->ctx_id = *id;
 }
@@ -178,7 +184,7 @@ struct syscall_cache_t *__attribute__((always_inline)) pop_task_syscall(u64 pid_
 struct syscall_cache_t *__attribute__((always_inline)) pop_syscall(u64 type) {
     u64 key = bpf_get_current_pid_tgid();
     struct syscall_cache_t *syscall = pop_task_syscall(key, type);
-#ifdef DEBUG
+#if defined(DEBUG_SYSCALLS)
     if (!syscall) {
         bpf_printk("Failed to pop syscall with type %d", type);
     }

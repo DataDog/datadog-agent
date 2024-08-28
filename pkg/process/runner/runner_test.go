@@ -20,7 +20,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/process/types"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	checkmocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
 	processmocks "github.com/DataDog/datadog-agent/pkg/process/runner/mocks"
@@ -28,7 +28,7 @@ import (
 )
 
 func TestUpdateRTStatus(t *testing.T) {
-	cfg := ddconfig.Mock(t)
+	cfg := configmock.New(t)
 
 	assert := assert.New(t)
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
@@ -66,10 +66,10 @@ func TestUpdateRTStatus(t *testing.T) {
 }
 
 func TestUpdateRTInterval(t *testing.T) {
-	cfg := ddconfig.Mock(t)
+	cfg := configmock.New(t)
 	assert := assert.New(t)
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
-	c, err := NewRunner(ddconfig.Mock(t), nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg, cfg, wmeta)}, nil)
+	c, err := NewRunner(configmock.New(t), nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg, cfg, wmeta)}, nil)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -131,7 +131,7 @@ func TestDisableRealTimeProcessCheck(t *testing.T) {
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock(t)
+			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("process_config.disable_realtime_checks", tc.disableRealtime)
 
 			assert := assert.New(t)
@@ -167,7 +167,7 @@ func TestIgnoreResponseBody(t *testing.T) {
 func TestCollectorRunCheckWithRealTime(t *testing.T) {
 	check := checkmocks.NewCheck(t)
 
-	c, err := NewRunner(ddconfig.Mock(t), nil, &checks.HostInfo{}, []checks.Check{}, nil)
+	c, err := NewRunner(configmock.New(t), nil, &checks.HostInfo{}, []checks.Check{}, nil)
 	assert.NoError(t, err)
 	submitter := processmocks.NewSubmitter(t)
 	c.Submitter = submitter
@@ -210,7 +210,7 @@ func TestCollectorRunCheck(t *testing.T) {
 
 	hostInfo := &checks.HostInfo{HostName: testHostName}
 
-	c, err := NewRunner(ddconfig.Mock(t), nil, hostInfo, []checks.Check{}, nil)
+	c, err := NewRunner(configmock.New(t), nil, hostInfo, []checks.Check{}, nil)
 	require.NoError(t, err)
 	submitter := processmocks.NewSubmitter(t)
 	require.NoError(t, err)

@@ -49,7 +49,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 			expected: &workloadmeta.KubernetesMetadata{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindKubernetesMetadata,
-					ID:   "deployments/default/test-app",
+					ID:   string(util.GenerateKubeMetadataEntityID("apps", "deployments", "default", "test-app")),
 				},
 				EntityMeta: workloadmeta.EntityMeta{
 					Name:        "test-app",
@@ -57,7 +57,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 					Labels:      map[string]string{"l1": "v1", "l2": "v2", "l3": "v3"},
 					Annotations: map[string]string{"k1": "v1", "k2": "v2", "k3": "v3"},
 				},
-				GVR: schema.GroupVersionResource{
+				GVR: &schema.GroupVersionResource{
 					Group:    "apps",
 					Version:  "v1",
 					Resource: "deployments",
@@ -83,7 +83,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 			expected: &workloadmeta.KubernetesMetadata{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindKubernetesMetadata,
-					ID:   string(util.GenerateKubeMetadataEntityID("namespaces", "", "test-namespace")),
+					ID:   string(util.GenerateKubeMetadataEntityID("", "namespaces", "", "test-namespace")),
 				},
 				EntityMeta: workloadmeta.EntityMeta{
 					Name:        "test-namespace",
@@ -91,7 +91,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 					Labels:      map[string]string{"l1": "v1", "l2": "v2", "l3": "v3"},
 					Annotations: map[string]string{"k1": "v1", "k2": "v2", "k3": "v3"},
 				},
-				GVR: schema.GroupVersionResource{
+				GVR: &schema.GroupVersionResource{
 					Group:    "",
 					Version:  "v1",
 					Resource: "namespaces",
@@ -117,7 +117,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 			expected: &workloadmeta.KubernetesMetadata{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindKubernetesMetadata,
-					ID:   string(util.GenerateKubeMetadataEntityID("namespaces", "", "test-namespace")),
+					ID:   string(util.GenerateKubeMetadataEntityID("", "namespaces", "", "test-namespace")),
 				},
 				EntityMeta: workloadmeta.EntityMeta{
 					Name:        "test-namespace",
@@ -125,7 +125,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 					Labels:      map[string]string{"l1": "v1", "l2": "v2", "l3": "v3"},
 					Annotations: map[string]string{"k1": "v1", "k2": "v2", "k3": "v3"},
 				},
-				GVR: schema.GroupVersionResource{
+				GVR: &schema.GroupVersionResource{
 					Group:    "",
 					Version:  "v1",
 					Resource: "namespaces",
@@ -153,7 +153,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 			expected: &workloadmeta.KubernetesMetadata{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindKubernetesMetadata,
-					ID:   string(util.GenerateKubeMetadataEntityID("namespaces", "", "test-namespace")),
+					ID:   string(util.GenerateKubeMetadataEntityID("", "namespaces", "", "test-namespace")),
 				},
 				EntityMeta: workloadmeta.EntityMeta{
 					Name:        "test-namespace",
@@ -161,7 +161,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 					Labels:      map[string]string{"l1": "v1", "l2": "v2", "l3": "v3"},
 					Annotations: map[string]string{"k1": "v1", "k2": "v2", "k3": "v3"},
 				},
-				GVR: schema.GroupVersionResource{
+				GVR: &schema.GroupVersionResource{
 					Group:    "",
 					Version:  "v1",
 					Resource: "namespaces",
@@ -217,7 +217,7 @@ func Test_MetadataFakeClient(t *testing.T) {
 				Type: workloadmeta.EventTypeSet,
 				Entity: &workloadmeta.KubernetesMetadata{
 					EntityID: workloadmeta.EntityID{
-						ID:   "deployments/default/test-app",
+						ID:   string(util.GenerateKubeMetadataEntityID("apps", "deployments", "default", "test-app")),
 						Kind: workloadmeta.KindKubernetesMetadata,
 					},
 					EntityMeta: workloadmeta.EntityMeta{
@@ -226,7 +226,7 @@ func Test_MetadataFakeClient(t *testing.T) {
 						Labels:      objectMeta.Labels,
 						Annotations: objectMeta.Annotations,
 					},
-					GVR: gvr,
+					GVR: &gvr,
 				},
 			},
 		},

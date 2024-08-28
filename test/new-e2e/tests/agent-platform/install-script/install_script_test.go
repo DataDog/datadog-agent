@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"unicode"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -43,11 +44,21 @@ type installScriptSuite struct {
 }
 
 func TestInstallScript(t *testing.T) {
+	if *platform == "docker" {
+		DockerTest(t)
+		return
+	}
+
 	platformJSON := map[string]map[string]map[string]string{}
 
 	err := json.Unmarshal(platforms.Content, &platformJSON)
 	require.NoErrorf(t, err, "failed to umarshall platform file: %v", err)
 
+	// Splitting an empty string results in a slice with a single empty string which wouldn't be useful
+	// and result in no tests being run; let's fail the test to make it obvious
+	if strings.TrimFunc(*osVersion, unicode.IsSpace) == "" {
+		t.Fatal("expecting some value to be passed for --osversion on test invocation, got none")
+	}
 	osVersions := strings.Split(*osVersion, ",")
 	cwsSupportedOsVersionList := strings.Split(*cwsSupportedOsVersion, ",")
 
@@ -83,10 +94,24 @@ func TestInstallScript(t *testing.T) {
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
 					awshost.WithEC2InstanceOptions(vmOpts...),
 				)),
-				e2e.WithStackName(fmt.Sprintf("install-script-test-%v-%v-%s-%s-%v", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *flavor, *majorVersion)),
+				e2e.WithStackName(fmt.Sprintf("install-script-test-%v-%s-%s-%v", osVers, *architecture, *flavor, *majorVersion)),
 			)
 		})
 	}
+
+}
+
+func DockerTest(t *testing.T) {
+	t.Run("test install script on a docker container (using SysVInit)", func(tt *testing.T) {
+		e2e.Run(tt,
+			&installScriptSuiteSysVInit{},
+			e2e.WithProvisioner(
+				awshost.ProvisionerNoAgentNoFakeIntake(
+					awshost.WithDocker(),
+				),
+			),
+		)
+	})
 }
 
 func (is *installScriptSuite) TestInstallAgent() {
@@ -185,4 +210,40 @@ func (is *installScriptSuite) DogstatsdAgentTest() {
 	common.CheckDogstatsdAgentRestarts(is.T(), client)
 	common.CheckInstallationInstallScript(is.T(), client)
 	is.testUninstall(client, "datadog-dogstatsd")
+}
+
+type installScriptSuiteSysVInit struct {
+	e2e.BaseSuite[environments.Host]
+}
+
+func (is *installScriptSuiteSysVInit) TestInstallAgent() {
+	containerName := "installation-target"
+	host := is.Env().RemoteHost
+	client := common.NewDockerTestClient(host, containerName)
+
+	err := client.RunContainer("public.ecr.aws/ubuntu/ubuntu:22.04_stable")
+	require.NoError(is.T(), err)
+	defer client.Cleanup()
+
+	// We need `curl` to download the script, and `sudo` because all the existing test helpers run commands
+	// through it.
+	_, err = client.ExecuteWithRetry("apt-get update && apt-get install -y curl sudo")
+	require.NoError(is.T(), err)
+
+	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(*flavor))
+
+	// We can't easily reuse the the helpers that assume everything runs directly on the host
+	// We run a few selected sanity checks here instead (sufficient for this platform anyway)
+	is.T().Run("datadog-agent service running", func(tt *testing.T) {
+		_, err := client.Execute("service datadog-agent status")
+		require.NoError(tt, err, "datadog-agent service should be running")
+	})
+	is.T().Run("status command no errors", func(tt *testing.T) {
+		statusOutput, err := client.ExecuteWithRetry("datadog-agent \"status\"")
+		require.NoError(is.T(), err)
+
+		// API Key is invalid we should not check for the following error
+		statusOutput = strings.ReplaceAll(statusOutput, "[ERROR] API Key is invalid", "API Key is invalid")
+		require.NotContains(tt, statusOutput, "ERROR")
+	})
 }

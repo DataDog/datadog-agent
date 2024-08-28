@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -64,7 +65,7 @@ type EBPFResolvers struct {
 }
 
 // NewEBPFResolvers creates a new instance of EBPFResolvers
-func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts, wmeta optional.Option[workloadmeta.Component]) (*EBPFResolvers, error) {
+func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts, wmeta optional.Option[workloadmeta.Component], telemetry telemetry.Component) (*EBPFResolvers, error) {
 	dentryResolver, err := dentry.NewResolver(config.Probe, statsdClient, eRPC)
 	if err != nil {
 		return nil, err
@@ -95,7 +96,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	if opts.TagsResolver != nil {
 		tagsResolver = opts.TagsResolver
 	} else {
-		tagsResolver = tags.NewResolver(config.Probe)
+		tagsResolver = tags.NewResolver(config.Probe, telemetry)
 	}
 
 	cgroupsResolver, err := cgroup.NewResolver(tagsResolver)
@@ -201,7 +202,9 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 
 	r.CGroupResolver.Start(ctx)
 	if r.SBOMResolver != nil {
-		r.SBOMResolver.Start(ctx)
+		if err := r.SBOMResolver.Start(ctx); err != nil {
+			return err
+		}
 	}
 
 	if err := r.UserSessionsResolver.Start(r.manager); err != nil {

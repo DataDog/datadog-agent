@@ -63,12 +63,12 @@ func TestIgnoreContainer(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			client := fake.MockedContainerdClient{
-				MockInfo: func(namespace string, ctn containerd.Container) (containerdcontainers.Container, error) {
+				MockInfo: func(string, containerd.Container) (containerdcontainers.Container, error) {
 					return containerdcontainers.Container{
 						Image: test.imgName,
 					}, nil
 				},
-				MockIsSandbox: func(namespace string, ctn containerd.Container) (bool, error) {
+				MockIsSandbox: func(string, containerd.Container) (bool, error) {
 					return test.isSandbox, nil
 				},
 			}

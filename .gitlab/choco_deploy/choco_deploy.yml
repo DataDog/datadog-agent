@@ -10,7 +10,7 @@ publish_choco_7_x64:
   variables:
     ARCH: "x64"
   before_script:
-    - $chocolateyApiKey = (aws ssm get-parameter --region us-east-1 --name $CHOCOLATEY_API_KEY_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
+    - $chocolateyApiKey=$(& "$CI_PROJECT_DIR\tools\ci\aws_ssm_get_wrapper.ps1" "$Env:CHOCOLATEY_API_KEY_SSM_NAME")
   script:
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
     - $ErrorActionPreference = "Stop"

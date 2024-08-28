@@ -18,6 +18,7 @@ import (
 	"github.com/acobaugh/osrelease"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/link"
 
@@ -139,8 +140,10 @@ func NewKernelVersion() (*Version, error) {
 	return kernelVersionCache.Version, err
 }
 
+const lsbRelease = "/etc/lsb-release"
+
 func newKernelVersion() (*Version, error) {
-	osReleasePaths := make([]string, 0, 2*3)
+	osReleasePaths := make([]string, 0, 2*3+1)
 
 	// First look at os-release files based on the `HOST_ROOT` env variable
 	if hostRoot := os.Getenv("HOST_ROOT"); hostRoot != "" {
@@ -170,6 +173,9 @@ func newKernelVersion() (*Version, error) {
 		osrelease.UsrLibOsRelease,
 		osrelease.EtcOsRelease,
 	)
+
+	// as a final fallback, we try to read /etc/lsb-release, useful for very old systems
+	osReleasePaths = append(osReleasePaths, lsbRelease)
 
 	kv, err := kernel.HostVersion()
 	if err != nil {
@@ -359,4 +365,10 @@ func (k *Version) HaveFentrySupport() bool {
 // SupportBPFSendSignal returns true if the eBPF function bpf_send_signal is available
 func (k *Version) SupportBPFSendSignal() bool {
 	return k.Code != 0 && k.Code >= Kernel5_3
+}
+
+// SupportCORE returns is CORE is supported
+func (k *Version) SupportCORE() bool {
+	_, err := btf.LoadKernelSpec()
+	return err == nil
 }

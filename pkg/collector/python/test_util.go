@@ -59,7 +59,7 @@ func testGetSubprocessOutputUnknownBin(t *testing.T) {
 	assert.Equal(t, "", C.GoString(cStdout))
 	assert.Equal(t, "", C.GoString(cStderr))
 	assert.Equal(t, C.int(0), cRetCode)
-	assert.Nil(t, exception)
+	assert.NotNil(t, exception)
 }
 
 func testGetSubprocessOutputError(t *testing.T) {

@@ -13,9 +13,11 @@ from tasks import (
     buildimages,
     cluster_agent,
     cluster_agent_cloudfoundry,
+    collector,
     components,
     coverage,
     cws_instrumentation,
+    debug,
     devcontainer,
     diff,
     docker_tasks,
@@ -30,6 +32,7 @@ from tasks import (
     gitlab_helpers,
     go_deps,
     installer,
+    invoke_unit_tests,
     kmt,
     linter,
     modules,
@@ -72,6 +75,7 @@ from tasks.go import (
     go_fix,
     internal_deps_checker,
     lint_licenses,
+    mod_diffs,
     reset,
     tidy,
     tidy_all,
@@ -87,11 +91,16 @@ from tasks.gotest import (
     send_unit_tests_stats,
     test,
 )
-from tasks.install_tasks import download_tools, install_devcontainer_cli, install_shellcheck, install_tools
+from tasks.install_tasks import (
+    download_tools,
+    install_devcontainer_cli,
+    install_protoc,
+    install_shellcheck,
+    install_tools,
+)
 from tasks.junit_tasks import junit_upload
 from tasks.libs.common.go_workspaces import handle_go_work
 from tasks.show_linters_issues.show_linters_issues import show_linters_issues
-from tasks.unit_tests import invoke_unit_tests
 from tasks.update_go import go_version, update_go
 from tasks.windows_resources import build_messagetable
 
@@ -118,10 +127,10 @@ ns.add_task(audit_tag_impact)
 ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
 ns.add_task(install_shellcheck)
+ns.add_task(install_protoc)
 ns.add_task(install_devcontainer_cli)
 ns.add_task(download_tools)
 ns.add_task(install_tools)
-ns.add_task(invoke_unit_tests)
 ns.add_task(check_mod_tidy)
 ns.add_task(check_go_mod_replaces)
 ns.add_task(check_otel_build)
@@ -138,6 +147,7 @@ ns.add_task(build_messagetable)
 ns.add_task(get_impacted_packages)
 ns.add_task(get_modified_packages)
 ns.add_task(send_unit_tests_stats)
+ns.add_task(mod_diffs)
 # To deprecate
 ns.add_task(lint_go)
 
@@ -189,6 +199,9 @@ ns.add_collection(modules)
 ns.add_collection(pre_commit)
 ns.add_collection(devcontainer)
 ns.add_collection(omnibus)
+ns.add_collection(collector)
+ns.add_collection(invoke_unit_tests)
+ns.add_collection(debug)
 ns.configure(
     {
         "run": {

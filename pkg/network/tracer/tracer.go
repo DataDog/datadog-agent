@@ -15,10 +15,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
 	"go4.org/intern"
 
@@ -34,9 +32,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	timeresolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
@@ -79,14 +77,13 @@ var tracerTelemetry = struct {
 
 // Tracer implements the functionality of the network tracer
 type Tracer struct {
-	config             *config.Config
-	state              network.State
-	conntracker        netlink.Conntracker
-	reverseDNS         dns.ReverseDNS
-	usmMonitor         *usm.Monitor
-	ebpfTracer         connection.Tracer
-	bpfErrorsCollector prometheus.Collector
-	lastCheck          *atomic.Int64
+	config      *config.Config
+	state       network.State
+	conntracker netlink.Conntracker
+	reverseDNS  dns.ReverseDNS
+	usmMonitor  *usm.Monitor
+	ebpfTracer  connection.Tracer
+	lastCheck   *atomic.Int64
 
 	bufferLock sync.Mutex
 
@@ -123,10 +120,6 @@ func NewTracer(config *config.Config, telemetryComponent telemetryComponent.Comp
 // newTracer is an internal function used by tests primarily
 // (and NewTracer above)
 func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Component) (_ *Tracer, reterr error) {
-	if _, err := tracefs.Root(); err != nil {
-		return nil, fmt.Errorf("system-probe unsupported: %s", err)
-	}
-
 	// check if current platform is using old kernel API because it affects what kprobe are we going to enable
 	currKernelVersion, err := kernel.HostVersion()
 	if err != nil {
@@ -141,12 +134,16 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 	}
 
 	if cfg.ServiceMonitoringEnabled {
-		if !http.Supported() {
-			errStr := fmt.Sprintf("Universal Service Monitoring (USM) requires a Linux kernel version of %s or higher. We detected %s", http.MinimumKernelVersion, currKernelVersion)
+		if err := usmconfig.CheckUSMSupported(cfg); err != nil {
+			// this is the case where USM is enabled and NPM is not enabled
+			// in config; we implicitly enable the network tracer module
+			// in system-probe if USM is enabled
 			if !cfg.NPMEnabled {
-				return nil, fmt.Errorf(errStr)
+				return nil, err
 			}
-			log.Warnf("%s. NPM is explicitly enabled, so system-probe will continue with only NPM features enabled.", errStr)
+
+			log.Warn(err)
+			log.Warnf("NPM is explicitly enabled, so system-probe will continue with only NPM features enabled")
 		}
 	}
 
@@ -162,12 +159,6 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 			tr.Stop()
 		}
 	}()
-
-	if tr.bpfErrorsCollector = ebpftelemetry.NewEBPFErrorsCollector(); tr.bpfErrorsCollector != nil {
-		telemetry.GetCompatComponent().RegisterCollector(tr.bpfErrorsCollector)
-	} else {
-		log.Debug("eBPF telemetry not supported")
-	}
 
 	tr.ebpfTracer, err = connection.NewTracer(cfg, telemetryComponent)
 	if err != nil {
@@ -219,6 +210,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 		cfg.MaxHTTPStatsBuffered,
 		cfg.MaxKafkaStatsBuffered,
 		cfg.MaxPostgresStatsBuffered,
+		cfg.MaxRedisStatsBuffered,
 		cfg.EnableNPMConnectionRollup,
 		cfg.EnableProcessEventMonitoring,
 	)
@@ -229,7 +221,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 // start starts the tracer. This function is present to separate
 // the creation from the start of the tracer for tests
 func (t *Tracer) start() error {
-	err := t.ebpfTracer.Start(t.storeClosedConnections)
+	err := t.ebpfTracer.Start(t.storeClosedConnection)
 	if err != nil {
 		t.Stop()
 		return fmt.Errorf("could not start ebpf tracer: %s", err)
@@ -251,30 +243,33 @@ func newConntracker(cfg *config.Config, telemetryComponent telemetryComponent.Co
 	var c netlink.Conntracker
 	var err error
 
-	ns, err := cfg.GetRootNetNs()
-	if err != nil {
-		log.Warnf("error fetching root net namespace, will not attempt to load nf_conntrack_netlink module: %s", err)
-	} else {
-		defer ns.Close()
-		if err = netlink.LoadNfConntrackKernelModule(ns); err != nil {
-			log.Warnf("failed to load conntrack kernel module, though it may already be loaded: %s", err)
+	if !cfg.EnableEbpfless {
+		ns, err := cfg.GetRootNetNs()
+		if err != nil {
+			log.Warnf("error fetching root net namespace, will not attempt to load nf_conntrack_netlink module: %s", err)
+		} else {
+			defer ns.Close()
+			if err = netlink.LoadNfConntrackKernelModule(ns); err != nil {
+				log.Warnf("failed to load conntrack kernel module, though it may already be loaded: %s", err)
+			}
 		}
-	}
-	if cfg.EnableEbpfConntracker {
-		if c, err = NewEBPFConntracker(cfg, telemetryComponent); err == nil {
-			return c, nil
+		if cfg.EnableEbpfConntracker {
+			if c, err = NewEBPFConntracker(cfg, telemetryComponent); err == nil {
+				return c, nil
+			}
+			log.Warnf("error initializing ebpf conntracker: %s", err)
+		} else {
+			log.Info("ebpf conntracker disabled")
 		}
-		log.Warnf("error initializing ebpf conntracker: %s", err)
-	} else {
-		log.Info("ebpf conntracker disabled")
+
+		log.Info("falling back to netlink conntracker")
 	}
 
-	log.Info("falling back to netlink conntracker")
 	if c, err = netlink.NewConntracker(cfg, telemetryComponent); err == nil {
 		return c, nil
 	}
 
-	if cfg.IgnoreConntrackInitFailure {
+	if errors.Is(err, netlink.ErrNotPermitted) || cfg.IgnoreConntrackInitFailure {
 		log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
 		return netlink.NewNoOpConntracker(), nil
 	}
@@ -297,37 +292,30 @@ func newReverseDNS(c *config.Config, telemetrycomp telemetryComponent.Component)
 	return rdns
 }
 
-// storeClosedConnections is triggered when:
+// storeClosedConnection is triggered when:
 // * the current closed connection batch fills up
 // * the client asks for the current connections
 // this function is responsible for storing the closed connections in the state and
 // matching failed connections to closed connections
-func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
-	var rejected int
-	for i := range connections {
-		cs := &connections[i]
-		cs.IsClosed = true
-		if t.shouldSkipConnection(cs) {
-			connections[rejected], connections[i] = connections[i], connections[rejected]
-			rejected++
-			tracerTelemetry.skippedConns.Inc(cs.Type.String())
-			continue
-		}
-
-		cs.IPTranslation = t.conntracker.GetTranslationForConn(*cs)
-		t.connVia(cs)
-		if cs.IPTranslation != nil {
-			t.conntracker.DeleteTranslation(*cs)
-		}
-
-		t.addProcessInfo(cs)
-
-		tracerTelemetry.closedConns.Inc(cs.Type.String())
-		t.ebpfTracer.GetFailedConnections().MatchFailedConn(cs)
+func (t *Tracer) storeClosedConnection(cs *network.ConnectionStats) {
+	cs.IsClosed = true
+	if t.shouldSkipConnection(cs) {
+		tracerTelemetry.skippedConns.IncWithTags(cs.Type.Tags())
+		return
 	}
 
-	connections = connections[rejected:]
-	t.state.StoreClosedConnections(connections)
+	cs.IPTranslation = t.conntracker.GetTranslationForConn(cs)
+	t.connVia(cs)
+	if cs.IPTranslation != nil {
+		t.conntracker.DeleteTranslation(cs)
+	}
+
+	t.addProcessInfo(cs)
+
+	tracerTelemetry.closedConns.IncWithTags(cs.Type.Tags())
+	t.ebpfTracer.GetFailedConnections().MatchFailedConn(cs)
+
+	t.state.StoreClosedConnection(cs)
 }
 
 func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
@@ -348,10 +336,8 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	}
 
 	if len(p.Tags) > 0 {
-		c.Tags = make(map[*intern.Value]struct{}, len(p.Tags))
-		for _, t := range p.Tags {
-			c.Tags[t] = struct{}{}
-		}
+		c.Tags = make([]*intern.Value, len(p.Tags))
+		copy(c.Tags, p.Tags)
 	}
 
 	if p.ContainerID != nil {
@@ -405,9 +391,6 @@ func (t *Tracer) Stop() {
 		t.processCache.Stop()
 		telemetry.GetCompatComponent().UnregisterCollector(t.processCache)
 	}
-	if t.bpfErrorsCollector != nil {
-		telemetry.GetCompatComponent().UnregisterCollector(t.bpfErrorsCollector)
-	}
 }
 
 // GetActiveConnections returns the delta for connection info from the last time it was called with the same clientID
@@ -451,6 +434,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	conns.HTTP2 = delta.HTTP2
 	conns.Kafka = delta.Kafka
 	conns.Postgres = delta.Postgres
+	conns.Redis = delta.Redis
 	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	conns.CompilationTelemetryByAsset = t.getRuntimeCompilationTelemetry()
 	conns.KernelHeaderFetchResult = int32(kernel.HeaderProvider.GetResult())
@@ -537,12 +521,12 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 			if c.Type == network.TCP {
 				tracerTelemetry.expiredTCPConns.Inc()
 			}
-			tracerTelemetry.closedConns.Inc(c.Type.String())
+			tracerTelemetry.closedConns.IncWithTags(c.Type.Tags())
 			return false
 		}
 
 		if t.shouldSkipConnection(c) {
-			tracerTelemetry.skippedConns.Inc(c.Type.String())
+			tracerTelemetry.skippedConns.IncWithTags(c.Type.Tags())
 			return false
 		}
 		return true
@@ -553,7 +537,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 
 	activeConnections = activeBuffer.Connections()
 	for i := range activeConnections {
-		activeConnections[i].IPTranslation = t.conntracker.GetTranslationForConn(activeConnections[i])
+		activeConnections[i].IPTranslation = t.conntracker.GetTranslationForConn(&activeConnections[i])
 		// do gateway resolution only on active connections outside
 		// the map iteration loop to not add to connections while
 		// iterating (leads to ever-increasing connections in the map,
@@ -606,7 +590,7 @@ func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 		}
 
 		// Delete conntrack entry for this connection
-		t.conntracker.DeleteTranslation(*entry)
+		t.conntracker.DeleteTranslation(entry)
 
 		// Append the connection key to the keys to remove from the userspace state
 		toRemove = append(toRemove, entry)
@@ -844,8 +828,7 @@ func (t *Tracer) DebugDumpProcessCache(_ context.Context) (interface{}, error) {
 }
 
 func newUSMMonitor(c *config.Config, tracer connection.Tracer) *usm.Monitor {
-	if !http.Supported() || !c.ServiceMonitoringEnabled {
-		// http.Supported is misleading, it should be named usm.Supported.
+	if !usmconfig.IsUSMSupportedAndEnabled(c) {
 		// If USM is not supported, or if USM is not enabled, we should not start the USM monitor.
 		return nil
 	}

@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,14 +29,14 @@ type EnvironmentService struct {
 var _ Service = &EnvironmentService{}
 
 // NewEnvironmentListener creates an EnvironmentListener
-func NewEnvironmentListener(Config) (ServiceListener, error) {
+func NewEnvironmentListener(Config, *telemetry.Store) (ServiceListener, error) {
 	return &EnvironmentListener{}, nil
 }
 
 // Listen starts the goroutine to detect checks based on environment
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (l *EnvironmentListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
+func (l *EnvironmentListener) Listen(newSvc chan<- Service, _ chan<- Service) {
 	l.newService = newSvc
 
 	// ATM we consider environment as a fixed space
@@ -73,14 +74,19 @@ func (l *EnvironmentListener) createServices() {
 	}
 }
 
+// Equal returns whether the two EnvironmentService are equal
+func (s *EnvironmentService) Equal(o Service) bool {
+	s2, ok := o.(*EnvironmentService)
+	if !ok {
+		return false
+	}
+
+	return s.adIdentifier == s2.adIdentifier
+}
+
 // GetServiceID returns the unique entity name linked to that service
 func (s *EnvironmentService) GetServiceID() string {
 	return s.adIdentifier
-}
-
-// GetTaggerEntity returns the tagger entity
-func (s *EnvironmentService) GetTaggerEntity() string {
-	return ""
 }
 
 // GetADIdentifiers return the single AD identifier for an environment service
@@ -119,27 +125,22 @@ func (s *EnvironmentService) IsReady(context.Context) bool {
 	return true
 }
 
-// GetCheckNames is not supported
-func (s *EnvironmentService) GetCheckNames(context.Context) []string {
-	return nil
-}
-
 // HasFilter is not supported
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (s *EnvironmentService) HasFilter(filter containers.FilterType) bool {
+func (s *EnvironmentService) HasFilter(_ containers.FilterType) bool {
 	return false
 }
 
 // GetExtraConfig is not supported
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (s *EnvironmentService) GetExtraConfig(key string) (string, error) {
+func (s *EnvironmentService) GetExtraConfig(_ string) (string, error) {
 	return "", ErrNotSupported
 }
 
 // FilterTemplates does nothing.
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func (s *EnvironmentService) FilterTemplates(configs map[string]integration.Config) {
+func (s *EnvironmentService) FilterTemplates(_ map[string]integration.Config) {
 }

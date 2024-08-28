@@ -9,7 +9,7 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/sirupsen/logrus"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

@@ -36,8 +36,10 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.dump_policies", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.direct_send_from_system_probe", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.compliance_module.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.on_demand.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.on_demand.rate_limiter.enabled", true)
 
 	cfg.SetDefault("runtime_security_config.windows_filename_cache_max", 16384)
 	cfg.SetDefault("runtime_security_config.windows_registry_cache_max", 4096)
@@ -61,7 +63,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_wait_list_timeout", "4500s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cgroup_differentiate_args", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.max_dumps_count", 100)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.output_directory", DefaultSecurityProfilesDir)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.output_directory", GetDefaultSecurityProfilesDir())
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.formats", []string{"profile"})
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.local_storage.compression", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.syscall_monitor.period", "60s")
@@ -75,11 +77,12 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// CWS - SBOM
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.workloads_cache_size", 10)
+	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.host.enabled", false)
 
 	// CWS - Security Profiles
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.max_image_tags", 20)
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.dir", DefaultSecurityProfilesDir)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.dir", GetDefaultSecurityProfilesDir())
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.watch_dir", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.cache_size", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.max_count", 400)

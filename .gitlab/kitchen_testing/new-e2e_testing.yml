@@ -2,13 +2,11 @@
   rules: !reference [.on_kitchen_tests] #TODO: Change when migration is complete to another name without 'kitchen'
   variables:
     AGENT_MAJOR_VERSION: 6
-  retry: 1
 
 .new-e2e_agent_a7:
   rules: !reference [.on_kitchen_tests] #TODO: Change when migration is complete to another name without 'kitchen'
   variables:
     AGENT_MAJOR_VERSION: 7
-  retry: 1
 
 .new-e2e_install_script:
   variables:
@@ -60,5 +58,5 @@
     TEAM: agent-delivery
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --arch $E2E_ARCH
   script:
-    - export DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.agent-linux-install-script.datadog_api_key)
+    - export DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $INSTALL_SCRIPT_API_KEY_SSM_NAME)
     - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS}

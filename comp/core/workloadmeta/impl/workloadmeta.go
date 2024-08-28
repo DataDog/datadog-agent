@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package workloadmeta
+package workloadmetaimpl
 
 import (
 	"context"
@@ -12,20 +12,16 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/fx"
-
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
-
-//TODO(components): remove fx from this package to follow the new component layout
 
 // store is a central storage of metadata about workloads. A workload is any
 // unit of work being done by a piece of software, like a process, a container,
@@ -51,10 +47,9 @@ type workloadmeta struct {
 	ongoingPulls    map[string]time.Time // collector ID => time when last pull started
 }
 
-type dependencies struct {
-	fx.In
-
-	Lc fx.Lifecycle
+// Dependencies defines the dependencies of the workloadmeta component.
+type Dependencies struct {
+	Lc compdef.Lifecycle
 
 	Log     log.Component
 	Config  config.Component
@@ -65,24 +60,13 @@ type dependencies struct {
 
 // Provider contains components provided by workloadmeta constructor.
 type Provider struct {
-	fx.Out
-
 	Comp          wmdef.Component
 	FlareProvider flaretypes.Provider
 	Endpoint      api.AgentEndpointProvider
 }
 
-// OptionalProvider contains components provided by workloadmeta optional constructor.
-type OptionalProvider struct {
-	fx.Out
-
-	Comp          optional.Option[wmdef.Component]
-	FlareProvider flaretypes.Provider
-	Endpoint      api.AgentEndpointProvider
-}
-
 // NewWorkloadMeta creates a new workloadmeta component.
-func NewWorkloadMeta(deps dependencies) Provider {
+func NewWorkloadMeta(deps Dependencies) Provider {
 	candidates := make(map[string]wmdef.Collector)
 	for _, c := range fxutil.GetAndFilterGroup(deps.Catalog) {
 		if (c.GetTargetCatalog() & deps.Params.AgentType) > 0 {
@@ -101,7 +85,7 @@ func NewWorkloadMeta(deps dependencies) Provider {
 		ongoingPulls: make(map[string]time.Time),
 	}
 
-	deps.Lc.Append(fx.Hook{OnStart: func(c context.Context) error {
+	deps.Lc.Append(compdef.Hook{OnStart: func(_ context.Context) error {
 
 		var err error
 
@@ -119,7 +103,7 @@ func NewWorkloadMeta(deps dependencies) Provider {
 		wm.start(mainCtx)
 		return nil
 	}})
-	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {
+	deps.Lc.Append(compdef.Hook{OnStop: func(context.Context) error {
 		// TODO(components): workloadmeta should probably be stopped cleanly
 		return nil
 	}})
@@ -131,23 +115,7 @@ func NewWorkloadMeta(deps dependencies) Provider {
 	}
 }
 
-// NewWorkloadMetaOptional creates a new optional workloadmeta component.
-func NewWorkloadMetaOptional(deps dependencies) OptionalProvider {
-	if deps.Params.NoInstance {
-		return OptionalProvider{
-			Comp: optional.NewNoneOption[wmdef.Component](),
-		}
-	}
-	c := NewWorkloadMeta(deps)
-
-	return OptionalProvider{
-		Comp:          optional.NewOption(c.Comp),
-		FlareProvider: c.FlareProvider,
-		Endpoint:      c.Endpoint,
-	}
-}
-
-func (wm *workloadmeta) writeResponse(w http.ResponseWriter, r *http.Request) {
+func (w *workloadmeta) writeResponse(writer http.ResponseWriter, r *http.Request) {
 	verbose := false
 	params := r.URL.Query()
 	if v, ok := params["verbose"]; ok {
@@ -156,12 +124,12 @@ func (wm *workloadmeta) writeResponse(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	response := wm.Dump(verbose)
+	response := w.Dump(verbose)
 	jsonDump, err := json.Marshal(response)
 	if err != nil {
-		utils.SetJSONError(w, wm.log.Errorf("Unable to marshal workload list response: %v", err), 500)
+		httputils.SetJSONError(writer, w.log.Errorf("Unable to marshal workload list response: %v", err), 500)
 		return
 	}
 
-	w.Write(jsonDump)
+	writer.Write(jsonDump)
 }

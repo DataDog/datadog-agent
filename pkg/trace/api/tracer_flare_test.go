@@ -165,7 +165,7 @@ func TestTracerFlareProxyHandler(t *testing.T) {
 	})
 
 	t.Run("invalid host", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {}))
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
 		defer srv.Close()
 
 		req, err := http.NewRequest(http.MethodPost, srv.URL, nil)

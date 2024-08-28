@@ -13,8 +13,12 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -26,13 +30,16 @@ func TestTagBuilder(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Supply(config.Params{}),
-		fx.Supply(logimpl.Params{}),
-		logimpl.MockModule(),
+		fx.Supply(log.Params{}),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
-	tagger := NewTagger(store)
+
+	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryStore := taggerTelemetry.NewStore(tel)
+	tagger := NewTagger(store, telemetryStore)
 	tagger.Start(context.Background())
 	defer tagger.Stop()
 

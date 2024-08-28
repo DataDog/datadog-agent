@@ -80,6 +80,8 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 
 	opts := demuxTestOptions()
 	mockSerializer := &MockSerializerIterableSerie{}
+	mockSerializer.On("AreSeriesEnabled").Return(true)
+	mockSerializer.On("AreSketchesEnabled").Return(true)
 	opts.EnableNoAggregationPipeline = true
 	deps := createDemultiplexerAgentTestDeps(t)
 	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.Compressor, "")

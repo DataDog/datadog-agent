@@ -9,6 +9,8 @@ import (
 	"bytes"
 	"io"
 
+	"github.com/gogo/protobuf/proto"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -18,10 +20,10 @@ import (
 
 type kafkaEncoder struct {
 	kafkaAggregationsBuilder *model.DataStreamsAggregationsBuilder
-	byConnection             *USMConnectionIndex[kafka.Key, *kafka.RequestStat]
+	byConnection             *USMConnectionIndex[kafka.Key, *kafka.RequestStats]
 }
 
-func newKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStat) *kafkaEncoder {
+func newKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStats) *kafkaEncoder {
 	if len(kafkaPayloads) == 0 {
 		return nil
 	}
@@ -51,21 +53,39 @@ func (e *kafkaEncoder) WriteKafkaAggregations(c network.ConnectionStats, builder
 	return staticTags
 }
 
-func (e *kafkaEncoder) encodeData(connectionData *USMConnectionData[kafka.Key, *kafka.RequestStat], w io.Writer) uint64 {
+func (e *kafkaEncoder) encodeData(connectionData *USMConnectionData[kafka.Key, *kafka.RequestStats], w io.Writer) uint64 {
 	var staticTags uint64
 	e.kafkaAggregationsBuilder.Reset(w)
 
 	for _, kv := range connectionData.Data {
 		key := kv.Key
 		stats := kv.Value
-		staticTags |= stats.StaticTags
 		e.kafkaAggregationsBuilder.AddKafkaAggregations(func(builder *model.KafkaAggregationBuilder) {
 			builder.SetHeader(func(header *model.KafkaRequestHeaderBuilder) {
 				header.SetRequest_type(uint32(key.RequestAPIKey))
 				header.SetRequest_version(uint32(key.RequestVersion))
 			})
 			builder.SetTopic(key.TopicName)
-			builder.SetCount(uint32(stats.Count))
+			for statusCode, requestStat := range stats.ErrorCodeToStat {
+				if requestStat.Count == 0 {
+					continue
+				}
+				builder.AddStatsByErrorCode(func(statsByErrorCodeBuilder *model.KafkaAggregation_StatsByErrorCodeEntryBuilder) {
+					statsByErrorCodeBuilder.SetKey(statusCode)
+					statsByErrorCodeBuilder.SetValue(func(kafkaStatsBuilder *model.KafkaStatsBuilder) {
+						kafkaStatsBuilder.SetCount(uint32(requestStat.Count))
+						if latencies := requestStat.Latencies; latencies != nil {
+							blob, _ := proto.Marshal(latencies.ToProto())
+							kafkaStatsBuilder.SetLatencies(func(b *bytes.Buffer) {
+								b.Write(blob)
+							})
+						} else {
+							kafkaStatsBuilder.SetFirstLatencySample(requestStat.FirstLatencySample)
+						}
+					})
+				})
+				staticTags |= requestStat.StaticTags
+			}
 		})
 	}
 	return staticTags

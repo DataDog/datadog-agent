@@ -19,18 +19,21 @@ import (
 
 func main() {
 	portPtr := flag.Int("port", 80, "fakeintake listening port, default to 80. Using -port=0 will use a random available port")
+	dddevForward := flag.Bool("dddev-forward", false, "Forward POST payloads to dddev, using the env variable DD_API_KEY as API key")
 	flag.Parse()
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
-
-	log.Println("⌛️ Starting fake intake")
 	ready := make(chan bool, 1)
-	fi := fakeintake.NewServer(
+	fiOptions := []fakeintake.Option{
 		fakeintake.WithPort(*portPtr),
 		fakeintake.WithReadyChannel(ready),
-		fakeintake.WithStoreDriver(os.Getenv("STORAGE_DRIVER")),
-	)
+	}
+	if *dddevForward {
+		fiOptions = append(fiOptions, fakeintake.WithDDDevForward())
+	}
+	log.Println("⌛️ Starting fake intake")
+	fi := fakeintake.NewServer(fiOptions...)
 	fi.Start()
 	timeout := time.NewTimer(5 * time.Second)
 

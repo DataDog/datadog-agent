@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/dogstatsd/subcommands/start"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"

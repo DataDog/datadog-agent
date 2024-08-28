@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -34,6 +35,7 @@ const (
 	processSource        = workloadmetaCollectorName + "-" + string(workloadmeta.KindProcess)
 	hostSource           = workloadmetaCollectorName + "-" + string(workloadmeta.KindHost)
 	kubeMetadataSource   = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesMetadata)
+	deploymentSource     = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesDeployment)
 
 	clusterTagNamePrefix = "kube_cluster_name"
 )
@@ -55,19 +57,16 @@ type WorkloadMetaCollector struct {
 	containerEnvAsTags    map[string]string
 	containerLabelsAsTags map[string]string
 
-	staticTags             map[string]string
-	labelsAsTags           map[string]string
-	annotationsAsTags      map[string]string
-	nsLabelsAsTags         map[string]string
-	nsAnnotationsAsTags    map[string]string
-	globLabels             map[string]glob.Glob
-	globAnnotations        map[string]glob.Glob
-	globNsLabels           map[string]glob.Glob
-	globNsAnnotations      map[string]glob.Glob
-	globContainerLabels    map[string]glob.Glob
-	globContainerEnvLabels map[string]glob.Glob
+	staticTags                    map[string]string
+	k8sResourcesAnnotationsAsTags map[string]map[string]string
+	k8sResourcesLabelsAsTags      map[string]map[string]string
+	globContainerLabels           map[string]glob.Glob
+	globContainerEnvLabels        map[string]glob.Glob
+	globK8sResourcesAnnotations   map[string]map[string]glob.Glob
+	globK8sResourcesLabels        map[string]map[string]glob.Glob
 
-	collectEC2ResourceTags bool
+	collectEC2ResourceTags            bool
+	collectPersistentVolumeClaimsTags bool
 }
 
 func (c *WorkloadMetaCollector) initContainerMetaAsTags(labelsAsTags, envAsTags map[string]string) {
@@ -75,11 +74,19 @@ func (c *WorkloadMetaCollector) initContainerMetaAsTags(labelsAsTags, envAsTags 
 	c.containerEnvAsTags, c.globContainerEnvLabels = k8smetadata.InitMetadataAsTags(envAsTags)
 }
 
-func (c *WorkloadMetaCollector) initPodMetaAsTags(labelsAsTags, annotationsAsTags, nsLabelsAsTags, nsAnnotationsAsTags map[string]string) {
-	c.labelsAsTags, c.globLabels = k8smetadata.InitMetadataAsTags(labelsAsTags)
-	c.annotationsAsTags, c.globAnnotations = k8smetadata.InitMetadataAsTags(annotationsAsTags)
-	c.nsLabelsAsTags, c.globNsLabels = k8smetadata.InitMetadataAsTags(nsLabelsAsTags)
-	c.nsAnnotationsAsTags, c.globNsAnnotations = k8smetadata.InitMetadataAsTags(nsAnnotationsAsTags)
+func (c *WorkloadMetaCollector) initK8sResourcesMetaAsTags(resourcesLabelsAsTags, resourcesAnnotationsAsTags map[string]map[string]string) {
+	c.k8sResourcesAnnotationsAsTags = map[string]map[string]string{}
+	c.k8sResourcesLabelsAsTags = map[string]map[string]string{}
+	c.globK8sResourcesAnnotations = map[string]map[string]glob.Glob{}
+	c.globK8sResourcesLabels = map[string]map[string]glob.Glob{}
+
+	for resource, labelsAsTags := range resourcesLabelsAsTags {
+		c.k8sResourcesLabelsAsTags[resource], c.globK8sResourcesLabels[resource] = k8smetadata.InitMetadataAsTags(labelsAsTags)
+	}
+
+	for resource, annotationsAsTags := range resourcesAnnotationsAsTags {
+		c.k8sResourcesAnnotationsAsTags[resource], c.globK8sResourcesAnnotations[resource] = k8smetadata.InitMetadataAsTags(annotationsAsTags)
+	}
 }
 
 // Run runs the continuous event watching loop and sends new tags to the
@@ -159,10 +166,11 @@ func (c *WorkloadMetaCollector) stream(ctx context.Context) {
 // NewWorkloadMetaCollector returns a new WorkloadMetaCollector.
 func NewWorkloadMetaCollector(_ context.Context, store workloadmeta.Component, p processor) *WorkloadMetaCollector {
 	c := &WorkloadMetaCollector{
-		tagProcessor:           p,
-		store:                  store,
-		children:               make(map[string]map[string]struct{}),
-		collectEC2ResourceTags: config.Datadog().GetBool("ecs_collect_resource_tags_ec2"),
+		tagProcessor:                      p,
+		store:                             store,
+		children:                          make(map[string]map[string]struct{}),
+		collectEC2ResourceTags:            config.Datadog().GetBool("ecs_collect_resource_tags_ec2"),
+		collectPersistentVolumeClaimsTags: config.Datadog().GetBool("kubernetes_persistent_volume_claims_as_tags"),
 	}
 
 	containerLabelsAsTags := mergeMaps(
@@ -176,11 +184,9 @@ func NewWorkloadMetaCollector(_ context.Context, store workloadmeta.Component, p
 	)
 	c.initContainerMetaAsTags(containerLabelsAsTags, containerEnvAsTags)
 
-	labelsAsTags := config.Datadog().GetStringMapString("kubernetes_pod_labels_as_tags")
-	annotationsAsTags := config.Datadog().GetStringMapString("kubernetes_pod_annotations_as_tags")
-	nsLabelsAsTags := config.Datadog().GetStringMapString("kubernetes_namespace_labels_as_tags")
-	nsAnnotationsAsTags := config.Datadog().GetStringMapString("kubernetes_namespace_annotations_as_tags")
-	c.initPodMetaAsTags(labelsAsTags, annotationsAsTags, nsLabelsAsTags, nsAnnotationsAsTags)
+	// kubernetes resources metadata as tags
+	metadataAsTags := configutils.GetMetadataAsTags(config.Datadog())
+	c.initK8sResourcesMetaAsTags(metadataAsTags.GetResourcesLabelsAsTags(), metadataAsTags.GetResourcesAnnotationsAsTags())
 
 	return c
 }
