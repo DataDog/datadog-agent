@@ -386,6 +386,7 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
+        "pkg/dynamicinstrumentation/codegen/compile.go": "dynamicinstrumentation",
     }
 
     nw.rule(
@@ -494,6 +495,7 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/ebpf/types.go": [
                 "pkg/ebpf/c/lock_contention.h",
             ],
+
         }
         nw.rule(
             name="godefs",

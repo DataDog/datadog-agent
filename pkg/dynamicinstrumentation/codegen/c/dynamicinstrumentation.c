@@ -1,8 +1,8 @@
 #include "bpf_helpers.h"
 #include "bpf_tracing.h"
 
-#define MAX_STRING_SIZE {{.Probe.InstrumentationInfo.InstrumentationOptions.StringMaxSize}}
-#define PARAM_BUFFER_SIZE {{.Probe.InstrumentationInfo.InstrumentationOptions.ArgumentsMaxSize}}
+#define MAX_STRING_SIZE {{ .InstrumentationInfo.InstrumentationOptions.StringMaxSize}}
+#define PARAM_BUFFER_SIZE {{ .InstrumentationInfo.InstrumentationOptions.ArgumentsMaxSize}}
 #define STACK_DEPTH_LIMIT 10
 #define MAX_SLICE_SIZE 1800
 #define MAX_SLICE_LENGTH 20
@@ -30,10 +30,10 @@ struct event {
     char output[PARAM_BUFFER_SIZE];
 };
 
-SEC("uprobe/{{.Probe.GetBPFFuncName}}")
-int {{.Probe.GetBPFFuncName}}(struct pt_regs *ctx)
+SEC("uprobe/{{.GetBPFFuncName}}")
+int {{.GetBPFFuncName}}(struct pt_regs *ctx)
 {
-    bpf_printk("{{.Probe.GetBPFFuncName}} probe in {{.Probe.ServiceName}} has triggered");
+    bpf_printk("{{.GetBPFFuncName}} probe in {{.ServiceName}} has triggered");
 
     // reserve space on ringbuffer
     struct event *event;
@@ -47,7 +47,7 @@ int {{.Probe.GetBPFFuncName}}(struct pt_regs *ctx)
     __u32 key = 0;
     zero_string = bpf_map_lookup_elem(&zeroval, &key);
     if (!zero_string) {
-        bpf_printk("couldn't lookup zero value in zeroval array map, dropping event for {{.Probe.GetBPFFuncName}}");
+        bpf_printk("couldn't lookup zero value in zeroval array map, dropping event for {{.GetBPFFuncName}}");
         bpf_ringbuf_discard(event, 0);
         return 0;
     }
@@ -56,7 +56,7 @@ int {{.Probe.GetBPFFuncName}}(struct pt_regs *ctx)
     bpf_probe_read(&event->program_counters, sizeof(event->program_counters), zero_string);
     bpf_probe_read(&event->output, sizeof(event->output), zero_string);
 
-    bpf_probe_read(&event->probe_id, {{ .Probe.ID | len }}, "{{.Probe.ID}}");
+    bpf_probe_read(&event->probe_id, {{ .ID | len }}, "{{.ID}}");
 
     // Get tid and tgid
     u64 pidtgid = bpf_get_current_pid_tgid();
@@ -93,7 +93,7 @@ int {{.Probe.GetBPFFuncName}}(struct pt_regs *ctx)
 
     int outputOffset = 0;
 
-    {{ .PopulatedParameterText }}
+    {{ .InstrumentationInfo.BPFParametersSourceCode }}
 
     bpf_ringbuf_submit(event, 0);
 

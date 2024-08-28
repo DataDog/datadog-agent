@@ -26,7 +26,7 @@ var DynamicInstrumentation = module.Factory{
 	Name:             config.DynamicInstrumentationModule,
 	ConfigNamespaces: []string{},
 	Fn: func(agentConfiguration *sysconfigtypes.Config, _ workloadmeta.Component, _ telemetry.Component) (module.Module, error) {
-		config, err := dynamicinstrumentation.NewConfig(agentConfiguration)
+		config, err := dimod.NewConfig(agentConfiguration)
 		if err != nil {
 			return nil, fmt.Errorf("invalid dynamic instrumentation module configuration: %w", err)
 		}

@@ -131,7 +131,7 @@ func (cm *RCConfigManager) installConfigProbe(procInfo *ditypes.ProcessInfo) err
 		return fmt.Errorf("could not analyze binary for config probe: %w", err)
 	}
 
-	err = codegen.GenerateBPFProgram(procInfo, configProbe)
+	err = codegen.GenerateBPFParamsCode(procInfo, configProbe)
 	if err != nil {
 		return fmt.Errorf("could not generate bpf code for config probe: %w", err)
 	}
@@ -244,7 +244,7 @@ func applyConfigUpdate(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) {
 	}
 
 generateCompileAttach:
-	err = codegen.GenerateBPFProgram(procInfo, probe)
+	err = codegen.GenerateBPFParamsCode(procInfo, probe)
 	if err != nil {
 		log.Info("Couldn't generate BPF programs", err)
 		return

@@ -8,18 +8,17 @@
 package ebpf
 
 import (
-	"bytes"
-	"context"
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diagnostics"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -79,13 +78,7 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 		return fmt.Errorf("could not open proc executable for attaching bpf probe: %w", err)
 	}
 
-	bpfReader, err := os.Open(probe.InstrumentationInfo.BPFObjectFilePath)
-	if err != nil {
-		diagnostics.Diagnostics.SetError(procInfo.ServiceName, procInfo.RuntimeID, probe.ID, "ATTACH_ERROR", err.Error())
-		return fmt.Errorf("could not open bpf executable for instrumenting bpf probe: %w", err)
-	}
-
-	spec, err := ebpf.LoadCollectionSpecFromReader(bpfReader)
+	spec, err := ebpf.LoadCollectionSpecFromReader(probe.InstrumentationInfo.BPFObjectFileReader)
 	if err != nil {
 		diagnostics.Diagnostics.SetError(procInfo.ServiceName, procInfo.RuntimeID, probe.ID, "ATTACH_ERROR", err.Error())
 		return fmt.Errorf("could not create bpf collection for probe %s: %w", probe.ID, err)
@@ -167,112 +160,40 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 
 // CompileBPFProgram compiles the code for a single probe associated with the process given by procInfo
 func CompileBPFProgram(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error {
-	tempDirPath, err := os.MkdirTemp(globalTempDirPath, "run-*")
+	f := func(in io.Reader, out io.Writer) error {
+		fileContents, err := io.ReadAll(in)
+		if err != nil {
+			return err
+		}
+		programTemplate, err := template.New("program_template").Parse(string(fileContents))
+		if err != nil {
+			return err
+		}
+
+		err = programTemplate.Execute(out, probe)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	cfg := ddebpf.NewConfig()
+	compiledOutput, err := runtime.Dynamicinstrumentation.CompileWithCallback(cfg, getCFlags(cfg), nil, f)
 	if err != nil {
 		return err
 	}
-
-	bpfSourceFile, err := os.CreateTemp(tempDirPath, "*.bpf.c")
-	if err != nil {
-		diagnostics.Diagnostics.SetError(procInfo.ServiceName, procInfo.RuntimeID, probe.ID, "COMPILE_ERROR", err.Error())
-		return fmt.Errorf("couldn't create temp file for bpf code of probe %s: %s", probe.ID, err)
-	}
-	defer bpfSourceFile.Close()
-
-	_, err = bpfSourceFile.WriteString(probe.InstrumentationInfo.BPFSourceCode)
-	if err != nil {
-		diagnostics.Diagnostics.SetError(procInfo.ServiceName, procInfo.RuntimeID, probe.ID, "COMPILE_ERROR", err.Error())
-		return fmt.Errorf("couldn't write to temp file for bpf code of probe %s: %s", probe.ID, err)
-	}
-
-	objFilePath := filepath.Join(tempDirPath, fmt.Sprintf("%d-%s-go-di.bpf.o", procInfo.PID, probe.ID))
-	cFlags := []string{
-		"-O2",
-		"-g",
-		"--target=bpf",
-		fmt.Sprintf("-I%s", globalHeadersPath),
-		"-o",
-		objFilePath,
-	}
-
-	// cfg := ddebpf.NewConfig()
-	// opts := kernel.HeaderOptions{
-	// 	DownloadEnabled: cfg.EnableKernelHeaderDownload,
-	// 	Dirs:            cfg.KernelHeadersDirs,
-	// 	DownloadDir:     cfg.KernelHeadersDownloadDir,
-	// 	AptConfigDir:    cfg.AptConfigDir,
-	// 	YumReposDir:     cfg.YumReposDir,
-	// 	ZypperReposDir:  cfg.ZypperReposDir,
-	// }
-	// kernelHeaders := kernel.GetKernelHeaders(opts, nil)
-	// if len(kernelHeaders) == 0 {
-	// 	return fmt.Errorf("unable to find kernel headers!!")
-	// }
-
-	// err = compiler.CompileToObjectFile(bpfSourceFile.Name(), objFilePath, cFlags, []string{})
-	err = clang(cFlags, bpfSourceFile.Name(), withStdout(os.Stdout))
-	if err != nil {
-		diagnostics.Diagnostics.SetError(procInfo.ServiceName, procInfo.RuntimeID, probe.ID, "COMPILE_ERROR", err.Error())
-		return fmt.Errorf("couldn't compile BPF object for probe %s: %s", probe.ID, err)
-	}
-
-	probe.InstrumentationInfo.BPFObjectFilePath = objFilePath
-
+	probe.InstrumentationInfo.BPFObjectFileReader = compiledOutput
 	return nil
 }
 
-var (
-	clangBinPath = getClangPath()
-)
+func getCFlags(config *ddebpf.Config) []string {
+	cflags := []string{"-g"}
+	if config.BPFDebug {
+		cflags = append(cflags, "-DDEBUG=1")
+	}
+	return cflags
+}
 
 const (
 	compilationStepTimeout = 60 * time.Second
 )
-
-func clang(cflags []string, inputFile string, options ...func(*exec.Cmd)) error {
-	var clangErr bytes.Buffer
-
-	clangCtx, clangCancel := context.WithTimeout(context.Background(), compilationStepTimeout)
-	defer clangCancel()
-
-	cflags = append(cflags, "-c")
-	cflags = append(cflags, inputFile)
-
-	compileToBC := exec.CommandContext(clangCtx, clangBinPath, cflags...)
-	for _, opt := range options {
-		opt(compileToBC)
-	}
-	compileToBC.Stderr = &clangErr
-
-	err := compileToBC.Run()
-	if err != nil {
-		var errMsg string
-		if clangCtx.Err() == context.DeadlineExceeded {
-			errMsg = "operation timed out"
-		} else if len(clangErr.String()) > 0 {
-			errMsg = clangErr.String()
-		} else {
-			errMsg = err.Error()
-		}
-		return fmt.Errorf("clang: %s", errMsg)
-	}
-
-	if len(clangErr.String()) > 0 {
-		return fmt.Errorf("%s", clangErr.String())
-	}
-	return nil
-}
-
-func withStdout(out io.Writer) func(*exec.Cmd) {
-	return func(c *exec.Cmd) {
-		c.Stdout = out
-	}
-}
-
-func getClangPath() string {
-	clangPath := os.Getenv("CLANG_PATH")
-	if clangPath == "" {
-		clangPath = "/opt/datadog-agent/embedded/bin/clang-bpf"
-	}
-	return clangPath
-}

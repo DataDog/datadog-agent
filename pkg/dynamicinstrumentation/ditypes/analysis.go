@@ -93,3 +93,11 @@ type LowPCEntry struct {
 	LowPC uint64
 	Entry *dwarf.Entry
 }
+
+// BPFProgram represents a bpf program that's created for a single probe
+type BPFProgram struct {
+	ProgramText string
+
+	// Used for bpf code generation
+	Probe *Probe
+}

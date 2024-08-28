@@ -2,13 +2,5 @@
 
 package codegen
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
-)
-
-//go:generate $GOPATH/bin/include_headers pkg/dynamicinstrumentation/codegen/c/template.c pkg/ebpf/bytecode/build/runtime/dynamicinstrumentation_template.c pkg/ebpf/c
-
-func getRuntimeCompileDI(config *config.Config) (runtime.CompiledOutput, error) {
-	return nil, nil
-}
+//go:generate $GOPATH/bin/include_headers pkg/dynamicinstrumentation/codegen/c/dynamicinstrumentation.c pkg/ebpf/bytecode/build/runtime/dynamicinstrumentation_template.c pkg/ebpf/c
+//go:generate $GOPATH/bin/integrity pkg/dynamicinstrumentation/codegen/c/dynamicinstrumentation.c pkg/ebpf/bytecode/runtime/dynamicinstrumentation.go runtime

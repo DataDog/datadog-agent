@@ -10,6 +10,7 @@ package ditypes
 import (
 	"debug/dwarf"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 
@@ -235,11 +236,14 @@ type FieldIdentifier struct {
 type InstrumentationInfo struct {
 	InstrumentationOptions *InstrumentationOptions
 
+	// BPFParametersSourceCode is the source code needed for capturing parameters via this probe
+	BPFParametersSourceCode string
+
 	// BPFSourceCode is the source code of the BPF program attached via this probe
 	BPFSourceCode string
 
-	// BPFObjectFilePath is the path to the compiled BPF program attached via this probe
-	BPFObjectFilePath string
+	// BPFObjectFileReader is the compiled BPF program attached via this probe
+	BPFObjectFileReader io.ReaderAt
 
 	ConfigurationHash string
 

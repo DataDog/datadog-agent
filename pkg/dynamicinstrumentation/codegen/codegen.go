@@ -19,31 +19,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 )
 
-// BPFProgram represents a bpf program that's created for a single probe
-type BPFProgram struct {
-	ProgramText string
-
-	// Used for bpf code generation
-	Probe                  *ditypes.Probe
-	PopulatedParameterText string
-}
-
-// GenerateBPFProgram generates the source code associated with the probe and data
+// GenerateBPFParamsCode generates the source code associated with the probe and data
 // in it's associated process info.
-func GenerateBPFProgram(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error {
-	prog := &BPFProgram{
-		Probe: probe,
-	}
-
-	programTemplate, err := template.New("program_template").Parse(programTemplateText)
-	if err != nil {
-		return err
-	}
-
+func GenerateBPFParamsCode(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error {
+	parametersText := ""
 	if probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters {
 		params := applyCaptureDepth(procInfo.TypeMap.Functions[probe.FuncName], probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth)
 		applyFieldCountLimit(params)
-		parametersText := ""
 		for i := range params {
 			flattenedParams := flattenParameters([]ditypes.Parameter{params[i]})
 
@@ -59,23 +41,14 @@ func GenerateBPFProgram(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) err
 			}
 			parametersText += valueText
 		}
-
-		prog.PopulatedParameterText = parametersText
 	} else {
 		log.Info("Not capturing parameters")
 	}
-
-	buf := new(bytes.Buffer)
-	err = programTemplate.Execute(buf, prog)
-	if err != nil {
-		return err
-	}
-
-	log.Debug(buf.String())
-	probe.InstrumentationInfo.BPFSourceCode = buf.String()
-
+	probe.InstrumentationInfo.BPFParametersSourceCode = parametersText
 	return nil
 }
+
+func GenerateBPFSourceCode() {}
 
 func resolveHeaderTemplate(param *ditypes.Parameter) (*template.Template, error) {
 	switch param.Kind {
