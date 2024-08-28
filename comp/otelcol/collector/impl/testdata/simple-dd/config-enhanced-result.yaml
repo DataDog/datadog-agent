@@ -93,7 +93,7 @@ exporters:
       trace_buffer: 0
     write_buffer_size: 0
 extensions:
-  datadog/dd-autoconfigured:
+  ddflare/dd-autoconfigured:
     auth: null
     compression_algorithms: []
     configstore: {}
@@ -188,7 +188,7 @@ receivers:
           scrape_timeout: 5s
           static_configs:
             - targets:
-              - 0.0.0.0:8888
+                - 0.0.0.0:8888
           track_timestamps_staleness: false
     report_extra_scrape_metrics: false
     start_time_metric_regex: ""
@@ -200,7 +200,7 @@ service:
     - pprof/dd-autoconfigured
     - zpages/dd-autoconfigured
     - health_check/dd-autoconfigured
-    - datadog/dd-autoconfigured
+    - ddflare/dd-autoconfigured
   pipelines:
     logs:
       exporters:

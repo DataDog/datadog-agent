@@ -27,7 +27,7 @@ import (
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/def"
-	ddextension "github.com/DataDog/datadog-agent/comp/otelcol/extension/impl"
+	ddextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"

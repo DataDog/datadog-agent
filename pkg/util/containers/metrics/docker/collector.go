@@ -19,7 +19,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -53,7 +53,7 @@ type dockerCollector struct {
 func newDockerCollector(cache *provider.Cache, wmeta optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
 	var collectorMetadata provider.CollectorMetadata
 
-	if !config.IsFeaturePresent(config.Docker) {
+	if !env.IsFeaturePresent(env.Docker) {
 		return collectorMetadata, provider.ErrPermaFail
 	}
 

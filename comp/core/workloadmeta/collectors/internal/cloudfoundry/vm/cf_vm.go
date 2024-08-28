@@ -16,6 +16,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -58,7 +59,7 @@ func GetFxOptions() fx.Option {
 }
 
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
-	if !config.IsFeaturePresent(config.CloudFoundry) {
+	if !env.IsFeaturePresent(env.CloudFoundry) {
 		return errors.NewDisabled(componentName, "Agent is not running on CloudFoundry")
 	}
 
