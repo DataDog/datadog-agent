@@ -166,23 +166,15 @@ func newSenderImpl(
 	logComp log.Component,
 	client client) (sender, error) {
 
-	// Form Agent Telemetry endpoint URL
-	// We cannot use utils.GetMainEndpoint() function call with "dd_url" parameters directly,
-	// at this point, just as other Agent components are used for forwarding data to Datadog
-	// for a number of reasons. Accordingly, "site" configuration is required to be used at
-	// this time. This will fail for an explicit proxy relying on dd_url configuration. In
-	// future it will be addressed either at intake or at the Agent level (APM Telemetry e.g.
-	// is required to use "apm_config.telemetry.dd_url").
-	//
-	// On related note "sending" part of the sender will be moved to "DefaultForwarder"
+	// "Sending" part of the sender will be moved to EP Forwarder in the future to be able
 	// to support retry, caching, URL management, API key rotation at runtime, flush to
-	// disk, backoff logic, etc.
-	site := cfgComp.GetString("site")
-	if len(site) == 0 {
-		return nil, fmt.Errorf("site is not set in the configuration")
-	}
-	prefixedSite := utils.BuildURLWithPrefix(telemetryEndpointPrefix, site)
-	endpointURL, err := url.JoinPath(prefixedSite, "/api/v2/apmtelemetry")
+	// disk, backoff logic, etc. Specifically, different types of data need to be sent using
+	// different types of EP Forwarder Pipelines (separate entries for passthroughPipelineDesc
+	// array).
+
+	// build endpoint URL
+	endpointHost := utils.GetMainEndpoint(cfgComp, telemetryEndpointPrefix, "agent_telemetry.dd_url")
+	endpointURL, err := url.JoinPath(endpointHost, "/api/v2/apmtelemetry")
 	if err != nil {
 		return nil, fmt.Errorf("failed to form agent telemetry endpoint URL from configuration: %v", err)
 	}

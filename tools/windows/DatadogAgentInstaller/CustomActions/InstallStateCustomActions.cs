@@ -295,13 +295,11 @@ namespace Datadog.CustomActions
             _session.Log($"DDDriverRollback_Procmon: {_session["DDDRIVERROLLBACK_PROCMON"]}");
         }
 
-        [CustomAction]
         public static ActionResult ReadInstallState(Session session)
         {
             return new InstallStateCustomActions(new SessionWrapper(session)).ReadInstallState();
         }
 
-        [CustomAction]
         public static ActionResult ReadWindowsVersion(Session session)
         {
             new InstallStateCustomActions(new SessionWrapper(session)).GetWindowsBuildVersion();
@@ -343,7 +341,6 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        [CustomAction]
         public static ActionResult WriteInstallState(Session session)
         {
             return new InstallStateCustomActions(new SessionWrapper(session)).WriteInstallState();
@@ -397,7 +394,6 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        [CustomAction]
         public static ActionResult UninstallWriteInstallState(Session session)
         {
             return new InstallStateCustomActions(new SessionWrapper(session)).UninstallWriteInstallState();

@@ -222,6 +222,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	}
 	path.Source.ContainerID = ptest.Pathtest.SourceContainerID
 	path.Namespace = s.networkDevicesNamespace
+	path.Origin = payload.PathOriginNetworkTraffic
 
 	s.sendTelemetry(path, startTime, ptest)
 
@@ -267,6 +268,7 @@ func (s *npCollectorImpl) flushLoop() {
 		// automatic flush sequence
 		case flushTime := <-flushTicker.C:
 			s.flushWrapper(flushTime, lastFlushTime)
+			lastFlushTime = flushTime
 		}
 	}
 }
@@ -277,7 +279,6 @@ func (s *npCollectorImpl) flushWrapper(flushTime time.Time, lastFlushTime time.T
 		flushInterval := flushTime.Sub(lastFlushTime)
 		s.statsdClient.Gauge("datadog.network_path.collector.flush_interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
 	}
-	lastFlushTime = flushTime
 
 	s.flush()
 	s.statsdClient.Gauge("datadog.network_path.collector.flush_duration", s.TimeNowFn().Sub(flushTime).Seconds(), []string{}, 1) //nolint:errcheck
@@ -307,7 +308,6 @@ func (s *npCollectorImpl) sendTelemetry(path payload.NetworkPath, startTime time
 	telemetry.SubmitNetworkPathTelemetry(
 		s.metricSender,
 		path,
-		telemetry.CollectorTypeNetworkPathCollector,
 		checkDuration,
 		checkInterval,
 		[]string{},

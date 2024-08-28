@@ -344,7 +344,12 @@ func (t *Tailer) forwardMessages() {
 		origin := message.NewOrigin(t.file.Source.UnderlyingSource())
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
-		origin.SetTags(append(t.tags, t.tagProvider.GetTags()...))
+
+		tags := make([]string, len(t.tags))
+		copy(tags, t.tags)
+		tags = append(tags, t.tagProvider.GetTags()...)
+		tags = append(tags, output.ParsingExtra.Tags...)
+		origin.SetTags(tags)
 		// Ignore empty lines once the registry offset is updated
 		if len(output.GetContent()) == 0 {
 			continue

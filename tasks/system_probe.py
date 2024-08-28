@@ -947,6 +947,7 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
             "gotls_server",
             "grpc_external_server",
             "prefetch_file",
+            "fake_server",
         ]:
             src_file_path = os.path.join(pkg, f"{gobin}.go")
             if not is_windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):

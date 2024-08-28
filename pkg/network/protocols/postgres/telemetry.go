@@ -10,6 +10,7 @@ package postgres
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -19,11 +20,6 @@ const (
 	numberOfBuckets                         = 10
 	bucketLength                            = 15
 	numberOfBucketsSmallerThanMaxBufferSize = 3
-	// firstBucketLowerBoundary is the lower boundary of the first bucket.
-	// We add 1 in order to include BufferSize as the upper boundary of the third bucket.
-	// Then the first three buckets will include query lengths shorter or equal to BufferSize,
-	// and the rest will include sizes equal to or above the buffer size.
-	firstBucketLowerBoundary = ebpf.BufferSize - numberOfBucketsSmallerThanMaxBufferSize*bucketLength + 1
 )
 
 // Telemetry is a struct to hold the telemetry for the postgres protocol
@@ -36,6 +32,11 @@ type Telemetry struct {
 	failedTableNameExtraction *libtelemetry.Counter
 	// failedOperationExtraction holds the counter for the failed operation extraction
 	failedOperationExtraction *libtelemetry.Counter
+	// firstBucketLowerBoundary is the lower boundary of the first bucket.
+	// We add 1 in order to include BufferSize as the upper boundary of the third bucket.
+	// Then the first three buckets will include query lengths shorter or equal to BufferSize,
+	// and the rest will include sizes equal to or above the buffer size.
+	firstBucketLowerBoundary int
 }
 
 // createQueryLengthBuckets initializes the query length buckets
@@ -59,20 +60,27 @@ func createQueryLengthBuckets(metricGroup *libtelemetry.MetricGroup) [numberOfBu
 }
 
 // NewTelemetry creates a new Telemetry
-func NewTelemetry() *Telemetry {
+func NewTelemetry(cfg *config.Config) *Telemetry {
 	metricGroup := libtelemetry.NewMetricGroup("usm.postgres")
+
+	firstBucketLowerBoundary := cfg.MaxPostgresTelemetryBuffer - numberOfBucketsSmallerThanMaxBufferSize*bucketLength + 1
+	if firstBucketLowerBoundary < 0 {
+		log.Warnf("The first bucket lower boundary is negative: %d", firstBucketLowerBoundary)
+		firstBucketLowerBoundary = ebpf.BufferSize - numberOfBucketsSmallerThanMaxBufferSize*bucketLength + 1
+	}
 
 	return &Telemetry{
 		metricGroup:               metricGroup,
 		queryLengthBuckets:        createQueryLengthBuckets(metricGroup),
 		failedTableNameExtraction: metricGroup.NewCounter("failed_table_name_extraction", libtelemetry.OptStatsd),
 		failedOperationExtraction: metricGroup.NewCounter("failed_operation_extraction", libtelemetry.OptStatsd),
+		firstBucketLowerBoundary:  firstBucketLowerBoundary,
 	}
 }
 
 // getBucketIndex returns the index of the bucket for the given query size
-func getBucketIndex(querySize int) int {
-	bucketIndex := max(0, querySize-firstBucketLowerBoundary) / bucketLength
+func (t *Telemetry) getBucketIndex(querySize int) int {
+	bucketIndex := max(0, querySize-t.firstBucketLowerBoundary) / bucketLength
 	return min(bucketIndex, numberOfBuckets-1)
 }
 
@@ -80,7 +88,7 @@ func getBucketIndex(querySize int) int {
 func (t *Telemetry) Count(tx *ebpf.EbpfEvent, eventWrapper *EventWrapper) {
 	querySize := int(tx.Tx.Original_query_size)
 
-	bucketIndex := getBucketIndex(querySize)
+	bucketIndex := t.getBucketIndex(querySize)
 	if bucketIndex >= 0 && bucketIndex < len(t.queryLengthBuckets) {
 		t.queryLengthBuckets[bucketIndex].Add(1)
 	}

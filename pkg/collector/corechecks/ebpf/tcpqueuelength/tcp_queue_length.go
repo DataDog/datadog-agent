@@ -84,7 +84,7 @@ func (t *TCPQueueLengthCheck) Run() error {
 	}
 
 	sysProbeUtil, err := process_net.GetRemoteSystemProbeUtil(
-		dd_config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
+		dd_config.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 	if err != nil {
 		return err
 	}

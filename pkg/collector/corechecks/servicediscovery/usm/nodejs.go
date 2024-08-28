@@ -7,13 +7,14 @@ package usm
 
 import (
 	"io"
-	"os"
+	"io/fs"
 	"path"
+	"path/filepath"
 	"strings"
 
-	"go.uber.org/zap"
-
 	"github.com/valyala/fastjson"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type nodeDetector struct {
@@ -24,8 +25,13 @@ func newNodeDetector(ctx DetectionContext) detector {
 	return &nodeDetector{ctx: ctx}
 }
 
+func isJs(path string) bool {
+	return strings.HasSuffix(strings.ToLower(path), ".js")
+}
+
 func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 	skipNext := false
+	cwd, _ := workingDirFromEnvs(n.ctx.envs)
 	for _, a := range args {
 		if skipNext {
 			skipNext = false
@@ -37,11 +43,23 @@ func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 				skipNext = !strings.ContainsRune(a, '=') // in this case the value is already in this arg
 				continue
 			}
-		} else if strings.HasSuffix(strings.ToLower(a), ".js") {
-			cwd, _ := workingDirFromEnvs(n.ctx.envs)
+		} else {
 			absFile := abs(path.Clean(a), cwd)
-			if _, err := os.Stat(absFile); err == nil {
-				value, ok := n.findNameFromNearestPackageJSON(absFile)
+			entryPoint := ""
+			if isJs(a) {
+				entryPoint = absFile
+			} else if target, err := ReadlinkFS(n.ctx.fs, absFile); err == nil {
+				if !isJs(target) {
+					continue
+				}
+
+				entryPoint = abs(target, filepath.Dir(absFile))
+			} else {
+				continue
+			}
+
+			if _, err := fs.Stat(n.ctx.fs, absFile); err == nil {
+				value, ok := n.findNameFromNearestPackageJSON(entryPoint)
 				if ok {
 					return NewServiceMetadata(value), true
 				}
@@ -84,21 +102,17 @@ func (n nodeDetector) maybeExtractServiceName(filename string) (string, bool) {
 		return "", false
 	}
 	if !ok {
-		n.ctx.logger.Debug("skipping package.js because too large", zap.String("filename", filename))
+		log.Debugf("skipping package.js (%q) because too large", filename)
 		return "", true // stops here
 	}
 	bytes, err := io.ReadAll(file)
 	if err != nil {
-		n.ctx.logger.Debug("unable to read a package.js file",
-			zap.String("filename", filename),
-			zap.Error(err))
+		log.Debugf("unable to read a package.js file (%q). Err: %v", filename, err)
 		return "", true
 	}
 	value, err := fastjson.ParseBytes(bytes)
 	if err != nil {
-		n.ctx.logger.Debug("unable to parse a package.js file",
-			zap.String("filename", filename),
-			zap.Error(err))
+		log.Debugf("unable to parse a package.js (%q) file. Err: %v", filename, err)
 		return "", true
 	}
 	return string(value.GetStringBytes("name")), true

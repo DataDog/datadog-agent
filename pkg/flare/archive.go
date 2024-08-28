@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -68,30 +69,31 @@ func CompleteFlare(fb flaretypes.FlareBuilder, diagnoseDeps diagnose.SuitesDeps)
 
 	fb.RegisterFilePerm(security.GetAuthTokenFilepath(config.Datadog()))
 
-	systemProbeConfigBPFDir := config.SystemProbe.GetString("system_probe_config.bpf_dir")
+	systemProbeConfigBPFDir := config.SystemProbe().GetString("system_probe_config.bpf_dir")
 	if systemProbeConfigBPFDir != "" {
 		fb.RegisterDirPerm(systemProbeConfigBPFDir)
 	}
 	addSystemProbePlatformSpecificEntries(fb)
 
-	if config.SystemProbe.GetBool("system_probe_config.enabled") {
+	if config.SystemProbe().GetBool("system_probe_config.enabled") {
 		fb.AddFileFromFunc(filepath.Join("expvar", "system-probe"), getSystemProbeStats) //nolint:errcheck
 	}
 
 	pprofURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/goroutine?debug=2",
 		config.Datadog().GetString("expvar_port"))
 
-	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", getProcessAgentFullConfig)                                                       //nolint:errcheck
-	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.Datadog().AllSettings()) })                //nolint:errcheck
-	fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.SystemProbe.AllSettings()) }) //nolint:errcheck
-	fb.AddFileFromFunc("diagnose.log", getDiagnoses(fb.IsLocal(), diagnoseDeps))                                                                  //nolint:errcheck
-	fb.AddFileFromFunc("envvars.log", getEnvVars)                                                                                                 //nolint:errcheck
-	fb.AddFileFromFunc("health.yaml", getHealth)                                                                                                  //nolint:errcheck
-	fb.AddFileFromFunc("go-routine-dump.log", func() ([]byte, error) { return getHTTPCallContent(pprofURL) })                                     //nolint:errcheck
-	fb.AddFileFromFunc("docker_inspect.log", func() ([]byte, error) { return getDockerSelfInspect(diagnoseDeps.GetWMeta()) })                     //nolint:errcheck
-	fb.AddFileFromFunc("docker_ps.log", getDockerPs)                                                                                              //nolint:errcheck
-	fb.AddFileFromFunc("k8s/kubelet_config.yaml", getKubeletConfig)                                                                               //nolint:errcheck
-	fb.AddFileFromFunc("k8s/kubelet_pods.yaml", getKubeletPods)                                                                                   //nolint:errcheck
+	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", getProcessAgentFullConfig)                                                         //nolint:errcheck
+	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.Datadog().AllSettings()) })                  //nolint:errcheck
+	fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.SystemProbe().AllSettings()) }) //nolint:errcheck
+	fb.AddFileFromFunc("diagnose.log", getDiagnoses(fb.IsLocal(), diagnoseDeps))                                                                    //nolint:errcheck
+	fb.AddFileFromFunc("envvars.log", getEnvVars)                                                                                                   //nolint:errcheck
+	fb.AddFileFromFunc("health.yaml", getHealth)                                                                                                    //nolint:errcheck
+	fb.AddFileFromFunc("go-routine-dump.log", func() ([]byte, error) { return getHTTPCallContent(pprofURL) })                                       //nolint:errcheck
+	fb.AddFileFromFunc("docker_inspect.log", func() ([]byte, error) { return getDockerSelfInspect(diagnoseDeps.GetWMeta()) })                       //nolint:errcheck
+	fb.AddFileFromFunc("docker_ps.log", getDockerPs)                                                                                                //nolint:errcheck
+	fb.AddFileFromFunc("k8s/kubelet_config.yaml", getKubeletConfig)                                                                                 //nolint:errcheck
+	fb.AddFileFromFunc("k8s/kubelet_pods.yaml", getKubeletPods)                                                                                     //nolint:errcheck
+	fb.AddFileFromFunc("ecs_metadata.json", getECSMeta)                                                                                             //nolint:errcheck
 
 	getRegistryJSON(fb)
 
@@ -182,7 +184,7 @@ func getExpVar(fb flaretypes.FlareBuilder) error {
 func getSystemProbeStats() ([]byte, error) {
 	// TODO: (components) - Temporary until we can use the status component to extract the system probe status from it.
 	stats := map[string]interface{}{}
-	systemprobeStatus.GetStatus(stats, config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
+	systemprobeStatus.GetStatus(stats, config.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 	sysProbeBuf, err := yaml.Marshal(stats["systemProbeStats"])
 	if err != nil {
 		return nil, err
@@ -392,6 +394,18 @@ func getHealth() ([]byte, error) {
 	}
 
 	return yamlValue, nil
+}
+
+func getECSMeta() ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+
+	ecsMeta, err := ecs.NewECSMeta(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return json.MarshalIndent(ecsMeta, "", "\t")
 }
 
 // getHTTPCallContent does a GET HTTP call to the given url and

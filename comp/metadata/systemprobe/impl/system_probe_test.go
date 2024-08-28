@@ -56,7 +56,7 @@ func setupFetcher(t *testing.T) {
 func getSystemProbeComp(t *testing.T, enableConfig bool) *systemprobe {
 	l := logmock.New(t)
 
-	cfg := fxutil.Test[config.Component](t, config.MockModule())
+	cfg := config.NewMock(t)
 	cfg.Set("inventories_configuration_enabled", enableConfig, model.SourceUnknown)
 
 	r := Requires{

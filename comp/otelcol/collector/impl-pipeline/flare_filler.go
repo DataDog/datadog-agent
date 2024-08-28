@@ -12,6 +12,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -19,10 +20,11 @@ import (
 	"strings"
 	"time"
 
-	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	extension "github.com/DataDog/datadog-agent/comp/otelcol/extension/def"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gocolly/colly/v2"
+
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	extension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
@@ -160,7 +162,7 @@ func (c *collectorImpl) requestOtelConfigInfo(endpointURL string) ([]byte, error
 		return nil, err
 	}
 	if res.StatusCode >= 400 {
-		return nil, fmt.Errorf("%s", body)
+		return nil, errors.New(string(body))
 	}
 	return body, nil
 }
