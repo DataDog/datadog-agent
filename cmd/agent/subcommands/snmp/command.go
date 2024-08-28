@@ -191,12 +191,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				core.Bundle(),
 				aggregator.Bundle(),
 				forwarder.BundleWithProvider(defaultforwarder.NewParams),
-				eventplatformimpl.Module(),
+				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
 				orchestratorimpl.Module(),
 				fx.Provide(
 					orchestratorimpl.NewDefaultParams,
-					eventplatformimpl.NewDefaultParams,
 					demultiplexerimpl.NewDefaultParams,
 				),
 			)

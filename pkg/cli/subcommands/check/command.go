@@ -152,6 +152,10 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			}
 			cliParams.cmd = cmd
 			cliParams.args = args
+
+			eventplatforParams := eventplatformimpl.NewDefaultParams()
+			eventplatforParams.UseNoopEventPlatformForwarder = true
+
 			disableCmdPort()
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
@@ -164,8 +168,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
-				fx.Provide(defaults.DefaultParams),
-				workloadmetafx.Module(),
+				workloadmetafx.Module(defaults.DefaultParams()),
 				apiimpl.Module(),
 				authtokenimpl.Module(),
 				fx.Supply(context.Background()),
@@ -183,12 +186,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				demultiplexerimpl.Module(),
 				orchestratorForwarderImpl.Module(),
 				fx.Supply(orchestratorForwarderImpl.NewNoopParams()),
-				eventplatformimpl.Module(),
-				fx.Provide(func() eventplatformimpl.Params {
-					params := eventplatformimpl.NewDefaultParams()
-					params.UseNoopEventPlatformForwarder = true
-					return params
-				}),
+				eventplatformimpl.Module(eventplatforParams),
 				eventplatformreceiverimpl.Module(),
 				fx.Provide(func() demultiplexerimpl.Params {
 					// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)

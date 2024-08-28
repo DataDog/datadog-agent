@@ -1,4 +1,4 @@
-using Datadog.CustomActions;
+using Datadog.InstallerCustomActions;
 using WixSharp;
 
 namespace WixSetup.Datadog_Installer
@@ -13,9 +13,9 @@ namespace WixSetup.Datadog_Installer
 
         public DatadogInstallerCustomActions()
         {
-            RunAsAdmin = new CustomAction<PrerequisitesCustomActions>(
+            RunAsAdmin = new CustomAction<CustomActions>(
                 new Id(nameof(RunAsAdmin)),
-                PrerequisitesCustomActions.EnsureAdminCaller,
+                CustomActions.EnsureAdminCaller,
                 Return.check,
                 When.After,
                 Step.AppSearch,
@@ -23,9 +23,9 @@ namespace WixSetup.Datadog_Installer
                 Sequence.InstallExecuteSequence | Sequence.InstallUISequence
             );
 
-            ReadWindowsVersion = new CustomAction<InstallStateCustomActions>(
+            ReadWindowsVersion = new CustomAction<CustomActions>(
                 new Id(nameof(ReadWindowsVersion)),
-                InstallStateCustomActions.ReadWindowsVersion,
+                CustomActions.ReadWindowsVersion,
                 Return.check,
                 When.After,
                 new Step(RunAsAdmin.Id),
@@ -36,9 +36,9 @@ namespace WixSetup.Datadog_Installer
                 Execute = Execute.firstSequence
             };
 
-            ReadConfig = new CustomAction<ConfigCustomActions>(
+            ReadConfig = new CustomAction<CustomActions>(
                 new Id(nameof(ReadConfig)),
-                ConfigCustomActions.ReadConfig,
+                CustomActions.ReadConfig,
                 Return.ignore,
                 When.After,
                 Step.CostFinalize,
@@ -50,9 +50,9 @@ namespace WixSetup.Datadog_Installer
             }
             .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
-            WriteConfig = new CustomAction<ConfigCustomActions>(
+            WriteConfig = new CustomAction<CustomActions>(
                 new Id(nameof(WriteConfig)),
-                ConfigCustomActions.WriteConfig,
+                CustomActions.WriteConfig,
                 Return.check,
                 When.Before,
                 Step.InstallServices,
@@ -68,9 +68,9 @@ namespace WixSetup.Datadog_Installer
                 "SITE=[SITE]")
             .HideTarget(true);
 
-            OpenMsiLog = new CustomAction<MsiLogCustomActions>(
+            OpenMsiLog = new CustomAction<CustomActions>(
                 new Id(nameof(OpenMsiLog)),
-                MsiLogCustomActions.OpenMsiLog
+                CustomActions.OpenMsiLog
             )
             {
                 // Not run in a sequence, run from button on fatalError dialog

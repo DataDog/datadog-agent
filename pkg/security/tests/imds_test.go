@@ -10,17 +10,18 @@ package tests
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/tests/imds_utils"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"os"
 	"path"
 	"syscall"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/tests/imds_utils"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestAWSIMDSv1Request(t *testing.T) {
@@ -31,7 +32,7 @@ func TestAWSIMDSv1Request(t *testing.T) {
 		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
 	})
 
-	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
 			t.Fatalf("couldn't load 'veth' module: %s,%v", string(out), err)
 		}
@@ -104,7 +105,7 @@ func TestAWSIMDSv1Response(t *testing.T) {
 		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
 	})
 
-	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
 			t.Fatalf("couldn't load 'veth' module: %s,%v", string(out), err)
 		}
@@ -185,7 +186,7 @@ func TestNoAWSIMDSv1Response(t *testing.T) {
 		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
 	})
 
-	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
 			t.Fatalf("couldn't load 'veth' module: %s,%v", string(out), err)
 		}
@@ -252,7 +253,7 @@ func TestAWSIMDSv2Request(t *testing.T) {
 		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
 	})
 
-	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
 			t.Fatalf("couldn't load 'veth' module: %s,%v", string(out), err)
 		}
@@ -335,7 +336,7 @@ func TestGCPIMDS(t *testing.T) {
 		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
 	})
 
-	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
 			t.Fatalf("couldn't load 'veth' module: %s,%v", string(out), err)
 		}
@@ -413,7 +414,7 @@ func TestAzureIMDS(t *testing.T) {
 		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
 	})
 
-	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
 			t.Fatalf("couldn't load 'veth' module: %s,%v", string(out), err)
 		}
@@ -491,7 +492,7 @@ func TestIBMIMDS(t *testing.T) {
 		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
 	})
 
-	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
 			t.Fatalf("couldn't load 'veth' module: %s,%v", string(out), err)
 		}
@@ -569,7 +570,7 @@ func TestOracleIMDS(t *testing.T) {
 		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
 	})
 
-	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
 			t.Fatalf("couldn't load 'veth' module: %s,%v", string(out), err)
 		}
@@ -647,7 +648,7 @@ func TestIMDSProcessContext(t *testing.T) {
 		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
 	})
 
-	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
 		if out, err := loadModule("veth"); err != nil {
 			t.Fatalf("couldn't load 'veth' module: %s,%v", string(out), err)
 		}

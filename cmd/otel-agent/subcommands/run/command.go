@@ -96,7 +96,6 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		forwarder.BundleWithProvider(newForwarderParams),
 		logtracefx.Module(),
 		inventoryagentimpl.Module(),
-		workloadmetafx.Module(),
 		fx.Supply(metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{})),
 		fx.Provide(func(client *metricsclient.StatsdClientWrapper) statsd.Component {
 			return statsd.NewOTelStatsd(client)
@@ -118,9 +117,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			pkgconfigenv.DetectFeatures(c)
 			return c, nil
 		}),
-		fx.Provide(func() workloadmeta.Params {
-			return workloadmeta.NewParams()
-		}),
+		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Provide(func() []string {
 			return append(params.ConfPaths, params.Sets...)
 		}),

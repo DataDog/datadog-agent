@@ -296,6 +296,7 @@
 /pkg/cli/                               @DataDog/agent-shared-components
 /pkg/cli/subcommands/clusterchecks      @DataDog/container-platform
 /pkg/dogstatsd/                         @DataDog/agent-metrics-logs
+/pkg/discovery/				@DataDog/apm-onboarding @DataDog/universal-service-monitoring
 /pkg/errors/                            @DataDog/agent-shared-components
 /pkg/forwarder/                         @DataDog/agent-processing-and-routing
 /pkg/gohai                              @DataDog/agent-shared-components
