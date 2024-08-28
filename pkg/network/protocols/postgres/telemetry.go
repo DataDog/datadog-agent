@@ -63,12 +63,18 @@ func createQueryLengthBuckets(metricGroup *libtelemetry.MetricGroup) [numberOfBu
 func NewTelemetry(cfg *config.Config) *Telemetry {
 	metricGroup := libtelemetry.NewMetricGroup("usm.postgres")
 
+	firstBucketLowerBoundary := cfg.MaxPostgresTelemetryBuffer - numberOfBucketsSmallerThanMaxBufferSize*bucketLength + 1
+	if firstBucketLowerBoundary < 0 {
+		log.Warnf("The first bucket lower boundary is negative: %d", firstBucketLowerBoundary)
+		firstBucketLowerBoundary = ebpf.BufferSize - numberOfBucketsSmallerThanMaxBufferSize*bucketLength + 1
+	}
+
 	return &Telemetry{
 		metricGroup:               metricGroup,
 		queryLengthBuckets:        createQueryLengthBuckets(metricGroup),
 		failedTableNameExtraction: metricGroup.NewCounter("failed_table_name_extraction", libtelemetry.OptStatsd),
 		failedOperationExtraction: metricGroup.NewCounter("failed_operation_extraction", libtelemetry.OptStatsd),
-		firstBucketLowerBoundary:  cfg.MaxPostgresTelemetryBuffer - numberOfBucketsSmallerThanMaxBufferSize*bucketLength + 1,
+		firstBucketLowerBoundary:  firstBucketLowerBoundary,
 	}
 }
 
