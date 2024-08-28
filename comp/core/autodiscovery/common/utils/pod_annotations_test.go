@@ -7,6 +7,7 @@ package utils
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -433,9 +434,7 @@ func TestExtractTemplatesFromAnnotations(t *testing.T) {
 			annotations: map[string]string{
 				"ad.datadoghq.com/foobar.checks": `{
 					"apache": {
-						"logs": [
-							{"service":"any_service","source":"any_source"}
-						]
+						"logs": [{"service":"any_service","source":"any_source"}]
 					}
 				}`,
 			},
@@ -443,7 +442,7 @@ func TestExtractTemplatesFromAnnotations(t *testing.T) {
 			output: []integration.Config{
 				{
 					Name:          "apache",
-					LogsConfig:    integration.Data("{\"service\":\"any_service\",\"source\":\"any_source\"}"),
+					LogsConfig:    integration.Data("[{\"service\":\"any_service\",\"source\":\"any_source\"}]"),
 					ADIdentifiers: []string{adID},
 					InitConfig:    integration.Data("{}"),
 				},
@@ -453,6 +452,9 @@ func TestExtractTemplatesFromAnnotations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.name == "v2 annotations label logs" {
+				fmt.Println("TESTING123")
+			}
 			configs, errs := ExtractTemplatesFromAnnotations(adID, tt.annotations, tt.adIdentifier)
 			assert.ElementsMatch(t, tt.output, configs)
 			assert.ElementsMatch(t, tt.errs, errs)
