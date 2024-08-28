@@ -54,7 +54,8 @@ class TestCIVisibilityLinks(unittest.TestCase):
         suite_name = "github.com/DataDog/datadog-agent/totoro"
         test_name = "TestTotoro/WhenTheyWakeUp"
         result = get_test_link_to_test_on_main(suite_name, test_name)
-        expected = f"{TEST_VISIBILITY_URL}?query=test_level%3Atest%20%40test.name%3A%22TestTotoro%2FWhenTheyWakeUp%22%20%40test.suite%3A%22github.com%2FDataDog%2Fdatadog-agent%2Ftotoro%22%20%40git.branch%3Amain%20%40test.service%3Adatadog-agent"
+        full_url = f"{TEST_VISIBILITY_URL}?query=test_level%3Atest%20%40test.name%3A%22TestTotoro%2FWhenTheyWakeUp%22%20%40test.suite%3A%22github.com%2FDataDog%2Fdatadog-agent%2Ftotoro%22%20%40git.branch%3Amain%20%40test.service%3Adatadog-agent"
+        expected = f'<a href="{full_url}" class="gl-reset-color! gl-text-decoration-underline" rel="nofollow noopener noreferrer">Test Visibility</a>'
         self.assertEqual(
             result,
             expected,

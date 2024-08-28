@@ -74,7 +74,9 @@ def get_test_link_to_test_on_main(suite_name: str, test_name: str):
     }
     query_string = to_query_string(query_params)
     quoted_query_string = quote(string=query_string, safe="")
-    return f"{TEST_VISIBILITY_URL}?query={quoted_query_string}"
+    full_url = f"{TEST_VISIBILITY_URL}?query={quoted_query_string}"
+    url_element = f'<a href="{full_url}" class="gl-reset-color! gl-text-decoration-underline" rel="nofollow noopener noreferrer">Test Visibility</a>'
+    return url_element
 
 
 def to_query_string(params: dict):

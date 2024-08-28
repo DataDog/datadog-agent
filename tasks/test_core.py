@@ -118,7 +118,9 @@ class ModuleTestResult(ModuleResult):
                             failure_string += f"- {package} {name}\n"
 
                             if running_in_ci():
-                                failure_string += f"  See this test name on main in Test Visibility at {get_test_link_to_test_on_main(package, name)}\n"
+                                failure_string += (
+                                    f"  See this test name on main in {get_test_link_to_test_on_main(package, name)}\n"
+                                )
             else:
                 failure_string += "The test command failed, but no test failures detected in the result json."
 
