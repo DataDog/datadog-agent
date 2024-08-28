@@ -80,7 +80,7 @@ func (sl *streamlogsimpl) exportStreamLogsIfEnabled(logAgent logsAgent.Component
 				FilePath: defaultLogFilePath,
 				Duration: streamLogDuration,
 			}
-			if err := stream.ExportStreamLogs(logAgent, sl.config, &streamLogParams); err != nil {
+			if err := stream.ExportStreamLogs(logAgent, &streamLogParams); err != nil {
 				return fmt.Errorf("failed to export stream logs: %w", err)
 			}
 		}

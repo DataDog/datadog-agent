@@ -16,7 +16,6 @@ import (
 	"time"
 
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -107,7 +106,7 @@ func GetStreamFunc(messageReceiverFunc func() MessageReceiver, streamType, agent
 }
 
 // ExportStreamLogs export output of stream-logs to a file. Currently used for remote config stream logs
-func ExportStreamLogs(la logsAgent.Component, config config.Component, streamLogParams *LogParams) error {
+func ExportStreamLogs(la logsAgent.Component, streamLogParams *LogParams) error {
 	var f *os.File
 	var bufWriter *bufio.Writer
 

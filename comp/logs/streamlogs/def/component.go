@@ -6,5 +6,7 @@
 // Package streamlogs is metadata provider for streamlogs
 package streamlogs
 
+// team: agent-metrics-logs
+
 // Component is the component type.
 type Component interface{}
