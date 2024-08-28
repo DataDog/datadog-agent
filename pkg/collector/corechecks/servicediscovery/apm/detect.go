@@ -10,6 +10,7 @@ package apm
 
 import (
 	"bufio"
+	"debug/elf"
 	"io"
 	"os"
 	"path/filepath"
@@ -19,6 +20,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language/reader"
+	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -43,12 +46,14 @@ var (
 		language.Java:   javaDetector,
 		language.Node:   nodeDetector,
 		language.Python: pythonDetector,
+		language.Go:     goDetector,
 	}
 	// For now, only allow a subset of the above detectors to actually run.
 	allowedLangs = map[language.Language]struct{}{
 		language.Java:   {},
 		language.Node:   {},
 		language.Python: {},
+		language.Go:     {},
 	}
 
 	nodeAPMCheckRegex = regexp.MustCompile(`"dd-trace"`)
@@ -83,6 +88,31 @@ func isInjected(envs map[string]string) bool {
 		}
 	}
 	return false
+}
+
+// goDetector detects APM instrumentation for Go binaries by checking for
+// the presence of the dd-trace-go symbols in the ELF. This only works for
+// unstripped binaries.
+func goDetector(pid int, _ []string, _ map[string]string) Instrumentation {
+	exePath := kernel.HostProc(strconv.Itoa(pid), "exe")
+
+	elfFile, err := elf.Open(exePath)
+	if err != nil {
+		log.Debugf("Unable to open exe %s: %v", exePath, err)
+		return None
+	}
+	defer elfFile.Close()
+
+	symbolsSet := common.StringSet{
+		"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.init": struct{}{},
+	}
+
+	_, err = bininspect.GetAllSymbolsByName(elfFile, symbolsSet)
+	if err != nil {
+		return None
+	}
+
+	return Provided
 }
 
 func pythonDetectorFromMapsReader(reader io.Reader) Instrumentation {

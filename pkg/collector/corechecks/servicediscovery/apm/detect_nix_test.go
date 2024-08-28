@@ -8,12 +8,16 @@
 package apm
 
 import (
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestInjected(t *testing.T) {
@@ -163,4 +167,23 @@ func Test_pythonDetector(t *testing.T) {
 			assert.Equal(t, d.result, result)
 		})
 	}
+}
+
+func TestGoDetector(t *testing.T) {
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err)
+	serverBin, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "..", "module", "testutil"), "fake_server")
+	require.NoError(t, err)
+
+	cmd := exec.Command(serverBin)
+	require.NoError(t, cmd.Start())
+	t.Cleanup(func() {
+		_ = cmd.Process.Kill()
+	})
+
+	result := goDetector(os.Getpid(), nil, nil)
+	require.Equal(t, result, None)
+
+	result = goDetector(cmd.Process.Pid, nil, nil)
+	require.Equal(t, result, Provided)
 }
