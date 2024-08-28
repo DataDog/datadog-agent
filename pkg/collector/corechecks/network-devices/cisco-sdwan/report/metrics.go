@@ -377,8 +377,8 @@ func (ms *SDWanSender) getPrefixedDeviceTags(prefix string, systemIP string) []s
 
 	var remoteTags []string
 	for _, tag := range tags {
-		if strings.HasPrefix(tag, "device_namespace") {
-			// No need to tag remote devices by namespace
+		if strings.HasPrefix(tag, "device_namespace") || strings.HasPrefix(tag, payload.DeviceUserTagResourcePrefix) || strings.HasPrefix(tag, interfaceUserTagResourcePrefix) {
+			// No need to tag remote devices by namespace or user tags
 			continue
 		}
 		remoteTags = append(remoteTags, prefix+tag)
