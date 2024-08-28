@@ -17,7 +17,7 @@ if __name__ == '__main__':
         sys.exit(1)
     install_directory = sys.argv[1]
     if os.path.exists(install_directory):
-        postinst_python_installed_packages_file = os.path.join(install_directory, '.postinst_python_installed_packages.txt')
+        postinst_python_installed_packages_file = packages.postinst_python_installed_packages_file(install_directory)
         packages.create_python_installed_packages_file(postinst_python_installed_packages_file)
     else:
         print(f"Directory {install_directory} does not exist.")

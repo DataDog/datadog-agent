@@ -14,7 +14,25 @@ def extract_version(specifier):
         return str(next(iter(pkg_resources.Requirement.parse(f'{specifier}').specifier)))
     except Exception:
         return None
-    
+
+def prerm_python_installed_packages_file(directory):
+    """
+    Create prerm installed packages file path.
+    """
+    return os.path.join(directory, '.prerm_python_installed_packages.txt')
+
+def postinst_python_installed_packages_file(directory):
+    """
+    Create postinst installed packages file path.
+    """
+    return os.path.join(directory, '.postinst_python_installed_packages.txt')
+
+def diff_python_installed_packages_file(directory):
+    """
+    Create diff installed packages file path.
+    """
+    return os.path.join(directory, '.diff_python_installed_packages.txt')
+
 def create_python_installed_packages_file(filename):
     """
     Create a file listing the currently installed Python dependencies.
@@ -25,13 +43,13 @@ def create_python_installed_packages_file(filename):
             f.write(f"{dist.metadata['Name']}=={dist.version}\n")
     os.chown(filename, pwd.getpwnam('dd-agent').pw_uid, grp.getgrnam('dd-agent').gr_gid)
 
-def create_diff_installed_packages_file(postinst_file, prerm_file, diff_file):
+def create_diff_installed_packages_file(directory):
     """
     Create a file listing the new or upgraded Python dependencies.
     """
-    postinst_python_installed_packages = load_requirements(postinst_file)
-    prerm_python_installed_packages = load_requirements(prerm_file)
-    with open(diff_file, 'w', encoding='utf-8') as f:
+    postinst_python_installed_packages = load_requirements(postinst_python_installed_packages_file(directory))
+    prerm_python_installed_packages = load_requirements(prerm_python_installed_packages_file(directory))
+    with open(diff_python_installed_packages_file(directory), 'w', encoding='utf-8') as f:
         for package_name, prerm_req in prerm_python_installed_packages.items():
             postinst_req = postinst_python_installed_packages.get(package_name)
             if postinst_req:
