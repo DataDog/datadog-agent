@@ -65,22 +65,22 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 	processForwarderOpts := createParams(deps.Config, deps.Logger, queueBytes, processAPIEndpoints)
 
 	return &forwardersComp{
-		eventForwarder:       createForwarder(deps, eventForwarderOpts.Options, eventForwarderOpts.UseNoopForwarder),
-		processForwarder:     createForwarder(deps, processForwarderOpts.Options, processForwarderOpts.UseNoopForwarder),
-		rtProcessForwarder:   createForwarder(deps, processForwarderOpts.Options, processForwarderOpts.UseNoopForwarder),
-		connectionsForwarder: createForwarder(deps, processForwarderOpts.Options, processForwarderOpts.UseNoopForwarder),
+		eventForwarder:       createForwarder(deps, eventForwarderOpts),
+		processForwarder:     createForwarder(deps, processForwarderOpts),
+		rtProcessForwarder:   createForwarder(deps, processForwarderOpts),
+		connectionsForwarder: createForwarder(deps, processForwarderOpts),
 	}, nil
 }
 
-func createForwarder(deps dependencies, options *defaultforwarder.Options, useNoopForwarder bool) defaultforwarder.Component {
-	return defaultforwarder.NewForwarder(deps.Config, deps.Logger, deps.Lc, false, options, useNoopForwarder).Comp
+func createForwarder(deps dependencies, options *defaultforwarder.Options) defaultforwarder.Component {
+	return defaultforwarder.NewForwarder(deps.Config, deps.Logger, deps.Lc, false, options, false).Comp
 }
 
-func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint) defaultforwarder.Params {
+func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint) *defaultforwarder.Options {
 	forwarderOpts := defaultforwarder.NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(endpoints)))
 	forwarderOpts.DisableAPIKeyChecking = true
 	forwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
-	return defaultforwarder.Params{Options: forwarderOpts}
+	return forwarderOpts
 }
 
 func (f *forwardersComp) GetEventForwarder() defaultforwarder.Component {
