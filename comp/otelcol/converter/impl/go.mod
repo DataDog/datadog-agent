@@ -11,8 +11,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../../comp/core/secrets
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/def => ../../../../comp/def
-	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../../collector-contrib/def/
-	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl => ../../collector-contrib/impl/
 	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def => ../../configstore/def/
 	github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl => ../../configstore/impl/
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def => ../def

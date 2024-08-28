@@ -14,18 +14,32 @@ import (
 	"path/filepath"
 	"testing"
 
-	collectorcontribimpl "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl"
-	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl"
-	extension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
+	ddflareextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl"
+	spanmetricsconnector "github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
+	healthcheckextension "github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
+	pprofextension "github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension"
+	transformprocessor "github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
+	"go.opentelemetry.io/collector/connector"
+	"go.opentelemetry.io/collector/exporter"
+	otlpexporter "go.opentelemetry.io/collector/exporter/otlpexporter"
+	otlphttpexporter "go.opentelemetry.io/collector/exporter/otlphttpexporter"
+	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/otelcol"
+	"go.opentelemetry.io/collector/processor"
+	batchprocessor "go.opentelemetry.io/collector/processor/batchprocessor"
+	"go.opentelemetry.io/collector/receiver"
+	nopreceiver "go.opentelemetry.io/collector/receiver/nopreceiver"
+	otlpreceiver "go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.uber.org/zap"
 )
 
@@ -39,11 +53,57 @@ var cpSettings = otelcol.ConfigProviderSettings{
 	},
 }
 
+func components() (otelcol.Factories, error) {
+	var err error
+	factories := otelcol.Factories{}
+
+	factories.Extensions, err = extension.MakeFactoryMap(
+		healthcheckextension.NewFactory(),
+		pprofextension.NewFactory(),
+	)
+	if err != nil {
+		return otelcol.Factories{}, err
+	}
+
+	factories.Receivers, err = receiver.MakeFactoryMap(
+		nopreceiver.NewFactory(),
+		otlpreceiver.NewFactory(),
+	)
+	if err != nil {
+		return otelcol.Factories{}, err
+	}
+
+	factories.Exporters, err = exporter.MakeFactoryMap(
+		otlpexporter.NewFactory(),
+		otlphttpexporter.NewFactory(),
+	)
+	if err != nil {
+		return otelcol.Factories{}, err
+	}
+
+	factories.Processors, err = processor.MakeFactoryMap(
+		batchprocessor.NewFactory(),
+		transformprocessor.NewFactory(),
+	)
+	if err != nil {
+		return otelcol.Factories{}, err
+	}
+
+	factories.Connectors, err = connector.MakeFactoryMap(
+		spanmetricsconnector.NewFactory(),
+	)
+	if err != nil {
+		return otelcol.Factories{}, err
+	}
+
+	return factories, nil
+}
+
 func getExtensionTestConfig(t *testing.T) *Config {
 	cf, err := configstore.NewConfigStore()
 	assert.NoError(t, err)
 
-	factories, err := collectorcontribimpl.NewComponent().OTelComponentFactories()
+	factories, err := components()
 	assert.NoError(t, err)
 
 	cf.AddConfigs(cpSettings, cpSettings, factories)
@@ -55,7 +115,7 @@ func getExtensionTestConfig(t *testing.T) *Config {
 	}
 }
 
-func getTestExtension(t *testing.T) (extension.Component, error) {
+func getTestExtension(t *testing.T) (ddflareextension.Component, error) {
 	c := context.Background()
 	telemetry := component.TelemetrySettings{}
 	info := component.NewDefaultBuildInfo()
