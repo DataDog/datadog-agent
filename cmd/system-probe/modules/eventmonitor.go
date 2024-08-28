@@ -25,7 +25,7 @@ import (
 
 var eventMonitorModuleConfigNamespaces = []string{"event_monitoring_config", "runtime_security_config"}
 
-func createEventMonitorModule(_ *sysconfigtypes.Config, wmeta workloadmeta.Component, telemetry telemetry.Component, _ tagger.Component) (module.Module, error) {
+func createEventMonitorModule(_ *sysconfigtypes.Config, wmeta workloadmeta.Component, _ telemetry.Component, tagger tagger.Component) (module.Module, error) {
 	emconfig := emconfig.NewConfig()
 
 	secconfig, err := secconfig.NewConfig()
@@ -44,7 +44,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, wmeta workloadmeta.Compo
 		secmodule.DisableRuntimeSecurity(secconfig)
 	}
 
-	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts, wmeta, telemetry)
+	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts, wmeta, tagger)
 	if err != nil {
 		log.Errorf("error initializing event monitoring module: %v", err)
 		return nil, module.ErrNotEnabled
