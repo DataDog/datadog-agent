@@ -24,7 +24,7 @@ type ConfigResponse struct {
 
 // OTelFlareSource is the response struct for flare debug sources
 type OTelFlareSource struct {
-	URL   string `json:"url"`
+	URLs   []string `json:"url"`
 	Crawl bool   `json:"crawl"`
 }
 

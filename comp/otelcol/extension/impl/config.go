@@ -22,7 +22,8 @@ var (
 	errHTTPEndpointRequired  = errors.New("http endpoint required")
 	supportedDebugExtensions = map[string]extractDebugEndpoint{
 		"health_check": healthExtractEndpoint,
-		"zpages":       zPagesExtractEndpoint,
+		// disabled zpages from flare until solution to display data.
+		// "zpages":       zPagesExtractEndpoint,
 		"pprof":        pprofExtractEndpoint,
 	}
 )
