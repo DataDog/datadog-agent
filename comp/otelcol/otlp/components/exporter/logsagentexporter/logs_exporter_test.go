@@ -72,6 +72,7 @@ func TestLogsExporter(t *testing.T) {
 					lrr := testutil.GenerateLogsOneLogRecord()
 					ldd := lrr.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
 					ldd.Attributes().PutStr("message", "hello")
+					ldd.Attributes().PutStr("host.name", "test-host")
 					return lrr
 				}(),
 				otelSource:    otelSource,
@@ -93,6 +94,8 @@ func TestLogsExporter(t *testing.T) {
 					"otel.trace_id":        traceIDToHexOrEmptyString(ld.TraceID()),
 					"otel.timestamp":       fmt.Sprintf("%d", testutil.TestLogTime.UnixNano()),
 					"resource-attr":        "resource-attr-val-1",
+					"host.name":            "test-host",
+					"hostname":             "test-host",
 				},
 			},
 			expectedTags: [][]string{{"otel_source:datadog_agent"}},
