@@ -6,6 +6,8 @@ on:
 env:
   SIZE_ALLOWANCE: fromJSON(1000000) # 1 MB
 
+permissions: {}
+
 jobs:
   comment:
     runs-on: ubuntu-latest

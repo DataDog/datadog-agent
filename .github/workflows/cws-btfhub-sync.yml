@@ -16,6 +16,8 @@ on:
   schedule:
     - cron: '30 4 * * 5' # at 4:30 UTC on Friday
 
+permissions: {}
+
 jobs:
   generate:
     runs-on: ubuntu-latest

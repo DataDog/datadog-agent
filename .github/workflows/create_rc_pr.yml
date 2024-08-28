@@ -9,6 +9,8 @@ on:
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+permissions: {}
+
 jobs:
     find_release_branches:
         runs-on: ubuntu-latest

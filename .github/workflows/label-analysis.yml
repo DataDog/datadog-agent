@@ -13,6 +13,8 @@ env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   GH_REPO: ${{ github.repository }}
 
+permissions: {}
+
 jobs:
   assign-team-label:
     if: github.triggering_actor != 'dd-devflow[bot]'
