@@ -7,7 +7,7 @@
 #define POSTGRES_BUFFER_SIZE 160
 
 // Maximum number of Postgres messages we can parse for a single packet.
-#define POSTGRES_MAX_MESSAGES 80
+#define POSTGRES_MAX_MESSAGES 70
 
 // Postgres transaction information we store in the kernel.
 typedef struct {
@@ -25,5 +25,20 @@ typedef struct {
     conn_tuple_t tuple;
     postgres_transaction_t tx;
 } postgres_event_t;
+
+// Postgres communication is done through a message stream.
+// Each TCP packet can include multiple postgres messages.
+// Postgres telemetry helps to find empirical statistics about the number of messages in each packet,
+// these statistics allow to optimize monitoring code.
+// Collect counters for each subsequent bucket:
+// 0 to (BUCKET_SIZE-1), BUCKET_SIZE to (BUCKET_SIZE*2-1), (BUCKET_SIZE*2) to (BUCKET_SIZE*3-1), ...
+#define PG_KERNEL_MSG_COUNT_BUCKET_SIZE 10
+#define PG_KERNEL_MSG_COUNT_NUM_BUCKETS (POSTGRES_MAX_MESSAGES / PG_KERNEL_MSG_COUNT_BUCKET_SIZE)
+#define PG_KERNEL_MSG_COUNT_BUCKET_INDEX(count) (count / PG_KERNEL_MSG_COUNT_BUCKET_SIZE)
+
+// postgres_kernel_msg_count_t This structure stores statistics about the number of Postgres messages in a TCP packet.
+typedef struct {
+    __u64 pg_messages_count_buckets[PG_KERNEL_MSG_COUNT_NUM_BUCKETS];
+} postgres_kernel_msg_count_t;
 
 #endif

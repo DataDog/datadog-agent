@@ -35,6 +35,7 @@ static __always_inline bool read_message_header(pktbuf_t pkt, struct pg_message_
     u32 data_end = pktbuf_data_end(pkt);
     // Ensuring that the header is in the buffer.
     if (data_off + sizeof(struct pg_message_header) > data_end) {
+        // usually data_off == data_end
         return false;
     }
     pktbuf_load_bytes(pkt, data_off, header, sizeof(struct pg_message_header));
@@ -107,12 +108,30 @@ static int __always_inline skip_string(pktbuf_t pkt, int message_len) {
     return SKIP_STRING_FAILED;
 }
 
+// Return a pointer to the postgres telemetry record in the corresponding map.
+static __always_inline void* get_pg_msg_counts_map(pktbuf_t pkt) {
+    const __u32 zero = 0;
+
+    pktbuf_map_lookup_option_t pg_telemetry_lookup_opt[] = {
+        [PKTBUF_SKB] = {
+            .map = &postgres_plain_msg_count,
+            .key = (void*)&zero,
+        },
+        [PKTBUF_TLS] = {
+            .map = &postgres_tls_msg_count,
+            .key = (void*)&zero,
+        },
+    };
+    return pktbuf_map_lookup(pkt, pg_telemetry_lookup_opt);
+}
+
 // Main processing logic for the Postgres protocol. It reads the first message header and decides what to do based on the
 // message tag. If the message is a new query, it stores the query in the in-flight map. If the message is a command
 // complete, it enqueues the transaction and deletes it from the in-flight map. If the message is not a command complete,
 // it tries to read up to POSTGRES_MAX_MESSAGES messages, looking for a command complete message.
 // If the message is not a new query or a command complete, it ignores the message.
-static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn_tuple, struct pg_message_header *header, __u8 tags) {
+// Return the number of detected Postgres messages.
+static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn_tuple, struct pg_message_header *header, __u8 tags, postgres_kernel_msg_count_t* pg_msg_counts) {
     // If the message is a new query, we store the query in the in-flight map.
     // If we had a transaction for the connection, we override it and drops the previous one.
     if (header->message_tag == POSTGRES_QUERY_MAGIC_BYTE) {
@@ -131,9 +150,9 @@ static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn
     if (!transaction) {
         return;
     }
-
+    __u8 messages_count = 0;
 #pragma unroll(POSTGRES_MAX_MESSAGES)
-    for (__u32 iteration = 0; iteration < POSTGRES_MAX_MESSAGES; ++iteration) {
+    for (; messages_count < POSTGRES_MAX_MESSAGES; ++messages_count) {
         if (!read_message_header(pkt, header)) {
             break;
         }
@@ -146,7 +165,10 @@ static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn
         // the message tag. So we need to add 1 to the message length to jump over the entire message.
         pktbuf_advance(pkt, header->message_len + 1);
     }
-    return;
+
+    __u8 bucket_idx = PG_KERNEL_MSG_COUNT_BUCKET_INDEX((__u8)messages_count);
+    bucket_idx = bucket_idx >= PG_KERNEL_MSG_COUNT_NUM_BUCKETS ? (PG_KERNEL_MSG_COUNT_NUM_BUCKETS - 1) : bucket_idx;
+    __sync_fetch_and_add(&pg_msg_counts->pg_messages_count_buckets[bucket_idx], 1);
 }
 
 // A dedicated function to handle the parse message. This function is called from a tail call from the main entrypoint.
@@ -201,6 +223,11 @@ int socket__postgres_process(struct __sk_buff* skb) {
     normalize_tuple(&conn_tuple);
 
     pktbuf_t pkt = pktbuf_from_skb(skb, &skb_info);
+    postgres_kernel_msg_count_t* pg_msg_counts = get_pg_msg_counts_map(pkt);
+    if (pg_msg_counts == NULL) {
+        return 0;
+    }
+
     struct pg_message_header header;
     if (!read_message_header(pkt, &header)) {
         return 0;
@@ -212,7 +239,8 @@ int socket__postgres_process(struct __sk_buff* skb) {
         return 0;
     }
 
-    postgres_entrypoint(pkt, &conn_tuple, &header, NO_TAGS);
+    postgres_entrypoint(pkt, &conn_tuple, &header, NO_TAGS, pg_msg_counts);
+
     return 0;
 }
 
@@ -246,10 +274,13 @@ int uprobe__postgres_tls_process(struct pt_regs *ctx) {
         return 0;
     }
 
-    // Copying the tuple to the stack to handle verifier issues on kernel 4.14.
-    conn_tuple_t tup = args->tup;
-
     pktbuf_t pkt = pktbuf_from_tls(ctx, args);
+
+    postgres_kernel_msg_count_t* pg_msg_counts = get_pg_msg_counts_map(pkt);
+    if (pg_msg_counts == NULL) {
+        return 0;
+    }
+
     struct pg_message_header header;
     if (!read_message_header(pkt, &header)) {
         return 0;
@@ -260,7 +291,10 @@ int uprobe__postgres_tls_process(struct pt_regs *ctx) {
         bpf_tail_call_compat(ctx, &tls_process_progs, PROG_POSTGRES_PROCESS_PARSE_MESSAGE);
         return 0;
     }
-    postgres_entrypoint(pkt, &tup, &header, (__u8)args->tags);
+    // Copying the tuple to the stack to handle verifier issues on kernel 4.14.
+    conn_tuple_t tup = args->tup;
+    postgres_entrypoint(pkt, &tup, &header, (__u8)args->tags, pg_msg_counts);
+
     return 0;
 }
 
