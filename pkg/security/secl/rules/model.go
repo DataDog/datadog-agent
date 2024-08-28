@@ -60,20 +60,20 @@ type RuleID = string
 
 // RuleDefinition holds the definition of a rule
 type RuleDefinition struct {
-	ID                     RuleID              `yaml:"id"`
-	Version                string              `yaml:"version"`
+	ID                     RuleID              `yaml:"id,omitempty"`
+	Version                string              `yaml:"version,omitempty"`
 	Expression             string              `yaml:"expression"`
-	Description            string              `yaml:"description"`
-	Tags                   map[string]string   `yaml:"tags"`
-	AgentVersionConstraint string              `yaml:"agent_version"`
-	Filters                []string            `yaml:"filters"`
-	Disabled               bool                `yaml:"disabled"`
-	Combine                CombinePolicy       `yaml:"combine"`
-	OverrideOptions        OverrideOptions     `yaml:"override_options"`
-	Actions                []*ActionDefinition `yaml:"actions"`
-	Every                  time.Duration       `yaml:"every"`
-	Silent                 bool                `yaml:"silent"`
-	GroupID                string              `yaml:"group_id"`
+	Description            string              `yaml:"description,omitempty"`
+	Tags                   map[string]string   `yaml:"tags,omitempty"`
+	AgentVersionConstraint string              `yaml:"agent_version,omitempty"`
+	Filters                []string            `yaml:"filters,omitempty"`
+	Disabled               bool                `yaml:"disabled,omitempty"`
+	Combine                CombinePolicy       `yaml:"combine,omitempty"`
+	OverrideOptions        OverrideOptions     `yaml:"override_options,omitempty"`
+	Actions                []*ActionDefinition `yaml:"actions,omitempty"`
+	Every                  time.Duration       `yaml:"every,omitempty"`
+	Silent                 bool                `yaml:"silent,omitempty"`
+	GroupID                string              `yaml:"group_id,omitempty"`
 }
 
 // GetTag returns the tag value associated with a tag key
