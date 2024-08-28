@@ -275,6 +275,20 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	// Now that everything is synced, we can perform the actual processing
 	result, err := c.handleScaling(ctx, podAutoscaler, &podAutoscalerInternal)
 
+	// Update current replicas
+	targetGVK, err := podAutoscalerInternal.TargetGVK()
+	if err != nil {
+		podAutoscalerInternal.SetError(err)
+		return autoscaling.NoRequeue, err
+	}
+	target := NamespacedPodOwner{
+		Namespace: podAutoscalerInternal.Namespace(),
+		Name:      podAutoscalerInternal.Spec().TargetRef.Name,
+		Kind:      targetGVK.Kind,
+	}
+	currentReplicas := len(c.podWatcher.GetPodsForOwner(target))
+	podAutoscalerInternal.SetCurrentReplicas(int32(currentReplicas))
+
 	// Update status based on latest state
 	statusErr := c.updatePodAutoscalerStatus(ctx, podAutoscalerInternal, podAutoscaler)
 	if statusErr != nil {
