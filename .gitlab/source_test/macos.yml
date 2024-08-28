@@ -99,10 +99,30 @@ lint_macos:
   variables:
     TEST_OUTPUT_FILE: test_output.json
   script:
+    - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
     - inv -e test --rerun-fails=2 --python-runtimes $PYTHON_RUNTIMES --race --profile --cpus 12 --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" $FAST_TESTS_FLAG
     - inv -e invoke-unit-tests
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - $TEST_OUTPUT_FILE
+      - junit-*.tgz
+    reports:
+      junit: "**/junit-out-*.xml"
+      annotations:
+        - $EXTERNAL_LINKS_PATH
+
+.upload_junit_source:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+
+.upload_coverage:
+  # Upload coverage files to Codecov. Never fail on coverage upload.
+  - export CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $CODECOV_TOKEN_SSM_NAME)
+  - inv -e coverage.upload-to-codecov $COVERAGE_CACHE_FLAG || true
+
 
 lint_macos_gitlab_amd64:
   extends: .lint_macos_gitlab
@@ -118,7 +138,13 @@ lint_macos_gitlab_arm64:
 tests_macos_gitlab_amd64:
   extends: .tests_macos_gitlab
   tags: ["macos:monterey-amd64", "specific:true"]
+  after_script:
+    - !reference [.upload_junit_source]
+    - !reference [.upload_coverage]
 
 tests_macos_gitlab_arm64:
   extends: .tests_macos_gitlab
   tags: ["macos:monterey-arm64", "specific:true"]
+  after_script:
+    - !reference [.upload_junit_source]
+    - !reference [.upload_coverage]
