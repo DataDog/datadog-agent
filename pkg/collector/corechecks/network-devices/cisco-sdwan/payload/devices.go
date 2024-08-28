@@ -18,6 +18,7 @@ import (
 // TimeNow useful for mocking
 var TimeNow = time.Now
 
+// DeviceUserTagResourcePrefix contains the REDAPL table to store device user tags
 const DeviceUserTagResourcePrefix = "dd.internal.resource:ndm_device_user_tags"
 
 // GetDevicesMetadata process devices API payloads to build metadata
