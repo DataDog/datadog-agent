@@ -215,6 +215,7 @@ const (
 	MetricSourceKubeAPIserverMetrics
 	MetricSourceKubeControllerManager
 	MetricSourceKubeDNS
+	MetricSourceKubeflow
 	MetricSourceKubeMetricsServer
 	MetricSourceKubeProxy
 	MetricSourceKubeScheduler
@@ -520,6 +521,8 @@ func (ms MetricSource) String() string {
 		return "kube_controller_manager"
 	case MetricSourceKubeDNS:
 		return "kube_dns"
+	case MetricSourceKubeflow:
+		return "kubeflow"
 	case MetricSourceKubeMetricsServer:
 		return "kube_metrics_server"
 	case MetricSourceKubeProxy:
@@ -1042,6 +1045,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceKubeControllerManager
 	case "kube_dns":
 		return MetricSourceKubeDNS
+	case "kubeflow":
+		return MetricSourceKubeflow
 	case "kube_metrics_server":
 		return MetricSourceKubeMetricsServer
 	case "kube_proxy":
