@@ -47,7 +47,7 @@ func (sp *StatsProcessor) processKernelSpan(span *model.KernelSpan, sendEvent bo
 		SourceTypeName: CheckName,
 		EventType:      "gpu-kernel",
 		Title:          "GPU kernel launch",
-		Text:           fmt.Sprintf("Start=%s, end=%s, avgThreadSize=%d, duration=%s, pid=%s", tsStart, tsEnd, span.AvgThreadCount, realDuration, sp.key.Pid),
+		Text:           fmt.Sprintf("Start=%s, end=%s, avgThreadSize=%d, duration=%s, pid=%d", tsStart, tsEnd, span.AvgThreadCount, realDuration, sp.key.Pid),
 		Ts:             tsStart.Unix(),
 	}
 	fmt.Printf("spanev: %v\n", event)
