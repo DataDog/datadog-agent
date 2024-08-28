@@ -12,10 +12,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestValidateShouldSucceedWithValidConfigs(t *testing.T) {
@@ -55,17 +53,13 @@ func TestValidateShouldFailWithInvalidConfigs(t *testing.T) {
 }
 
 func TestAutoMultilineEnabled(t *testing.T) {
-
-	mockConfig := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule(),
-	)).(config.Mock)
-
 	decode := func(cfg string) *LogsConfig {
 		lc := LogsConfig{}
 		json.Unmarshal([]byte(cfg), &lc)
 		return &lc
 	}
 
+	mockConfig := config.NewMock(t)
 	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", false)
 	assert.False(t, decode(`{"auto_multi_line_detection":false}`).AutoMultiLineEnabled(mockConfig))
 
