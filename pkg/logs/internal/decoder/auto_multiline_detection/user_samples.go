@@ -91,9 +91,9 @@ func NewUserSamples(config config.Reader) *UserSamples {
 	}
 }
 
-// Process applies a user sample to a log message. If it matches, a label is assigned.
+// ProcessAndContinue applies a user sample to a log message. If it matches, a label is assigned.
 // This implements the Herustic interface - so we should stop processing if we detect a user pattern by returning false.
-func (j *UserSamples) Process(context *messageContext) bool {
+func (j *UserSamples) ProcessAndContinue(context *messageContext) bool {
 	if context.tokens == nil {
 		log.Error("Tokens are required to process user samples")
 		return true

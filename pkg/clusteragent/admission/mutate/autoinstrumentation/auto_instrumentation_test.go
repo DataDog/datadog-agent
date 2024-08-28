@@ -41,23 +41,25 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 	c := configmock.New(t)
 
 	tests := []struct {
-		name                  string
-		pod                   *corev1.Pod
-		libInfo               extractedPodLibInfo
-		expectedInjectorImage string
-		expectedLangsDetected string
-		expectedInstallType   string
-		wantErr               bool
-		config                func()
+		name                    string
+		pod                     *corev1.Pod
+		libInfo                 extractedPodLibInfo
+		expectedInjectorImage   string
+		expectedLangsDetected   string
+		expectedInstallType     string
+		expectedSecurityContext *corev1.SecurityContext
+		wantErr                 bool
+		config                  func()
 	}{
 		{
 			name: "no libs, no injection",
 			pod:  common.FakePod("java-pod"),
 		},
 		{
-			name:                  "nominal case: java",
-			pod:                   common.FakePod("java-pod"),
-			expectedInjectorImage: commonRegistry + "/apm-inject:0",
+			name:                    "nominal case: java",
+			pod:                     common.FakePod("java-pod"),
+			expectedInjectorImage:   commonRegistry + "/apm-inject:0",
+			expectedSecurityContext: &corev1.SecurityContext{},
 			libInfo: extractedPodLibInfo{
 				libs: []libInfo{
 					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
@@ -65,9 +67,10 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			},
 		},
 		{
-			name:                  "nominal case: java & python",
-			pod:                   common.FakePod("java-pod"),
-			expectedInjectorImage: commonRegistry + "/apm-inject:0",
+			name:                    "nominal case: java & python",
+			pod:                     common.FakePod("java-pod"),
+			expectedInjectorImage:   commonRegistry + "/apm-inject:0",
+			expectedSecurityContext: &corev1.SecurityContext{},
 			libInfo: extractedPodLibInfo{
 				libs: []libInfo{
 					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
@@ -82,7 +85,8 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 					"admission.datadoghq.com/apm-inject.version": "v0",
 				},
 			}.Create(),
-			expectedInjectorImage: commonRegistry + "/apm-inject:v0",
+			expectedInjectorImage:   commonRegistry + "/apm-inject:v0",
+			expectedSecurityContext: &corev1.SecurityContext{},
 			libInfo: extractedPodLibInfo{
 				libs: []libInfo{
 					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
@@ -96,7 +100,8 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 					"admission.datadoghq.com/apm-inject.custom-image": "docker.io/library/apm-inject-package:v27",
 				},
 			}.Create(),
-			expectedInjectorImage: "docker.io/library/apm-inject-package:v27",
+			expectedInjectorImage:   "docker.io/library/apm-inject-package:v27",
+			expectedSecurityContext: &corev1.SecurityContext{},
 			libInfo: extractedPodLibInfo{
 				libs: []libInfo{
 					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
@@ -104,9 +109,10 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			},
 		},
 		{
-			name:                  "config injector-image-override",
-			pod:                   common.FakePod("java-pod"),
-			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0.16-1",
+			name:                    "config injector-image-override",
+			pod:                     common.FakePod("java-pod"),
+			expectedInjectorImage:   "gcr.io/datadoghq/apm-inject:0.16-1",
+			expectedSecurityContext: &corev1.SecurityContext{},
 			libInfo: extractedPodLibInfo{
 				libs: []libInfo{
 					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
@@ -117,11 +123,12 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			},
 		},
 		{
-			name:                  "config language detected env vars",
-			pod:                   common.FakePod("java-pod"),
-			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0.16-1",
-			expectedLangsDetected: "python",
-			expectedInstallType:   "k8s_lib_injection",
+			name:                    "config language detected env vars",
+			pod:                     common.FakePod("java-pod"),
+			expectedInjectorImage:   "gcr.io/datadoghq/apm-inject:0.16-1",
+			expectedLangsDetected:   "python",
+			expectedInstallType:     "k8s_lib_injection",
+			expectedSecurityContext: &corev1.SecurityContext{},
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{
 					libs: []libInfo{
@@ -138,10 +145,11 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			},
 		},
 		{
-			name:                  "language detected for a different container",
-			pod:                   common.FakePod("java-pod"),
-			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0",
-			expectedLangsDetected: "",
+			name:                    "language detected for a different container",
+			pod:                     common.FakePod("java-pod"),
+			expectedInjectorImage:   "gcr.io/datadoghq/apm-inject:0",
+			expectedSecurityContext: &corev1.SecurityContext{},
+			expectedLangsDetected:   "",
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{
 					libs: []libInfo{
@@ -154,10 +162,11 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			},
 		},
 		{
-			name:                  "language detected but no languages found",
-			pod:                   common.FakePod("java-pod"),
-			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0",
-			expectedLangsDetected: "",
+			name:                    "language detected but no languages found",
+			pod:                     common.FakePod("java-pod"),
+			expectedInjectorImage:   "gcr.io/datadoghq/apm-inject:0",
+			expectedSecurityContext: &corev1.SecurityContext{},
+			expectedLangsDetected:   "",
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{},
 				libs: []libInfo{
@@ -166,9 +175,12 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			},
 		},
 		{
-			name:                  "with specified install type",
+			name:                  "with specified install type and container security context",
 			pod:                   common.FakePod("java-pod"),
 			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0.16-1",
+			expectedSecurityContext: &corev1.SecurityContext{
+				Privileged: pointer.Ptr(false),
+			},
 			expectedLangsDetected: "python",
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{
@@ -200,6 +212,8 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			webhook := mustWebhook(t, wmeta)
 			require.Equal(t, instrumentationV2, webhook.version)
 			require.True(t, webhook.version.usesInjector())
+
+			webhook.initSecurityContext = tt.expectedSecurityContext
 
 			if tt.libInfo.source == libInfoSourceNone {
 				tt.libInfo.source = libInfoSourceSingleStepInstrumentation
@@ -253,6 +267,9 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 				"expected there to be one more than the number of libs to inject for init containers")
 
 			for i, c := range tt.pod.Spec.InitContainers {
+
+				require.Equal(t, tt.expectedSecurityContext, c.SecurityContext,
+					"expected %s.SecurityContext to be set", c.Name)
 
 				var injectorMountPath string
 
