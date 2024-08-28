@@ -328,11 +328,11 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
 		"TESTING_YUM_URL":          "yum.datadoghq.com",
 		"TESTING_YUM_VERSION_PATH": "",
 	}
-	mergedParams := make([]string, len(params))
-	copy(mergedParams, params)
+	envParams := make([]string, 0)
 	for k, v := range env {
-		mergedParams = append(mergedParams, fmt.Sprintf("%s=%s", k, v))
+		envParams = append(envParams, fmt.Sprintf("%s=\"%s\"", k, v))
 	}
+	mergedParams := append(envParams, params...)
 
 	environments := []string{}
 	for _, param := range mergedParams {
@@ -353,16 +353,22 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
 			playbookStringSuffix += fmt.Sprintf("    datadog_installer_registry: %s\n", value)
 			environments = append(environments, fmt.Sprintf("%s: %s", key, value))
 		case "TESTING_APT_REPO_VERSION", "TESTING_APT_URL", "TESTING_APT_KEY", "TESTING_YUM_URL", "TESTING_YUM_VERSION_PATH":
+			if value != "" {
+				value = strings.Trim(value, "\"")
+			}
 			defaultRepoEnv[key] = value
-			environments = append(environments, fmt.Sprintf("%s: %s", key, value))
 		default:
-			environments = append(environments, fmt.Sprintf("%s: \"%s\"", key, value))
+			environments = append(environments, fmt.Sprintf("%s: %s", key, value))
 		}
 	}
-	if defaultRepoEnv["TESTING_APT_REPO_VERSION"] != "" {
+	for k, v := range defaultRepoEnv {
+		environments = append(environments, fmt.Sprintf("%s: %s", k, v))
+		}
+
+	if defaultRepoEnv["TESTING_APT_REPO_VERSION"] != "" && defaultRepoEnv["TESTING_APT_URL"] != "" {
 		playbookStringSuffix += fmt.Sprintf("    datadog_apt_repo: \"deb [signed-by=%s] https://%s/ %s\"\n", defaultRepoEnv["TESTING_APT_KEY"], defaultRepoEnv["TESTING_APT_URL"], defaultRepoEnv["TESTING_APT_REPO_VERSION"])
 	}
-	if defaultRepoEnv["TESTING_YUM_VERSION_PATH"] != "" {
+	if defaultRepoEnv["TESTING_YUM_VERSION_PATH"] != "" && defaultRepoEnv["TESTING_YUM_URL"] != "" {
 		archi := "x86_64"
 		if s.arch == e2eos.ARM64Arch {
 			archi = "aarch64"
