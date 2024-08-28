@@ -64,47 +64,20 @@ func getGPUDevices() ([]gpuDevice, error) {
 	return devices, nil
 }
 
-func getThreadsPerMultiprocessor(cudaMajor, cudaMinor int) (int, error) {
-	// This information is not provided by the NVML API (or any other API) so we have to hardcode
-	// https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#features-and-technical-specifications-technical-specifications-per-compute-capability
-	// https://en.wikipedia.org/wiki/CUDA#Technical_Specification for older versions
-	// Look for "Maximum number of resident threads per SM"
-	if cudaMajor >= 5 && cudaMajor < 7 {
-		return 2048, nil
-	} else if cudaMajor == 7 {
-		if cudaMinor < 5 {
-			return 2048, nil
-		} else {
-			return 1024, nil
-		}
-	} else if cudaMajor == 8 {
-		if cudaMinor == 0 {
-			return 2048, nil
-		} else {
-			return 1536, nil
-		}
-	} else if cudaMajor == 9 {
-		return 2048, nil
+func (d *gpuDevice) GetNumMultiprocessors() (int, error) {
+	devProps, ret := d.GetAttributes()
+	if err := wrapNvmlError(ret); err != nil {
+		return 0, fmt.Errorf("cannot get device attributes: %w", err)
 	}
 
-	return 0, fmt.Errorf("unsupported CUDA version %d.%d", cudaMajor, cudaMinor)
+	return int(devProps.MultiprocessorCount), nil
 }
 
 func (d *gpuDevice) GetMaxThreads() (int, error) {
-	major, minor, ret := d.GetCudaComputeCapability()
-	if err := wrapNvmlError(ret); err != nil {
-		return 0, fmt.Errorf("cannot get CUDA compute capability: %w", err)
-	}
-
-	threadsPerSM, err := getThreadsPerMultiprocessor(major, minor)
-	if err != nil {
-		return 0, fmt.Errorf("cannot get threads per SM: %w", err)
-	}
-
-	multiprocessors, ret := d.GetNumGpuCores()
+	cores, ret := d.GetNumGpuCores()
 	if err := wrapNvmlError(ret); err != nil {
 		return 0, fmt.Errorf("cannot get number of GPU cores: %w", err)
 	}
 
-	return threadsPerSM * multiprocessors, nil
+	return int(cores), nil
 }
