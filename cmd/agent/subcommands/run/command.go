@@ -338,9 +338,6 @@ func getSharedFxOption() fx.Option {
 		)),
 		core.Bundle(),
 		lsof.Module(),
-		fx.Supply(dogstatsdServer.Params{
-			Serverless: false,
-		}),
 		forwarder.Bundle(),
 		fx.Provide(func(config config.Component, log log.Component) defaultforwarder.Params {
 			params := defaultforwarder.NewParams(config, log)
@@ -387,7 +384,7 @@ func getSharedFxOption() fx.Option {
 		compressionimpl.Module(),
 		demultiplexerimpl.Module(),
 		demultiplexerendpointfx.Module(),
-		dogstatsd.Bundle(),
+		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
 		fx.Provide(func(logsagent optional.Option[logsAgent.Component]) optional.Option[logsagentpipeline.Component] {
 			if la, ok := logsagent.Get(); ok {
 				return optional.NewOption[logsagentpipeline.Component](la)
