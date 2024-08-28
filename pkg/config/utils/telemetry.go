@@ -7,13 +7,14 @@ package utils
 
 import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // IsCheckTelemetryEnabled returns if we want telemetry for the given check.
 // Returns true if a * is present in the telemetry.checks list.
 func IsCheckTelemetryEnabled(checkName string, cfg pkgconfigmodel.Reader) bool {
 	// when agent_telemetry is enabled, we enable telemetry for every check
-	if isAgentTelemetryEnabled(cfg) {
+	if pkgconfigsetup.IsAgentTelemetryEnabled(cfg) {
 		return true
 	}
 
@@ -38,10 +39,5 @@ func IsCheckTelemetryEnabled(checkName string, cfg pkgconfigmodel.Reader) bool {
 // IsTelemetryEnabled returns whether or not telemetry is enabled
 func IsTelemetryEnabled(cfg pkgconfigmodel.Reader) bool {
 	return cfg.IsSet("telemetry.enabled") && cfg.GetBool("telemetry.enabled") ||
-		(isAgentTelemetryEnabled(cfg))
-}
-
-// isAgentTelemetryEnabled returns whether or not agent telemetry is enabled
-func isAgentTelemetryEnabled(cfg pkgconfigmodel.Reader) bool {
-	return cfg.IsSet("agent_telemetry.enabled") && cfg.GetBool("agent_telemetry.enabled")
+		(pkgconfigsetup.IsAgentTelemetryEnabled(cfg))
 }

@@ -96,6 +96,7 @@ lint_windows-x64:
   variables:
     PYTHON_RUNTIMES: 3
     ARCH: "x64"
+  timeout: 1h30m
 
 .tests_windows_sysprobe:
   stage: source_test

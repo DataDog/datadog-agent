@@ -17,11 +17,12 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	processStatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -65,7 +66,7 @@ func TestNewCollectorQueueSize(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock(t)
+			mockConfig := configmock.New(t)
 			if tc.override {
 				mockConfig.SetWithoutSource("process_config.queue_size", tc.queueSize)
 			}
@@ -112,7 +113,7 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock(t)
+			mockConfig := configmock.New(t)
 			if tc.override {
 				mockConfig.SetWithoutSource("process_config.rt_queue_size", tc.queueSize)
 			}
@@ -159,7 +160,7 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := ddconfig.Mock(t)
+			mockConfig := configmock.New(t)
 			if tc.override {
 				mockConfig.SetWithoutSource("process_config.process_queue_bytes", tc.queueBytes)
 			}
@@ -386,14 +387,14 @@ type submitterDeps struct {
 }
 
 func newSubmitterDeps(t *testing.T) submitterDeps {
-	return fxutil.Test[submitterDeps](t, getForwardersMockModules(nil))
+	return fxutil.Test[submitterDeps](t, getForwardersMockModules(t, nil))
 }
 
 func newSubmitterDepsWithConfig(t *testing.T, config ddconfig.Config) submitterDeps {
 	overrides := config.AllSettings()
-	return fxutil.Test[submitterDeps](t, getForwardersMockModules(overrides))
+	return fxutil.Test[submitterDeps](t, getForwardersMockModules(t, overrides))
 }
 
-func getForwardersMockModules(configOverrides map[string]interface{}) fx.Option {
-	return fx.Options(config.MockModule(), fx.Replace(config.MockParams{Overrides: configOverrides}), forwardersimpl.MockModule(), logimpl.MockModule())
+func getForwardersMockModules(t *testing.T, configOverrides map[string]interface{}) fx.Option {
+	return fx.Options(config.MockModule(), fx.Replace(config.MockParams{Overrides: configOverrides}), forwardersimpl.MockModule(), fx.Provide(func() log.Component { return logmock.New(t) }))
 }

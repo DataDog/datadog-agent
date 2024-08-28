@@ -1,10 +1,12 @@
-using System;
-using System.Security.Principal;
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Microsoft.Deployment.WindowsInstaller;
 using Microsoft.Win32;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Security.Principal;
 using ServiceController = Datadog.CustomActions.Native.ServiceController;
 
 namespace Datadog.CustomActions
@@ -19,6 +21,26 @@ namespace Datadog.CustomActions
         private readonly IServiceController _serviceController;
 
         private readonly INativeMethods _nativeMethods;
+
+        public static Dictionary<string, string> PathsToRemoveOnUninstall()
+        {
+            var pathPropertyMap = new Dictionary<string, string>();
+            var paths = new List<string>
+            {
+                "bin\\agent",
+                "embedded3",
+                // embedded2 only exists in Agent 6, so an error will be logged, but install will continue
+                "embedded2",
+            };
+            for (var i = 0; i < paths.Count; i++)
+            {
+                // property names are a maximum of 72 characters (can't find a source for this, but can verify in Property table schema in Orca)
+                // WixRemoveFolderEx creates properties like PROJECTLOCATION_0 so mimic that here.
+                // include lowercase letters so the property isn't made public.
+                pathPropertyMap.Add($"dd_PROJECTLOCATION_{i}", paths[i]);
+            }
+            return pathPropertyMap;
+        }
 
         public InstallStateCustomActions(
             ISession session,
@@ -128,6 +150,7 @@ namespace Datadog.CustomActions
 
                 GetWindowsBuildVersion();
                 SetDDDriverRollback();
+                SetRemoveFolderExProperties();
             }
             catch (Exception e)
             {
@@ -136,6 +159,51 @@ namespace Datadog.CustomActions
             }
 
             return ActionResult.Success;
+        }
+
+        /// <summary>
+        /// Sets the properties used by the WiX util RemoveFolderEx to cleanup non-tracked paths.
+        ///
+        /// https://wixtoolset.org/docs/v3/xsd/util/removefolderex/
+        /// </summary>
+        /// <remarks>
+        /// RemoveFolderEx only takes a property as input, not IDs or paths, meaning we can't
+        /// pass something like $PROJECTLOCATION\bin\agent in WiX. Instead, we have to set
+        /// the properties in a custom action.
+        ///
+        /// The RemoveFolderEx elements in WiX are configured to only run at uninstall time,
+        /// so the properties values are only relevant then. However, the WixRemoveFolderEx
+        /// custom action will fail fast if any of the properties are empty. So we must always
+        /// provide a value to the properties to prevent an error in the log and to accomodate other
+        /// uses of RemoveFolderEx that run at other times (at time of writing there are none).
+        /// Though this error does not stop the installer, it will ignore it and continue.
+        ///
+        /// RemoveFolderEx handles rollback and will restore any file paths that it deletes.
+        ///
+        /// We specify specific subdirectories under PROJECTLOCATION instead of specifying PROJECTLOCATION
+        /// itself to reduce the impact when the Agent is erroneously installed to an existing directory.
+        ///
+        /// This action copies PROJECTLOCATION and thus changes to PROJECTLOCATION will not be reflected
+        /// in these properties. This should not be an issue since PROJECTLOCATION should not change during
+        /// uninstallation.
+        /// </remarks>
+        private void SetRemoveFolderExProperties()
+        {
+            var installDir = _session["PROJECTLOCATION"];
+            if (string.IsNullOrEmpty(installDir))
+            {
+                if (!string.IsNullOrEmpty(_session["REMOVE"]))
+                {
+                    _session.Log("PROJECTLOCATION is not set, cannot set RemoveFolderEx properties, some files may be left behind in the installation directory.");
+                }
+                return;
+                // We cannot throw an exception here because the installer will fail. This case can happen, for example,
+                // if the cleanup script deleted the registry keys before running the uninstaller.
+            }
+            foreach (var entry in PathsToRemoveOnUninstall())
+            {
+                _session[entry.Key] = Path.Combine(installDir, entry.Value);
+            }
         }
 
         /// <summary>
@@ -227,13 +295,11 @@ namespace Datadog.CustomActions
             _session.Log($"DDDriverRollback_Procmon: {_session["DDDRIVERROLLBACK_PROCMON"]}");
         }
 
-        [CustomAction]
         public static ActionResult ReadInstallState(Session session)
         {
             return new InstallStateCustomActions(new SessionWrapper(session)).ReadInstallState();
         }
 
-        [CustomAction]
         public static ActionResult ReadWindowsVersion(Session session)
         {
             new InstallStateCustomActions(new SessionWrapper(session)).GetWindowsBuildVersion();
@@ -275,7 +341,6 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        [CustomAction]
         public static ActionResult WriteInstallState(Session session)
         {
             return new InstallStateCustomActions(new SessionWrapper(session)).WriteInstallState();
@@ -329,7 +394,6 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        [CustomAction]
         public static ActionResult UninstallWriteInstallState(Session session)
         {
             return new InstallStateCustomActions(new SessionWrapper(session)).UninstallWriteInstallState();

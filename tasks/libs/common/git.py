@@ -45,13 +45,17 @@ def get_staged_files(ctx, commit="HEAD", include_deleted_files=False) -> Iterabl
                 yield file
 
 
-def get_modified_files(ctx) -> list[str]:
-    last_main_commit = ctx.run("git merge-base HEAD origin/main", hide=True).stdout
+def get_modified_files(ctx, base_branch="main") -> list[str]:
+    last_main_commit = ctx.run(f"git merge-base HEAD origin/{base_branch}", hide=True).stdout
     return ctx.run(f"git diff --name-only --no-renames {last_main_commit}", hide=True).stdout.splitlines()
 
 
 def get_current_branch(ctx) -> str:
     return ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+
+
+def get_common_ancestor(ctx, branch) -> str:
+    return ctx.run(f"git merge-base {branch} main", hide=True).stdout.strip()
 
 
 def check_uncommitted_changes(ctx):

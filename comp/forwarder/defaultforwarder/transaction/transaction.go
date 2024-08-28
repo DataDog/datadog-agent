@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -98,7 +98,7 @@ func GetClientTrace(log log.Component) *httptrace.ClientTrace {
 					log.Debugf("Request writing failure: %s", wroteInfo.Err)
 				}
 			},
-			ConnectDone: func(network, addr string, err error) {
+			ConnectDone: func(_, addr string, err error) {
 				if err != nil {
 					transactionsConnectionErrors.Add(1)
 					tlmTxErrors.Inc("unknown", "unknown", "connection_failure")
@@ -109,7 +109,7 @@ func GetClientTrace(log log.Component) *httptrace.ClientTrace {
 				tlmConnectEvents.Inc("connection_success")
 				log.Tracef("New successful connection to address: %q", addr)
 			},
-			TLSHandshakeDone: func(tlsState tls.ConnectionState, err error) {
+			TLSHandshakeDone: func(_ tls.ConnectionState, err error) {
 				if err != nil {
 					transactionsTLSErrors.Add(1)
 					tlmTxErrors.Inc("unknown", "unknown", "tls_handshake_failure")
@@ -130,8 +130,8 @@ type HTTPAttemptHandler func(transaction *HTTPTransaction)
 // HTTPCompletionHandler is an  event handler that will get called after this transaction has completed
 type HTTPCompletionHandler func(transaction *HTTPTransaction, statusCode int, body []byte, err error)
 
-var defaultAttemptHandler = func(transaction *HTTPTransaction) {}
-var defaultCompletionHandler = func(transaction *HTTPTransaction, statusCode int, body []byte, err error) {}
+var defaultAttemptHandler = func(_ *HTTPTransaction) {}
+var defaultCompletionHandler = func(_ *HTTPTransaction, _ int, _ []byte, _ error) {}
 
 func init() {
 	TransactionsExpvars.Init()

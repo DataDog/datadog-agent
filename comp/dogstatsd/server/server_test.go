@@ -11,10 +11,14 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -75,7 +79,12 @@ func fulfillDeps(t testing.TB) serverDeps {
 	return fulfillDepsWithConfigOverride(t, map[string]interface{}{})
 }
 
-func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string]interface{}, features []config.Feature) serverDeps {
+func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string]interface{}, features []env.Feature) serverDeps {
+
+	// TODO: https://datadoghq.atlassian.net/browse/AMLII-1948
+	if runtime.GOOS == "darwin" {
+		flake.Mark(t)
+	}
 	return fxutil.Test[serverDeps](t, fx.Options(
 		core.MockBundle(),
 		serverdebugimpl.MockModule(),
@@ -88,8 +97,7 @@ func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string
 		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmetafxmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		Module(),
 	))
 }
@@ -110,8 +118,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmetafxmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		Module(),
 	))
 }
@@ -141,8 +148,7 @@ func TestStopServer(t *testing.T) {
 		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmetafxmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
@@ -172,8 +178,6 @@ func TestStopServer(t *testing.T) {
 // properly protected from multiple accesses by `cachedTlmLock`.
 // The main purpose of this test is to detect early if a future code change is
 // introducing a data race.
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func TestNoRaceOriginTagMaps(t *testing.T) {
 	const N = 100
 	cfg := make(map[string]interface{})
@@ -191,8 +195,7 @@ func TestNoRaceOriginTagMaps(t *testing.T) {
 		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmetafxmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
@@ -215,7 +218,9 @@ func TestNoRaceOriginTagMaps(t *testing.T) {
 
 func testReceive(t *testing.T, conn net.Conn, demux demultiplexer.FakeSamplerMock) {
 	// Test metric
-	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
+	_, err := conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
+	require.NoError(t, err, "cannot write to DSD socket")
+
 	samples, timedSamples := demux.WaitForSamples(time.Second * 2)
 	require.Len(t, samples, 1)
 	require.Len(t, timedSamples, 0)
@@ -227,7 +232,8 @@ func testReceive(t *testing.T, conn net.Conn, demux demultiplexer.FakeSamplerMoc
 	assert.ElementsMatch(t, sample.Tags, []string{"sometag1:somevalue1", "sometag2:somevalue2"})
 	demux.Reset()
 
-	conn.Write([]byte("daemon:666|c|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
+	_, err = conn.Write([]byte("daemon:666|c|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
+	require.NoError(t, err, "cannot write to DSD socket")
 	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
 	require.Len(t, samples, 1)
 	require.Len(t, timedSamples, 0)
@@ -239,7 +245,8 @@ func testReceive(t *testing.T, conn net.Conn, demux demultiplexer.FakeSamplerMoc
 	assert.Equal(t, 0.5, sample.SampleRate)
 	demux.Reset()
 
-	conn.Write([]byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
+	_, err = conn.Write([]byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
+	require.NoError(t, err, "cannot write to DSD socket")
 	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
 	require.Len(t, samples, 1)
 	require.Len(t, timedSamples, 0)
@@ -251,7 +258,8 @@ func testReceive(t *testing.T, conn net.Conn, demux demultiplexer.FakeSamplerMoc
 	assert.Equal(t, 0.5, sample.SampleRate)
 	demux.Reset()
 
-	conn.Write([]byte("daemon:666|ms|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
+	_, err = conn.Write([]byte("daemon:666|ms|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
+	require.NoError(t, err, "cannot write to DSD socket")
 	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
 	require.Len(t, samples, 1)
 	require.Len(t, timedSamples, 0)
@@ -263,7 +271,8 @@ func testReceive(t *testing.T, conn net.Conn, demux demultiplexer.FakeSamplerMoc
 	assert.Equal(t, 0.5, sample.SampleRate)
 	demux.Reset()
 
-	conn.Write([]byte("daemon_set:abc|s|#sometag1:somevalue1,sometag2:somevalue2"))
+	_, err = conn.Write([]byte("daemon_set:abc|s|#sometag1:somevalue1,sometag2:somevalue2"))
+	require.NoError(t, err, "cannot write to DSD socket")
 	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
 	require.Len(t, samples, 1)
 	require.Len(t, timedSamples, 0)
@@ -275,7 +284,8 @@ func testReceive(t *testing.T, conn net.Conn, demux demultiplexer.FakeSamplerMoc
 	demux.Reset()
 
 	// multi-metric packet
-	conn.Write([]byte("daemon1:666|c\ndaemon2:1000|c"))
+	_, err = conn.Write([]byte("daemon1:666|c\ndaemon2:1000|c"))
+	require.NoError(t, err, "cannot write to DSD socket")
 	samples, timedSamples = demux.WaitForNumberOfSamples(2, 0, time.Second*2)
 	require.Len(t, samples, 2)
 	require.Len(t, timedSamples, 0)
@@ -292,7 +302,8 @@ func testReceive(t *testing.T, conn net.Conn, demux demultiplexer.FakeSamplerMoc
 	demux.Reset()
 
 	// multi-value packet
-	conn.Write([]byte("daemon1:666:123|c\ndaemon2:1000|c"))
+	_, err = conn.Write([]byte("daemon1:666:123|c\ndaemon2:1000|c"))
+	require.NoError(t, err, "cannot write to DSD socket")
 	samples, timedSamples = demux.WaitForNumberOfSamples(3, 0, time.Second*2)
 	require.Len(t, samples, 3)
 	require.Len(t, timedSamples, 0)
@@ -314,7 +325,8 @@ func testReceive(t *testing.T, conn net.Conn, demux demultiplexer.FakeSamplerMoc
 	demux.Reset()
 
 	// multi-value packet with skip empty
-	conn.Write([]byte("daemon1::666::123::::|c\ndaemon2:1000|c"))
+	_, err = conn.Write([]byte("daemon1::666::123::::|c\ndaemon2:1000|c"))
+	require.NoError(t, err, "cannot write to DSD socket")
 	samples, timedSamples = demux.WaitForNumberOfSamples(3, 0, time.Second*2)
 	require.Len(t, samples, 3)
 	require.Len(t, timedSamples, 0)
@@ -336,7 +348,8 @@ func testReceive(t *testing.T, conn net.Conn, demux demultiplexer.FakeSamplerMoc
 	demux.Reset()
 
 	//	// slightly malformed multi-metric packet, should still be parsed in whole
-	conn.Write([]byte("daemon1:666|c\n\ndaemon2:1000|c\n"))
+	_, err = conn.Write([]byte("daemon1:666|c\n\ndaemon2:1000|c\n"))
+	require.NoError(t, err, "cannot write to DSD socket")
 	samples, timedSamples = demux.WaitForNumberOfSamples(2, 0, time.Second*2)
 	require.Len(t, samples, 2)
 	require.Len(t, timedSamples, 0)
@@ -353,7 +366,8 @@ func testReceive(t *testing.T, conn net.Conn, demux demultiplexer.FakeSamplerMoc
 	demux.Reset()
 
 	// Test erroneous metric
-	conn.Write([]byte("daemon1:666a|g\ndaemon2:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
+	_, err = conn.Write([]byte("daemon1:666a|g\ndaemon2:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
+	require.NoError(t, err, "cannot write to DSD socket")
 	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
 	require.Len(t, samples, 1)
 	require.Len(t, timedSamples, 0)
@@ -363,7 +377,8 @@ func testReceive(t *testing.T, conn net.Conn, demux demultiplexer.FakeSamplerMoc
 	demux.Reset()
 
 	// Test empty metric
-	conn.Write([]byte("daemon1:|g\ndaemon2:666|g|#sometag1:somevalue1,sometag2:somevalue2\ndaemon3: :1:|g"))
+	_, err = conn.Write([]byte("daemon1:|g\ndaemon2:666|g|#sometag1:somevalue1,sometag2:somevalue2\ndaemon3: :1:|g"))
+	require.NoError(t, err, "cannot write to DSD socket")
 	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
 	require.Len(t, samples, 1)
 	require.Len(t, timedSamples, 0)
@@ -373,7 +388,8 @@ func testReceive(t *testing.T, conn net.Conn, demux demultiplexer.FakeSamplerMoc
 	demux.Reset()
 
 	// Late gauge
-	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2|T1658328888"))
+	_, err = conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2|T1658328888"))
+	require.NoError(t, err, "cannot write to DSD socket")
 	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
 	require.Len(t, samples, 0)
 	require.Len(t, timedSamples, 1)
@@ -385,7 +401,8 @@ func testReceive(t *testing.T, conn net.Conn, demux demultiplexer.FakeSamplerMoc
 	demux.Reset()
 
 	// Late count
-	conn.Write([]byte("daemon:666|c|#sometag1:somevalue1,sometag2:somevalue2|T1658328888"))
+	_, err = conn.Write([]byte("daemon:666|c|#sometag1:somevalue1,sometag2:somevalue2|T1658328888"))
+	require.NoError(t, err, "cannot write to DSD socket")
 	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
 	require.Len(t, samples, 0)
 	require.Len(t, timedSamples, 1)
@@ -397,7 +414,8 @@ func testReceive(t *testing.T, conn net.Conn, demux demultiplexer.FakeSamplerMoc
 	demux.Reset()
 
 	// Late metric and a normal one
-	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2|T1658328888\ndaemon2:666|c"))
+	_, err = conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2|T1658328888\ndaemon2:666|c"))
+	require.NoError(t, err, "cannot write to DSD socket")
 	samples, timedSamples = demux.WaitForNumberOfSamples(1, 1, time.Second*2)
 	require.Len(t, samples, 1)
 	require.Len(t, timedSamples, 1)
@@ -416,7 +434,8 @@ func testReceive(t *testing.T, conn net.Conn, demux demultiplexer.FakeSamplerMoc
 
 	eventOut, serviceOut := demux.GetEventsAndServiceChecksChannels()
 
-	conn.Write([]byte("_sc|agent.up|0|d:12345|h:localhost|m:this is fine|#sometag1:somevalyyue1,sometag2:somevalue2"))
+	_, err = conn.Write([]byte("_sc|agent.up|0|d:12345|h:localhost|m:this is fine|#sometag1:somevalyyue1,sometag2:somevalue2"))
+	require.NoError(t, err, "cannot write to DSD socket")
 	select {
 	case res := <-serviceOut:
 		assert.NotNil(t, res)
@@ -425,7 +444,8 @@ func testReceive(t *testing.T, conn net.Conn, demux demultiplexer.FakeSamplerMoc
 	}
 
 	// Test erroneous Service Check
-	conn.Write([]byte("_sc|agen.down\n_sc|agent.up|0|d:12345|h:localhost|m:this is fine|#sometag1:somevalyyue1,sometag2:somevalue2"))
+	_, err = conn.Write([]byte("_sc|agen.down\n_sc|agent.up|0|d:12345|h:localhost|m:this is fine|#sometag1:somevalyyue1,sometag2:somevalue2"))
+	require.NoError(t, err, "cannot write to DSD socket")
 	select {
 	case res := <-serviceOut:
 		assert.Equal(t, 1, len(res))
@@ -439,7 +459,8 @@ func testReceive(t *testing.T, conn net.Conn, demux demultiplexer.FakeSamplerMoc
 	// Test Event
 	// ----------
 
-	conn.Write([]byte("_e{10,10}:test title|test\\ntext|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test"))
+	_, err = conn.Write([]byte("_e{10,10}:test title|test\\ntext|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test"))
+	require.NoError(t, err, "cannot write to DSD socket")
 	select {
 	case res := <-eventOut:
 		event := res[0]
@@ -450,13 +471,14 @@ func testReceive(t *testing.T, conn net.Conn, demux demultiplexer.FakeSamplerMoc
 	}
 
 	// Test erroneous Events
-	conn.Write(
+	_, err = conn.Write(
 		[]byte("_e{0,9}:|test text\n" +
 			"_e{-5,2}:abc\n" +
 			"_e{11,10}:test title2|test\\ntext|" +
 			"t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test",
 		),
 	)
+	require.NoError(t, err, "cannot write to DSD socket")
 	select {
 	case res := <-eventOut:
 		assert.Equal(t, 1, len(res))
@@ -507,15 +529,17 @@ func TestUDPForward(t *testing.T) {
 	requireStart(t, deps.Server)
 
 	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
-	require.NoError(t, err, "cannot connect to DSD socket")
+	require.NoError(t, err)
+	require.NotNil(t, conn)
 	defer conn.Close()
 
 	// Check if message is forwarded
 	message := []byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2")
 
-	conn.Write(message)
+	_, err = conn.Write(message)
+	require.NoError(t, err, "cannot write to DSD socket")
 
-	pc.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = pc.SetReadDeadline(time.Now().Add(4 * time.Second))
 
 	buffer := make([]byte, len(message))
 	_, _, err = pc.ReadFrom(buffer)
@@ -541,8 +565,8 @@ func TestHistToDist(t *testing.T) {
 	defer conn.Close()
 
 	// Test metric
-	conn.Write([]byte("daemon:666|h|#sometag1:somevalue1,sometag2:somevalue2"))
-	time.Sleep(time.Millisecond * 200) // give some time to the socket write/read
+	_, err = conn.Write([]byte("daemon:666|h|#sometag1:somevalue1,sometag2:somevalue2"))
+	require.NoError(t, err, "cannot write to DSD socket")
 	samples, timedSamples := demux.WaitForSamples(time.Second * 2)
 	require.Equal(t, 2, len(samples))
 	require.Equal(t, 0, len(timedSamples))
@@ -645,7 +669,8 @@ func TestE2EParsing(t *testing.T) {
 	defer conn.Close()
 
 	// Test metric expecting an EOL
-	conn.Write([]byte("daemon:666|g|#foo:bar\ndaemon:666|g|#foo:bar"))
+	_, err = conn.Write([]byte("daemon:666|g|#foo:bar\ndaemon:666|g|#foo:bar"))
+	require.NoError(t, err, "cannot write to DSD socket")
 	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
 	require.Equal(t, 1, len(samples))
 	assert.Equal(t, 0, len(timedSamples))
@@ -657,7 +682,7 @@ func TestExtraTags(t *testing.T) {
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 	cfg["dogstatsd_tags"] = []string{"sometag3:somevalue3"}
 
-	deps := fulfillDepsWithConfigOverrideAndFeatures(t, cfg, []config.Feature{config.EKSFargate})
+	deps := fulfillDepsWithConfigOverrideAndFeatures(t, cfg, []env.Feature{env.EKSFargate})
 
 	demux := deps.Demultiplexer
 	requireStart(t, deps.Server)
@@ -667,7 +692,8 @@ func TestExtraTags(t *testing.T) {
 	defer conn.Close()
 
 	// Test metric
-	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
+	_, err = conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
+	require.NoError(t, err, "cannot write to DSD socket")
 	samples, timedSamples := demux.WaitForSamples(time.Second * 2)
 	require.Equal(t, 1, len(samples))
 	require.Equal(t, 0, len(timedSamples))
@@ -685,7 +711,7 @@ func TestStaticTags(t *testing.T) {
 	cfg["dogstatsd_tags"] = []string{"sometag3:somevalue3"}
 	cfg["tags"] = []string{"from:dd_tags"}
 
-	deps := fulfillDepsWithConfigOverrideAndFeatures(t, cfg, []config.Feature{config.EKSFargate})
+	deps := fulfillDepsWithConfigOverrideAndFeatures(t, cfg, []env.Feature{env.EKSFargate})
 
 	demux := deps.Demultiplexer
 	requireStart(t, deps.Server)
@@ -748,15 +774,14 @@ func TestParseMetricMessageTelemetry(t *testing.T) {
 		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmetafxmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
 
 	assert.Nil(t, s.mapper)
 
-	samples := []metrics.MetricSample{}
+	var samples []metrics.MetricSample
 
 	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 
@@ -913,8 +938,7 @@ func TestParseEventMessageTelemetry(t *testing.T) {
 		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmetafxmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
@@ -964,8 +988,7 @@ func TestParseServiceCheckMessageTelemetry(t *testing.T) {
 		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmetafxmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
@@ -1186,5 +1209,5 @@ func TestOrigin(t *testing.T) {
 
 func requireStart(t *testing.T, s Component) {
 	assert.NotNil(t, s)
-	assert.True(t, s.IsRunning())
+	assert.True(t, s.IsRunning(), "server was not running")
 }

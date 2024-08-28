@@ -92,8 +92,6 @@ func processNodeToProto(p *model.Process) *adproto.ProcessInfo {
 		IsExecChild: p.IsExecExec,
 		File:        fileEventToProto(&p.FileEvent),
 		ContainerId: string(p.ContainerID),
-		SpanId:      p.SpanID,
-		TraceId:     p.TraceID,
 		Tty:         escape(p.TTYName),
 		Comm:        escape(p.Comm),
 

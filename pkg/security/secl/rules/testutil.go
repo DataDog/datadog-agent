@@ -15,20 +15,24 @@ import (
 
 // AddTestRuleExpr adds a rule expression
 func AddTestRuleExpr(t testing.TB, rs *RuleSet, exprs ...string) {
-	var ruleDefs []*RuleDefinition
+	t.Helper()
+
+	var rules []*PolicyRule
 
 	for i, expr := range exprs {
-		ruleDef := &RuleDefinition{
-			ID:         fmt.Sprintf("ID%d", i),
-			Expression: expr,
-			Tags:       make(map[string]string),
+		rule := &PolicyRule{
+			Def: &RuleDefinition{
+				ID:         fmt.Sprintf("ID%d", i),
+				Expression: expr,
+				Tags:       make(map[string]string),
+			},
 		}
-		ruleDefs = append(ruleDefs, ruleDef)
+		rules = append(rules, rule)
 	}
 
 	pc := ast.NewParsingContext()
 
-	if err := rs.AddRules(pc, ruleDefs); err != nil {
+	if err := rs.AddRules(pc, rules); err != nil {
 		t.Fatal(err)
 	}
 }

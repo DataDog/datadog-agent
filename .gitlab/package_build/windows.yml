@@ -65,6 +65,7 @@ windows_msi_and_bosh_zip_x64-a7:
     PYTHON_RUNTIMES: "3"
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_7
+  timeout: 2h
 
 windows_msi_x64-a6:
   extends: .windows_main_agent_base
@@ -77,7 +78,7 @@ windows_msi_x64-a6:
     PYTHON_RUNTIMES: "2,3"
   before_script:
     - set RELEASE_VERSION $RELEASE_VERSION_6
-  timeout: 3h
+  timeout: 2h10
 
 # cloudfoundry IoT build for Windows
 windows_zip_agent_binaries_x64-a7:

@@ -17,7 +17,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	// Required to initialize the "dogstatsd" expvar
@@ -27,7 +27,7 @@ import (
 
 func TestCreateSecurityAgentArchive(t *testing.T) {
 	common.SetupConfigForTest("./test")
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 
 	statusComponent := fxutil.Test[status.Mock](t, fx.Options(
 		statusimpl.MockModule(),

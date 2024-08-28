@@ -29,7 +29,6 @@ import (
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // ErrProcessUnsupported is an error type indicating that the process module is not support in the running environment
@@ -39,7 +38,7 @@ var ErrProcessUnsupported = errors.New("process module unsupported")
 var Process = module.Factory{
 	Name:             config.ProcessModule,
 	ConfigNamespaces: []string{},
-	Fn: func(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], _ telemetry.Component) (module.Module, error) {
+	Fn: func(_ *sysconfigtypes.Config, _ workloadmeta.Component, _ telemetry.Component) (module.Module, error) {
 		log.Infof("Creating process module for: %s", filepath.Base(os.Args[0]))
 
 		// we disable returning zero values for stats to reduce parsing work on process-agent side

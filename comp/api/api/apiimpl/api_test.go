@@ -45,6 +45,7 @@ import (
 
 	// third-party dependencies
 	dto "github.com/prometheus/client_model/go"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -99,12 +100,7 @@ func TestStartServer(t *testing.T) {
 		"agent_ipc.port": 0,
 	}}
 
-	deps := getTestAPIServer(t, cfgOverride)
-
-	err := deps.API.StartServer()
-	defer deps.API.StopServer()
-
-	assert.NoError(t, err, "could not start api component servers: %v", err)
+	getTestAPIServer(t, cfgOverride)
 }
 
 func hasLabelValue(labels []*dto.LabelPair, name string, value string) bool {
@@ -135,9 +131,6 @@ func TestStartBothServersWithObservability(t *testing.T) {
 	}}
 
 	deps := getTestAPIServer(t, cfgOverride)
-	err = deps.API.StartServer()
-	require.NoError(t, err)
-	defer deps.API.StopServer()
 
 	registry := deps.Telemetry.GetRegistry()
 
@@ -146,11 +139,11 @@ func TestStartBothServersWithObservability(t *testing.T) {
 		serverName string
 	}{
 		{
-			addr:       cmdListener.Addr().String(),
+			addr:       deps.API.CMDServerAddress().String(),
 			serverName: cmdServerShortName,
 		},
 		{
-			addr:       ipcListener.Addr().String(),
+			addr:       deps.API.IPCServerAddress().String(),
 			serverName: ipcServerShortName,
 		},
 	}

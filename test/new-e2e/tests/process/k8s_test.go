@@ -84,7 +84,7 @@ func TestK8sTestSuite(t *testing.T) {
 func (s *K8sSuite) TestProcessCheck() {
 	t := s.T()
 
-	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+	assert.EventuallyWithT(t, func(*assert.CollectT) {
 		status := k8sAgentStatus(t, s.Env().KubernetesCluster)
 		assert.ElementsMatch(t, []string{"process", "rtprocess"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
 	}, 2*time.Minute, 5*time.Second)
@@ -120,7 +120,7 @@ func (s *K8sSuite) TestProcessDiscoveryCheck() {
 		awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
 	))
 
-	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+	assert.EventuallyWithT(t, func(*assert.CollectT) {
 		status := k8sAgentStatus(t, s.Env().KubernetesCluster)
 		assert.ElementsMatch(t, []string{"process_discovery"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
 	}, 2*time.Minute, 5*time.Second)
@@ -153,7 +153,9 @@ func (s *K8sSuite) TestManualContainerCheck() {
 
 func execProcessAgentCheck(t *testing.T, cluster *components.KubernetesCluster, check string) string {
 	agent := getAgentPod(t, cluster.Client())
-	cmd := fmt.Sprintf("DD_LOG_LEVEL=OFF process-agent check %s -w 5s --json", check)
+	// set the wait interval as workloadmeta takes some time to initialize for container data
+	// https://datadoghq.atlassian.net/browse/PROCS-4157
+	cmd := fmt.Sprintf("DD_LOG_LEVEL=OFF process-agent check %s -w 10s --json", check)
 
 	// The log level needs to be overridden as the pod has an ENV var set.
 	// This is so we get just json back from the check

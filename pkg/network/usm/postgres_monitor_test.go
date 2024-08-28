@@ -27,21 +27,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/ebpf"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 const (
-	postgresPort           = "5432"
-	createTableQuery       = "CREATE TABLE dummy (id SERIAL PRIMARY KEY, foo TEXT)"
-	updateSingleValueQuery = "UPDATE dummy SET foo = 'updated' WHERE id = 1"
-	selectAllQuery         = "SELECT * FROM dummy"
-	dropTableQuery         = "DROP TABLE IF EXISTS dummy"
-	deleteTableQuery       = "DELETE FROM dummy WHERE id = 1"
-	alterTableQuery        = "ALTER TABLE dummy ADD test VARCHAR(255);"
-	truncateTableQuery     = "TRUNCATE TABLE dummy"
+	postgresPort             = "5432"
+	repeatCount              = ebpf.BufferSize / len("table_")
+	createTableQuery         = "CREATE TABLE dummy (id SERIAL PRIMARY KEY, foo TEXT)"
+	updateSingleValueQuery   = "UPDATE dummy SET foo = 'updated' WHERE id = 1"
+	selectAllQuery           = "SELECT * FROM dummy"
+	selectParameterizedQuery = "SELECT * FROM dummy WHERE id = $1"
+	dropTableQuery           = "DROP TABLE IF EXISTS dummy"
+	deleteTableQuery         = "DELETE FROM dummy WHERE id = 1"
+	alterTableQuery          = "ALTER TABLE dummy ADD test VARCHAR(255);"
+	truncateTableQuery       = "TRUNCATE TABLE dummy"
+	showQuery                = "SHOW search_path"
+)
+
+var (
+	longCreateQuery = fmt.Sprintf("CREATE TABLE %s (id SERIAL PRIMARY KEY, foo TEXT)", strings.Repeat("table_", repeatCount))
+	longDropeQuery  = fmt.Sprintf("DROP TABLE IF EXISTS %s", strings.Repeat("table_", repeatCount))
 )
 
 func createInsertQuery(values ...string) string {
@@ -113,8 +121,6 @@ func (s *postgresProtocolParsingSuite) TestLoadPostgresBinary() {
 
 func (s *postgresProtocolParsingSuite) TestDecoding() {
 	t := s.T()
-	// USMON-1080
-	flake.Mark(t)
 
 	tests := []struct {
 		name  string
@@ -179,7 +185,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 
 	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS))
 	if isTLS {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid())
+		utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid(), utils.ManualTracingFallbackEnabled)
 	}
 
 	tests := []postgresParsingTestAttributes{
@@ -198,7 +204,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 				pg := ctx.extras["pg"].(*postgres.PGXClient)
 				require.NoError(t, pg.RunQuery(createTableQuery))
 			},
-			validation: func(t *testing.T, ctx pgTestContext, monitor *Monitor) {
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
 						postgres.CreateTableOP: adjustCount(1),
@@ -226,7 +232,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 					require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(5*i, 5*(1+i))...)))
 				}
 			},
-			validation: func(t *testing.T, ctx pgTestContext, monitor *Monitor) {
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
 						postgres.InsertOP: adjustCount(2),
@@ -251,7 +257,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 				pg := ctx.extras["pg"].(*postgres.PGXClient)
 				require.NoError(t, pg.RunQuery(updateSingleValueQuery))
 			},
-			validation: func(t *testing.T, ctx pgTestContext, monitor *Monitor) {
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
 						postgres.UpdateOP: adjustCount(1),
@@ -276,7 +282,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 				pg := ctx.extras["pg"].(*postgres.PGXClient)
 				require.NoError(t, pg.RunQuery(selectAllQuery))
 			},
-			validation: func(t *testing.T, ctx pgTestContext, monitor *Monitor) {
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
 						postgres.SelectOP: adjustCount(1),
@@ -300,7 +306,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 				pg := ctx.extras["pg"].(*postgres.PGXClient)
 				require.NoError(t, pg.RunQuery(deleteTableQuery))
 			},
-			validation: func(t *testing.T, ctx pgTestContext, monitor *Monitor) {
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
 						postgres.DeleteTableOP: adjustCount(1),
@@ -324,7 +330,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 				pg := ctx.extras["pg"].(*postgres.PGXClient)
 				require.NoError(t, pg.RunQuery(alterTableQuery))
 			},
-			validation: func(t *testing.T, ctx pgTestContext, monitor *Monitor) {
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
 						postgres.AlterTableOP: adjustCount(1),
@@ -348,7 +354,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 				pg := ctx.extras["pg"].(*postgres.PGXClient)
 				require.NoError(t, pg.RunQuery(truncateTableQuery))
 			},
-			validation: func(t *testing.T, ctx pgTestContext, monitor *Monitor) {
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
 						postgres.TruncateTableOP: adjustCount(1),
@@ -371,7 +377,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 				pg := ctx.extras["pg"].(*postgres.PGXClient)
 				require.NoError(t, pg.RunQuery(dropTableQuery))
 			},
-			validation: func(t *testing.T, ctx pgTestContext, monitor *Monitor) {
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
 						postgres.DropTableOP: adjustCount(1),
@@ -405,7 +411,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 				require.NoError(t, pg.RunQuery(generateSelectLimitQuery(50)))
 				require.NoError(t, pg.RunQuery(updateSingleValueQuery))
 			},
-			validation: func(t *testing.T, ctx pgTestContext, monitor *Monitor) {
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
 						postgres.SelectOP:      adjustCount(1),
@@ -429,16 +435,15 @@ func testDecoding(t *testing.T, isTLS bool) {
 			},
 			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
 				pg := ctx.extras["pg"].(*postgres.PGXClient)
-				longTableName := strings.Repeat("table_", 15)
-				require.NoError(t, pg.RunQuery(fmt.Sprintf("CREATE TABLE %s (id SERIAL PRIMARY KEY, foo TEXT)", longTableName)))
-				require.NoError(t, pg.RunQuery(fmt.Sprintf("DROP TABLE IF EXISTS %s", longTableName)))
+				require.NoError(t, pg.RunQuery(longCreateQuery))
+				require.NoError(t, pg.RunQuery(longDropeQuery))
 			},
-			validation: func(t *testing.T, ctx pgTestContext, monitor *Monitor) {
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
-					"table_table_table_table_table_table_table_table_tab": {
+					getTruncatedTableName(longCreateQuery, 13): {
 						postgres.CreateTableOP: adjustCount(1),
 					},
-					"table_table_table_table_table_table_table_t": {
+					getTruncatedTableName(longDropeQuery, 21): {
 						postgres.DropTableOP: adjustCount(1),
 					},
 				}, isTLS)
@@ -465,12 +470,121 @@ func testDecoding(t *testing.T, isTLS bool) {
 				// Should produce 2 postgres transactions (one for the server and one for the docker proxy)
 				require.NoError(t, pg.RunQuery(generateSelectLimitQuery(1)))
 			},
-			validation: func(t *testing.T, ctx pgTestContext, monitor *Monitor) {
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
 						postgres.SelectOP: adjustCount(2),
 					},
 				}, isTLS)
+			},
+		},
+		// This test validates that the SHOW command is currently not supported.
+		{
+			name: "show command",
+			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
+			},
+			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.RunQuery(showQuery))
+			},
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
+					"UNKNOWN": {
+						postgres.UnknownOP: adjustCount(1),
+					},
+				}, isTLS)
+			},
+		},
+		// This test validates that the sql transaction is not supported.
+		{
+			name: "transaction",
+			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+
+				tx, err := pg.Begin()
+				require.NoError(t, err)
+				require.NoError(t, pg.RunQuery(createTableQuery))
+				require.NoError(t, pg.Commit(tx))
+			},
+			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+
+				tx, err := pg.Begin()
+				require.NoError(t, err)
+				require.NoError(t, pg.RunQueryTX(tx, selectAllQuery))
+				require.NoError(t, pg.Commit(tx))
+			},
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
+					"UNKNOWN": {
+						postgres.UnknownOP: adjustCount(2),
+					},
+					"dummy": {
+						postgres.SelectOP: adjustCount(1),
+					},
+				}, isTLS)
+			},
+		},
+		{
+			name: "batched queries",
+			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
+
+			},
+			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+
+				require.NoError(t, pg.SendBatch(createInsertQuery("value-1"), selectAllQuery))
+			},
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
+					"dummy": {
+						postgres.InsertOP: adjustCount(1),
+					},
+				}, isTLS)
+			},
+		},
+		// This test validates that parameterized queries are currently not supported.
+		{
+			name: "parameterized select",
+			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
+				require.NoError(t, pg.RunQuery(createInsertQuery("value-1")))
+			},
+			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.RunQuery(selectParameterizedQuery, "value-1"))
+			},
+			validation: func(t *testing.T, _ pgTestContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{}, isTLS)
 			},
 		},
 	}
@@ -513,14 +627,20 @@ func testDecoding(t *testing.T, isTLS bool) {
 	}
 }
 
+// getTruncatedTableName returns the truncated table name by reducing the operation and extracting the remaining
+// table name by the current max buffer size.
+func getTruncatedTableName(query string, tableNameIndex int) string {
+	return query[tableNameIndex:ebpf.BufferSize]
+}
+
 // getPostgresInFlightEntries returns the entries in the in-flight map.
-func getPostgresInFlightEntries(t *testing.T, monitor *Monitor) map[postgres.ConnTuple]postgres.EbpfTx {
+func getPostgresInFlightEntries(t *testing.T, monitor *Monitor) map[ebpf.ConnTuple]ebpf.EbpfTx {
 	postgresInFlightMap, _, err := monitor.ebpfProgram.GetMap(postgres.InFlightMap)
 	require.NoError(t, err)
 
-	var key postgres.ConnTuple
-	var value postgres.EbpfTx
-	entries := make(map[postgres.ConnTuple]postgres.EbpfTx)
+	var key ebpf.ConnTuple
+	var value ebpf.EbpfTx
+	entries := make(map[ebpf.ConnTuple]ebpf.EbpfTx)
 	iter := postgresInFlightMap.Iterate()
 	for iter.Next(&key, &value) {
 		entries[key] = value

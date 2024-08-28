@@ -11,7 +11,11 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -20,8 +24,12 @@ func TestCollect(t *testing.T) {
 	ctx := context.Background()
 	config.Datadog().SetWithoutSource("ignore_autoconf", []string{"ignored"})
 	paths := []string{"tests", "foo/bar"}
+
+	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryStore := acTelemetry.NewStore(telemetry)
+
 	ResetReader(paths)
-	provider := NewFileConfigProvider()
+	provider := NewFileConfigProvider(telemetryStore)
 	configs, err := provider.Collect(ctx)
 
 	assert.Nil(t, err)
@@ -86,7 +94,10 @@ func TestEnvVarReplacement(t *testing.T) {
 
 	paths := []string{"tests"}
 	ResetReader(paths)
-	provider := NewFileConfigProvider()
+	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryStore := acTelemetry.NewStore(telemetry)
+
+	provider := NewFileConfigProvider(telemetryStore)
 	configs, err := provider.Collect(ctx)
 
 	assert.Nil(t, err)

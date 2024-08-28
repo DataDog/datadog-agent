@@ -346,13 +346,22 @@ var (
 	MetricSecurityAgentRuntimeRunning = newAgentMetric(".runtime.running")
 	// MetricSecurityAgentFIMRunning is reported when the security agent `FIM` feature is enabled
 	MetricSecurityAgentFIMRunning = newAgentMetric(".fim.running")
-
+	// MetricSecurityAgentFargateFIMRunning is reported when the security agent `FIM` feature is enabled on Fargate
+	MetricSecurityAgentFargateFIMRunning = newAgentMetric(".fargate_fim.running")
+	// MetricSecurityAgentFargateRuntimeRunning is reported when the security agent `Runtime` feature is enabled on Fargate
+	MetricSecurityAgentFargateRuntimeRunning = newAgentMetric(".fargate_runtime.running")
 	// MetricSecurityAgentRuntimeContainersRunning is used to report the count of running containers when the security agent.
 	// `Runtime` feature is enabled
 	MetricSecurityAgentRuntimeContainersRunning = newAgentMetric(".runtime.containers_running")
+	// MetricSecurityAgentFargateRuntimeContainersRunning is used to report the count of running containers when the security agent.
+	// `Runtime` feature is enabled on Fargate
+	MetricSecurityAgentFargateRuntimeContainersRunning = newAgentMetric(".fargate_runtime.containers_running")
 	// MetricSecurityAgentFIMContainersRunning is used to report the count of running containers when the security agent
 	// `FIM` feature is enabled
 	MetricSecurityAgentFIMContainersRunning = newAgentMetric(".fim.containers_running")
+	// MetricSecurityAgentFargateFIMContainersRunning is used to report the count of running containers when the security agent
+	// `FIM` feature is enabled on Fargate
+	MetricSecurityAgentFargateFIMContainersRunning = newAgentMetric(".fargate_fim.containers_running")
 	// MetricRuntimeCgroupsRunning is used to report the count of running cgroups.
 	// Tags: -
 	MetricRuntimeCgroupsRunning = newAgentMetric(".runtime.cgroups_running")

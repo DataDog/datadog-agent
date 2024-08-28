@@ -7,8 +7,11 @@
 
 package providers
 
-import "github.com/DataDog/datadog-agent/pkg/config"
+import (
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/config"
+)
 
 // NewKubeEndpointsConfigProvider returns a new ConfigProvider connected to apiserver.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-var NewKubeEndpointsConfigProvider func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error)
+var NewKubeEndpointsConfigProvider func(providerConfig *config.ConfigurationProviders, telemetryStore *telemetry.Store) (ConfigProvider, error)

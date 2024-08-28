@@ -33,8 +33,10 @@ type InitConfig struct {
 
 //nolint:revive // TODO(DBM) Fix revive linter
 type QuerySamplesConfig struct {
-	Enabled            bool `yaml:"enabled"`
-	IncludeAllSessions bool `yaml:"include_all_sessions"`
+	Enabled              bool `yaml:"enabled"`
+	IncludeAllSessions   bool `yaml:"include_all_sessions"`
+	ForceDirectQuery     bool `yaml:"force_direct_query"`
+	ActiveSessionHistory bool `yaml:"active_session_history"`
 }
 
 type queryMetricsTrackerConfig struct {

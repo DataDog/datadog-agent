@@ -52,10 +52,10 @@ To install `deva`, you'll need to:
 The Python environment will automatically be created on the first run. and will be reused for subsequent runs. For example:
 
 ```shell
-$ cd datadog-agent
-$ curl -L -o deva https://github.com/DataDog/datadog-agent-devtools/releases/download/deva-v1.0.0/deva-aarch64-unknown-linux-gnu-1.0.0
-$ chmod +x deva
-$ ./deva linter.go
+cd datadog-agent
+curl -L -o deva https://github.com/DataDog/datadog-agent-devtools/releases/download/deva-v1.0.0/deva-aarch64-unknown-linux-gnu-1.0.0
+chmod +x deva
+./deva linter.go
 ```
 
 Below a live demo of how the tool works:
@@ -138,7 +138,7 @@ This procedure ensures you not only get the correct version of `invoke`, but als
 
 ### Golang
 
-You must [install Golang](https://golang.org/doc/install) version `1.22.5` or
+You must [install Golang](https://golang.org/doc/install) version `1.22.6` or
 higher. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
 cannot use any additional tool it might need.
 
@@ -258,6 +258,13 @@ pre-commit run ruff --all-files  # run ruff on all files
 ```
 
 See `pre-commit run --help` for further options.
+
+### Creating a Visual Studio Code settings file
+
+To configure your IDE to work with `datadog-agent` repository, specify build tags in `.vscode/settings`. Run the following command to create the file:
+```
+inv setup.vscode-settings
+```
 
 ### Setting up Visual Studio Code Dev Container
 

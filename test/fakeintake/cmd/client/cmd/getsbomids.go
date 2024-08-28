@@ -18,7 +18,7 @@ func NewGetSBOMIDsCommand(cl **client.Client) (cmd *cobra.Command) {
 	cmd = &cobra.Command{
 		Use:   "ids",
 		Short: "Get SBOM IDs",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(*cobra.Command, []string) error {
 			ids, err := (*cl).GetSBOMIDs()
 			if err != nil {
 				return err

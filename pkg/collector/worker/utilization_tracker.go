@@ -58,7 +58,7 @@ func NewUtilizationTracker(
 // deterministic results.
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func newUtilizationTrackerWithClock(workerName string, interval time.Duration, clk clock.Clock) *UtilizationTracker {
+func newUtilizationTrackerWithClock(_ string, interval time.Duration, clk clock.Clock) *UtilizationTracker {
 	ut := &UtilizationTracker{
 		clock: clk,
 

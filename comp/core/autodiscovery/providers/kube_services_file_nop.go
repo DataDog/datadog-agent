@@ -7,7 +7,10 @@
 
 package providers
 
-import "github.com/DataDog/datadog-agent/pkg/config"
+import (
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/config"
+)
 
 // NewKubeServiceFileConfigProvider returns a new KubeServiceFileConfigProvider
-var NewKubeServiceFileConfigProvider func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error)
+var NewKubeServiceFileConfigProvider func(providerConfig *config.ConfigurationProviders, telemetryStore *telemetry.Store) (ConfigProvider, error)

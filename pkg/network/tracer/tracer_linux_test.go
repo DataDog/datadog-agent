@@ -41,6 +41,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -72,7 +73,7 @@ func (s *TracerSuite) TestTCPRemoveEntries() {
 	config.TCPConnTimeout = 100 * time.Millisecond
 	tr := setupTracer(t, config)
 	// Create a dummy TCP Server
-	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+	server := tracertestutil.NewTCPServer(func(_ net.Conn) {
 	})
 	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
@@ -241,7 +242,7 @@ func (s *TracerSuite) TestTCPRetransmitSharedSocket() {
 
 	// Test if telemetry measuring PID collisions is correct
 	// >= because there can be other connections going on during CI that increase pidCollisions
-	assert.GreaterOrEqual(t, connection.ConnTracerTelemetry.PidCollisions.Load(), int64(numProcesses-1))
+	assert.GreaterOrEqual(t, connection.EbpfTracerTelemetry.PidCollisions.Load(), int64(numProcesses-1))
 }
 
 func (s *TracerSuite) TestTCPRTT() {
@@ -333,7 +334,7 @@ func (s *TracerSuite) TestTCPMiscount() {
 		assert.False(t, uint64(len(x)) == conn.Monotonic.SentBytes)
 	}
 
-	assert.NotZero(t, connection.ConnTracerTelemetry.LastTcpSentMiscounts.Load())
+	assert.NotZero(t, connection.EbpfTracerTelemetry.LastTcpSentMiscounts.Load())
 }
 
 func (s *TracerSuite) TestConnectionExpirationRegression() {
@@ -387,6 +388,9 @@ func (s *TracerSuite) TestConnectionExpirationRegression() {
 func (s *TracerSuite) TestConntrackExpiration() {
 	t := s.T()
 	ebpftest.LogLevel(t, "trace")
+
+	cfg := testConfig()
+	skipOnEbpflessNotSupported(t, cfg)
 	netlinktestutil.SetupDNAT(t)
 
 	tr := setupTracer(t, testConfig())
@@ -434,7 +438,7 @@ func (s *TracerSuite) TestConntrackExpiration() {
 		if !assert.True(collect, ok, "connection not found") {
 			return
 		}
-		assert.NotNil(collect, tr.conntracker.GetTranslationForConn(*conn), "connection does not have NAT translation")
+		assert.NotNil(collect, tr.conntracker.GetTranslationForConn(conn), "connection does not have NAT translation")
 	}, 3*time.Second, 100*time.Millisecond, "failed to find connection translation")
 
 	// This will force the connection to be expired next time we call getConnections, but
@@ -443,7 +447,7 @@ func (s *TracerSuite) TestConntrackExpiration() {
 	tr.config.TCPConnTimeout = time.Duration(-1)
 	_ = getConnections(t, tr)
 
-	assert.NotNil(t, tr.conntracker.GetTranslationForConn(*conn), "translation should not have been deleted")
+	assert.NotNil(t, tr.conntracker.GetTranslationForConn(conn), "translation should not have been deleted")
 
 	// delete the connection from system conntrack
 	cmd := exec.Command("conntrack", "-D", "-s", c.LocalAddr().(*net.TCPAddr).IP.String(), "-d", c.RemoteAddr().(*net.TCPAddr).IP.String(), "-p", "tcp")
@@ -451,7 +455,7 @@ func (s *TracerSuite) TestConntrackExpiration() {
 	require.NoError(t, err, "conntrack delete failed, output: %s", out)
 	_ = getConnections(t, tr)
 
-	assert.Nil(t, tr.conntracker.GetTranslationForConn(*conn), "translation should have been deleted")
+	assert.Nil(t, tr.conntracker.GetTranslationForConn(conn), "translation should have been deleted")
 
 	// write newline so server connections will exit
 	_, err = c.Write([]byte("\n"))
@@ -493,7 +497,7 @@ func (s *TracerSuite) TestConntrackDelays() {
 	require.Eventually(t, func() bool {
 		connections := getConnections(t, tr)
 		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		return ok && tr.conntracker.GetTranslationForConn(*conn) != nil
+		return ok && tr.conntracker.GetTranslationForConn(conn) != nil
 	}, 3*time.Second, 100*time.Millisecond, "failed to find connection with translation")
 
 	// write newline so server connections will exit
@@ -542,7 +546,7 @@ func (s *TracerSuite) TestTranslationBindingRegression() {
 		Type:   network.TCP,
 	}
 	require.Eventually(t, func() bool {
-		return tr.conntracker.GetTranslationForConn(cs) != nil
+		return tr.conntracker.GetTranslationForConn(&cs) != nil
 	}, 3*time.Second, 100*time.Millisecond, "timed out waiting for conntrack update")
 
 	// Assert that the connection to 2.2.2.2 has an IPTranslation object bound to it
@@ -833,7 +837,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 	// run tcp server in test1 net namespace
 	var server *tracertestutil.TCPServer
 	err = kernel.WithNS(test1Ns, func() error {
-		server = tracertestutil.NewTCPServerOnAddress("2.2.2.2:0", func(c net.Conn) {})
+		server = tracertestutil.NewTCPServerOnAddress("2.2.2.2:0", func(_ net.Conn) {})
 		return server.Run()
 	})
 	require.NoError(t, err)
@@ -861,6 +865,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 	})
 
 	t.Run("client in other namespace", func(t *testing.T) {
+		skipOnEbpflessNotSupported(t, cfg)
 		// try connecting to server in test1 namespace
 		test2Ns, err := vnetns.GetFromName(ns2)
 		require.NoError(t, err)
@@ -925,10 +930,12 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 func (s *TracerSuite) TestConnectionAssured() {
 	t := s.T()
 	cfg := testConfig()
+	skipOnEbpflessNotSupported(t, cfg)
+
 	tr := setupTracer(t, cfg)
 	server := &UDPServer{
 		network: "udp4",
-		onMessage: func(b []byte, n int) []byte {
+		onMessage: func([]byte, int) []byte {
 			return genPayload(serverMessageSize)
 		},
 	}
@@ -970,7 +977,7 @@ func (s *TracerSuite) TestConnectionNotAssured() {
 
 	server := &UDPServer{
 		network: "udp4",
-		onMessage: func(b []byte, n int) []byte {
+		onMessage: func([]byte, int) []byte {
 			return nil
 		},
 	}
@@ -1012,9 +1019,11 @@ func (s *TracerSuite) TestUDPConnExpiryTimeout() {
 
 func (s *TracerSuite) TestDNATIntraHostIntegration() {
 	t := s.T()
+	cfg := testConfig()
+	skipEbpflessTodo(t, cfg)
 	netlinktestutil.SetupDNAT(t)
 
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, cfg)
 
 	var serverAddr struct {
 		local, remote net.Addr
@@ -1315,7 +1324,7 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 		return &UDPServer{
 			network: udpnet,
 			lc: &net.ListenConfig{
-				Control: func(network, address string, c syscall.RawConn) error {
+				Control: func(_, _ string, c syscall.RawConn) error {
 					var opErr error
 					err := c.Control(func(fd uintptr) {
 						opErr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT, 1)
@@ -1327,7 +1336,7 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 				},
 			},
 			address: fmt.Sprintf("%s:%d", ip, port),
-			onMessage: func(buf []byte, n int) []byte {
+			onMessage: func(_ []byte, _ int) []byte {
 				return genPayload(serverMessageSize)
 			},
 		}
@@ -1385,12 +1394,13 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 
 func (s *TracerSuite) TestDNSStatsWithNAT() {
 	t := s.T()
+	cfg := testConfig()
+	skipEbpflessTodo(t, cfg)
 	testutil.IptablesSave(t)
 	// Setup a NAT rule to translate 2.2.2.2 to 8.8.8.8 and issue a DNS request to 2.2.2.2
 	cmds := []string{"iptables -t nat -A OUTPUT -d 2.2.2.2 -j DNAT --to-destination 8.8.8.8"}
 	testutil.RunCommands(t, cmds, false)
 
-	cfg := testConfig()
 	cfg.CollectDNSStats = true
 	cfg.DNSTimeout = 1 * time.Second
 	tr := setupTracer(t, cfg)
@@ -1535,7 +1545,7 @@ func (s *TracerSuite) TestSendfileRegression() {
 				var rcvd int64
 				server := &UDPServer{
 					network: "udp" + strings.TrimPrefix(family.String(), "v"),
-					onMessage: func(b []byte, n int) []byte {
+					onMessage: func(_ []byte, n int) []byte {
 						rcvd = rcvd + int64(n)
 						return nil
 					},
@@ -1713,6 +1723,7 @@ func (s *TracerSuite) TestShortWrite() {
 func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
 	t := s.T()
 	cfg := config.New()
+	skipOnEbpflessNotSupported(t, cfg)
 	cfg.AttachKprobesWithKprobeEventsABI = true
 
 	tr := setupTracer(t, cfg)
@@ -1851,7 +1862,9 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	m := outgoing.Monotonic
 	assert.Equal(t, clientMessageSize, int(m.SentBytes))
 	assert.Equal(t, serverMessageSize, int(m.RecvBytes))
-	assert.Equal(t, os.Getpid(), int(outgoing.Pid))
+	if !tr.config.EnableEbpfless {
+		assert.Equal(t, os.Getpid(), int(outgoing.Pid))
+	}
 	assert.Equal(t, addrPort(server.Address()), int(outgoing.DPort))
 	assert.Equal(t, c.LocalAddr().(*net.TCPAddr).Port, int(outgoing.SPort))
 	assert.Equal(t, network.OUTGOING, outgoing.Direction)
@@ -1859,7 +1872,9 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	m = incoming.Monotonic
 	assert.Equal(t, clientMessageSize, int(m.RecvBytes))
 	assert.Equal(t, serverMessageSize, int(m.SentBytes))
-	assert.Equal(t, os.Getpid(), int(incoming.Pid))
+	if !tr.config.EnableEbpfless {
+		assert.Equal(t, os.Getpid(), int(incoming.Pid))
+	}
 	assert.Equal(t, addrPort(server.Address()), int(incoming.SPort))
 	assert.Equal(t, c.LocalAddr().(*net.TCPAddr).Port, int(incoming.DPort))
 	assert.Equal(t, network.INCOMING, incoming.Direction)
@@ -1872,6 +1887,7 @@ func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirection() {
 			t.Skip("skipping test as ringbuffers are not supported on this kernel")
 		}
 		c := testConfig()
+		skipOnEbpflessNotSupported(t, c)
 		c.NPMRingbuffersEnabled = true
 		testPreexistingEmptyIncomingConnectionDirection(t, c)
 	})
@@ -1890,6 +1906,7 @@ func testPreexistingEmptyIncomingConnectionDirection(t *testing.T, config *confi
 	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		<-ch
 		c.Close()
+		close(ch)
 	})
 	require.NoError(t, server.Run())
 	t.Cleanup(server.Shutdown)
@@ -1901,7 +1918,8 @@ func testPreexistingEmptyIncomingConnectionDirection(t *testing.T, config *confi
 	tr := setupTracer(t, config)
 
 	// close the server connection so the tracer picks it up
-	close(ch)
+	ch <- struct{}{}
+	<-ch
 
 	var conn *network.ConnectionStats
 	require.Eventually(t, func() bool {
@@ -1927,7 +1945,7 @@ func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 	server := &UDPServer{
 		network: "udp",
 		address: "localhost:8125",
-		onMessage: func(b []byte, n int) []byte {
+		onMessage: func(b []byte, _ int) []byte {
 			return b
 		},
 	}
@@ -2121,7 +2139,7 @@ func TestConntrackerFallback(t *testing.T) {
 
 func testConfig() *config.Config {
 	cfg := config.New()
-	if ddconfig.IsECSFargate() {
+	if env.IsECSFargate() {
 		// protocol classification not yet supported on fargate
 		cfg.ProtocolClassificationEnabled = false
 	}
@@ -2336,4 +2354,16 @@ func setupDropTrafficRule(tb testing.TB) (ns string) {
 	}
 	testutil.RunCommands(tb, cmds, false)
 	return
+}
+
+func skipOnEbpflessNotSupported(t *testing.T, cfg *config.Config) {
+	if cfg.EnableEbpfless {
+		t.Skip("not supported on ebpf-less")
+	}
+}
+
+func skipEbpflessTodo(t *testing.T, cfg *config.Config) {
+	if cfg.EnableEbpfless {
+		t.Skip("TODO: ebpf-less")
+	}
 }

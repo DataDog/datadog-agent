@@ -38,7 +38,12 @@ const (
 // TestE2EVMFakeintakeSuite runs the E2E test suite for the log agent with a VM and fake intake.
 func TestE2EVMFakeintakeSuite(t *testing.T) {
 	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithLogs(), agentparams.WithIntegration("custom_logs.d", logConfig)))),
+		e2e.WithProvisioner(
+			awshost.Provisioner(
+				awshost.WithAgentOptions(
+					agentparams.WithLogs(),
+					agentparams.WithIntegration("custom_logs.d", logConfig),
+				))),
 	}
 	t.Parallel()
 	e2e.Run(t, &LinuxFakeintakeSuite{}, options...)

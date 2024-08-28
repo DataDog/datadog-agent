@@ -36,8 +36,8 @@ type Rule struct {
 
 // RuleEvaluator - Evaluation part of a Rule
 type RuleEvaluator struct {
-	Eval       BoolEvalFnc
-	EventTypes []EventType
+	Eval      BoolEvalFnc
+	EventType EventType
 
 	fieldValues map[Field][]FieldValue
 	fields      []Field
@@ -151,19 +151,25 @@ func (r *Rule) GetEvaluator() *RuleEvaluator {
 	return r.evaluator
 }
 
-// GetEventTypes - Returns a list of all the event that the `Expression` handles
-func (r *Rule) GetEventTypes() ([]EventType, error) {
+// GetEventType - Returns the event type that the `Expression` handles
+func (r *Rule) GetEventType() (EventType, error) {
 	if r.evaluator == nil {
-		return nil, &ErrRuleNotCompiled{RuleID: r.ID}
+		return "", &ErrRuleNotCompiled{RuleID: r.ID}
 	}
 
-	eventTypes := r.evaluator.EventTypes
+	eventType := r.evaluator.EventType
 
 	for _, macro := range r.Opts.MacroStore.List() {
-		eventTypes = append(eventTypes, macro.GetEventTypes()...)
+		evt := macro.GetEventType()
+		if evt != "" {
+			if eventType != "" && eventType != evt {
+				return "", ErrMultipleEventTypes
+			}
+			eventType = evt
+		}
 	}
 
-	return eventTypes, nil
+	return eventType, nil
 }
 
 // GetAst - Returns the representation of the SECL `Expression`
@@ -199,21 +205,21 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 		return nil, NewTypeError(rule.Pos, reflect.Bool)
 	}
 
-	events, err := eventTypesFromFields(model, state)
+	eventType, err := eventTypeFromFields(model, state)
 	if err != nil {
 		return nil, err
 	}
 
 	// direct value, no bool evaluator, wrap value
 	if evalBool.EvalFnc == nil {
-		evalBool.EvalFnc = func(ctx *Context) bool {
+		evalBool.EvalFnc = func(_ *Context) bool {
 			return evalBool.Value
 		}
 	}
 
 	return &RuleEvaluator{
 		Eval:        evalBool.EvalFnc,
-		EventTypes:  events,
+		EventType:   eventType,
 		fieldValues: state.fieldValues,
 		fields:      KeysOfMap(state.fieldValues),
 	}, nil
@@ -289,7 +295,7 @@ func (r *Rule) genPartials(field Field) error {
 	}
 
 	if pEvalBool.EvalFnc == nil {
-		pEvalBool.EvalFnc = func(ctx *Context) bool {
+		pEvalBool.EvalFnc = func(_ *Context) bool {
 			return pEvalBool.Value
 		}
 	}

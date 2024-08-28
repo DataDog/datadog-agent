@@ -35,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 
@@ -207,6 +206,11 @@ func (p *WindowsProbe) Init() error {
 	return p.initEtwFIM()
 }
 
+// GetProfileManager returns the Profile Managers
+func (p *WindowsProbe) GetProfileManager() interface{} {
+	return nil
+}
+
 func (p *WindowsProbe) initEtwFIM() error {
 
 	if !p.config.RuntimeSecurity.FIMEnabled {
@@ -296,7 +300,7 @@ func (p *WindowsProbe) reconfigureProvider() error {
 		// given the current requirements, I think we can _probably_ just do create_new_file
 		cfg.MatchAnyKeyword = 0x18A0
 
-		fileIds := []uint16{
+		fileIDs := []uint16{
 			idCreate,
 			idCreateNewFile,
 			idCleanup,
@@ -304,19 +308,19 @@ func (p *WindowsProbe) reconfigureProvider() error {
 		}
 
 		if p.isWriteEnabled {
-			fileIds = append(fileIds, idWrite)
+			fileIDs = append(fileIDs, idWrite)
 		}
 		if p.isRenameEnabled {
-			fileIds = append(fileIds, idRename, idRenamePath, idRename29)
+			fileIDs = append(fileIDs, idRename, idRenamePath, idRename29)
 		}
 		if p.isDeleteEnabled {
-			fileIds = append(fileIds, idSetDelete, idDeletePath)
+			fileIDs = append(fileIDs, idSetDelete, idDeletePath)
 		}
 		if p.isChangePermissionEnabled {
-			fileIds = append(fileIds, idObjectPermsChange)
+			fileIDs = append(fileIDs, idObjectPermsChange)
 		}
 
-		cfg.EnabledIDs = fileIds
+		cfg.EnabledIDs = fileIDs
 	})
 
 	p.fimSession.ConfigureProvider(p.regguid, func(cfg *etw.ProviderConfiguration) {
@@ -1335,19 +1339,19 @@ func (p *WindowsProbe) NewEvent() *model.Event {
 func (p *WindowsProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 	ev := ctx.Event.(*model.Event)
 
-	for _, action := range rule.Definition.Actions {
+	for _, action := range rule.Actions {
 		if !action.IsAccepted(ctx) {
 			continue
 		}
 
 		switch {
-		case action.Kill != nil:
+		case action.Def.Kill != nil:
 			// do not handle kill action on event with error
 			if ev.Error != nil {
 				return
 			}
 
-			p.processKiller.KillAndReport(action.Kill.Scope, action.Kill.Signal, ev, func(pid uint32, sig uint32) error {
+			p.processKiller.KillAndReport(action.Def.Kill.Scope, action.Def.Kill.Signal, rule, ev, func(pid uint32, sig uint32) error {
 				return p.processKiller.KillFromUserspace(pid, sig, ev)
 			})
 		}
@@ -1374,7 +1378,7 @@ func (p *Probe) Origin() string {
 }
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, opts Opts, _ optional.Option[workloadmeta.Component], telemetry telemetry.Component) (*Probe, error) {
+func NewProbe(config *config.Config, opts Opts, _ workloadmeta.Component, telemetry telemetry.Component) (*Probe, error) {
 	opts.normalize()
 
 	p := newProbe(config, opts)

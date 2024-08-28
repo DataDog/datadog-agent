@@ -48,13 +48,13 @@ func TestTiming(t *testing.T) {
 		}, 5*time.Second, 10*time.Millisecond)
 	})
 
-	t.Run("panic", func(t *testing.T) {
+	t.Run("panic", func(_ *testing.T) {
 		set := New(stats)
 		set.Stop()
 		set.Stop()
 	})
 
-	t.Run("race", func(t *testing.T) {
+	t.Run("race", func(_ *testing.T) {
 		stats.Reset()
 		set := newSet(stats)
 		var wg sync.WaitGroup

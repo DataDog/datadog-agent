@@ -37,11 +37,11 @@ type Sender struct {
 	done           chan struct{}
 	bufferSize     int
 	senderDoneChan chan *sync.WaitGroup
-	flushDoneChan  chan struct{}
+	flushWg        *sync.WaitGroup
 }
 
 // NewSender returns a new sender.
-func NewSender(config pkgconfigmodel.Reader, inputChan chan *message.Payload, outputChan chan *message.Payload, destinations *client.Destinations, bufferSize int, senderDoneChan chan *sync.WaitGroup, flushDoneChan chan struct{}) *Sender {
+func NewSender(config pkgconfigmodel.Reader, inputChan chan *message.Payload, outputChan chan *message.Payload, destinations *client.Destinations, bufferSize int, senderDoneChan chan *sync.WaitGroup, flushWg *sync.WaitGroup) *Sender {
 	return &Sender{
 		config:         config,
 		inputChan:      inputChan,
@@ -50,7 +50,7 @@ func NewSender(config pkgconfigmodel.Reader, inputChan chan *message.Payload, ou
 		done:           make(chan struct{}),
 		bufferSize:     bufferSize,
 		senderDoneChan: senderDoneChan,
-		flushDoneChan:  flushDoneChan,
+		flushWg:        flushWg,
 	}
 }
 
@@ -122,10 +122,11 @@ func (s *Sender) run() {
 		inUse := float64(time.Since(startInUse) / time.Millisecond)
 		tlmSendWaitTime.Add(inUse)
 
-		if s.senderDoneChan != nil {
+		if s.senderDoneChan != nil && s.flushWg != nil {
+			// Wait for all destinations to finish sending the payload
 			senderDoneWg.Wait()
-			// In serverless ensure the payload is sent to all destinations to sync with a flush
-			s.flushDoneChan <- struct{}{}
+			// Decrement the wait group when this payload has been sent
+			s.flushWg.Done()
 		}
 	}
 

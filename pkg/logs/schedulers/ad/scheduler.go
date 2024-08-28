@@ -65,13 +65,13 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 			continue
 		}
 		if config.HasFilter(containers.LogsFilter) {
-			log.Debugf("Config %s is filtered out for logs collection, ignoring it", s.configName(config))
+			log.Debugf("Config %s is filtered out for logs collection, ignoring it", configName(config))
 			continue
 		}
 		switch {
 		case s.newSources(config):
-			log.Infof("Received a new logs config: %v", s.configName(config))
-			sources, err := s.createSources(config)
+			log.Infof("Received a new logs config: %v", configName(config))
+			sources, err := CreateSources(config)
 			if err != nil {
 				log.Warnf("Invalid configuration: %v", err)
 				continue
@@ -80,7 +80,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 				s.mgr.AddSource(source)
 			}
 		default:
-			log.Debugf("Invalid integration config: %s, ignoring it", s.configName(config))
+			log.Debugf("Invalid integration config: %s, ignoring it", configName(config))
 			continue
 		}
 	}
@@ -96,7 +96,7 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 		case s.newSources(config):
 			log.Infof("New source to remove: entity: %v", config.ServiceID)
 
-			_, identifier, err := s.parseServiceID(config.ServiceID)
+			_, identifier, err := parseServiceID(config.ServiceID)
 			if err != nil {
 				log.Warnf("Invalid configuration: %v", err)
 				continue
@@ -128,11 +128,11 @@ func (s *Scheduler) newSources(config integration.Config) bool {
 }
 
 // configName returns the name of the configuration.
-func (s *Scheduler) configName(config integration.Config) string {
+func configName(config integration.Config) string {
 	if config.Name != "" {
 		return config.Name
 	}
-	service, err := s.toService(config)
+	service, err := toService(config)
 	if err == nil {
 		return service.Type
 	}
@@ -141,7 +141,7 @@ func (s *Scheduler) configName(config integration.Config) string {
 
 // createsSources creates new sources from an integration config,
 // returns an error if the parsing failed.
-func (s *Scheduler) createSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
+func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 	var configs []*logsConfig.LogsConfig
 	var err error
 
@@ -182,13 +182,13 @@ func (s *Scheduler) createSources(config integration.Config) ([]*sourcesPkg.LogS
 		// this entity is used later on by an input to match a service with a source
 		// to start collecting logs.
 		var err error
-		service, err = s.toService(config)
+		service, err = toService(config)
 		if err != nil {
 			return nil, fmt.Errorf("invalid entity: %v", err)
 		}
 	}
 
-	configName := s.configName(config)
+	configName := configName(config)
 	var sources []*sourcesPkg.LogSource
 	for _, cfg := range configs {
 		// if no service is set fall back to the global one
@@ -199,7 +199,7 @@ func (s *Scheduler) createSources(config integration.Config) ([]*sourcesPkg.LogS
 		if service != nil {
 			// a config defined in a container label or a pod annotation does not always contain a type,
 			// override it here to ensure that the config won't be dropped at validation.
-			if cfg.Type == logsConfig.FileType && (config.Provider == names.Kubernetes || config.Provider == names.Container || config.Provider == names.KubeContainer || config.Provider == logsConfig.FileType) {
+			if (cfg.Type == logsConfig.FileType || cfg.Type == logsConfig.TCPType || cfg.Type == logsConfig.UDPType) && (config.Provider == names.Kubernetes || config.Provider == names.Container || config.Provider == names.KubeContainer || config.Provider == logsConfig.FileType) {
 				// cfg.Type is not overwritten as tailing a file from a Docker or Kubernetes AD configuration
 				// is explicitly supported (other combinations may be supported later)
 				cfg.Identifier = service.Identifier
@@ -229,8 +229,8 @@ func (s *Scheduler) createSources(config integration.Config) ([]*sourcesPkg.LogS
 }
 
 // toService creates a new service for an integrationConfig.
-func (s *Scheduler) toService(config integration.Config) (*service.Service, error) {
-	provider, identifier, err := s.parseServiceID(config.ServiceID)
+func toService(config integration.Config) (*service.Service, error) {
+	provider, identifier, err := parseServiceID(config.ServiceID)
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +239,7 @@ func (s *Scheduler) toService(config integration.Config) (*service.Service, erro
 
 // parseServiceID breaks down an AD service ID, assuming it is formatted
 // as `something://something-else`, into its consituent parts.
-func (s *Scheduler) parseServiceID(serviceID string) (string, string, error) {
+func parseServiceID(serviceID string) (string, string, error) {
 	components := strings.Split(serviceID, containers.EntitySeparator)
 	if len(components) != 2 {
 		return "", "", fmt.Errorf("service ID does not have the form `xxx://yyy`: %v", serviceID)

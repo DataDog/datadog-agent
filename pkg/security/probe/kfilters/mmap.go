@@ -18,51 +18,44 @@ import (
 
 var mmapCapabilities = Capabilities{
 	"mmap.file.path": {
-		PolicyFlags:     PolicyFlagBasename,
-		FieldValueTypes: eval.ScalarValueType | eval.PatternValueType,
-		ValidateFnc:     validateBasenameFilter,
+		ValueTypeBitmask: eval.ScalarValueType | eval.PatternValueType,
+		ValidateFnc:      validateBasenameFilter,
 	},
 	"mmap.file.name": {
-		PolicyFlags:     PolicyFlagBasename,
-		FieldValueTypes: eval.ScalarValueType,
+		ValueTypeBitmask: eval.ScalarValueType,
 	},
 	"mmap.protection": {
-		PolicyFlags:     PolicyFlagFlags,
-		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
+		ValueTypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
 	"mmap.flags": {
-		PolicyFlags:     PolicyFlagFlags,
-		FieldValueTypes: eval.ScalarValueType | eval.BitmaskValueType,
+		ValueTypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
 }
 
-func mmapOnNewApprovers(approvers rules.Approvers) (ActiveApprovers, error) {
-	mmapApprovers, err := onNewBasenameApprovers(model.MMapEventType, "file", approvers)
+func mmapKFilters(approvers rules.Approvers) (ActiveKFilters, error) {
+	mmapKFilters, err := getBasenameKFilters(model.MMapEventType, "file", approvers)
 	if err != nil {
 		return nil, err
 	}
 
 	for field, values := range approvers {
 		switch field {
-		case "mmap.file.name", "mmap.file.path": // already handled by onNewBasenameApprovers
+		case "mmap.file.name", "mmap.file.path": // already handled by getBasenameKFilters
 		case "mmap.flags":
-			var approver activeApprover
-			approver, err = approveFlags("mmap_flags_approvers", intValues[int32](values)...)
+			kfilter, err := getFlagsKFilters("mmap_flags_approvers", intValues[int32](values)...)
 			if err != nil {
 				return nil, err
 			}
-			mmapApprovers = append(mmapApprovers, approver)
+			mmapKFilters = append(mmapKFilters, kfilter)
 		case "mmap.protection":
-			var approver activeApprover
-			approver, err = approveFlags("mmap_protection_approvers", intValues[int32](values)...)
+			kfilter, err := getFlagsKFilters("mmap_protection_approvers", intValues[int32](values)...)
 			if err != nil {
 				return nil, err
 			}
-			mmapApprovers = append(mmapApprovers, approver)
-
+			mmapKFilters = append(mmapKFilters, kfilter)
 		default:
 			return nil, fmt.Errorf("unknown field '%s'", field)
 		}
 	}
-	return newActiveKFilters(mmapApprovers...), nil
+	return newActiveKFilters(mmapKFilters...), nil
 }

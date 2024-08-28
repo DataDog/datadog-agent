@@ -7,6 +7,7 @@
 package fx
 
 import (
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	rdnsquerierimpl "github.com/DataDog/datadog-agent/comp/rdnsquerier/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -17,5 +18,6 @@ func Module() fxutil.Module {
 		fxutil.ProvideComponentConstructor(
 			rdnsquerierimpl.NewComponent,
 		),
+		fxutil.ProvideOptional[rdnsquerier.Component](),
 	)
 }

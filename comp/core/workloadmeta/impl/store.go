@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package workloadmeta
+package workloadmetaimpl
 
 import (
 	"context"
@@ -124,7 +124,7 @@ func (w *workloadmeta) Subscribe(name string, priority wmdef.SubscriberPriority,
 	w.storeMut.RLock()
 	defer w.storeMut.RUnlock()
 
-	if filter == nil || (filter != nil && filter.EventType() != wmdef.EventTypeUnset) {
+	if filter == nil || filter.EventType() != wmdef.EventTypeUnset {
 		for kind, entitiesOfKind := range w.store {
 			if !sub.filter.MatchKind(kind) {
 				continue

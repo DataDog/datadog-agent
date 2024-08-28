@@ -68,17 +68,19 @@ func bitmaskCombinations(bitmasks []int) []int {
 	return result
 }
 
-// GetApprovers returns approvers for the given rules
-func GetApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) (Approvers, error) {
+func getApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) (Approvers, error) {
 	approvers := make(Approvers)
 
 	ctx := eval.NewContext(event)
 
 	// for each rule we should at least find one approver otherwise we will return no approver for the field
 	for _, rule := range rules {
-		var bestFilterField eval.Field
-		var bestFilterValues FilterValues
-		var bestFilterWeight int
+		var (
+			bestFilterField  eval.Field
+			bestFilterValues FilterValues
+			bestFilterWeight int
+			bestFilterMode   FilterMode
+		)
 
 	LOOP:
 		for _, fieldCap := range fieldCaps {
@@ -96,8 +98,8 @@ func GetApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) 
 					}
 
 					if isAnApprover {
-						filterValues = filterValues.Merge(FilterValue{Field: field, Value: value.Value, Type: value.Type})
-					} else if fieldCap.Types&eval.BitmaskValueType == 0 {
+						filterValues = filterValues.Merge(FilterValue{Field: field, Value: value.Value, Type: value.Type, Mode: fieldCap.FilterMode})
+					} else if fieldCap.TypeBitmask&eval.BitmaskValueType == 0 {
 						// if not a bitmask we need to have all the value as approvers
 						// basically a list of values ex: in ["test123", "test456"]
 						continue LOOP
@@ -126,12 +128,22 @@ func GetApprovers(rules []*Rule, event eval.Event, fieldCaps FieldCapabilities) 
 				bestFilterField = field
 				bestFilterValues = filterValues
 				bestFilterWeight = fieldCap.FilterWeight
+				bestFilterMode = fieldCap.FilterMode
 			}
 		}
 
 		// no filter value for a rule thus no approver for the event type
 		if bestFilterValues == nil {
 			return nil, nil
+		}
+
+		// this rule as an approver in ApproverOnly mode. Disable to rule from being used by the discarder mechanism.
+		// the goal is to have approver that are good enough to filter properly the events used by rule that would break the
+		// discarder discovery.
+		// ex: open.file.name != "" && process.auid == 1000 # this rule avoid open.file.path discarder discovery, but with a ApproverOnly on process.auid the problem disappear
+		//     open.file.filename == "/etc/passwd"
+		if bestFilterMode == ApproverOnlyMode {
+			rule.NoDiscarder = true
 		}
 
 		approvers[bestFilterField] = append(approvers[bestFilterField], bestFilterValues...)

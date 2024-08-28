@@ -17,8 +17,9 @@ import (
 	"strings"
 	"testing"
 
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
+
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 func createConfig(t *testing.T, ts *httptest.Server) pkgconfigmodel.Config {
@@ -196,7 +197,7 @@ func TestIPCEndpointDeprecatedIPCAddress(t *testing.T) {
 }
 
 func TestIPCEndpointErrorText(t *testing.T) {
-	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(400)
 		w.Write([]byte("bad request"))
 	}))
@@ -212,7 +213,7 @@ func TestIPCEndpointErrorText(t *testing.T) {
 }
 
 func TestIPCEndpointErrorMap(t *testing.T) {
-	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(400)
 		data, _ := json.Marshal(map[string]string{
 			"error": "something went wrong",

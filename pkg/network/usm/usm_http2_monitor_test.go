@@ -145,7 +145,7 @@ func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 
 	monitor := setupUSMTLSMonitor(t, cfg)
 	if s.isTLS {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 	}
 
 	clients := getHTTP2UnixClientArray(2, unixPath)
@@ -207,7 +207,7 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 
 	monitor := setupUSMTLSMonitor(t, cfg)
 	if s.isTLS {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 	}
 
 	tests := []struct {
@@ -395,7 +395,7 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 		t.Run(tt.name, func(t *testing.T) {
 			monitor := setupUSMTLSMonitor(t, cfg)
 			if s.isTLS {
-				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 			}
 
 			tt.runClients(t, 1)
@@ -450,7 +450,7 @@ func (s *usmHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 
 	monitor := setupUSMTLSMonitor(t, cfg)
 	if s.isTLS {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 	}
 
 	const (
@@ -516,7 +516,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
 	if s.isTLS {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 	}
 	tests := []struct {
 		name              string
@@ -1314,7 +1314,7 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 
 			usmMonitor := setupUSMTLSMonitor(t, cfg)
 			if s.isTLS {
-				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 			}
 
 			c := dialHTTP2Server(t)
@@ -1400,7 +1400,7 @@ func (s *usmHTTP2Suite) TestRemainderTable() {
 		t.Run(tt.name, func(t *testing.T) {
 			usmMonitor := setupUSMTLSMonitor(t, cfg)
 			if s.isTLS {
-				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 			}
 
 			c := dialHTTP2Server(t)
@@ -1470,7 +1470,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 		t.Run(tt.name, func(t *testing.T) {
 			usmMonitor := setupUSMTLSMonitor(t, cfg)
 			if s.isTLS {
-				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
 			}
 
 			c := dialHTTP2Server(t)

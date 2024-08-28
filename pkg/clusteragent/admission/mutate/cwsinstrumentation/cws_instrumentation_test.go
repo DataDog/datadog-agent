@@ -17,7 +17,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,7 +27,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -137,7 +136,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 		// mode
 		cwsInstrumentationMode InstrumentationMode
 	}
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	tests := []struct {
 		name string
 		args args
@@ -475,7 +474,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 	}
 
 	// prepare the workload meta
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -830,9 +829,9 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// prepare the workload meta
-			wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
+			wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 
-			mockConfig := config.Mock(t)
+			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.include", tt.args.include)
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.exclude", tt.args.exclude)
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.image_name", tt.args.cwsInjectorImageName)
@@ -970,7 +969,7 @@ func testNoInjectedCWSInitContainer(t *testing.T, pod *corev1.Pod) {
 }
 
 func Test_initCWSInitContainerResources(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	tests := []struct {
 		name       string
 		mem        string

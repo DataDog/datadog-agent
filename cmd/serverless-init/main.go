@@ -22,7 +22,8 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	healthprobeDef "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobeFx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -66,7 +67,6 @@ func main() {
 	err := fxutil.OneShot(
 		run,
 		autodiscoveryimpl.Module(),
-		workloadmetafx.Module(),
 		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {
 			return healthprobeDef.Options{
 				Port:           config.GetInt("health_port"),
@@ -75,15 +75,15 @@ func main() {
 		}),
 		taggerimpl.Module(),
 		healthprobeFx.Module(),
-		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Supply(tagger.NewTaggerParams()),
 		fx.Supply(coreconfig.NewParams("", coreconfig.WithConfigMissingOK(true))),
 		coreconfig.Module(),
 		fx.Supply(secrets.NewEnabledParams()),
 		secretsimpl.Module(),
 		fx.Provide(func(secrets secrets.Component) optional.Option[secrets.Component] { return optional.NewOption(secrets) }),
-		fx.Supply(logimpl.ForOneShot(modeConf.LoggerName, "off", true)),
-		logimpl.Module(),
+		fx.Supply(logdef.ForOneShot(modeConf.LoggerName, "off", true)),
+		logfx.Module(),
 		nooptelemetry.Module(),
 	)
 
@@ -163,6 +163,8 @@ func setupTraceAgent(tags map[string]string) trace.ServerlessTraceAgent {
 
 func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
 	pkgconfig.Datadog().Set("use_v2_api.series", false, model.SourceAgentRuntime)
+	pkgconfig.Datadog().Set("dogstatsd_socket", "", model.SourceAgentRuntime)
+
 	metricAgent := &metrics.ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 0,
 	}

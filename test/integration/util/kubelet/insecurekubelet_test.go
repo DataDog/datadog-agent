@@ -17,6 +17,8 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -31,7 +33,7 @@ func (suite *InsecureTestSuite) SetupTest() {
 
 func (suite *InsecureTestSuite) TestHTTP() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", 10255)
 
@@ -67,7 +69,7 @@ func (suite *InsecureTestSuite) TestHTTP() {
 
 func (suite *InsecureTestSuite) TestInsecureHTTPS() {
 	ctx := context.Background()
-	mockConfig := config.Mock(nil)
+	mockConfig := configmock.New(suite.T())
 
 	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", 10255)
 	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", 10250)
@@ -100,7 +102,7 @@ func (suite *InsecureTestSuite) TestInsecureHTTPS() {
 }
 
 func TestInsecureKubeletSuite(t *testing.T) {
-	config.SetFeatures(t, config.Kubernetes)
+	config.SetFeatures(t, env.Kubernetes)
 
 	compose, err := initInsecureKubelet()
 	require.Nil(t, err)

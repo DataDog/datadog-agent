@@ -250,8 +250,6 @@ go_mod_tidy_check:
   stage: source_test
   extends: .linux_x64
   needs: ["go_deps"]
-  variables:
-    KUBERNETES_CPU_REQUEST: 4
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
@@ -260,6 +258,7 @@ go_mod_tidy_check:
   variables:
     KUBERNETES_MEMORY_REQUEST: "16Gi"
     KUBERNETES_MEMORY_LIMIT: "16Gi"
+    KUBERNETES_CPU_REQUEST: 4
 
 new-e2e-unit-tests:
   extends: .linux_tests

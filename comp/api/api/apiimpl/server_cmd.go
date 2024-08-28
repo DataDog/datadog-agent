@@ -10,7 +10,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"net"
 	"net/http"
 	"time"
 
@@ -23,53 +22,24 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/check"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
-	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/server"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const cmdServerName string = "CMD API Server"
 const cmdServerShortName string = "CMD"
 
-var cmdListener net.Listener
-
-func startCMDServer(
+func (server *apiServer) startCMDServer(
 	cmdAddr string,
 	tlsConfig *tls.Config,
 	tlsCertPool *x509.CertPool,
-	configService optional.Option[rcservice.Component],
-	configServiceMRF optional.Option[rcservicemrf.Component],
-	dogstatsdServer dogstatsdServer.Component,
-	capture replay.Component,
-	pidMap pidmap.Component,
-	wmeta workloadmeta.Component,
-	taggerComp tagger.Component,
-	logsAgent optional.Option[logsAgent.Component],
-	senderManager sender.DiagnoseSenderManager,
-	secretResolver secrets.Component,
-	collector optional.Option[collector.Component],
-	ac autodiscovery.Component,
-	providers []api.EndpointProvider,
 	tmf observability.TelemetryMiddlewareFactory,
 ) (err error) {
 	// get the transport we're going to use under HTTP
-	cmdListener, err = getListener(cmdAddr)
+	server.cmdListener, err = getListener(cmdAddr)
 	if err != nil {
 		// we use the listener to handle commands for the Agent, there's
 		// no way we can recover from this error
@@ -85,17 +55,17 @@ func startCMDServer(
 	}
 
 	s := grpc.NewServer(opts...)
-	pb.RegisterAgentServer(s, &server{})
+	pb.RegisterAgentServer(s, &grpcServer{})
 	pb.RegisterAgentSecureServer(s, &serverSecure{
-		configService:    configService,
-		configServiceMRF: configServiceMRF,
-		taggerServer:     taggerserver.NewServer(taggerComp),
-		taggerComp:       taggerComp,
+		configService:    server.rcService,
+		configServiceMRF: server.rcServiceMRF,
+		taggerServer:     taggerserver.NewServer(server.taggerComp),
+		taggerComp:       server.taggerComp,
 		// TODO(components): decide if workloadmetaServer should be componentized itself
-		workloadmetaServer: workloadmetaServer.NewServer(wmeta),
-		dogstatsdServer:    dogstatsdServer,
-		capture:            capture,
-		pidMap:             pidMap,
+		workloadmetaServer: workloadmetaServer.NewServer(server.wmeta),
+		dogstatsdServer:    server.dogstatsdServer,
+		capture:            server.capture,
+		pidMap:             server.pidMap,
 	})
 
 	dcreds := credentials.NewTLS(&tls.Config{
@@ -134,13 +104,13 @@ func startCMDServer(
 		http.StripPrefix("/agent",
 			agent.SetupHandlers(
 				agentMux,
-				wmeta,
-				logsAgent,
-				senderManager,
-				secretResolver,
-				collector,
-				ac,
-				providers,
+				server.wmeta,
+				server.logsAgentComp,
+				server.senderManager,
+				server.secretResolver,
+				server.collector,
+				server.autoConfig,
+				server.endpointProviders,
 			)))
 	cmdMux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	cmdMux.Handle("/", gwmux)
@@ -156,16 +126,7 @@ func startCMDServer(
 		grpcutil.TimeoutHandlerFunc(cmdMuxHandler, time.Duration(config.Datadog().GetInt64("server_timeout"))*time.Second),
 	)
 
-	startServer(cmdListener, srv, cmdServerName)
+	startServer(server.cmdListener, srv, cmdServerName)
 
 	return nil
-}
-
-// ServerAddress returns the server address.
-func ServerAddress() *net.TCPAddr {
-	return cmdListener.Addr().(*net.TCPAddr)
-}
-
-func stopCMDServer() {
-	stopServer(cmdListener, cmdServerName)
 }

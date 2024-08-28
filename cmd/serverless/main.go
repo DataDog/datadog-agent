@@ -253,6 +253,9 @@ func setupLambdaAgentOverrides() {
 	flavor.SetFlavor(flavor.ServerlessAgent)
 	config.Datadog().Set("use_v2_api.series", false, model.SourceAgentRuntime)
 
+	// TODO(duncanista): figure out how this is used and if it's necessary for Serverless
+	config.Datadog().Set("dogstatsd_socket", "", model.SourceAgentRuntime)
+
 	// Disable remote configuration for now as it just spams the debug logs
 	// and provides no value.
 	os.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "false")
@@ -383,22 +386,25 @@ func handleTerminationSignals(serverlessDaemon *daemon.Daemon, stopCh chan struc
 }
 
 func setupLogger() {
+	logLevel := "error"
+	if userLogLevel := os.Getenv(logLevelEnvVar); len(userLogLevel) > 0 {
+		if seelogLogLevel, err := log.ValidateLogLevel(userLogLevel); err == nil {
+			logLevel = seelogLogLevel
+		} else {
+			log.Errorf("Invalid log level '%s', using default log level '%s'", userLogLevel, logLevel)
+		}
+	}
+
 	// init the logger configuring it to not log in a file (the first empty string)
 	if err := config.SetupLogger(
 		loggerName,
-		"error", // will be re-set later with the value from the env var
-		"",      // logFile -> by setting this to an empty string, we don't write the logs to any file
-		"",      // syslog URI
-		false,   // syslog_rfc
-		true,    // log_to_console
-		false,   // log_format_json
+		logLevel,
+		"",    // logFile -> by setting this to an empty string, we don't write the logs to any file
+		"",    // syslog URI
+		false, // syslog_rfc
+		true,  // log_to_console
+		false, // log_format_json
 	); err != nil {
 		log.Errorf("Unable to setup logger: %s", err)
-	}
-
-	if logLevel := os.Getenv(logLevelEnvVar); len(logLevel) > 0 {
-		if err := config.ChangeLogLevel(logLevel); err != nil {
-			log.Errorf("While changing the loglevel: %s", err)
-		}
 	}
 }

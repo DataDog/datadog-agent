@@ -163,7 +163,7 @@ func (pm *procPidMapper) refreshMapping(cacheValidity time.Duration) {
 	err := godirwalk.Walk(pm.procPath, &godirwalk.Options{
 		AllowNonDirectory: true,
 		Unsorted:          true,
-		Callback: func(fullPath string, de *godirwalk.Dirent) error {
+		Callback: func(_ string, de *godirwalk.Dirent) error {
 			// The callback will be first called with the directory itself
 			if de.Name() == "proc" {
 				return nil

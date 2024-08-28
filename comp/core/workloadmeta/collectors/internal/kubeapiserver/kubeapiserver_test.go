@@ -135,7 +135,27 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 			},
 		},
 		{
-			name: "only one resource (deployments), only one version, correct resource requested",
+			name: "only one resource (statefulsets), only one version, correct resource requested",
+			apiServerResourceList: []*metav1.APIResourceList{
+				{
+					GroupVersion: "apps/v1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "statefulsets",
+							Kind:       "Statefulset",
+							Namespaced: true,
+						},
+					},
+				},
+			},
+			expectedGVRs: []schema.GroupVersionResource{{Resource: "statefulsets", Group: "apps", Version: "v1"}},
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "apps/statefulsets",
+			},
+		},
+		{
+			name: "deployments should be skipped from metadata collection",
 			apiServerResourceList: []*metav1.APIResourceList{
 				{
 					GroupVersion: "apps/v1",
@@ -148,30 +168,50 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 					},
 				},
 			},
-			expectedGVRs: []schema.GroupVersionResource{{Resource: "deployments", Group: "apps", Version: "v1"}},
+			expectedGVRs: []schema.GroupVersionResource{},
 			cfg: map[string]interface{}{
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "apps/deployments",
 			},
 		},
 		{
-			name: "only one resource (deployments), only one version, correct resource requested, but version is empty (with double slash)",
+			name: "pods should be skipped from metadata collection",
 			apiServerResourceList: []*metav1.APIResourceList{
 				{
 					GroupVersion: "apps/v1",
 					APIResources: []metav1.APIResource{
 						{
-							Name:       "deployments",
-							Kind:       "Deployment",
+							Name:       "pods",
+							Kind:       "Pod",
 							Namespaced: true,
 						},
 					},
 				},
 			},
-			expectedGVRs: []schema.GroupVersionResource{{Resource: "deployments", Group: "apps", Version: "v1"}},
+			expectedGVRs: []schema.GroupVersionResource{},
 			cfg: map[string]interface{}{
 				"cluster_agent.kube_metadata_collection.enabled":   true,
-				"cluster_agent.kube_metadata_collection.resources": "apps//deployments",
+				"cluster_agent.kube_metadata_collection.resources": "/pods",
+			},
+		},
+		{
+			name: "only one resource (statefulsets), only one version, correct resource requested, but version is empty (with double slash)",
+			apiServerResourceList: []*metav1.APIResourceList{
+				{
+					GroupVersion: "apps/v1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "statefulsets",
+							Kind:       "Statefulset",
+							Namespaced: true,
+						},
+					},
+				},
+			},
+			expectedGVRs: []schema.GroupVersionResource{{Resource: "statefulsets", Group: "apps", Version: "v1"}},
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "apps//statefulsets",
 			},
 		},
 		{
@@ -248,7 +288,6 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 				},
 			},
 			expectedGVRs: []schema.GroupVersionResource{
-				{Resource: "deployments", Group: "apps", Version: "v1"},
 				{Resource: "statefulsets", Group: "apps", Version: "v1"},
 			},
 			cfg: map[string]interface{}{
@@ -300,7 +339,7 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 					},
 				},
 			},
-			expectedGVRs: []schema.GroupVersionResource{{Resource: "deployments", Group: "apps", Version: "v1"}},
+			expectedGVRs: []schema.GroupVersionResource{},
 			cfg: map[string]interface{}{
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "apps/deployments",
@@ -333,6 +372,26 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 					GroupVersion: "apps/v1",
 					APIResources: []metav1.APIResource{
 						{
+							Name:       "daemonsets",
+							Kind:       "Daemonset",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "apps/v1beta1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "daemonsets",
+							Kind:       "Daemonset",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "apps/v1",
+					APIResources: []metav1.APIResource{
+						{
 							Name:       "statefulsets",
 							Kind:       "StatefulSet",
 							Namespaced: true,
@@ -351,11 +410,11 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 				},
 			},
 			expectedGVRs: []schema.GroupVersionResource{
-				{Resource: "deployments", Group: "apps", Version: "v1"},
+				{Resource: "daemonsets", Group: "apps", Version: "v1"},
 			},
 			cfg: map[string]interface{}{
 				"cluster_agent.kube_metadata_collection.enabled":   true,
-				"cluster_agent.kube_metadata_collection.resources": "apps/deployments apps/statefulsetsy",
+				"cluster_agent.kube_metadata_collection.resources": "apps/daemonsets apps/statefulsetsy",
 			},
 		},
 	}
@@ -401,10 +460,22 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "apps/deployments apps/statefulsets apps//deployments apps/v1/statefulsets apps/v1/daemonsets",
 			},
-			expectedResources: []string{"//nodes", "apps//deployments", "apps/v1/daemonsets"},
+			expectedResources: []string{"//nodes", "apps/v1/daemonsets"},
 		},
 		{
-			name: "deployments needed for language detection should be excluded from metadata collection",
+			name: "with generic resource tagging based on annotations and/or labels configured",
+			cfg: map[string]interface{}{
+				"language_detection.enabled":                       false,
+				"language_detection.reporting.enabled":             false,
+				"cluster_agent.kube_metadata_collection.enabled":   false,
+				"cluster_agent.kube_metadata_collection.resources": "",
+				"kubernetes_resources_labels_as_tags":              `{"deployments.apps": {"x-team": "team"}}`,
+				"kubernetes_resources_annotations_as_tags":         `{"namespaces": {"x-team": "team"}}`,
+			},
+			expectedResources: []string{"//nodes", "//namespaces"},
+		},
+		{
+			name: "deployments should be excluded from metadata collection",
 			cfg: map[string]interface{}{
 				"language_detection.enabled":                       true,
 				"language_detection.reporting.enabled":             true,
@@ -414,7 +485,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 			expectedResources: []string{"apps//daemonsets", "//nodes"},
 		},
 		{
-			name: "pods needed for autoscaling should be excluded from metadata collection",
+			name: "pods should be excluded from metadata collection",
 			cfg: map[string]interface{}{
 				"autoscaling.workload.enabled":                     true,
 				"cluster_agent.kube_metadata_collection.enabled":   true,
@@ -428,7 +499,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "apps/deployments apps/statefulsets",
 			},
-			expectedResources: []string{"//nodes", "apps//deployments", "apps//statefulsets"},
+			expectedResources: []string{"//nodes", "apps//statefulsets"},
 		},
 		{
 			name: "namespaces needed for namespace labels as tags",
@@ -451,12 +522,8 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 		{
 			name: "namespaces needed for namespace labels and annotations as tags",
 			cfg: map[string]interface{}{
-				"kubernetes_namespace_labels_as_tags": map[string]string{
-					"label1": "tag1",
-				},
-				"kubernetes_namespace_annotations_as_tags": map[string]string{
-					"annotation1": "tag2",
-				},
+				"kubernetes_namespace_labels_as_tags":      `{"label1": "tag1"}`,
+				"kubernetes_namespace_annotations_as_tags": `{"annotation1": "tag2"}`,
 			},
 			expectedResources: []string{"//nodes", "//namespaces"},
 		},
@@ -465,16 +532,14 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 			cfg: map[string]interface{}{
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "namespaces apps/deployments",
-				"kubernetes_namespace_labels_as_tags": map[string]string{
-					"label1": "tag1",
-				},
+				"kubernetes_namespace_labels_as_tags":              `{"label1": "tag1"}`,
 			},
-			expectedResources: []string{"//nodes", "//namespaces", "apps//deployments"}, // namespaces are not duplicated
+			expectedResources: []string{"//nodes", "//namespaces"}, // namespaces are not duplicated
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(tt *testing.T) {
+		t.Run(test.name, func(_ *testing.T) {
 			cfg := fxutil.Test[config.Component](t, fx.Options(
 				config.MockModule(),
 				fx.Replace(config.MockParams{Overrides: test.cfg}),

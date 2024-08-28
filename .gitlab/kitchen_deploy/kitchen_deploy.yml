@@ -274,7 +274,8 @@ deploy_suse_rpm_testing_arm64-a7:
 deploy_windows_testing-a6:
   rules:
     - !reference [.on_kitchen_tests]
-    - !reference [.on_windows_installer_changes_or_manual]
+    - !reference [.on_e2e_or_windows_installer_changes]
+    - !reference [.manual]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
