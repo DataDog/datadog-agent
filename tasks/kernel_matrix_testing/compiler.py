@@ -45,7 +45,7 @@ def get_docker_image_name(ctx: Context, container: str) -> str:
     return data[0]["Config"]["Image"]
 
 
-def has_ddtool_helpers() -> bool:
+def has_docker_auth_helpers() -> bool:
     docker_config = Path("~/.docker/config.json").expanduser()
     if not docker_config.exists():
         return False
@@ -137,7 +137,7 @@ class CompilerImage:
         if res is None or not res.ok:
             info(f"[!] Image {self.image} not found, logging in and pulling...")
 
-            if has_ddtool_helpers():
+            if has_docker_auth_helpers():
                 # With ddtool helpers (installed with ddtool auth helpers install), docker automatically
                 # pulls credentials from ddtool, and we require the aws-vault context to pull
                 docker_pull_auth = "aws-vault exec sso-build-stable-developer -- "
