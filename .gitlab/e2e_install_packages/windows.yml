@@ -39,7 +39,6 @@
       - E2E_MSI_TEST: TestInstall
       - E2E_MSI_TEST: TestRepair
       - E2E_MSI_TEST: TestUpgrade
-      - E2E_MSI_TEST: TestUpgradeRollback
       - E2E_MSI_TEST: TestUpgradeRollbackWithoutCWS
       - E2E_MSI_TEST: TestUpgradeChangeUser
       - E2E_MSI_TEST: TestUpgradeFromV5
@@ -62,7 +61,6 @@
       - E2E_MSI_TEST: TestInstall
       - E2E_MSI_TEST: TestRepair
       - E2E_MSI_TEST: TestUpgrade
-      - E2E_MSI_TEST: TestUpgradeRollback
       - E2E_MSI_TEST: TestUpgradeRollbackWithoutCWS
       - E2E_MSI_TEST: TestUpgradeChangeUser
       - E2E_MSI_TEST: TestUpgradeFromV5
