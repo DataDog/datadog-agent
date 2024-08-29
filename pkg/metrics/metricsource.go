@@ -291,10 +291,8 @@ const (
 	MetricSourceYarn
 	MetricSourceZk
 	MetricSourceAwsNeuron
-	MetricSourceKyverno
 	MetricSourceTiboco_EMS
 	MetricSourceSlurm
-	MetricSourceKubeflow
 	MetricSourceKyverno
 	MetricSourceKubeflow
 	MetricSourceAppgate_SDP
