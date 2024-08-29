@@ -134,8 +134,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForDaemon(command.LoggerName, "log_file", path.DefaultDCALogFile),
 				}),
 				core.Bundle(),
-				forwarder.Bundle(),
-				fx.Provide(func(config config.Component, log log.Component) defaultforwarder.Params {
+				forwarder.BundleWithProvider(func(config config.Component, log log.Component) defaultforwarder.Params {
 					params := defaultforwarder.NewParamsWithResolvers(config, log)
 					params.Options.DisableAPIKeyChecking = true
 					return params

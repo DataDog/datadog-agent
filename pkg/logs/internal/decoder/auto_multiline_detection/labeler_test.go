@@ -16,7 +16,7 @@ type mockHeuristic struct {
 	processFunc func(*messageContext) bool
 }
 
-func (m *mockHeuristic) Process(context *messageContext) bool {
+func (m *mockHeuristic) ProcessAndContinue(context *messageContext) bool {
 	return m.processFunc(context)
 }
 

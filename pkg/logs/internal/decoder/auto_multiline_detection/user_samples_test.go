@@ -136,8 +136,8 @@ logs_config:
 			label:      aggregate,
 		}
 
-		assert.True(t, tokenizer.Process(context))
-		assert.Equal(t, test.shouldStop, samples.Process(context), "Expected stop %v, got %v", test.shouldStop, samples.Process(context))
+		assert.True(t, tokenizer.ProcessAndContinue(context))
+		assert.Equal(t, test.shouldStop, samples.ProcessAndContinue(context), "Expected stop %v, got %v", test.shouldStop, samples.ProcessAndContinue(context))
 		assert.Equal(t, test.expectedLabel, context.label, "Expected label %v, got %v", test.expectedLabel, context.label)
 	}
 }
@@ -175,8 +175,8 @@ logs_config:
 			label:      aggregate,
 		}
 
-		assert.True(t, tokenizer.Process(context))
-		assert.Equal(t, test.shouldStop, samples.Process(context), "Expected stop %v, got %v", test.shouldStop, samples.Process(context))
+		assert.True(t, tokenizer.ProcessAndContinue(context))
+		assert.Equal(t, test.shouldStop, samples.ProcessAndContinue(context), "Expected stop %v, got %v", test.shouldStop, samples.ProcessAndContinue(context))
 		assert.Equal(t, test.expectedLabel, context.label, "Expected label %v, got %v", test.expectedLabel, context.label)
 	}
 }

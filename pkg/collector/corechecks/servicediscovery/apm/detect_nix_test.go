@@ -14,10 +14,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 )
 
 func TestInjected(t *testing.T) {
@@ -91,7 +93,7 @@ func Test_javaDetector(t *testing.T) {
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := javaDetector(0, d.args, d.envs)
+			result := javaDetector(0, d.args, d.envs, nil)
 			if result != d.result {
 				t.Errorf("expected %s got %s", d.result, result)
 			}
@@ -104,21 +106,23 @@ func Test_nodeDetector(t *testing.T) {
 	assert.NoError(t, err)
 
 	data := []struct {
-		name   string
-		envs   map[string]string
-		result Instrumentation
+		name       string
+		contextMap usm.DetectorContextMap
+		result     Instrumentation
 	}{
 		{
 			name: "not instrumented",
-			envs: map[string]string{
-				"PWD": filepath.Join(curDir, "testdata/node/not_instrumented"),
+			contextMap: usm.DetectorContextMap{
+				usm.NodePackageJSONPath: filepath.Join(curDir, "testdata/node/not_instrumented/package.json"),
+				usm.ServiceSubFS:        usm.NewSubDirFS("/"),
 			},
 			result: None,
 		},
 		{
 			name: "instrumented",
-			envs: map[string]string{
-				"PWD": filepath.Join(curDir, "testdata/node/instrumented"),
+			contextMap: usm.DetectorContextMap{
+				usm.NodePackageJSONPath: filepath.Join(curDir, "testdata/node/instrumented/package.json"),
+				usm.ServiceSubFS:        usm.NewSubDirFS("/"),
 			},
 			result: Provided,
 		},
@@ -126,7 +130,7 @@ func Test_nodeDetector(t *testing.T) {
 
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := nodeDetector(0, nil, d.envs)
+			result := nodeDetector(0, nil, nil, d.contextMap)
 			assert.Equal(t, d.result, result)
 		})
 	}
@@ -181,9 +185,9 @@ func TestGoDetector(t *testing.T) {
 		_ = cmd.Process.Kill()
 	})
 
-	result := goDetector(os.Getpid(), nil, nil)
+	result := goDetector(os.Getpid(), nil, nil, nil)
 	require.Equal(t, result, None)
 
-	result = goDetector(cmd.Process.Pid, nil, nil)
+	result = goDetector(cmd.Process.Pid, nil, nil, nil)
 	require.Equal(t, result, Provided)
 }

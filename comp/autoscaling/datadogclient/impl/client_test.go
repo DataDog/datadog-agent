@@ -16,13 +16,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 )
 
 func TestNewSingleClient(t *testing.T) {
-	cfg := fxutil.Test[config.Component](t, config.MockModule())
+	cfg := config.NewMock(t)
 	logger := logmock.New(t)
 	cfg.Set("api_key", "apikey123", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.Set("app_key", "appkey456", pkgconfigmodel.SourceLocalConfigProcess)
@@ -34,7 +33,7 @@ func TestNewSingleClient(t *testing.T) {
 }
 
 func TestNewFallbackClient(t *testing.T) {
-	cfg := fxutil.Test[config.Component](t, config.MockModule())
+	cfg := config.NewMock(t)
 	logger := logmock.New(t)
 	cfg.Set("api_key", "apikey123", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.Set("app_key", "appkey456", pkgconfigmodel.SourceLocalConfigProcess)
@@ -66,7 +65,7 @@ func TestExternalMetricsProviderEndpointAndRefresh(t *testing.T) {
 		w.Write([]byte("{\"status\": \"ok\"}"))
 	}))
 	defer ts.Close()
-	cfg := fxutil.Test[config.Component](t, config.MockModule())
+	cfg := config.NewMock(t)
 	logger := logmock.New(t)
 	cfg.Set("api_key", "apikey123", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.Set("app_key", "appkey456", pkgconfigmodel.SourceLocalConfigProcess)
