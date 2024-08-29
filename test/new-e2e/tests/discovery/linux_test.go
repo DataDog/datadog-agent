@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -33,6 +34,8 @@ var checkConfigStr string
 type linuxTestSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
+
+var services = []string{"python-svc", "python-instrumented", "node-json-server"}
 
 func TestLinuxTestSuite(t *testing.T) {
 	agentParams := []func(*agentparams.Params) error{
@@ -75,18 +78,29 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 		payloads, err := client.GetServiceDiscoveries()
 		require.NoError(t, err)
 
-		found := false
+		foundMap := make(map[string]*aggregator.ServiceDiscoveryPayload)
 		for _, p := range payloads {
 			name := p.Payload.ServiceName
 			t.Log("RequestType", p.RequestType, "ServiceName", name)
 
-			if p.RequestType == "start-service" && name == "python" {
-				found = true
-				break
+			if p.RequestType == "start-service" {
+				foundMap[name] = p
 			}
 		}
 
-		assert.True(c, found, "service not found")
+		found := foundMap["python.server"]
+		if assert.NotNil(c, found) {
+			assert.Equal(c, "none", found.Payload.APMInstrumentation)
+			assert.Equal(c, "generated", found.Payload.ServiceNameSource)
+		}
+
+		found = foundMap["python.instrumented"]
+		if assert.NotNil(c, found) {
+			assert.Equal(c, "provided", found.Payload.APMInstrumentation)
+			assert.Equal(c, "generated", found.Payload.ServiceNameSource)
+		}
+
+		assert.Contains(c, foundMap, "json-server")
 	}, 3*time.Minute, 10*time.Second)
 }
 
@@ -123,9 +137,14 @@ func (s *linuxTestSuite) provisionServer() {
 }
 
 func (s *linuxTestSuite) startServices() {
-	s.Env().RemoteHost.MustExecute("sudo systemctl start python-svc")
+	for _, service := range services {
+		s.Env().RemoteHost.MustExecute("sudo systemctl start " + service)
+	}
 }
 
 func (s *linuxTestSuite) stopServices() {
-	s.Env().RemoteHost.MustExecute("sudo systemctl stop python-svc")
+	for i := len(services) - 1; i >= 0; i-- {
+		service := services[i]
+		s.Env().RemoteHost.MustExecute("sudo systemctl stop " + service)
+	}
 }

@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -28,6 +29,7 @@ import (
 
 	gorillamux "github.com/gorilla/mux"
 	"github.com/prometheus/procfs"
+	"github.com/shirou/gopsutil/v3/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
@@ -35,19 +37,27 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/comp/core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
+	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func setupDiscoveryModule(t *testing.T) string {
 	t.Helper()
 
-	wmeta := optional.NewNoneOption[workloadmeta.Component]()
+	wmeta := fxutil.Test[workloadmeta.Component](t,
+		core.MockBundle(),
+		wmmock.MockModule(workloadmeta.NewParams()),
+	)
 	mux := gorillamux.NewRouter()
 	cfg := &types.Config{
 		Enabled: true,
@@ -294,6 +304,7 @@ func TestServiceName(t *testing.T) {
 		portMap := getServicesMap(t, url)
 		assert.Contains(collect, portMap, pid)
 		assert.Equal(t, "foobar", portMap[pid].Name)
+		assert.Equal(t, "provided", portMap[pid].NameSource)
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
@@ -303,6 +314,7 @@ func TestInjectedServiceName(t *testing.T) {
 	createEnvsMemfd(t, []string{
 		"OTHER_ENV=test",
 		"DD_SERVICE=injected-service-name",
+		"DD_INJECTION_ENABLED=service_name",
 		"YET_ANOTHER_ENV=test",
 	})
 
@@ -314,6 +326,7 @@ func TestInjectedServiceName(t *testing.T) {
 	portMap := getServicesMap(t, url)
 	require.Contains(t, portMap, pid)
 	require.Equal(t, "injected-service-name", portMap[pid].Name)
+	require.Equal(t, "generated", portMap[pid].NameSource)
 }
 
 func TestAPMInstrumentationInjected(t *testing.T) {
@@ -333,46 +346,190 @@ func TestAPMInstrumentationInjected(t *testing.T) {
 	require.Equal(t, string(apm.Injected), portMap[pid].APMInstrumentation)
 }
 
+func makeAlias(t *testing.T, alias string, serverBin string) string {
+	binDir := filepath.Dir(serverBin)
+	aliasPath := filepath.Join(binDir, alias)
+
+	target, err := os.Readlink(aliasPath)
+	if err == nil && target == serverBin {
+		return aliasPath
+	}
+
+	os.Remove(aliasPath)
+	err = os.Symlink(serverBin, aliasPath)
+	require.NoError(t, err)
+
+	return aliasPath
+}
+
 func buildFakeServer(t *testing.T) string {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
 	serverBin, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "fake_server")
 	require.NoError(t, err)
 
-	binDir := filepath.Dir(serverBin)
-	for _, alias := range []string{"java"} {
-		aliasPath := filepath.Join(binDir, alias)
-
-		target, err := os.Readlink(aliasPath)
-		if err == nil && target == serverBin {
-			continue
-		}
-
-		os.Remove(aliasPath)
-		err = os.Symlink(serverBin, aliasPath)
-		require.NoError(t, err)
+	for _, alias := range []string{"java", "node"} {
+		makeAlias(t, alias, serverBin)
 	}
 
-	return binDir
+	return filepath.Dir(serverBin)
+}
+
+func TestPythonFromBashScript(t *testing.T) {
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err)
+	pythonScriptPath := filepath.Join(curDir, "testdata", "script.py")
+
+	t.Run("PythonFromBashScript", func(t *testing.T) {
+		testCaptureWrappedCommands(t, pythonScriptPath, []string{"sh", "-c"}, func(service model.Service) bool {
+			return service.Language == string(language.Python)
+		})
+	})
+	t.Run("DirectPythonScript", func(t *testing.T) {
+		testCaptureWrappedCommands(t, pythonScriptPath, nil, func(service model.Service) bool {
+			return service.Language == string(language.Python)
+		})
+	})
+}
+
+func testCaptureWrappedCommands(t *testing.T, script string, commandWrapper []string, validator func(service model.Service) bool) {
+	// Changing permissions
+	require.NoError(t, os.Chmod(script, 0755))
+
+	commandLineArgs := append(commandWrapper, script)
+	cmd := exec.Command(commandLineArgs[0], commandLineArgs[1:]...)
+	// Running the binary in the background
+	require.NoError(t, cmd.Start())
+
+	var proc *process.Process
+	var err error
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		proc, err = process.NewProcess(int32(cmd.Process.Pid))
+		assert.NoError(collect, err)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	cmdline, err := proc.Cmdline()
+	require.NoError(t, err)
+	// If we wrap the script with `sh -c`, we can have differences between a local run and a kmt run, as for
+	// kmt `sh` is symbolic link to bash, while locally it can be a symbolic link to dash. In the dash case, we will
+	// see 2 processes `sh -c script.py` and a sub-process `python3 script.py`, while in the bash case we will see
+	// only `python3 script.py`. We need to check for the command line arguments of the process to make sure we
+	// are looking at the right process.
+	if cmdline == strings.Join(commandLineArgs, " ") && len(commandWrapper) > 0 {
+		var children []*process.Process
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			children, err = proc.Children()
+			assert.NoError(collect, err)
+			assert.Len(collect, children, 1)
+		}, 10*time.Second, 100*time.Millisecond)
+		proc = children[0]
+	}
+	t.Cleanup(func() { _ = proc.Kill() })
+
+	url := setupDiscoveryModule(t)
+	pid := int(proc.Pid)
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		svcMap := getServicesMap(t, url)
+		assert.Contains(collect, svcMap, pid)
+		assert.True(collect, validator(svcMap[pid]))
+	}, 30*time.Second, 100*time.Millisecond)
 }
 
 func TestAPMInstrumentationProvided(t *testing.T) {
+	curDir, err := testutil.CurDir()
+	assert.NoError(t, err)
+
+	testCases := map[string]struct {
+		commandline      []string // The command line of the fake server
+		workingDirectory string   // Optional: The working directory to use for the server.
+		language         language.Language
+	}{
+		"java": {
+			commandline: []string{"java", "-javaagent:/path/to/dd-java-agent.jar", "-jar", "foo.jar"},
+			language:    language.Java,
+		},
+		"node": {
+			commandline:      []string{"node"},
+			workingDirectory: filepath.Join(curDir, "testdata"),
+			language:         language.Node,
+		},
+	}
+
 	serverDir := buildFakeServer(t)
 	url := setupDiscoveryModule(t)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
+	for name, test := range testCases {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(func() { cancel() })
 
-	bin := filepath.Join(serverDir, "java")
-	cmd := exec.CommandContext(ctx, bin, "-javaagent:/path/to/dd-java-agent.jar", "-jar", "foo.jar")
-	err := cmd.Start()
+			bin := filepath.Join(serverDir, test.commandline[0])
+			cmd := exec.CommandContext(ctx, bin, test.commandline[1:]...)
+			cmd.Dir = test.workingDirectory
+			err := cmd.Start()
+			require.NoError(t, err)
+
+			pid := cmd.Process.Pid
+
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				portMap := getServicesMap(t, url)
+				assert.Contains(collect, portMap, pid)
+				assert.Equal(collect, string(test.language), portMap[pid].Language)
+				assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
+			}, 30*time.Second, 100*time.Millisecond)
+		})
+	}
+}
+
+func TestNodeDocker(t *testing.T) {
+	cert, key, err := testutil.GetCertsPaths()
 	require.NoError(t, err)
 
-	pid := cmd.Process.Pid
+	require.NoError(t, nodejs.RunServerNodeJS(t, key, cert, "4444"))
+	nodeJSPID, err := nodejs.GetNodeJSDockerPID()
+	require.NoError(t, err)
 
+	url := setupDiscoveryModule(t)
+	pid := int(nodeJSPID)
+
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		svcMap := getServicesMap(t, url)
+		assert.Contains(collect, svcMap, pid)
+		assert.Equal(collect, "nodejs-https-server", svcMap[pid].Name)
+	}, 30*time.Second, 100*time.Millisecond)
+}
+
+func TestAPMInstrumentationProvidedPython(t *testing.T) {
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err)
+
+	fmapper := fileopener.BuildFmapper(t)
+	fakePython := makeAlias(t, "python", fmapper)
+
+	// We need the process to map something in a directory called
+	// "site-packages/ddtrace". The actual mapped file does not matter.
+	ddtrace := filepath.Join(curDir, "..", "..", "..", "..", "network", "usm", "testdata", "site-packages", "ddtrace")
+	lib := filepath.Join(ddtrace, fmt.Sprintf("libssl.so.%s", runtime.GOARCH))
+
+	// Give the process a listening socket
+	listener, err := net.Listen("tcp", "")
+	require.NoError(t, err)
+	f, err := listener.(*net.TCPListener).File()
+	listener.Close()
+	require.NoError(t, err)
+	t.Cleanup(func() { f.Close() })
+	disableCloseOnExec(t, f)
+
+	cmd, err := fileopener.OpenFromProcess(t, fakePython, lib)
+	require.NoError(t, err)
+
+	url := setupDiscoveryModule(t)
+
+	pid := cmd.Process.Pid
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		portMap := getServicesMap(t, url)
 		assert.Contains(collect, portMap, pid)
+		assert.Equal(collect, string(language.Python), portMap[pid].Language)
 		assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
 	}, 30*time.Second, 100*time.Millisecond)
 }
@@ -475,7 +632,11 @@ func TestDocker(t *testing.T) {
 
 // Check that the cache is cleaned when procceses die.
 func TestCache(t *testing.T) {
-	module, err := NewDiscoveryModule(nil, optional.NewNoneOption[workloadmeta.Component](), nil)
+	wmeta := fxutil.Test[workloadmeta.Component](t,
+		core.MockBundle(),
+		wmmock.MockModule(workloadmeta.NewParams()),
+	)
+	module, err := NewDiscoveryModule(nil, wmeta, nil)
 	require.NoError(t, err)
 	discovery := module.(*discovery)
 
@@ -516,6 +677,7 @@ func TestCache(t *testing.T) {
 	for i, cmd := range cmds {
 		pid := int32(cmd.Process.Pid)
 		require.Contains(t, discovery.cache[pid].name, serviceNames[i])
+		require.True(t, discovery.cache[pid].nameFromDDService)
 	}
 
 	cancel()

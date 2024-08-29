@@ -148,7 +148,8 @@ func (rs *RuleSet) AddRules(parsingContext *ast.ParsingContext, pRules []*Policy
 	return result
 }
 
-func (rs *RuleSet) populateFieldsWithRuleActionsData(policyRules []*PolicyRule, opts PolicyLoaderOpts) *multierror.Error {
+// PopulateFieldsWithRuleActionsData populates the fields with the data from the rule actions
+func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, opts PolicyLoaderOpts) *multierror.Error {
 	var errs *multierror.Error
 
 	for _, rule := range policyRules {
@@ -764,7 +765,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 		errs = multierror.Append(errs, err)
 	}
 
-	if err := rs.populateFieldsWithRuleActionsData(allRules, opts); err.ErrorOrNil() != nil {
+	if err := rs.PopulateFieldsWithRuleActionsData(allRules, opts); err.ErrorOrNil() != nil {
 		errs = multierror.Append(errs, err)
 	}
 

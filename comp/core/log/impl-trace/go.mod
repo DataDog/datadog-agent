@@ -46,12 +46,12 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect; v2.6
 	github.com/stretchr/testify v1.9.0
-	go.uber.org/fx v1.18.2 // indirect
+	go.uber.org/fx v1.22.2 // indirect
 )
 
 require (
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.58.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.0.0-00010101000000-000000000000
 )
 
@@ -123,16 +123,16 @@ require (
 	go.opentelemetry.io/otel/metric v1.27.0 // indirect
 	go.opentelemetry.io/otel/trace v1.27.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	go.uber.org/dig v1.17.1 // indirect
+	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
+	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa // indirect
 	golang.org/x/mod v0.20.0 // indirect
-	golang.org/x/net v0.27.0 // indirect
+	golang.org/x/net v0.28.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/sys v0.23.0 // indirect
-	golang.org/x/text v0.16.0 // indirect
-	golang.org/x/tools v0.23.0 // indirect
+	golang.org/x/sys v0.24.0 // indirect
+	golang.org/x/text v0.17.0 // indirect
+	golang.org/x/tools v0.24.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240520151616-dc85e6b867a5 // indirect
 	google.golang.org/grpc v1.64.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect

@@ -134,7 +134,7 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 		return err
 	}
 
-	env.AwsEnvironment = &awsEnv
+	env.Environment = &awsEnv
 
 	// Make sure to override any OS other than Windows
 	// TODO: Make the Windows version configurable
@@ -216,7 +216,7 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 	}
 
 	if params.installerOptions != nil {
-		installer, err := installer.NewInstaller(awsEnv, host, params.installerOptions...)
+		installer, err := installer.NewInstaller(&awsEnv, host, params.installerOptions...)
 		if err != nil {
 			return err
 		}

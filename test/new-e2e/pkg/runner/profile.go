@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"io"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -96,6 +97,27 @@ func newProfile(projectName string, environments []string, store parameters.Stor
 	}
 
 	return p
+}
+
+// mergeEnvironments returns a string with a space separated list of available environments. It merges environments with a `defaultEnvironments` map
+func mergeEnvironments(environments string, defaultEnvironments map[string]string) string {
+	environmentsList := strings.Split(environments, " ")
+	// set merged map capacity to worst case scenario of no overlapping key
+	mergedEnvironmentsMap := make(map[string]string, len(defaultEnvironments)+len(environmentsList))
+	maps.Copy(mergedEnvironmentsMap, defaultEnvironments)
+	for _, env := range environmentsList {
+		parts := strings.Split(env, "/")
+		if len(parts) == 2 {
+			mergedEnvironmentsMap[parts[0]] = parts[1]
+		}
+	}
+
+	mergedEnvironmentsList := make([]string, 0, len(mergedEnvironmentsMap))
+	for k, v := range mergedEnvironmentsMap {
+		mergedEnvironmentsList = append(mergedEnvironmentsList, fmt.Sprintf("%s/%s", k, v))
+	}
+
+	return strings.Join(mergedEnvironmentsList, " ")
 }
 
 // EnvironmentNames returns a comma-separated list of environments that the profile targets

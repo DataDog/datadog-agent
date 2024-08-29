@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"unicode"
+	"unicode/utf8"
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"go.uber.org/fx"
@@ -224,6 +226,10 @@ func ensureFieldsNotAllowed(typ reflect.Type, badEmbeds []reflect.Type) error {
 		field := typ.Field(n)
 		if slices.Contains(badEmbeds, field.Type) {
 			return fmt.Errorf("invalid embedded field: %v", field.Type)
+		}
+		firstRune, _ := utf8.DecodeRuneInString(field.Name)
+		if unicode.IsLower(firstRune) {
+			return fmt.Errorf("field is not exported: %v", field.Name)
 		}
 	}
 	return nil

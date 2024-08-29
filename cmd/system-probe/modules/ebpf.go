@@ -23,14 +23,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // EBPFProbe Factory
 var EBPFProbe = module.Factory{
 	Name:             config.EBPFModule,
 	ConfigNamespaces: []string{},
-	Fn: func(_ *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], _ telemetry.Component) (module.Module, error) {
+	Fn: func(_ *sysconfigtypes.Config, _ workloadmeta.Component, _ telemetry.Component) (module.Module, error) {
 		log.Infof("Starting the ebpf probe")
 		okp, err := ebpfcheck.NewProbe(ebpf.NewConfig())
 		if err != nil {

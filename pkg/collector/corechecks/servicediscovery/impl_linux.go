@@ -13,7 +13,6 @@ import (
 
 	"github.com/prometheus/procfs"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -249,8 +248,6 @@ func (li *linuxImpl) getServiceInfo(p proc, service model.Service) (*serviceInfo
 		return nil, err
 	}
 
-	lang := language.FindInArgs(cmdline)
-
 	stat, err := p.Stat()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read /proc/{pid}/stat: %w", err)
@@ -281,9 +278,10 @@ func (li *linuxImpl) getServiceInfo(p proc, service model.Service) (*serviceInfo
 
 	meta := ServiceMetadata{
 		Name:               service.Name,
-		Language:           string(lang),
+		Language:           service.Language,
 		Type:               string(serviceType),
 		APMInstrumentation: service.APMInstrumentation,
+		NameSource:         service.NameSource,
 	}
 
 	return &serviceInfo{
