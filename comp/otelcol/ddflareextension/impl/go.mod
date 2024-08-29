@@ -89,7 +89,7 @@ require (
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/ua-parser/uap-go v0.0.0-20240611065828-3a4781585db6 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	go.opentelemetry.io/collector/component/componentstatus v0.108.1 // indirect
+	go.opentelemetry.io/collector/component/componentstatus v0.108.1
 	go.opentelemetry.io/collector/pdata/testdata v0.108.1 // indirect
 )
 
