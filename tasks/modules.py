@@ -149,6 +149,7 @@ DEFAULT_MODULES = {
     "comp/core/status/statusimpl": GoModule("comp/core/status/statusimpl", independent=True),
     "comp/core/tagger/utils": GoModule("comp/core/tagger/utils", independent=True, used_by_otel=True),
     "comp/core/telemetry": GoModule("comp/core/telemetry", independent=True, used_by_otel=True),
+    "comp/core/workloadmeta/def": GoModule("comp/core/workloadmeta/def", independent=True, used_by_otel=True),
     "comp/def": GoModule("comp/def", independent=True, used_by_otel=True),
     "comp/forwarder/defaultforwarder": GoModule("comp/forwarder/defaultforwarder", independent=True, used_by_otel=True),
     "comp/forwarder/orchestrator/orchestratorinterface": GoModule(

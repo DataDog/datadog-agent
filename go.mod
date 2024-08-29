@@ -39,6 +39,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl => ./comp/core/status/statusimpl
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils => ./comp/core/tagger/utils
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ./comp/core/telemetry/
+	github.com/DataDog/datadog-agent/comp/core/workloadmeta/def => ./comp/core/workloadmeta/def/
 	github.com/DataDog/datadog-agent/comp/def => ./comp/def/
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ./comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ./comp/forwarder/orchestrator/orchestratorinterface
@@ -142,7 +143,7 @@ require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/CycloneDX/cyclonedx-go v0.8.0
+	github.com/CycloneDX/cyclonedx-go v0.9.0
 	github.com/DataDog/appsec-internal-go v1.7.0
 	github.com/DataDog/datadog-agent/pkg/gohai v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.56.0-rc.3
@@ -150,9 +151,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/trace v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0-rc3
 	github.com/DataDog/datadog-go/v5 v5.5.0
 	github.com/DataDog/datadog-operator v1.8.0-rc.1
 	github.com/DataDog/ebpf-manager v0.7.1
@@ -298,7 +299,7 @@ require (
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.5.3
 	go.uber.org/dig v1.18.0
-	go.uber.org/fx v1.18.2
+	go.uber.org/fx v1.22.2
 	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.27.0
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
@@ -597,7 +598,6 @@ require (
 )
 
 require (
-	dario.cat/mergo v1.0.0
 	github.com/containerd/containerd/api v1.7.19
 	github.com/containerd/errdefs v0.1.0
 	github.com/distribution/reference v0.6.0
@@ -609,19 +609,20 @@ require (
 	github.com/DataDog/agent-payload/v5 v5.0.130
 	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/core/config v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/comp/core/config v0.56.0-rc3
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.56.0-rc3
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/log/impl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/log/impl-trace v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/comp/core/secrets v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/comp/core/secrets v0.56.0-rc3
 	github.com/DataDog/datadog-agent/comp/core/status v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/comp/core/workloadmeta/def v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc3
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.56.0-rc.3
@@ -648,16 +649,16 @@ require (
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/api v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/config/env v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.56.0-rc3
+	github.com/DataDog/datadog-agent/pkg/config/env v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.0.0-20240726104123-0f372a5f7b15
-	github.com/DataDog/datadog-agent/pkg/config/model v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/config/model v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/config/remote v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/errors v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/languagedetection/util v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels v0.56.0-rc3
+	github.com/DataDog/datadog-agent/pkg/languagedetection/util v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.56.0-rc.3
@@ -674,7 +675,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/security/seclwin v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/serializer v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/status/health v0.56.0-rc.3
@@ -684,24 +685,24 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/common v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/containers/image v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/containers/image v0.56.0-rc3
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.56.0-rc3
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/http v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/json v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/kubernetes/helpers v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/kubernetes/helpers v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/system v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/system v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/version v0.56.0-rc.3
 	github.com/DataDog/go-libddwaf/v3 v3.3.0
 	github.com/DataDog/go-sqllexer v0.0.13
@@ -756,6 +757,7 @@ require (
 	code.cloudfoundry.org/go-diodes v0.0.0-20240604201846-c756bfed2ed3 // indirect
 	code.cloudfoundry.org/go-loggregator v7.4.0+incompatible // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20201103192249-000122071b78 // indirect
+	dario.cat/mergo v1.0.1 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 // indirect
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20230306123547-8075edf89bb0 // indirect
@@ -766,12 +768,12 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4 v4.3.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
 	github.com/Code-Hex/go-generics-cache v1.3.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.56.0-rc3 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.0.0-20240525065430-d0b647bcb646 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.56.0-rc3 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.26.0 // indirect
 	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240816154533-f7f9beb53a42 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.17.0 // indirect
