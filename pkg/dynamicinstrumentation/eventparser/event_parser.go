@@ -7,10 +7,12 @@
 package eventparser
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"reflect"
+	"unsafe"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -30,13 +32,12 @@ var (
 func ParseEvent(record []byte, ratelimiters *ratelimiter.MultiProbeRateLimiter) *ditypes.DIEvent {
 	event := ditypes.DIEvent{}
 
-	if len(record) < 392 {
+	if len(record) < ditypes.SizeofBaseEvent {
 		log.Info("malformed event record")
 		return nil
 	}
-
-	indexOfFirstNull := bytes.Index(record[0:304], []byte{0})
-	event.ProbeID = string(record[0:indexOfFirstNull])
+	baseEvent := *(*ditypes.BaseEvent)(unsafe.Pointer(&record[0]))
+	event.ProbeID = unix.ByteSliceToString(baseEvent.Probe_id[:])
 
 	allowed, _, _ := ratelimiters.AllowOneEvent(event.ProbeID)
 	if !allowed {
@@ -45,10 +46,10 @@ func ParseEvent(record []byte, ratelimiters *ratelimiter.MultiProbeRateLimiter) 
 		return nil
 	}
 
-	event.PID = byteOrder.Uint32(record[304:308])
-	event.UID = byteOrder.Uint32(record[308:312])
-	event.StackPCs = record[312:392]
-	event.Argdata = readParams(record[392:])
+	event.PID = baseEvent.Pid
+	event.UID = baseEvent.Uid
+	event.StackPCs = baseEvent.Program_counters[:]
+	event.Argdata = readParams(record[ditypes.SizeofBaseEvent:])
 	return &event
 }
 

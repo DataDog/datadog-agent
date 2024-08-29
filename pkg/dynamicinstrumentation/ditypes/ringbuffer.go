@@ -17,7 +17,7 @@ type DIEvent struct {
 	PID      uint32
 	UID      uint32
 	Argdata  []*Param
-	StackPCs []byte
+	StackPCs []uint64
 }
 
 // Param is the representation of a single function parameter after being parsed from

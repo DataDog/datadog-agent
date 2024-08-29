@@ -2,6 +2,7 @@
 #include "bpf_tracing.h"
 #include "kconfig.h"
 #include <asm/ptrace.h>
+#include "types.h"
 
 #define MAX_STRING_SIZE {{ .InstrumentationInfo.InstrumentationOptions.StringMaxSize}}
 #define PARAM_BUFFER_SIZE {{ .InstrumentationInfo.InstrumentationOptions.ArgumentsMaxSize}}
@@ -21,16 +22,10 @@ struct {
     __uint(max_entries, 1);
 } zeroval SEC(".maps");
 
-// NOTE: Be careful when adding fields, alignment should always be to 8 bytes
-// Parsing logic in user space must be updated for field offsets each time
-// new fields are added
 struct event {
-    char probe_id[304];
-    __u32 pid;
-    __u32 uid;
-    __u64 program_counters[10];
+    struct base_event base;
     char output[PARAM_BUFFER_SIZE];
-};
+}
 
 SEC("uprobe/{{.GetBPFFuncName}}")
 int {{.GetBPFFuncName}}(struct pt_regs *ctx)
@@ -54,23 +49,23 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
         return 0;
     }
 
-    bpf_probe_read(&event->probe_id, sizeof(event->probe_id), zero_string);
-    bpf_probe_read(&event->program_counters, sizeof(event->program_counters), zero_string);
+    bpf_probe_read(&event->base.probe_id, sizeof(event->probe_id), zero_string);
+    bpf_probe_read(&event->base.program_counters, sizeof(event->program_counters), zero_string);
     bpf_probe_read(&event->output, sizeof(event->output), zero_string);
-    bpf_probe_read(&event->probe_id, {{ .ID | len }}, "{{.ID}}");
+    bpf_probe_read(&event->base.probe_id, {{ .ID | len }}, "{{.ID}}");
 
     // Get tid and tgid
     u64 pidtgid = bpf_get_current_pid_tgid();
     u32 tgid = pidtgid >> 32;
-    event->pid = tgid;
+    event->base.pid = tgid;
 
     u64 uidgid = bpf_get_current_uid_gid();
     u32 uid = uidgid >> 32;
-    event->uid = uid;
+    event->base.uid = uid;
 
     // Collect stack trace
     __u64 currentPC = ctx->pc;
-    bpf_probe_read(&event->program_counters[0], sizeof(__u64), &currentPC);
+    bpf_probe_read(&event->base.program_counters[0], sizeof(__u64), &currentPC);
 
     __u64 bp = ctx->regs[29];
     bpf_probe_read(&bp, sizeof(__u64), (void*)bp); // dereference bp to get current stack frame
@@ -82,7 +77,7 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
         if (bp == 0) {
             break;
         }
-        bpf_probe_read(&event->program_counters[i], sizeof(__u64), &ret_addr);
+        bpf_probe_read(&event->base.program_counters[i], sizeof(__u64), &ret_addr);
         bpf_probe_read(&ret_addr, sizeof(__u64), (void*)(bp-8));
         bpf_probe_read(&bp, sizeof(__u64), (void*)bp);
     }

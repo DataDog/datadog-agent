@@ -6,10 +6,8 @@
 package uploader
 
 import (
-	"bytes"
 	"cmp"
 	"debug/dwarf"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"slices"
@@ -19,20 +17,10 @@ import (
 
 // parseStackTrace parses a raw byte array into 10 uint64 program counters
 // which then get resolved into strings representing lines of a stack trace
-func parseStackTrace(procInfo *ditypes.ProcessInfo, pcArray []byte) ([]ditypes.StackFrame, error) {
+func parseStackTrace(procInfo *ditypes.ProcessInfo, rawProgramCounters []uint64) ([]ditypes.StackFrame, error) {
 	stackTrace := make([]ditypes.StackFrame, 0)
 	if procInfo == nil {
 		return stackTrace, errors.New("nil process info")
-	}
-
-	rawProgramCounters := [10]uint64{}
-	err := binary.Read(
-		bytes.NewBuffer(pcArray[:]),
-		binary.LittleEndian,
-		&rawProgramCounters,
-	)
-	if err != nil {
-		return stackTrace, fmt.Errorf("couldn't read raw stack trace bytes: %w", err)
 	}
 
 	for i := range rawProgramCounters {
