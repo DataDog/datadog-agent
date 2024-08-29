@@ -7,23 +7,29 @@
 package automultilinedetection
 
 import (
+	"fmt"
+	"sync"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type row struct {
-	tokens    []tokens.Token
-	label     Label
-	count     int64
-	lastIndex int64
+	tokens          []tokens.Token
+	label           Label
+	labelAssignedBy string
+	count           int64
+	lastIndex       int64
 }
 
 // DiagnosticRow is a struct that represents a diagnostic view of a row in the PatternTable.
 type DiagnosticRow struct {
-	TokenString string
-	LabelString string
-	Count       int64
-	LastIndex   int64
+	TokenString     string
+	LabelString     string
+	labelAssignedBy string
+	Count           int64
+	LastIndex       int64
 }
 
 // PatternTable is a table of patterns that occur over time from a log source.
@@ -34,26 +40,38 @@ type PatternTable struct {
 	index          int64
 	maxTableSize   int
 	matchThreshold float64
+
+	// Pattern table can be queried by the agent status command.
+	// We must lock access to the table when it is being queried or updated.
+	lock sync.Mutex
 }
 
 // NewPatternTable returns a new PatternTable heuristic.
-func NewPatternTable(maxTableSize int, matchThreshold float64) *PatternTable {
-	return &PatternTable{
+func NewPatternTable(maxTableSize int, matchThreshold float64, tailerInfo *status.InfoRegistry) *PatternTable {
+	pt := &PatternTable{
 		table:          make([]*row, 0, maxTableSize),
 		index:          0,
 		maxTableSize:   maxTableSize,
 		matchThreshold: matchThreshold,
+		lock:           sync.Mutex{},
 	}
+
+	tailerInfo.Register(pt)
+	return pt
 }
 
 // insert adds a pattern to the table and returns the index
-func (p *PatternTable) insert(tokens []tokens.Token, label Label) int {
+func (p *PatternTable) insert(context *messageContext) int {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
 	p.index++
 	foundIdx := -1
 	for i, r := range p.table {
-		if isMatch(r.tokens, tokens, p.matchThreshold) {
+		if isMatch(r.tokens, context.tokens, p.matchThreshold) {
 			r.count++
-			r.label = label
+			r.label = context.label
+			r.labelAssignedBy = context.labelAssignedBy
 			r.lastIndex = p.index
 			foundIdx = i
 			break
@@ -74,10 +92,11 @@ func (p *PatternTable) insert(tokens []tokens.Token, label Label) int {
 	}
 
 	p.table = append(p.table, &row{
-		tokens:    tokens,
-		label:     label,
-		count:     1,
-		lastIndex: p.index,
+		tokens:          context.tokens,
+		label:           context.label,
+		labelAssignedBy: context.labelAssignedBy,
+		count:           1,
+		lastIndex:       p.index,
 	})
 	return len(p.table) - 1
 
@@ -107,13 +126,17 @@ func (p *PatternTable) evictLRU() {
 
 // DumpTable returns a slice of DiagnosticRow structs that represent the current state of the table.
 func (p *PatternTable) DumpTable() []DiagnosticRow {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
 	debug := make([]DiagnosticRow, 0, len(p.table))
 	for _, r := range p.table {
 		debug = append(debug, DiagnosticRow{
-			TokenString: tokensToString(r.tokens),
-			LabelString: labelToString(r.label),
-			Count:       r.count,
-			LastIndex:   r.lastIndex})
+			TokenString:     tokensToString(r.tokens),
+			LabelString:     labelToString(r.label),
+			labelAssignedBy: r.labelAssignedBy,
+			Count:           r.count,
+			LastIndex:       r.lastIndex})
 	}
 	return debug
 }
@@ -128,6 +151,23 @@ func (p *PatternTable) ProcessAndContinue(context *messageContext) bool {
 		return true
 	}
 
-	p.insert(context.tokens, context.label)
+	p.insert(context)
 	return true
+}
+
+// Implements the InfoProvider interface
+// This data is exposed on the status page
+
+// InfoKey returns a string representing the key for the pattern table.
+func (p *PatternTable) InfoKey() string {
+	return "Auto multiline pattern stats"
+}
+
+// Info returns a breakdown of the patterns in the table.
+func (p *PatternTable) Info() []string {
+	data := []string{}
+	for _, r := range p.DumpTable() {
+		data = append(data, fmt.Sprintf("%-11d %-15s %-20s %s", r.Count, r.LabelString, r.labelAssignedBy, r.TokenString))
+	}
+	return data
 }
