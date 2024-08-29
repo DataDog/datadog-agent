@@ -17,7 +17,6 @@ import (
 	"time"
 
 	dockerTypes "github.com/docker/docker/api/types"
-
 	"github.com/docker/docker/api/types/container"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
