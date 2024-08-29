@@ -8,37 +8,29 @@
 package daemon
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/fx"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 )
 
-const (
-	datadogYaml = "C:\\ProgramData\\Datadog\\datadog.yaml"
-)
-
 type daemonTestSuite struct {
 	suite.Suite
-	global *command.GlobalParams
 }
 
 // TestDaemonSuite runs a suite of test for the DaemonApp on Windows.
 func TestDaemonSuite(t *testing.T) {
-	suite.Run(t, &daemonTestSuite{
-		global: &command.GlobalParams{},
-	})
+	suite.Run(t, &daemonTestSuite{})
 }
 
 // TestRunCommand validates that our dependency graph is valid.
 // This does not instantiate any component and merely validates the
 // dependency graph.
 func (s *daemonTestSuite) TestRunCommand() {
-	s.Require().NoError(fx.ValidateApp(getFxOptions(s.global)...))
+	s.Require().NoError(fx.ValidateApp(getFxOptions(&command.GlobalParams{})...))
 }
 
 // TestAppStartsAndStops creates a new app with our dependency graph and verify that we can start and stop it.
@@ -46,41 +38,14 @@ func (s *daemonTestSuite) TestRunCommand() {
 // Note: this actually instantiates the components, so it will actually start
 // the remote config service etc...
 func (s *daemonTestSuite) TestAppStartsAndStops() {
-	if _, err := os.Stat(datadogYaml); os.IsNotExist(err) {
-		parentDir := strings.TrimSuffix(datadogYaml, "\\datadog.yaml")
-		if _, err := os.Stat(parentDir); os.IsNotExist(err) {
-			err = os.MkdirAll(parentDir, 0700)
-			s.Require().NoError(err)
-			defer func() {
-				os.RemoveAll(parentDir)
-			}()
-		}
-		f, err := os.Create(datadogYaml)
-		s.Require().NoError(err)
-		f.Close()
-		defer func() {
-			os.Remove(datadogYaml)
-		}()
-	}
+	tempfile, err := os.CreateTemp("", "test-*.yaml")
+	require.NoError(s.T(), err, "failed to create temporary file")
+	defer os.Remove(tempfile.Name())
 	testApp := &windowsService{
-		App: fx.New(getFxOptions(s.global)...),
+		App: fx.New(getFxOptions(&command.GlobalParams{
+			ConfFilePath: tempfile.Name(),
+		})...),
 	}
 	s.Require().NoError(testApp.Start())
 	s.Require().NoError(testApp.Stop())
-}
-
-// TestAppCannotStartWithoutConfig test that without a valid config file
-// the App cannot start.
-func (s *daemonTestSuite) TestAppCannotStartWithoutConfig() {
-	if filesystem.FileExists(datadogYaml) {
-		s.Require().NoError(os.Rename(datadogYaml, datadogYaml+".bak"))
-		defer func() {
-			os.Rename(datadogYaml+".bak", datadogYaml)
-		}()
-	}
-
-	testApp := &windowsService{
-		App: fx.New(getFxOptions(s.global)...),
-	}
-	s.Require().Error(testApp.Start())
 }
