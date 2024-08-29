@@ -112,7 +112,7 @@ func (pp *PulumiProvisioner[Env]) ProvisionEnv(ctx context.Context, stackName st
 func dumpRawResources(resources RawResources) string {
 	var res string
 	for key, value := range resources {
-		res += fmt.Sprintf("Key: %s\nValue: %s\n\n", key, value)
+		res += fmt.Sprintf("%s: %s\n", key, value)
 	}
 	return res
 }
