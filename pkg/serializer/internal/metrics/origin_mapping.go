@@ -850,6 +850,18 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 412
 	case metrics.MetricSourceAwsNeuron:
 		return 413
+	case metrics.MetricSourceAnyscale: 
+		return 414
+	case metrics.MetricSourceAppgate_SDP: 
+		return 415
+	case metrics.MetricSourceKubeflow: 
+		return 416
+	case metrics.MetricSourceSlurm: 
+		return 417
+	case metrics.MetricSourcekyverno: 
+		return 418 
+	case metrics.MetricSourceTiboco_EMS: 
+		return 419
 	default:
 		return 0
 	}
