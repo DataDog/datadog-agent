@@ -279,5 +279,5 @@ func GetAnySymbolWithPrefix(elfFile *elf.File, prefix string, maxLength int) (*e
 	}
 
 	// Shouldn't happen
-	return nil, fmt.Errorf("empty symbols map")
+	return nil, errors.New("empty symbols map")
 }
