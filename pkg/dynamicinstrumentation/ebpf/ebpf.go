@@ -10,9 +10,9 @@ package ebpf
 import (
 	"errors"
 	"fmt"
-	"html/template"
 	"io"
 	"os"
+	"text/template"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diagnostics"
@@ -169,7 +169,6 @@ func CompileBPFProgram(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) erro
 		if err != nil {
 			return err
 		}
-
 		err = programTemplate.Execute(out, probe)
 		if err != nil {
 			return err
