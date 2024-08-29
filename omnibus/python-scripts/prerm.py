@@ -1,16 +1,9 @@
 """
 This module handles the cleanup of Datadog integrations and Python dependencies during package removal.
 
-Functions:
-- run_command(command): Executes a shell command and returns its output.
-- create_new_integrations_file(directory): Creates a temporary file listing currently installed Datadog integrations.
-- create_new_dependencies_file(directory): Creates a temporary file listing currently installed Python dependencies.
-- compare_and_update_files(old_file, new_file, output_file): Compares old and new files and writes differences to an output file.
-- cleanup_files(*files): Removes the specified files.
-
 Usage:
 - The script should be run with a single argument specifying the installation directory.
-- Example: `python script_prerm.py /path/to/install/dir`
+- Example: `python prerm.py /path/to/install/dir`
 """
 
 import os
