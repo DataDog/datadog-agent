@@ -9,24 +9,21 @@
     AGENT_MAJOR_VERSION: 7
 
 .new-e2e_install_script:
+  stage: e2e_install_packages
   variables:
     TARGETS: ./tests/agent-platform/install-script
     TEAM: agent-delivery
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --major-version $AGENT_MAJOR_VERSION --arch $E2E_ARCH --flavor $FLAVOR --no-verbose
 
 .new-e2e_step_by_step:
+  stage: e2e_install_packages
   variables:
     TARGETS: ./tests/agent-platform/step-by-step
     TEAM: agent-delivery
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --major-version $AGENT_MAJOR_VERSION --arch $E2E_ARCH --flavor $FLAVOR
 
-.new-e2e_package_signing:
-  variables:
-    TARGETS: ./tests/agent-platform/package-signing
-    TEAM: agent-delivery
-    EXTRA_PARAMS: --osversion $E2E_BRANCH_OSVERS
-
 .new-e2e_script_upgrade6:
+  stage: e2e_install_packages
   variables:
     TARGETS: ./tests/agent-platform/upgrade
     TEAM: agent-delivery
@@ -40,6 +37,7 @@
     - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS} --src-agent-version $START_MAJOR_VERSION --dest-agent-version $END_MAJOR_VERSION
 
 .new-e2e_script_upgrade7:
+  stage: e2e_install_packages
   variables:
     TARGETS: ./tests/agent-platform/upgrade
     TEAM: agent-delivery
@@ -53,6 +51,7 @@
     - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS} --src-agent-version $START_MAJOR_VERSION --dest-agent-version $END_MAJOR_VERSION
 
 .new-e2e_rpm:
+  stage: e2e_install_packages
   variables:
     TARGETS: ./tests/agent-platform/rpm
     TEAM: agent-delivery
