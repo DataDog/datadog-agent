@@ -18,6 +18,8 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		return 10
 	case metrics.MetricSourceJmxCustom,
 		metrics.MetricSourceActivemq,
+		metrics.MetricSourceAnyscale,
+		metrics.MetricSourceAppgate_SDP,
 		metrics.MetricSourceCassandra,
 		metrics.MetricSourceConfluentPlatform,
 		metrics.MetricSourceHazelcast,
@@ -41,6 +43,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceNtp,
 		metrics.MetricSourceSystemd,
 		metrics.MetricSourceHelm,
+		metrics.MetricSourceKubeflow,
 		metrics.MetricSourceKubernetesAPIServer,
 		metrics.MetricSourceKubernetesStateCore,
 		metrics.MetricSourceOrchestrator,
@@ -221,6 +224,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceKubelet,
 		metrics.MetricSourceKubernetesState,
 		metrics.MetricSourceKyototycoon,
+		metrics.MetricSourceKyverno,
 		metrics.MetricSourceLighttpd,
 		metrics.MetricSourceLinkerd,
 		metrics.MetricSourceLinuxProcExtras,
@@ -261,6 +265,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceScylla,
 		metrics.MetricSourceSilk,
 		metrics.MetricSourceSinglestore,
+		metrics.MetricSourceSlurm,
 		metrics.MetricSourceSnowflake,
 		metrics.MetricSourceSpark,
 		metrics.MetricSourceSqlserver,
@@ -273,6 +278,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceTCPCheck,
 		metrics.MetricSourceTeamcity,
 		metrics.MetricSourceTeradata,
+		metrics.MetricSourceTiboco_EMS,
 		metrics.MetricSourceTLS,
 		metrics.MetricSourceTokumx,
 		metrics.MetricSourceTrafficServer,
@@ -858,7 +864,7 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 416
 	case metrics.MetricSourceSlurm: 
 		return 417
-	case metrics.MetricSourcekyverno: 
+	case metrics.MetricSourceKyverno: 
 		return 418 
 	case metrics.MetricSourceTiboco_EMS: 
 		return 419
