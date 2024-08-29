@@ -124,12 +124,10 @@ func TestInfraAttributesTraceProcessor(t *testing.T) {
 				Traces:      TraceInfraAttributes{},
 				Cardinality: types.LowCardinality,
 			}
-			tc := &testTaggerClient{
-				m: make(map[string][]string),
-			}
-			tc.m["container_id://test"] = []string{"container:id"}
-			tc.m["deployment://namespace/deployment"] = []string{"deployment:name"}
-			tc.m[collectors.GlobalEntityID] = []string{"global:tag"}
+			tc := newTestTaggerClient()
+			tc.tagMap["container_id://test"] = []string{"container:id"}
+			tc.tagMap["deployment://namespace/deployment"] = []string{"deployment:name"}
+			tc.tagMap[collectors.GlobalEntityID] = []string{"global:tag"}
 			factory := NewFactory(tc)
 			fmp, err := factory.CreateTracesProcessor(
 				context.Background(),

@@ -10,13 +10,24 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
+// testTaggerClient is used to store sample tags for testing purposes
 type testTaggerClient struct {
-	m map[string][]string
+	tagMap map[string][]string
 }
 
-func (t *testTaggerClient) Tag(entityID string, _ types.TagCardinality) ([]string, error) {
-	return t.m[entityID], nil
+// newTestTaggerClient creates and returns a new testTaggerClient with an empty string map
+func newTestTaggerClient() *testTaggerClient {
+	return &testTaggerClient{
+		tagMap: make(map[string][]string),
+	}
 }
+
+// Mocks Tag functionality for the purpose of testing, removing dependency on Taggerimpl
+func (t *testTaggerClient) Tag(entityID string, _ types.TagCardinality) ([]string, error) {
+	return t.tagMap[entityID], nil
+}
+
+// Mocks GlobalTags functionality for purpose of testing, removing dependency on Taggerimpl
 func (t *testTaggerClient) GlobalTags(_ types.TagCardinality) ([]string, error) {
-	return t.m[collectors.GlobalEntityID], nil
+	return t.tagMap[collectors.GlobalEntityID], nil
 }

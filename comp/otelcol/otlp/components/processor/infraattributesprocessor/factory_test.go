@@ -20,9 +20,7 @@ import (
 )
 
 func TestType(t *testing.T) {
-	tc := &testTaggerClient{
-		m: make(map[string][]string),
-	}
+	tc := newTestTaggerClient()
 	factory := NewFactory(tc)
 	pType := factory.Type()
 
@@ -30,9 +28,7 @@ func TestType(t *testing.T) {
 }
 
 func TestCreateDefaultConfig(t *testing.T) {
-	tc := &testTaggerClient{
-		m: make(map[string][]string),
-	}
+	tc := newTestTaggerClient()
 	factory := NewFactory(tc)
 	cfg := factory.CreateDefaultConfig()
 	assert.NoError(t, componenttest.CheckConfigStruct(cfg))
@@ -55,9 +51,7 @@ func TestCreateProcessors(t *testing.T) {
 		t.Run(tt.configName, func(t *testing.T) {
 			cm, err := confmaptest.LoadConf(filepath.Join("testdata", tt.configName))
 			require.NoError(t, err)
-			tc := &testTaggerClient{
-				m: make(map[string][]string),
-			}
+			tc := newTestTaggerClient()
 
 			for k := range cm.ToStringMap() {
 				// Check if all processor variations that are defined in test config can be actually created
