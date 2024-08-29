@@ -548,7 +548,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			if tt.fs != nil {
 				fs = *tt.fs
 			}
-			meta, ok := ExtractServiceMetadata(tt.cmdline, tt.envs, fs)
+			meta, ok := ExtractServiceMetadata(tt.cmdline, tt.envs, fs, make(DetectorContextMap))
 			if len(tt.expectedServiceTag) == 0 {
 				require.False(t, ok)
 			} else {
