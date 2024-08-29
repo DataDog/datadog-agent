@@ -180,6 +180,7 @@ type testInstaller struct {
 func newTestInstaller(t *testing.T) *testInstaller {
 	pm := &testPackageManager{}
 	pm.On("States").Return(map[string]repository.State{}, nil)
+	pm.On("ConfigStates").Return(map[string]repository.State{}, nil)
 	rcc := newTestRemoteConfigClient(t)
 	rc := &remoteConfig{client: rcc}
 	i := &testInstaller{
