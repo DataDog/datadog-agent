@@ -111,7 +111,7 @@ func copyForkExecDelete(t *testing.T, timeout int) *exec.Cmd {
 	// cmd.Start() waits for the exec to happen so deleting the file should be
 	// safe immediately. Unclear what the sleep above is for; it's copied from
 	// the other tests.
-	os.Remove((sleepBin))
+	os.Remove(sleepBin)
 
 	t.Cleanup(func() {
 		err := cmd.Process.Kill()
