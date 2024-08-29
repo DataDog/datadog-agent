@@ -8,4 +8,4 @@
 ---
 other:
   - |
-    Add metrics origins for Kubeflow integration.
+    Add metric origins for the Kubeflow integration.
