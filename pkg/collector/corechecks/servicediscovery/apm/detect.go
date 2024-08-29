@@ -11,14 +11,15 @@ package apm
 import (
 	"bufio"
 	"io"
+	"io/fs"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language/reader"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -35,7 +36,7 @@ const (
 	Injected Instrumentation = "injected"
 )
 
-type detector func(pid int, args []string, envs map[string]string) Instrumentation
+type detector func(pid int, args []string, envs map[string]string, contextMap usm.DetectorContextMap) Instrumentation
 
 var (
 	detectorMap = map[language.Language]detector{
@@ -55,7 +56,7 @@ var (
 )
 
 // Detect attempts to detect the type of APM instrumentation for the given service.
-func Detect(pid int, args []string, envs map[string]string, lang language.Language) Instrumentation {
+func Detect(pid int, args []string, envs map[string]string, lang language.Language, contextMap usm.DetectorContextMap) Instrumentation {
 	// first check to see if the DD_INJECTION_ENABLED is set to tracer
 	if isInjected(envs) {
 		return Injected
@@ -67,7 +68,7 @@ func Detect(pid int, args []string, envs map[string]string, lang language.Langua
 
 	// different detection for provided instrumentation for each
 	if detect, ok := detectorMap[lang]; ok {
-		return detect(pid, args, envs)
+		return detect(pid, args, envs, contextMap)
 	}
 
 	return None
@@ -109,7 +110,7 @@ func pythonDetectorFromMapsReader(reader io.Reader) Instrumentation {
 // For example:
 // 7aef453fc000-7aef453ff000 rw-p 0004c000 fc:06 7895473  /home/foo/.local/lib/python3.10/site-packages/ddtrace/internal/_encoding.cpython-310-x86_64-linux-gnu.so
 // 7aef45400000-7aef45459000 r--p 00000000 fc:06 7895588  /home/foo/.local/lib/python3.10/site-packages/ddtrace/internal/datadog/profiling/libdd_wrapper.so
-func pythonDetector(pid int, _ []string, _ map[string]string) Instrumentation {
+func pythonDetector(pid int, _ []string, _ map[string]string, _ usm.DetectorContextMap) Instrumentation {
 	mapsPath := kernel.HostProc(strconv.Itoa(pid), "maps")
 	mapsFile, err := os.Open(mapsPath)
 	if err != nil {
@@ -123,7 +124,7 @@ func pythonDetector(pid int, _ []string, _ map[string]string) Instrumentation {
 // isNodeInstrumented parses the provided `os.File` trying to find an
 // entry for APM NodeJS instrumentation. Returns true if finding such
 // an entry, false otherwise.
-func isNodeInstrumented(f *os.File) bool {
+func isNodeInstrumented(f fs.File) bool {
 	// Don't try to read a non-regular file.
 	if fi, err := f.Stat(); err != nil || !fi.Mode().IsRegular() {
 		return false
@@ -142,36 +143,34 @@ func isNodeInstrumented(f *os.File) bool {
 // To check for APM instrumentation, we try to find a package.json in
 // the parent directories of the service. If found, we then check for a
 // `dd-trace` entry to be present.
-func nodeDetector(_ int, _ []string, envs map[string]string) Instrumentation {
-	processWorkingDirectory := ""
-	if val, ok := envs["PWD"]; ok {
-		processWorkingDirectory = filepath.Clean(val)
-	} else {
-		log.Debug("unable to determine working directory, assuming uninstrumented")
+func nodeDetector(_ int, _ []string, _ map[string]string, contextMap usm.DetectorContextMap) Instrumentation {
+	pkgJSONPath, ok := contextMap[usm.NodePackageJSONPath]
+	if !ok {
+		log.Debugf("could not get package.json path from context map")
 		return None
 	}
 
-	for curDir := processWorkingDirectory; len(curDir) > 1; curDir = filepath.Dir(curDir) {
-		pkgJSONPath := filepath.Join(curDir, "package.json")
-		pkgJSONFile, err := os.Open(pkgJSONPath)
-		if err != nil {
-			log.Debugf("could not open package.json: %s", err)
-			continue
-		}
-		log.Debugf("found package.json: %s", pkgJSONPath)
+	fs, ok := contextMap[usm.ServiceSubFS]
+	if !ok {
+		log.Debugf("could not get SubFS for package.json")
+		return None
+	}
 
-		isInstrumented := isNodeInstrumented(pkgJSONFile)
-		_ = pkgJSONFile.Close()
+	pkgJSONFile, err := fs.(usm.SubDirFS).Open(pkgJSONPath.(string))
+	if err != nil {
+		log.Debugf("could not open package.json: %s", err)
+		return None
+	}
+	defer pkgJSONFile.Close()
 
-		if isInstrumented {
-			return Provided
-		}
+	if isNodeInstrumented(pkgJSONFile) {
+		return Provided
 	}
 
 	return None
 }
 
-func javaDetector(_ int, args []string, envs map[string]string) Instrumentation {
+func javaDetector(_ int, args []string, envs map[string]string, _ usm.DetectorContextMap) Instrumentation {
 	ignoreArgs := map[string]bool{
 		"-version":     true,
 		"-Xshare:dump": true,
@@ -220,7 +219,7 @@ func findFile(fileName string) (io.ReadCloser, bool) {
 
 const datadogDotNetInstrumented = "Datadog.Trace.ClrProfiler.Native"
 
-func dotNetDetector(_ int, args []string, envs map[string]string) Instrumentation {
+func dotNetDetector(_ int, args []string, envs map[string]string, _ usm.DetectorContextMap) Instrumentation {
 	// if it's just the word `dotnet` by itself, don't instrument
 	if len(args) == 1 && args[0] == "dotnet" {
 		return None

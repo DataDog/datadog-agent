@@ -170,8 +170,12 @@ DEFAULT_MODULES = {
     "comp/otelcol/configstore/impl": GoModule("comp/otelcol/configstore/impl", independent=True, used_by_otel=True),
     "comp/otelcol/converter/def": GoModule("comp/otelcol/converter/def", independent=True, used_by_otel=True),
     "comp/otelcol/converter/impl": GoModule("comp/otelcol/converter/impl", independent=True, used_by_otel=True),
-    "comp/otelcol/extension/def": GoModule("comp/otelcol/extension/def", independent=True, used_by_otel=True),
-    "comp/otelcol/extension/impl": GoModule("comp/otelcol/extension/impl", independent=True, used_by_otel=True),
+    "comp/otelcol/ddflareextension/def": GoModule(
+        "comp/otelcol/ddflareextension/def", independent=True, used_by_otel=True
+    ),
+    "comp/otelcol/ddflareextension/impl": GoModule(
+        "comp/otelcol/ddflareextension/impl", independent=True, used_by_otel=True
+    ),
     "comp/otelcol/logsagentpipeline": GoModule("comp/otelcol/logsagentpipeline", independent=True, used_by_otel=True),
     "comp/otelcol/logsagentpipeline/logsagentpipelineimpl": GoModule(
         "comp/otelcol/logsagentpipeline/logsagentpipelineimpl", independent=True, used_by_otel=True

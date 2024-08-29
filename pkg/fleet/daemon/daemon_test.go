@@ -47,6 +47,16 @@ func (m *testPackageManager) States() (map[string]repository.State, error) {
 	return args.Get(0).(map[string]repository.State), args.Error(1)
 }
 
+func (m *testPackageManager) ConfigState(pkg string) (repository.State, error) {
+	args := m.Called(pkg)
+	return args.Get(0).(repository.State), args.Error(1)
+}
+
+func (m *testPackageManager) ConfigStates() (map[string]repository.State, error) {
+	args := m.Called()
+	return args.Get(0).(map[string]repository.State), args.Error(1)
+}
+
 func (m *testPackageManager) Install(ctx context.Context, url string, installArgs []string) error {
 	args := m.Called(ctx, url, installArgs)
 	return args.Error(0)
@@ -170,6 +180,7 @@ type testInstaller struct {
 func newTestInstaller(t *testing.T) *testInstaller {
 	pm := &testPackageManager{}
 	pm.On("States").Return(map[string]repository.State{}, nil)
+	pm.On("ConfigStates").Return(map[string]repository.State{}, nil)
 	rcc := newTestRemoteConfigClient(t)
 	rc := &remoteConfig{client: rcc}
 	i := &testInstaller{

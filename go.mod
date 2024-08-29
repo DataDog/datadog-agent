@@ -54,8 +54,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl => ./comp/otelcol/configstore/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def => ./comp/otelcol/converter/def
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl => ./comp/otelcol/converter/impl
-	github.com/DataDog/datadog-agent/comp/otelcol/extension/def => ./comp/otelcol/extension/def
-	github.com/DataDog/datadog-agent/comp/otelcol/extension/impl => ./comp/otelcol/extension/impl
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def => ./comp/otelcol/ddflareextension/def/
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl => ./comp/otelcol/ddflareextension/impl/
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ./comp/otelcol/logsagentpipeline
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl => ./comp/otelcol/logsagentpipeline/logsagentpipelineimpl
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter => ./comp/otelcol/otlp/components/exporter/datadogexporter
@@ -608,6 +608,7 @@ require (
 	github.com/containerd/containerd/api v1.7.19
 	github.com/containerd/errdefs v0.1.0
 	github.com/distribution/reference v0.6.0
+	github.com/kouhin/envflag v0.0.0-20150818174321-0e9a86061649
 	github.com/lorenzosaino/go-sysctl v0.3.1
 )
 
@@ -643,8 +644,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/otelcol/extension/def v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/otelcol/extension/impl v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.56.0-rc.3
@@ -661,7 +662,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/api v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/config/env v0.56.0-rc3
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.0.0-20240726104123-0f372a5f7b15
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.58.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/model v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/config/remote v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.0-rc3

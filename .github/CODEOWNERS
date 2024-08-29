@@ -92,12 +92,14 @@
 
 /.gitlab/kitchen_*                                   @DataDog/agent-delivery
 /.gitlab/kitchen_testing/windows.yml                 @DataDog/agent-delivery @DataDog/windows-agent
-/.gitlab/kitchen_testing/new-e2e_testing/windows.yml @DataDog/agent-delivery @DataDog/windows-agent
+/.gitlab/e2e_install_packages/windows.yml            @DataDog/agent-delivery @DataDog/windows-agent
 
 /.gitlab/common/                                     @DataDog/agent-devx-infra
 /.gitlab/common/test_infra_version.yml               @DataDog/agent-devx-loops @DataDog/agent-devx-infra
 
 /.gitlab/e2e/e2e.yml                                 @DataDog/container-integrations @DataDog/agent-devx-loops
+/.gitlab/e2e/k8s_e2e.yml                             @DataDog/container-integrations @DataDog/agent-devx-loops
+/.gitlab/e2e/install_packages                        @DataDog/agent-delivery
 /.gitlab/container_build/fakeintake.yml              @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
 /.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
 
@@ -106,6 +108,9 @@
 /.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/windows-kernel-integrations @DataDog/agent-devx-infra
 /.gitlab/functional_test/system_probe_windows.yml    @DataDog/agent-devx-infra @DataDog/windows-kernel-integrations
 /.gitlab/functional_test/common.yml                  @DataDog/agent-devx-infra @DataDog/windows-kernel-integrations
+/.gitlab/functional_test/oracle.yml                  @DataDog/agent-devx-infra @DataDog/database-monitoring
+
+
 /.gitlab/choco_build/choco_build.yml                 @DataDog/agent-delivery @DataDog/windows-agent
 /.gitlab/choco_deploy/choco_deploy.yml               @DataDog/agent-delivery @DataDog/windows-agent
 
@@ -296,6 +301,7 @@
 /pkg/cli/                               @DataDog/agent-shared-components
 /pkg/cli/subcommands/clusterchecks      @DataDog/container-platform
 /pkg/dogstatsd/                         @DataDog/agent-metrics-logs
+/pkg/discovery/				@DataDog/apm-onboarding @DataDog/universal-service-monitoring
 /pkg/errors/                            @DataDog/agent-shared-components
 /pkg/forwarder/                         @DataDog/agent-processing-and-routing
 /pkg/gohai                              @DataDog/agent-shared-components

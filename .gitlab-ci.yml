@@ -22,6 +22,8 @@ include:
   - .gitlab/deps_fetch/deps_fetch.yml
   - .gitlab/dev_container_deploy/include.yml
   - .gitlab/e2e/e2e.yml
+  - .gitlab/e2e_k8s/e2e_k8s.yml
+  - .gitlab/e2e_install_packages/include.yml
   - .gitlab/e2e_pre_test/e2e_pre_test.yml
   - .gitlab/functional_test/include.yml
   - .gitlab/functional_test_cleanup/functional_test_cleanup.yml
@@ -93,6 +95,8 @@ stages:
   - install_script_testing
   - e2e_pre_test
   - e2e
+  - e2e_k8s
+  - e2e_install_packages
   - kitchen_cleanup
   - functional_test
   - functional_test_cleanup
@@ -206,6 +210,10 @@ variables:
   E2E_TESTS_API_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_api_key  # agent-devx-loops
   E2E_TESTS_APP_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_app_key  # agent-devx-loops
   E2E_TESTS_RC_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_rc_key  # agent-devx-loops
+  E2E_TESTS_AZURE_CLIENT_ID: ci.datadog-agent.e2e_tests_azure_client_id  # agent-devx-loops
+  E2E_TESTS_AZURE_CLIENT_SECRET: ci.datadog-agent.e2e_tests_azure_client_secret  # agent-devx-loops
+  E2E_TESTS_AZURE_TENANT_ID: ci.datadog-agent.e2e_tests_azure_tenant_id  # agent-devx-loops
+  E2E_TESTS_AZURE_SUBSCRIPTION_ID: ci.datadog-agent.e2e_tests_azure_subscription_id  # agent-devx-loops
   KITCHEN_EC2_SSH_KEY_SSM_NAME: ci.datadog-agent.aws_ec2_kitchen_ssh_key  # agent-devx-loops
   KITCHEN_AZURE_CLIENT_ID_SSM_NAME: ci.datadog-agent.azure_kitchen_client_id  # agent-devx-loops
   KITCHEN_AZURE_CLIENT_SECRET_SSM_NAME: ci.datadog-agent.azure_kitchen_client_secret  # agent-devx-loops
@@ -714,7 +722,7 @@ workflow:
   changes:
       paths:
         - tools/windows/DatadogAgentInstaller/**/*
-        - .gitlab/kitchen_testing/new-e2e_testing/windows.yml
+        - .gitlab/e2e_install_packages/windows.yml
         - test/new-e2e/tests/windows/install-test/**/*
         - test/new-e2e/tests/windows/domain-test/**/*
         - tasks/msi.py
