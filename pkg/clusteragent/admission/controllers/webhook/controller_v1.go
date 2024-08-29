@@ -27,6 +27,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -77,6 +78,15 @@ func NewControllerV1(
 		log.Errorf("cannot add event handler to secret informer: %v", err)
 	}
 
+	// Check if ValidatingWebhookConfiguration RBACs are enabled.
+	err := apiserver.SyncInformers(map[apiserver.InformerName]cache.SharedInformer{
+		apiserver.ValidatingWebhooksInformer: validatingWebhookInformer.Informer(),
+	}, 0)
+	if err != nil {
+		log.Warnf("Disabling validation webhook controller: %v", err)
+		controller.config.validationEnabled = false
+	}
+
 	if _, err := validatingWebhookInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    controller.handleWebhook,
 		UpdateFunc: controller.handleWebhookUpdate,
@@ -104,7 +114,17 @@ func (c *ControllerV1) Run(stopCh <-chan struct{}) {
 	log.Infof("Starting webhook controller for secret %s/%s and webhook %s - Using admissionregistration/v1", c.config.getSecretNs(), c.config.getSecretName(), c.config.getWebhookName())
 	defer log.Infof("Stopping webhook controller for secret %s/%s and webhook %s", c.config.getSecretNs(), c.config.getSecretName(), c.config.getWebhookName())
 
-	if ok := cache.WaitForCacheSync(stopCh, c.secretsSynced, c.validatingWebhooksSynced, c.mutatingWebhooksSynced); !ok {
+	syncedInformer := []cache.InformerSynced{
+		c.secretsSynced,
+	}
+	if c.config.validationEnabled {
+		syncedInformer = append(syncedInformer, c.validatingWebhooksSynced)
+	}
+	if c.config.mutationEnabled {
+		syncedInformer = append(syncedInformer, c.mutatingWebhooksSynced)
+	}
+
+	if ok := cache.WaitForCacheSync(stopCh, syncedInformer...); !ok {
 		return
 	}
 

@@ -4,14 +4,12 @@
   {{- if .admissionWebhook.Disabled }}
   Disabled: {{ .admissionWebhook.Disabled }}
   {{ else }}
-  {{ if .admissionWebhook.WebhookError }}
-  ValidatingWebhookConfigurations and MutatingWebhookConfigurations name: {{ .admissionWebhook.WebhookName }}
-  Error: {{ .admissionWebhook.WebhookError }}
-  {{ else }}
     Webhooks info
     -------------
-  {{- end }}
-  {{if .admissionWebhook.ValidatingWebhooks }}
+    {{ if .admissionWebhook.ValidatingWebhookError }}
+      ValidatingWebhookConfigurations name: {{ .admissionWebhook.WebhookName }}
+      Error: {{ .admissionWebhook.ValidatingWebhookError }}
+    {{else if .admissionWebhook.ValidatingWebhooks }}
       ValidatingWebhookConfigurations name: {{ .admissionWebhook.ValidatingWebhooks.Name }}
       Created at: {{ .admissionWebhook.ValidatingWebhooks.CreatedAt }}
 
@@ -22,8 +20,11 @@
         {{$k}}: {{$v}}
         {{- end }}
       {{- end }}
-  {{- end }}
-  {{if .admissionWebhook.MutatingWebhooks }}
+    {{- end }}
+    {{ if .admissionWebhook.MutatingWebhookError }}
+      MutatingWebhookConfigurations name: {{ .admissionWebhook.WebhookName }}
+      Error: {{ .admissionWebhook.MutatingWebhookError }}
+    {{else if .admissionWebhook.MutatingWebhooks }}
       MutatingWebhookConfigurations name: {{ .admissionWebhook.MutatingWebhooks.Name }}
       Created at: {{ .admissionWebhook.MutatingWebhooks.CreatedAt }}
 

@@ -95,11 +95,13 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 	if v1Enabled {
 		informers[apiserver.ValidatingWebhooksInformer] = ctx.WebhookInformers.Admissionregistration().V1().ValidatingWebhookConfigurations().Informer()
 		informers[apiserver.MutatingWebhooksInformer] = ctx.WebhookInformers.Admissionregistration().V1().MutatingWebhookConfigurations().Informer()
-		getWebhookStatus = getWebhookStatusV1
+		getValidatingWebhookStatus = getValidatingWebhookStatusV1
+		getMutatingWebhookStatus = getMutatingWebhookStatusV1
 	} else {
 		informers[apiserver.ValidatingWebhooksInformer] = ctx.WebhookInformers.Admissionregistration().V1beta1().ValidatingWebhookConfigurations().Informer()
 		informers[apiserver.MutatingWebhooksInformer] = ctx.WebhookInformers.Admissionregistration().V1beta1().MutatingWebhookConfigurations().Informer()
-		getWebhookStatus = getWebhookStatusV1beta1
+		getValidatingWebhookStatus = getValidatingWebhookStatusV1beta1
+		getMutatingWebhookStatus = getMutatingWebhookStatusV1beta1
 	}
 
 	webhooks = append(webhooks, webhookController.EnabledWebhooks()...)
