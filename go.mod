@@ -211,7 +211,7 @@ require (
 	github.com/google/go-containerregistry v0.20.1
 	github.com/google/gofuzz v1.2.0
 	github.com/google/gopacket v1.1.19
-	github.com/google/pprof v0.0.0-20240424215950-a892ee059fd6
+	github.com/google/pprof v0.0.0-20240525223248-4bfdf5a9a2af
 	github.com/gorilla/mux v1.8.1
 	github.com/gosnmp/gosnmp v1.38.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
@@ -290,7 +290,7 @@ require (
 	go.opentelemetry.io/collector/processor/batchprocessor v0.104.0
 	go.opentelemetry.io/collector/receiver v0.104.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.104.0
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.52.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.53.0 // indirect
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.5.3
 	go.uber.org/dig v1.18.0
@@ -315,21 +315,21 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
-	k8s.io/api v0.29.3
+	k8s.io/api v0.31.0
 	k8s.io/apiextensions-apiserver v0.29.2
-	k8s.io/apimachinery v0.29.3
-	k8s.io/apiserver v0.29.3 // indirect
+	k8s.io/apimachinery v0.31.0
+	k8s.io/apiserver v0.31.0 // indirect
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.13.0
-	k8s.io/client-go v0.29.3
+	k8s.io/client-go v0.31.0
 	k8s.io/cri-api v0.29.3
 	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
-	k8s.io/klog/v2 v2.120.1
+	k8s.io/klog/v2 v2.130.1
 	k8s.io/kube-aggregator v0.28.6
-	k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00 // indirect
+	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
 	k8s.io/kube-state-metrics/v2 v2.8.2
 	k8s.io/kubelet v0.29.3
-	k8s.io/metrics v0.28.6
-	k8s.io/utils v0.0.0-20240502163921-fe8a2dddb1d0
+	k8s.io/metrics v0.31.0
+	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
 	sigs.k8s.io/custom-metrics-apiserver v1.28.0
 
 )
@@ -500,7 +500,7 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
-	github.com/prometheus/common v0.54.0
+	github.com/prometheus/common v0.55.0
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
@@ -576,7 +576,7 @@ require (
 	gopkg.in/cheggaaa/pb.v1 v1.0.28 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
-	k8s.io/component-base v0.29.3
+	k8s.io/component-base v0.31.0
 	mellium.im/sasl v0.3.1 // indirect
 	modernc.org/cc/v3 v3.41.0 // indirect
 	modernc.org/ccgo/v3 v3.16.15 // indirect
@@ -585,7 +585,7 @@ require (
 	modernc.org/memory v1.7.2 // indirect
 	modernc.org/opt v0.1.3 // indirect
 	modernc.org/sqlite v1.29.5
-	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.28.0 // indirect
+	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.30.3 // indirect
 	sigs.k8s.io/controller-runtime v0.17.3 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
@@ -737,7 +737,7 @@ require (
 	go.opentelemetry.io/collector/service v0.104.0
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
 	go4.org/mem v0.0.0-20220726221520-4f986261bf13
-	k8s.io/cli-runtime v0.29.0
+	k8s.io/cli-runtime v0.31.0
 	k8s.io/kubectl v0.29.0
 )
 
@@ -781,7 +781,7 @@ require (
 	github.com/antchfx/htmlquery v1.3.0 // indirect
 	github.com/antchfx/xmlquery v1.3.1 // indirect
 	github.com/antchfx/xpath v1.2.3 // indirect
-	github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230305170008-8188dc5388df // indirect
+	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/apache/thrift v0.20.0 // indirect
 	github.com/aquasecurity/trivy-java-db v0.0.0-20240109071736-184bd7481d48 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.27.4 // indirect
@@ -811,6 +811,7 @@ require (
 	github.com/envoyproxy/protoc-gen-validate v1.0.4 // indirect
 	github.com/evanphx/json-patch/v5 v5.8.0 // indirect
 	github.com/expr-lang/expr v1.16.9 // indirect
+	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-openapi/analysis v0.22.2 // indirect
@@ -825,7 +826,7 @@ require (
 	github.com/godror/knownpb v0.1.0 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
-	github.com/google/cel-go v0.17.7 // indirect
+	github.com/google/cel-go v0.20.1 // indirect
 	github.com/google/flatbuffers v24.3.25+incompatible // indirect
 	github.com/google/gnostic-models v0.6.8 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
@@ -866,7 +867,7 @@ require (
 	github.com/mattn/go-shellwords v1.0.12 // indirect
 	github.com/microsoft/go-rustaudit v0.0.0-20220808201409-204dfee52032 // indirect
 	github.com/mitchellh/go-testing-interface v1.14.1 // indirect
-	github.com/moby/spdystream v0.2.0 // indirect
+	github.com/moby/spdystream v0.4.0 // indirect
 	github.com/moby/sys/sequential v0.5.0 // indirect
 	github.com/moby/sys/user v0.1.0 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
@@ -958,6 +959,7 @@ require (
 	github.com/tilinna/clock v1.1.0 // indirect
 	github.com/vultr/govultr/v2 v2.17.2 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
+	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	go.opentelemetry.io/collector/config/configauth v0.104.0 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.11.0 // indirect
@@ -993,11 +995,12 @@ require (
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240701130421-f6361c86f094 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240701130421-f6361c86f094 // indirect
+	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gotest.tools/v3 v3.5.1 // indirect
 	honnef.co/go/tools v0.4.5 // indirect
-	k8s.io/kms v0.29.0 // indirect
+	k8s.io/kms v0.31.0 // indirect
 	lukechampine.com/uint128 v1.3.0 // indirect
 	modernc.org/strutil v1.2.0 // indirect
 	modernc.org/token v1.1.0 // indirect
@@ -1031,9 +1034,6 @@ replace (
 // Patch was pushed upstream but maintainers would prefer moving to slog once 1.22 is out
 replace github.com/aquasecurity/trivy-db => github.com/datadog/trivy-db v0.0.0-20240228172000-42caffdaee3f
 
-// Use a version of cel-go compatible with k8s.io/kubeapiserver 0.27.6
-replace github.com/google/cel-go => github.com/google/cel-go v0.16.1
-
 // Fixes CVE-2023-1732, imported by nikos
 replace github.com/cloudflare/circl => github.com/cloudflare/circl v1.3.7
 
@@ -1052,17 +1052,17 @@ exclude (
 
 replace (
 	// Stick to v0.28.6 even if trivy want v0.29.x, the way we use trivy shouldn't require any k8s.io packages
-	k8s.io/api => k8s.io/api v0.28.6
-	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.28.6
-	k8s.io/apimachinery => k8s.io/apimachinery v0.28.6
-	k8s.io/apiserver => k8s.io/apiserver v0.28.6
-	k8s.io/cli-runtime => k8s.io/cli-runtime v0.28.6
-	k8s.io/client-go => k8s.io/client-go v0.28.6
-	k8s.io/component-base => k8s.io/component-base v0.28.6
-	k8s.io/kms => k8s.io/kms v0.28.6
+	k8s.io/api => k8s.io/api v0.31.0
+	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.31.0
+	k8s.io/apimachinery => k8s.io/apimachinery v0.31.0
+	k8s.io/apiserver => k8s.io/apiserver v0.31.0
+	k8s.io/cli-runtime => k8s.io/cli-runtime v0.31.0
+	k8s.io/client-go => k8s.io/client-go v0.31.0
+	k8s.io/component-base => k8s.io/component-base v0.31.0
+	k8s.io/kms => k8s.io/kms v0.31.0
 	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20230901164831-6c774f458599
-	k8s.io/kubectl => k8s.io/kubectl v0.28.6
-	k8s.io/metrics => k8s.io/metrics v0.28.6
+	k8s.io/kubectl => k8s.io/kubectl v0.31.0
+	k8s.io/metrics => k8s.io/metrics v0.31.0
 )
 
 // Prevent dependencies to be bumped by Trivy
