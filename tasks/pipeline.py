@@ -243,7 +243,7 @@ def run(
 ):
     """
     Run a pipeline on the given git ref (--git-ref <git ref>), or on the current branch if --here is given.
-    By default, this pipeline will run all builds & tests, including all kmt tests, but is not a deploy pipeline.
+    By default, this pipeline will run all builds & tests, including all kmt and e2e tests, but is not a deploy pipeline.
     Use --deploy to make this pipeline a deploy pipeline for the agent, which will upload artifacts to the staging repositories.
     Use --deploy-installer to make this pipeline a deploy pipeline for the installer, which will upload artifacts to the staging repositories.
     Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on pipelines on the default branch).
