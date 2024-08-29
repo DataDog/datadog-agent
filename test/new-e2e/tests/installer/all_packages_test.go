@@ -220,7 +220,7 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		// Install ansible then install the agent
 		ansiblePrefix := s.installAnsible(s.os)
 
-		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd", ansiblePrefix))
+		s.Env().RemoteHost.MustExecute(fmt.Sprintf("r=3; while !%sansible-galaxy collection install -vvv datadog.dd; do ((--r))||exit;sleep 10;done", ansiblePrefix))
 
 		// Write the playbook
 		env := InstallScriptEnv(s.arch)
