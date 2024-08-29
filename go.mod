@@ -116,6 +116,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/containers/image => ./pkg/util/containers/image
 	github.com/DataDog/datadog-agent/pkg/util/ecs/common => ./pkg/util/ecs/common
 	github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil => ./pkg/util/ecs/metadata/testutil
+	github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4 => ./pkg/util/ecs/metadata/v3or4
 	github.com/DataDog/datadog-agent/pkg/util/ecs/telemetry => ./pkg/util/ecs/telemetry
 	github.com/DataDog/datadog-agent/pkg/util/executable => ./pkg/util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ./pkg/util/filesystem
@@ -691,6 +692,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/containers/image v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/ecs/common v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil v0.56.0-rc3
+	github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4 v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/ecs/telemetry v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.56.0-rc3
