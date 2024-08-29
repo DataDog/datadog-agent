@@ -15,13 +15,14 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/link"
+
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diagnostics"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/link"
 )
 
 var (
@@ -177,7 +178,7 @@ func CompileBPFProgram(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) erro
 	}
 
 	cfg := ddebpf.NewConfig()
-	compiledOutput, err := runtime.Dynamicinstrumentation.CompileWithCallback(cfg, getCFlags(cfg), nil, f)
+	compiledOutput, err := runtime.Dynamicinstrumentation.CompileWithOptions(cfg, runtime.CompileOptions{AdditionalFlags: getCFlags(cfg), ModifyCallback: f, UseKernelHeaders: false})
 	if err != nil {
 		return err
 	}

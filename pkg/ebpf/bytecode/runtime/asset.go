@@ -39,41 +39,56 @@ func newAsset(filename, hash string) *asset {
 	}
 }
 
+// CompileOptions are options used to compile eBPF programs at runtime
+type CompileOptions struct {
+	// AdditionalFlags are extra flags passed to clang
+	AdditionalFlags []string
+	// ModifyCallback is a callback function that is allowed to modify the contents before compilation
+	ModifyCallback func(in io.Reader, out io.Writer) error
+	// StatsdClient is a statsd client to use for telemetry
+	StatsdClient statsd.ClientInterface
+	// UseKernelHeaders enables the inclusion of kernel headers from the host
+	UseKernelHeaders bool
+}
+
 // Compile compiles the asset to an object file, writes it to the configured output directory, and
 // then opens and returns the compiled output
 func (a *asset) Compile(config *ebpf.Config, additionalFlags []string, client statsd.ClientInterface) (CompiledOutput, error) {
-	return a.compile(config, additionalFlags, client, nil)
+	return a.compile(config, CompileOptions{AdditionalFlags: additionalFlags, StatsdClient: client, UseKernelHeaders: true})
 }
 
-// CompileWithCallback is the same as Compile, but takes a callback function that is allowed to modify the contents before compilation.
-func (a *asset) CompileWithCallback(config *ebpf.Config, additionalFlags []string, client statsd.ClientInterface, modifyCB func(in io.Reader, out io.Writer) error) (CompiledOutput, error) {
-	return a.compile(config, additionalFlags, client, modifyCB)
+// CompileWithOptions is the same as Compile, but takes an options struct with additional choices.
+func (a *asset) CompileWithOptions(config *ebpf.Config, opts CompileOptions) (CompiledOutput, error) {
+	return a.compile(config, opts)
 }
 
-func (a *asset) compile(config *ebpf.Config, additionalFlags []string, client statsd.ClientInterface, modifyCB func(in io.Reader, out io.Writer) error) (CompiledOutput, error) {
+func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutput, error) {
 	log.Debugf("starting runtime compilation of %s", a.filename)
 
 	start := time.Now()
 	a.tm.compilationEnabled = true
 	defer func() {
 		a.tm.compilationDuration = time.Since(start)
-		if client != nil {
-			a.tm.SubmitTelemetry(a.filename, client)
+		if opts.StatsdClient != nil {
+			a.tm.SubmitTelemetry(a.filename, opts.StatsdClient)
 		}
 	}()
 
-	opts := kernel.HeaderOptions{
-		DownloadEnabled: config.EnableKernelHeaderDownload,
-		Dirs:            config.KernelHeadersDirs,
-		DownloadDir:     config.KernelHeadersDownloadDir,
-		AptConfigDir:    config.AptConfigDir,
-		YumReposDir:     config.YumReposDir,
-		ZypperReposDir:  config.ZypperReposDir,
-	}
-	kernelHeaders := kernel.GetKernelHeaders(opts, client)
-	if len(kernelHeaders) == 0 {
-		a.tm.compilationResult = headerFetchErr
-		return nil, fmt.Errorf("unable to find kernel headers")
+	var kernelHeaders []string
+	if opts.UseKernelHeaders {
+		headerOpts := kernel.HeaderOptions{
+			DownloadEnabled: config.EnableKernelHeaderDownload,
+			Dirs:            config.KernelHeadersDirs,
+			DownloadDir:     config.KernelHeadersDownloadDir,
+			AptConfigDir:    config.AptConfigDir,
+			YumReposDir:     config.YumReposDir,
+			ZypperReposDir:  config.ZypperReposDir,
+		}
+		kernelHeaders = kernel.GetKernelHeaders(headerOpts, opts.StatsdClient)
+		if len(kernelHeaders) == 0 {
+			a.tm.compilationResult = headerFetchErr
+			return nil, fmt.Errorf("unable to find kernel headers")
+		}
 	}
 
 	a.tm.compilationResult = verificationError
@@ -107,7 +122,7 @@ func (a *asset) compile(config *ebpf.Config, additionalFlags []string, client st
 	}
 
 	a.tm.compilationResult = compilationErr
-	if modifyCB != nil {
+	if opts.ModifyCallback != nil {
 		outBuf := &bytes.Buffer{}
 		// seek to the start and read all of protected file contents
 		if _, err := diskProtectedFile.Seek(0, io.SeekStart); err != nil {
@@ -115,7 +130,7 @@ func (a *asset) compile(config *ebpf.Config, additionalFlags []string, client st
 		}
 
 		// run modify callback
-		if err := modifyCB(diskProtectedFile, outBuf); err != nil {
+		if err := opts.ModifyCallback(diskProtectedFile, outBuf); err != nil {
 			return nil, fmt.Errorf("modify callback: %w", err)
 		}
 		outReader := bytes.NewReader(outBuf.Bytes())
@@ -144,7 +159,7 @@ func (a *asset) compile(config *ebpf.Config, additionalFlags []string, client st
 		protectedFile = postModifyProtectedFile
 	}
 
-	out, result, err := compileToObjectFile(protectedFile.Name(), outputDir, a.filename, hash, additionalFlags, kernelHeaders)
+	out, result, err := compileToObjectFile(protectedFile.Name(), outputDir, a.filename, hash, opts.AdditionalFlags, kernelHeaders)
 	a.tm.compilationResult = result
 
 	return out, err
