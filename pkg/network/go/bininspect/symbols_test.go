@@ -102,13 +102,13 @@ func TestPrefix(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, symbol)
 	msg := err.Error()
-	assert.Contains(t, msg, "SSL_read_e...")
+	assert.Contains(t, msg, "SSL_read_e")
 
 	symbol, err = GetAnySymbolWithPrefix(elfFile, "foo", 5)
 	require.Error(t, err)
 	require.Nil(t, symbol)
 	msg = err.Error()
-	assert.Contains(t, msg, "foo...")
+	assert.Contains(t, msg, "foo")
 
 	symbol, err = GetAnySymbolWithPrefix(elfFile, "S", len("SSL_connect"))
 	require.NoError(t, err)

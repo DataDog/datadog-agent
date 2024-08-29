@@ -98,5 +98,5 @@ func (f prefixSymbolFilter) want(symbol string) bool {
 // findMissing gets the list of symbols which were missing. Only used for error
 // prints. Since we only know we were looking for a prefix, return that.
 func (f prefixSymbolFilter) findMissing(_ map[string]elf.Symbol) []string {
-	return []string{f.prefix + "..."}
+	return []string{f.prefix}
 }
