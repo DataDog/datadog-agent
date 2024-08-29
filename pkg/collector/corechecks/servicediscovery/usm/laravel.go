@@ -47,7 +47,12 @@ func getFirstMatchFromRegex(pattern string, content []byte) (string, bool) {
 func trimPrefixFromLine(fs fs.SubFS, file string, prefix string) (string, bool) {
 	if f, err := fs.Open(file); err == nil {
 		defer f.Close()
-		scn := bufio.NewScanner(f)
+		reader, err := SizeVerifiedReader(f)
+		if err != nil {
+			return "", false
+		}
+
+		scn := bufio.NewScanner(reader)
 		for scn.Scan() {
 			if value, ok := strings.CutPrefix(scn.Text(), prefix); ok {
 				return value, true
@@ -76,7 +81,11 @@ func (l laravelParser) getLaravelAppNameFromConfig(dir string) (string, bool) {
 	if l.ctx.fs != nil {
 		if f, err := l.ctx.fs.Open(configFileName); err == nil {
 			defer f.Close()
-			configFileContent, err := io.ReadAll(f)
+			reader, err := SizeVerifiedReader(f)
+			if err != nil {
+				return "", false
+			}
+			configFileContent, err := io.ReadAll(reader)
 			if err != nil {
 				return "", false
 			}

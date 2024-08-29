@@ -185,7 +185,11 @@ func (s springBootParser) newPropertySourceFromFile(filename string) (props.Prop
 	if err != nil {
 		return nil, err
 	}
-	return newPropertySourceFromStream(f, filename, uint64(fi.Size()))
+	reader, err := SizeVerifiedReader(f)
+	if err != nil {
+		return nil, err
+	}
+	return newPropertySourceFromStream(reader, filename, uint64(fi.Size()))
 }
 
 // longestPathPrefix extracts the longest path's portion that's not a pattern (i.e. /test/**/*.xml will return /test/)

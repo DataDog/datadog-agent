@@ -125,15 +125,12 @@ func pythonDetector(pid int, _ []string, _ map[string]string, _ usm.DetectorCont
 // entry for APM NodeJS instrumentation. Returns true if finding such
 // an entry, false otherwise.
 func isNodeInstrumented(f fs.File) bool {
-	// Don't try to read a non-regular file.
-	if fi, err := f.Stat(); err != nil || !fi.Mode().IsRegular() {
+	reader, err := usm.SizeVerifiedReader(f)
+	if err != nil {
 		return false
 	}
 
-	const readLimit = 1 * 1024 * 1024 // Read 1MiB max
-
-	limitReader := io.LimitReader(f, readLimit)
-	bufferedReader := bufio.NewReader(limitReader)
+	bufferedReader := bufio.NewReader(reader)
 
 	return nodeAPMCheckRegex.MatchReader(bufferedReader)
 }

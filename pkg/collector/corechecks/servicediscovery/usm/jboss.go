@@ -160,8 +160,12 @@ func (j jbossExtractor) customExtractWarContextRoot(warFS fs.FS) (string, bool) 
 
 	}
 	defer file.Close()
+	reader, err := SizeVerifiedReader(file)
+	if err != nil {
+		return "", false
+	}
 	var jwx jbossWebXML
-	if xml.NewDecoder(file).Decode(&jwx) != nil || len(jwx.ContextRoot) == 0 {
+	if xml.NewDecoder(reader).Decode(&jwx) != nil || len(jwx.ContextRoot) == 0 {
 		return "", false
 	}
 	return jwx.ContextRoot, true
@@ -213,8 +217,12 @@ func jbossDomainFindDeployments(basePathFs fs.FS, configFile string, serverName 
 		return nil, err
 	}
 	defer file.Close()
+	reader, err := SizeVerifiedReader(file)
+	if err != nil {
+		return nil, err
+	}
 	var descriptor jbossDomainXML
-	err = xml.NewDecoder(file).Decode(&descriptor)
+	err = xml.NewDecoder(reader).Decode(&descriptor)
 	if err != nil {
 		return nil, err
 	}
@@ -257,8 +265,12 @@ func jbossStandaloneFindDeployments(basePathFs fs.FS, configFile string) ([]jbos
 		return nil, err
 	}
 	defer file.Close()
+	reader, err := SizeVerifiedReader(file)
+	if err != nil {
+		return nil, err
+	}
 	var descriptor jbossStandaloneXML
-	err = xml.NewDecoder(file).Decode(&descriptor)
+	err = xml.NewDecoder(reader).Decode(&descriptor)
 	if err != nil {
 		return nil, err
 	}
@@ -289,7 +301,11 @@ func jbossFindServerGroup(domainFs fs.FS, serverName string) (string, bool, erro
 		return "", false, err
 	}
 	defer file.Close()
-	decoder := xml.NewDecoder(file)
+	reader, err := SizeVerifiedReader(file)
+	if err != nil {
+		return "", false, err
+	}
+	decoder := xml.NewDecoder(reader)
 	var decoded jbossHostXML
 	err = decoder.Decode(&decoded)
 	if err != nil || len(decoded.Servers) == 0 {
