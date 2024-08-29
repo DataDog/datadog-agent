@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package image provides components from datadog-agent/pkg/util/containers/image
 package image
 
 import (
