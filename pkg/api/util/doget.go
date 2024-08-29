@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
 // ShouldCloseConnection is an option to DoGet to indicate whether to close the underlying
@@ -35,8 +36,18 @@ type ReqOptions struct {
 // `GetClient(false)` must be used only for HTTP requests whose destination is
 // localhost (ie, for Agent commands).
 func GetClient(verify bool) *http.Client {
+	return GetClientWithTimeout(0, verify)
+}
+
+// GetClientWithTimeout is a convenience function returning an http client
+// Arguments correspond to the request timeout duration, and a boolean to
+// verify the server TLS client (false should only be used on localhost
+// trusted endpoints).
+func GetClientWithTimeout(to time.Duration, verify bool) *http.Client {
 	if verify {
-		return &http.Client{}
+		return &http.Client{
+			Timeout: to,
+		}
 	}
 
 	tr := &http.Transport{
