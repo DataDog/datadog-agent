@@ -303,6 +303,9 @@ func (s springBootParser) GetSpringBootAppName(jarname string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
+	if !fi.Mode().IsRegular() {
+		return "", false
+	}
 	reader, err := zip.NewReader(file.(io.ReaderAt), fi.Size())
 	if err != nil {
 		return "", false

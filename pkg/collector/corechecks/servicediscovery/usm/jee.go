@@ -224,6 +224,17 @@ func vfsAndTypeFromAppPath(deployment *jeeDeployment, filesystem fs.SubFS) (*fil
 	if err != nil {
 		return nil, dt, err
 	}
+
+	// Re-stat after opening to avoid races with attributes changing before
+	// previous stat and open.
+	fi, err = f.Stat()
+	if err != nil {
+		return nil, dt, err
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, dt, err
+	}
+
 	r, err := zip.NewReader(f.(io.ReaderAt), fi.Size())
 	if err != nil {
 		_ = f.Close()
