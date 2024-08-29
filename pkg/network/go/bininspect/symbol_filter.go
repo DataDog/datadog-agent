@@ -58,7 +58,7 @@ func (f stringSetSymbolFilter) want(symbol string) bool {
 }
 
 func (f stringSetSymbolFilter) findMissing(symbolByName map[string]elf.Symbol) []string {
-	missingSymbols := make([]string, 0, len(f.symbolSet)-len(symbolByName))
+	missingSymbols := make([]string, 0, max(0, len(f.symbolSet)-len(symbolByName)))
 	for symbolName := range f.symbolSet {
 		if _, ok := symbolByName[symbolName]; !ok {
 			missingSymbols = append(missingSymbols, symbolName)
