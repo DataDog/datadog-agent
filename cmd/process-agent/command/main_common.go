@@ -320,7 +320,7 @@ func shouldStayAlive(cfg ddconfig.Reader) bool {
 	}
 
 	if env.IsKubernetes() && cfg.GetBool("process_config.run_in_core_agent.enabled") {
-		log.Warn("The process-agent is staying alive to prevent crash loops due to the checks running on the core agent. Thus, the process-agent is idle. Update your installer to the latest version to prevent this.")
+		log.Warn("The process-agent is staying alive to prevent crash loops due to the checks running on the core agent. Thus, the process-agent is idle. Update your Helm chart or Datadog Operator to the latest version to prevent this (https://docs.datadoghq.com/containers/kubernetes/installation/).")
 		return true
 	}
 
