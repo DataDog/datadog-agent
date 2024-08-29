@@ -9,19 +9,20 @@ import (
 	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 )
 
 // IsFargateInstance returns whether the Agent is running in Fargate.
 func IsFargateInstance() bool {
-	return config.IsFeaturePresent(config.ECSFargate) || config.IsFeaturePresent(config.EKSFargate)
+	return env.IsFeaturePresent(env.ECSFargate) || env.IsFeaturePresent(env.EKSFargate)
 }
 
 // GetOrchestrator returns whether the Agent is running on ECS or EKS.
 func GetOrchestrator() OrchestratorName {
-	if config.IsFeaturePresent(config.EKSFargate) {
+	if env.IsFeaturePresent(env.EKSFargate) {
 		return EKS
 	}
-	if config.IsFeaturePresent(config.ECSFargate) {
+	if env.IsFeaturePresent(env.ECSFargate) {
 		return ECS
 	}
 	return Unknown

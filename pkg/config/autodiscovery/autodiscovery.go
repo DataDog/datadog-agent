@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	snmplistener "github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -100,11 +101,11 @@ func DiscoverComponentsFromEnv() ([]config.ConfigurationProviders, []config.List
 		return detectedProviders, detectedListeners
 	}
 
-	isContainerEnv := config.IsFeaturePresent(config.Docker) ||
-		config.IsFeaturePresent(config.Containerd) ||
-		config.IsFeaturePresent(config.Podman) ||
-		config.IsFeaturePresent(config.ECSFargate)
-	isKubeEnv := config.IsFeaturePresent(config.Kubernetes)
+	isContainerEnv := env.IsFeaturePresent(env.Docker) ||
+		env.IsFeaturePresent(env.Containerd) ||
+		env.IsFeaturePresent(env.Podman) ||
+		env.IsFeaturePresent(env.ECSFargate)
+	isKubeEnv := env.IsFeaturePresent(env.Kubernetes)
 
 	if isContainerEnv || isKubeEnv {
 		detectedProviders = append(detectedProviders, config.ConfigurationProviders{Name: names.KubeContainer})

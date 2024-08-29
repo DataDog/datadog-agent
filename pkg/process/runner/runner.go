@@ -498,7 +498,7 @@ func readResponseStatuses(checkName string, responses <-chan defaultforwarder.Re
 		}
 
 		if response.StatusCode >= 300 {
-			log.Errorf("[%s] Invalid response from %s: %d -> %s", checkName, response.Domain, response.StatusCode, response.Err)
+			log.Errorf("[%s] Invalid response from %s: %d -> %v", checkName, response.Domain, response.StatusCode, response.Err)
 			continue
 		}
 

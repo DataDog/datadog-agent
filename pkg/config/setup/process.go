@@ -7,6 +7,7 @@ package setup
 
 import (
 	"net"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -211,7 +212,16 @@ func setupProcesses(config pkgconfigmodel.Config) {
 
 	processesAddOverrideOnce.Do(func() {
 		pkgconfigmodel.AddOverrideFunc(loadProcessTransforms)
+		pkgconfigmodel.AddOverrideFunc(overrideRunInCoreAgentConfig)
 	})
+}
+
+// overrideRunInCoreAgentConfig sets the process_config.run_in_core_agent.enabled to false in non-Linux environments.
+// Otherwise, it is a no-op.
+func overrideRunInCoreAgentConfig(config pkgconfigmodel.Config) {
+	if runtime.GOOS != "linux" {
+		config.Set("process_config.run_in_core_agent.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+	}
 }
 
 // loadProcessTransforms loads transforms associated with process config settings.

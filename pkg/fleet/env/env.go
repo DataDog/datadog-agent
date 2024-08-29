@@ -83,15 +83,15 @@ func FromEnv() *Env {
 	return &Env{
 		APIKey:         getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
 		Site:           getEnvOrDefault(envSite, defaultEnv.Site),
-		RemoteUpdates:  os.Getenv(envRemoteUpdates) == "true",
-		RemotePolicies: os.Getenv(envRemotePolicies) == "true",
+		RemoteUpdates:  strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
+		RemotePolicies: strings.ToLower(os.Getenv(envRemotePolicies)) == "true",
 
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
 		RegistryAuthOverride:        getEnvOrDefault(envRegistryAuth, defaultEnv.RegistryAuthOverride),
 		RegistryOverrideByImage:     overridesByNameFromEnv(envRegistryURL, func(s string) string { return s }),
 		RegistryAuthOverrideByImage: overridesByNameFromEnv(envRegistryAuth, func(s string) string { return s }),
 
-		DefaultPackagesInstallOverride: overridesByNameFromEnv(envDefaultPackageInstall, func(s string) bool { return s == "true" }),
+		DefaultPackagesInstallOverride: overridesByNameFromEnv(envDefaultPackageInstall, func(s string) bool { return strings.ToLower(s) == "true" }),
 		DefaultPackagesVersionOverride: overridesByNameFromEnv(envDefaultPackageVersion, func(s string) string { return s }),
 
 		ApmLibraries: parseApmLibrariesEnv(),
