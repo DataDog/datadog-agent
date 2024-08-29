@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -80,6 +81,7 @@ type dependencies struct {
 	Hostname           hostname.Component
 	WMeta              optional.Option[workloadmeta.Component]
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
+	Tagger             tagger.Component
 }
 
 type provides struct {
@@ -100,6 +102,7 @@ type logAgent struct {
 	config         pkgConfig.Reader
 	inventoryAgent inventoryagent.Component
 	hostname       hostname.Component
+	tagger         tagger.Component
 
 	sources                   *sources.LogSources
 	services                  *service.Services
@@ -146,6 +149,7 @@ func newLogsAgent(deps dependencies) provides {
 			wmeta:              deps.WMeta,
 			schedulerProviders: deps.SchedulerProviders,
 			integrationsLogs:   integrationsLogs,
+			tagger:             deps.Tagger,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,
@@ -232,7 +236,7 @@ func (a *logAgent) setupAgent() error {
 		a.log.Error(fmt.Errorf("error while reading configuration, will block until the Agents receive an SDS configuration: %v", err))
 	}
 
-	a.SetupPipeline(processingRules, a.wmeta, a.integrationsLogs)
+	a.SetupPipeline(processingRules, a.wmeta, a.integrationsLogs, a.tagger)
 	return nil
 }
 

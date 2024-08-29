@@ -10,6 +10,7 @@ package agentimpl
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -32,7 +33,7 @@ import (
 )
 
 // NewAgent returns a new Logs Agent
-func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta optional.Option[workloadmeta.Component], integrationsLogs integrations.Component) {
+func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta optional.Option[workloadmeta.Component], integrationsLogs integrations.Component, tagger tagger.Component) {
 	health := health.RegisterLiveness("logs-agent")
 
 	// setup the auditor
@@ -53,11 +54,13 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 		filelauncher.DefaultSleepDuration,
 		a.config.GetBool("logs_config.validate_pod_container_id"),
 		time.Duration(a.config.GetFloat64("logs_config.file_scan_period")*float64(time.Second)),
-		a.config.GetString("logs_config.file_wildcard_selection_mode"), a.flarecontroller))
+		a.config.GetString("logs_config.file_wildcard_selection_mode"), a.flarecontroller,
+		tagger),
+	)
 	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size")))
 	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller))
 	lnchrs.AddLauncher(windowsevent.NewLauncher())
-	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta))
+	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta, tagger))
 	lnchrs.AddLauncher(integrationLauncher.NewLauncher(
 		a.sources, integrationsLogs))
 

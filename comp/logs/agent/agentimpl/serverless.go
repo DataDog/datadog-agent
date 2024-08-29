@@ -7,19 +7,22 @@ package agentimpl
 
 import (
 	"context"
+
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 
+	"go.uber.org/atomic"
+
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log/impl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
-	"go.uber.org/atomic"
 )
 
 // NewServerlessLogsAgent creates a new instance of the logs agent for serverless
-func NewServerlessLogsAgent() agent.ServerlessLogsAgent {
+func NewServerlessLogsAgent(tagger tagger.Component) agent.ServerlessLogsAgent {
 	logsAgent := &logAgent{
 		log:     logComponent.NewTemporaryLoggerWithoutInit(),
 		config:  pkgConfig.Datadog(),
@@ -29,6 +32,8 @@ func NewServerlessLogsAgent() agent.ServerlessLogsAgent {
 		services:        service.NewServices(),
 		tracker:         tailers.NewTailerTracker(),
 		flarecontroller: flareController.NewFlareController(),
+
+		tagger: tagger,
 	}
 	return logsAgent
 }
