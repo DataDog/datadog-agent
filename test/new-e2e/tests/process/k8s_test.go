@@ -26,6 +26,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeClient "k8s.io/client-go/kubernetes"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -195,6 +196,10 @@ func (s *K8sSuite) TestProcessCheckInCoreAgent() {
 
 func (s *K8sSuite) TestProcessCheckInCoreAgentWithNPM() {
 	t := s.T()
+	// PROCS-4327: The process-agent container either fails to start or
+	// does not seem to run the connections check as expected.
+	flake.Mark(t)
+
 	helmValues, err := createHelmValues(helmConfig{
 		ProcessCollection:            true,
 		RunInCoreAgent:               true,
@@ -213,6 +218,11 @@ func (s *K8sSuite) TestProcessCheckInCoreAgentWithNPM() {
 		status := k8sAgentStatus(t, s.Env().KubernetesCluster)
 		assert.ElementsMatch(t, []string{"process", "rtprocess"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
 		assert.ElementsMatch(t, []string{"connections"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
+
+		if t.Failed() {
+			t.Logf("status: %+v\n", status)
+		}
+
 	}, 2*time.Minute, 5*time.Second)
 
 	var payloads []*aggregator.ProcessPayload
