@@ -88,7 +88,7 @@ func newConfigSync(deps dependencies, agentIPCPort int, configRefreshIntervalSec
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	client := apiutil.GetClientWithTimeout(deps.SyncParams.SyncTO, false)
+	client := apiutil.GetClientWithTimeout(deps.SyncParams.Timeout, false)
 	configRefreshInterval := time.Duration(configRefreshIntervalSec) * time.Second
 
 	configSync := configSync{
@@ -100,14 +100,14 @@ func newConfigSync(deps dependencies, agentIPCPort int, configRefreshIntervalSec
 		ctx:       ctx,
 	}
 
-	if deps.SyncParams.SyncOnInit {
-		if deps.SyncParams.SyncDelay != 0 {
+	if deps.SyncParams.OnInit {
+		if deps.SyncParams.Delay != 0 {
 			select {
 			case <-ctx.Done(): //context cancelled
 				// TODO: this component should return an error
 				cancel()
 				return nil
-			case <-time.After(deps.SyncParams.SyncDelay):
+			case <-time.After(deps.SyncParams.Delay):
 			}
 		}
 		configSync.updater()

@@ -37,11 +37,15 @@ func (cs *configSync) updater() {
 	}
 
 	for key, value := range cfg {
+		cs.Log.Debugf("Updating config key %s from core agent", key)
 		if key == "logs_config.additional_endpoints" {
 			valueMap, ok := value.(map[string]string)
 			if !ok {
+				// this would be unexpected - but deal with it
 				updateConfig(cs.Config, key, value)
+				continue
 			}
+
 			typedValues := map[string]interface{}{}
 			for cfgkey, cfgval := range valueMap {
 				if cfgkey == "is_reliable" {
@@ -57,7 +61,6 @@ func (cs *configSync) updater() {
 		} else {
 			updateConfig(cs.Config, key, value)
 		}
-		cs.Log.Debugf("Updating config key %s from core agent", key)
 	}
 }
 

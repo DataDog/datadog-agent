@@ -61,7 +61,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	// Set the global agent config
 	pkgconfig := pkgconfigsetup.Datadog()
 	if len(ddCfg) != 0 {
-		// if the configuration file path was supplied on the command line,
+		// if the configuration file path was supplied via CLI flags or env vars,
 		// add that first so it's first in line
 		pkgconfig.AddConfigPath(ddCfg)
 		// If they set a config file directly, let's try to honor that
