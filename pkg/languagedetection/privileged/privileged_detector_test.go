@@ -104,10 +104,9 @@ func copyForkExecDelete(t *testing.T, timeout int) *exec.Cmd {
 	require.NoError(t, exec.Command("cp", "/bin/sleep", sleepBin).Run())
 
 	cmd := exec.Command(sleepBin, strconv.Itoa(timeout))
-	err := cmd.Start()
+	require.NoError(t, cmd.Start())
 
 	time.Sleep(250 * time.Millisecond)
-	require.NoError(t, err)
 
 	// cmd.Start() waits for the exec to happen so deleting the file should be
 	// safe immediately. Unclear what the sleep above is for; it's copied from
