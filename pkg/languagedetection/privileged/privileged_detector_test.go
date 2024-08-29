@@ -99,6 +99,14 @@ func TestGetBinID(t *testing.T) {
 	assert.Equal(t, binID1, binID2)
 }
 
+// copyForkExecDelete creates a scenario where the executable is not longer
+// available while it is running. We make a copy of "sleep" to a temporary path,
+// exec the copy, and delete it. This will result in the exe symlink looking
+// something like the below (note that the "(deleted)" string is part of the
+// actual content of the link), so attempting to resolve the target path will
+// not work, but stating/opening the exe file will still work.
+//
+//	/proc/123/exe -> /tmp/foo/sleep (deleted)
 func copyForkExecDelete(t *testing.T, timeout int) *exec.Cmd {
 	sleepBin := filepath.Join(t.TempDir(), "sleep")
 	require.NoError(t, exec.Command("cp", "/bin/sleep", sleepBin).Run())
