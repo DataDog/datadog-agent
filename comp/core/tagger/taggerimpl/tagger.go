@@ -18,7 +18,6 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	taggerComp "github.com/DataDog/datadog-agent/comp/core/tagger"
 	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
@@ -62,7 +61,7 @@ type dependencies struct {
 	fx.In
 
 	Lc        fx.Lifecycle
-	Config    configComponent.Component
+	Config    config.Component
 	Log       log.Component
 	Wmeta     workloadmeta.Component
 	Params    taggerComp.Params
@@ -577,7 +576,7 @@ type optionalTaggerDeps struct {
 	fx.In
 
 	Lc        fx.Lifecycle
-	Config    configComponent.Component
+	Config    config.Component
 	Log       log.Component
 	Wmeta     optional.Option[workloadmeta.Component]
 	Telemetry coretelemetry.Component

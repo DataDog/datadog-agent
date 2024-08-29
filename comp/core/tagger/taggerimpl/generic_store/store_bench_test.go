@@ -16,7 +16,7 @@ import (
 
 const samples int = 1000000
 
-var weightedPrefixes map[string]int = map[string]int{
+var weightedPrefixes = map[string]int{
 	"container_image_metadata": 60,
 	"container_id":             60,
 	"ecs_task":                 5,

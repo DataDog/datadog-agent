@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
-	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
@@ -121,7 +120,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
-			taggerEntityID := taggercommon.BuildTaggerEntityID(entityID)
+			taggerEntityID := common.BuildTaggerEntityID(entityID)
 
 			// keep track of children of this entity from previous
 			// iterations ...
@@ -235,7 +234,7 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 	return []*types.TagInfo{
 		{
 			Source:               containerSource,
-			EntityID:             taggercommon.BuildTaggerEntityID(container.EntityID),
+			EntityID:             common.BuildTaggerEntityID(container.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
@@ -285,7 +284,7 @@ func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*t
 	return []*types.TagInfo{
 		{
 			Source:               containerImageSource,
-			EntityID:             taggercommon.BuildTaggerEntityID(image.EntityID),
+			EntityID:             common.BuildTaggerEntityID(image.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
@@ -413,7 +412,7 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 	tagInfos := []*types.TagInfo{
 		{
 			Source:               podSource,
-			EntityID:             taggercommon.BuildTaggerEntityID(pod.EntityID),
+			EntityID:             common.BuildTaggerEntityID(pod.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
@@ -482,7 +481,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 			// taskSource here is not a mistake. the source is
 			// always from the parent resource.
 			Source:               taskSource,
-			EntityID:             taggercommon.BuildTaggerEntityID(container.EntityID),
+			EntityID:             common.BuildTaggerEntityID(container.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
@@ -509,7 +508,7 @@ func (c *WorkloadMetaCollector) handleGardenContainer(container *workloadmeta.Co
 	return []*types.TagInfo{
 		{
 			Source:       containerSource,
-			EntityID:     taggercommon.BuildTaggerEntityID(container.EntityID),
+			EntityID:     common.BuildTaggerEntityID(container.EntityID),
 			HighCardTags: container.CollectorTags,
 		},
 	}
@@ -549,7 +548,7 @@ func (c *WorkloadMetaCollector) handleKubeDeployment(ev workloadmeta.Event) []*t
 	tagInfos := []*types.TagInfo{
 		{
 			Source:               deploymentSource,
-			EntityID:             taggercommon.BuildTaggerEntityID(deployment.EntityID),
+			EntityID:             common.BuildTaggerEntityID(deployment.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
@@ -591,7 +590,7 @@ func (c *WorkloadMetaCollector) handleKubeMetadata(ev workloadmeta.Event) []*typ
 	tagInfos := []*types.TagInfo{
 		{
 			Source:               kubeMetadataSource,
-			EntityID:             taggercommon.BuildTaggerEntityID(kubeMetadata.EntityID),
+			EntityID:             common.BuildTaggerEntityID(kubeMetadata.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
@@ -715,7 +714,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 		// podSource here is not a mistake. the source is
 		// always from the parent resource.
 		Source:               podSource,
-		EntityID:             taggercommon.BuildTaggerEntityID(container.EntityID),
+		EntityID:             common.BuildTaggerEntityID(container.EntityID),
 		HighCardTags:         high,
 		OrchestratorCardTags: orch,
 		LowCardTags:          low,
@@ -724,8 +723,8 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 }
 
 func (c *WorkloadMetaCollector) registerChild(parent, child workloadmeta.EntityID) {
-	parentTaggerEntityID := taggercommon.BuildTaggerEntityID(parent)
-	childTaggerEntityID := taggercommon.BuildTaggerEntityID(child)
+	parentTaggerEntityID := common.BuildTaggerEntityID(parent)
+	childTaggerEntityID := common.BuildTaggerEntityID(child)
 
 	m, ok := c.children[parentTaggerEntityID]
 	if !ok {
@@ -738,7 +737,7 @@ func (c *WorkloadMetaCollector) registerChild(parent, child workloadmeta.EntityI
 
 func (c *WorkloadMetaCollector) handleDelete(ev workloadmeta.Event) []*types.TagInfo {
 	entityID := ev.Entity.GetID()
-	taggerEntityID := taggercommon.BuildTaggerEntityID(entityID)
+	taggerEntityID := common.BuildTaggerEntityID(entityID)
 
 	children := c.children[taggerEntityID]
 
