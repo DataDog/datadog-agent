@@ -56,7 +56,7 @@ func newVerticalController(clock clock.Clock, eventRecorder record.EventRecorder
 	return res
 }
 
-func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, autoscalerInternal *model.PodAutoscalerInternal) (autoscaling.ProcessResult, error) {
+func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, autoscalerInternal *model.PodAutoscalerInternal, targetGVK schema.GroupVersionKind, target NamespacedPodOwner) (autoscaling.ProcessResult, error) {
 	scalingValues := autoscalerInternal.ScalingValues()
 
 	// Check if the autoscaler has a vertical scaling recommendation
@@ -67,18 +67,6 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	}
 
 	recomendationID := scalingValues.Vertical.ResourcesHash
-	targetGVK, err := autoscalerInternal.TargetGVK()
-	if err != nil {
-		autoscalerInternal.SetError(err)
-		return autoscaling.NoRequeue, err
-	}
-
-	// Get the pod owner from the workload
-	target := NamespacedPodOwner{
-		Namespace: autoscalerInternal.Namespace(),
-		Name:      autoscalerInternal.Spec().TargetRef.Name,
-		Kind:      targetGVK.Kind,
-	}
 
 	// Get the pods for the pod owner
 	pods := u.podWatcher.GetPodsForOwner(target)

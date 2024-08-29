@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	scaleclient "k8s.io/client-go/scale"
@@ -272,30 +273,37 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	// Reaching this point, we had an error in processing, clearing up global error
 	podAutoscalerInternal.SetError(nil)
 
-	// Now that everything is synced, we can perform the actual processing
-	result, err := c.handleScaling(ctx, podAutoscaler, &podAutoscalerInternal)
-
-	// Update current replicas
 	targetGVK, targetErr := podAutoscalerInternal.TargetGVK()
 	if targetErr != nil {
+		log.Errorf("Failed to get target GVK for PodAutoscaler: %s/%s, err: %v", ns, name, targetErr)
 		podAutoscalerInternal.SetError(targetErr)
-		return autoscaling.NoRequeue, targetErr
 	}
 	target := NamespacedPodOwner{
 		Namespace: podAutoscalerInternal.Namespace(),
 		Name:      podAutoscalerInternal.Spec().TargetRef.Name,
 		Kind:      targetGVK.Kind,
 	}
-	currentReplicas := len(c.podWatcher.GetPodsForOwner(target))
-	podAutoscalerInternal.SetCurrentReplicas(int32(currentReplicas))
+
+	// Now that everything is synced, we can perform the actual processing
+	result, err := c.handleScaling(ctx, podAutoscaler, &podAutoscalerInternal, targetGVK, target)
+
+	// Update current replicas
+	if targetErr == nil {
+		pods := c.podWatcher.GetPodsForOwner(target)
+		currentReplicas := len(pods)
+		podAutoscalerInternal.SetCurrentReplicas(int32(currentReplicas))
+	}
 
 	// Update status based on latest state
 	statusErr := c.updatePodAutoscalerStatus(ctx, podAutoscalerInternal, podAutoscaler)
 	if statusErr != nil {
 		log.Errorf("Failed to update status for PodAutoscaler: %s/%s, err: %v", ns, name, statusErr)
+	}
 
-		// We want to return the status error if none to count in the requeue retries.
-		if err == nil {
+	if err == nil {
+		if targetErr != nil {
+			err = targetErr
+		} else if statusErr != nil {
 			err = statusErr
 		}
 	}
@@ -304,7 +312,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	return result, err
 }
 
-func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, podAutoscalerInternal *model.PodAutoscalerInternal) (autoscaling.ProcessResult, error) {
+func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, podAutoscalerInternal *model.PodAutoscalerInternal, targetGVK schema.GroupVersionKind, target NamespacedPodOwner) (autoscaling.ProcessResult, error) {
 	// TODO: While horizontal scaling is in progress we should not start vertical scaling
 	// While vertical scaling is in progress we should only allow horizontal upscale
 	horizontalRes, err := c.horizontalController.sync(ctx, podAutoscaler, podAutoscalerInternal)
@@ -312,7 +320,7 @@ func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq
 		return horizontalRes, err
 	}
 
-	verticalRes, err := c.verticalController.sync(ctx, podAutoscaler, podAutoscalerInternal)
+	verticalRes, err := c.verticalController.sync(ctx, podAutoscaler, podAutoscalerInternal, targetGVK, target)
 	if err != nil {
 		return verticalRes, err
 	}
