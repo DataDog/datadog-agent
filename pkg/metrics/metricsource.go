@@ -1374,6 +1374,18 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceZenohRouter
 	case "aws_neuron":
 		return MetricSourceAwsNeuron
+	case "kyverno": 
+		return MetricSourceKyverno
+	case "anyscale": 
+		return MetricSourceAnyscale
+	case "appgate_sdp": 
+		return MetricSourceAppgate_SDP
+	case "kubeflow": 
+		return MetricSourceKubeflow
+	case "slurm": 
+		return MetricSourceSlurm
+	case "tibco_ems": 
+		return MetricSourceTiboco_EMS
 	default:
 		return MetricSourceUnknown
 	}
