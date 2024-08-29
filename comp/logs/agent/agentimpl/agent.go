@@ -236,7 +236,7 @@ func (a *logAgent) setupAgent() error {
 		a.log.Error(fmt.Errorf("error while reading configuration, will block until the Agents receive an SDS configuration: %v", err))
 	}
 
-	a.SetupPipeline(processingRules, a.wmeta, a.integrationsLogs, a.tagger)
+	a.SetupPipeline(processingRules, a.wmeta, a.integrationsLogs)
 	return nil
 }
 
