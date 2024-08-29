@@ -14,56 +14,50 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
-// SymbolFilter is an interface for filtering symbols read from ELF files.
-type SymbolFilter interface {
-	// GetNumWanted returns the number of symbols wanted by the filter
-	GetNumWanted() int
-	// GetMinMaxLength returns the minimum and maximum name lengths of the symbols wanted by the filter.
-	GetMinMaxLength() (int, int)
-	// Want returns true if the filter want the symbol.
-	Want(symbol string) bool
-	// FindMissing returns the list of symbol names which the filter wanted but were not found in the
+// symbolFilter is an interface for filtering symbols read from ELF files.
+type symbolFilter interface {
+	// getNumWanted returns the number of symbols wanted by the filter
+	getNumWanted() int
+	// getMinMaxLength returns the minimum and maximum name lengths of the symbols wanted by the filter.
+	getMinMaxLength() (int, int)
+	// want returns true if the filter want the symbol.
+	want(symbol string) bool
+	// findMissing returns the list of symbol names which the filter wanted but were not found in the
 	// symbol map. This is only used for error messages.
-	FindMissing(map[string]elf.Symbol) []string
+	findMissing(map[string]elf.Symbol) []string
 }
 
-// StringSetSymbolFilter is a symbol filter which finds all the symbols in a
+// stringSetSymbolFilter is a symbol filter which finds all the symbols in a
 // string set.
-type StringSetSymbolFilter struct {
-	SymbolFilter
+type stringSetSymbolFilter struct {
 	symbolSet common.StringSet
 	min       int
 	max       int
 }
 
-// NewStringSetSymbolFilter creates a new StringSetSymbolFilter
-func NewStringSetSymbolFilter(symbolSet common.StringSet) StringSetSymbolFilter {
+func newStringSetSymbolFilter(symbolSet common.StringSet) stringSetSymbolFilter {
 	min, max := getSymbolLengthBoundaries(symbolSet)
-	return StringSetSymbolFilter{
+	return stringSetSymbolFilter{
 		symbolSet: symbolSet,
 		min:       min,
 		max:       max,
 	}
 }
 
-// GetMinMaxLength implements GetMinMaxLength
-func (f StringSetSymbolFilter) GetMinMaxLength() (int, int) {
+func (f stringSetSymbolFilter) getMinMaxLength() (int, int) {
 	return f.min, f.max
 }
 
-// GetNumWanted implements GetNumWanted
-func (f StringSetSymbolFilter) GetNumWanted() int {
+func (f stringSetSymbolFilter) getNumWanted() int {
 	return len(f.symbolSet)
 }
 
-// Want implements Want
-func (f StringSetSymbolFilter) Want(symbol string) bool {
+func (f stringSetSymbolFilter) want(symbol string) bool {
 	_, ok := f.symbolSet[symbol]
 	return ok
 }
 
-// FindMissing implements FindMissing
-func (f StringSetSymbolFilter) FindMissing(symbolByName map[string]elf.Symbol) []string {
+func (f stringSetSymbolFilter) findMissing(symbolByName map[string]elf.Symbol) []string {
 	missingSymbols := make([]string, 0, len(f.symbolSet)-len(symbolByName))
 	for symbolName := range f.symbolSet {
 		if _, ok := symbolByName[symbolName]; !ok {
@@ -75,38 +69,32 @@ func (f StringSetSymbolFilter) FindMissing(symbolByName map[string]elf.Symbol) [
 	return missingSymbols
 }
 
-// PrefixSymbolFilter is a symbol filter which gets any one symbol which has the
+// prefixSymbolFilter is a symbol filter which gets any one symbol which has the
 // specified prefix.
-type PrefixSymbolFilter struct {
-	SymbolFilter
+type prefixSymbolFilter struct {
 	prefix    string
 	maxLength int
 }
 
-// NewPrefixSymbolFilter creates a new prefix symbol filter.
-func NewPrefixSymbolFilter(prefix string, maxLength int) PrefixSymbolFilter {
-	return PrefixSymbolFilter{
+func newPrefixSymbolFilter(prefix string, maxLength int) prefixSymbolFilter {
+	return prefixSymbolFilter{
 		prefix:    prefix,
 		maxLength: maxLength,
 	}
 }
 
-// GetMinMaxLength implements GetMinMaxLength
-func (f PrefixSymbolFilter) GetMinMaxLength() (int, int) {
+func (f prefixSymbolFilter) getMinMaxLength() (int, int) {
 	return len(f.prefix), f.maxLength
 }
 
-// GetNumWanted implements GetNumWanted
-func (f PrefixSymbolFilter) GetNumWanted() int {
+func (f prefixSymbolFilter) getNumWanted() int {
 	return 1
 }
 
-// Want implements Want
-func (f PrefixSymbolFilter) Want(symbol string) bool {
+func (f prefixSymbolFilter) want(symbol string) bool {
 	return strings.HasPrefix(symbol, f.prefix)
 }
 
-// FindMissing implements FindMissing
-func (f PrefixSymbolFilter) FindMissing(_ map[string]elf.Symbol) []string {
+func (f prefixSymbolFilter) findMissing(_ map[string]elf.Symbol) []string {
 	return []string{f.prefix + "..."}
 }

@@ -118,8 +118,7 @@ func goDetector(pid int, _ []string, _ map[string]string, _ usm.DetectorContextM
 	}
 	defer elfFile.Close()
 
-	filter := bininspect.NewPrefixSymbolFilter(ddTraceGoPrefix, ddTraceGoMaxLength)
-	_, err = bininspect.GetAllSymbolsByName(elfFile, filter)
+	_, err = bininspect.GetAnySymbolWithPrefix(elfFile, ddTraceGoPrefix, ddTraceGoMaxLength)
 	if err != nil {
 		return None
 	}

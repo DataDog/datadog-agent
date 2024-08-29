@@ -109,7 +109,7 @@ func fillSymbol(symbol *elf.Symbol, byteOrder binary.ByteOrder, symbolName strin
 }
 
 // getSymbolsUnified extracts the given symbol list from the binary.
-func getSymbolsUnified(f *elf.File, typ elf.SectionType, filter SymbolFilter, is64Bit bool) ([]elf.Symbol, error) {
+func getSymbolsUnified(f *elf.File, typ elf.SectionType, filter symbolFilter, is64Bit bool) ([]elf.Symbol, error) {
 	symbolSize := elf.Sym32Size
 	if is64Bit {
 		symbolSize = elf.Sym64Size
@@ -130,12 +130,12 @@ func getSymbolsUnified(f *elf.File, typ elf.SectionType, filter SymbolFilter, is
 		return nil, errors.New("section has invalid string table link")
 	}
 
-	numWanted := filter.GetNumWanted()
+	numWanted := filter.getNumWanted()
 
 	// Allocating entries for all wanted symbols.
 	symbols := make([]elf.Symbol, 0, numWanted)
 	// Extracting the min and max symbol length.
-	minSymbolNameSize, maxSymbolNameSize := filter.GetMinMaxLength()
+	minSymbolNameSize, maxSymbolNameSize := filter.getMinMaxLength()
 	// Pre-allocating a buffer to read the symbol string into.
 	// The size of the buffer is maxSymbolNameSize + 1, for null termination.
 	symbolNameBuf := make([]byte, maxSymbolNameSize+1)
@@ -179,7 +179,7 @@ func getSymbolsUnified(f *elf.File, typ elf.SectionType, filter SymbolFilter, is
 		}
 
 		// Checking the symbol is relevant for us.
-		if !filter.Want(string(symbolNameBuf[:symbolNameSize])) {
+		if !filter.want(string(symbolNameBuf[:symbolNameSize])) {
 			continue
 		}
 
@@ -199,7 +199,7 @@ func getSymbolsUnified(f *elf.File, typ elf.SectionType, filter SymbolFilter, is
 	return symbols, nil
 }
 
-func getSymbols(f *elf.File, typ elf.SectionType, filter SymbolFilter) ([]elf.Symbol, error) {
+func getSymbols(f *elf.File, typ elf.SectionType, filter symbolFilter) ([]elf.Symbol, error) {
 	switch f.Class {
 	case elf.ELFCLASS64:
 		return getSymbolsUnified(f, typ, filter, true)
@@ -214,7 +214,7 @@ func getSymbols(f *elf.File, typ elf.SectionType, filter SymbolFilter) ([]elf.Sy
 // GetAllSymbolsByName returns all filtered symbols in the given elf file,
 // mapped by the symbol names.  In case of a missing symbol, an error is
 // returned.
-func GetAllSymbolsByName(elfFile *elf.File, filter SymbolFilter) (map[string]elf.Symbol, error) {
+func GetAllSymbolsByName(elfFile *elf.File, filter symbolFilter) (map[string]elf.Symbol, error) {
 	regularSymbols, regularSymbolsErr := getSymbols(elfFile, elf.SHT_SYMTAB, filter)
 	if regularSymbolsErr != nil && log.ShouldLog(seelog.TraceLvl) {
 		log.Tracef("Failed getting regular symbols of elf file: %s", regularSymbolsErr)
@@ -222,7 +222,7 @@ func GetAllSymbolsByName(elfFile *elf.File, filter SymbolFilter) (map[string]elf
 
 	var dynamicSymbols []elf.Symbol
 	var dynamicSymbolsErr error
-	numWanted := filter.GetNumWanted()
+	numWanted := filter.getNumWanted()
 	if len(regularSymbols) != numWanted {
 		dynamicSymbols, dynamicSymbolsErr = getSymbols(elfFile, elf.SHT_DYNSYM, filter)
 		if dynamicSymbolsErr != nil && log.ShouldLog(seelog.TraceLvl) {
@@ -249,7 +249,7 @@ func GetAllSymbolsByName(elfFile *elf.File, filter SymbolFilter) (map[string]elf
 	}
 
 	if len(symbolByName) != numWanted {
-		missingSymbols := filter.FindMissing(symbolByName)
+		missingSymbols := filter.findMissing(symbolByName)
 		return nil, fmt.Errorf("failed to find symbols %#v", missingSymbols)
 	}
 
@@ -260,6 +260,24 @@ func GetAllSymbolsByName(elfFile *elf.File, filter SymbolFilter) (map[string]elf
 // given elf file, mapped by the symbol names.  In case of a missing symbol, an
 // error is returned.
 func GetAllSymbolsInSetByName(elfFile *elf.File, symbolSet common.StringSet) (map[string]elf.Symbol, error) {
-	filter := NewStringSetSymbolFilter(symbolSet)
+	filter := newStringSetSymbolFilter(symbolSet)
 	return GetAllSymbolsByName(elfFile, filter)
+}
+
+// GetAnySymbolWithPrefix returns any one symbol with the given prefix and the
+// specified maximum length from the ELF file.
+func GetAnySymbolWithPrefix(elfFile *elf.File, prefix string, maxLength int) (*elf.Symbol, error) {
+	filter := newPrefixSymbolFilter(prefix, maxLength)
+	symbols, err := GetAllSymbolsByName(elfFile, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	for key := range symbols {
+		symbol := symbols[key]
+		return &symbol, nil
+	}
+
+	// Shouldn't happen
+	return nil, fmt.Errorf("empty symbols map")
 }
