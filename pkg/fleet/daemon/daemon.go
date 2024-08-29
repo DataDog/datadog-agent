@@ -434,6 +434,11 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		log.Errorf("could not get installer state: %v", err)
 		return
 	}
+	configState, err := d.installer.ConfigStates()
+	if err != nil {
+		log.Errorf("could not get installer config state: %v", err)
+		return
+	}
 	requestState, ok := ctx.Value(requestStateKey).(*requestState)
 	var packages []*pbgo.PackageState
 	for pkg, s := range state {
@@ -441,6 +446,11 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 			Package:           pkg,
 			StableVersion:     s.Stable,
 			ExperimentVersion: s.Experiment,
+		}
+		cs, hasConfig := configState[pkg]
+		if hasConfig {
+			p.StableConfigVersion = cs.Stable
+			p.ExperimentConfigVersion = cs.Experiment
 		}
 		if ok && pkg == requestState.Package {
 			var taskErr *pbgo.TaskError

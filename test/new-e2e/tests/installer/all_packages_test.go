@@ -310,6 +310,7 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
   tasks:
     - name: Import the Datadog Agent role from the Datadog collection
       become: true
+      retries: 3
       import_role:
         name: datadog.dd.agent
 `
