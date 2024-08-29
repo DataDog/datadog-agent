@@ -10,14 +10,6 @@ apt-get install -y \
         python3 \
         python3-pip \
 
-# Install Node & deps
-if [ ! -d "${HOME}/.nvm" ]; then
-  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-fi
-
-source "${HOME}/.nvm/nvm.sh"
-nvm install 20
-npm install /home/ubuntu/e2e-test/node/instrumented
 
 # Install Python deps
 pip install ddtrace
@@ -33,6 +25,7 @@ source "${NVM_DIR}/nvm.sh"
 nvm install 20
 
 npm install json-server
+npm install /home/ubuntu/e2e-test/node/instrumented
 
 # Install our own services
 install_systemd_unit () {
@@ -62,7 +55,7 @@ EOM
 
 # Node
 install_systemd_unit "node-json-server" "$NVM_DIR/nvm-exec npx json-server --port 8084 /home/ubuntu/e2e-test/node/json-server/db.json" "8084"
-install_systemd_unit "node-instrumented" "/root/.nvm/nvm-exec node /home/ubuntu/e2e-test/node/instrumented/server.js" "8085"
+install_systemd_unit "node-instrumented" "$NVM_DIR/nvm-exec node /home/ubuntu/e2e-test/node/instrumented/server.js" "8085"
 
 # Python
 install_systemd_unit "python-svc" "/usr/bin/python3 /home/ubuntu/e2e-test/python/server.py" "8082"
