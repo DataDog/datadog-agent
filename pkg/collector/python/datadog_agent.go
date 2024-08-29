@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
+	"github.com/DataDog/datadog-agent/pkg/postgres"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -608,4 +609,26 @@ func ObfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
 	}
 	// memory will be freed by caller
 	return TrackedCString(obfuscatedMongoDBString)
+}
+
+// SendAgentTelemetry records a telemetry data point for a Python integration
+//
+//export SendAgentTelemetry
+func SendAgentTelemetry(checkName *C.char, metricName *C.char, metricValue *C.float) {
+	// telemetryType and telemetryValue are optional
+	goCheckName := C.GoString(checkName)
+	goMetricName := C.GoString(metricName)
+	goMetricValue := float64(*metricValue)
+
+	switch goCheckName {
+	case "postgres":
+		switch goMetricName {
+		case "activity_latency":
+			postgres.TlmPostgresActivityLatency.Observe(goMetricValue)
+		default:
+			log.Warnf("SendAgentTelemetry: unsupported check name %s", goCheckName)
+		}
+	default:
+		log.Warnf("SendAgentTelemetry: unsupported check name %s", goCheckName)
+	}
 }
