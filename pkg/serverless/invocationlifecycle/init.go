@@ -191,5 +191,5 @@ func (lp *LifecycleProcessor) initFromLambdaFunctionURLEvent(event events.Lambda
 }
 
 func (lp *LifecycleProcessor) initFromStepFunctionEvent(event events.StepFunctionEvent) {
-	lp.requestHandler.event = event
+	lp.requestHandler.event = event.Payload
 }

@@ -224,7 +224,7 @@ func headersCarrier(hdrs map[string]string) (tracer.TextMapReader, error) {
 }
 
 // createTraceContextFromStepFunctionInput extracts the execution ARN, state name, and state entered time and uses them to generate Trace ID and Parent ID
-func createTraceContextFromStepFunctionInput(event events.StepFunctionEvent) (*TraceContext, error) {
+func createTraceContextFromStepFunctionInput(event events.StepFunctionPayload) (*TraceContext, error) {
 	tc := new(TraceContext)
 
 	execArn := event.Execution.ID

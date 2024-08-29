@@ -101,7 +101,7 @@ func TestStartExecutionSpan(t *testing.T) {
 	reqHeadersWithCtx.Set("x-datadog-sampling-priority", "3")
 	reqHeadersWithCtx.Set("traceparent", "00-00000000000000000000000000000006-0000000000000006-01")
 
-	stepFunctionEvent := events.StepFunctionEvent{
+	stepFunctionEvent := events.StepFunctionPayload{
 		Execution: events.StepFunctionExecution{
 			ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
 			Input:        interface{}(nil),
@@ -756,7 +756,7 @@ func TestEndExecutionSpanWithStepFunctions(t *testing.T) {
 		InvokeEventHeaders: http.Header{},
 	}
 
-	stepFunctionEvent := events.StepFunctionEvent{
+	stepFunctionEvent := events.StepFunctionPayload{
 		Execution: events.StepFunctionExecution{
 			ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
 			Input:        interface{}(nil),

@@ -347,6 +347,9 @@ type LambdaFunctionURLRequestContextHTTPDescription struct {
 // into a Lambda:Invoke task state, as is recommended by https://docs.datadoghq.com/serverless/step_functions/installation?tab=custom
 // This isn't an "official" event, as a default StepFunction invocation will just contain {}
 type StepFunctionEvent struct {
+	Payload StepFunctionPayload
+}
+type StepFunctionPayload struct {
 	Execution    StepFunctionExecution
 	StateMachine StepFunctionStateMachine
 	State        StepFunctionState

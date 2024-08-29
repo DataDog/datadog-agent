@@ -237,7 +237,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 			log.Debugf("Failed to unmarshal %s event: %s", stepFunction, err)
 			break
 		}
-		ev = event
+		ev = event.Payload
 		lp.initFromStepFunctionEvent(event)
 	default:
 		log.Debug("Skipping adding trigger types and inferred spans as a non-supported payload was received.")

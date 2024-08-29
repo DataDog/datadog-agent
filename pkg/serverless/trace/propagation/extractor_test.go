@@ -515,7 +515,7 @@ func TestExtractorExtract(t *testing.T) {
 		{
 			name: "step-function-event with no input",
 			events: []interface{}{
-				events.StepFunctionEvent{
+				events.StepFunctionPayload{
 					Execution: events.StepFunctionExecution{
 						ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
 						Input:        interface{}(nil),
