@@ -236,10 +236,10 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     // upsert the timestamp to the map and delete if it already exists, flush connection otherwise
     // skip EEXIST errors for telemetry since it is an expected error
     __u64 timestamp = bpf_ktime_get_ns();
-    if (bpf_map_update_with_telemetry(conn_close_flushed, &t, &timestamp, BPF_NOEXIST, -EEXIST) == 0) {
+    if (bpf_map_update_with_telemetry(conn_close_flushed, &skp_conn, &timestamp, BPF_NOEXIST, -EEXIST) == 0) {
         cleanup_conn(ctx, &t, sk);
     } else {
-        bpf_map_delete_elem(&conn_close_flushed, &t);
+        bpf_map_delete_elem(&conn_close_flushed, &skp_conn);
         increment_telemetry_count(double_flush_attempts_done);
     }
 
@@ -281,10 +281,11 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
     // upsert the timestamp to the map and delete if it already exists, flush connection otherwise
     // skip EEXIST errors for telemetry since it is an expected error
     __u64 timestamp = bpf_ktime_get_ns();
-    if (!tcp_failed_connections_enabled() || (bpf_map_update_with_telemetry(conn_close_flushed, &t, &timestamp, BPF_NOEXIST, -EEXIST) == 0)) {
+    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+    if (!tcp_failed_connections_enabled() || (bpf_map_update_with_telemetry(conn_close_flushed, &skp_conn, &timestamp, BPF_NOEXIST, -EEXIST) == 0)) {
         cleanup_conn(ctx, &t, sk);
     } else {
-        bpf_map_delete_elem(&conn_close_flushed, &t);
+        bpf_map_delete_elem(&conn_close_flushed, &skp_conn);
         increment_telemetry_count(double_flush_attempts_close);
     }
 
