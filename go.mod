@@ -115,6 +115,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/common => ./pkg/util/common
 	github.com/DataDog/datadog-agent/pkg/util/containers/image => ./pkg/util/containers/image
 	github.com/DataDog/datadog-agent/pkg/util/ecs/common => ./pkg/util/ecs/common
+	github.com/DataDog/datadog-agent/pkg/util/ecs/telemetry => ./pkg/util/ecs/telemetry
 	github.com/DataDog/datadog-agent/pkg/util/executable => ./pkg/util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ./pkg/util/filesystem
 	github.com/DataDog/datadog-agent/pkg/util/flavor => ./pkg/util/flavor
@@ -688,6 +689,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/common v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/containers/image v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/ecs/common v0.56.0-rc3
+	github.com/DataDog/datadog-agent/pkg/util/ecs/telemetry v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.56.0-rc.3
