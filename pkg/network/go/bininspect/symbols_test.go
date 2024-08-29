@@ -23,7 +23,8 @@ func openTestElf(t *testing.T) *elf.File {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
 
-	// Doesn't matter which architecture we are on.
+	// It doesn't matter which architecture we are on, so just open arm64
+	// always.
 	lib := filepath.Join(curDir, "..", "..", "usm", "testdata",
 		"site-packages", "ddtrace", "libssl.so.arm64")
 	elfFile, err := elf.Open(lib)

@@ -42,6 +42,7 @@ func getSymbolNameByEntry(sectionReader io.ReaderAt, startPos, minLength int, pr
 	// If we didn't find null there, then it is not a symbol we're looking for.
 	foundNull := false
 	nullIndex := minLength
+	// readBytes is at most len(preAllocatedBuf).
 	for ; nullIndex < readBytes; nullIndex++ {
 		if preAllocatedBuf[nullIndex] == 0 {
 			foundNull = true
