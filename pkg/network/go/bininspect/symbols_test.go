@@ -84,3 +84,37 @@ func TestSomeMissing(t *testing.T) {
 	assert.NotContains(t, msg, "SSL_connect")
 	assert.NotContains(t, msg, "SSL_set_bio")
 }
+
+func TestPrefix(t *testing.T) {
+	elfFile := openTestElf(t)
+
+	filter := NewPrefixSymbolFilter("SSL_read_e", len("SSL_read_ex"))
+	symbols, err := GetAllSymbolsByName(elfFile, filter)
+	require.NoError(t, err)
+	assert.Len(t, symbols, 1)
+	assert.Contains(t, symbols, "SSL_read_ex")
+
+	filter = NewPrefixSymbolFilter("SSL_read_ex", len("SSL_read_ex"))
+	symbols, err = GetAllSymbolsByName(elfFile, filter)
+	require.NoError(t, err)
+	assert.Len(t, symbols, 1)
+	assert.Contains(t, symbols, "SSL_read_ex")
+
+	filter = NewPrefixSymbolFilter("SSL_read_e", len("SSL_read_ex")-1)
+	_, err = GetAllSymbolsByName(elfFile, filter)
+	require.Error(t, err)
+	msg := err.Error()
+	assert.Contains(t, msg, "SSL_read_e...")
+
+	filter = NewPrefixSymbolFilter("foo", 5)
+	_, err = GetAllSymbolsByName(elfFile, filter)
+	require.Error(t, err)
+	msg = err.Error()
+	assert.Contains(t, msg, "foo...")
+
+	filter = NewPrefixSymbolFilter("S", len("SSL_connect"))
+	symbols, err = GetAllSymbolsByName(elfFile, filter)
+	require.NoError(t, err)
+	assert.Len(t, symbols, 1)
+	assert.Contains(t, symbols, "SSL_connect")
+}

@@ -9,6 +9,7 @@ package bininspect
 
 import (
 	"debug/elf"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
@@ -72,4 +73,40 @@ func (f StringSetSymbolFilter) FindMissing(symbolByName map[string]elf.Symbol) [
 	}
 
 	return missingSymbols
+}
+
+// PrefixSymbolFilter is a symbol filter which gets any one symbol which has the
+// specified prefix.
+type PrefixSymbolFilter struct {
+	SymbolFilter
+	prefix    string
+	maxLength int
+}
+
+// NewPrefixSymbolFilter creates a new prefix symbol filter.
+func NewPrefixSymbolFilter(prefix string, maxLength int) PrefixSymbolFilter {
+	return PrefixSymbolFilter{
+		prefix:    prefix,
+		maxLength: maxLength,
+	}
+}
+
+// GetMinMaxLength implements GetMinMaxLength
+func (f PrefixSymbolFilter) GetMinMaxLength() (int, int) {
+	return len(f.prefix), f.maxLength
+}
+
+// GetNumWanted implements GetNumWanted
+func (f PrefixSymbolFilter) GetNumWanted() int {
+	return 1
+}
+
+// Want implements Want
+func (f PrefixSymbolFilter) Want(symbol string) bool {
+	return strings.HasPrefix(symbol, f.prefix)
+}
+
+// FindMissing implements FindMissing
+func (f PrefixSymbolFilter) FindMissing(_ map[string]elf.Symbol) []string {
+	return []string{f.prefix + "..."}
 }
