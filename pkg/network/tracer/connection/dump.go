@@ -90,7 +90,7 @@ func dumpMapsHandler(w io.Writer, manager *manager.Manager, mapName string, curr
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}
-
+	// TODO: fix this ti use the right key type
 	case probes.TCPOngoingConnectPid: // maps/tcp_ongoing_connect_pid (BPF_MAP_TYPE_HASH), key ConnTuple, value u64
 		io.WriteString(w, "Map: '"+mapName+"', key: 'ConnTuple', value: 'C.u64'\n")
 		io.WriteString(w, "This map is used to store the PID of the process that initiated the connection\n")
