@@ -150,6 +150,13 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			return hn, nil
 		}),
 
+		fx.Provide(func(c coreconfig.Component, l log.Component) forwarderDeps {
+			return forwarderDeps{
+				config: c,
+				log:    l,
+			}
+		}),
+
 		fx.Provide(func(c defaultforwarder.Component) (defaultforwarder.Forwarder, error) {
 			return defaultforwarder.Forwarder(c), nil
 		}),
@@ -200,6 +207,16 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 	return nil
 }
 
-func newForwarderParams(config coreconfig.Component, l log.Component, _ optional.Option[configsync.Component]) defaultforwarder.Params {
-	return defaultforwarder.NewParams(config, l)
+// TODO: cleanup the forwarder instantiation with fx.
+// This is a bit of a hack because we need to enforce optional.Option[configsync.Component]
+// is passed to newForwarder to enforce the correct instantiation order. Currently, the
+// new forwarder.BundleWithProvider makes a few assumptions in its generic prototype, and
+// this is the current workaround to leverage it.
+type forwarderDeps struct {
+	config coreconfig.Component
+	log    log.Component
+}
+
+func newForwarderParams(f forwarderDeps, _ optional.Option[configsync.Component]) defaultforwarder.Params {
+	return defaultforwarder.NewParams(f.config, f.log)
 }
