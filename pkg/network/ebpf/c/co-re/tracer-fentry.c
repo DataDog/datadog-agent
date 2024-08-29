@@ -462,9 +462,8 @@ int BPF_PROG(tcp_finish_connect, struct sock *sk, struct sk_buff *skb, int rc) {
     if (!pid_tgid_p) {
         return 0;
     }
-
     u64 pid_tgid = *pid_tgid_p;
-    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
+    bpf_map_delete_elem(&tcp_failed_connect_telemetry, &sk);
     log_debug("fentry/tcp_finish_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
     conn_tuple_t t = {};
