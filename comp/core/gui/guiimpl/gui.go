@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 // Module defines the fx options for this component.
@@ -50,7 +51,7 @@ func Module() fxutil.Module {
 type gui struct {
 	logger log.Component
 
-	port     string
+	address  string
 	listener net.Listener
 	router   *mux.Router
 
@@ -105,8 +106,14 @@ func newGui(deps dependencies) provides {
 		return p
 	}
 
+	guiHost, err := system.IsLocalAddress(deps.Config.GetString("GUI_host"))
+	if err != nil {
+		deps.Log.Errorf("GUI server host is not a local address: %s", err)
+		return p
+	}
+
 	g := gui{
-		port:         guiPort,
+		address:      net.JoinHostPort(guiHost, guiPort),
 		logger:       deps.Log,
 		intentTokens: make(map[string]bool),
 	}
@@ -160,13 +167,13 @@ func (g *gui) start(_ context.Context) error {
 	// Set start time...
 	g.startTimestamp = time.Now().Unix()
 
-	g.listener, e = net.Listen("tcp", "127.0.0.1:"+g.port)
+	g.listener, e = net.Listen("tcp", g.address)
 	if e != nil {
 		g.logger.Errorf("GUI server didn't achieved to start: ", e)
 		return nil
 	}
 	go http.Serve(g.listener, g.router) //nolint:errcheck
-	g.logger.Infof("GUI server is listening at 127.0.0.1:" + g.port)
+	g.logger.Info("GUI server is listening at " + g.address)
 	return nil
 }
 

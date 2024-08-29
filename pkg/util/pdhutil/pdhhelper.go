@@ -7,6 +7,7 @@
 package pdhutil
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -98,8 +99,8 @@ func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 	} else if refreshInterval < 0 {
 		// invalid value
 		e := "windows_counter_refresh_interval cannot be a negative number"
-		log.Errorf(e)
-		return false, fmt.Errorf(e)
+		log.Errorf("%s", e)
+		return false, errors.New(e)
 	}
 
 	// Only refresh at most every refresh_interval seconds
@@ -132,8 +133,8 @@ func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 		uintptr(1)) // do refresh
 	if r != PDH_MORE_DATA {
 		e := fmt.Sprintf("Failed to refresh performance counters (%#x)", r)
-		log.Errorf(e)
-		return false, fmt.Errorf(e)
+		log.Errorf("%s", e)
+		return false, errors.New(e)
 	}
 
 	// refresh successful

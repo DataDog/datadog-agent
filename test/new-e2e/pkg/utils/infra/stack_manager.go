@@ -17,6 +17,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
+
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV1"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/debug"
@@ -35,11 +37,14 @@ const (
 	nameSep               = "-"
 	e2eWorkspaceDirectory = "dd-e2e-workspace"
 
-	defaultStackUpTimeout      time.Duration = 60 * time.Minute
-	defaultStackCancelTimeout  time.Duration = 10 * time.Minute
-	defaultStackDestroyTimeout time.Duration = 60 * time.Minute
-	stackDeleteTimeout         time.Duration = 20 * time.Minute
-	stackUpMaxRetry                          = 2
+	defaultStackUpTimeout          time.Duration = 60 * time.Minute
+	defaultStackCancelTimeout      time.Duration = 10 * time.Minute
+	defaultStackDestroyTimeout     time.Duration = 60 * time.Minute
+	defaultStackForceRemoveTimeout time.Duration = 20 * time.Minute
+	defaultStackRemoveTimeout      time.Duration = 10 * time.Minute
+	stackUpMaxRetry                              = 2
+	stackDestroyMaxRetry                         = 2
+	stackRemoveMaxRetry                          = 2
 )
 
 var (
@@ -50,19 +55,6 @@ var (
 	stackManager     *StackManager
 	initStackManager sync.Once
 )
-
-type internalError struct {
-	err error
-}
-
-func (i internalError) Error() string {
-	return fmt.Sprintf("E2E INTERNAL ERROR: %v", i.err)
-}
-
-func (i internalError) Is(target error) bool {
-	_, ok := target.(internalError)
-	return ok
-}
 
 // StackManager handles
 type StackManager struct {
@@ -129,7 +121,7 @@ func newStackManager() (*StackManager, error) {
 func (sm *StackManager) GetStack(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool) (_ *auto.Stack, _ auto.UpResult, err error) {
 	defer func() {
 		if err != nil {
-			err = internalError{err}
+			err = common.InternalError{Err: err}
 		}
 	}()
 
@@ -141,7 +133,7 @@ func (sm *StackManager) GetStack(ctx context.Context, name string, config runner
 		WithFailOnMissing(failOnMissing),
 	)
 	if err != nil {
-		errDestroy := sm.deleteStack(ctx, name, stack, nil, nil)
+		errDestroy := sm.destroyAndRemoveStack(ctx, name, stack, nil, nil)
 		if errDestroy != nil {
 			return stack, upResult, errors.Join(err, errDestroy)
 		}
@@ -216,7 +208,7 @@ func WithCancelTimeout(cancelTimeout time.Duration) GetStackOption {
 func (sm *StackManager) GetStackNoDeleteOnFailure(ctx context.Context, name string, deployFunc pulumi.RunFunc, options ...GetStackOption) (_ *auto.Stack, _ auto.UpResult, err error) {
 	defer func() {
 		if err != nil {
-			err = internalError{err}
+			err = common.InternalError{Err: err}
 		}
 	}()
 
@@ -227,7 +219,7 @@ func (sm *StackManager) GetStackNoDeleteOnFailure(ctx context.Context, name stri
 func (sm *StackManager) DeleteStack(ctx context.Context, name string, logWriter io.Writer) (err error) {
 	defer func() {
 		if err != nil {
-			err = internalError{err}
+			err = common.InternalError{Err: err}
 		}
 	}()
 
@@ -249,7 +241,7 @@ func (sm *StackManager) DeleteStack(ctx context.Context, name string, logWriter 
 		stack = &newStack
 	}
 
-	return sm.deleteStack(ctx, name, stack, logWriter, nil)
+	return sm.destroyAndRemoveStack(ctx, name, stack, logWriter, nil)
 }
 
 // ForceRemoveStackConfiguration removes the configuration files pulumi creates for managing a stack.
@@ -257,7 +249,7 @@ func (sm *StackManager) DeleteStack(ctx context.Context, name string, logWriter 
 func (sm *StackManager) ForceRemoveStackConfiguration(ctx context.Context, name string) (err error) {
 	defer func() {
 		if err != nil {
-			err = internalError{err}
+			err = common.InternalError{Err: err}
 		}
 	}()
 
@@ -266,7 +258,7 @@ func (sm *StackManager) ForceRemoveStackConfiguration(ctx context.Context, name 
 		return fmt.Errorf("unable to remove stack %s: stack not present", name)
 	}
 
-	deleteContext, cancel := context.WithTimeout(ctx, stackDeleteTimeout)
+	deleteContext, cancel := context.WithTimeout(ctx, defaultStackForceRemoveTimeout)
 	defer cancel()
 	return stack.Workspace().RemoveStack(deleteContext, stack.Name(), optremove.Force())
 }
@@ -276,9 +268,9 @@ func (sm *StackManager) Cleanup(ctx context.Context) []error {
 	var errors []error
 
 	sm.stacks.Range(func(stackID string, stack *auto.Stack) {
-		err := sm.deleteStack(ctx, stackID, stack, nil, nil)
+		err := sm.destroyAndRemoveStack(ctx, stackID, stack, nil, nil)
 		if err != nil {
-			errors = append(errors, internalError{err})
+			errors = append(errors, common.InternalError{Err: err})
 		}
 	})
 
@@ -328,15 +320,7 @@ func (sm *StackManager) getProgressStreamsOnDestroy(logger io.Writer) optdestroy
 	return optdestroy.ErrorProgressStreams(logger)
 }
 
-func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *auto.Stack, logWriter io.Writer, ddEventSender datadogEventSender) error {
-	if stack == nil {
-		return fmt.Errorf("unable to find stack, skipping deletion of: %s", stackID)
-	}
-
-	loggingOptions, err := sm.getLoggingOptions()
-	if err != nil {
-		return err
-	}
+func (sm *StackManager) destroyAndRemoveStack(ctx context.Context, stackID string, stack *auto.Stack, logWriter io.Writer, ddEventSender datadogEventSender) error {
 	var logger io.Writer
 
 	if logWriter == nil {
@@ -344,11 +328,39 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 	} else {
 		logger = logWriter
 	}
-	progressStreamsDestroyOption := sm.getProgressStreamsOnDestroy(logger)
 	//initialize datadog event sender
 	if ddEventSender == nil {
 		ddEventSender = newDatadogEventSender(logger)
 	}
+
+	err := sm.destroyStack(ctx, stackID, stack, logger, ddEventSender)
+	if err != nil {
+		return err
+	}
+
+	err = sm.removeStack(ctx, stackID, stack, logger, ddEventSender)
+	if err != nil {
+		// Failing removing the stack is not a critical error, the resources are already destroyed
+		// Print the error and return nil
+		fmt.Printf("Error during stack remove: %v\n", err)
+	}
+	return nil
+}
+
+func (sm *StackManager) destroyStack(ctx context.Context, stackID string, stack *auto.Stack, logger io.Writer, ddEventSender datadogEventSender) error {
+	if stack == nil {
+		return fmt.Errorf("unable to find stack, skipping destruction of: %s", stackID)
+	}
+	if logger == nil {
+		return fmt.Errorf("unable to find logger, skipping destruction of: %s", stackID)
+	}
+
+	loggingOptions, err := sm.getLoggingOptions()
+	if err != nil {
+		return err
+	}
+
+	progressStreamsDestroyOption := sm.getProgressStreamsOnDestroy(logger)
 
 	downCount := 0
 	var destroyErr error
@@ -359,7 +371,7 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 		cancel()
 		if destroyErr == nil {
 			sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack destroy", stackID), "", []string{"operation:destroy", "result:ok", fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", downCount)})
-			break
+			return nil
 		}
 
 		// handle timeout
@@ -376,17 +388,50 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 
 		sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack destroy", stackID), destroyErr.Error(), []string{"operation:destroy", "result:fail", fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", downCount)})
 
-		if downCount > stackUpMaxRetry {
-			fmt.Printf("Giving up on error during stack destroy: %v\n", destroyErr)
+		if downCount > stackDestroyMaxRetry {
+			fmt.Fprintf(logger, "Giving up on error during stack destroy: %v\n", destroyErr)
 			return destroyErr
 		}
-		fmt.Printf("Retrying stack on error during stack destroy: %v\n", destroyErr)
+		fmt.Fprintf(logger, "Retrying stack on error during stack destroy: %v\n", destroyErr)
+	}
+}
+
+func (sm *StackManager) removeStack(ctx context.Context, stackID string, stack *auto.Stack, logger io.Writer, ddEventSender datadogEventSender) error {
+	if stack == nil {
+		return fmt.Errorf("unable to find stack, skipping removal of: %s", stackID)
+	}
+	if logger == nil {
+		return fmt.Errorf("unable to find logger, skipping removal of: %s", stackID)
 	}
 
-	deleteContext, cancel := context.WithTimeout(ctx, stackDeleteTimeout)
-	defer cancel()
-	err = stack.Workspace().RemoveStack(deleteContext, stack.Name())
-	return err
+	removeCount := 0
+	var err error
+	for {
+		removeCount++
+		removeContext, cancel := context.WithTimeout(ctx, defaultStackRemoveTimeout)
+		err = stack.Workspace().RemoveStack(removeContext, stack.Name())
+		cancel()
+		if err == nil {
+			sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack remove", stackID), "", []string{"operation:remove", "result:ok", fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", removeCount)})
+			return nil
+		}
+
+		// handle timeout
+		contextCauseErr := context.Cause(removeContext)
+		if errors.Is(contextCauseErr, context.DeadlineExceeded) {
+			sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : timeout on Pulumi stack remove", stackID), "", []string{"operation:remove", fmt.Sprintf("stack:%s", stack.Name())})
+			fmt.Fprint(logger, "Timeout during stack remove\n")
+			continue
+		}
+
+		sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack remove", stackID), err.Error(), []string{"operation:remove", "result:fail", fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", removeCount)})
+
+		if removeCount > stackRemoveMaxRetry {
+			fmt.Fprintf(logger, "[WARNING] Giving up on error during stack remove: %v\nThe stack resources are destroyed, but we failed removing the stack state.\n", err)
+			return err
+		}
+		fmt.Printf("Retrying removing stack, error: %v\n", err)
+	}
 }
 
 func (sm *StackManager) getStack(ctx context.Context, name string, deployFunc pulumi.RunFunc, options ...GetStackOption) (*auto.Stack, auto.UpResult, error) {
@@ -573,7 +618,7 @@ func sendEventToDatadog(sender datadogEventSender, title string, message string,
 func (sm *StackManager) GetPulumiStackName(name string) (_ string, err error) {
 	defer func() {
 		if err != nil {
-			err = internalError{err}
+			err = common.InternalError{Err: err}
 		}
 	}()
 

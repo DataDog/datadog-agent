@@ -9,6 +9,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -80,6 +81,8 @@ func TestDefaultPeerTags(t *testing.T) {
 		"streamname",
 		"tablename",
 		"topicname",
+		"dns.hostname",
+		"out.host",
 	}
 	actualListOfPeerTags := basePeerTags
 
@@ -87,5 +90,13 @@ func TestDefaultPeerTags(t *testing.T) {
 	sort.Strings(actualListOfPeerTags)
 	sort.Strings(expectedListOfPeerTags)
 
-	assert.Equal(t, expectedListOfPeerTags, actualListOfPeerTags)
+	assert.Empty(t, cmp.Diff(toSet(expectedListOfPeerTags), toSet(actualListOfPeerTags)))
+}
+
+func toSet(list []string) map[string]bool {
+	result := make(map[string]bool)
+	for _, l := range list {
+		result[l] = true
+	}
+	return result
 }

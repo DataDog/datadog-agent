@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
@@ -88,6 +89,7 @@ func MakeCommand(subcommandFactories []SubcommandFactory, winParams bool, rootCm
 
 	rootCmd.PersistentFlags().StringVar(&globalParams.ConfFilePath, flags.CfgPath, flags.DefaultConfPath, "Path to datadog.yaml config")
 	rootCmd.PersistentFlags().StringVar(&globalParams.FleetPoliciesDirPath, flags.FleetCfgPath, "", "Path to the directory containing fleet policies")
+	_ = rootCmd.PersistentFlags().MarkHidden(flags.FleetCfgPath)
 
 	if flags.DefaultSysProbeConfPath != "" {
 		rootCmd.PersistentFlags().StringVar(&globalParams.SysProbeConfFilePath, flags.SysProbeConfig, flags.DefaultSysProbeConfPath, "Path to system-probe.yaml config")
@@ -129,7 +131,7 @@ func SetHostMountEnv(logger log.Component) {
 	// Set default values for proc/sys paths if unset.
 	// Generally only applicable for container-only cases like Fargate.
 	// This is primarily used by gopsutil to correlate cpu metrics with host processes
-	if !config.IsContainerized() || !filesystem.FileExists("/host") {
+	if !env.IsContainerized() || !filesystem.FileExists("/host") {
 		return
 	}
 

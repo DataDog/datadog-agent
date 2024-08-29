@@ -137,6 +137,7 @@ def go(
     headless_mode=False,
     include_sds=False,
     only_modified_packages=False,
+    verbose=False,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
 ):
     """
@@ -156,7 +157,16 @@ def go(
         inv linter.go --targets=./pkg/collector/check,./pkg/aggregator
         inv linter.go --module=.
     """
-    if not check_tools_version(ctx, ['go', 'golangci-lint']):
+    if not check_tools_version(ctx, ['golangci-lint']):
+        print(
+            color_message(
+                "Error: The golanci-lint version you are using is not the correct one. Please run inv -e install-tools to install the correct version.",
+                "red",
+            )
+        )
+        raise Exit(code=1)
+
+    if not check_tools_version(ctx, ['go']):
         print("Warning: If you have linter errors it might be due to version mismatches.", file=sys.stderr)
 
     modules, flavor = process_input_args(
@@ -184,6 +194,7 @@ def go(
         golangci_lint_kwargs=golangci_lint_kwargs,
         headless_mode=headless_mode,
         include_sds=include_sds,
+        verbose=verbose,
     )
 
     if not headless_mode:
@@ -217,6 +228,7 @@ def run_lint_go(
     golangci_lint_kwargs="",
     headless_mode=False,
     include_sds=False,
+    verbose=False,
 ):
     linter_tags = build_tags or compute_build_tags_for_flavor(
         flavor=flavor,
@@ -236,6 +248,7 @@ def run_lint_go(
         timeout=timeout,
         golangci_lint_kwargs=golangci_lint_kwargs,
         headless_mode=headless_mode,
+        verbose=verbose,
     )
 
     return lint_results, execution_times
@@ -251,6 +264,7 @@ def lint_flavor(
     timeout=None,
     golangci_lint_kwargs: str = "",
     headless_mode: bool = False,
+    verbose: bool = False,
 ):
     """
     Runs linters for given flavor, build tags, and modules.
@@ -272,6 +286,7 @@ def lint_flavor(
                 timeout=timeout,
                 golangci_lint_kwargs=golangci_lint_kwargs,
                 headless_mode=headless_mode,
+                verbose=verbose,
             )
             execution_times.extend(time_results)
             for lint_result in lint_results:
@@ -529,6 +544,7 @@ def job_change_path(ctx, job_files=None):
         'new-e2e-agent-platform-install-script-ubuntu-heroku-agent-a6-x86_64',
         'new-e2e-agent-platform-install-script-ubuntu-heroku-agent-a7-x86_64',
         'new-e2e-agent-platform-install-script-ubuntu-iot-agent-a7-x86_64',
+        'new-e2e-agent-platform-install-script-docker',
         'new-e2e-agent-platform-install-script-upgrade6-amazonlinux-x64',
         'new-e2e-agent-platform-install-script-upgrade6-centos-fips-x86_64',
         'new-e2e-agent-platform-install-script-upgrade6-centos-x86_64',
@@ -547,9 +563,6 @@ def job_change_path(ctx, job_files=None):
         'new-e2e-agent-platform-install-script-upgrade7-suse-x86_64',
         'new-e2e-agent-platform-install-script-upgrade7-ubuntu-iot-agent-x86_64',
         'new-e2e-agent-platform-install-script-upgrade7-ubuntu-x86_64',
-        'new-e2e-agent-platform-package-signing-amazonlinux-a6-x86_64',
-        'new-e2e-agent-platform-package-signing-debian-a7-x86_64',
-        'new-e2e-agent-platform-package-signing-suse-a7-x86_64',
         'new-e2e-agent-platform-rpm-centos6-a7-x86_64',
         'new-e2e-agent-platform-step-by-step-amazonlinux-a6-arm64',
         'new-e2e-agent-platform-step-by-step-amazonlinux-a6-x86_64',
@@ -574,11 +587,14 @@ def job_change_path(ctx, job_files=None):
         'new-e2e-npm-docker',
         'new-e2e-npm-packages',
         'new-e2e-orchestrator',
+        'new-e2e-package-signing-amazonlinux-a6-x86_64',
+        'new-e2e-package-signing-debian-a7-x86_64',
+        'new-e2e-package-signing-suse-a7-x86_64',
         'new-e2e_windows_powershell_module_test',
         'trigger-flakes-finder',
     }
 
-    job_files = job_files or (['.gitlab/e2e/e2e.yml'] + list(glob('.gitlab/kitchen_testing/new-e2e_testing/*.yml')))
+    job_files = job_files or (['.gitlab/e2e/e2e.yml'] + list(glob('.gitlab/e2e/install_packages/*.yml')))
 
     # Read and parse gitlab config
     # The config is filtered to only include jobs

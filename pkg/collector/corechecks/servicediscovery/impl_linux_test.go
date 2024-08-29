@@ -10,6 +10,7 @@ package servicediscovery
 import (
 	"cmp"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,11 +18,13 @@ import (
 	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/prometheus/procfs"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 )
 
@@ -38,6 +41,19 @@ var (
 	// procLaunched is number of clicks (100 per second) since bootTime when the process started
 	// assume it's 12 hours later
 	procLaunchedClicks = uint64((12 * time.Hour).Seconds()) * 100
+	pythonCommandLine  = []string{"python", "-m", "foobar.main", "--", "--password", "secret",
+		"--other-stuff", "--more-things", "--even-more",
+		"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+		"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+		"AAAAAAAAAAAAAAAAAAAAAAAAA",
+		"--a-long-argument-total-over-max-length",
+	}
+	eventPythonCommandLine = []string{"python", "-m", "foobar.main", "--", "--password", "********",
+		"--other-stuff", "--more-things", "--even-more",
+		"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+		"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+		"AAAAAAAAAAAAAAAAAAAAAAAAA",
+		"--a-long-argument"}
 )
 
 var (
@@ -53,6 +69,15 @@ var (
 	procTestService1 = testProc{
 		pid:     99,
 		cmdline: []string{"test-service-1"},
+		env:     []string{},
+		cwd:     "",
+		stat: procfs.ProcStat{
+			Starttime: procLaunchedClicks,
+		},
+	}
+	procPythonService = testProc{
+		pid:     500,
+		cmdline: pythonCommandLine,
 		env:     []string{},
 		cwd:     "",
 		stat: procfs.ProcStat{
@@ -95,19 +120,29 @@ var (
 		Ports: []uint16{22},
 	}
 	portTCP8080 = model.Service{
-		PID:   procTestService1.pid,
-		Name:  "test-service-1",
-		Ports: []uint16{8080},
+		PID:                procTestService1.pid,
+		Name:               "test-service-1",
+		Ports:              []uint16{8080},
+		APMInstrumentation: string(apm.None),
+		NameSource:         "provided",
 	}
 	portTCP8080DifferentPID = model.Service{
-		PID:   procTestService1DifferentPID.pid,
-		Name:  "test-service-1",
-		Ports: []uint16{8080},
+		PID:                procTestService1DifferentPID.pid,
+		Name:               "test-service-1",
+		Ports:              []uint16{8080},
+		APMInstrumentation: string(apm.Injected),
+		NameSource:         "generated",
 	}
 	portTCP8081 = model.Service{
 		PID:   procIgnoreService1.pid,
 		Name:  "ignore-1",
 		Ports: []uint16{8081},
+	}
+	portTCP5000 = model.Service{
+		PID:      procPythonService.pid,
+		Name:     "python-service",
+		Language: "python",
+		Ports:    []uint16{5000},
 	}
 	portTCP5432 = model.Service{
 		PID:   procTestService1Repeat.pid,
@@ -163,7 +198,7 @@ func cmpEvents(a, b *event) bool {
 func Test_linuxImpl(t *testing.T) {
 	host := "test-host"
 	cfgYaml := `ignore_processes: ["ignore-1", "ignore-2"]`
-	t.Setenv("DD_SERVICE_DISCOVERY_ENABLED", "true")
+	t.Setenv("DD_DISCOVERY_ENABLED", "true")
 
 	type checkRun struct {
 		aliveProcs   []testProc
@@ -184,9 +219,11 @@ func Test_linuxImpl(t *testing.T) {
 						procSSHD,
 						procIgnoreService1,
 						procTestService1,
+						procPythonService,
 					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
+						portTCP5000,
 						portTCP8080,
 						portTCP8081,
 					}},
@@ -197,9 +234,11 @@ func Test_linuxImpl(t *testing.T) {
 						procSSHD,
 						procIgnoreService1,
 						procTestService1,
+						procPythonService,
 					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
+						portTCP5000,
 						portTCP8080,
 						portTCP8081,
 					}},
@@ -210,9 +249,11 @@ func Test_linuxImpl(t *testing.T) {
 						procSSHD,
 						procIgnoreService1,
 						procTestService1,
+						procPythonService,
 					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
+						portTCP5000,
 						portTCP8080,
 						portTCP8081,
 					}},
@@ -221,9 +262,11 @@ func Test_linuxImpl(t *testing.T) {
 				{
 					aliveProcs: []testProc{
 						procSSHD,
+						procPythonService,
 					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
+						portTCP5000,
 					}},
 					time: calcTime(21 * time.Minute),
 				},
@@ -235,12 +278,16 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(1 * time.Minute).Unix(),
 						Ports:               []uint16{8080},
 						PID:                 99,
+						CommandLine:         []string{"test-service-1"},
+						APMInstrumentation:  "none",
+						ServiceNameSource:   "provided",
 					},
 				},
 				{
@@ -249,12 +296,16 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(20 * time.Minute).Unix(),
 						Ports:               []uint16{8080},
 						PID:                 99,
+						CommandLine:         []string{"test-service-1"},
+						APMInstrumentation:  "none",
+						ServiceNameSource:   "provided",
 					},
 				},
 				{
@@ -263,12 +314,50 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(20 * time.Minute).Unix(),
 						Ports:               []uint16{8080},
 						PID:                 99,
+						CommandLine:         []string{"test-service-1"},
+						APMInstrumentation:  "none",
+						ServiceNameSource:   "provided",
+					},
+				},
+				{
+					RequestType: "start-service",
+					APIVersion:  "v2",
+					Payload: &eventPayload{
+						NamingSchemaVersion: "1",
+						ServiceName:         "python-service",
+						ServiceType:         "web_service",
+						HostName:            host,
+						Env:                 "",
+						StartTime:           calcTime(0).Unix(),
+						LastSeen:            calcTime(1 * time.Minute).Unix(),
+						Ports:               []uint16{5000},
+						PID:                 500,
+						ServiceLanguage:     "python",
+						CommandLine:         eventPythonCommandLine,
+					},
+				},
+				{
+					RequestType: "heartbeat-service",
+					APIVersion:  "v2",
+					Payload: &eventPayload{
+						NamingSchemaVersion: "1",
+						ServiceName:         "python-service",
+						ServiceType:         "web_service",
+						HostName:            host,
+						Env:                 "",
+						StartTime:           calcTime(0).Unix(),
+						LastSeen:            calcTime(20 * time.Minute).Unix(),
+						Ports:               []uint16{5000},
+						PID:                 500,
+						ServiceLanguage:     "python",
+						CommandLine:         eventPythonCommandLine,
 					},
 				},
 			},
@@ -340,12 +429,14 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "db",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(1 * time.Minute).Unix(),
 						Ports:               []uint16{5432},
 						PID:                 101,
+						CommandLine:         []string{"test-service-1"},
 					},
 				},
 				{
@@ -354,12 +445,16 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(1 * time.Minute).Unix(),
 						Ports:               []uint16{8080},
 						PID:                 99,
+						CommandLine:         []string{"test-service-1"},
+						APMInstrumentation:  "none",
+						ServiceNameSource:   "provided",
 					},
 				},
 				{
@@ -368,12 +463,14 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "db",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(20 * time.Minute).Unix(),
 						Ports:               []uint16{5432},
 						PID:                 101,
+						CommandLine:         []string{"test-service-1"},
 					},
 				},
 				{
@@ -382,12 +479,14 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "db",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(20 * time.Minute).Unix(),
 						Ports:               []uint16{5432},
 						PID:                 101,
+						CommandLine:         []string{"test-service-1"},
 					},
 				},
 				{
@@ -396,12 +495,16 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(20 * time.Minute).Unix(),
 						Ports:               []uint16{8080},
 						PID:                 99,
+						CommandLine:         []string{"test-service-1"},
+						APMInstrumentation:  "none",
+						ServiceNameSource:   "provided",
 					},
 				},
 			},
@@ -467,12 +570,16 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(1 * time.Minute).Unix(),
 						Ports:               []uint16{8080},
 						PID:                 99,
+						CommandLine:         []string{"test-service-1"},
+						APMInstrumentation:  "none",
+						ServiceNameSource:   "provided",
 					},
 				},
 				{
@@ -481,12 +588,16 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
+						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
 						LastSeen:            calcTime(22 * time.Minute).Unix(),
 						Ports:               []uint16{8080},
 						PID:                 102,
+						CommandLine:         []string{"test-service-1"},
+						APMInstrumentation:  "injected",
+						ServiceNameSource:   "generated",
 					},
 				},
 			},
@@ -565,7 +676,7 @@ func (errorProcFS) AllProcs() ([]proc, error) {
 }
 
 func Test_linuxImpl_errors(t *testing.T) {
-	t.Setenv("DD_SERVICE_DISCOVERY_ENABLED", "true")
+	t.Setenv("DD_DISCOVERY_ENABLED", "true")
 
 	// bad procFS
 	{
@@ -584,5 +695,47 @@ func Test_linuxImpl_errors(t *testing.T) {
 		} else {
 			t.Error("expected errWithCode, got", err)
 		}
+	}
+}
+
+func TestTruncateCmdline(t *testing.T) {
+	type testData struct {
+		original []string
+		result   []string
+	}
+
+	tests := []testData{
+		{
+			original: []string{},
+			result:   nil,
+		},
+		{
+			original: []string{"a", "b", "", "c", "d"},
+			result:   []string{"a", "b", "c", "d"},
+		},
+		{
+			original: []string{"x", strings.Repeat("A", maxCommandLine-1)},
+			result:   []string{"x", strings.Repeat("A", maxCommandLine-1)},
+		},
+		{
+			original: []string{strings.Repeat("A", maxCommandLine), "B"},
+			result:   []string{strings.Repeat("A", maxCommandLine)},
+		},
+		{
+			original: []string{strings.Repeat("A", maxCommandLine+1)},
+			result:   []string{strings.Repeat("A", maxCommandLine)},
+		},
+		{
+			original: []string{strings.Repeat("A", maxCommandLine-1), "", "B"},
+			result:   []string{strings.Repeat("A", maxCommandLine-1), "B"},
+		},
+		{
+			original: []string{strings.Repeat("A", maxCommandLine-1), "BCD"},
+			result:   []string{strings.Repeat("A", maxCommandLine-1), "B"},
+		},
+	}
+
+	for _, test := range tests {
+		assert.Equal(t, test.result, truncateCmdline(test.original))
 	}
 }

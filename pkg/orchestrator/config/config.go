@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
@@ -96,6 +97,10 @@ func (oc *OrchestratorConfig) Load() error {
 	// A custom word list to enhance the default one used by the DataScrubber
 	if k := OrchestratorNSKey("custom_sensitive_words"); config.Datadog().IsSet(k) {
 		oc.Scrubber.AddCustomSensitiveWords(config.Datadog().GetStringSlice(k))
+	}
+
+	if k := OrchestratorNSKey("custom_sensitive_annotations_labels"); config.Datadog().IsSet(k) {
+		redact.UpdateSensitiveAnnotationsAndLabels(config.Datadog().GetStringSlice(k))
 	}
 
 	// The maximum number of resources per message and the maximum message size.
@@ -203,7 +208,7 @@ func IsOrchestratorECSExplorerEnabled() bool {
 		return false
 	}
 
-	if config.IsECS() || config.IsECSFargate() {
+	if env.IsECS() || env.IsECSFargate() {
 		return true
 	}
 

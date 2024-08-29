@@ -5,7 +5,7 @@ auth_token_file_path: /tmp/agent-auth-token
 # has network access.
 cloud_provider_metadata: []
 
-telemetry:
-  enabled: true
+telemetry.enabled: true
 
-dd_url: localhost:9092
+dd_url: http://localhost:9091
+process_config.process_dd_url: http://localhost:9092

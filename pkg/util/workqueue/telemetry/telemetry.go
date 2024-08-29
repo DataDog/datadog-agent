@@ -15,9 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
-var (
-	commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
-)
+var commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
 
 type gaugeWrapper struct {
 	telemetry.Gauge
@@ -102,13 +100,14 @@ func (q *QueueMetricsProvider) NewDepthMetric(subsystem string) workqueue.GaugeM
 		subsystem,
 		"Queue depth",
 		func(subsystem, name, description string) workqueue.GaugeMetric {
-			return gaugeWrapper{telemetry.NewGaugeWithOpts(
-				subsystem,
-				name,
-				[]string{},
-				description,
-				commonOpts,
-			),
+			return gaugeWrapper{
+				telemetry.NewGaugeWithOpts(
+					subsystem,
+					name,
+					[]string{},
+					description,
+					commonOpts,
+				),
 			}
 		},
 	)
@@ -146,7 +145,7 @@ func (q *QueueMetricsProvider) NewLatencyMetric(subsystem string) workqueue.Hist
 				name,
 				[]string{},
 				description,
-				[]float64{1, 15, 60, 120, 600, 1200},
+				[]float64{.05, .1, .25, .5, 1, 2.5, 5, 10, 60, 300, 600, 1200},
 				commonOpts,
 			)}
 		},

@@ -54,7 +54,7 @@
   # Collect only from specific platforms to avoid high memory usage
   - PLATFORMS_FOR_COMPLEXITY_COLLECTION="amazon_5.4 debian_10 ubuntu_18.04 centos_8 opensuse_15.3 suse_12.5 fedora_38"
   - |
-    if ( [ "${TEST_SET}" = "no_usm" ] || [ "${TEST_SET}" = "all_tests" ] ) && echo "${PLATFORMS_FOR_COMPLEXITY_COLLECTION}" | grep -qw "${TAG}" ; then
+    if [ "${TEST_SET}" = "no_usm" ] && echo "${PLATFORMS_FOR_COMPLEXITY_COLLECTION}" | grep -qw "${TAG}" ; then
       export COLLECT_COMPLEXITY=yes
     fi
   - echo "COLLECT_COMPLEXITY=${COLLECT_COMPLEXITY}"
@@ -255,7 +255,7 @@
     - ssh metal_instance "scp /home/ubuntu/job_env-${ARCH}-${TAG}-${TEST_SET}.txt ${MICRO_VM_IP}:/job_env.txt"
     - NESTED_VM_CMD="/home/ubuntu/connector -host ${MICRO_VM_IP} -user root -ssh-file /home/kernel-version-testing/ddvm_rsa -vm-cmd 'CI=true /root/fetch_dependencies.sh ${ARCH} && COLLECT_COMPLEXITY=${COLLECT_COMPLEXITY} /opt/micro-vm-init.sh -test-tools /opt/testing-tools -retry ${RETRY} -test-root /opt/${TEST_COMPONENT}-tests -packages-run-config /opt/${TEST_SET}.json'"
     - $CI_PROJECT_DIR/connector-$ARCH -host $INSTANCE_IP -user ubuntu -ssh-file $AWS_EC2_SSH_KEY_FILE -vm-cmd "${NESTED_VM_CMD}" -send-env-vars DD_API_KEY # Allow DD_API_KEY to be passed to the metal instance, so we can use it to send metrics from the connector.
-    - ssh metal_instance "ssh ${MICRO_VM_IP} '/opt/testing-tools/test-json-review -flakes /opt/testing-tools/flakes.yaml'"
+    - ssh metal_instance "ssh ${MICRO_VM_IP} '/opt/testing-tools/test-json-review -flakes /opt/testing-tools/flakes.yaml -codeowners /opt/testing-tools/CODEOWNERS -test-root /opt/${TEST_COMPONENT}-tests'"
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -268,3 +268,56 @@
     reports:
       annotations:
         - $EXTERNAL_LINKS_PATH
+
+notify_ebpf_complexity_changes:
+  stage: notify
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.except_main_or_release_branch]
+    - !reference [.except_no_tests_no_deploy]
+    - !reference [.except_deploy]
+    - !reference [.on_system_probe_or_e2e_changes_or_manual]
+    - !reference [.on_security_agent_changes_or_manual]
+  needs:
+    # We need to specify the jobs that generate complexity explicitly, else we hit the limit of "needs"
+    # Important: the list of platforms should match the one in .define_if_collect_complexity
+    - job: "kmt_run_sysprobe_tests_x64"
+      optional: true
+      parallel:
+        matrix:
+          - TAG:
+              - amazon_5.4
+              - debian_10
+              - ubuntu_18.04
+              - centos_8
+              - opensuse_15.3
+              - suse_12.5
+              - fedora_38
+            TEST_SET: no_usm
+    - job: "kmt_run_sysprobe_tests_arm64"
+      optional: true
+      parallel:
+        matrix:
+          - TAG:
+              - amazon_5.4
+              - debian_10
+              - ubuntu_18.04
+              - centos_8
+              - opensuse_15.3
+              - suse_12.5
+              - fedora_38
+            TEST_SET: no_usm
+  allow_failure: true
+  before_script:
+    - source /root/.bashrc
+    - python3 -m pip install tabulate # Required for printing the tables
+    - python3 -m pip install -r tasks/libs/requirements-github.txt
+    - |
+      export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_APP_KEY_SSM_NAME | base64)
+      export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_INTEGRATION_ID_SSM_NAME)
+      export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_INSTALLATION_ID_SSM_NAME)
+      export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME)
+  script:
+    - inv -e ebpf.generate-complexity-summary-for-pr

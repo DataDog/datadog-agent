@@ -32,8 +32,8 @@ const (
 // redundant allocations. We get it as a parameter and not putting it as a global, to be thread safe among concurrent
 // and parallel calls.
 func getSymbolNameByEntry(sectionReader io.ReaderAt, startPos, minLength int, preAllocatedBuf []byte) int {
-	_, err := sectionReader.ReadAt(preAllocatedBuf, int64(startPos))
-	if err != nil {
+	readBytes, err := sectionReader.ReadAt(preAllocatedBuf, int64(startPos))
+	if err != nil && err != io.EOF {
 		return -1
 	}
 
@@ -42,7 +42,8 @@ func getSymbolNameByEntry(sectionReader io.ReaderAt, startPos, minLength int, pr
 	// If we didn't find null there, then it is not a symbol we're looking for.
 	foundNull := false
 	nullIndex := minLength
-	for ; nullIndex < len(preAllocatedBuf); nullIndex++ {
+	// readBytes is at most len(preAllocatedBuf).
+	for ; nullIndex < readBytes; nullIndex++ {
 		if preAllocatedBuf[nullIndex] == 0 {
 			foundNull = true
 			break
@@ -226,6 +227,9 @@ func GetAllSymbolsByName(elfFile *elf.File, symbolSet common.StringSet) (map[str
 	}
 
 	// Only if we failed getting both regular and dynamic symbols - then we abort.
+	if regularSymbolsErr == elf.ErrNoSymbols && dynamicSymbolsErr == elf.ErrNoSymbols {
+		return nil, elf.ErrNoSymbols
+	}
 	if regularSymbolsErr != nil && dynamicSymbolsErr != nil {
 		return nil, fmt.Errorf("could not open symbol sections to resolve symbol offset: %v, %v", regularSymbolsErr, dynamicSymbolsErr)
 	}

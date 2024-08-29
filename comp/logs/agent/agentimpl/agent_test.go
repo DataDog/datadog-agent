@@ -29,13 +29,13 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	integrationsLogs "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/fx"
+	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
@@ -61,10 +61,9 @@ type AgentTestSuite struct {
 type testDeps struct {
 	fx.In
 
-	Config           configComponent.Component
-	Log              log.Component
-	InventoryAgent   inventoryagent.Component
-	IntegrationsLogs integrationsLogs.Component
+	Config         configComponent.Component
+	Log            log.Component
+	InventoryAgent inventoryagent.Component
 }
 
 func (suite *AgentTestSuite) SetupTest() {
@@ -118,15 +117,14 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		hostnameimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
 		inventoryagentimpl.MockModule(),
-		integrations.MockModule(),
 	))
 
 	agent := &logAgent{
 		log:              deps.Log,
 		config:           deps.Config,
 		inventoryAgent:   deps.InventoryAgent,
-		started:          atomic.NewBool(false),
-		integrationsLogs: deps.IntegrationsLogs,
+		started:          atomic.NewUint32(0),
+		integrationsLogs: integrationsimpl.NewLogsIntegration(),
 
 		sources:   sources,
 		services:  services,
@@ -140,7 +138,7 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 }
 
 func (suite *AgentTestSuite) testAgent(endpoints *config.Endpoints) {
-	coreConfig.SetFeatures(suite.T(), coreConfig.Docker, coreConfig.Kubernetes)
+	coreConfig.SetFeatures(suite.T(), env.Docker, env.Kubernetes)
 
 	agent, sources, _ := createAgent(suite, endpoints)
 
@@ -187,7 +185,7 @@ func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
 	endpoint := config.NewEndpoint("", "fake:", 0, false)
 	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{}, true, false)
 
-	coreConfig.SetFeatures(suite.T(), coreConfig.Docker, coreConfig.Kubernetes)
+	coreConfig.SetFeatures(suite.T(), env.Docker, env.Kubernetes)
 
 	agent, sources, _ := createAgent(suite, endpoints)
 
@@ -397,9 +395,7 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 		hostnameimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
 		inventoryagentimpl.MockModule(),
-		workloadmetafxmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
-		integrations.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 }
 

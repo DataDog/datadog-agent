@@ -418,3 +418,34 @@ func TestMergeFleetPolicy(t *testing.T) {
 	assert.Equal(t, "baz", config.Get("foo"))
 	assert.Equal(t, SourceFleetPolicies, config.GetSource("foo"))
 }
+
+func TestParseEnvAsStringSlice(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	config.BindEnv("slice_of_string")
+	config.ParseEnvAsStringSlice("slice_of_string", func(string) []string { return []string{"a", "b", "c"} })
+
+	t.Setenv("DD_SLICE_OF_STRING", "__some_data__")
+	assert.Equal(t, []string{"a", "b", "c"}, config.Get("slice_of_string"))
+}
+
+func TestParseEnvAsMapStringInterface(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	config.BindEnv("map_of_float")
+	config.ParseEnvAsMapStringInterface("map_of_float", func(string) map[string]interface{} { return map[string]interface{}{"a": 1.0, "b": 2.0, "c": 3.0} })
+
+	t.Setenv("DD_MAP_OF_FLOAT", "__some_data__")
+	assert.Equal(t, map[string]interface{}{"a": 1.0, "b": 2.0, "c": 3.0}, config.Get("map_of_float"))
+	assert.Equal(t, map[string]interface{}{"a": 1.0, "b": 2.0, "c": 3.0}, config.GetStringMap("map_of_float"))
+}
+
+func TestParseEnvAsSliceMapString(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	config.BindEnv("map")
+	config.ParseEnvAsSliceMapString("map", func(string) []map[string]string { return []map[string]string{{"a": "a", "b": "b", "c": "c"}} })
+
+	t.Setenv("DD_MAP", "__some_data__")
+	assert.Equal(t, []map[string]string{{"a": "a", "b": "b", "c": "c"}}, config.Get("map"))
+}
