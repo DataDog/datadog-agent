@@ -75,7 +75,7 @@ func BenchmarkOTelPeerTags(b *testing.B) {
 	benchmarkOTelPeerTags(b, true)
 }
 
-// This simulates the benchmark of OTLPTracesToConcentratorInputs before 
+// This simulates the benchmark of OTLPTracesToConcentratorInputs before https://github.com/DataDog/datadog-agent/pull/28908
 func BenchmarkOTelPeerTags_IncludeConfiguredPeerTags(b *testing.B) {
 	benchmarkOTelPeerTags(b, false)
 }
