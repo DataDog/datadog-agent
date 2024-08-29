@@ -7,7 +7,7 @@ go 1.22.0
 toolchain go1.22.4
 
 require (
-	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.56.1-rc.1
+	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.56.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.104.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.104.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector v0.104.0
@@ -256,19 +256,19 @@ require (
 	github.com/ClickHouse/ch-go v0.61.5 // indirect
 	github.com/ClickHouse/clickhouse-go/v2 v2.23.0 // indirect
 	github.com/Code-Hex/go-generics-cache v1.3.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.56.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.56.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.56.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.56.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.56.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.56.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.56.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.56.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace v0.56.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.56.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.56.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.56.1-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.1-rc.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.56.1 // indirect
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.56.1 // indirect
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.56.1 // indirect
+	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.56.1 // indirect
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.56.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.56.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/proto v0.56.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.56.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace v0.56.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.56.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.56.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.56.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.1 // indirect
 	github.com/DataDog/datadog-go/v5 v5.5.0 // indirect
 	github.com/DataDog/go-sqllexer v0.0.12 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
