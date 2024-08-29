@@ -53,6 +53,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -318,7 +319,7 @@ func shouldStayAlive(cfg ddconfig.Reader) bool {
 		return true
 	}
 
-	if ddconfig.IsKubernetes() && cfg.GetBool("process_config.run_in_core_agent.enabled") {
+	if env.IsKubernetes() && cfg.GetBool("process_config.run_in_core_agent.enabled") {
 		log.Warn("The process-agent is staying alive to prevent crash loops due to the checks running on the core agent. Thus, the process-agent is idle. Update your installer to the latest version to prevent this.")
 		return true
 	}
