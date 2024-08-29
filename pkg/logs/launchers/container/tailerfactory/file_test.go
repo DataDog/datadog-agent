@@ -247,8 +247,7 @@ func TestMakeK8sSource(t *testing.T) {
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		compConfig.MockModule(),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	pod, container := makeTestPod()
 	store.Set(pod)
@@ -304,8 +303,7 @@ func TestMakeK8sSource_pod_not_found(t *testing.T) {
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		compConfig.MockModule(),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	tf := &factory{

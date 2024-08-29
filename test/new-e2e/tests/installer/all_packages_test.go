@@ -55,8 +55,6 @@ var (
 	}
 )
 
-var supportedInstallMethods = []installMethodOption{installMethodInstallScript, installMethodAnsible}
-
 func shouldSkipFlavor(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
 	for _, f := range flavors {
 		if f.Flavor == flavor.Flavor && f.Version == flavor.Version {
@@ -75,12 +73,27 @@ func shouldSkipInstallMethod(methods []installMethodOption, method installMethod
 	return false
 }
 
+func getInstallMethodFromEnv() installMethodOption {
+	supportedValues := []string{string(installMethodAnsible), string(installMethodInstallScript)}
+	envValue := os.Getenv("FLEET_INSTALL_METHOD")
+	switch envValue {
+	case "install_script":
+		return installMethodInstallScript
+	case "ansible":
+		return installMethodAnsible
+	default:
+		panic(fmt.Sprintf("unsupported install method: %s. Supported values are: %v", envValue, supportedValues))
+	}
+}
+
 func TestPackages(t *testing.T) {
 
 	if _, ok := os.LookupEnv("E2E_PIPELINE_ID"); !ok {
 		t.Log("E2E_PIPELINE_ID env var is not set, this test requires this variable to be set to work")
 		t.FailNow()
 	}
+
+	method := getInstallMethodFromEnv()
 
 	var flavors []e2eos.Descriptor
 	for _, flavor := range amd64Flavors {
@@ -92,38 +105,36 @@ func TestPackages(t *testing.T) {
 		flavors = append(flavors, flavor)
 	}
 	for _, f := range flavors {
-		for _, method := range supportedInstallMethods {
-			for _, test := range packagesTestsWithSkippedFlavors {
-				flavor := f // capture range variable for parallel tests closure
-				if shouldSkipFlavor(test.skippedFlavors, flavor) {
-					continue
-				}
-				if shouldSkipInstallMethod(test.skippedInstallationMethods, method) {
-					continue
-				}
-				// TODO: remove once ansible+suse is fully supported
-				if flavor.Flavor == e2eos.Suse && method == installMethodAnsible {
-					continue
-				}
-
-				suite := test.t(flavor, flavor.Architecture, method)
-				t.Run(suite.Name(), func(t *testing.T) {
-					t.Parallel()
-					// FIXME: Fedora currently has DNS issues
-					if flavor.Flavor == e2eos.Fedora {
-						flake.Mark(t)
-					}
-					opts := []awshost.ProvisionerOption{
-						awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
-						awshost.WithoutAgent(),
-					}
-					opts = append(opts, suite.ProvisionerOptions()...)
-					e2e.Run(t, suite,
-						e2e.WithProvisioner(awshost.Provisioner(opts...)),
-						e2e.WithStackName(suite.Name()),
-					)
-				})
+		for _, test := range packagesTestsWithSkippedFlavors {
+			flavor := f // capture range variable for parallel tests closure
+			if shouldSkipFlavor(test.skippedFlavors, flavor) {
+				continue
 			}
+			if shouldSkipInstallMethod(test.skippedInstallationMethods, method) {
+				continue
+			}
+			// TODO: remove once ansible+suse is fully supported
+			if flavor.Flavor == e2eos.Suse && method == installMethodAnsible {
+				continue
+			}
+
+			suite := test.t(flavor, flavor.Architecture, method)
+			t.Run(suite.Name(), func(t *testing.T) {
+				t.Parallel()
+				// FIXME: Fedora currently has DNS issues
+				if flavor.Flavor == e2eos.Fedora {
+					flake.Mark(t)
+				}
+				opts := []awshost.ProvisionerOption{
+					awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
+					awshost.WithoutAgent(),
+				}
+				opts = append(opts, suite.ProvisionerOptions()...)
+				e2e.Run(t, suite,
+					e2e.WithProvisioner(awshost.Provisioner(opts...)),
+					e2e.WithStackName(suite.Name()),
+				)
+			})
 		}
 	}
 }
@@ -299,6 +310,7 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
   tasks:
     - name: Import the Datadog Agent role from the Datadog collection
       become: true
+      retries: 3
       import_role:
         name: datadog.dd.agent
 `
