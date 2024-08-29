@@ -38,6 +38,7 @@ def create_python_installed_packages_file(filename):
     Create a file listing the currently installed Python dependencies.
     """
     with open(filename, 'w', encoding='utf-8') as f:
+        f.write("# DO NOT REMOVE/MODIFY - used internally by installation process")
         installed_packages = importlib.metadata.distributions()
         for dist in installed_packages:
             f.write(f"{dist.metadata['Name']}=={dist.version}\n")
@@ -52,6 +53,7 @@ def create_diff_installed_packages_file(directory):
     diff_file = diff_python_installed_packages_file(directory)
     print(f"Creating file: {diff_file}")
     with open(diff_file, 'w', encoding='utf-8') as f:
+        f.write("# DO NOT REMOVE/MODIFY - used internally by installation process")
         for package_name, prerm_req in prerm_packages.items():
             postinst_req = postinst_packages.get(package_name)
             if postinst_req:
