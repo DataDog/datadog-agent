@@ -71,7 +71,7 @@ def install_diff_packages_file(filename):
     """
     Install all Datadog integrations and python dependencies from a file
     """
-    with open(filename, 'w', encoding='utf-8') as f:
+    with open(filename, 'r', encoding='utf-8') as f:
         for line in f:
             print(line.strip())
 
