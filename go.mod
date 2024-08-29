@@ -77,6 +77,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/errors => ./pkg/errors
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
 	github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels => ./pkg/languagedetection/languagemodels
+	github.com/DataDog/datadog-agent/pkg/languagedetection/util => ./pkg/languagedetection/util
 	github.com/DataDog/datadog-agent/pkg/logs/auditor => ./pkg/logs/auditor
 	github.com/DataDog/datadog-agent/pkg/logs/client => ./pkg/logs/client
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ./pkg/logs/diagnostic
@@ -320,7 +321,7 @@ require (
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	k8s.io/api v0.29.3
 	k8s.io/apiextensions-apiserver v0.29.2
-	k8s.io/apimachinery v0.29.3
+	k8s.io/apimachinery v0.31.0
 	k8s.io/apiserver v0.29.3 // indirect
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.13.0
 	k8s.io/client-go v0.29.3
@@ -656,6 +657,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/errors v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/languagedetection/util v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.56.0-rc.3

@@ -218,6 +218,7 @@ DEFAULT_MODULES = {
     "pkg/languagedetection/languagemodels": GoModule(
         "pkg/languagedetection/languagemodels", independent=True, used_by_otel=True
     ),
+    "pkg/languagedetection/util": GoModule("pkg/languagedetection/util", independent=True, used_by_otel=True),
     "pkg/linters/components/pkgconfigusage": GoModule("pkg/linters/components/pkgconfigusage", should_tag=False),
     "pkg/logs/auditor": GoModule("pkg/logs/auditor", independent=True, used_by_otel=True),
     "pkg/logs/client": GoModule("pkg/logs/client", independent=True, used_by_otel=True),
@@ -255,6 +256,7 @@ DEFAULT_MODULES = {
         "pkg/util/cgroups", independent=True, condition=lambda: sys.platform == "linux", used_by_otel=True
     ),
     "pkg/util/common": GoModule("pkg/util/common", independent=True, used_by_otel=True),
+    "pkg/util/containers/image": GoModule("pkg/util/containers/image", independent=True, used_by_otel=True),
     "pkg/util/executable": GoModule("pkg/util/executable", independent=True, used_by_otel=True),
     "pkg/util/filesystem": GoModule("pkg/util/filesystem", independent=True, used_by_otel=True),
     "pkg/util/flavor": GoModule("pkg/util/flavor", independent=True),

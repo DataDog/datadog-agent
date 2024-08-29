@@ -7,10 +7,11 @@ package util
 
 import (
 	"fmt"
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"reflect"
 	"sort"
 	"strings"
+
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 )
 
 ////////////////////////////////
