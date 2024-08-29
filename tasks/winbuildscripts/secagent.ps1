@@ -24,8 +24,8 @@ if ($Env:TARGET_ARCH -eq "x86") {
 & inv -e security-agent.kitchen-prepare --skip-linters
 
 $err = $LASTEXITCODE
-Write-Host Test result is $err
 if($err -ne 0){
     Write-Host -ForegroundColor Red "kitchen prepare failed $err"
     [Environment]::Exit($err)
 }
+Write-Host Test passed

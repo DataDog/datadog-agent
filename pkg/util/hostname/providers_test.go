@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
@@ -49,7 +50,7 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 	t.Cleanup(func() {
 		isFargateInstance = fargate.IsFargateInstance
 		ec2GetInstanceID = ec2.GetInstanceID
-		isContainerized = config.IsContainerized
+		isContainerized = env.IsContainerized
 		gceGetHostname = gce.GetHostname
 		azureGetHostname = azure.GetHostname
 		osHostname = os.Hostname

@@ -35,7 +35,7 @@ type linuxTestSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-var services = []string{"python-svc", "python-instrumented", "node-json-server"}
+var services = []string{"python-svc", "python-instrumented", "node-json-server", "node-instrumented"}
 
 func TestLinuxTestSuite(t *testing.T) {
 	agentParams := []func(*agentparams.Params) error{
@@ -88,14 +88,28 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 			}
 		}
 
-		found := foundMap["python.server"]
+		found := foundMap["json-server"]
 		if assert.NotNil(c, found) {
 			assert.Equal(c, "none", found.Payload.APMInstrumentation)
+			assert.Equal(c, "generated", found.Payload.ServiceNameSource)
+		}
+
+		found = foundMap["node-instrumented"]
+		if assert.NotNil(c, found) {
+			assert.Equal(c, "provided", found.Payload.APMInstrumentation)
+			assert.Equal(c, "generated", found.Payload.ServiceNameSource)
+		}
+
+		found = foundMap["python.server"]
+		if assert.NotNil(c, found) {
+			assert.Equal(c, "none", found.Payload.APMInstrumentation)
+			assert.Equal(c, "generated", found.Payload.ServiceNameSource)
 		}
 
 		found = foundMap["python.instrumented"]
 		if assert.NotNil(c, found) {
 			assert.Equal(c, "provided", found.Payload.APMInstrumentation)
+			assert.Equal(c, "generated", found.Payload.ServiceNameSource)
 		}
 
 		assert.Contains(c, foundMap, "json-server")
