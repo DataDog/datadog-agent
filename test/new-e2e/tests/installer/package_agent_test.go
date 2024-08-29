@@ -349,27 +349,10 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().SkippedIf(probeUnitXP, s.installMethod != installMethodAnsible))
 
 		// stop experiment
+		timestamp = s.host.LastJournaldTimestamp()
 		s.host.Run(fmt.Sprintf(`sudo systemctl %s`, stopCommand))
 
 		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
-			// first stop agent dependency
-			Unordered(host.SystemdEvents().
-				Stopped(traceUnit).
-				Stopped(processUnit),
-			).
-			// then agent
-			Stopping(agentUnit).
-			Stopped(agentUnit).
-
-			// start experiment dependency
-			Unordered(host.SystemdEvents().
-				Starting(agentUnitXP).
-				Started(processUnitXP).
-				Started(traceUnitXP).
-				SkippedIf(probeUnitXP, s.installMethod != installMethodAnsible).
-				Skipped(securityUnitXP),
-			).
-
 			// stop order
 			Unordered(host.SystemdEvents().
 				Stopped(agentUnitXP).
