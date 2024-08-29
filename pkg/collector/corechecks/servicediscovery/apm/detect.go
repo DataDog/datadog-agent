@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language/reader"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
-	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -91,6 +90,21 @@ func isInjected(envs map[string]string) bool {
 	return false
 }
 
+const (
+	// ddTraceGoPrefix is the prefix of the dd-trace-go symbols. The symbols we
+	// are looking for are for example
+	// "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.init". We use a prefix
+	// without the verison number instead of a specific symbol name in an
+	// attempt to make it future-proof.
+	ddTraceGoPrefix = "gopkg.in/DataDog/dd-trace-go"
+	// ddTraceGoMaxLength is the maximum length of the dd-trace-go symbols which
+	// we look for. The max length is an optimization in bininspect to avoid
+	// reading unnecesssary symbols.  As of writing, most non-internal symbols
+	// in dd-trace-go are under 100 chars. The tracer.init example above at 51
+	// chars is one of the shortest.
+	ddTraceGoMaxLength = 100
+)
+
 // goDetector detects APM instrumentation for Go binaries by checking for
 // the presence of the dd-trace-go symbols in the ELF. This only works for
 // unstripped binaries.
@@ -104,11 +118,8 @@ func goDetector(pid int, _ []string, _ map[string]string, _ usm.DetectorContextM
 	}
 	defer elfFile.Close()
 
-	symbolsSet := common.StringSet{
-		"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.init": struct{}{},
-	}
-
-	_, err = bininspect.GetAllSymbolsInSetByName(elfFile, symbolsSet)
+	filter := bininspect.NewPrefixSymbolFilter(ddTraceGoPrefix, ddTraceGoMaxLength)
+	_, err = bininspect.GetAllSymbolsByName(elfFile, filter)
 	if err != nil {
 		return None
 	}
