@@ -94,7 +94,7 @@ const (
 	// ddTraceGoPrefix is the prefix of the dd-trace-go symbols. The symbols we
 	// are looking for are for example
 	// "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.init". We use a prefix
-	// without the verison number instead of a specific symbol name in an
+	// without the version number instead of a specific symbol name in an
 	// attempt to make it future-proof.
 	ddTraceGoPrefix = "gopkg.in/DataDog/dd-trace-go"
 	// ddTraceGoMaxLength is the maximum length of the dd-trace-go symbols which
