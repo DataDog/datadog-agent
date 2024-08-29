@@ -211,11 +211,10 @@ func getSymbols(f *elf.File, typ elf.SectionType, filter SymbolFilter) ([]elf.Sy
 	return nil, errors.New("not implemented")
 }
 
-// GetAllSymbolsByName returns all symbols (from the symbolSet) in the given elf file, by the given names.
-// In case of a missing symbol, an error is returned.
-func GetAllSymbolsByName(elfFile *elf.File, symbolSet common.StringSet) (map[string]elf.Symbol, error) {
-	filter := NewStringSetSymbolFilter(symbolSet)
-
+// GetAllSymbolsByName returns all filtered symbols in the given elf file,
+// mapped by the symbol names.  In case of a missing symbol, an error is
+// returned.
+func GetAllSymbolsByName(elfFile *elf.File, filter SymbolFilter) (map[string]elf.Symbol, error) {
 	regularSymbols, regularSymbolsErr := getSymbols(elfFile, elf.SHT_SYMTAB, filter)
 	if regularSymbolsErr != nil && log.ShouldLog(seelog.TraceLvl) {
 		log.Tracef("Failed getting regular symbols of elf file: %s", regularSymbolsErr)
@@ -255,4 +254,12 @@ func GetAllSymbolsByName(elfFile *elf.File, symbolSet common.StringSet) (map[str
 	}
 
 	return symbolByName, nil
+}
+
+// GetAllSymbolsInSetByName returns all symbols (from the symbolSet) in the
+// given elf file, mapped by the symbol names.  In case of a missing symbol, an
+// error is returned.
+func GetAllSymbolsInSetByName(elfFile *elf.File, symbolSet common.StringSet) (map[string]elf.Symbol, error) {
+	filter := NewStringSetSymbolFilter(symbolSet)
+	return GetAllSymbolsByName(elfFile, filter)
 }

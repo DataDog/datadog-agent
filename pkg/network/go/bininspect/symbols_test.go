@@ -45,7 +45,7 @@ func TestAllFound(t *testing.T) {
 		symbolSet[sym.Name] = struct{}{}
 	}
 
-	symbols, err := GetAllSymbolsByName(elfFile, symbolSet)
+	symbols, err := GetAllSymbolsInSetByName(elfFile, symbolSet)
 	require.NoError(t, err)
 	for sym := range symbolSet {
 		require.Contains(t, symbols, sym)
@@ -60,7 +60,7 @@ func TestAllMissing(t *testing.T) {
 		"foo":             {},
 	}
 
-	_, err := GetAllSymbolsByName(elfFile, symbolSet)
+	_, err := GetAllSymbolsInSetByName(elfFile, symbolSet)
 	require.Error(t, err)
 	msg := err.Error()
 	assert.Contains(t, msg, "SSL_connect_not")
@@ -76,7 +76,7 @@ func TestSomeMissing(t *testing.T) {
 		"SSL_notthere": {},
 	}
 
-	_, err := GetAllSymbolsByName(elfFile, symbolSet)
+	_, err := GetAllSymbolsInSetByName(elfFile, symbolSet)
 	require.Error(t, err)
 	msg := err.Error()
 	assert.Contains(t, msg, "SSL_invalid")

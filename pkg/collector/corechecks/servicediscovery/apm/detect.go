@@ -108,7 +108,7 @@ func goDetector(pid int, _ []string, _ map[string]string, _ usm.DetectorContextM
 		"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.init": struct{}{},
 	}
 
-	_, err = bininspect.GetAllSymbolsByName(elfFile, symbolsSet)
+	_, err = bininspect.GetAllSymbolsInSetByName(elfFile, symbolsSet)
 	if err != nil {
 		return None
 	}
