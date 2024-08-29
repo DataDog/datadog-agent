@@ -111,7 +111,7 @@ func (l *LanguageDetector) getBinID(process languagemodels.Process) (binaryID, e
 	exePath := filepath.Join(procPath, "exe")
 
 	var stat syscall.Stat_t
-	
+
 	if err := syscall.Stat(exePath, &stat); err != nil {
 		return binaryID{}, fmt.Errorf("stat binary path %s: %v", exePath, err)
 	}
