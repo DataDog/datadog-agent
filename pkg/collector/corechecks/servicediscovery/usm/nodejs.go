@@ -96,6 +96,7 @@ func (n nodeDetector) maybeExtractServiceName(filename string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
+	defer file.Close()
 	ok, err := canSafelyParse(file)
 	if err != nil {
 		//file not accessible or don't exist. Continuing searching up

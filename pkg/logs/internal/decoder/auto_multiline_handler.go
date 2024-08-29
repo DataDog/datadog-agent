@@ -35,8 +35,13 @@ func NewAutoMultilineHandler(outputFn func(m *message.Message), maxContentSize i
 	}
 
 	return &AutoMultilineHandler{
-		labeler:    automultilinedetection.NewLabeler(heuristics),
-		aggregator: automultilinedetection.NewAggregator(outputFn, maxContentSize, flushTimeout),
+		labeler: automultilinedetection.NewLabeler(heuristics),
+		aggregator: automultilinedetection.NewAggregator(
+			outputFn,
+			maxContentSize,
+			flushTimeout,
+			config.Datadog().GetBool("logs_config.tag_truncated_logs"),
+			config.Datadog().GetBool("logs_config.tag_auto_multi_line_logs")),
 	}
 }
 

@@ -141,9 +141,6 @@ func (s *packageAgentSuite) TestUpgrade_Agent_OCI_then_DebRpm() {
 }
 
 func (s *packageAgentSuite) TestExperimentTimeout() {
-	if s.installMethod == installMethodAnsible {
-		s.Suite.T().Skip()
-	}
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
@@ -182,7 +179,7 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 			Starting(agentUnitXP).
 			Started(processUnitXP).
 			Started(traceUnitXP).
-			Skipped(probeUnitXP).
+			SkippedIf(probeUnitXP, s.installMethod != installMethodAnsible).
 			Skipped(securityUnitXP),
 		).
 
@@ -199,16 +196,13 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 		Unordered(host.SystemdEvents().
 			Started(traceUnit).
 			Started(processUnit).
-			Skipped(probeUnit).
+			SkippedIf(probeUnitXP, s.installMethod != installMethodAnsible).
 			Skipped(securityUnit),
 		),
 	)
 }
 
 func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
-	if s.installMethod == installMethodAnsible {
-		s.Suite.T().Skip()
-	}
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
@@ -251,7 +245,7 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 			Starting(agentUnitXP).
 			Started(processUnitXP).
 			Started(traceUnitXP).
-			Skipped(probeUnitXP).
+			SkippedIf(probeUnitXP, s.installMethod != installMethodAnsible).
 			Skipped(securityUnitXP),
 		).
 
@@ -274,16 +268,13 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 		Unordered(host.SystemdEvents().
 			Started(traceUnit).
 			Started(processUnit).
-			Skipped(probeUnit).
+			SkippedIf(probeUnitXP, s.installMethod != installMethodAnsible).
 			Skipped(securityUnit),
 		),
 	)
 }
 
 func (s *packageAgentSuite) TestExperimentExits() {
-	if s.installMethod == installMethodAnsible {
-		s.Suite.T().Skip()
-	}
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
@@ -316,7 +307,7 @@ func (s *packageAgentSuite) TestExperimentExits() {
 				Starting(agentUnitXP).
 				Started(processUnitXP).
 				Started(traceUnitXP).
-				Skipped(probeUnitXP).
+				SkippedIf(probeUnitXP, s.installMethod != installMethodAnsible).
 				Skipped(securityUnitXP),
 			).
 
@@ -332,7 +323,7 @@ func (s *packageAgentSuite) TestExperimentExits() {
 			Unordered(host.SystemdEvents().
 				Started(traceUnit).
 				Started(processUnit).
-				Skipped(probeUnit).
+				SkippedIf(probeUnitXP, s.installMethod != installMethodAnsible).
 				Skipped(securityUnit),
 			),
 		)
@@ -340,9 +331,6 @@ func (s *packageAgentSuite) TestExperimentExits() {
 }
 
 func (s *packageAgentSuite) TestExperimentStopped() {
-	if s.installMethod == installMethodAnsible {
-		s.Suite.T().Skip()
-	}
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
@@ -358,7 +346,7 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().Started(traceUnitXP))
 		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().Started(processUnitXP))
 		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().Skipped(securityUnitXP))
-		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().Skipped(probeUnitXP))
+		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().SkippedIf(probeUnitXP, s.installMethod != installMethodAnsible))
 
 		// stop experiment
 		s.host.Run(fmt.Sprintf(`sudo systemctl %s`, stopCommand))
@@ -378,7 +366,7 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 				Starting(agentUnitXP).
 				Started(processUnitXP).
 				Started(traceUnitXP).
-				Skipped(probeUnitXP).
+				SkippedIf(probeUnitXP, s.installMethod != installMethodAnsible).
 				Skipped(securityUnitXP),
 			).
 
@@ -394,7 +382,7 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 			Unordered(host.SystemdEvents().
 				Started(traceUnit).
 				Started(processUnit).
-				Skipped(probeUnit).
+				SkippedIf(probeUnitXP, s.installMethod != installMethodAnsible).
 				Skipped(securityUnit),
 			),
 		)

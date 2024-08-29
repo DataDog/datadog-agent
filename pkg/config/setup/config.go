@@ -19,6 +19,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -108,29 +109,26 @@ const (
 var (
 	datadog     pkgconfigmodel.Config
 	systemProbe pkgconfigmodel.Config
-)
 
-// Datadog returns the current agent configuration
-func Datadog() pkgconfigmodel.Config {
-	return datadog
-}
+	datadogMutex     = sync.RWMutex{}
+	systemProbeMutex = sync.RWMutex{}
+)
 
 // SetDatadog sets the the reference to the agent configuration.
 // This is currently used by the legacy converter and config mocks and should not be user anywhere else. Once the
 // legacy converter and mock have been migrated we will remove this function.
 func SetDatadog(cfg pkgconfigmodel.Config) {
+	datadogMutex.Lock()
+	defer datadogMutex.Unlock()
 	datadog = cfg
-}
-
-// SystemProbe returns the current SystemProbe configuration
-func SystemProbe() pkgconfigmodel.Config {
-	return systemProbe
 }
 
 // SetSystemProbe sets the the reference to the systemProbe configuration.
 // This is currently used by the config mocks and should not be user anywhere else. Once the mocks have been migrated we
 // will remove this function.
 func SetSystemProbe(cfg pkgconfigmodel.Config) {
+	systemProbeMutex.Lock()
+	defer systemProbeMutex.Unlock()
 	systemProbe = cfg
 }
 
@@ -876,7 +874,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("security_agent.remote_workloadmeta", false) // TODO: switch this to true when ready
 
 	// debug config to enable a remote client to receive data from the workloadmeta agent without a timeout
-	config.BindEnvAndSetDefault("workloadmeta.remote.recv_without_timeout", false)
+	config.BindEnvAndSetDefault("workloadmeta.remote.recv_without_timeout", true)
 
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.enabled", false, "DD_SECURITY_AGENT_INTERNAL_PROFILING_ENABLED")
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.site", DefaultSite, "DD_SECURITY_AGENT_INTERNAL_PROFILING_SITE", "DD_SITE")
@@ -1504,6 +1502,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.tokenizer_max_input_bytes", 60)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_max_size", 20)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_match_threshold", 0.75)
+	config.BindEnvAndSetDefault("logs_config.tag_auto_multi_line_logs", false)
+	// Add a tag to logs that are truncated by the agent
+	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", false)
 
 	// If true, the agent looks for container logs in the location used by podman, rather
 	// than docker.  This is a temporary configuration parameter to support podman logs until
@@ -1544,9 +1545,6 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// Max size in MB to allow for integrations logs files
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
-
-	// Add a tag to file logs that are truncated by the agent
-	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", false)
 }
 
 func vector(config pkgconfigmodel.Setup) {
@@ -1911,9 +1909,7 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 	err := LoadCustom(config, additionalKnownEnvVars)
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
-			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
-		} else {
-			log.Warnf("Error loading config: %v", err)
+			return warnings, log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
 		}
 		return warnings, err
 	}
