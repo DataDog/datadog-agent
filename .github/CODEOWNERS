@@ -106,6 +106,9 @@
 /.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/windows-kernel-integrations @DataDog/agent-devx-infra
 /.gitlab/functional_test/system_probe_windows.yml    @DataDog/agent-devx-infra @DataDog/windows-kernel-integrations
 /.gitlab/functional_test/common.yml                  @DataDog/agent-devx-infra @DataDog/windows-kernel-integrations
+/.gitlab/functional_test/oracle.yml                  @DataDog/agent-devx-infra @DataDog/database-monitoring
+
+
 /.gitlab/choco_build/choco_build.yml                 @DataDog/agent-delivery @DataDog/windows-agent
 /.gitlab/choco_deploy/choco_deploy.yml               @DataDog/agent-delivery @DataDog/windows-agent
 
