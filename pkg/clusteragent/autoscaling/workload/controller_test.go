@@ -234,7 +234,7 @@ func TestDatadogPodAutoscalerTargetingClusterAgent(t *testing.T) {
 	testTime := time.Now()
 	f := newFixture(t, testTime)
 
-	t.Setenv("CLUSTER_AGENT_DEPLOYMENT", "datadog-agent-cluster-agent")
+	t.Setenv("DD_POD_NAME", "datadog-agent-cluster-agent-7dbf798595-tp9lg")
 
 	dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
 		TargetRef: autoscalingv2.CrossVersionObjectReference{
