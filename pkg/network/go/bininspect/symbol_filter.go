@@ -57,13 +57,13 @@ func (f stringSetSymbolFilter) want(symbol string) bool {
 	return ok
 }
 
+// findMissing gets the list of symbols which were missing. Only used for error prints.
 func (f stringSetSymbolFilter) findMissing(symbolByName map[string]elf.Symbol) []string {
 	missingSymbols := make([]string, 0, max(0, len(f.symbolSet)-len(symbolByName)))
 	for symbolName := range f.symbolSet {
 		if _, ok := symbolByName[symbolName]; !ok {
 			missingSymbols = append(missingSymbols, symbolName)
 		}
-
 	}
 
 	return missingSymbols
@@ -95,6 +95,8 @@ func (f prefixSymbolFilter) want(symbol string) bool {
 	return strings.HasPrefix(symbol, f.prefix)
 }
 
+// findMissing gets the list of symbols which were missing. Only used for error
+// prints. Since we only know we were looking for a prefix, return that.
 func (f prefixSymbolFilter) findMissing(_ map[string]elf.Symbol) []string {
 	return []string{f.prefix + "..."}
 }
