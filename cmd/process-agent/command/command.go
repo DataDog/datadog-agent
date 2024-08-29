@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
@@ -130,7 +131,7 @@ func SetHostMountEnv(logger log.Component) {
 	// Set default values for proc/sys paths if unset.
 	// Generally only applicable for container-only cases like Fargate.
 	// This is primarily used by gopsutil to correlate cpu metrics with host processes
-	if !config.IsContainerized() || !filesystem.FileExists("/host") {
+	if !env.IsContainerized() || !filesystem.FileExists("/host") {
 		return
 	}
 

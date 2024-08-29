@@ -11,6 +11,7 @@ package apm
 import (
 	"bufio"
 	"io"
+	"io/fs"
 	"os"
 	"regexp"
 	"strconv"
@@ -123,7 +124,7 @@ func pythonDetector(pid int, _ []string, _ map[string]string, _ usm.DetectorCont
 // isNodeInstrumented parses the provided `os.File` trying to find an
 // entry for APM NodeJS instrumentation. Returns true if finding such
 // an entry, false otherwise.
-func isNodeInstrumented(f *os.File) bool {
+func isNodeInstrumented(f fs.File) bool {
 	// Don't try to read a non-regular file.
 	if fi, err := f.Stat(); err != nil || !fi.Mode().IsRegular() {
 		return false
@@ -145,10 +146,17 @@ func isNodeInstrumented(f *os.File) bool {
 func nodeDetector(_ int, _ []string, _ map[string]string, contextMap usm.DetectorContextMap) Instrumentation {
 	pkgJSONPath, ok := contextMap[usm.NodePackageJSONPath]
 	if !ok {
+		log.Debugf("could not get package.json path from context map")
 		return None
 	}
 
-	pkgJSONFile, err := os.Open(pkgJSONPath.(string))
+	fs, ok := contextMap[usm.ServiceSubFS]
+	if !ok {
+		log.Debugf("could not get SubFS for package.json")
+		return None
+	}
+
+	pkgJSONFile, err := fs.(usm.SubDirFS).Open(pkgJSONPath.(string))
 	if err != nil {
 		log.Debugf("could not open package.json: %s", err)
 		return None

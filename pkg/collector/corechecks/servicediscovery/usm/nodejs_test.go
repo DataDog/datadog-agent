@@ -3,12 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+
 package usm
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFindNameFromNearestPackageJSON(t *testing.T) {
@@ -33,10 +37,12 @@ func TestFindNameFromNearestPackageJSON(t *testing.T) {
 			expected: "my-awesome-package",
 		},
 	}
+	full, err := filepath.Abs("testdata/root")
+	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			instance := &nodeDetector{ctx: DetectionContext{
-				fs:         &RealFs{},
+				fs:         NewSubDirFS(full),
 				contextMap: make(DetectorContextMap),
 			}}
 			value, ok := instance.findNameFromNearestPackageJSON(tt.path)

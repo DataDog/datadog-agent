@@ -27,8 +27,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
@@ -40,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -78,8 +82,7 @@ func fulfillDeps(t testing.TB) serverDeps {
 	return fulfillDepsWithConfigOverride(t, map[string]interface{}{})
 }
 
-func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string]interface{}, features []config.Feature) serverDeps {
-
+func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{}) serverDeps {
 	// TODO: https://datadoghq.atlassian.net/browse/AMLII-1948
 	if runtime.GOOS == "darwin" {
 		flake.Mark(t)
@@ -89,7 +92,6 @@ func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string
 		serverdebugimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{
 			Overrides: overrides,
-			Features:  features,
 		}),
 		fx.Supply(Params{Serverless: false}),
 		replaymock.MockModule(),
@@ -101,17 +103,13 @@ func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string
 	))
 }
 
-func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{}) serverDeps {
-	return fulfillDepsWithConfigOverrideAndFeatures(t, overrides, nil)
-}
-
 func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
-		core.MockBundle(),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		fx.Provide(func(t testing.TB) configComponent.Component { return configComponent.NewMockFromYAML(t, yaml) }),
+		telemetryimpl.MockModule(),
+		hostnameimpl.MockModule(),
 		serverdebugimpl.MockModule(),
-		fx.Replace(configComponent.MockParams{
-			Params: configComponent.Params{ConfFilePath: yaml},
-		}),
 		fx.Supply(Params{Serverless: false}),
 		replaymock.MockModule(),
 		compressionimpl.MockModule(),
@@ -681,7 +679,8 @@ func TestExtraTags(t *testing.T) {
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 	cfg["dogstatsd_tags"] = []string{"sometag3:somevalue3"}
 
-	deps := fulfillDepsWithConfigOverrideAndFeatures(t, cfg, []config.Feature{config.EKSFargate})
+	env.SetFeatures(t, env.EKSFargate)
+	deps := fulfillDepsWithConfigOverride(t, cfg)
 
 	demux := deps.Demultiplexer
 	requireStart(t, deps.Server)
@@ -710,7 +709,8 @@ func TestStaticTags(t *testing.T) {
 	cfg["dogstatsd_tags"] = []string{"sometag3:somevalue3"}
 	cfg["tags"] = []string{"from:dd_tags"}
 
-	deps := fulfillDepsWithConfigOverrideAndFeatures(t, cfg, []config.Feature{config.EKSFargate})
+	env.SetFeatures(t, env.EKSFargate)
+	deps := fulfillDepsWithConfigOverride(t, cfg)
 
 	demux := deps.Demultiplexer
 	requireStart(t, deps.Server)

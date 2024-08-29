@@ -7,7 +7,7 @@ package usm
 
 import (
 	"io"
-	"os"
+	"io/fs"
 	"path"
 	"path/filepath"
 	"strings"
@@ -48,7 +48,7 @@ func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 			entryPoint := ""
 			if isJs(a) {
 				entryPoint = absFile
-			} else if target, err := os.Readlink(absFile); err == nil {
+			} else if target, err := ReadlinkFS(n.ctx.fs, absFile); err == nil {
 				if !isJs(target) {
 					continue
 				}
@@ -58,7 +58,7 @@ func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 				continue
 			}
 
-			if _, err := os.Stat(entryPoint); err == nil {
+			if _, err := fs.Stat(n.ctx.fs, absFile); err == nil {
 				value, ok := n.findNameFromNearestPackageJSON(entryPoint)
 				if ok {
 					return NewServiceMetadata(value), true
@@ -97,6 +97,7 @@ func (n nodeDetector) findNameFromNearestPackageJSON(absFilePath string) (string
 	if foundServiceName {
 		// Save package.json path for the instrumentation detector to use.
 		n.ctx.contextMap[NodePackageJSONPath] = currentFilePath
+		n.ctx.contextMap[ServiceSubFS] = n.ctx.fs
 	}
 
 	return value, foundServiceName
@@ -110,6 +111,7 @@ func (n nodeDetector) maybeExtractServiceName(filename string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
+	defer file.Close()
 	ok, err := canSafelyParse(file)
 	if err != nil {
 		//file not accessible or don't exist. Continuing searching up

@@ -348,11 +348,6 @@ func (t *Tailer) forwardMessages() {
 		tags := make([]string, len(t.tags))
 		copy(tags, t.tags)
 		tags = append(tags, t.tagProvider.GetTags()...)
-
-		if output.ParsingExtra.IsTruncated && coreConfig.Datadog().GetBool("logs_config.tag_truncated_logs") {
-			tags = append(tags, message.TruncatedTag)
-		}
-
 		tags = append(tags, output.ParsingExtra.Tags...)
 		origin.SetTags(tags)
 		// Ignore empty lines once the registry offset is updated
