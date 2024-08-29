@@ -47,11 +47,13 @@ def create_diff_installed_packages_file(directory):
     """
     Create a file listing the new or upgraded Python dependencies.
     """
-    postinst_python_installed_packages = load_requirements(postinst_python_installed_packages_file(directory))
-    prerm_python_installed_packages = load_requirements(prerm_python_installed_packages_file(directory))
-    with open(diff_python_installed_packages_file(directory), 'w', encoding='utf-8') as f:
-        for package_name, prerm_req in prerm_python_installed_packages.items():
-            postinst_req = postinst_python_installed_packages.get(package_name)
+    postinst_packages = load_requirements(postinst_python_installed_packages_file(directory))
+    prerm_packages = load_requirements(prerm_python_installed_packages_file(directory))
+    diff_file = diff_python_installed_packages_file(directory)
+    print(f"Creating file: {diff_file}")
+    with open(diff_file, 'w', encoding='utf-8') as f:
+        for package_name, prerm_req in prerm_packages.items():
+            postinst_req = postinst_packages.get(package_name)
             if postinst_req:
                 # Extract and compare versions
                 postinst_version_str = extract_version(str(postinst_req.specifier))
@@ -62,6 +64,14 @@ def create_diff_installed_packages_file(directory):
             else:
                 # Package is new in the new file; include it
                 f.write(f"{prerm_req}\n")
+
+def install_diff_packages_file(filename):
+    """
+    Install all Datadog integrations and python dependencies from a file
+    """
+    with open(filename, 'w', encoding='utf-8') as f:
+        for line in f:
+            print(line.strip())
 
 def load_requirements(filename):
     """

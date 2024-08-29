@@ -36,8 +36,9 @@ if __name__ == '__main__':
         postinst_python_installed_packages_file = packages.postinst_python_installed_packages_file(install_directory)
         if os.path.exists(postinst_python_installed_packages_file):
             prerm_python_installed_packages_file = packages.prerm_python_installed_packages_file(install_directory)
+            print(f"Creating file: {prerm_python_installed_packages_file}")
             packages.create_python_installed_packages_file(prerm_python_installed_packages_file)
-            packages.create_diff_installed_packages_file(install_directory)
+            packages.create_diff_installed_packages_file()
             cleanup_files(postinst_python_installed_packages_file, prerm_python_installed_packages_file)
         else:
             print(f"File {postinst_python_installed_packages_file} does not exist.")
