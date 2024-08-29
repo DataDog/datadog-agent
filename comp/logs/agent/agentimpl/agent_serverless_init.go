@@ -58,8 +58,7 @@ func (a *logAgent) SetupPipeline(
 		filelauncher.DefaultSleepDuration,
 		a.config.GetBool("logs_config.validate_pod_container_id"),
 		time.Duration(a.config.GetFloat64("logs_config.file_scan_period")*float64(time.Second)),
-		a.config.GetString("logs_config.file_wildcard_selection_mode"), a.flarecontroller),
-		a.tagger,
+		a.config.GetString("logs_config.file_wildcard_selection_mode"), a.flarecontroller, a.tagger),
 	)
 
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)

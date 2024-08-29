@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+// Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(
@@ -36,7 +37,7 @@ func Module() fxutil.Module {
 
 type noopTagger struct{}
 
-func (n *noopTagger) Start(ctx context.Context) error {
+func (n *noopTagger) Start(context.Context) error {
 	return nil
 }
 
@@ -52,15 +53,15 @@ func (n *noopTagger) GetTaggerTelemetryStore() *telemetry.Store {
 	return nil
 }
 
-func (n *noopTagger) Tag(entity string, cardinality types.TagCardinality) ([]string, error) {
+func (n *noopTagger) Tag(string, types.TagCardinality) ([]string, error) {
 	return nil, nil
 }
 
-func (n *noopTagger) AccumulateTagsFor(entity string, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
+func (n *noopTagger) AccumulateTagsFor(string, types.TagCardinality, tagset.TagsAccumulator) error {
 	return nil
 }
 
-func (n *noopTagger) Standard(entity string) ([]string, error) {
+func (n *noopTagger) Standard(string) ([]string, error) {
 	return nil, nil
 }
 
@@ -68,33 +69,33 @@ func (n *noopTagger) List() types.TaggerListResponse {
 	return types.TaggerListResponse{}
 }
 
-func (n *noopTagger) GetEntity(entityID string) (*types.Entity, error) {
+func (n *noopTagger) GetEntity(string) (*types.Entity, error) {
 	return nil, nil
 }
 
-func (n *noopTagger) Subscribe(cardinality types.TagCardinality) chan []types.EntityEvent {
+func (n *noopTagger) Subscribe(types.TagCardinality) chan []types.EntityEvent {
 	return make(chan []types.EntityEvent)
 }
 
-func (n *noopTagger) Unsubscribe(ch chan []types.EntityEvent) {}
+func (n *noopTagger) Unsubscribe(chan []types.EntityEvent) {}
 
-func (n *noopTagger) GetEntityHash(entity string, cardinality types.TagCardinality) string {
+func (n *noopTagger) GetEntityHash(string, types.TagCardinality) string {
 	return ""
 }
 
-func (n *noopTagger) AgentTags(cardinality types.TagCardinality) ([]string, error) {
+func (n *noopTagger) AgentTags(types.TagCardinality) ([]string, error) {
 	return nil, nil
 }
 
-func (n *noopTagger) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
+func (n *noopTagger) GlobalTags(types.TagCardinality) ([]string, error) {
 	return nil, nil
 }
 
-func (n *noopTagger) SetNewCaptureTagger(newCaptureTagger tagger.Component) {}
+func (n *noopTagger) SetNewCaptureTagger(tagger.Component) {}
 
 func (n *noopTagger) ResetCaptureTagger() {}
 
-func (n *noopTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {}
+func (n *noopTagger) EnrichTags(tagset.TagsAccumulator, taggertypes.OriginInfo) {}
 
 func (n *noopTagger) ChecksCardinality() types.TagCardinality {
 	return types.LowCardinality
