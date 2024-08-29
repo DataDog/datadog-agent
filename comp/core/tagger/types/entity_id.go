@@ -13,6 +13,8 @@ import (
 	taggerutils "github.com/DataDog/datadog-agent/pkg/util/tagger"
 )
 
+const separator = "://"
+
 // EntityID represents a tagger entityID
 // An EntityID should be identified by a prefix and an id, and is represented as {prefix}://{id}
 type EntityID interface {
@@ -29,7 +31,7 @@ type defaultEntityID string
 
 // GetID implements EntityID#GetID
 func (de defaultEntityID) GetID() string {
-	parts := strings.SplitN(string(de), "://", 2)
+	parts := strings.SplitN(string(de), separator, 2)
 
 	if len(parts) != 2 {
 		return ""
@@ -40,7 +42,7 @@ func (de defaultEntityID) GetID() string {
 
 // GetPrefix implements EntityID#GetPrefix
 func (de defaultEntityID) GetPrefix() EntityIDPrefix {
-	parts := strings.SplitN(string(de), "://", 2)
+	parts := strings.SplitN(string(de), separator, 2)
 
 	if len(parts) != 2 {
 		return ""
@@ -100,10 +102,10 @@ func NewEntityID(prefix EntityIDPrefix, id string) EntityID {
 // NewEntityIDFromString constructs EntityID from a plain string id
 func NewEntityIDFromString(plainStringID string) (EntityID, error) {
 	if taggerutils.ShouldUseCompositeStore() {
-		if !strings.Contains(plainStringID, "://") {
+		if !strings.Contains(plainStringID, separator) {
 			return nil, fmt.Errorf("unsupported tagger entity id format %q, correct format is `{prefix}://{id}`", plainStringID)
 		}
-		parts := strings.Split(plainStringID, "://")
+		parts := strings.Split(plainStringID, separator)
 		return newCompositeEntityID(EntityIDPrefix(parts[0]), parts[1]), nil
 	}
 	return newDefaultEntityID(plainStringID), nil

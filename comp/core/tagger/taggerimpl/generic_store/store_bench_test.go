@@ -24,7 +24,7 @@ var weightedPrefixes map[string]int = map[string]int{
 	"deployment":               15,
 	"kubernetes_metadata":      30,
 	"kubernetes_pod_uid":       30,
-	"process":                  10,
+	"process":                  30,
 }
 
 // getWeightedPrefix selects a prefix based on the provided weights.
@@ -56,7 +56,7 @@ func initStore(store types.ObjectStore[int]) {
 }
 
 // Mock ApplyFunc for testing purposes
-func mockApplyFunc[T any](id types.EntityID, obj T) {}
+func mockApplyFunc[T any](_ types.EntityID, obj T) {}
 
 func BenchmarkDefaultObjectStore_Set(b *testing.B) {
 	cfg := configmock.New(b)
