@@ -3,4 +3,4 @@
 
 package runtime
 
-var Dynamicinstrumentation = newAsset("dynamicinstrumentation.c", "4e3e19c37939bbbd8a28c345c8ca2fe2fa6f3ff5e654ad6c27427322989532af")
+var Dynamicinstrumentation = newAsset("dynamicinstrumentation.c", "ca8686b95b7428a6a8db3779e003f89bc414a510a7abaf1db356b6488a44e0ca")

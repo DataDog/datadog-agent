@@ -135,7 +135,7 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 	err = zeroValMap.Update(index, zeroSlice, 0)
 	if err != nil {
 		diagnostics.Diagnostics.SetError(procInfo.ServiceName, procInfo.RuntimeID, probe.ID, "ATTACH_ERROR", "could not find bpf map for zero value")
-		return fmt.Errorf("could not use bpf map for zero value in bpf object")
+		return fmt.Errorf("could not use bpf map for zero value in bpf object: %w", err)
 	}
 
 	// Attach BPF probe to function in executable
@@ -178,7 +178,12 @@ func CompileBPFProgram(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) erro
 	}
 
 	cfg := ddebpf.NewConfig()
-	compiledOutput, err := runtime.Dynamicinstrumentation.CompileWithOptions(cfg, runtime.CompileOptions{AdditionalFlags: getCFlags(cfg), ModifyCallback: f, UseKernelHeaders: false})
+	opts := runtime.CompileOptions{
+		AdditionalFlags:  getCFlags(cfg),
+		ModifyCallback:   f,
+		UseKernelHeaders: true,
+	}
+	compiledOutput, err := runtime.Dynamicinstrumentation.CompileWithOptions(cfg, opts)
 	if err != nil {
 		return err
 	}
@@ -187,7 +192,10 @@ func CompileBPFProgram(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) erro
 }
 
 func getCFlags(config *ddebpf.Config) []string {
-	cflags := []string{"-g"}
+	cflags := []string{
+		"-g",
+		"-Wno-unused-variable",
+	}
 	if config.BPFDebug {
 		cflags = append(cflags, "-DDEBUG=1")
 	}

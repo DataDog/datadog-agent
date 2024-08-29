@@ -1,5 +1,7 @@
 #include "bpf_helpers.h"
 #include "bpf_tracing.h"
+#include "kconfig.h"
+#include <asm/ptrace.h>
 
 #define MAX_STRING_SIZE {{ .InstrumentationInfo.InstrumentationOptions.StringMaxSize}}
 #define PARAM_BUFFER_SIZE {{ .InstrumentationInfo.InstrumentationOptions.ArgumentsMaxSize}}
@@ -7,17 +9,17 @@
 #define MAX_SLICE_SIZE 1800
 #define MAX_SLICE_LENGTH 20
 
-struct bpf_map_def SEC("maps") events = {
-    .type        = BPF_MAP_TYPE_RINGBUF,
-    .max_entries = 1<<24,
-};
+struct {
+	__uint(type, BPF_MAP_TYPE_RINGBUF);
+	__uint(max_entries, 1 << 24);
+} events SEC(".maps");
 
-struct bpf_map_def SEC("maps") zeroval = {
-    .type        = BPF_MAP_TYPE_ARRAY,
-    .key_size    = sizeof(u32),
-    .value_size  = sizeof(char[PARAM_BUFFER_SIZE]),
-    .max_entries = 1,
-};
+struct {
+	__uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(key_size, sizeof(__u32));
+    __uint(value_size, sizeof(char[PARAM_BUFFER_SIZE]));
+    __uint(max_entries, 1);
+} zeroval SEC(".maps");
 
 // NOTE: Be careful when adding fields, alignment should always be to 8 bytes
 // Parsing logic in user space must be updated for field offsets each time
@@ -55,7 +57,6 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
     bpf_probe_read(&event->probe_id, sizeof(event->probe_id), zero_string);
     bpf_probe_read(&event->program_counters, sizeof(event->program_counters), zero_string);
     bpf_probe_read(&event->output, sizeof(event->output), zero_string);
-
     bpf_probe_read(&event->probe_id, {{ .ID | len }}, "{{.ID}}");
 
     // Get tid and tgid
