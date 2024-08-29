@@ -109,7 +109,7 @@ func fillSymbol(symbol *elf.Symbol, byteOrder binary.ByteOrder, symbolName strin
 }
 
 // getSymbolsUnified extracts the given symbol list from the binary.
-func getSymbolsUnified(f *elf.File, typ elf.SectionType, wantedSymbols common.StringSet, is64Bit bool) ([]elf.Symbol, error) {
+func getSymbolsUnified(f *elf.File, typ elf.SectionType, filter SymbolFilter, is64Bit bool) ([]elf.Symbol, error) {
 	symbolSize := elf.Sym32Size
 	if is64Bit {
 		symbolSize = elf.Sym64Size
@@ -130,10 +130,12 @@ func getSymbolsUnified(f *elf.File, typ elf.SectionType, wantedSymbols common.St
 		return nil, errors.New("section has invalid string table link")
 	}
 
+	numWanted := filter.GetNumWanted()
+
 	// Allocating entries for all wanted symbols.
-	symbols := make([]elf.Symbol, 0, len(wantedSymbols))
+	symbols := make([]elf.Symbol, 0, numWanted)
 	// Extracting the min and max symbol length.
-	minSymbolNameSize, maxSymbolNameSize := getSymbolLengthBoundaries(wantedSymbols)
+	minSymbolNameSize, maxSymbolNameSize := filter.GetMinMaxLength()
 	// Pre-allocating a buffer to read the symbol string into.
 	// The size of the buffer is maxSymbolNameSize + 1, for null termination.
 	symbolNameBuf := make([]byte, maxSymbolNameSize+1)
@@ -177,7 +179,7 @@ func getSymbolsUnified(f *elf.File, typ elf.SectionType, wantedSymbols common.St
 		}
 
 		// Checking the symbol is relevant for us.
-		if _, ok := wantedSymbols[string(symbolNameBuf[:symbolNameSize])]; !ok {
+		if !filter.Want(string(symbolNameBuf[:symbolNameSize])) {
 			continue
 		}
 
@@ -189,7 +191,7 @@ func getSymbolsUnified(f *elf.File, typ elf.SectionType, wantedSymbols common.St
 		symbols = append(symbols, symbol)
 
 		// If no symbols left, stop running.
-		if len(symbols) == len(wantedSymbols) {
+		if len(symbols) == numWanted {
 			break
 		}
 	}
@@ -197,13 +199,13 @@ func getSymbolsUnified(f *elf.File, typ elf.SectionType, wantedSymbols common.St
 	return symbols, nil
 }
 
-func getSymbols(f *elf.File, typ elf.SectionType, wanted map[string]struct{}) ([]elf.Symbol, error) {
+func getSymbols(f *elf.File, typ elf.SectionType, filter SymbolFilter) ([]elf.Symbol, error) {
 	switch f.Class {
 	case elf.ELFCLASS64:
-		return getSymbolsUnified(f, typ, wanted, true)
+		return getSymbolsUnified(f, typ, filter, true)
 
 	case elf.ELFCLASS32:
-		return getSymbolsUnified(f, typ, wanted, false)
+		return getSymbolsUnified(f, typ, filter, false)
 	}
 
 	return nil, errors.New("not implemented")
@@ -212,15 +214,18 @@ func getSymbols(f *elf.File, typ elf.SectionType, wanted map[string]struct{}) ([
 // GetAllSymbolsByName returns all symbols (from the symbolSet) in the given elf file, by the given names.
 // In case of a missing symbol, an error is returned.
 func GetAllSymbolsByName(elfFile *elf.File, symbolSet common.StringSet) (map[string]elf.Symbol, error) {
-	regularSymbols, regularSymbolsErr := getSymbols(elfFile, elf.SHT_SYMTAB, symbolSet)
+	filter := NewStringSetSymbolFilter(symbolSet)
+
+	regularSymbols, regularSymbolsErr := getSymbols(elfFile, elf.SHT_SYMTAB, filter)
 	if regularSymbolsErr != nil && log.ShouldLog(seelog.TraceLvl) {
 		log.Tracef("Failed getting regular symbols of elf file: %s", regularSymbolsErr)
 	}
 
 	var dynamicSymbols []elf.Symbol
 	var dynamicSymbolsErr error
-	if len(regularSymbols) != len(symbolSet) {
-		dynamicSymbols, dynamicSymbolsErr = getSymbols(elfFile, elf.SHT_DYNSYM, symbolSet)
+	numWanted := filter.GetNumWanted()
+	if len(regularSymbols) != numWanted {
+		dynamicSymbols, dynamicSymbolsErr = getSymbols(elfFile, elf.SHT_DYNSYM, filter)
 		if dynamicSymbolsErr != nil && log.ShouldLog(seelog.TraceLvl) {
 			log.Tracef("Failed getting dynamic symbols of elf file: %s", dynamicSymbolsErr)
 		}
@@ -244,14 +249,8 @@ func GetAllSymbolsByName(elfFile *elf.File, symbolSet common.StringSet) (map[str
 		symbolByName[dynamicSymbol.Name] = dynamicSymbol
 	}
 
-	if len(symbolByName) != len(symbolSet) {
-		missingSymbols := make([]string, 0, len(symbolSet)-len(symbolByName))
-		for symbolName := range symbolSet {
-			if _, ok := symbolByName[symbolName]; !ok {
-				missingSymbols = append(missingSymbols, symbolName)
-			}
-
-		}
+	if len(symbolByName) != numWanted {
+		missingSymbols := filter.FindMissing(symbolByName)
 		return nil, fmt.Errorf("failed to find symbols %#v", missingSymbols)
 	}
 
