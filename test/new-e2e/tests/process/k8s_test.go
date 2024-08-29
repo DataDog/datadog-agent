@@ -26,6 +26,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeClient "k8s.io/client-go/kubernetes"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -219,7 +220,7 @@ func (s *K8sSuite) TestProcessCheckInCoreAgentWithNPM() {
 		assert.ElementsMatch(t, []string{"connections"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
 
 		if t.Failed() {
-			t.LogF("status: %+v\n", status)
+			t.Logf("status: %+v\n", status)
 		}
 
 	}, 2*time.Minute, 5*time.Second)
