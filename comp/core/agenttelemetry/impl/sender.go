@@ -15,6 +15,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -338,16 +339,19 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 	}
 
 	// Send the payload to all endpoints
+	var errs error
 	for _, ep := range s.endpoints.Endpoints {
 		url := buildURL(ep)
 		req, err := http.NewRequest("POST", url, bytes.NewReader(reqBody))
 		if err != nil {
-			return err
+			errs = errors.Join(errs, err)
+			continue
 		}
 		s.addHeaders(req, payload.RequestType, ep.GetAPIKey(), strconv.Itoa(len(reqBody)))
 		resp, err := s.client.Do(req.WithContext(ss.cancelCtx))
 		if err != nil {
-			return err
+			errs = errors.Join(errs, err)
+			continue
 		}
 		defer func() {
 			if resp != nil && resp.Body != nil {
@@ -363,7 +367,7 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 		}
 	}
 
-	return nil
+	return errs
 }
 
 func (s *senderImpl) sendAgentMetricPayloads(ss *senderSession, metrics []*agentmetric) error {

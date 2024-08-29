@@ -582,14 +582,31 @@ func TestSenderConfigAdditionalEndpoint(t *testing.T) {
 	assert.Equal(t, "https://instrumentation-telemetry-intake.us5.datadoghq.com/api/v2/apmtelemetry", url)
 }
 
-// TestSenderConfigDDUrl dd_url overrides alone
-func TestSenderConfigDDUrl(t *testing.T) {
+// TestSenderConfigPartialDDUrl dd_url overrides alone
+func TestSenderConfigPartialDDUrl(t *testing.T) {
 	c := `
     site: datadoghq.com
     api_key: foo
     agent_telemetry:
       enabled: true
       dd_url: instrumentation-telemetry-intake.us5.datadoghq.com.
+    `
+	sndr := makeSenderImpl(t, c)
+	assert.NotNil(t, sndr)
+
+	assert.Len(t, sndr.(*senderImpl).endpoints.Endpoints, 1)
+	url := buildURL(sndr.(*senderImpl).endpoints.Endpoints[0])
+	assert.Equal(t, "https://instrumentation-telemetry-intake.us5.datadoghq.com./api/v2/apmtelemetry", url)
+}
+
+// TestSenderConfigFullDDUrl dd_url overrides alone
+func TestSenderConfigFullDDUrl(t *testing.T) {
+	c := `
+    site: datadoghq.com
+    api_key: foo
+    agent_telemetry:
+      enabled: true
+      dd_url: https://instrumentation-telemetry-intake.us5.datadoghq.com.
     `
 	sndr := makeSenderImpl(t, c)
 	assert.NotNil(t, sndr)
