@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jellydator/ttlcache/v3"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -23,21 +25,30 @@ import (
 )
 
 const (
-	defaultKillActionFlushDelay = 2 * time.Second
+	defaultKillActionFlushDelay         = 2 * time.Second
+	defaultDisarmerContainerMaxAllowed  = 100
+	defaultDisarmerExecutableMaxAllowed = 100
 )
 
 // ProcessKiller defines a process killer structure
 type ProcessKiller struct {
 	sync.Mutex
 
+	cfg *config.Config
+
 	pendingReports   []*KillActionReport
 	binariesExcluded []*eval.Glob
 	sourceAllowed    []string
+
+	ruleDisarmersLock sync.Mutex
+	ruleDisarmers     map[rules.RuleID]*killDisarmer
 }
 
 // NewProcessKiller returns a new ProcessKiller
 func NewProcessKiller(cfg *config.Config) (*ProcessKiller, error) {
 	p := &ProcessKiller{
+		cfg:           cfg,
+		ruleDisarmers: make(map[rules.RuleID]*killDisarmer),
 		sourceAllowed: cfg.RuntimeSecurity.EnforcementRuleSourceAllowed,
 	}
 
@@ -129,6 +140,39 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.R
 		return
 	}
 
+	rsConfig := p.cfg.RuntimeSecurity
+
+	if rsConfig.EnforcementDisarmerContainerEnabled || rsConfig.EnforcementDisarmerExecutableEnabled {
+		var dismarmer *killDisarmer
+		p.ruleDisarmersLock.Lock()
+		if dismarmer = p.ruleDisarmers[rule.ID]; dismarmer == nil {
+			dismarmer = newKillDisarmer(rsConfig)
+			p.ruleDisarmers[rule.ID] = dismarmer
+		}
+		p.ruleDisarmersLock.Unlock()
+
+		if rsConfig.EnforcementDisarmerContainerEnabled {
+			if containerID := ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext); containerID != "" {
+				if !dismarmer.allow(dismarmer.containerCache, containerID, func() {
+					seclog.Warnf("disarming kill action for rule `%s` because more than %d different containers triggered it in the last %s", rule.ID, dismarmer.containerCache.capacity, rsConfig.EnforcementDisarmerContainerPeriod)
+				}) {
+					seclog.Warnf("skipping kill action for rule `%s` because it has been disarmed", rule.ID)
+					return
+				}
+			}
+		}
+
+		if rsConfig.EnforcementDisarmerExecutableEnabled {
+			executable := entry.Process.FileEvent.PathnameStr
+			if !dismarmer.allow(dismarmer.executableCache, executable, func() {
+				seclog.Warnf("disarmed kill action for rule `%s` because more than %d different executables triggered it in the last %s", rule.ID, dismarmer.executableCache.capacity, rsConfig.EnforcementDisarmerExecutablePeriod)
+			}) {
+				seclog.Warnf("skipping kill action for rule `%s` because it has been disarmed", rule.ID)
+				return
+			}
+		}
+	}
+
 	switch scope {
 	case "container", "process":
 	default:
@@ -172,4 +216,85 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.R
 	}
 	ev.ActionReports = append(ev.ActionReports, report)
 	p.pendingReports = append(p.pendingReports, report)
+}
+
+// Reset resets the disarmer state
+func (p *ProcessKiller) Reset() {
+	p.ruleDisarmersLock.Lock()
+	clear(p.ruleDisarmers)
+	p.ruleDisarmersLock.Unlock()
+}
+
+type killDisarmer struct {
+	disarmed        bool
+	containerCache  *disarmerCache[string, bool]
+	executableCache *disarmerCache[string, bool]
+}
+
+type disarmerCache[K comparable, V any] struct {
+	*ttlcache.Cache[K, V]
+	capacity uint64
+}
+
+func newDisarmerCache[K comparable, V any](capacity uint64, period time.Duration) *disarmerCache[K, V] {
+	cacheOpts := []ttlcache.Option[K, V]{
+		ttlcache.WithCapacity[K, V](capacity),
+	}
+
+	if period > 0 {
+		cacheOpts = append(cacheOpts, ttlcache.WithTTL[K, V](period))
+	}
+
+	return &disarmerCache[K, V]{
+		Cache:    ttlcache.New[K, V](cacheOpts...),
+		capacity: capacity,
+	}
+}
+
+func newKillDisarmer(cfg *config.RuntimeSecurityConfig) *killDisarmer {
+	kd := &killDisarmer{
+		disarmed: false,
+	}
+
+	if cfg.EnforcementDisarmerContainerEnabled {
+		capacity := uint64(cfg.EnforcementDisarmerContainerMaxAllowed)
+		if capacity == 0 {
+			capacity = defaultDisarmerContainerMaxAllowed
+		}
+		kd.containerCache = newDisarmerCache[string, bool](capacity, cfg.EnforcementDisarmerContainerPeriod)
+	}
+
+	if cfg.EnforcementDisarmerExecutableEnabled {
+		capacity := uint64(cfg.EnforcementDisarmerExecutableMaxAllowed)
+		if capacity == 0 {
+			capacity = defaultDisarmerExecutableMaxAllowed
+		}
+		kd.executableCache = newDisarmerCache[string, bool](capacity, cfg.EnforcementDisarmerExecutablePeriod)
+	}
+
+	return kd
+}
+
+func (kd *killDisarmer) allow(cache *disarmerCache[string, bool], key string, onDisarm func()) bool {
+	if kd.disarmed {
+		return false
+	}
+
+	if cache == nil {
+		return true
+	}
+
+	cache.DeleteExpired()
+	// if the key is not in the cache, check if the new key causes the number of keys to exceed the capacity
+	// otherwise, the key is already in the cache and cache.Get will update its TTL
+	if cache.Get(key) == nil {
+		alreadyAtCapacity := uint64(cache.Len()) >= cache.capacity
+		cache.Set(key, true, ttlcache.DefaultTTL)
+		if alreadyAtCapacity && !kd.disarmed {
+			kd.disarmed = true
+			onDisarm()
+		}
+	}
+
+	return !kd.disarmed
 }

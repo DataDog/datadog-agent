@@ -571,6 +571,7 @@ func (p *EBPFLessProbe) FlushDiscarders() error {
 
 // ApplyRuleSet applies the new ruleset
 func (p *EBPFLessProbe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+	p.processKiller.Reset()
 	return &kfilters.ApplyRuleSetReport{}, nil
 }
 
