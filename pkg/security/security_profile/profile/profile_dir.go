@@ -252,10 +252,12 @@ func (dp *DirectoryProvider) loadProfile(profilePath string) error {
 	}
 
 	// update profile mapping
+	dp.Lock()
 	dp.profileMapping[profileManagerSelector] = profileFSEntry{
 		path:     profilePath,
 		selector: workloadSelector,
 	}
+	dp.Unlock()
 
 	seclog.Debugf("security profile %s loaded from file system", workloadSelector)
 
