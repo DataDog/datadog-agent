@@ -116,17 +116,6 @@ func testResourceTraces(twrs []traceWithResource) ptrace.Traces {
 	return td
 }
 
-type testTaggerClient struct {
-	m map[string][]string
-}
-
-func (t *testTaggerClient) Tag(entityID string, _ types.TagCardinality) ([]string, error) {
-	return t.m[entityID], nil
-}
-func (t *testTaggerClient) GlobalTags(_ types.TagCardinality) ([]string, error) {
-	return t.m[collectors.GlobalEntityID], nil
-}
-
 func TestInfraAttributesTraceProcessor(t *testing.T) {
 	for _, test := range standardTraceTests {
 		t.Run(test.name, func(t *testing.T) {

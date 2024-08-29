@@ -22,11 +22,6 @@ type factory struct {
 	tagger taggerClient
 }
 
-type taggerClient interface {
-	Tag(entity string, cardinality types.TagCardinality) ([]string, error)
-	GlobalTags(cardinality types.TagCardinality) ([]string, error)
-}
-
 // NewFactory returns a new factory for the InfraAttributes processor.
 func NewFactory(tagger taggerClient) processor.Factory {
 	f := &factory{
