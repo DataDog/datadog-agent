@@ -42,7 +42,6 @@ if __name__ == '__main__':
             cleanup_files(postinst_python_installed_packages_file, prerm_python_installed_packages_file)
         else:
             print(f"File {postinst_python_installed_packages_file} does not exist.")
-            sys.exit(1)
     else:
         print(f"Directory {install_directory} does not exist.")
         sys.exit(1)

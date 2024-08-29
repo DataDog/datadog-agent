@@ -23,7 +23,6 @@ def install_diff_packages_file(directory):
         packages.install_diff_packages_file(diff_python_installed_packages_file)
     else:
         print(f"File {diff_python_installed_packages_file} does not exist.")
-        sys.exit(1)
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
