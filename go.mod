@@ -318,7 +318,7 @@ require (
 	k8s.io/api v0.31.0
 	k8s.io/apiextensions-apiserver v0.29.2
 	k8s.io/apimachinery v0.31.0
-	k8s.io/apiserver v0.29.3 // indirect
+	k8s.io/apiserver v0.31.0 // indirect
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.13.0
 	k8s.io/client-go v0.31.0
 	k8s.io/cri-api v0.29.3
@@ -328,7 +328,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
 	k8s.io/kube-state-metrics/v2 v2.8.2
 	k8s.io/kubelet v0.29.3
-	k8s.io/metrics v0.28.6
+	k8s.io/metrics v0.31.0
 	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
 	sigs.k8s.io/custom-metrics-apiserver v1.28.0
 
@@ -577,7 +577,7 @@ require (
 	gopkg.in/cheggaaa/pb.v1 v1.0.28 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
-	k8s.io/component-base v0.29.3
+	k8s.io/component-base v0.31.0
 	mellium.im/sasl v0.3.1 // indirect
 	modernc.org/cc/v3 v3.41.0 // indirect
 	modernc.org/ccgo/v3 v3.16.15 // indirect
@@ -586,7 +586,7 @@ require (
 	modernc.org/memory v1.7.2 // indirect
 	modernc.org/opt v0.1.3 // indirect
 	modernc.org/sqlite v1.29.5
-	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.28.0 // indirect
+	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.30.3 // indirect
 	sigs.k8s.io/controller-runtime v0.17.3 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
@@ -752,7 +752,7 @@ require (
 	go.opentelemetry.io/collector/service v0.108.1
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
 	go4.org/mem v0.0.0-20220726221520-4f986261bf13
-	k8s.io/cli-runtime v0.29.0
+	k8s.io/cli-runtime v0.31.0
 	k8s.io/kubectl v0.29.0
 )
 
@@ -801,7 +801,7 @@ require (
 	github.com/antchfx/htmlquery v1.3.0 // indirect
 	github.com/antchfx/xmlquery v1.3.1 // indirect
 	github.com/antchfx/xpath v1.2.3 // indirect
-	github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230305170008-8188dc5388df // indirect
+	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/apache/thrift v0.20.0 // indirect
 	github.com/aquasecurity/trivy-java-db v0.0.0-20240109071736-184bd7481d48 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.27.4 // indirect
@@ -846,7 +846,7 @@ require (
 	github.com/godror/knownpb v0.1.0 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
-	github.com/google/cel-go v0.17.7 // indirect
+	github.com/google/cel-go v0.20.1 // indirect
 	github.com/google/flatbuffers v24.3.25+incompatible // indirect
 	github.com/google/gnostic-models v0.6.8 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
@@ -1012,11 +1012,12 @@ require (
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240711142825-46eb208f015d // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240708141625-4ad9e859172b // indirect
+	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gotest.tools/v3 v3.5.1 // indirect
 	honnef.co/go/tools v0.4.5 // indirect
-	k8s.io/kms v0.29.0 // indirect
+	k8s.io/kms v0.31.0 // indirect
 	lukechampine.com/uint128 v1.3.0 // indirect
 	modernc.org/strutil v1.2.0 // indirect
 	modernc.org/token v1.1.0 // indirect
@@ -1047,9 +1048,6 @@ replace (
 // Patch was pushed upstream but maintainers would prefer moving to slog once 1.22 is out
 replace github.com/aquasecurity/trivy-db => github.com/datadog/trivy-db v0.0.0-20240228172000-42caffdaee3f
 
-// Use a version of cel-go compatible with k8s.io/kubeapiserver 0.27.6
-replace github.com/google/cel-go => github.com/google/cel-go v0.16.1
-
 // Fixes CVE-2023-1732, imported by nikos
 replace github.com/cloudflare/circl => github.com/cloudflare/circl v1.3.7
 
@@ -1068,17 +1066,17 @@ exclude (
 
 replace (
 	// Stick to v0.28.6 even if trivy want v0.29.x, the way we use trivy shouldn't require any k8s.io packages
-	k8s.io/api => k8s.io/api v0.28.6
-	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.28.6
+	k8s.io/api => k8s.io/api v0.31.0
+	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.31.0
 	k8s.io/apimachinery => k8s.io/apimachinery v0.31.0
-	k8s.io/apiserver => k8s.io/apiserver v0.28.6
-	k8s.io/cli-runtime => k8s.io/cli-runtime v0.28.6
-	k8s.io/client-go => k8s.io/client-go v0.28.6
-	k8s.io/component-base => k8s.io/component-base v0.28.6
-	k8s.io/kms => k8s.io/kms v0.28.6
+	k8s.io/apiserver => k8s.io/apiserver v0.31.0
+	k8s.io/cli-runtime => k8s.io/cli-runtime v0.31.0
+	k8s.io/client-go => k8s.io/client-go v0.31.0
+	k8s.io/component-base => k8s.io/component-base v0.31.0
+	k8s.io/kms => k8s.io/kms v0.31.0
 	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20230901164831-6c774f458599
-	k8s.io/kubectl => k8s.io/kubectl v0.28.6
-	k8s.io/metrics => k8s.io/metrics v0.28.6
+	k8s.io/kubectl => k8s.io/kubectl v0.31.0
+	k8s.io/metrics => k8s.io/metrics v0.31.0
 )
 
 // Prevent dependencies to be bumped by Trivy
