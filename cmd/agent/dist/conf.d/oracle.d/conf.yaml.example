@@ -90,9 +90,9 @@ instances:
     # oracle_client: false
 
     ## @param oracle_client_lib_dir - boolean - optional
-    ## Specify the directory with Oracle client libraries. Relevan only if `oracle_client = true`.
+    ## Specify the directory with Oracle client libraries. Relevant only if `oracle_client = true`.
     #
-    # oracle_client: <ORACLE_CLIENT_DIR>
+    # oracle_client_lib_dir: <ORACLE_CLIENT_LIB_DIR>
 
     ## @param username - string - required
     ## Username for the Datadog-Oracle server check user. The user has to exist in CDB.
