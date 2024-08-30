@@ -37,22 +37,17 @@ const (
 	trace
 )
 
-type level struct {
-	value   logLevel
-	mapping string
-}
-
 // datadog agent log levels: trace, debug, info, warn, error, critical, and off
 // otel log levels: disabled, debug, info, warn, error
-var logLevelMap = map[string]level{
-	"off":      {value: off, mapping: "off"},
-	"disabled": {value: off, mapping: "off"},
-	"trace":    {value: trace, mapping: "trace"},
-	"debug":    {value: debug, mapping: "debug"},
-	"info":     {value: info, mapping: "info"},
-	"warn":     {value: warn, mapping: "warn"},
-	"error":    {value: err, mapping: "error"},
-	"critical": {value: critical, mapping: "critical"},
+var logLevelMap = map[string]logLevel{
+	"off":      off,
+	"disabled": off,
+	"trace":    trace,
+	"debug":    debug,
+	"info":     info,
+	"warn":     warn,
+	"error":    err,
+	"critical": critical,
 }
 
 // NewConfigComponent creates a new config component from the given URIs
@@ -90,6 +85,14 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	apiKey := string(ddc.API.Key)
 	// Set the global agent config
 	pkgconfig := pkgconfigsetup.Datadog()
+
+	pkgconfig.SetConfigName("OTel")
+	pkgconfig.SetEnvPrefix("DD")
+	pkgconfig.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	pkgconfig.BindEnvAndSetDefault("log_level", "info")
+
+	activeLogLevelStr := "critical"
+	activeLogLevel := critical
 	if len(ddCfg) != 0 {
 		// if the configuration file path was supplied via CLI flags or env vars,
 		// add that first so it's first in line
@@ -103,64 +106,65 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		if err != nil {
 			return nil, err
 		}
+		var ok bool
+		agentLogLevel := pkgconfig.GetString("log_level")
+		activeLogLevel, ok = logLevelMap[agentLogLevel]
+		if !ok {
+			return nil, fmt.Errorf("invalid log level (%v) set in the Datadog Agent configuration", agentLogLevel)
+		}
+		activeLogLevelStr = agentLogLevel
 	}
 
 	// Set the right log level. The most verbose setting takes precedence.
-	var logLevel string
-	agentLogLevel := pkgconfig.GetString("log_level")
 	telemetryLogLevel := sc.Telemetry.Logs.Level
-	agentLogMapping, ok := logLevelMap[agentLogLevel]
-	if ok {
-		logLevel = agentLogLevel
-	}
 	telemetryLogMapping, ok := logLevelMap[telemetryLogLevel.String()]
-	if ok {
-		if telemetryLogMapping.value > agentLogMapping.value {
-			logLevel = telemetryLogLevel.String()
-		}
+	if !ok {
+		return nil, fmt.Errorf("invalid log level (%v) set in the OTel Telemetry configuration", telemetryLogLevel.String())
 	}
-	pkgconfig.Set("log_level", logLevel, pkgconfigmodel.SourceLocalConfigProcess)
-
-	pkgconfig.SetConfigName("OTel")
-	pkgconfig.SetEnvPrefix("DD")
-	pkgconfig.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	if telemetryLogMapping > activeLogLevel {
+		activeLogLevelStr = telemetryLogLevel.String()
+	}
 
 	// Override config read (if any) with Default values
 	pkgconfigsetup.InitConfig(pkgconfig)
-	pkgconfig.Set("api_key", apiKey, pkgconfigmodel.SourceLocalConfigProcess)
-	pkgconfig.Set("site", site, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfigmodel.ApplyOverrideFuncs(pkgconfig)
 
-	pkgconfig.Set("dd_url", ddc.Metrics.Endpoint, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("log_level", activeLogLevelStr, pkgconfigmodel.SourceFile)
+
+	pkgconfig.Set("api_key", apiKey, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("site", site, pkgconfigmodel.SourceFile)
+
+	pkgconfig.Set("dd_url", ddc.Metrics.Endpoint, pkgconfigmodel.SourceFile)
 
 	// Log configs
-	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceLocalConfigProcess)
-	pkgconfig.Set("logs_config.force_use_http", true, pkgconfigmodel.SourceLocalConfigProcess)
-	pkgconfig.Set("logs_config.logs_dd_url", ddc.Logs.Endpoint, pkgconfigmodel.SourceLocalConfigProcess)
-	pkgconfig.Set("logs_config.batch_wait", ddc.Logs.BatchWait, pkgconfigmodel.SourceLocalConfigProcess)
-	pkgconfig.Set("logs_config.use_compression", ddc.Logs.UseCompression, pkgconfigmodel.SourceLocalConfigProcess)
-	pkgconfig.Set("logs_config.compression_level", ddc.Logs.CompressionLevel, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceDefault)
+	pkgconfig.Set("logs_config.force_use_http", true, pkgconfigmodel.SourceDefault)
+	pkgconfig.Set("logs_config.logs_dd_url", ddc.Logs.Endpoint, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("logs_config.batch_wait", ddc.Logs.BatchWait, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("logs_config.use_compression", ddc.Logs.UseCompression, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("logs_config.compression_level", ddc.Logs.CompressionLevel, pkgconfigmodel.SourceFile)
 
 	// APM & OTel trace configs
-	pkgconfig.Set("apm_config.enabled", true, pkgconfigmodel.SourceLocalConfigProcess)
-	pkgconfig.Set("apm_config.apm_non_local_traffic", true, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("apm_config.enabled", true, pkgconfigmodel.SourceDefault)
+	pkgconfig.Set("apm_config.apm_non_local_traffic", true, pkgconfigmodel.SourceDefault)
 
-	pkgconfig.Set("apm_config.debug.port", 0, pkgconfigmodel.SourceLocalConfigProcess)      // Disabled in the otel-agent
-	pkgconfig.Set(pkgconfigsetup.OTLPTracePort, 0, pkgconfigmodel.SourceLocalConfigProcess) // Disabled in the otel-agent
+	pkgconfig.Set("apm_config.debug.port", 0, pkgconfigmodel.SourceDefault)      // Disabled in the otel-agent
+	pkgconfig.Set(pkgconfigsetup.OTLPTracePort, 0, pkgconfigmodel.SourceDefault) // Disabled in the otel-agent
 
-	pkgconfig.Set("otlp_config.traces.span_name_as_resource_name", ddc.Traces.SpanNameAsResourceName, pkgconfigmodel.SourceLocalConfigProcess)
-	pkgconfig.Set("otlp_config.traces.span_name_remappings", ddc.Traces.SpanNameRemappings, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("otlp_config.traces.span_name_as_resource_name", ddc.Traces.SpanNameAsResourceName, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("otlp_config.traces.span_name_remappings", ddc.Traces.SpanNameRemappings, pkgconfigmodel.SourceFile)
 
-	pkgconfig.Set("apm_config.receiver_enabled", false, pkgconfigmodel.SourceLocalConfigProcess) // disable HTTP receiver
-	pkgconfig.Set("apm_config.ignore_resources", ddc.Traces.IgnoreResources, pkgconfigmodel.SourceLocalConfigProcess)
-	pkgconfig.Set("apm_config.skip_ssl_validation", ddc.ClientConfig.TLSSetting.InsecureSkipVerify, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("apm_config.receiver_enabled", false, pkgconfigmodel.SourceDefault) // disable HTTP receiver
+	pkgconfig.Set("apm_config.ignore_resources", ddc.Traces.IgnoreResources, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("apm_config.skip_ssl_validation", ddc.ClientConfig.TLSSetting.InsecureSkipVerify, pkgconfigmodel.SourceFile)
 	if v := ddc.Traces.TraceBuffer; v > 0 {
-		pkgconfig.Set("apm_config.trace_buffer", v, pkgconfigmodel.SourceLocalConfigProcess)
+		pkgconfig.Set("apm_config.trace_buffer", v, pkgconfigmodel.SourceFile)
 	}
 	if addr := ddc.Traces.Endpoint; addr != "" {
-		pkgconfig.Set("apm_config.apm_dd_url", addr, pkgconfigmodel.SourceLocalConfigProcess)
+		pkgconfig.Set("apm_config.apm_dd_url", addr, pkgconfigmodel.SourceFile)
 	}
 	if ddc.Traces.ComputeTopLevelBySpanKind {
-		pkgconfig.Set("apm_config.features", []string{"enable_otlp_compute_top_level_by_span_kind"}, pkgconfigmodel.SourceLocalConfigProcess)
+		pkgconfig.Set("apm_config.features", []string{"enable_otlp_compute_top_level_by_span_kind"}, pkgconfigmodel.SourceFile)
 	}
 
 	return pkgconfig, nil
