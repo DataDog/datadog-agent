@@ -5,6 +5,7 @@ go 1.22.0
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../../cmd/agent/common/path
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../comp/api/api/def
+	github.com/DataDog/datadog-agent/comp/api/authtoken => ../../../../comp/api/authtoken
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../comp/core/flare/types
@@ -34,7 +35,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/config v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/comp/core/config v0.56.2
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.56.0-rc.3
 	github.com/stretchr/testify v1.9.0
 	go.opentelemetry.io/collector/confmap v0.104.0
@@ -48,10 +49,10 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.56.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.56.2 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.58.0-devel // indirect
@@ -59,7 +60,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.56.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.2 // indirect

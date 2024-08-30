@@ -59,6 +59,8 @@ github.com/DataDog/agent-payload/v5 v5.0.123 h1:fc/mME+zXBPo8i8690rVJXeqlZ1o+8ix
 github.com/DataDog/agent-payload/v5 v5.0.123/go.mod h1:FgVQKmVdqdmZTbxIptqJC/l+xEzdiXsaAOs/vGAvWzs=
 github.com/DataDog/datadog-agent/comp/core/log v0.54.0 h1:wP3bJua8qmURqLXkmYxrbELMJQ2oO1MuVNfxHJT4wiQ=
 github.com/DataDog/datadog-agent/comp/core/log v0.54.0/go.mod h1:mtMxZiwg13b4bHgDf8xE6FHgTcadzI5Cc0lx2MSY1mE=
+github.com/DataDog/datadog-agent/pkg/api v0.56.2 h1:gxC0lHK6kVt39F60iqRlC1Hp8Ca4+mFzHZ8L+n6zu6k=
+github.com/DataDog/datadog-agent/pkg/api v0.56.2/go.mod h1:ZUs3zQrbysHi11uKvYIhxyygjSAgtZGyG5W+TBJ0sgo=
 github.com/DataDog/datadog-api-client-go/v2 v2.26.0 h1:bZr0hu+hx8L91+yU5EGw8wK3FlCVEIashpx+cylWsf0=
 github.com/DataDog/datadog-api-client-go/v2 v2.26.0/go.mod h1:QKOu6vscsh87fMY1lHfLEmNSunyXImj8BUaUWJXOehc=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
@@ -358,6 +360,8 @@ github.com/googleapis/gax-go/v2 v2.12.2/go.mod h1:61M8vcyyXR2kqKFxKrfA22jaA8JGF7
 github.com/gophercloud/gophercloud v1.8.0 h1:TM3Jawprb2NrdOnvcHhWJalmKmAmOGgfZElM/3oBYCk=
 github.com/gophercloud/gophercloud v1.8.0/go.mod h1:aAVqcocTSXh2vYFZ1JTvx4EQmfgzxRcNupUfxZbBNDM=
 github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1/go.mod h1:wJfORRmW1u3UXTncJ5qlYoELFm8eSnnEO6hX4iZ3EWY=
+github.com/gorilla/mux v1.8.1 h1:TuBL49tXwgrFYWhqrNgrUNEY92u81SPhu7sTdzQEiWY=
+github.com/gorilla/mux v1.8.1/go.mod h1:AKf9I4AEqPTmMytcMc0KkNouC66V3BtZ4qD5fmWSiMQ=
 github.com/gorilla/websocket v1.4.0/go.mod h1:E7qHFY5m1UJ88s3WnNqhKjPHQ0heANvMoAMk2YaljkQ=
 github.com/gorilla/websocket v1.5.0 h1:PPwGk2jz7EePpoHN/+ClbZu8SPxiqlu12wZP/3sWmnc=
 github.com/gorilla/websocket v1.5.0/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=

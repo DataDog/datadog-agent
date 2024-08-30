@@ -26,6 +26,7 @@ replace (
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ./cmd/agent/common/path/
 	github.com/DataDog/datadog-agent/comp/api/api/def => ./comp/api/api/def/
+	github.com/DataDog/datadog-agent/comp/api/authtoken => ./comp/api/authtoken
 	github.com/DataDog/datadog-agent/comp/core/config => ./comp/core/config/
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ./comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ./comp/core/flare/types
@@ -596,6 +597,7 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/comp/api/authtoken v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.56.2
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.0.0-00010101000000-000000000000
@@ -617,7 +619,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.56.0
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.56.0
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/core/log/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/log/def v0.58.0-devel
 	github.com/DataDog/datadog-agent/comp/core/log/impl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/log/impl-trace v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.0.0-00010101000000-000000000000
