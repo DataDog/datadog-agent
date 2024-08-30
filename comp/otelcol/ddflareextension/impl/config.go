@@ -22,8 +22,8 @@ var (
 	errHTTPEndpointRequired  = errors.New("http endpoint required")
 	supportedDebugExtensions = map[string]extractDebugEndpoint{
 		"health_check": healthExtractEndpoint,
-		"zpages": zPagesExtractEndpoint,
-		"pprof":  pprofExtractEndpoint,
+		"zpages":       zPagesExtractEndpoint,
+		"pprof":        pprofExtractEndpoint,
 	}
 )
 

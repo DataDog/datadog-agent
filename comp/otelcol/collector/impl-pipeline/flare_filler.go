@@ -109,15 +109,6 @@ func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 	return nil
 }
 
-func contains(s []string, e string) bool {
-	for _, a := range s {
-		if a == e {
-			return true
-		}
-	}
-	return false
-}
-
 func toJSON(it interface{}) string {
 	data, err := json.Marshal(it)
 	if err != nil {
