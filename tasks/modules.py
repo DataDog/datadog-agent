@@ -151,6 +151,7 @@ DEFAULT_MODULES = {
     "comp/core/tagger/types": GoModule("comp/core/tagger/types", independent=True, used_by_otel=True),
     "comp/core/tagger/utils": GoModule("comp/core/tagger/utils", independent=True, used_by_otel=True),
     "comp/core/telemetry": GoModule("comp/core/telemetry", independent=True, used_by_otel=True),
+    "comp/core/workloadmeta/collectors/util": GoModule("comp/core/workloadmeta/collectors/util", independent=True),
     "comp/core/workloadmeta/def": GoModule("comp/core/workloadmeta/def", independent=True, used_by_otel=True),
     "comp/def": GoModule("comp/def", independent=True, used_by_otel=True),
     "comp/forwarder/defaultforwarder": GoModule("comp/forwarder/defaultforwarder", independent=True, used_by_otel=True),
