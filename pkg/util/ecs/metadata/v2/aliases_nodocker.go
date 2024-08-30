@@ -3,12 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-//go:build docker
+//go:build !docker
 
 // Package v2 provides an ECS client for v2 of the API.
 package v2
 
-import "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2/v2client"
+import (
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2/v2client"
+)
 
 // Aliases for v2client types.go
 type (
@@ -41,22 +43,16 @@ type (
 	NetStats v2client.NetStats
 )
 
-// Aliases for shared v2client/client.go types
+// Aliases for shared v2client/client_nodocker.go types
 type (
 	// Client is an interface for ECS metadata v2 API clients.
 	Client v2client.Client
 )
 
-// Aliases for shared v2client/client.go functions
+// Aliases for shared v2client/client_nodocker.go functions
 var (
-	// NewClient creates a new client for the specified metadata v2 API endpoint.
-	NewClient = v2client.NewClient
 	// NewDefaultClient creates a new client for the default metadata v2 API endpoint.
 	NewDefaultClient = v2client.NewDefaultClient
-	// GetContainerStats returns statistics for a container.
-	GetContainerStats = v2client.GetContainerStats
-	// GetTask returns the current task.
-	GetTask = v2client.GetTask
-	// GetTaskWithTags returns the current task, including propagated resource tags.
-	GetTaskWithTags = v2client.GetTaskWithTags
+	GetTask          = v2client.GetTask
+	GetTaskWithTags  = v2client.GetTaskWithTags
 )

@@ -3,7 +3,5 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-//go:build docker
-
 // Package v2client provides an ECS client for v2 of the API.
 package v2client

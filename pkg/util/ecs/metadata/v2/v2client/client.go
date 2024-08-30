@@ -56,7 +56,7 @@ func NewDefaultClient() Client {
 	return NewClient(defaultAgentURL)
 }
 
-// GetContainerStats returns stastics for a container.
+// GetContainerStats returns statistics for a container.
 func (c *client) GetContainerStats(ctx context.Context, id string) (*ContainerStats, error) {
 	var stats map[string]*ContainerStats
 	// There is a difference in reported JSON in v 1.4.0 vs v1.3.0 so we should
