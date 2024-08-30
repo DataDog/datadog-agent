@@ -7,6 +7,7 @@ package setup
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -193,6 +194,11 @@ func TestProcessConfigPrefixes(t *testing.T) {
 }
 
 func TestEnvVarOverride(t *testing.T) {
+	processRunInAgent := true
+	if runtime.GOOS != "linux" {
+		processRunInAgent = false
+	}
+
 	for _, tc := range []struct {
 		key, env, value string
 		expType         string
@@ -274,7 +280,7 @@ func TestEnvVarOverride(t *testing.T) {
 			key:      "process_config.run_in_core_agent.enabled",
 			env:      "DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED",
 			value:    "true",
-			expected: true,
+			expected: processRunInAgent,
 		},
 		{
 			key:      "process_config.enabled",
