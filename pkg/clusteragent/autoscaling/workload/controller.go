@@ -396,10 +396,19 @@ func (c *Controller) validateAutoscaler(podAutoscaler *datadoghq.DatadogPodAutos
 		return fmt.Errorf("Unable to get the cluster agent pod name: %w", err)
 	}
 
-	deploymentName := kubernetes.ParseDeploymentForPodName(clusterAgentPodName)
+	var resourceName = ""
+	switch owner := podAutoscaler.Spec.TargetRef.Kind; owner {
+	case "Deployment":
+		resourceName = kubernetes.ParseDeploymentForPodName(clusterAgentPodName)
+	case "ReplicaSet":
+		resourceName = kubernetes.ParseReplicaSetForPodName(clusterAgentPodName)
+	default:
+		resourceName = ""
+	}
+
 	clusterAgentNs := common.GetMyNamespace()
 
-	if podAutoscaler.Namespace == clusterAgentNs && podAutoscaler.Spec.TargetRef.Name == deploymentName {
+	if podAutoscaler.Namespace == clusterAgentNs && podAutoscaler.Spec.TargetRef.Name == resourceName {
 		return fmt.Errorf("Autoscaling target cannot be set to the cluster agent")
 	}
 	return nil

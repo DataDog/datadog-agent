@@ -33,6 +33,12 @@ func ParseDeploymentForPodName(name string) string {
 	return ParseDeploymentForReplicaSet(replicaSet)
 }
 
+// ParseReplicaSetForPodName gets the replica set name from a pod name,
+// or returns an empty string if no parent replica set is found.
+func ParseReplicaSetForPodName(name string) string {
+	return removeKubernetesNameSuffix(name)
+}
+
 // ParseCronJobForJob gets the cronjob name from a job,
 // or returns an empty string if no parent cronjob is found.
 // https://github.com/kubernetes/kubernetes/blob/b4e3bd381bd4d7c0db1959341b39558b45187345/pkg/controller/cronjob/utils.go#L156
