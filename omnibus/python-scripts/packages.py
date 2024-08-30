@@ -79,7 +79,7 @@ def install_datadog_package(package):
     run_command(f'datadog-agent integration install -t {package} -r')
 
 def install_dependency_package(pip, package):
-    run_command(f'{pip} install -r {package}')
+    run_command(f'{pip} install {package}')
 
 def install_diff_packages_file(pip, filename):
     """
