@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+
 package usm
 
 import (
@@ -10,8 +12,11 @@ import (
 	"errors"
 	"io/fs"
 	"path"
+	"path/filepath"
+	"runtime"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,12 +25,26 @@ const (
 
 	// we need to use these non-descriptive shorter folder names because of the filename_linting
 	// CI check that limits the number of characters in a path to 255.
-	jbossTestAppRoot    = "../testdata/a"
-	weblogicTestAppRoot = "../testdata/b"
+	jbossTestAppRoot            = "../testdata/a"
+	jbossTestAppRootAbsolute    = "/testdata/a"
+	weblogicTestAppRoot         = "../testdata/b"
+	weblogicTestAppRootAbsolute = "/testdata/b"
 )
+
+func MakeTestSubDirFS(t *testing.T) SubDirFS {
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err)
+
+	full := filepath.Join(curDir, "..", "..", "..", "..", "discovery", "testdata", "root")
+	return NewSubDirFS(full)
+}
 
 func TestExtractServiceMetadata(t *testing.T) {
 	springBootAppFullPath := createMockSpringBootApp(t)
+	sub := MakeTestSubDirFS(t)
+	usmFull, err := filepath.Abs("testdata/root")
+	require.NoError(t, err)
+	subUsmTestData := NewSubDirFS(usmFull)
 	tests := []struct {
 		name                       string
 		cmdline                    []string
@@ -33,6 +52,8 @@ func TestExtractServiceMetadata(t *testing.T) {
 		expectedServiceTag         string
 		expectedAdditionalServices []string
 		fromDDService              bool
+		fs                         *SubDirFS
+		skipOnWindows              bool
 	}{
 		{
 			name:               "empty",
@@ -90,6 +111,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			expectedServiceTag: "flask",
 			envs:               map[string]string{"PWD": "testdata/python"},
+			fs:                 &subUsmTestData,
 		},
 		{
 			name: "python - flask argument in path",
@@ -97,6 +119,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"/opt/python/2.7.11/bin/python2.7", "testdata/python/flask", "run", "--host=0.0.0.0", "--without-threads",
 			},
 			expectedServiceTag: "flask",
+			fs:                 &subUsmTestData,
 		},
 		{
 			name: "python flask in single argument",
@@ -105,6 +128,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			envs:               map[string]string{"PWD": "testdata/python"},
 			expectedServiceTag: "flask",
+			fs:                 &subUsmTestData,
 		},
 		{
 			name: "python - module hello",
@@ -188,6 +212,21 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"./testdata/index.js",
 			},
 			expectedServiceTag: "my-awesome-package",
+			fs:                 &subUsmTestData,
+		},
+		{
+			name: "node js with a symlink to a .js file and valid package.json",
+			cmdline: []string{
+				"/usr/bin/node",
+				"--foo",
+				"./testdata/bins/notjs",
+				"--bar",
+				"./testdata/bins/broken",
+				"./testdata/bins/json-server",
+			},
+			expectedServiceTag: "json-server-package",
+			skipOnWindows:      true,
+			fs:                 &subUsmTestData,
 		},
 		{
 			name: "node js with a valid nested package.json and cwd",
@@ -200,6 +239,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"index.js",
 			},
 			envs:               map[string]string{"PWD": "testdata/deep"}, // it's relative but it's ok for testing purposes
+			fs:                 &subUsmTestData,
 			expectedServiceTag: "my-awesome-package",
 		},
 		{
@@ -237,6 +277,8 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"-Djboss.server.base.dir=" + jbossTestAppRoot + "/standalone"},
 			expectedServiceTag:         "jboss-modules",
 			expectedAdditionalServices: []string{"my-jboss-webapp", "some_context_root", "web3"},
+			fs:                         &sub,
+			envs:                       map[string]string{"PWD": "/sibiling"},
 		},
 		{
 			name: "wildfly 18 domain",
@@ -267,9 +309,12 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"org.jboss.as.server"},
 			expectedServiceTag:         "jboss-modules",
 			expectedAdditionalServices: []string{"web3", "web4"},
+			fs:                         &sub,
+			envs:                       map[string]string{"PWD": "/sibiling"},
 		},
 		{
 			name: "weblogic 12",
+			fs:   &sub,
 			cmdline: []string{"/u01/jdk/bin/java",
 				"-Djava.security.egd=file:/dev/./urandom",
 				"-cp",
@@ -283,7 +328,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"-Dwls.home=/u01/oracle/wlserver/server",
 				"-Dweblogic.home=/u01/oracle/wlserver/server",
 				"weblogic.Server"},
-			envs:                       map[string]string{"PWD": weblogicTestAppRoot},
+			envs:                       map[string]string{"PWD": weblogicTestAppRootAbsolute},
 			expectedServiceTag:         "Server",
 			expectedAdditionalServices: []string{"my_context", "sample4", "some_context_root"},
 		},
@@ -319,6 +364,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			expectedServiceTag:         "catalina",
 			expectedAdditionalServices: []string{"app2", "custom"},
+			fs:                         &subUsmTestData,
 		},
 		{
 			name: "dotnet cmd with dll",
@@ -493,7 +539,16 @@ func TestExtractServiceMetadata(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			meta, ok := ExtractServiceMetadata(tt.cmdline, tt.envs)
+			if tt.skipOnWindows && runtime.GOOS == "windows" {
+				t.Skip("Not supported on Windows")
+			}
+
+			var fs fs.SubFS
+			fs = RealFs{}
+			if tt.fs != nil {
+				fs = *tt.fs
+			}
+			meta, ok := ExtractServiceMetadata(tt.cmdline, tt.envs, fs, make(DetectorContextMap))
 			if len(tt.expectedServiceTag) == 0 {
 				require.False(t, ok)
 			} else {
@@ -571,4 +626,40 @@ func (s shadowFS) Sub(dir string) (fs.FS, error) {
 		return nil, err
 	}
 	return shadowFS{filesystem: fsys, parent: s}, nil
+}
+
+func TestSubDirFS(t *testing.T) {
+	fs := NewSubDirFS("testdata/root/")
+	_, err := fs.Stat("/testdata/index.js")
+	require.NoError(t, err)
+
+	_, err = fs.Stat("testdata/index.js")
+	require.NoError(t, err)
+
+	_, err = fs.Stat("../root")
+	require.Error(t, err)
+
+	_, err = fs.Stat("/testdata/python/../index.js")
+	require.NoError(t, err)
+
+	_, err = fs.Stat("testdata/python/../index.js")
+	require.NoError(t, err)
+
+	f, err := fs.Open("testdata/python/../index.js")
+	require.NoError(t, err)
+	t.Cleanup(func() { f.Close() })
+
+	sub, err := fs.Sub("testdata")
+	require.NoError(t, err)
+	f2, err := sub.Open("index.js")
+	require.NoError(t, err)
+	t.Cleanup(func() { f2.Close() })
+
+	entries, err := fs.ReadDir("/testdata")
+	require.NoError(t, err)
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	require.Contains(t, names, "index.js")
 }

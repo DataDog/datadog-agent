@@ -215,7 +215,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 
 	if err != nil {
 		// load the kprobe tracer
-		log.Info("fentry tracer not supported, falling back to kprobe tracer")
+		log.Info("loading kprobe-based tracer")
 		var kprobeTracerType kprobe.TracerType
 		m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, connCloseEventHandler, failedConnsHandler)
 		if err != nil {

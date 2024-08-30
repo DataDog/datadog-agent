@@ -47,8 +47,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 		demultiplexerimpl.MockModule(),
 		dogstatsd.Bundle(),
 		defaultforwarder.MockModule(),
-		workloadmetafxmock.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	s := DsdStatsRuntimeSetting{

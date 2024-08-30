@@ -81,8 +81,8 @@ func TestCorrectLabelIsAssigned(t *testing.T) {
 			label:      aggregate,
 		}
 
-		assert.True(t, tokenizer.Process(context))
-		assert.True(t, timestampDetector.Process(context))
+		assert.True(t, tokenizer.ProcessAndContinue(context))
+		assert.True(t, timestampDetector.ProcessAndContinue(context))
 		match := timestampDetector.tokenGraph.MatchProbability(context.tokens)
 		assert.Equal(t, testInput.label, context.label, fmt.Sprintf("input: %s had the wrong label with probability: %f", testInput.input, match.probability))
 

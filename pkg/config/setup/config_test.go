@@ -6,6 +6,7 @@
 package setup
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path"
@@ -41,8 +42,16 @@ func unsetEnvForTest(t *testing.T, env string) {
 	})
 }
 
+func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.Config {
+	conf := newTestConf()
+	conf.SetConfigType("yaml")
+	err := conf.ReadConfig(bytes.NewBuffer([]byte(yamlConfig)))
+	require.NoError(t, err)
+	return conf
+}
+
 func TestDefaults(t *testing.T) {
-	config := Conf()
+	config := newTestConf()
 
 	// Testing viper's handling of defaults
 	assert.False(t, config.IsSet("site"))
@@ -63,7 +72,7 @@ func TestUnexpectedUnicode(t *testing.T) {
 	keyYaml := "api_\u202akey: fakeapikey\n"
 	valueYaml := "api_key: fa\u202akeapikey\n"
 
-	testConfig := ConfFromYAML(keyYaml)
+	testConfig := confFromYAML(t, keyYaml)
 
 	warnings := findUnexpectedUnicode(testConfig)
 	require.Len(t, warnings, 1)
@@ -71,7 +80,7 @@ func TestUnexpectedUnicode(t *testing.T) {
 	assert.Contains(t, warnings[0], "Configuration key string")
 	assert.Contains(t, warnings[0], "U+202A")
 
-	testConfig = ConfFromYAML(valueYaml)
+	testConfig = confFromYAML(t, valueYaml)
 
 	warnings = findUnexpectedUnicode(testConfig)
 
@@ -82,7 +91,7 @@ func TestUnexpectedUnicode(t *testing.T) {
 
 func TestUnexpectedNestedUnicode(t *testing.T) {
 	yaml := "runtime_security_config:\n  activity_dump:\n    remote_storage:\n      endpoints:\n        logs_dd_url: \"http://\u202adatadawg.com\""
-	testConfig := ConfFromYAML(yaml)
+	testConfig := confFromYAML(t, yaml)
 
 	warnings := findUnexpectedUnicode(testConfig)
 	require.Len(t, warnings, 1)
@@ -114,7 +123,7 @@ func TestUnexpectedWhitespace(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		testConfig := ConfFromYAML(tc.yaml)
+		testConfig := confFromYAML(t, tc.yaml)
 		warnings := findUnexpectedUnicode(testConfig)
 		require.Len(t, warnings, 1)
 
@@ -124,21 +133,15 @@ func TestUnexpectedWhitespace(t *testing.T) {
 }
 
 func TestUnknownKeysWarning(t *testing.T) {
-	yamlBase := `
-site: datadoghq.eu
-`
-	confBase := ConfFromYAML(yamlBase)
-	assert.Len(t, findUnknownKeys(confBase), 0)
+	conf := newTestConf()
+	conf.SetWithoutSource("site", "datadoghq.eu")
+	assert.Len(t, findUnknownKeys(conf), 0)
 
-	yamlWithUnknownKeys := `
-site: datadoghq.eu
-unknown_key.unknown_subkey: true
-`
-	confWithUnknownKeys := ConfFromYAML(yamlWithUnknownKeys)
-	assert.Len(t, findUnknownKeys(confWithUnknownKeys), 1)
+	conf.SetWithoutSource("unknown_key.unknown_subkey", "true")
+	assert.Len(t, findUnknownKeys(conf), 1)
 
-	confWithUnknownKeys.SetKnown("unknown_key.*")
-	assert.Len(t, findUnknownKeys(confWithUnknownKeys), 0)
+	conf.SetKnown("unknown_key.*")
+	assert.Len(t, findUnknownKeys(conf), 0)
 }
 
 func TestUnknownVarsWarning(t *testing.T) {
@@ -149,7 +152,7 @@ func TestUnknownVarsWarning(t *testing.T) {
 			if unknown {
 				exp = append(exp, v)
 			}
-			assert.Equal(t, exp, findUnknownEnvVars(Conf(), env, additional))
+			assert.Equal(t, exp, findUnknownEnvVars(newTestConf(), env, additional))
 		}
 	}
 	t.Run("DD_API_KEY", test("DD_API_KEY", false, nil))
@@ -164,26 +167,26 @@ func TestUnknownVarsWarning(t *testing.T) {
 }
 
 func TestDefaultTraceManagedServicesEnvVarValue(t *testing.T) {
-	testConfig := ConfFromYAML("")
+	testConfig := newTestConf()
 	assert.Equal(t, true, testConfig.Get("serverless.trace_managed_services"))
 }
 
 func TestExplicitFalseTraceManagedServicesEnvVar(t *testing.T) {
 	t.Setenv("DD_TRACE_MANAGED_SERVICES", "false")
-	testConfig := ConfFromYAML("")
+	testConfig := newTestConf()
 	assert.Equal(t, false, testConfig.Get("serverless.trace_managed_services"))
 }
 
 func TestDDHostnameFileEnvVar(t *testing.T) {
 	t.Setenv("DD_API_KEY", "fakeapikey")
 	t.Setenv("DD_HOSTNAME_FILE", "somefile")
-	testConfig := ConfFromYAML("")
+	testConfig := newTestConf()
 
 	assert.Equal(t, "somefile", testConfig.Get("hostname_file"))
 }
 
 func TestIsCloudProviderEnabled(t *testing.T) {
-	config := Conf()
+	config := newTestConf()
 
 	config.SetWithoutSource("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "tencent"})
 	assert.True(t, IsCloudProviderEnabled("AWS", config))
@@ -215,7 +218,7 @@ func TestIsCloudProviderEnabled(t *testing.T) {
 }
 
 func TestEnvNestedConfig(t *testing.T) {
-	config := Conf()
+	config := newTestConf()
 	config.BindEnv("foo.bar.nested")
 	t.Setenv("DD_FOO_BAR_NESTED", "baz")
 
@@ -425,7 +428,7 @@ func TestProxy(t *testing.T) {
 			// CircleCI sets NO_PROXY, so unset it for this test
 			unsetEnvForTest(t, "NO_PROXY")
 
-			config := Conf()
+			config := newTestConf()
 			config.SetWithoutSource("use_proxy_for_cloud_metadata", c.proxyForCloudMetadata)
 
 			path := t.TempDir()
@@ -534,7 +537,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 	}
 	for _, c := range testCases {
 		t.Run(c.name, func(t *testing.T) {
-			config := Conf()
+			config := newTestConf()
 
 			path := t.TempDir()
 			configPath := filepath.Join(path, "empty_conf.yaml")
@@ -558,7 +561,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 }
 
 func TestSanitizeAPIKeyConfig(t *testing.T) {
-	config := Conf()
+	config := newTestConf()
 
 	config.SetWithoutSource("api_key", "foo")
 	sanitizeAPIKeyConfig(config, "api_key")
@@ -578,7 +581,7 @@ func TestSanitizeAPIKeyConfig(t *testing.T) {
 }
 
 func TestNumWorkers(t *testing.T) {
-	config := Conf()
+	config := newTestConf()
 
 	config.SetWithoutSource("python_version", "2")
 	config.SetWithoutSource("tracemalloc_debug", true)
@@ -619,7 +622,7 @@ external_config:
 		"api_key": "overrided",
 	})
 
-	config := ConfFromYAML(datadogYaml)
+	config := confFromYAML(t, datadogYaml)
 	pkgconfigmodel.ApplyOverrideFuncs(config)
 
 	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
@@ -659,7 +662,7 @@ dogstatsd_mapper_profiles:
         tags:
           foo: "$1"
 `
-	testConfig := ConfFromYAML(datadogYaml)
+	testConfig := confFromYAML(t, datadogYaml)
 
 	profiles, err := getDogstatsdMappingProfilesConfig(testConfig)
 
@@ -702,7 +705,7 @@ func TestDogstatsdMappingProfilesEmpty(t *testing.T) {
 	datadogYaml := `
 dogstatsd_mapper_profiles:
 `
-	testConfig := ConfFromYAML(datadogYaml)
+	testConfig := confFromYAML(t, datadogYaml)
 
 	profiles, err := getDogstatsdMappingProfilesConfig(testConfig)
 
@@ -717,7 +720,7 @@ func TestDogstatsdMappingProfilesError(t *testing.T) {
 dogstatsd_mapper_profiles:
   - abc
 `
-	testConfig := ConfFromYAML(datadogYaml)
+	testConfig := confFromYAML(t, datadogYaml)
 	profiles, err := getDogstatsdMappingProfilesConfig(testConfig)
 
 	expectedErrorMsg := "Could not parse dogstatsd_mapper_profiles"
@@ -737,13 +740,14 @@ func TestDogstatsdMappingProfilesEnv(t *testing.T) {
 			{Match: "some_other_profile.*", Name: "some_other_profile.abc", Tags: map[string]string{"a": "$1"}},
 		}},
 	}
-	cfg := Conf()
+	cfg := newTestConf()
 	mappings, _ := GetDogstatsdMappingProfiles(cfg)
 	assert.Equal(t, mappings, expected)
 }
 
 func TestGetValidHostAliasesWithConfig(t *testing.T) {
-	config := ConfFromYAML(`host_aliases: ["foo", "-bar"]`)
+	config := newTestConf()
+	config.SetWithoutSource("host_aliases", []string{"foo", "-bar"})
 	assert.EqualValues(t, getValidHostAliasesWithConfig(config), []string{"foo"})
 }
 
@@ -751,14 +755,14 @@ func TestNetworkDevicesNamespace(t *testing.T) {
 	datadogYaml := `
 network_devices:
 `
-	config := ConfFromYAML(datadogYaml)
+	config := confFromYAML(t, datadogYaml)
 	assert.Equal(t, "default", config.GetString("network_devices.namespace"))
 
 	datadogYaml = `
 network_devices:
   namespace: dev
 `
-	config = ConfFromYAML(datadogYaml)
+	config = confFromYAML(t, datadogYaml)
 	assert.Equal(t, "dev", config.GetString("network_devices.namespace"))
 }
 
@@ -770,7 +774,7 @@ logs_config:
   docker_path_override: "/custom/path"
 `
 
-	config := ConfFromYAML(datadogYaml)
+	config := confFromYAML(t, datadogYaml)
 	err := checkConflictingOptions(config)
 
 	assert.NotNil(t, err)
@@ -783,7 +787,7 @@ logs_config:
   use_podman_logs: true
 `
 
-	config := ConfFromYAML(datadogYaml)
+	config := confFromYAML(t, datadogYaml)
 	err := checkConflictingOptions(config)
 
 	assert.NoError(t, err)
@@ -844,7 +848,7 @@ proxy:
 `
 	expectedURL := "somehost:1234"
 	expectedHTTPURL := "https://" + expectedURL
-	testConfig := ConfFromYAML(datadogYaml)
+	testConfig := confFromYAML(t, datadogYaml)
 	LoadProxyFromEnv(testConfig)
 	err := setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
@@ -868,7 +872,7 @@ fips:
 
 	expectedURL = "localhost:50"
 	expectedHTTPURL = "http://" + expectedURL
-	testConfig = ConfFromYAML(datadogYamlFips)
+	testConfig = confFromYAML(t, datadogYamlFips)
 	LoadProxyFromEnv(testConfig)
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
@@ -892,7 +896,7 @@ fips:
 `
 
 	expectedHTTPURL = "https://" + expectedURL
-	testConfig = ConfFromYAML(datadogYamlFips)
+	testConfig = confFromYAML(t, datadogYamlFips)
 	testConfig.Set("skip_ssl_validation", false, pkgconfigmodel.SourceAgentRuntime) // should be overridden by fips.tls_verify
 	LoadProxyFromEnv(testConfig)
 	err = setupFipsEndpoints(testConfig)
@@ -961,7 +965,7 @@ fips:
   port_range_start: 5000
 `
 
-	testConfig := ConfFromYAML(datadogYaml)
+	testConfig := confFromYAML(t, datadogYaml)
 	err := setupFipsEndpoints(testConfig)
 	require.Error(t, err)
 }
@@ -971,7 +975,7 @@ func TestEnablePeerServiceStatsAggregationYAML(t *testing.T) {
 apm_config:
   peer_service_aggregation: true
 `
-	testConfig := ConfFromYAML(datadogYaml)
+	testConfig := confFromYAML(t, datadogYaml)
 	err := setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.True(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
@@ -980,7 +984,7 @@ apm_config:
 apm_config:
   peer_service_aggregation: false
 `
-	testConfig = ConfFromYAML(datadogYaml)
+	testConfig = confFromYAML(t, datadogYaml)
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.False(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
@@ -991,7 +995,7 @@ func TestEnablePeerTagsAggregationYAML(t *testing.T) {
 apm_config:
   peer_tags_aggregation: true
 `
-	testConfig := ConfFromYAML(datadogYaml)
+	testConfig := confFromYAML(t, datadogYaml)
 	err := setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.True(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
@@ -1000,7 +1004,7 @@ apm_config:
 apm_config:
   peer_tags_aggregation: false
 `
-	testConfig = ConfFromYAML(datadogYaml)
+	testConfig = confFromYAML(t, datadogYaml)
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.False(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
@@ -1008,19 +1012,19 @@ apm_config:
 
 func TestEnablePeerServiceStatsAggregationEnv(t *testing.T) {
 	t.Setenv("DD_APM_PEER_SERVICE_AGGREGATION", "true")
-	testConfig := ConfFromYAML("")
+	testConfig := newTestConf()
 	require.True(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
 	t.Setenv("DD_APM_PEER_SERVICE_AGGREGATION", "false")
-	testConfig = ConfFromYAML("")
+	testConfig = newTestConf()
 	require.False(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
 }
 
 func TestEnablePeerTagsAggregationEnv(t *testing.T) {
 	t.Setenv("DD_APM_PEER_TAGS_AGGREGATION", "true")
-	testConfig := ConfFromYAML("")
+	testConfig := newTestConf()
 	require.True(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
 	t.Setenv("DD_APM_PEER_TAGS_AGGREGATION", "false")
-	testConfig = ConfFromYAML("")
+	testConfig = newTestConf()
 	require.False(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
 }
 
@@ -1029,7 +1033,7 @@ func TestEnableStatsComputationBySpanKindYAML(t *testing.T) {
 apm_config:
   compute_stats_by_span_kind: false
 `
-	testConfig := ConfFromYAML(datadogYaml)
+	testConfig := confFromYAML(t, datadogYaml)
 	err := setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.False(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
@@ -1038,7 +1042,7 @@ apm_config:
 apm_config:
   compute_stats_by_span_kind: true
 `
-	testConfig = ConfFromYAML(datadogYaml)
+	testConfig = confFromYAML(t, datadogYaml)
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
@@ -1046,42 +1050,42 @@ apm_config:
 
 func TestComputeStatsBySpanKindEnv(t *testing.T) {
 	t.Setenv("DD_APM_COMPUTE_STATS_BY_SPAN_KIND", "false")
-	testConfig := ConfFromYAML("")
+	testConfig := newTestConf()
 	require.False(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
 	t.Setenv("DD_APM_COMPUTE_STATS_BY_SPAN_KIND", "true")
-	testConfig = ConfFromYAML("")
+	testConfig = newTestConf()
 	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
 }
 
 func TestIsRemoteConfigEnabled(t *testing.T) {
 	t.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "true")
-	testConfig := ConfFromYAML("")
+	testConfig := newTestConf()
 	require.True(t, IsRemoteConfigEnabled(testConfig))
 
 	t.Setenv("DD_FIPS_ENABLED", "true")
-	testConfig = ConfFromYAML("")
+	testConfig = newTestConf()
 	require.False(t, IsRemoteConfigEnabled(testConfig))
 
 	t.Setenv("DD_FIPS_ENABLED", "false")
 	t.Setenv("DD_SITE", "ddog-gov.com")
-	testConfig = ConfFromYAML("")
+	testConfig = newTestConf()
 	require.False(t, IsRemoteConfigEnabled(testConfig))
 }
 
 func TestGetRemoteConfigurationAllowedIntegrations(t *testing.T) {
 	// EMPTY configuration
-	testConfig := ConfFromYAML("")
+	testConfig := newTestConf()
 	require.Equal(t, map[string]bool{}, GetRemoteConfigurationAllowedIntegrations(testConfig))
 
 	t.Setenv("DD_REMOTE_CONFIGURATION_AGENT_INTEGRATIONS_ALLOW_LIST", "[\"POSTgres\", \"redisDB\"]")
-	testConfig = ConfFromYAML("")
+	testConfig = newTestConf()
 	require.Equal(t,
 		map[string]bool{"postgres": true, "redisdb": true},
 		GetRemoteConfigurationAllowedIntegrations(testConfig),
 	)
 
 	t.Setenv("DD_REMOTE_CONFIGURATION_AGENT_INTEGRATIONS_BLOCK_LIST", "[\"mySQL\", \"redisDB\"]")
-	testConfig = ConfFromYAML("")
+	testConfig = newTestConf()
 	require.Equal(t,
 		map[string]bool{"postgres": true, "redisdb": false, "mysql": false},
 		GetRemoteConfigurationAllowedIntegrations(testConfig),
@@ -1089,32 +1093,32 @@ func TestGetRemoteConfigurationAllowedIntegrations(t *testing.T) {
 }
 
 func TestLanguageDetectionSettings(t *testing.T) {
-	testConfig := ConfFromYAML("")
+	testConfig := newTestConf()
 	require.False(t, testConfig.GetBool("language_detection.enabled"))
 
 	t.Setenv("DD_LANGUAGE_DETECTION_ENABLED", "true")
-	testConfig = ConfFromYAML("")
+	testConfig = newTestConf()
 	require.True(t, testConfig.GetBool("language_detection.enabled"))
 }
 
 func TestPeerTagsYAML(t *testing.T) {
-	testConfig := ConfFromYAML("")
+	testConfig := newTestConf()
 	require.Nil(t, testConfig.GetStringSlice("apm_config.peer_tags"))
 
 	datadogYaml := `
 apm_config:
   peer_tags: ["aws.s3.bucket", "db.instance", "db.system"]
 `
-	testConfig = ConfFromYAML(datadogYaml)
+	testConfig = confFromYAML(t, datadogYaml)
 	require.Equal(t, []string{"aws.s3.bucket", "db.instance", "db.system"}, testConfig.GetStringSlice("apm_config.peer_tags"))
 }
 
 func TestPeerTagsEnv(t *testing.T) {
-	testConfig := ConfFromYAML("")
+	testConfig := newTestConf()
 	require.Nil(t, testConfig.GetStringSlice("apm_config.peer_tags"))
 
 	t.Setenv("DD_APM_PEER_TAGS", `["aws.s3.bucket","db.instance","db.system"]`)
-	testConfig = ConfFromYAML("")
+	testConfig = newTestConf()
 	require.Equal(t, []string{"aws.s3.bucket", "db.instance", "db.system"}, testConfig.GetStringSlice("apm_config.peer_tags"))
 }
 
@@ -1129,7 +1133,7 @@ func TestLogDefaults(t *testing.T) {
 	require.False(t, c.GetBool("log_format_json"))
 
 	// Test Config (same as Datadog)
-	testConfig := Conf()
+	testConfig := newTestConf()
 	require.Equal(t, 1, testConfig.GetInt("log_file_max_rolls"))
 	require.Equal(t, "10Mb", testConfig.GetString("log_file_max_size"))
 	require.Equal(t, "", testConfig.GetString("log_file"))
@@ -1151,7 +1155,7 @@ func TestLogDefaults(t *testing.T) {
 }
 
 func TestProxyNotLoaded(t *testing.T) {
-	conf := Conf()
+	conf := newTestConf()
 	os.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
 
 	proxyHTTP := "http://localhost:1234"
@@ -1166,7 +1170,7 @@ func TestProxyNotLoaded(t *testing.T) {
 }
 
 func TestProxyLoadedFromEnvVars(t *testing.T) {
-	conf := Conf()
+	conf := newTestConf()
 	os.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
 
 	proxyHTTP := "http://localhost:1234"
@@ -1184,7 +1188,7 @@ func TestProxyLoadedFromEnvVars(t *testing.T) {
 }
 
 func TestProxyLoadedFromConfigFile(t *testing.T) {
-	conf := Conf()
+	conf := newTestConf()
 	os.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
 
 	tempDir := t.TempDir()
@@ -1202,7 +1206,7 @@ func TestProxyLoadedFromConfigFile(t *testing.T) {
 }
 
 func TestProxyLoadedFromConfigFileAndEnvVars(t *testing.T) {
-	conf := Conf()
+	conf := newTestConf()
 	os.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
 
 	proxyHTTPEnvVar := "http://localhost:1234"
@@ -1245,7 +1249,7 @@ func TestConfigAssignAtPath(t *testing.T) {
 	// CircleCI sets NO_PROXY, so unset it for this test
 	unsetEnvForTest(t, "NO_PROXY")
 
-	config := Conf()
+	config := newTestConf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testExampleConf, 0o600)
@@ -1297,7 +1301,7 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 	// CircleCI sets NO_PROXY, so unset it for this test
 	unsetEnvForTest(t, "NO_PROXY")
 
-	config := Conf()
+	config := newTestConf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testExampleConf, 0o600)
@@ -1337,7 +1341,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	// CircleCI sets NO_PROXY, so unset it for this test
 	unsetEnvForTest(t, "NO_PROXY")
 
-	config := Conf()
+	config := newTestConf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testSimpleConf, 0o600)
@@ -1387,7 +1391,7 @@ secret_backend_command: command
 use_proxy_for_cloud_metadata: true
 `
 
-	config := Conf()
+	config := newTestConf()
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testMinimalConf, 0o600)
 	config.SetConfigFile(configPath)
@@ -1449,7 +1453,7 @@ additional_endpoints:
   1: banana
   2: carrot
 `)
-	config := Conf()
+	config := newTestConf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
 	os.WriteFile(configPath, testIntKeysConf, 0o600)
@@ -1495,7 +1499,7 @@ func TestServerlessConfigInit(t *testing.T) {
 }
 
 func TestAgentConfigInit(t *testing.T) {
-	conf := Conf()
+	conf := newTestConf()
 
 	assert.True(t, conf.IsKnown("api_key"))
 	assert.True(t, conf.IsKnown("use_dogstatsd"))

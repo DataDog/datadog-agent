@@ -8,9 +8,12 @@
 package apm
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -85,10 +88,45 @@ func Test_javaDetector(t *testing.T) {
 	}
 	for _, d := range data {
 		t.Run(d.name, func(t *testing.T) {
-			result := javaDetector(0, d.args, d.envs)
+			result := javaDetector(0, d.args, d.envs, nil)
 			if result != d.result {
 				t.Errorf("expected %s got %s", d.result, result)
 			}
+		})
+	}
+}
+
+func Test_nodeDetector(t *testing.T) {
+	curDir, err := testutil.CurDir()
+	assert.NoError(t, err)
+
+	data := []struct {
+		name       string
+		contextMap usm.DetectorContextMap
+		result     Instrumentation
+	}{
+		{
+			name: "not instrumented",
+			contextMap: usm.DetectorContextMap{
+				usm.NodePackageJSONPath: filepath.Join(curDir, "testdata/node/not_instrumented/package.json"),
+				usm.ServiceSubFS:        usm.NewSubDirFS("/"),
+			},
+			result: None,
+		},
+		{
+			name: "instrumented",
+			contextMap: usm.DetectorContextMap{
+				usm.NodePackageJSONPath: filepath.Join(curDir, "testdata/node/instrumented/package.json"),
+				usm.ServiceSubFS:        usm.NewSubDirFS("/"),
+			},
+			result: Provided,
+		},
+	}
+
+	for _, d := range data {
+		t.Run(d.name, func(t *testing.T) {
+			result := nodeDetector(0, nil, nil, d.contextMap)
+			assert.Equal(t, d.result, result)
 		})
 	}
 }

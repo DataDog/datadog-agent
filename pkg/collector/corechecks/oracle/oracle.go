@@ -115,6 +115,7 @@ type Check struct {
 	openMode                                string
 	legacyIntegrationCompatibilityMode      bool
 	clock                                   clock.Clock
+	lastSampleId                            uint64
 }
 
 type vDatabase struct {

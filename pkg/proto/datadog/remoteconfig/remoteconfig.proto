@@ -119,6 +119,8 @@ message PackageState {
   string package = 1;
   string stable_version = 2;
   string experiment_version = 3;
+  string stable_config_version = 5;
+  string experiment_config_version = 6;
   PackageStateTask task = 4;
 }
 

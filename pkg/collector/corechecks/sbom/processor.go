@@ -21,6 +21,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
@@ -250,7 +251,7 @@ func (p *processor) triggerHostScan() {
 	log.Debugf("Triggering host SBOM refresh")
 
 	scanPath := "/"
-	if hostRoot := os.Getenv("HOST_ROOT"); ddConfig.IsContainerized() && hostRoot != "" {
+	if hostRoot := os.Getenv("HOST_ROOT"); env.IsContainerized() && hostRoot != "" {
 		scanPath = hostRoot
 	}
 	scanRequest := host.NewScanRequest(scanPath, newFS("/"))
