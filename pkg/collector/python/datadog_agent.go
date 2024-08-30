@@ -611,10 +611,10 @@ func ObfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
 	return TrackedCString(obfuscatedMongoDBString)
 }
 
-// SendAgentTelemetry records a telemetry data point for a Python integration
+// EmitAgentTelemetry records a telemetry data point for a Python integration
 //
-//export SendAgentTelemetry
-func SendAgentTelemetry(checkName *C.char, metricName *C.char, metricValue *C.float) {
+//export EmitAgentTelemetry
+func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue *C.float) {
 	// telemetryType and telemetryValue are optional
 	goCheckName := C.GoString(checkName)
 	goMetricName := C.GoString(metricName)
@@ -626,9 +626,9 @@ func SendAgentTelemetry(checkName *C.char, metricName *C.char, metricValue *C.fl
 		case "activity_latency":
 			postgres.TlmPostgresActivityLatency.Observe(goMetricValue)
 		default:
-			log.Warnf("SendAgentTelemetry: unsupported check name %s", goCheckName)
+			log.Warnf("EmitAgentTelemetry: unsupported check name %s", goCheckName)
 		}
 	default:
-		log.Warnf("SendAgentTelemetry: unsupported check name %s", goCheckName)
+		log.Warnf("EmitAgentTelemetry: unsupported check name %s", goCheckName)
 	}
 }
