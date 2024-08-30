@@ -38,6 +38,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/status => ./comp/core/status
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl => ./comp/core/status/statusimpl
 	github.com/DataDog/datadog-agent/comp/core/tagger/common => ./comp/core/tagger/common
+	github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata => ./comp/core/tagger/k8s_metadata
 	github.com/DataDog/datadog-agent/comp/core/tagger/taglist => ./comp/core/tagger/taglist
 	github.com/DataDog/datadog-agent/comp/core/tagger/tags => ./comp/core/tagger/tags
 	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry => ./comp/core/tagger/telemetry
@@ -632,6 +633,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/status v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/tagger/common v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/tagger/taglist v0.58.0-devel
 	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.58.0-devel
 	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.56.0-rc.3
