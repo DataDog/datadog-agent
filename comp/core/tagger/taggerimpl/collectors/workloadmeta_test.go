@@ -1424,6 +1424,7 @@ func TestHandleECSTask(t *testing.T) {
 						Name: containerName,
 					},
 				},
+				ServiceName: "datadog-agent-service",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -1442,6 +1443,7 @@ func TestHandleECSTask(t *testing.T) {
 						"task_family:datadog-agent",
 						"task_name:datadog-agent",
 						"task_version:1",
+						"ecs_service:datadog-agent-service",
 					},
 					StandardTags: []string{},
 				},
