@@ -105,7 +105,7 @@ func ConnectToDocker(ctx context.Context) (*client.Client, error) {
 func (d *DockerUtil) Images(ctx context.Context, includeIntermediate bool) ([]image.Summary, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.queryTimeout)
 	defer cancel()
-	images, err := d.cli.ImageList(ctx, types.ImageListOptions{All: includeIntermediate})
+	images, err := d.cli.ImageList(ctx, image.ListOptions{All: includeIntermediate})
 	if err != nil {
 		return nil, fmt.Errorf("unable to list docker images: %s", err)
 	}

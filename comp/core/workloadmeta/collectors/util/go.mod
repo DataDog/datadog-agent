@@ -50,7 +50,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/helpers v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc3
-	github.com/aquasecurity/trivy v0.54.1
+	github.com/aquasecurity/trivy v0.52.1-0.20240619054236-36b3b772df21
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/stretchr/testify v1.9.0
 	k8s.io/api v0.30.3
@@ -218,7 +218,6 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/go-testing-interface v1.14.1 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
-	github.com/mitchellh/hashstructure/v2 v2.0.2 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/moby/buildkit v0.15.1 // indirect
