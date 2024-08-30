@@ -20,8 +20,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gocolly/colly/v2"
-
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	extension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -106,34 +104,6 @@ func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 				fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.dat", name), data)
 			}
 
-			if !src.Crawl {
-				continue
-			}
-
-			// crawl the url by following any hyperlinks
-			col := colly.NewCollector()
-			col.OnHTML("a", func(e *colly.HTMLElement) {
-				// visit all links
-				link := e.Attr("href")
-				if err := e.Request.Visit(e.Request.AbsoluteURL(link)); err != nil {
-					filename := strings.ReplaceAll(url.PathEscape(link), ":", "_")
-					fb.AddFile(fmt.Sprintf("otel/otel-flare/crawl-%s.err", filename), []byte(err.Error()))
-				}
-			})
-			col.OnResponse(func(r *colly.Response) {
-				// the root sources (from the extension.Response) were already fetched earlier
-				// don't re-fetch them
-				responseURL := r.Request.URL.String()
-				if contains(sourceURLs, responseURL) {
-					return
-				}
-				// use the url as the basis for the filename saved in the flare
-				filename := strings.ReplaceAll(url.PathEscape(responseURL), ":", "_")
-				fb.AddFile(fmt.Sprintf("otel/otel-flare/crawl-%s", filename), r.Body)
-			})
-			if err := col.Visit(sourceURL); err != nil {
-				fb.AddFile("otel/otel-flare/crawl.err", []byte(err.Error()))
-			}
 		}
 	}
 	return nil

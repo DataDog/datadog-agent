@@ -87,11 +87,23 @@ func (ext *ddExtension) Start(_ context.Context, host component.Host) error {
 			continue
 		}
 
-		uri, crawl, err := extractor(exconf)
+		uri, err := extractor(exconf)
 
 		var uris []string
 		if extension.Type().String() == "pprof" {
-			uris = []string{uri + "/debug/pprof/heap", uri + "/debug/pprof/allocs", uri + "/debug/pprof/profile"}
+			uris = []string{
+				uri + "/debug/pprof/heap",
+				uri + "/debug/pprof/allocs",
+				uri + "/debug/pprof/profile",
+			}
+		} else if extension.Type().String() == "zpages" {
+			uris = []string{
+				uri + "/debug/servicez",
+				uri + "/debug/pipelinez",
+				uri + "/debug/extensionz",
+				uri + "/debug/featurez",
+				uri + "/debug/tracez",
+			}
 		} else {
 			uris = []string{uri}
 		}
@@ -101,8 +113,7 @@ func (ext *ddExtension) Start(_ context.Context, host component.Host) error {
 		} else {
 			ext.telemetry.Logger.Info("Found debug extension at", zap.String("uri", uri))
 			ext.debug.Sources[extension.String()] = extensionDef.OTelFlareSource{
-				URLs:  uris,
-				Crawl: crawl,
+				URLs: uris,
 			}
 		}
 	}
