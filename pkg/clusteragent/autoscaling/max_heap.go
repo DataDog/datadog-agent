@@ -89,6 +89,10 @@ func (h *HashHeap) InsertIntoHeap(k TimestampKey) bool {
 		return true
 	}
 
+	if k.Timestamp.IsZero() {
+		return false
+	}
+
 	if h.MaxHeap.Len() >= h.maxSize {
 		top := h.MaxHeap.Peek()
 		// If the new key is newer than or equal to the top key, do not insert
