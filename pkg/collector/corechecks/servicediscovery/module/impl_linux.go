@@ -289,6 +289,11 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		return nil
 	}
 
+	rss, err := getRSS(proc)
+	if err != nil {
+		return nil
+	}
+
 	var info *serviceInfo
 	if cached, ok := s.cache[pid]; ok {
 		info = cached
@@ -313,6 +318,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		Ports:              ports,
 		APMInstrumentation: string(info.apmInstrumentation),
 		Language:           string(info.language),
+		RSS:                rss,
 	}
 }
 
