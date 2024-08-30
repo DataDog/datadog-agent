@@ -26,7 +26,7 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	kubehelpers "github.com/DataDog/datadog-agent/pkg/util/kubernetes/helpers"
 )
 
 func TestHandleKubePod(t *testing.T) {
@@ -201,7 +201,7 @@ func TestHandleKubePod(t *testing.T) {
 				// Owner tags
 				Owners: []workloadmeta.KubernetesPodOwner{
 					{
-						Kind: kubernetes.DeploymentKind,
+						Kind: kubehelpers.DeploymentKind,
 						Name: svc,
 					},
 				},
@@ -279,7 +279,7 @@ func TestHandleKubePod(t *testing.T) {
 				},
 				Owners: []workloadmeta.KubernetesPodOwner{
 					{
-						Kind: kubernetes.StatefulSetKind,
+						Kind: kubehelpers.StatefulSetKind,
 					},
 				},
 				// PVC tags
@@ -548,7 +548,7 @@ func TestHandleKubePod(t *testing.T) {
 				},
 				Owners: []workloadmeta.KubernetesPodOwner{
 					{
-						Kind: kubernetes.DaemonSetKind,
+						Kind: kubehelpers.DaemonSetKind,
 						Name: "owner_name",
 					},
 				},
@@ -581,7 +581,7 @@ func TestHandleKubePod(t *testing.T) {
 				},
 				Owners: []workloadmeta.KubernetesPodOwner{
 					{
-						Kind: kubernetes.ReplicationControllerKind,
+						Kind: kubehelpers.ReplicationControllerKind,
 						Name: "owner_name",
 					},
 				},
@@ -614,7 +614,7 @@ func TestHandleKubePod(t *testing.T) {
 				},
 				Owners: []workloadmeta.KubernetesPodOwner{
 					{
-						Kind: kubernetes.StatefulSetKind,
+						Kind: kubehelpers.StatefulSetKind,
 						Name: "owner_name",
 					},
 				},
@@ -651,7 +651,7 @@ func TestHandleKubePod(t *testing.T) {
 				},
 				Owners: []workloadmeta.KubernetesPodOwner{
 					{
-						Kind: kubernetes.JobKind,
+						Kind: kubehelpers.JobKind,
 						Name: "owner_name",
 					},
 				},
@@ -684,7 +684,7 @@ func TestHandleKubePod(t *testing.T) {
 				},
 				Owners: []workloadmeta.KubernetesPodOwner{
 					{
-						Kind: kubernetes.JobKind,
+						Kind: kubehelpers.JobKind,
 						// job owned by "some_cronjob".
 						// Notice that, to make this test work, the job name
 						// included after the "-" separator needs to be valid
@@ -722,7 +722,7 @@ func TestHandleKubePod(t *testing.T) {
 				},
 				Owners: []workloadmeta.KubernetesPodOwner{
 					{
-						Kind: kubernetes.ReplicaSetKind,
+						Kind: kubehelpers.ReplicaSetKind,
 						Name: "owner_name",
 					},
 				},
@@ -755,7 +755,7 @@ func TestHandleKubePod(t *testing.T) {
 				},
 				Owners: []workloadmeta.KubernetesPodOwner{
 					{
-						Kind: kubernetes.ReplicaSetKind,
+						Kind: kubehelpers.ReplicaSetKind,
 						// replicaset owned by "some_deployment"
 						// Notice that, to make this test work, the replicaset
 						// name included after the "-" separator needs to be
@@ -928,7 +928,7 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 				},
 				Owners: []workloadmeta.KubernetesPodOwner{
 					{
-						Kind: kubernetes.StatefulSetKind,
+						Kind: kubehelpers.StatefulSetKind,
 					},
 				},
 				// PVC tags

@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	kubehelpers "github.com/DataDog/datadog-agent/pkg/util/kubernetes/helpers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -392,10 +392,10 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 	}
 
 	// Admission + Remote Config correlation tags
-	if rcID, found := pod.Annotations[kubernetes.RcIDAnnotKey]; found {
+	if rcID, found := pod.Annotations[kubehelpers.RcIDAnnotKey]; found {
 		tagList.AddLow(tags.RemoteConfigID, rcID)
 	}
-	if rcRev, found := pod.Annotations[kubernetes.RcRevisionAnnotKey]; found {
+	if rcRev, found := pod.Annotations[kubehelpers.RcRevisionAnnotKey]; found {
 		tagList.AddLow(tags.RemoteConfigRevision, rcRev)
 	}
 
@@ -607,23 +607,23 @@ func (c *WorkloadMetaCollector) handleKubeMetadata(ev workloadmeta.Event) []*typ
 func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {
 	for name, value := range pod.Labels {
 		switch name {
-		case kubernetes.EnvTagLabelKey:
+		case kubehelpers.EnvTagLabelKey:
 			tagList.AddStandard(tags.Env, value)
-		case kubernetes.VersionTagLabelKey:
+		case kubehelpers.VersionTagLabelKey:
 			tagList.AddStandard(tags.Version, value)
-		case kubernetes.ServiceTagLabelKey:
+		case kubehelpers.ServiceTagLabelKey:
 			tagList.AddStandard(tags.Service, value)
-		case kubernetes.KubeAppNameLabelKey:
+		case kubehelpers.KubeAppNameLabelKey:
 			tagList.AddLow(tags.KubeAppName, value)
-		case kubernetes.KubeAppInstanceLabelKey:
+		case kubehelpers.KubeAppInstanceLabelKey:
 			tagList.AddLow(tags.KubeAppInstance, value)
-		case kubernetes.KubeAppVersionLabelKey:
+		case kubehelpers.KubeAppVersionLabelKey:
 			tagList.AddLow(tags.KubeAppVersion, value)
-		case kubernetes.KubeAppComponentLabelKey:
+		case kubehelpers.KubeAppComponentLabelKey:
 			tagList.AddLow(tags.KubeAppComponent, value)
-		case kubernetes.KubeAppPartOfLabelKey:
+		case kubehelpers.KubeAppPartOfLabelKey:
 			tagList.AddLow(tags.KubeAppPartOf, value)
-		case kubernetes.KubeAppManagedByLabelKey:
+		case kubehelpers.KubeAppManagedByLabelKey:
 			tagList.AddLow(tags.KubeAppManagedBy, value)
 		}
 
@@ -633,16 +633,16 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 
 func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.KubernetesPod, owner workloadmeta.KubernetesPodOwner, tagList *taglist.TagList) {
 	switch owner.Kind {
-	case kubernetes.DeploymentKind:
+	case kubehelpers.DeploymentKind:
 		tagList.AddLow(tags.KubeDeployment, owner.Name)
 
-	case kubernetes.DaemonSetKind:
+	case kubehelpers.DaemonSetKind:
 		tagList.AddLow(tags.KubeDaemonSet, owner.Name)
 
-	case kubernetes.ReplicationControllerKind:
+	case kubehelpers.ReplicationControllerKind:
 		tagList.AddLow(tags.KubeReplicationController, owner.Name)
 
-	case kubernetes.StatefulSetKind:
+	case kubehelpers.StatefulSetKind:
 		tagList.AddLow(tags.KubeStatefulSet, owner.Name)
 		if c.collectPersistentVolumeClaimsTags {
 			for _, pvc := range pod.PersistentVolumeClaimNames {
@@ -652,8 +652,8 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 			}
 		}
 
-	case kubernetes.JobKind:
-		cronjob, _ := kubernetes.ParseCronJobForJob(owner.Name)
+	case kubehelpers.JobKind:
+		cronjob, _ := kubehelpers.ParseCronJobForJob(owner.Name)
 		if cronjob != "" {
 			tagList.AddOrchestrator(tags.KubeJob, owner.Name)
 			tagList.AddLow(tags.KubeCronjob, cronjob)
@@ -661,8 +661,8 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 			tagList.AddLow(tags.KubeJob, owner.Name)
 		}
 
-	case kubernetes.ReplicaSetKind:
-		deployment := kubernetes.ParseDeploymentForReplicaSet(owner.Name)
+	case kubehelpers.ReplicaSetKind:
+		deployment := kubehelpers.ParseDeploymentForReplicaSet(owner.Name)
 		if len(deployment) > 0 {
 			tagList.AddLow(tags.KubeDeployment, deployment)
 		}
