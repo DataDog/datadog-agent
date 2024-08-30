@@ -152,7 +152,7 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 		//      for static pods, see https://github.com/kubernetes/kubernetes/pull/59948
 		pod := p.getPodByMetricLabel(sample.Metric)
 		if pod != nil && p.podUtils.IsStaticPendingPod(pod.ID) {
-			podTags, _ := tagger.Tag(types.NewEntityID(types.KubernetesPodUID, pod.EntityID.ID).String(), types.HighCardinality)
+			podTags, _ := tagger.Tag(taggercommon.BuildTaggerEntityID(pod.GetID()).String(), types.HighCardinality)
 			if len(podTags) == 0 {
 				continue
 			}

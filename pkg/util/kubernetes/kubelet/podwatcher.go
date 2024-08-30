@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -74,7 +73,7 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 	w.Lock()
 	defer w.Unlock()
 	for _, pod := range podList {
-		podEntity := types.NewEntityID(types.KubernetesPodUID, pod.Metadata.UID).String()
+		podEntity := PodUIDToEntityName(pod.Metadata.UID)
 		newPod := false
 
 		_, foundPod := w.lastSeen[podEntity]

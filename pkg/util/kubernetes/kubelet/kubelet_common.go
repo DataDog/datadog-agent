@@ -63,7 +63,7 @@ func ParseMetricFromRaw(raw []byte, metric string) (string, error) {
 func KubeContainerIDToTaggerEntityID(ctrID string) (string, error) {
 	sep := strings.LastIndex(ctrID, containers.EntitySeparator)
 	if sep != -1 && len(ctrID) > sep+len(containers.EntitySeparator) {
-		return types.NewEntityID(types.ContainerID, ctrID[sep:]).String(), nil
+		return types.NewEntityID(types.ContainerID, ctrID[sep+len(containers.EntitySeparator):]).String(), nil
 	}
 	return "", fmt.Errorf("can't extract an entity ID from container ID %s", ctrID)
 }
@@ -73,7 +73,7 @@ func KubeContainerIDToTaggerEntityID(ctrID string) (string, error) {
 func KubePodUIDToTaggerEntityID(podUID string) (string, error) {
 	sep := strings.LastIndex(podUID, containers.EntitySeparator)
 	if sep != -1 && len(podUID) > sep+len(containers.EntitySeparator) {
-		return types.NewEntityID(types.KubernetesPodUID, podUID[sep:]).String(), nil
+		return types.NewEntityID(types.KubernetesPodUID, podUID[sep+len(containers.EntitySeparator):]).String(), nil
 	}
 	return "", fmt.Errorf("can't extract an entity ID from pod UID %s", podUID)
 }
