@@ -289,7 +289,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	var err error
 	if !isAdded {
 		// Number of DatadogPodAutoscaler objects exceeds the limit
-		podAutoscalerInternal.SetError(fmt.Errorf("Too many DatadogPodAutoscaler objects created, ignoring this one %s", key))
+		podAutoscalerInternal.SetError(fmt.Errorf("Autoscaler disabled as maximum number per cluster reached (%d)", maxDatadogPodAutoscalerObjects))
 	} else {
 		// Now that everything is synced, we can perform the actual processing
 		result, err = c.handleScaling(ctx, podAutoscaler, &podAutoscalerInternal)
