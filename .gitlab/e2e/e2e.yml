@@ -416,13 +416,6 @@ generate-flakes-finder-pipeline:
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
   needs:
-    - deploy_deb_testing-a7_arm64
-    - deploy_deb_testing-a7_x64
-    - deploy_rpm_testing-a7_arm64
-    - deploy_rpm_testing-a7_x64
-    - deploy_suse_rpm_testing_arm64-a7
-    - deploy_suse_rpm_testing_x64-a7
-    - deploy_windows_testing-a7
     - qa_installer_oci
     - qa_agent_oci
     - qa_cws_instrumentation
