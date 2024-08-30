@@ -958,7 +958,7 @@ static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *
 
     char *check = NULL;
     char *metric = NULL;
-    float value = NULL;
+    float value;
     if (!PyArg_ParseTuple(args, "ssf", &check, &metric, &value)) {
         PyGILState_Release(gstate);
         return NULL;
@@ -967,5 +967,6 @@ static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *
     cb_emit_agent_telemetry(check, metric, value);
 
     PyGILState_Release(gstate);
-    return retval;
+
+    Py_RETURN_NONE;
 }
