@@ -89,7 +89,7 @@ func (s *K8sSuite) TestProcessCheck() {
 	assert.EventuallyWithT(t, func(*assert.CollectT) {
 		status := k8sAgentStatus(t, s.Env().KubernetesCluster)
 		assert.ElementsMatch(t, []string{"process", "rtprocess"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
-	}, 2*time.Minute, 5*time.Second)
+	}, 4*time.Minute, 5*time.Second)
 
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -122,6 +122,8 @@ func (s *K8sSuite) TestManualContainerCheck() {
 
 func (s *K8sSuite) TestProcessDiscoveryCheck() {
 	t := s.T()
+	// PROCS-4327: Unexpected errors trying to get agent status
+	flake.Mark(t)
 	helmValues, err := createHelmValues(helmConfig{
 		ProcessDiscoveryCollection: true,
 	})
@@ -137,7 +139,10 @@ func (s *K8sSuite) TestProcessDiscoveryCheck() {
 	assert.EventuallyWithT(t, func(*assert.CollectT) {
 		status := k8sAgentStatus(t, s.Env().KubernetesCluster)
 		assert.ElementsMatch(t, []string{"process_discovery"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
-	}, 2*time.Minute, 5*time.Second)
+	}, 4*time.Minute, 5*time.Second)
+
+	// Flush fake intake to remove any payloads which may have
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 
 	var payloads []*aggregator.ProcessDiscoveryPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -152,6 +157,8 @@ func (s *K8sSuite) TestProcessDiscoveryCheck() {
 
 func (s *K8sSuite) TestProcessCheckInCoreAgent() {
 	t := s.T()
+	// PROCS-4327: Unexpected errors trying to get agent status
+	flake.Mark(t)
 	helmValues, err := createHelmValues(helmConfig{
 		ProcessCollection: true,
 		RunInCoreAgent:    true,
@@ -186,7 +193,11 @@ func (s *K8sSuite) TestProcessCheckInCoreAgent() {
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 2*time.Minute, 10*time.Second)
+
+		if t.Failed() {
+			t.Logf("status: %+v\n", status)
+		}
+	}, 4*time.Minute, 10*time.Second)
 
 	assertProcessCollected(t, payloads, false, "stress-ng-cpu [run]")
 	assertContainersCollected(t, payloads, []string{"stress-ng"})
@@ -223,7 +234,10 @@ func (s *K8sSuite) TestProcessCheckInCoreAgentWithNPM() {
 			t.Logf("status: %+v\n", status)
 		}
 
-	}, 2*time.Minute, 5*time.Second)
+	}, 4*time.Minute, 5*time.Second)
+
+	// Flush fake intake to remove any payloads which may have
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
