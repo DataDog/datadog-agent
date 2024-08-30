@@ -24,7 +24,7 @@ outputOffset += 3;
 // The length of slices aren't known until parsing, so they require
 // special headers to read in the length dynamically
 var sliceRegisterHeaderTemplateText = `
-// Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
+// Name={{.Parameter.Name}} ID={{.Parameter.ID}} TotalSize={{.Parameter.TotalSize}} Kind={{.Parameter.Kind}}
 // Write the slice kind to output buffer
 param_type = {{.Parameter.Kind}};
 bpf_probe_read(&event->output[outputOffset], 1, &param_type);
@@ -46,12 +46,12 @@ for (i = 0; i < MAX_SLICE_LENGTH; i++) {
 // The length of slices aren't known until parsing, so they require
 // special headers to read in the length dynamically
 var sliceStackHeaderTemplateText = `
-// Name={{.Name}} ID={{.ID}} TotalSize={{.TotalSize}} Kind={{.Kind}}
+// Name={{.Parameter.Name}} ID={{.Parameter.ID}} TotalSize={{.Parameter.TotalSize}} Kind={{.Parameter.Kind}}
 // Write the slice kind to output buffer
 param_type = {{.Parameter.Kind}};
 bpf_probe_read(&event->output[outputOffset], 1, &param_type);
 // Read slice length and write it to output buffer
-bpf_probe_read(&param_size, 8, &ctx->regs[29]+{{.Location.StackOffset}}+8]);
+bpf_probe_read(&param_size, 8, &ctx->regs[29]+{{.Parameter.Location.StackOffset}}+8]);
 bpf_probe_read(&event->output[outputOffset+1], 2, &param_size);
 outputOffset += 3;
 
