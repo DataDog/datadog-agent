@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package util
+// Package statictags provides static tag functionality to pkg/util for the agent
+package statictags
 
 import (
 	"context"

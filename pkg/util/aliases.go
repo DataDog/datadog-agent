@@ -7,7 +7,13 @@ package util
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
+	"github.com/DataDog/datadog-agent/pkg/util/statictags"
 )
 
 // SortUniqInPlace alias
 var SortUniqInPlace = sort.UniqInPlace
+
+var (
+	GetStaticTagsSlice = statictags.GetStaticTagsSlice
+	GetStaticTags      = statictags.GetStaticTags
+)
