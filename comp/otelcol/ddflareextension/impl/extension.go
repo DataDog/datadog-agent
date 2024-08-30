@@ -113,6 +113,7 @@ func (ext *ddExtension) Start(_ context.Context, host component.Host) error {
 			ext.telemetry.Logger.Info("Unavailable debug extension for", zap.String("extension", extension.String()))
 			continue
 		}
+		
 		ext.telemetry.Logger.Info("Found debug extension at", zap.String("uri", uri))
 		ext.debug.Sources[extension.String()] = extensionDef.OTelFlareSource{
 			URLs: uris,
