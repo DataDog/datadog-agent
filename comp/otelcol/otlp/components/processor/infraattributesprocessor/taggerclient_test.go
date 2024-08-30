@@ -22,12 +22,12 @@ func newTestTaggerClient() *testTaggerClient {
 	}
 }
 
-// Mocks Tag functionality for the purpose of testing, removing dependency on Taggerimpl
+// Tag mocks taggerimpl.Tag functionality for the purpose of testing, removing dependency on Taggerimpl
 func (t *testTaggerClient) Tag(entityID string, _ types.TagCardinality) ([]string, error) {
 	return t.tagMap[entityID], nil
 }
 
-// Mocks GlobalTags functionality for purpose of testing, removing dependency on Taggerimpl
+// GlobalTags mocks taggerimpl.GlobalTags functionality for purpose of testing, removing dependency on Taggerimpl
 func (t *testTaggerClient) GlobalTags(_ types.TagCardinality) ([]string, error) {
 	return t.tagMap[collectors.GlobalEntityID], nil
 }

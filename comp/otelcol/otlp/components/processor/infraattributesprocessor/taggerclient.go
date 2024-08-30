@@ -7,6 +7,7 @@ package infraattributesprocessor
 
 import "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 
+// taggerClient provides client for tagger interface,
 // see comp/core/tagger for tagger functions; client for tagger interface
 type taggerClient interface {
 	// Tag is an interface function that queries taggerclient singleton
