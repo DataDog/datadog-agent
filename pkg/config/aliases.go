@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -139,6 +140,7 @@ const (
 	DefaultGRPCConnectionTimeoutSecs         = pkgconfigsetup.DefaultGRPCConnectionTimeoutSecs
 	DefaultProcessEndpoint                   = pkgconfigsetup.DefaultProcessEndpoint
 	DefaultProcessEventsEndpoint             = pkgconfigsetup.DefaultProcessEventsEndpoint
+	ClusterIDCacheKey                        = constants.ClusterIDCacheKey
 )
 
 type (

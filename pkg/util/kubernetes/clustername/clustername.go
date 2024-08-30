@@ -14,8 +14,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigconsts "github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
@@ -74,7 +75,7 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 	}
 
 	if !data.initDone {
-		data.clusterName = config.Datadog().GetString("cluster_name")
+		data.clusterName = pkgconfigsetup.Datadog().GetString("cluster_name")
 		if data.clusterName != "" {
 			log.Infof("Got cluster name %s from config", data.clusterName)
 			// the host alias "hostname-clustername" must not exceed 255 chars
@@ -154,7 +155,7 @@ func GetClusterName(ctx context.Context, hostname string) string {
 // "enabled_rfc1123_compliant_cluster_name_tag" is set to "true"
 // this allow to limit the risk of breaking user that currently rely on previous `kube_cluster_name` tag value.
 func GetClusterNameTagValue(ctx context.Context, hostname string) string {
-	if config.Datadog().GetBool("enabled_rfc1123_compliant_cluster_name_tag") {
+	if pkgconfigsetup.Datadog().GetBool("enabled_rfc1123_compliant_cluster_name_tag") {
 		return GetRFC1123CompliantClusterName(ctx, hostname)
 	}
 	return GetClusterName(ctx, hostname)
@@ -187,7 +188,7 @@ func ResetClusterName() {
 // This variable should come from a configmap, created by the cluster-agent.
 // This function is meant for the node-agent to call (cluster-agent should call GetOrCreateClusterID)
 func GetClusterID() (string, error) {
-	cacheClusterIDKey := cache.BuildAgentKey(config.ClusterIDCacheKey)
+	cacheClusterIDKey := cache.BuildAgentKey(pkgconfigconsts.ClusterIDCacheKey)
 	if cachedClusterID, found := cache.Cache.Get(cacheClusterIDKey); found {
 		return cachedClusterID.(string), nil
 	}

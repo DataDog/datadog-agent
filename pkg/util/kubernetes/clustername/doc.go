@@ -3,9 +3,5 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
-
-const (
-	// ClusterIDCacheKey is the key name for the orchestrator cluster id in the agent in-mem cache
-	ClusterIDCacheKey = "orchestratorClusterID"
-)
+// Package clustername provides helpers to get a Kubernetes cluster name.
+package clustername
