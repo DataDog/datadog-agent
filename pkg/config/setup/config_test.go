@@ -609,6 +609,7 @@ func TestNumWorkers(t *testing.T) {
 
 // TestOverrides validates that the config overrides system works well.
 func TestApplyOverrides(t *testing.T) {
+	pkgconfigmodel.CleanOverride(t)
 	assert := assert.New(t)
 
 	datadogYaml := `
@@ -1048,7 +1049,7 @@ func TestLogDefaults(t *testing.T) {
 
 func TestProxyNotLoaded(t *testing.T) {
 	conf := newTestConf()
-	os.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
+	t.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
 
 	proxyHTTP := "http://localhost:1234"
 	proxyHTTPS := "https://localhost:1234"
@@ -1063,7 +1064,7 @@ func TestProxyNotLoaded(t *testing.T) {
 
 func TestProxyLoadedFromEnvVars(t *testing.T) {
 	conf := newTestConf()
-	os.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
+	t.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
 
 	proxyHTTP := "http://localhost:1234"
 	proxyHTTPS := "https://localhost:1234"
@@ -1081,7 +1082,7 @@ func TestProxyLoadedFromEnvVars(t *testing.T) {
 
 func TestProxyLoadedFromConfigFile(t *testing.T) {
 	conf := newTestConf()
-	os.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
+	t.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
 
 	tempDir := t.TempDir()
 	configTest := path.Join(tempDir, "datadog.yaml")
@@ -1099,7 +1100,7 @@ func TestProxyLoadedFromConfigFile(t *testing.T) {
 
 func TestProxyLoadedFromConfigFileAndEnvVars(t *testing.T) {
 	conf := newTestConf()
-	os.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
+	t.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
 
 	proxyHTTPEnvVar := "http://localhost:1234"
 	proxyHTTPSEnvVar := "https://localhost:1234"
