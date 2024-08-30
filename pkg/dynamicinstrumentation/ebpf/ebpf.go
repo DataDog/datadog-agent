@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"text/template"
 	"time"
 
@@ -48,28 +47,6 @@ func SetupEventsMap() error {
 		return fmt.Errorf("could not create bpf map for sharing events with userspace: %w", err)
 	}
 	ditypes.EventsRingbuffer = events
-	return nil
-}
-
-// SetupHeaders sets up the needed header files for probes in a temporary directory
-func SetupHeaders() error {
-	var err error
-	globalTempDirPath, err = os.MkdirTemp("/tmp", "dd-go-di*")
-	if err != nil {
-		return err
-	}
-
-	tempDir, err := os.MkdirTemp(globalTempDirPath, "run-*")
-	if err != nil {
-		return fmt.Errorf("couldn't create temp directory: %w", err)
-	}
-
-	headersPath, err := loadHeadersToTmpfs(tempDir)
-	if err != nil {
-		return fmt.Errorf("couldn't load headers to tmpfs: %w", err)
-	}
-
-	globalHeadersPath = headersPath
 	return nil
 }
 
