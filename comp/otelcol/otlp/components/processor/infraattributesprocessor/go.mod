@@ -10,19 +10,16 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors/constants => ../../../../../core/tagger/taggerimpl/collectors/constants
 	github.com/DataDog/datadog-agent/comp/core/tagger/types => ../../../../../core/tagger/types
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils => ../../../../../core/tagger/utils
-	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../../core/telemetry
 	github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util => ../../../../../core/workloadmeta/collectors/util
 	github.com/DataDog/datadog-agent/comp/core/workloadmeta/def => ../../../../../core/workloadmeta/def
 	github.com/DataDog/datadog-agent/comp/def => ../../../../../def
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../../../pkg/config/env
-	github.com/DataDog/datadog-agent/pkg/config/mock => ../../../../../../pkg/config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels => ../../../../../../pkg/languagedetection/languagemodels
 	github.com/DataDog/datadog-agent/pkg/languagedetection/util => ../../../../../../pkg/languagedetection/util
 	github.com/DataDog/datadog-agent/pkg/proto => ../../../../../../pkg/proto
-	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/util/containers/image => ../../../../../../pkg/util/containers/image
 	github.com/DataDog/datadog-agent/pkg/util/ecs/common => ../../../../../../pkg/util/ecs/common
 	github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil => ../../../../../../pkg/util/ecs/metadata/testutil
@@ -30,7 +27,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/ecs/telemetry => ../../../../../../pkg/util/ecs/telemetry
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../../../pkg/util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../../../../pkg/util/filesystem
-	github.com/DataDog/datadog-agent/pkg/util/flavor => ../../../../../../pkg/util/flavor
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../../../pkg/util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/helpers => ../../../../../../pkg/util/kubernetes/helpers
