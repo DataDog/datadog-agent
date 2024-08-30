@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/network"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
@@ -28,8 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	dockerimagetypes "github.com/docker/docker/api/types/image"
-	dockernetworktypes "github.com/docker/docker/api/types/network"
 	docker "github.com/docker/docker/client"
 
 	"github.com/shirou/gopsutil/v3/process"
@@ -565,7 +565,7 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 	var resolved []interface{}
 	switch spec.Kind {
 	case "image":
-		list, err := cl.ImageList(ctx, dockerimagetypes.ListOptions{All: true})
+		list, err := cl.ImageList(ctx, image.ListOptions{All: true})
 		if err != nil {
 			return nil, err
 		}
@@ -598,7 +598,7 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 			})
 		}
 	case "network":
-		networks, err := cl.NetworkList(ctx, dockernetworktypes.ListOptions{})
+		networks, err := cl.NetworkList(ctx, network.ListOptions{})
 		if err != nil {
 			return nil, err
 		}
