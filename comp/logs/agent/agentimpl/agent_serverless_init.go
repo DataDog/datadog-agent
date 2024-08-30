@@ -53,14 +53,19 @@ func (a *logAgent) SetupPipeline(
 
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)
 	lnchrs.AddLauncher(channel.NewLauncher())
-	lnchrs.AddLauncher(filelauncher.NewLauncher(
-		a.config.GetInt("logs_config.open_files_limit"),
-		filelauncher.DefaultSleepDuration,
-		a.config.GetBool("logs_config.validate_pod_container_id"),
-		time.Duration(a.config.GetFloat64("logs_config.file_scan_period")*float64(time.Second)),
-		a.config.GetString("logs_config.file_wildcard_selection_mode"), a.flarecontroller, a.tagger),
-	)
 
+	file_limits := a.config.GetInt("logs_config.open_files_limit")
+	file_validate_pod_container := a.config.GetBool("logs_config.validate_pod_container_id")
+	file_scan_period := time.Duration(a.config.GetFloat64("logs_config.file_scan_period") * float64(time.Second))
+	file_wildcard_selection_mode := a.config.GetString("logs_config.file_wildcard_selection_mode")
+	lnchrs.AddLauncher(filelauncher.NewLauncher(
+		file_limits,
+		filelauncher.DefaultSleepDuration,
+		file_validate_pod_container,
+		file_scan_period,
+		file_wildcard_selection_mode,
+		a.flarecontroller,
+		a.tagger))
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
 	a.destinationsCtx = destinationsCtx
 	a.pipelineProvider = pipelineProvider
