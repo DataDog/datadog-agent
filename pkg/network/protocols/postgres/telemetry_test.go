@@ -187,9 +187,17 @@ func createEbpfEvent(querySize int) *ebpf.EbpfEvent {
 }
 
 func verifyTelemetry(t *testing.T, tel *Telemetry, expected telemetryResults) {
-	for i := 0; i < len(tel.queryLengthBuckets); i++ {
-		assert.Equal(t, expected.queryLength[i], tel.queryLengthBuckets[i].Get(), "queryLength for bucket %d count is incorrect", i)
+
+	countFailedTableName := tel.failedTableNameExtraction.Get()
+	countFailedOperation := tel.failedOperationExtraction.Get()
+	expectFulfilledCounter := false
+
+	if countFailedTableName == 0 || countFailedOperation == 0 {
+		expectFulfilledCounter = true
 	}
-	assert.Equal(t, expected.failedTableNameExtraction, tel.failedTableNameExtraction.Get(), "failedTableNameExtraction count is incorrect")
-	assert.Equal(t, expected.failedOperationExtraction, tel.failedOperationExtraction.Get(), "failedOperationExtraction count is incorrect")
+	for i := 0; i < len(tel.queryLengthBuckets); i++ {
+		assert.Equal(t, expected.queryLength[i], tel.queryLengthBuckets[i].Get(expectFulfilledCounter), "queryLength for bucket %d count is incorrect", i)
+	}
+	assert.Equal(t, expected.failedTableNameExtraction, countFailedTableName, "failedTableNameExtraction count is incorrect")
+	assert.Equal(t, expected.failedOperationExtraction, countFailedOperation, "failedOperationExtraction count is incorrect")
 }

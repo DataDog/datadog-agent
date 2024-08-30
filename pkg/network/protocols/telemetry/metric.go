@@ -38,6 +38,11 @@ func (c *Counter) Add(v int64) {
 	c.value.Add(v)
 }
 
+// Set value atomically
+func (c *Counter) Set(v int64) {
+	c.value.Store(v)
+}
+
 func (c *Counter) base() *metricBase {
 	return c.metricBase
 }
@@ -135,4 +140,53 @@ func (c *TLSAwareCounter) Get(isTLS bool) int64 {
 		return c.counterTLS.Get()
 	}
 	return c.counterPlain.Get()
+}
+
+// Set value atomically
+func (c *TLSAwareCounter) Set(v int64, isTLS bool) {
+	if isTLS {
+		c.counterTLS.Set(v)
+	} else {
+		c.counterPlain.Set(v)
+	}
+}
+
+// ResultAwareCounter stores counter when goal was achieved and counter when target not found.
+type ResultAwareCounter struct {
+	countFulfilled  *Counter
+	countIncomplete *Counter
+}
+
+// NewResultAwareCounter creates and returns a new instance
+func NewResultAwareCounter(metricGroup *MetricGroup, metricName string, tags ...string) *ResultAwareCounter {
+	return &ResultAwareCounter{
+		countFulfilled:  metricGroup.NewCounter(metricName, append(tags, "fulfilled:true")...),
+		countIncomplete: metricGroup.NewCounter(metricName, append(tags, "fulfilled:false")...),
+	}
+}
+
+// Set sets the counter of fulfilled or incomplete results.
+func (c *ResultAwareCounter) Set(v int64, fulfilled bool) {
+	if fulfilled {
+		c.countFulfilled.Set(v)
+	} else {
+		c.countIncomplete.Set(v)
+	}
+}
+
+// Add adds delta to the counter of completed results or counter incomplete results.
+func (c *ResultAwareCounter) Add(delta int64, fulfilled bool) {
+	if fulfilled {
+		c.countFulfilled.Add(delta)
+	} else {
+		c.countIncomplete.Add(delta)
+	}
+}
+
+// Get returns the counter value based on the result.
+func (c *ResultAwareCounter) Get(fulfilled bool) int64 {
+	if fulfilled {
+		return c.countFulfilled.Get()
+	}
+	return c.countIncomplete.Get()
 }

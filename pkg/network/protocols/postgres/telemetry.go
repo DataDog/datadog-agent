@@ -27,7 +27,7 @@ type Telemetry struct {
 	metricGroup *libtelemetry.MetricGroup
 
 	// queryLengthBuckets holds the counters for the different buckets of by the query length quires
-	queryLengthBuckets [numberOfBuckets]*libtelemetry.Counter
+	queryLengthBuckets [numberOfBuckets]*libtelemetry.ResultAwareCounter
 	// failedTableNameExtraction holds the counter for the failed table name extraction
 	failedTableNameExtraction *libtelemetry.Counter
 	// failedOperationExtraction holds the counter for the failed operation extraction
@@ -51,10 +51,10 @@ type Telemetry struct {
 // Bucket 7: BufferSize + 4*bucketLength + 1 to BufferSize + 5*bucketLength
 // Bucket 8: BufferSize + 5*bucketLength + 1 to BufferSize + 6*bucketLength
 // Bucket 9: BufferSize + 6*bucketLength + 1 to BufferSize + 7*bucketLength
-func createQueryLengthBuckets(metricGroup *libtelemetry.MetricGroup) [numberOfBuckets]*libtelemetry.Counter {
-	var buckets [numberOfBuckets]*libtelemetry.Counter
+func createQueryLengthBuckets(metricGroup *libtelemetry.MetricGroup) [numberOfBuckets]*libtelemetry.ResultAwareCounter {
+	var buckets [numberOfBuckets]*libtelemetry.ResultAwareCounter
 	for i := 0; i < numberOfBuckets; i++ {
-		buckets[i] = metricGroup.NewCounter("query_length_bucket"+fmt.Sprint(i+1), libtelemetry.OptStatsd)
+		buckets[i] = libtelemetry.NewResultAwareCounter(metricGroup, "query_length_bucket"+fmt.Sprint(i+1), libtelemetry.OptStatsd)
 	}
 	return buckets
 }
@@ -88,16 +88,20 @@ func (t *Telemetry) getBucketIndex(querySize int) int {
 func (t *Telemetry) Count(tx *ebpf.EbpfEvent, eventWrapper *EventWrapper) {
 	querySize := int(tx.Tx.Original_query_size)
 
-	bucketIndex := t.getBucketIndex(querySize)
-	if bucketIndex >= 0 && bucketIndex < len(t.queryLengthBuckets) {
-		t.queryLengthBuckets[bucketIndex].Add(1)
-	}
-
+	fulfilled := false
 	if eventWrapper.Operation() == UnknownOP {
 		t.failedOperationExtraction.Add(1)
+	} else {
+		fulfilled = true
 	}
 	if eventWrapper.TableName() == "UNKNOWN" {
 		t.failedTableNameExtraction.Add(1)
+	} else {
+		fulfilled = true
+	}
+	bucketIndex := t.getBucketIndex(querySize)
+	if bucketIndex >= 0 && bucketIndex < len(t.queryLengthBuckets) {
+		t.queryLengthBuckets[bucketIndex].Add(1, fulfilled)
 	}
 }
 
