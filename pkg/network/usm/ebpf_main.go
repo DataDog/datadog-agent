@@ -274,12 +274,19 @@ func (e *ebpfProgram) Start() error {
 func (e *ebpfProgram) Close() error {
 	e.mapCleaner.Stop()
 	ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
-	err := e.Stop(manager.CleanAll)
+	var err error
+	for _, pm := range e.PerfMaps {
+		err = errors.Join(err, pm.Stop(manager.CleanAll))
+	}
+	for _, rb := range e.RingBuffers {
+		err = errors.Join(err, rb.Stop(manager.CleanAll))
+	}
 	stopProtocolWrapper := func(protocol protocols.Protocol, m *manager.Manager) error {
 		protocol.Stop(m)
 		return nil
 	}
 	e.executePerProtocol(e.enabledProtocols, "stop", stopProtocolWrapper, nil)
+	err = errors.Join(err, e.Stop(manager.CleanAll))
 	return err
 }
 
