@@ -68,6 +68,37 @@ var extendedCollectors = map[string]string{
 
 var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
 
+type podCollectionMode string
+
+const (
+	// defaultPodCollection is the default mode where pods are collected from
+	// the API server.
+	defaultPodCollection podCollectionMode = "default"
+
+	// nodeKubeletPodCollection is the mode where pods are collected from the
+	// kubelet.
+	//
+	// This is meant to be enabled when the check is running on the node agent.
+	// This is useful in clusters with a large number of pods where emitting pod
+	// metrics from a single instance might be too much and cause performance
+	// issues.
+	//
+	// One thing to note is that when the node agent collects metrics from the
+	// kubelet and the cluster agent or cluster check runner collects metrics
+	// for other resources, label joins are not supported for pod metrics if the
+	// join source is not a pod.
+	nodeKubeletPodCollection podCollectionMode = "node_kubelet"
+
+	// clusterUnassignedPodCollection is the mode where pods are collected from
+	// the API server but only unassigned pods.
+	//
+	// This is meant to be enabled when the check is running on the cluster
+	// agent or the cluster check runner and "nodeKubeletPodCollection" is
+	// enabled on the node agents, because unassigned pods cannot be collected
+	// from node agents.
+	clusterUnassignedPodCollection podCollectionMode = "cluster_unassigned"
+)
+
 // KSMConfig contains the check config parameters
 type KSMConfig struct {
 	// Collectors defines the resource type collectors.
@@ -151,25 +182,9 @@ type KSMConfig struct {
 	// UseAPIServerCache enables the use of the API server cache for the check
 	UseAPIServerCache bool `yaml:"use_apiserver_cache"`
 
-	// CollectPodsFromKubelet enables the collection of pods from the kubelet
-	// instead of the Kubernetes API server.
-	//
-	// This is meant to be enabled when the check is running on the node agent.
-	// This is useful in clusters with a large number of pods where emitting pod
-	// metrics from a single instance might be too much.
-	//
-	// One thing to note is that when the node agent collects metrics from the
-	// kubelet and the cluster agent or cluster check runner collects metrics
-	// for other resources, label joins are not supported for pod metrics if the
-	// join source is not a pod.
-	CollectPodsFromKubelet bool `yaml:"collect_pods_from_kubelet"`
-
-	// CollectOnlyUnassignedPods enables pod collection only for unassigned
-	// pods. This is meant to be enabled when the check is running on the
-	// cluster agent or the cluster check runner and "CollectPodsFromKubelet" is
-	// enabled on the node agents, because unassigned pods cannot be collected
-	// from node agents.
-	CollectOnlyUnassignedPods bool `yaml:"collect_only_unassigned_pods"`
+	// PodCollectionMode defines how pods are collected.
+	// Accepted values are: "default", "node_kubelet", and "cluster_unassigned".
+	PodCollectionMode podCollectionMode `yaml:"pod_collection_mode"`
 }
 
 // KSMCheck wraps the config and the metric stores needed to run the check
@@ -359,31 +374,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 		return err
 	}
 
-	if k.instance.CollectPodsFromKubelet {
-		if k.isRunningOnNodeAgent {
-			// If the check is running in a node agent, we can collect pods from
-			// the kubelet but only if it's the only collector enabled. When
-			// there are more collectors enabled, we need leader election and
-			// pods would only be collected from one of the agents.
-			if len(collectors) == 1 && collectors[0] == "pods" {
-				builder.WithPodCollectionFromKubelet()
-			} else {
-				log.Warnf("collect_pods_from_kubelet is enabled but it's only supported when the only collector enabled is pods, " +
-					"so the check will collect pods from the API server instead of the Kubelet")
-			}
-		} else {
-			log.Warnf("collect_pods_from_kubelet is enabled but KSM is running in the cluster agent or cluster check runner, " +
-				"so the check will collect pods from the API server instead of the Kubelet")
-		}
-	}
-
-	if k.instance.CollectOnlyUnassignedPods {
-		if k.isRunningOnNodeAgent {
-			log.Warnf("collect_only_unassigned_pods is enabled but KSM is running in a node agent, so the option will be ignored")
-		} else {
-			builder.WithUnassignedPodsCollection()
-		}
-	}
+	k.configurePodCollection(builder, collectors)
 
 	// Start the collection process
 	k.allStores = builder.BuildStores()
@@ -529,9 +520,7 @@ func (k *KSMCheck) Run() error {
 	// If KSM is running in the node agent, and it's configured to collect only
 	// pods and from the node agent, we don't need to run leader election,
 	// because each node agent is responsible for collecting its own pods.
-	podsFromKubeletInNodeAgent := k.isRunningOnNodeAgent &&
-		k.instance.CollectPodsFromKubelet &&
-		len(k.instance.Collectors) == 1 && k.instance.Collectors[0] == "pods"
+	podsFromKubeletInNodeAgent := k.isRunningOnNodeAgent && k.instance.PodCollectionMode == nodeKubeletPodCollection
 
 	// If the check is configured as a cluster check, the cluster check worker needs to skip the leader election section.
 	// we also do a safety check for dedicated runners to avoid trying the leader election
@@ -847,6 +836,43 @@ func (k *KSMCheck) initTags() {
 
 	if !k.instance.DisableGlobalTags {
 		k.instance.Tags = append(k.instance.Tags, configUtils.GetConfiguredTags(k.agentConfig, false)...)
+	}
+}
+
+func (k *KSMCheck) configurePodCollection(builder *kubestatemetrics.Builder, collectors []string) {
+	switch k.instance.PodCollectionMode {
+	case "":
+		k.instance.PodCollectionMode = defaultPodCollection
+	case defaultPodCollection:
+		// No need to do anything
+	case nodeKubeletPodCollection:
+		if k.isRunningOnNodeAgent {
+			// If the check is running in a node agent, we can collect pods from
+			// the kubelet but only if it's the only collector enabled. When
+			// there are more collectors enabled, we need leader election and
+			// pods would only be collected from one of the agents.
+			if len(collectors) == 1 && collectors[0] == "pods" {
+				builder.WithPodCollectionFromKubelet()
+			} else {
+				log.Warnf("pod collection from the Kubelet is enabled but it's only supported when the only collector enabled is pods, " +
+					"so the check will collect pods from the API server instead of the Kubelet")
+				k.instance.PodCollectionMode = defaultPodCollection
+			}
+		} else {
+			log.Warnf("pod collection from the Kubelet is enabled but KSM is running in the cluster agent or cluster check runner, " +
+				"so the check will collect pods from the API server instead of the Kubelet")
+			k.instance.PodCollectionMode = defaultPodCollection
+		}
+	case clusterUnassignedPodCollection:
+		if k.isRunningOnNodeAgent {
+			log.Warnf("collection of unassigned pods is enabled but KSM is running in a node agent, so the option will be ignored")
+			k.instance.PodCollectionMode = defaultPodCollection
+		} else {
+			builder.WithUnassignedPodsCollection()
+		}
+	default:
+		log.Warnf("invalid pod collection mode %q, falling back to the default mode", k.instance.PodCollectionMode)
+		k.instance.PodCollectionMode = defaultPodCollection
 	}
 }
 
