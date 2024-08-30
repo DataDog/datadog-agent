@@ -100,6 +100,40 @@ func TestLogsExporter(t *testing.T) {
 			expectedTags: [][]string{{"otel_source:datadog_agent"}},
 		},
 		{
+			name: "resource-attribute-source",
+			args: args{
+				ld: func() plog.Logs {
+					l := testutil.GenerateLogsOneLogRecord()
+					rl := l.ResourceLogs().At(0)
+					resourceAttrs := rl.Resource().Attributes()
+					resourceAttrs.PutStr("datadog.log.source", "custom_source_rattr")
+					return l
+				}(),
+				otelSource:    otelSource,
+				logSourceName: "custom_source_rattr",
+			},
+
+			want: testutil.JSONLogs{
+				{
+					"message":              "This is a log message",
+					"app":                  "server",
+					"instance_num":         "1",
+					"datadog.log.source":   "custom_source_rattr",
+					"@timestamp":           testutil.TestLogTime.Format("2006-01-02T15:04:05.000Z07:00"),
+					"status":               "Info",
+					"dd.span_id":           fmt.Sprintf("%d", spanIDToUint64(ld.SpanID())),
+					"dd.trace_id":          fmt.Sprintf("%d", traceIDToUint64(ld.TraceID())),
+					"otel.severity_text":   "Info",
+					"otel.severity_number": "9",
+					"otel.span_id":         spanIDToHexOrEmptyString(ld.SpanID()),
+					"otel.trace_id":        traceIDToHexOrEmptyString(ld.TraceID()),
+					"otel.timestamp":       fmt.Sprintf("%d", testutil.TestLogTime.UnixNano()),
+					"resource-attr":        "resource-attr-val-1",
+				},
+			},
+			expectedTags: [][]string{{"otel_source:datadog_agent"}},
+		},
+		{
 			name: "ddtags",
 			args: args{
 				ld: func() plog.Logs {
