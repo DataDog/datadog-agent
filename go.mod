@@ -142,6 +142,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/system => ./pkg/util/system
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ./pkg/util/system/socket/
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ./pkg/util/testutil
+	github.com/DataDog/datadog-agent/pkg/util/tmplvar => ./pkg/util/tmplvar
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ./pkg/util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ./pkg/util/winutil/
 	github.com/DataDog/datadog-agent/pkg/version => ./pkg/version
@@ -718,6 +719,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/system v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/tmplvar v0.58.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/version v0.56.0-rc.3
