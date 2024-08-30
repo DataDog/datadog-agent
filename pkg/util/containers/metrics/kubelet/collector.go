@@ -15,7 +15,7 @@ import (
 	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	kutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -61,7 +61,7 @@ type kubeletCollector struct {
 func newKubeletCollector(_ *provider.Cache, wmeta workloadmeta.Component) (provider.CollectorMetadata, error) {
 	var collectorMetadata provider.CollectorMetadata
 
-	if !pkgconfigenv.IsFeaturePresent(pkgconfigenv.Kubernetes) {
+	if !env.IsFeaturePresent(env.Kubernetes) {
 		return collectorMetadata, provider.ErrPermaFail
 	}
 

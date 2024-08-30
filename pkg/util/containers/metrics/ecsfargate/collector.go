@@ -15,7 +15,7 @@ import (
 	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
@@ -57,7 +57,7 @@ type ecsFargateCollector struct {
 func newEcsFargateCollector(cache *provider.Cache) (provider.CollectorMetadata, error) {
 	var collectorMetadata provider.CollectorMetadata
 
-	if !pkgconfigenv.IsFeaturePresent(pkgconfigenv.ECSFargate) {
+	if !env.IsFeaturePresent(env.ECSFargate) {
 		return collectorMetadata, provider.ErrPermaFail
 	}
 
