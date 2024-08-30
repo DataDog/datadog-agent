@@ -25,7 +25,7 @@ struct {
 struct event {
     struct base_event base;
     char output[PARAM_BUFFER_SIZE];
-}
+};
 
 SEC("uprobe/{{.GetBPFFuncName}}")
 int {{.GetBPFFuncName}}(struct pt_regs *ctx)
@@ -49,8 +49,8 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
         return 0;
     }
 
-    bpf_probe_read(&event->base.probe_id, sizeof(event->probe_id), zero_string);
-    bpf_probe_read(&event->base.program_counters, sizeof(event->program_counters), zero_string);
+    bpf_probe_read(&event->base.probe_id, sizeof(event->base.probe_id), zero_string);
+    bpf_probe_read(&event->base.program_counters, sizeof(event->base.program_counters), zero_string);
     bpf_probe_read(&event->output, sizeof(event->output), zero_string);
     bpf_probe_read(&event->base.probe_id, {{ .ID | len }}, "{{.ID}}");
 
