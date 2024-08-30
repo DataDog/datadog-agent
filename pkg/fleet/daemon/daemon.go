@@ -181,16 +181,20 @@ func (d *daemonImpl) Start(_ context.Context) error {
 	d.m.Lock()
 	defer d.m.Unlock()
 	go func() {
+		gcTicker := time.NewTicker(gcInterval)
+		defer gcTicker.Stop()
+		refreshStateTicker := time.NewTicker(refreshStateInterval)
+		defer refreshStateTicker.Stop()
 		for {
 			select {
-			case <-time.After(gcInterval):
+			case <-gcTicker.C:
 				d.m.Lock()
 				err := d.installer.GarbageCollect(context.Background())
 				d.m.Unlock()
 				if err != nil {
 					log.Errorf("Daemon: could not run GC: %v", err)
 				}
-			case <-time.After(refreshStateInterval):
+			case <-refreshStateTicker.C:
 				d.m.Lock()
 				d.refreshState(context.Background())
 				d.m.Unlock()
