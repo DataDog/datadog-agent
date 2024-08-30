@@ -207,6 +207,18 @@ func (m *Check) Run() error {
 		}
 	}
 
+	fmt.Printf("CHECK PROCS\n")
+	for i, device := range gpuDevices {
+		procs, err := device.GetProcessesUtilizationList()
+		if err != nil {
+			log.Warnf("Failed to get processes utilization for GPU %d: %s", i, err)
+		}
+
+		for _, proc := range procs {
+			fmt.Printf("GPU %d: %+v\n", i, proc)
+		}
+	}
+
 	fmt.Printf("GPU stats: %+v\n", stats)
 	snd.Commit()
 	fmt.Printf("GPU check done, sender stats: %+v\n", snd.GetSenderStats())

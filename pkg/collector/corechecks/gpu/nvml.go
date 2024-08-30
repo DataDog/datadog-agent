@@ -11,7 +11,9 @@ package gpu
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
+	"unsafe"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
@@ -80,4 +82,18 @@ func (d *gpuDevice) GetMaxThreads() (int, error) {
 	}
 
 	return int(cores), nil
+}
+
+func (d *gpuDevice) GetProcessesUtilizationList() ([]nvml.ProcessUtilizationInfo_v1, error) {
+	info, ret := d.Device.GetProcessesUtilizationInfo()
+	if err := wrapNvmlError(ret); err != nil {
+		return nil, err
+	}
+
+	sh := (*reflect.SliceHeader)(unsafe.Pointer(info.ProcUtilArray))
+	sh.Data = uintptr(unsafe.Pointer(info.ProcUtilArray))
+	sh.Len = int(info.ProcessSamplesCount)
+	sh.Cap = int(info.ProcessSamplesCount)
+
+	return *(*[]nvml.ProcessUtilizationInfo_v1)(unsafe.Pointer(sh)), nil
 }
