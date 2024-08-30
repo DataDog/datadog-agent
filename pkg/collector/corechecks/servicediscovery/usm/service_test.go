@@ -191,7 +191,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"--",
 				"/somewhere/index.js",
 			},
-			expectedServiceTag: "",
+			expectedServiceTag: "node",
 		},
 		{
 			name: "node js with a broken package.json",
@@ -199,7 +199,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"/usr/bin/node",
 				"./testdata/inner/index.js",
 			},
-			expectedServiceTag: "",
+			expectedServiceTag: "node",
 		},
 		{
 			name: "node js with a valid package.json",
@@ -385,6 +385,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"/usr/bin/dotnet", "run", "--project", "./projects/proj1/proj1.csproj",
 			},
+			expectedServiceTag: "dotnet",
 		},
 		{
 			name: "PHP Laravel",
