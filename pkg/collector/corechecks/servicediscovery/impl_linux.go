@@ -8,7 +8,6 @@
 package servicediscovery
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/prometheus/procfs"
@@ -41,7 +40,6 @@ type linuxImpl struct {
 	procfs            procFS
 	getSysProbeClient func() (systemProbeClient, error)
 	time              timer
-	bootTime          uint64
 
 	ignoreCfg map[string]bool
 
@@ -58,13 +56,8 @@ func newLinuxImpl(ignoreCfg map[string]bool) (osImpl, error) {
 	if err != nil {
 		return nil, err
 	}
-	stat, err := pfs.Stat()
-	if err != nil {
-		return nil, err
-	}
 	return &linuxImpl{
 		procfs:            wProcFS{pfs},
-		bootTime:          stat.BootTime,
 		getSysProbeClient: getSysProbeClient,
 		time:              realTime{},
 		ignoreCfg:         ignoreCfg,
@@ -199,24 +192,15 @@ func (li *linuxImpl) aliveProcs() (map[int]proc, error) {
 }
 
 func (li *linuxImpl) getServiceInfo(p proc, service model.Service) (*serviceInfo, error) {
-	stat, err := p.Stat()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read /proc/{pid}/stat: %w", err)
-	}
-
 	// if the process name is docker-proxy, we should talk to docker to get the process command line and env vars
 	// have to see how far this can go but not for the initial release
 
 	// for now, docker-proxy is going on the ignore list
 
-	// calculate the start time
-	// divide Starttime by 100 to go from clicks since boot to seconds since boot
-	startTimeSecs := li.bootTime + (stat.Starttime / 100)
-
 	pInfo := processInfo{
 		PID: p.PID(),
 		Stat: procStat{
-			StartTime: startTimeSecs,
+			StartTime: service.StartTimeSecs,
 		},
 		Ports:   service.Ports,
 		CmdLine: service.CommandLine,
