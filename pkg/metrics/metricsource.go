@@ -1045,14 +1045,14 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceKubeControllerManager
 	case "kube_dns":
 		return MetricSourceKubeDNS
-	case "kubeflow":
-		return MetricSourceKubeflow
 	case "kube_metrics_server":
 		return MetricSourceKubeMetricsServer
 	case "kube_proxy":
 		return MetricSourceKubeProxy
 	case "kube_scheduler":
 		return MetricSourceKubeScheduler
+	case "kubeflow":
+		return MetricSourceKubeflow
 	case "kubelet":
 		return MetricSourceKubelet
 	case "kubernetes_state":
