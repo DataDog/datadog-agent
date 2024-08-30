@@ -998,6 +998,11 @@ void Two::setObfuscateMongoDBStringCb(cb_obfuscate_mongodb_string_t cb)
     _set_obfuscate_mongodb_string_cb(cb);
 }
 
+void Two::setEmitAgentTelemetryCb(cb_emit_agent_telemetry_t cb)
+{
+    _set_emit_agent_telemetry_cb(cb);
+}
+
 // Python Helpers
 
 // get_integration_list return a list of every datadog's wheels installed.

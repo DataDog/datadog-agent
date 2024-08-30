@@ -26,6 +26,7 @@ static cb_obfuscate_sql_t cb_obfuscate_sql = NULL;
 static cb_obfuscate_sql_exec_plan_t cb_obfuscate_sql_exec_plan = NULL;
 static cb_get_process_start_time_t cb_get_process_start_time = NULL;
 static cb_obfuscate_mongodb_string_t cb_obfuscate_mongodb_string = NULL;
+static cb_emit_agent_telemetry_t cb_emit_agent_telemetry = NULL;
 
 // forward declarations
 static PyObject *get_clustername(PyObject *self, PyObject *args);
@@ -45,6 +46,7 @@ static PyObject *obfuscate_sql(PyObject *self, PyObject *args, PyObject *kwargs)
 static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *get_process_start_time(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *obfuscate_mongodb_string(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *kwargs);
 
 static PyMethodDef methods[] = {
     { "get_clustername", get_clustername, METH_NOARGS, "Get the cluster name." },
@@ -64,6 +66,7 @@ static PyMethodDef methods[] = {
     { "obfuscate_sql_exec_plan", (PyCFunction)obfuscate_sql_exec_plan, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a SQL Execution Plan." },
     { "get_process_start_time", (PyCFunction)get_process_start_time, METH_NOARGS, "Get agent process startup time, in seconds since the epoch." },
     { "obfuscate_mongodb_string", (PyCFunction)obfuscate_mongodb_string, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a MongoDB command string." },
+    { "emit_agent_telemetry", (PyCFunction)emit_agent_telemetry, METH_VARARGS|METH_KEYWORDS, "Emit agent telemetry." },
     { NULL, NULL } // guards
 };
 
@@ -161,6 +164,10 @@ void _set_get_process_start_time_cb(cb_get_process_start_time_t cb) {
 void _set_obfuscate_mongodb_string_cb(cb_obfuscate_mongodb_string_t cb) {
     cb_obfuscate_mongodb_string = cb;
 
+}
+
+void _set_emit_agent_telemetry_cb(cb_emit_agent_telemetry_t cb) {
+    cb_emit_agent_telemetry = cb;
 }
 
 
@@ -924,6 +931,41 @@ static PyObject *obfuscate_mongodb_string(PyObject *self, PyObject *args, PyObje
 
     cgo_free(error_message);
     cgo_free(obfCmd);
+    PyGILState_Release(gstate);
+    return retval;
+}
+
+/*! \fn PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *kwargs)
+    \brief This function implements the `datadog_agent.emit_agent_telemetry` method, emitting agent elemetry
+    for the provided check, metric, and value.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to a tuple containing the key to retrieve.
+    \param kwargs A PyObject* pointer to a map of key value pairs.
+    \return A PyObject* pointer to the value.
+
+    This function is callable as the `datadog_agent.emit_agent_telemetry` Python method and
+    uses the `cb_emit_agent_telemetry()` callback to emit the agent telemetry
+    with CGO. If the callback has not been set `None` will be returned.
+*/
+static PyObject *emit_agent_telemetry(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    // callback must be set
+    if (cb_emit_agent_telemetry == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    char *check = NULL;
+    char *metric = NULL;
+    float value = NULL;
+    if (!PyArg_ParseTuple(args, "ssf", &check, &metric, &value)) {
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
+    cb_emit_agent_telemetry(check, metric, value);
+
     PyGILState_Release(gstate);
     return retval;
 }

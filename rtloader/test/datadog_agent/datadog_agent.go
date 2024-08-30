@@ -41,6 +41,7 @@ extern char* obfuscateSQL(char*, char*, char**);
 extern char* obfuscateSQLExecPlan(char*, bool, char**);
 extern double getProcessStartTime();
 extern char* obfuscateMongoDBString(char*, char**);
+extern void emitAgentTelemetry(char*, char*, float);
 
 
 static void initDatadogAgentTests(rtloader_t *rtloader) {
@@ -61,6 +62,7 @@ static void initDatadogAgentTests(rtloader_t *rtloader) {
    set_obfuscate_sql_exec_plan_cb(rtloader, obfuscateSQLExecPlan);
    set_get_process_start_time_cb(rtloader, getProcessStartTime);
    set_obfuscate_mongodb_string_cb(rtloader, obfuscateMongoDBString);
+   set_emit_agent_telemetry_cb(rtloader, emitAgentTelemetry);
 }
 */
 import "C"
@@ -355,4 +357,9 @@ func obfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
 		*errResult = (*C.char)(helpers.TrackedCString("unknown test case"))
 		return nil
 	}
+}
+
+//export emitAgentTelemetry
+func emitAgentTelemetry(check *C.char, metric *C.char, value C.float) {
+	// NOOP
 }

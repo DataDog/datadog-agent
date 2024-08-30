@@ -614,11 +614,11 @@ func ObfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
 // EmitAgentTelemetry records a telemetry data point for a Python integration
 //
 //export EmitAgentTelemetry
-func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue *C.float) {
+func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.float) {
 	// telemetryType and telemetryValue are optional
 	goCheckName := C.GoString(checkName)
 	goMetricName := C.GoString(metricName)
-	goMetricValue := float64(*metricValue)
+	goMetricValue := float64(metricValue)
 
 	switch goCheckName {
 	case "postgres":
