@@ -13,13 +13,9 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 func main() {
-	tracer.Start()
-
 	listener, err := net.Listen("tcp", "")
 	if err != nil {
 		fmt.Println(err)

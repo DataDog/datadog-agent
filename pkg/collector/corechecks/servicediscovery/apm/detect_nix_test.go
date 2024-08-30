@@ -176,7 +176,7 @@ func Test_pythonDetector(t *testing.T) {
 func TestGoDetector(t *testing.T) {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
-	serverBin, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "..", "module", "testutil"), "fake_server")
+	serverBin, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "instrumented")
 	require.NoError(t, err)
 
 	cmd := exec.Command(serverBin)
