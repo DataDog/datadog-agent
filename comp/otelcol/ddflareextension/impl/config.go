@@ -57,7 +57,6 @@ func (c *Config) Unmarshal(conf *confmap.Conf) error {
 	return nil
 }
 
-// todo: uncomment once zpages data is re-added to flare
 func zPagesExtractEndpoint(c *confmap.Conf) (string, error) {
 	endpoint, err := regularStringEndpointExtractor(c)
 	return endpoint, err
