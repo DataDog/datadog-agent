@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"reflect"
 	"strings"
 	"text/template"
@@ -24,34 +25,32 @@ import (
 // GenerateBPFParamsCode generates the source code associated with the probe and data
 // in it's associated process info.
 func GenerateBPFParamsCode(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error {
-	parametersText := ""
+	parameterBytes := []byte{}
+	out := bytes.NewBuffer(parameterBytes)
+
 	if probe.InstrumentationInfo.InstrumentationOptions.CaptureParameters {
 		params := applyCaptureDepth(procInfo.TypeMap.Functions[probe.FuncName], probe.InstrumentationInfo.InstrumentationOptions.MaxReferenceDepth)
 		applyFieldCountLimit(params)
 		for i := range params {
 			flattenedParams := flattenParameters([]ditypes.Parameter{params[i]})
 
-			headersText, err := generateHeadersText(flattenedParams)
+			err := generateHeadersText(flattenedParams, out)
 			if err != nil {
 				return err
 			}
-			parametersText += headersText
 
-			valueText, err := generateParametersText(flattenedParams)
+			err = generateParametersText(flattenedParams, out)
 			if err != nil {
 				return err
 			}
-			parametersText += valueText
 		}
 	} else {
 		log.Info("Not capturing parameters")
 	}
 
-	probe.InstrumentationInfo.BPFParametersSourceCode = parametersText
+	probe.InstrumentationInfo.BPFParametersSourceCode = out.String()
 	return nil
 }
-
-func GenerateBPFSourceCode() {}
 
 func resolveHeaderTemplate(param *ditypes.Parameter) (*template.Template, error) {
 	switch param.Kind {
@@ -70,48 +69,43 @@ func resolveHeaderTemplate(param *ditypes.Parameter) (*template.Template, error)
 	}
 }
 
-func generateHeadersText(params []ditypes.Parameter) (string, error) {
-	fullHeaderText := ""
+func generateHeadersText(params []ditypes.Parameter, out io.Writer) error {
 	for i := range params {
-		text, err := generateHeaderText(params[i])
+		err := generateHeaderText(params[i], out)
 		if err != nil {
-			return "", err
+			return err
 		}
-		fullHeaderText += text
 	}
-	return fullHeaderText, nil
+	return nil
 }
 
-func generateHeaderText(param ditypes.Parameter) (string, error) {
+func generateHeaderText(param ditypes.Parameter, out io.Writer) error {
 	if reflect.Kind(param.Kind) == reflect.Slice {
-		return generateSliceHeader(&param)
+		return generateSliceHeader(&param, out)
 	}
 
 	tmplt, err := resolveHeaderTemplate(&param)
 	if err != nil {
-		return "", err
+		return err
 	}
-	buf := new(bytes.Buffer)
-	err = tmplt.Execute(buf, param)
+	err = tmplt.Execute(out, param)
 	if err != nil {
-		return "", err
+		return err
 	}
-	return buf.String(), nil
+	return nil
 }
 
-func generateParametersText(params []ditypes.Parameter) (string, error) {
-	parametersText := ""
+func generateParametersText(params []ditypes.Parameter, out io.Writer) error {
 	for i := range params {
-		parameterText, err := generateParameterText(&params[i])
+		err := generateParameterText(&params[i], out)
 		if err != nil {
-			return "", err
+			return err
 		}
-		parametersText += parameterText
 	}
-	return parametersText, nil
+	return nil
 }
 
-func generateParameterText(param *ditypes.Parameter) (string, error) {
+func generateParameterText(param *ditypes.Parameter, out io.Writer) error {
 
 	if param.Kind == uint(reflect.Array) ||
 		param.Kind == uint(reflect.Struct) ||
@@ -120,20 +114,20 @@ func generateParameterText(param *ditypes.Parameter) (string, error) {
 		// a header for them for the sake of event parsing.
 		// - Pointers do have actual values, but they're captured when the
 		// underlying value is also captured.
-		return "", nil
+		return nil
 	}
 
-	buf := new(bytes.Buffer)
 	template, err := resolveParameterTemplate(param)
 	if err != nil {
-		return "", err
+		return err
 	}
 	param.Type = cleanupTypeName(param.Type)
-	err = template.Execute(buf, param)
+	err = template.Execute(out, param)
 	if err != nil {
-		return "", fmt.Errorf("could not execute template for generating read of parameter: %w", err)
+		return fmt.Errorf("could not execute template for generating read of parameter: %w", err)
 	}
-	return buf.String(), nil
+
+	return nil
 }
 
 func resolveParameterTemplate(param *ditypes.Parameter) (*template.Template, error) {
@@ -201,33 +195,35 @@ func cleanupTypeName(s string) string {
 	return strings.TrimPrefix(s, "*")
 }
 
-func generateSliceHeader(slice *ditypes.Parameter) (string, error) {
+func generateSliceHeader(slice *ditypes.Parameter, out io.Writer) error {
 	if slice == nil {
-		return "", errors.New("nil slice parameter when generating header code")
+		return errors.New("nil slice parameter when generating header code")
 	}
 	if len(slice.ParameterPieces) != 1 {
-		return "", errors.New("invalid slice parameter when generating header code")
+		return errors.New("invalid slice parameter when generating header code")
 	}
-	headerText, err := generateHeaderText(slice.ParameterPieces[0])
+
+	x := []byte{}
+	buf := bytes.NewBuffer(x)
+	err := generateHeaderText(slice.ParameterPieces[0], out)
 	if err != nil {
-		return "", err
+		return err
 	}
 	w := sliceHeaderWrapper{
 		Parameter:           slice,
-		SliceTypeHeaderText: headerText,
+		SliceTypeHeaderText: buf.String(),
 	}
 
 	sliceTemplate, err := resolveHeaderTemplate(slice)
 	if err != nil {
-		return "", err
+		return err
 	}
-	buf := new(bytes.Buffer)
 
-	err = sliceTemplate.Execute(buf, w)
+	err = sliceTemplate.Execute(out, w)
 	if err != nil {
-		return "", fmt.Errorf("could not execute template for generating slice header: %w", err)
+		return fmt.Errorf("could not execute template for generating slice header: %w", err)
 	}
-	return buf.String(), nil
+	return nil
 }
 
 type sliceHeaderWrapper struct {
