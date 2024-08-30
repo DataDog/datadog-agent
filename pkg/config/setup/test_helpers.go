@@ -17,5 +17,7 @@ import (
 func newTestConf() pkgconfigmodel.Config {
 	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	InitConfig(conf)
+	conf.SetConfigFile("")
+	pkgconfigmodel.ApplyOverrideFuncs(conf)
 	return conf
 }
