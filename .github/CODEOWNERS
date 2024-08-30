@@ -591,6 +591,8 @@
 /test/fakeintake/                             @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
 /test/fakeintake/aggregator/ndmflowAggregator.go @DataDog/network-device-monitoring
 /test/fakeintake/aggregator/ndmflowAggregator_test.go @DataDog/network-device-monitoring
+/test/fakeintake/aggregator/servicediscoveryAggregator.go @DataDog/apm-onboarding @DataDog/universal-service-monitoring
+/test/fakeintake/aggregator/servicediscoveryAggregator_test.go @DataDog/apm-onboarding @DataDog/universal-service-monitoring
 /test/new-e2e/                                @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
 /test/new-e2e/test-infra-definition           @DataDog/agent-devx-loops
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
