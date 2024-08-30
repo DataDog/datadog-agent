@@ -76,9 +76,11 @@ def create_diff_installed_packages_file(directory):
                 f.write(f"{prerm_req}\n")
 
 def install_datadog_package(package):
+    print(f"Installing datadog integration: {package}")
     run_command(f'datadog-agent integration install -t {package} -r')
 
 def install_dependency_package(pip, package):
+    print(f"Installing python dependency: {package}")
     run_command(f'{pip} install {package}')
 
 def install_diff_packages_file(pip, filename):
