@@ -1212,6 +1212,9 @@ func telemetry(config pkgconfigmodel.Setup) {
 	// Agent Telemetry. It is experimental feature and is subject to change.
 	// It should not be enabled unless prompted by Datadog Support
 	config.BindEnvAndSetDefault("agent_telemetry.enabled", false)
+	config.SetKnown("agent_telemetry.additional_endpoints.*")
+	bindEnvAndSetLogsConfigKeys(config, "agent_telemetry.")
+
 }
 
 func serializer(config pkgconfigmodel.Setup) {
