@@ -9,14 +9,12 @@ package servicediscovery
 
 import (
 	"cmp"
-	"errors"
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
 	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/prometheus/procfs"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -27,10 +25,9 @@ import (
 )
 
 type testProc struct {
-	pid  int
-	env  []string
-	cwd  string
-	stat procfs.ProcStat
+	pid int
+	env []string
+	cwd string
 }
 
 var (
@@ -132,16 +129,6 @@ var (
 	}
 )
 
-func mockProc(
-	ctrl *gomock.Controller,
-	p testProc,
-) proc {
-	m := NewMockproc(ctrl)
-	m.EXPECT().PID().Return(p.pid).AnyTimes()
-	m.EXPECT().Stat().Return(p.stat, nil).AnyTimes()
-	return m
-}
-
 func calcTime(additionalTime time.Duration) time.Time {
 	unix := time.Unix(int64(procLaunchedSeconds), 0)
 	return unix.Add(additionalTime)
@@ -181,7 +168,6 @@ func Test_linuxImpl(t *testing.T) {
 	t.Setenv("DD_DISCOVERY_ENABLED", "true")
 
 	type checkRun struct {
-		aliveProcs   []testProc
 		servicesResp *model.ServicesResponse
 		time         time.Time
 	}
@@ -195,12 +181,6 @@ func Test_linuxImpl(t *testing.T) {
 			name: "basic",
 			checkRun: []*checkRun{
 				{
-					aliveProcs: []testProc{
-						procSSHD,
-						procIgnoreService1,
-						procTestService1,
-						procPythonService,
-					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
 						portTCP5000,
@@ -210,12 +190,6 @@ func Test_linuxImpl(t *testing.T) {
 					time: calcTime(0),
 				},
 				{
-					aliveProcs: []testProc{
-						procSSHD,
-						procIgnoreService1,
-						procTestService1,
-						procPythonService,
-					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
 						portTCP5000,
@@ -225,12 +199,6 @@ func Test_linuxImpl(t *testing.T) {
 					time: calcTime(1 * time.Minute),
 				},
 				{
-					aliveProcs: []testProc{
-						procSSHD,
-						procIgnoreService1,
-						procTestService1,
-						procPythonService,
-					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
 						portTCP5000,
@@ -240,10 +208,6 @@ func Test_linuxImpl(t *testing.T) {
 					time: calcTime(20 * time.Minute),
 				},
 				{
-					aliveProcs: []testProc{
-						procSSHD,
-						procPythonService,
-					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
 						portTCP5000,
@@ -349,12 +313,6 @@ func Test_linuxImpl(t *testing.T) {
 			name: "repeated_service_name",
 			checkRun: []*checkRun{
 				{
-					aliveProcs: []testProc{
-						procSSHD,
-						procIgnoreService1,
-						procTestService1,
-						procTestService1Repeat,
-					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
 						portTCP8080,
@@ -364,12 +322,6 @@ func Test_linuxImpl(t *testing.T) {
 					time: calcTime(0),
 				},
 				{
-					aliveProcs: []testProc{
-						procSSHD,
-						procIgnoreService1,
-						procTestService1,
-						procTestService1Repeat,
-					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
 						portTCP8080,
@@ -379,12 +331,6 @@ func Test_linuxImpl(t *testing.T) {
 					time: calcTime(1 * time.Minute),
 				},
 				{
-					aliveProcs: []testProc{
-						procSSHD,
-						procIgnoreService1,
-						procTestService1,
-						procTestService1Repeat,
-					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
 						portTCP8080,
@@ -394,10 +340,6 @@ func Test_linuxImpl(t *testing.T) {
 					time: calcTime(20 * time.Minute),
 				},
 				{
-					aliveProcs: []testProc{
-						procSSHD,
-						procTestService1,
-					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
 						portTCP8080,
@@ -500,11 +442,6 @@ func Test_linuxImpl(t *testing.T) {
 			name: "restart_service",
 			checkRun: []*checkRun{
 				{
-					aliveProcs: []testProc{
-						procSSHD,
-						procIgnoreService1,
-						procTestService1,
-					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
 						portTCP8080,
@@ -513,11 +450,6 @@ func Test_linuxImpl(t *testing.T) {
 					time: calcTime(0),
 				},
 				{
-					aliveProcs: []testProc{
-						procSSHD,
-						procIgnoreService1,
-						procTestService1,
-					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
 						portTCP8080,
@@ -526,10 +458,6 @@ func Test_linuxImpl(t *testing.T) {
 					time: calcTime(1 * time.Minute),
 				},
 				{
-					aliveProcs: []testProc{
-						procSSHD,
-						procTestService1DifferentPID,
-					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
 						portTCP8080DifferentPID,
@@ -537,10 +465,6 @@ func Test_linuxImpl(t *testing.T) {
 					time: calcTime(21 * time.Minute),
 				},
 				{
-					aliveProcs: []testProc{
-						procSSHD,
-						procTestService1DifferentPID,
-					},
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
 						portTCP8080DifferentPID,
@@ -617,21 +541,12 @@ func Test_linuxImpl(t *testing.T) {
 					Return(cr.servicesResp, nil).
 					Times(1)
 
-				var procs []proc
-				for _, p := range cr.aliveProcs {
-					procs = append(procs, mockProc(ctrl, p))
-				}
-
 				_, mHostname := hostnameinterface.NewMock(hostnameinterface.MockHostname(host))
-
-				mProcFS := NewMockprocFS(ctrl)
-				mProcFS.EXPECT().AllProcs().Return(procs, nil).Times(1)
 
 				mTimer := NewMocktimer(ctrl)
 				mTimer.EXPECT().Now().Return(cr.time).AnyTimes()
 
 				// set mocks
-				check.os.(*linuxImpl).procfs = mProcFS
 				check.os.(*linuxImpl).getSysProbeClient = func() (systemProbeClient, error) {
 					return mSysProbe, nil
 				}
@@ -651,34 +566,5 @@ func Test_linuxImpl(t *testing.T) {
 				t.Errorf("event platform events mismatch (-want +got):\n%s", diff)
 			}
 		})
-	}
-}
-
-type errorProcFS struct{}
-
-func (errorProcFS) AllProcs() ([]proc, error) {
-	return nil, errors.New("procFS failure")
-}
-
-func Test_linuxImpl_errors(t *testing.T) {
-	t.Setenv("DD_DISCOVERY_ENABLED", "true")
-
-	// bad procFS
-	{
-		li := linuxImpl{
-			procfs: errorProcFS{},
-		}
-		ds, err := li.DiscoverServices()
-		if ds != nil {
-			t.Error("expected nil discovery service")
-		}
-		var expected errWithCode
-		if errors.As(err, &expected) {
-			if expected.Code() != errorCodeProcfs {
-				t.Errorf("expected error code procfs: %#v", expected)
-			}
-		} else {
-			t.Error("expected errWithCode, got", err)
-		}
 	}
 }

@@ -59,8 +59,6 @@ type serviceEvents struct {
 }
 
 type discoveredServices struct {
-	aliveProcsCount int
-
 	ignoreProcs     map[int]bool
 	potentials      map[int]*serviceInfo
 	runningServices map[int]*serviceInfo
@@ -163,8 +161,7 @@ func (c *Check) Run() error {
 		return err
 	}
 
-	log.Debugf("aliveProcs: %d | ignoreProcs: %d | runningServices: %d | potentials: %d",
-		disc.aliveProcsCount,
+	log.Debugf("ignoreProcs: %d | runningServices: %d | potentials: %d",
 		len(disc.ignoreProcs),
 		len(disc.runningServices),
 		len(disc.potentials),

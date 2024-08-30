@@ -10,8 +10,6 @@ package servicediscovery
 import (
 	"time"
 
-	"github.com/prometheus/procfs"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -37,7 +35,6 @@ var ignoreCfgLinux = []string{
 }
 
 type linuxImpl struct {
-	procfs            procFS
 	getSysProbeClient func() (systemProbeClient, error)
 	time              timer
 
@@ -52,12 +49,7 @@ func newLinuxImpl(ignoreCfg map[string]bool) (osImpl, error) {
 	for _, i := range ignoreCfgLinux {
 		ignoreCfg[i] = true
 	}
-	pfs, err := procfs.NewDefaultFS()
-	if err != nil {
-		return nil, err
-	}
 	return &linuxImpl{
-		procfs:            wProcFS{pfs},
 		getSysProbeClient: getSysProbeClient,
 		time:              realTime{},
 		ignoreCfg:         ignoreCfg,
@@ -68,15 +60,6 @@ func newLinuxImpl(ignoreCfg map[string]bool) (osImpl, error) {
 }
 
 func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
-	procs, err := li.aliveProcs()
-	if err != nil {
-		return nil, errWithCode{
-			err:  err,
-			code: errorCodeProcfs,
-			svc:  nil,
-		}
-	}
-
 	sysProbe, err := li.getSysProbeClient()
 	if err != nil {
 		return nil, errWithCode{
@@ -124,23 +107,7 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 		if _, ok := li.aliveServices[pid]; !ok {
 			log.Debugf("[pid: %d] found new process with open ports", pid)
 
-			p, ok := procs[pid]
-			if !ok {
-				log.Debugf("[pid: %d] process with open ports was not found in alive procs", pid)
-				continue
-			}
-
-			svc, err := li.getServiceInfo(p, service)
-			if err != nil {
-				telemetryFromError(errWithCode{
-					err:  err,
-					code: errorCodeProcfs,
-					svc:  nil,
-				})
-				log.Errorf("[pid: %d] failed to get process info: %v", pid, err)
-				li.ignoreProcs[pid] = true
-				continue
-			}
+			svc := li.getServiceInfo(pid, service)
 			if li.ignoreCfg[svc.meta.Name] {
 				log.Debugf("[pid: %d] process ignored from config: %s", pid, svc.meta.Name)
 				li.ignoreProcs[pid] = true
@@ -171,7 +138,6 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 	}
 
 	return &discoveredServices{
-		aliveProcsCount: len(procs),
 		ignoreProcs:     li.ignoreProcs,
 		potentials:      li.potentialServices,
 		runningServices: li.aliveServices,
@@ -179,26 +145,14 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 	}, nil
 }
 
-func (li *linuxImpl) aliveProcs() (map[int]proc, error) {
-	procs, err := li.procfs.AllProcs()
-	if err != nil {
-		return nil, err
-	}
-	procMap := map[int]proc{}
-	for _, v := range procs {
-		procMap[v.PID()] = v
-	}
-	return procMap, nil
-}
-
-func (li *linuxImpl) getServiceInfo(p proc, service model.Service) (*serviceInfo, error) {
+func (li *linuxImpl) getServiceInfo(pid int, service model.Service) *serviceInfo {
 	// if the process name is docker-proxy, we should talk to docker to get the process command line and env vars
 	// have to see how far this can go but not for the initial release
 
 	// for now, docker-proxy is going on the ignore list
 
 	pInfo := processInfo{
-		PID: p.PID(),
+		PID: pid,
 		Stat: procStat{
 			StartTime: service.StartTimeSecs,
 		},
@@ -220,40 +174,7 @@ func (li *linuxImpl) getServiceInfo(p proc, service model.Service) (*serviceInfo
 		process:       pInfo,
 		meta:          meta,
 		LastHeartbeat: li.time.Now(),
-	}, nil
-}
-
-type proc interface {
-	PID() int
-	Stat() (procfs.ProcStat, error)
-}
-
-type wProc struct {
-	procfs.Proc
-}
-
-func (w wProc) PID() int {
-	return w.Proc.PID
-}
-
-type procFS interface {
-	AllProcs() ([]proc, error)
-}
-
-type wProcFS struct {
-	procfs.FS
-}
-
-func (w wProcFS) AllProcs() ([]proc, error) {
-	procs, err := w.FS.AllProcs()
-	if err != nil {
-		return nil, err
 	}
-	var res []proc
-	for _, p := range procs {
-		res = append(res, wProc{p})
-	}
-	return res, nil
 }
 
 type systemProbeClient interface {
