@@ -44,12 +44,17 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.56.0-rc3
 	github.com/DataDog/datadog-agent/comp/core/workloadmeta/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.0-rc3
+	github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels v0.56.0-rc3
+	github.com/DataDog/datadog-agent/pkg/languagedetection/util v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4 v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/kubernetes/helpers v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc3
 	github.com/aquasecurity/trivy v0.54.1
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/stretchr/testify v1.9.0
+	k8s.io/api v0.30.3
+	k8s.io/apimachinery v0.31.0
 )
 
 require (
@@ -70,8 +75,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/env v0.56.0-rc3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.58.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.56.0-rc3 // indirect
-	github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels v0.56.0-rc3 // indirect
-	github.com/DataDog/datadog-agent/pkg/languagedetection/util v0.56.0-rc3 // indirect
 	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc3 // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/containers/image v0.56.0-rc3 // indirect
@@ -81,7 +84,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.56.0-rc3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.56.0-rc3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/kubernetes/helpers v0.56.0-rc3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.0-rc3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.56.0-rc3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0-rc3 // indirect
@@ -315,9 +317,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	helm.sh/helm/v3 v3.15.3 // indirect
-	k8s.io/api v0.30.3 // indirect
 	k8s.io/apiextensions-apiserver v0.30.0 // indirect
-	k8s.io/apimachinery v0.31.0 // indirect
 	k8s.io/apiserver v0.30.0 // indirect
 	k8s.io/cli-runtime v0.30.2 // indirect
 	k8s.io/client-go v0.30.2 // indirect

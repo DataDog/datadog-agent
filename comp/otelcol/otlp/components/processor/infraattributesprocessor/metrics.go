@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -35,6 +34,13 @@ func newInfraAttributesMetricProcessor(set processor.Settings, cfg *Config, tagg
 	}
 	set.Logger.Info("Metric Infra Attributes Processor configured")
 	return iamp, nil
+}
+
+// GenerateKubeMetadataEntityID generates and returns a unique entity id for KubernetesMetadata entity
+// for namespaced objects, the id will have the format {group}/{resourceType}/{namespace}/{name} (e.g. app/deployments/default/app )
+// for cluster scoped objects, the id will have the format {group}/{resourceType}//{name} (e.g. /nodes//master-node)
+func generateKubeMetadataEntityID(group, resource, namespace, name string) string {
+	return fmt.Sprintf("%s/%s/%s/%s", group, resource, namespace, name)
 }
 
 // TODO: Replace OriginIDFromAttributes in opentelemetry-mapping-go with this method
@@ -62,10 +68,11 @@ func entityIDsFromAttributes(attrs pcommon.Map) []string {
 		}
 	}
 	if namespace, ok := attrs.Get(conventions.AttributeK8SNamespaceName); ok {
-		entityIDs = append(entityIDs, fmt.Sprintf("kubernetes_metadata://%s", string(util.GenerateKubeMetadataEntityID("", "namespaces", "", namespace.AsString()))))
+		// remove dependency on workloadmeta/collectors/util, see workloadmeta/collectors/util.GenerateKubeMetadataEntityID
+		entityIDs = append(entityIDs, fmt.Sprintf("kubernetes_metadata://%s", generateKubeMetadataEntityID("", "namespaces", "", namespace.AsString())))
 	}
 	if nodeName, ok := attrs.Get(conventions.AttributeK8SNodeName); ok {
-		entityIDs = append(entityIDs, fmt.Sprintf("kubernetes_metadata://%s", string(util.GenerateKubeMetadataEntityID("", "nodes", "", nodeName.AsString()))))
+		entityIDs = append(entityIDs, fmt.Sprintf("kubernetes_metadata://%s", generateKubeMetadataEntityID("", "nodes", "", nodeName.AsString())))
 	}
 	if podUID, ok := attrs.Get(conventions.AttributeK8SPodUID); ok {
 		entityIDs = append(entityIDs, fmt.Sprintf("kubernetes_pod_uid://%v", podUID.AsString()))

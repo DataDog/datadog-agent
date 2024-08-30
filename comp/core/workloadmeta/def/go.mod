@@ -31,8 +31,9 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
 )
 
+replace github.com/imdario/mergo => github.com/imdario/mergo v0.3.16
+
 require (
-	dario.cat/mergo v1.0.1
 	github.com/CycloneDX/cyclonedx-go v0.9.0
 	github.com/DataDog/datadog-agent/comp/core/config v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels v0.56.0-rc3
@@ -41,6 +42,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0-rc3
 	github.com/fatih/color v1.17.0
+	github.com/imdario/mergo v0.3.16
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/opencontainers/image-spec v1.1.0
 	github.com/stretchr/testify v1.9.0

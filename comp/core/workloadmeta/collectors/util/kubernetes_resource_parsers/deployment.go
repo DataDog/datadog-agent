@@ -16,7 +16,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	languagedetectionUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
-	ddkube "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	ddkubehelpers "github.com/DataDog/datadog-agent/pkg/util/kubernetes/helpers"
 )
 
 type deploymentParser struct {
@@ -80,9 +80,9 @@ func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
 			Labels:      deployment.Labels,
 			Annotations: filterMapStringKey(deployment.Annotations, p.annotationsFilter),
 		},
-		Env:                 deployment.Labels[ddkube.EnvTagLabelKey],
-		Service:             deployment.Labels[ddkube.ServiceTagLabelKey],
-		Version:             deployment.Labels[ddkube.VersionTagLabelKey],
+		Env:                 deployment.Labels[ddkubehelpers.EnvTagLabelKey],
+		Service:             deployment.Labels[ddkubehelpers.ServiceTagLabelKey],
+		Version:             deployment.Labels[ddkubehelpers.VersionTagLabelKey],
 		InjectableLanguages: containerLanguages,
 	}
 }

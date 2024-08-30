@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	"dario.cat/mergo"
+	"github.com/imdario/mergo"
 )
 
 type (
