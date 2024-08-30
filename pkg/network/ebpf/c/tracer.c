@@ -199,22 +199,26 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
 
 
     if (!tcp_failed_connections_enabled()) {
+        bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
         return 0;
     }
 
     int err = 0;
     bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
     if (err == 0) {
+        bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
         return 0; // no failure
     }
 
     if (err != TCP_CONN_FAILED_RESET && err != TCP_CONN_FAILED_TIMEOUT && err != TCP_CONN_FAILED_REFUSED) {
         log_debug("kprobe/tcp_done: unsupported error code: %d", err);
         increment_telemetry_count(unsupported_tcp_failures);
+        bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
         return 0;
     }
 
     if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
+        bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
         return 0;
     }
     log_debug("kprobe/tcp_done: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
