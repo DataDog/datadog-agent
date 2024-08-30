@@ -275,7 +275,6 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 
 	targetGVK, targetErr := podAutoscalerInternal.TargetGVK()
 	if targetErr != nil {
-		log.Errorf("Failed to get target GVK for PodAutoscaler: %s/%s, err: %v", ns, name, targetErr)
 		podAutoscalerInternal.SetError(targetErr)
 	}
 	target := NamespacedPodOwner{
