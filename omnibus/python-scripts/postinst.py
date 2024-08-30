@@ -20,7 +20,7 @@ def install_diff_packages_file(directory):
     diff_python_installed_packages_file = packages.diff_python_installed_packages_file(directory)
     if os.path.exists(diff_python_installed_packages_file):
         print(f"Installing python packages from: {diff_python_installed_packages_file}")
-        packages.install_diff_packages_file(diff_python_installed_packages_file)
+        packages.install_diff_packages_file(f"{directory}/embedded/bin/pip", diff_python_installed_packages_file)
     else:
         print(f"File {diff_python_installed_packages_file} does not exist.")
 

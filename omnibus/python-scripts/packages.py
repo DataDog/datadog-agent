@@ -4,6 +4,14 @@ import grp
 import importlib.metadata
 import pkg_resources
 from packaging import version
+import subprocess
+
+def run_command(command):
+    """
+    Execute a shell command and return its output.
+    """
+    result = subprocess.run(command, shell=True, text=True, capture_output=True, check=True)
+    return result.stdout.strip()
 
 def extract_version(specifier):
     """
@@ -67,13 +75,26 @@ def create_diff_installed_packages_file(directory):
                 # Package is new in the new file; include it
                 f.write(f"{prerm_req}\n")
 
-def install_diff_packages_file(filename):
+def install_datadog_package(package):
+    run_command(f'datadog-agent integration install -t {package} -r')
+
+def install_dependency_package(pip, package):
+    run_command(f'{pip} install -r {package}')
+
+def install_diff_packages_file(pip, filename):
     """
     Install all Datadog integrations and python dependencies from a file
     """
     with open(filename, 'r', encoding='utf-8') as f:
         for line in f:
-            print(line.strip())
+            stripped_line = line.strip()
+            if not stripped_line.startswith('#'):
+                if stripped_line.startswith('datadog-'):
+                    install_datadog_package(stripped_line)
+                else:
+                    install_dependency_package(pip, stripped_line)
+
+
 
 def load_requirements(filename):
     """
