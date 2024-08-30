@@ -53,6 +53,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -186,7 +187,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			if c.GetBool("process_config.remote_tagger") ||
 				// If the agent is running in ECS or ECS Fargate and the ECS task collection is enabled, use the remote tagger
 				// as remote tagger can return more tags than the local tagger.
-				((ddconfig.IsECS() || ddconfig.IsECSFargate()) && c.GetBool("ecs_task_collection_enabled")) {
+				((env.IsECS() || env.IsECSFargate()) && c.GetBool("ecs_task_collection_enabled")) {
 				return tagger.NewNodeRemoteTaggerParams()
 			}
 			return tagger.NewTaggerParams()
