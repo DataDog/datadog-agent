@@ -39,8 +39,9 @@ The payload is a JSON dict with the following fields
   - `runtime_override_configuration` - **string**: OTel Collector configuration overrides introduced by DD.
   - `runtime_configuration` - **string**: full compiled OTel Collector configuration executing at runtime.
 
-
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
+
+As the environment configuration and override only affect scalar values (as opposed to slices & maps), combining configurations should be straight-forward to do. Environment variables take precendence over the provided configuration, and runtime overrides take precendence over that.
 
 ## Example Payload
 
