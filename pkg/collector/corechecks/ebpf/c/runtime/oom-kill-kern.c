@@ -25,16 +25,17 @@
  * the statistics per pid
  */
 
-BPF_HASH_MAP(oom_stats, u32, struct oom_stats, 10240)
+BPF_HASH_MAP(oom_stats, u64, struct oom_stats, 10240)
 
 SEC("kprobe/oom_kill_process")
 int BPF_KPROBE(kprobe__oom_kill_process, struct oom_control *oc) {
     struct oom_stats zero = {};
     struct oom_stats new = {};
+    u64 ts = bpf_ktime_get_ns();
     u32 pid = bpf_get_current_pid_tgid() >> 32;
 
-    bpf_map_update_elem(&oom_stats, &pid, &zero, BPF_NOEXIST);
-    struct oom_stats *s = bpf_map_lookup_elem(&oom_stats, &pid);
+    bpf_map_update_elem(&oom_stats, &ts, &zero, BPF_NOEXIST);
+    struct oom_stats *s = bpf_map_lookup_elem(&oom_stats, &ts);
     if (!s) {
         return 0;
     }

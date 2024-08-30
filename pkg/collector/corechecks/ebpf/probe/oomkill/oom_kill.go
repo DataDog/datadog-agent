@@ -34,7 +34,7 @@ const oomMapName = "oom_stats"
 // Probe is the eBPF side of the OOM Kill check
 type Probe struct {
 	m      *manager.Manager
-	oomMap *maps.GenericMap[uint32, oomStats]
+	oomMap *maps.GenericMap[uint64, oomStats]
 }
 
 // NewProbe creates a [Probe]
@@ -117,7 +117,7 @@ func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options)
 		return nil, fmt.Errorf("failed to start manager: %w", err)
 	}
 
-	oomMap, err := maps.GetMap[uint32, oomStats](m, oomMapName)
+	oomMap, err := maps.GetMap[uint64, oomStats](m, oomMapName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get map '%s': %w", oomMapName, err)
 	}
@@ -139,19 +139,21 @@ func (k *Probe) Close() {
 
 // GetAndFlush gets the stats
 func (k *Probe) GetAndFlush() (results []model.OOMKillStats) {
-	var pid uint32
+	var allTimestamps []uint64
+	var ts uint64
 	var stat oomStats
 	it := k.oomMap.Iterate()
-	for it.Next(&pid, &stat) {
+	for it.Next(&ts, &stat) {
 		results = append(results, convertStats(stat))
+		allTimestamps = append(allTimestamps, ts)
 	}
 
 	if err := it.Err(); err != nil {
 		log.Warnf("failed to iterate on OOM stats while flushing: %s", err)
 	}
 
-	for _, r := range results {
-		if err := k.oomMap.Delete(&r.TriggerPid); err != nil {
+	for _, ts := range allTimestamps {
+		if err := k.oomMap.Delete(&ts); err != nil {
 			log.Warnf("failed to delete stat: %s", err)
 		}
 	}
