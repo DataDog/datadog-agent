@@ -9,56 +9,15 @@ package kubeapiserver
 
 import (
 	"fmt"
-	"regexp"
 	"slices"
 	"sort"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	utilserror "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/discovery"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-func filterMapStringKey(mapInput map[string]string, keyFilters []*regexp.Regexp) map[string]string {
-	for key := range mapInput {
-		for _, filter := range keyFilters {
-			if filter.MatchString(key) {
-				delete(mapInput, key)
-				// we can break now since the key is already excluded.
-				break
-			}
-		}
-	}
-
-	return mapInput
-}
-
-func parseFilters(annotationsExclude []string) ([]*regexp.Regexp, error) {
-	var parsedFilters []*regexp.Regexp
-	var errors []error
-	for _, exclude := range annotationsExclude {
-		filter, err := filterToRegex(exclude)
-		if err != nil {
-			errors = append(errors, err)
-			continue
-		}
-		parsedFilters = append(parsedFilters, filter)
-	}
-
-	return parsedFilters, utilserror.NewAggregate(errors)
-}
-
-// filterToRegex checks a filter's regex
-func filterToRegex(filter string) (*regexp.Regexp, error) {
-	r, err := regexp.Compile(filter)
-	if err != nil {
-		errormsg := fmt.Errorf("invalid regex '%s': %s", filter, err)
-		return nil, errormsg
-	}
-	return r, nil
-}
 
 // groupResourceToGVRString is a helper function that converts a group resource string to
 // a group-version-resource string
