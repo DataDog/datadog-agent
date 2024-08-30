@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package ebpf implements tracing network events with eBPF
 package ebpf
 
 import (

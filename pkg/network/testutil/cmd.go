@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package testutil contains helper functions used in network tests
 package testutil
 
 import (
@@ -58,6 +59,8 @@ func RunCommandWithContext(ctx context.Context, cmd string) (string, error) {
 	return string(out), nil
 }
 
+// StartCommandCtx Runs a command with the given context, returning a handle to the command
+// and its input stream.
 func StartCommandCtx(ctx context.Context, cmd string) (*exec.Cmd, io.WriteCloser, error) {
 	args := strings.Split(cmd, " ")
 	c := exec.CommandContext(ctx, args[0], args[1:]...)

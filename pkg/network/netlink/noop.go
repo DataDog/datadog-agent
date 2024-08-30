@@ -25,11 +25,11 @@ func NewNoOpConntracker() Conntracker {
 // GetType returns a string describing whether the conntracker is "ebpf" or "netlink"
 func (*noOpConntracker) GetType() string { return "" }
 
-func (*noOpConntracker) GetTranslationForConn(c *network.ConnectionStats) *network.IPTranslation {
+func (*noOpConntracker) GetTranslationForConn(_c *network.ConnectionStats) *network.IPTranslation {
 	return nil
 }
 
-func (*noOpConntracker) DeleteTranslation(c *network.ConnectionStats) {
+func (*noOpConntracker) DeleteTranslation(_c *network.ConnectionStats) {
 
 }
 
@@ -39,14 +39,12 @@ func (*noOpConntracker) IsSampling() bool {
 
 func (*noOpConntracker) Close() {}
 
-func (c *noOpConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]DebugConntrackEntry, error) {
+func (*noOpConntracker) DumpCachedTable(_ctx context.Context) (map[uint32][]DebugConntrackEntry, error) {
 	return nil, nil
 }
 
 // Describe returns all descriptions of the collector
-//
-func (*noOpConntracker) Describe(ch chan<- *prometheus.Desc) {}
+func (*noOpConntracker) Describe(_ch chan<- *prometheus.Desc) {}
 
 // Collect returns the current state of all metrics of the collector
-//
-func (*noOpConntracker) Collect(ch chan<- prometheus.Metric) {}
+func (*noOpConntracker) Collect(_ch chan<- prometheus.Metric) {}

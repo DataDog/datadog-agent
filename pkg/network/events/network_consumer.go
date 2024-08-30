@@ -15,10 +15,12 @@ import (
 // NetworkConsumer describes a process monitoring object
 type NetworkConsumer struct{}
 
+// Start starts the event consumer (noop)
 func (n *NetworkConsumer) Start() error {
 	return nil
 }
 
+// Stop stops the event consumer (noop)
 func (n *NetworkConsumer) Stop() {
 }
 

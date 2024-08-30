@@ -226,6 +226,9 @@ func (s StatCounters) IsZero() bool {
 	return s == StatCounters{}
 }
 
+// StatCookie A 64-bit hash designed to uniquely identify a connection.
+// In eBPF this is 32 bits but it gets re-hashed to 64 bits in userspace to
+// reduce collisions; see PR #17197 for more info.
 type StatCookie = uint64
 
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned

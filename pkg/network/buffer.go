@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package network contains logic and types for network tracing
 package network
 
 // ConnectionBuffer encapsulates a resizing buffer for ConnectionStat objects

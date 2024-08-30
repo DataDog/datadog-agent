@@ -70,6 +70,7 @@ func Initialized() bool {
 	return theMonitor.Load() != nil
 }
 
+// ProcessEventHandler represents a handler function triggered for process events
 type ProcessEventHandler interface {
 	HandleProcessEvent(*Process)
 }

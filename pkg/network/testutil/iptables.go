@@ -59,10 +59,9 @@ func IptablesRestore(tb testing.TB, state []byte) {
 	assert.NoError(tb, restoreErr)
 }
 
-// Ip6tablesSave saves the current iptables state to a file
+// IP6tablesSave saves the current iptables state to a file
 // and returns its path
-//
-func Ip6tablesSave(tb testing.TB) {
+func IP6tablesSave(tb testing.TB) {
 	cmd := exec.Command("ip6tables-save")
 	state, err := cmd.Output()
 	require.NoError(tb, err)
@@ -78,13 +77,12 @@ func Ip6tablesSave(tb testing.TB) {
 	require.NoError(tb, err)
 	fullState := append(state, natState...)
 	tb.Cleanup(func() {
-		Ip6tablesRestore(tb, fullState)
+		IP6tablesRestore(tb, fullState)
 	})
 }
 
-// Ip6tablesRestore restores iptables state from a file
-//
-func Ip6tablesRestore(tb testing.TB, state []byte) {
+// IP6tablesRestore restores iptables state from a file
+func IP6tablesRestore(tb testing.TB, state []byte) {
 	cmd := exec.Command("ip6tables-restore", "--counters")
 	cmd.Stdin = bytes.NewReader(state)
 	assert.NoError(tb, cmd.Run())

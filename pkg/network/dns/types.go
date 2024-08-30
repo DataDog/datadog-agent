@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package dns traces DNS activity and caches DNS lookups for reverse DNS capability
 package dns
 
 import (

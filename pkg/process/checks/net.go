@@ -408,10 +408,10 @@ func batchConnections(
 				continue
 			}
 
-			new := int32(len(newRouteIndices))
-			newRouteIndices[c.RouteIdx] = new
+			newIdx := int32(len(newRouteIndices))
+			newRouteIndices[c.RouteIdx] = newIdx
 			batchRoutes = append(batchRoutes, routes[c.RouteIdx])
-			c.RouteIdx = new
+			c.RouteIdx = newIdx
 		}
 
 		// EncodeDomainDatabase will take the namedb (a simple slice of strings with each unique

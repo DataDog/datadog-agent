@@ -5,6 +5,7 @@
 
 //go:build darwin
 
+// Package sysctl implements reading of system parameters such as system limits
 package sysctl
 
 import (

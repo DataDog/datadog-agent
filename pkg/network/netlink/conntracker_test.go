@@ -196,8 +196,7 @@ func TestTooManyEntries(t *testing.T) {
 // Run this test with -memprofile to get an insight of how much memory is
 // allocated/used by Conntracker to store maxStateSize entries.
 // Example: go test -run TestConntrackerMemoryAllocation -memprofile mem.prof .
-//
-func TestConntrackerMemoryAllocation(t *testing.T) {
+func TestConntrackerMemoryAllocation(_t *testing.T) {
 	rt := newConntracker(10000)
 	ipGen := randomIPGen()
 

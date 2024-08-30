@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -27,7 +26,7 @@ type ReplaceRule struct {
 }
 
 func parseReplaceRules(cfg ddconfig.Config, key string) ([]*ReplaceRule, error) {
-	if !config.SystemProbe().IsSet(key) {
+	if !ddconfig.SystemProbe().IsSet(key) {
 		return nil, nil
 	}
 
