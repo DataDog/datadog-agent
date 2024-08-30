@@ -148,6 +148,7 @@ DEFAULT_MODULES = {
     "comp/core/status": GoModule("comp/core/status", independent=True, used_by_otel=True),
     "comp/core/status/statusimpl": GoModule("comp/core/status/statusimpl", independent=True),
     "comp/core/tagger/taglist": GoModule("comp/core/tagger/taglist", independent=True, used_by_otel=True),
+    "comp/core/tagger/tags": GoModule("comp/core/tagger/tags", independent=True, used_by_otel=True),
     "comp/core/tagger/telemetry": GoModule("comp/core/tagger/telemetry", independent=True, used_by_otel=True),
     "comp/core/tagger/types": GoModule("comp/core/tagger/types", independent=True, used_by_otel=True),
     "comp/core/tagger/utils": GoModule("comp/core/tagger/utils", independent=True, used_by_otel=True),
