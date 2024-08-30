@@ -10,14 +10,13 @@
 package tailerfactory
 
 import (
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	grpcClient "github.com/DataDog/datadog-agent/comp/core/grpcClient/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Factory supports making new tailers.
@@ -40,9 +39,7 @@ type factory struct {
 	// and to create new tailers.
 	registry auditor.Registry
 
-	// workloadmetaStore is the global WLM store containing information about
-	// containers and pods.
-	workloadmetaStore optional.Option[workloadmeta.Component]
+	grpcClient grpcClient.Component
 
 	// cop allows the factory to determine whether the agent is logging
 	// containers or pods.
@@ -55,13 +52,13 @@ type factory struct {
 var _ Factory = (*factory)(nil)
 
 // New creates a new Factory.
-func New(sources *sources.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry, workloadmetaStore optional.Option[workloadmeta.Component]) Factory {
+func New(sources *sources.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry, grpcClient grpcClient.Component) Factory {
 	return &factory{
-		sources:           sources,
-		pipelineProvider:  pipelineProvider,
-		registry:          registry,
-		workloadmetaStore: workloadmetaStore,
-		cop:               containersorpods.NewChooser(),
+		sources:          sources,
+		pipelineProvider: pipelineProvider,
+		registry:         registry,
+		grpcClient:       grpcClient,
+		cop:              containersorpods.NewChooser(),
 	}
 }
 

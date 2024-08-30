@@ -23,6 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	grpcClient "github.com/DataDog/datadog-agent/comp/core/grpcClient/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetaProto "github.com/DataDog/datadog-agent/comp/core/workloadmeta/proto"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -48,40 +50,38 @@ type client struct {
 	token  string
 }
 
-func (c *client) TaggerStreamEntities(ctx context.Context, in *pb.StreamTagsRequest, opts ...grpc.CallOption) (pb.AgentSecure_TaggerStreamEntitiesClient, error) {
-	return c.c.TaggerStreamEntities(ctx, in, opts...)
-}
-
-func (c *client) TaggerFetchEntity(ctx context.Context, in *pb.FetchEntityRequest, opts ...grpc.CallOption) (*pb.FetchEntityResponse, error) {
-	return c.c.TaggerFetchEntity(ctx, in, opts...)
-}
-
-func (c *client) DogstatsdCaptureTrigger(ctx context.Context, in *pb.CaptureTriggerRequest, opts ...grpc.CallOption) (*pb.CaptureTriggerResponse, error) {
-	return c.c.DogstatsdCaptureTrigger(ctx, in, opts...)
-}
-
-func (c *client) DogstatsdSetTaggerState(ctx context.Context, in *pb.TaggerState, opts ...grpc.CallOption) (*pb.TaggerStateResponse, error) {
-	return c.c.DogstatsdSetTaggerState(ctx, in, opts...)
-}
-func (c *client) ClientGetConfigs(ctx context.Context, in *pb.ClientGetConfigsRequest, opts ...grpc.CallOption) (*pb.ClientGetConfigsResponse, error) {
-	return c.c.ClientGetConfigs(ctx, in, opts...)
-}
-func (c *client) GetConfigState(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*pb.GetStateConfigResponse, error) {
-	return c.c.GetConfigState(ctx, in, opts...)
-}
-func (c *client) ClientGetConfigsHA(ctx context.Context, in *pb.ClientGetConfigsRequest, opts ...grpc.CallOption) (*pb.ClientGetConfigsResponse, error) {
-	return c.c.ClientGetConfigsHA(ctx, in, opts...)
-}
-func (c *client) GetConfigStateHA(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*pb.GetStateConfigResponse, error) {
-	return c.c.GetConfigStateHA(ctx, in, opts...)
-}
-
-func (c *client) WorkloadmetaStreamEntities(ctx context.Context, in *pb.WorkloadmetaStreamRequest, opts ...grpc.CallOption) (pb.AgentSecure_WorkloadmetaStreamEntitiesClient, error) {
-	return c.c.WorkloadmetaStreamEntities(ctx, in, opts...)
-}
 func (c *client) AutodiscoveryStreamConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (pb.AgentSecure_AutodiscoveryStreamConfigClient, error) {
 	return c.c.AutodiscoveryStreamConfig(ctx, in, opts...)
 }
+
+func (c *client) WorkloadmetaGetContainer(containerID string) (*workloadmeta.Container, error) {
+	in := &pb.WorkloadmetaGetContainerRequest{
+		ContainerID: containerID,
+	}
+
+	response, err := c.c.WorkloadmetaGetContainer(context.TODO(), in)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return workloadmetaProto.ProtoContainerToWorkloadmetaContainer(response.Container)
+}
+
+func (c *client) WorkloadmetaGetKubernetesPodForContainer(containerID string) (*workloadmeta.KubernetesPod, error) {
+	in := &pb.WorkloadmetaGetKubernetesPodForContainerRequest{
+		ContainerID: containerID,
+	}
+
+	response, err := c.c.WorkloadmetaGetKubernetesPodForContainer(context.TODO(), in)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return workloadmetaProto.ProtoWorkloadmetaKubernetesPodToKubernetesPod(response.KubernetesPod)
+}
+
 func (c *client) NewStreamContextWithTimeout(timeout time.Duration) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(
 		metadata.NewOutgoingContext(

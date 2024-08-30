@@ -10,6 +10,10 @@ import (
 	"context"
 	"time"
 
+	"github.com/golang/protobuf/ptypes/empty"
+	"google.golang.org/grpc"
+
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
@@ -17,7 +21,9 @@ import (
 
 // Component is the component type.
 type Component interface {
-	pb.AgentSecureClient
+	AutodiscoveryStreamConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (pb.AgentSecure_AutodiscoveryStreamConfigClient, error)
+	WorkloadmetaGetKubernetesPodForContainer(containerID string) (*workloadmeta.KubernetesPod, error)
+	WorkloadmetaGetContainer(containerID string) (*workloadmeta.Container, error)
 	NewStreamContextWithTimeout(timeout time.Duration) (context.Context, context.CancelFunc)
 	NewStreamContext() (context.Context, context.CancelFunc)
 	Cancel()

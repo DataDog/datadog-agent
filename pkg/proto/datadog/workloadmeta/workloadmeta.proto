@@ -166,3 +166,19 @@ message WorkloadmetaEvent {
 message WorkloadmetaStreamResponse {
   repeated WorkloadmetaEvent events = 1;
 }
+
+message WorkloadmetaGetContainerRequest {
+  string containerID = 1;
+}
+
+message WorkloadmetaGetContainerResponse {
+  Container container = 1;
+}
+
+message WorkloadmetaGetKubernetesPodForContainerRequest {
+  string containerID = 1;
+}
+
+message WorkloadmetaGetKubernetesPodForContainerResponse {
+  KubernetesPod kubernetesPod = 1;
+}

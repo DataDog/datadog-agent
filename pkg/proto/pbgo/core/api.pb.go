@@ -51,7 +51,7 @@ var file_datadog_api_v1_api_proto_rawDesc = []byte{
 	0x74, 0x61, 0x64, 0x6f, 0x67, 0x2e, 0x6d, 0x6f, 0x64, 0x65, 0x6c, 0x2e, 0x76, 0x31, 0x2e, 0x48,
 	0x6f, 0x73, 0x74, 0x6e, 0x61, 0x6d, 0x65, 0x52, 0x65, 0x70, 0x6c, 0x79, 0x22, 0x15, 0x82, 0xd3,
 	0xe4, 0x93, 0x02, 0x0f, 0x12, 0x0d, 0x2f, 0x76, 0x31, 0x2f, 0x67, 0x72, 0x70, 0x63, 0x2f, 0x68,
-	0x6f, 0x73, 0x74, 0x32, 0xce, 0x0b, 0x0a, 0x0b, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x53, 0x65, 0x63,
+	0x6f, 0x73, 0x74, 0x32, 0x89, 0x0f, 0x0a, 0x0b, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x53, 0x65, 0x63,
 	0x75, 0x72, 0x65, 0x12, 0x8f, 0x01, 0x0a, 0x14, 0x54, 0x61, 0x67, 0x67, 0x65, 0x72, 0x53, 0x74,
 	0x72, 0x65, 0x61, 0x6d, 0x45, 0x6e, 0x74, 0x69, 0x74, 0x69, 0x65, 0x73, 0x12, 0x23, 0x2e, 0x64,
 	0x61, 0x74, 0x61, 0x64, 0x6f, 0x67, 0x2e, 0x6d, 0x6f, 0x64, 0x65, 0x6c, 0x2e, 0x76, 0x31, 0x2e,
@@ -134,39 +134,70 @@ var file_datadog_api_v1_api_proto_rawDesc = []byte{
 	0x73, 0x65, 0x22, 0x30, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x2a, 0x3a, 0x01, 0x2a, 0x22, 0x25, 0x2f,
 	0x76, 0x31, 0x2f, 0x67, 0x72, 0x70, 0x63, 0x2f, 0x77, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64,
 	0x6d, 0x65, 0x74, 0x61, 0x2f, 0x73, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x5f, 0x65, 0x6e, 0x74, 0x69,
-	0x74, 0x69, 0x65, 0x73, 0x30, 0x01, 0x12, 0x9b, 0x01, 0x0a, 0x19, 0x41, 0x75, 0x74, 0x6f, 0x64,
-	0x69, 0x73, 0x63, 0x6f, 0x76, 0x65, 0x72, 0x79, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x43, 0x6f,
-	0x6e, 0x66, 0x69, 0x67, 0x12, 0x16, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72,
-	0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x1a, 0x32, 0x2e, 0x64,
-	0x61, 0x74, 0x61, 0x64, 0x6f, 0x67, 0x2e, 0x61, 0x75, 0x74, 0x6f, 0x64, 0x69, 0x73, 0x63, 0x6f,
-	0x76, 0x65, 0x72, 0x79, 0x2e, 0x41, 0x75, 0x74, 0x6f, 0x64, 0x69, 0x73, 0x63, 0x6f, 0x76, 0x65,
-	0x72, 0x79, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
-	0x22, 0x30, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x2a, 0x3a, 0x01, 0x2a, 0x22, 0x25, 0x2f, 0x76, 0x31,
-	0x2f, 0x67, 0x72, 0x70, 0x63, 0x2f, 0x61, 0x75, 0x74, 0x6f, 0x64, 0x69, 0x73, 0x63, 0x6f, 0x76,
-	0x65, 0x72, 0x79, 0x2f, 0x73, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x5f, 0x63, 0x6f, 0x6e, 0x66, 0x69,
-	0x67, 0x73, 0x30, 0x01, 0x42, 0x15, 0x5a, 0x13, 0x70, 0x6b, 0x67, 0x2f, 0x70, 0x72, 0x6f, 0x74,
-	0x6f, 0x2f, 0x70, 0x62, 0x67, 0x6f, 0x2f, 0x63, 0x6f, 0x72, 0x65, 0x62, 0x06, 0x70, 0x72, 0x6f,
-	0x74, 0x6f, 0x33,
+	0x74, 0x69, 0x65, 0x73, 0x30, 0x01, 0x12, 0xb9, 0x01, 0x0a, 0x18, 0x57, 0x6f, 0x72, 0x6b, 0x6c,
+	0x6f, 0x61, 0x64, 0x6d, 0x65, 0x74, 0x61, 0x47, 0x65, 0x74, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69,
+	0x6e, 0x65, 0x72, 0x12, 0x35, 0x2e, 0x64, 0x61, 0x74, 0x61, 0x64, 0x6f, 0x67, 0x2e, 0x77, 0x6f,
+	0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x6d, 0x65, 0x74, 0x61, 0x2e, 0x57, 0x6f, 0x72, 0x6b, 0x6c,
+	0x6f, 0x61, 0x64, 0x6d, 0x65, 0x74, 0x61, 0x47, 0x65, 0x74, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69,
+	0x6e, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x36, 0x2e, 0x64, 0x61, 0x74,
+	0x61, 0x64, 0x6f, 0x67, 0x2e, 0x77, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x6d, 0x65, 0x74,
+	0x61, 0x2e, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x6d, 0x65, 0x74, 0x61, 0x47, 0x65,
+	0x74, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x22, 0x2e, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x28, 0x3a, 0x01, 0x2a, 0x22, 0x23, 0x2f,
+	0x76, 0x31, 0x2f, 0x67, 0x72, 0x70, 0x63, 0x2f, 0x77, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64,
+	0x6d, 0x65, 0x74, 0x61, 0x2f, 0x67, 0x65, 0x74, 0x5f, 0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e,
+	0x65, 0x72, 0x12, 0xfc, 0x01, 0x0a, 0x28, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x6d,
+	0x65, 0x74, 0x61, 0x47, 0x65, 0x74, 0x4b, 0x75, 0x62, 0x65, 0x72, 0x6e, 0x65, 0x74, 0x65, 0x73,
+	0x50, 0x6f, 0x64, 0x46, 0x6f, 0x72, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x12,
+	0x45, 0x2e, 0x64, 0x61, 0x74, 0x61, 0x64, 0x6f, 0x67, 0x2e, 0x77, 0x6f, 0x72, 0x6b, 0x6c, 0x6f,
+	0x61, 0x64, 0x6d, 0x65, 0x74, 0x61, 0x2e, 0x57, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x6d,
+	0x65, 0x74, 0x61, 0x47, 0x65, 0x74, 0x4b, 0x75, 0x62, 0x65, 0x72, 0x6e, 0x65, 0x74, 0x65, 0x73,
+	0x50, 0x6f, 0x64, 0x46, 0x6f, 0x72, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x46, 0x2e, 0x64, 0x61, 0x74, 0x61, 0x64, 0x6f, 0x67,
+	0x2e, 0x77, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x6d, 0x65, 0x74, 0x61, 0x2e, 0x57, 0x6f,
+	0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x6d, 0x65, 0x74, 0x61, 0x47, 0x65, 0x74, 0x4b, 0x75, 0x62,
+	0x65, 0x72, 0x6e, 0x65, 0x74, 0x65, 0x73, 0x50, 0x6f, 0x64, 0x46, 0x6f, 0x72, 0x43, 0x6f, 0x6e,
+	0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x41,
+	0x82, 0xd3, 0xe4, 0x93, 0x02, 0x3b, 0x3a, 0x01, 0x2a, 0x22, 0x36, 0x2f, 0x76, 0x31, 0x2f, 0x67,
+	0x72, 0x70, 0x63, 0x2f, 0x77, 0x6f, 0x72, 0x6b, 0x6c, 0x6f, 0x61, 0x64, 0x6d, 0x65, 0x74, 0x61,
+	0x2f, 0x67, 0x65, 0x74, 0x5f, 0x6b, 0x75, 0x62, 0x65, 0x72, 0x6e, 0x65, 0x74, 0x65, 0x73, 0x5f,
+	0x70, 0x6f, 0x64, 0x5f, 0x66, 0x6f, 0x72, 0x5f, 0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65,
+	0x72, 0x12, 0x9b, 0x01, 0x0a, 0x19, 0x41, 0x75, 0x74, 0x6f, 0x64, 0x69, 0x73, 0x63, 0x6f, 0x76,
+	0x65, 0x72, 0x79, 0x53, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x12,
+	0x16, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75,
+	0x66, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x1a, 0x32, 0x2e, 0x64, 0x61, 0x74, 0x61, 0x64, 0x6f,
+	0x67, 0x2e, 0x61, 0x75, 0x74, 0x6f, 0x64, 0x69, 0x73, 0x63, 0x6f, 0x76, 0x65, 0x72, 0x79, 0x2e,
+	0x41, 0x75, 0x74, 0x6f, 0x64, 0x69, 0x73, 0x63, 0x6f, 0x76, 0x65, 0x72, 0x79, 0x53, 0x74, 0x72,
+	0x65, 0x61, 0x6d, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x30, 0x82, 0xd3, 0xe4,
+	0x93, 0x02, 0x2a, 0x3a, 0x01, 0x2a, 0x22, 0x25, 0x2f, 0x76, 0x31, 0x2f, 0x67, 0x72, 0x70, 0x63,
+	0x2f, 0x61, 0x75, 0x74, 0x6f, 0x64, 0x69, 0x73, 0x63, 0x6f, 0x76, 0x65, 0x72, 0x79, 0x2f, 0x73,
+	0x74, 0x72, 0x65, 0x61, 0x6d, 0x5f, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x73, 0x30, 0x01, 0x42,
+	0x15, 0x5a, 0x13, 0x70, 0x6b, 0x67, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x70, 0x62, 0x67,
+	0x6f, 0x2f, 0x63, 0x6f, 0x72, 0x65, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var file_datadog_api_v1_api_proto_goTypes = []interface{}{
-	(*HostnameRequest)(nil),             // 0: datadog.model.v1.HostnameRequest
-	(*StreamTagsRequest)(nil),           // 1: datadog.model.v1.StreamTagsRequest
-	(*FetchEntityRequest)(nil),          // 2: datadog.model.v1.FetchEntityRequest
-	(*CaptureTriggerRequest)(nil),       // 3: datadog.model.v1.CaptureTriggerRequest
-	(*TaggerState)(nil),                 // 4: datadog.model.v1.TaggerState
-	(*ClientGetConfigsRequest)(nil),     // 5: datadog.config.ClientGetConfigsRequest
-	(*empty.Empty)(nil),                 // 6: google.protobuf.Empty
-	(*WorkloadmetaStreamRequest)(nil),   // 7: datadog.workloadmeta.WorkloadmetaStreamRequest
-	(*HostnameReply)(nil),               // 8: datadog.model.v1.HostnameReply
-	(*StreamTagsResponse)(nil),          // 9: datadog.model.v1.StreamTagsResponse
-	(*FetchEntityResponse)(nil),         // 10: datadog.model.v1.FetchEntityResponse
-	(*CaptureTriggerResponse)(nil),      // 11: datadog.model.v1.CaptureTriggerResponse
-	(*TaggerStateResponse)(nil),         // 12: datadog.model.v1.TaggerStateResponse
-	(*ClientGetConfigsResponse)(nil),    // 13: datadog.config.ClientGetConfigsResponse
-	(*GetStateConfigResponse)(nil),      // 14: datadog.config.GetStateConfigResponse
-	(*WorkloadmetaStreamResponse)(nil),  // 15: datadog.workloadmeta.WorkloadmetaStreamResponse
-	(*AutodiscoveryStreamResponse)(nil), // 16: datadog.autodiscovery.AutodiscoveryStreamResponse
+	(*HostnameRequest)(nil),                                  // 0: datadog.model.v1.HostnameRequest
+	(*StreamTagsRequest)(nil),                                // 1: datadog.model.v1.StreamTagsRequest
+	(*FetchEntityRequest)(nil),                               // 2: datadog.model.v1.FetchEntityRequest
+	(*CaptureTriggerRequest)(nil),                            // 3: datadog.model.v1.CaptureTriggerRequest
+	(*TaggerState)(nil),                                      // 4: datadog.model.v1.TaggerState
+	(*ClientGetConfigsRequest)(nil),                          // 5: datadog.config.ClientGetConfigsRequest
+	(*empty.Empty)(nil),                                      // 6: google.protobuf.Empty
+	(*WorkloadmetaStreamRequest)(nil),                        // 7: datadog.workloadmeta.WorkloadmetaStreamRequest
+	(*WorkloadmetaGetContainerRequest)(nil),                  // 8: datadog.workloadmeta.WorkloadmetaGetContainerRequest
+	(*WorkloadmetaGetKubernetesPodForContainerRequest)(nil),  // 9: datadog.workloadmeta.WorkloadmetaGetKubernetesPodForContainerRequest
+	(*HostnameReply)(nil),                                    // 10: datadog.model.v1.HostnameReply
+	(*StreamTagsResponse)(nil),                               // 11: datadog.model.v1.StreamTagsResponse
+	(*FetchEntityResponse)(nil),                              // 12: datadog.model.v1.FetchEntityResponse
+	(*CaptureTriggerResponse)(nil),                           // 13: datadog.model.v1.CaptureTriggerResponse
+	(*TaggerStateResponse)(nil),                              // 14: datadog.model.v1.TaggerStateResponse
+	(*ClientGetConfigsResponse)(nil),                         // 15: datadog.config.ClientGetConfigsResponse
+	(*GetStateConfigResponse)(nil),                           // 16: datadog.config.GetStateConfigResponse
+	(*WorkloadmetaStreamResponse)(nil),                       // 17: datadog.workloadmeta.WorkloadmetaStreamResponse
+	(*WorkloadmetaGetContainerResponse)(nil),                 // 18: datadog.workloadmeta.WorkloadmetaGetContainerResponse
+	(*WorkloadmetaGetKubernetesPodForContainerResponse)(nil), // 19: datadog.workloadmeta.WorkloadmetaGetKubernetesPodForContainerResponse
+	(*AutodiscoveryStreamResponse)(nil),                      // 20: datadog.autodiscovery.AutodiscoveryStreamResponse
 }
 var file_datadog_api_v1_api_proto_depIdxs = []int32{
 	0,  // 0: datadog.api.v1.Agent.GetHostname:input_type -> datadog.model.v1.HostnameRequest
@@ -179,20 +210,24 @@ var file_datadog_api_v1_api_proto_depIdxs = []int32{
 	5,  // 7: datadog.api.v1.AgentSecure.ClientGetConfigsHA:input_type -> datadog.config.ClientGetConfigsRequest
 	6,  // 8: datadog.api.v1.AgentSecure.GetConfigStateHA:input_type -> google.protobuf.Empty
 	7,  // 9: datadog.api.v1.AgentSecure.WorkloadmetaStreamEntities:input_type -> datadog.workloadmeta.WorkloadmetaStreamRequest
-	6,  // 10: datadog.api.v1.AgentSecure.AutodiscoveryStreamConfig:input_type -> google.protobuf.Empty
-	8,  // 11: datadog.api.v1.Agent.GetHostname:output_type -> datadog.model.v1.HostnameReply
-	9,  // 12: datadog.api.v1.AgentSecure.TaggerStreamEntities:output_type -> datadog.model.v1.StreamTagsResponse
-	10, // 13: datadog.api.v1.AgentSecure.TaggerFetchEntity:output_type -> datadog.model.v1.FetchEntityResponse
-	11, // 14: datadog.api.v1.AgentSecure.DogstatsdCaptureTrigger:output_type -> datadog.model.v1.CaptureTriggerResponse
-	12, // 15: datadog.api.v1.AgentSecure.DogstatsdSetTaggerState:output_type -> datadog.model.v1.TaggerStateResponse
-	13, // 16: datadog.api.v1.AgentSecure.ClientGetConfigs:output_type -> datadog.config.ClientGetConfigsResponse
-	14, // 17: datadog.api.v1.AgentSecure.GetConfigState:output_type -> datadog.config.GetStateConfigResponse
-	13, // 18: datadog.api.v1.AgentSecure.ClientGetConfigsHA:output_type -> datadog.config.ClientGetConfigsResponse
-	14, // 19: datadog.api.v1.AgentSecure.GetConfigStateHA:output_type -> datadog.config.GetStateConfigResponse
-	15, // 20: datadog.api.v1.AgentSecure.WorkloadmetaStreamEntities:output_type -> datadog.workloadmeta.WorkloadmetaStreamResponse
-	16, // 21: datadog.api.v1.AgentSecure.AutodiscoveryStreamConfig:output_type -> datadog.autodiscovery.AutodiscoveryStreamResponse
-	11, // [11:22] is the sub-list for method output_type
-	0,  // [0:11] is the sub-list for method input_type
+	8,  // 10: datadog.api.v1.AgentSecure.WorkloadmetaGetContainer:input_type -> datadog.workloadmeta.WorkloadmetaGetContainerRequest
+	9,  // 11: datadog.api.v1.AgentSecure.WorkloadmetaGetKubernetesPodForContainer:input_type -> datadog.workloadmeta.WorkloadmetaGetKubernetesPodForContainerRequest
+	6,  // 12: datadog.api.v1.AgentSecure.AutodiscoveryStreamConfig:input_type -> google.protobuf.Empty
+	10, // 13: datadog.api.v1.Agent.GetHostname:output_type -> datadog.model.v1.HostnameReply
+	11, // 14: datadog.api.v1.AgentSecure.TaggerStreamEntities:output_type -> datadog.model.v1.StreamTagsResponse
+	12, // 15: datadog.api.v1.AgentSecure.TaggerFetchEntity:output_type -> datadog.model.v1.FetchEntityResponse
+	13, // 16: datadog.api.v1.AgentSecure.DogstatsdCaptureTrigger:output_type -> datadog.model.v1.CaptureTriggerResponse
+	14, // 17: datadog.api.v1.AgentSecure.DogstatsdSetTaggerState:output_type -> datadog.model.v1.TaggerStateResponse
+	15, // 18: datadog.api.v1.AgentSecure.ClientGetConfigs:output_type -> datadog.config.ClientGetConfigsResponse
+	16, // 19: datadog.api.v1.AgentSecure.GetConfigState:output_type -> datadog.config.GetStateConfigResponse
+	15, // 20: datadog.api.v1.AgentSecure.ClientGetConfigsHA:output_type -> datadog.config.ClientGetConfigsResponse
+	16, // 21: datadog.api.v1.AgentSecure.GetConfigStateHA:output_type -> datadog.config.GetStateConfigResponse
+	17, // 22: datadog.api.v1.AgentSecure.WorkloadmetaStreamEntities:output_type -> datadog.workloadmeta.WorkloadmetaStreamResponse
+	18, // 23: datadog.api.v1.AgentSecure.WorkloadmetaGetContainer:output_type -> datadog.workloadmeta.WorkloadmetaGetContainerResponse
+	19, // 24: datadog.api.v1.AgentSecure.WorkloadmetaGetKubernetesPodForContainer:output_type -> datadog.workloadmeta.WorkloadmetaGetKubernetesPodForContainerResponse
+	20, // 25: datadog.api.v1.AgentSecure.AutodiscoveryStreamConfig:output_type -> datadog.autodiscovery.AutodiscoveryStreamResponse
+	13, // [13:26] is the sub-list for method output_type
+	0,  // [0:13] is the sub-list for method input_type
 	0,  // [0:0] is the sub-list for extension type_name
 	0,  // [0:0] is the sub-list for extension extendee
 	0,  // [0:0] is the sub-list for field type_name
@@ -390,6 +425,8 @@ type AgentSecureClient interface {
 	//	   --data '{"filter":{"source":3}}' \
 	//	   https://localhost:5001/v1/grpc/workloadmeta/stream_entities
 	WorkloadmetaStreamEntities(ctx context.Context, in *WorkloadmetaStreamRequest, opts ...grpc.CallOption) (AgentSecure_WorkloadmetaStreamEntitiesClient, error)
+	WorkloadmetaGetContainer(ctx context.Context, in *WorkloadmetaGetContainerRequest, opts ...grpc.CallOption) (*WorkloadmetaGetContainerResponse, error)
+	WorkloadmetaGetKubernetesPodForContainer(ctx context.Context, in *WorkloadmetaGetKubernetesPodForContainerRequest, opts ...grpc.CallOption) (*WorkloadmetaGetKubernetesPodForContainerResponse, error)
 	// Subscribes to autodiscovery config updates
 	AutodiscoveryStreamConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (AgentSecure_AutodiscoveryStreamConfigClient, error)
 }
@@ -529,6 +566,24 @@ func (x *agentSecureWorkloadmetaStreamEntitiesClient) Recv() (*WorkloadmetaStrea
 	return m, nil
 }
 
+func (c *agentSecureClient) WorkloadmetaGetContainer(ctx context.Context, in *WorkloadmetaGetContainerRequest, opts ...grpc.CallOption) (*WorkloadmetaGetContainerResponse, error) {
+	out := new(WorkloadmetaGetContainerResponse)
+	err := c.cc.Invoke(ctx, "/datadog.api.v1.AgentSecure/WorkloadmetaGetContainer", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentSecureClient) WorkloadmetaGetKubernetesPodForContainer(ctx context.Context, in *WorkloadmetaGetKubernetesPodForContainerRequest, opts ...grpc.CallOption) (*WorkloadmetaGetKubernetesPodForContainerResponse, error) {
+	out := new(WorkloadmetaGetKubernetesPodForContainerResponse)
+	err := c.cc.Invoke(ctx, "/datadog.api.v1.AgentSecure/WorkloadmetaGetKubernetesPodForContainer", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *agentSecureClient) AutodiscoveryStreamConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (AgentSecure_AutodiscoveryStreamConfigClient, error) {
 	stream, err := c.cc.NewStream(ctx, &_AgentSecure_serviceDesc.Streams[2], "/datadog.api.v1.AgentSecure/AutodiscoveryStreamConfig", opts...)
 	if err != nil {
@@ -641,6 +696,8 @@ type AgentSecureServer interface {
 	//	   --data '{"filter":{"source":3}}' \
 	//	   https://localhost:5001/v1/grpc/workloadmeta/stream_entities
 	WorkloadmetaStreamEntities(*WorkloadmetaStreamRequest, AgentSecure_WorkloadmetaStreamEntitiesServer) error
+	WorkloadmetaGetContainer(context.Context, *WorkloadmetaGetContainerRequest) (*WorkloadmetaGetContainerResponse, error)
+	WorkloadmetaGetKubernetesPodForContainer(context.Context, *WorkloadmetaGetKubernetesPodForContainerRequest) (*WorkloadmetaGetKubernetesPodForContainerResponse, error)
 	// Subscribes to autodiscovery config updates
 	AutodiscoveryStreamConfig(*empty.Empty, AgentSecure_AutodiscoveryStreamConfigServer) error
 }
@@ -675,6 +732,12 @@ func (*UnimplementedAgentSecureServer) GetConfigStateHA(context.Context, *empty.
 }
 func (*UnimplementedAgentSecureServer) WorkloadmetaStreamEntities(*WorkloadmetaStreamRequest, AgentSecure_WorkloadmetaStreamEntitiesServer) error {
 	return status.Errorf(codes.Unimplemented, "method WorkloadmetaStreamEntities not implemented")
+}
+func (*UnimplementedAgentSecureServer) WorkloadmetaGetContainer(context.Context, *WorkloadmetaGetContainerRequest) (*WorkloadmetaGetContainerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method WorkloadmetaGetContainer not implemented")
+}
+func (*UnimplementedAgentSecureServer) WorkloadmetaGetKubernetesPodForContainer(context.Context, *WorkloadmetaGetKubernetesPodForContainerRequest) (*WorkloadmetaGetKubernetesPodForContainerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method WorkloadmetaGetKubernetesPodForContainer not implemented")
 }
 func (*UnimplementedAgentSecureServer) AutodiscoveryStreamConfig(*empty.Empty, AgentSecure_AutodiscoveryStreamConfigServer) error {
 	return status.Errorf(codes.Unimplemented, "method AutodiscoveryStreamConfig not implemented")
@@ -852,6 +915,42 @@ func (x *agentSecureWorkloadmetaStreamEntitiesServer) Send(m *WorkloadmetaStream
 	return x.ServerStream.SendMsg(m)
 }
 
+func _AgentSecure_WorkloadmetaGetContainer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WorkloadmetaGetContainerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentSecureServer).WorkloadmetaGetContainer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/datadog.api.v1.AgentSecure/WorkloadmetaGetContainer",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentSecureServer).WorkloadmetaGetContainer(ctx, req.(*WorkloadmetaGetContainerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentSecure_WorkloadmetaGetKubernetesPodForContainer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WorkloadmetaGetKubernetesPodForContainerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentSecureServer).WorkloadmetaGetKubernetesPodForContainer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/datadog.api.v1.AgentSecure/WorkloadmetaGetKubernetesPodForContainer",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentSecureServer).WorkloadmetaGetKubernetesPodForContainer(ctx, req.(*WorkloadmetaGetKubernetesPodForContainerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AgentSecure_AutodiscoveryStreamConfig_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(empty.Empty)
 	if err := stream.RecvMsg(m); err != nil {
@@ -904,6 +1003,14 @@ var _AgentSecure_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetConfigStateHA",
 			Handler:    _AgentSecure_GetConfigStateHA_Handler,
+		},
+		{
+			MethodName: "WorkloadmetaGetContainer",
+			Handler:    _AgentSecure_WorkloadmetaGetContainer_Handler,
+		},
+		{
+			MethodName: "WorkloadmetaGetKubernetesPodForContainer",
+			Handler:    _AgentSecure_WorkloadmetaGetKubernetesPodForContainer_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

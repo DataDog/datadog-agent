@@ -55,6 +55,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
@@ -251,7 +252,7 @@ func start(
 
 	ac.LoadAndRun(context.Background())
 
-	err := Run(ctx, cliParams, config, log, ac)
+	err := Run(ctx, cliParams, config, log, ac, workloadmeta)
 	if err != nil {
 		return err
 	}
@@ -263,7 +264,7 @@ func start(
 }
 
 // Run starts the kernel agent server
-func Run(ctx context.Context, cliParams *CLIParams, config config.Component, log log.Component, ac autodiscovery.Component) (err error) {
+func Run(ctx context.Context, cliParams *CLIParams, config config.Component, log log.Component, ac autodiscovery.Component, wmeta workloadmeta.Component) (err error) {
 	if len(cliParams.confPath) == 0 {
 		log.Infof("Config will be read from env variables")
 	}
@@ -305,6 +306,7 @@ func Run(ctx context.Context, cliParams *CLIParams, config config.Component, log
 		log,
 		config,
 		ac,
+		wmeta,
 	); err != nil {
 		return fmt.Errorf("unable to start API server: %v", err)
 	}
@@ -319,6 +321,8 @@ func startServer(
 	log log.Component,
 	config config.Component,
 	ac autodiscovery.Component,
+	wmeta workloadmeta.Component,
+
 ) (err error) {
 	// get the transport we're going to use under HTTP
 	cmdListener, err := net.Listen("tcp", cmdAddr)
@@ -337,6 +341,7 @@ func startServer(
 	s := grpc.NewServer(opts...)
 	pb.RegisterAgentSecureServer(s, &serverSecure{
 		autoDiscoveryServer: acServer.NewServer(ac),
+		workloadmetaServer:  workloadmetaServer.NewServer(wmeta),
 	})
 
 	dcreds := credentials.NewTLS(&tls.Config{

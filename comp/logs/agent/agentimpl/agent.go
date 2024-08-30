@@ -82,7 +82,6 @@ type dependencies struct {
 	Config             configComponent.Component
 	InventoryAgent     inventoryagent.Component
 	Hostname           hostname.Component
-	WMeta              optional.Option[workloadmeta.Component]
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
 	IntegrationsLogs   integrations.Component
 	GrpcClient         grpcClient.Component
@@ -146,7 +145,6 @@ func newLogsAgent(deps dependencies) provides {
 			services:           service.NewServices(),
 			tracker:            tailers.NewTailerTracker(),
 			flarecontroller:    flareController.NewFlareController(),
-			wmeta:              deps.WMeta,
 			schedulerProviders: deps.SchedulerProviders,
 			integrationsLogs:   deps.IntegrationsLogs,
 			grpcClient:         deps.GrpcClient,
@@ -355,7 +353,7 @@ func (a *logAgent) setupAgent() error {
 		status.AddGlobalWarning(invalidProcessingRules, multiLineWarning)
 	}
 
-	a.SetupPipeline(processingRules, a.wmeta, a.integrationsLogs)
+	a.SetupPipeline(processingRules, a.integrationsLogs)
 	return nil
 }
 

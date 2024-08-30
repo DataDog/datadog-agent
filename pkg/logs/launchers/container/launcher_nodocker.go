@@ -9,13 +9,12 @@
 package container
 
 import (
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	grpcClient "github.com/DataDog/datadog-agent/comp/core/grpcClient/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // A Launcher starts and stops new tailers for every new containers discovered by autodiscovery.
@@ -24,7 +23,7 @@ import (
 type Launcher struct{}
 
 // NewLauncher returns a new launcher
-func NewLauncher(sources *sourcesPkg.LogSources, wmeta optional.Option[workloadmeta.Component]) *Launcher {
+func NewLauncher(sources *sourcesPkg.LogSources, grpcClient grpcClient.Component) *Launcher {
 	return &Launcher{}
 }
 

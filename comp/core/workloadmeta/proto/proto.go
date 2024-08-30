@@ -37,7 +37,7 @@ func ProtobufEventFromWorkloadmetaEvent(event workloadmeta.Event) (*pb.Workloadm
 	case workloadmeta.KindContainer:
 		container := entity.(*workloadmeta.Container)
 
-		protoContainer, err := protoContainerFromWorkloadmetaContainer(container)
+		protoContainer, err := ProtoContainerFromWorkloadmetaContainer(container)
 		if err != nil {
 			return nil, err
 		}
@@ -49,7 +49,7 @@ func ProtobufEventFromWorkloadmetaEvent(event workloadmeta.Event) (*pb.Workloadm
 	case workloadmeta.KindKubernetesPod:
 		kubernetesPod := entity.(*workloadmeta.KubernetesPod)
 
-		protoKubernetesPod, err := protoKubernetesPodFromWorkloadmetaKubernetesPod(kubernetesPod)
+		protoKubernetesPod, err := ProtoKubernetesPodFromWorkloadmetaKubernetesPod(kubernetesPod)
 		if err != nil {
 			return nil, err
 		}
@@ -113,7 +113,7 @@ func ProtobufFilterFromWorkloadmetaFilter(filter *workloadmeta.Filter) (*pb.Work
 	}, nil
 }
 
-func protoContainerFromWorkloadmetaContainer(container *workloadmeta.Container) (*pb.Container, error) {
+func ProtoContainerFromWorkloadmetaContainer(container *workloadmeta.Container) (*pb.Container, error) {
 	var pbContainerPorts []*pb.ContainerPort
 	for _, port := range container.Ports {
 		pbContainerPorts = append(pbContainerPorts, toProtoContainerPort(&port))
@@ -145,6 +145,53 @@ func protoContainerFromWorkloadmetaContainer(container *workloadmeta.Container) 
 		Ports:         pbContainerPorts,
 		Runtime:       protoRuntime,
 		State:         protoContainerState,
+		CollectorTags: container.CollectorTags,
+		CgroupPath:    container.CgroupPath,
+	}, nil
+}
+
+func ProtoContainerToWorkloadmetaContainer(container *pb.Container) (*workloadmeta.Container, error) {
+	containerPorts := make([]workloadmeta.ContainerPort, len(container.Ports))
+	for i, port := range container.Ports {
+		containerPorts[i] = workloadmeta.ContainerPort{
+			Name:     port.Name,
+			Port:     int(port.Port),
+			Protocol: port.Protocol,
+		}
+	}
+
+	return &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.Kind(container.EntityId.GetKind().String()),
+			ID:   container.EntityId.Id,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        container.EntityMeta.Name,
+			Namespace:   container.EntityMeta.Namespace,
+			Annotations: container.EntityMeta.Annotations,
+			Labels:      container.EntityMeta.Labels,
+		},
+		EnvVars:  container.EnvVars,
+		Hostname: container.Hostname,
+		Image: workloadmeta.ContainerImage{
+			ID:         container.Image.Id,
+			RawName:    container.Image.RawName,
+			Name:       container.Image.Name,
+			ShortName:  container.Image.ShortName,
+			Tag:        container.Image.Tag,
+			RepoDigest: container.Image.RepoDigest,
+		},
+		NetworkIPs: container.NetworkIps,
+		PID:        int(container.Pid),
+		Ports:      containerPorts,
+		Runtime:    workloadmeta.ContainerRuntime(container.Runtime.String()),
+		State: workloadmeta.ContainerState{
+			Running:   container.State.Running,
+			Status:    workloadmeta.ContainerStatus(container.State.Status.String()),
+			Health:    workloadmeta.ContainerHealth(container.State.Health.String()),
+			CreatedAt: time.Unix(container.State.CreatedAt, 0),
+			StartedAt: time.Unix(container.State.StartedAt, 0),
+		},
 		CollectorTags: container.CollectorTags,
 		CgroupPath:    container.CgroupPath,
 	}, nil
@@ -311,7 +358,7 @@ func toProtoContainerHealth(health workloadmeta.ContainerHealth) (pb.ContainerHe
 	return pb.ContainerHealth_CONTAINER_HEALTH_UNKNOWN, fmt.Errorf("unknown health state: %s", health)
 }
 
-func protoKubernetesPodFromWorkloadmetaKubernetesPod(kubernetesPod *workloadmeta.KubernetesPod) (*pb.KubernetesPod, error) {
+func ProtoKubernetesPodFromWorkloadmetaKubernetesPod(kubernetesPod *workloadmeta.KubernetesPod) (*pb.KubernetesPod, error) {
 	protoEntityID, err := toProtoEntityIDFromKubernetesPod(kubernetesPod)
 	if err != nil {
 		return nil, err
@@ -344,6 +391,73 @@ func protoKubernetesPodFromWorkloadmetaKubernetesPod(kubernetesPod *workloadmeta
 		Ip:                         kubernetesPod.IP,
 		PriorityClass:              kubernetesPod.PriorityClass,
 		QosClass:                   kubernetesPod.QOSClass,
+		KubeServices:               kubernetesPod.KubeServices,
+		NamespaceLabels:            kubernetesPod.NamespaceLabels,
+	}, nil
+}
+
+func ProtoWorkloadmetaKubernetesPodToKubernetesPod(kubernetesPod *pb.KubernetesPod) (*workloadmeta.KubernetesPod, error) {
+	kubernetesPodOwners := make([]workloadmeta.KubernetesPodOwner, len(kubernetesPod.Owners))
+	for i, podOwner := range kubernetesPod.Owners {
+		kubernetesPodOwners[i] = workloadmeta.KubernetesPodOwner{
+			Kind: podOwner.Kind,
+			Name: podOwner.Name,
+			ID:   podOwner.Id,
+		}
+	}
+
+	kubernetesContainers := make([]workloadmeta.OrchestratorContainer, len(kubernetesPod.Containers))
+	for i, container := range kubernetesPod.Containers {
+		kubernetesContainers[i] = workloadmeta.OrchestratorContainer{
+			ID:   container.Id,
+			Name: container.Name,
+			Image: workloadmeta.ContainerImage{
+				ID:         container.Image.Id,
+				RawName:    container.Image.RawName,
+				Name:       container.Image.Name,
+				ShortName:  container.Image.ShortName,
+				Tag:        container.Image.Tag,
+				RepoDigest: container.Image.RepoDigest,
+			},
+		}
+	}
+
+	kubernetesInitContainers := make([]workloadmeta.OrchestratorContainer, len(kubernetesPod.InitContainers))
+	for i, container := range kubernetesPod.InitContainers {
+		kubernetesInitContainers[i] = workloadmeta.OrchestratorContainer{
+			ID:   container.Id,
+			Name: container.Name,
+			Image: workloadmeta.ContainerImage{
+				ID:         container.Image.Id,
+				RawName:    container.Image.RawName,
+				Name:       container.Image.Name,
+				ShortName:  container.Image.ShortName,
+				Tag:        container.Image.Tag,
+				RepoDigest: container.Image.RepoDigest,
+			},
+		}
+	}
+
+	return &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.Kind(kubernetesPod.EntityId.GetKind().String()),
+			ID:   kubernetesPod.EntityId.Id,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        kubernetesPod.EntityMeta.Name,
+			Namespace:   kubernetesPod.EntityMeta.Namespace,
+			Annotations: kubernetesPod.EntityMeta.Annotations,
+			Labels:      kubernetesPod.EntityMeta.Labels,
+		},
+		Owners:                     kubernetesPodOwners,
+		PersistentVolumeClaimNames: kubernetesPod.PersistentVolumeClaimNames,
+		InitContainers:             kubernetesInitContainers,
+		Containers:                 kubernetesContainers,
+		Ready:                      kubernetesPod.Ready,
+		Phase:                      kubernetesPod.Phase,
+		IP:                         kubernetesPod.Ip,
+		PriorityClass:              kubernetesPod.PriorityClass,
+		QOSClass:                   kubernetesPod.QosClass,
 		KubeServices:               kubernetesPod.KubeServices,
 		NamespaceLabels:            kubernetesPod.NamespaceLabels,
 	}, nil

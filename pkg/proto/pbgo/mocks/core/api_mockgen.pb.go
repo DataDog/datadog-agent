@@ -299,6 +299,46 @@ func (mr *MockAgentSecureClientMockRecorder) TaggerStreamEntities(ctx, in interf
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TaggerStreamEntities", reflect.TypeOf((*MockAgentSecureClient)(nil).TaggerStreamEntities), varargs...)
 }
 
+// WorkloadmetaGetContainer mocks base method.
+func (m *MockAgentSecureClient) WorkloadmetaGetContainer(ctx context.Context, in *core.WorkloadmetaGetContainerRequest, opts ...grpc.CallOption) (*core.WorkloadmetaGetContainerResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "WorkloadmetaGetContainer", varargs...)
+	ret0, _ := ret[0].(*core.WorkloadmetaGetContainerResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WorkloadmetaGetContainer indicates an expected call of WorkloadmetaGetContainer.
+func (mr *MockAgentSecureClientMockRecorder) WorkloadmetaGetContainer(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WorkloadmetaGetContainer", reflect.TypeOf((*MockAgentSecureClient)(nil).WorkloadmetaGetContainer), varargs...)
+}
+
+// WorkloadmetaGetKubernetesPodForContainer mocks base method.
+func (m *MockAgentSecureClient) WorkloadmetaGetKubernetesPodForContainer(ctx context.Context, in *core.WorkloadmetaGetKubernetesPodForContainerRequest, opts ...grpc.CallOption) (*core.WorkloadmetaGetKubernetesPodForContainerResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "WorkloadmetaGetKubernetesPodForContainer", varargs...)
+	ret0, _ := ret[0].(*core.WorkloadmetaGetKubernetesPodForContainerResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WorkloadmetaGetKubernetesPodForContainer indicates an expected call of WorkloadmetaGetKubernetesPodForContainer.
+func (mr *MockAgentSecureClientMockRecorder) WorkloadmetaGetKubernetesPodForContainer(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WorkloadmetaGetKubernetesPodForContainer", reflect.TypeOf((*MockAgentSecureClient)(nil).WorkloadmetaGetKubernetesPodForContainer), varargs...)
+}
+
 // WorkloadmetaStreamEntities mocks base method.
 func (m *MockAgentSecureClient) WorkloadmetaStreamEntities(ctx context.Context, in *core.WorkloadmetaStreamRequest, opts ...grpc.CallOption) (core.AgentSecure_WorkloadmetaStreamEntitiesClient, error) {
 	m.ctrl.T.Helper()
@@ -842,6 +882,36 @@ func (m *MockAgentSecureServer) TaggerStreamEntities(arg0 *core.StreamTagsReques
 func (mr *MockAgentSecureServerMockRecorder) TaggerStreamEntities(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TaggerStreamEntities", reflect.TypeOf((*MockAgentSecureServer)(nil).TaggerStreamEntities), arg0, arg1)
+}
+
+// WorkloadmetaGetContainer mocks base method.
+func (m *MockAgentSecureServer) WorkloadmetaGetContainer(arg0 context.Context, arg1 *core.WorkloadmetaGetContainerRequest) (*core.WorkloadmetaGetContainerResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WorkloadmetaGetContainer", arg0, arg1)
+	ret0, _ := ret[0].(*core.WorkloadmetaGetContainerResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WorkloadmetaGetContainer indicates an expected call of WorkloadmetaGetContainer.
+func (mr *MockAgentSecureServerMockRecorder) WorkloadmetaGetContainer(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WorkloadmetaGetContainer", reflect.TypeOf((*MockAgentSecureServer)(nil).WorkloadmetaGetContainer), arg0, arg1)
+}
+
+// WorkloadmetaGetKubernetesPodForContainer mocks base method.
+func (m *MockAgentSecureServer) WorkloadmetaGetKubernetesPodForContainer(arg0 context.Context, arg1 *core.WorkloadmetaGetKubernetesPodForContainerRequest) (*core.WorkloadmetaGetKubernetesPodForContainerResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WorkloadmetaGetKubernetesPodForContainer", arg0, arg1)
+	ret0, _ := ret[0].(*core.WorkloadmetaGetKubernetesPodForContainerResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WorkloadmetaGetKubernetesPodForContainer indicates an expected call of WorkloadmetaGetKubernetesPodForContainer.
+func (mr *MockAgentSecureServerMockRecorder) WorkloadmetaGetKubernetesPodForContainer(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WorkloadmetaGetKubernetesPodForContainer", reflect.TypeOf((*MockAgentSecureServer)(nil).WorkloadmetaGetKubernetesPodForContainer), arg0, arg1)
 }
 
 // WorkloadmetaStreamEntities mocks base method.

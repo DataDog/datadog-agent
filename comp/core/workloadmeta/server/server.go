@@ -8,6 +8,7 @@
 package server
 
 import (
+	"context"
 	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -109,4 +110,38 @@ func (s *Server) StreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSe
 			}
 		}
 	}
+}
+
+func (s *Server) GetContainer(ctx context.Context, containerID string) (*pb.WorkloadmetaGetContainerResponse, error) {
+	container, err := s.wmeta.GetContainer(containerID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	protoContainer, err := proto.ProtoContainerFromWorkloadmetaContainer(container)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.WorkloadmetaGetContainerResponse{
+		Container: protoContainer,
+	}, nil
+}
+
+func (s *Server) GetKubernetesPodForContainer(ctx context.Context, containerID string) (*pb.WorkloadmetaGetKubernetesPodForContainerResponse, error) {
+	container, err := s.wmeta.GetKubernetesPodForContainer(containerID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	protoContainer, err := proto.ProtoKubernetesPodFromWorkloadmetaKubernetesPod(container)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.WorkloadmetaGetKubernetesPodForContainerResponse{
+		KubernetesPod: protoContainer,
+	}, nil
 }

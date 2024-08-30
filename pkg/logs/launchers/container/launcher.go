@@ -11,7 +11,7 @@ package container
 import (
 	"context"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	grpcClient "github.com/DataDog/datadog-agent/comp/core/grpcClient/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory"
@@ -22,7 +22,6 @@ import (
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -59,15 +58,15 @@ type Launcher struct {
 	// tailers contains the tailer for each source
 	tailers map[*sourcesPkg.LogSource]tailerfactory.Tailer
 
-	wmeta optional.Option[workloadmeta.Component]
+	grpcClient grpcClient.Component
 }
 
 // NewLauncher returns a new launcher
-func NewLauncher(sources *sourcesPkg.LogSources, wmeta optional.Option[workloadmeta.Component]) *Launcher {
+func NewLauncher(sources *sourcesPkg.LogSources, grpcClient grpcClient.Component) *Launcher {
 	launcher := &Launcher{
-		sources: sources,
-		tailers: make(map[*sourcesPkg.LogSource]tailerfactory.Tailer),
-		wmeta:   wmeta,
+		sources:    sources,
+		tailers:    make(map[*sourcesPkg.LogSource]tailerfactory.Tailer),
+		grpcClient: grpcClient,
 	}
 	return launcher
 }
@@ -81,7 +80,7 @@ func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 	l.cancel = cancel
 	l.stopped = make(chan struct{})
 
-	l.tailerFactory = tailerfactory.New(l.sources, pipelineProvider, registry, l.wmeta)
+	l.tailerFactory = tailerfactory.New(l.sources, pipelineProvider, registry, l.grpcClient)
 	go l.run(ctx, sourceProvider)
 }
 

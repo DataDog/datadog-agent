@@ -338,6 +338,74 @@ func request_AgentSecure_WorkloadmetaStreamEntities_0(ctx context.Context, marsh
 
 }
 
+func request_AgentSecure_WorkloadmetaGetContainer_0(ctx context.Context, marshaler runtime.Marshaler, client AgentSecureClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq WorkloadmetaGetContainerRequest
+	var metadata runtime.ServerMetadata
+
+	newReader, berr := utilities.IOReaderFactory(req.Body)
+	if berr != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", berr)
+	}
+	if err := marshaler.NewDecoder(newReader()).Decode(&protoReq); err != nil && err != io.EOF {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	msg, err := client.WorkloadmetaGetContainer(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+
+}
+
+func local_request_AgentSecure_WorkloadmetaGetContainer_0(ctx context.Context, marshaler runtime.Marshaler, server AgentSecureServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq WorkloadmetaGetContainerRequest
+	var metadata runtime.ServerMetadata
+
+	newReader, berr := utilities.IOReaderFactory(req.Body)
+	if berr != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", berr)
+	}
+	if err := marshaler.NewDecoder(newReader()).Decode(&protoReq); err != nil && err != io.EOF {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	msg, err := server.WorkloadmetaGetContainer(ctx, &protoReq)
+	return msg, metadata, err
+
+}
+
+func request_AgentSecure_WorkloadmetaGetKubernetesPodForContainer_0(ctx context.Context, marshaler runtime.Marshaler, client AgentSecureClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq WorkloadmetaGetKubernetesPodForContainerRequest
+	var metadata runtime.ServerMetadata
+
+	newReader, berr := utilities.IOReaderFactory(req.Body)
+	if berr != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", berr)
+	}
+	if err := marshaler.NewDecoder(newReader()).Decode(&protoReq); err != nil && err != io.EOF {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	msg, err := client.WorkloadmetaGetKubernetesPodForContainer(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+
+}
+
+func local_request_AgentSecure_WorkloadmetaGetKubernetesPodForContainer_0(ctx context.Context, marshaler runtime.Marshaler, server AgentSecureServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq WorkloadmetaGetKubernetesPodForContainerRequest
+	var metadata runtime.ServerMetadata
+
+	newReader, berr := utilities.IOReaderFactory(req.Body)
+	if berr != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", berr)
+	}
+	if err := marshaler.NewDecoder(newReader()).Decode(&protoReq); err != nil && err != io.EOF {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	msg, err := server.WorkloadmetaGetKubernetesPodForContainer(ctx, &protoReq)
+	return msg, metadata, err
+
+}
+
 func request_AgentSecure_AutodiscoveryStreamConfig_0(ctx context.Context, marshaler runtime.Marshaler, client AgentSecureClient, req *http.Request, pathParams map[string]string) (AgentSecure_AutodiscoveryStreamConfigClient, runtime.ServerMetadata, error) {
 	var protoReq empty.Empty
 	var metadata runtime.ServerMetadata
@@ -548,6 +616,46 @@ func RegisterAgentSecureHandlerServer(ctx context.Context, mux *runtime.ServeMux
 		_, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 		return
+	})
+
+	mux.Handle("POST", pattern_AgentSecure_WorkloadmetaGetContainer_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_AgentSecure_WorkloadmetaGetContainer_0(rctx, inboundMarshaler, server, req, pathParams)
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_AgentSecure_WorkloadmetaGetContainer_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
+	mux.Handle("POST", pattern_AgentSecure_WorkloadmetaGetKubernetesPodForContainer_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_AgentSecure_WorkloadmetaGetKubernetesPodForContainer_0(rctx, inboundMarshaler, server, req, pathParams)
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_AgentSecure_WorkloadmetaGetKubernetesPodForContainer_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
 	})
 
 	mux.Handle("POST", pattern_AgentSecure_AutodiscoveryStreamConfig_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -847,6 +955,46 @@ func RegisterAgentSecureHandlerClient(ctx context.Context, mux *runtime.ServeMux
 
 	})
 
+	mux.Handle("POST", pattern_AgentSecure_WorkloadmetaGetContainer_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_AgentSecure_WorkloadmetaGetContainer_0(rctx, inboundMarshaler, client, req, pathParams)
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_AgentSecure_WorkloadmetaGetContainer_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
+	mux.Handle("POST", pattern_AgentSecure_WorkloadmetaGetKubernetesPodForContainer_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_AgentSecure_WorkloadmetaGetKubernetesPodForContainer_0(rctx, inboundMarshaler, client, req, pathParams)
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_AgentSecure_WorkloadmetaGetKubernetesPodForContainer_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
 	mux.Handle("POST", pattern_AgentSecure_AutodiscoveryStreamConfig_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -889,6 +1037,10 @@ var (
 
 	pattern_AgentSecure_WorkloadmetaStreamEntities_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "workloadmeta", "stream_entities"}, "", runtime.AssumeColonVerbOpt(true)))
 
+	pattern_AgentSecure_WorkloadmetaGetContainer_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "workloadmeta", "get_container"}, "", runtime.AssumeColonVerbOpt(true)))
+
+	pattern_AgentSecure_WorkloadmetaGetKubernetesPodForContainer_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "workloadmeta", "get_kubernetes_pod_for_container"}, "", runtime.AssumeColonVerbOpt(true)))
+
 	pattern_AgentSecure_AutodiscoveryStreamConfig_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v1", "grpc", "autodiscovery", "stream_configs"}, "", runtime.AssumeColonVerbOpt(true)))
 )
 
@@ -910,6 +1062,10 @@ var (
 	forward_AgentSecure_GetConfigStateHA_0 = runtime.ForwardResponseMessage
 
 	forward_AgentSecure_WorkloadmetaStreamEntities_0 = runtime.ForwardResponseStream
+
+	forward_AgentSecure_WorkloadmetaGetContainer_0 = runtime.ForwardResponseMessage
+
+	forward_AgentSecure_WorkloadmetaGetKubernetesPodForContainer_0 = runtime.ForwardResponseMessage
 
 	forward_AgentSecure_AutodiscoveryStreamConfig_0 = runtime.ForwardResponseStream
 )

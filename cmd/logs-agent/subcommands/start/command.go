@@ -28,9 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	noopTelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logsAgentimpl "github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 	integrationsfx "github.com/DataDog/datadog-agent/comp/logs/integrations/fx"
@@ -93,11 +90,6 @@ func RunLogsAgent(cliParams *CLIParams, defaultConfPath string, fct interface{})
 			return nil
 		}),
 
-		// workloadmeta setup
-		collectors.GetCatalog(),
-		fx.Provide(workloadmeta.NewParams),
-		workloadmetafx.Module(),
-
 		// grpc Client
 		grpcClientfx.Module(),
 		fetchonlyimpl.Module(),
@@ -123,7 +115,6 @@ func start(
 	_ hostname.Component,
 	_ inventoryagent.Component,
 	_ healthprobe.Component,
-	_ optional.Option[workloadmeta.Component],
 	_ telemetry.Component,
 	logsAgent optional.Option[logsAgent.Component],
 ) error {
