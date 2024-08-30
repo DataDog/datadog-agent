@@ -231,15 +231,14 @@ if do_build
     dependency 'datadog-agent-mac-app'
   end
 
-  # Integrations is for now broken and we want to test the cmake change
-  # if with_python_runtime? "2"
-  #   dependency 'pylint2'
-  #   dependency 'datadog-agent-integrations-py2'
-  # end
+  if with_python_runtime? "2"
+    dependency 'pylint2'
+    dependency 'datadog-agent-integrations-py2'
+  end
 
-  # if with_python_runtime? "3"
-  #   dependency 'datadog-agent-integrations-py3'
-  # end
+  if with_python_runtime? "3"
+    dependency 'datadog-agent-integrations-py3'
+  end
 
   if linux_target?
     dependency 'datadog-security-agent-policies'
