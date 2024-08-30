@@ -45,6 +45,7 @@ type serviceInfo struct {
 	language           language.Language
 	apmInstrumentation apm.Instrumentation
 	cmdLine            []string
+	startTimeSecs      uint64
 }
 
 // discovery is an implementation of the Module interface for the discovery module.
@@ -225,6 +226,11 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 		return nil, err
 	}
 
+	createTime, err := proc.CreateTime()
+	if err != nil {
+		return nil, err
+	}
+
 	contextMap := make(usm.DetectorContextMap)
 
 	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
@@ -241,6 +247,7 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 		apmInstrumentation: apmInstrumentation,
 		nameFromDDService:  fromDDService,
 		cmdLine:            sanitizeCmdLine(s.scrubber, cmdline),
+		startTimeSecs:      uint64(createTime / 1000),
 	}, nil
 }
 
@@ -327,6 +334,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		Language:           string(info.language),
 		RSS:                rss,
 		CommandLine:        info.cmdLine,
+		StartTimeSecs:      info.startTimeSecs,
 	}
 }
 
