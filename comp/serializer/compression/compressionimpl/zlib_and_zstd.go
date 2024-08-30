@@ -9,31 +9,21 @@
 package compressionimpl
 
 import (
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Module defines the fx options for the component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(NewCompressor),
-	)
-}
-
 // NewCompressor returns a new Compressor based on serializer_compressor_kind
 // This function is called when both zlib and zstd build tags are included
-func NewCompressor(cfg config.Component) compression.Component {
-	switch cfg.GetString("serializer_compressor_kind") {
+func GetCompressor(kind string, level int) compression.Component {
+	switch kind {
 	case ZlibKind:
 		return strategy.NewZlibStrategy()
 	case ZstdKind:
-		level := cfg.GetInt("serializer_zstd_compressor_level")
 		return strategy.NewZstdStrategy(level)
+	case GzipKind:
+		return strategy.NewGzipStrategy(level)
 	case NoneKind:
 		log.Warn("no serializer_compressor_kind set. use zlib or zstd")
 		return strategy.NewNoopStrategy()

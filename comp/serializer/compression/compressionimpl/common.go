@@ -12,5 +12,8 @@ const ZlibKind = "zlib"
 // ZstdKind  defines a const value for the zstd compressor
 const ZstdKind = "zstd"
 
+// GzipKind  defines a const value for the gzip compressor
+const GzipKind = "gzip"
+
 // NoneKind defines a const value for disabling compression
 const NoneKind = "none"

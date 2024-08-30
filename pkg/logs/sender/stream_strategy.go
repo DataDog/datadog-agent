@@ -6,6 +6,7 @@
 package sender
 
 import (
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -14,19 +15,19 @@ import (
 // that Message's Content. This is used for TCP destinations, which stream the output
 // without batching multiple messages together.
 type streamStrategy struct {
-	inputChan       chan *message.Message
-	outputChan      chan *message.Payload
-	contentEncoding *Compressor
-	done            chan struct{}
+	inputChan   chan *message.Message
+	outputChan  chan *message.Payload
+	compression *Compressor
+	done        chan struct{}
 }
 
 // NewStreamStrategy creates a new stream strategy
-func NewStreamStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, contentEncoding ContentEncoding) Strategy {
+func NewStreamStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, compression compression.Component) Strategy {
 	return &streamStrategy{
-		inputChan:       inputChan,
-		outputChan:      outputChan,
-		contentEncoding: NewCompressor(contentEncoding),
-		done:            make(chan struct{}),
+		inputChan:   inputChan,
+		outputChan:  outputChan,
+		compression: NewCompressor(compression),
+		done:        make(chan struct{}),
 	}
 }
 
@@ -38,7 +39,7 @@ func (s *streamStrategy) Start() {
 				msg.Origin.LogSource.LatencyStats.Add(msg.GetLatency())
 			}
 
-			encodedPayload, err := s.contentEncoding.encode(msg.GetContent())
+			encodedPayload, err := s.compression.encode(msg.GetContent())
 			if err != nil {
 				log.Warn("Encoding failed - dropping payload", err)
 				return
@@ -47,7 +48,7 @@ func (s *streamStrategy) Start() {
 			s.outputChan <- &message.Payload{
 				Messages:      []*message.Message{msg},
 				Encoded:       encodedPayload,
-				Encoding:      s.contentEncoding.name(),
+				Encoding:      s.compression.name(),
 				UnencodedSize: len(msg.GetContent()),
 			}
 		}

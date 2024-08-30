@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 )
 
 var (
@@ -44,8 +45,8 @@ func NewBatchStrategy(inputChan chan *message.Message,
 	maxBatchSize int,
 	maxContentSize int,
 	pipelineName string,
-	contentEncoding ContentEncoding) Strategy {
-	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), contentEncoding)
+	compression compression.Component) Strategy {
+	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), compression)
 }
 
 func newBatchStrategyWithClock(inputChan chan *message.Message,
@@ -57,7 +58,7 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 	maxContentSize int,
 	pipelineName string,
 	clock clock.Clock,
-	contentEncoding ContentEncoding) Strategy {
+	compression compression.Component) Strategy {
 
 	return &batchStrategy{
 		inputChan:       inputChan,
@@ -66,7 +67,7 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 		buffer:          NewMessageBuffer(maxBatchSize, maxContentSize),
 		serializer:      serializer,
 		batchWait:       batchWait,
-		contentEncoding: NewCompressor(contentEncoding),
+		contentEncoding: NewCompressor(compression),
 		stopChan:        make(chan struct{}),
 		pipelineName:    pipelineName,
 		clock:           clock,

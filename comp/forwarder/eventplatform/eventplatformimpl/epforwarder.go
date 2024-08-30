@@ -31,6 +31,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
 )
 
 //go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=epforwarder_mockgen.go
@@ -406,13 +409,10 @@ func newHTTPPassthroughPipeline(coreConfig pkgconfig.Reader, eventPlatformReceiv
 	inputChan := make(chan *message.Message, endpoints.InputChanSize)
 	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
 
-	encoder := sender.IdentityContentType
+	var encoder compression.Component
+	encoder = strategy.NewNoopStrategy()
 	if endpoints.Main.UseCompression {
-		if endpoints.Main.CompressionKind == "zstd" {
-			encoder = sender.NewZstdContentEncoding(endpoints.Main.CompressionLevel)
-		} else {
-			encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
-		}
+		encoder = compressionimpl.GetCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
 	}
 
 	var strategy sender.Strategy

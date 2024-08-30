@@ -12,6 +12,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -126,15 +129,19 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 //nolint:revive // TODO(AML) Fix revive linter
 func getStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, flushChan chan struct{}, endpoints *config.Endpoints, serverless bool, pipelineID int) sender.Strategy {
 	if endpoints.UseHTTP || serverless {
-		encoder := sender.IdentityContentType
+		var encoder compression.Component
+		encoder = strategy.NewNoopStrategy()
 		if endpoints.Main.UseCompression {
-			if endpoints.Main.CompressionKind == "zstd" {
-				encoder = sender.NewZstdContentEncoding(endpoints.Main.CompressionLevel)
+			var compressionKind string
+			// For backward compatibility, we need to make sure that if compression kind isn't zstd that it defaults to gzip.
+			if endpoints.Main.CompressionKind == compressionimpl.ZstdKind {
+				compressionKind = compressionimpl.ZstdKind
 			} else {
-				encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
+				compressionKind = compressionimpl.GzipKind
 			}
+			encoder = compressionimpl.GetCompressor(compressionKind, endpoints.Main.CompressionLevel)
 		}
 		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
 	}
-	return sender.NewStreamStrategy(inputChan, outputChan, sender.IdentityContentType)
+	return sender.NewStreamStrategy(inputChan, outputChan, strategy.NewNoopStrategy())
 }

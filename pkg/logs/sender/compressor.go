@@ -2,10 +2,11 @@ package sender
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 )
 
 type Compressor struct {
-	content_encoding ContentEncoding
+	compression compression.Component
 }
 
 var (
@@ -17,20 +18,20 @@ var (
 		nil, "Count of bytes out the compressor serializer")
 )
 
-func NewCompressor(content_encoding ContentEncoding) *Compressor {
+func NewCompressor(compression compression.Component) *Compressor {
 	return &Compressor{
-		content_encoding: content_encoding,
+		compression: compression,
 	}
 }
 
 func (c *Compressor) name() string {
-	return c.content_encoding.name()
+	return c.compression.ContentEncoding()
 }
 
 func (c *Compressor) encode(payload []byte) ([]byte, error) {
 	uncompressedSize := len(payload)
 
-	payload, error := c.content_encoding.encode(payload)
+	payload, error := c.compression.Compress(payload)
 	if error != nil {
 		return nil, error
 	}
