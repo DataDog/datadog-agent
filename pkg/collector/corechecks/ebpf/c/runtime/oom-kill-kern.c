@@ -43,14 +43,13 @@ int BPF_KPROBE(kprobe__oom_kill_process, struct oom_control *oc) {
     // expected a pointer to stack memory. Therefore, we work on stack
     // variable and update the map value at the end
     bpf_memcpy(&new, s, sizeof(struct oom_stats));
-
     new.pid = pid;
-    get_cgroup_name(new.cgroup_name, sizeof(new.cgroup_name));
 
     struct task_struct *p = (struct task_struct *)BPF_CORE_READ(oc, chosen);
     if (!p) {
         return 0;
     }
+    get_cgroup_name_for_task(p, new.cgroup_name, sizeof(new.cgroup_name));
     BPF_CORE_READ_INTO(&new.tpid, p, pid);
     BPF_CORE_READ_INTO(&new.score, oc, chosen_points);
 #ifdef COMPILE_CORE
