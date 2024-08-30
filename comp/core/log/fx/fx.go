@@ -7,8 +7,11 @@
 package fx
 
 import (
+	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
+	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component
@@ -17,5 +20,8 @@ func Module() fxutil.Module {
 		fxutil.ProvideComponentConstructor(
 			logimpl.NewComponent,
 		),
+		fx.Provide(func(logger logdef.Component) *logging.FxEventLogger {
+			return logging.NewFxEventLogging(logger.Debug)
+		}),
 	)
 }

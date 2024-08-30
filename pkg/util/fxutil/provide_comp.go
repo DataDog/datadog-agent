@@ -14,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 	"go.uber.org/fx"
 )
 
@@ -303,7 +304,7 @@ func coerceStructTo(input reflect.Value, outType reflect.Type, oldEmbed, newEmbe
 // FxAgentBase returns all of our adapters from compdef types to fx types
 func FxAgentBase() fx.Option {
 	return fx.Options(
-		FxLoggingOption(),
+		logging.FxLoggingOption(),
 		fx.Provide(newFxLifecycleAdapter),
 		fx.Provide(newFxShutdownerAdapter),
 	)
