@@ -197,6 +197,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			_ profiler.Component,
 			_ expvars.Component,
 			_ apiserver.Component,
+			cfg config.Component,
 			_ optional.Option[configsync.Component],
 			// TODO: This is needed by the container-provider which is not currently a component.
 			// We should ensure the tagger is a dependency when converting to a component.
@@ -205,7 +206,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			processAgent agent.Component,
 			_ autoexit.Component,
 		) error {
-			if !processAgent.Enabled() {
+			if !processAgent.Enabled() && !collector.Enabled(cfg) {
 				return errAgentDisabled
 			}
 			return nil
@@ -309,16 +310,9 @@ func initMisc(deps miscDeps) error {
 }
 
 // shouldStayAlive determines whether the process agent should stay alive when no checks are running.
-// The first scenario this can occur is when the local process collector is running to provide
-// language data for the core agent. The second is when the checks are running on the core agent
-// but a process agent container is still brought up. The process-agent is kept alive to prevent
-// crash loops.
+// This can happen when the checks are running on the core agent but a process agent container is
+// still brought up. The process-agent is kept alive to prevent crash loops.
 func shouldStayAlive(cfg ddconfig.Reader) bool {
-	if collector.Enabled(cfg) {
-		log.Info("No checks are running, but the process agent is staying alive to provide language detection data for the core agent.")
-		return true
-	}
-
 	if env.IsKubernetes() && cfg.GetBool("process_config.run_in_core_agent.enabled") {
 		log.Warn("The process-agent is staying alive to prevent crash loops due to the checks running on the core agent. Thus, the process-agent is idle. Update your Helm chart or Datadog Operator to the latest version to prevent this (https://docs.datadoghq.com/containers/kubernetes/installation/).")
 		return true
