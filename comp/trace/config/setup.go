@@ -52,7 +52,7 @@ const (
 	rcClientPollInterval = time.Second * 1
 )
 
-func setupConfigCommon(deps dependencies, _ string) (*config.AgentConfig, error) {
+func setupConfigCommon(deps Dependencies, _ string) (*config.AgentConfig, error) {
 	confFilePath := deps.Config.ConfigFileUsed()
 
 	return LoadConfigFile(confFilePath, deps.Config)
