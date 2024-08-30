@@ -5,6 +5,9 @@
 
 //go:build !linux_bpf
 
+// Package module provides the dynamic instrumentaiton module. This is a stub meaning
+// this empty file is used if the target platform does not support features required
+// by dynamic instrumentation.
 package module
 
 import (
@@ -12,6 +15,7 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 )
 
+//nolint:revive // TODO(DEBUG) Fix revive linter
 type Config struct{}
 
 //nolint:revive // TODO(DEBUG) Fix revive linter
