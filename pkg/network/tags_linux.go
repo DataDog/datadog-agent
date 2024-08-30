@@ -12,12 +12,18 @@ import (
 )
 
 const (
-	ConnTagGnuTLS  = http.GnuTLS
+	// ConnTagGnuTLS is the tag for GnuTLS connections
+	ConnTagGnuTLS = http.GnuTLS
+	// ConnTagOpenSSL is the tag for OpenSSL connections
 	ConnTagOpenSSL = http.OpenSSL
-	ConnTagGo      = http.Go
-	ConnTagJava    = http.Java
-	ConnTagTLS     = http.TLS
-	ConnTagIstio   = http.Istio
+	// ConnTagGo is the tag for GO TLS connections
+	ConnTagGo = http.Go
+	// ConnTagJava is the tag for Java TLS connections
+	ConnTagJava = http.Java
+	// ConnTagTLS is the tag for TLS connections in general
+	ConnTagTLS = http.TLS
+	// ConnTagIstio is the tag for Istio TLS connections
+	ConnTagIstio = http.Istio
 	// ConnTagNodeJS is the tag for NodeJS TLS connections
 	ConnTagNodeJS = http.NodeJS
 )
