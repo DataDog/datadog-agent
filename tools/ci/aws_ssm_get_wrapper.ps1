@@ -15,7 +15,7 @@ while ($retryCount -lt $maxRetries) {
     if ($error -match "Unable to locate credentials") {
         # See 5th row in https://docs.google.com/spreadsheets/d/1JvdN0N-RdNEeOJKmW_ByjBsr726E3ZocCKU8QoYchAc
         Write-Error "Permanent error: unable to locate AWS credentials, not retrying"
-        exit 1
+        exit 42
     }
 
     $retryCount++
