@@ -170,9 +170,10 @@ def run(
         'locks': 'Cleans up lock files, default True',
         'stacks': 'Cleans up local stack state, default False',
         'output': 'Cleans up local test output directory, default False',
+        'skip_destroy': 'Skip stack\'s resources removal. Use it only if your resources are already removed by other means, default False',
     },
 )
-def clean(ctx, locks=True, stacks=False, output=False):
+def clean(ctx, locks=True, stacks=False, output=False, skip_destroy=False):
     """
     Clean any environment created with invoke tasks or e2e tests
     By default removes only lock files.
@@ -187,7 +188,7 @@ def clean(ctx, locks=True, stacks=False, output=False):
             print("If you still have issues, try running with -s option to clean up stacks")
 
     if stacks:
-        _clean_stacks(ctx)
+        _clean_stacks(ctx, skip_destroy)
 
     if output:
         _clean_output()
@@ -262,17 +263,19 @@ def _clean_locks():
             print(f"🗑️  Deleted lock: {path}")
 
 
-def _clean_stacks(ctx: Context):
+def _clean_stacks(ctx: Context, skip_destroy: bool):
     print("🧹 Clean up stack")
-    stacks = _get_existing_stacks(ctx)
 
-    for stack in stacks:
-        print(f"🗑️  Destroying stack {stack}")
-        _destroy_stack(ctx, stack)
+    if not skip_destroy:
+        stacks = _get_existing_stacks(ctx)
+        for stack in stacks:
+            print(f"🔥 Destroying stack {stack}")
+            _destroy_stack(ctx, stack)
 
+    # get stacks again as they may have changed after destroy
     stacks = _get_existing_stacks(ctx)
     for stack in stacks:
-        print(f"🗑️ Cleaning up stack {stack}")
+        print(f"🗑️ Removing stack {stack}")
         _remove_stack(ctx, stack)
 
 
@@ -305,10 +308,13 @@ def _destroy_stack(ctx: Context, stack: str):
         )
         if ret is not None and ret.exited != 0:
             if "No valid credential sources found" in ret.stdout:
-                print("No valid credentials sources found, you need to set the `AWS_PROFILE` env variable")
+                print(
+                    "No valid credentials sources found, if you set the AWS_PROFILE environment variable ensure it is valid"
+                )
+                print(ret.stdout)
                 raise Exit(
                     color_message(
-                        f"Failed to destroy stack {stack}, no valid credentials sources found, you need to set the `AWS_PROFILE` env variable",
+                        f"Failed to destroy stack {stack}, no valid credentials sources found, if you set the AWS_PROFILE environment variable ensure it is valid",
                         "red",
                     ),
                     1,

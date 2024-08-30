@@ -40,6 +40,7 @@ from tasks import (
     new_e2e_tests,
     notify,
     omnibus,
+    oracle,
     otel_agent,
     owners,
     package,
@@ -176,6 +177,7 @@ ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(notify)
+ns.add_collection(oracle)
 ns.add_collection(otel_agent)
 ns.add_collection(sds)
 ns.add_collection(selinux)

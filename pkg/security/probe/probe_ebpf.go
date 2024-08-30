@@ -33,7 +33,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -65,7 +65,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // EventStream describes the interface implemented by reordered perf maps or ring buffers
@@ -223,7 +222,7 @@ func (p *EBPFProbe) VerifyOSVersion() error {
 // VerifyEnvironment returns an error if the current environment seems to be misconfigured
 func (p *EBPFProbe) VerifyEnvironment() *multierror.Error {
 	var err *multierror.Error
-	if aconfig.IsContainerized() {
+	if env.IsContainerized() {
 		if mounted, _ := mountinfo.Mounted("/etc/passwd"); !mounted {
 			err = multierror.Append(err, errors.New("/etc/passwd doesn't seem to be a mountpoint"))
 		}
@@ -1634,7 +1633,7 @@ func (p *EBPFProbe) DumpProcessCache(withArgs bool) (string, error) {
 }
 
 // NewEBPFProbe instantiates a new runtime security agent probe
-func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional.Option[workloadmeta.Component], telemetry telemetry.Component) (*EBPFProbe, error) {
+func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta workloadmeta.Component, telemetry telemetry.Component) (*EBPFProbe, error) {
 	nerpc, err := erpc.NewERPC()
 	if err != nil {
 		return nil, err

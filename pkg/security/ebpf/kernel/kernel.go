@@ -22,7 +22,7 @@ import (
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/link"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -156,7 +156,7 @@ func newKernelVersion() (*Version, error) {
 
 	// Then look if `/host` is mounted in the container
 	// since this can be done without the env variable being set
-	if config.IsContainerized() && filesystem.FileExists("/host") {
+	if env.IsContainerized() && filesystem.FileExists("/host") {
 		osReleasePaths = append(
 			osReleasePaths,
 			filepath.Join("/host", osrelease.UsrLibOsRelease),

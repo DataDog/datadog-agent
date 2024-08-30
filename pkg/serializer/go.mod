@@ -21,6 +21,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../config/env
 	github.com/DataDog/datadog-agent/pkg/config/logs => ../config/logs/
+	github.com/DataDog/datadog-agent/pkg/config/mock => ../config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../config/setup/
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../config/utils/
@@ -64,8 +65,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/serializer/compression v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.58.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/model v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/metrics v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.56.0-rc.3
@@ -93,6 +94,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/status/health v0.56.0-rc.3 // indirect
@@ -169,8 +171,8 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.27.0 // indirect
 	go.opentelemetry.io/otel/trace v1.27.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	go.uber.org/dig v1.17.1 // indirect
-	go.uber.org/fx v1.18.2 // indirect
+	go.uber.org/dig v1.18.0 // indirect
+	go.uber.org/fx v1.22.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa // indirect
