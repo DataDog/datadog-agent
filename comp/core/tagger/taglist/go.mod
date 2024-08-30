@@ -2,7 +2,23 @@ module github.com/DataDog/datadog-agent/comp/core/tagger/taglist
 
 go 1.22.0
 
-replace github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../pkg/config/setup
+replace (
+	github.com/DataDog/datadog-agent/comp/core/secrets => ../../secrets
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../pkg/config/env
+	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../pkg/config/model
+	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../pkg/config/setup
+	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../pkg/util/executable
+	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../../pkg/util/filesystem
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../pkg/util/hostname/validate
+	github.com/DataDog/datadog-agent/pkg/util/log => ../../../../pkg/util/log
+	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../../pkg/util/optional
+	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../../pkg/util/pointer
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../../pkg/util/scrubber
+	github.com/DataDog/datadog-agent/pkg/util/system => ../../../../pkg/util/system
+	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../../pkg/util/system/socket
+	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
+)
 
 require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.0-rc.3

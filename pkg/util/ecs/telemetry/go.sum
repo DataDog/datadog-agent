@@ -1,5 +1,3 @@
-github.com/DataDog/datadog-agent/pkg/util/optional v0.55.0 h1:XvDbBq9mKk3X9e9wi05gpc6hh7k+Svp3RWGfloS1Qos=
-github.com/DataDog/datadog-agent/pkg/util/optional v0.55.0/go.mod h1:wa1JIWnzo9EvOBwzDOeff8HeqgOq9JQANRb99/nKg3A=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/cespare/xxhash/v2 v2.2.0 h1:DC2CZ1Ep5Y4k3ZQ899DldepgrayRUGE6BBZ/cd9Cj44=
