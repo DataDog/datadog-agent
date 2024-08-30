@@ -41,7 +41,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/tagger/types => ./comp/core/tagger/types
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils => ./comp/core/tagger/utils
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ./comp/core/telemetry/
-	github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util => ./comp/core/workloadmeta/collectors/util
 	github.com/DataDog/datadog-agent/comp/core/workloadmeta/def => ./comp/core/workloadmeta/def/
 	github.com/DataDog/datadog-agent/comp/def => ./comp/def/
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ./comp/forwarder/defaultforwarder
@@ -631,7 +630,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/workloadmeta/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc3
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.56.0-rc.3
