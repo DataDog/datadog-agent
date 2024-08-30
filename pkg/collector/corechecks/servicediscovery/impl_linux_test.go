@@ -125,6 +125,15 @@ var (
 		Ports:              []uint16{8080},
 		APMInstrumentation: string(apm.None),
 		NameSource:         "provided",
+		RSS:                100 * 1024 * 1024,
+	}
+	portTCP8080UpdatedRSS = model.Service{
+		PID:                procTestService1.pid,
+		Name:               "test-service-1",
+		Ports:              []uint16{8080},
+		APMInstrumentation: string(apm.None),
+		NameSource:         "provided",
+		RSS:                200 * 1024 * 1024,
 	}
 	portTCP8080DifferentPID = model.Service{
 		PID:                procTestService1DifferentPID.pid,
@@ -254,7 +263,7 @@ func Test_linuxImpl(t *testing.T) {
 					servicesResp: &model.ServicesResponse{Services: []model.Service{
 						portTCP22,
 						portTCP5000,
-						portTCP8080,
+						portTCP8080UpdatedRSS,
 						portTCP8081,
 					}},
 					time: calcTime(20 * time.Minute),
@@ -288,6 +297,7 @@ func Test_linuxImpl(t *testing.T) {
 						CommandLine:         []string{"test-service-1"},
 						APMInstrumentation:  "none",
 						ServiceNameSource:   "provided",
+						RSSMemory:           100 * 1024 * 1024,
 					},
 				},
 				{
@@ -306,6 +316,7 @@ func Test_linuxImpl(t *testing.T) {
 						CommandLine:         []string{"test-service-1"},
 						APMInstrumentation:  "none",
 						ServiceNameSource:   "provided",
+						RSSMemory:           200 * 1024 * 1024,
 					},
 				},
 				{
@@ -324,6 +335,7 @@ func Test_linuxImpl(t *testing.T) {
 						CommandLine:         []string{"test-service-1"},
 						APMInstrumentation:  "none",
 						ServiceNameSource:   "provided",
+						RSSMemory:           200 * 1024 * 1024,
 					},
 				},
 				{
@@ -455,6 +467,7 @@ func Test_linuxImpl(t *testing.T) {
 						CommandLine:         []string{"test-service-1"},
 						APMInstrumentation:  "none",
 						ServiceNameSource:   "provided",
+						RSSMemory:           100 * 1024 * 1024,
 					},
 				},
 				{
@@ -505,6 +518,7 @@ func Test_linuxImpl(t *testing.T) {
 						CommandLine:         []string{"test-service-1"},
 						APMInstrumentation:  "none",
 						ServiceNameSource:   "provided",
+						RSSMemory:           100 * 1024 * 1024,
 					},
 				},
 			},
@@ -580,6 +594,7 @@ func Test_linuxImpl(t *testing.T) {
 						CommandLine:         []string{"test-service-1"},
 						APMInstrumentation:  "none",
 						ServiceNameSource:   "provided",
+						RSSMemory:           100 * 1024 * 1024,
 					},
 				},
 				{
