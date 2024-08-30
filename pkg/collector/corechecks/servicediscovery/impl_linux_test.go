@@ -10,7 +10,6 @@ package servicediscovery
 import (
 	"cmp"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -18,7 +17,6 @@ import (
 	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/prometheus/procfs"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -29,11 +27,10 @@ import (
 )
 
 type testProc struct {
-	pid     int
-	cmdline []string
-	env     []string
-	cwd     string
-	stat    procfs.ProcStat
+	pid  int
+	env  []string
+	cwd  string
+	stat procfs.ProcStat
 }
 
 var (
@@ -41,72 +38,54 @@ var (
 	// procLaunched is number of clicks (100 per second) since bootTime when the process started
 	// assume it's 12 hours later
 	procLaunchedClicks = uint64((12 * time.Hour).Seconds()) * 100
-	pythonCommandLine  = []string{"python", "-m", "foobar.main", "--", "--password", "secret",
-		"--other-stuff", "--more-things", "--even-more",
-		"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-		"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-		"AAAAAAAAAAAAAAAAAAAAAAAAA",
-		"--a-long-argument-total-over-max-length",
-	}
-	eventPythonCommandLine = []string{"python", "-m", "foobar.main", "--", "--password", "********",
-		"--other-stuff", "--more-things", "--even-more",
-		"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-		"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-		"AAAAAAAAAAAAAAAAAAAAAAAAA",
-		"--a-long-argument"}
+	pythonCommandLine  = []string{"python", "-m", "foobar.main"}
 )
 
 var (
 	procSSHD = testProc{
-		pid:     6,
-		cmdline: []string{"sshd"},
-		env:     nil,
-		cwd:     "",
+		pid: 6,
+		env: nil,
+		cwd: "",
 		stat: procfs.ProcStat{
 			Starttime: procLaunchedClicks,
 		},
 	}
 	procTestService1 = testProc{
-		pid:     99,
-		cmdline: []string{"test-service-1"},
-		env:     []string{},
-		cwd:     "",
+		pid: 99,
+		env: []string{},
+		cwd: "",
 		stat: procfs.ProcStat{
 			Starttime: procLaunchedClicks,
 		},
 	}
 	procPythonService = testProc{
-		pid:     500,
-		cmdline: pythonCommandLine,
-		env:     []string{},
-		cwd:     "",
+		pid: 500,
+		env: []string{},
+		cwd: "",
 		stat: procfs.ProcStat{
 			Starttime: procLaunchedClicks,
 		},
 	}
 	procIgnoreService1 = testProc{
-		pid:     100,
-		cmdline: []string{"ignore-1"},
-		env:     nil,
-		cwd:     "",
+		pid: 100,
+		env: nil,
+		cwd: "",
 		stat: procfs.ProcStat{
 			Starttime: procLaunchedClicks,
 		},
 	}
 	procTestService1Repeat = testProc{
-		pid:     101,
-		cmdline: []string{"test-service-1"}, // same name as procTestService1
-		env:     []string{},
-		cwd:     "",
+		pid: 101,
+		env: []string{},
+		cwd: "",
 		stat: procfs.ProcStat{
 			Starttime: procLaunchedClicks,
 		},
 	}
 	procTestService1DifferentPID = testProc{
-		pid:     102,
-		cmdline: []string{"test-service-1"},
-		env:     []string{},
-		cwd:     "",
+		pid: 102,
+		env: []string{},
+		cwd: "",
 		stat: procfs.ProcStat{
 			Starttime: procLaunchedClicks,
 		},
@@ -126,6 +105,7 @@ var (
 		APMInstrumentation: string(apm.None),
 		NameSource:         "provided",
 		RSS:                100 * 1024 * 1024,
+		CommandLine:        []string{"test-service-1"},
 	}
 	portTCP8080UpdatedRSS = model.Service{
 		PID:                procTestService1.pid,
@@ -134,6 +114,7 @@ var (
 		APMInstrumentation: string(apm.None),
 		NameSource:         "provided",
 		RSS:                200 * 1024 * 1024,
+		CommandLine:        []string{"test-service-1"},
 	}
 	portTCP8080DifferentPID = model.Service{
 		PID:                procTestService1DifferentPID.pid,
@@ -141,6 +122,7 @@ var (
 		Ports:              []uint16{8080},
 		APMInstrumentation: string(apm.Injected),
 		NameSource:         "generated",
+		CommandLine:        []string{"test-service-1"},
 	}
 	portTCP8081 = model.Service{
 		PID:   procIgnoreService1.pid,
@@ -148,15 +130,17 @@ var (
 		Ports: []uint16{8081},
 	}
 	portTCP5000 = model.Service{
-		PID:      procPythonService.pid,
-		Name:     "python-service",
-		Language: "python",
-		Ports:    []uint16{5000},
+		PID:         procPythonService.pid,
+		Name:        "python-service",
+		Language:    "python",
+		Ports:       []uint16{5000},
+		CommandLine: pythonCommandLine,
 	}
 	portTCP5432 = model.Service{
-		PID:   procTestService1Repeat.pid,
-		Name:  "test-service-1",
-		Ports: []uint16{5432},
+		PID:         procTestService1Repeat.pid,
+		Name:        "test-service-1",
+		Ports:       []uint16{5432},
+		CommandLine: []string{"test-service-1"},
 	}
 )
 
@@ -166,7 +150,6 @@ func mockProc(
 ) proc {
 	m := NewMockproc(ctrl)
 	m.EXPECT().PID().Return(p.pid).AnyTimes()
-	m.EXPECT().CmdLine().Return(p.cmdline, nil).AnyTimes()
 	m.EXPECT().Stat().Return(p.stat, nil).AnyTimes()
 	return m
 }
@@ -352,7 +335,7 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:               []uint16{5000},
 						PID:                 500,
 						ServiceLanguage:     "python",
-						CommandLine:         eventPythonCommandLine,
+						CommandLine:         pythonCommandLine,
 					},
 				},
 				{
@@ -369,7 +352,7 @@ func Test_linuxImpl(t *testing.T) {
 						Ports:               []uint16{5000},
 						PID:                 500,
 						ServiceLanguage:     "python",
-						CommandLine:         eventPythonCommandLine,
+						CommandLine:         pythonCommandLine,
 					},
 				},
 			},
@@ -710,47 +693,5 @@ func Test_linuxImpl_errors(t *testing.T) {
 		} else {
 			t.Error("expected errWithCode, got", err)
 		}
-	}
-}
-
-func TestTruncateCmdline(t *testing.T) {
-	type testData struct {
-		original []string
-		result   []string
-	}
-
-	tests := []testData{
-		{
-			original: []string{},
-			result:   nil,
-		},
-		{
-			original: []string{"a", "b", "", "c", "d"},
-			result:   []string{"a", "b", "c", "d"},
-		},
-		{
-			original: []string{"x", strings.Repeat("A", maxCommandLine-1)},
-			result:   []string{"x", strings.Repeat("A", maxCommandLine-1)},
-		},
-		{
-			original: []string{strings.Repeat("A", maxCommandLine), "B"},
-			result:   []string{strings.Repeat("A", maxCommandLine)},
-		},
-		{
-			original: []string{strings.Repeat("A", maxCommandLine+1)},
-			result:   []string{strings.Repeat("A", maxCommandLine)},
-		},
-		{
-			original: []string{strings.Repeat("A", maxCommandLine-1), "", "B"},
-			result:   []string{strings.Repeat("A", maxCommandLine-1), "B"},
-		},
-		{
-			original: []string{strings.Repeat("A", maxCommandLine-1), "BCD"},
-			result:   []string{strings.Repeat("A", maxCommandLine-1), "B"},
-		},
-	}
-
-	for _, test := range tests {
-		assert.Equal(t, test.result, truncateCmdline(test.original))
 	}
 }

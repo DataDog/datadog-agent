@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -43,6 +44,7 @@ type serviceInfo struct {
 	nameFromDDService  bool
 	language           language.Language
 	apmInstrumentation apm.Instrumentation
+	cmdLine            []string
 }
 
 // discovery is an implementation of the Module interface for the discovery module.
@@ -52,6 +54,9 @@ type discovery struct {
 
 	// privilegedDetector is used to detect the language of a process.
 	privilegedDetector privileged.LanguageDetector
+
+	// scrubber is used to remove potentially sensitive data from the command line
+	scrubber *procutil.DataScrubber
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
@@ -59,6 +64,7 @@ func NewDiscoveryModule(*sysconfigtypes.Config, workloadmeta.Component, telemetr
 	return &discovery{
 		cache:              make(map[int32]*serviceInfo),
 		privilegedDetector: privileged.NewLanguageDetector(),
+		scrubber:           procutil.NewDefaultDataScrubber(),
 	}, nil
 }
 
@@ -234,6 +240,7 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 		language:           lang,
 		apmInstrumentation: apmInstrumentation,
 		nameFromDDService:  fromDDService,
+		cmdLine:            sanitizeCmdLine(s.scrubber, cmdline),
 	}, nil
 }
 
@@ -319,6 +326,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		APMInstrumentation: string(info.apmInstrumentation),
 		Language:           string(info.language),
 		RSS:                rss,
+		CommandLine:        info.cmdLine,
 	}
 }
 

@@ -42,21 +42,6 @@ func (m *Mockproc) EXPECT() *MockprocMockRecorder {
 	return m.recorder
 }
 
-// CmdLine mocks base method.
-func (m *Mockproc) CmdLine() ([]string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CmdLine")
-	ret0, _ := ret[0].([]string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CmdLine indicates an expected call of CmdLine.
-func (mr *MockprocMockRecorder) CmdLine() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CmdLine", reflect.TypeOf((*Mockproc)(nil).CmdLine))
-}
-
 // PID mocks base method.
 func (m *Mockproc) PID() int {
 	m.ctrl.T.Helper()

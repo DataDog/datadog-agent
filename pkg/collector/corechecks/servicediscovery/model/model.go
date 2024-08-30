@@ -15,6 +15,7 @@ type Service struct {
 	APMInstrumentation string   `json:"apm_instrumentation"`
 	Language           string   `json:"language"`
 	RSS                uint64   `json:"rss"`
+	CommandLine        []string `json:"cmdline"`
 }
 
 // ServicesResponse is the response for the system-probe /discovery/services endpoint.

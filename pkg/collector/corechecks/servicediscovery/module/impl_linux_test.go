@@ -496,6 +496,31 @@ func assertRSS(t assert.TestingT, svc model.Service) {
 	assert.InEpsilon(t, meminfo.RSS, svc.RSS, 0.20)
 }
 
+func TestCommandLineSanitization(t *testing.T) {
+	serverDir := buildFakeServer(t)
+	url := setupDiscoveryModule(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
+	bin := filepath.Join(serverDir, "node")
+
+	actualCommandLine := []string{bin, "--password", "secret", strings.Repeat("A", maxCommandLine*10)}
+	sanitizedCommandLine := []string{bin, "--password", "********", "placeholder"}
+	sanitizedCommandLine[3] = strings.Repeat("A", maxCommandLine-(len(bin)+len(sanitizedCommandLine[1])+len(sanitizedCommandLine[2])))
+
+	cmd := exec.CommandContext(ctx, bin, actualCommandLine[1:]...)
+	require.NoError(t, cmd.Start())
+
+	pid := cmd.Process.Pid
+
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		svcMap := getServicesMap(t, url)
+		assert.Contains(collect, svcMap, pid)
+		assert.Equal(collect, sanitizedCommandLine, svcMap[pid].CommandLine)
+	}, 30*time.Second, 100*time.Millisecond)
+}
+
 func TestNodeDocker(t *testing.T) {
 	cert, key, err := testutil.GetCertsPaths()
 	require.NoError(t, err)
