@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/collector/processor/processortest"
 	conventions "go.opentelemetry.io/collector/semconv/v1.21.0"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors"
+	taggerconsts "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors/constants"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
@@ -130,7 +130,7 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 			tc := newTestTaggerClient()
 			tc.tagMap["container_id://test"] = []string{"container:id"}
 			tc.tagMap["deployment://namespace/deployment"] = []string{"deployment:name"}
-			tc.tagMap[collectors.GlobalEntityID] = []string{"global:tag"}
+			tc.tagMap[taggerconsts.GlobalEntityID] = []string{"global:tag"}
 			factory := NewFactory(tc)
 			fmp, err := factory.CreateMetricsProcessor(
 				context.Background(),
