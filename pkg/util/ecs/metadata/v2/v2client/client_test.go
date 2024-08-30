@@ -5,7 +5,7 @@
 
 //go:build docker
 
-package v2
+package v2client
 
 import (
 	"context"

@@ -1,9 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2020-present Datadog, Inc.
+// Copyright 2017-present Datadog, Inc.
 
-//go:build docker
-
-// Package v2 provides an ECS client for v2 of the API.
-package v2
+// Package common provides common functionality for the different ECS clients.
+package common

@@ -5,8 +5,8 @@
 
 //go:build docker
 
-// Package v2 provides an ECS client for v2 of the API.
-package v2
+// Package v2client provides an ECS client for v2 of the API.
+package v2client
 
 import (
 	"context"

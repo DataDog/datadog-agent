@@ -6,7 +6,7 @@
 //go:build !docker
 
 //nolint:revive // TODO(CINT) Fix revive linter
-package v2
+package v2client
 
 import "context"
 

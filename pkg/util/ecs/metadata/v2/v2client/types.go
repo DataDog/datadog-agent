@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-package v2
+package v2client
 
 // Task represents a task as returned by the ECS metadata API v2.
 type Task struct {
