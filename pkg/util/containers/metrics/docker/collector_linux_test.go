@@ -24,18 +24,18 @@ import (
 func Test_convertCPUStats(t *testing.T) {
 	tests := []struct {
 		name           string
-		input          container.CPUStats
+		input          types.CPUStats
 		expectedOutput provider.ContainerCPUStats
 	}{
 		{
 			name: "basic",
-			input: container.CPUStats{
-				CPUUsage: container.CPUUsage{
+			input: types.CPUStats{
+				CPUUsage: types.CPUUsage{
 					TotalUsage:        42,
 					UsageInKernelmode: 43,
 					UsageInUsermode:   44,
 				},
-				ThrottlingData: container.ThrottlingData{
+				ThrottlingData: types.ThrottlingData{
 					ThrottledPeriods: 45,
 					ThrottledTime:    46,
 				},
@@ -60,12 +60,12 @@ func Test_convertCPUStats(t *testing.T) {
 func Test_convertMemoryStats(t *testing.T) {
 	tests := []struct {
 		name           string
-		input          container.MemoryStats
+		input          types.MemoryStats
 		expectedOutput provider.ContainerMemStats
 	}{
 		{
 			name: "basic",
-			input: container.MemoryStats{
+			input: types.MemoryStats{
 				Usage:   42,
 				Limit:   43,
 				Failcnt: 44,
@@ -97,13 +97,13 @@ func Test_convertMemoryStats(t *testing.T) {
 func Test_convertIOStats(t *testing.T) {
 	tests := []struct {
 		name           string
-		input          container.BlkioStats
+		input          types.BlkioStats
 		expectedOutput provider.ContainerIOStats
 	}{
 		{
 			name: "basic",
-			input: container.BlkioStats{
-				IoServiceBytesRecursive: []container.BlkioStatEntry{
+			input: types.BlkioStats{
+				IoServiceBytesRecursive: []types.BlkioStatEntry{
 					{
 						Major: 1,
 						Minor: 2,
@@ -129,7 +129,7 @@ func Test_convertIOStats(t *testing.T) {
 						Value: 45,
 					},
 				},
-				IoServicedRecursive: []container.BlkioStatEntry{
+				IoServicedRecursive: []types.BlkioStatEntry{
 					{
 						Major: 1,
 						Minor: 2,
@@ -202,12 +202,12 @@ func Test_convertIOStats(t *testing.T) {
 func Test_convetrPIDStats(t *testing.T) {
 	tests := []struct {
 		name           string
-		input          container.PidsStats
+		input          types.PidsStats
 		expectedOutput provider.ContainerPIDStats
 	}{
 		{
 			name: "basic",
-			input: container.PidsStats{
+			input: types.PidsStats{
 				Current: 42,
 				Limit:   43,
 			},

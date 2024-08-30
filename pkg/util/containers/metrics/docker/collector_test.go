@@ -32,14 +32,14 @@ import (
 func TestConvertNetworkStats(t *testing.T) {
 	tests := []struct {
 		name           string
-		input          *container.StatsResponse
+		input          *types.StatsJSON
 		networks       map[string]string
 		expectedOutput provider.ContainerNetworkStats
 	}{
 		{
 			name: "basic",
-			input: &container.StatsResponse{
-				Networks: map[string]container.NetworkStats{
+			input: &types.StatsJSON{
+				Networks: map[string]types.NetworkStats{
 					"eth0": {
 						RxBytes:   42,
 						RxPackets: 43,

@@ -22,13 +22,13 @@ import (
 func Test_convertCPUStats(t *testing.T) {
 	tests := []struct {
 		name           string
-		input          container.CPUStats
+		input          types.CPUStats
 		expectedOutput provider.ContainerCPUStats
 	}{
 		{
 			name: "basic",
-			input: container.CPUStats{
-				CPUUsage: container.CPUUsage{
+			input: types.CPUStats{
+				CPUUsage: types.CPUUsage{
 					TotalUsage:        42,
 					UsageInKernelmode: 43,
 					UsageInUsermode:   44,
@@ -52,12 +52,12 @@ func Test_convertCPUStats(t *testing.T) {
 func Test_convertMemoryStats(t *testing.T) {
 	tests := []struct {
 		name           string
-		input          container.MemoryStats
+		input          types.MemoryStats
 		expectedOutput provider.ContainerMemStats
 	}{
 		{
 			name: "basic",
-			input: container.MemoryStats{
+			input: types.MemoryStats{
 				Commit:            44,
 				CommitPeak:        45,
 				PrivateWorkingSet: 46,
@@ -81,12 +81,12 @@ func Test_convertMemoryStats(t *testing.T) {
 func Test_convertIOStats(t *testing.T) {
 	tests := []struct {
 		name           string
-		input          container.StorageStats
+		input          types.StorageStats
 		expectedOutput provider.ContainerIOStats
 	}{
 		{
 			name: "basic",
-			input: container.StorageStats{
+			input: types.StorageStats{
 				ReadCountNormalized:  42,
 				ReadSizeBytes:        43,
 				WriteCountNormalized: 44,
