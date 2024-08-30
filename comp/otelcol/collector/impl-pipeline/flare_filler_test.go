@@ -47,6 +47,9 @@ func createFakeOTelExtensionHTTPServer() (string, func()) {
 		} else if r.URL.Path == "/four" {
 			io.WriteString(w, "data-source-4")
 			return
+		} else if r.URL.Path == "/five/six" {
+			io.WriteString(w, "data-source-5-6")
+			return
 		}
 		http.NotFound(w, r)
 	}))
@@ -88,19 +91,28 @@ func TestOTelExtFlareBuilder(t *testing.T) {
 	"full_configuration": "",
 	"sources": {
 		"prometheus": {
-			"url": "{{.url}}/one",
+			"url": [
+				"{{.url}}/one"
+			],
 			"crawl": false
 		},
 		"health_check": {
-			"url": "{{.url}}/two",
+			"url": [
+				"{{.url}}/two"
+			],
 			"crawl": false
 		},
 		"zpages": {
-			"url": "{{.url}}/three",
+			"url": [
+			"{{.url}}/three"
+			],
 			"crawl": true
 		},
 		"pprof": {
-			"url": "{{.url}}/four",
+			"url": [
+				"{{.url}}/four",
+				"{{.url}}/five/six"
+			],
 			"crawl": false
 		}
 	},
@@ -141,10 +153,11 @@ func TestOTelExtFlareBuilder(t *testing.T) {
 	// Template for the crawable page
 	pageTmpl := `<body>Another source is <a href="%s/secret">here</a></body>`
 
-	f.AssertFileContent("data-source-1", "otel/otel-flare/prometheus.dat")
-	f.AssertFileContent("data-source-2", "otel/otel-flare/health_check.dat")
-	f.AssertFileContent(fmt.Sprintf(pageTmpl, localServerURL), "otel/otel-flare/zpages.dat")
-	f.AssertFileContent("data-source-4", "otel/otel-flare/pprof.dat")
+	f.AssertFileContent("data-source-1", "otel/otel-flare/prometheus_one.dat")
+	f.AssertFileContent("data-source-2", "otel/otel-flare/health_check_two.dat")
+	f.AssertFileContent(fmt.Sprintf(pageTmpl, localServerURL), "otel/otel-flare/zpages_three.dat")
+	f.AssertFileContent("data-source-4", "otel/otel-flare/pprof_four.dat")
+	f.AssertFileContent("data-source-5-6", "otel/otel-flare/pprof_five_six.dat")
 
 	f.AssertFileContent(strconv.Quote(toJSON(customerConfig)), "otel/otel-flare/customer.cfg")
 	f.AssertFileContent(strconv.Quote(toJSON(overrideConfig)), "otel/otel-flare/runtime_override.cfg")

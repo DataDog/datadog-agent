@@ -124,7 +124,6 @@ github.com/DataDog/datadog-agent/comp/serializer/compression
 github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl
 github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy
 github.com/DataDog/datadog-agent/comp/trace/compression/def
-github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip
 github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd
 github.com/DataDog/datadog-agent/comp/trace/config
 github.com/DataDog/datadog-agent/pkg/aggregator
