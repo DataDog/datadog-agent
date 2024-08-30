@@ -61,6 +61,8 @@ type Controller struct {
 	verticalController   *verticalController
 
 	localSender sender.Sender
+
+	hashHeap *autoscaling.HashHeap
 }
 
 // newController returns a new workload autoscaling controller
@@ -92,12 +94,16 @@ func newController(
 		},
 	)
 
-	baseController, err := autoscaling.NewController(controllerID, c, dynamicClient, dynamicInformer, podAutoscalerGVR, isLeader, store, autoscalingWorkqueue, hashHeap)
+	baseController, err := autoscaling.NewController(controllerID, c, dynamicClient, dynamicInformer, podAutoscalerGVR, isLeader, store, autoscalingWorkqueue)
 	if err != nil {
 		return nil, err
 	}
 
 	c.Controller = baseController
+	c.hashHeap = hashHeap
+	store.RegisterObserver(autoscaling.Observer{
+		DeleteFunc: c.hashHeap.DeleteFromHeap,
+	})
 	c.store = store
 	c.podWatcher = podWatcher
 
@@ -177,7 +183,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 			log.Debugf("Creating internal PodAutoscaler: %s from Kubernetes object", key)
 			podAutoscalerInternal := model.NewPodAutoscalerInternal(podAutoscaler)
 			c.store.UnlockSet(key, podAutoscalerInternal, c.ID)
-			c.AutoscalerHeap.InsertIntoHeap(autoscaling.TimestampKey{
+			c.hashHeap.InsertIntoHeap(autoscaling.TimestampKey{
 				Timestamp: podAutoscalerInternal.CreationTimestamp(),
 				Key:       key,
 			})
@@ -197,7 +203,6 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		if podAutoscalerInternal.Deleted() || podAutoscalerInternal.Spec().Owner != datadoghq.DatadogPodAutoscalerRemoteOwner {
 			log.Infof("Object %s not present in Kubernetes and flagged for deletion (remote) or owner == local, clearing internal store", key)
 			c.store.UnlockDelete(key, c.ID)
-			c.AutoscalerHeap.DeleteFromHeap(key)
 			return autoscaling.NoRequeue, nil
 		}
 
@@ -221,7 +226,6 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 			if err != nil && errors.IsNotFound(err) {
 				log.Debugf("Object %s not found in Kubernetes during deletion, clearing internal store", key)
 				c.store.UnlockDelete(key, c.ID)
-				c.AutoscalerHeap.DeleteFromHeap(key)
 				return autoscaling.NoRequeue, nil
 			}
 
@@ -280,7 +284,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	// Reaching this point, we had an error in processing, clearing up global error
 	podAutoscalerInternal.SetError(nil)
 
-	isAdded := c.AutoscalerHeap.InsertIntoHeap(autoscaling.TimestampKey{
+	isAdded := c.hashHeap.InsertIntoHeap(autoscaling.TimestampKey{
 		Timestamp: podAutoscalerInternal.CreationTimestamp(),
 		Key:       key,
 	})

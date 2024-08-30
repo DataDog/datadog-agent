@@ -109,7 +109,8 @@ func (h *HashHeap) InsertIntoHeap(k TimestampKey) bool {
 }
 
 // DeleteFromHeap removes the given key from the max heap
-func (h *HashHeap) DeleteFromHeap(key string) {
+// Used as an ObserverFunc; accept sender as parameter to match ObserverFunc signature
+func (h *HashHeap) DeleteFromHeap(key, _ string) {
 	// Key did not exist in heap, return early
 	if _, ok := h.Keys[key]; !ok {
 		return
