@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package workloadmeta provides the workloadmeta component for the Datadog Agent
-package workloadmeta
+// Package workloadmetadef provides the workloadmeta component for the Datadog Agent
+package workloadmetadef
 
 // team: container-platform
 
