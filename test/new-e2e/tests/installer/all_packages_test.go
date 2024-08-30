@@ -220,7 +220,16 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		// Install ansible then install the agent
 		ansiblePrefix := s.installAnsible(s.os)
 
-		s.Env().RemoteHost.MustExecute(fmt.Sprintf("r=3; while !%sansible-galaxy collection install -vvv datadog.dd; do ((--r))||exit;sleep 10;done", ansiblePrefix))
+        var err error
+		var logs []string
+		for i := 0; i < 3; i++ {
+			log, err := s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd", ansiblePrefix))
+			if err == nil {
+				break
+			}
+			logs = append(logs, log)
+		}
+		require.NoErrorf(s.T(), err, "failed to install ansible collection after 3 attempts. logs of the 3 attemps:\n", strings.Join(logs, "\n\n"))
 
 		// Write the playbook
 		env := InstallScriptEnv(s.arch)
