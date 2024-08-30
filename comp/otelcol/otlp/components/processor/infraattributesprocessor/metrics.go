@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 
@@ -23,11 +22,11 @@ import (
 
 type infraAttributesMetricProcessor struct {
 	logger      *zap.Logger
-	tagger      tagger.Component
+	tagger      taggerClient
 	cardinality types.TagCardinality
 }
 
-func newInfraAttributesMetricProcessor(set processor.Settings, cfg *Config, tagger tagger.Component) (*infraAttributesMetricProcessor, error) {
+func newInfraAttributesMetricProcessor(set processor.Settings, cfg *Config, tagger taggerClient) (*infraAttributesMetricProcessor, error) {
 	iamp := &infraAttributesMetricProcessor{
 		logger:      set.Logger,
 		tagger:      tagger,
