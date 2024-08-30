@@ -394,14 +394,12 @@ func (c *Controller) validateAutoscaler(podAutoscaler *datadoghq.DatadogPodAutos
 		return fmt.Errorf("Unable to get the cluster agent pod name: %w", err)
 	}
 
-	var resourceName = ""
+	var resourceName string
 	switch owner := podAutoscaler.Spec.TargetRef.Kind; owner {
 	case "Deployment":
 		resourceName = kubernetes.ParseDeploymentForPodName(clusterAgentPodName)
 	case "ReplicaSet":
 		resourceName = kubernetes.ParseReplicaSetForPodName(clusterAgentPodName)
-	default:
-		resourceName = ""
 	}
 
 	clusterAgentNs := common.GetMyNamespace()
