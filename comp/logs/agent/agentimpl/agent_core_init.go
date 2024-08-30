@@ -49,16 +49,16 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 	// setup the launchers
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, auditor, a.tracker)
 
-	file_limits := a.config.GetInt("logs_config.open_files_limit")
-	file_validate_pod_container := a.config.GetBool("logs_config.validate_pod_container_id")
-	file_scan_period := time.Duration(a.config.GetFloat64("logs_config.file_scan_period") * float64(time.Second))
-	file_wildcard_selection_mode := a.config.GetString("logs_config.file_wildcard_selection_mode")
+	fileLimits := a.config.GetInt("logs_config.open_files_limit")
+	fileValidatePodContainer := a.config.GetBool("logs_config.validate_pod_container_id")
+	fileScanPeriod := time.Duration(a.config.GetFloat64("logs_config.file_scan_period") * float64(time.Second))
+	fileWildcardSelectionMode := a.config.GetString("logs_config.file_wildcard_selection_mode")
 	lnchrs.AddLauncher(filelauncher.NewLauncher(
-		file_limits,
+		fileLimits,
 		filelauncher.DefaultSleepDuration,
-		file_validate_pod_container,
-		file_scan_period,
-		file_wildcard_selection_mode,
+		fileValidatePodContainer,
+		fileScanPeriod,
+		fileWildcardSelectionMode,
 		a.flarecontroller,
 		a.tagger))
 	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size")))
