@@ -149,6 +149,9 @@ DEFAULT_MODULES = {
     "comp/core/status/statusimpl": GoModule("comp/core/status/statusimpl", independent=True),
     "comp/core/tagger/common": GoModule("comp/core/tagger/common", independent=True, used_by_otel=True),
     "comp/core/tagger/k8s_metadata": GoModule("comp/core/tagger/k8s_metadata", independent=True, used_by_otel=True),
+    "comp/core/tagger/taggerimpl/collectors/constants": GoModule(
+        "comp/core/tagger/taggerimpl/collectors/constants", independent=True, used_by_otel=True
+    ),
     "comp/core/tagger/taglist": GoModule("comp/core/tagger/taglist", independent=True, used_by_otel=True),
     "comp/core/tagger/tags": GoModule("comp/core/tagger/tags", independent=True, used_by_otel=True),
     "comp/core/tagger/telemetry": GoModule("comp/core/tagger/telemetry", independent=True, used_by_otel=True),
@@ -271,9 +274,7 @@ DEFAULT_MODULES = {
     "pkg/util/containers/image": GoModule("pkg/util/containers/image", independent=True, used_by_otel=True),
     "pkg/util/ecs/common": GoModule("pkg/util/ecs/common", independent=True, used_by_otel=True),
     "pkg/util/ecs/metadata/testutil": GoModule("pkg/util/ecs/metadata/testutil", independent=True, used_by_otel=True),
-    "pkg/util/ecs/metadata/v2client": GoModule(
-        "pkg/util/ecs/metadata/v2client", independent=True, used_by_otel=True
-    ),
+    "pkg/util/ecs/metadata/v2client": GoModule("pkg/util/ecs/metadata/v2client", independent=True, used_by_otel=True),
     "pkg/util/ecs/metadata/v3or4": GoModule("pkg/util/ecs/metadata/v3or4", independent=True, used_by_otel=True),
     "pkg/util/ecs/telemetry": GoModule("pkg/util/ecs/telemetry", independent=True, used_by_otel=True),
     "pkg/util/executable": GoModule("pkg/util/executable", independent=True, used_by_otel=True),

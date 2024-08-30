@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors/constants"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -24,7 +25,7 @@ import (
 
 const (
 	// GlobalEntityID defines the entity ID that holds global tags
-	GlobalEntityID = "internal://global-entity-id"
+	GlobalEntityID = constants.GlobalEntityID
 
 	podAnnotationPrefix              = "ad.datadoghq.com/"
 	podContainerTagsAnnotationFormat = podAnnotationPrefix + "%s.tags"
