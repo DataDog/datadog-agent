@@ -38,6 +38,10 @@ type PodAutoscalerInternal struct {
 	// name is the name of the PodAutoscaler
 	name string
 
+	// creationTimestamp is the time when the kubernetes object was created
+	// creationTimestamp is stored in .DatadogPodAutoscaler.CreationTimestamp
+	creationTimestamp time.Time
+
 	// generation is the received generation of the PodAutoscaler
 	generation int64
 
@@ -48,10 +52,6 @@ type PodAutoscalerInternal struct {
 	// Version is stored in .Spec.RemoteVersion
 	// (only if owner == remote)
 	settingsTimestamp time.Time
-
-	// creationTimestamp is the time when the kubernetes object was created
-	// creationTimestamp is stored in .DatadogPodAutoscaler.CreationTimestamp
-	creationTimestamp time.Time
 
 	// scalingValues represents the current target scaling values (retrieved from RC)
 	scalingValues ScalingValues
@@ -126,6 +126,7 @@ func NewPodAutoscalerFromSettings(ns, name string, podAutoscalerSpec *datadoghq.
 
 // UpdateFromPodAutoscaler updates the PodAutoscalerInternal from a PodAutoscaler object inside K8S
 func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
+	p.creationTimestamp = podAutoscaler.CreationTimestamp.Time
 	p.generation = podAutoscaler.Generation
 	p.spec = podAutoscaler.Spec.DeepCopy()
 	// Reset the target GVK as it might have changed
@@ -133,7 +134,6 @@ func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq
 	p.targetGVK = schema.GroupVersionKind{}
 	// Compute the horizontal events retention again in case .Spec.Policy has changed
 	p.horizontalEventsRetention = getHorizontalEventsRetention(podAutoscaler.Spec.Policy, longestScalingRulePeriodAllowed)
-	p.creationTimestamp = podAutoscaler.CreationTimestamp.Time
 }
 
 // UpdateFromSettings updates the PodAutoscalerInternal from a new settings
