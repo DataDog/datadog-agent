@@ -266,7 +266,11 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
 			entityIDs := entityIDsFromAttributes(testInstance.attrs)
-			assert.Equal(t, testInstance.entityIDs, entityIDs)
+			entityIDsAsStrings := make([]string, len(entityIDs))
+			for idx, entityID := range entityIDs {
+				entityIDsAsStrings[idx] = entityID.String()
+			}
+			assert.Equal(t, testInstance.entityIDs, entityIDsAsStrings)
 		})
 	}
 }

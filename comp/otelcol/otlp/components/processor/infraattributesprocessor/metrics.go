@@ -48,7 +48,7 @@ func entityIDsFromAttributes(attrs pcommon.Map) []types.EntityID {
 	if containerImageID, ok := attrs.Get(conventions.AttributeContainerImageID); ok {
 		splitImageID := strings.SplitN(containerImageID.AsString(), "@sha256:", 2)
 		if len(splitImageID) == 2 {
-			entityIDs = append(entityIDs, types.NewEntityID(types.ContainerImageMetadata, splitImageID[1]))
+			entityIDs = append(entityIDs, types.NewEntityID(types.ContainerImageMetadata, fmt.Sprintf("sha256:%v", splitImageID[1])))
 		}
 	}
 	if ecsTaskArn, ok := attrs.Get(conventions.AttributeAWSECSTaskARN); ok {
