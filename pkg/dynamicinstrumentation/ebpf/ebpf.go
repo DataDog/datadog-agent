@@ -26,15 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	bpffs = "/sys/fs/bpf" //TODO: Check via `mount(2)`
-)
-
-var (
-	globalTempDirPath string
-	globalHeadersPath string
-)
-
 // SetupEventsMap creates the ringbuffer which all programs will use for sending output
 func SetupEventsMap() error {
 	var err error
@@ -84,9 +75,6 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 
 	// Load the ebpf object
 	opts := ebpf.CollectionOptions{
-		Maps: ebpf.MapOptions{
-			PinPath: bpffs,
-		},
 		MapReplacements: mapReplacements,
 	}
 

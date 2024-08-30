@@ -9,7 +9,6 @@ package dynamicinstrumentation
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -17,11 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/eventparser"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ratelimiter"
 	"github.com/cilium/ebpf/ringbuf"
-)
-
-var (
-	bpffs                         = "/sys/fs/bpf"
-	globalEventsRingbufferPinPath = filepath.Join(bpffs, "events")
 )
 
 // startRingbufferConsumer opens the pinned bpf ringbuffer map
