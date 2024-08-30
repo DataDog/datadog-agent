@@ -17,3 +17,8 @@ exec 4<"$tmpfile"
 # The file content blocks are deallocated (this is the real deletion) when the
 # reference counter drops to zero.
 rm "$tmpfile"
+
+# Set a meaningful name to retrieve secrets from the file descriptor
+function pop_front() {
+    head -n 1 <&4
+}
