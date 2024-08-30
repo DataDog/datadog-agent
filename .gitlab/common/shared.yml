@@ -21,30 +21,54 @@
 
 .setup_deb_signing_key: &setup_deb_signing_key
   - set +x
-  - DEB_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_GPG_KEY_SSM_NAME)
-  - printf -- "${DEB_GPG_KEY}" | gpg --import --batch
-  - export DEB_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_SIGNING_PASSPHRASE_SSM_NAME)
+  - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_GPG_KEY_SSM_NAME
+  - EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_SIGNING_PASSPHRASE_SSM_NAME
+  - EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
+  - printf -- "$(pop_front)" | gpg --import --batch
+  - export DEB_SIGNING_PASSPHRASE=$(pop_front)
 
 .setup_macos_github_app:
   # GitHub App rate-limits are per-app.
   # This balances the requests made to GitHub between the two apps we have set up.
   - |
+    source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
     if [[ "$(( RANDOM % 2 ))" == "1" ]]; then
-      export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_KEY_SSM_NAME)
-      export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_APP_ID_SSM_NAME)
-      export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_INSTALLATION_ID_SSM_NAME)
+      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_KEY_SSM_NAME
+      EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
+      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_APP_ID_SSM_NAME
+      EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
+      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_INSTALLATION_ID_SSM_NAME
+      EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
+      export GITHUB_KEY_B64=$(pop_front)
+      export GITHUB_APP_ID=$(pop_front)
+      export GITHUB_INSTALLATION_ID=$(pop_front)
       echo "Using GitHub App instance 1"
     else
-      export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_KEY_2_SSM_NAME)
-      export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_APP_ID_2_SSM_NAME)
-      export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_INSTALLATION_ID_2_SSM_NAME)
+      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_KEY_2_SSM_NAME
+      EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
+      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_APP_ID_2_SSM_NAME
+      EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
+      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $MACOS_GITHUB_INSTALLATION_ID_2_SSM_NAME
+      EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
+      export GITHUB_KEY_B64=$(pop_front)
+      export GITHUB_APP_ID=$(pop_front)
+      export GITHUB_INSTALLATION_ID=$(pop_front)
       echo "Using GitHub App instance 2"
     fi
 
 .setup_agent_github_app:
-  - export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_GITHUB_KEY_SSM_NAME)
-  - export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_GITHUB_APP_ID_SSM_NAME)
-  - export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_GITHUB_INSTALLATION_ID_SSM_NAME)
+  - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_GITHUB_KEY_SSM_NAME
+  - EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_GITHUB_APP_ID_SSM_NAME
+  - EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_GITHUB_INSTALLATION_ID_SSM_NAME
+  - EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
+  - export GITHUB_KEY_B64=$(pop_front)
+  - export GITHUB_APP_ID=$(pop_front)
+  - export GITHUB_INSTALLATION_ID=$(pop_front)
   - echo "Using agent GitHub App"
 
 # Install `dd-pkg` and lint packages produced by Omnibus, supports only deb and rpm packages

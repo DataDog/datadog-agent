@@ -6,7 +6,10 @@ test_gitlab_configuration:
     - !reference [.on_gitlab_changes]
   script:
     - source /root/.bashrc
-    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME)
+    - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME
+    - EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
+    - export GITLAB_TOKEN=$(pop_front)
     - inv -e linter.gitlab-ci
     - inv -e linter.job-change-path
     - inv -e linter.gitlab-change-paths
