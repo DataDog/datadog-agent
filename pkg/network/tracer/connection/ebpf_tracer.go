@@ -69,10 +69,12 @@ var EbpfTracerTelemetry = struct {
 	// unsupportedTcpFailures is a counter measuring the number of attempts to flush a TCP failure that is not supported
 	unsupportedTcpFailures *prometheus.Desc
 	// tcpDoneMissingPid is a counter measuring the number of TCP connections with a PID mismatch between tcp_connect and tcp_done
-	tcpDoneMissingPid *prometheus.Desc
-	PidCollisions     *telemetry.StatCounterWrapper
-	iterationDups     telemetry.Counter
-	iterationAborts   telemetry.Counter
+	tcpDoneMissingPid     *prometheus.Desc
+	tcpConnectPidMatch    *prometheus.Desc
+	tcpConnectPidMismatch *prometheus.Desc
+	PidCollisions         *telemetry.StatCounterWrapper
+	iterationDups         telemetry.Counter
+	iterationAborts       telemetry.Counter
 
 	//nolint:revive // TODO(NET) Fix revive linter
 	lastTcpFailedConnects *atomic.Int64
@@ -95,7 +97,9 @@ var EbpfTracerTelemetry = struct {
 	// lastUnsupportedTcpFailures is a counter measuring the diff between the last two values of unsupportedTcpFailures
 	lastUnsupportedTcpFailures *atomic.Int64
 	// lastTcpDoneMissingPid is a counter measuring the diff between the last two values of tcpDoneMissingPid
-	lastTcpDoneMissingPid *atomic.Int64
+	lastTcpDoneMissingPid     *atomic.Int64
+	lastTcpConnectPidMatch    *atomic.Int64
+	lastTcpConnectPidMismatch *atomic.Int64
 }{
 	telemetry.NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_failed_connects", "Counter measuring the number of failed TCP connections in the EBPF map", nil, nil),
@@ -109,9 +113,13 @@ var EbpfTracerTelemetry = struct {
 	prometheus.NewDesc(connTracerModuleName+"__double_flush_attempts_done", "Counter measuring the number of attempts to flush a closed connection twice from tcp_done", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__unsupported_tcp_failures", "Counter measuring the number of attempts to flush a TCP failure that is not supported", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_done_missing_pid", "Counter measuring the number of TCP connections with a missing PID in tcp_done", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__tcp_connect_pid_match", "Counter measuring the number of TCP connections with matching PIDs in tcp_connect and tcp_done", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__tcp_connect_pid_mismatch", "Counter measuring the number of TCP connections with mismatched PIDs in tcp_connect and tcp_done", nil, nil),
 	telemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
+	atomic.NewInt64(0),
+	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),

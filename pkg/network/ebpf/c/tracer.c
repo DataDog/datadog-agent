@@ -950,6 +950,17 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_connect, struct sock *skp) {
     log_debug("kprobe/tcp_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
     bpf_map_update_with_telemetry(tcp_failed_connect_telemetry, &skp, &pid_tgid, BPF_ANY);
+
+    u64 *existing_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp);
+    if (existing_pid) {
+        if (*existing_pid == pid_tgid) {
+            log_debug("kprobe/tcp_connect: ongoing connect already exists, pid: %llu", *existing_pid);
+            increment_telemetry_count(tcp_connect_pid_match);
+        } else {
+            log_debug("kprobe/tcp_connect: ongoing connect already exists, pid: %llu", *existing_pid);
+            increment_telemetry_count(tcp_connect_pid_mismatch);
+        }
+    }
     bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp, &pid_tgid, BPF_NOEXIST);
 
     return 0;
