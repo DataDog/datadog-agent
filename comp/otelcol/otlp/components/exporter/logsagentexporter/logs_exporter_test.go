@@ -76,7 +76,7 @@ func TestLogsExporter(t *testing.T) {
 					return lrr
 				}(),
 				otelSource:    otelSource,
-				logSourceName: "custom_source",
+				logSourceName: LogSourceName,
 			},
 
 			want: testutil.JSONLogs{
@@ -110,7 +110,7 @@ func TestLogsExporter(t *testing.T) {
 					return l
 				}(),
 				otelSource:    otelSource,
-				logSourceName: "custom_source_rattr",
+				logSourceName: LogSourceName,
 			},
 
 			want: testutil.JSONLogs{
@@ -277,7 +277,11 @@ func TestLogsExporter(t *testing.T) {
 				output := <-testChannel
 				outputJSON := make(map[string]interface{})
 				json.Unmarshal(output.GetContent(), &outputJSON)
-				assert.Equal(t, tt.args.logSourceName, output.Origin.Source())
+				if src, ok := outputJSON["datadog.log.source"]; ok {
+					assert.Equal(t, src, output.Origin.Source())
+				} else {
+					assert.Equal(t, tt.args.logSourceName, output.Origin.Source())
+				}
 				assert.Equal(t, tt.expectedTags[i], output.Origin.Tags(nil))
 				ans = append(ans, outputJSON)
 			}
