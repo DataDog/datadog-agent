@@ -2,6 +2,7 @@
 Release helper tasks
 """
 
+import json
 import os
 import re
 import sys
@@ -48,9 +49,9 @@ from tasks.libs.releasing.json import (
     UNFREEZE_REPO_AGENT,
     UNFREEZE_REPOS,
     _get_release_json_value,
-    _load_release_json,
     _save_release_json,
     generate_repo_data,
+    load_release_json,
     set_new_release_branch,
     update_release_json,
 )
@@ -74,6 +75,8 @@ GITLAB_FILES_TO_UPDATE = [
     ".gitlab-ci.yml",
     ".gitlab/notify/notify.yml",
 ]
+
+BACKPORT_LABEL_COLOR = "5319e7"
 
 
 @task
@@ -400,7 +403,9 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
     ctx.run("git add release.json")
     ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
 
-    ok = try_git_command(ctx, f"git commit -m 'Update release.json and Go modules for {new_highest_version}'")
+    ok = try_git_command(
+        ctx, f"git commit --no-verify -m 'Update release.json and Go modules for {new_highest_version}'"
+    )
     if not ok:
         raise Exit(
             color_message(
@@ -411,7 +416,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
         )
 
     print(color_message("Pushing new branch to the upstream repository", "bold"))
-    res = ctx.run(f"git push --set-upstream {upstream} {update_branch}", warn=True)
+    res = ctx.run(f"git push --no-verify --set-upstream {upstream} {update_branch}", warn=True)
     if res.exited is None or res.exited > 0:
         raise Exit(
             color_message(
@@ -522,7 +527,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
 
 @task(help={'key': "Path to an existing release.json key, separated with double colons, eg. 'last_stable::6'"})
 def set_release_json(_, key, value):
-    release_json = _load_release_json()
+    release_json = load_release_json()
     path = key.split('::')
     current_node = release_json
     for key_idx in range(len(path)):
@@ -586,6 +591,7 @@ def create_release_branches(ctx, base_directory="~/dd", major_versions="6,7", up
     This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
     release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
+    github = GithubAPI(repository=GITHUB_REPO_NAME)
 
     list_major_versions = parse_major_versions(major_versions)
 
@@ -602,7 +608,6 @@ def create_release_branches(ctx, base_directory="~/dd", major_versions="6,7", up
 
     if check_state:
         print(color_message("Checking repository state", "bold"))
-        github = GithubAPI(repository=GITHUB_REPO_NAME)
         check_clean_branch_state(ctx, github, release_branch)
 
     if not yes_no_question(
@@ -617,13 +622,19 @@ def create_release_branches(ctx, base_directory="~/dd", major_versions="6,7", up
     for repo in UNFREEZE_REPOS:
         create_and_update_release_branch(ctx, repo, release_branch, base_directory=base_directory, upstream=upstream)
 
+    # create the backport label in the Agent repo
+    print(color_message("Creating backport label in the Agent repository", Color.BOLD))
+    github.create_label(
+        f'backport/{release_branch}', BACKPORT_LABEL_COLOR, f'Automatically create a backport PR to {release_branch}'
+    )
+
     # Step 2 - Create PRs with new settings in datadog-agent repository
 
     with ctx.cd(f"{base_directory}/{UNFREEZE_REPO_AGENT}"):
         # Step 2.0 - Create milestone update
         milestone_branch = f"release_milestone-{int(time.time())}"
         ctx.run(f"git switch -c {milestone_branch}")
-        rj = _load_release_json()
+        rj = load_release_json()
         rj["current_milestone"] = f"{next}"
         _save_release_json(rj)
         # Commit release.json
@@ -714,7 +725,7 @@ def _update_last_stable(_, version, major_versions="7"):
     """
     Updates the last_release field(s) of release.json
     """
-    release_json = _load_release_json()
+    release_json = load_release_json()
     list_major_versions = parse_major_versions(major_versions)
     # If the release isn't a RC, update the last stable release field
     for major in list_major_versions:
@@ -871,6 +882,15 @@ def get_active_release_branch(_):
         print(f"{release_branch.name}")
     else:
         print("main")
+
+
+@task
+def get_unreleased_release_branches(_):
+    """
+    Determine what are the current active release branches for the Agent.
+    """
+    gh = GithubAPI()
+    print(json.dumps([branch.name for branch in gh.latest_unreleased_release_branches()]))
 
 
 def get_next_version(gh):

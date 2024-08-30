@@ -20,6 +20,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -67,7 +69,7 @@ func GetFxOptions() fx.Option {
 
 // Start tries to connect to the kubelet, the DCA and the API Server if the DCA is not available.
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
-	if !config.IsFeaturePresent(config.Kubernetes) {
+	if !env.IsFeaturePresent(env.Kubernetes) {
 		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}
 
@@ -114,8 +116,10 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 	}
 
 	c.updateFreq = time.Duration(config.Datadog().GetInt("kubernetes_metadata_tag_update_freq")) * time.Second
-	c.collectNamespaceLabels = len(config.Datadog().GetStringMapString("kubernetes_namespace_labels_as_tags")) > 0
-	c.collectNamespaceAnnotations = len(config.Datadog().GetStringMapString("kubernetes_namespace_annotations_as_tags")) > 0
+
+	metadataAsTags := configutils.GetMetadataAsTags(config.Datadog())
+	c.collectNamespaceLabels = len(metadataAsTags.GetNamespaceLabelsAsTags()) > 0
+	c.collectNamespaceAnnotations = len(metadataAsTags.GetNamespaceAnnotationsAsTags()) > 0
 
 	return err
 }

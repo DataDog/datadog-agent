@@ -10,23 +10,19 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/suite"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type EndpointsTestSuite struct {
 	suite.Suite
-	config config.Mock
+	config config.Component
 }
 
 func (suite *EndpointsTestSuite) SetupTest() {
-	suite.config = fxutil.Test[config.Component](suite.T(), fx.Options(
-		config.MockModule(),
-	)).(config.Mock)
+	suite.config = config.NewMock(suite.T())
 }
 
 func (suite *EndpointsTestSuite) TestLogsEndpointConfig() {

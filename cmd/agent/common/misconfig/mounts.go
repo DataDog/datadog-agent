@@ -19,6 +19,7 @@ import (
 	"github.com/syndtr/gocapability/capability"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -68,7 +69,7 @@ func procMount() error {
 		groups = append(groups, egid)
 	}
 	path := config.Datadog().GetString("container_proc_root")
-	if config.IsContainerized() && path != "/proc" {
+	if env.IsContainerized() && path != "/proc" {
 		path = filepath.Join(path, "1/mounts")
 	} else {
 		path = filepath.Join(path, "mounts")

@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"time"
 
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -36,6 +37,12 @@ func (h *SingleLineHandler) flush() {
 	// do nothing
 }
 
+func addTruncatedTag(msg *message.Message) {
+	if coreConfig.Datadog().GetBool("logs_config.tag_truncated_logs") {
+		msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.TruncatedTag)
+	}
+}
+
 // process transforms a raw line into a structured line,
 // it guarantees that the content of the line won't exceed
 // the limit and that the length of the line is properly tracked
@@ -52,6 +59,7 @@ func (h *SingleLineHandler) process(msg *message.Message) {
 		// the new line is just a remainder,
 		// adding the truncated flag at the beginning of the content
 		content = append(message.TruncatedFlag, content...)
+		addTruncatedTag(msg)
 	}
 
 	// how should we detect logs which are too long before rendering them?
@@ -63,6 +71,7 @@ func (h *SingleLineHandler) process(msg *message.Message) {
 		// adding the truncated flag the end of the content
 		content = append(content, message.TruncatedFlag...)
 		msg.SetContent(content) // refresh the content in the message
+		addTruncatedTag(msg)
 		h.outputFn(msg)
 		// make sure the following part of the line will be cut off as well
 		h.shouldTruncate = true
