@@ -151,7 +151,7 @@ func (k *Probe) GetAndFlush() (results []model.OOMKillStats) {
 	}
 
 	for _, r := range results {
-		if err := k.oomMap.Delete(&r.Pid); err != nil {
+		if err := k.oomMap.Delete(&r.TriggerPid); err != nil {
 			log.Warnf("failed to delete stat: %s", err)
 		}
 	}
@@ -161,12 +161,12 @@ func (k *Probe) GetAndFlush() (results []model.OOMKillStats) {
 
 func convertStats(in oomStats) (out model.OOMKillStats) {
 	out.CgroupName = unix.ByteSliceToString(in.Cgroup_name[:])
-	out.Pid = in.Pid
-	out.TPid = in.Tpid
+	out.VictimPid = in.Victim_pid
+	out.TriggerPid = in.Trigger_pid
 	out.Score = in.Score
 	out.ScoreAdj = in.Score_adj
-	out.Comm = unix.ByteSliceToString(in.Comm[:])
-	out.TComm = unix.ByteSliceToString(in.Tcomm[:])
+	out.VictimComm = unix.ByteSliceToString(in.Victim_comm[:])
+	out.TriggerComm = unix.ByteSliceToString(in.Trigger_comm[:])
 	out.Pages = in.Pages
 	out.MemCgOOM = in.Memcg_oom
 	return

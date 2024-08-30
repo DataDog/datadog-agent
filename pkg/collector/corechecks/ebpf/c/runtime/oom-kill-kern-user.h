@@ -10,13 +10,13 @@
 struct oom_stats {
     char cgroup_name[129];
     // Pid of killed process
-    __u32 pid;
+    __u32 victim_pid;
     // Pid of triggering process
-    __u32 tpid;
+    __u32 trigger_pid;
     // Name of killed process
-    char comm[TASK_COMM_LEN];
+    char victim_comm[TASK_COMM_LEN];
     // Name of triggering process
-    char tcomm[TASK_COMM_LEN];
+    char trigger_comm[TASK_COMM_LEN];
     // OOM score of killed process
     __s64 score;
     // OOM score adjustment of killed process

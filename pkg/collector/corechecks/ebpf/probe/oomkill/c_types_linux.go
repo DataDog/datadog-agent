@@ -4,14 +4,14 @@
 package oomkill
 
 type oomStats struct {
-	Cgroup_name [129]byte
-	Pid         uint32
-	Tpid        uint32
-	Comm        [16]byte
-	Tcomm       [16]byte
-	Score       int64
-	Score_adj   int16
-	Pages       uint64
-	Memcg_oom   uint32
-	Pad_cgo_0   [4]byte
+	Cgroup_name  [129]byte
+	Victim_pid   uint32
+	Trigger_pid  uint32
+	Victim_comm  [16]byte
+	Trigger_comm [16]byte
+	Score        int64
+	Score_adj    int16
+	Pages        uint64
+	Memcg_oom    uint32
+	Pad_cgo_0    [4]byte
 }
