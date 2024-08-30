@@ -9,7 +9,15 @@ package module
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 )
+
+type Config struct{}
+
+//nolint:revive // TODO(DEBUG) Fix revive linter
+func NewConfig(_ *sysconfigtypes.Config) (*Config, error) {
+	return &Config{}, nil
+}
 
 //nolint:revive // TODO(DEBUG) Fix revive linter
 type Module struct {
