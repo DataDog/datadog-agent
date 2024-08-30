@@ -43,14 +43,14 @@ int BPF_KPROBE(kprobe__oom_kill_process, struct oom_control *oc) {
     // expected a pointer to stack memory. Therefore, we work on stack
     // variable and update the map value at the end
     bpf_memcpy(&new, s, sizeof(struct oom_stats));
-    new.pid = pid;
+    new.tpid = pid;
 
     struct task_struct *p = (struct task_struct *)BPF_CORE_READ(oc, chosen);
     if (!p) {
         return 0;
     }
     get_cgroup_name_for_task(p, new.cgroup_name, sizeof(new.cgroup_name));
-    BPF_CORE_READ_INTO(&new.tpid, p, pid);
+    BPF_CORE_READ_INTO(&new.pid, p, pid);
     BPF_CORE_READ_INTO(&new.score, oc, chosen_points);
 #ifdef COMPILE_CORE
     if (bpf_core_field_exists(p->signal->oom_score_adj)) {
@@ -62,11 +62,11 @@ int BPF_KPROBE(kprobe__oom_kill_process, struct oom_control *oc) {
     bpf_probe_read_kernel(&new.score_adj, sizeof(new.score_adj), &sig->oom_score_adj);
 #endif
     if (bpf_helper_exists(BPF_FUNC_get_current_comm)) {
-        bpf_get_current_comm(new.fcomm, sizeof(new.fcomm));
+        bpf_get_current_comm(new.tcomm, sizeof(new.tcomm));
     }
 
-    BPF_CORE_READ_INTO(&new.tcomm, p, comm);
-    new.tcomm[TASK_COMM_LEN - 1] = 0;
+    BPF_CORE_READ_INTO(&new.comm, p, comm);
+    new.comm[TASK_COMM_LEN - 1] = 0;
 
     struct mem_cgroup *memcg = NULL;
 #ifdef COMPILE_CORE

@@ -132,8 +132,8 @@ func (m *OOMKillCheck) Run() error {
 			triggerTypeText = "This OOM kill was invoked by the system."
 		}
 		tags = append(tags, "trigger_type:"+triggerType)
-		tags = append(tags, "trigger_process_name:"+line.FComm)
-		tags = append(tags, "process_name:"+line.TComm)
+		tags = append(tags, "trigger_process_name:"+line.TComm)
+		tags = append(tags, "process_name:"+line.Comm)
 
 		// submit counter metric
 		sender.Count("oom_kill.oom_process.count", 1, "", tags)
@@ -145,7 +145,7 @@ func (m *OOMKillCheck) Run() error {
 			SourceTypeName: CheckName,
 			EventType:      CheckName,
 			AggregationKey: containerID,
-			Title:          fmt.Sprintf("Process OOM Killed: oom_kill_process called on %s (pid: %d)", line.TComm, line.TPid),
+			Title:          fmt.Sprintf("Process OOM Killed: oom_kill_process called on %s (pid: %d)", line.Comm, line.Pid),
 			Tags:           tags,
 		}
 
@@ -156,9 +156,9 @@ func (m *OOMKillCheck) Run() error {
 			oomScoreAdj = fmt.Sprintf(", oom_score_adj: %d", line.ScoreAdj)
 		}
 		if line.Pid == line.TPid {
-			fmt.Fprintf(&b, "Process `%s` (pid: %d, oom_score: %d%s) triggered an OOM kill on itself.", line.FComm, line.Pid, line.Score, oomScoreAdj)
+			fmt.Fprintf(&b, "Process `%s` (pid: %d, oom_score: %d%s) triggered an OOM kill on itself.", line.Comm, line.Pid, line.Score, oomScoreAdj)
 		} else {
-			fmt.Fprintf(&b, "Process `%s` (pid: %d) triggered an OOM kill on process `%s` (pid: %d, oom_score: %d%s).", line.FComm, line.Pid, line.TComm, line.TPid, line.Score, oomScoreAdj)
+			fmt.Fprintf(&b, "Process `%s` (pid: %d) triggered an OOM kill on process `%s` (pid: %d, oom_score: %d%s).", line.TComm, line.TPid, line.Comm, line.Pid, line.Score, oomScoreAdj)
 		}
 		fmt.Fprintf(&b, "\n The process had reached %d pages in size. \n\n", line.Pages)
 		b.WriteString(triggerTypeText)

@@ -7,7 +7,7 @@ type oomStats struct {
 	Cgroup_name [129]byte
 	Pid         uint32
 	Tpid        uint32
-	Fcomm       [16]byte
+	Comm        [16]byte
 	Tcomm       [16]byte
 	Score       int64
 	Score_adj   int16

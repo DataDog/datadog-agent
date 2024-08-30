@@ -104,7 +104,7 @@ func TestOOMKillProbe(t *testing.T) {
 		assert.Equal(t, result.TPid, result.Pid, "tpid == pid")
 		assert.NotZero(t, result.Score, "score")
 		assert.Equal(t, int16(42), result.ScoreAdj, "score adj")
-		assert.Equal(t, "dd", result.FComm, "fcomm")
+		assert.Equal(t, "dd", result.Comm, "comm")
 		assert.Equal(t, "dd", result.TComm, "tcomm")
 		assert.NotZero(t, result.Pages, "pages")
 		assert.Equal(t, uint32(1), result.MemCgOOM, "memcg oom")

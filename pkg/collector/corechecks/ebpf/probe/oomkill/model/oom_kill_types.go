@@ -11,7 +11,7 @@ type OOMKillStats struct {
 	CgroupName string `json:"cgroupName"`
 	Pid        uint32 `json:"pid"`
 	TPid       uint32 `json:"tpid"`
-	FComm      string `json:"fcomm"`
+	Comm       string `json:"comm"`
 	TComm      string `json:"tcomm"`
 	Score      int64  `json:"score"`
 	ScoreAdj   int16  `json:"scoreAdj"`

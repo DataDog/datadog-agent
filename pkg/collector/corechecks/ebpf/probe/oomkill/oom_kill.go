@@ -165,7 +165,7 @@ func convertStats(in oomStats) (out model.OOMKillStats) {
 	out.TPid = in.Tpid
 	out.Score = in.Score
 	out.ScoreAdj = in.Score_adj
-	out.FComm = unix.ByteSliceToString(in.Fcomm[:])
+	out.Comm = unix.ByteSliceToString(in.Comm[:])
 	out.TComm = unix.ByteSliceToString(in.Tcomm[:])
 	out.Pages = in.Pages
 	out.MemCgOOM = in.Memcg_oom
