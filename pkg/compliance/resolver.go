@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	dockertypes "github.com/docker/docker/api/types"
+	dockerimage "github.com/docker/docker/api/types/image"
 	docker "github.com/docker/docker/client"
 
 	"github.com/shirou/gopsutil/v3/process"
@@ -564,7 +565,7 @@ func (r *defaultResolver) resolveDocker(ctx context.Context, spec InputSpecDocke
 	var resolved []interface{}
 	switch spec.Kind {
 	case "image":
-		list, err := cl.ImageList(ctx, dockertypes.ImageListOptions{All: true})
+		list, err := cl.ImageList(ctx, dockerimage.ListOptions{All: true})
 		if err != nil {
 			return nil, err
 		}
