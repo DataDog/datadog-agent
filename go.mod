@@ -635,8 +635,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/tagger/common v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/core/tagger/taglist v0.58.0-devel
-	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.58.0-devel
+	github.com/DataDog/datadog-agent/comp/core/tagger/taglist v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.56.0-rc.3
@@ -709,7 +709,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/containers/image v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/ecs/common v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil v0.56.0-rc3
-	github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2/v2client v0.58.0-devel
+	github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2/v2client v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4 v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/ecs/telemetry v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.56.0-rc3
@@ -727,7 +727,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/system v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/tmplvar v0.58.0-devel
+	github.com/DataDog/datadog-agent/pkg/util/tmplvar v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.56.0-rc3
 	github.com/DataDog/datadog-agent/pkg/version v0.56.0-rc.3

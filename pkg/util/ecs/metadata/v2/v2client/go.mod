@@ -10,6 +10,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../../config/env
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../../config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../../config/setup
+	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../../telemetry
 	github.com/DataDog/datadog-agent/pkg/util/ecs/common => ../../../common
 	github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil => ../../testutil
 	github.com/DataDog/datadog-agent/pkg/util/ecs/telemetry => ../../../telemetry
@@ -27,9 +28,9 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/ecs/common v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/ecs/telemetry v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/ecs/common v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/ecs/telemetry v0.0.0-00010101000000-000000000000
 	github.com/stretchr/testify v1.9.0
 )
 

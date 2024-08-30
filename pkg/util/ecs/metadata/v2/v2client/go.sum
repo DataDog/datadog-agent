@@ -7,8 +7,6 @@ github.com/DataDog/datadog-agent/comp/core/flare/builder v0.56.0-rc.3 h1:yTUOhES
 github.com/DataDog/datadog-agent/comp/core/flare/builder v0.56.0-rc.3/go.mod h1:0D6AYJw8hcavXZABBM2dZVZDZ2koodDZh6doS2L/ijw=
 github.com/DataDog/datadog-agent/comp/core/flare/types v0.56.0-rc.3 h1:xWuxb/QI/gebKhBeFLglNWiFpOcNM5ff6H4ttPcPjuo=
 github.com/DataDog/datadog-agent/comp/core/flare/types v0.56.0-rc.3/go.mod h1:Tq6dxkbquwiYfIXIc6SPOKp3JEY1h4x1K5RV7HnjrRg=
-github.com/DataDog/datadog-agent/pkg/telemetry v0.56.0-rc.3 h1:QoK5cuIVNyCGHqKhfd6dbXsBrD4/99uqJpNawStQtxQ=
-github.com/DataDog/datadog-agent/pkg/telemetry v0.56.0-rc.3/go.mod h1:8GrpTHNN/89sTDtDjPUBN+Ly5yqe65mCvyWxrtDmBao=
 github.com/DataDog/datadog-agent/pkg/util/testutil v0.56.0-rc.3 h1:Xw1tl75NqUWL0hS8FdzeCJ1u2PYZMB3RMWZFGQGwDPs=
 github.com/DataDog/datadog-agent/pkg/util/testutil v0.56.0-rc.3/go.mod h1:YAy9qytR6UBs3U97YIySGvFEOP69OSHVQFCzKJLJWk0=
 github.com/DataDog/viper v1.13.5 h1:SZMcyMknYQN2jRY/40A16gUXexlNJOI8sDs1cWZnI64=
