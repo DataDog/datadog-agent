@@ -29,6 +29,7 @@ import (
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/bootstrap"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,6 +39,8 @@ import (
 const (
 	// gcInterval is the interval at which the GC will run
 	gcInterval = 1 * time.Hour
+	// refreshStateInterval is the interval at which the state will be refreshed
+	refreshStateInterval = 5 * time.Minute
 )
 
 // Daemon is the fleet daemon in charge of remote install, updates and configuration.
@@ -63,6 +66,7 @@ type daemonImpl struct {
 	env        *env.Env
 	installer  installer.Installer
 	rc         *remoteConfig
+	cdn        *cdn.CDN
 	catalog    catalog
 	requests   chan remoteAPIRequest
 	requestsWG sync.WaitGroup
@@ -96,6 +100,7 @@ func newDaemon(rc *remoteConfig, installer installer.Installer, env *env.Env) *d
 		env:       env,
 		rc:        rc,
 		installer: installer,
+		cdn:       cdn.New(env),
 		requests:  make(chan remoteAPIRequest, 32),
 		catalog:   catalog{},
 		stopChan:  make(chan struct{}),
@@ -185,6 +190,10 @@ func (d *daemonImpl) Start(_ context.Context) error {
 				if err != nil {
 					log.Errorf("Daemon: could not run GC: %v", err)
 				}
+			case <-time.After(refreshStateInterval):
+				d.m.Lock()
+				d.refreshState(context.Background())
+				d.m.Unlock()
 			case <-d.stopChan:
 				return
 			case request := <-d.requests:
@@ -431,6 +440,17 @@ func setRequestDone(ctx context.Context, err error) {
 	}
 }
 
+func (d *daemonImpl) resolveAgentRemoteConfigVersion(ctx context.Context) (string, error) {
+	if !d.env.RemotePolicies {
+		return "", nil
+	}
+	config, err := d.cdn.Get(ctx)
+	if err != nil {
+		return "", fmt.Errorf("could not get agent cdn config: %w", err)
+	}
+	return config.Version, nil
+}
+
 func (d *daemonImpl) refreshState(ctx context.Context) {
 	state, err := d.installer.States()
 	if err != nil {
@@ -443,6 +463,11 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		log.Errorf("could not get installer config state: %v", err)
 		return
 	}
+	configVersion, err := d.resolveAgentRemoteConfigVersion(ctx)
+	if err != nil {
+		log.Errorf("could not get agent remote config version: %v", err)
+	}
+
 	requestState, ok := ctx.Value(requestStateKey).(*requestState)
 	var packages []*pbgo.PackageState
 	for pkg, s := range state {
@@ -455,6 +480,9 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		if hasConfig {
 			p.StableConfigVersion = cs.Stable
 			p.ExperimentConfigVersion = cs.Experiment
+		}
+		if pkg == "datadog-agent" {
+			p.RemoteConfigVersion = configVersion
 		}
 		if ok && pkg == requestState.Package {
 			var taskErr *pbgo.TaskError
