@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
-	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
+	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2client"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"

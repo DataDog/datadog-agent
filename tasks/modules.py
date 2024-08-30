@@ -271,8 +271,8 @@ DEFAULT_MODULES = {
     "pkg/util/containers/image": GoModule("pkg/util/containers/image", independent=True, used_by_otel=True),
     "pkg/util/ecs/common": GoModule("pkg/util/ecs/common", independent=True, used_by_otel=True),
     "pkg/util/ecs/metadata/testutil": GoModule("pkg/util/ecs/metadata/testutil", independent=True, used_by_otel=True),
-    "pkg/util/ecs/metadata/v2/v2client": GoModule(
-        "pkg/util/ecs/metadata/v2/v2client", independent=True, used_by_otel=True
+    "pkg/util/ecs/metadata/v2client": GoModule(
+        "pkg/util/ecs/metadata/v2client", independent=True, used_by_otel=True
     ),
     "pkg/util/ecs/metadata/v3or4": GoModule("pkg/util/ecs/metadata/v3or4", independent=True, used_by_otel=True),
     "pkg/util/ecs/telemetry": GoModule("pkg/util/ecs/telemetry", independent=True, used_by_otel=True),

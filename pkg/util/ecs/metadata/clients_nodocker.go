@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/common"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
-	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
+	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2client"
 	v3or4 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
 )
 

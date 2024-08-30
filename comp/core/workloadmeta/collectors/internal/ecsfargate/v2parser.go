@@ -14,7 +14,7 @@ import (
 	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
+	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2client"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

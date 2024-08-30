@@ -3,28 +3,28 @@ module github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2/v2client
 go 1.22.0
 
 replace (
-	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../../../../comp/core/secrets
-	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../../../comp/core/telemetry
-	github.com/DataDog/datadog-agent/comp/def => ../../../../../../comp/def
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../../collector/check/defaults
-	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../../config/env
-	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../../config/model
-	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../../config/setup
-	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../../telemetry
-	github.com/DataDog/datadog-agent/pkg/util/ecs/common => ../../../common
-	github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil => ../../testutil
-	github.com/DataDog/datadog-agent/pkg/util/ecs/telemetry => ../../../telemetry
-	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../executable
-	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../../filesystem
-	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../fxutil
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../hostname/validate
-	github.com/DataDog/datadog-agent/pkg/util/log => ../../../../log
-	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../../optional
-	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../../pointer
-	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../../scrubber
-	github.com/DataDog/datadog-agent/pkg/util/system => ../../../../system
-	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../../system/socket
-	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../winutil
+	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../../../comp/core/secrets
+	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../../comp/core/telemetry
+	github.com/DataDog/datadog-agent/comp/def => ../../../../../comp/def
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../config/env
+	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../config/model
+	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../config/setup
+	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../telemetry
+	github.com/DataDog/datadog-agent/pkg/util/ecs/common => ../../common
+	github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil => ../testutil
+	github.com/DataDog/datadog-agent/pkg/util/ecs/telemetry => ../../telemetry
+	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../executable
+	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../filesystem
+	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../fxutil
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../hostname/validate
+	github.com/DataDog/datadog-agent/pkg/util/log => ../../../log
+	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../optional
+	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../pointer
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../scrubber
+	github.com/DataDog/datadog-agent/pkg/util/system => ../../../system
+	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../system/socket
+	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../winutil
 )
 
 require (

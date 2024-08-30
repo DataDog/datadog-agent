@@ -18,7 +18,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil"
-	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
+	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2client"
 )
 
 func TestPullWithTaskCollectionEnabledWithV2Parser(t *testing.T) {
