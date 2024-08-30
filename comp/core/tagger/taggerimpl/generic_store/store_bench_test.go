@@ -56,7 +56,7 @@ func initStore(store types.ObjectStore[int]) {
 }
 
 // Mock ApplyFunc for testing purposes
-func mockApplyFunc[T any](_ types.EntityID, obj T) {}
+func mockApplyFunc[T any](_ types.EntityID, _ T) {}
 
 func BenchmarkDefaultObjectStore_Set(b *testing.B) {
 	cfg := configmock.New(b)
