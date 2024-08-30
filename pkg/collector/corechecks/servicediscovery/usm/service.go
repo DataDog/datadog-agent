@@ -202,7 +202,9 @@ func ExtractServiceMetadata(args []string, envs map[string]string, fs fs.SubFS, 
 	exe = normalizeExeName(exe)
 
 	if detectorProvider, ok := binsWithContext[exe]; ok {
-		return detectorProvider(dc).detect(cmd[1:])
+		if metadata, ok := detectorProvider(dc).detect(cmd[1:]); ok {
+			return metadata, true
+		}
 	}
 
 	// trim trailing file extensions
