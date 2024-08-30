@@ -295,7 +295,7 @@ const (
 	MetricSourceSlurm
 	MetricSourceKyverno
 	MetricSourceKubeflow
-	MetricSourceAppgate_SDP
+	MetricSourceAppgateSDP
 	MetricSourceAnyscale
 )
 
@@ -1372,18 +1372,18 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceZenohRouter
 	case "aws_neuron":
 		return MetricSourceAwsNeuron
-	case "kyverno": 
+	case "kyverno":
 		return MetricSourceKyverno
-	case "anyscale": 
+	case "anyscale":
 		return MetricSourceAnyscale
-	case "appgate_sdp": 
+	case "appgate_sdp":
 		return MetricSourceAppgate_SDP
-	case "kubeflow": 
+	case "kubeflow":
 		return MetricSourceKubeflow
-	case "slurm": 
+	case "slurm":
 		return MetricSourceSlurm
-	case "tibco_ems": 
-		return MetricSourceTiboco_EMS
+	case "tibco_ems":
+		return MetricSourceTibocoEMS
 	default:
 		return MetricSourceUnknown
 	}
