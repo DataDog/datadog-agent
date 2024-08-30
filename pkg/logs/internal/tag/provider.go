@@ -22,7 +22,10 @@ type Provider interface {
 	GetTags() []string
 }
 
-type tagFunction func(entity string, cardinality types.TagCardinality) ([]string, error)
+// EntityTagAdder returns the associated tag for an entity and their cardinality
+type EntityTagAdder interface {
+	Tag(entity string, cardinality types.TagCardinality) ([]string, error)
+}
 
 // provider provides a list of up-to-date tags for a given entity by calling the tagger.
 type provider struct {
@@ -30,23 +33,23 @@ type provider struct {
 	taggerWarmupDuration time.Duration
 	localTagProvider     Provider
 	clock                clock.Clock
-	tagFunction          tagFunction
+	tagAdder             EntityTagAdder
 	sync.Once
 }
 
 // NewProvider returns a new Provider.
-func NewProvider(entityID string, tagFunction tagFunction) Provider {
-	return newProviderWithClock(entityID, clock.New(), tagFunction)
+func NewProvider(entityID string, tagAdder EntityTagAdder) Provider {
+	return newProviderWithClock(entityID, clock.New(), tagAdder)
 }
 
 // newProviderWithClock returns a new provider using the given clock.
-func newProviderWithClock(entityID string, clock clock.Clock, tagFunction tagFunction) Provider {
+func newProviderWithClock(entityID string, clock clock.Clock, tagAdder EntityTagAdder) Provider {
 	p := &provider{
 		entityID:             entityID,
 		taggerWarmupDuration: config.TaggerWarmupDuration(pkgConfig.Datadog()),
 		localTagProvider:     newLocalProviderWithClock([]string{}, clock),
 		clock:                clock,
-		tagFunction:          tagFunction,
+		tagAdder:             tagAdder,
 	}
 
 	return p
@@ -61,7 +64,7 @@ func (p *provider) GetTags() []string {
 		p.clock.Sleep(p.taggerWarmupDuration)
 	})
 
-	tags, err := p.tagFunction(p.entityID, types.HighCardinality)
+	tags, err := p.tagAdder.Tag(p.entityID, types.HighCardinality)
 	if err != nil {
 		log.Warnf("Cannot tag container %s: %v", p.entityID, err)
 		return []string{}

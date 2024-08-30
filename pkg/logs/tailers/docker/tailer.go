@@ -86,7 +86,7 @@ func NewTailer(cli *dockerutil.DockerUtil, containerID string, source *sources.L
 		outputChan:         outputChan,
 		decoder:            decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), dockerstream.New(containerID), framer.DockerStream, nil, status.NewInfoRegistry()),
 		Source:             source,
-		tagProvider:        tag.NewProvider(containers.BuildTaggerEntityName(containerID), tagger.Tag),
+		tagProvider:        tag.NewProvider(containers.BuildTaggerEntityName(containerID), tagger),
 		dockerutil:         cli,
 		readTimeout:        readTimeout,
 		sleepDuration:      defaultSleepDuration,

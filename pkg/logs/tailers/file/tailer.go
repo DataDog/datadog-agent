@@ -19,7 +19,6 @@ import (
 
 	"github.com/benbjohnson/clock"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -129,7 +128,7 @@ type TailerOptions struct {
 	Decoder       *decoder.Decoder      // Required
 	Info          *status.InfoRegistry  // Required
 	Rotated       bool                  // Optional
-	TagFunction   func(entity string, cardinality types.TagCardinality) ([]string, error)
+	TagAdder      tag.EntityTagAdder    // Required
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
@@ -146,7 +145,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	if opts.File.Source.Config().Identifier != "" {
 		tagProvider = tag.NewProvider(
 			containers.BuildTaggerEntityName(opts.File.Source.Config().Identifier),
-			opts.TagFunction,
+			opts.TagAdder,
 		)
 	} else {
 		tagProvider = tag.NewLocalProvider([]string{})
@@ -203,7 +202,7 @@ func addToTailerInfo(k, m string, tailerInfo *status.InfoRegistry) {
 
 // NewRotatedTailer creates a new tailer that replaces this one, writing
 // messages to the same channel but using an updated file and decoder.
-func (t *Tailer) NewRotatedTailer(file *File, decoder *decoder.Decoder, info *status.InfoRegistry, taggerFunc func(entity string, cardinality types.TagCardinality) ([]string, error)) *Tailer {
+func (t *Tailer) NewRotatedTailer(file *File, decoder *decoder.Decoder, info *status.InfoRegistry, tagAdder tag.EntityTagAdder) *Tailer {
 	options := &TailerOptions{
 		OutputChan:    t.outputChan,
 		File:          file,
@@ -211,7 +210,7 @@ func (t *Tailer) NewRotatedTailer(file *File, decoder *decoder.Decoder, info *st
 		Decoder:       decoder,
 		Info:          info,
 		Rotated:       true,
-		TagFunction:   taggerFunc,
+		TagAdder:      tagAdder,
 	}
 
 	return NewTailer(options)

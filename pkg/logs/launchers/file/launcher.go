@@ -389,7 +389,7 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 		SleepDuration: s.tailerSleepDuration,
 		Decoder:       decoder.NewDecoderFromSource(file.Source, tailerInfo),
 		Info:          tailerInfo,
-		TagFunction:   s.tagger.Tag,
+		TagAdder:      s.tagger,
 	}
 
 	return tailer.NewTailer(tailerOptions)
@@ -397,7 +397,7 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 
 func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp) *tailer.Tailer {
 	tailerInfo := t.GetInfo()
-	return t.NewRotatedTailer(file, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger.Tag)
+	return t.NewRotatedTailer(file, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger)
 }
 
 //nolint:revive // TODO(AML) Fix revive linter

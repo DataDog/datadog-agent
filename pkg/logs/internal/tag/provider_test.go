@@ -41,7 +41,7 @@ func TestProviderExpectedTags(t *testing.T) {
 	m.SetWithoutSource("logs_config.expected_tags_duration", "5s")
 	defer m.SetWithoutSource("logs_config.expected_tags_duration", 0)
 
-	p := newProviderWithClock("foo", clock, fakeTagger.Tag)
+	p := newProviderWithClock("foo", clock, fakeTagger)
 	pp := p.(*provider)
 
 	var tt []string
