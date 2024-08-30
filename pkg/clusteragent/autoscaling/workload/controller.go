@@ -279,14 +279,12 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	validationErr := c.validateAutoscaler(podAutoscaler)
 	if validationErr != nil {
 		podAutoscalerInternal.SetError(validationErr)
-		err := c.updateAutoscalerStatus(ctx, key, ns, name, validationErr, podAutoscalerInternal, podAutoscaler)
-		return autoscaling.NoRequeue, err
+		return autoscaling.NoRequeue, c.updateAutoscalerStatusAndUnlock(ctx, key, ns, name, validationErr, podAutoscalerInternal, podAutoscaler)
 	}
 
 	// Now that everything is synced, we can perform the actual processing
 	result, scalingErr := c.handleScaling(ctx, podAutoscaler, &podAutoscalerInternal)
-	err := c.updateAutoscalerStatus(ctx, key, ns, name, scalingErr, podAutoscalerInternal, podAutoscaler)
-	return result, err
+	return result, c.updateAutoscalerStatusAndUnlock(ctx, key, ns, name, scalingErr, podAutoscalerInternal, podAutoscaler)
 }
 
 func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, podAutoscalerInternal *model.PodAutoscalerInternal) (autoscaling.ProcessResult, error) {
@@ -414,7 +412,7 @@ func (c *Controller) validateAutoscaler(podAutoscaler *datadoghq.DatadogPodAutos
 	return nil
 }
 
-func (c *Controller) updateAutoscalerStatus(ctx context.Context, key, ns, name string, err error, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
+func (c *Controller) updateAutoscalerStatusAndUnlock(ctx context.Context, key, ns, name string, err error, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
 	// Update status based on latest state
 	statusErr := c.updatePodAutoscalerStatus(ctx, podAutoscalerInternal, podAutoscaler)
 	if statusErr != nil {
