@@ -14,4 +14,4 @@ type telemetry struct{}
 
 func (t *telemetry) registerProfiledContainer(_, _ string) {}
 
-func (t *telemetry) run(_ context.Context, _ *RuntimeSecurityAgent) {}
+func (t *telemetry) run(_ context.Context) {}

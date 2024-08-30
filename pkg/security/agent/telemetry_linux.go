@@ -61,7 +61,7 @@ func (t *telemetry) registerProfiledContainer(name, tag string) {
 	}
 }
 
-func (t *telemetry) run(ctx context.Context, rsa *RuntimeSecurityAgent) {
+func (t *telemetry) run(ctx context.Context) {
 	log.Info("started collecting Runtime Security Agent telemetry")
 	defer log.Info("stopping Runtime Security Agent telemetry")
 
@@ -77,9 +77,6 @@ func (t *telemetry) run(ctx context.Context, rsa *RuntimeSecurityAgent) {
 		case <-metricsTicker.C:
 			if err := t.reportContainers(); err != nil {
 				log.Debugf("couldn't report containers: %v", err)
-			}
-			if rsa.storage != nil {
-				rsa.storage.SendTelemetry()
 			}
 		case <-profileCounterTicker.C:
 			if err := t.reportProfiledContainers(); err != nil {

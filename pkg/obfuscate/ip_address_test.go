@@ -46,6 +46,14 @@ func TestQuantizePeerIpAddresses(t *testing.T) {
 		{"http://172.24.160.151:8091,172.24.163.33:8091,172.24.164.111:8091,172.24.165.203:8091,172.24.168.235:8091,172.24.170.130:8091", "http://blocked-ip-address:8091,blocked-ip-address:8091"},
 		{"10-60-160-172.my-service.namespace.svc.abc.cluster.local", "blocked-ip-address.my-service.namespace.svc.abc.cluster.local"},
 		{"ip-10-152-4-129.ec2.internal", "ip-blocked-ip-address.ec2.internal"},
+		{"1-foo", "1-foo"},
+		{"1-2-foo", "1-2-foo"},
+		{"1-2-3-foo", "1-2-3-foo"},
+		{"1-2-3-999", "1-2-3-999"},
+		{"1-2-999-foo", "1-2-999-foo"},
+		{"1-2-3-999-foo", "1-2-3-999-foo"},
+		{"1-2-3-4-foo", "blocked-ip-address-foo"},
+		{"7-55-2-app.agent.datadoghq.com", "7-55-2-app.agent.datadoghq.com"},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.original, func(t *testing.T) {

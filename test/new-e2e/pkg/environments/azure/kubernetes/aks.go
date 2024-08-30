@@ -7,8 +7,6 @@
 package azurekubernetes
 
 import (
-	"fmt"
-
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent/helm"
@@ -32,9 +30,6 @@ func AKSProvisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments
 	// and it's easy to forget about it, leading to hard to debug issues.
 	params := newProvisionerParams()
 	_ = optional.ApplyOptions(params, opts)
-
-	//TODO: Remove when https://datadoghq.atlassian.net/browse/ADXT-479 is done
-	fmt.Println("PLEASE DO NOT USE THIS PROVIDER FOR TESTING ON THE CI YET. WE NEED TO FIND A WAY TO CLEAN INSTANCES FIRST")
 
 	provisioner := e2e.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.Kubernetes) error {
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
