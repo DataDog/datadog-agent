@@ -261,6 +261,7 @@ github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce
 github.com/DataDog/datadog-agent/pkg/util/clusteragent
 github.com/DataDog/datadog-agent/pkg/util/common
 github.com/DataDog/datadog-agent/pkg/util/containers
+github.com/DataDog/datadog-agent/pkg/util/containers/image
 github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider
 github.com/DataDog/datadog-agent/pkg/util/dmi
 github.com/DataDog/datadog-agent/pkg/util/docker
@@ -277,6 +278,7 @@ github.com/DataDog/datadog-agent/pkg/util/json
 github.com/DataDog/datadog-agent/pkg/util/kubelet
 github.com/DataDog/datadog-agent/pkg/util/kubernetes
 github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername
+github.com/DataDog/datadog-agent/pkg/util/kubernetes/helpers
 github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo
 github.com/DataDog/datadog-agent/pkg/util/log
 github.com/DataDog/datadog-agent/pkg/util/log/setup
@@ -288,6 +290,7 @@ github.com/DataDog/datadog-agent/pkg/util/retry
 github.com/DataDog/datadog-agent/pkg/util/scrubber
 github.com/DataDog/datadog-agent/pkg/util/sort
 github.com/DataDog/datadog-agent/pkg/util/startstop
+github.com/DataDog/datadog-agent/pkg/util/statictags
 github.com/DataDog/datadog-agent/pkg/util/statstracker
 github.com/DataDog/datadog-agent/pkg/util/sync
 github.com/DataDog/datadog-agent/pkg/util/system
