@@ -526,6 +526,8 @@ func (t *ebpfTracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- EbpfTracerTelemetry.doubleFlushAttemptsDone
 	ch <- EbpfTracerTelemetry.unsupportedTcpFailures
 	ch <- EbpfTracerTelemetry.tcpDoneMissingPid
+	ch <- EbpfTracerTelemetry.tcpConnectPidMatch
+	ch <- EbpfTracerTelemetry.tcpConnectPidMismatch
 }
 
 // Collect returns the current state of all metrics of the collector
@@ -577,6 +579,14 @@ func (t *ebpfTracer) Collect(ch chan<- prometheus.Metric) {
 	delta = int64(ebpfTelemetry.Tcp_done_missing_pid) - EbpfTracerTelemetry.lastTcpDoneMissingPid.Load()
 	EbpfTracerTelemetry.lastTcpDoneMissingPid.Store(int64(ebpfTelemetry.Tcp_done_missing_pid))
 	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpDoneMissingPid, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Tcp_connect_pid_match) - EbpfTracerTelemetry.lastTcpConnectPidMatch.Load()
+	EbpfTracerTelemetry.lastTcpConnectPidMatch.Store(int64(ebpfTelemetry.Tcp_connect_pid_match))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpConnectPidMatch, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Tcp_connect_pid_mismatch) - EbpfTracerTelemetry.lastTcpConnectPidMismatch.Load()
+	EbpfTracerTelemetry.lastTcpConnectPidMismatch.Store(int64(ebpfTelemetry.Tcp_connect_pid_mismatch))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpConnectPidMismatch, prometheus.CounterValue, float64(delta))
 
 }
 
