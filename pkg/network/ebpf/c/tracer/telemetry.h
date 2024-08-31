@@ -28,6 +28,7 @@ enum telemetry_counter {
     tcp_connect_pid_match,
     tcp_connect_pid_mismatch,
     tcp_connect_failed_tuple,
+    tcp_done_failed_tuple,
 };
 
 static __always_inline void increment_telemetry_count(enum telemetry_counter counter_name) {
@@ -77,6 +78,9 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
         break;
     case tcp_connect_failed_tuple:
         __sync_fetch_and_add(&val->tcp_connect_failed_tuple, 1);
+        break;
+    case tcp_done_failed_tuple:
+        __sync_fetch_and_add(&val->tcp_done_failed_tuple, 1);
         break;
     }
 }

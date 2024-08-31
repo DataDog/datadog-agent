@@ -118,6 +118,7 @@ typedef struct {
     __u64 tcp_connect_pid_match;
     __u64 tcp_connect_pid_mismatch;
     __u64 tcp_connect_failed_tuple;
+    __u64 tcp_done_failed_tuple;
 } telemetry_t;
 
 typedef struct {
@@ -149,5 +150,10 @@ typedef struct {
         struct flowi6 *fl6;
     };
 } ip_make_skb_args_t;
+
+typedef struct {
+    struct sock *sk;
+    conn_tuple_t tup;
+} skp_conn_tuple_t;
 
 #endif
