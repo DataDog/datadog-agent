@@ -295,7 +295,7 @@ const (
 	MetricSourceSlurm
 	MetricSourceKyverno
 	MetricSourceKubeflow
-	MetricSourceAppgateSDP
+	MetricSourceAppgate_SDP
 	MetricSourceAnyscale
 )
 
@@ -1383,7 +1383,7 @@ func CheckNameToMetricSource(name string) MetricSource {
 	case "slurm":
 		return MetricSourceSlurm
 	case "tibco_ems":
-		return MetricSourceTibocoEMS
+		return MetricSourceTiboco_EMS
 	default:
 		return MetricSourceUnknown
 	}
