@@ -68,6 +68,7 @@ type Telemetry struct {
 	Tcp_done_missing_pid        uint64
 	Tcp_connect_pid_match       uint64
 	Tcp_connect_pid_mismatch    uint64
+	Tcp_connect_failed_tuple    uint64
 }
 type PortBinding struct {
 	Netns     uint32

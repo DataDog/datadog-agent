@@ -960,6 +960,12 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_connect, struct sock *skp) {
             increment_telemetry_count(tcp_connect_pid_mismatch);
         }
     }
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
+        increment_telemetry_count(tcp_connect_failed_tuple);
+        return 0;
+    }
+
     if (tcp_failed_connections_enabled()) {
         bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp, &pid_tgid, BPF_NOEXIST);
     }
