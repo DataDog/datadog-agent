@@ -83,6 +83,7 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 			ADIdentifiers:           []string{adIdentifier},
 			IgnoreAutodiscoveryTags: config.IgnoreAutodiscoveryTags,
 		}
+
 		if len(config.Logs) > 0 {
 			c.LogsConfig = integration.Data(config.Logs)
 		}
