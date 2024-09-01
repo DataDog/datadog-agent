@@ -23,7 +23,7 @@ func newTestRepositories(t *testing.T) *Repositories {
 func TestRepositoriesEmpty(t *testing.T) {
 	repositories := newTestRepositories(t)
 
-	state, err := repositories.GetState()
+	state, err := repositories.GetStates()
 	assert.NoError(t, err)
 	assert.Empty(t, state)
 }
@@ -39,7 +39,7 @@ func TestRepositories(t *testing.T) {
 	err = repositories.Create("repo2", "v1.0", t.TempDir())
 	assert.NoError(t, err)
 
-	state, err := repositories.GetState()
+	state, err := repositories.GetStates()
 	assert.NoError(t, err)
 	assert.Len(t, state, 2)
 	assert.Equal(t, state["repo1"], State{Stable: "v1", Experiment: "v2"})
@@ -55,7 +55,7 @@ func TestRepositoriesReopen(t *testing.T) {
 
 	repositories = NewRepositories(repositories.rootPath, repositories.locksPath)
 
-	state, err := repositories.GetState()
+	state, err := repositories.GetStates()
 	assert.NoError(t, err)
 	assert.Len(t, state, 2)
 	assert.Equal(t, state["repo1"], State{Stable: "v1"})

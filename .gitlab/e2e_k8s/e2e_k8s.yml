@@ -1,0 +1,82 @@
+
+---
+# e2e stage
+# Jobs with the k8s_e2e template
+
+.k8s_e2e_template:
+  stage: e2e_k8s
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  dependencies: []
+  variables:
+    LANG: C.UTF-8
+  before_script:
+    - export DOCKER_REGISTRY_LOGIN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_LOGIN_SSM_KEY)
+    - export DOCKER_REGISTRY_PWD=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_PWD_SSM_KEY)
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_DDDEV_SSM_NAME)
+
+.k8s-e2e-cws-cspm-init:
+  - set +x
+  - export DATADOG_AGENT_SITE=datadoghq.com
+  - export DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $E2E_TESTS_API_KEY_SSM_NAME)
+  - export DATADOG_AGENT_APP_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $E2E_TESTS_APP_KEY_SSM_NAME)
+  - export DATADOG_AGENT_RC_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $E2E_TESTS_RC_KEY_SSM_NAME)
+
+.k8s_e2e_template_needs_dev:
+  extends: .k8s_e2e_template
+  needs:
+    - dev_branch_multiarch-a7
+    - dca_dev_branch
+
+.k8s_e2e_template_dev:
+  extends: .k8s_e2e_template_needs_dev
+  script:
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=$ARGO_WORKFLOW
+
+.k8s_e2e_template_dev_with_cws_cspm_init:
+  extends: .k8s_e2e_template_needs_dev
+  script:
+    - !reference [.k8s-e2e-cws-cspm-init]
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=$ARGO_WORKFLOW
+
+.k8s_e2e_template_needs_main:
+  extends: .k8s_e2e_template
+  needs:
+    - dev_master-a7
+    - dca_dev_master
+
+.k8s_e2e_template_main_with_cws_cspm_init:
+  extends: .k8s_e2e_template_needs_main
+  script:
+    - !reference [.k8s-e2e-cws-cspm-init]
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=$ARGO_WORKFLOW
+
+.k8s_e2e_template_main:
+  extends: .k8s_e2e_template_needs_main
+  script:
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=$ARGO_WORKFLOW
+
+k8s-e2e-cspm-dev:
+  extends: .k8s_e2e_template_dev_with_cws_cspm_init
+  rules: !reference [.on_dev_branch_manual]
+  variables:
+    ARGO_WORKFLOW: cspm
+
+k8s-e2e-cspm-main:
+  extends: .k8s_e2e_template_main_with_cws_cspm_init
+  rules: !reference [.on_main]
+  retry: 1
+  variables:
+    ARGO_WORKFLOW: cspm
+
+k8s-e2e-otlp-dev:
+  extends: .k8s_e2e_template_dev
+  rules: !reference [.on_dev_branch_manual]
+  variables:
+    ARGO_WORKFLOW: otlp
+
+k8s-e2e-otlp-main:
+  extends: .k8s_e2e_template_main
+  rules: !reference [.on_main]
+  variables:
+    ARGO_WORKFLOW: otlp

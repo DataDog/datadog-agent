@@ -14,6 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
-func setupConfig(deps dependencies, apikey string) (*config.AgentConfig, error) {
+func setupConfig(deps Dependencies, apikey string) (*config.AgentConfig, error) {
 	return setupConfigCommon(deps, apikey)
 }
