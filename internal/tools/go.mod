@@ -8,7 +8,7 @@ require (
 	github.com/golangci/golangci-lint v1.59.1
 	github.com/goware/modvendor v0.5.0
 	github.com/stormcat24/protodep v0.1.8
-	github.com/vektra/mockery/v2 v2.40.1
+	github.com/vektra/mockery/v2 v2.45.0
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/perf v0.0.0-20210220033136-40a54f11e909
