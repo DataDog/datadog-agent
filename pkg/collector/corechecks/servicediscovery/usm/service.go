@@ -8,6 +8,7 @@ package usm
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -140,7 +141,7 @@ func SizeVerifiedReader(file fs.File) (io.Reader, error) {
 
 	size := fi.Size()
 	if size > maxParseFileSize {
-		return nil, errors.New("file too large")
+		return nil, fmt.Errorf("file too large (%d bytes)", size)
 	}
 
 	// Additional limit the reader to avoid suprises if the file size changes
