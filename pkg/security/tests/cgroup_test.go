@@ -96,8 +96,6 @@ func TestCGroup(t *testing.T) {
 	})
 
 	t.Run("systemd", func(t *testing.T) {
-		t.Skip("unstable on some distribution")
-
 		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 			// TODO(lebauce): On the systems, systemd service creation doesn't trigger a cprocs write
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
