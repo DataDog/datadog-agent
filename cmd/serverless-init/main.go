@@ -96,8 +96,8 @@ func main() {
 }
 
 // removing these unused dependencies will cause silent crash due to fx framework
-func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component) error {
-	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf)
+func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component) error {
+	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf, tagger)
 
 	err := modeConf.Runner(logConfig)
 
@@ -107,7 +107,7 @@ func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Compon
 	return err
 }
 
-func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
+func setup(_ mode.Conf, tagger tagger.Component) (cloudservice.CloudService, *serverlessInitLog.Config, trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
 	tracelog.SetLogger(corelogger{})
 
 	// load proxy settings
@@ -138,7 +138,7 @@ func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, tra
 	if err != nil {
 		log.Debugf("Error loading config: %v\n", err)
 	}
-	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags)
+	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger)
 
 	traceAgent := setupTraceAgent(tags)
 

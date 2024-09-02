@@ -14,7 +14,7 @@ import (
 
 func TestAgentConfig(t *testing.T) {
 	fileName := "testdata/config.yaml"
-	c, err := NewConfigComponent(context.Background(), []string{fileName})
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
 	if err != nil {
 		t.Errorf("Failed to load agent config: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestAgentConfig(t *testing.T) {
 
 func TestAgentConfigDefaults(t *testing.T) {
 	fileName := "testdata/config_default.yaml"
-	c, err := NewConfigComponent(context.Background(), []string{fileName})
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
 	if err != nil {
 		t.Errorf("Failed to load agent config: %v", err)
 	}
@@ -60,12 +60,12 @@ func TestAgentConfigDefaults(t *testing.T) {
 
 func TestNoDDExporter(t *testing.T) {
 	fileName := "testdata/config_no_dd_exporter.yaml"
-	_, err := NewConfigComponent(context.Background(), []string{fileName})
+	_, err := NewConfigComponent(context.Background(), "", []string{fileName})
 	assert.EqualError(t, err, "no datadog exporter found")
 }
 
 func TestMultipleDDExporters(t *testing.T) {
 	fileName := "testdata/config_multiple_dd_exporters.yaml"
-	_, err := NewConfigComponent(context.Background(), []string{fileName})
+	_, err := NewConfigComponent(context.Background(), "", []string{fileName})
 	assert.EqualError(t, err, "multiple datadog exporters found")
 }

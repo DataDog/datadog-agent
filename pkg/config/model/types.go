@@ -111,14 +111,13 @@ type Setup interface {
 	BindEnv(input ...string)
 	SetEnvKeyReplacer(r *strings.Replacer)
 
-	// SetEnvKeyTransformer is deprecated in favor of ParseEnvAs* functions
-	SetEnvKeyTransformer(key string, fn func(string) interface{})
 	// The following helpers allow a type to be enforce when parsing environment variables. Most of them exists to
 	// support historic behavior. Refrain from adding more as it's most likely a sign of poorly design configuration
 	// layout.
 	ParseEnvAsStringSlice(key string, fx func(string) []string)
 	ParseEnvAsMapStringInterface(key string, fx func(string) map[string]interface{})
 	ParseEnvAsSliceMapString(key string, fx func(string) []map[string]string)
+	ParseEnvAsSlice(key string, fx func(string) []interface{})
 
 	// SetKnown adds a key to the set of known valid config keys
 	SetKnown(key string)
