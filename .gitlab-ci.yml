@@ -1028,9 +1028,7 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - pkg/collector/corechecks/ebpf/**/*
         - pkg/collector/corechecks/servicediscovery/module/*
-        - pkg/ebpf/**/*
         - pkg/network/**/*
         - pkg/process/monitor/*
         - pkg/util/kernel/**/*
@@ -1042,7 +1040,6 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - pkg/ebpf/**/*
         - pkg/security/**/*
         - pkg/eventmonitor/**/*
         - test/new-e2e/tests/security-agent-functional/**/*
