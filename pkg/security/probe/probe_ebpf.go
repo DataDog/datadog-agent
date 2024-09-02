@@ -372,6 +372,7 @@ func (p *EBPFProbe) Start() error {
 
 // PlaySnapshot plays a snapshot
 func (p *EBPFProbe) PlaySnapshot() {
+	seclog.Debugf("playing the snapshot")
 	// Get the snapshotted data
 	var events []*model.Event
 
