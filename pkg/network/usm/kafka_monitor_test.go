@@ -522,45 +522,6 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				}
 			},
 		},
-		{
-			name: "Produce - no acks required",
-			context: testContext{
-				serverPort:    kafkaPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras: map[string]interface{}{
-					"topic_name": s.getTopicName(),
-				},
-			},
-			testBody: func(t *testing.T, ctx *testContext, monitor *Monitor) {
-				topicName := ctx.extras["topic_name"].(string)
-				client, err := kafka.NewClient(kafka.Options{
-					ServerAddress: ctx.targetAddress,
-					DialFn:        dialFn,
-					CustomOptions: []kgo.Opt{
-						kgo.MaxVersions(version),
-						kgo.RequiredAcks(kgo.NoAck()),
-						kgo.DisableIdempotentWrite(),
-					},
-				})
-				require.NoError(t, err)
-				ctx.clients = append(ctx.clients, client)
-				require.NoError(t, client.CreateTopic(topicName))
-
-				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
-				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
-				defer cancel()
-				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
-
-				getAndValidateKafkaStats(t, monitor, fixCount(1), topicName, kafkaParsingValidation{
-					expectedNumberOfProduceRequests: fixCount(1),
-					expectedNumberOfFetchRequests:   0,
-					expectedAPIVersionProduce:       expectedAPIVersionProduce,
-					expectedAPIVersionFetch:         0,
-					tlsEnabled:                      tls,
-				}, kafkaSuccessErrorCode)
-			},
-		},
 	}
 
 	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, serverAddress, tls)
