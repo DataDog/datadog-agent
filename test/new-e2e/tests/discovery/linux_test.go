@@ -92,21 +92,30 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 		found := foundMap["json-server"]
 		if assert.NotNil(c, found) {
 			assert.Equal(c, "none", found.Payload.APMInstrumentation)
-			assert.Equal(c, "generated", found.Payload.ServiceNameSource)
+			assert.Equal(c, "json-server", found.Payload.ServiceName)
+			assert.Equal(c, "json-server", found.Payload.GeneratedServiceName)
+			assert.Empty(c, found.Payload.DDService)
+			assert.Empty(c, found.Payload.ServiceNameSource)
 			assert.NotZero(c, found.Payload.RSSMemory)
 		}
 
 		found = foundMap["node-instrumented"]
 		if assert.NotNil(c, found) {
 			assert.Equal(c, "provided", found.Payload.APMInstrumentation)
-			assert.Equal(c, "generated", found.Payload.ServiceNameSource)
+			assert.Equal(c, "node-instrumented", found.Payload.ServiceName)
+			assert.Equal(c, "node-instrumented", found.Payload.GeneratedServiceName)
+			assert.Empty(c, found.Payload.DDService)
+			assert.Empty(c, found.Payload.ServiceNameSource)
 			assert.NotZero(c, found.Payload.RSSMemory)
 		}
 
-		found = foundMap["python.server"]
+		found = foundMap["python-svc-dd"]
 		if assert.NotNil(c, found) {
 			assert.Equal(c, "none", found.Payload.APMInstrumentation)
-			assert.Equal(c, "generated", found.Payload.ServiceNameSource)
+			assert.Equal(c, "python-svc-dd", found.Payload.ServiceName)
+			assert.Equal(c, "python.server", found.Payload.GeneratedServiceName)
+			assert.Equal(c, "python-svc-dd", found.Payload.DDService)
+			assert.Equal(c, "provided", found.Payload.ServiceNameSource)
 			assert.NotZero(c, found.Payload.RSSMemory)
 		}
 
@@ -114,6 +123,10 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 		if assert.NotNil(c, found) {
 			assert.Equal(c, "provided", found.Payload.APMInstrumentation)
 			assert.Equal(c, "generated", found.Payload.ServiceNameSource)
+			assert.Equal(c, "python.instrumented", found.Payload.ServiceName)
+			assert.Equal(c, "python.instrumented", found.Payload.GeneratedServiceName)
+			assert.Empty(c, found.Payload.DDService)
+			assert.Empty(c, found.Payload.ServiceNameSource)
 			assert.NotZero(c, found.Payload.RSSMemory)
 		}
 

@@ -160,19 +160,26 @@ func (li *linuxImpl) getServiceInfo(pid int, service model.Service) serviceInfo 
 		CmdLine: service.CommandLine,
 	}
 
-	serviceType := servicetype.Detect(service.Name, service.Ports)
+	serviceType := servicetype.Detect(service.GeneratedName, service.Ports)
+
+	name := service.DDService
+	if name == "" {
+		name = service.GeneratedName
+	}
 
 	meta := ServiceMetadata{
-		Name:               service.Name,
+		Name:               name,
 		Language:           service.Language,
 		Type:               string(serviceType),
 		APMInstrumentation: service.APMInstrumentation,
-		NameSource:         service.NameSource,
 	}
 
 	return serviceInfo{
-		process:       pInfo,
-		meta:          meta,
+		process: pInfo,
+		meta:    meta,
+		// With service stored here there are some redundant structs and fields
+		// (processInfo, ServiceMetadata) which can be removed in the future.
+		service:       service,
 		LastHeartbeat: li.time.Now(),
 	}
 }
