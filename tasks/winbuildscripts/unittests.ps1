@@ -67,7 +67,7 @@ $tmpfile = [System.IO.Path]::GetTempFileName()
 If ($LASTEXITCODE -ne "0") {
     exit $LASTEXITCODE
 }
-$Env:CODECOV_TOKEN=$(cat "$tmpfile")
+$Env:CODECOV_TOKEN=$(cat $tmpfile)
 & inv -e coverage.upload-to-codecov $Env:COVERAGE_CACHE_FLAG
 
 # 2. Upload junit files
@@ -75,16 +75,16 @@ $Env:CODECOV_TOKEN=$(cat "$tmpfile")
 Get-ChildItem -Path "$UT_BUILD_ROOT" -Filter "junit-out-*.xml" -Recurse | ForEach-Object {
     Copy-Item -Path $_.FullName -Destination C:\mnt
 }
-& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" $Env:API_KEY_ORG2_SSM_NAME
+& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" $Env:API_KEY_ORG2_SSM_NAME > $tmpfile
 If ($LASTEXITCODE -ne "0") {
     exit $LASTEXITCODE
 }
-$Env:DATADOG_API_KEY=$(cat "$tmpfile")
-& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" $Env:GITLAB_TOKEN_SSM_NAME
+$Env:DATADOG_API_KEY=$(cat $tmpfile)
+& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" $Env:GITLAB_TOKEN_SSM_NAME > $tmpfile
 If ($LASTEXITCODE -ne "0") {
     exit $LASTEXITCODE
 }
-$Env:GITLAB_TOKEN=$(cat "$tmpfile")
+$Env:GITLAB_TOKEN=$(cat $tmpfile)
 & inv -e junit-upload --tgz-path $Env:JUNIT_TAR
 
 if($err -ne 0){
