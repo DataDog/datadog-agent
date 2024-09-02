@@ -37,7 +37,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/comp/core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
@@ -46,13 +48,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func setupDiscoveryModule(t *testing.T) string {
 	t.Helper()
 
-	wmeta := optional.NewNoneOption[workloadmeta.Component]()
+	wmeta := fxutil.Test[workloadmeta.Component](t,
+		core.MockBundle(),
+		wmmock.MockModule(workloadmeta.NewParams()),
+	)
 	mux := gorillamux.NewRouter()
 	cfg := &types.Config{
 		Enabled: true,
@@ -222,6 +227,7 @@ func TestBasic(t *testing.T) {
 	serviceMap := getServicesMap(t, url)
 	for _, pid := range expectedPIDs {
 		require.Contains(t, serviceMap[pid].Ports, uint16(expectedPorts[pid]))
+		assertRSS(t, serviceMap[pid])
 	}
 }
 
@@ -435,18 +441,16 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 	assert.NoError(t, err)
 
 	testCases := map[string]struct {
-		commandline      []string // The command line of the fake server
-		workingDirectory string   // Optional: The working directory to use for the server.
-		language         language.Language
+		commandline []string // The command line of the fake server
+		language    language.Language
 	}{
 		"java": {
 			commandline: []string{"java", "-javaagent:/path/to/dd-java-agent.jar", "-jar", "foo.jar"},
 			language:    language.Java,
 		},
 		"node": {
-			commandline:      []string{"node"},
-			workingDirectory: filepath.Join(curDir, "testdata"),
-			language:         language.Node,
+			commandline: []string{"node", filepath.Join(curDir, "testdata", "server.js")},
+			language:    language.Node,
 		},
 	}
 
@@ -460,7 +464,6 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 
 			bin := filepath.Join(serverDir, test.commandline[0])
 			cmd := exec.CommandContext(ctx, bin, test.commandline[1:]...)
-			cmd.Dir = test.workingDirectory
 			err := cmd.Start()
 			require.NoError(t, err)
 
@@ -471,9 +474,26 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 				assert.Contains(collect, portMap, pid)
 				assert.Equal(collect, string(test.language), portMap[pid].Language)
 				assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
+				assertRSS(t, portMap[pid])
 			}, 30*time.Second, 100*time.Millisecond)
 		})
 	}
+}
+
+func assertRSS(t assert.TestingT, svc model.Service) {
+	proc, err := process.NewProcess(int32(svc.PID))
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	meminfo, err := proc.MemoryInfo()
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	// Allow a 20% variation to avoid potential flakiness due to difference in
+	// time of sampling the RSS.
+	assert.InEpsilon(t, meminfo.RSS, svc.RSS, 0.20)
 }
 
 func TestNodeDocker(t *testing.T) {
@@ -491,6 +511,8 @@ func TestNodeDocker(t *testing.T) {
 		svcMap := getServicesMap(t, url)
 		assert.Contains(collect, svcMap, pid)
 		assert.Equal(collect, "nodejs-https-server", svcMap[pid].Name)
+		assert.Equal(collect, "provided", svcMap[pid].APMInstrumentation)
+		assertRSS(collect, svcMap[pid])
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
@@ -526,6 +548,7 @@ func TestAPMInstrumentationProvidedPython(t *testing.T) {
 		assert.Contains(collect, portMap, pid)
 		assert.Equal(collect, string(language.Python), portMap[pid].Language)
 		assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
+		assertRSS(collect, portMap[pid])
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
@@ -627,7 +650,11 @@ func TestDocker(t *testing.T) {
 
 // Check that the cache is cleaned when procceses die.
 func TestCache(t *testing.T) {
-	module, err := NewDiscoveryModule(nil, optional.NewNoneOption[workloadmeta.Component](), nil)
+	wmeta := fxutil.Test[workloadmeta.Component](t,
+		core.MockBundle(),
+		wmmock.MockModule(workloadmeta.NewParams()),
+	)
+	module, err := NewDiscoveryModule(nil, wmeta, nil)
 	require.NoError(t, err)
 	discovery := module.(*discovery)
 

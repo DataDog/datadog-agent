@@ -69,7 +69,9 @@ func (t *Tailer) forwardMessages() {
 	}()
 	for output := range t.decoder.OutputChan {
 		if len(output.GetContent()) > 0 {
-			t.outputChan <- message.NewMessage(output.GetContent(), output.Origin, output.Status, output.IngestionTimestamp)
+			origin := message.NewOrigin(t.source)
+			origin.SetTags(output.ParsingExtra.Tags)
+			t.outputChan <- message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp)
 		}
 	}
 }
@@ -96,7 +98,6 @@ func (t *Tailer) readForever() {
 				log.Warnf("Couldn't read message from connection: %v", err)
 				return
 			}
-			origin := message.NewOrigin(t.source)
 			copiedTags := make([]string, len(t.source.Config.Tags))
 			copy(copiedTags, t.source.Config.Tags)
 			if ipAddress != "" && coreConfig.Datadog().GetBool("logs_config.use_sourcehost_tag") {
@@ -110,8 +111,9 @@ func (t *Tailer) readForever() {
 				sourceHostTag := fmt.Sprintf("source_host:%s", ipAddressWithoutPort)
 				copiedTags = append(copiedTags, sourceHostTag)
 			}
-			origin.SetTags(copiedTags)
-			t.decoder.InputChan <- message.NewMessage(data, origin, message.StatusInfo, 0)
+			msg := decoder.NewInput(data)
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, copiedTags...)
+			t.decoder.InputChan <- msg
 		}
 	}
 }

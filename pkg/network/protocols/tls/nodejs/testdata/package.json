@@ -1,4 +1,7 @@
 {
-	"name": "nodejs-https-server"
+	"name": "nodejs-https-server",
+	"dependencies": {
+		"dd-trace": "^5.21.0"
+	}
 }
 

@@ -9,6 +9,7 @@ package http2
 
 /*
 #include "../../ebpf/c/conn_tuple.h"
+#include "../../ebpf/c/protocols/events-types.h"
 #include "../../ebpf/c/protocols/http2/decoding-defs.h"
 */
 import "C"

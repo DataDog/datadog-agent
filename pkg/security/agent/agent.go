@@ -66,11 +66,12 @@ func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *c
 	if runtime.GOOS == "linux" {
 		// Start activity dumps listener
 		go rsa.StartActivityDumpListener()
+		go rsa.startActivityDumpStorageTelemetry(ctx)
 	}
 
 	if rsa.telemetry != nil {
 		// Send Runtime Security Agent telemetry
-		go rsa.telemetry.run(ctx, rsa)
+		go rsa.telemetry.run(ctx)
 	}
 }
 
@@ -80,7 +81,6 @@ func (rsa *RuntimeSecurityAgent) Stop() {
 	rsa.running.Store(false)
 	rsa.client.Close()
 	rsa.wg.Wait()
-
 }
 
 // StartEventListener starts listening for new events from system-probe
@@ -207,4 +207,20 @@ func newLogBackoffTicker() *backoff.Ticker {
 	expBackoff.MaxElapsedTime = 0
 	expBackoff.Reset()
 	return backoff.NewTicker(expBackoff)
+}
+
+func (rsa *RuntimeSecurityAgent) startActivityDumpStorageTelemetry(ctx context.Context) {
+	metricsTicker := time.NewTicker(1 * time.Minute)
+	defer metricsTicker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-metricsTicker.C:
+			if rsa.storage != nil {
+				rsa.storage.SendTelemetry()
+			}
+		}
+	}
 }

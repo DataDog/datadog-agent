@@ -18,6 +18,19 @@ import (
 
 type detectorCreatorFn func(ctx DetectionContext) detector
 
+// DetectorContextMap is a map for passing data between the different detectors
+// of the service discovery (i.e between the service name detector and the
+// instrumentation detector)
+type DetectorContextMap map[int]interface{}
+
+// DetectorContextMap keys enum
+const (
+	// The path to the Node service's package.json
+	NodePackageJSONPath = iota
+	// The SubdirFS instance package.json path is valid in.
+	ServiceSubFS = iota
+)
+
 const (
 	javaJarFlag      = "-jar"
 	javaJarExtension = ".jar"
@@ -66,15 +79,17 @@ type dotnetDetector struct {
 func newSimpleDetector(ctx DetectionContext) detector {
 	return &simpleDetector{ctx: ctx}
 }
+
 func newDotnetDetector(ctx DetectionContext) detector {
 	return &dotnetDetector{ctx: ctx}
 }
 
 // DetectionContext allows to detect ServiceMetadata.
 type DetectionContext struct {
-	args []string
-	envs map[string]string
-	fs   fs.SubFS
+	args       []string
+	envs       map[string]string
+	fs         fs.SubFS
+	contextMap DetectorContextMap
 }
 
 // NewDetectionContext initializes DetectionContext.
@@ -147,11 +162,12 @@ func checkForInjectionNaming(envs map[string]string) bool {
 }
 
 // ExtractServiceMetadata attempts to detect ServiceMetadata from the given process.
-func ExtractServiceMetadata(args []string, envs map[string]string, fs fs.SubFS) (ServiceMetadata, bool) {
+func ExtractServiceMetadata(args []string, envs map[string]string, fs fs.SubFS, contextMap DetectorContextMap) (ServiceMetadata, bool) {
 	dc := DetectionContext{
-		args: args,
-		envs: envs,
-		fs:   fs,
+		args:       args,
+		envs:       envs,
+		fs:         fs,
+		contextMap: contextMap,
 	}
 	cmd := dc.args
 	if len(cmd) == 0 || len(cmd[0]) == 0 {
@@ -186,7 +202,9 @@ func ExtractServiceMetadata(args []string, envs map[string]string, fs fs.SubFS) 
 	exe = normalizeExeName(exe)
 
 	if detectorProvider, ok := binsWithContext[exe]; ok {
-		return detectorProvider(dc).detect(cmd[1:])
+		if metadata, ok := detectorProvider(dc).detect(cmd[1:]); ok {
+			return metadata, true
+		}
 	}
 
 	// trim trailing file extensions
