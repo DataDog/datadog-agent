@@ -114,7 +114,7 @@ func (n nodeDetector) maybeExtractServiceName(filename string) (string, bool) {
 	defer file.Close()
 	reader, err := SizeVerifiedReader(file)
 	if err != nil {
-		log.Debugf("skipping package.js (%q) because too large", filename)
+		log.Debugf("skipping package.js (%q). Err: %v", filename, err)
 		return "", true // stops here
 	}
 	bytes, err := io.ReadAll(reader)
