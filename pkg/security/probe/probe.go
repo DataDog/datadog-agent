@@ -55,6 +55,7 @@ type PlatformProbe interface {
 	AddDiscarderPushedCallback(_ DiscarderPushedCallback)
 	GetEventTags(_ string) []string
 	GetProfileManager() interface{}
+	PlaySnapshot()
 }
 
 // EventHandler represents a handler for events sent by the probe that needs access to all the fields in the SECL model
@@ -396,4 +397,9 @@ func (p *Probe) IsActivityDumpTagRulesEnabled() bool {
 // IsSecurityProfileEnabled returns whether security profile is enabled
 func (p *Probe) IsSecurityProfileEnabled() bool {
 	return p.Config.RuntimeSecurity.SecurityProfileEnabled
+}
+
+// PlaySnapshot plays the snapshot
+func (p *Probe) PlaySnapshot() {
+	p.PlatformProbe.PlaySnapshot()
 }

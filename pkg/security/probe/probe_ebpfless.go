@@ -674,3 +674,7 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry 
 
 	return p, nil
 }
+
+func (p *EBPFLessProbe) PlaySnapshot() {
+	// TODO: Implement this method if needed.
+}

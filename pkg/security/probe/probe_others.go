@@ -107,3 +107,7 @@ func (p *Probe) RefreshUserCache(_ string) error {
 
 // HandleActions executes the actions of a triggered rule
 func (p *Probe) HandleActions(_ *rules.Rule, _ eval.Event) {}
+
+func (p *Probe) PlaySnapshot() {
+	// TODO: Implement this method if needed.
+}
