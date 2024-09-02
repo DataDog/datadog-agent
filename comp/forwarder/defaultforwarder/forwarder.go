@@ -33,11 +33,11 @@ type provides struct {
 }
 
 func newForwarder(dep dependencies) provides {
-	options := creationOptions(dep.Params, dep.Config, dep.Log)
+	options := createOptions(dep.Params, dep.Config, dep.Log)
 	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, options, dep.Params.useNoopForwarder)
 }
 
-func creationOptions(params Params, config config.Component, log log.Component) *Options {
+func createOptions(params Params, config config.Component, log log.Component) *Options {
 	var options *Options
 	if !params.withResolver {
 		options = NewOptions(config, log, getMultipleEndpoints(config, log))
@@ -45,6 +45,7 @@ func creationOptions(params Params, config config.Component, log log.Component) 
 		keysPerDomain := getMultipleEndpoints(config, log)
 		options = NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(keysPerDomain))
 	}
+	// Override the DisableAPIKeyChecking only if WithFeatures was called
 	if disableAPIKeyChecking, ok := params.disableAPIKeyCheckingOverride.Get(); ok {
 		options.DisableAPIKeyChecking = disableAPIKeyChecking
 	}
