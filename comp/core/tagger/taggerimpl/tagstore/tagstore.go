@@ -277,17 +277,17 @@ func (s *TagStore) LookupStandard(entityID types.EntityID) ([]string, error) {
 // List returns full list of entities and their tags per source in an API format.
 func (s *TagStore) List() types.TaggerListResponse {
 	r := types.TaggerListResponse{
-		Entities: genericstore.NewObjectStore[types.TaggerListEntity](s.cfg),
+		Entities: make(map[string]types.TaggerListEntity),
 	}
 
 	s.RLock()
 	defer s.RUnlock()
 
-	s.store.ForEach(func(eid types.EntityID, et EntityTags) {
-		r.Entities.Set(eid, types.TaggerListEntity{
+	for _, et := range s.store.ListObjects() {
+		r.Entities[et.getEntityID().String()] = types.TaggerListEntity{
 			Tags: et.tagsBySource(),
-		})
-	})
+		}
+	}
 
 	return r
 }

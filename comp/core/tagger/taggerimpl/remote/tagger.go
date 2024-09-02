@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
-	genericstore "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/generic_store"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -247,15 +246,15 @@ func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
 func (t *Tagger) List() types.TaggerListResponse {
 	entities := t.store.listEntities()
 	resp := types.TaggerListResponse{
-		Entities: genericstore.NewObjectStore[types.TaggerListEntity](t.cfg),
+		Entities: make(map[string]types.TaggerListEntity),
 	}
 
 	for _, e := range entities {
-		resp.Entities.Set(e.ID, types.TaggerListEntity{
+		resp.Entities[e.ID.String()] = types.TaggerListEntity{
 			Tags: map[string][]string{
 				remoteSource: e.GetTags(types.HighCardinality),
 			},
-		})
+		}
 	}
 
 	return resp

@@ -19,13 +19,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/avast/retry-go/v4"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -195,7 +195,7 @@ func TestActionKillExcludeBinary(t *testing.T) {
 
 	if !ebpfLessEnabled {
 		checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
-			return !kv.SupportBPFSendSignal() && config.IsContainerized()
+			return !kv.SupportBPFSendSignal() && env.IsContainerized()
 		})
 	}
 

@@ -36,7 +36,7 @@ type ObjectStore[V any] interface {
 
 // TaggerListResponse holds the tagger list response
 type TaggerListResponse struct {
-	Entities ObjectStore[TaggerListEntity]
+	Entities map[string]TaggerListEntity
 }
 
 // TaggerListEntity holds the tagging info about an entity

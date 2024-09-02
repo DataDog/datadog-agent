@@ -33,7 +33,9 @@ func (tf *factory) defaultSourceAndService(source *sources.LogSource, logWhat co
 	getServiceNameFromTags := func(containerID, containerName string) string {
 		return util.ServiceNameFromTags(
 			containerName,
-			types.NewEntityID(types.ContainerID, containerID).String())
+			types.NewEntityID(types.ContainerID, containerID).String(),
+			tf.tagger.Standard,
+		)
 	}
 
 	return defaultSourceAndServiceInner(source, logWhat,

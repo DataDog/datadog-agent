@@ -303,9 +303,9 @@ func (s *StoreTestSuite) TestList() {
 	)
 
 	resultList := s.tagstore.List()
-	require.Equal(s.T(), 2, resultList.Entities.Size())
+	require.Equal(s.T(), 2, len(resultList.Entities))
 
-	entity1, ok := resultList.Entities.Get(entityID1)
+	entity1, ok := resultList.Entities[entityID1.String()]
 	require.True(s.T(), ok)
 	require.Equal(s.T(), 1, len(entity1.Tags))
 	require.ElementsMatch( // Tags order is not important
@@ -314,7 +314,7 @@ func (s *StoreTestSuite) TestList() {
 		[]string{"l1:v1", "l2:v2", "service:s1", "o1:v1", "o2:v2", "h1:v1", "h2:v2"},
 	)
 
-	entity2, ok := resultList.Entities.Get(entityID2)
+	entity2, ok := resultList.Entities[entityID2.String()]
 	require.True(s.T(), ok)
 	require.Equal(s.T(), 1, len(entity2.Tags))
 	require.ElementsMatch( // Tags order is not important

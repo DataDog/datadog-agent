@@ -42,7 +42,7 @@ func TestBuildTaggerEntityName(t *testing.T) {
 		expected string
 	}{
 		// Empty
-		{"", ""},
+		{"", "container_id://"},
 		// Empty runtime
 		{"5bef08742407ef", "container_id://5bef08742407ef"},
 	} {
