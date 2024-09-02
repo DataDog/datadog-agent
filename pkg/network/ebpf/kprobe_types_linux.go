@@ -44,6 +44,10 @@ type FailedConn struct {
 	Reason    uint32
 	Pad_cgo_0 [4]byte
 }
+type SkpConn struct {
+	Sk  *_Ctype_struct_sock
+	Tup ConnTuple
+}
 type Batch struct {
 	C0        Conn
 	C1        Conn

@@ -952,11 +952,10 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_connect, struct sock *skp) {
     bpf_map_update_with_telemetry(tcp_failed_connect_telemetry, &skp, &pid_tgid, BPF_ANY);
 
     conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
+    if (!read_conn_tuple(&t, skp, 0, CONN_TYPE_TCP)) {
         increment_telemetry_count(tcp_connect_failed_tuple);
         return 0;
     }
-    t.pid = 0;
 
     skp_conn_tuple_t skp_conn = {};
     skp_conn.sk = skp;
@@ -1030,6 +1029,7 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__inet_csk_accept, struct sock *sk) {
     skp_conn_tuple_t skp_conn = {};
     skp_conn.sk = sk;
     skp_conn.tup = t;
+    log_debug("adamk kretprobe/inet_csk_accept: skp_conn.tup.pid: %u", skp_conn.tup.pid);
 
     bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp_conn, &pid_tgid, BPF_ANY);
 
