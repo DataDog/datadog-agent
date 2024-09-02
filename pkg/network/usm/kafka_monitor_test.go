@@ -1283,6 +1283,7 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 
 				req := kmsg.NewProduceRequest()
 				req.SetVersion(int16(apiVersion))
+				req.Acks = 1 // Leader Ack
 				transactionID := "transaction-id"
 				req.TransactionID = &transactionID
 				req.TimeoutMillis = 99999999
@@ -1326,6 +1327,7 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 
 				req := kmsg.NewProduceRequest()
 				req.SetVersion(int16(apiVersion))
+				req.Acks = -1 // All ISR Acks
 				transactionID := "transaction-id"
 				req.TransactionID = &transactionID
 				req.TimeoutMillis = 99999999
