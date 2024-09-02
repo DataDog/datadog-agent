@@ -8,7 +8,6 @@ package infraattributesprocessor
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 
 	"go.opentelemetry.io/collector/pdata/plog"
@@ -18,11 +17,11 @@ import (
 
 type infraAttributesLogProcessor struct {
 	logger      *zap.Logger
-	tagger      tagger.Component
+	tagger      taggerClient
 	cardinality types.TagCardinality
 }
 
-func newInfraAttributesLogsProcessor(set processor.Settings, cfg *Config, tagger tagger.Component) (*infraAttributesLogProcessor, error) {
+func newInfraAttributesLogsProcessor(set processor.Settings, cfg *Config, tagger taggerClient) (*infraAttributesLogProcessor, error) {
 	ialp := &infraAttributesLogProcessor{
 		logger:      set.Logger,
 		tagger:      tagger,

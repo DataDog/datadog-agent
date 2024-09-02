@@ -7,6 +7,7 @@
 package common
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 )
@@ -111,4 +112,22 @@ func valueToInterface(value reflect.Value) interface{} {
 	}
 
 	return nil
+}
+
+// GetSliceOfStringMap is a utility function that returns a config key expected to be a slice of map[string]interface{} as a slice of map[string]string, assuming the underlying types can be cast to string.
+func GetSliceOfStringMap(slice []interface{}) ([]map[string]string, error) {
+	entries := []map[string]string{}
+
+	for _, e := range slice {
+		value, ok := e.(map[interface{}]interface{})
+		if !ok {
+			return nil, fmt.Errorf("unexpected type for slice value")
+		}
+		entry := map[string]string{}
+		for k, v := range value {
+			entry[fmt.Sprintf("%v", k)] = fmt.Sprintf("%v", v)
+		}
+		entries = append(entries, entry)
+	}
+	return entries, nil
 }

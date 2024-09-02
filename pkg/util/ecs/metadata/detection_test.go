@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil"
@@ -73,7 +74,7 @@ func TestLocateECSHTTPFail(t *testing.T) {
 }
 
 func TestGetAgentV1ContainerURLs(t *testing.T) {
-	config.SetFeatures(t, config.Docker)
+	config.SetFeatures(t, env.Docker)
 
 	ctx := context.Background()
 	config.Datadog().SetDefault("ecs_agent_container_name", "ecs-agent-custom")

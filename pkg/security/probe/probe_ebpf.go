@@ -33,7 +33,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -65,7 +65,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // EventStream describes the interface implemented by reordered perf maps or ring buffers
@@ -223,7 +222,7 @@ func (p *EBPFProbe) VerifyOSVersion() error {
 // VerifyEnvironment returns an error if the current environment seems to be misconfigured
 func (p *EBPFProbe) VerifyEnvironment() *multierror.Error {
 	var err *multierror.Error
-	if aconfig.IsContainerized() {
+	if env.IsContainerized() {
 		if mounted, _ := mountinfo.Mounted("/etc/passwd"); !mounted {
 			err = multierror.Append(err, errors.New("/etc/passwd doesn't seem to be a mountpoint"))
 		}
@@ -1316,11 +1315,6 @@ func (p *EBPFProbe) GetDiscarders() (*DiscardersDump, error) {
 		return nil, err
 	}
 
-	pidMap, err := managerhelper.Map(p.Manager, "pid_discarders")
-	if err != nil {
-		return nil, err
-	}
-
 	statsFB, err := managerhelper.Map(p.Manager, "fb_discarder_stats")
 	if err != nil {
 		return nil, err
@@ -1331,7 +1325,7 @@ func (p *EBPFProbe) GetDiscarders() (*DiscardersDump, error) {
 		return nil, err
 	}
 
-	dump, err := dumpDiscarders(p.Resolvers.DentryResolver, pidMap, inodeMap, statsFB, statsBB)
+	dump, err := dumpDiscarders(p.Resolvers.DentryResolver, inodeMap, statsFB, statsBB)
 	if err != nil {
 		return nil, err
 	}
@@ -1634,7 +1628,7 @@ func (p *EBPFProbe) DumpProcessCache(withArgs bool) (string, error) {
 }
 
 // NewEBPFProbe instantiates a new runtime security agent probe
-func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional.Option[workloadmeta.Component], telemetry telemetry.Component) (*EBPFProbe, error) {
+func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta workloadmeta.Component, telemetry telemetry.Component) (*EBPFProbe, error) {
 	nerpc, err := erpc.NewERPC()
 	if err != nil {
 		return nil, err
@@ -1661,7 +1655,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		ctx:                  ctx,
 		cancelFnc:            cancelFnc,
 		newTCNetDevices:      make(chan model.NetDevice, 16),
-		processKiller:        NewProcessKiller(),
+		processKiller:        NewProcessKiller(config),
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, 1),
 	}
 

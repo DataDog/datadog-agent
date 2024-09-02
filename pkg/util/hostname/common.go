@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
@@ -26,7 +27,7 @@ import (
 var (
 	isFargateInstance = fargate.IsFargateInstance
 	ec2GetInstanceID  = ec2.GetInstanceID
-	isContainerized   = config.IsContainerized //nolint:unused
+	isContainerized   = env.IsContainerized //nolint:unused
 	gceGetHostname    = gce.GetHostname
 	azureGetHostname  = azure.GetHostname
 	osHostname        = os.Hostname
@@ -133,7 +134,7 @@ func fromEC2(ctx context.Context, currentHostname string) (string, error) {
 
 	// We use the instance id if we're on an ECS cluster or we're on EC2 and the hostname is one of the default ones
 	// or ec2_prioritize_instance_id_as_hostname is set to true
-	if config.IsFeaturePresent(config.ECSEC2) || ec2.IsDefaultHostname(currentHostname) || prioritizeEC2Hostname {
+	if env.IsFeaturePresent(env.ECSEC2) || ec2.IsDefaultHostname(currentHostname) || prioritizeEC2Hostname {
 		log.Debugf("Trying to fetch hostname from EC2 metadata")
 		return getValidEC2Hostname(ctx)
 	} else if ec2.IsWindowsDefaultHostname(currentHostname) {
