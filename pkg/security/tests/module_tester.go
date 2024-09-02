@@ -775,6 +775,13 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"NetworkIngressEnabled":                      opts.networkIngressEnabled,
 		"OnDemandRateLimiterEnabled":                 !opts.disableOnDemandRateLimiter,
 		"EnforcementExcludeBinary":                   opts.enforcementExcludeBinary,
+		"EnforcementDisarmerContainerEnabled":        opts.enforcementDisarmerContainerEnabled,
+		"EnforcementDisarmerContainerMaxAllowed":     opts.enforcementDisarmerContainerMaxAllowed,
+		"EnforcementDisarmerContainerPeriod":         opts.enforcementDisarmerContainerPeriod,
+		"EnforcementDisarmerExecutableEnabled":       opts.enforcementDisarmerExecutableEnabled,
+		"EnforcementDisarmerExecutableMaxAllowed":    opts.enforcementDisarmerExecutableMaxAllowed,
+		"EnforcementDisarmerExecutablePeriod":        opts.enforcementDisarmerExecutablePeriod,
+		"EventServerRetention":                       opts.eventServerRetention,
 	}); err != nil {
 		return nil, nil, err
 	}
@@ -832,7 +839,7 @@ type fakeMsgSender struct {
 	msgs    map[eval.RuleID]*api.SecurityEventMessage
 }
 
-func (fs *fakeMsgSender) Send(msg *api.SecurityEventMessage, expireFnc func(*api.SecurityEventMessage)) {
+func (fs *fakeMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.SecurityEventMessage)) {
 	fs.Lock()
 	defer fs.Unlock()
 
