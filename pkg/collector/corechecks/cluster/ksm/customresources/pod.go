@@ -238,15 +238,15 @@ func (f *extendedPodFactory) ExpectedType() interface{} {
 }
 
 // ListWatch returns a ListerWatcher for v1.Pod
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func (f *extendedPodFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
 	client := customResourceClient.(clientset.Interface)
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
+			opts.FieldSelector = fieldSelector
 			return client.CoreV1().Pods(ns).List(context.TODO(), opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
+			opts.FieldSelector = fieldSelector
 			return client.CoreV1().Pods(ns).Watch(context.TODO(), opts)
 		},
 	}
