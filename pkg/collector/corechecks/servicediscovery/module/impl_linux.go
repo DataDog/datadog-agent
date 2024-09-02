@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/prometheus/procfs"
 	"github.com/shirou/gopsutil/v3/process"
@@ -47,6 +48,7 @@ type serviceInfo struct {
 
 // discovery is an implementation of the Module interface for the discovery module.
 type discovery struct {
+	mux *sync.RWMutex
 	// cache maps pids to data that should be cached between calls to the endpoint.
 	cache map[int32]*serviceInfo
 
@@ -57,6 +59,7 @@ type discovery struct {
 // NewDiscoveryModule creates a new discovery system probe module.
 func NewDiscoveryModule(*sysconfigtypes.Config, workloadmeta.Component, telemetry.Component) (module.Module, error) {
 	return &discovery{
+		mux:                &sync.RWMutex{},
 		cache:              make(map[int32]*serviceInfo),
 		privilegedDetector: privileged.NewLanguageDetector(),
 	}, nil
@@ -70,12 +73,14 @@ func (s *discovery) GetStats() map[string]interface{} {
 // Register registers the discovery module with the provided HTTP mux.
 func (s *discovery) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/status", s.handleStatusEndpoint)
-	httpMux.HandleFunc(pathServices, s.handleServices)
+	httpMux.HandleFunc(pathServices, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleServices))
 	return nil
 }
 
 // Close cleans resources used by the discovery module.
 func (s *discovery) Close() {
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	clear(s.cache)
 }
 
@@ -295,7 +300,10 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	}
 
 	var info *serviceInfo
-	if cached, ok := s.cache[pid]; ok {
+	s.mux.RLock()
+	cached, ok := s.cache[pid]
+	s.mux.RUnlock()
+	if ok {
 		info = cached
 	} else {
 		info, err = s.getServiceInfo(proc)
@@ -303,7 +311,9 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 			return nil
 		}
 
+		s.mux.Lock()
 		s.cache[pid] = info
+		s.mux.Unlock()
 	}
 
 	nameSource := "generated"
@@ -326,6 +336,8 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 // shrink the map but should free memory for the service name strings referenced
 // from it.
 func (s *discovery) cleanCache(alivePids map[int32]struct{}) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	for pid := range s.cache {
 		if _, alive := alivePids[pid]; alive {
 			continue
