@@ -227,6 +227,7 @@ func TestBasic(t *testing.T) {
 	serviceMap := getServicesMap(t, url)
 	for _, pid := range expectedPIDs {
 		require.Contains(t, serviceMap[pid].Ports, uint16(expectedPorts[pid]))
+		assertRSS(t, serviceMap[pid])
 	}
 }
 
@@ -473,9 +474,26 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 				assert.Contains(collect, portMap, pid)
 				assert.Equal(collect, string(test.language), portMap[pid].Language)
 				assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
+				assertRSS(t, portMap[pid])
 			}, 30*time.Second, 100*time.Millisecond)
 		})
 	}
+}
+
+func assertRSS(t assert.TestingT, svc model.Service) {
+	proc, err := process.NewProcess(int32(svc.PID))
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	meminfo, err := proc.MemoryInfo()
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	// Allow a 20% variation to avoid potential flakiness due to difference in
+	// time of sampling the RSS.
+	assert.InEpsilon(t, meminfo.RSS, svc.RSS, 0.20)
 }
 
 func TestNodeDocker(t *testing.T) {
@@ -494,6 +512,7 @@ func TestNodeDocker(t *testing.T) {
 		assert.Contains(collect, svcMap, pid)
 		assert.Equal(collect, "nodejs-https-server", svcMap[pid].Name)
 		assert.Equal(collect, "provided", svcMap[pid].APMInstrumentation)
+		assertRSS(collect, svcMap[pid])
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
@@ -529,6 +548,7 @@ func TestAPMInstrumentationProvidedPython(t *testing.T) {
 		assert.Contains(collect, portMap, pid)
 		assert.Equal(collect, string(language.Python), portMap[pid].Language)
 		assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
+		assertRSS(collect, portMap[pid])
 	}, 30*time.Second, 100*time.Millisecond)
 }
 

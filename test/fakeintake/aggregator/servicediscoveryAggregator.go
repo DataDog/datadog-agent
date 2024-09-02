@@ -30,6 +30,7 @@ type ServiceDiscoveryPayload struct {
 		LastSeen            int64  `json:"last_seen"`
 		APMInstrumentation  string `json:"apm_instrumentation"`
 		ServiceNameSource   string `json:"service_name_source"`
+		RSSMemory           uint64 `json:"rss_memory"`
 	} `json:"payload"`
 }
 
