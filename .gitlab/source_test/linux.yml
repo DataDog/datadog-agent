@@ -280,3 +280,5 @@ new-e2e-unit-tests:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
     KUBERNETES_CPU_REQUEST: 6
+    # Not using the entrypoint script for the e2e runner image
+    FF_KUBERNETES_HONOR_ENTRYPOINT: false
