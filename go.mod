@@ -594,7 +594,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.57.0-rc.5
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.0.0-00010101000000-000000000000
 	github.com/containerd/containerd/api v1.7.19
 	github.com/containerd/errdefs v0.1.0
