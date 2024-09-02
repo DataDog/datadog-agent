@@ -114,7 +114,7 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 				continue
 			}
 			log.Debugf("[pid: %d] adding process to potential: %s", pid, svc.meta.Name)
-			li.potentialServices[pid] = svc
+			li.potentialServices[pid] = &svc
 		}
 	}
 
@@ -145,7 +145,7 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 	}, nil
 }
 
-func (li *linuxImpl) getServiceInfo(pid int, service model.Service) *serviceInfo {
+func (li *linuxImpl) getServiceInfo(pid int, service model.Service) serviceInfo {
 	// if the process name is docker-proxy, we should talk to docker to get the process command line and env vars
 	// have to see how far this can go but not for the initial release
 
@@ -170,7 +170,7 @@ func (li *linuxImpl) getServiceInfo(pid int, service model.Service) *serviceInfo
 		NameSource:         service.NameSource,
 	}
 
-	return &serviceInfo{
+	return serviceInfo{
 		process:       pInfo,
 		meta:          meta,
 		LastHeartbeat: li.time.Now(),
