@@ -269,6 +269,7 @@ kmt_run_sysprobe_tests_arm64:
         TEST_SET: ["only_usm", "no_usm"]
   after_script:
     - !reference [.collect_outcomes_kmt]
+    - !reference [.upload_junit_kmt]
 
 .kmt_sysprobe_cleanup:
   extends:

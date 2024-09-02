@@ -186,6 +186,7 @@ kmt_run_secagent_tests_arm64:
         TEST_SET: ["all_tests"]
   after_script:
     - !reference [.collect_outcomes_kmt]
+    - !reference [.upload_junit_kmt]
 
 .kmt_secagent_cleanup:
   extends:

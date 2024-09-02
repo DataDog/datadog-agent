@@ -209,6 +209,7 @@ tests_deb-arm64-py3:
     - .rtloader_tests
     - .linux_tests
   after_script:
+    - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
@@ -239,6 +240,7 @@ tests_rpm-arm64-py3:
     - .rtloader_tests
     - .linux_tests
   after_script:
+    - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
