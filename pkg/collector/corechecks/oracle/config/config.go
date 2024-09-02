@@ -60,7 +60,8 @@ type SysMetricsConfig struct {
 
 //nolint:revive // TODO(DBM) Fix revive linter
 type TablespacesConfig struct {
-	Enabled bool `yaml:"enabled"`
+	Enabled            bool  `yaml:"enabled"`
+	CollectionInterval int64 `yaml:"collection_interval"`
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter
@@ -233,6 +234,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.UseGlobalCustomQueries = "true"
 
 	instance.DatabaseInstanceCollectionInterval = 300
+
+	instance.Tablespaces.CollectionInterval = 600
 
 	instance.Loader = defaultLoader
 	initCfg.Loader = defaultLoader

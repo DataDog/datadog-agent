@@ -20,6 +20,19 @@ const (
 	userSpaceKillWithinMillis = 2000
 )
 
+var (
+	// list of binaries that can't be killed
+	binariesExcluded = []string{
+		"/opt/datadog-agent/bin/agent/agent",
+		"/opt/datadog-agent/embedded/bin/trace-agent",
+		"/opt/datadog-agent/embedded/bin/security-agent",
+		"/opt/datadog-agent/embedded/bin/process-agent",
+		"/opt/datadog-agent/embedded/bin/system-probe",
+		"/opt/datadog-agent/embedded/bin/cws-instrumentation",
+		"/opt/datadog-agent/bin/datadog-cluster-agent",
+	}
+)
+
 // KillFromUserspace tries to kill from userspace
 func (p *ProcessKiller) KillFromUserspace(pid uint32, sig uint32, ev *model.Event) error {
 	proc, err := psutil.NewProcess(int32(pid))
@@ -47,13 +60,17 @@ func (p *ProcessKiller) KillFromUserspace(pid uint32, sig uint32, ev *model.Even
 	return syscall.Kill(int(pid), syscall.Signal(sig))
 }
 
-func (p *ProcessKiller) getPids(scope string, ev *model.Event, entry *model.ProcessCacheEntry) ([]uint32, error) {
-	var pids []uint32
+func (p *ProcessKiller) getProcesses(scope string, ev *model.Event, entry *model.ProcessCacheEntry) ([]uint32, []string, error) {
+	var (
+		pids  []uint32
+		paths []string
+	)
 
 	if entry.ContainerID != "" && scope == "container" {
-		pids = entry.GetContainerPIDs()
+		pids, paths = entry.GetContainerPIDs()
 	} else {
 		pids = []uint32{ev.ProcessContext.Pid}
+		paths = []string{ev.ProcessContext.FileEvent.PathnameStr}
 	}
-	return pids, nil
+	return pids, paths, nil
 }

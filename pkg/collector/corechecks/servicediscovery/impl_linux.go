@@ -108,6 +108,12 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 		}
 	}
 
+	// The endpoint could be refactored in the future to return a map to avoid this.
+	serviceMap := make(map[int]*model.Service, len(response.Services))
+	for _, service := range response.Services {
+		serviceMap[service.PID] = &service
+	}
+
 	events := serviceEvents{}
 
 	now := li.time.Now()
@@ -115,8 +121,9 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 	// potentialServices contains processes that we scanned in the previous iteration and had open ports.
 	// we check if they are still alive in this iteration, and if so, we send a start-service telemetry event.
 	for pid, svc := range li.potentialServices {
-		if _, ok := procs[pid]; ok {
+		if service, ok := serviceMap[pid]; ok {
 			svc.LastHeartbeat = now
+			svc.process.Stat.RSS = service.RSS
 			li.aliveServices[pid] = svc
 			events.start = append(events.start, *svc)
 		}
@@ -161,18 +168,19 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 
 	// check if services previously marked as alive still are.
 	for pid, svc := range li.aliveServices {
-		if _, ok := procs[pid]; !ok {
+		if service, ok := serviceMap[pid]; !ok {
 			delete(li.aliveServices, pid)
 			events.stop = append(events.stop, *svc)
 		} else if now.Sub(svc.LastHeartbeat).Truncate(time.Minute) >= heartbeatTime {
 			svc.LastHeartbeat = now
+			svc.process.Stat.RSS = service.RSS
 			events.heartbeat = append(events.heartbeat, *svc)
 		}
 	}
 
 	// check if services previously marked as ignore are still alive.
 	for pid := range li.ignoreProcs {
-		if _, ok := procs[pid]; !ok {
+		if _, ok := serviceMap[pid]; !ok {
 			delete(li.ignoreProcs, pid)
 		}
 	}

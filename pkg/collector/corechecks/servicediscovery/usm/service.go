@@ -7,6 +7,9 @@
 package usm
 
 import (
+	"errors"
+	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -122,13 +125,28 @@ func abs(p string, cwd string) string {
 	return path.Join(cwd, p)
 }
 
-// canSafelyParse determines if a file's size is less than the maximum allowed to prevent OOM when parsing.
-func canSafelyParse(file fs.File) (bool, error) {
+// SizeVerifiedReader returns a reader for the file after ensuring that the file
+// is a regular file and that the size that can be read from the reader will not
+// exceed a pre-defined safety limit to control memory usage.
+func SizeVerifiedReader(file fs.File) (io.Reader, error) {
 	fi, err := file.Stat()
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	return fi.Size() <= maxParseFileSize, nil
+
+	// Don't try to read device files, etc.
+	if !fi.Mode().IsRegular() {
+		return nil, errors.New("not a regular file")
+	}
+
+	size := fi.Size()
+	if size > maxParseFileSize {
+		return nil, fmt.Errorf("file too large (%d bytes)", size)
+	}
+
+	// Additional limit the reader to avoid suprises if the file size changes
+	// while reading it.
+	return io.LimitReader(file, min(size, maxParseFileSize)), nil
 }
 
 // List of binaries that usually have additional process context of what's running

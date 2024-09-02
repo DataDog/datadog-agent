@@ -1188,7 +1188,7 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 
 		volumeMap: make(map[string]string),
 
-		processKiller: NewProcessKiller(),
+		processKiller: NewProcessKiller(config),
 
 		blockonchannelsend: bocs,
 
