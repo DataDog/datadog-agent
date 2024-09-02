@@ -1667,9 +1667,10 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
 
     bool flexible = false;
 
+    s16 produce_required_acks = 0;
     switch (kafka_header.api_key) {
     case KAFKA_PRODUCE:
-        if (!get_topic_offset_from_produce_request(&kafka_header, pkt, &offset)) {
+        if (!get_topic_offset_from_produce_request(&kafka_header, pkt, &offset, &produce_required_acks)) {
             return false;
         }
         flexible = kafka_header.api_version >= 9;
@@ -1779,6 +1780,12 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     default:
         return false;
      }
+
+    if (kafka_header.api_key == KAFKA_PRODUCE && produce_required_acks == 0) {
+        // If we have a produce request with required acks set to 0, we can enqueue it immediately, as there will be no produce response.
+        kafka_batch_enqueue_wrapper(kafka, tup, kafka_transaction);
+        return true;
+    }
 
     // Copy to stack required by 4.14 verifier.
     kafka_transaction_t transaction;
