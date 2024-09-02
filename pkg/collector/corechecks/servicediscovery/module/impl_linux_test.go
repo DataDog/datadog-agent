@@ -746,3 +746,19 @@ func TestCache(t *testing.T) {
 	discovery.Close()
 	require.Empty(t, discovery.cache)
 }
+
+func BenchmarkOldProcess(b *testing.B) {
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		process.NewProcess(int32(os.Getpid()))
+	}
+}
+
+func BenchmarkNewProcess(b *testing.B) {
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		customNewProcess(int32(os.Getpid()))
+	}
+}
