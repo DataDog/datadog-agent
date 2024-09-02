@@ -24,6 +24,7 @@ import (
 	"github.com/avast/retry-go/v4"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -187,6 +188,64 @@ func TestActionKill(t *testing.T) {
 		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
 		assert.NoError(t, err)
 	})
+}
+
+func TestActionKillExcludeBinary(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if !ebpfLessEnabled {
+		checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
+			return !kv.SupportBPFSendSignal() && env.IsContainerized()
+		})
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "kill_action_kill_exclude",
+			Expression: `exec.file.name == "sleep" && exec.argv in ["1234567"]`,
+			Actions: []*rules.ActionDefinition{
+				{
+					Kill: &rules.KillDefinition{
+						Signal: "SIGKILL",
+					},
+				},
+			},
+		},
+	}
+
+	executable := which(t, "sleep")
+
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{enforcementExcludeBinary: executable}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	killed := atomic.NewBool(false)
+
+	err = test.GetEventSent(t, func() error {
+		go func() {
+			timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			cmd := exec.CommandContext(timeoutCtx, "sleep", "1234567")
+			_ = cmd.Run()
+
+			killed.Store(true)
+		}()
+
+		return nil
+	}, func(rule *rules.Rule, event *model.Event) bool {
+		return true
+	}, time.Second*5, "kill_action_kill_exclude")
+
+	if err != nil {
+		t.Error("should get an event")
+	}
+
+	if killed.Load() {
+		t.Error("shouldn't be killed")
+	}
 }
 
 func TestActionKillRuleSpecific(t *testing.T) {

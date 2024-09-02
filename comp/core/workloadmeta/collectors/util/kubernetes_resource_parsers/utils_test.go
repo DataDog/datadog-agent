@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package kubeapiserver
+package kubernetesresourceparsers
 
 import (
 	"reflect"

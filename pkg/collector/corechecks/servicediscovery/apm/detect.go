@@ -10,6 +10,7 @@ package apm
 
 import (
 	"bufio"
+	"debug/elf"
 	"io"
 	"io/fs"
 	"os"
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language/reader"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -44,12 +46,14 @@ var (
 		language.Java:   javaDetector,
 		language.Node:   nodeDetector,
 		language.Python: pythonDetector,
+		language.Go:     goDetector,
 	}
 	// For now, only allow a subset of the above detectors to actually run.
 	allowedLangs = map[language.Language]struct{}{
 		language.Java:   {},
 		language.Node:   {},
 		language.Python: {},
+		language.Go:     {},
 	}
 
 	nodeAPMCheckRegex = regexp.MustCompile(`"dd-trace"`)
@@ -84,6 +88,42 @@ func isInjected(envs map[string]string) bool {
 		}
 	}
 	return false
+}
+
+const (
+	// ddTraceGoPrefix is the prefix of the dd-trace-go symbols. The symbols we
+	// are looking for are for example
+	// "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.init". We use a prefix
+	// without the version number instead of a specific symbol name in an
+	// attempt to make it future-proof.
+	ddTraceGoPrefix = "gopkg.in/DataDog/dd-trace-go"
+	// ddTraceGoMaxLength is the maximum length of the dd-trace-go symbols which
+	// we look for. The max length is an optimization in bininspect to avoid
+	// reading unnecesssary symbols.  As of writing, most non-internal symbols
+	// in dd-trace-go are under 100 chars. The tracer.init example above at 51
+	// chars is one of the shortest.
+	ddTraceGoMaxLength = 100
+)
+
+// goDetector detects APM instrumentation for Go binaries by checking for
+// the presence of the dd-trace-go symbols in the ELF. This only works for
+// unstripped binaries.
+func goDetector(pid int, _ []string, _ map[string]string, _ usm.DetectorContextMap) Instrumentation {
+	exePath := kernel.HostProc(strconv.Itoa(pid), "exe")
+
+	elfFile, err := elf.Open(exePath)
+	if err != nil {
+		log.Debugf("Unable to open exe %s: %v", exePath, err)
+		return None
+	}
+	defer elfFile.Close()
+
+	_, err = bininspect.GetAnySymbolWithPrefix(elfFile, ddTraceGoPrefix, ddTraceGoMaxLength)
+	if err != nil {
+		return None
+	}
+
+	return Provided
 }
 
 func pythonDetectorFromMapsReader(reader io.Reader) Instrumentation {
@@ -125,15 +165,12 @@ func pythonDetector(pid int, _ []string, _ map[string]string, _ usm.DetectorCont
 // entry for APM NodeJS instrumentation. Returns true if finding such
 // an entry, false otherwise.
 func isNodeInstrumented(f fs.File) bool {
-	// Don't try to read a non-regular file.
-	if fi, err := f.Stat(); err != nil || !fi.Mode().IsRegular() {
+	reader, err := usm.SizeVerifiedReader(f)
+	if err != nil {
 		return false
 	}
 
-	const readLimit = 1 * 1024 * 1024 // Read 1MiB max
-
-	limitReader := io.LimitReader(f, readLimit)
-	bufferedReader := bufio.NewReader(limitReader)
+	bufferedReader := bufio.NewReader(reader)
 
 	return nodeAPMCheckRegex.MatchReader(bufferedReader)
 }
