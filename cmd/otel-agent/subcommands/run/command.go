@@ -31,7 +31,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
-	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
@@ -94,7 +93,7 @@ func (o *orchestratorinterfaceimpl) Reset() {
 
 func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, opts ...fx.Option) error {
 	err := fxutil.Run(
-		forwarder.Bundle(defaultforwarder.NewParams()),
+		ForwarderBundle(),
 		logtracefx.Module(),
 		inventoryagentimpl.Module(),
 		fx.Supply(metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{})),
@@ -150,13 +149,6 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			return hn, nil
 		}),
 
-		fx.Provide(func(c coreconfig.Component, l log.Component) forwarderDeps {
-			return forwarderDeps{
-				config: c,
-				log:    l,
-			}
-		}),
-
 		fx.Provide(func(c defaultforwarder.Component) (defaultforwarder.Forwarder, error) {
 			return defaultforwarder.Forwarder(c), nil
 		}),
@@ -207,16 +199,15 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 	return nil
 }
 
+// ForwarderBundle returns the fx.Option for the forwarder bundle.
 // TODO: cleanup the forwarder instantiation with fx.
 // This is a bit of a hack because we need to enforce optional.Option[configsync.Component]
 // is passed to newForwarder to enforce the correct instantiation order. Currently, the
 // new forwarder.BundleWithProvider makes a few assumptions in its generic prototype, and
 // this is the current workaround to leverage it.
-type forwarderDeps struct {
-	config coreconfig.Component
-	log    log.Component
-}
-
-func newForwarderParams(f forwarderDeps, _ optional.Option[configsync.Component]) defaultforwarder.Params {
-	return defaultforwarder.NewParams(f.config, f.log)
+func ForwarderBundle() fx.Option {
+	return defaultforwarder.ModulWithOptionTMP(
+		fx.Provide(func(_ optional.Option[configsync.Component]) defaultforwarder.Params {
+			return defaultforwarder.NewParams()
+		}))
 }
