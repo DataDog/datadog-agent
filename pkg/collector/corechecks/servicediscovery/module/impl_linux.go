@@ -256,9 +256,26 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 	}, nil
 }
 
+// customNewProcess is the same implementation as process.NewProcess but without calling CreateTimeWithContext, which
+// is not needed and costly for the discovery module.
+func customNewProcess(pid int32) (*process.Process, error) {
+	p := &process.Process{
+		Pid: pid,
+	}
+
+	exists, err := process.PidExists(pid)
+	if err != nil {
+		return p, err
+	}
+	if !exists {
+		return p, process.ErrorProcessNotRunning
+	}
+	return p, nil
+}
+
 // getService gets information for a single service.
 func (s *discovery) getService(context parsingContext, pid int32) *model.Service {
-	proc, err := process.NewProcess(pid)
+	proc, err := customNewProcess(pid)
 	if err != nil {
 		return nil
 	}
