@@ -8,6 +8,7 @@ package strategy
 
 import (
 	"bytes"
+	"io"
 	"compress/gzip"
 
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
@@ -53,9 +54,21 @@ func (s *GzipStrategy) Compress(src []byte) ([]byte, error) {
 }
 
 // Decompress will decompress the data with gzip
-// TODO smw this..
 func (s *GzipStrategy) Decompress(src []byte) ([]byte, error) {
-	return src, nil
+	reader, err := gzip.NewReader(bytes.NewReader(src))
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+
+	// Read all decompressed data
+	var result bytes.Buffer
+	_, err = io.Copy(&result, reader)
+	if err != nil {
+		return nil, err
+	}
+
+	return result.Bytes(), nil
 }
 
 // CompressBound returns the worst case size needed for a destination buffer when using gzip
@@ -63,12 +76,12 @@ func (s *GzipStrategy) CompressBound(sourceLen int) int {
 	return sourceLen + (sourceLen/16384+1)*5 + 18
 }
 
-// ContentEncoding returns the content encoding value for zstd
+// ContentEncoding returns the content encoding value for gzip
 func (s *GzipStrategy) ContentEncoding() string {
 	return compression.GzipEncoding
 }
 
-// NewStreamCompressor returns a new zstd Writer
+// NewStreamCompressor returns a new gzip Writer
 func (s *GzipStrategy) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
 	// Ensure level is within a range that doesn't cause NewWriterLevel to error.
 	level := s.level
