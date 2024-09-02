@@ -609,6 +609,7 @@ func TestNumWorkers(t *testing.T) {
 
 // TestOverrides validates that the config overrides system works well.
 func TestApplyOverrides(t *testing.T) {
+	pkgconfigmodel.CleanOverride(t)
 	assert := assert.New(t)
 
 	datadogYaml := `
@@ -635,114 +636,6 @@ external_config:
 
 	assert.Equal(config.GetString("api_key"), "overrided", "the api key should have been overrided")
 	assert.Equal(config.GetString("dd_url"), "http://localhost", "this dd_url should have been overrided")
-}
-
-func TestDogstatsdMappingProfilesOk(t *testing.T) {
-	datadogYaml := `
-dogstatsd_mapper_profiles:
-  - name: "airflow"
-    prefix: "airflow."
-    mappings:
-      - match: 'airflow\.job\.duration_sec\.(.*)'
-        name: "airflow.job.duration"
-        match_type: "regex"
-        tags:
-          job_type: "$1"
-          job_name: "$2"
-      - match: "airflow.job.size.*.*"
-        name: "airflow.job.size"
-        tags:
-          foo: "$1"
-          bar: "$2"
-  - name: "profile2"
-    prefix: "profile2."
-    mappings:
-      - match: "profile2.hello.*"
-        name: "profile2.hello"
-        tags:
-          foo: "$1"
-`
-	testConfig := confFromYAML(t, datadogYaml)
-
-	profiles, err := getDogstatsdMappingProfilesConfig(testConfig)
-
-	expectedProfiles := []MappingProfile{
-		{
-			Name:   "airflow",
-			Prefix: "airflow.",
-			Mappings: []MetricMapping{
-				{
-					Match:     "airflow\\.job\\.duration_sec\\.(.*)",
-					MatchType: "regex",
-					Name:      "airflow.job.duration",
-					Tags:      map[string]string{"job_type": "$1", "job_name": "$2"},
-				},
-				{
-					Match: "airflow.job.size.*.*",
-					Name:  "airflow.job.size",
-					Tags:  map[string]string{"foo": "$1", "bar": "$2"},
-				},
-			},
-		},
-		{
-			Name:   "profile2",
-			Prefix: "profile2.",
-			Mappings: []MetricMapping{
-				{
-					Match: "profile2.hello.*",
-					Name:  "profile2.hello",
-					Tags:  map[string]string{"foo": "$1"},
-				},
-			},
-		},
-	}
-
-	assert.NoError(t, err)
-	assert.EqualValues(t, expectedProfiles, profiles)
-}
-
-func TestDogstatsdMappingProfilesEmpty(t *testing.T) {
-	datadogYaml := `
-dogstatsd_mapper_profiles:
-`
-	testConfig := confFromYAML(t, datadogYaml)
-
-	profiles, err := getDogstatsdMappingProfilesConfig(testConfig)
-
-	var expectedProfiles []MappingProfile
-
-	assert.NoError(t, err)
-	assert.EqualValues(t, expectedProfiles, profiles)
-}
-
-func TestDogstatsdMappingProfilesError(t *testing.T) {
-	datadogYaml := `
-dogstatsd_mapper_profiles:
-  - abc
-`
-	testConfig := confFromYAML(t, datadogYaml)
-	profiles, err := getDogstatsdMappingProfilesConfig(testConfig)
-
-	expectedErrorMsg := "Could not parse dogstatsd_mapper_profiles"
-	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), expectedErrorMsg)
-	assert.Empty(t, profiles)
-}
-
-func TestDogstatsdMappingProfilesEnv(t *testing.T) {
-	env := "DD_DOGSTATSD_MAPPER_PROFILES"
-	t.Setenv(env, `[{"name":"another_profile","prefix":"abcd","mappings":[{"match":"airflow\\.dag_processing\\.last_runtime\\.(.*)","match_type":"regex","name":"foo","tags":{"a":"$1","b":"$2"}}]},{"name":"some_other_profile","prefix":"some_other_profile.","mappings":[{"match":"some_other_profile.*","name":"some_other_profile.abc","tags":{"a":"$1"}}]}]`)
-	expected := []MappingProfile{
-		{Name: "another_profile", Prefix: "abcd", Mappings: []MetricMapping{
-			{Match: "airflow\\.dag_processing\\.last_runtime\\.(.*)", MatchType: "regex", Name: "foo", Tags: map[string]string{"a": "$1", "b": "$2"}},
-		}},
-		{Name: "some_other_profile", Prefix: "some_other_profile.", Mappings: []MetricMapping{
-			{Match: "some_other_profile.*", Name: "some_other_profile.abc", Tags: map[string]string{"a": "$1"}},
-		}},
-	}
-	cfg := newTestConf()
-	mappings, _ := GetDogstatsdMappingProfiles(cfg)
-	assert.Equal(t, mappings, expected)
 }
 
 func TestGetValidHostAliasesWithConfig(t *testing.T) {
@@ -1156,7 +1049,7 @@ func TestLogDefaults(t *testing.T) {
 
 func TestProxyNotLoaded(t *testing.T) {
 	conf := newTestConf()
-	os.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
+	t.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
 
 	proxyHTTP := "http://localhost:1234"
 	proxyHTTPS := "https://localhost:1234"
@@ -1171,7 +1064,7 @@ func TestProxyNotLoaded(t *testing.T) {
 
 func TestProxyLoadedFromEnvVars(t *testing.T) {
 	conf := newTestConf()
-	os.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
+	t.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
 
 	proxyHTTP := "http://localhost:1234"
 	proxyHTTPS := "https://localhost:1234"
@@ -1189,7 +1082,7 @@ func TestProxyLoadedFromEnvVars(t *testing.T) {
 
 func TestProxyLoadedFromConfigFile(t *testing.T) {
 	conf := newTestConf()
-	os.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
+	t.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
 
 	tempDir := t.TempDir()
 	configTest := path.Join(tempDir, "datadog.yaml")
@@ -1207,7 +1100,7 @@ func TestProxyLoadedFromConfigFile(t *testing.T) {
 
 func TestProxyLoadedFromConfigFileAndEnvVars(t *testing.T) {
 	conf := newTestConf()
-	os.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
+	t.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
 
 	proxyHTTPEnvVar := "http://localhost:1234"
 	proxyHTTPSEnvVar := "https://localhost:1234"

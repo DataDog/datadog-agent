@@ -141,6 +141,12 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
+	envconfig := ""
+	envvars := getEnvironmentAsMap()
+	if envbytes, err := json.Marshal(envvars); err == nil {
+		envconfig = string(envbytes)
+	}
+
 	resp := extensionDef.Response{
 		BuildInfoResponse: extensionDef.BuildInfoResponse{
 			AgentVersion:     ext.info.Version,
@@ -149,11 +155,13 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 			ExtensionVersion: ext.info.Version,
 		},
 		ConfigResponse: extensionDef.ConfigResponse{
-			CustomerConfig: customer,
-			RuntimeConfig:  enhanced,
+			CustomerConfig:        customer,
+			RuntimeConfig:         enhanced,
+			RuntimeOverrideConfig: "", // TODO: support RemoteConfig
+			EnvConfig:             envconfig,
 		},
 		DebugSourceResponse: ext.debug,
-		Environment:         getEnvironmentAsMap(),
+		Environment:         envvars,
 	}
 
 	j, err := json.MarshalIndent(resp, "", "  ")

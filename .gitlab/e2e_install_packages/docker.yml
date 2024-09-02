@@ -1,5 +1,4 @@
 new-e2e-agent-platform-install-script-docker:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new_e2e_template_needs_deb_x64

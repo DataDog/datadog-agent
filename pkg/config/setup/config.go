@@ -192,21 +192,6 @@ func (l *Listeners) IsProviderEnabled(provider string) bool {
 	return found
 }
 
-// MappingProfile represent a group of mappings
-type MappingProfile struct {
-	Name     string          `mapstructure:"name" json:"name" yaml:"name"`
-	Prefix   string          `mapstructure:"prefix" json:"prefix" yaml:"prefix"`
-	Mappings []MetricMapping `mapstructure:"mappings" json:"mappings" yaml:"mappings"`
-}
-
-// MetricMapping represent one mapping rule
-type MetricMapping struct {
-	Match     string            `mapstructure:"match" json:"match" yaml:"match"`
-	MatchType string            `mapstructure:"match_type" json:"match_type" yaml:"match_type"`
-	Name      string            `mapstructure:"name" json:"name" yaml:"name"`
-	Tags      map[string]string `mapstructure:"tags" json:"tags" yaml:"tags"`
-}
-
 // DataType represent the generic data type (e.g. metrics, logs) that can be sent by the Agent
 type DataType string
 
@@ -1227,6 +1212,9 @@ func telemetry(config pkgconfigmodel.Setup) {
 	// Agent Telemetry. It is experimental feature and is subject to change.
 	// It should not be enabled unless prompted by Datadog Support
 	config.BindEnvAndSetDefault("agent_telemetry.enabled", false)
+	config.SetKnown("agent_telemetry.additional_endpoints.*")
+	bindEnvAndSetLogsConfigKeys(config, "agent_telemetry.")
+
 }
 
 func serializer(config pkgconfigmodel.Setup) {
@@ -1383,8 +1371,8 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.factor", 1.5)
 
 	config.BindEnv("dogstatsd_mapper_profiles")
-	config.SetEnvKeyTransformer("dogstatsd_mapper_profiles", func(in string) interface{} {
-		var mappings []MappingProfile
+	config.ParseEnvAsSlice("dogstatsd_mapper_profiles", func(in string) []interface{} {
+		var mappings []interface{}
 		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
 			log.Errorf(`"dogstatsd_mapper_profiles" can not be parsed: %v`, err)
 		}
@@ -2400,22 +2388,6 @@ func setNumWorkers(config pkgconfigmodel.Config) {
 		// update config with the actual effective number of workers
 		config.Set("check_runners", 1, pkgconfigmodel.SourceAgentRuntime)
 	}
-}
-
-// GetDogstatsdMappingProfiles returns mapping profiles used in DogStatsD mapper
-func GetDogstatsdMappingProfiles(config pkgconfigmodel.Reader) ([]MappingProfile, error) {
-	return getDogstatsdMappingProfilesConfig(config)
-}
-
-func getDogstatsdMappingProfilesConfig(config pkgconfigmodel.Reader) ([]MappingProfile, error) {
-	var mappings []MappingProfile
-	if config.IsSet("dogstatsd_mapper_profiles") {
-		err := config.UnmarshalKey("dogstatsd_mapper_profiles", &mappings)
-		if err != nil {
-			return []MappingProfile{}, log.Errorf("Could not parse dogstatsd_mapper_profiles: %v", err)
-		}
-	}
-	return mappings, nil
 }
 
 // IsCLCRunner returns whether the Agent is in cluster check runner mode

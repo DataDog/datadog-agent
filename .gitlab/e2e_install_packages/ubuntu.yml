@@ -56,7 +56,6 @@
     - deploy_deb_testing-a7_arm64
 
 new-e2e-agent-platform-install-script-ubuntu-a6-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -67,7 +66,6 @@ new-e2e-agent-platform-install-script-ubuntu-a6-x86_64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-ubuntu-a6-arm64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -78,7 +76,6 @@ new-e2e-agent-platform-install-script-ubuntu-a6-arm64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-ubuntu-a7-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -91,7 +88,6 @@ new-e2e-agent-platform-install-script-ubuntu-a7-x86_64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-ubuntu-a7-arm64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -104,7 +100,6 @@ new-e2e-agent-platform-install-script-ubuntu-a7-arm64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-ubuntu-iot-agent-a7-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -115,7 +110,6 @@ new-e2e-agent-platform-install-script-ubuntu-iot-agent-a7-x86_64:
     FLAVOR: datadog-iot-agent
 
 new-e2e-agent-platform-install-script-ubuntu-dogstatsd-a7-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -126,7 +120,6 @@ new-e2e-agent-platform-install-script-ubuntu-dogstatsd-a7-x86_64:
     FLAVOR: datadog-dogstatsd
 
 new-e2e-agent-platform-install-script-ubuntu-heroku-agent-a6-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -137,7 +130,6 @@ new-e2e-agent-platform-install-script-ubuntu-heroku-agent-a6-x86_64:
     FLAVOR: datadog-heroku-agent
 
 new-e2e-agent-platform-install-script-ubuntu-heroku-agent-a7-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -148,7 +140,6 @@ new-e2e-agent-platform-install-script-ubuntu-heroku-agent-a7-x86_64:
     FLAVOR: datadog-heroku-agent
 
 new-e2e-agent-platform-step-by-step-ubuntu-a6-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_step_by_step
@@ -161,7 +152,6 @@ new-e2e-agent-platform-step-by-step-ubuntu-a6-x86_64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-step-by-step-ubuntu-a6-arm64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_step_by_step
@@ -174,7 +164,6 @@ new-e2e-agent-platform-step-by-step-ubuntu-a6-arm64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-step-by-step-ubuntu-a7-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_step_by_step
@@ -187,7 +176,6 @@ new-e2e-agent-platform-step-by-step-ubuntu-a7-x86_64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-step-by-step-ubuntu-a7-arm64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_step_by_step
@@ -200,7 +188,6 @@ new-e2e-agent-platform-step-by-step-ubuntu-a7-arm64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-upgrade7-ubuntu-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_script_upgrade7
@@ -211,7 +198,6 @@ new-e2e-agent-platform-install-script-upgrade7-ubuntu-x86_64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-upgrade6-ubuntu-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_script_upgrade6
@@ -222,7 +208,6 @@ new-e2e-agent-platform-install-script-upgrade6-ubuntu-x86_64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-upgrade7-ubuntu-iot-agent-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_script_upgrade7

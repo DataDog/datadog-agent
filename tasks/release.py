@@ -403,7 +403,9 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
     ctx.run("git add release.json")
     ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
 
-    ok = try_git_command(ctx, f"git commit -m 'Update release.json and Go modules for {new_highest_version}'")
+    ok = try_git_command(
+        ctx, f"git commit --no-verify -m 'Update release.json and Go modules for {new_highest_version}'"
+    )
     if not ok:
         raise Exit(
             color_message(
@@ -414,7 +416,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
         )
 
     print(color_message("Pushing new branch to the upstream repository", "bold"))
-    res = ctx.run(f"git push --set-upstream {upstream} {update_branch}", warn=True)
+    res = ctx.run(f"git push --no-verify --set-upstream {upstream} {update_branch}", warn=True)
     if res.exited is None or res.exited > 0:
         raise Exit(
             color_message(
