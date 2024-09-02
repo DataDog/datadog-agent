@@ -977,9 +977,9 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_connect, struct sock *skp) {
         log_debug("adamk kprobe/tcp_connect: non TCP sk_protocol");
     }
 
-    if (tcp_failed_connections_enabled()) {
-        bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp_conn, &pid_tgid, BPF_NOEXIST);
-    }
+    // if (tcp_failed_connections_enabled()) {
+    //     bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp_conn, &pid_tgid, BPF_NOEXIST);
+    // }
 
     return 0;
 }
