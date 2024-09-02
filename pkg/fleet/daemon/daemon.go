@@ -63,13 +63,14 @@ type daemonImpl struct {
 	m        sync.Mutex
 	stopChan chan struct{}
 
-	env        *env.Env
-	installer  installer.Installer
-	rc         *remoteConfig
-	cdn        *cdn.CDN
-	catalog    catalog
-	requests   chan remoteAPIRequest
-	requestsWG sync.WaitGroup
+	env           *env.Env
+	installer     installer.Installer
+	rc            *remoteConfig
+	cdn           *cdn.CDN
+	catalog       catalog
+	requests      chan remoteAPIRequest
+	requestsWG    sync.WaitGroup
+	requestsState map[string]requestState
 }
 
 func newInstaller(env *env.Env, installerBin string) installer.Installer {
@@ -97,13 +98,14 @@ func NewDaemon(rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, er
 
 func newDaemon(rc *remoteConfig, installer installer.Installer, env *env.Env) *daemonImpl {
 	i := &daemonImpl{
-		env:       env,
-		rc:        rc,
-		installer: installer,
-		cdn:       cdn.New(env),
-		requests:  make(chan remoteAPIRequest, 32),
-		catalog:   catalog{},
-		stopChan:  make(chan struct{}),
+		env:           env,
+		rc:            rc,
+		installer:     installer,
+		cdn:           cdn.New(env),
+		requests:      make(chan remoteAPIRequest, 32),
+		catalog:       catalog{},
+		stopChan:      make(chan struct{}),
+		requestsState: make(map[string]requestState),
 	}
 	i.refreshState(context.Background())
 	return i
@@ -456,6 +458,10 @@ func (d *daemonImpl) resolveAgentRemoteConfigVersion(ctx context.Context) (strin
 }
 
 func (d *daemonImpl) refreshState(ctx context.Context) {
+	request, ok := ctx.Value(requestStateKey).(*requestState)
+	if ok {
+		d.requestsState[request.Package] = *request
+	}
 	state, err := d.installer.States()
 	if err != nil {
 		// TODO: we should report this error through RC in some way
@@ -472,7 +478,6 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		log.Errorf("could not get agent remote config version: %v", err)
 	}
 
-	requestState, ok := ctx.Value(requestStateKey).(*requestState)
 	var packages []*pbgo.PackageState
 	for pkg, s := range state {
 		p := &pbgo.PackageState{
@@ -488,6 +493,7 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 		if pkg == "datadog-agent" {
 			p.RemoteConfigVersion = configVersion
 		}
+		requestState, ok := d.requestsState[pkg]
 		if ok && pkg == requestState.Package {
 			var taskErr *pbgo.TaskError
 			if requestState.Err != nil {
