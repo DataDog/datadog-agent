@@ -52,7 +52,7 @@ jobs:
           ref: ${{ inputs.branch }}
 
       - name: Setup Python and pip
-        uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f # v5.1.1
+        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
         with:
           # use Python < 3.12 so that distutil is still available by default
           python-version: 3.11
