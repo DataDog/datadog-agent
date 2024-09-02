@@ -16,7 +16,7 @@ golang_deps_diff:
     - !reference [.retrieve_linux_go_deps]
   script:
      # Get API key to send metrics
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - !reference [.export_dd_api_key_org2]
     - inv -e diff.go-deps --report-file=deps-report.md --report-metrics --git-ref "${CI_COMMIT_REF_NAME}"
   artifacts:
     paths:
@@ -63,7 +63,7 @@ golang_deps_send_count_metrics:
     - !reference [.retrieve_linux_go_deps]
   script:
     # Get API key to send metrics
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - !reference [.export_dd_api_key_org2]
     - inv -e go-deps.send-count-metrics --git-sha "${CI_COMMIT_SHA}" --git-ref "${CI_COMMIT_REF_NAME}"
 
 golang_deps_test:

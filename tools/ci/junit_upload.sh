@@ -7,8 +7,13 @@ if [[ -n "$1" ]]; then
     junit_files="$1"
 fi
 
-GITLAB_TOKEN="$("$CI_PROJECT_DIR"/tools/ci/aws_ssm_get_wrapper.sh "$GITLAB_READ_API_TOKEN_SSM_NAME")"
-DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/aws_ssm_get_wrapper.sh "$API_KEY_ORG2_SSM_NAME")"
+# Open file description for secrets
+# shellcheck source=/dev/null
+source "$CI_PROJECT_DIR"/tools/ci/open_file_descriptor.sh
+"$CI_PROJECT_DIR"/tools/ci/aws_ssm_get_wrapper.sh "$GITLAB_READ_API_TOKEN_SSM_NAME"
+"$CI_PROJECT_DIR"/tools/ci/aws_ssm_get_wrapper.sh "$API_KEY_ORG2_SSM_NAME"
+DATADOG_API_KEY=$(pop_front)
+GITLAB_TOKEN=$(pop_front)
 export DATADOG_API_KEY
 export GITLAB_TOKEN
 error=0

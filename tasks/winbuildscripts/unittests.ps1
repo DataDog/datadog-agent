@@ -60,9 +60,14 @@ $err = $LASTEXITCODE
 
 # Ignore upload failures
 $ErrorActionPreference = "Continue"
+$tmpfile = [System.IO.Path]::GetTempFileName()
 
 # 1. Upload coverage reports to Codecov
-$Env:CODECOV_TOKEN=$(& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" $Env:CODECOV_TOKEN_SSM_NAME)
+& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" $Env:CODECOV_TOKEN_SSM_NAME > $tmpfile
+If ($LASTEXITCODE -ne "0") {
+    exit $LASTEXITCODE
+}
+$Env:CODECOV_TOKEN=$(cat "$tmpfile")
 & inv -e coverage.upload-to-codecov $Env:COVERAGE_CACHE_FLAG
 
 # 2. Upload junit files
@@ -70,8 +75,16 @@ $Env:CODECOV_TOKEN=$(& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" $Env:CO
 Get-ChildItem -Path "$UT_BUILD_ROOT" -Filter "junit-out-*.xml" -Recurse | ForEach-Object {
     Copy-Item -Path $_.FullName -Destination C:\mnt
 }
-$Env:DATADOG_API_KEY=$(& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" $Env:API_KEY_ORG2_SSM_NAME)
-$Env:GITLAB_TOKEN=$(& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" $Env:GITLAB_TOKEN_SSM_NAME)
+& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" $Env:API_KEY_ORG2_SSM_NAME
+If ($LASTEXITCODE -ne "0") {
+    exit $LASTEXITCODE
+}
+$Env:DATADOG_API_KEY=$(cat "$tmpfile")
+& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" $Env:GITLAB_TOKEN_SSM_NAME
+If ($LASTEXITCODE -ne "0") {
+    exit $LASTEXITCODE
+}
+$Env:GITLAB_TOKEN=$(cat "$tmpfile")
 & inv -e junit-upload --tgz-path $Env:JUNIT_TAR
 
 if($err -ne 0){
