@@ -23,9 +23,7 @@
   - set +x
   - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
   - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DEB_GPG_KEY
-  - EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
   - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DEB_SIGNING_PASSPHRASE
-  - EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
   - printf -- "$(pop_front)" | gpg --import --batch
   - export DEB_SIGNING_PASSPHRASE=$(pop_front)
 
@@ -36,22 +34,16 @@
     source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
     if [[ "$(( RANDOM % 2 ))" == "1" ]]; then
       $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_KEY
-      EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
       $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_ID
-      EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
       $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_INSTALLATION_ID
-      EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
       export GITHUB_KEY_B64=$(pop_front)
       export GITHUB_APP_ID=$(pop_front)
       export GITHUB_INSTALLATION_ID=$(pop_front)
       echo "Using GitHub App instance 1"
     else
       $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_KEY_2
-      EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
       $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_APP_ID_2
-      EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
       $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_GITHUB_INSTALLATION_ID_2
-      EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
       export GITHUB_KEY_B64=$(pop_front)
       export GITHUB_APP_ID=$(pop_front)
       export GITHUB_INSTALLATION_ID=$(pop_front)
@@ -61,11 +53,8 @@
 .setup_agent_github_app:
   - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
   - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_GITHUB_KEY
-  - EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
   - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_GITHUB_APP_ID
-  - EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
   - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_GITHUB_INSTALLATION_ID
-  - EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
   - export GITHUB_KEY_B64=$(pop_front)
   - export GITHUB_APP_ID=$(pop_front)
   - export GITHUB_INSTALLATION_ID=$(pop_front)
@@ -75,3 +64,18 @@
 .lint_linux_packages:
   - curl -sSL "https://dd-package-tools.s3.amazonaws.com/dd-pkg/${DD_PKG_VERSION}/dd-pkg_Linux_${DD_PKG_ARCH}.tar.gz" | tar -xz -C /usr/local/bin dd-pkg
   - find $OMNIBUS_PACKAGE_DIR -iregex '.*\.\(deb\|rpm\)' | xargs dd-pkg lint
+
+.export_gitlab_token_scheduler:
+  - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME   
+  - export GITLAB_TOKEN=$(pop_front)
+
+.export_gitlab_token_full:
+  - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME   
+  - export GITLAB_TOKEN=$(pop_front)
+
+.export_dd_api_key_org2:
+  - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME
+  - export DD_API_KEY=$(pop_front)

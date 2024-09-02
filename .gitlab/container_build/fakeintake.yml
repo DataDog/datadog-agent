@@ -17,9 +17,7 @@ docker_build_fakeintake:
     # DockerHub login for build to limit rate limit when pulling base images
     - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_PWD
-    - EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DOCKER_REGISTRY_LOGIN
-    - EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
     - pop_front | docker login --username "$(pop_front)" --password-stdin "$DOCKER_REGISTRY_URL"
     - docker buildx build --push --pull --platform ${PLATFORMS} --file ${DOCKERFILE} --tag ${TARGET} $BUILD_CONTEXT
   retry: 2

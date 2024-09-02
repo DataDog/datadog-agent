@@ -5,10 +5,7 @@ test_install_script:
   tags: ["arch:amd64"]
   script:
     - set +x
-    - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_SCHEDULER_TOKEN
-    - EXIT_CODE=$?; if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
-    - export GITLAB_TOKEN=$(pop_front)
+    - !reference [.export_gitlab_token_scheduler]
     - export TESTING_APT_URL=$DEB_TESTING_S3_BUCKET
     - export TESTING_YUM_URL=$RPM_TESTING_S3_BUCKET
     - export TEST_PIPELINE_ID=$CI_PIPELINE_ID
