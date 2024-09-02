@@ -29,7 +29,8 @@
 
 .write_ssh_key_file:
   - touch $AWS_EC2_SSH_KEY_FILE && chmod 600 $AWS_EC2_SSH_KEY_FILE
-  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_KEY_SSM_NAME > $AWS_EC2_SSH_KEY_FILE
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_KEY_SSM_NAME
+  - pop_front > $AWS_EC2_SSH_KEY_FILE
   # Without the newline ssh silently fails and moves on to try other auth methods
   - echo "" >> $AWS_EC2_SSH_KEY_FILE
   - chmod 600 $AWS_EC2_SSH_KEY_FILE
@@ -47,7 +48,9 @@
 
 .kmt_new_profile:
   - mkdir -p ~/.aws
-  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >> ~/.aws/config
+  - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME
+  - pop_front >> ~/.aws/config
   - export AWS_PROFILE=agent-qa-ci
 
 .define_if_collect_complexity:
@@ -60,7 +63,7 @@
   - echo "COLLECT_COMPLEXITY=${COLLECT_COMPLEXITY}"
 
 .collect_outcomes_kmt:
-  - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+  - !reference [.export_dd_api_key_org2]
   - export MICRO_VM_IP=$(jq --exit-status --arg TAG $TAG --arg ARCH $ARCH --arg TEST_SET $TEST_SET -r '.[$ARCH].microvms | map(select(."vmset-tags"| index($TEST_SET))) | map(select(.tag==$TAG)) | .[].ip' $CI_PROJECT_DIR/stack.output)
   # Collect setup-ddvm systemd service logs
   - mkdir -p $CI_PROJECT_DIR/logs
@@ -114,7 +117,7 @@
         scp $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH.tar.gz metal_instance:/opt/kernel-version-testing
       fi
   after_script:
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - !referece [.export_dd_api_key_org2]
     - !reference [.tag_kmt_ci_job]
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
@@ -143,7 +146,7 @@
     KUBERNETES_MEMORY_LIMIT: "16Gi"
     VMCONFIG_FILE: "${CI_PROJECT_DIR}/vmconfig-${CI_PIPELINE_ID}-${ARCH}.json"
   before_script:
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - !reference [.export_dd_api_key_org2]
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
@@ -157,7 +160,7 @@
     - jq "." $CI_PROJECT_DIR/stack.output
     - pulumi logout
   after_script:
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - !referece [.export_dd_api_key_org2]
     - export AWS_PROFILE=agent-qa-ci
     - !reference [.shared_filters_and_queries]
     - mkdir -p $CI_PROJECT_DIR/libvirt/log/$ARCH $CI_PROJECT_DIR/libvirt/xml $CI_PROJECT_DIR/libvirt/qemu $CI_PROJECT_DIR/libvirt/dnsmasq
@@ -182,7 +185,7 @@
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   before_script:
-    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME)
+    - !reference [.export_gitlab_token_scheduler]
     - !reference [.kmt_new_profile]
   script:
     - !reference [.shared_filters_and_queries]
@@ -199,7 +202,7 @@
         aws ec2 terminate-instances --instance-ids "${INSTANCE_ID}"
       fi
   after_script:
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - !reference [.export_dd_api_key_org2]
     - !reference [.tag_kmt_ci_job]
 
 # Manual cleanup jobs, these will be used to cleanup the instances after the tests
@@ -228,7 +231,7 @@
     RETRY: 2
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   before_script:
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - !reference [.export_dd_api_key_org2]
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
     - echo "CI_JOB_URL=${CI_JOB_URL}" >> $DD_AGENT_TESTING_DIR/job_env.txt
@@ -315,9 +318,14 @@ notify_ebpf_complexity_changes:
     - python3 -m pip install tabulate # Required for printing the tables
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - |
-      export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_APP_KEY_SSM_NAME | base64)
-      export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_INTEGRATION_ID_SSM_NAME)
-      export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_INSTALLATION_ID_SSM_NAME)
-      export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME)
+      source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
+      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_APP_KEY_SSM_NAME
+      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_INTEGRATION_ID_SSM_NAME
+      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_INSTALLATION_ID_SSM_NAME
+      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME
+      export GITHUB_KEY_B64=$(pop_front | base64)
+      export GITHUB_APP_ID=$(pop_front)
+      export GITHUB_INSTALLATION_ID=$(pop_front)
+      export GITLAB_TOKEN=$(pop_front)
   script:
     - inv -e ebpf.generate-complexity-summary-for-pr
