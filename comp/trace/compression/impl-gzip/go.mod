@@ -4,4 +4,4 @@ go 1.22.0
 
 replace github.com/DataDog/datadog-agent/comp/trace/compression/def => ../../../../comp/trace/compression/def/
 
-require github.com/DataDog/datadog-agent/comp/trace/compression/def v0.56.2-rc.1
+require github.com/DataDog/datadog-agent/comp/trace/compression/def v0.56.2
