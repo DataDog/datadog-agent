@@ -53,7 +53,6 @@
     - deploy_rpm_testing-a7_x64
 
 new-e2e-agent-platform-install-script-centos-a6-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -64,7 +63,6 @@ new-e2e-agent-platform-install-script-centos-a6-x86_64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-centos-a7-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -76,7 +74,6 @@ new-e2e-agent-platform-install-script-centos-a7-x86_64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-centos-iot-agent-a7-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -88,7 +85,6 @@ new-e2e-agent-platform-install-script-centos-iot-agent-a7-x86_64:
     FLAVOR: datadog-iot-agent
 
 new-e2e-agent-platform-install-script-centos-dogstatsd-a7-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -99,7 +95,6 @@ new-e2e-agent-platform-install-script-centos-dogstatsd-a7-x86_64:
     FLAVOR: datadog-dogstatsd
 
 new-e2e-agent-platform-install-script-centos-fips-a6-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -110,7 +105,6 @@ new-e2e-agent-platform-install-script-centos-fips-a6-x86_64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-centos-fips-a7-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -122,7 +116,6 @@ new-e2e-agent-platform-install-script-centos-fips-a7-x86_64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-centos-fips-iot-agent-a7-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -134,7 +127,6 @@ new-e2e-agent-platform-install-script-centos-fips-iot-agent-a7-x86_64:
     FLAVOR: datadog-iot-agent
 
 new-e2e-agent-platform-install-script-centos-fips-dogstatsd-a7-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_install_script
@@ -145,7 +137,6 @@ new-e2e-agent-platform-install-script-centos-fips-dogstatsd-a7-x86_64:
     FLAVOR: datadog-dogstatsd
 
 new-e2e-agent-platform-step-by-step-centos-a6-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_step_by_step
@@ -157,7 +148,6 @@ new-e2e-agent-platform-step-by-step-centos-a6-x86_64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-step-by-step-centos-a7-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_step_by_step
@@ -169,7 +159,6 @@ new-e2e-agent-platform-step-by-step-centos-a7-x86_64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-upgrade6-centos-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_script_upgrade6
@@ -180,7 +169,6 @@ new-e2e-agent-platform-install-script-upgrade6-centos-x86_64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-upgrade7-centos-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_script_upgrade7
@@ -191,7 +179,6 @@ new-e2e-agent-platform-install-script-upgrade7-centos-x86_64:
     FLAVOR: datadog-agent
 
 new-e2e-agent-platform-install-script-upgrade7-centos-iot-agent-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_script_upgrade7
@@ -206,7 +193,6 @@ new-e2e-agent-platform-install-script-upgrade7-centos-iot-agent-x86_64:
         END_MAJOR_VERSION: [7]
 
 new-e2e-agent-platform-install-script-upgrade7-centos-fips-iot-agent-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_script_upgrade7
@@ -221,7 +207,6 @@ new-e2e-agent-platform-install-script-upgrade7-centos-fips-iot-agent-x86_64:
         END_MAJOR_VERSION: [7]
 
 new-e2e-agent-platform-install-script-upgrade6-centos-fips-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_script_upgrade6
@@ -236,7 +221,6 @@ new-e2e-agent-platform-install-script-upgrade6-centos-fips-x86_64:
         END_MAJOR_VERSION: [6]
 
 new-e2e-agent-platform-install-script-upgrade7-centos-fips-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_script_upgrade7
@@ -251,7 +235,6 @@ new-e2e-agent-platform-install-script-upgrade7-centos-fips-x86_64:
         END_MAJOR_VERSION: [7]
 
 new-e2e-agent-platform-rpm-centos6-a7-x86_64:
-  stage: kitchen_testing
   extends:
     - .new_e2e_template
     - .new-e2e_rpm

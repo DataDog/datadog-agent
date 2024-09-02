@@ -39,10 +39,12 @@ func TestFindNameFromNearestPackageJSON(t *testing.T) {
 	}
 	full, err := filepath.Abs("testdata/root")
 	require.NoError(t, err)
-	sub := NewSubDirFS(full)
-	instance := &nodeDetector{ctx: DetectionContext{fs: sub}}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			instance := &nodeDetector{ctx: DetectionContext{
+				fs:         NewSubDirFS(full),
+				contextMap: make(DetectorContextMap),
+			}}
 			value, ok := instance.findNameFromNearestPackageJSON(tt.path)
 			assert.Equal(t, len(tt.expected) > 0, ok)
 			assert.Equal(t, tt.expected, value)

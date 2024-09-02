@@ -98,7 +98,7 @@ func runTestOTelAgent(ctx context.Context, params *subcommands.GlobalParams) err
 		}),
 		configstorefx.Module(),
 		fx.Provide(func() (coreconfig.Component, error) {
-			c, err := agentConfig.NewConfigComponent(context.Background(), params.ConfPaths)
+			c, err := agentConfig.NewConfigComponent(context.Background(), "", params.ConfPaths)
 			if err != nil {
 				return nil, err
 			}

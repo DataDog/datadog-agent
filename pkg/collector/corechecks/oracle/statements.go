@@ -634,7 +634,7 @@ func (c *Check) StatementMetrics() (int, error) {
 				c.fqtEmitted.Set(queryRow.QuerySignature, "1", cache.DefaultExpiration)
 			}
 
-			if c.config.ExecutionPlans.Enabled && sendPlan {
+			if c.config.ExecutionPlans.Enabled && sendPlan && statementMetricRow.PlanHashValue != 0 {
 				if (i+1)%10 == 0 && time.Since(start).Seconds() >= float64(c.config.QueryMetrics.MaxRunTime) {
 					sendPlan = false
 				}

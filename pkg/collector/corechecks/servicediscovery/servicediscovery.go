@@ -41,6 +41,7 @@ type serviceInfo struct {
 
 type procStat struct {
 	StartTime uint64
+	RSS       uint64
 }
 
 type processInfo struct {
