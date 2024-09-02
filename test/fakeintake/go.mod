@@ -10,8 +10,8 @@ replace (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.106
-	github.com/DataDog/datadog-agent/comp/netflow/payload v0.57.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/proto v0.57.0-rc.5
+	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc.3
 	github.com/benbjohnson/clock v1.3.5
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/google/uuid v1.3.0
@@ -28,7 +28,7 @@ require (
 
 require (
 	github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a // indirect
-	github.com/DataDog/zstd v1.4.8 // indirect
+	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect

@@ -19,12 +19,12 @@ replace (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.122
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.57.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.57.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.57.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/testutil v0.57.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/version v0.57.0-rc.5
-	github.com/DataDog/datadog-agent/test/fakeintake v0.57.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/testutil v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/version v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.27.0
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
@@ -32,8 +32,8 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20240808172947-94712f9a273b
-	github.com/aws/aws-sdk-go-v2 v1.30.3
+	github.com/DataDog/test-infra-definitions v0.0.0-20240828165228-c0ecdf254c23
+	github.com/aws/aws-sdk-go-v2 v1.30.4
 	github.com/aws/aws-sdk-go-v2/config v1.27.19
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.164.2
 	github.com/aws/aws-sdk-go-v2/service/eks v1.44.1
@@ -46,12 +46,12 @@ require (
 	github.com/kr/pretty v0.3.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pkg/sftp v1.13.6
-	github.com/pulumi/pulumi-aws/sdk/v6 v6.44.0
-	github.com/pulumi/pulumi-awsx/sdk/v2 v2.13.0
-	github.com/pulumi/pulumi-eks/sdk/v2 v2.7.6
-	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.13.1
-	github.com/pulumi/pulumi/sdk/v3 v3.126.0
-	github.com/samber/lo v1.39.0
+	github.com/pulumi/pulumi-aws/sdk/v6 v6.47.0
+	github.com/pulumi/pulumi-awsx/sdk/v2 v2.14.0
+	github.com/pulumi/pulumi-eks/sdk/v2 v2.7.8
+	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.17.1
+	github.com/pulumi/pulumi/sdk/v3 v3.129.0
+	github.com/samber/lo v1.47.0
 	github.com/sethvargo/go-retry v0.2.4
 	github.com/stretchr/testify v1.9.0
 	github.com/xeipuuv/gojsonschema v1.2.0
@@ -71,10 +71,10 @@ require (
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/BurntSushi/toml v1.2.1 // indirect
-	github.com/DataDog/datadog-agent/comp/netflow/payload v0.57.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.57.0-rc.5
+	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc.3
 	github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a // indirect
-	github.com/DataDog/zstd v1.5.2 // indirect
+	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
@@ -88,12 +88,12 @@ require (
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.2 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.19 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.6 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.13 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.13 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.16 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.16 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.0 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.12 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.30.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.42.1
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.32.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.45.2
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.11.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.3.14 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.14 // indirect
@@ -102,7 +102,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.20.12 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.24.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.28.13 // indirect
-	github.com/aws/smithy-go v1.20.3 // indirect
+	github.com/aws/smithy-go v1.20.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
@@ -197,9 +197,9 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
 	github.com/pulumi/esc v0.9.1 // indirect
-	github.com/pulumi/pulumi-command/sdk v0.9.2 // indirect
-	github.com/pulumi/pulumi-docker/sdk/v4 v4.5.1 // indirect
-	github.com/pulumi/pulumi-libvirt/sdk v0.4.5 // indirect
+	github.com/pulumi/pulumi-command/sdk v1.0.1 // indirect
+	github.com/pulumi/pulumi-docker/sdk/v4 v4.5.5 // indirect
+	github.com/pulumi/pulumi-libvirt/sdk v0.4.7 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.16.3 // indirect
 	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.1 // indirect
 	github.com/pulumiverse/pulumi-time/sdk v0.0.17 // indirect

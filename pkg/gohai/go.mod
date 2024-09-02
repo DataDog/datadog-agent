@@ -5,16 +5,16 @@ module github.com/DataDog/datadog-agent/pkg/gohai
 go 1.22.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/log v0.57.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/moby/sys/mountinfo v0.7.2
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/stretchr/testify v1.9.0
-	golang.org/x/sys v0.23.0
+	golang.org/x/sys v0.24.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.57.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0-rc.3 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
