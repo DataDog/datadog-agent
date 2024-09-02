@@ -126,10 +126,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			// TODO: once the cluster-agent is represented as a component, and
 			// not a function (start), this will use `fxutil.Run` instead of
 			// `fxutil.OneShot`.
-
-			defaultforwarderParams := defaultforwarder.NewParamsWithResolvers()
-			defaultforwarderParams.DisableAPIKeyChecking()
-
 			return fxutil.OneShot(start,
 				fx.Supply(globalParams),
 				fx.Supply(core.BundleParams{
@@ -138,7 +134,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForDaemon(command.LoggerName, "log_file", path.DefaultDCALogFile),
 				}),
 				core.Bundle(),
-				forwarder.Bundle(defaultforwarderParams),
+				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers(), defaultforwarder.WithDisableAPIKeyChecking())),
 				compressionimpl.Module(),
 				demultiplexerimpl.Module(),
 				orchestratorForwarderImpl.Module(),

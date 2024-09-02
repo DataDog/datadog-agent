@@ -157,8 +157,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			eventplatforParams.UseNoopEventPlatformForwarder = true
 
 			disableCmdPort()
-			defaultforwarderParams := defaultforwarder.NewParams()
-			defaultforwarderParams.UseNoopForwarder()
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
@@ -177,7 +175,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 				taggerimpl.Module(),
 				autodiscoveryimpl.Module(),
-				forwarder.Bundle(defaultforwarderParams),
+				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithNoopForwarder())),
 				inventorychecksimpl.Module(),
 				// inventorychecksimpl depends on a collector and serializer when created to send payload.
 				// Here we just want to collect metadata to be displayed, so we don't need a collector.

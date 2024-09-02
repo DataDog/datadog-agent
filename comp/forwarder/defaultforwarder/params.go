@@ -11,33 +11,49 @@ import (
 
 // Params contains the parameters to create a forwarder.
 type Params struct {
-	useNoopForwarder              bool
-	withResolver                  bool
+	useNoopForwarder bool
+	withResolver     bool
+
+	// Use optional to override Options.DisableAPIKeyChecking only if WithFeatures was called
 	disableAPIKeyCheckingOverride optional.Option[bool]
 	features                      []Features
 }
 
+type option = func(*Params)
+
 // NewParams initializes a new Params struct
-func NewParams() Params {
-	return Params{withResolver: false}
+func NewParams(options ...option) Params {
+	p := Params{}
+	for _, option := range options {
+		option(&p)
+	}
+	return p
 }
 
-// NewParamsWithResolvers initializes a new Params struct with resolvers
-func NewParamsWithResolvers() Params {
-	return Params{withResolver: true}
+// WithResolvers enables the forwarder to use resolvers
+func WithResolvers() option {
+	return func(p *Params) {
+		p.withResolver = true
+	}
 }
 
-// DisableAPIKeyChecking disables the API key checking
-func (p *Params) DisableAPIKeyChecking() {
-	p.disableAPIKeyCheckingOverride.Set(true)
+// WithDisableAPIKeyChecking disables the API key checking
+func WithDisableAPIKeyChecking() option {
+	return func(p *Params) {
+		p.disableAPIKeyCheckingOverride.Set(true)
+	}
 }
 
-// SetFeature adds a feature to the forwarder
-func (p *Params) SetFeature(feature Features) {
-	p.features = append(p.features, feature)
+// WithFeatures adds a features to the forwarder
+func WithFeatures(features ...Features) option {
+	return func(p *Params) {
+		p.features = features
+	}
 }
 
-// UseNoopForwarder sets the forwarder to use the noop forwarder
-func (p *Params) UseNoopForwarder() {
-	p.useNoopForwarder = true
+// WithNoopForwarder sets the forwarder to use the noop forwarder
+func WithNoopForwarder() option {
+	return func(p *Params) {
+		p.useNoopForwarder = true
+	}
 }
