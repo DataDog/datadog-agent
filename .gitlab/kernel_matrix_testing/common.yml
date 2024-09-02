@@ -117,7 +117,7 @@
         scp $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH.tar.gz metal_instance:/opt/kernel-version-testing
       fi
   after_script:
-    - !referece [.export_dd_api_key_org2]
+    - !reference [.export_dd_api_key_org2]
     - !reference [.tag_kmt_ci_job]
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
@@ -160,7 +160,7 @@
     - jq "." $CI_PROJECT_DIR/stack.output
     - pulumi logout
   after_script:
-    - !referece [.export_dd_api_key_org2]
+    - !reference [.export_dd_api_key_org2]
     - export AWS_PROFILE=agent-qa-ci
     - !reference [.shared_filters_and_queries]
     - mkdir -p $CI_PROJECT_DIR/libvirt/log/$ARCH $CI_PROJECT_DIR/libvirt/xml $CI_PROJECT_DIR/libvirt/qemu $CI_PROJECT_DIR/libvirt/dnsmasq

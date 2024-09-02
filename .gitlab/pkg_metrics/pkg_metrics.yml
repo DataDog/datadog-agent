@@ -57,7 +57,7 @@ send_pkg_size:
       optional: true
   script:
     # Get API key to send metrics
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2)
+    - !reference [.export_dd_api_key_org2]
 
     # Allow failures: some packages are not always built, and therefore stats cannot be sent for them
     - set +e

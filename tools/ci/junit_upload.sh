@@ -6,8 +6,13 @@ if [[ -n "$1" ]]; then
     junit_files="$1"
 fi
 
-GITLAB_TOKEN="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$GITLAB_READ_API_TOKEN")"
-DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$API_KEY_ORG2")"
+# Open file description for secrets
+# shellcheck source=/dev/null
+source "$CI_PROJECT_DIR"/tools/ci/open_file_descriptor.sh
+"$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$GITLAB_READ_API_TOKEN"
+"$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$API_KEY_ORG2"
+DATADOG_API_KEY=$(pop_front)
+GITLAB_TOKEN=$(pop_front)
 export DATADOG_API_KEY
 export GITLAB_TOKEN
 error=0
