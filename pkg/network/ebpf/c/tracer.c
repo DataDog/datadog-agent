@@ -947,7 +947,7 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_retransmit_skb, int rc) {
 SEC("kprobe/tcp_connect")
 int BPF_BYPASSABLE_KPROBE(kprobe__tcp_connect, struct sock *skp) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("kprobe/tcp_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("adamk kprobe/tcp_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
     bpf_map_update_with_telemetry(tcp_failed_connect_telemetry, &skp, &pid_tgid, BPF_ANY);
 
@@ -964,12 +964,17 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_connect, struct sock *skp) {
     u64 *existing_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn);
     if (existing_pid) {
         if (*existing_pid == pid_tgid) {
-            log_debug("kprobe/tcp_connect: ongoing connect already exists, pid: %llu", *existing_pid);
+            log_debug("adamk kprobe/tcp_connect: ongoing connect already exists, pid: %llu", *existing_pid);
             increment_telemetry_count(tcp_connect_pid_match);
         } else {
-            log_debug("kprobe/tcp_connect: ongoing connect already exists, pid: %llu", *existing_pid);
+            log_debug("adamk kprobe/tcp_connect: ongoing connect already exists, pid: %llu", *existing_pid);
             increment_telemetry_count(tcp_connect_pid_mismatch);
         }
+    }
+    u16 protocol = 0;
+    bpf_probe_read_kernel_with_telemetry(&protocol, sizeof(protocol), (&skp->sk_protocol));
+    if (protocol != IPPROTO_TCP) {
+        log_debug("adamk kprobe/tcp_connect: non TCP sk_protocol");
     }
 
     if (tcp_failed_connections_enabled()) {
@@ -1010,7 +1015,7 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__inet_csk_accept, struct sock *sk) {
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("kretprobe/inet_csk_accept: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("adamk kretprobe/inet_csk_accept: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
@@ -1030,10 +1035,15 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__inet_csk_accept, struct sock *sk) {
     skp_conn.sk = sk;
     skp_conn.tup = t;
     log_debug("adamk kretprobe/inet_csk_accept: skp_conn.tup.pid: %u", skp_conn.tup.pid);
+    u16 protocol = 0;
+    bpf_probe_read_kernel_with_telemetry(&protocol, sizeof(protocol), (&sk->sk_protocol));
+    if (protocol != IPPROTO_TCP) {
+        log_debug("adamk kprobe/inet_csk_accept: non TCP sk_protocol");
+    }
 
     bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp_conn, &pid_tgid, BPF_ANY);
 
-    log_debug("kretprobe/inet_csk_accept: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
+    log_debug("adamk kretprobe/inet_csk_accept: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
     return 0;
 }
 
