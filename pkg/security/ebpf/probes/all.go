@@ -109,7 +109,6 @@ func AllMaps() []*manager.Map {
 		// Filters
 		{Name: "filter_policy"},
 		{Name: "inode_discarders"},
-		{Name: "pid_discarders"},
 		{Name: "inode_disc_revisions"},
 		{Name: "basename_approvers"},
 		// Dentry resolver table

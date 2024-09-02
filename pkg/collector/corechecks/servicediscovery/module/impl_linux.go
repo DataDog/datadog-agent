@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/prometheus/procfs"
 	"github.com/shirou/gopsutil/v3/process"
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -43,22 +45,30 @@ type serviceInfo struct {
 	nameFromDDService  bool
 	language           language.Language
 	apmInstrumentation apm.Instrumentation
+	cmdLine            []string
+	startTimeSecs      uint64
 }
 
 // discovery is an implementation of the Module interface for the discovery module.
 type discovery struct {
+	mux *sync.RWMutex
 	// cache maps pids to data that should be cached between calls to the endpoint.
 	cache map[int32]*serviceInfo
 
 	// privilegedDetector is used to detect the language of a process.
 	privilegedDetector privileged.LanguageDetector
+
+	// scrubber is used to remove potentially sensitive data from the command line
+	scrubber *procutil.DataScrubber
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
 func NewDiscoveryModule(*sysconfigtypes.Config, workloadmeta.Component, telemetry.Component) (module.Module, error) {
 	return &discovery{
+		mux:                &sync.RWMutex{},
 		cache:              make(map[int32]*serviceInfo),
 		privilegedDetector: privileged.NewLanguageDetector(),
+		scrubber:           procutil.NewDefaultDataScrubber(),
 	}, nil
 }
 
@@ -70,12 +80,14 @@ func (s *discovery) GetStats() map[string]interface{} {
 // Register registers the discovery module with the provided HTTP mux.
 func (s *discovery) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/status", s.handleStatusEndpoint)
-	httpMux.HandleFunc(pathServices, s.handleServices)
+	httpMux.HandleFunc(pathServices, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleServices))
 	return nil
 }
 
 // Close cleans resources used by the discovery module.
 func (s *discovery) Close() {
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	clear(s.cache)
 }
 
@@ -224,6 +236,11 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 		return nil, err
 	}
 
+	createTime, err := proc.CreateTime()
+	if err != nil {
+		return nil, err
+	}
+
 	contextMap := make(usm.DetectorContextMap)
 
 	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
@@ -239,6 +256,8 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 		language:           lang,
 		apmInstrumentation: apmInstrumentation,
 		nameFromDDService:  fromDDService,
+		cmdLine:            sanitizeCmdLine(s.scrubber, cmdline),
+		startTimeSecs:      uint64(createTime / 1000),
 	}, nil
 }
 
@@ -300,7 +319,10 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	}
 
 	var info *serviceInfo
-	if cached, ok := s.cache[pid]; ok {
+	s.mux.RLock()
+	cached, ok := s.cache[pid]
+	s.mux.RUnlock()
+	if ok {
 		info = cached
 	} else {
 		info, err = s.getServiceInfo(proc)
@@ -308,7 +330,9 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 			return nil
 		}
 
+		s.mux.Lock()
 		s.cache[pid] = info
+		s.mux.Unlock()
 	}
 
 	nameSource := "generated"
@@ -324,6 +348,8 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		APMInstrumentation: string(info.apmInstrumentation),
 		Language:           string(info.language),
 		RSS:                rss,
+		CommandLine:        info.cmdLine,
+		StartTimeSecs:      info.startTimeSecs,
 	}
 }
 
@@ -331,6 +357,8 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 // shrink the map but should free memory for the service name strings referenced
 // from it.
 func (s *discovery) cleanCache(alivePids map[int32]struct{}) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	for pid := range s.cache {
 		if _, alive := alivePids[pid]; alive {
 			continue
