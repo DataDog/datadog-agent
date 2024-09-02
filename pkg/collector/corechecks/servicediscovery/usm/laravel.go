@@ -12,6 +12,8 @@ import (
 	"path"
 	"regexp"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type laravelParser struct {
@@ -49,6 +51,7 @@ func trimPrefixFromLine(fs fs.SubFS, file string, prefix string) (string, bool) 
 		defer f.Close()
 		reader, err := SizeVerifiedReader(f)
 		if err != nil {
+			log.Debugf("laravel: ignoring %q: %v", file, err)
 			return "", false
 		}
 
@@ -83,6 +86,7 @@ func (l laravelParser) getLaravelAppNameFromConfig(dir string) (string, bool) {
 			defer f.Close()
 			reader, err := SizeVerifiedReader(f)
 			if err != nil {
+				log.Debugf("laravel: ignoring %q: %v", configFileName, err)
 				return "", false
 			}
 			configFileContent, err := io.ReadAll(reader)

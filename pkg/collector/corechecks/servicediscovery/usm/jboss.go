@@ -162,6 +162,7 @@ func (j jbossExtractor) customExtractWarContextRoot(warFS fs.FS) (string, bool) 
 	defer file.Close()
 	reader, err := SizeVerifiedReader(file)
 	if err != nil {
+		log.Debugf("jboss: ignoring %q: %v", jbossWebXMLFileWebInf, err)
 		return "", false
 	}
 	var jwx jbossWebXML
@@ -219,6 +220,7 @@ func jbossDomainFindDeployments(basePathFs fs.FS, configFile string, serverName 
 	defer file.Close()
 	reader, err := SizeVerifiedReader(file)
 	if err != nil {
+		log.Debugf("jboss: ignoring %q: %v", jbossWebXMLFileWebInf, err)
 		return nil, err
 	}
 	var descriptor jbossDomainXML
