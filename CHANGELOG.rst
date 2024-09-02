@@ -2,6 +2,29 @@
 Release Notes
 =============
 
+.. _Release Notes_7.56.2:
+
+7.56.2
+======
+
+.. _Release Notes_7.56.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-09-02
+
+- Please refer to the `7.56.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7562>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.56.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix issue causing GUI to fail when opening with Internet Explorer on Windows.
+
+
 .. _Release Notes_7.56.1:
 
 7.56.1
