@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pingcheck "github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
@@ -37,7 +38,7 @@ type pinger struct{}
 var Pinger = module.Factory{
 	Name:             config.PingModule,
 	ConfigNamespaces: []string{"ping"},
-	Fn: func(_ *sysconfigtypes.Config, _ workloadmeta.Component, _ telemetry.Component) (module.Module, error) {
+	Fn: func(_ *sysconfigtypes.Config, _ workloadmeta.Component, _ telemetry.Component, _ tagger.Component) (module.Module, error) {
 		return &pinger{}, nil
 	},
 	NeedsEBPF: func() bool {

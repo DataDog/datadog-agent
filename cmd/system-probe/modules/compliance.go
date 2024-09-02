@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
@@ -36,7 +37,7 @@ import (
 var ComplianceModule = module.Factory{
 	Name:             config.ComplianceModule,
 	ConfigNamespaces: []string{},
-	Fn: func(_ *sysconfigtypes.Config, _ workloadmeta.Component, _ telemetry.Component) (module.Module, error) {
+	Fn: func(_ *sysconfigtypes.Config, _ workloadmeta.Component, _ telemetry.Component, _ tagger.Component) (module.Module, error) {
 		return &complianceModule{}, nil
 	},
 	NeedsEBPF: func() bool {
