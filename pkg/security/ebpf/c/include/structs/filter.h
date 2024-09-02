@@ -45,14 +45,6 @@ struct inode_discarder_params_t {
     u32 mount_revision;
 };
 
-struct pid_discarder_params_t {
-    struct discarder_params_t params;
-};
-
-struct pid_discarder_t {
-    u32 tgid;
-};
-
 struct inode_discarder_t {
     struct path_key_t path_key;
     u32 is_leaf;
