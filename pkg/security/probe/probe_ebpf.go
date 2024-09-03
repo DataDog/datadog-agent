@@ -331,6 +331,8 @@ func (p *EBPFProbe) Init() error {
 		return err
 	}
 
+	p.processKiller.Start(p.ctx, &p.wg)
+
 	return nil
 }
 

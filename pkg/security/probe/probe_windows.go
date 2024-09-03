@@ -196,6 +196,8 @@ type etwCallback func(n interface{}, pid uint32)
 // Init initializes the probe
 func (p *WindowsProbe) Init() error {
 
+	p.processKiller.Start(p.ctx, &p.wg)
+
 	if !p.opts.disableProcmon {
 		pm, err := procmon.NewWinProcMon(p.onStart, p.onStop, p.onError, procmon.ProcmonDefaultReceiveSize, procmon.ProcmonDefaultNumBufs)
 		if err != nil {

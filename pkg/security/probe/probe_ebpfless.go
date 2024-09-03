@@ -351,6 +351,8 @@ func (p *EBPFLessProbe) DispatchEvent(event *model.Event) {
 
 // Init the probe
 func (p *EBPFLessProbe) Init() error {
+	p.processKiller.Start(p.ctx, &p.wg)
+
 	if err := p.Resolvers.Start(p.ctx); err != nil {
 		return err
 	}
