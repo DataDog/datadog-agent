@@ -528,6 +528,7 @@ func generateTmpEnhancedMetrics(args generateTmpEnhancedMetricsArgs) {
 }
 
 func SendTmpEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *ServerlessMetricAgent) {
+	fmt.Printf("=== started SendTmpEnhancedMetrics ===\n")
 	if enhancedMetricsDisabled {
 		return
 	}
@@ -562,6 +563,7 @@ func SendTmpEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *S
 				return
 			}
 			tmpUsed = math.Max(tmpUsed, bsize*(blocks-bavail))
+			fmt.Printf("=== tmpUsed: %f ==\n", tmpUsed)
 		}
 	}
 
@@ -596,6 +598,7 @@ func generateFdEnhancedMetrics(args generateFdEnhancedMetricsArgs) {
 }
 
 func SendFdEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *ServerlessMetricAgent) {
+	fmt.Printf("=== started SendFdEnhancedMetrics ===\n")
 	if enhancedMetricsDisabled {
 		return
 	}
@@ -615,7 +618,7 @@ func SendFdEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *Se
 	fdMax := fdMaxData.MaximumFileHandles
 	fdUse := fdUseData.UseFileHandles
 
-	ticker := time.NewTicker(10 * time.Millisecond)
+	ticker := time.NewTicker(1 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		select {
@@ -637,6 +640,7 @@ func SendFdEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *Se
 				log.Debugf("Could not emit file descriptor enhanced metrics. %v", err)
 				return
 			}
+			fmt.Printf("=== curr fdUse: %f ===\n", fdUseData.UseFileHandles)
 			fdUse = math.Max(fdUse, fdUseData.UseFileHandles)
 		}
 	}

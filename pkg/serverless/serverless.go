@@ -158,13 +158,31 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 }
 
 func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, safetyBufferTimeout time.Duration, requestID string, invocationHandler InvocationHandler) {
+	// // check all pids
+	// pids := proc.GetPidList("/proc")
+	// fmt.Printf("=== datadog-agent getPidList: %+v===\n", pids)
+	// for _, pid := range pids {
+	// 	// Path to the process's cmdline file
+	// 	cmdlinePath := fmt.Sprintf("/proc/%d/comm", pid)
+
+	// 	// Read the process name from the comm file
+	// 	data, err := os.ReadFile(cmdlinePath)
+	// 	if err != nil {
+	// 		fmt.Printf("could not read proc/%d/comm file", pid)
+	// 	}
+
+	// 	// The process name is a single line
+	// 	fmt.Printf("=== proc/%d/comm file data: %+v", pid, strings.TrimSpace(string(data)))
+	// }
+	// fmt.Printf("=== datadog-agent process self pid: %d ===\n", os.Getpid())
+
 	cpuOffsetData, cpuOffsetErr := proc.GetCPUData()
 	uptimeOffset, uptimeOffsetErr := proc.GetUptime()
 	networkOffsetData, networkOffsetErr := proc.GetNetworkData()
-	sendTmpMetrics := make(chan bool)
-	go metrics.SendTmpEnhancedMetrics(sendTmpMetrics, daemon.ExtraTags.Tags, daemon.MetricAgent)
 	sendFdMetrics := make(chan bool)
 	go metrics.SendFdEnhancedMetrics(sendFdMetrics, daemon.ExtraTags.Tags, daemon.MetricAgent)
+	sendTmpMetrics := make(chan bool)
+	go metrics.SendTmpEnhancedMetrics(sendTmpMetrics, daemon.ExtraTags.Tags, daemon.MetricAgent)
 
 	timeout := computeTimeout(time.Now(), deadlineMs, safetyBufferTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)

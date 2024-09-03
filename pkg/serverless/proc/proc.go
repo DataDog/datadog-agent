@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -211,36 +212,83 @@ type FileDescriptorMaxData struct {
 
 // GetFileDescriptorMaxData returns the maximum limit of file descriptors the function can use
 func GetFileDescriptorMaxData() (*FileDescriptorMaxData, error) {
-	return getFileDescriptorMaxData(ProcSelfLimits)
+	return getFileDescriptorMaxData()
 }
 
-func getFileDescriptorMaxData(path string) (*FileDescriptorMaxData, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
+func getFileDescriptorMaxData() (*FileDescriptorMaxData, error) {
+	pids := getPidList("/proc")
+	fmt.Printf("=== getFileDescriptorMaxData pidList: %+v ===\n", pids)
+	fdMax := math.Inf(1)
 
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.Contains(line, "Max open files") {
-			fields := strings.Fields(line)
-			if len(fields) < 4 {
-				return nil, fmt.Errorf("file descriptor max data not found in file '%s'", path)
+	for _, pid := range pids {
+		path := fmt.Sprintf("/proc/%d/limits", pid)
+
+		file, err := os.Open(path)
+		if err != nil {
+			return nil, err
+		}
+		defer file.Close()
+
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.HasPrefix(line, "Max open files") {
+				fields := strings.Fields(line)
+				if len(fields) < 4 {
+					log.Debugf("file descriptor max data not found in file '%s'", path)
+				}
+
+				fdMaxPidStr := fields[3]
+				fdMaxPid, err := strconv.Atoi(fdMaxPidStr)
+				if err != nil {
+					log.Debugf("file descriptor max data not found in file '%s'", path)
+				}
+
+				fmt.Printf("=== pid: %d, fdMax limit: %d ===\n", pid, fdMaxPid)
+				fdMax = math.Min(float64(fdMax), float64(fdMaxPid))
+				break
 			}
-			fdMaxStr := fields[3]
-			fdMax, err := strconv.Atoi(fdMaxStr)
-			if err != nil {
-				return nil, fmt.Errorf("file descriptor max data not found in file '%s'", path)
-			}
-			return &FileDescriptorMaxData{
-				MaximumFileHandles: float64(fdMax),
-			}, nil
 		}
 	}
-	return nil, fmt.Errorf("file descriptor max data not found in file '%s'", path)
+
+	fmt.Printf("=== fdMax considering all pids: %f ===\n", fdMax)
+
+	if fdMax != math.Inf(1) {
+		return &FileDescriptorMaxData{
+			MaximumFileHandles: fdMax,
+		}, nil
+	}
+
+	return nil, fmt.Errorf("file descriptor max data not found")
 }
+
+// func getFileDescriptorMaxData(path string) (*FileDescriptorMaxData, error) {
+// 	file, err := os.Open(path)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	defer file.Close()
+
+// 	scanner := bufio.NewScanner(file)
+// 	for scanner.Scan() {
+// 		line := scanner.Text()
+// 		if strings.Contains(line, "Max open files") {
+// 			fields := strings.Fields(line)
+// 			if len(fields) < 4 {
+// 				return nil, fmt.Errorf("file descriptor max data not found in file '%s'", path)
+// 			}
+// 			fdMaxStr := fields[3]
+// 			fdMax, err := strconv.Atoi(fdMaxStr)
+// 			if err != nil {
+// 				return nil, fmt.Errorf("file descriptor max data not found in file '%s'", path)
+// 			}
+// 			return &FileDescriptorMaxData{
+// 				MaximumFileHandles: float64(fdMax),
+// 			}, nil
+// 		}
+// 	}
+// 	return nil, fmt.Errorf("file descriptor max data not found in file '%s'", path)
+// }
 
 type FileDescriptorUseData struct {
 	UseFileHandles float64
@@ -248,16 +296,21 @@ type FileDescriptorUseData struct {
 
 // GetFileDescriptorUseData returns the maximum number of file descriptors the function has used at a time
 func GetFileDescriptorUseData() (*FileDescriptorUseData, error) {
-	return getFileDescriptorUseData(ProcSelfFd)
+	return getFileDescriptorUseData()
 }
 
-func getFileDescriptorUseData(path string) (*FileDescriptorUseData, error) {
-	files, err := os.ReadDir(path)
-	if err != nil {
-		return nil, err
-	}
+func getFileDescriptorUseData() (*FileDescriptorUseData, error) {
+	pids := getPidList("/proc")
+	fdUse := 0
 
-	fdUse := len(files)
+	for _, pid := range pids {
+		path := fmt.Sprintf("/proc/%d/fd", pid)
+		files, err := os.ReadDir(path)
+		if err != nil {
+			return nil, err
+		}
+		fdUse += len(files)
+	}
 
 	return &FileDescriptorUseData{
 		UseFileHandles: float64(fdUse),
