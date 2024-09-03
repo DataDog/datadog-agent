@@ -44,7 +44,7 @@ func WithDisableAPIKeyChecking() option {
 	}
 }
 
-// WithFeatures adds a features to the forwarder
+// WithFeatures sets a features to the forwarder
 func WithFeatures(features ...Features) option {
 	return func(p *Params) {
 		p.features = features

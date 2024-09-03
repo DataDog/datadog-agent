@@ -49,9 +49,8 @@ func createOptions(params Params, config config.Component, log log.Component) *O
 	if disableAPIKeyChecking, ok := params.disableAPIKeyCheckingOverride.Get(); ok {
 		options.DisableAPIKeyChecking = disableAPIKeyChecking
 	}
-	for _, feature := range params.features {
-		options.EnabledFeatures = SetFeature(options.EnabledFeatures, feature)
-	}
+	options.SetEnabledFeatures(params.features)
+
 	return options
 }
 
