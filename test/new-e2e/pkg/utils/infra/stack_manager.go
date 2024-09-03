@@ -56,11 +56,16 @@ var (
 	initStackManager sync.Once
 )
 
+// RetryStrategy is a function that given the current error and the number of retries, returns the type of retry to perform
+type RetryStrategy func(error, int) RetryType
+
 // StackManager handles
 type StackManager struct {
-	stacks *safeStackMap
-
+	stacks      *safeStackMap
 	knownErrors []knownError
+
+	// RetryStrategy defines how to handle retries. By default points to StackManager.getRetryStrategyFrom but can be overridden
+	RetryStrategy RetryStrategy
 }
 
 type safeStackMap struct {
@@ -111,10 +116,13 @@ func GetStackManager() *StackManager {
 }
 
 func newStackManager() (*StackManager, error) {
-	return &StackManager{
+	sm := &StackManager{
 		stacks:      newSafeStackMap(),
 		knownErrors: getKnownErrors(),
-	}, nil
+	}
+	sm.RetryStrategy = sm.getRetryStrategyFrom
+
+	return sm, nil
 }
 
 // GetStack creates or return a stack based on stack name and config, if error occurs during stack creation it destroy all the resources created
@@ -515,7 +523,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, deployFunc pu
 			}
 		}
 
-		retryStrategy := sm.getRetryStrategyFrom(upError, upCount)
+		retryStrategy := sm.RetryStrategy(upError, upCount)
 		sendEventToDatadog(params.DatadogEventSender, fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", name), upError.Error(), []string{"operation:up", "result:fail", fmt.Sprintf("retry:%s", retryStrategy), fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)})
 
 		switch retryStrategy {
