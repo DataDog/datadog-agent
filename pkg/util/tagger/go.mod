@@ -3,13 +3,19 @@ module github.com/DataDog/datadog-agent/pkg/util/tagger
 go 1.22.0
 
 replace (
+	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
+	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
+	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../comp/core/secrets
+	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
+	github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../config/env
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../config/setup
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../util/filesystem
+	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../util/log
 	github.com/DataDog/datadog-agent/pkg/util/optional => ../../util/optional
@@ -17,6 +23,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/system => ../../util/system
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../util/system/socket
+	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../util/testutil
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../util/winutil
 )
 
