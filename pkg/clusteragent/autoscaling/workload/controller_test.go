@@ -9,6 +9,7 @@ package workload
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 )
 
 type fixture struct {
@@ -235,6 +237,8 @@ func TestDatadogPodAutoscalerTargetingClusterAgent(t *testing.T) {
 	f := newFixture(t, testTime)
 
 	t.Setenv("DD_POD_NAME", "datadog-agent-cluster-agent-7dbf798595-tp9lg")
+	currentNs := common.GetMyNamespace()
+	id := fmt.Sprintf("%s/dpa-dca", currentNs)
 
 	dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
 		TargetRef: autoscalingv2.CrossVersionObjectReference{
@@ -246,7 +250,7 @@ func TestDatadogPodAutoscalerTargetingClusterAgent(t *testing.T) {
 		Owner: datadoghq.DatadogPodAutoscalerLocalOwner,
 	}
 
-	dpa, dpaTyped := newFakePodAutoscaler("default", "dpa-dca", 1, dpaSpec, datadoghq.DatadogPodAutoscalerStatus{})
+	dpa, dpaTyped := newFakePodAutoscaler(currentNs, "dpa-dca", 1, dpaSpec, datadoghq.DatadogPodAutoscalerStatus{})
 	f.InformerObjects = append(f.InformerObjects, dpa)
 
 	expectedDPAError := &datadoghq.DatadogPodAutoscaler{
@@ -256,7 +260,7 @@ func TestDatadogPodAutoscalerTargetingClusterAgent(t *testing.T) {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "dpa-dca",
-			Namespace:  "default",
+			Namespace:  currentNs,
 			Generation: 1,
 			UID:        dpa.GetUID(),
 		},
@@ -311,15 +315,15 @@ func TestDatadogPodAutoscalerTargetingClusterAgent(t *testing.T) {
 	}
 	expectedUnstructuredError, err := autoscaling.ToUnstructured(expectedDPAError)
 	assert.NoError(t, err)
-	f.RunControllerSync(true, "default/dpa-dca")
+	f.RunControllerSync(true, id)
 
 	f.Objects = append(f.Objects, dpaTyped)
 	f.Actions = nil
 
 	f.ExpectUpdateStatusAction(expectedUnstructuredError)
-	f.RunControllerSync(true, "default/dpa-dca")
+	f.RunControllerSync(true, id)
 	assert.Len(t, f.store.GetAll(), 1)
-	pai, found := f.store.Get("default/dpa-dca")
+	pai, found := f.store.Get(id)
 	assert.Truef(t, found, "Expected to find DatadogPodAutoscaler in store")
 	assert.Equal(t, errors.New("Autoscaling target cannot be set to the cluster agent"), pai.Error())
 }
