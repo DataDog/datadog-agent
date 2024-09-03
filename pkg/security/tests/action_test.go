@@ -19,13 +19,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/avast/retry-go/v4"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
