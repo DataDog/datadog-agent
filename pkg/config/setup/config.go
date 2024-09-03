@@ -1494,6 +1494,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Experimental auto multiline detection settings (these are subject to change until the feature is no longer experimental)
 	config.BindEnvAndSetDefault("logs_config.experimental_auto_multi_line_detection", false)
 	config.SetKnown("logs_config.auto_multi_line_detection_custom_samples")
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_json_detection", true)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line.enable_datetime_detection", true)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.timestamp_detector_match_threshold", 0.5)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.tokenizer_max_input_bytes", 60)
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line.pattern_table_max_size", 20)
