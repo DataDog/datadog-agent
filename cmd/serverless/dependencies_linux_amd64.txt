@@ -270,6 +270,7 @@ github.com/DataDog/datadog-agent/pkg/util/fargate
 github.com/DataDog/datadog-agent/pkg/util/filesystem
 github.com/DataDog/datadog-agent/pkg/util/flavor
 github.com/DataDog/datadog-agent/pkg/util/fxutil
+github.com/DataDog/datadog-agent/pkg/util/fxutil/logging
 github.com/DataDog/datadog-agent/pkg/util/hostname
 github.com/DataDog/datadog-agent/pkg/util/hostname/validate
 github.com/DataDog/datadog-agent/pkg/util/http
