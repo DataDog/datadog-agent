@@ -192,7 +192,7 @@ func ExtractServiceMetadata(args []string, envs map[string]string, fs fs.SubFS, 
 		return ServiceMetadata{}, false
 	}
 
-	if value, ok := chooseServiceNameFromEnvs(dc.envs); ok {
+	if value, ok := envs["DD_SERVICE"]; ok {
 		metadata := NewServiceMetadata(value)
 		// we only want to set FromDDService to true if the name wasn't assigned by injection
 		metadata.FromDDService = checkForInjectionNaming(dc.envs)
@@ -291,24 +291,6 @@ func normalizeExeName(exe string) string {
 		}
 	}
 	return exe
-}
-
-// chooseServiceNameFromEnvs extracts the service name from usual tracer env variables (DD_SERVICE, DD_TAGS).
-// returns the service name, true if found, otherwise "", false
-func chooseServiceNameFromEnvs(envs map[string]string) (string, bool) {
-	if val, ok := envs["DD_SERVICE"]; ok {
-		return val, true
-	}
-	if val, ok := envs["DD_TAGS"]; ok && strings.Contains(val, "service:") {
-		parts := strings.Split(val, ",")
-		for _, p := range parts {
-			if strings.HasPrefix(p, "service:") {
-				return strings.TrimPrefix(p, "service:"), true
-			}
-		}
-	}
-
-	return "", false
 }
 
 func (simpleDetector) detect(args []string) (ServiceMetadata, bool) {

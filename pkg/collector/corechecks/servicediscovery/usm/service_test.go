@@ -16,8 +16,9 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 )
 
 const (
@@ -78,15 +79,6 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"./my-server.sh",
 			},
 			envs:               map[string]string{"DD_SERVICE": "my-service"},
-			expectedServiceTag: "my-service",
-			fromDDService:      true,
-		},
-		{
-			name: "single arg executable with DD_TAGS",
-			cmdline: []string{
-				"./my-server.sh",
-			},
-			envs:               map[string]string{"DD_TAGS": "service:my-service"},
 			expectedServiceTag: "my-service",
 			fromDDService:      true,
 		},
@@ -443,13 +435,6 @@ func TestExtractServiceMetadata(t *testing.T) {
 			name:               "DD_SERVICE_set_manually",
 			cmdline:            []string{"java", "-jar", "Foo.jar"},
 			envs:               map[string]string{"DD_SERVICE": "howdy"},
-			expectedServiceTag: "howdy",
-			fromDDService:      true,
-		},
-		{
-			name:               "DD_SERVICE_set_manually_tags",
-			cmdline:            []string{"java", "-jar", "Foo.jar"},
-			envs:               map[string]string{"DD_TAGS": "service:howdy"},
 			expectedServiceTag: "howdy",
 			fromDDService:      true,
 		},
