@@ -343,6 +343,17 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedGeneratedName: "app",
 		},
 		{
+			// The system property takes priority over the environment variable, see
+			// https://docs.datadoghq.com/tracing/trace_collection/library_config/java/
+			name: "java with dd_service as system property and DD_SERVICE",
+			cmdline: []string{
+				"/usr/bin/java", "-Ddd.service=dd-service-from-property", "-jar", "app.jar",
+			},
+			envs:                  map[string]string{"DD_SERVICE": "dd-service-from-env"},
+			expectedDDService:     "dd-service-from-property",
+			expectedGeneratedName: "app",
+		},
+		{
 			name: "Tomcat 10.X",
 			cmdline: []string{
 				"/usr/bin/java",
