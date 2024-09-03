@@ -30,6 +30,11 @@ func (*noOpConntracker) GetTranslationForConn(c *network.ConnectionStats) *netwo
 	return nil
 }
 
+// GetAndDeleteTranslationForConn gets and deletes the NAT translation for a connection
+func (*noOpConntracker) GetAndDeleteTranslationForConn(c *network.ConnectionStats) *network.IPTranslation {
+	return nil
+}
+
 //nolint:revive // TODO(NET) Fix revive linter
 func (*noOpConntracker) DeleteTranslation(c *network.ConnectionStats) {
 

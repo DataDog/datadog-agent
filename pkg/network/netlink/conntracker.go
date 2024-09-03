@@ -50,7 +50,10 @@ type Conntracker interface {
 	Describe(descs chan<- *prometheus.Desc)
 	// Collect returns the current state of all metrics of the collector
 	Collect(metrics chan<- prometheus.Metric)
+	// GetTranslationForConn gets a NAT translation for a connection
 	GetTranslationForConn(*network.ConnectionStats) *network.IPTranslation
+	// GetAndDeleteTranslationForConn gets and deletes the NAT translation for a connection
+	GetAndDeleteTranslationForConn(*network.ConnectionStats) *network.IPTranslation
 	// GetType returns a string describing whether the conntracker is "ebpf" or "netlink"
 	GetType() string
 	DeleteTranslation(*network.ConnectionStats)
@@ -184,14 +187,26 @@ func (ctr *realConntracker) GetType() string {
 }
 
 func (ctr *realConntracker) GetTranslationForConn(c *network.ConnectionStats) *network.IPTranslation {
+	ctr.Lock()
+	defer ctr.Unlock()
+
+	return ctr.getTranslation(c, false)
+}
+
+// GetAndDeleteTranslationForConn gets and deletes the NAT translation for a connection
+func (ctr *realConntracker) GetAndDeleteTranslationForConn(c *network.ConnectionStats) *network.IPTranslation {
+	ctr.Lock()
+	defer ctr.Unlock()
+
+	return ctr.getTranslation(c, true)
+}
+
+func (ctr *realConntracker) getTranslation(c *network.ConnectionStats, delete bool) *network.IPTranslation {
 	then := time.Now()
 	defer func() {
 		conntrackerTelemetry.getsDuration.Observe(float64(time.Since(then).Nanoseconds()))
 		conntrackerTelemetry.getsTotal.Inc()
 	}()
-
-	ctr.Lock()
-	defer ctr.Unlock()
 
 	k := connKey{
 		src:       netip.AddrPortFrom(ipFromAddr(c.Source), c.SPort),
@@ -202,6 +217,12 @@ func (ctr *realConntracker) GetTranslationForConn(c *network.ConnectionStats) *n
 	t, ok := ctr.cache.Get(k)
 	if !ok {
 		return nil
+	}
+
+	if delete {
+		if ctr.cache.Remove(k) {
+			conntrackerTelemetry.unregistersTotal.Inc()
+		}
 	}
 
 	return t.IPTranslation

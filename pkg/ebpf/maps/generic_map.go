@@ -167,6 +167,13 @@ func (g *GenericMap[K, V]) Delete(key *K) error {
 	return g.m.Delete(unsafe.Pointer(key))
 }
 
+// LookupAndDelete retrieves and deletes a value from a Map.
+//
+// Returns ErrKeyNotExist if the key doesn't exist.
+func (g *GenericMap[K, V]) LookupAndDelete(key *K, valueOut *V) error {
+	return g.m.LookupAndDelete(key, valueOut)
+}
+
 // BatchDelete deletes a batch of keys from the map. Returns the number of deleted items
 func (g *GenericMap[K, V]) BatchDelete(keys []K) (int, error) {
 	return g.m.BatchDelete(keys, nil)
