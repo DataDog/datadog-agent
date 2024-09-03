@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/stretchr/testify/assert"
 )
@@ -34,7 +35,7 @@ hostname: 1.2.3.4
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(60) * time.Second,
 				Namespace:             "my-namespace",
-				Timeout:               defaultTimeout,
+				Timeout:               setup.DefaultNetworkPathTimeout,
 			},
 		},
 		{
@@ -69,7 +70,7 @@ min_collection_interval: 10
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(42) * time.Second,
 				Namespace:             "my-namespace",
-				Timeout:               defaultTimeout,
+				Timeout:               setup.DefaultNetworkPathTimeout,
 			},
 		},
 		{
@@ -84,7 +85,7 @@ min_collection_interval: 10
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(10) * time.Second,
 				Namespace:             "my-namespace",
-				Timeout:               defaultTimeout,
+				Timeout:               setup.DefaultNetworkPathTimeout,
 			},
 		},
 		{
@@ -96,7 +97,7 @@ hostname: 1.2.3.4
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(1) * time.Minute,
 				Namespace:             "my-namespace",
-				Timeout:               defaultTimeout,
+				Timeout:               setup.DefaultNetworkPathTimeout,
 			},
 		},
 		{
@@ -113,7 +114,7 @@ destination_service: service-b
 				DestinationService:    "service-b",
 				MinCollectionInterval: time.Duration(60) * time.Second,
 				Namespace:             "my-namespace",
-				Timeout:               defaultTimeout,
+				Timeout:               setup.DefaultNetworkPathTimeout,
 			},
 		},
 		{
@@ -128,7 +129,7 @@ protocol: udp
 				MinCollectionInterval: time.Duration(60) * time.Second,
 				Namespace:             "my-namespace",
 				Protocol:              payload.ProtocolUDP,
-				Timeout:               defaultTimeout,
+				Timeout:               setup.DefaultNetworkPathTimeout,
 			},
 		},
 		{
@@ -143,7 +144,7 @@ protocol: UDP
 				MinCollectionInterval: time.Duration(60) * time.Second,
 				Namespace:             "my-namespace",
 				Protocol:              payload.ProtocolUDP,
-				Timeout:               defaultTimeout,
+				Timeout:               setup.DefaultNetworkPathTimeout,
 			},
 		},
 		{
@@ -158,7 +159,7 @@ protocol: TCP
 				MinCollectionInterval: time.Duration(60) * time.Second,
 				Namespace:             "my-namespace",
 				Protocol:              payload.ProtocolTCP,
-				Timeout:               defaultTimeout,
+				Timeout:               setup.DefaultNetworkPathTimeout,
 			},
 		},
 		{
@@ -226,7 +227,7 @@ min_collection_interval: 10
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(42) * time.Second,
 				Namespace:             "my-namespace",
-				Timeout:               defaultTimeout,
+				Timeout:               setup.DefaultNetworkPathTimeout,
 			},
 		},
 		{

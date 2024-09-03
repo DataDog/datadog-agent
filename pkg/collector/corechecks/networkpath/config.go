@@ -12,13 +12,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"gopkg.in/yaml.v2"
 )
 
 const (
 	defaultCheckInterval time.Duration = 1 * time.Minute
-	defaultTimeout       time.Duration = 10 * time.Second
 )
 
 // InitConfig is used to deserialize integration init config
@@ -98,7 +98,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.Timeout = firstNonZero(
 		time.Duration(instance.TimeoutMs)*time.Millisecond,
 		time.Duration(initConfig.TimeoutMs)*time.Millisecond,
-		defaultTimeout,
+		setup.DefaultNetworkPathTimeout,
 	)
 	if c.Timeout <= 0 {
 		return nil, fmt.Errorf("timeout must be > 0")

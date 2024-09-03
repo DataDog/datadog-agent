@@ -88,7 +88,7 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 		}
 
 		runCount := runCounter.Inc()
-		logTracerouteRequests(cfg.DestHostname, id, runCount, start)
+		logTracerouteRequests(cfg, id, runCount, start)
 	})
 
 	return nil
@@ -100,9 +100,9 @@ func (t *traceroute) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 
 func (t *traceroute) Close() {}
 
-func logTracerouteRequests(host string, client string, runCount uint64, start time.Time) {
-	args := []interface{}{host, client, runCount, time.Since(start)}
-	msg := "Got request on /traceroute/%s?client_id=%s (count: %d): retrieved traceroute in %s"
+func logTracerouteRequests(cfg tracerouteutil.Config, client string, runCount uint64, start time.Time) {
+	args := []interface{}{cfg.DestHostname, client, cfg.DestPort, cfg.MaxTTL, cfg.Timeout, runCount, time.Since(start)}
+	msg := "Got request on /traceroute/%s?client_id=%s&port=%d&maxTTL=%d&timeout=%d (count: %d): retrieved traceroute in %s"
 	switch {
 	case runCount <= 5, runCount%20 == 0:
 		log.Infof(msg, args...)
@@ -122,7 +122,7 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 	if err != nil {
 		return tracerouteutil.Config{}, fmt.Errorf("invalid max_ttl: %s", err)
 	}
-	timeout, err := parseUint(req, "timeout", 32)
+	timeout, err := parseUint(req, "timeout", 64)
 	if err != nil {
 		return tracerouteutil.Config{}, fmt.Errorf("invalid timeout: %s", err)
 	}
@@ -132,7 +132,7 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 		DestHostname: host,
 		DestPort:     uint16(port),
 		MaxTTL:       uint8(maxTTL),
-		TimeoutMs:    uint(timeout),
+		Timeout:      time.Duration(timeout),
 		Protocol:     payload.Protocol(protocol),
 	}, nil
 }
