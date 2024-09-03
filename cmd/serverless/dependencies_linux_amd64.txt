@@ -261,6 +261,7 @@ github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce
 github.com/DataDog/datadog-agent/pkg/util/clusteragent
 github.com/DataDog/datadog-agent/pkg/util/common
 github.com/DataDog/datadog-agent/pkg/util/containers
+github.com/DataDog/datadog-agent/pkg/util/containers/image
 github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider
 github.com/DataDog/datadog-agent/pkg/util/dmi
 github.com/DataDog/datadog-agent/pkg/util/docker
