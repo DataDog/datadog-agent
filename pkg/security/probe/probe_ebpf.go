@@ -1638,6 +1638,11 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta workload
 		onDemandRate = MaxOnDemandEventsPerSecond
 	}
 
+	processKiller, err := NewProcessKiller(config)
+	if err != nil {
+		return nil, err
+	}
+
 	p := &EBPFProbe{
 		probe:                probe,
 		config:               config,
@@ -1652,7 +1657,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta workload
 		ctx:                  ctx,
 		cancelFnc:            cancelFnc,
 		newTCNetDevices:      make(chan model.NetDevice, 16),
-		processKiller:        NewProcessKiller(config),
+		processKiller:        processKiller,
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, 1),
 	}
 

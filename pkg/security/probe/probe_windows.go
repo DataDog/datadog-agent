@@ -1162,6 +1162,11 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
+	processKiller, err := NewProcessKiller(config)
+	if err != nil {
+		return nil, err
+	}
+
 	p := &WindowsProbe{
 		config:            config,
 		opts:              opts,
@@ -1188,7 +1193,7 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 
 		volumeMap: make(map[string]string),
 
-		processKiller: NewProcessKiller(config),
+		processKiller: processKiller,
 
 		blockonchannelsend: bocs,
 
