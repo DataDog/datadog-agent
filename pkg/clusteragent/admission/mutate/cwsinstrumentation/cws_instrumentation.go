@@ -87,7 +87,6 @@ type mutatePodExecFunc func(*corev1.PodExecOptions, string, string, *authenticat
 // WebhookForPods is the webhook that injects CWS pod instrumentation
 type WebhookForPods struct {
 	name          string
-	webhookType   common.WebhookType
 	isEnabled     bool
 	endpoint      string
 	resources     []string
@@ -97,8 +96,7 @@ type WebhookForPods struct {
 
 func newWebhookForPods(admissionFunc admission.WebhookFunc) *WebhookForPods {
 	return &WebhookForPods{
-		name:        webhookForPodsName,
-		webhookType: common.MutatingWebhook,
+		name: webhookForPodsName,
 		isEnabled: pkgconfigsetup.Datadog().GetBool("admission_controller.cws_instrumentation.enabled") &&
 			len(pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.image_name")) > 0,
 		endpoint:      pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.pod_endpoint"),
@@ -115,7 +113,7 @@ func (w *WebhookForPods) Name() string {
 
 // WebhookType returns the type of the webhook
 func (w *WebhookForPods) WebhookType() common.WebhookType {
-	return w.webhookType
+	return common.MutatingWebhook
 }
 
 // IsEnabled returns whether the webhook is enabled
@@ -154,7 +152,6 @@ func (w *WebhookForPods) WebhookFunc() admission.WebhookFunc {
 // WebhookForCommands is the webhook that injects CWS pods/exec instrumentation
 type WebhookForCommands struct {
 	name          string
-	webhookType   common.WebhookType
 	isEnabled     bool
 	endpoint      string
 	resources     []string
@@ -164,8 +161,7 @@ type WebhookForCommands struct {
 
 func newWebhookForCommands(admissionFunc admission.WebhookFunc) *WebhookForCommands {
 	return &WebhookForCommands{
-		name:        webhookForCommandsName,
-		webhookType: common.MutatingWebhook,
+		name: webhookForCommandsName,
 		isEnabled: pkgconfigsetup.Datadog().GetBool("admission_controller.cws_instrumentation.enabled") &&
 			len(pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.image_name")) > 0,
 		endpoint:      pkgconfigsetup.Datadog().GetString("admission_controller.cws_instrumentation.command_endpoint"),
@@ -182,7 +178,7 @@ func (w *WebhookForCommands) Name() string {
 
 // WebhookType returns the name of the webhook
 func (w *WebhookForCommands) WebhookType() common.WebhookType {
-	return w.webhookType
+	return common.MutatingWebhook
 }
 
 // IsEnabled returns whether the webhook is enabled

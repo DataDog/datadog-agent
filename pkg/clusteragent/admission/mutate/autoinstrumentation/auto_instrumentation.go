@@ -50,7 +50,6 @@ const (
 // Webhook is the auto instrumentation webhook
 type Webhook struct {
 	name                     string
-	webhookType              common.WebhookType
 	isEnabled                bool
 	endpoint                 string
 	resources                []string
@@ -103,7 +102,6 @@ func NewWebhook(wmeta workloadmeta.Component, filter mutatecommon.InjectionFilte
 
 	return &Webhook{
 		name:                     webhookName,
-		webhookType:              common.MutatingWebhook,
 		isEnabled:                isEnabled,
 		endpoint:                 pkgconfigsetup.Datadog().GetString("admission_controller.auto_instrumentation.endpoint"),
 		resources:                []string{"pods"},
@@ -126,7 +124,7 @@ func (w *Webhook) Name() string {
 
 // WebhookType returns the type of the webhook
 func (w *Webhook) WebhookType() common.WebhookType {
-	return w.webhookType
+	return common.MutatingWebhook
 }
 
 // IsEnabled returns whether the webhook is enabled

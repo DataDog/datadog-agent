@@ -103,7 +103,6 @@ var (
 // Webhook is the webhook that injects DD_AGENT_HOST and DD_ENTITY_ID into a pod
 type Webhook struct {
 	name            string
-	webhookType     common.WebhookType
 	isEnabled       bool
 	endpoint        string
 	resources       []string
@@ -117,7 +116,6 @@ type Webhook struct {
 func NewWebhook(wmeta workloadmeta.Component, injectionFilter mutatecommon.InjectionFilter) *Webhook {
 	return &Webhook{
 		name:            webhookName,
-		webhookType:     common.MutatingWebhook,
 		isEnabled:       pkgconfigsetup.Datadog().GetBool("admission_controller.inject_config.enabled"),
 		endpoint:        pkgconfigsetup.Datadog().GetString("admission_controller.inject_config.endpoint"),
 		resources:       []string{"pods"},
@@ -135,7 +133,7 @@ func (w *Webhook) Name() string {
 
 // WebhookType returns the type of the webhook
 func (w *Webhook) WebhookType() common.WebhookType {
-	return w.webhookType
+	return common.MutatingWebhook
 }
 
 // IsEnabled returns whether the webhook is enabled

@@ -29,25 +29,23 @@ const (
 
 // Webhook implements the MutatingWebhook interface
 type Webhook struct {
-	name        string
-	webhookType common.WebhookType
-	isEnabled   bool
-	endpoint    string
-	resources   []string
-	operations  []admissionregistrationv1.OperationType
-	patcher     workload.PodPatcher
+	name       string
+	isEnabled  bool
+	endpoint   string
+	resources  []string
+	operations []admissionregistrationv1.OperationType
+	patcher    workload.PodPatcher
 }
 
 // NewWebhook returns a new Webhook
 func NewWebhook(patcher workload.PodPatcher) *Webhook {
 	return &Webhook{
-		name:        webhookName,
-		webhookType: common.MutatingWebhook,
-		isEnabled:   pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled"),
-		endpoint:    webhookEndpoint,
-		resources:   []string{"pods"},
-		operations:  []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
-		patcher:     patcher,
+		name:       webhookName,
+		isEnabled:  pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled"),
+		endpoint:   webhookEndpoint,
+		resources:  []string{"pods"},
+		operations: []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
+		patcher:    patcher,
 	}
 }
 
@@ -58,7 +56,7 @@ func (w *Webhook) Name() string {
 
 // WebhookType returns the type of the webhook
 func (w *Webhook) WebhookType() common.WebhookType {
-	return w.webhookType
+	return common.MutatingWebhook
 }
 
 // IsEnabled returns whether the webhook is enabled
