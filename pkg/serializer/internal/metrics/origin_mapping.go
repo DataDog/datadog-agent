@@ -19,7 +19,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 	case metrics.MetricSourceJmxCustom,
 		metrics.MetricSourceActivemq,
 		metrics.MetricSourceAnyscale,
-		metrics.MetricSourceAppgate_SDP,
+		metrics.MetricSourceAppgateSDP,
 		metrics.MetricSourceCassandra,
 		metrics.MetricSourceConfluentPlatform,
 		metrics.MetricSourceHazelcast,
@@ -278,7 +278,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceTCPCheck,
 		metrics.MetricSourceTeamcity,
 		metrics.MetricSourceTeradata,
-		metrics.MetricSourceTiboco_EMS,
+		metrics.MetricSourceTibocoEMS,
 		metrics.MetricSourceTLS,
 		metrics.MetricSourceTokumx,
 		metrics.MetricSourceTrafficServer,
@@ -856,17 +856,17 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 412
 	case metrics.MetricSourceAwsNeuron:
 		return 413
-	case metrics.MetricSourceAnyscale: 
+	case metrics.MetricSourceAnyscale:
 		return 414
-	case metrics.MetricSourceAppgate_SDP: 
+	case metrics.MetricSourceAppgateSDP:
 		return 415
-	case metrics.MetricSourceKubeflow: 
+	case metrics.MetricSourceKubeflow:
 		return 416
-	case metrics.MetricSourceSlurm: 
+	case metrics.MetricSourceSlurm:
 		return 417
-	case metrics.MetricSourceKyverno: 
-		return 418 
-	case metrics.MetricSourceTiboco_EMS: 
+	case metrics.MetricSourceKyverno:
+		return 418
+	case metrics.MetricSourceTibocoEMS:
 		return 419
 	default:
 		return 0

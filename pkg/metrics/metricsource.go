@@ -291,11 +291,11 @@ const (
 	MetricSourceYarn
 	MetricSourceZk
 	MetricSourceAwsNeuron
-	MetricSourceTiboco_EMS
+	MetricSourceTibocoEMS
 	MetricSourceSlurm
 	MetricSourceKyverno
 	MetricSourceKubeflow
-	MetricSourceAppgate_SDP
+	MetricSourceAppgateSDP
 	MetricSourceAnyscale
 )
 
@@ -1377,13 +1377,13 @@ func CheckNameToMetricSource(name string) MetricSource {
 	case "anyscale":
 		return MetricSourceAnyscale
 	case "appgate_sdp":
-		return MetricSourceAppgate_SDP
+		return MetricSourceAppgateSDP
 	case "kubeflow":
 		return MetricSourceKubeflow
 	case "slurm":
 		return MetricSourceSlurm
 	case "tibco_ems":
-		return MetricSourceTiboco_EMS
+		return MetricSourceTibocoEMS
 	default:
 		return MetricSourceUnknown
 	}
