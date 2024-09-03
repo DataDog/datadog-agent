@@ -223,7 +223,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
 
     if (err != TCP_CONN_FAILED_RESET && err != TCP_CONN_FAILED_TIMEOUT && err != TCP_CONN_FAILED_REFUSED) {
         log_debug("kprobe/tcp_done: unsupported error code: %d", err);
-        increment_telemetry_count(unsupported_tcp_failures);
+        // increment_telemetry_count(unsupported_tcp_failures);
         bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
         return 0;
     }
@@ -267,6 +267,13 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
+    int err = 0;
+    bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
+    if (err == TCP_CONN_FAILED_RESET || err == TCP_CONN_FAILED_TIMEOUT || err == TCP_CONN_FAILED_REFUSED) {
+        log_debug("kprobe/tcp_close: supported error code: %d", err);
+        increment_telemetry_count(unsupported_tcp_failures);
+    }
+
     // increment telemetry for connections that were never established
     if (bpf_map_delete_elem(&tcp_failed_connect_telemetry, &sk) == 0) {
         increment_telemetry_count(tcp_failed_connect);
@@ -285,11 +292,17 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
         bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
     }
 
+    skp_conn_tuple_t skp_conn = {};
+    skp_conn.sk = sk;
+    skp_conn.tup = t;
+    skp_conn.tup.pid = 0;
+
     // check if this connection was already flushed and ensure we don't flush again
     // upsert the timestamp to the map and delete if it already exists, flush connection otherwise
     // skip EEXIST errors for telemetry since it is an expected error
     __u64 timestamp = bpf_ktime_get_ns();
     if (!tcp_failed_connections_enabled() || (bpf_map_update_with_telemetry(conn_close_flushed, &t, &timestamp, BPF_NOEXIST, -EEXIST) == 0)) {
+        bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
         cleanup_conn(ctx, &t, sk);
     } else {
         bpf_map_delete_elem(&conn_close_flushed, &t);
