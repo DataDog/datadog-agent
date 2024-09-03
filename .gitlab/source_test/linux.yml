@@ -65,7 +65,6 @@
   script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
-    - source /root/.bashrc && conda activate ddpy3
     - inv -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev --python-runtimes "3"
     - inv -e rtloader.install
     - inv -e install-tools
@@ -254,7 +253,6 @@ go_mod_tidy_check:
   extends: .linux_x64
   needs: ["go_deps"]
   before_script:
-    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
   script:
     - inv -e check-mod-tidy
@@ -284,3 +282,6 @@ new-e2e-unit-tests:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
     KUBERNETES_CPU_REQUEST: 6
+    # Not using the entrypoint script for the e2e runner image
+    FF_KUBERNETES_HONOR_ENTRYPOINT: false
+  timeout: 10m

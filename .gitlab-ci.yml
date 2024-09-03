@@ -258,6 +258,7 @@ variables:
   RESTORE_CACHE_ATTEMPTS: 2
   # Feature flags
   FF_SCRIPT_SECTIONS: 1 # Prevent multiline scripts log collapsing, see https://gitlab.com/gitlab-org/gitlab-runner/-/issues/3392
+  FF_KUBERNETES_HONOR_ENTRYPOINT: true # Honor the entrypoint in the Docker image when running Kubernetes jobs
 
 #
 # Condition mixins for simplification of rules
@@ -738,9 +739,6 @@ workflow:
   - pkg/network/**/*
   - pkg/process/monitor/*
   - pkg/util/kernel/**/*
-  - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
-  - test/kitchen/test/integration/win-sysprobe-test/**/*
-  - .gitlab/functional_test/system_probe_windows.yml
   - .gitlab/kernel_matrix_testing/system_probe.yml
   - .gitlab/kernel_matrix_testing/common.yml
   - test/new-e2e/system-probe/**/*
@@ -1028,6 +1026,28 @@ workflow:
     when: on_success
   - when: manual
     allow_failure: true
+
+.on_windows_systemprobe_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/collector/corechecks/servicediscovery/module/*
+        - pkg/network/**/*
+        - pkg/process/monitor/*
+        - pkg/util/kernel/**/*
+        - test/new-e2e/tests/sysprobe-functional/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+
+.on_windows_security_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/security/**/*
+        - pkg/eventmonitor/**/*
+        - test/new-e2e/tests/security-agent-functional/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
 
 .on_scheduled_main:
   - <<: *if_scheduled_main
