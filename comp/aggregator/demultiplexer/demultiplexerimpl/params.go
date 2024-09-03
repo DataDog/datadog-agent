@@ -13,8 +13,7 @@ import (
 
 // Params contains the parameters for the demultiplexer
 type Params struct {
-	continueOnMissingHostname   bool
-	enableNoAggregationPipeline bool
+	continueOnMissingHostname bool
 
 	// This is an optional field to override the default flush interval only if it is set
 	flushInterval optional.Option[time.Duration]
@@ -34,12 +33,6 @@ func NewDefaultParams(options ...option) Params {
 func WithContinueOnMissingHostname() option {
 	return func(p *Params) {
 		p.continueOnMissingHostname = true
-	}
-}
-
-func WithEnableNoAggregationPipeline(v bool) option {
-	return func(p *Params) {
-		p.enableNoAggregationPipeline = v
 	}
 }
 

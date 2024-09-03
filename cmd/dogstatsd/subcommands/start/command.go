@@ -164,7 +164,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		fx.Provide(func(config config.Component) demultiplexerimpl.Params {
 			return demultiplexerimpl.NewDefaultParams(
 				demultiplexerimpl.WithContinueOnMissingHostname(),
-				demultiplexerimpl.WithEnableNoAggregationPipeline(config.GetBool("dogstatsd_no_aggregation_pipeline")))
+			)
 		}),
 		fx.Supply(resourcesimpl.Disabled()),
 		metadatarunnerimpl.Module(),

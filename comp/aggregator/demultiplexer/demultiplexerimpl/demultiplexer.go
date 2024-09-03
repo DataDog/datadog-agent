@@ -13,6 +13,7 @@ import (
 
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -34,6 +35,7 @@ func Module() fxutil.Module {
 type dependencies struct {
 	fx.In
 	Lc                     fx.Lifecycle
+	Config                 config.Component
 	Log                    log.Component
 	SharedForwarder        defaultforwarder.Component
 	OrchestratorForwarder  orchestratorforwarder.Component
@@ -74,7 +76,7 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 			return provides{}, deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
 		}
 	}
-	options := createAgentDemultiplexerOptions(deps.Params)
+	options := createAgentDemultiplexerOptions(deps.Config, deps.Params)
 	agentDemultiplexer := aggregator.InitAndStartAgentDemultiplexer(
 		deps.Log,
 		deps.SharedForwarder,
@@ -102,9 +104,9 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 	}, nil
 }
 
-func createAgentDemultiplexerOptions(params Params) aggregator.AgentDemultiplexerOptions {
+func createAgentDemultiplexerOptions(config config.Component, params Params) aggregator.AgentDemultiplexerOptions {
 	options := aggregator.DefaultAgentDemultiplexerOptions()
-	options.EnableNoAggregationPipeline = params.enableNoAggregationPipeline
+	options.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
 
 	// Override FlushInterval only if flushInterval is set by the user
 	if v, ok := params.flushInterval.Get(); ok {
