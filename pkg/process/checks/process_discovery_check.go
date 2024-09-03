@@ -10,6 +10,7 @@ import (
 	"time"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -64,7 +65,7 @@ func (d *ProcessDiscoveryCheck) IsEnabled() bool {
 		return false
 	}
 
-	if ddconfig.IsECSFargate() {
+	if env.IsECSFargate() {
 		log.Debug("Process discovery is not supported on ECS Fargate")
 		return false
 	}

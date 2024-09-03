@@ -228,6 +228,10 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 
 		// Run the playbook
 		s.Env().RemoteHost.MustExecute(fmt.Sprintf("%sansible-playbook -vvv %s", ansiblePrefix, playbookPath))
+
+		// touch install files for compatibility
+		s.Env().RemoteHost.MustExecute("touch /tmp/datadog-installer-stdout.log")
+		s.Env().RemoteHost.MustExecute("touch /tmp/datadog-installer-stderr.log")
 	default:
 		s.T().Fatal("unsupported install method")
 	}
@@ -310,6 +314,7 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
   tasks:
     - name: Import the Datadog Agent role from the Datadog collection
       become: true
+      retries: 3
       import_role:
         name: datadog.dd.agent
 `

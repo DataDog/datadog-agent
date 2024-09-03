@@ -22,6 +22,8 @@ include:
   - .gitlab/deps_fetch/deps_fetch.yml
   - .gitlab/dev_container_deploy/include.yml
   - .gitlab/e2e/e2e.yml
+  - .gitlab/e2e_k8s/e2e_k8s.yml
+  - .gitlab/e2e_install_packages/include.yml
   - .gitlab/e2e_pre_test/e2e_pre_test.yml
   - .gitlab/functional_test/include.yml
   - .gitlab/functional_test_cleanup/functional_test_cleanup.yml
@@ -93,6 +95,8 @@ stages:
   - install_script_testing
   - e2e_pre_test
   - e2e
+  - e2e_k8s
+  - e2e_install_packages
   - kitchen_cleanup
   - functional_test
   - functional_test_cleanup
@@ -206,6 +210,10 @@ variables:
   E2E_TESTS_API_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_api_key  # agent-devx-loops
   E2E_TESTS_APP_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_app_key  # agent-devx-loops
   E2E_TESTS_RC_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_rc_key  # agent-devx-loops
+  E2E_TESTS_AZURE_CLIENT_ID: ci.datadog-agent.e2e_tests_azure_client_id  # agent-devx-loops
+  E2E_TESTS_AZURE_CLIENT_SECRET: ci.datadog-agent.e2e_tests_azure_client_secret  # agent-devx-loops
+  E2E_TESTS_AZURE_TENANT_ID: ci.datadog-agent.e2e_tests_azure_tenant_id  # agent-devx-loops
+  E2E_TESTS_AZURE_SUBSCRIPTION_ID: ci.datadog-agent.e2e_tests_azure_subscription_id  # agent-devx-loops
   KITCHEN_EC2_SSH_KEY_SSM_NAME: ci.datadog-agent.aws_ec2_kitchen_ssh_key  # agent-devx-loops
   KITCHEN_AZURE_CLIENT_ID_SSM_NAME: ci.datadog-agent.azure_kitchen_client_id  # agent-devx-loops
   KITCHEN_AZURE_CLIENT_SECRET_SSM_NAME: ci.datadog-agent.azure_kitchen_client_secret  # agent-devx-loops
@@ -714,21 +722,11 @@ workflow:
   changes:
       paths:
         - tools/windows/DatadogAgentInstaller/**/*
-        - .gitlab/kitchen_testing/new-e2e_testing/windows.yml
+        - .gitlab/e2e_install_packages/windows.yml
         - test/new-e2e/tests/windows/install-test/**/*
         - test/new-e2e/tests/windows/domain-test/**/*
         - tasks/msi.py
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-
-.on_windows_installer_changes_or_manual:
-  - <<: *if_disable_e2e_tests
-    when: never
-  - <<: *if_main_branch
-  - !reference [.except_mergequeue]
-  - <<: *if_windows_installer_changes
-    when: on_success
-  - when: manual
-    allow_failure: true
 
 .except_windows_installer_changes:
   - <<: *if_windows_installer_changes
@@ -741,9 +739,6 @@ workflow:
   - pkg/network/**/*
   - pkg/process/monitor/*
   - pkg/util/kernel/**/*
-  - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
-  - test/kitchen/test/integration/win-sysprobe-test/**/*
-  - .gitlab/functional_test/system_probe_windows.yml
   - .gitlab/kernel_matrix_testing/system_probe.yml
   - .gitlab/kernel_matrix_testing/common.yml
   - test/new-e2e/system-probe/**/*
@@ -795,6 +790,11 @@ workflow:
         - test/new-e2e/pkg/**/*
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.on_e2e_or_windows_installer_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - <<: *if_windows_installer_changes
+    when: on_success
 
 .on_e2e_or_fakeintake_changes_or_manual:
   - !reference [.on_e2e_main_release_or_rc]
@@ -1026,6 +1026,28 @@ workflow:
     when: on_success
   - when: manual
     allow_failure: true
+
+.on_windows_systemprobe_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/collector/corechecks/servicediscovery/module/*
+        - pkg/network/**/*
+        - pkg/process/monitor/*
+        - pkg/util/kernel/**/*
+        - test/new-e2e/tests/sysprobe-functional/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+
+.on_windows_security_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/security/**/*
+        - pkg/eventmonitor/**/*
+        - test/new-e2e/tests/security-agent-functional/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
 
 .on_scheduled_main:
   - <<: *if_scheduled_main

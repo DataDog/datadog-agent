@@ -126,6 +126,7 @@ kitchen_*_security_agent*                      @DataDog/agent-security
 kitchen_*_process_agent*                       @DataDog/processes
 cleanup_kitchen_functional_test                @DataDog/windows-kernel-integrations @DataDog/agent-security
 serverless_cold_start_performance-deb_x64      @DataDog/serverless
+oracle*                                        @DataDog/database-monitoring
 
 # E2E
 k8s-e2e-*                         @DataDog/container-integrations

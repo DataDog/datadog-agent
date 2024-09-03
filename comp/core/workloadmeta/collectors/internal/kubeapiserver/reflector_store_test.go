@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	kubernetesresourceparsers "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -106,7 +107,7 @@ func Test_AddDelete_PartialObjectMetadata(t *testing.T) {
 		Version:  "v1",
 		Resource: "namespaces",
 	}
-	parser, err := newMetadataParser(gvr, nil)
+	parser, err := kubernetesresourceparsers.NewMetadataParser(gvr, nil)
 	require.NoError(t, err)
 
 	metadataStore := &reflectorStore{
@@ -169,7 +170,7 @@ func TestReplace(t *testing.T) {
 
 	workloadmetaComponent := mockedWorkloadmeta(t)
 
-	parser, err := newMetadataParser(gvr, nil)
+	parser, err := kubernetesresourceparsers.NewMetadataParser(gvr, nil)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithDeadline(context.TODO(), time.Now().Add(10*time.Second))
@@ -259,7 +260,6 @@ func TestReplace(t *testing.T) {
 func mockedWorkloadmeta(t *testing.T) workloadmetamock.Mock {
 	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 }

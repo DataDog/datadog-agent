@@ -3,12 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+
 package usm
 
 import (
 	"archive/zip"
 	"bytes"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -206,14 +209,15 @@ func TestArgumentPropertySource(t *testing.T) {
 	}
 }
 func TestScanSourcesFromFileSystem(t *testing.T) {
-	cwd, err := os.Getwd()
+	full, err := filepath.Abs("testdata/root")
 	require.NoError(t, err)
-	parser := newSpringBootParser(NewDetectionContext(nil, nil, &RealFs{}))
+	sub := NewSubDirFS(full)
+	parser := newSpringBootParser(NewDetectionContext(nil, nil, sub))
 
 	fileSources := parser.scanSourcesFromFileSystem(map[string][]string{
 		"fs": {
-			abs("./application-fs.properties", cwd),
-			abs("./*/application-fs.properties", cwd),
+			"application-fs.properties",
+			"testdata/*/application-fs.properties",
 		},
 	})
 	require.Len(t, fileSources, 1)

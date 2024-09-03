@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -44,7 +45,7 @@ func TestSuiteKube(t *testing.T) {
 	s := &testSuite{}
 
 	// Env detection
-	config.SetFeatures(t, config.Kubernetes)
+	config.SetFeatures(t, env.Kubernetes)
 
 	// Start compose stack
 	compose, err := initAPIServerCompose()

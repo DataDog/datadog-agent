@@ -5,7 +5,7 @@
 
 //go:build linux
 
-//nolint:revive // TODO(NET) Fix revive linter
+// Package ebpf implements tracing network events with eBPF
 package ebpf
 
 import (
