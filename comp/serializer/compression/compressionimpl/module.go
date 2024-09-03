@@ -19,5 +19,7 @@ func NewCompressor(cfg config.Component) compression.Component {
 	return GetCompressor(
 		cfg.GetString("serializer_compressor_kind"),
 		cfg.GetInt("serializer_zstd_compressor_level"),
+		"serializer_compressor_kind",
+		[]string { "zstd", "zlib" },
 	)
 }

@@ -9,6 +9,9 @@
 package compressionimpl
 
 import (
+	"slices"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -16,7 +19,12 @@ import (
 
 // NewCompressor returns a new Compressor based on serializer_compressor_kind
 // This function is called when both zlib and zstd build tags are included
-func GetCompressor(kind string, level int) compression.Component {
+func GetCompressor(kind string, level int, option string, valid []string) compression.Component {
+	if !slices.Contains(valid, kind) {
+		log.Warn("invalid " + option + " set. use one of " + strings.Join(valid, ", "))
+		return strategy.NewNoopStrategy()
+	}
+
 	switch kind {
 	case ZlibKind:
 		return strategy.NewZlibStrategy()
@@ -25,10 +33,10 @@ func GetCompressor(kind string, level int) compression.Component {
 	case GzipKind:
 		return strategy.NewGzipStrategy(level)
 	case NoneKind:
-		log.Warn("no serializer_compressor_kind set. use zlib or zstd")
+		log.Warn("no " + option + " set. use one of " + strings.Join(valid, ", "))
 		return strategy.NewNoopStrategy()
 	default:
-		log.Warn("invalid serializer_compressor_kind detected. use one of 'zlib', 'zstd'")
+		log.Warn("invalid " + option + " set. use one of " + strings.Join(valid, ", "))
 		return strategy.NewNoopStrategy()
 	}
 }

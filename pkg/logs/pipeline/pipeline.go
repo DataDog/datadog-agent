@@ -132,14 +132,7 @@ func getStrategy(inputChan chan *message.Message, outputChan chan *message.Paylo
 		var encoder compression.Component
 		encoder = strategy.NewNoopStrategy()
 		if endpoints.Main.UseCompression {
-			var compressionKind string
-			// For backward compatibility, we need to make sure that if compression kind isn't zstd that it defaults to gzip.
-			if endpoints.Main.CompressionKind == compressionimpl.ZstdKind {
-				compressionKind = compressionimpl.ZstdKind
-			} else {
-				compressionKind = compressionimpl.GzipKind
-			}
-			encoder = compressionimpl.GetCompressor(compressionKind, endpoints.Main.CompressionLevel)
+			encoder = compressionimpl.GetCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel, "logs_config.compression_kind", []string { "zstd", "gzip" })
 		}
 		return sender.NewBatchStrategy(inputChan, outputChan, flushChan, sender.ArraySerializer, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder)
 	}

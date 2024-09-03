@@ -20,6 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -31,9 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
 )
 
 //go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=epforwarder_mockgen.go
@@ -412,7 +412,7 @@ func newHTTPPassthroughPipeline(coreConfig pkgconfig.Reader, eventPlatformReceiv
 	var encoder compression.Component
 	encoder = strategy.NewNoopStrategy()
 	if endpoints.Main.UseCompression {
-		encoder = compressionimpl.GetCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
+		encoder = compressionimpl.GetCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel, "logs_config.compression_kind", []string{"zstd", "gzip"})
 	}
 
 	var strategy sender.Strategy
