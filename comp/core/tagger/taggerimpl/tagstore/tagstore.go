@@ -163,7 +163,7 @@ func (s *TagStore) collectTelemetry() {
 	s.Lock()
 	defer s.Unlock()
 
-	s.store.ForEach(func(_ types.EntityID, et EntityTags) {
+	s.store.ForEach(nil, func(_ types.EntityID, et EntityTags) {
 		prefix := string(et.getEntityID().GetPrefix())
 
 		for _, source := range et.sources() {
@@ -192,7 +192,7 @@ func (s *TagStore) Subscribe(cardinality types.TagCardinality) chan []types.Enti
 
 	events := make([]types.EntityEvent, 0, s.store.Size())
 
-	s.store.ForEach(func(_ types.EntityID, et EntityTags) {
+	s.store.ForEach(nil, func(_ types.EntityID, et EntityTags) {
 		events = append(events, types.EntityEvent{
 			EventType: types.EventTypeAdded,
 			Entity:    et.toEntity(),
@@ -220,7 +220,7 @@ func (s *TagStore) Prune() {
 	now := s.clock.Now()
 	events := []types.EntityEvent{}
 
-	s.store.ForEach(func(eid types.EntityID, et EntityTags) {
+	s.store.ForEach(nil, func(eid types.EntityID, et EntityTags) {
 		changed := et.deleteExpired(now)
 
 		if !changed && !et.shouldRemove() {
@@ -283,7 +283,7 @@ func (s *TagStore) List() types.TaggerListResponse {
 	s.RLock()
 	defer s.RUnlock()
 
-	for _, et := range s.store.ListObjects() {
+	for _, et := range s.store.ListObjects(nil) {
 		r.Entities[et.getEntityID().String()] = types.TaggerListEntity{
 			Tags: et.tagsBySource(),
 		}

@@ -81,7 +81,7 @@ func (s *tagStore) getEntity(entityID types.EntityID) *types.Entity {
 func (s *tagStore) listEntities() []*types.Entity {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-	return s.store.ListObjects()
+	return s.store.ListObjects(nil)
 }
 
 func (s *tagStore) collectTelemetry() {
@@ -93,7 +93,7 @@ func (s *tagStore) collectTelemetry() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	s.store.ForEach(func(_ types.EntityID, e *types.Entity) { s.telemetry[string(e.ID.GetPrefix())]++ })
+	s.store.ForEach(nil, func(_ types.EntityID, e *types.Entity) { s.telemetry[string(e.ID.GetPrefix())]++ })
 
 	for prefix, storedEntities := range s.telemetry {
 		s.telemetryStore.StoredEntities.Set(storedEntities, remoteSource, prefix)
@@ -107,7 +107,7 @@ func (s *tagStore) subscribe(cardinality types.TagCardinality) chan []types.Enti
 
 	events := make([]types.EntityEvent, 0, s.store.Size())
 
-	s.store.ForEach(func(_ types.EntityID, e *types.Entity) {
+	s.store.ForEach(nil, func(_ types.EntityID, e *types.Entity) {
 		events = append(events, types.EntityEvent{
 			EventType: types.EventTypeAdded,
 			Entity:    *e,
@@ -138,7 +138,7 @@ func (s *tagStore) reset() {
 
 	events := make([]types.EntityEvent, 0, s.store.Size())
 
-	s.store.ForEach(func(_ types.EntityID, e *types.Entity) {
+	s.store.ForEach(nil, func(_ types.EntityID, e *types.Entity) {
 		events = append(events, types.EntityEvent{
 			EventType: types.EventTypeDeleted,
 			Entity:    types.Entity{ID: e.ID},
