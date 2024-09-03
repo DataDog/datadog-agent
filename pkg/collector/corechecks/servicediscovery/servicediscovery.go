@@ -48,7 +48,6 @@ type procStat struct {
 
 type processInfo struct {
 	PID  int
-	Env  map[string]string
 	Stat procStat
 }
 
