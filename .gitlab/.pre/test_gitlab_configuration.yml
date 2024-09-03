@@ -5,6 +5,7 @@ test_gitlab_configuration:
   rules:
     - !reference [.on_gitlab_changes]
   script:
+    - source /root/.bashrc
     - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME)
     - inv -e linter.gitlab-ci
     - inv -e linter.job-change-path
