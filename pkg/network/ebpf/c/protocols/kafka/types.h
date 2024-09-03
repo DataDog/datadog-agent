@@ -120,6 +120,7 @@ typedef struct kafka_info_t {
 typedef struct {
     // The array topic_name_size_buckets maps a bucket index to the number of occurrences observed for topic name lengths
     __u64 topic_name_size_buckets[KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS];
+    __u64 produce_no_required_acks;
 } kafka_telemetry_t;
 
 #endif

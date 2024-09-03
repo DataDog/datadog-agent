@@ -505,15 +505,15 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 							// Ensure that the other buckets remain unchanged before verifying the expected bucket.
 							for idx := 0; idx < kafka.TopicNameBuckets; idx++ {
 								if idx != tt.expectedBucketIndex {
-									require.Equal(t, currentRawKernelTelemetry.Name_size_buckets[idx],
-										telemetryMap.Name_size_buckets[idx],
+									require.Equal(t, currentRawKernelTelemetry.Topic_name_size_buckets[idx],
+										telemetryMap.Topic_name_size_buckets[idx],
 										"Expected bucket (%d) to remain unchanged", idx)
 								}
 							}
 
 							// Verify that the expected bucket contains the correct number of occurrences.
 							expectedNumberOfOccurrences := fixCount(2) // (1 produce request + 1 fetch request)
-							return uint64(expectedNumberOfOccurrences)+currentRawKernelTelemetry.Name_size_buckets[tt.expectedBucketIndex] == telemetryMap.Name_size_buckets[tt.expectedBucketIndex]
+							return uint64(expectedNumberOfOccurrences)+currentRawKernelTelemetry.Topic_name_size_buckets[tt.expectedBucketIndex] == telemetryMap.Topic_name_size_buckets[tt.expectedBucketIndex]
 						}, time.Second*3, time.Millisecond*100)
 
 						// Update the current raw kernel telemetry for the next iteration

@@ -1684,6 +1684,9 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     default:
         return false;
     }
+    if (produce_required_acks == 0) {
+        __sync_fetch_and_add(&kafka_tel->produce_no_required_acks, 1);
+    }
 
     // Skipping number of entries for now
     if (flexible) {
