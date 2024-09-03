@@ -40,6 +40,7 @@ type eventPayload struct {
 	PID                 int      `json:"pid"`
 	CommandLine         []string `json:"command_line"`
 	RSSMemory           uint64   `json:"rss_memory"`
+	CPUUsage            float64  `json:"cpu_usage"`
 }
 
 type event struct {
@@ -75,6 +76,7 @@ func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 			PID:                 svc.process.PID,
 			CommandLine:         svc.process.CmdLine,
 			RSSMemory:           svc.process.Stat.RSS,
+			CPUUsage:            svc.process.Stat.CPUUsage,
 		},
 	}
 }

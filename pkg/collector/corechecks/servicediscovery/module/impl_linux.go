@@ -47,6 +47,7 @@ type serviceInfo struct {
 	apmInstrumentation apm.Instrumentation
 	cmdLine            []string
 	startTimeSecs      uint64
+	cpuTime            uint64
 }
 
 // discovery is an implementation of the Module interface for the discovery module.
@@ -60,6 +61,10 @@ type discovery struct {
 
 	// scrubber is used to remove potentially sensitive data from the command line
 	scrubber *procutil.DataScrubber
+
+	// lastGlobalCPUTime stores the total cpu time of the system from the last time
+	// the endpoint was called.
+	lastGlobalCPUTime uint64
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
@@ -214,8 +219,9 @@ func getNsInfo(pid int) (*namespaceInfo, error) {
 // parsingContext holds temporary context not preserved between invocations of
 // the endpoint.
 type parsingContext struct {
-	procRoot  string
-	netNsInfo map[uint32]*namespaceInfo
+	procRoot      string
+	netNsInfo     map[uint32]*namespaceInfo
+	globalCpuTime uint64
 }
 
 // getServiceInfo gets the service information for a process using the
@@ -357,6 +363,11 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		nameSource = "provided"
 	}
 
+	cpu, err := updateCPUUsageStats(proc, info, s.lastGlobalCPUTime, context.globalCpuTime)
+	if err != nil {
+		return nil
+	}
+
 	return &model.Service{
 		PID:                int(pid),
 		Name:               info.name,
@@ -367,6 +378,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		RSS:                rss,
 		CommandLine:        info.cmdLine,
 		StartTimeSecs:      info.startTimeSecs,
+		CPUUsage:           cpu,
 	}
 }
 
@@ -393,9 +405,15 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 		return nil, err
 	}
 
+	globalCPUTime, err := getGlobalCPUTime()
+	if err != nil {
+		return nil, err
+	}
+
 	context := parsingContext{
-		procRoot:  procRoot,
-		netNsInfo: make(map[uint32]*namespaceInfo),
+		procRoot:      procRoot,
+		netNsInfo:     make(map[uint32]*namespaceInfo),
+		globalCpuTime: globalCPUTime,
 	}
 
 	var services []model.Service
@@ -413,6 +431,7 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 	}
 
 	s.cleanCache(alivePids)
+	s.lastGlobalCPUTime = context.globalCpuTime
 
 	return &services, nil
 }

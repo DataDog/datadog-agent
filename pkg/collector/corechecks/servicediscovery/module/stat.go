@@ -8,8 +8,10 @@
 package module
 
 import (
+	"bufio"
 	"errors"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -46,4 +48,74 @@ func getRSS(proc *process.Process) (uint64, error) {
 	}
 
 	return rssPages * pageSize, nil
+}
+
+func getGlobalCPUTime() (uint64, error) {
+	globalStatPath := kernel.HostProc("stat")
+
+	// This file is very small so just read it fully.
+	file, err := os.Open(globalStatPath)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	// Try to read the first line; it contains all the info we need.
+	for scanner.Scan() {
+		// See proc(5) for a description of the format of statm and the fields.
+		fields := strings.Fields(scanner.Text())
+		if fields[0] != "cpu" {
+			continue
+		}
+
+		var totalTime uint64
+		for _, field := range fields[1:] {
+			val, err := strconv.ParseUint(field, 10, 64)
+			if err != nil {
+				return 0, err
+			}
+			totalTime += val
+		}
+
+		return totalTime, nil
+	}
+
+	return 0, scanner.Err()
+}
+
+func updateCPUUsageStats(proc *process.Process, info *serviceInfo, lastGlobalCPUTime, currentGlobalCPUTime uint64) (float64, error) {
+	statPath := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "stat")
+
+	// This file is very small so just read it fully.
+	contents, err := os.ReadFile(statPath)
+	if err != nil {
+		return 0, err
+	}
+
+	// See proc(5) for a description of the format of statm and the fields.
+	fields := strings.Fields(string(contents))
+	if len(fields) < 52 {
+		return 0, errors.New("invalid stat")
+	}
+
+	// Parse fields at index 15 and 16, resp. User and System CPU time.
+	// See proc_pid_stat(5), for details.
+	usrTime, err := strconv.ParseUint(fields[13], 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	sysTime, err := strconv.ParseUint(fields[14], 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	process_time_delta := float64(usrTime + sysTime - info.cpuTime)
+	global_time_delta := float64(currentGlobalCPUTime - lastGlobalCPUTime)
+	cpu_usage := process_time_delta / global_time_delta * float64(runtime.NumCPU())
+
+	info.cpuTime = usrTime + sysTime
+
+	return cpu_usage, nil
 }

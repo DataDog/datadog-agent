@@ -61,6 +61,7 @@ func Test_telemetrySender(t *testing.T) {
 			Stat: procStat{
 				StartTime: uint64(now.Add(-20 * time.Minute).Unix()),
 				RSS:       500 * 1024 * 1024,
+				CPUUsage:  1.5,
 			},
 			Ports: []uint16{80, 8080},
 		},
@@ -97,6 +98,7 @@ func Test_telemetrySender(t *testing.T) {
 				PID:                 99,
 				CommandLine:         []string{"test-service", "--args"},
 				RSSMemory:           500 * 1024 * 1024,
+				CPUUsage:            1.5,
 			},
 		},
 		{
@@ -117,6 +119,7 @@ func Test_telemetrySender(t *testing.T) {
 				PID:                 99,
 				CommandLine:         []string{"test-service", "--args"},
 				RSSMemory:           500 * 1024 * 1024,
+				CPUUsage:            1.5,
 			},
 		},
 		{
@@ -137,6 +140,7 @@ func Test_telemetrySender(t *testing.T) {
 				PID:                 99,
 				CommandLine:         []string{"test-service", "--args"},
 				RSSMemory:           500 * 1024 * 1024,
+				CPUUsage:            1.5,
 			},
 		},
 	}
