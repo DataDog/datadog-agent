@@ -33,13 +33,13 @@ var (
 		"/opt/datadog-agent/bin/datadog-cluster-agent",
 		// installer
 		"/opt/datadog-packages/datadog-agent/*/bin/agent/agent",
-		"/opt/datadog-packages/datadog-agent/*/bin/agent/agent",
 		"/opt/datadog-packages/datadog-agent/*/embedded/bin/trace-agent",
 		"/opt/datadog-packages/datadog-agent/*/embedded/bin/security-agent",
 		"/opt/datadog-packages/datadog-agent/*/embedded/bin/process-agent",
 		"/opt/datadog-packages/datadog-agent/*/embedded/bin/system-probe",
 		"/opt/datadog-packages/datadog-agent/*/embedded/bin/cws-instrumentation",
 		"/opt/datadog-packages/datadog-agent/*/bin/datadog-cluster-agent",
+		"/opt/datadog-packages/datadog-installer/*/bin/installer/installer",
 	}
 )
 
