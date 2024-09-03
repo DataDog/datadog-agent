@@ -93,21 +93,14 @@ func dumpMapsHandler(w io.Writer, _ *manager.Manager, mapName string, currentMap
 
 	case probes.TCPOngoingConnectPid: // maps/tcp_ongoing_connect_pid (BPF_MAP_TYPE_HASH), key SkpConnTuple, value u64
 		io.WriteString(w, "Map: '"+mapName+"', key: 'SkpConnTuple', value: 'C.u64'\n")
-		log.Debug("Dumping TCPOngoingConnectPid map")
 		io.WriteString(w, "This map is used to store the PID of the process that initiated the connection\n")
-		log.Debug("Dumping TCPOngoingConnectPid map2")
 		info, _ := currentMap.Info()
-		log.Debug("Dumping TCPOngoingConnectPid map3")
 		spew.Fdump(w, info)
-		log.Debug("Dumping TCPOngoingConnectPid map4")
 		iter := currentMap.Iterate()
-		log.Debug("Dumping TCPOngoingConnectPid map5")
 		var key ddebpf.SkpConn
 		var value uint64
-		log.Debug("Dumping TCPOngoingConnectPid map6")
-		for iter.Next(unsafe.Pointer(&key.Tup), unsafe.Pointer(&value)) {
-			log.Debug("Dumping TCPOngoingConnectPid map7")
-			spew.Fdump(w, key, value)
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key.Tup, value)
 		}
 
 	case probes.ConnCloseBatchMap: // maps/conn_close_batch (BPF_MAP_TYPE_HASH), key C.__u32, value batch
