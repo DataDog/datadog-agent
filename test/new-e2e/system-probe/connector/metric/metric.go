@@ -43,6 +43,7 @@ func SubmitExecutionMetric(metricBody datadogV2.MetricPayload) error {
 	return nil
 }
 
+// SubmitExecutionEvent accepts events and sends it to Datadog.
 func SubmitExecutionEvent(eventBody datadogV1.EventCreateRequest) error {
 	if _, ok := os.LookupEnv("DD_API_KEY"); !ok {
 		fmt.Fprintf(os.Stderr, "skipping sending metric because DD_API_KEY not present")
