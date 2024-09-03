@@ -13,7 +13,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"net"
 	"net/http"
 	"os"
@@ -21,6 +20,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -50,6 +50,7 @@ import (
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func setupDiscoveryModule(t *testing.T) string {
@@ -764,6 +765,91 @@ func BenchmarkNewProcess(b *testing.B) {
 	}
 }
 
+func getSocketsOld(p *process.Process) ([]uint64, error) {
+	FDs, err := p.OpenFiles()
+	if err != nil {
+		return nil, err
+	}
+
+	// sockets have the following pattern "socket:[inode]"
+	var sockets []uint64
+	for _, fd := range FDs {
+		if strings.HasPrefix(fd.Path, prefix) {
+			inodeStr := strings.TrimPrefix(fd.Path[:len(fd.Path)-1], prefix)
+			sock, err := strconv.ParseUint(inodeStr, 10, 64)
+			if err != nil {
+				continue
+			}
+			sockets = append(sockets, sock)
+		}
+	}
+
+	return sockets, nil
+}
+
+const (
+	numberFDs = 100
+)
+
+func createFilesAndSockets(tb testing.TB) {
+	listeningSockets := make([]net.Listener, 0, numberFDs)
+	tb.Cleanup(func() {
+		for _, l := range listeningSockets {
+			l.Close()
+		}
+	})
+	for i := 0; i < numberFDs; i++ {
+		l, err := net.Listen("tcp", "localhost:0")
+		require.NoError(tb, err)
+		listeningSockets = append(listeningSockets, l)
+	}
+	regularFDs := make([]*os.File, 0, numberFDs)
+	tb.Cleanup(func() {
+		for _, f := range regularFDs {
+			f.Close()
+		}
+	})
+	for i := 0; i < numberFDs; i++ {
+		f, err := os.CreateTemp("", "")
+		require.NoError(tb, err)
+		regularFDs = append(regularFDs, f)
+	}
+}
+
+func TestGetSockets(t *testing.T) {
+	createFilesAndSockets(t)
+	p, err := process.NewProcess(int32(os.Getpid()))
+	require.NoError(t, err)
+
+	sockets, err := getSockets(p.Pid)
+	require.NoError(t, err)
+
+	sockets2, err := getSocketsOld(p)
+	require.NoError(t, err)
+
+	require.Equal(t, sockets, sockets2)
+}
+
+func BenchmarkGetSockets(b *testing.B) {
+	createFilesAndSockets(b)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		getSockets(int32(os.Getpid()))
+	}
+}
+
+func BenchmarkOldGetSockets(b *testing.B) {
+	createFilesAndSockets(b)
+	p, err := process.NewProcess(int32(os.Getpid()))
+	require.NoError(b, err)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		getSocketsOld(p)
+	}
+}
+
 // addSockets adds only listening sockets to a map to be used for later looksups.
 func addSockets[P procfs.NetTCP | procfs.NetUDP](sockMap map[uint64]socketInfo, sockets P, state uint64) {
 	for _, sock := range sockets {
@@ -828,6 +914,7 @@ func BenchmarkGetNSInfo(b *testing.B) {
 		getNsInfo(os.Getpid())
 	}
 }
+
 func BenchmarkGetNSInfoOld(b *testing.B) {
 	sockets := make([]net.Listener, 0)
 	for i := 0; i < 100; i++ {
