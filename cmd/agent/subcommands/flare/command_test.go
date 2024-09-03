@@ -88,32 +88,13 @@ func (c *commandTestSuite) getPprofTestServer() (tcpServer *httptest.Server, uni
 	return tcpServer, unixServer
 }
 
-func (c *commandTestSuite) restartSystemProbeTestServer() {
-	t := c.T()
-
-	if runtime.GOOS == "windows" {
-		// In Windows, the http server caches responses from prior test runs.
-		// This prevents simulating connection failures.
-		// Thus on every test run, we need to recreate the http server.
-		if c.systemProbeServer != nil {
-			c.systemProbeServer.Close()
-			c.systemProbeServer = nil
-		}
-
-		var err error
-		c.systemProbeServer, err = NewSystemProbeTestServer(newMockHandler())
-		require.NoError(t, err, "could not create listener for system probe")
-		c.systemProbeServer.Start()
-	}
-}
-
 func TestCommandTestSuite(t *testing.T) {
 	suite.Run(t, &commandTestSuite{})
 }
 
 func (c *commandTestSuite) TestReadProfileData() {
 	t := c.T()
-	c.restartSystemProbeTestServer()
+	RestartSystemProbeTestServer(c, newMockHandler())
 
 	u, err := url.Parse(c.tcpServer.URL)
 	require.NoError(t, err)
@@ -183,7 +164,7 @@ func (c *commandTestSuite) TestReadProfileData() {
 
 func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 	t := c.T()
-	c.restartSystemProbeTestServer()
+	RestartSystemProbeTestServer(c, newMockHandler())
 
 	u, err := url.Parse(c.tcpServer.URL)
 	require.NoError(t, err)
@@ -248,7 +229,7 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 
 func (c *commandTestSuite) TestReadProfileDataErrors() {
 	t := c.T()
-	c.restartSystemProbeTestServer()
+	RestartSystemProbeTestServer(c, newMockHandler())
 
 	mockConfig := configmock.New(t)
 	// setting Core Agent Expvar port to 0 to ensure failing on fetch (using the default value can lead to
@@ -267,14 +248,7 @@ func (c *commandTestSuite) TestReadProfileDataErrors() {
 	ClearConnectionFailures(mockSysProbeConfig, mockConfig)
 
 	require.Error(t, err)
-
-	if runtime.GOOS == "windows" {
-		// Windows has the security agent.
-		require.Regexp(t, "^5 errors occurred:\n", err.Error())
-	} else {
-		require.Regexp(t, "^4 errors occurred:\n", err.Error())
-	}
-
+	CheckExpectedConnectionFailures(c, err)
 	require.Len(t, data, 0)
 }
 

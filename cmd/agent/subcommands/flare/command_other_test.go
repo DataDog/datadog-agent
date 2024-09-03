@@ -12,7 +12,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/stretchr/testify/require"
 )
 
 // NewSystemProbeTestServer starts a new mock server to handle System Probe requests.
@@ -22,10 +25,22 @@ func NewSystemProbeTestServer(_ http.Handler) (*httptest.Server, error) {
 	return nil, nil
 }
 
+// RestartSystemProbeTestServer restarts the system probe server to ensure no cache responses
+// are used for a test.
+func RestartSystemProbeTestServer(_ *commandTestSuite, _ http.HandlerFunc) {
+}
+
 // InjectConnectionFailures injects a failure in TestReadProfileDataErrors.
 func InjectConnectionFailures(_ model.Config, _ model.Config) {
 }
 
 // ClearConnectionFailures clears the injected failure in TestReadProfileDataErrors.
 func ClearConnectionFailures(_ model.Config, _ model.Config) {
+}
+
+// CheckExpectedConnectionFailures checks the expected errors after simulated
+// connection failures.
+func CheckExpectedConnectionFailures(c *commandTestSuite, err error) {
+	// System probe by default is disabled and no connection is attempted for it in the test.
+	require.Regexp(c.T(), "^4 errors occurred:\n", err.Error())
 }
