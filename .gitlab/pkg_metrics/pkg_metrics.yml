@@ -56,6 +56,8 @@ send_pkg_size:
     - job: iot_agent_suse-x64
       optional: true
   script:
+    - source /root/.bashrc
+
     # Get API key to send metrics
     - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
 
@@ -105,9 +107,12 @@ send_pkg_size:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   script:
+    - source /root/.bashrc
+
     - ls -l $OMNIBUS_PACKAGE_DIR
     - if [[ "${ARCH}" == "amd64" ]]; then ls -l $OMNIBUS_PACKAGE_DIR_SUSE; fi
 
+    - source /root/.bashrc
     - export failures=0
     - export last_stable=$(inv release.get-release-json-value "last_stable::${MAJOR_VERSION}")
     # Get stable packages from S3 buckets, send new package sizes & compare stable and new package sizes

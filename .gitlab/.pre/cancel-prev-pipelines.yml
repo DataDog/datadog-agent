@@ -14,5 +14,6 @@ cancel-prev-pipelines:
       when: never
     - when: on_success
   script:
+    - source /root/.bashrc
     - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME)
     - inv pipeline.auto-cancel-previous-pipelines
