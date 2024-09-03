@@ -518,7 +518,7 @@ func TestActionKillDisarm(t *testing.T) {
 
 		// test that the kill action is re-armed after both executable cache entries have expired
 		// sleep for: (TTL + cache flush period + 1s) to ensure the cache is flushed
-		time.Sleep(enforcementDisarmerExecutablePeriod + 10*time.Second + 1*time.Second)
+		time.Sleep(enforcementDisarmerExecutablePeriod + 5*time.Second + 1*time.Second)
 		testKillActionSuccess(t, "kill_action_disarm_executable", func(_ context.Context) {
 			cmd := exec.Command(sleep, "1")
 			cmd.Env = []string{"TARGETTOKILL=1"}
@@ -556,7 +556,7 @@ func TestActionKillDisarm(t *testing.T) {
 
 		// test that the kill action is re-armed after both container cache entries have expired
 		// sleep for: (TTL + cache flush period + 1s) to ensure the cache is flushed
-		time.Sleep(enforcementDisarmerContainerPeriod + 10*time.Second + 1*time.Second)
+		time.Sleep(enforcementDisarmerContainerPeriod + 5*time.Second + 1*time.Second)
 		testKillActionSuccess(t, "kill_action_disarm_container", func(_ context.Context) {
 			cmd := newDockerInstance.Command("env", []string{"-i", "-", "TARGETTOKILL=1", "sleep", "5"}, []string{})
 			_ = cmd.Run()

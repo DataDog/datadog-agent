@@ -27,7 +27,7 @@ import (
 
 const (
 	defaultKillActionFlushDelay = 2 * time.Second
-	dismarmerCacheFlushInterval = 10 * time.Second
+	dismarmerCacheFlushInterval = 5 * time.Second
 )
 
 // ProcessKiller defines a process killer structure
