@@ -27,10 +27,10 @@ periodic_kitchen_cleanup_azure:
   resource_group: azure_cleanup
   script:
     - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $KITCHEN_AZURE_SUBSCRIPTION_ID_SSM_NAME
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $KITCHEN_AZURE_CLIENT_ID_SSM_NAME
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $KITCHEN_AZURE_CLIENT_SECRET_SSM_NAME
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $KITCHEN_AZURE_TENANT_ID_SSM_NAME
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $KITCHEN_AZURE_SUBSCRIPTION_ID
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $KITCHEN_AZURE_CLIENT_ID
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $KITCHEN_AZURE_CLIENT_SECRET
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $KITCHEN_AZURE_TENANT_ID
     - export ARM_SUBSCRIPTION_ID=$(pop_front)
     - export ARM_CLIENT_ID=$(pop_front)
     - export ARM_CLIENT_SECRET=$(pop_front)

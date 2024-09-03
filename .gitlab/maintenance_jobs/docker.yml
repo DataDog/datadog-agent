@@ -61,8 +61,8 @@ delete_docker_tag:
     ORGANIZATION: "datadog"
   before_script:
     - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_LOGIN_SSM_KEY
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_PWD_SSM_KEY
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_LOGIN
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_PWD
     - DOCKER_REGISTRY_LOGIN=$(pop_front)
     - PASS=$(pop_front)
     - python3 -m pip install -r requirements.txt

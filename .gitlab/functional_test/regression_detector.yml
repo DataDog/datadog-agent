@@ -43,13 +43,13 @@ single-machine-performance-regression_detector:
     # Setup AWS credentials for single-machine-performance AWS account
     - AWS_NAMED_PROFILE="single-machine-performance"
     - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_ACCOUNT_ID_SSM_NAME
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_ACCOUNT_ID
     - SMP_ACCOUNT_ID=$(pop_front)
     - SMP_ECR_URL=${SMP_ACCOUNT_ID}.dkr.ecr.us-west-2.amazonaws.com
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_AGENT_TEAM_ID_SSM_NAME
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_API_SSM_NAME
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_BOT_ACCESS_KEY_ID_SSM_NAME
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_BOT_ACCESS_KEY_SSM_NAME
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_AGENT_TEAM_ID
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_API
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_BOT_ACCESS_KEY_ID
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_BOT_ACCESS_KEY
     - SMP_AGENT_TEAM_ID=$(pop_front)
     - SMP_API=$(pop_front)
     - aws configure set aws_access_key_id $(pop_front) --profile ${AWS_NAMED_PROFILE}

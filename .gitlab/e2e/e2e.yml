@@ -13,13 +13,13 @@
     # Setup AWS Credentials
     - mkdir -p ~/.aws
     - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE
     - pop_front >> ~/.aws/config
     - export AWS_PROFILE=agent-qa-ci
     # Now all `aws` commands target the agent-qa profile
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA
     - pop_front > $E2E_PUBLIC_KEY_PATH
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_KEY_RSA_SSM_NAME
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_KEY_RSA
     - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && pop_front > $E2E_PRIVATE_KEY_PATH
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"

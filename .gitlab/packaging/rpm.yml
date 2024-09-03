@@ -10,8 +10,8 @@
     - echo "About to build for $RELEASE_VERSION"
     - !reference [.cache_omnibus_ruby_deps, setup]
     - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_GPG_KEY_SSM_NAME
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_SIGNING_PASSPHRASE_SSM_NAME
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_GPG_KEY
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_SIGNING_PASSPHRASE
     - printf -- "$(pop_front)" | gpg --import --batch
     - export RPM_SIGNING_PASSPHRASE=$(pop_front)
     - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project=${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
@@ -142,8 +142,8 @@ installer_suse_rpm-arm64:
     - echo "About to build for $RELEASE_VERSION"
     - !reference [.cache_omnibus_ruby_deps, setup]
     - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_GPG_KEY_SSM_NAME
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_SIGNING_PASSPHRASE_SSM_NAME
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_GPG_KEY
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_SIGNING_PASSPHRASE
     - printf -- "$(pop_front)" | gpg --import --batch
     - export RPM_SIGNING_PASSPHRASE=$(pop_front)
     - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor=iot ${OMNIBUS_EXTRA_ARGS}

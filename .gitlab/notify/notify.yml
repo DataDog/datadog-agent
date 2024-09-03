@@ -26,8 +26,8 @@ notify:
   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
   script:
     - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN_SSM_NAME
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2
     - export GITLAB_TOKEN=$(pop_front)
     - export DD_API_KEY=$(pop_front)
     - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
@@ -58,8 +58,8 @@ send_pipeline_stats:
   script:
     - source /root/.bashrc
     - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN_SSM_NAME
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2
     - export GITLAB_TOKEN=$(pop_front)
     - export DD_API_KEY=$(pop_front)
     - invoke -e notify.send-stats
@@ -119,10 +119,10 @@ notify_gitlab_ci_changes:
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - |
       source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_APP_KEY_SSM_NAME
-      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_INTEGRATION_ID_SSM_NAME
-      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_INSTALLATION_ID_SSM_NAME
-      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME
+      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_APP_KEY
+      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_INTEGRATION_ID
+      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_INSTALLATION_ID
+      $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN
       export GITHUB_KEY_B64=$(pop_front | base64)
       export GITHUB_APP_ID=$(pop_front)
       export GITHUB_INSTALLATION_ID=$(pop_front)
@@ -140,9 +140,9 @@ notify_gitlab_ci_changes:
 .failure_summary_setup:
   - source /root/.bashrc
   - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SLACK_AGENT_CI_TOKEN_SSM_NAME
-  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN_SSM_NAME
-  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SLACK_AGENT_CI_TOKEN
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2
   - export SLACK_API_TOKEN=$(pop_front)
   - export GITLAB_TOKEN=$(pop_front)
   - export DD_API_KEY=$(pop_front)

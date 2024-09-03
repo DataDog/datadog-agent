@@ -29,8 +29,8 @@ upload_dependencies_sysprobe_arm64:
   script:
     # DockerHub login for build to limit rate limit when pulling base images
     - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_PWD_SSM_KEY 
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_LOGIN_SSM_KEY
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_PWD 
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_LOGIN
     - pop_front | crane auth login --username "$(pop_front)" --password-stdin "$DOCKER_REGISTRY_URL"
     # Pull base images
     - mkdir $KMT_DOCKERS

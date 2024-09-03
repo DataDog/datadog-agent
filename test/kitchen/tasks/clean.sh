@@ -11,22 +11,22 @@ set -euo pipefail
 source "$CI_PROJECT_DIR"/tools/ci/open_file_descriptor.sh
 # These should not be printed out
 if [ -z ${AZURE_CLIENT_ID+x} ]; then
-  "$CI_PROJECT_DIR"/tools/ci/aws_ssm_get_wrapper.sh "$KITCHEN_AZURE_CLIENT_ID_SSM_NAME"
+  "$CI_PROJECT_DIR"/tools/ci/aws_ssm_get_wrapper.sh "$KITCHEN_AZURE_CLIENT_ID"
   AZURE_CLIENT_ID=$(pop_front)
   export AZURE_CLIENT_ID
 fi
 if [ -z ${AZURE_CLIENT_SECRET+x} ]; then
-  "$CI_PROJECT_DIR"/tools/ci/aws_ssm_get_wrapper.sh "$KITCHEN_AZURE_CLIENT_SECRET_SSM_NAME"
+  "$CI_PROJECT_DIR"/tools/ci/aws_ssm_get_wrapper.sh "$KITCHEN_AZURE_CLIENT_SECRET"
   AZURE_CLIENT_SECRET=$(pop_front)
   export AZURE_CLIENT_SECRET
 fi
 if [ -z ${AZURE_TENANT_ID+x} ]; then
-  "$CI_PROJECT_DIR"/tools/ci/aws_ssm_get_wrapper.sh "$KITCHEN_AZURE_TENANT_ID_SSM_NAME"
+  "$CI_PROJECT_DIR"/tools/ci/aws_ssm_get_wrapper.sh "$KITCHEN_AZURE_TENANT_ID"
   AZURE_TENANT_ID=$(pop_front)
   export AZURE_TENANT_ID
 fi
 if [ -z ${AZURE_SUBSCRIPTION_ID+x} ]; then
-  "$CI_PROJECT_DIR"/tools/ci/aws_ssm_get_wrapper.sh "$KITCHEN_AZURE_SUBSCRIPTION_ID_SSM_NAME"
+  "$CI_PROJECT_DIR"/tools/ci/aws_ssm_get_wrapper.sh "$KITCHEN_AZURE_SUBSCRIPTION_ID"
   AZURE_SUBSCRIPTION_ID=$(pop_front)
   export AZURE_SUBSCRIPTION_ID
 fi
