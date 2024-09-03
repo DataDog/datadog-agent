@@ -13,7 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	pkgkubehelpers "github.com/DataDog/datadog-agent/pkg/util/kubernetes/helpers"
 )
 
 // getOwnerNameAndKind returns the name and kind of the first owner of the pod if it exists
@@ -29,7 +29,7 @@ func getOwnerNameAndKind(pod *corev1.Pod) (string, string, bool) {
 	ownerName, ownerKind := owner.Name, owner.Kind
 
 	if ownerKind == "ReplicaSet" {
-		deploymentName := kubernetes.ParseDeploymentForReplicaSet(ownerName)
+		deploymentName := pkgkubehelpers.ParseDeploymentForReplicaSet(ownerName)
 		if deploymentName != "" {
 			ownerKind = "Deployment"
 			ownerName = deploymentName

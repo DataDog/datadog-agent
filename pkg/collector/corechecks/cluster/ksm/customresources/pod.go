@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	pkgkubehelpers "github.com/DataDog/datadog-agent/pkg/util/kubernetes/helpers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	v1 "k8s.io/api/core/v1"
@@ -150,12 +151,12 @@ func (f *extendedPodFactory) customResourceOwnerGenerator(p *v1.Pod, resourceTyp
 		// properly
 		switch kind {
 		case kubernetes.JobKind:
-			if cronjob, _ := kubernetes.ParseCronJobForJob(name); cronjob != "" {
+			if cronjob, _ := pkgkubehelpers.ParseCronJobForJob(name); cronjob != "" {
 				kind = kubernetes.CronJobKind
 				name = cronjob
 			}
 		case kubernetes.ReplicaSetKind:
-			if deployment := kubernetes.ParseDeploymentForReplicaSet(name); deployment != "" {
+			if deployment := pkgkubehelpers.ParseDeploymentForReplicaSet(name); deployment != "" {
 				kind = kubernetes.DeploymentKind
 				name = deployment
 			}

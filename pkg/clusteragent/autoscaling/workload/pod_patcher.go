@@ -21,6 +21,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	pkgkubehelpers "github.com/DataDog/datadog-agent/pkg/util/kubernetes/helpers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -138,7 +139,7 @@ func (pa podPatcher) findAutoscaler(pod *corev1.Pod) (*model.PodAutoscalerIntern
 	ownerRef := pod.OwnerReferences[0]
 	if ownerRef.Kind == kubernetes.ReplicaSetKind {
 		// Check if it's owned by a Deployment, otherwise ReplicaSet is direct owner
-		deploymentName := kubernetes.ParseDeploymentForReplicaSet(ownerRef.Name)
+		deploymentName := pkgkubehelpers.ParseDeploymentForReplicaSet(ownerRef.Name)
 		if deploymentName != "" {
 			ownerRef.Kind = kubernetes.DeploymentKind
 			ownerRef.Name = deploymentName

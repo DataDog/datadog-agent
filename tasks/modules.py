@@ -267,6 +267,7 @@ DEFAULT_MODULES = {
     "pkg/util/hostname/validate": GoModule("pkg/util/hostname/validate", independent=True, used_by_otel=True),
     "pkg/util/http": GoModule("pkg/util/http", independent=True, used_by_otel=True),
     "pkg/util/json": GoModule("pkg/util/json", independent=True, used_by_otel=True),
+    "pkg/util/kubernetes/helpers": GoModule("pkg/util/kubernetes/helpers", independent=True, used_by_otel=True),
     "pkg/util/log": GoModule("pkg/util/log", independent=True, used_by_otel=True),
     "pkg/util/log/setup": GoModule("pkg/util/log/setup", independent=True, used_by_otel=True),
     "pkg/util/optional": GoModule("pkg/util/optional", independent=True, used_by_otel=True),

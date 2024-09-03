@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package kubernetes
+// Package helpers provides definitions and functions for pkg/util/kubernetes resources
+package helpers
 
 import (
 	"strconv"

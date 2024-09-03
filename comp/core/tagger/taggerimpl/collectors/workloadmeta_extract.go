@@ -19,6 +19,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	pkgkubehelpers "github.com/DataDog/datadog-agent/pkg/util/kubernetes/helpers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -650,7 +651,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 		}
 
 	case kubernetes.JobKind:
-		cronjob, _ := kubernetes.ParseCronJobForJob(owner.Name)
+		cronjob, _ := pkgkubehelpers.ParseCronJobForJob(owner.Name)
 		if cronjob != "" {
 			tagList.AddOrchestrator(tags.KubeJob, owner.Name)
 			tagList.AddLow(tags.KubeCronjob, cronjob)
@@ -659,7 +660,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 		}
 
 	case kubernetes.ReplicaSetKind:
-		deployment := kubernetes.ParseDeploymentForReplicaSet(owner.Name)
+		deployment := pkgkubehelpers.ParseDeploymentForReplicaSet(owner.Name)
 		if len(deployment) > 0 {
 			tagList.AddLow(tags.KubeDeployment, deployment)
 		}

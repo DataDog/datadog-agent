@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	pkgkubehelpers "github.com/DataDog/datadog-agent/pkg/util/kubernetes/helpers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -220,7 +220,7 @@ func (a *lastCronJobAggregator) accumulate(metric ksmstore.DDMetric, state servi
 		return
 	}
 
-	cronjobName, id := kubernetes.ParseCronJobForJob(jobName)
+	cronjobName, id := pkgkubehelpers.ParseCronJobForJob(jobName)
 	if cronjobName == "" {
 		log.Debugf("%q isn't a valid CronJob name", jobName)
 		return

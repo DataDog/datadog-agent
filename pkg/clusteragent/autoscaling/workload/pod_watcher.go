@@ -13,6 +13,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	pkgkubehelpers "github.com/DataDog/datadog-agent/pkg/util/kubernetes/helpers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -182,7 +183,7 @@ func getNamespacedPodOwner(ns string, owner *workloadmeta.KubernetesPodOwner) Na
 		Namespace: ns,
 	}
 	if res.Kind == kubernetes.ReplicaSetKind {
-		deploymentName := kubernetes.ParseDeploymentForReplicaSet(res.Name)
+		deploymentName := pkgkubehelpers.ParseDeploymentForReplicaSet(res.Name)
 		if deploymentName != "" {
 			res.Kind = kubernetes.DeploymentKind
 			res.Name = deploymentName

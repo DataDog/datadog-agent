@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	pkgkubehelpers "github.com/DataDog/datadog-agent/pkg/util/kubernetes/helpers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
@@ -1047,11 +1048,11 @@ func ownerTags(kind, name string) []string {
 	tagList := []string{fmt.Sprintf(tagFormat, tagKey, name)}
 	switch kind {
 	case kubernetes.JobKind:
-		if cronjob, _ := kubernetes.ParseCronJobForJob(name); cronjob != "" {
+		if cronjob, _ := pkgkubehelpers.ParseCronJobForJob(name); cronjob != "" {
 			return append(tagList, fmt.Sprintf(tagFormat, tags.KubeCronjob, cronjob))
 		}
 	case kubernetes.ReplicaSetKind:
-		if deployment := kubernetes.ParseDeploymentForReplicaSet(name); deployment != "" {
+		if deployment := pkgkubehelpers.ParseDeploymentForReplicaSet(name); deployment != "" {
 			return append(tagList, fmt.Sprintf(tagFormat, tags.KubeDeployment, deployment))
 		}
 	}
