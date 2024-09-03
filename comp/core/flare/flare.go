@@ -186,6 +186,7 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 		},
 		f.collectLogsFiles,
 		f.collectConfigFiles,
+		f.collectHostSBOM,
 	)
 
 	for _, p := range providers {
