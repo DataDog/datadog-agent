@@ -328,7 +328,10 @@ func TestInjectedServiceName(t *testing.T) {
 	portMap := getServicesMap(t, url)
 	require.Contains(t, portMap, pid)
 	require.Equal(t, "injected-service-name", portMap[pid].DDService)
-	require.Equal(t, "module", portMap[pid].GeneratedName)
+	// The GeneratedName can vary depending on how the tests are run, so don't
+	// assert for a specific value.
+	require.NotEmpty(t, portMap[pid].GeneratedName)
+	require.NotEqual(t, portMap[pid].DDService, portMap[pid].GeneratedName)
 	assert.True(t, portMap[pid].DDServiceInjected)
 }
 
