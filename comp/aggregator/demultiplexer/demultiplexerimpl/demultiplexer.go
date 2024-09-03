@@ -74,12 +74,12 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 			return provides{}, deps.Log.Errorf("Error while getting hostname, exiting: %v", err)
 		}
 	}
-
+	options := createAgentDemultiplexerOptions(deps.Params)
 	agentDemultiplexer := aggregator.InitAndStartAgentDemultiplexer(
 		deps.Log,
 		deps.SharedForwarder,
 		deps.OrchestratorForwarder,
-		deps.Params.agentDemultiplexerOptions,
+		options,
 		deps.EventPlatformForwarder,
 		deps.Compressor,
 		hostnameDetected)
@@ -100,6 +100,17 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		}),
 		AggregatorDemultiplexer: demultiplexer,
 	}, nil
+}
+
+func createAgentDemultiplexerOptions(params Params) aggregator.AgentDemultiplexerOptions {
+	options := aggregator.DefaultAgentDemultiplexerOptions()
+	options.EnableNoAggregationPipeline = params.enableNoAggregationPipeline
+
+	// Override FlushInterval only if flushInterval is set by the user
+	if v, ok := params.flushInterval.Get(); ok {
+		options.FlushInterval = v
+	}
+	return options
 }
 
 // LazyGetSenderManager gets an instance of SenderManager lazily.
