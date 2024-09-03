@@ -1673,6 +1673,9 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         if (!get_topic_offset_from_produce_request(&kafka_header, pkt, &offset, &produce_required_acks)) {
             return false;
         }
+        if (produce_required_acks == 0) {
+            __sync_fetch_and_add(&kafka_tel->produce_no_required_acks, 1);
+        }
         flexible = kafka_header.api_version >= 9;
         break;
     case KAFKA_FETCH:
@@ -1683,9 +1686,6 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         break;
     default:
         return false;
-    }
-    if (produce_required_acks == 0) {
-        __sync_fetch_and_add(&kafka_tel->produce_no_required_acks, 1);
     }
 
     // Skipping number of entries for now
