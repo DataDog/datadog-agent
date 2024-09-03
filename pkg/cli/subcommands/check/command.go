@@ -184,8 +184,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Provide(func() serializer.MetricSerializer { return nil }),
 				compressionimpl.Module(),
 				demultiplexerimpl.Module(),
-				orchestratorForwarderImpl.Module(),
-				fx.Supply(orchestratorForwarderImpl.NewNoopParams()),
+				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewNoopParams()),
 				eventplatformimpl.Module(eventplatforParams),
 				eventplatformreceiverimpl.Module(),
 				fx.Provide(func() demultiplexerimpl.Params {

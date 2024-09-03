@@ -290,8 +290,7 @@ func createDemuxDepsWithOrchestratorFwd(
 	modules := fx.Options(
 		defaultforwarder.MockModule(),
 		core.MockBundle(),
-		orchestratorForwarderImpl.Module(),
-		fx.Supply(orchestratorParams),
+		orchestratorForwarderImpl.Module(orchestratorParams),
 		eventplatformimpl.Module(eventPlatformParams),
 		eventplatformreceiverimpl.Module(),
 		compressionimpl.MockModule(),

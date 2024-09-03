@@ -428,8 +428,7 @@ func getSharedFxOption() fx.Option {
 			params.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
 			return params
 		}),
-		orchestratorForwarderImpl.Module(),
-		fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
+		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
 		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 		eventplatformreceiverimpl.Module(),
 
