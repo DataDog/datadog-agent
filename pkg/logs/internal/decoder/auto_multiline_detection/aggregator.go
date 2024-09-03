@@ -65,7 +65,7 @@ func (b *bucket) flush() *message.Message {
 
 	if b.lineCount > 1 {
 		msg.ParsingExtra.IsMultiLine = true
-		tlmTags = append(tlmTags, "line_type:multi")
+		tlmTags = append(tlmTags, "line_type:multi_line")
 		if b.tagMultiLineLogs {
 			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.AutoMultiLineTag)
 		}
