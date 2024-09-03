@@ -25,6 +25,7 @@ include:
   stage: deploy_containers
   dependencies: []
   before_script:
+    - source /root/.bashrc
     - if [[ "$VERSION" == "" ]]; then export VERSION="$(inv agent.version --major-version 7 --url-safe --pipeline-id $PARENT_PIPELINE_ID)"; fi
     - export IMG_BASE_SRC="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
     - export IMG_LINUX_SOURCES="${IMG_BASE_SRC}-7${JMX}-amd64,${IMG_BASE_SRC}-7${JMX}-arm64"
@@ -65,6 +66,7 @@ deploy_containers-dogstatsd:
     !reference [.manual_on_deploy_auto_on_rc]
   dependencies: []
   before_script:
+    - source /root/.bashrc
     - export VERSION="$(inv agent.version --major-version 7 --url-safe --pipeline-id $PARENT_PIPELINE_ID)"
     - export IMG_SOURCES="${SRC_DSD}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64"
     - export IMG_DESTINATIONS="${DSD_REPOSITORY}:${VERSION}"
@@ -97,7 +99,7 @@ deploy_containers-ot:
     VERSION: 7
   dependencies: []
   before_script:
-    - export VERSION="$(inv agent.version --major-version 7 --url-safe --pipeline-id $PARENT_PIPELINE_ID)"
+    - source /root/.bashrc
   parallel:
     matrix:
       - IMG_SOURCES: ${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-amd64,${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-arm64
