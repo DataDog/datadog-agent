@@ -71,7 +71,7 @@ func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 			LastSeen:            svc.LastHeartbeat.Unix(),
 			APMInstrumentation:  svc.meta.APMInstrumentation,
 			ServiceNameSource:   svc.meta.NameSource,
-			Ports:               svc.process.Ports,
+			Ports:               svc.service.Ports,
 			PID:                 svc.process.PID,
 			CommandLine:         svc.service.CommandLine,
 			RSSMemory:           svc.process.Stat.RSS,
@@ -90,7 +90,7 @@ func (ts *telemetrySender) sendStartServiceEvent(svc serviceInfo) {
 	log.Debugf("[pid: %d | name: %s | ports: %v] start-service",
 		svc.process.PID,
 		svc.meta.Name,
-		svc.process.Ports,
+		svc.service.Ports,
 	)
 
 	e := ts.newEvent(eventTypeStartService, svc)

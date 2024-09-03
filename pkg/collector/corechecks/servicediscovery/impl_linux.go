@@ -156,7 +156,6 @@ func (li *linuxImpl) getServiceInfo(pid int, service model.Service) serviceInfo 
 		Stat: procStat{
 			StartTime: service.StartTimeSecs,
 		},
-		Ports: service.Ports,
 	}
 
 	serviceType := servicetype.Detect(service.Name, service.Ports)

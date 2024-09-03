@@ -47,10 +47,9 @@ type procStat struct {
 }
 
 type processInfo struct {
-	PID   int
-	Env   map[string]string
-	Stat  procStat
-	Ports []uint16
+	PID  int
+	Env  map[string]string
+	Stat procStat
 }
 
 type serviceEvents struct {

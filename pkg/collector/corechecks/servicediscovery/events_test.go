@@ -62,10 +62,10 @@ func Test_telemetrySender(t *testing.T) {
 				StartTime: uint64(now.Add(-20 * time.Minute).Unix()),
 				RSS:       500 * 1024 * 1024,
 			},
-			Ports: []uint16{80, 8080},
 		},
 		service: model.Service{
 			CommandLine: []string{"test-service", "--args"},
+			Ports:       []uint16{80, 8080},
 		},
 		meta: ServiceMetadata{
 			Name:               "test-service",
@@ -175,7 +175,6 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 			Stat: procStat{
 				StartTime: uint64(now.Add(-20 * time.Minute).Unix()),
 			},
-			Ports: nil,
 		},
 		service: model.Service{
 			CommandLine: []string{"foo", "--option"},
