@@ -22,6 +22,8 @@ include:
   - .gitlab/deps_fetch/deps_fetch.yml
   - .gitlab/dev_container_deploy/include.yml
   - .gitlab/e2e/e2e.yml
+  - .gitlab/e2e_k8s/e2e_k8s.yml
+  - .gitlab/e2e_install_packages/include.yml
   - .gitlab/e2e_pre_test/e2e_pre_test.yml
   - .gitlab/functional_test/include.yml
   - .gitlab/functional_test_cleanup/functional_test_cleanup.yml
@@ -93,6 +95,8 @@ stages:
   - install_script_testing
   - e2e_pre_test
   - e2e
+  - e2e_k8s
+  - e2e_install_packages
   - kitchen_cleanup
   - functional_test
   - functional_test_cleanup
@@ -718,7 +722,7 @@ workflow:
   changes:
       paths:
         - tools/windows/DatadogAgentInstaller/**/*
-        - .gitlab/kitchen_testing/new-e2e_testing/windows.yml
+        - .gitlab/e2e_install_packages/windows.yml
         - test/new-e2e/tests/windows/install-test/**/*
         - test/new-e2e/tests/windows/domain-test/**/*
         - tasks/msi.py
@@ -735,9 +739,6 @@ workflow:
   - pkg/network/**/*
   - pkg/process/monitor/*
   - pkg/util/kernel/**/*
-  - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
-  - test/kitchen/test/integration/win-sysprobe-test/**/*
-  - .gitlab/functional_test/system_probe_windows.yml
   - .gitlab/kernel_matrix_testing/system_probe.yml
   - .gitlab/kernel_matrix_testing/common.yml
   - test/new-e2e/system-probe/**/*
@@ -1025,6 +1026,28 @@ workflow:
     when: on_success
   - when: manual
     allow_failure: true
+
+.on_windows_systemprobe_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/collector/corechecks/servicediscovery/module/*
+        - pkg/network/**/*
+        - pkg/process/monitor/*
+        - pkg/util/kernel/**/*
+        - test/new-e2e/tests/sysprobe-functional/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+
+.on_windows_security_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/security/**/*
+        - pkg/eventmonitor/**/*
+        - test/new-e2e/tests/security-agent-functional/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
 
 .on_scheduled_main:
   - <<: *if_scheduled_main

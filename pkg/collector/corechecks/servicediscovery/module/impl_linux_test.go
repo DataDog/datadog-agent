@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -227,6 +228,7 @@ func TestBasic(t *testing.T) {
 	serviceMap := getServicesMap(t, url)
 	for _, pid := range expectedPIDs {
 		require.Contains(t, serviceMap[pid].Ports, uint16(expectedPorts[pid]))
+		assertStat(t, serviceMap[pid])
 	}
 }
 
@@ -473,9 +475,58 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 				assert.Contains(collect, portMap, pid)
 				assert.Equal(collect, string(test.language), portMap[pid].Language)
 				assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
+				assertStat(t, portMap[pid])
 			}, 30*time.Second, 100*time.Millisecond)
 		})
 	}
+}
+
+func assertStat(t assert.TestingT, svc model.Service) {
+	proc, err := process.NewProcess(int32(svc.PID))
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	meminfo, err := proc.MemoryInfo()
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	// Allow a 20% variation to avoid potential flakiness due to difference in
+	// time of sampling the RSS.
+	assert.InEpsilon(t, meminfo.RSS, svc.RSS, 0.20)
+
+	createTimeMs, err := proc.CreateTime()
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	assert.Equal(t, uint64(createTimeMs/1000), svc.StartTimeSecs)
+}
+
+func TestCommandLineSanitization(t *testing.T) {
+	serverDir := buildFakeServer(t)
+	url := setupDiscoveryModule(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
+	bin := filepath.Join(serverDir, "node")
+
+	actualCommandLine := []string{bin, "--password", "secret", strings.Repeat("A", maxCommandLine*10)}
+	sanitizedCommandLine := []string{bin, "--password", "********", "placeholder"}
+	sanitizedCommandLine[3] = strings.Repeat("A", maxCommandLine-(len(bin)+len(sanitizedCommandLine[1])+len(sanitizedCommandLine[2])))
+
+	cmd := exec.CommandContext(ctx, bin, actualCommandLine[1:]...)
+	require.NoError(t, cmd.Start())
+
+	pid := cmd.Process.Pid
+
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		svcMap := getServicesMap(t, url)
+		assert.Contains(collect, svcMap, pid)
+		assert.Equal(collect, sanitizedCommandLine, svcMap[pid].CommandLine)
+	}, 30*time.Second, 100*time.Millisecond)
 }
 
 func TestNodeDocker(t *testing.T) {
@@ -494,6 +545,7 @@ func TestNodeDocker(t *testing.T) {
 		assert.Contains(collect, svcMap, pid)
 		assert.Equal(collect, "nodejs-https-server", svcMap[pid].Name)
 		assert.Equal(collect, "provided", svcMap[pid].APMInstrumentation)
+		assertStat(collect, svcMap[pid])
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
@@ -529,6 +581,7 @@ func TestAPMInstrumentationProvidedPython(t *testing.T) {
 		assert.Contains(collect, portMap, pid)
 		assert.Equal(collect, string(language.Python), portMap[pid].Language)
 		assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
+		assertStat(collect, portMap[pid])
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
@@ -693,4 +746,105 @@ func TestCache(t *testing.T) {
 
 	discovery.Close()
 	require.Empty(t, discovery.cache)
+}
+
+func BenchmarkOldProcess(b *testing.B) {
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		process.NewProcess(int32(os.Getpid()))
+	}
+}
+
+func BenchmarkNewProcess(b *testing.B) {
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		customNewProcess(int32(os.Getpid()))
+	}
+}
+
+func getSocketsOld(p *process.Process) ([]uint64, error) {
+	FDs, err := p.OpenFiles()
+	if err != nil {
+		return nil, err
+	}
+
+	// sockets have the following pattern "socket:[inode]"
+	var sockets []uint64
+	for _, fd := range FDs {
+		if strings.HasPrefix(fd.Path, prefix) {
+			inodeStr := strings.TrimPrefix(fd.Path[:len(fd.Path)-1], prefix)
+			sock, err := strconv.ParseUint(inodeStr, 10, 64)
+			if err != nil {
+				continue
+			}
+			sockets = append(sockets, sock)
+		}
+	}
+
+	return sockets, nil
+}
+
+const (
+	numberFDs = 100
+)
+
+func createFilesAndSockets(tb testing.TB) {
+	listeningSockets := make([]net.Listener, 0, numberFDs)
+	tb.Cleanup(func() {
+		for _, l := range listeningSockets {
+			l.Close()
+		}
+	})
+	for i := 0; i < numberFDs; i++ {
+		l, err := net.Listen("tcp", "localhost:0")
+		require.NoError(tb, err)
+		listeningSockets = append(listeningSockets, l)
+	}
+	regularFDs := make([]*os.File, 0, numberFDs)
+	tb.Cleanup(func() {
+		for _, f := range regularFDs {
+			f.Close()
+		}
+	})
+	for i := 0; i < numberFDs; i++ {
+		f, err := os.CreateTemp("", "")
+		require.NoError(tb, err)
+		regularFDs = append(regularFDs, f)
+	}
+}
+
+func TestGetSockets(t *testing.T) {
+	createFilesAndSockets(t)
+	p, err := process.NewProcess(int32(os.Getpid()))
+	require.NoError(t, err)
+
+	sockets, err := getSockets(p.Pid)
+	require.NoError(t, err)
+
+	sockets2, err := getSocketsOld(p)
+	require.NoError(t, err)
+
+	require.Equal(t, sockets, sockets2)
+}
+
+func BenchmarkGetSockets(b *testing.B) {
+	createFilesAndSockets(b)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		getSockets(int32(os.Getpid()))
+	}
+}
+
+func BenchmarkOldGetSockets(b *testing.B) {
+	createFilesAndSockets(b)
+	p, err := process.NewProcess(int32(os.Getpid()))
+	require.NoError(b, err)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		getSocketsOld(p)
+	}
 }
