@@ -75,6 +75,7 @@ type injector struct {
 	registry   string
 	injected   bool
 	injectTime time.Time
+	opts       libRequirementOptions
 }
 
 func (i *injector) initContainer() initContainer {
@@ -114,7 +115,8 @@ func (i *injector) initContainer() initContainer {
 
 func (i *injector) requirements() libRequirement {
 	return libRequirement{
-		initContainers: []initContainer{i.initContainer()},
+		libRequirementOptions: i.opts,
+		initContainers:        []initContainer{i.initContainer()},
 		volumes: []volume{
 			sourceVolume,
 			etcVolume,
@@ -150,6 +152,12 @@ var injectorVersionAnnotationExtractor = annotationExtractor[injectorOption]{
 var injectorImageAnnotationExtractor = annotationExtractor[injectorOption]{
 	key: "admission.datadoghq.com/apm-inject.custom-image",
 	do:  infallibleFn(injectorWithImageName),
+}
+
+func injectorWithLibRequirementOptions(opts libRequirementOptions) injectorOption {
+	return func(i *injector) {
+		i.opts = opts
+	}
 }
 
 func injectorWithImageName(name string) injectorOption {
