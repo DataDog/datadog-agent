@@ -17,6 +17,11 @@ this pull request increases the binary size of serverless extension by ${VAR_DIF
 
 If you have questions, we are happy to help, come visit us in the [#serverless](https://dd.slack.com/archives/CBWDFKWV8) slack channel and provide a link to this comment.
 
+EOL
+
+if [ -n "$VAR_DEPS" ]; then
+    cat >> "$filename" << EOL
+
 These dependencies were added to the serverless extension by this pull request:
 
 \`\`\`
@@ -24,6 +29,11 @@ ${VAR_DEPS}
 \`\`\`
 
 View dependency graphs for each added dependency in the [artifacts section](https://github.com/DataDog/datadog-agent/actions/runs/${VAR_RUN_ID}#artifacts) of the github action.
+
+EOL
+fi
+
+cat >> "$filename" << EOL
 
 We suggest you consider adding the \`!serverless\` build tag to remove any new dependencies not needed in the serverless extension.
 
