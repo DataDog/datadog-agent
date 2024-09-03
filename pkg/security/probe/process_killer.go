@@ -41,16 +41,9 @@ func NewProcessKiller(cfg *config.Config) (*ProcessKiller, error) {
 		sourceAllowed: cfg.RuntimeSecurity.EnforcementRuleSourceAllowed,
 	}
 
-	for _, str := range binariesExcluded {
-		glob, err := eval.NewGlob(str, false, false)
-		if err != nil {
-			return nil, err
-		}
+	binaries := append(binariesExcluded, cfg.RuntimeSecurity.EnforcementBinaryExcluded...)
 
-		p.binariesExcluded = append(p.binariesExcluded, glob)
-	}
-
-	for _, str := range cfg.RuntimeSecurity.EnforcementBinaryExcluded {
+	for _, str := range binaries {
 		glob, err := eval.NewGlob(str, false, false)
 		if err != nil {
 			return nil, err
