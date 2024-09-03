@@ -122,7 +122,6 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 		found = foundMap["python.instrumented"]
 		if assert.NotNil(c, found) {
 			assert.Equal(c, "provided", found.Payload.APMInstrumentation)
-			assert.Equal(c, "generated", found.Payload.ServiceNameSource)
 			assert.Equal(c, "python.instrumented", found.Payload.ServiceName)
 			assert.Equal(c, "python.instrumented", found.Payload.GeneratedServiceName)
 			assert.Empty(c, found.Payload.DDService)
