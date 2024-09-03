@@ -358,12 +358,6 @@ func TestActionKillRuleSpecific(t *testing.T) {
 func TestActionKillDisarm(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	if !ebpfLessEnabled {
-		checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
-			return !kv.SupportBPFSendSignal() && env.IsContainerized()
-		})
-	}
-
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
 	}
@@ -371,6 +365,10 @@ func TestActionKillDisarm(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
+
+	checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
+		return !kv.SupportBPFSendSignal() && env.IsContainerized()
+	})
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
