@@ -429,6 +429,7 @@ generate-flakes-finder-pipeline:
     - qa_dca
     - qa_dogstatsd
     - qa_agent
+    - qa_agent_ot
   tags: ["arch:amd64"]
   script:
     - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME)
