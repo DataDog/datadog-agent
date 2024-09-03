@@ -326,7 +326,9 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 					event.Tags = append(event.Tags, fmt.Sprintf("ci.branch:%s", ciBranch))
 				}
 
-				metric.SubmitExecutionEvent(event)
+				if err = metric.SubmitExecutionEvent(event); err != nil {
+					log.Printf("failed to submit environment setup error event: %v", err)
+				}
 			} else {
 				log.Printf("unknown/couldn't parse error on retry %d", i)
 			}
