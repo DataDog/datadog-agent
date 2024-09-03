@@ -396,14 +396,18 @@ func TestActionKillDisarm(t *testing.T) {
 	}
 
 	sleep := which(t, "sleep")
+	const (
+		enforcementDisarmerContainerPeriod  = 10 * time.Second
+		enforcementDisarmerExecutablePeriod = 10 * time.Second
+	)
 
 	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
 		enforcementDisarmerContainerEnabled:     true,
 		enforcementDisarmerContainerMaxAllowed:  1,
-		enforcementDisarmerContainerPeriod:      30 * time.Second,
+		enforcementDisarmerContainerPeriod:      enforcementDisarmerContainerPeriod,
 		enforcementDisarmerExecutableEnabled:    true,
 		enforcementDisarmerExecutableMaxAllowed: 1,
-		enforcementDisarmerExecutablePeriod:     30 * time.Second,
+		enforcementDisarmerExecutablePeriod:     enforcementDisarmerExecutablePeriod,
 		eventServerRetention:                    1 * time.Nanosecond,
 	}))
 	if err != nil {
@@ -416,75 +420,68 @@ func TestActionKillDisarm(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("executable", func(t *testing.T) {
-		// test that we can kill processes with the same executable more than once
-		for i := 0; i < 2; i++ {
-			t.Logf("iteration %d", i)
-			err := test.GetEventSent(t, func() error {
-				ch := make(chan bool, 1)
-
-				go func() {
-					timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-					defer cancel()
-
-					cmd := exec.CommandContext(timeoutCtx, syscallTester, "sleep", "5")
-					cmd.Env = []string{"TARGETTOKILL=1"}
-					_ = cmd.Run()
-
-					ch <- true
-				}()
-
-				select {
-				case <-ch:
-				case <-time.After(time.Second * 3):
-					t.Error("signal timeout")
-				}
-				return nil
-			}, func(_ *rules.Rule, _ *model.Event) bool {
-				return true
-			}, time.Second*5, "kill_action_disarm_executable")
-			if err != nil {
-				t.Error(err)
-			}
-
-			err = retry.Do(func() error {
-				msg := test.msgSender.getMsg("kill_action_disarm_executable")
-				if msg == nil {
-					return errors.New("not found")
-				}
-				validateMessageSchema(t, string(msg.Data))
-
-				jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
-					if _, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.signal="sigkill")]`); err != nil {
-						t.Error(err)
-					}
-					if _, err = jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.exited_at=~/20.*/)]`); err != nil {
-						t.Error(err)
-					}
-				})
-
-				return nil
-			}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
-			assert.NoError(t, err)
-
-			test.msgSender.flush()
-		}
-
-		// test that another executable dismars the kill action
+	testKillActionSuccess := func(t *testing.T, ruleID string, cmdFunc func(context.Context)) {
+		test.msgSender.flush()
 		err := test.GetEventSent(t, func() error {
-			cmd := exec.Command(sleep, "1")
-			cmd.Env = []string{"TARGETTOKILL=1"}
-			_ = cmd.Run()
+			ch := make(chan bool, 1)
+
+			go func() {
+				timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				cmdFunc(timeoutCtx)
+
+				ch <- true
+			}()
+
+			select {
+			case <-ch:
+			case <-time.After(time.Second * 3):
+				t.Error("signal timeout")
+			}
 			return nil
 		}, func(_ *rules.Rule, _ *model.Event) bool {
 			return true
-		}, time.Second*5, "kill_action_disarm_executable")
+		}, time.Second*5, ruleID)
 		if err != nil {
 			t.Error(err)
 		}
 
 		err = retry.Do(func() error {
-			msg := test.msgSender.getMsg("kill_action_disarm_executable")
+			msg := test.msgSender.getMsg(ruleID)
+			if msg == nil {
+				return errors.New("not found")
+			}
+			validateMessageSchema(t, string(msg.Data))
+
+			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
+				if _, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.signal="sigkill")]`); err != nil {
+					t.Error(err)
+				}
+				if _, err = jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.exited_at=~/20.*/)]`); err != nil {
+					t.Error(err)
+				}
+			})
+
+			return nil
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		assert.NoError(t, err)
+	}
+
+	testKillActionIgnored := func(t *testing.T, ruleID string, cmdFunc func(context.Context)) {
+		test.msgSender.flush()
+		err := test.GetEventSent(t, func() error {
+			cmdFunc(nil)
+			return nil
+		}, func(_ *rules.Rule, _ *model.Event) bool {
+			return true
+		}, time.Second*5, ruleID)
+		if err != nil {
+			t.Error(err)
+		}
+
+		err = retry.Do(func() error {
+			msg := test.msgSender.getMsg(ruleID)
 			if msg == nil {
 				return errors.New("not found")
 			}
@@ -499,11 +496,37 @@ func TestActionKillDisarm(t *testing.T) {
 			return nil
 		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
 		assert.NoError(t, err)
-		test.msgSender.flush()
+	}
+
+	t.Run("executable", func(t *testing.T) {
+		// test that we can kill processes with the same executable more than once
+		for i := 0; i < 2; i++ {
+			t.Logf("test iteration %d", i)
+			testKillActionSuccess(t, "kill_action_disarm_executable", func(ctx context.Context) {
+				cmd := exec.CommandContext(ctx, syscallTester, "sleep", "5")
+				cmd.Env = []string{"TARGETTOKILL=1"}
+				_ = cmd.Run()
+			})
+		}
+
+		// test that another executable dismars the kill action
+		testKillActionIgnored(t, "kill_action_disarm_executable", func(_ context.Context) {
+			cmd := exec.Command(sleep, "1")
+			cmd.Env = []string{"TARGETTOKILL=1"}
+			_ = cmd.Run()
+		})
+
+		// test that the kill action is re-armed after both executable cache entries have expired
+		// sleep for: (TTL + cache flush period + 1s) to ensure the cache is flushed
+		time.Sleep(enforcementDisarmerExecutablePeriod + 10*time.Second + 1*time.Second)
+		testKillActionSuccess(t, "kill_action_disarm_executable", func(_ context.Context) {
+			cmd := exec.Command(sleep, "1")
+			cmd.Env = []string{"TARGETTOKILL=1"}
+			_ = cmd.Run()
+		})
 	})
 
 	t.Run("container", func(t *testing.T) {
-
 		dockerInstance, err := test.StartADocker()
 		if err != nil {
 			t.Fatalf("failed to start a Docker instance: %v", err)
@@ -512,50 +535,11 @@ func TestActionKillDisarm(t *testing.T) {
 
 		// test that we can kill processes within the same container more than once
 		for i := 0; i < 2; i++ {
-			t.Logf("iteration %d", i)
-			err := test.GetEventSent(t, func() error {
-				ch := make(chan bool, 1)
-
-				go func() {
-					cmd := dockerInstance.Command("env", []string{"-i", "-", "TARGETTOKILL=1", "sleep", "5"}, []string{})
-					_ = cmd.Run()
-					ch <- true
-				}()
-
-				select {
-				case <-ch:
-				case <-time.After(time.Second * 3):
-					t.Error("signal timeout")
-				}
-				return nil
-			}, func(_ *rules.Rule, _ *model.Event) bool {
-				return true
-			}, time.Second*5, "kill_action_disarm_container")
-			if err != nil {
-				t.Error(err)
-			}
-
-			err = retry.Do(func() error {
-				msg := test.msgSender.getMsg("kill_action_disarm_container")
-				if msg == nil {
-					return errors.New("not found")
-				}
-				validateMessageSchema(t, string(msg.Data))
-
-				jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
-					if _, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.signal="sigkill")]`); err != nil {
-						t.Error(err)
-					}
-					if _, err = jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.exited_at=~/20.*/)]`); err != nil {
-						t.Error(err)
-					}
-				})
-
-				return nil
-			}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
-			assert.NoError(t, err)
-
-			test.msgSender.flush()
+			t.Logf("test iteration %d", i)
+			testKillActionSuccess(t, "kill_action_disarm_container", func(_ context.Context) {
+				cmd := dockerInstance.Command("env", []string{"-i", "-", "TARGETTOKILL=1", "sleep", "5"}, []string{})
+				_ = cmd.Run()
+			})
 		}
 
 		newDockerInstance, err := test.StartADocker()
@@ -565,32 +549,17 @@ func TestActionKillDisarm(t *testing.T) {
 		defer newDockerInstance.stop()
 
 		// test that another container dismars the kill action
-		err = test.GetEventSent(t, func() error {
+		testKillActionIgnored(t, "kill_action_disarm_container", func(_ context.Context) {
+			cmd := newDockerInstance.Command("env", []string{"-i", "-", "TARGETTOKILL=1", "sleep", "1"}, []string{})
+			_ = cmd.Run()
+		})
+
+		// test that the kill action is re-armed after both container cache entries have expired
+		// sleep for: (TTL + cache flush period + 1s) to ensure the cache is flushed
+		time.Sleep(enforcementDisarmerContainerPeriod + 10*time.Second + 1*time.Second)
+		testKillActionSuccess(t, "kill_action_disarm_container", func(_ context.Context) {
 			cmd := newDockerInstance.Command("env", []string{"-i", "-", "TARGETTOKILL=1", "sleep", "5"}, []string{})
 			_ = cmd.Run()
-			return nil
-		}, func(_ *rules.Rule, _ *model.Event) bool {
-			return true
-		}, time.Second*5, "kill_action_disarm_container")
-		if err != nil {
-			t.Error(err)
-		}
-
-		err = retry.Do(func() error {
-			msg := test.msgSender.getMsg("kill_action_disarm_container")
-			if msg == nil {
-				return errors.New("not found")
-			}
-			validateMessageSchema(t, string(msg.Data))
-
-			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
-				if _, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions`); err == nil {
-					t.Error(errors.New("unexpected rule action"))
-				}
-			})
-
-			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
-		assert.NoError(t, err)
+		})
 	})
 }
