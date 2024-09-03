@@ -185,7 +185,9 @@
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   before_script:
-    - !reference [.export_gitlab_token_scheduler]
+    - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN
+    - export GITLAB_TOKEN=$(pop_front)
     - !reference [.kmt_new_profile]
   script:
     - !reference [.shared_filters_and_queries]
