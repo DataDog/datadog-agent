@@ -222,7 +222,6 @@ DEFAULT_MODULES = {
     "pkg/languagedetection/languagemodels": GoModule(
         "pkg/languagedetection/languagemodels", independent=True, used_by_otel=True
     ),
-    "pkg/languagedetection/util": GoModule("pkg/languagedetection/util", independent=True, used_by_otel=True),
     "pkg/linters/components/pkgconfigusage": GoModule("pkg/linters/components/pkgconfigusage", should_tag=False),
     "pkg/logs/auditor": GoModule("pkg/logs/auditor", independent=True, used_by_otel=True),
     "pkg/logs/client": GoModule("pkg/logs/client", independent=True, used_by_otel=True),
