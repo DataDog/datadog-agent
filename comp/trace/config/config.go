@@ -18,6 +18,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -27,7 +28,9 @@ import (
 
 // team: agent-apm
 
-type dependencies struct {
+// Dependencies defines the trace config component deps.
+// These include the core config configuration and component config params.
+type Dependencies struct {
 	fx.In
 	Params Params
 	Config coreconfig.Component
@@ -46,7 +49,9 @@ type cfg struct {
 	warnings *pkgconfig.Warnings
 }
 
-func newConfig(deps dependencies) (Component, error) {
+// NewConfig is the default constructor for the component, it returns
+// a component instance and an error.
+func NewConfig(deps Dependencies) (Component, error) {
 	tracecfg, err := setupConfig(deps, "")
 
 	if err != nil {
@@ -60,7 +65,7 @@ func newConfig(deps dependencies) (Component, error) {
 		AgentConfig: tracecfg,
 		coreConfig:  deps.Config,
 	}
-	c.SetMaxMemCPU(pkgconfig.IsContainerized())
+	c.SetMaxMemCPU(env.IsContainerized())
 
 	return &c, nil
 }

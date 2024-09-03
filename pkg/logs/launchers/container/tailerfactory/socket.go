@@ -55,5 +55,6 @@ func (tf *factory) makeSocketTailer(source *sources.LogSource) (Tailer, error) {
 		pipeline,
 		readTimeout,
 		tf.registry,
+		tf.tagger,
 	), nil
 }

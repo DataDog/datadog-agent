@@ -7,7 +7,6 @@ package daemon
 
 import (
 	"context"
-
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 

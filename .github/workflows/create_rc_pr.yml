@@ -14,6 +14,7 @@ jobs:
         runs-on: ubuntu-latest
         outputs:
           branches: ${{ steps.branches.outputs.value }}
+          warning: ${{ steps.warning.outputs.value }}
         steps:
             - name: Checkout repository
               uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
@@ -39,8 +40,10 @@ jobs:
                 echo "value=$(inv release.get-unreleased-release-branches)" >> $GITHUB_OUTPUT
 
             - name: Set the warning option
+              id: warning
               if: github.event.schedule == '0 8 * * 1,3,5'
-              run: echo "WARNING='-w'" >> $GITHUB_ENV
+              run: |
+                echo "value=-w" >> $GITHUB_OUTPUT
 
     create_rc_pr:
       runs-on: ubuntu-latest
@@ -74,7 +77,8 @@ jobs:
                 ATLASSIAN_USERNAME: ${{ secrets.ATLASSIAN_USERNAME }}
                 ATLASSIAN_PASSWORD: ${{ secrets.ATLASSIAN_PASSWORD }}
               run: |
-                echo "CHANGES=$(inv -e release.check-for-changes -r ${{ matrix.value }} ${{ env.WARNING }})" >> $GITHUB_OUTPUT
+                export SLACK_API_TOKEN="${{ secrets.SLACK_API_TOKEN }}"
+                echo "CHANGES=$(inv -e release.check-for-changes -r ${{ matrix.value }} ${{ needs.find_release_branches.outputs.warning }})" >> $GITHUB_OUTPUT
 
             - name: Create RC PR
               if: ${{ steps.check_for_changes.outputs.CHANGES == 'true'}}

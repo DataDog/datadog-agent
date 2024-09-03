@@ -98,6 +98,13 @@ func (j jbossExtractor) findDeployedApps(domainHome string) ([]jeeDeployment, bo
 		log.Debug("jboss: unable to extract the home directory")
 		return nil, false
 	}
+	// Add cwd if jboss.home.dir is relative. It's unclear if this is likely in
+	// real life, but the tests do do it. JBoss/WildFly docs imply that this is
+	// normally an absolute path (since it's set to JBOSS_HOME by default and a
+	// lot of other paths are resolved relative to this one).
+	if cwd, ok := workingDirFromEnvs(j.cxt.envs); ok {
+		baseDir = abs(baseDir, cwd)
+	}
 	serverName, domainMode := jbossExtractServerName(j.cxt.args)
 	if domainMode && len(serverName) == 0 {
 		log.Debug("jboss: domain mode with missing server name")
@@ -153,8 +160,13 @@ func (j jbossExtractor) customExtractWarContextRoot(warFS fs.FS) (string, bool) 
 
 	}
 	defer file.Close()
+	reader, err := SizeVerifiedReader(file)
+	if err != nil {
+		log.Debugf("jboss: ignoring %q: %v", jbossWebXMLFileWebInf, err)
+		return "", false
+	}
 	var jwx jbossWebXML
-	if xml.NewDecoder(file).Decode(&jwx) != nil || len(jwx.ContextRoot) == 0 {
+	if xml.NewDecoder(reader).Decode(&jwx) != nil || len(jwx.ContextRoot) == 0 {
 		return "", false
 	}
 	return jwx.ContextRoot, true
@@ -206,8 +218,13 @@ func jbossDomainFindDeployments(basePathFs fs.FS, configFile string, serverName 
 		return nil, err
 	}
 	defer file.Close()
+	reader, err := SizeVerifiedReader(file)
+	if err != nil {
+		log.Debugf("jboss: ignoring %q: %v", jbossWebXMLFileWebInf, err)
+		return nil, err
+	}
 	var descriptor jbossDomainXML
-	err = xml.NewDecoder(file).Decode(&descriptor)
+	err = xml.NewDecoder(reader).Decode(&descriptor)
 	if err != nil {
 		return nil, err
 	}
@@ -250,8 +267,12 @@ func jbossStandaloneFindDeployments(basePathFs fs.FS, configFile string) ([]jbos
 		return nil, err
 	}
 	defer file.Close()
+	reader, err := SizeVerifiedReader(file)
+	if err != nil {
+		return nil, err
+	}
 	var descriptor jbossStandaloneXML
-	err = xml.NewDecoder(file).Decode(&descriptor)
+	err = xml.NewDecoder(reader).Decode(&descriptor)
 	if err != nil {
 		return nil, err
 	}
@@ -282,7 +303,11 @@ func jbossFindServerGroup(domainFs fs.FS, serverName string) (string, bool, erro
 		return "", false, err
 	}
 	defer file.Close()
-	decoder := xml.NewDecoder(file)
+	reader, err := SizeVerifiedReader(file)
+	if err != nil {
+		return "", false, err
+	}
+	decoder := xml.NewDecoder(reader)
 	var decoded jbossHostXML
 	err = decoder.Decode(&decoded)
 	if err != nil || len(decoded.Servers) == 0 {

@@ -32,6 +32,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -82,13 +83,13 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		core.MockBundle(),
 		fx.Replace(compcfg.MockParams{
 			Overrides: overrides,
-			Features:  []config.Feature{config.Docker},
 		}),
 		wmcatalog.GetCatalog(),
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		taggerimpl.Module(),
 		fx.Supply(tagger.NewTaggerParams()),
 	))
+	env.SetFeatures(suite.T(), env.Docker)
 	suite.wmeta = deps.WMeta
 	suite.telemetryStore = acTelemetry.NewStore(deps.Telemetry)
 	suite.dockerutil, err = docker.GetDockerUtil()
