@@ -98,12 +98,12 @@ func (p *NativeBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolR
 		}
 	}
 
-	symbolMap, err := bininspect.GetAllSymbolsByName(elfFile, mandatorySymbols)
+	symbolMap, err := bininspect.GetAllSymbolsInSetByName(elfFile, mandatorySymbols)
 	if err != nil {
 		return nil, false, err
 	}
 	/* Best effort to resolve symbols, so we don't care about the error */
-	symbolMapBestEffort, _ := bininspect.GetAllSymbolsByName(elfFile, bestEffortSymbols)
+	symbolMapBestEffort, _ := bininspect.GetAllSymbolsInSetByName(elfFile, bestEffortSymbols)
 
 	funcMap := make(map[string]bininspect.FunctionMetadata, len(symbolMap)+len(symbolMapBestEffort))
 	for _, symMap := range []map[string]elf.Symbol{symbolMap, symbolMapBestEffort} {
