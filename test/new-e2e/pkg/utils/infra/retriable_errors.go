@@ -6,17 +6,18 @@
 // Package infra implements utilities to interact with a Pulumi infrastructure
 package infra
 
-type retryType string
+// RetryType is an enum to specify the type of retry to perform
+type RetryType string
 
 const (
-	reUp     retryType = "ReUp"     // Retry the up operation
-	reCreate retryType = "ReCreate" // Retry the up operation after destroying the stack
-	noRetry  retryType = "NoRetry"
+	reUp     RetryType = "ReUp"     // Retry the up operation
+	reCreate RetryType = "ReCreate" // Retry the up operation after destroying the stack
+	noRetry  RetryType = "NoRetry"
 )
 
 type knownError struct {
 	errorMessage string
-	retryType    retryType
+	retryType    RetryType
 }
 
 func getKnownErrors() []knownError {

@@ -587,7 +587,7 @@ func runFuncWithRecover(f pulumi.RunFunc) pulumi.RunFunc {
 	}
 }
 
-func (sm *StackManager) getRetryStrategyFrom(err error, upCount int) retryType {
+func (sm *StackManager) getRetryStrategyFrom(err error, upCount int) RetryType {
 	// if first attempt + retries count are higher than max retry, give up
 	if upCount > stackUpMaxRetry {
 		return noRetry
