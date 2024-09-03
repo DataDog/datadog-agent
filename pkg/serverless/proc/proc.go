@@ -29,8 +29,6 @@ const (
 	ProcStatPath           = "/proc/stat"
 	ProcUptimePath         = "/proc/uptime"
 	ProcNetDevPath         = "/proc/net/dev"
-	ProcSelfFd             = "/proc/self/fd"
-	ProcSelfLimits         = "/proc/self/limits"
 	lambdaNetworkInterface = "vinternal_1"
 )
 
@@ -217,7 +215,6 @@ func GetFileDescriptorMaxData() (*FileDescriptorMaxData, error) {
 
 func getFileDescriptorMaxData() (*FileDescriptorMaxData, error) {
 	pids := getPidList("/proc")
-	fmt.Printf("=== getFileDescriptorMaxData pidList: %+v ===\n", pids)
 	fdMax := math.Inf(1)
 
 	for _, pid := range pids {
@@ -244,14 +241,11 @@ func getFileDescriptorMaxData() (*FileDescriptorMaxData, error) {
 					log.Debugf("file descriptor max data not found in file '%s'", path)
 				}
 
-				fmt.Printf("=== pid: %d, fdMax limit: %d ===\n", pid, fdMaxPid)
 				fdMax = math.Min(float64(fdMax), float64(fdMaxPid))
 				break
 			}
 		}
 	}
-
-	fmt.Printf("=== fdMax considering all pids: %f ===\n", fdMax)
 
 	if fdMax != math.Inf(1) {
 		return &FileDescriptorMaxData{
@@ -261,34 +255,6 @@ func getFileDescriptorMaxData() (*FileDescriptorMaxData, error) {
 
 	return nil, fmt.Errorf("file descriptor max data not found")
 }
-
-// func getFileDescriptorMaxData(path string) (*FileDescriptorMaxData, error) {
-// 	file, err := os.Open(path)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	defer file.Close()
-
-// 	scanner := bufio.NewScanner(file)
-// 	for scanner.Scan() {
-// 		line := scanner.Text()
-// 		if strings.Contains(line, "Max open files") {
-// 			fields := strings.Fields(line)
-// 			if len(fields) < 4 {
-// 				return nil, fmt.Errorf("file descriptor max data not found in file '%s'", path)
-// 			}
-// 			fdMaxStr := fields[3]
-// 			fdMax, err := strconv.Atoi(fdMaxStr)
-// 			if err != nil {
-// 				return nil, fmt.Errorf("file descriptor max data not found in file '%s'", path)
-// 			}
-// 			return &FileDescriptorMaxData{
-// 				MaximumFileHandles: float64(fdMax),
-// 			}, nil
-// 		}
-// 	}
-// 	return nil, fmt.Errorf("file descriptor max data not found in file '%s'", path)
-// }
 
 type FileDescriptorUseData struct {
 	UseFileHandles float64

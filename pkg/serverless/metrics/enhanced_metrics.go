@@ -7,7 +7,6 @@
 package metrics
 
 import (
-	"fmt"
 	"math"
 	"os"
 	"strings"
@@ -528,7 +527,6 @@ func generateTmpEnhancedMetrics(args generateTmpEnhancedMetricsArgs) {
 }
 
 func SendTmpEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *ServerlessMetricAgent) {
-	fmt.Printf("=== started SendTmpEnhancedMetrics ===\n")
 	if enhancedMetricsDisabled {
 		return
 	}
@@ -563,7 +561,6 @@ func SendTmpEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *S
 				return
 			}
 			tmpUsed = math.Max(tmpUsed, bsize*(blocks-bavail))
-			fmt.Printf("=== tmpUsed: %f ==\n", tmpUsed)
 		}
 	}
 
@@ -598,7 +595,6 @@ func generateFdEnhancedMetrics(args generateFdEnhancedMetricsArgs) {
 }
 
 func SendFdEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *ServerlessMetricAgent) {
-	fmt.Printf("=== started SendFdEnhancedMetrics ===\n")
 	if enhancedMetricsDisabled {
 		return
 	}
@@ -624,7 +620,6 @@ func SendFdEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *Se
 		select {
 		case _, open := <-sendMetrics:
 			if !open {
-				fmt.Printf("=== sending fd enhanced metrics - fdMax : %f, fdUse: %f ===\n", fdMax, fdUse)
 				generateFdEnhancedMetrics(generateFdEnhancedMetricsArgs{
 					FdMax: fdMax,
 					FdUse: fdUse,
@@ -640,7 +635,6 @@ func SendFdEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *Se
 				log.Debugf("Could not emit file descriptor enhanced metrics. %v", err)
 				return
 			}
-			fmt.Printf("=== curr fdUse: %f ===\n", fdUseData.UseFileHandles)
 			fdUse = math.Max(fdUse, fdUseData.UseFileHandles)
 		}
 	}

@@ -8,23 +8,24 @@
 package proc
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-// func TestGetPidListInvalid(t *testing.T) {
-// 	pids := getPidList("/incorrect/folder")
-// 	assert.Equal(t, 0, len(pids))
-// }
+func TestGetPidListInvalid(t *testing.T) {
+	pids := getPidList("/incorrect/folder")
+	assert.Equal(t, 0, len(pids))
+}
 
-// func TestGetPidListValid(t *testing.T) {
-// 	pids := getPidList("./testData")
-// 	sort.Ints(pids)
-// 	assert.Equal(t, 2, len(pids))
-// 	assert.Equal(t, 13, pids[0])
-// 	assert.Equal(t, 142, pids[1])
-// }
+func TestGetPidListValid(t *testing.T) {
+	pids := getPidList("./testData")
+	sort.Ints(pids)
+	assert.Equal(t, 2, len(pids))
+	assert.Equal(t, 13, pids[0])
+	assert.Equal(t, 142, pids[1])
+}
 
 func TestSearchProcsForEnvVariableFromPidIncorrect(t *testing.T) {
 	envVars := getEnvVariablesFromPid("./testData", 999)
