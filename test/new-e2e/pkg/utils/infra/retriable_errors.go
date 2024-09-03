@@ -10,9 +10,9 @@ package infra
 type RetryType string
 
 const (
-	ReUp     RetryType = "ReUp"     // Retry the up operation
-	ReCreate RetryType = "ReCreate" // Retry the up operation after destroying the stack
-	NoRetry  RetryType = "NoRetry"
+	ReUp     RetryType = "ReUp"     // ReUp retries the up operation
+	ReCreate RetryType = "ReCreate" // ReCreate retries the up operation after destroying the stack
+	NoRetry  RetryType = "NoRetry"  // NoRetry does not retry the up operation
 )
 
 type knownError struct {
