@@ -191,7 +191,6 @@ func parseNetIPSocketLine(fields []string, expectedState uint64) (uint64, uint16
 	if len(fields) < 10 {
 		return 0, 0, errInvalidLine
 	}
-	var err error // parse error
 	var localPort uint16
 	var inode uint64
 
@@ -206,11 +205,11 @@ func parseNetIPSocketLine(fields []string, expectedState uint64) (uint64, uint16
 	if len(l) != 2 {
 		return 0, 0, errInvalidLocalIP
 	}
-	if localPortTemp, err := strconv.ParseUint(l[1], 16, 64); err != nil {
+	localPortTemp, err := strconv.ParseUint(l[1], 16, 64)
+	if err != nil {
 		return 0, 0, errInvalidLocalPort
-	} else {
-		localPort = uint16(localPortTemp)
 	}
+	localPort = uint16(localPortTemp)
 
 	if inode, err = strconv.ParseUint(fields[9], 0, 64); err != nil {
 		return 0, 0, errInvalidInode
