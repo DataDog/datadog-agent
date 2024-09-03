@@ -55,9 +55,6 @@ func Test_telemetrySender(t *testing.T) {
 	ts.hostname = mHostname
 
 	svc := serviceInfo{
-		process: processInfo{
-			Stat: procStat{},
-		},
 		service: model.Service{
 			PID:           99,
 			CommandLine:   []string{"test-service", "--args"},
@@ -167,9 +164,6 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 	ts.hostname = mHostname
 
 	svc := serviceInfo{
-		process: processInfo{
-			Stat: procStat{},
-		},
 		service: model.Service{
 			PID:           55,
 			CommandLine:   []string{"foo", "--option"},

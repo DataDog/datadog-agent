@@ -35,17 +35,9 @@ const (
 )
 
 type serviceInfo struct {
-	process       processInfo
 	meta          ServiceMetadata
 	service       model.Service
 	LastHeartbeat time.Time
-}
-
-type procStat struct {
-}
-
-type processInfo struct {
-	Stat procStat
 }
 
 type serviceEvents struct {
