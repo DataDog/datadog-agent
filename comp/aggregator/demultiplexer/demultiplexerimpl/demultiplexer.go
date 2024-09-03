@@ -27,9 +27,10 @@ import (
 )
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
+func Module(params Params) fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newDemultiplexer))
+		fx.Provide(newDemultiplexer),
+		fx.Supply(params))
 }
 
 type dependencies struct {

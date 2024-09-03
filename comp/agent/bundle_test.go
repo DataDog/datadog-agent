@@ -30,8 +30,7 @@ func TestBundleDependencies(t *testing.T) {
 		defaultforwarder.MockModule(),
 		orchestratorimpl.MockModule(),
 		eventplatformimpl.MockModule(),
-		demultiplexerimpl.Module(),
-		fx.Supply(demultiplexerimpl.NewDefaultParams()),
+		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 		fx.Supply(jmxloggerimpl.NewDefaultParams()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)

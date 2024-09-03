@@ -14,7 +14,7 @@ import (
 // team: agent-metrics-logs
 
 // Bundle defines the fx options for this bundle.
-func Bundle() fxutil.BundleOptions {
+func Bundle(params demultiplexerimpl.Params) fxutil.BundleOptions {
 	return fxutil.Bundle(
-		demultiplexerimpl.Module())
+		demultiplexerimpl.Module(params))
 }

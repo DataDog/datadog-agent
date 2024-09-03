@@ -183,16 +183,12 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(status.NewInformationProvider(statuscollector.Provider{})),
 				fx.Provide(func() serializer.MetricSerializer { return nil }),
 				compressionimpl.Module(),
-				demultiplexerimpl.Module(),
+				// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
+				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithFlushInterval(0))),
 				orchestratorForwarderImpl.Module(),
 				fx.Supply(orchestratorForwarderImpl.NewNoopParams()),
 				eventplatformimpl.Module(eventplatforParams),
 				eventplatformreceiverimpl.Module(),
-				fx.Provide(func() demultiplexerimpl.Params {
-					// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-					return demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithFlushInterval(0))
-				}),
-
 				fx.Supply(
 					status.Params{
 						PythonVersionGetFunc: python.GetPythonVersion,

@@ -148,7 +148,9 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		}),
 
 		compressionimpl.Module(),
-		demultiplexerimpl.Module(),
+		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(
+			demultiplexerimpl.WithContinueOnMissingHostname(),
+		)),
 		secretsimpl.Module(),
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
@@ -160,11 +162,6 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
 			return demuxInstance.Serializer()
-		}),
-		fx.Provide(func(config config.Component) demultiplexerimpl.Params {
-			return demultiplexerimpl.NewDefaultParams(
-				demultiplexerimpl.WithContinueOnMissingHostname(),
-			)
 		}),
 		fx.Supply(resourcesimpl.Disabled()),
 		metadatarunnerimpl.Module(),

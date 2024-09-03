@@ -189,14 +189,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
-				aggregator.Bundle(),
+				aggregator.Bundle(demultiplexerimpl.NewDefaultParams()),
 				forwarder.BundleWithProvider(defaultforwarder.NewParams),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
 				orchestratorimpl.Module(),
 				fx.Provide(
 					orchestratorimpl.NewDefaultParams,
-					demultiplexerimpl.NewDefaultParams,
 				),
 			)
 			if err != nil {

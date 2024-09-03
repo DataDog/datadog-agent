@@ -85,12 +85,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				core.Bundle(),
 				forwarder.BundleWithProvider(defaultforwarder.NewParamsWithResolvers),
 				compressionimpl.Module(),
-				demultiplexerimpl.Module(),
+				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 				orchestratorForwarderImpl.Module(),
 				fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
 				eventplatformreceiverimpl.Module(),
-				fx.Supply(demultiplexerimpl.NewDefaultParams()),
+
 				// setup workloadmeta
 				wmcatalog.GetCatalog(),
 				workloadmetafx.Module(workloadmeta.Params{
