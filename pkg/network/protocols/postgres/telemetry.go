@@ -22,12 +22,76 @@ const (
 	numberOfBucketsSmallerThanMaxBufferSize = 3
 )
 
+type counterEnum int
+
+const (
+	fulfillTableAndOperation counterEnum = iota + 1
+	fulfillOperationNotFound
+	fulfillTableNameNotFound
+	fulfillTableAndOpNotFound
+)
+
+// resultAwareCounter stores counter when goal was achieved and counter when target not found.
+type resultAwareCounter struct {
+	// countTableAndOperation counts the number of successfully retrieved table name and operation.
+	countTableAndOperation *libtelemetry.Counter
+	// countOperationNotFound counts the number of unsuccessful fetches of the operation.
+	countOperationNotFound *libtelemetry.Counter
+	// countTableNameNotFound counts the number of unsuccessful fetches of the table name.
+	countTableNameNotFound *libtelemetry.Counter
+	// countTableAndOpNotFound counts the number of failed attempts to fetch both the table name and the operation.
+	countTableAndOpNotFound *libtelemetry.Counter
+}
+
+// newResultAwareCounter creates and returns a new instance
+func newResultAwareCounter(metricGroup *libtelemetry.MetricGroup, metricName string, tags ...string) *resultAwareCounter {
+	return &resultAwareCounter{
+		countTableAndOperation:  metricGroup.NewCounter(metricName, append(tags, "fulfilled:table_and_op")...),
+		countOperationNotFound:  metricGroup.NewCounter(metricName, append(tags, "fulfilled:no_operation")...),
+		countTableNameNotFound:  metricGroup.NewCounter(metricName, append(tags, "fulfilled:no_table_name")...),
+		countTableAndOpNotFound: metricGroup.NewCounter(metricName, append(tags, "fulfilled:no_table_no_op")...),
+	}
+}
+
+// add adds delta to the counter of completed results or counter incomplete results.
+func (c *resultAwareCounter) add(delta int64, fulfilled counterEnum) {
+	switch fulfilled {
+	case fulfillTableAndOperation:
+		c.countTableAndOperation.Add(delta)
+	case fulfillOperationNotFound:
+		c.countOperationNotFound.Add(delta)
+	case fulfillTableNameNotFound:
+		c.countTableNameNotFound.Add(delta)
+	case fulfillTableAndOpNotFound:
+		c.countTableAndOpNotFound.Add(delta)
+	default:
+		log.Errorf("Add bucket counter, undefined enum.")
+	}
+}
+
+// get returns the counter value based on the result.
+func (c *resultAwareCounter) get(fulfilled counterEnum) int64 {
+	switch fulfilled {
+	case fulfillTableAndOperation:
+		return c.countTableAndOperation.Get()
+	case fulfillOperationNotFound:
+		return c.countOperationNotFound.Get()
+	case fulfillTableNameNotFound:
+		return c.countTableNameNotFound.Get()
+	case fulfillTableAndOpNotFound:
+		return c.countTableAndOpNotFound.Get()
+	default:
+		log.Errorf("Get bucket counter, undefined enum.")
+		return -1
+	}
+}
+
 // Telemetry is a struct to hold the telemetry for the postgres protocol
 type Telemetry struct {
 	metricGroup *libtelemetry.MetricGroup
 
 	// queryLengthBuckets holds the counters for the different buckets of by the query length quires
-	queryLengthBuckets [numberOfBuckets]*libtelemetry.ResultAwareCounter
+	queryLengthBuckets [numberOfBuckets]*resultAwareCounter
 	// failedTableNameExtraction holds the counter for the failed table name extraction
 	failedTableNameExtraction *libtelemetry.Counter
 	// failedOperationExtraction holds the counter for the failed operation extraction
@@ -51,10 +115,10 @@ type Telemetry struct {
 // Bucket 7: BufferSize + 4*bucketLength + 1 to BufferSize + 5*bucketLength
 // Bucket 8: BufferSize + 5*bucketLength + 1 to BufferSize + 6*bucketLength
 // Bucket 9: BufferSize + 6*bucketLength + 1 to BufferSize + 7*bucketLength
-func createQueryLengthBuckets(metricGroup *libtelemetry.MetricGroup) [numberOfBuckets]*libtelemetry.ResultAwareCounter {
-	var buckets [numberOfBuckets]*libtelemetry.ResultAwareCounter
+func createQueryLengthBuckets(metricGroup *libtelemetry.MetricGroup) [numberOfBuckets]*resultAwareCounter {
+	var buckets [numberOfBuckets]*resultAwareCounter
 	for i := 0; i < numberOfBuckets; i++ {
-		buckets[i] = libtelemetry.NewResultAwareCounter(metricGroup, "query_length_bucket"+fmt.Sprint(i+1), libtelemetry.OptStatsd)
+		buckets[i] = newResultAwareCounter(metricGroup, "query_length_bucket"+fmt.Sprint(i+1), libtelemetry.OptStatsd)
 	}
 	return buckets
 }
@@ -88,20 +152,22 @@ func (t *Telemetry) getBucketIndex(querySize int) int {
 func (t *Telemetry) Count(tx *ebpf.EbpfEvent, eventWrapper *EventWrapper) {
 	querySize := int(tx.Tx.Original_query_size)
 
-	fulfilled := false
+	var fulfilled counterEnum = fulfillTableAndOperation
 	if eventWrapper.Operation() == UnknownOP {
 		t.failedOperationExtraction.Add(1)
-	} else {
-		fulfilled = true
+		fulfilled = fulfillOperationNotFound
 	}
 	if eventWrapper.TableName() == "UNKNOWN" {
 		t.failedTableNameExtraction.Add(1)
-	} else {
-		fulfilled = true
+		if fulfilled == fulfillOperationNotFound {
+			fulfilled = fulfillTableAndOpNotFound
+		} else {
+			fulfilled = fulfillTableNameNotFound
+		}
 	}
 	bucketIndex := t.getBucketIndex(querySize)
 	if bucketIndex >= 0 && bucketIndex < len(t.queryLengthBuckets) {
-		t.queryLengthBuckets[bucketIndex].Add(1, fulfilled)
+		t.queryLengthBuckets[bucketIndex].add(1, fulfilled)
 	}
 }
 
