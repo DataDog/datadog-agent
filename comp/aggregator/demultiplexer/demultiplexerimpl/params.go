@@ -19,10 +19,11 @@ type Params struct {
 	flushInterval optional.Option[time.Duration]
 }
 
-type option func(*Params)
+// Option is a function that sets a parameter in the Params struct
+type Option func(*Params)
 
 // NewDefaultParams returns the default parameters for the demultiplexer
-func NewDefaultParams(options ...option) Params {
+func NewDefaultParams(options ...Option) Params {
 	p := Params{}
 	for _, o := range options {
 		o(&p)
@@ -30,13 +31,15 @@ func NewDefaultParams(options ...option) Params {
 	return p
 }
 
-func WithContinueOnMissingHostname() option {
+// WithContinueOnMissingHostname sets the continueOnMissingHostname field to true
+func WithContinueOnMissingHostname() Option {
 	return func(p *Params) {
 		p.continueOnMissingHostname = true
 	}
 }
 
-func WithFlushInterval(duration time.Duration) option {
+// WithFlushInterval sets the flushInterval field to the provided duration
+func WithFlushInterval(duration time.Duration) Option {
 	return func(p *Params) {
 		p.flushInterval = optional.NewOption(duration)
 	}
