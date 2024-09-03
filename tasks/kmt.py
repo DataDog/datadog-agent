@@ -530,6 +530,19 @@ def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths,
             inputs=[os.path.abspath(f)],
         )
 
+    vm_metrics_files = glob("test/new-e2e/system-probe/vm-metrics/*.go")
+    nw.build(
+        rule="gobin",
+        pool="gobuild",
+        outputs=[os.path.join(kmt_paths.dependencies, "vm-metrics")],
+        implicit=test_runner_files,
+        variables={
+            "go": go_path,
+            "chdir": "cd test/new-e2e/system-probe/vm-metrics",
+            "env": env_str,
+        },
+    )
+
     test_json_files = glob("test/new-e2e/system-probe/test-json-review/*.go")
     nw.build(
         rule="gobin",
