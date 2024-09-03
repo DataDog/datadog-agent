@@ -25,6 +25,7 @@ processors:
 connectors:
   datadog/connector:
     traces:
+      span_name_as_resource_name: true
       compute_top_level_by_span_kind: true
       peer_tags_aggregation: true
       compute_stats_by_span_kind: true
@@ -33,7 +34,7 @@ extensions:
   health_check/user-defined:
   zpages/user-defined:
     endpoint: "localhost:55679"
-  datadog/user-defined:
+  ddflare/user-defined:
 
 service:
   extensions:
@@ -41,7 +42,7 @@ service:
       pprof/user-defined,
       zpages/user-defined,
       health_check/user-defined,
-      datadog/user-defined,
+      ddflare/user-defined,
     ]
   pipelines:
     traces:

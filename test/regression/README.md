@@ -12,33 +12,30 @@ contact #single-machine-performance; we'll be glad to help.
 In order for SMP's tooling to properly read a experiment directory please
 adhere to the following structure. Starting at the root:
 
-* `cases/` -- __Required__ The directory that contains each regression
-  experiment. Each sub-directory is a separate experiment and the name of the
+* `config.yaml` -- __Required__ Configuration that applies to all experiments.
+* `cases/` -- __Required__ The directory that contains each experiment.
+  Each sub-directory is a separate experiment and the name of the
   directory is the name of the experiment, for instance
   `tcp_syslog_to_blackhole`. We call these sub-directories 'cases'.
 
 The structure of each case is as follows:
 
 * `lading/lading.yaml` -- __Required__ The [lading] configuration inside its own
-  directory. Directory will be mount read-only in the container built from
-  `Dockerfile` above at `/etc/lading`.
+  directory.
 * `datadog-agent/` -- __Required__ This is the configuration directory of your
   program. Will be mounted read-only in the container build from `Dockerfile`
   above at `/etc/datadog-agent`.
-* `experiment.yaml` -- __Optional__ This file can be used to set a
-  single optimization goal for each experiment.
+* `experiment.yaml` -- __Required__ Set any experiment-specific configuration.
+  The "optimization goal" determines what metric the Regression Detector
+  will analyze at the conclusion of the experiment.
 
-  In this file, the optimization goal is set via a snippet like
-
+  Eg:
   ```yaml
   optimization_goal: ingress_throughput
   ```
 
   Supported values of `optimization_goal` are `ingress_throughput` and
   `egress_throughput`.
-
-  If an experiment omits this file, the optimization goal defaults to
-  `ingress_throughput`.
 
 [Vector]: https://github.com/vectordotdev/vector/tree/master/regression
 [lading]: https://github.com/DataDog/lading
@@ -54,5 +51,5 @@ See full docs [here](https://github.com/DataDog/single-machine-performance/blob/
 
 An example command may look like this:
 ```
-smp local-run --experiment-dir ~/dev/datadog-agent/test/regression/ --case uds_to_blackhole --target-image datadog/agent-dev:nightly-main-1bf80594-py3 --lading-path ~/lading/target/release/lading --target-command "/bin/entrypoint.sh" --target datadog-agent
+smp local-run --experiment-dir ~/dev/datadog-agent/test/regression/ --case uds_dogstatsd_to_api --target-image datadog/agent-dev:nightly-main-fe13dead-py3
 ```

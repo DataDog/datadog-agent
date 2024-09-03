@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type transformerFunction func(string) interface{}
+type transformerFunction func(string) []map[string]string
 
 const (
 	spNS                         = "system_probe_config"
@@ -206,6 +206,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(netNS, "ignore_conntrack_init_failure"), false, "DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE")
 	cfg.BindEnvAndSetDefault(join(netNS, "conntrack_init_timeout"), 10*time.Second)
 	cfg.BindEnvAndSetDefault(join(netNS, "allow_netlink_conntracker_fallback"), true)
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_ebpf_conntracker"), true)
 
 	cfg.BindEnvAndSetDefault(join(spNS, "source_excludes"), map[string][]string{})
 	cfg.BindEnvAndSetDefault(join(spNS, "dest_excludes"), map[string][]string{})
@@ -258,6 +259,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnv(join(smNS, "max_http_stats_buffered"))
 	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
 	cfg.BindEnv(join(smNS, "max_postgres_stats_buffered"))
+	cfg.BindEnvAndSetDefault(join(smNS, "max_postgres_telemetry_buffer"), 160)
 	cfg.BindEnv(join(smNS, "max_redis_stats_buffered"))
 	cfg.BindEnv(join(smNS, "max_concurrent_requests"))
 	cfg.BindEnv(join(smNS, "enable_quantization"))
@@ -269,8 +271,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	newHTTPRules := join(smNS, "http_replace_rules")
 	cfg.BindEnv(newHTTPRules)
 	cfg.BindEnv(oldHTTPRules, "DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES")
+
 	httpRulesTransformer := func(key string) transformerFunction {
-		return func(in string) interface{} {
+		return func(in string) []map[string]string {
 			var out []map[string]string
 			if err := json.Unmarshal([]byte(in), &out); err != nil {
 				log.Warnf(`%q can not be parsed: %v`, key, err)
@@ -278,8 +281,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 			return out
 		}
 	}
-	cfg.SetEnvKeyTransformer(oldHTTPRules, httpRulesTransformer(oldHTTPRules))
-	cfg.SetEnvKeyTransformer(newHTTPRules, httpRulesTransformer(newHTTPRules))
+	cfg.ParseEnvAsSliceMapString(oldHTTPRules, httpRulesTransformer(oldHTTPRules))
+	cfg.ParseEnvAsSliceMapString(newHTTPRules, httpRulesTransformer(newHTTPRules))
 
 	// Default value (1024) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
 	cfg.BindEnv(join(netNS, "max_tracked_http_connections"))
@@ -393,6 +396,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	// Discovery config
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "enabled"), false)
+
+	// Fleet policies
+	cfg.BindEnv("fleet_policies_dir")
 
 	initCWSSystemProbeConfig(cfg)
 }

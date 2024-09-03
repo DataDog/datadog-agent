@@ -291,8 +291,6 @@ int hook_do_exit(ctx_t *ctx) {
 
     // only send the exit event if this is the thread group leader that isn't being killed by an execing thread
     if (tgid == pid && pid_tgid_execing == NULL) {
-        expire_pid_discarder(tgid);
-
         // update exit time
         struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
         if (pid_entry) {

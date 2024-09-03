@@ -41,7 +41,7 @@ func newResolver(uris []string) (*confmap.Resolver, error) {
 }
 
 func TestNewConverter(t *testing.T) {
-	_, err := NewConverter()
+	_, err := NewConverter(Requires{})
 	assert.NoError(t, err)
 }
 
@@ -51,6 +51,21 @@ func TestConvert(t *testing.T) {
 		provided       string
 		expectedResult string
 	}{
+		{
+			name:           "connectors/no-dd-connector",
+			provided:       "connectors/no-dd-connector/config.yaml",
+			expectedResult: "connectors/no-dd-connector/config.yaml",
+		},
+		{
+			name:           "connectors/already-set",
+			provided:       "connectors/already-set/config.yaml",
+			expectedResult: "connectors/already-set/config.yaml",
+		},
+		{
+			name:           "connectors/set-default",
+			provided:       "connectors/set-default/config.yaml",
+			expectedResult: "connectors/set-default/config-result.yaml",
+		},
 		{
 			name:           "extensions/no-extensions",
 			provided:       "extensions/no-extensions/config.yaml",
@@ -135,7 +150,7 @@ func TestConvert(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			converter, err := NewConverter()
+			converter, err := NewConverter(Requires{})
 			assert.NoError(t, err)
 
 			resolver, err := newResolver(uriFromFile(tc.provided))

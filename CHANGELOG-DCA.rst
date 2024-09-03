@@ -2,6 +2,77 @@
 Release Notes
 =============
 
+.. _Release Notes_7.56.1:
+
+7.56.1
+======
+
+.. _Release Notes_7.56.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-08-29
+Pinned to datadog-agent v7.56.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7561>`_.
+
+.. _Release Notes_7.56.0:
+
+7.56.0
+======
+
+.. _Release Notes_7.56.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-08-16
+Pinned to datadog-agent v7.56.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7560>`_.
+
+.. _Release Notes_7.56.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Disables default injection of the .NET profiler dependency for Kubernetes auto_instrumentation.
+
+
+.. _Release Notes_7.56.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Mark the NetworkPolicy collector as stable in the Cluster Agent
+
+- Enabled language detection automatically in the injected agent sidecar on EKS Fargate when APM SSI is enabled.
+  This is only available for users using the admission controller to automatically inject the agent sidecar.
+
+- The orchestrator check can now scrub sensitive data from probes in pods specifications.
+
+
+.. _Release Notes_7.56.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes issue where the external metrics server would sometimes return metrics which had not
+  been updated for longer than the configured `external_metrics_provider.max_age` as valid.
+  In connection with this fix, a new config (`external_metrics_provider.query_validity_period`)
+  has been added to account for the delay between when metrics are resolved and when they
+  are queried by the various autoscaling controllers. It is set to 30 seconds by default.
+
+.. _Release Notes_7.55.3:
+
+7.55.3
+================
+
+.. _Release Notes_7.55.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-08-01
+Pinned to datadog-agent v7.55.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7553>`_.
+
 .. _Release Notes_7.55.2:
 
 7.55.2

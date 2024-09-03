@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -136,7 +137,7 @@ func IsRunningOn(ctx context.Context) bool {
 		return true
 	}
 
-	return config.IsFeaturePresent(config.ECSEC2) || config.IsFeaturePresent(config.ECSFargate)
+	return env.IsFeaturePresent(env.ECSEC2) || env.IsFeaturePresent(env.ECSFargate)
 }
 
 // GetHostAliases returns the host aliases from the EC2 metadata API.

@@ -109,8 +109,7 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 			workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Provide(func() log.Component { return logmock.New(t) }),
 				config.MockModule(),
-				fx.Supply(workloadmeta.NewParams()),
-				workloadmetafxmock.MockModule(),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
 			workloadmetaStore.Set(&workloadmeta.Container{
@@ -175,8 +174,7 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 			workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Provide(func() log.Component { return logmock.New(t) }),
 				config.MockModule(),
-				fx.Supply(workloadmeta.NewParams()),
-				workloadmetafxmock.MockModule(),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
 			workloadmetaStore.Set(&workloadmeta.Container{

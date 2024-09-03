@@ -9,24 +9,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// ServiceDetector defines the service detector to get metadata about services.
-type ServiceDetector struct {
-	langFinder language.Finder
-}
-
-// NewServiceDetector creates a new ServiceDetector object.
-func NewServiceDetector() *ServiceDetector {
-	return &ServiceDetector{
-		langFinder: language.New(),
-	}
-}
 
 // ServiceMetadata stores metadata about a service.
 type ServiceMetadata struct {
@@ -59,30 +43,8 @@ func makeFinalName(meta usm.ServiceMetadata) string {
 
 // GetServiceName gets the service name based on the command line arguments and
 // the list of environment variables.
-func (sd *ServiceDetector) GetServiceName(cmdline []string, env map[string]string) string {
-	meta, _ := usm.ExtractServiceMetadata(cmdline, env)
-	return makeFinalName(meta)
-}
-
-// Detect gets metadata for a service.
-func (sd *ServiceDetector) Detect(p processInfo) ServiceMetadata {
-	meta, _ := usm.ExtractServiceMetadata(p.CmdLine, p.Env)
-	lang, _ := sd.langFinder.Detect(p.CmdLine, p.Env)
-	svcType := servicetype.Detect(meta.Name, p.Ports)
-	apmInstr := apm.Detect(p.CmdLine, p.Env, lang)
-
-	log.Debugf("name info - name: %q; additional names: %v", meta.Name, meta.AdditionalNames)
-
-	nameSource := "generated"
-	if meta.FromDDService {
-		nameSource = "provided"
-	}
-
-	return ServiceMetadata{
-		Name:               makeFinalName(meta),
-		Language:           string(lang),
-		Type:               string(svcType),
-		APMInstrumentation: string(apmInstr),
-		NameSource:         nameSource,
-	}
+func GetServiceName(cmdline []string, env map[string]string, root string, contextMap usm.DetectorContextMap) (string, bool) {
+	fs := usm.NewSubDirFS(root)
+	meta, _ := usm.ExtractServiceMetadata(cmdline, env, fs, contextMap)
+	return makeFinalName(meta), meta.FromDDService
 }
