@@ -6,11 +6,6 @@
 //nolint:revive // TODO(SERV) Fix revive linter
 package proc
 
-/*
-# <include stdio.h>
-# <include stdlib.h>
-*/
-
 import (
 	"bufio"
 	"bytes"
