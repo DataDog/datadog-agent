@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	pkgkubehelpers "github.com/DataDog/datadog-agent/pkg/util/kubernetes/helpers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -710,7 +710,7 @@ func getServiceNameFromPod(pod *corev1.Pod) (string, error) {
 	case "DaemonSet":
 		return owner.Name, nil
 	case "ReplicaSet":
-		return kubernetes.ParseDeploymentForReplicaSet(owner.Name), nil
+		return pkgkubehelpers.ParseDeploymentForReplicaSet(owner.Name), nil
 	}
 
 	return "", nil
