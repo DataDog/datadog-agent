@@ -152,9 +152,7 @@ func (li *linuxImpl) getServiceInfo(service model.Service) serviceInfo {
 	// for now, docker-proxy is going on the ignore list
 
 	pInfo := processInfo{
-		Stat: procStat{
-			StartTime: service.StartTimeSecs,
-		},
+		Stat: procStat{},
 	}
 
 	serviceType := servicetype.Detect(service.Name, service.Ports)

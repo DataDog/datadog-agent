@@ -57,14 +57,14 @@ func Test_telemetrySender(t *testing.T) {
 	svc := serviceInfo{
 		process: processInfo{
 			Stat: procStat{
-				StartTime: uint64(now.Add(-20 * time.Minute).Unix()),
-				RSS:       500 * 1024 * 1024,
+				RSS: 500 * 1024 * 1024,
 			},
 		},
 		service: model.Service{
-			PID:         99,
-			CommandLine: []string{"test-service", "--args"},
-			Ports:       []uint16{80, 8080},
+			PID:           99,
+			CommandLine:   []string{"test-service", "--args"},
+			Ports:         []uint16{80, 8080},
+			StartTimeSecs: uint64(now.Add(-20 * time.Minute).Unix()),
 		},
 		meta: ServiceMetadata{
 			Name:               "test-service",
@@ -169,13 +169,12 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 
 	svc := serviceInfo{
 		process: processInfo{
-			Stat: procStat{
-				StartTime: uint64(now.Add(-20 * time.Minute).Unix()),
-			},
+			Stat: procStat{},
 		},
 		service: model.Service{
-			PID:         55,
-			CommandLine: []string{"foo", "--option"},
+			PID:           55,
+			CommandLine:   []string{"foo", "--option"},
+			StartTimeSecs: uint64(now.Add(-20 * time.Minute).Unix()),
 		},
 		meta: ServiceMetadata{
 			Name:               "test-service",

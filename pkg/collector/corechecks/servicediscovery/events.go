@@ -67,7 +67,7 @@ func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 			Env:                 env,
 			ServiceLanguage:     svc.meta.Language,
 			ServiceType:         svc.meta.Type,
-			StartTime:           int64(svc.process.Stat.StartTime),
+			StartTime:           int64(svc.service.StartTimeSecs),
 			LastSeen:            svc.LastHeartbeat.Unix(),
 			APMInstrumentation:  svc.meta.APMInstrumentation,
 			ServiceNameSource:   svc.meta.NameSource,
