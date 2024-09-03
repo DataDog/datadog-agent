@@ -239,7 +239,7 @@ def build_go_syscall_tester(ctx, build_dir):
     return syscall_tester_exe_file
 
 
-def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=None, static=True):
+def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=None, static=True, compiler='clang'):
     if flags is None:
         flags = []
     if libs is None:
@@ -253,14 +253,18 @@ def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=Non
     if static:
         flags.append("-static")
 
+    additional_flags = [f"-isystem/usr/include/{uname_m}-linux-gnu"]
+    if compiler == "clang":
+        additional_flags.append(f"-D__{uname_m}__")
+
     nw.build(
         inputs=[syscall_tester_c_file],
         outputs=[syscall_tester_exe_file],
-        rule="execlang",
+        rule="exe"+compiler,
         variables={
             "exeflags": flags,
             "exelibs": libs,
-            "flags": [f"-D__{uname_m}__", f"-isystem/usr/include/{uname_m}-linux-gnu"],
+            "flags": additional_flags,
         },
     )
     return syscall_tester_exe_file
@@ -307,12 +311,12 @@ def build_embed_latency_tools(ctx, static=True):
     ctx.run(f"ninja -f {nf_path}")
 
 
-def ninja_syscall_x86_tester(ctx, build_dir, static=True):
-    return ninja_c_syscall_tester_common(ctx, "syscall_x86_tester", build_dir, flags=["-m32"], static=static)
+def ninja_syscall_x86_tester(ctx, build_dir, static=True, compiler='clang'):
+    return ninja_c_syscall_tester_common(ctx, "syscall_x86_tester", build_dir, flags=["-m32"], static=static, compiler=compiler)
 
 
-def ninja_syscall_tester(ctx, build_dir, static=True):
-    return ninja_c_syscall_tester_common(ctx, "syscall_tester", build_dir, libs=["-lpthread"], static=static)
+def ninja_syscall_tester(ctx, build_dir, static=True, compiler='clang'):
+    return ninja_c_syscall_tester_common(ctx, "syscall_tester", build_dir, libs=["-lpthread"], static=static, compiler=compiler)
 
 
 def create_dir_if_needed(dir):
@@ -324,7 +328,7 @@ def create_dir_if_needed(dir):
 
 
 @task
-def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True):
+def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True, compiler="clang"):
     arch = Arch.from_str(arch)
     check_for_ninja(ctx)
     build_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "bin")
@@ -335,11 +339,11 @@ def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True
     with open(nf_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file, width=120)
         ninja_define_ebpf_compiler(nw, arch=arch)
-        ninja_define_exe_compiler(nw)
+        ninja_define_exe_compiler(nw, compiler=compiler)
 
-        ninja_syscall_tester(nw, build_dir, static=static)
+        ninja_syscall_tester(nw, build_dir, static=static, compiler=compiler)
         if arch == ARCH_AMD64:
-            ninja_syscall_x86_tester(nw, build_dir, static=static)
+            ninja_syscall_x86_tester(nw, build_dir, static=static, compiler=compiler)
         ninja_ebpf_probe_syscall_tester(nw, go_dir)
 
     ctx.run(f"ninja -f {nf_path}")
@@ -362,6 +366,7 @@ def build_functional_tests(
     kernel_release=None,
     debug=False,
     skip_object_files=False,
+    syscall_tester_compiler='clang',
 ):
     if not is_windows:
         if not skip_object_files:
@@ -373,7 +378,7 @@ def build_functional_tests(
                 debug=debug,
                 bundle_ebpf=bundle_ebpf,
             )
-        build_embed_syscall_tester(ctx)
+        build_embed_syscall_tester(ctx, compiler=syscall_tester_compiler)
 
     arch = Arch.from_str(arch)
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, arch=arch)
