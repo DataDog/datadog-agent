@@ -7,27 +7,32 @@ package kfilters
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func init() {
-	allCapabilities["create"] = Capabilities{
-		"create.file.name": {
-			ValueTypeBitmask: eval.ScalarValueType | eval.PatternValueType,
+	allCapabilities["create"] = rules.FieldCapabilities{
+		{
+			Field:       "create.file.name",
+			TypeBitmask: eval.ScalarValueType | eval.PatternValueType,
 		},
 	}
-	allCapabilities["rename"] = Capabilities{
-		"rename.file.name": {
-			ValueTypeBitmask: eval.ScalarValueType | eval.PatternValueType,
+	allCapabilities["rename"] = rules.FieldCapabilities{
+		{
+			Field:       "rename.file.name",
+			TypeBitmask: eval.ScalarValueType | eval.PatternValueType,
 		},
 	}
-	allCapabilities["delete"] = Capabilities{
-		"delete.file.name": {
-			ValueTypeBitmask: eval.ScalarValueType | eval.PatternValueType,
+	allCapabilities["delete"] = rules.FieldCapabilities{
+		{
+			Field:       "delete.file.name",
+			TypeBitmask: eval.ScalarValueType | eval.PatternValueType,
 		},
 	}
-	allCapabilities["write"] = Capabilities{
-		"write.file.name": {
-			ValueTypeBitmask: eval.ScalarValueType | eval.PatternValueType,
+	allCapabilities["write"] = rules.FieldCapabilities{
+		{
+			Field:       "write.file.name",
+			TypeBitmask: eval.ScalarValueType | eval.PatternValueType,
 		},
 	}
 }

@@ -2113,7 +2113,7 @@ def install_ddagent(
     for d in domains:
         d.run_cmd(
             ctx,
-            f"curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent{major}.sh > /tmp/install-script.sh",
+            f"curl -L https://install.datadoghq.com/scripts/install_script_agent{major}.sh > /tmp/install-script.sh",
             verbose=verbose,
         )
         d.run_cmd(ctx, f"{' '.join(env)} bash /tmp/install-script.sh", verbose=verbose)

@@ -26,7 +26,7 @@ import (
 )
 
 // NewConfigComponent creates a new config component from the given URIs
-func NewConfigComponent(ctx context.Context, uris []string) (config.Component, error) {
+func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (config.Component, error) {
 	// Load the configuration from the fileName
 	rs := confmap.ResolverSettings{
 		URIs: uris,
@@ -60,11 +60,26 @@ func NewConfigComponent(ctx context.Context, uris []string) (config.Component, e
 	apiKey := string(ddc.API.Key)
 	// Set the global agent config
 	pkgconfig := pkgconfigsetup.Datadog()
+	if len(ddCfg) != 0 {
+		// if the configuration file path was supplied via CLI flags or env vars,
+		// add that first so it's first in line
+		pkgconfig.AddConfigPath(ddCfg)
+		// If they set a config file directly, let's try to honor that
+		if strings.HasSuffix(ddCfg, ".yaml") || strings.HasSuffix(ddCfg, ".yml") {
+			pkgconfig.SetConfigFile(ddCfg)
+		}
+
+		_, err = pkgconfigsetup.LoadWithoutSecret(pkgconfig, nil)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	pkgconfig.SetConfigName("OTel")
 	pkgconfig.SetEnvPrefix("DD")
 	pkgconfig.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
-	// Set Default values
+	// Override config read (if any) with Default values
 	pkgconfigsetup.InitConfig(pkgconfig)
 	pkgconfig.Set("api_key", apiKey, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("site", site, pkgconfigmodel.SourceLocalConfigProcess)
@@ -83,8 +98,13 @@ func NewConfigComponent(ctx context.Context, uris []string) (config.Component, e
 	// APM & OTel trace configs
 	pkgconfig.Set("apm_config.enabled", true, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("apm_config.apm_non_local_traffic", true, pkgconfigmodel.SourceLocalConfigProcess)
+
+	pkgconfig.Set("apm_config.debug.port", 0, pkgconfigmodel.SourceLocalConfigProcess)      // Disabled in the otel-agent
+	pkgconfig.Set(pkgconfigsetup.OTLPTracePort, 0, pkgconfigmodel.SourceLocalConfigProcess) // Disabled in the otel-agent
+
 	pkgconfig.Set("otlp_config.traces.span_name_as_resource_name", ddc.Traces.SpanNameAsResourceName, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("otlp_config.traces.span_name_remappings", ddc.Traces.SpanNameRemappings, pkgconfigmodel.SourceLocalConfigProcess)
+
 	pkgconfig.Set("apm_config.receiver_enabled", false, pkgconfigmodel.SourceLocalConfigProcess) // disable HTTP receiver
 	pkgconfig.Set("apm_config.ignore_resources", ddc.Traces.IgnoreResources, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("apm_config.skip_ssl_validation", ddc.ClientConfig.TLSSetting.InsecureSkipVerify, pkgconfigmodel.SourceLocalConfigProcess)

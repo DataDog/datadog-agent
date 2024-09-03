@@ -36,7 +36,7 @@ func writerTest(t *testing.T, z bool) {
 	file, path, err := OpenFile(fs, "foo/bar", "")
 	require.NoError(t, err)
 
-	cfg := fxutil.Test[config.Component](t, config.MockModule())
+	cfg := config.NewMock(t)
 
 	writer := NewTrafficCaptureWriter(1)
 

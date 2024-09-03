@@ -34,6 +34,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -76,7 +77,7 @@ func isFentry() bool {
 
 func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
 	if isFentry() {
-		ddconfig.SetFeatures(t, ddconfig.ECSFargate)
+		ddconfig.SetFeatures(t, env.ECSFargate)
 		// protocol classification not yet supported on fargate
 		cfg.ProtocolClassificationEnabled = false
 	}

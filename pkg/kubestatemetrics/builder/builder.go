@@ -47,6 +47,9 @@ type Builder struct {
 	metrics               *watch.ListWatchMetrics
 
 	resync time.Duration
+
+	collectPodsFromKubelet    bool
+	collectOnlyUnassignedPods bool
 }
 
 // New returns new Builder instance
@@ -135,6 +138,20 @@ func (b *Builder) WithAllowAnnotations(l map[string][]string) {
 	b.ksmBuilder.WithAllowAnnotations(l)
 }
 
+// WithPodCollectionFromKubelet configures the builder to collect pods from the
+// Kubelet instead of the API server. This has no effect if pod collection is
+// disabled.
+func (b *Builder) WithPodCollectionFromKubelet() {
+	b.collectPodsFromKubelet = true
+}
+
+// WithUnassignedPodsCollection configures the builder to only collect pods that
+// are not assigned to any node. This has no effect if pod collection is
+// disabled.
+func (b *Builder) WithUnassignedPodsCollection() {
+	b.collectOnlyUnassignedPods = true
+}
+
 // Build initializes and registers all enabled stores.
 // Returns metric writers.
 func (b *Builder) Build() metricsstore.MetricsWriterList {
@@ -172,8 +189,16 @@ func GenerateStores[T any](
 
 	if b.namespaces.IsAllNamespaces() {
 		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
-		listWatcher := listWatchFunc(client, corev1.NamespaceAll, b.fieldSelectorFilter)
-		b.startReflector(expectedType, store, listWatcher, useAPIServerCache)
+
+		switch expectedType.(type) {
+		// Pods are handled differently because depending on the configuration
+		// they're collected from the API server or the Kubelet.
+		case *corev1.Pod:
+			handlePodCollection(b, store, client, listWatchFunc, corev1.NamespaceAll, useAPIServerCache)
+		default:
+			listWatcher := listWatchFunc(client, corev1.NamespaceAll, b.fieldSelectorFilter)
+			b.startReflector(expectedType, store, listWatcher, useAPIServerCache)
+		}
 		return []cache.Store{store}
 
 	}
@@ -181,8 +206,15 @@ func GenerateStores[T any](
 	stores := make([]cache.Store, 0, len(b.namespaces))
 	for _, ns := range b.namespaces {
 		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
-		listWatcher := listWatchFunc(client, ns, b.fieldSelectorFilter)
-		b.startReflector(expectedType, store, listWatcher, useAPIServerCache)
+		switch expectedType.(type) {
+		// Pods are handled differently because depending on the configuration
+		// they're collected from the API server or the Kubelet.
+		case *corev1.Pod:
+			handlePodCollection(b, store, client, listWatchFunc, ns, useAPIServerCache)
+		default:
+			listWatcher := listWatchFunc(client, ns, b.fieldSelectorFilter)
+			b.startReflector(expectedType, store, listWatcher, useAPIServerCache)
+		}
 		stores = append(stores, store)
 	}
 
@@ -266,4 +298,21 @@ func (c *cacheEnabledListerWatcher) List(options v1.ListOptions) (runtime.Object
 	}
 
 	return res, err
+}
+
+func handlePodCollection[T any](b *Builder, store cache.Store, client T, listWatchFunc func(kubeClient T, ns string, fieldSelector string) cache.ListerWatcher, namespace string, useAPIServerCache bool) {
+	if b.collectPodsFromKubelet {
+		b.startKubeletPodWatcher(store, namespace)
+		return
+	}
+
+	fieldSelector := b.fieldSelectorFilter
+	if b.collectOnlyUnassignedPods {
+		// spec.nodeName is set to empty for unassigned pods. This ignores
+		// b.fieldSelectorFilter, but I think it's not used.
+		fieldSelector = "spec.nodeName="
+	}
+
+	listWatcher := listWatchFunc(client, namespace, fieldSelector)
+	b.startReflector(&corev1.Pod{}, store, listWatcher, useAPIServerCache)
 }
