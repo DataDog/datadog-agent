@@ -61,7 +61,7 @@ func TestStatusOutPut(t *testing.T) {
 		eventplatformimpl.MockModule(),
 		fx.Supply(
 			Params{
-				ContinueOnMissingHostname: true,
+				continueOnMissingHostname: true,
 			},
 		),
 	))

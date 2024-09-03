@@ -190,9 +190,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				eventplatformreceiverimpl.Module(),
 				fx.Provide(func() demultiplexerimpl.Params {
 					// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-					params := demultiplexerimpl.NewDefaultParams()
-					params.FlushInterval = 0
-					return params
+					return demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithFlushInterval(0))
 				}),
 
 				fx.Supply(

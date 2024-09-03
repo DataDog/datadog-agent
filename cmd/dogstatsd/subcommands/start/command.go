@@ -162,10 +162,9 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			return demuxInstance.Serializer()
 		}),
 		fx.Provide(func(config config.Component) demultiplexerimpl.Params {
-			params := demultiplexerimpl.NewDefaultParams()
-			params.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
-			params.ContinueOnMissingHostname = true
-			return params
+			return demultiplexerimpl.NewDefaultParams(
+				demultiplexerimpl.WithContinueOnMissingHostname(),
+				demultiplexerimpl.WithEnableNoAggregationPipeline(config.GetBool("dogstatsd_no_aggregation_pipeline")))
 		}),
 		fx.Supply(resourcesimpl.Disabled()),
 		metadatarunnerimpl.Module(),

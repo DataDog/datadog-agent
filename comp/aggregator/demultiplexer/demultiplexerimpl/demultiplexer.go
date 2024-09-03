@@ -67,7 +67,7 @@ type provides struct {
 func newDemultiplexer(deps dependencies) (provides, error) {
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
-		if deps.Params.ContinueOnMissingHostname {
+		if deps.Params.continueOnMissingHostname {
 			deps.Log.Warnf("Error getting hostname: %s", err)
 			hostnameDetected = ""
 		} else {
@@ -79,7 +79,7 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		deps.Log,
 		deps.SharedForwarder,
 		deps.OrchestratorForwarder,
-		deps.Params.AgentDemultiplexerOptions,
+		deps.Params.agentDemultiplexerOptions,
 		deps.EventPlatformForwarder,
 		deps.Compressor,
 		hostnameDetected)

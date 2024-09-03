@@ -424,9 +424,7 @@ func getSharedFxOption() fx.Option {
 		// injecting the aggregator demultiplexer to FX until we migrate it to a proper component. This allows
 		// other already migrated components to request it.
 		fx.Provide(func(config config.Component) demultiplexerimpl.Params {
-			params := demultiplexerimpl.NewDefaultParams()
-			params.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
-			return params
+			return demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithEnableNoAggregationPipeline(config.GetBool("dogstatsd_no_aggregation_pipeline")))
 		}),
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
