@@ -8,6 +8,9 @@ package checks
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
+	"net/http"
 	"runtime"
 	"sort"
 	"time"
@@ -23,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
@@ -503,4 +507,45 @@ func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceC
 	}
 
 	return tagsStr
+}
+
+func retryGetNetworkId() (string, error) {
+	networkID, err := cloudproviders.GetNetworkID(context.TODO())
+	if err != nil {
+		log.Infof("no network ID detected: %s", err)
+
+	}
+	return networkID, err
+}
+
+func getNetworkID() (string, error) {
+	req, err := http.NewRequest("GET", "/network_id", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Accept", contentTypeProtobuf)
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("conn request failed: Probe Path %s, url: %s, status code: %d", r.path, connectionsURL, resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	contentType := resp.Header.Get("Content-type")
+	conns, err := netEncoding.GetUnmarshaler(contentType).Unmarshal(body)
+	if err != nil {
+		return nil, err
+	}
+
+	return conns, nil
 }
