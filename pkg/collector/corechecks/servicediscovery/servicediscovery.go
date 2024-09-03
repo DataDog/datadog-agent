@@ -42,7 +42,6 @@ type serviceInfo struct {
 }
 
 type procStat struct {
-	RSS uint64
 }
 
 type processInfo struct {

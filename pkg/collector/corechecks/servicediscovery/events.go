@@ -74,7 +74,7 @@ func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 			Ports:               svc.service.Ports,
 			PID:                 svc.service.PID,
 			CommandLine:         svc.service.CommandLine,
-			RSSMemory:           svc.process.Stat.RSS,
+			RSSMemory:           svc.service.RSS,
 		},
 	}
 }
