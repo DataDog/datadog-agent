@@ -50,7 +50,7 @@
         END_MAJOR_VERSION: [7]
   script:
     - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $INSTALL_SCRIPT_API_KEY_SSM_NAME 
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $INSTALL_SCRIPT_API_KEY_SSM_NAME
     - export DATADOG_AGENT_API_KEY=$(pop_front)
     - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS} --src-agent-version $START_MAJOR_VERSION --dest-agent-version $END_MAJOR_VERSION
 

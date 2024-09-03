@@ -49,6 +49,7 @@ include:
 default:
   retry:
     max: 2
+    exit_codes: 42
     when:
       - runner_system_failure
       - stuck_or_timeout_failure

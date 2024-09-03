@@ -109,7 +109,7 @@ elif [ "$KITCHEN_PROVIDER" == "ec2" ]; then
     export KITCHEN_EC2_SSH_KEY_ID="datadog-agent-kitchen"
     export KITCHEN_EC2_SSH_KEY_PATH="$(pwd)/aws-ssh-key"
     touch "$KITCHEN_EC2_SSH_KEY_PATH" && chmod 600 "$KITCHEN_EC2_SSH_KEY_PATH"
-    "$PARENT_DIR"/tools/ci/aws_ssm_get_wrapper.sh "$KITCHEN_EC2_SSH_KEY_SSM_NAME" 
+    "$PARENT_DIR"/tools/ci/aws_ssm_get_wrapper.sh "$KITCHEN_EC2_SSH_KEY_SSM_NAME"
     pop_front > "$KITCHEN_EC2_SSH_KEY_PATH"
   fi
 fi
