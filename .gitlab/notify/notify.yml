@@ -53,7 +53,6 @@ send_pipeline_stats:
   when: always
   dependencies: []
   script:
-    - source /root/.bashrc
     - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN_SSM_NAME)
     - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
     - invoke -e notify.send-stats
@@ -79,7 +78,6 @@ notify_github:
   dependencies: []
   allow_failure: true
   script:
-    - source /root/.bashrc
     - !reference [.install_pr_commenter]
     - messagefile="$(mktemp)"
     - echo "Use this command from [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) to manually test this PR changes on a VM:" >> "$messagefile"
@@ -127,7 +125,6 @@ notify_gitlab_ci_changes:
   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
 
 .failure_summary_setup:
-  - source /root/.bashrc
   - export SLACK_API_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SLACK_AGENT_CI_TOKEN_SSM_NAME)
   - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN_SSM_NAME)
   - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
