@@ -21,8 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	tracerouteutil "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,8 +36,8 @@ var (
 	tracerouteConfigNamespaces = []string{"traceroute"}
 )
 
-func createTracerouteModule(_ *sysconfigtypes.Config, _ workloadmeta.Component, telemetry telemetry.Component) (module.Module, error) {
-	runner, err := tracerouteutil.NewRunner(telemetry)
+func createTracerouteModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
+	runner, err := tracerouteutil.NewRunner(deps.Telemetry)
 	if err != nil {
 		return &traceroute{}, err
 	}
