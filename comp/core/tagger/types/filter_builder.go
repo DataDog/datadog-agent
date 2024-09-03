@@ -17,32 +17,48 @@ type FilterBuilder struct {
 }
 
 // NewFilterBuilder returns a new empty filter builder
-func NewFilterBuilder() FilterBuilder {
-	return FilterBuilder{
+func NewFilterBuilder() *FilterBuilder {
+	return &FilterBuilder{
 		prefixesToInclude: make(map[EntityIDPrefix]struct{}),
 		prefixesToExclude: make(map[EntityIDPrefix]struct{}),
 	}
 }
 
 // Include includes the specified prefixes in the filter
-func (fb FilterBuilder) Include(prefixes ...EntityIDPrefix) {
+func (fb *FilterBuilder) Include(prefixes ...EntityIDPrefix) *FilterBuilder {
+	if fb == nil {
+		panic("filter builder should not be nil")
+	}
+
 	for _, prefix := range prefixes {
 		fb.prefixesToInclude[prefix] = struct{}{}
 	}
+
+	return fb
 }
 
 // Exclude excludes the specified prefixes from the filter
-func (fb FilterBuilder) Exclude(prefixes ...EntityIDPrefix) {
+func (fb *FilterBuilder) Exclude(prefixes ...EntityIDPrefix) *FilterBuilder {
+	if fb == nil {
+		panic("filter builder should not be nil")
+	}
+
 	for _, prefix := range prefixes {
 		fb.prefixesToExclude[prefix] = struct{}{}
 	}
+
+	return fb
 }
 
 // Build builds a new Filter object based on the calls to Include and Exclude
 // If the builder only excludes prefixes, the created filter will match any prefix except for the excluded ones.
 // If the builder only includes prefixes, the created filter will match only the prefixes included in the builder.
 // If the builder includes prefixes and excludes prefixes, the created filter will match only prefixes that are included but a not excluded in the builder
-func (fb FilterBuilder) Build(card TagCardinality) *Filter {
+func (fb *FilterBuilder) Build(card TagCardinality) *Filter {
+	if fb == nil {
+		panic("filter builder should not be nil")
+	}
+
 	prefixSet := make(map[EntityIDPrefix]struct{})
 
 	if len(fb.prefixesToInclude)+len(fb.prefixesToExclude) == 0 {

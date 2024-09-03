@@ -84,8 +84,16 @@ func TestFilterBuilderOps(t *testing.T) {
 
 	for _, test := range tests {
 		fb := NewFilterBuilder()
-		test.do(&fb)
+		test.do(fb)
 		filter := fb.Build(test.buildCard)
 		assert.Truef(t, reflect.DeepEqual(*filter, test.expectBuildFilter), "expected %v, found %v", test.expectBuildFilter, filter)
 	}
+}
+
+func TestNilFilterBuilderOps(t *testing.T) {
+	var fb *FilterBuilder
+
+	assert.Panics(t, func() { fb.Include(ContainerID) })
+	assert.Panics(t, func() { fb.Exclude(ContainerID) })
+	assert.Panics(t, func() { fb.Build(HighCardinality) })
 }
