@@ -35,7 +35,7 @@ func (p phpDetector) detect(args []string) (ServiceMetadata, bool) {
 	for _, arg := range args {
 		hasFlagPrefix := strings.HasPrefix(arg, "-")
 
-		// If the previous arguement was a flag, or is the current arg is a flag, skip the argument. Otherwise, process it.
+		// If the previous argument was a flag, or is the current arg is a flag, skip the argument. Otherwise, process it.
 		if !prevArgIsFlag && !hasFlagPrefix {
 			basePath := removeFilePath(arg)
 			if isRuneLetterAt(basePath, 0) && basePath == artisanConsole {
