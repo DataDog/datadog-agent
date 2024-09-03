@@ -28,13 +28,13 @@ import (
 type logLevel int
 
 const (
-	off logLevel = iota
-	critical
-	err
-	warn
-	info
+	trace logLevel = iota - 1
 	debug
-	trace
+	info
+	warn
+	err
+	critical
+	off
 )
 
 // datadog agent log levels: trace, debug, info, warn, error, critical, and off
@@ -49,6 +49,15 @@ var logLevelMap = map[string]logLevel{
 	"error":    err,
 	"critical": critical,
 }
+
+var logLevelReverseMap = func(src map[string]logLevel) map[logLevel]string {
+	reverse := map[logLevel]string{}
+	for k, v := range src {
+		reverse[v] = k
+	}
+
+	return reverse
+}(logLevelMap)
 
 // NewConfigComponent creates a new config component from the given URIs
 func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (config.Component, error) {
@@ -91,7 +100,6 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	pkgconfig.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	pkgconfig.BindEnvAndSetDefault("log_level", "info")
 
-	activeLogLevelStr := "critical"
 	activeLogLevel := critical
 	if len(ddCfg) != 0 {
 		// if the configuration file path was supplied via CLI flags or env vars,
@@ -107,12 +115,10 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			return nil, err
 		}
 		var ok bool
-		agentLogLevel := pkgconfig.GetString("log_level")
-		activeLogLevel, ok = logLevelMap[agentLogLevel]
+		activeLogLevel, ok = logLevelMap[pkgconfig.GetString("log_level")]
 		if !ok {
-			return nil, fmt.Errorf("invalid log level (%v) set in the Datadog Agent configuration", agentLogLevel)
+			return nil, fmt.Errorf("invalid log level (%v) set in the Datadog Agent configuration", pkgconfig.GetString("log_level"))
 		}
-		activeLogLevelStr = agentLogLevel
 	}
 
 	// Set the right log level. The most verbose setting takes precedence.
@@ -121,15 +127,15 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	if !ok {
 		return nil, fmt.Errorf("invalid log level (%v) set in the OTel Telemetry configuration", telemetryLogLevel.String())
 	}
-	if telemetryLogMapping > activeLogLevel {
-		activeLogLevelStr = telemetryLogLevel.String()
+	if telemetryLogMapping < activeLogLevel {
+		activeLogLevel = telemetryLogMapping
 	}
 
 	// Override config read (if any) with Default values
 	pkgconfigsetup.InitConfig(pkgconfig)
 	pkgconfigmodel.ApplyOverrideFuncs(pkgconfig)
 
-	pkgconfig.Set("log_level", activeLogLevelStr, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("log_level", logLevelReverseMap[activeLogLevel], pkgconfigmodel.SourceFile)
 
 	pkgconfig.Set("api_key", apiKey, pkgconfigmodel.SourceFile)
 	pkgconfig.Set("site", site, pkgconfigmodel.SourceFile)
