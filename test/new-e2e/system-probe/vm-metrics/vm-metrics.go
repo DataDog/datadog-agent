@@ -110,7 +110,7 @@ func (d *domainMetrics) collectDomainMemoryStatInfo(l libvirtInterface) error {
 		return fmt.Errorf("failed to get memory stats: %w", err)
 	}
 
-	tags := []string{d.osID}
+	tags := []string{fmt.Sprintf("os:%s", d.osID)}
 	for _, stat := range memStats {
 		if statString, ok := memStatTagToName[libvirt.DomainMemoryStatTags(stat.Tag)]; ok {
 			if stat.Tag == int32(libvirt.DomainMemoryStatMajorFault) {
@@ -163,16 +163,31 @@ func parseOSInformation(name string) string {
 	return ""
 }
 
+type tagsList []string
+
+func (t *tagsList) String() string {
+	return fmt.Sprintf("%v", *t)
+}
+
+func (t *tagsList) Set(value string) error {
+	*t = append(*t, value)
+	return nil
+}
+
 func main() {
+	var globalTags tagsList
+
 	statsdPort := flag.String("statsd-port", "8125", "Statsd port")
 	statsdHost := flag.String("statsd-host", "127.0.0.1", "Statsd host")
-	libvirtDaemonURI := flag.String("libvirt-uri", "", "URI for libvirt daemon")
 	collectionInterval := flag.Duration("interval", time.Second*20, "interval for collecting vm stats")
+	libvirtDaemonURI := flag.String("libvirt-uri", "", "libvirt daemon URI")
+	flag.Var(&globalTags, "tag", "global tags to set")
+	flag.Parse()
 
 	dialer := dialers.NewLocal(dialers.WithSocket(*libvirtDaemonURI), dialers.WithLocalTimeout((5 * time.Second)))
 	l := libvirt.NewWithDialer(dialer)
 	if err := l.ConnectToURI(libvirt.QEMUSystem); err != nil {
-		log.Fatal(err)
+		log.Fatal(fmt.Sprintf("failed to connect to libvirt: %v", err))
 	}
 	defer func() {
 		if err := l.Disconnect(); err != nil {
@@ -180,7 +195,8 @@ func main() {
 		}
 	}()
 
-	dogstatsd_client, err := statsd.New(fmt.Sprintf("%s:%s", *statsdHost, *statsdPort))
+	fmt.Println(globalTags)
+	dogstatsd_client, err := statsd.New(fmt.Sprintf("%s:%s", *statsdHost, *statsdPort), statsd.WithTags(globalTags))
 	if err != nil {
 		log.Fatal(err)
 	}
