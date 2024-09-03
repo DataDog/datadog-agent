@@ -54,16 +54,17 @@ func (fb *FilterBuilder) Exclude(prefixes ...EntityIDPrefix) *FilterBuilder {
 // If the builder only excludes prefixes, the created filter will match any prefix except for the excluded ones.
 // If the builder only includes prefixes, the created filter will match only the prefixes included in the builder.
 // If the builder includes prefixes and excludes prefixes, the created filter will match only prefixes that are included but a not excluded in the builder
+// If the builder has neither included nor excluded prefixes, it will match all prefixes by default
 func (fb *FilterBuilder) Build(card TagCardinality) *Filter {
 	if fb == nil {
 		panic("filter builder should not be nil")
 	}
 
-	prefixSet := make(map[EntityIDPrefix]struct{})
-
 	if len(fb.prefixesToInclude)+len(fb.prefixesToExclude) == 0 {
-		return newFilter(prefixSet, card)
+		return newFilter(AllPrefixesSet(), card)
 	}
+
+	prefixSet := make(map[EntityIDPrefix]struct{})
 
 	// initialise prefixSet with what should be included
 	if len(fb.prefixesToInclude) == 0 {

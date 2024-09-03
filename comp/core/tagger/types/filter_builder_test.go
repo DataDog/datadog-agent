@@ -24,7 +24,7 @@ func TestFilterBuilderOps(t *testing.T) {
 			do:        func(_ *FilterBuilder) {},
 			buildCard: HighCardinality,
 			expectBuildFilter: Filter{
-				prefixes:    map[EntityIDPrefix]struct{}{},
+				prefixes:    AllPrefixesSet(),
 				cardinality: HighCardinality,
 			},
 		},
