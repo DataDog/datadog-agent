@@ -298,7 +298,7 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	}
 
 	// update current policies related module attributes
-	e.policiesVersions = getPoliciesVersions(rs)
+	e.policiesVersions = getPoliciesVersions(rs, e.config.PolicyMonitorReportInternalPolicies)
 
 	// notify listeners
 	if e.rulesLoaded != nil {
@@ -541,11 +541,14 @@ func logLoadingErrors(msg string, m *multierror.Error) {
 	}
 }
 
-func getPoliciesVersions(rs *rules.RuleSet) []string {
+func getPoliciesVersions(rs *rules.RuleSet, includeInternalPolicies bool) []string {
 	var versions []string
 
 	cache := make(map[string]bool)
 	for _, rule := range rs.GetRules() {
+		if rule.Policy.IsInternal && !includeInternalPolicies {
+			continue
+		}
 		version := rule.Policy.Def.Version
 		if _, exists := cache[version]; !exists {
 			cache[version] = true

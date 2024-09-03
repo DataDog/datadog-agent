@@ -21,9 +21,8 @@ type linuxStatusSuite struct {
 }
 
 func TestLinuxStatusSuite(t *testing.T) {
-	enableImdsv2 := awshost.WithAgentOptions(agentparams.WithAgentConfig("ec2_prefer_imdsv2: true"))
 	t.Parallel()
-	e2e.Run(t, &linuxStatusSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(enableImdsv2)))
+	e2e.Run(t, &linuxStatusSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 
 func (v *linuxStatusSuite) TestStatusHostname() {

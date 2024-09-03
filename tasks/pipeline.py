@@ -243,11 +243,11 @@ def run(
 ):
     """
     Run a pipeline on the given git ref (--git-ref <git ref>), or on the current branch if --here is given.
-    By default, this pipeline will run all builds & tests, including all kitchen tests, but is not a deploy pipeline.
+    By default, this pipeline will run all builds & tests, including all kmt and e2e tests, but is not a deploy pipeline.
     Use --deploy to make this pipeline a deploy pipeline for the agent, which will upload artifacts to the staging repositories.
     Use --deploy-installer to make this pipeline a deploy pipeline for the installer, which will upload artifacts to the staging repositories.
     Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on pipelines on the default branch).
-    Use --no-kitchen-tests to not run all kitchen tests on the pipeline.
+    Use --no-kmt-tests to not run all Kernel Matrix Tests on the pipeline.
     Use --e2e-tests to run all e2e tests on the pipeline.
 
     Release Candidate related flags:
@@ -273,8 +273,8 @@ def run(
     Run a pipeline on the current branch:
       inv pipeline.run --here
 
-    Run a pipeline without kitchen tests on the current branch:
-      inv pipeline.run --here --no-kitchen-tests
+    Run a pipeline without Kernel Matrix Tests on the current branch:
+      inv pipeline.run --here --no-kmt-tests
 
     Run a pipeline with e2e tets on the current branch:
       inv pipeline.run --here --e2e-tests
@@ -307,7 +307,7 @@ def run(
     if deploy or deploy_installer:
         # Check the validity of the deploy pipeline
         check_deploy_pipeline(repo, git_ref, release_version_6, release_version_7, repo_branch)
-        # Force all builds and kitchen tests to be run
+        # Force all builds and e2e tests to be run
         if not all_builds:
             print(
                 color_message(
@@ -1029,11 +1029,17 @@ def compare_to_itself(ctx):
     # Push an empty commit to prevent linking this pipeline to the actual PR
     ctx.run("git commit -m 'Compare to itself' --allow-empty", hide=True)
     ctx.run(f"git push origin {new_branch}")
+
+    from tasks.libs.releasing.json import load_release_json
+
+    release_json = load_release_json()
+
     for file in ['.gitlab-ci.yml', '.gitlab/notify/notify.yml']:
         with open(file) as f:
             content = f.read()
         with open(file, 'w') as f:
-            f.write(content.replace('compare_to: main', f'compare_to: {new_branch}'))
+            f.write(content.replace(f'compare_to: {release_json["base_branch"]}', f'compare_to: {new_branch}'))
+
     ctx.run("git commit -am 'Compare to itself'", hide=True)
     ctx.run(f"git push origin {new_branch}", hide=True)
     max_attempts = 6

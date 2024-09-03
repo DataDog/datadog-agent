@@ -646,7 +646,7 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry 
 		ctx:               ctx,
 		cancelFnc:         cancelFnc,
 		clients:           make(map[net.Conn]*client),
-		processKiller:     NewProcessKiller(),
+		processKiller:     NewProcessKiller(config),
 		containerContexts: make(map[string]*ebpfless.ContainerContext),
 	}
 

@@ -8,23 +8,29 @@ package module
 import (
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/prometheus/procfs"
 	"github.com/shirou/gopsutil/v3/process"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
@@ -34,24 +40,37 @@ const (
 // Ensure discovery implements the module.Module interface.
 var _ module.Module = &discovery{}
 
-// cacheData holds process data that should be cached between calls to the
+// serviceInfo holds process data that should be cached between calls to the
 // endpoint.
-type cacheData struct {
-	serviceName string
+type serviceInfo struct {
+	name               string
+	nameFromDDService  bool
+	language           language.Language
+	apmInstrumentation apm.Instrumentation
+	cmdLine            []string
+	startTimeSecs      uint64
 }
 
 // discovery is an implementation of the Module interface for the discovery module.
 type discovery struct {
+	mux *sync.RWMutex
 	// cache maps pids to data that should be cached between calls to the endpoint.
-	cache           map[int32]cacheData
-	serviceDetector servicediscovery.ServiceDetector
+	cache map[int32]*serviceInfo
+
+	// privilegedDetector is used to detect the language of a process.
+	privilegedDetector privileged.LanguageDetector
+
+	// scrubber is used to remove potentially sensitive data from the command line
+	scrubber *procutil.DataScrubber
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
-func NewDiscoveryModule(*sysconfigtypes.Config, optional.Option[workloadmeta.Component], telemetry.Component) (module.Module, error) {
+func NewDiscoveryModule(*sysconfigtypes.Config, workloadmeta.Component, telemetry.Component) (module.Module, error) {
 	return &discovery{
-		cache:           make(map[int32]cacheData),
-		serviceDetector: *servicediscovery.NewServiceDetector(),
+		mux:                &sync.RWMutex{},
+		cache:              make(map[int32]*serviceInfo),
+		privilegedDetector: privileged.NewLanguageDetector(),
+		scrubber:           procutil.NewDefaultDataScrubber(),
 	}, nil
 }
 
@@ -63,12 +82,14 @@ func (s *discovery) GetStats() map[string]interface{} {
 // Register registers the discovery module with the provided HTTP mux.
 func (s *discovery) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/status", s.handleStatusEndpoint)
-	httpMux.HandleFunc(pathServices, s.handleServices)
+	httpMux.HandleFunc(pathServices, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleServices))
 	return nil
 }
 
 // Close cleans resources used by the discovery module.
 func (s *discovery) Close() {
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	clear(s.cache)
 }
 
@@ -94,24 +115,29 @@ func (s *discovery) handleServices(w http.ResponseWriter, _ *http.Request) {
 	utils.WriteAsJSON(w, resp)
 }
 
-// getSockets get a list of socket inode numbers opened by a process. Based on
-// snapshotBoundSockets() in
-// pkg/security/security_profile/activity_tree/process_node_snapshot.go. The
-// socket inode information from /proc/../fd is needed to map the connection
-// from the net/tcp (and similar) files to actual ports.
-func getSockets(p *process.Process) ([]uint64, error) {
-	FDs, err := p.OpenFiles()
+const prefix = "socket:["
+
+// getSockets get a list of socket inode numbers opened by a process
+func getSockets(pid int32) ([]uint64, error) {
+	statPath := kernel.HostProc(fmt.Sprintf("%d/fd", pid))
+	d, err := os.Open(statPath)
 	if err != nil {
 		return nil, err
 	}
+	defer d.Close()
+	fnames, err := d.Readdirnames(-1)
 
-	// sockets have the following pattern "socket:[inode]"
+	if err != nil {
+		return nil, err
+	}
 	var sockets []uint64
-	for _, fd := range FDs {
-		const prefix = "socket:["
-		if strings.HasPrefix(fd.Path, prefix) {
-			inodeStr := strings.TrimPrefix(fd.Path[:len(fd.Path)-1], prefix)
-			sock, err := strconv.ParseUint(inodeStr, 10, 64)
+	for _, fd := range fnames {
+		fullPath, err := os.Readlink(filepath.Join(statPath, fd))
+		if err != nil {
+			continue
+		}
+		if strings.HasPrefix(fullPath, prefix) {
+			sock, err := strconv.ParseUint(fullPath[len(prefix):len(fullPath)-1], 10, 64)
 			if err != nil {
 				continue
 			}
@@ -199,30 +225,74 @@ type parsingContext struct {
 	netNsInfo map[uint32]*namespaceInfo
 }
 
-// getServiceName gets the service name for a process using the servicedetector
-// module.
-func (s *discovery) getServiceName(proc *process.Process) (string, error) {
+// getServiceInfo gets the service information for a process using the
+// servicedetector module.
+func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) {
 	cmdline, err := proc.CmdlineSlice()
 	if err != nil {
-		return "", nil
+		return nil, err
 	}
 
-	env, err := proc.Environ()
+	envs, err := getEnvs(proc)
 	if err != nil {
-		return "", nil
+		return nil, err
 	}
 
-	return s.serviceDetector.GetServiceName(cmdline, env), nil
+	exe, err := proc.Exe()
+	if err != nil {
+		return nil, err
+	}
+
+	createTime, err := proc.CreateTime()
+	if err != nil {
+		return nil, err
+	}
+
+	contextMap := make(usm.DetectorContextMap)
+
+	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
+	name, fromDDService := servicediscovery.GetServiceName(cmdline, envs, root, contextMap)
+	lang := language.FindInArgs(exe, cmdline)
+	if lang == "" {
+		lang = language.FindUsingPrivilegedDetector(s.privilegedDetector, proc.Pid)
+	}
+	apmInstrumentation := apm.Detect(int(proc.Pid), cmdline, envs, lang, contextMap)
+
+	return &serviceInfo{
+		name:               name,
+		language:           lang,
+		apmInstrumentation: apmInstrumentation,
+		nameFromDDService:  fromDDService,
+		cmdLine:            sanitizeCmdLine(s.scrubber, cmdline),
+		startTimeSecs:      uint64(createTime / 1000),
+	}, nil
+}
+
+// customNewProcess is the same implementation as process.NewProcess but without calling CreateTimeWithContext, which
+// is not needed and costly for the discovery module.
+func customNewProcess(pid int32) (*process.Process, error) {
+	p := &process.Process{
+		Pid: pid,
+	}
+
+	exists, err := process.PidExists(pid)
+	if err != nil {
+		return p, err
+	}
+	if !exists {
+		return p, process.ErrorProcessNotRunning
+	}
+	return p, nil
 }
 
 // getService gets information for a single service.
 func (s *discovery) getService(context parsingContext, pid int32) *model.Service {
-	proc, err := process.NewProcess(pid)
+	proc, err := customNewProcess(pid)
 	if err != nil {
 		return nil
 	}
 
-	sockets, err := getSockets(proc)
+	sockets, err := getSockets(pid)
 	if err != nil {
 		return nil
 	}
@@ -267,22 +337,43 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		return nil
 	}
 
-	var serviceName string
-	if cached, ok := s.cache[pid]; ok {
-		serviceName = cached.serviceName
+	rss, err := getRSS(proc)
+	if err != nil {
+		return nil
+	}
+
+	var info *serviceInfo
+	s.mux.RLock()
+	cached, ok := s.cache[pid]
+	s.mux.RUnlock()
+	if ok {
+		info = cached
 	} else {
-		serviceName, err = s.getServiceName(proc)
+		info, err = s.getServiceInfo(proc)
 		if err != nil {
 			return nil
 		}
 
-		s.cache[pid] = cacheData{serviceName: serviceName}
+		s.mux.Lock()
+		s.cache[pid] = info
+		s.mux.Unlock()
+	}
+
+	nameSource := "generated"
+	if info.nameFromDDService {
+		nameSource = "provided"
 	}
 
 	return &model.Service{
-		PID:   int(pid),
-		Name:  serviceName,
-		Ports: ports,
+		PID:                int(pid),
+		Name:               info.name,
+		NameSource:         nameSource,
+		Ports:              ports,
+		APMInstrumentation: string(info.apmInstrumentation),
+		Language:           string(info.language),
+		RSS:                rss,
+		CommandLine:        info.cmdLine,
+		StartTimeSecs:      info.startTimeSecs,
 	}
 }
 
@@ -290,6 +381,8 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 // shrink the map but should free memory for the service name strings referenced
 // from it.
 func (s *discovery) cleanCache(alivePids map[int32]struct{}) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	for pid := range s.cache {
 		if _, alive := alivePids[pid]; alive {
 			continue

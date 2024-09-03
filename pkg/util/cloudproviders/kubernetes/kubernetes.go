@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 )
 
@@ -22,7 +23,7 @@ var (
 
 // GetHostAliases returns the host aliases from the Kubernetes node annotations
 func GetHostAliases(ctx context.Context) ([]string, error) {
-	if !config.IsFeaturePresent(config.Kubernetes) {
+	if !env.IsFeaturePresent(env.Kubernetes) {
 		return []string{}, nil
 	}
 

@@ -28,7 +28,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	errorspkg "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -85,7 +85,7 @@ func GetFxOptions() fx.Option {
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	if !config.IsFeaturePresent(config.Docker) {
+	if !env.IsFeaturePresent(env.Docker) {
 		return errorspkg.NewDisabled(componentName, "Agent is not running on Docker")
 	}
 
@@ -149,13 +149,13 @@ func (c *collector) stream(ctx context.Context) {
 		case ev := <-c.containerEventsCh:
 			err := c.handleContainerEvent(ctx, ev)
 			if err != nil {
-				log.Warnf(err.Error())
+				log.Warnf("%s", err.Error())
 			}
 
 		case ev := <-c.imageEventsCh:
 			err := c.handleImageEvent(ctx, ev, nil)
 			if err != nil {
-				log.Warnf(err.Error())
+				log.Warnf("%s", err.Error())
 			}
 
 		case <-ctx.Done():
@@ -195,7 +195,7 @@ func (c *collector) generateEventsFromContainerList(ctx context.Context, filter 
 			Action:      events.ActionStart,
 		})
 		if err != nil {
-			log.Warnf(err.Error())
+			log.Warnf("%s", err.Error())
 			continue
 		}
 
@@ -220,7 +220,7 @@ func (c *collector) generateEventsFromImageList(ctx context.Context) error {
 	for _, img := range images {
 		imgMetadata, err := c.getImageMetadata(ctx, img.ID, nil)
 		if err != nil {
-			log.Warnf(err.Error())
+			log.Warnf("%s", err.Error())
 			continue
 		}
 
