@@ -675,10 +675,9 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap[ui
 			if !t.guessTCPv6 && !t.guessUDPv6 {
 				t.logAndAdvance(t.status.Offset_sk_buff_head, GuessNotApplicable)
 				return t.setReadyState(mp)
-			} else {
-				t.logAndAdvance(t.status.Offset_sk_buff_head, GuessDAddrIPv6)
-				break
 			}
+			t.logAndAdvance(t.status.Offset_sk_buff_head, GuessDAddrIPv6)
+			break
 		}
 		t.status.Offset_sk_buff_head++
 		t.status.Offset_sk_buff_head, _ = skipOverlaps(t.status.Offset_sk_buff_head, t.skBuffRanges())
@@ -1086,7 +1085,6 @@ func acceptHandler(l net.Listener) {
 // responsible for the V4 offset guessing in kernel-space and 2) using it we can obtain
 // in user-space TCP socket information such as RTT and use it for setting the expected
 // values in the `fieldValues` struct.
-//
 func TcpGetInfo(conn net.Conn) (*unix.TCPInfo, error) {
 	tcpConn, ok := conn.(*net.TCPConn)
 	if !ok {
