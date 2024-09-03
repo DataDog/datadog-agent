@@ -96,13 +96,12 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 		fx.Replace(configComponent.MockParams{
 			Overrides: overrides,
 		}),
-		fx.Supply(Params{Serverless: false}),
 		replaymock.MockModule(),
 		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		Module(),
+		Module(Params{Serverless: false}),
 	))
 }
 
@@ -113,13 +112,12 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		telemetryimpl.MockModule(),
 		hostnameimpl.MockModule(),
 		serverdebugimpl.MockModule(),
-		fx.Supply(Params{Serverless: false}),
 		replaymock.MockModule(),
 		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		Module(),
+		Module(Params{Serverless: false}),
 	))
 }
 

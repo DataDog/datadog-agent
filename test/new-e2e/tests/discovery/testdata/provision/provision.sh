@@ -22,9 +22,10 @@ fi
 export NVM_DIR="$HOME/.nvm"
 # shellcheck source=/dev/null
 source "${NVM_DIR}/nvm.sh"
-nvm install 20
+# Retry a few times since occasional failures have been seen
+nvm install 20 || nvm install 20 || nvm install 20
 
-npm install json-server
+npm install json-server || npm install json-server
 npm install /home/ubuntu/e2e-test/node/instrumented
 
 # Install our own services

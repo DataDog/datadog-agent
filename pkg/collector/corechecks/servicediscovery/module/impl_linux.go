@@ -8,6 +8,8 @@ package module
 import (
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -113,24 +115,29 @@ func (s *discovery) handleServices(w http.ResponseWriter, _ *http.Request) {
 	utils.WriteAsJSON(w, resp)
 }
 
-// getSockets get a list of socket inode numbers opened by a process. Based on
-// snapshotBoundSockets() in
-// pkg/security/security_profile/activity_tree/process_node_snapshot.go. The
-// socket inode information from /proc/../fd is needed to map the connection
-// from the net/tcp (and similar) files to actual ports.
-func getSockets(p *process.Process) ([]uint64, error) {
-	FDs, err := p.OpenFiles()
+const prefix = "socket:["
+
+// getSockets get a list of socket inode numbers opened by a process
+func getSockets(pid int32) ([]uint64, error) {
+	statPath := kernel.HostProc(fmt.Sprintf("%d/fd", pid))
+	d, err := os.Open(statPath)
 	if err != nil {
 		return nil, err
 	}
+	defer d.Close()
+	fnames, err := d.Readdirnames(-1)
 
-	// sockets have the following pattern "socket:[inode]"
+	if err != nil {
+		return nil, err
+	}
 	var sockets []uint64
-	for _, fd := range FDs {
-		const prefix = "socket:["
-		if strings.HasPrefix(fd.Path, prefix) {
-			inodeStr := strings.TrimPrefix(fd.Path[:len(fd.Path)-1], prefix)
-			sock, err := strconv.ParseUint(inodeStr, 10, 64)
+	for _, fd := range fnames {
+		fullPath, err := os.Readlink(filepath.Join(statPath, fd))
+		if err != nil {
+			continue
+		}
+		if strings.HasPrefix(fullPath, prefix) {
+			sock, err := strconv.ParseUint(fullPath[len(prefix):len(fullPath)-1], 10, 64)
 			if err != nil {
 				continue
 			}
@@ -231,6 +238,11 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 		return nil, err
 	}
 
+	exe, err := proc.Exe()
+	if err != nil {
+		return nil, err
+	}
+
 	createTime, err := proc.CreateTime()
 	if err != nil {
 		return nil, err
@@ -240,7 +252,7 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 
 	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
 	name, fromDDService := servicediscovery.GetServiceName(cmdline, envs, root, contextMap)
-	lang := language.FindInArgs(cmdline)
+	lang := language.FindInArgs(exe, cmdline)
 	if lang == "" {
 		lang = language.FindUsingPrivilegedDetector(s.privilegedDetector, proc.Pid)
 	}
@@ -256,14 +268,31 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 	}, nil
 }
 
+// customNewProcess is the same implementation as process.NewProcess but without calling CreateTimeWithContext, which
+// is not needed and costly for the discovery module.
+func customNewProcess(pid int32) (*process.Process, error) {
+	p := &process.Process{
+		Pid: pid,
+	}
+
+	exists, err := process.PidExists(pid)
+	if err != nil {
+		return p, err
+	}
+	if !exists {
+		return p, process.ErrorProcessNotRunning
+	}
+	return p, nil
+}
+
 // getService gets information for a single service.
 func (s *discovery) getService(context parsingContext, pid int32) *model.Service {
-	proc, err := process.NewProcess(pid)
+	proc, err := customNewProcess(pid)
 	if err != nil {
 		return nil
 	}
 
-	sockets, err := getSockets(proc)
+	sockets, err := getSockets(pid)
 	if err != nil {
 		return nil
 	}
