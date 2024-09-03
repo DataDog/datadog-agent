@@ -212,7 +212,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			}
 
 			concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
-			inputs := OTLPTracesToConcentratorInputs(traces, conf, tt.ctagKeys)
+			inputs := OTLPTracesToConcentratorInputs(traces, conf, tt.ctagKeys, conf.ConfiguredPeerTags())
 			for _, input := range inputs {
 				concentrator.Add(input)
 			}
@@ -274,7 +274,7 @@ func TestProcessOTLPTraces_MutliSpanInOneResAndOp(t *testing.T) {
 	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
 
 	concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
-	inputs := OTLPTracesToConcentratorInputs(traces, conf, nil)
+	inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil)
 	for _, input := range inputs {
 		concentrator.Add(input)
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -112,7 +113,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 
 	svc := &service{
 		entity:   container,
-		tagsHash: tagger.GetEntityHash(containers.BuildTaggerEntityName(container.ID), tagger.ChecksCardinality()),
+		tagsHash: tagger.GetEntityHash(types.NewEntityID(types.ContainerID, container.ID).String(), tagger.ChecksCardinality()),
 		adIdentifiers: computeContainerServiceIDs(
 			containers.BuildEntityName(string(container.Runtime), container.ID),
 			containerImg.RawName,

@@ -29,17 +29,18 @@ import (
 
 // RuntimeSecurityAgent represents the main wrapper for the Runtime Security product
 type RuntimeSecurityAgent struct {
-	hostname             string
-	reporter             common.RawReporter
-	client               *RuntimeSecurityClient
-	running              *atomic.Bool
-	wg                   sync.WaitGroup
-	connected            *atomic.Bool
-	eventReceived        *atomic.Uint64
-	activityDumpReceived *atomic.Uint64
-	telemetry            *telemetry
-	endpoints            *config.Endpoints
-	cancel               context.CancelFunc
+	hostname                string
+	reporter                common.RawReporter
+	client                  *RuntimeSecurityClient
+	running                 *atomic.Bool
+	wg                      sync.WaitGroup
+	connected               *atomic.Bool
+	eventReceived           *atomic.Uint64
+	activityDumpReceived    *atomic.Uint64
+	telemetry               *telemetry
+	profContainersTelemetry *profContainersTelemetry
+	endpoints               *config.Endpoints
+	cancel                  context.CancelFunc
 
 	// activity dump
 	storage *dump.ActivityDumpStorageManager
@@ -72,6 +73,11 @@ func (rsa *RuntimeSecurityAgent) Start(reporter common.RawReporter, endpoints *c
 	if rsa.telemetry != nil {
 		// Send Runtime Security Agent telemetry
 		go rsa.telemetry.run(ctx)
+	}
+
+	if rsa.profContainersTelemetry != nil {
+		// Send Profiled Containers telemetry
+		go rsa.profContainersTelemetry.run(ctx)
 	}
 }
 
@@ -187,7 +193,7 @@ func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStrea
 	if rsa.telemetry != nil {
 		// register for telemetry for this container
 		imageName, imageTag := dump.GetImageNameTag()
-		rsa.telemetry.registerProfiledContainer(imageName, imageTag)
+		rsa.profContainersTelemetry.registerProfiledContainer(imageName, imageTag)
 
 		raw := bytes.NewBuffer(msg.GetData())
 

@@ -14,12 +14,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
 //go:embed testdata/config/agent_config.yaml
@@ -92,24 +93,28 @@ func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 		if assert.NotNil(c, found) {
 			assert.Equal(c, "none", found.Payload.APMInstrumentation)
 			assert.Equal(c, "generated", found.Payload.ServiceNameSource)
+			assert.NotZero(c, found.Payload.RSSMemory)
 		}
 
 		found = foundMap["node-instrumented"]
 		if assert.NotNil(c, found) {
 			assert.Equal(c, "provided", found.Payload.APMInstrumentation)
 			assert.Equal(c, "generated", found.Payload.ServiceNameSource)
+			assert.NotZero(c, found.Payload.RSSMemory)
 		}
 
 		found = foundMap["python.server"]
 		if assert.NotNil(c, found) {
 			assert.Equal(c, "none", found.Payload.APMInstrumentation)
 			assert.Equal(c, "generated", found.Payload.ServiceNameSource)
+			assert.NotZero(c, found.Payload.RSSMemory)
 		}
 
 		found = foundMap["python.instrumented"]
 		if assert.NotNil(c, found) {
 			assert.Equal(c, "provided", found.Payload.APMInstrumentation)
 			assert.Equal(c, "generated", found.Payload.ServiceNameSource)
+			assert.NotZero(c, found.Payload.RSSMemory)
 		}
 
 		assert.Contains(c, foundMap, "json-server")

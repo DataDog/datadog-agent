@@ -218,6 +218,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceKubeAPIserverMetrics,
 		metrics.MetricSourceKubeControllerManager,
 		metrics.MetricSourceKubeDNS,
+		metrics.MetricSourceKubeflow,
 		metrics.MetricSourceKubeMetricsServer,
 		metrics.MetricSourceKubeProxy,
 		metrics.MetricSourceKubeScheduler,
