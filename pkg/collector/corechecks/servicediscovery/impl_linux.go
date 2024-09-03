@@ -156,8 +156,7 @@ func (li *linuxImpl) getServiceInfo(pid int, service model.Service) serviceInfo 
 		Stat: procStat{
 			StartTime: service.StartTimeSecs,
 		},
-		Ports:   service.Ports,
-		CmdLine: service.CommandLine,
+		Ports: service.Ports,
 	}
 
 	serviceType := servicetype.Detect(service.Name, service.Ports)
@@ -173,6 +172,7 @@ func (li *linuxImpl) getServiceInfo(pid int, service model.Service) serviceInfo 
 	return serviceInfo{
 		process:       pInfo,
 		meta:          meta,
+		service:       service,
 		LastHeartbeat: li.time.Now(),
 	}
 }
