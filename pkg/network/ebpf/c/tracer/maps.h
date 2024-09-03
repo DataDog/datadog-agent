@@ -26,6 +26,9 @@ BPF_HASH_MAP(tcp_retransmits, conn_tuple_t, __u32, 0)
 /* Will hold the PIDs initiating TCP connections keyed by socket */
 BPF_HASH_MAP(tcp_ongoing_connect_pid, skp_conn_tuple_t, __u64, 0)
 
+/* debug */
+BPF_HASH_MAP(tcp_ongoing_connect_tuple, struct sock *, conn_tuple_t, 8192)
+
 /* Will hold the PIDs initiating TCP connections for telemetry purposes */
 BPF_HASH_MAP(tcp_failed_connect_telemetry, struct sock *, __u64, 1024)
 

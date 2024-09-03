@@ -69,14 +69,15 @@ var EbpfTracerTelemetry = struct {
 	// unsupportedTcpFailures is a counter measuring the number of attempts to flush a TCP failure that is not supported
 	unsupportedTcpFailures *prometheus.Desc
 	// tcpDoneMissingPid is a counter measuring the number of TCP connections with a PID mismatch between tcp_connect and tcp_done
-	tcpDoneMissingPid     *prometheus.Desc
-	tcpConnectPidMatch    *prometheus.Desc
-	tcpConnectPidMismatch *prometheus.Desc
-	tcpConnectFailedTuple *prometheus.Desc
-	tcpDoneFailedTuple    *prometheus.Desc
-	PidCollisions         *telemetry.StatCounterWrapper
-	iterationDups         telemetry.Counter
-	iterationAborts       telemetry.Counter
+	tcpDoneMissingPid      *prometheus.Desc
+	tcpConnectPidMatch     *prometheus.Desc
+	tcpConnectPidMismatch  *prometheus.Desc
+	tcpConnectFailedTuple  *prometheus.Desc
+	tcpDoneFailedTuple     *prometheus.Desc
+	tcpDoneMismatchedTuple *prometheus.Desc
+	PidCollisions          *telemetry.StatCounterWrapper
+	iterationDups          telemetry.Counter
+	iterationAborts        telemetry.Counter
 
 	//nolint:revive // TODO(NET) Fix revive linter
 	lastTcpFailedConnects *atomic.Int64
@@ -99,11 +100,12 @@ var EbpfTracerTelemetry = struct {
 	// lastUnsupportedTcpFailures is a counter measuring the diff between the last two values of unsupportedTcpFailures
 	lastUnsupportedTcpFailures *atomic.Int64
 	// lastTcpDoneMissingPid is a counter measuring the diff between the last two values of tcpDoneMissingPid
-	lastTcpDoneMissingPid     *atomic.Int64
-	lastTcpConnectPidMatch    *atomic.Int64
-	lastTcpConnectPidMismatch *atomic.Int64
-	lastTcpConnectFailedTuple *atomic.Int64
-	lastTcpDoneFailedTuple    *atomic.Int64
+	lastTcpDoneMissingPid      *atomic.Int64
+	lastTcpConnectPidMatch     *atomic.Int64
+	lastTcpConnectPidMismatch  *atomic.Int64
+	lastTcpConnectFailedTuple  *atomic.Int64
+	lastTcpDoneFailedTuple     *atomic.Int64
+	lastTcpDoneMismatchedTuple *atomic.Int64
 }{
 	telemetry.NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_failed_connects", "Counter measuring the number of failed TCP connections in the EBPF map", nil, nil),
@@ -121,9 +123,11 @@ var EbpfTracerTelemetry = struct {
 	prometheus.NewDesc(connTracerModuleName+"__tcp_connect_pid_mismatch", "Counter measuring the number of TCP connections with mismatched PIDs in tcp_connect and tcp_done", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_connect_failed_tuple", "Counter measuring the number of failed TCP connections due to tuple collisions", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_done_failed_tuple", "Counter measuring the number of failed TCP connections due to tuple collisions", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__tcp_done_mismatched_tuple", "Counter measuring the number of TCP connections with mismatched tuples in tcp_connect and tcp_done", nil, nil),
 	telemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
+	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
@@ -538,6 +542,7 @@ func (t *ebpfTracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- EbpfTracerTelemetry.tcpConnectPidMismatch
 	ch <- EbpfTracerTelemetry.tcpConnectFailedTuple
 	ch <- EbpfTracerTelemetry.tcpDoneFailedTuple
+	ch <- EbpfTracerTelemetry.tcpDoneMismatchedTuple
 }
 
 // Collect returns the current state of all metrics of the collector
@@ -605,6 +610,10 @@ func (t *ebpfTracer) Collect(ch chan<- prometheus.Metric) {
 	delta = int64(ebpfTelemetry.Tcp_done_failed_tuple) - EbpfTracerTelemetry.lastTcpDoneFailedTuple.Load()
 	EbpfTracerTelemetry.lastTcpDoneFailedTuple.Store(int64(ebpfTelemetry.Tcp_done_failed_tuple))
 	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpDoneFailedTuple, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Tcp_done_mismatched_tuple) - EbpfTracerTelemetry.lastTcpDoneMismatchedTuple.Load()
+	EbpfTracerTelemetry.lastTcpDoneMismatchedTuple.Store(int64(ebpfTelemetry.Tcp_done_mismatched_tuple))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpDoneMismatchedTuple, prometheus.CounterValue, float64(delta))
 }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.

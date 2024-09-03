@@ -203,6 +203,11 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
         increment_telemetry_count(tcp_done_failed_tuple);
         return 0;
     }
+    conn_tuple_t *tup_ptr = bpf_map_lookup_elem(&tcp_ongoing_connect_tuple, &sk);
+    if (tup_ptr && (tup_ptr->daddr_h != t.daddr_h || tup_ptr->daddr_l != t.daddr_l || tup_ptr->saddr_h != t.saddr_h || tup_ptr->saddr_l != t.saddr_l || 
+        tup_ptr->dport != t.dport || tup_ptr->sport != t.sport || tup_ptr->netns != t.netns || tup_ptr->metadata != t.metadata)) {
+        increment_telemetry_count(tcp_done_mismatched_tuple);
+    }
     log_debug("kprobe/tcp_done: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
     skp_conn_tuple_t skp_conn = {};
@@ -976,6 +981,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_connect, struct sock *skp) {
     }
 
     if (tcp_failed_connections_enabled()) {
+        bpf_map_update_with_telemetry(tcp_ongoing_connect_tuple, &skp, &t, BPF_NOEXIST);
         bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp_conn, &pid_tgid, BPF_NOEXIST);
     }
 

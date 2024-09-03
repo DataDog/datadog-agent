@@ -119,6 +119,7 @@ typedef struct {
     __u64 tcp_connect_pid_mismatch;
     __u64 tcp_connect_failed_tuple;
     __u64 tcp_done_failed_tuple;
+    __u64 tcp_done_mismatched_tuple;
 } telemetry_t;
 
 typedef struct {
