@@ -12,6 +12,10 @@ import "context"
 
 type telemetry struct{}
 
-func (t *telemetry) registerProfiledContainer(_, _ string) {}
+func (t *telemetry) run(_ context.Context) {}
 
-func (t *telemetry) run(_ context.Context, _ *RuntimeSecurityAgent) {}
+type profContainersTelemetry struct{}
+
+func (t *profContainersTelemetry) registerProfiledContainer(_, _ string) {}
+
+func (t *profContainersTelemetry) run(_ context.Context) {}

@@ -94,11 +94,6 @@ int hook_vfs_rename(ctx_t *ctx) {
         return mark_as_discarded(syscall);
     }
 
-    // If we are discarded, we still want to invalidate the inode
-    if (is_discarded_by_process(syscall->policy.mode, EVENT_RENAME)) {
-        return mark_as_discarded(syscall);
-    }
-
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     syscall->resolver.dentry = syscall->rename.src_dentry;
     syscall->resolver.key = syscall->rename.src_file.path_key;

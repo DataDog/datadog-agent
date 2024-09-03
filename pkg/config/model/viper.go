@@ -236,16 +236,6 @@ func (c *safeConfig) GetKnownKeysLowercased() map[string]interface{} {
 	return c.Viper.GetKnownKeys()
 }
 
-// SetEnvKeyTransformer allows defining a transformer function which decides
-// how an environment variables value gets assigned to key.
-//
-// [DEPRECATED] This function will soon be remove. Use one of the ParseEnvAs* helpers instead.
-func (c *safeConfig) SetEnvKeyTransformer(key string, fn func(string) interface{}) {
-	c.Lock()
-	defer c.Unlock()
-	c.Viper.SetEnvKeyTransformer(key, fn)
-}
-
 // ParseEnvAsStringSlice registers a transformer function to parse an an environment variables as a []string.
 func (c *safeConfig) ParseEnvAsStringSlice(key string, fn func(string) []string) {
 	c.Lock()
@@ -263,6 +253,14 @@ func (c *safeConfig) ParseEnvAsMapStringInterface(key string, fn func(string) ma
 
 // ParseEnvAsSliceMapString registers a transformer function to parse an an environment variables as a []map[string]string.
 func (c *safeConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[string]string) {
+	c.Lock()
+	defer c.Unlock()
+	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })
+}
+
+// ParseEnvAsSlice registers a transformer function to parse an an environment variables as a
+// []interface{}.
+func (c *safeConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
 	c.Lock()
 	defer c.Unlock()
 	c.Viper.SetEnvKeyTransformer(key, func(data string) interface{} { return fn(data) })

@@ -22,11 +22,14 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestTagBuilder(t *testing.T) {
+
+	entityID := types.NewEntityID("", "entity_name")
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Supply(config.Params{}),
@@ -38,26 +41,27 @@ func TestTagBuilder(t *testing.T) {
 
 	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	telemetryStore := taggerTelemetry.NewStore(tel)
-	tagger := NewTagger(store, telemetryStore)
+	cfg := configmock.New(t)
+	tagger := NewTagger(cfg, store, telemetryStore)
 	tagger.Start(context.Background())
 	defer tagger.Stop()
 
 	tagger.tagStore.ProcessTagInfo([]*types.TagInfo{
 		{
-			Entity:       "entity_name",
+			EntityID:     entityID,
 			Source:       "stream",
 			LowCardTags:  []string{"low1"},
 			HighCardTags: []string{"high"},
 		},
 		{
-			Entity:      "entity_name",
+			EntityID:    entityID,
 			Source:      "pull",
 			LowCardTags: []string{"low2"},
 		},
 	})
 
 	tb := tagset.NewHashlessTagsAccumulator()
-	err := tagger.AccumulateTagsFor("entity_name", types.HighCardinality, tb)
+	err := tagger.AccumulateTagsFor(entityID.String(), types.HighCardinality, tb)
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []string{"high", "low1", "low2"}, tb.Get())
 }

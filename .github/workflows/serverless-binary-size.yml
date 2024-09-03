@@ -82,14 +82,19 @@ jobs:
         id: should
         run: |
           cd go/src/github.com/DataDog/datadog-agent
+          git fetch origin $GITHUB_BASE_REF
+          git fetch origin $GITHUB_HEAD_REF
           if test $(
-            git diff $GITHUB_BASE_REF..$GITHUB_SHA --name-only | grep dependencies_linux_amd64.txt
+            git diff origin/$GITHUB_BASE_REF...origin/$GITHUB_HEAD_REF --name-only | grep dependencies_linux_amd64.txt
           ); then
             echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "dependencies list changed"
           elif [[ ${{ steps.compare.outputs.diff }} > env.SIZE_ALLOWANCE ]]; then
             echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "binary size changed"
           else
             echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "nothing changed"
           fi
 
       ### Steps below run if size diff > SIZE_ALLOWANCE or file dependencies_linux_amd64.txt changed ###

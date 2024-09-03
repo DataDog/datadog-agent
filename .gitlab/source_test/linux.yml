@@ -282,3 +282,4 @@ new-e2e-unit-tests:
     KUBERNETES_CPU_REQUEST: 6
     # Not using the entrypoint script for the e2e runner image
     FF_KUBERNETES_HONOR_ENTRYPOINT: false
+  timeout: 10m
