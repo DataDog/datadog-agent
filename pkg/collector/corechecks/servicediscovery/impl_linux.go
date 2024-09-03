@@ -107,7 +107,7 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 		if _, ok := li.aliveServices[pid]; !ok {
 			log.Debugf("[pid: %d] found new process with open ports", pid)
 
-			svc := li.getServiceInfo(pid, service)
+			svc := li.getServiceInfo(service)
 			if li.ignoreCfg[svc.meta.Name] {
 				log.Debugf("[pid: %d] process ignored from config: %s", pid, svc.meta.Name)
 				li.ignoreProcs[pid] = true
@@ -145,14 +145,13 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 	}, nil
 }
 
-func (li *linuxImpl) getServiceInfo(pid int, service model.Service) serviceInfo {
+func (li *linuxImpl) getServiceInfo(service model.Service) serviceInfo {
 	// if the process name is docker-proxy, we should talk to docker to get the process command line and env vars
 	// have to see how far this can go but not for the initial release
 
 	// for now, docker-proxy is going on the ignore list
 
 	pInfo := processInfo{
-		PID: pid,
 		Stat: procStat{
 			StartTime: service.StartTimeSecs,
 		},

@@ -72,7 +72,7 @@ func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 			APMInstrumentation:  svc.meta.APMInstrumentation,
 			ServiceNameSource:   svc.meta.NameSource,
 			Ports:               svc.service.Ports,
-			PID:                 svc.process.PID,
+			PID:                 svc.service.PID,
 			CommandLine:         svc.service.CommandLine,
 			RSSMemory:           svc.process.Stat.RSS,
 		},
@@ -88,7 +88,7 @@ func newTelemetrySender(sender sender.Sender) *telemetrySender {
 
 func (ts *telemetrySender) sendStartServiceEvent(svc serviceInfo) {
 	log.Debugf("[pid: %d | name: %s | ports: %v] start-service",
-		svc.process.PID,
+		svc.service.PID,
 		svc.meta.Name,
 		svc.service.Ports,
 	)
@@ -105,7 +105,7 @@ func (ts *telemetrySender) sendStartServiceEvent(svc serviceInfo) {
 
 func (ts *telemetrySender) sendHeartbeatServiceEvent(svc serviceInfo) {
 	log.Debugf("[pid: %d | name: %s] heartbeat-service",
-		svc.process.PID,
+		svc.service.PID,
 		svc.meta.Name,
 	)
 
@@ -121,7 +121,7 @@ func (ts *telemetrySender) sendHeartbeatServiceEvent(svc serviceInfo) {
 
 func (ts *telemetrySender) sendEndServiceEvent(svc serviceInfo) {
 	log.Debugf("[pid: %d | name: %s] end-service",
-		svc.process.PID,
+		svc.service.PID,
 		svc.meta.Name,
 	)
 

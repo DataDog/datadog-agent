@@ -47,7 +47,6 @@ type procStat struct {
 }
 
 type processInfo struct {
-	PID  int
 	Stat procStat
 }
 
@@ -176,7 +175,7 @@ func (c *Check) Run() error {
 			continue
 		}
 		for _, svc := range svcs {
-			if c.sentRepeatedEventPIDs[svc.process.PID] {
+			if c.sentRepeatedEventPIDs[svc.service.PID] {
 				continue
 			}
 			err := fmt.Errorf("found repeated service name: %s", svc.meta.Name)
@@ -186,7 +185,7 @@ func (c *Check) Run() error {
 				svc:  &svc.meta,
 			})
 			// track the PID, so we don't increase this counter in every run of the check.
-			c.sentRepeatedEventPIDs[svc.process.PID] = true
+			c.sentRepeatedEventPIDs[svc.service.PID] = true
 		}
 	}
 
@@ -210,9 +209,9 @@ func (c *Check) Run() error {
 			continue
 		}
 		eventsByName.addStop(p)
-		if c.sentRepeatedEventPIDs[p.process.PID] {
+		if c.sentRepeatedEventPIDs[p.service.PID] {
 			// delete this process from the map, so we track it if the PID gets reused
-			delete(c.sentRepeatedEventPIDs, p.process.PID)
+			delete(c.sentRepeatedEventPIDs, p.service.PID)
 		}
 	}
 
