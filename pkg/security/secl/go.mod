@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/security/secl
 go 1.22.0
 
 require (
-	github.com/Masterminds/semver/v3 v3.2.1
+	github.com/Masterminds/semver/v3 v3.3.0
 	github.com/Masterminds/sprig/v3 v3.2.3
 	github.com/alecthomas/participle v0.7.1
 	github.com/davecgh/go-spew v1.1.1
