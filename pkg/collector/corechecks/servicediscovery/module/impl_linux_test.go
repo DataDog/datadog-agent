@@ -50,6 +50,7 @@ import (
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func setupDiscoveryModule(t *testing.T) string {
@@ -846,5 +847,89 @@ func BenchmarkOldGetSockets(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		getSocketsOld(p)
+	}
+}
+
+// addSockets adds only listening sockets to a map to be used for later looksups.
+func addSockets[P procfs.NetTCP | procfs.NetUDP](sockMap map[uint64]socketInfo, sockets P, state uint64) {
+	for _, sock := range sockets {
+		if sock.St != state {
+			continue
+		}
+		sockMap[sock.Inode] = socketInfo{port: uint16(sock.LocalPort)}
+	}
+}
+
+func getNsInfoOld(pid int) (*namespaceInfo, error) {
+	path := kernel.HostProc(fmt.Sprintf("%d", pid))
+	proc, err := procfs.NewFS(path)
+	if err != nil {
+		return nil, err
+	}
+
+	TCP, _ := proc.NetTCP()
+	UDP, _ := proc.NetUDP()
+	TCP6, _ := proc.NetTCP6()
+	UDP6, _ := proc.NetUDP6()
+
+	listeningSockets := make(map[uint64]socketInfo)
+
+	addSockets(listeningSockets, TCP, tcpListen)
+	addSockets(listeningSockets, TCP6, tcpListen)
+	addSockets(listeningSockets, UDP, udpListen)
+	addSockets(listeningSockets, UDP6, udpListen)
+
+	return &namespaceInfo{
+		listeningSockets: listeningSockets,
+	}, nil
+}
+
+func TestGetNSInfo(t *testing.T) {
+	lTCP, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	defer lTCP.Close()
+
+	res, err := getNsInfo(os.Getpid())
+	require.NoError(t, err)
+	resOld, err := getNsInfoOld(os.Getpid())
+	require.NoError(t, err)
+	require.Equal(t, res, resOld)
+}
+
+func BenchmarkGetNSInfo(b *testing.B) {
+	sockets := make([]net.Listener, 0)
+	for i := 0; i < 100; i++ {
+		l, err := net.Listen("tcp", "localhost:0")
+		require.NoError(b, err)
+		sockets = append(sockets, l)
+	}
+	defer func() {
+		for _, l := range sockets {
+			l.Close()
+		}
+	}()
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		getNsInfo(os.Getpid())
+	}
+}
+
+func BenchmarkGetNSInfoOld(b *testing.B) {
+	sockets := make([]net.Listener, 0)
+	for i := 0; i < 100; i++ {
+		l, err := net.Listen("tcp", "localhost:0")
+		require.NoError(b, err)
+		sockets = append(sockets, l)
+	}
+	defer func() {
+		for _, l := range sockets {
+			l.Close()
+		}
+	}()
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		getNsInfoOld(os.Getpid())
 	}
 }
