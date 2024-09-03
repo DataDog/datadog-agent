@@ -511,6 +511,14 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 		return fmt.Errorf("invalid IPv4 address: got %v", coreconfig.SystemProbe().GetString("runtime_security_config.imds_ipv4"))
 	}
 
+	if c.EnforcementDisarmerContainerEnabled && c.EnforcementDisarmerContainerMaxAllowed <= 0 {
+		return fmt.Errorf("invalid value for runtime_security_config.enforcement.disarmer.container.max_allowed: %d", c.EnforcementDisarmerContainerMaxAllowed)
+	}
+
+	if c.EnforcementDisarmerExecutableEnabled && c.EnforcementDisarmerExecutableMaxAllowed <= 0 {
+		return fmt.Errorf("invalid value for runtime_security_config.enforcement.disarmer.executable.max_allowed: %d", c.EnforcementDisarmerExecutableMaxAllowed)
+	}
+
 	return c.sanitizeRuntimeSecurityConfigActivityDump()
 }
 

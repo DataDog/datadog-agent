@@ -25,9 +25,7 @@ import (
 )
 
 const (
-	defaultKillActionFlushDelay         = 2 * time.Second
-	defaultDisarmerContainerMaxAllowed  = 100
-	defaultDisarmerExecutableMaxAllowed = 100
+	defaultKillActionFlushDelay = 2 * time.Second
 )
 
 // ProcessKiller defines a process killer structure
@@ -257,19 +255,11 @@ func newKillDisarmer(cfg *config.RuntimeSecurityConfig) *killDisarmer {
 	}
 
 	if cfg.EnforcementDisarmerContainerEnabled {
-		capacity := uint64(cfg.EnforcementDisarmerContainerMaxAllowed)
-		if capacity == 0 {
-			capacity = defaultDisarmerContainerMaxAllowed
-		}
-		kd.containerCache = newDisarmerCache[string, bool](capacity, cfg.EnforcementDisarmerContainerPeriod)
+		kd.containerCache = newDisarmerCache[string, bool](uint64(cfg.EnforcementDisarmerContainerMaxAllowed), cfg.EnforcementDisarmerContainerPeriod)
 	}
 
 	if cfg.EnforcementDisarmerExecutableEnabled {
-		capacity := uint64(cfg.EnforcementDisarmerExecutableMaxAllowed)
-		if capacity == 0 {
-			capacity = defaultDisarmerExecutableMaxAllowed
-		}
-		kd.executableCache = newDisarmerCache[string, bool](capacity, cfg.EnforcementDisarmerExecutablePeriod)
+		kd.executableCache = newDisarmerCache[string, bool](uint64(cfg.EnforcementDisarmerExecutableMaxAllowed), cfg.EnforcementDisarmerExecutablePeriod)
 	}
 
 	return kd
