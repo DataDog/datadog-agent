@@ -67,12 +67,12 @@
 
 .export_gitlab_token_scheduler:
   - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME   
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME
   - export GITLAB_TOKEN=$(pop_front)
 
 .export_gitlab_token_full:
   - source $CI_PROJECT_DIR/tools/ci/open_file_descriptor.sh
-  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME   
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME
   - export GITLAB_TOKEN=$(pop_front)
 
 .export_dd_api_key_org2:
