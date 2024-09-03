@@ -6,11 +6,17 @@
 package flare
 
 import (
+	"context"
+	"encoding/json"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
+	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 )
 
 // Match .yaml and .yml to ship configuration files in the flare.
@@ -74,4 +80,32 @@ func (f *flare) collectConfigFiles(fb types.FlareBuilder) error {
 	}
 
 	return nil
+}
+
+func (f *flare) collectHostSBOM(fb types.FlareBuilder) error {
+	scanner := scanner.GetGlobalScanner()
+	if scanner == nil {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	scanRequest := host.NewScanRequest("/", os.DirFS("/"))
+	scanResult := scanner.PerformScan(ctx, scanRequest, scanner.GetCollector(scanRequest.Collector()))
+	if scanResult.Error != nil {
+		return scanResult.Error
+	}
+
+	cycloneDX, err := scanResult.Report.ToCycloneDX()
+	if err != nil {
+		return err
+	}
+
+	jsonContent, err := json.MarshalIndent(cycloneDX, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return fb.AddFile("host-sbom.json", jsonContent)
 }
