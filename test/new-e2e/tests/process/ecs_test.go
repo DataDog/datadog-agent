@@ -18,7 +18,7 @@ import (
 
 	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+	//"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 
@@ -97,7 +97,7 @@ func (s *ECSSuite) TestECSProcessCheck() {
 func (s *ECSSuite) TestECSProcessCheckInCoreAgent() {
 	t := s.T()
 	// PROCS-4219
-	flake.Mark(t)
+	// flake.Mark(t)
 
 	s.UpdateEnv(e2e.NewTypedPulumiProvisioner("ecsCPUStress", ecsCPUStressProvisioner(true, false), nil))
 
@@ -122,7 +122,7 @@ func (s *ECSSuite) TestECSProcessCheckInCoreAgent() {
 func (s *ECSSuite) TestECSFargateProcessCheck() {
 	t := s.T()
 	// PROCS-4219
-	flake.Mark(t)
+	// flake.Mark(t)
 
 	s.UpdateEnv(e2e.NewTypedPulumiProvisioner("ecsCPUStress", ecsCPUStressProvisioner(false, true), nil))
 
