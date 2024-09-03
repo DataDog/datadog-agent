@@ -41,7 +41,7 @@ extern char* obfuscateSQL(char*, char*, char**);
 extern char* obfuscateSQLExecPlan(char*, bool, char**);
 extern double getProcessStartTime();
 extern char* obfuscateMongoDBString(char*, char**);
-extern void emitAgentTelemetry(char*, char*, float);
+extern void emitAgentTelemetry(char*, char*, float, char*);
 
 
 static void initDatadogAgentTests(rtloader_t *rtloader) {
