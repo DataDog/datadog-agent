@@ -21,6 +21,7 @@ def install_diff_packages_file(directory):
     if os.path.exists(diff_python_installed_packages_file):
         print(f"Installing python packages from: {diff_python_installed_packages_file}")
         packages.install_diff_packages_file(f"{directory}/embedded/bin/pip", diff_python_installed_packages_file)
+        packages.cleanup_files(diff_python_installed_packages_file)
     else:
         print(f"File {diff_python_installed_packages_file} does not exist.")
 
@@ -31,7 +32,15 @@ if __name__ == '__main__':
     install_directory = sys.argv[1]
     if os.path.exists(install_directory):
         create_python_installed_packages_file(install_directory)
-        install_diff_packages_file(install_directory)
+        ENV_VAR = 'INSTALL_PYTHON_THIRD_PARTY_DEPS'
+        if ENV_VAR in os.environ:
+            env_var_value = os.environ[ENV_VAR].lower() in ['true', '1', 't', 'yes', 'y']
+            if env_var_value:
+                install_diff_packages_file(install_directory)
+            else:
+                print(f"{ENV_VAR} is set to: {env_var_value}")
+        else:
+            print(f"{ENV_VAR} is not set.")
     else:
         print(f"Directory {install_directory} does not exist.")
         sys.exit(1)

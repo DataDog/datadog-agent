@@ -6,6 +6,8 @@ import pkg_resources
 from packaging import version
 import subprocess
 
+DO_NOT_REMOVE_WARNING_HEADER = "# DO NOT REMOVE/MODIFY - used internally by installation proces\n"
+
 def run_command(command):
     """
     Execute a shell command and return its output.
@@ -46,7 +48,7 @@ def create_python_installed_packages_file(filename):
     Create a file listing the currently installed Python dependencies.
     """
     with open(filename, 'w', encoding='utf-8') as f:
-        f.write("# DO NOT REMOVE/MODIFY - used internally by installation proces\n")
+        f.write(DO_NOT_REMOVE_WARNING_HEADER)
         installed_packages = importlib.metadata.distributions()
         for dist in installed_packages:
             f.write(f"{dist.metadata['Name']}=={dist.version}\n")
@@ -61,7 +63,7 @@ def create_diff_installed_packages_file(directory):
     diff_file = diff_python_installed_packages_file(directory)
     print(f"Creating file: {diff_file}")
     with open(diff_file, 'w', encoding='utf-8') as f:
-        f.write("# DO NOT REMOVE/MODIFY - used internally by installation process\n")
+        f.write(DO_NOT_REMOVE_WARNING_HEADER)
         for package_name, prerm_req in prerm_packages.items():
             postinst_req = postinst_packages.get(package_name)
             if postinst_req:
@@ -76,10 +78,16 @@ def create_diff_installed_packages_file(directory):
                 f.write(f"{prerm_req}\n")
 
 def install_datadog_package(package):
+    """
+    Install Datadog integrations running datadog-agent command
+    """
     print(f"Installing datadog integration: {package}")
     run_command(f'datadog-agent integration install -t {package} -r')
 
 def install_dependency_package(pip, package):
+    """
+    Install python dependency running pip install command
+    """
     print(f"Installing python dependency: {package}")
     run_command(f'{pip} install {package}')
 
@@ -104,3 +112,12 @@ def load_requirements(filename):
     """
     with open(filename, 'r', encoding='utf-8') as f:
         return {req.name: req for req in pkg_resources.parse_requirements(f)}
+    
+def cleanup_files(*files):
+    """
+    Remove the specified files.
+    """
+    for file in files:
+        if os.path.exists(file):
+            print(f"Removing file: {file}")
+            os.remove(file)

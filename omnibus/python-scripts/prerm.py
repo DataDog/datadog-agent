@@ -10,15 +10,6 @@ import os
 import sys
 import packages
 
-def cleanup_files(*files):
-    """
-    Remove the specified files.
-    """
-    for file in files:
-        if os.path.exists(file):
-            print(f"Removing file: {file}")
-            os.remove(file)
-
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         print("Usage: prerm.py <INSTALL_DIR>")
@@ -32,7 +23,7 @@ if __name__ == '__main__':
             print(f"Creating file: {prerm_python_installed_packages_file}")
             packages.create_python_installed_packages_file(prerm_python_installed_packages_file)
             packages.create_diff_installed_packages_file(install_directory)
-            cleanup_files(postinst_python_installed_packages_file, prerm_python_installed_packages_file)
+            packages.cleanup_files(postinst_python_installed_packages_file, prerm_python_installed_packages_file)
         else:
             print(f"File {postinst_python_installed_packages_file} does not exist.")
     else:
