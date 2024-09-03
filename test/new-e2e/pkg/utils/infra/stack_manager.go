@@ -527,9 +527,9 @@ func (sm *StackManager) getStack(ctx context.Context, name string, deployFunc pu
 		sendEventToDatadog(params.DatadogEventSender, fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", name), upError.Error(), []string{"operation:up", "result:fail", fmt.Sprintf("retry:%s", retryStrategy), fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)})
 
 		switch retryStrategy {
-		case reUp:
+		case ReUp:
 			fmt.Fprintf(logger, "Retrying stack on error during stack up: %v\n", upError)
-		case reCreate:
+		case ReCreate:
 			fmt.Fprintf(logger, "Recreating stack on error during stack up: %v\n", upError)
 			destroyCtx, cancel := context.WithTimeout(ctx, params.DestroyTimeout)
 			_, err = stack.Destroy(destroyCtx, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
@@ -538,7 +538,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, deployFunc pu
 				fmt.Fprintf(logger, "Error during stack destroy at recrate stack attempt: %v\n", err)
 				return stack, auto.UpResult{}, err
 			}
-		case noRetry:
+		case NoRetry:
 			fmt.Fprintf(logger, "Giving up on error during stack up: %v\n", upError)
 			return stack, upResult, upError
 		}
@@ -615,7 +615,7 @@ func runFuncWithRecover(f pulumi.RunFunc) pulumi.RunFunc {
 func (sm *StackManager) getRetryStrategyFrom(err error, upCount int) (RetryType, []GetStackOption) {
 	// if first attempt + retries count are higher than max retry, give up
 	if upCount > stackUpMaxRetry {
-		return noRetry, nil
+		return NoRetry, nil
 	}
 
 	for _, knownError := range sm.knownErrors {
@@ -624,7 +624,7 @@ func (sm *StackManager) getRetryStrategyFrom(err error, upCount int) (RetryType,
 		}
 	}
 
-	return reUp, nil
+	return ReUp, nil
 }
 
 // sendEventToDatadog sends an event to Datadog, it will use the API Key from environment variable DD_API_KEY if present, otherwise it will use the one from SSM Parameter Store
