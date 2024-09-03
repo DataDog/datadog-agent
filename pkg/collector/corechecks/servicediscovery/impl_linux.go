@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -160,12 +159,9 @@ func (li *linuxImpl) getServiceInfo(pid int, service model.Service) serviceInfo 
 		CmdLine: service.CommandLine,
 	}
 
-	serviceType := servicetype.Detect(service.Name, service.Ports)
-
 	meta := ServiceMetadata{
 		Name:               service.Name,
 		Language:           service.Language,
-		Type:               string(serviceType),
 		APMInstrumentation: service.APMInstrumentation,
 		NameSource:         service.NameSource,
 	}

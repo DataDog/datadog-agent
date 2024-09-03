@@ -8,23 +8,23 @@ package servicediscovery
 import (
 	"errors"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
 	metricTagErrorCode       = "error_code"
 	metricTagServiceName     = "service_name"
 	metricTagServiceLanguage = "service_language"
-	metricTagServiceType     = "service_type"
 )
 
 var (
 	metricFailureEvents = telemetry.NewCounterWithOpts(
 		CheckName,
 		"failure_events",
-		[]string{metricTagErrorCode, metricTagServiceName, metricTagServiceLanguage, metricTagServiceType},
+		[]string{metricTagErrorCode, metricTagServiceName, metricTagServiceLanguage},
 		"Number of times an error or an unexpected event happened.",
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
@@ -53,7 +53,7 @@ func telemetryFromError(err error) {
 		if codeErr.svc != nil {
 			svc = *codeErr.svc
 		}
-		tags := []string{string(codeErr.Code()), svc.Name, svc.Language, svc.Type}
+		tags := []string{string(codeErr.Code()), svc.Name, svc.Language}
 		metricFailureEvents.Inc(tags...)
 	}
 }

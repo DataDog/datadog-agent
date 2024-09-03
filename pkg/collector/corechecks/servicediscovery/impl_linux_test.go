@@ -149,7 +149,6 @@ func cmpEvents(a, b *event) bool {
 	vals := []any{
 		cmp.Compare(ap.LastSeen, bp.LastSeen),
 		cmp.Compare(ap.ServiceName, bp.ServiceName),
-		cmp.Compare(ap.ServiceType, bp.ServiceType),
 		cmp.Compare(ap.ServiceLanguage, bp.ServiceLanguage),
 		cmp.Compare(ap.Ports[0], bp.Ports[0]),
 		cmp.Compare(ap.PID, bp.PID),
@@ -222,7 +221,6 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
-						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -241,7 +239,6 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
-						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -260,7 +257,6 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
-						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -279,7 +275,6 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "python-service",
-						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -296,7 +291,6 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "python-service",
-						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -354,7 +348,6 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
-						ServiceType:         "db",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -370,7 +363,6 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
-						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -389,7 +381,6 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
-						ServiceType:         "db",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -405,7 +396,6 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
-						ServiceType:         "db",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -421,7 +411,6 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
-						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -479,7 +468,6 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
-						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
@@ -498,7 +486,6 @@ func Test_linuxImpl(t *testing.T) {
 					Payload: &eventPayload{
 						NamingSchemaVersion: "1",
 						ServiceName:         "test-service-1",
-						ServiceType:         "web_service",
 						HostName:            host,
 						Env:                 "",
 						StartTime:           calcTime(0).Unix(),
