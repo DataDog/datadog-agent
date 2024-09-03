@@ -17,9 +17,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
 // TODO Improve test coverage with dogstatsd/enrich tests once Origin Detection is refactored.
@@ -43,8 +41,8 @@ func TestEnrichTags(t *testing.T) {
 	defer fakeTagger.ResetTagger()
 
 	// Fill fake tagger with entities
-	fakeTagger.SetTags(kubelet.KubePodTaggerEntityPrefix+"pod", "host", []string{"pod-low"}, []string{"pod-orch"}, []string{"pod-high"}, []string{"pod-std"})
-	fakeTagger.SetTags(containers.BuildTaggerEntityName("container"), kubelet.KubePodTaggerEntityPrefix+"pod", []string{"container-low"}, []string{"container-orch"}, []string{"container-high"}, []string{"container-std"})
+	fakeTagger.SetTags(types.KubernetesPodUID.ToUID("pod"), "host", []string{"pod-low"}, []string{"pod-orch"}, []string{"pod-high"}, []string{"pod-std"})
+	fakeTagger.SetTags(types.ContainerID.ToUID("container"), "host", []string{"container-low"}, []string{"container-orch"}, []string{"container-high"}, []string{"container-std"})
 
 	for _, tt := range []struct {
 		name         string
@@ -94,9 +92,9 @@ func TestEnrichTags(t *testing.T) {
 func TestEnrichTagsOrchestrator(t *testing.T) {
 	fakeTagger := fxutil.Test[tagger.Mock](t, MockModule())
 	defer fakeTagger.ResetTagger()
-	fakeTagger.SetTags("foo", "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
+	fakeTagger.SetTags("foo://bar", "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
 	tb := tagset.NewHashingTagsAccumulator()
-	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{FromUDS: "foo", Cardinality: "orchestrator"})
+	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{FromUDS: "foo://bar", Cardinality: "orchestrator"})
 	assert.Equal(t, []string{"lowTag", "orchTag"}, tb.Get())
 }
 
@@ -105,11 +103,11 @@ func TestEnrichTagsOptOut(t *testing.T) {
 	defer fakeTagger.ResetTagger()
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("dogstatsd_origin_optout_enabled", true)
-	fakeTagger.SetTags("foo", "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
+	fakeTagger.SetTags("foo://bar", "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
 	tb := tagset.NewHashingTagsAccumulator()
-	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{FromUDS: "originID", FromTag: "pod-uid", FromMsg: "container-id", Cardinality: "none", ProductOrigin: taggertypes.ProductOriginDogStatsD})
+	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{FromUDS: "foo://originID", FromTag: "pod-uid", FromMsg: "container-id", Cardinality: "none", ProductOrigin: taggertypes.ProductOriginDogStatsD})
 	assert.Equal(t, []string{}, tb.Get())
-	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{FromUDS: "originID", FromMsg: "container-id", Cardinality: "none", ProductOrigin: taggertypes.ProductOriginDogStatsD})
+	fakeTagger.EnrichTags(tb, taggertypes.OriginInfo{FromUDS: "foo://originID", FromMsg: "container-id", Cardinality: "none", ProductOrigin: taggertypes.ProductOriginDogStatsD})
 	assert.Equal(t, []string{}, tb.Get())
 }
 

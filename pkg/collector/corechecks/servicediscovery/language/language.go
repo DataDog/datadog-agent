@@ -9,6 +9,8 @@
 package language
 
 import (
+	"path/filepath"
+
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
@@ -61,7 +63,7 @@ type ProcessInfo struct {
 }
 
 // FindInArgs tries to detect the language only using the provided command line arguments.
-func FindInArgs(args []string) Language {
+func FindInArgs(exe string, args []string) Language {
 	// empty slice passed in
 	if len(args) == 0 {
 		return ""
@@ -71,7 +73,7 @@ func FindInArgs(args []string) Language {
 		// Pid doesn't matter since sysprobeConfig is nil
 		Pid:     0,
 		Cmdline: args,
-		Comm:    args[0],
+		Comm:    filepath.Base(exe),
 	}}, nil)
 	if len(langs) == 0 {
 		return ""

@@ -6,17 +6,11 @@
 #include "helpers/syscalls.h"
 
 HOOK_SYSCALL_ENTRY2(kill, int, pid, int, type) {
-    struct policy_t policy = fetch_policy(EVENT_SIGNAL);
-    if (is_discarded_by_process(policy.mode, EVENT_SIGNAL)) {
-        return 0;
-    }
-
     /* TODO: implement the event for pid equal to 0 or -1. */
     if (pid < 1) {
         return 0;
     }
 
-    /* cache the signal and wait to grab the retval to send it */
     struct syscall_cache_t syscall = {
         .type = EVENT_SIGNAL,
         .signal = {

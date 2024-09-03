@@ -227,6 +227,7 @@ func TestBasic(t *testing.T) {
 	serviceMap := getServicesMap(t, url)
 	for _, pid := range expectedPIDs {
 		require.Contains(t, serviceMap[pid].Ports, uint16(expectedPorts[pid]))
+		assertStat(t, serviceMap[pid])
 	}
 }
 
@@ -473,9 +474,58 @@ func TestAPMInstrumentationProvided(t *testing.T) {
 				assert.Contains(collect, portMap, pid)
 				assert.Equal(collect, string(test.language), portMap[pid].Language)
 				assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
+				assertStat(t, portMap[pid])
 			}, 30*time.Second, 100*time.Millisecond)
 		})
 	}
+}
+
+func assertStat(t assert.TestingT, svc model.Service) {
+	proc, err := process.NewProcess(int32(svc.PID))
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	meminfo, err := proc.MemoryInfo()
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	// Allow a 20% variation to avoid potential flakiness due to difference in
+	// time of sampling the RSS.
+	assert.InEpsilon(t, meminfo.RSS, svc.RSS, 0.20)
+
+	createTimeMs, err := proc.CreateTime()
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	assert.Equal(t, uint64(createTimeMs/1000), svc.StartTimeSecs)
+}
+
+func TestCommandLineSanitization(t *testing.T) {
+	serverDir := buildFakeServer(t)
+	url := setupDiscoveryModule(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
+	bin := filepath.Join(serverDir, "node")
+
+	actualCommandLine := []string{bin, "--password", "secret", strings.Repeat("A", maxCommandLine*10)}
+	sanitizedCommandLine := []string{bin, "--password", "********", "placeholder"}
+	sanitizedCommandLine[3] = strings.Repeat("A", maxCommandLine-(len(bin)+len(sanitizedCommandLine[1])+len(sanitizedCommandLine[2])))
+
+	cmd := exec.CommandContext(ctx, bin, actualCommandLine[1:]...)
+	require.NoError(t, cmd.Start())
+
+	pid := cmd.Process.Pid
+
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		svcMap := getServicesMap(t, url)
+		assert.Contains(collect, svcMap, pid)
+		assert.Equal(collect, sanitizedCommandLine, svcMap[pid].CommandLine)
+	}, 30*time.Second, 100*time.Millisecond)
 }
 
 func TestNodeDocker(t *testing.T) {
@@ -494,6 +544,7 @@ func TestNodeDocker(t *testing.T) {
 		assert.Contains(collect, svcMap, pid)
 		assert.Equal(collect, "nodejs-https-server", svcMap[pid].Name)
 		assert.Equal(collect, "provided", svcMap[pid].APMInstrumentation)
+		assertStat(collect, svcMap[pid])
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
@@ -529,6 +580,7 @@ func TestAPMInstrumentationProvidedPython(t *testing.T) {
 		assert.Contains(collect, portMap, pid)
 		assert.Equal(collect, string(language.Python), portMap[pid].Language)
 		assert.Equal(collect, string(apm.Provided), portMap[pid].APMInstrumentation)
+		assertStat(collect, portMap[pid])
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
@@ -693,4 +745,20 @@ func TestCache(t *testing.T) {
 
 	discovery.Close()
 	require.Empty(t, discovery.cache)
+}
+
+func BenchmarkOldProcess(b *testing.B) {
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		process.NewProcess(int32(os.Getpid()))
+	}
+}
+
+func BenchmarkNewProcess(b *testing.B) {
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		customNewProcess(int32(os.Getpid()))
+	}
 }

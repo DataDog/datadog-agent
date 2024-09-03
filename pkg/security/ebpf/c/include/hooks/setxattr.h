@@ -8,10 +8,6 @@
 
 int __attribute__((always_inline)) trace__sys_setxattr(const char *xattr_name) {
     struct policy_t policy = fetch_policy(EVENT_SETXATTR);
-    if (is_discarded_by_process(policy.mode, EVENT_SETXATTR)) {
-        return 0;
-    }
-
     struct syscall_cache_t syscall = {
         .type = EVENT_SETXATTR,
         .policy = policy,
@@ -39,10 +35,6 @@ HOOK_SYSCALL_ENTRY2(fsetxattr, int, fd, const char *, name) {
 
 int __attribute__((always_inline)) trace__sys_removexattr(const char *xattr_name) {
     struct policy_t policy = fetch_policy(EVENT_REMOVEXATTR);
-    if (is_discarded_by_process(policy.mode, EVENT_REMOVEXATTR)) {
-        return 0;
-    }
-
     struct syscall_cache_t syscall = {
         .type = EVENT_REMOVEXATTR,
         .policy = policy,
