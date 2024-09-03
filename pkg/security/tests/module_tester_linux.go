@@ -121,6 +121,8 @@ runtime_security_config:
   enforcement:
     exclude_binaries:
       - {{ .EnforcementExcludeBinary }}
+    rule_source_allowed:
+      - file
   activity_dump:
     enabled: {{ .EnableActivityDump }}
     syscall_monitor:
