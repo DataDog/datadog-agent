@@ -144,7 +144,7 @@ typedef double (*cb_get_process_start_time_t)(void);
 // (cmd, error_message)
 typedef char *(*cb_obfuscate_mongodb_string_t)(char *, char **);
 // (check, metric, value)
-typedef void (*cb_emit_agent_telemetry_t)(char *, char *, float);
+typedef void (*cb_emit_agent_telemetry_t)(char *, char *, float, char *);
 
 // _util
 // (argv, env, stdout, stderr, ret_code, exception)

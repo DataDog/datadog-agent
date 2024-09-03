@@ -360,6 +360,6 @@ func obfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
 }
 
 //export emitAgentTelemetry
-func emitAgentTelemetry(check *C.char, metric *C.char, value C.float) {
+func emitAgentTelemetry(check *C.char, metric *C.char, value C.float, metricType *C.char) {
 	// NOOP
 }

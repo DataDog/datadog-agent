@@ -10,6 +10,7 @@ package python
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"unsafe"
 
@@ -19,9 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/postgres"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -611,23 +612,74 @@ func ObfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
 	return TrackedCString(obfuscatedMongoDBString)
 }
 
+var (
+	telemetryHistograms = new(sync.Map)
+)
+
+func lazyInitTelemetryHistogram(checkName string, metricName string) telemetry.Histogram {
+	var key = checkName + "." + metricName
+	histogram, _ := telemetryHistograms.LoadOrStore(key, telemetry.NewHistogram(
+		checkName,
+		metricName,
+		nil,
+		fmt.Sprintf("Histogram of %s for Python check %s", metricName, checkName),
+		[]float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000},
+	))
+	return histogram.(telemetry.Histogram)
+}
+
+var (
+	telemetryCounters = new(sync.Map)
+)
+
+func lazyInitTelemetryCounter(checkName string, metricName string) telemetry.Counter {
+	var key = checkName + "." + metricName
+	counter, _ := telemetryCounters.LoadOrStore(key, telemetry.NewCounter(
+		checkName,
+		metricName,
+		nil,
+		fmt.Sprintf("Counter of %s for Python check %s", metricName, checkName),
+	))
+	return counter.(telemetry.Counter)
+}
+
+var (
+	telemetryGauges = new(sync.Map)
+)
+
+func lazyInitTelemetryGauge(checkName string, metricName string) telemetry.Gauge {
+	var key = checkName + "." + metricName
+	gauge, _ := telemetryGauges.LoadOrStore(key, telemetry.NewGauge(
+		checkName,
+		metricName,
+		nil,
+		fmt.Sprintf("Gauge of %s for Python check %s", metricName, checkName),
+	))
+	return gauge.(telemetry.Gauge)
+}
+
 // EmitAgentTelemetry records a telemetry data point for a Python integration
+// NB: Cross-org agent telemetry needs to be enabled for each metric in
+// comp/core/agenttelemetry/impl/config.go defaultProfiles
 //
 //export EmitAgentTelemetry
-func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.float) {
+func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.float, metricType *C.char) {
 	goCheckName := C.GoString(checkName)
 	goMetricName := C.GoString(metricName)
 	goMetricValue := float64(metricValue)
+	goMetricType := C.GoString(metricType)
 
-	switch goCheckName {
-	case "postgres":
-		switch goMetricName {
-		case "activity_latency":
-			postgres.TlmPostgresActivityLatency.Observe(goMetricValue)
-		default:
-			log.Warnf("EmitAgentTelemetry: unsupported check name %s", goCheckName)
-		}
+	switch goMetricType {
+	case "counter":
+		counter := lazyInitTelemetryCounter(goCheckName, goMetricName)
+		counter.Add(goMetricValue)
+	case "histogram":
+		histogram := lazyInitTelemetryHistogram(goCheckName, goMetricName)
+		histogram.Observe(goMetricValue)
+	case "gauge":
+		gauge := lazyInitTelemetryGauge(goCheckName, goMetricName)
+		gauge.Add(goMetricValue)
 	default:
-		log.Warnf("EmitAgentTelemetry: unsupported check name %s", goCheckName)
+		log.Warnf("EmitAgentTelemetry: unsupported metric type %s", goMetricType)
 	}
 }

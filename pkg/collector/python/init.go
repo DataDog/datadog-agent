@@ -97,7 +97,7 @@ char* ObfuscateSQL(char *, char *, char **);
 char* ObfuscateSQLExecPlan(char *, bool, char **);
 double getProcessStartTime();
 char* ObfuscateMongoDBString(char *, char **);
-void EmitAgentTelemetry(char *, char *, float);
+void EmitAgentTelemetry(char *, char *, float, char *);
 
 void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_clustername_cb(rtloader, GetClusterName);

@@ -698,3 +698,23 @@ func TestObfuscateMongoDBString(t *testing.T) {
 	// Check for leaks
 	helpers.AssertMemoryUsage(t)
 }
+
+func TestEmitAgentTelemetry(t *testing.T) {
+	cases := []string{"counter", "histogram", "gauge"}
+	for _, tc := range cases {
+		code := fmt.Sprintf(`
+			datadog_agent.emit_agent_telemetry("test_check", "test_metric", 1.0, %s)
+			`, tc)
+		_, err := run(code)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Execute second time to test laziness
+		_, err = run(code)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+	}
+}
