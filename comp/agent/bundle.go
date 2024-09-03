@@ -17,10 +17,10 @@ import (
 // team: agent-shared-components
 
 // Bundle defines the fx options for this bundle.
-func Bundle() fxutil.BundleOptions {
+func Bundle(params jmxloggerimpl.Params) fxutil.BundleOptions {
 	return fxutil.Bundle(
 		autoexitimpl.Module(),
-		jmxloggerimpl.Module(),
+		jmxloggerimpl.Module(params),
 		expvarserverimpl.Module(),
 		cloudfoundrycontainerimpl.Module(),
 	)

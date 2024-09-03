@@ -217,8 +217,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Provide(func() pidmap.Component { return nil }),
 
 				getPlatformModules(),
-				jmxloggerimpl.Module(),
-				fx.Supply(jmxloggerimpl.NewDisabledParams()),
+				jmxloggerimpl.Module(jmxloggerimpl.NewDisabledParams()),
 			)
 		},
 	}
