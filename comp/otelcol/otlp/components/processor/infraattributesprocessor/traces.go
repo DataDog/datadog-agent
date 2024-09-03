@@ -40,9 +40,9 @@ func (iasp *infraAttributesSpanProcessor) processTraces(_ context.Context, td pt
 
 		// Get all unique tags from resource attributes and global tags
 		for _, entityID := range entityIDs {
-			entityTags, err := iasp.tagger.Tag(entityID, iasp.cardinality)
+			entityTags, err := iasp.tagger.Tag(entityID.String(), iasp.cardinality)
 			if err != nil {
-				iasp.logger.Error("Cannot get tags for entity", zap.String("entityID", entityID), zap.Error(err))
+				iasp.logger.Error("Cannot get tags for entity", zap.String("entityID", entityID.String()), zap.Error(err))
 				continue
 			}
 			for _, tag := range entityTags {

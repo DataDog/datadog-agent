@@ -17,6 +17,7 @@ import (
 	"time"
 
 	dockerTypes "github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -35,7 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/docker/docker/api/types/container"
 )
 
 const (
@@ -239,8 +239,7 @@ func (d *DockerCheck) runDockerCustom(sender sender.Sender, du docker.Client, ra
 
 		isContainerExcluded := d.containerFilter.IsExcluded(annotations, containerName, resolvedImageName, rawContainer.Labels[kubernetes.CriContainerNamespaceLabel])
 		isContainerRunning := rawContainer.State == string(workloadmeta.ContainerStatusRunning)
-		taggerEntityID := containers.BuildTaggerEntityName(rawContainer.ID)
-
+		taggerEntityID := types.NewEntityID(types.ContainerID, rawContainer.ID).String()
 		tags, err := getImageTagsFromContainer(taggerEntityID, resolvedImageName, isContainerExcluded || !isContainerRunning)
 		if err != nil {
 			log.Debugf("Unable to fetch tags for image: %s, err: %v", rawContainer.ImageID, err)

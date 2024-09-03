@@ -11,11 +11,12 @@ import (
 
 	"github.com/gobwas/glob"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -51,7 +52,7 @@ type processor interface {
 // store.
 type WorkloadMetaCollector struct {
 	store        workloadmeta.Component
-	children     map[string]map[string]struct{}
+	children     map[types.EntityID]map[types.EntityID]struct{}
 	tagProcessor processor
 
 	containerEnvAsTags    map[string]string
@@ -119,7 +120,7 @@ func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context) {
 		c.tagProcessor.ProcessTagInfo([]*types.TagInfo{
 			{
 				Source:               staticSource,
-				Entity:               GlobalEntityID,
+				EntityID:             common.GetGlobalEntityID(),
 				HighCardTags:         high,
 				OrchestratorCardTags: orch,
 				LowCardTags:          low,
@@ -164,28 +165,28 @@ func (c *WorkloadMetaCollector) stream(ctx context.Context) {
 }
 
 // NewWorkloadMetaCollector returns a new WorkloadMetaCollector.
-func NewWorkloadMetaCollector(_ context.Context, store workloadmeta.Component, p processor) *WorkloadMetaCollector {
+func NewWorkloadMetaCollector(_ context.Context, cfg config.Component, store workloadmeta.Component, p processor) *WorkloadMetaCollector {
 	c := &WorkloadMetaCollector{
 		tagProcessor:                      p,
 		store:                             store,
-		children:                          make(map[string]map[string]struct{}),
-		collectEC2ResourceTags:            config.Datadog().GetBool("ecs_collect_resource_tags_ec2"),
-		collectPersistentVolumeClaimsTags: config.Datadog().GetBool("kubernetes_persistent_volume_claims_as_tags"),
+		children:                          make(map[types.EntityID]map[types.EntityID]struct{}),
+		collectEC2ResourceTags:            cfg.GetBool("ecs_collect_resource_tags_ec2"),
+		collectPersistentVolumeClaimsTags: cfg.GetBool("kubernetes_persistent_volume_claims_as_tags"),
 	}
 
 	containerLabelsAsTags := mergeMaps(
-		retrieveMappingFromConfig("docker_labels_as_tags"),
-		retrieveMappingFromConfig("container_labels_as_tags"),
+		retrieveMappingFromConfig(cfg, "docker_labels_as_tags"),
+		retrieveMappingFromConfig(cfg, "container_labels_as_tags"),
 	)
 	// Adding new environment variables require adding them to pkg/util/containers/env_vars_filter.go
 	containerEnvAsTags := mergeMaps(
-		retrieveMappingFromConfig("docker_env_as_tags"),
-		retrieveMappingFromConfig("container_env_as_tags"),
+		retrieveMappingFromConfig(cfg, "docker_env_as_tags"),
+		retrieveMappingFromConfig(cfg, "container_env_as_tags"),
 	)
 	c.initContainerMetaAsTags(containerLabelsAsTags, containerEnvAsTags)
 
 	// kubernetes resources metadata as tags
-	metadataAsTags := configutils.GetMetadataAsTags(config.Datadog())
+	metadataAsTags := configutils.GetMetadataAsTags(cfg)
 	c.initK8sResourcesMetaAsTags(metadataAsTags.GetResourcesLabelsAsTags(), metadataAsTags.GetResourcesAnnotationsAsTags())
 
 	return c
@@ -193,13 +194,12 @@ func NewWorkloadMetaCollector(_ context.Context, store workloadmeta.Component, p
 
 // retrieveMappingFromConfig gets a stringmapstring config key and
 // lowercases all map keys to make envvar and yaml sources consistent
-func retrieveMappingFromConfig(configKey string) map[string]string {
-	labelsList := config.Datadog().GetStringMapString(configKey)
+func retrieveMappingFromConfig(cfg config.Component, configKey string) map[string]string {
+	labelsList := cfg.GetStringMapString(configKey)
 	for label, value := range labelsList {
 		delete(labelsList, label)
 		labelsList[strings.ToLower(label)] = value
 	}
-
 	return labelsList
 }
 

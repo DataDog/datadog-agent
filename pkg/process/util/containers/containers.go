@@ -119,7 +119,7 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 			continue
 		}
 
-		entityID := containers.BuildTaggerEntityName(container.ID)
+		entityID := types.NewEntityID(types.ContainerID, container.ID).String()
 		tags, err := tagger.Tag(entityID, types.HighCardinality)
 		if err != nil {
 			log.Debugf("Could not collect tags for container %q, err: %v", container.ID[:12], err)

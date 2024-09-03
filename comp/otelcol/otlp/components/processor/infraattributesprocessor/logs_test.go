@@ -14,7 +14,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/processor/processortest"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
@@ -127,7 +127,7 @@ func TestInfraAttributesLogProcessor(t *testing.T) {
 			tc := newTestTaggerClient()
 			tc.tagMap["container_id://test"] = []string{"container:id"}
 			tc.tagMap["deployment://namespace/deployment"] = []string{"deployment:name"}
-			tc.tagMap[collectors.GlobalEntityID] = []string{"global:tag"}
+			tc.tagMap[common.GetGlobalEntityID().String()] = []string{"global:tag"}
 
 			factory := NewFactory(tc)
 			flp, err := factory.CreateLogsProcessor(

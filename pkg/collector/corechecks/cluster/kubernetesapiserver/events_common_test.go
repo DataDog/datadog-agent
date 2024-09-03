@@ -57,7 +57,8 @@ func TestGetDDAlertType(t *testing.T) {
 func Test_getInvolvedObjectTags(t *testing.T) {
 	telemetryComponent := fxutil.Test[coretelemetry.Component](t, telemetryimpl.MockModule())
 	telemetryStore := telemetry.NewStore(telemetryComponent)
-	taggerInstance := local.NewFakeTagger(telemetryStore)
+	cfg := configmock.New(t)
+	taggerInstance := local.NewFakeTagger(cfg, telemetryStore)
 	taggerInstance.SetTags("kubernetes_metadata:///namespaces//default", "workloadmeta-kubernetes_node", []string{"team:container-int"}, nil, nil, nil)
 	tests := []struct {
 		name           string
