@@ -7,7 +7,6 @@
 
 struct policy_t {
     char mode;
-    char flags;
 };
 
 // Approvers
@@ -43,14 +42,6 @@ struct discarder_params_t {
 struct inode_discarder_params_t {
     struct discarder_params_t params;
     u32 mount_revision;
-};
-
-struct pid_discarder_params_t {
-    struct discarder_params_t params;
-};
-
-struct pid_discarder_t {
-    u32 tgid;
 };
 
 struct inode_discarder_t {

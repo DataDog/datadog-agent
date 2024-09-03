@@ -57,8 +57,9 @@ func TestGetDDAlertType(t *testing.T) {
 func Test_getInvolvedObjectTags(t *testing.T) {
 	telemetryComponent := fxutil.Test[coretelemetry.Component](t, telemetryimpl.MockModule())
 	telemetryStore := telemetry.NewStore(telemetryComponent)
-	taggerInstance := local.NewFakeTagger(telemetryStore)
-	taggerInstance.SetTags("kubernetes_pod_uid://nginx", "workloadmeta-kubernetes_pod", nil, []string{"additional_pod_tag:nginx"}, nil, nil)
+	cfg := configmock.New(t)
+	taggerInstance := local.NewFakeTagger(cfg, telemetryStore)
+  taggerInstance.SetTags("kubernetes_pod_uid://nginx", "workloadmeta-kubernetes_pod", nil, []string{"additional_pod_tag:nginx"}, nil, nil)
 	taggerInstance.SetTags("deployment://workload-redis/my-deployment-1", "workloadmeta-kubernetes_deployment", nil, []string{"deployment_tag:redis-1"}, nil, nil)
 	taggerInstance.SetTags("deployment://default/my-deployment-2", "workloadmeta-kubernetes_deployment", nil, []string{"deployment_tag:redis-2"}, nil, nil)
 	taggerInstance.SetTags("kubernetes_metadata:///namespaces//default", "workloadmeta-kubernetes_node", []string{"team:container-int"}, nil, nil, nil)

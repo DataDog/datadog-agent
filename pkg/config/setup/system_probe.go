@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type transformerFunction func(string) interface{}
+type transformerFunction func(string) []map[string]string
 
 const (
 	spNS                         = "system_probe_config"
@@ -271,8 +271,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	newHTTPRules := join(smNS, "http_replace_rules")
 	cfg.BindEnv(newHTTPRules)
 	cfg.BindEnv(oldHTTPRules, "DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES")
+
 	httpRulesTransformer := func(key string) transformerFunction {
-		return func(in string) interface{} {
+		return func(in string) []map[string]string {
 			var out []map[string]string
 			if err := json.Unmarshal([]byte(in), &out); err != nil {
 				log.Warnf(`%q can not be parsed: %v`, key, err)
@@ -280,8 +281,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 			return out
 		}
 	}
-	cfg.SetEnvKeyTransformer(oldHTTPRules, httpRulesTransformer(oldHTTPRules))
-	cfg.SetEnvKeyTransformer(newHTTPRules, httpRulesTransformer(newHTTPRules))
+	cfg.ParseEnvAsSliceMapString(oldHTTPRules, httpRulesTransformer(oldHTTPRules))
+	cfg.ParseEnvAsSliceMapString(newHTTPRules, httpRulesTransformer(newHTTPRules))
 
 	// Default value (1024) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
 	cfg.BindEnv(join(netNS, "max_tracked_http_connections"))
