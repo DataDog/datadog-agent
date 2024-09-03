@@ -21,11 +21,11 @@ const (
 	// InfraURLPrefix is the default infra URL prefix for datadog
 	InfraURLPrefix = "https://app."
 
-	// Logs-specific MRF site prefix. This is used for both pure logs as well as EvP-based payloads (Database
+	// MRFLogsPrefix is the logs-specific MRF site prefix. This is used for both pure logs as well as EvP-based payloads (Database
 	// Monitoring, Netflow, etc)
 	MRFLogsPrefix = "logs.mrf."
 
-	/// Infrastructure-specific MRF site prefix. This is used for metadata, metrics, etc.
+	// MRFInfraPrefix is the infrastructure-specific MRF site prefix. This is used for metadata, metrics, etc.
 	MRFInfraPrefix = "mrf."
 )
 
