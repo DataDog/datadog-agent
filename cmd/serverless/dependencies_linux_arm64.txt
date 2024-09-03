@@ -277,6 +277,7 @@ github.com/DataDog/datadog-agent/pkg/util/json
 github.com/DataDog/datadog-agent/pkg/util/kubelet
 github.com/DataDog/datadog-agent/pkg/util/kubernetes
 github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername
+github.com/DataDog/datadog-agent/pkg/util/kubernetes/helpers
 github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo
 github.com/DataDog/datadog-agent/pkg/util/log
 github.com/DataDog/datadog-agent/pkg/util/log/setup
