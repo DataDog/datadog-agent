@@ -27,7 +27,7 @@ func NewSystemProbeTestServer(_ http.Handler) (*httptest.Server, error) {
 
 // RestartSystemProbeTestServer restarts the system probe server to ensure no cache responses
 // are used for a test.
-func RestartSystemProbeTestServer(_ *commandTestSuite, _ http.HandlerFunc) {
+func RestartSystemProbeTestServer(_ *commandTestSuite) {
 }
 
 // InjectConnectionFailures injects a failure in TestReadProfileDataErrors.
@@ -35,7 +35,7 @@ func InjectConnectionFailures(_ model.Config, _ model.Config) {
 }
 
 // ClearConnectionFailures clears the injected failure in TestReadProfileDataErrors.
-func ClearConnectionFailures(_ model.Config, _ model.Config) {
+func ClearConnectionFailures() {
 }
 
 // CheckExpectedConnectionFailures checks the expected errors after simulated

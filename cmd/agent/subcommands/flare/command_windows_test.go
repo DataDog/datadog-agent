@@ -43,7 +43,7 @@ func NewSystemProbeTestServer(handler http.Handler) (*httptest.Server, error) {
 
 // RestartSystemProbeTestServer restarts the system probe server to ensure no cache responses
 // are used for a test.
-func RestartSystemProbeTestServer(c *commandTestSuite, handler http.HandlerFunc) {
+func RestartSystemProbeTestServer(c *commandTestSuite) {
 	// In Windows, the http server caches responses from prior test runs.
 	// This prevents simulating connection failures.
 	// Thus on every test run, we need to recreate the http server.
@@ -73,7 +73,7 @@ func InjectConnectionFailures(mockSysProbeConfig model.Config, mockConfig model.
 }
 
 // ClearConnectionFailures clears the injected failure in TestReadProfileDataErrors.
-func ClearConnectionFailures(_ model.Config, _ model.Config) {
+func ClearConnectionFailures() {
 	// Disable system probe and restore the named pipe path.
 	process_net.SystemProbePipeName = SystemProbeTestPipeName
 }

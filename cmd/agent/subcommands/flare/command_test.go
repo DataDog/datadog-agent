@@ -94,7 +94,7 @@ func TestCommandTestSuite(t *testing.T) {
 
 func (c *commandTestSuite) TestReadProfileData() {
 	t := c.T()
-	RestartSystemProbeTestServer(c, newMockHandler())
+	RestartSystemProbeTestServer(c)
 
 	u, err := url.Parse(c.tcpServer.URL)
 	require.NoError(t, err)
@@ -164,7 +164,7 @@ func (c *commandTestSuite) TestReadProfileData() {
 
 func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 	t := c.T()
-	RestartSystemProbeTestServer(c, newMockHandler())
+	RestartSystemProbeTestServer(c)
 
 	u, err := url.Parse(c.tcpServer.URL)
 	require.NoError(t, err)
@@ -229,7 +229,7 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 
 func (c *commandTestSuite) TestReadProfileDataErrors() {
 	t := c.T()
-	RestartSystemProbeTestServer(c, newMockHandler())
+	RestartSystemProbeTestServer(c)
 
 	mockConfig := configmock.New(t)
 	// setting Core Agent Expvar port to 0 to ensure failing on fetch (using the default value can lead to
@@ -245,7 +245,7 @@ func (c *commandTestSuite) TestReadProfileDataErrors() {
 
 	data, err := readProfileData(10)
 
-	ClearConnectionFailures(mockSysProbeConfig, mockConfig)
+	ClearConnectionFailures()
 
 	require.Error(t, err)
 	CheckExpectedConnectionFailures(c, err)
