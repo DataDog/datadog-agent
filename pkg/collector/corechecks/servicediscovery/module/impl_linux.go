@@ -231,6 +231,11 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 		return nil, err
 	}
 
+	exe, err := proc.Exe()
+	if err != nil {
+		return nil, err
+	}
+
 	createTime, err := proc.CreateTime()
 	if err != nil {
 		return nil, err
@@ -240,7 +245,7 @@ func (s *discovery) getServiceInfo(proc *process.Process) (*serviceInfo, error) 
 
 	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
 	name, fromDDService := servicediscovery.GetServiceName(cmdline, envs, root, contextMap)
-	lang := language.FindInArgs(cmdline)
+	lang := language.FindInArgs(exe, cmdline)
 	if lang == "" {
 		lang = language.FindUsingPrivilegedDetector(s.privilegedDetector, proc.Pid)
 	}
