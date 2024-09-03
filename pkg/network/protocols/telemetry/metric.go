@@ -38,11 +38,6 @@ func (c *Counter) Add(v int64) {
 	c.value.Add(v)
 }
 
-// Set value atomically
-func (c *Counter) Set(v int64) {
-	c.value.Store(v)
-}
-
 func (c *Counter) base() *metricBase {
 	return c.metricBase
 }
