@@ -14,12 +14,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestMappings(t *testing.T) {
@@ -519,14 +516,9 @@ dogstatsd_mapper_profiles:
 }
 
 func getMapper(t *testing.T, configString string) (*MetricMapper, error) {
-	var profiles []config.MappingProfile
+	var profiles []MappingProfileConfig
 
-	cfg := fxutil.Test[configComponent.Component](t, fx.Options(
-		configComponent.MockModule(),
-		fx.Replace(configComponent.MockParams{
-			Params: configComponent.Params{ConfFilePath: configString},
-		}),
-	))
+	cfg := configComponent.NewMockFromYAML(t, configString)
 
 	err := structure.UnmarshalKey(cfg, "dogstatsd_mapper_profiles", &profiles)
 	if err != nil {

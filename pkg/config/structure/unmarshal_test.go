@@ -6,9 +6,10 @@
 package structure
 
 import (
+	"reflect"
 	"testing"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -55,7 +56,7 @@ network_devices:
     stop_timeout: 4
     namespace: abc
 `
-	mockConfig := pkgconfigsetup.ConfFromYAML(confYaml)
+	mockConfig := mock.NewFromYAML(t, confYaml)
 
 	var trapsCfg = TrapsConfig{}
 	err := UnmarshalKey(mockConfig, "network_devices.snmp_traps", &trapsCfg)
@@ -97,7 +98,7 @@ endpoints:
 - name: health
   apikey: abc3
 `
-	mockConfig := pkgconfigsetup.ConfFromYAML(confYaml)
+	mockConfig := mock.NewFromYAML(t, confYaml)
 	mockConfig.SetKnown("endpoints")
 
 	var endpoints = []Endpoint{}
@@ -122,7 +123,7 @@ func TestUnmarshalKeyParseStringAsBool(t *testing.T) {
 feature:
   enabled: "true"
 `
-	mockConfig := pkgconfigsetup.ConfFromYAML(confYaml)
+	mockConfig := mock.NewFromYAML(t, confYaml)
 	mockConfig.SetKnown("feature")
 
 	var feature = FeatureConfig{}
@@ -130,4 +131,24 @@ feature:
 	assert.NoError(t, err)
 
 	assert.Equal(t, feature.Enabled, true)
+}
+
+func TestMapGetChildNotFound(t *testing.T) {
+	m := map[string]string{"a": "apple", "b": "banana"}
+	n, err := newNode(reflect.ValueOf(m))
+	assert.NoError(t, err)
+
+	val, err := n.GetChild("a")
+	assert.NoError(t, err)
+	str, err := val.(leafNode).GetString()
+	assert.NoError(t, err)
+	assert.Equal(t, str, "apple")
+
+	_, err = n.GetChild("c")
+	assert.Error(t, err)
+	assert.Equal(t, err.Error(), "not found")
+
+	keys, err := n.ChildrenKeys()
+	assert.NoError(t, err)
+	assert.Equal(t, keys, []string{"a", "b"})
 }
