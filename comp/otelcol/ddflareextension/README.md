@@ -51,10 +51,6 @@ Will contain a JSON of the latest health check, for example:
 - pprof: Found in `otel/otel-flare/pprof`
 - zpages: Found in `otel/otel-flare/zpages`
 
-## Data collected for inventory
-
-The ddflare extension submits a variety of metadata for fleet automation including version, command, configuration. You can find more information about the Inventory Agent Payload in [comp/metadata/inventoryotel/README.md](../metadata/inventoryotel/README.md).
-
 ### Logs
 
 The flare will collect the otel-agent logs which can be found in `logs/otel-agent.log`.
@@ -62,3 +58,7 @@ The flare will collect the otel-agent logs which can be found in `logs/otel-agen
 ### Raw data
 
 The raw response can be found in `otel-response.json`. This corresponds to the data that is exposed at the datadog extensions port.
+
+## Data collected for inventory
+
+The ddflare extension submits a variety of metadata for fleet automation including version, command, configuration. You can find more information about the Inventory Agent Payload in [comp/metadata/inventoryotel/README.md](../metadata/inventoryotel/README.md).
