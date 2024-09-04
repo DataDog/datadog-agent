@@ -14,14 +14,14 @@ import (
 const (
 	//nolint:revive // TODO(SERV) Fix revive linter
 	revisionNameEnvVar      = "K_REVISION"
-	ServiceNameEnvVar       = "K_SERVICE"
+	ServiceNameEnvVar       = "K_SERVICE" // also used in traces
 	configurationNameEnvVar = "K_CONFIGURATION"
 	functionTypeEnvVar      = "FUNCTION_SIGNATURE_TYPE"
-	functionTargetEnvVar    = "FUNCTION_TARGET" // exists as a runfunction env var for all runtimes except Go
+	functionTargetEnvVar    = "FUNCTION_TARGET" // exists as a cloudrunfunction env var for all runtimes except Go
 )
 
 var metadataHelperFunc = helper.GetMetaData
-var cloudRunFunctionMode = false
+var cloudRunFunctionMode bool
 
 // CloudRun has helper functions for getting Google Cloud Run data
 type CloudRun struct{}
@@ -50,7 +50,7 @@ func (c *CloudRun) GetTags() map[string]string {
 	if functionTarget != "" {
 		cloudRunFunctionMode = true
 		tags["function_target"] = functionTarget
-		tags = c.GetFunctionTags(tags)
+		tags = getFunctionTags(tags)
 	}
 
 	tags["origin"] = c.GetOrigin()
@@ -59,12 +59,11 @@ func (c *CloudRun) GetTags() map[string]string {
 	return tags
 }
 
-func (c *CloudRun) GetFunctionTags(tags map[string]string) map[string]string {
+func getFunctionTags(tags map[string]string) map[string]string {
 	functionSignatureType := os.Getenv(functionTypeEnvVar)
 	if functionSignatureType != "" {
 		tags["function_signature_type"] = functionSignatureType
 	}
-
 	return tags
 }
 
