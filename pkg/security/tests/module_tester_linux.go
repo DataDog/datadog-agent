@@ -118,6 +118,11 @@ runtime_security_config:
     enabled: {{ .SBOMEnabled }}
     host:
       enabled: {{ .HostSBOMEnabled }}
+  enforcement:
+    exclude_binaries:
+      - {{ .EnforcementExcludeBinary }}
+    rule_source_allowed:
+      - file
   activity_dump:
     enabled: {{ .EnableActivityDump }}
     syscall_monitor:

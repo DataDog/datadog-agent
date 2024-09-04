@@ -131,4 +131,6 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// CWS enforcement capabilities
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.raw_syscall.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.exclude_binaries", []string{})
+	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.rule_source_allowed", []string{"file", "remote-config"})
 }
