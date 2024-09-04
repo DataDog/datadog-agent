@@ -215,7 +215,6 @@ const (
 	MetricSourceKubeAPIserverMetrics
 	MetricSourceKubeControllerManager
 	MetricSourceKubeDNS
-	MetricSourceKubeflow
 	MetricSourceKubeMetricsServer
 	MetricSourceKubeProxy
 	MetricSourceKubeScheduler
@@ -1057,8 +1056,6 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceKubeProxy
 	case "kube_scheduler":
 		return MetricSourceKubeScheduler
-	case "kubeflow":
-		return MetricSourceKubeflow
 	case "kubelet":
 		return MetricSourceKubelet
 	case "kubernetes_state":
@@ -1383,8 +1380,6 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceAnyscale
 	case "appgate_sdp":
 		return MetricSourceAppgateSDP
-	case "kubeflow":
-		return MetricSourceKubeflow
 	case "slurm":
 		return MetricSourceSlurm
 	case "tibco_ems":
