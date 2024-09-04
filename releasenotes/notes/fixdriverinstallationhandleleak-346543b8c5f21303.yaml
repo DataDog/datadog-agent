@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    On Windows, fixes a bug in the driver installation custom actions that could prevent rollback from working properly, if an installation failed or was cancalled.
+     Fixes a bug on Windows in the driver installation custom actions that could prevent rollback from working properly if an installation failed or was canceled.
