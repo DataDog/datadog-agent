@@ -54,8 +54,8 @@ func NewConfig(admissionV1Enabled, namespaceSelectorEnabled bool) Config {
 
 func (w *Config) getWebhookName() string        { return w.webhookName }
 func (w *Config) getSecretName() string         { return w.secretName }
-func (w *Config) getValidationEnabled() bool    { return w.validationEnabled }
-func (w *Config) getMutationEnabled() bool      { return w.mutationEnabled }
+func (w *Config) isValidationEnabled() bool     { return w.validationEnabled }
+func (w *Config) isMutationEnabled() bool       { return w.mutationEnabled }
 func (w *Config) getSecretNs() string           { return w.namespace }
 func (w *Config) useAdmissionV1() bool          { return w.admissionV1Enabled }
 func (w *Config) useNamespaceSelector() bool    { return w.namespaceSelectorEnabled }

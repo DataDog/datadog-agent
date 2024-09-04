@@ -98,14 +98,14 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	var mutatingWebhooks []Webhook
 
 	// Add Validating webhooks.
-	if c.config.getValidationEnabled() {
+	if c.config.isValidationEnabled() {
 		// Future validating webhooks can be added here.
 		validatingWebhooks = []Webhook{}
 		webhooks = append(webhooks, validatingWebhooks...)
 	}
 
 	// Add Mutating webhooks.
-	if c.config.getMutationEnabled() {
+	if c.config.isMutationEnabled() {
 		mutatingWebhooks = []Webhook{
 			configWebhook.NewWebhook(wmeta, injectionFilter),
 			tagsfromlabels.NewWebhook(wmeta, injectionFilter),
