@@ -353,10 +353,32 @@ func customNewProcess(pid int32) (*process.Process, error) {
 	return p, nil
 }
 
+// ignoreComms is a list of process names (matched against /proc/PID/comm) to
+// never report as a service.
+var ignoreComms = map[string]struct{}{
+	"sshd":             {},
+	"dhclient":         {},
+	"systemd":          {},
+	"systemd-resolved": {},
+	"systemd-networkd": {},
+	"datadog-agent":    {},
+	"livenessprobe":    {},
+	"docker-proxy":     {},
+}
+
 // getService gets information for a single service.
 func (s *discovery) getService(context parsingContext, pid int32) *model.Service {
 	proc, err := customNewProcess(pid)
 	if err != nil {
+		return nil
+	}
+
+	comm, err := proc.Name()
+	if err != nil {
+		return nil
+	}
+
+	if _, found := ignoreComms[comm]; found {
 		return nil
 	}
 
