@@ -44,9 +44,10 @@ const (
 
 // ServiceMetadata holds information about a service.
 type ServiceMetadata struct {
-	Name            string
-	AdditionalNames []string
-	FromDDService   bool
+	Name              string
+	AdditionalNames   []string
+	DDService         string
+	DDServiceInjected bool
 	// for future usage: we can detect also the type, vendor, frameworks, etc
 }
 
@@ -57,6 +58,21 @@ func NewServiceMetadata(name string, additional ...string) ServiceMetadata {
 		slices.Sort(additional)
 	}
 	return ServiceMetadata{Name: name, AdditionalNames: additional}
+}
+
+// SetAdditionalNames set additional names for the service
+func (s *ServiceMetadata) SetAdditionalNames(additional ...string) {
+	if len(additional) > 1 {
+		// names are discovered in unpredictable order. We need to keep them sorted if we're going to join them
+		slices.Sort(additional)
+	}
+	s.AdditionalNames = additional
+}
+
+// SetNames sets generated names for the service.
+func (s *ServiceMetadata) SetNames(name string, additional ...string) {
+	s.Name = name
+	s.SetAdditionalNames(additional...)
 }
 
 // GetServiceKey returns the key for the service.
@@ -165,22 +181,20 @@ var binsWithContext = map[string]detectorCreatorFn{
 	"gunicorn":  newGunicornDetector,
 }
 
-func checkForInjectionNaming(envs map[string]string) bool {
-	fromDDService := true
+func serviceNameInjected(envs map[string]string) bool {
 	if env, ok := envs["DD_INJECTION_ENABLED"]; ok {
 		values := strings.Split(env, ",")
 		for _, v := range values {
 			if v == "service_name" {
-				fromDDService = false
-				break
+				return true
 			}
 		}
 	}
-	return fromDDService
+	return false
 }
 
 // ExtractServiceMetadata attempts to detect ServiceMetadata from the given process.
-func ExtractServiceMetadata(args []string, envs map[string]string, fs fs.SubFS, contextMap DetectorContextMap) (ServiceMetadata, bool) {
+func ExtractServiceMetadata(args []string, envs map[string]string, fs fs.SubFS, contextMap DetectorContextMap) (metadata ServiceMetadata, success bool) {
 	dc := DetectionContext{
 		args:       args,
 		envs:       envs,
@@ -189,14 +203,15 @@ func ExtractServiceMetadata(args []string, envs map[string]string, fs fs.SubFS, 
 	}
 	cmd := dc.args
 	if len(cmd) == 0 || len(cmd[0]) == 0 {
-		return ServiceMetadata{}, false
+		return
 	}
 
+	// We always return a service name from here on
+	success = true
+
 	if value, ok := chooseServiceNameFromEnvs(dc.envs); ok {
-		metadata := NewServiceMetadata(value)
-		// we only want to set FromDDService to true if the name wasn't assigned by injection
-		metadata.FromDDService = checkForInjectionNaming(dc.envs)
-		return metadata, true
+		metadata.DDService = value
+		metadata.DDServiceInjected = serviceNameInjected(envs)
 	}
 
 	exe := cmd[0]
@@ -220,8 +235,19 @@ func ExtractServiceMetadata(args []string, envs map[string]string, fs fs.SubFS, 
 	exe = normalizeExeName(exe)
 
 	if detectorProvider, ok := binsWithContext[exe]; ok {
-		if metadata, ok := detectorProvider(dc).detect(cmd[1:]); ok {
-			return metadata, true
+		langMeta, ok := detectorProvider(dc).detect(cmd[1:])
+
+		// The detector could return a DD Service name (eg. Java, from the
+		// dd.service property), but still fail to generate a service name (ok =
+		// false) so check this first.
+		if langMeta.DDService != "" {
+			metadata.DDService = langMeta.DDService
+		}
+
+		if ok {
+			metadata.Name = langMeta.Name
+			metadata.SetAdditionalNames(langMeta.AdditionalNames...)
+			return
 		}
 	}
 
@@ -230,7 +256,8 @@ func ExtractServiceMetadata(args []string, envs map[string]string, fs fs.SubFS, 
 		exe = exe[:i]
 	}
 
-	return NewServiceMetadata(exe), true
+	metadata.Name = exe
+	return
 }
 
 func removeFilePath(s string) string {
