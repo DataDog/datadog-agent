@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubemetadata"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -1227,7 +1227,7 @@ func TestHandleKubeMetadata(t *testing.T) {
 func TestHandleKubeDeployment(t *testing.T) {
 	const deploymentName = "fooapp"
 
-	kubeMetadataID := string(util.GenerateKubeMetadataEntityID("apps", "deployments", "default", deploymentName))
+	kubeMetadataID := string(kubemetadata.GenerateKubeMetadataEntityID("apps", "deployments", "default", deploymentName))
 
 	kubeMetadataEntityID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindKubernetesMetadata,

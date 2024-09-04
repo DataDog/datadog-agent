@@ -15,7 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubemetadata"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
@@ -47,7 +47,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 			expected: &workloadmeta.KubernetesMetadata{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindKubernetesMetadata,
-					ID:   string(util.GenerateKubeMetadataEntityID("apps", "deployments", "default", "test-app")),
+					ID:   string(kubemetadata.GenerateKubeMetadataEntityID("apps", "deployments", "default", "test-app")),
 				},
 				EntityMeta: workloadmeta.EntityMeta{
 					Name:        "test-app",
@@ -81,7 +81,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 			expected: &workloadmeta.KubernetesMetadata{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindKubernetesMetadata,
-					ID:   string(util.GenerateKubeMetadataEntityID("", "namespaces", "", "test-namespace")),
+					ID:   string(kubemetadata.GenerateKubeMetadataEntityID("", "namespaces", "", "test-namespace")),
 				},
 				EntityMeta: workloadmeta.EntityMeta{
 					Name:        "test-namespace",
@@ -115,7 +115,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 			expected: &workloadmeta.KubernetesMetadata{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindKubernetesMetadata,
-					ID:   string(util.GenerateKubeMetadataEntityID("", "namespaces", "", "test-namespace")),
+					ID:   string(kubemetadata.GenerateKubeMetadataEntityID("", "namespaces", "", "test-namespace")),
 				},
 				EntityMeta: workloadmeta.EntityMeta{
 					Name:        "test-namespace",
@@ -151,7 +151,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 			expected: &workloadmeta.KubernetesMetadata{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindKubernetesMetadata,
-					ID:   string(util.GenerateKubeMetadataEntityID("", "namespaces", "", "test-namespace")),
+					ID:   string(kubemetadata.GenerateKubeMetadataEntityID("", "namespaces", "", "test-namespace")),
 				},
 				EntityMeta: workloadmeta.EntityMeta{
 					Name:        "test-namespace",

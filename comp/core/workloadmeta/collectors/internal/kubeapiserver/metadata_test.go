@@ -14,7 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubemetadata"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
@@ -47,7 +47,7 @@ func Test_MetadataFakeClient(t *testing.T) {
 				Type: workloadmeta.EventTypeSet,
 				Entity: &workloadmeta.KubernetesMetadata{
 					EntityID: workloadmeta.EntityID{
-						ID:   string(util.GenerateKubeMetadataEntityID("apps", "deployments", "default", "test-app")),
+						ID:   string(kubemetadata.GenerateKubeMetadataEntityID("apps", "deployments", "default", "test-app")),
 						Kind: workloadmeta.KindKubernetesMetadata,
 					},
 					EntityMeta: workloadmeta.EntityMeta{
