@@ -48,8 +48,7 @@ type RuntimeSecurityAgent struct {
 
 // RSAOptions represents the runtime security agent options
 type RSAOptions struct {
-	LogProfiledWorkloads    bool
-	IgnoreDDAgentContainers bool
+	LogProfiledWorkloads bool
 }
 
 // Start the runtime security agent
