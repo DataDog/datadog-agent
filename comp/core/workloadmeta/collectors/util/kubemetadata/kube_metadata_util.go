@@ -21,7 +21,7 @@ func GenerateEntityID(group, resource, namespace, name string) EntityID {
 	return EntityID(fmt.Sprintf("%s/%s/%s/%s", group, resource, namespace, name))
 }
 
-// ParseKubeMetadataEntityID parses a metadata entity ID and returns the resource type, namespace and resource name.
+// ParseEntityID parses a metadata entity ID and returns the resource type, namespace and resource name.
 // The parsed id should be in the following format: <resourceType>/<namespace>/<name>
 // The namespace field is left empty for cluster-scoped objects.
 // Examples:
