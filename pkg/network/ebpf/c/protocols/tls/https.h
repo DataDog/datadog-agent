@@ -3,10 +3,6 @@
 
 #ifdef COMPILE_CORE
 #include "ktypes.h"
-#define MINORBITS	20
-#define MINORMASK	((1U << MINORBITS) - 1)
-#define MAJOR(dev)	((unsigned int) ((dev) >> MINORBITS))
-#define MINOR(dev)	((unsigned int) ((dev) & MINORMASK))
 #else
 #include <linux/dcache.h>
 #include <linux/fs.h>
