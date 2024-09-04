@@ -63,12 +63,13 @@ func (we weblogicExtractor) findDeployedApps(domainHome string) ([]jeeDeployment
 		return nil, false
 	}
 	defer serverConfigFile.Close()
-	if ok, err := canSafelyParse(serverConfigFile); !ok {
+	reader, err := SizeVerifiedReader(serverConfigFile)
+	if err != nil {
 		log.Debugf("weblogic: config.xml looks too big. Err: %v", err)
 		return nil, false
 	}
 	var deployInfos weblogicDeploymentInfo
-	err = xml.NewDecoder(serverConfigFile).Decode(&deployInfos)
+	err = xml.NewDecoder(reader).Decode(&deployInfos)
 
 	if err != nil {
 		log.Debugf("weblogic: cannot parse config.xml. Err: %v", err)

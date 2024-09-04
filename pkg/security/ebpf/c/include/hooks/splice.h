@@ -10,10 +10,6 @@
 
 HOOK_SYSCALL_ENTRY0(splice) {
     struct policy_t policy = fetch_policy(EVENT_SPLICE);
-    if (is_discarded_by_process(policy.mode, EVENT_SPLICE)) {
-        return 0;
-    }
-
     struct syscall_cache_t syscall = {
         .type = EVENT_SPLICE,
         .policy = policy,
