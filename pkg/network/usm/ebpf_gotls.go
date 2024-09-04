@@ -450,11 +450,13 @@ func removeInspectionResultFromMap(offsetsDataMap, pidToDeviceInodeMap *ebpf.Map
 		Id_minor: unix.Minor(filePath.ID.Dev),
 		Ino:      filePath.ID.Inode,
 	}
+	if filePath.PID != 0 {
+		_ = pidToDeviceInodeMap.Delete(unsafe.Pointer(&filePath.PID))
+	}
 	if err := offsetsDataMap.Delete(unsafe.Pointer(key)); err != nil {
 		log.Errorf("could not remove inspection result from map for ino %v: %s", filePath.ID, err)
 		return
 	}
-	_ = pidToDeviceInodeMap.Delete(unsafe.Pointer(&filePath.PID))
 }
 
 func attachHooks(mgr *manager.Manager, result *bininspect.Result, binPath string, binID utils.PathIdentifier) ([]manager.ProbeIdentificationPair, error) {
