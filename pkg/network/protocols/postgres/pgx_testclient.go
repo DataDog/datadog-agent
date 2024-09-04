@@ -70,9 +70,38 @@ func (c *PGXClient) Close() {
 
 // RunQuery runs a query on the database.
 func (c *PGXClient) RunQuery(query string, args ...any) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	res, err := c.DB.Query(ctx, query, args...)
 	res.Close()
 	return err
+}
+
+// RunQueryTX runs a query on the database in the context of a transaction.
+func (c *PGXClient) RunQueryTX(tx pgx.Tx, query string, args ...any) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	res, err := tx.Query(ctx, query, args...)
+	res.Close()
+	return err
+}
+
+// SendBatch sends a batch of queries to the database.
+func (c *PGXClient) SendBatch(queries ...string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	batch := &pgx.Batch{}
+	for _, query := range queries {
+		batch.Queue(query)
+	}
+	batchObj := c.DB.SendBatch(ctx, batch)
+	defer batchObj.Close()
+	for i := 0; i < len(queries); i++ {
+		_, err := batchObj.Exec()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

@@ -2,6 +2,240 @@
 Release Notes
 =============
 
+.. _Release Notes_7.56.2:
+
+7.56.2
+======
+
+.. _Release Notes_7.56.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-09-02
+
+- Please refer to the `7.56.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7562>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.56.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix issue causing GUI to fail when opening with Internet Explorer on Windows.
+
+
+.. _Release Notes_7.56.1:
+
+7.56.1
+======
+
+.. _Release Notes_7.56.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-08-29
+
+- Please refer to the `7.56.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7561>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.56.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed a nil pointer dereference issue in the `Tailer.DidRotate` function that was causing the Agent to panic.
+
+
+.. _Release Notes_7.56.0:
+
+7.56.0
+======
+
+.. _Release Notes_7.56.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-08-16
+
+- Please refer to the `7.56.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7560>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.56.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Change default bind address in OTLP ingest from `0.0.0.0` to `localhost`. Please refer to the following blog post: https://opentelemetry.io/blog/2024/hardening-the-collector-one for additional information around this change.
+
+- Update cURL to 8.7.1.
+
+
+.. _Release Notes_7.56.0_New Features:
+
+New Features
+------------
+
+- The core Agent now supports multiple configuration files in addition to the main ``datadog.yaml`` file. 
+  The -E flag can be used to specify additional configuration files to be loaded sequentially after the main ``datadog.yaml``.
+
+- When ``DD_SERVERLESS_STREAM_LOGS`` is enabled, DD_EXTENSION
+  prints collected logs like ``agent stream-logs``.
+
+- Add full support of CIS Amazon Linux 2 Benchmark in CSPM.
+
+- Add full support of CIS Amazon Linux 2023 Benchmark in CSPM.
+
+- NPM - Adds the capability to track and report failed TCP connections to the Datadog backend. This feature is disabled by default.
+
+
+.. _Release Notes_7.56.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add the `use_apiserver_cache` option to the `kubernetes_state_metrics` check
+  to reduce the pressure on the underlying storage engine `etcd`. Requires Kubernetes 1.19+.
+
+- APM: Add obfuscation support for OpenSearch statements within span metadata. This feature works in the same way as the existing Elasticsearch one, and is enabled by default. It is configured by binding ``apm_config.obfuscation.opensearch.*`` parameters to new obfuscation environment variables. In particular, bind:
+  ``apm_config.obfuscation.opensearch.enabled`` to ``DD_APM_OBFUSCATION_OPENSEARCH_ENABLED``:
+  It accepts a boolean value with default value true.
+  
+  ``apm_config.obfuscation.opensearch.keep_values`` to ``DD_APM_OBFUSCATION_OPENSEARCH_KEEP_VALUES``
+  It accepts a list of strings of the form ``["id1", "id2"]``.
+  
+  ``apm_config.obfuscation.opensearch.obfuscate_sql_values`` to ``DD_APM_OBFUSCATION_OPENSEARCH_OBFUSCATE_SQL_VALUES``
+  It accepts a list of strings of the form ``["key1", "key2"]``.
+
+- Agents are now built with Go ``1.22.4``.
+
+- Agents are now built with Go ``1.22.5``.
+
+- Bump dependency `msodbcsql18` to version 18.3.3.1.
+
+- Adds config ``kubernetes_events_source_detection.enabled`` which is
+  false by default. When set to true, this sets the source of kubernetes
+  events to specific integrations based on the name of the controller
+  that emitted it. All kubernetes events will have the tag
+  ``orchestrator:kubernetes``. For controller names that do not match
+  any of the known integrations, the source will still be set to
+  ``kubernetes`` by default.
+
+- Introduces a ``bundle_unspecifed_events`` config to the ``docker`` integration.
+  When ``bundle_unspecifed_events`` and ``unbundle_events`` are true,
+  Docker events are unbundled according to ``collected_event_types`` and
+  the remaining events are bundled after excluding the ``filtered_event_types`` and ``collected_event_types``.
+
+- The Agent will now ignore empty configuration files in ``conf.d``. Users can
+  use this functionality to avoid creating broken integrations when deploying
+  agents with provisioning systems that do not allow skipping files entirely.
+
+- Introduces an ``bundle_unspecified_events`` config to the ``kubernetes_apiserver``
+  integration. When ``bundle_unspecified_events`` and ``unbundle_events`` are true,
+  Kubernetes events are unbundled according to ``collected_event_types`` and
+  the remaining events are bundled.
+
+- Improve utility functions that start or stop a service to better manage the SERVICE_START_PENDING and SERVICE_STOP_PENDING states by waiting for the service transition to complete. This will improve handling of concurrent execution of `agent.exe start` and `agent.exe restart` commands for the Windows Agent.
+
+- Make the `oom_kill` check capture the OOM score and the OOM score adjustment of the process being killed.
+
+- Oracle integration will now auto-adjust the size of the SQL substring requested by the activity sampler
+  to better support users with multi-byte character sets, for example, Korean, Arabic, etc. This should
+  alleviate crashes caused by long queries using these characters.
+
+- The OTLP ingestion endpoint now supports the same settings and protocol as 
+  the OpenTelemetry Collector OTLP receiver v0.103.0.
+
+- APM: Probabilistic Sampler now only looks at the lower 64 bits of a trace ID by default to improve compatibility in distributed systems where some apps may truncate the trace ID. To maintain the previous behavior use the feature flag `probabilistic_sampler_full_trace_id`.
+
+- Adds the source of the payload for Processes-owned messages.
+
+- Add tags to `CollectorManifest`
+
+- Add image and imageID fields to pods ContainerStatuses.
+
+- The orchestrator check can now scrub sensitive data from probes in pods specifications.
+
+- The Agent now populates the `git.repository_url` and `git.commit.sha` tags from the values of the `DD_GIT_REPOSITORY_URL` and `DD_GIT_COMMIT_SHA` container environment variables.
+
+- Implement the kubernetes_persistent_volume_claims_as_tags configuration that allows
+  users to disable PersistentVolumeClaim for Kubernetes resources.
+
+- Upgrade the NTP check client library 'beevik/ntp' from v0.3.0 to v1.3.4
+
+- Use cloud-provided hostname as default when running the Agent
+  in AKS.
+
+- APM: Enabled zstd compression by default on trace payloads.
+
+
+.. _Release Notes_7.56.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- APM: DD_APM_MAX_TPS config setting is deprecated in favor of the more
+  accurate DD_APM_TARGET_TPS. Accordingly, when configured through YAML,
+  max_traces_per_second is deprecated in favor of target_traces_per_second.
+  The setting behavior remains the same, only the name is changed to more
+  accurately reflect the existing logic.
+
+
+.. _Release Notes_7.56.0_Security Notes:
+
+Security Notes
+--------------
+
+- Updating OpenSSL to 3.0.14 to address CVE-2024-4741.
+
+
+.. _Release Notes_7.56.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Upgrades the pro-bing library to fix a Windows-only bug with too-long ICMP packets being received
+
+- Fix ExtraTags mapping for CollectorManifest.
+
+- Fix a bug in the Agent where it could potentially fetch logs of short-lived Kubernetes jobs twice if the CRI is Docker.
+
+- Re-enable printing of checks metadata in the ``datadog-agent status`` collector section.
+
+- Fix OTLP status output not being displayed in the GUI. 
+
+- Fix issue where init config for ping took priority over instance config.
+
+- Fix ``diagnose`` command for logs endpoints and related warnings about unknown config keys.
+
+- Fixes `oracle.tablespace.offline` metric not emitting 1 when tablespace is offline.
+
+- APM: Show probabilistic sampling configuration in Agent status when enabled.
+
+- Add a field to differentiate between empty and undefined podSelector or namespaceSelector for network policies.
+
+- Fixed a bug where the file tailing position is always set to the beginning, this fix allows
+  users to explicitly set a starting position.
+
+- All datadog public endpoints have the maximum requirements to close idle
+  connections after 60s being idle.  If a given client keeps it for longer,
+  the server will close it, and the client will likely see the issue during
+  the next write, leading to a connection reset error.  The idle timeout
+  should be therefore set under a minute.
+  This PR is reducing the timeout from 90 to 30s.
+
+- Windows: Added driver rollback properties to ensure that all services and drivers are uninstalled or rolled back after an installation or upgrade failure.
+
+
+.. _Release Notes_7.56.0_Other Notes:
+
+Other Notes
+-----------
+
+- Add metric origins for community Python integrations.
+
 .. _Release Notes_7.55.3:
 
 7.55.3

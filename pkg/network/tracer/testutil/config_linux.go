@@ -8,7 +8,7 @@
 package testutil
 
 import (
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -18,7 +18,7 @@ var kv = kernel.MustHostVersion()
 // Config returns a network.Config setup for test purposes
 func Config() *config.Config {
 	cfg := config.New()
-	if ddconfig.IsECSFargate() {
+	if env.IsECSFargate() {
 		// protocol classification not yet supported on fargate
 		cfg.ProtocolClassificationEnabled = false
 	}

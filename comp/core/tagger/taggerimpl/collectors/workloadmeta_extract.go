@@ -11,22 +11,18 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	// GlobalEntityID defines the entity ID that holds global tags
-	GlobalEntityID = "internal://global-entity-id"
-
 	podAnnotationPrefix              = "ad.datadoghq.com/"
 	podContainerTagsAnnotationFormat = podAnnotationPrefix + "%s.tags"
 	podTagsAnnotation                = podAnnotationPrefix + "tags"
@@ -124,18 +120,18 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
-			taggerEntityID := buildTaggerEntityID(entityID)
+			taggerEntityID := common.BuildTaggerEntityID(entityID)
 
 			// keep track of children of this entity from previous
 			// iterations ...
-			unseen := make(map[string]struct{})
+			unseen := make(map[types.EntityID]struct{})
 			for childTaggerID := range c.children[taggerEntityID] {
 				unseen[childTaggerID] = struct{}{}
 			}
 
 			// ... and create a new empty map to store the children
 			// seen in this iteration.
-			c.children[taggerEntityID] = make(map[string]struct{})
+			c.children[taggerEntityID] = make(map[types.EntityID]struct{})
 
 			switch entityID.Kind {
 			case workloadmeta.KindContainer:
@@ -238,7 +234,7 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 	return []*types.TagInfo{
 		{
 			Source:               containerSource,
-			Entity:               buildTaggerEntityID(container.EntityID),
+			EntityID:             common.BuildTaggerEntityID(container.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
@@ -288,7 +284,7 @@ func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*t
 	return []*types.TagInfo{
 		{
 			Source:               containerImageSource,
-			Entity:               buildTaggerEntityID(image.EntityID),
+			EntityID:             common.BuildTaggerEntityID(image.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
@@ -302,7 +298,7 @@ func (c *WorkloadMetaCollector) handleHostTags(ev workloadmeta.Event) []*types.T
 	return []*types.TagInfo{
 		{
 			Source:      hostSource,
-			Entity:      GlobalEntityID,
+			EntityID:    types.NewEntityID("internal", "global-entity-id"),
 			LowCardTags: hostTags.HostTags,
 		},
 	}
@@ -416,7 +412,7 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 	tagInfos := []*types.TagInfo{
 		{
 			Source:               podSource,
-			Entity:               buildTaggerEntityID(pod.EntityID),
+			EntityID:             common.BuildTaggerEntityID(pod.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
@@ -485,7 +481,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 			// taskSource here is not a mistake. the source is
 			// always from the parent resource.
 			Source:               taskSource,
-			Entity:               buildTaggerEntityID(container.EntityID),
+			EntityID:             common.BuildTaggerEntityID(container.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
@@ -497,7 +493,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 		low, orch, high, standard := taskTags.Compute()
 		tagInfos = append(tagInfos, &types.TagInfo{
 			Source:               taskSource,
-			Entity:               GlobalEntityID,
+			EntityID:             common.GetGlobalEntityID(),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
@@ -512,7 +508,7 @@ func (c *WorkloadMetaCollector) handleGardenContainer(container *workloadmeta.Co
 	return []*types.TagInfo{
 		{
 			Source:       containerSource,
-			Entity:       buildTaggerEntityID(container.EntityID),
+			EntityID:     common.BuildTaggerEntityID(container.EntityID),
 			HighCardTags: container.CollectorTags,
 		},
 	}
@@ -552,7 +548,7 @@ func (c *WorkloadMetaCollector) handleKubeDeployment(ev workloadmeta.Event) []*t
 	tagInfos := []*types.TagInfo{
 		{
 			Source:               deploymentSource,
-			Entity:               buildTaggerEntityID(deployment.EntityID),
+			EntityID:             common.BuildTaggerEntityID(deployment.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
@@ -594,7 +590,7 @@ func (c *WorkloadMetaCollector) handleKubeMetadata(ev workloadmeta.Event) []*typ
 	tagInfos := []*types.TagInfo{
 		{
 			Source:               kubeMetadataSource,
-			Entity:               buildTaggerEntityID(kubeMetadata.EntityID),
+			EntityID:             common.BuildTaggerEntityID(kubeMetadata.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
@@ -718,7 +714,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 		// podSource here is not a mistake. the source is
 		// always from the parent resource.
 		Source:               podSource,
-		Entity:               buildTaggerEntityID(container.EntityID),
+		EntityID:             common.BuildTaggerEntityID(container.EntityID),
 		HighCardTags:         high,
 		OrchestratorCardTags: orch,
 		LowCardTags:          low,
@@ -727,12 +723,12 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 }
 
 func (c *WorkloadMetaCollector) registerChild(parent, child workloadmeta.EntityID) {
-	parentTaggerEntityID := buildTaggerEntityID(parent)
-	childTaggerEntityID := buildTaggerEntityID(child)
+	parentTaggerEntityID := common.BuildTaggerEntityID(parent)
+	childTaggerEntityID := common.BuildTaggerEntityID(child)
 
 	m, ok := c.children[parentTaggerEntityID]
 	if !ok {
-		c.children[parentTaggerEntityID] = make(map[string]struct{})
+		c.children[parentTaggerEntityID] = make(map[types.EntityID]struct{})
 		m = c.children[parentTaggerEntityID]
 	}
 
@@ -741,7 +737,7 @@ func (c *WorkloadMetaCollector) registerChild(parent, child workloadmeta.EntityI
 
 func (c *WorkloadMetaCollector) handleDelete(ev workloadmeta.Event) []*types.TagInfo {
 	entityID := ev.Entity.GetID()
-	taggerEntityID := buildTaggerEntityID(entityID)
+	taggerEntityID := common.BuildTaggerEntityID(entityID)
 
 	children := c.children[taggerEntityID]
 
@@ -749,7 +745,7 @@ func (c *WorkloadMetaCollector) handleDelete(ev workloadmeta.Event) []*types.Tag
 	tagInfos := make([]*types.TagInfo, 0, len(children)+1)
 	tagInfos = append(tagInfos, &types.TagInfo{
 		Source:       source,
-		Entity:       taggerEntityID,
+		EntityID:     taggerEntityID,
 		DeleteEntity: true,
 	})
 	tagInfos = append(tagInfos, c.handleDeleteChildren(source, children)...)
@@ -759,13 +755,13 @@ func (c *WorkloadMetaCollector) handleDelete(ev workloadmeta.Event) []*types.Tag
 	return tagInfos
 }
 
-func (c *WorkloadMetaCollector) handleDeleteChildren(source string, children map[string]struct{}) []*types.TagInfo {
+func (c *WorkloadMetaCollector) handleDeleteChildren(source string, children map[types.EntityID]struct{}) []*types.TagInfo {
 	tagInfos := make([]*types.TagInfo, 0, len(children))
 
 	for childEntityID := range children {
 		t := types.TagInfo{
 			Source:       source,
-			Entity:       childEntityID,
+			EntityID:     childEntityID,
 			DeleteEntity: true,
 		}
 		tagInfos = append(tagInfos, &t)
@@ -817,31 +813,6 @@ func (c *WorkloadMetaCollector) addOpenTelemetryStandardTags(container *workload
 		}
 	}
 	c.extractFromMapWithFn(container.EnvVars, otelStandardEnvKeys, tags.AddStandard)
-}
-
-func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
-	switch entityID.Kind {
-	case workloadmeta.KindContainer:
-		return containers.BuildTaggerEntityName(entityID.ID)
-	case workloadmeta.KindKubernetesPod:
-		return kubelet.PodUIDToTaggerEntityName(entityID.ID)
-	case workloadmeta.KindECSTask:
-		return fmt.Sprintf("ecs_task://%s", entityID.ID)
-	case workloadmeta.KindContainerImageMetadata:
-		return fmt.Sprintf("container_image_metadata://%s", entityID.ID)
-	case workloadmeta.KindProcess:
-		return fmt.Sprintf("process://%s", entityID.ID)
-	case workloadmeta.KindKubernetesDeployment:
-		return fmt.Sprintf("deployment://%s", entityID.ID)
-	case workloadmeta.KindHost:
-		return fmt.Sprintf("host://%s", entityID.ID)
-	case workloadmeta.KindKubernetesMetadata:
-		return fmt.Sprintf("kubernetes_metadata://%s", entityID.ID)
-	default:
-		log.Errorf("can't recognize entity %q with kind %q; trying %s://%s as tagger entity",
-			entityID.ID, entityID.Kind, entityID.ID, entityID.Kind)
-		return fmt.Sprintf("%s://%s", string(entityID.Kind), entityID.ID)
-	}
 }
 
 func buildTaggerSource(entityID workloadmeta.EntityID) string {

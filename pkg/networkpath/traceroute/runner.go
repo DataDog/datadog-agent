@@ -30,8 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/google/uuid"
 )
 
 // TODO: are these good defaults?
@@ -222,11 +220,10 @@ func (r *Runner) runTCP(cfg Config, hname string, target net.IP, maxTTL uint8, t
 }
 
 func (r *Runner) processTCPResults(res *tcp.Results, hname string, destinationHost string, destinationPort uint16, destinationIP net.IP) (payload.NetworkPath, error) {
-	pathID := uuid.New().String()
 	traceroutePath := payload.NetworkPath{
-		PathID:    pathID,
-		Protocol:  payload.ProtocolTCP,
-		Timestamp: time.Now().UnixMilli(),
+		PathtraceID: payload.NewPathtraceID(),
+		Protocol:    payload.ProtocolTCP,
+		Timestamp:   time.Now().UnixMilli(),
 		Source: payload.NetworkPathSource{
 			Hostname:  hname,
 			NetworkID: r.networkID,
@@ -285,12 +282,10 @@ func (r *Runner) processUDPResults(res *results.Results, hname string, destinati
 		probe *results.Probe
 	}
 
-	pathID := uuid.New().String()
-
 	traceroutePath := payload.NetworkPath{
-		PathID:    pathID,
-		Protocol:  payload.ProtocolUDP,
-		Timestamp: time.Now().UnixMilli(),
+		PathtraceID: payload.NewPathtraceID(),
+		Protocol:    payload.ProtocolUDP,
+		Timestamp:   time.Now().UnixMilli(),
 		Source: payload.NetworkPathSource{
 			Hostname:  hname,
 			NetworkID: r.networkID,

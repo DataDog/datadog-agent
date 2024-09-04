@@ -32,16 +32,16 @@ func TestConfig(t *testing.T) {
 		},
 	}
 	config, err := newConfig(baseLayer, overrideLayer)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	expectedConfig := doNotEditDisclaimer + `
-__fleet_layers:
-- base
-- override
 api_key: "1234"
 apm:
   enabled: true
   env: prod
   sampling_rate: 0.7
+fleet_layers:
+- base
+- override
 `
 	assert.Equal(t, expectedConfig, string(config.Datadog))
 }

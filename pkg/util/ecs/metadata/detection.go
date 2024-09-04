@@ -19,6 +19,7 @@ import (
 
 	"github.com/hashicorp/go-version"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 
@@ -44,7 +45,7 @@ func detectAgentV1URL() (string, error) {
 		urls = append(urls, config.Datadog().GetString("ecs_agent_url"))
 	}
 
-	if config.IsContainerized() {
+	if env.IsContainerized() {
 		// List all interfaces for the ecs-agent container
 		agentURLS, err := getAgentV1ContainerURLs(context.TODO())
 		if err != nil {
@@ -79,7 +80,7 @@ func detectAgentV1URL() (string, error) {
 func getAgentV1ContainerURLs(ctx context.Context) ([]string, error) {
 	var urls []string
 
-	if !config.IsFeaturePresent(config.Docker) {
+	if !env.IsFeaturePresent(env.Docker) {
 		return nil, errors.New("Docker feature not activated")
 	}
 

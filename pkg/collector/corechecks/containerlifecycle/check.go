@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -186,7 +187,7 @@ func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
 // sendFargateTaskEvent sends Fargate task lifecycle event at the end of the check
 func (c *Check) sendFargateTaskEvent() {
 	if !ddConfig.Datadog().GetBool("ecs_task_collection_enabled") ||
-		!ddConfig.IsECSFargate() {
+		!env.IsECSFargate() {
 		return
 	}
 
