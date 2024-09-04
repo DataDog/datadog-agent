@@ -4,7 +4,7 @@ The ddflare extension component allows inclusion of otel-agent data in the datad
 
 The ddflare extension also provides the relevant metadata for otel-agent configuration and inventory tracking in Fleet Automation. This metadata is periodically collected by the core-agent which then submits that data to the backend.
 
-{{< img src="ddflareextensiondiagram.png" alt="ddflare extension diagram" style="width:100%;" >}}
+{{< img src="/ddflareextensiondiagram.png" alt="ddflare extension diagram" style="width:100%;" >}}
 
 ## Extension Configuration
 
