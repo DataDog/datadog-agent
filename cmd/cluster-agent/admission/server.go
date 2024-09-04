@@ -199,17 +199,8 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 		}
 
 		// Generate admission response
-		switch webhookType {
-		case admicommon.ValidatingWebhook:
-			validationResponse := webhookFunc(&admissionRequest)
-			admissionReview.Response = validationResponse
-		case admicommon.MutatingWebhook:
-			mutationResponse := webhookFunc(&admissionRequest)
-			admissionReview.Response = mutationResponse
-		default:
-			log.Errorf("Invalid webhook type %v", webhookType)
-			w.WriteHeader(http.StatusInternalServerError)
-		}
+		admissionResponse := webhookFunc(&admissionRequest)
+		admissionReview.Response = admissionResponse
 		admissionReview.Response.UID = admissionReviewReq.Request.UID
 		response = admissionReview
 	case admiv1beta1.SchemeGroupVersion.WithKind("AdmissionReview"):
@@ -230,17 +221,8 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 		}
 
 		// Generate admission response
-		switch webhookType {
-		case admicommon.ValidatingWebhook:
-			validationResponse := webhookFunc(&admissionRequest)
-			admissionReview.Response = responseV1ToV1beta1(validationResponse)
-		case admicommon.MutatingWebhook:
-			mutationResponse := webhookFunc(&admissionRequest)
-			admissionReview.Response = responseV1ToV1beta1(mutationResponse)
-		default:
-			log.Errorf("Invalid webhook type %v", webhookType)
-			w.WriteHeader(http.StatusInternalServerError)
-		}
+		admissionResponse := webhookFunc(&admissionRequest)
+		admissionReview.Response = responseV1ToV1beta1(admissionResponse)
 		admissionReview.Response.UID = admissionReviewReq.Request.UID
 		response = admissionReview
 	default:
