@@ -83,7 +83,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForDaemon(command.LoggerName, "log_file", path.DefaultDCALogFile),
 				}),
 				core.Bundle(),
-				forwarder.BundleWithProvider(defaultforwarder.NewParamsWithResolvers),
+				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers())),
 				compressionimpl.Module(),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 				orchestratorForwarderImpl.Module(),
