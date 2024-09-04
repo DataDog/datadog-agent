@@ -8,8 +8,8 @@ package strategy
 
 import (
 	"bytes"
-	"io"
 	"compress/gzip"
+	"io"
 
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 )
@@ -72,8 +72,10 @@ func (s *GzipStrategy) Decompress(src []byte) ([]byte, error) {
 }
 
 // CompressBound returns the worst case size needed for a destination buffer when using gzip
+// The worst case expansion is a few bytes for the gzip file header, plus 5 bytes per 32 KiB block, or an expansion ratio of 0.015% for large files.
+// Source: https://www.gnu.org/software/gzip/manual/html_node/Overview.html
 func (s *GzipStrategy) CompressBound(sourceLen int) int {
-	return sourceLen + (sourceLen/16384+1)*5 + 18
+	return sourceLen + (sourceLen/32768)*5 + 18
 }
 
 // ContentEncoding returns the content encoding value for gzip
