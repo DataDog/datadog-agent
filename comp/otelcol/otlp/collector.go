@@ -163,29 +163,24 @@ type PipelineConfig struct {
 	Metrics map[string]interface{}
 }
 
-// valid values for debug log level.
-var debugLogLevelMap = map[string]struct{}{
-	"disabled": {},
-	"debug":    {},
-	"info":     {},
-	"warn":     {},
-	"error":    {},
+// valid values for debug verbosity.
+var debugVerbosityMap = map[string]struct{}{
+	"basic":    {},
+	"normal":   {},
+	"detailed": {},
 }
 
 // shouldSetLoggingSection returns whether debug logging is enabled.
-// If an invalid loglevel value is set, it assumes debug logging is disabled.
-// If the special 'disabled' value is set, it returns false.
+// If an invalid verbosity value is set (or the special value "none"), debug logging is disabled.
 // Otherwise it returns true and lets the Collector handle the rest.
 func (p *PipelineConfig) shouldSetLoggingSection() bool {
-	// Legacy behavior: keep it so that we support `loglevel: disabled`.
-	if v, ok := p.Debug["loglevel"]; ok {
+	if v, ok := p.Debug["verbosity"]; ok {
 		if s, ok := v.(string); ok {
-			_, ok := debugLogLevelMap[s]
-			return ok && s != "disabled"
+			_, ok := debugVerbosityMap[s]
+			return ok
 		}
+		return false
 	}
-
-	// If the legacy behavior does not apply, we always want to set the logging section.
 	return true
 }
 

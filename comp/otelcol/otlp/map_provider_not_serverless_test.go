@@ -37,7 +37,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:          5003,
 				TracesEnabled:      true,
 				Debug: map[string]interface{}{
-					"loglevel": "disabled",
+					"verbosity": "none",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -91,7 +91,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				Debug: map[string]interface{}{
-					"loglevel": "disabled",
+					"verbosity": "none",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -150,7 +150,7 @@ func TestNewMap(t *testing.T) {
 			},
 		},
 		{
-			name: "only HTTP, metrics and traces, invalid loglevel(ignored)",
+			name: "only HTTP, metrics and traces, invalid verbosity (ignored)",
 			pcfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
 				TracePort:          5003,
@@ -167,7 +167,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				Debug: map[string]interface{}{
-					"loglevel": "foo",
+					"verbosity": "foo",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -232,7 +232,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:          5003,
 				TracesEnabled:      true,
 				Debug: map[string]interface{}{
-					"loglevel": "disabled",
+					"verbosity": "none",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -288,7 +288,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				Debug: map[string]interface{}{
-					"loglevel": "disabled",
+					"verbosity": "none",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -525,7 +525,7 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:      true,
 				LogsEnabled:        true,
 				Debug: map[string]interface{}{
-					"loglevel": "disabled",
+					"verbosity": "none",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -592,7 +592,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				Debug: map[string]interface{}{
-					"loglevel": "disabled",
+					"verbosity": "none",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -658,7 +658,7 @@ func TestNewMap(t *testing.T) {
 			},
 		},
 		{
-			name: "only HTTP; metrics, logs and traces; invalid loglevel(ignored)",
+			name: "only HTTP; metrics, logs and traces; invalid verbosity (ignored)",
 			pcfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
 				TracePort:          5003,
@@ -676,7 +676,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				Debug: map[string]interface{}{
-					"loglevel": "foo",
+					"verbosity": "foo",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -749,7 +749,7 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:      true,
 				LogsEnabled:        true,
 				Debug: map[string]interface{}{
-					"loglevel": "disabled",
+					"verbosity": "none",
 				},
 			},
 			ocfg: map[string]interface{}{
@@ -818,7 +818,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				Debug: map[string]interface{}{
-					"loglevel": "disabled",
+					"verbosity": "none",
 				},
 			},
 			ocfg: map[string]interface{}{

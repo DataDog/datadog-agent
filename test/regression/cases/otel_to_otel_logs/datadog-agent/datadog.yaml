@@ -35,4 +35,4 @@ otlp_config:
   traces:
     enabled: true
   debug:
-    loglevel: info
+    verbosity: normal
