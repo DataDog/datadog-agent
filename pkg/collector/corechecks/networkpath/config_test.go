@@ -35,7 +35,7 @@ hostname: 1.2.3.4
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(60) * time.Second,
 				Namespace:             "my-namespace",
-				Timeout:               setup.DefaultNetworkPathTimeout,
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 			},
 		},
 		{
@@ -70,7 +70,7 @@ min_collection_interval: 10
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(42) * time.Second,
 				Namespace:             "my-namespace",
-				Timeout:               setup.DefaultNetworkPathTimeout,
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 			},
 		},
 		{
@@ -85,7 +85,7 @@ min_collection_interval: 10
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(10) * time.Second,
 				Namespace:             "my-namespace",
-				Timeout:               setup.DefaultNetworkPathTimeout,
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 			},
 		},
 		{
@@ -97,7 +97,7 @@ hostname: 1.2.3.4
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(1) * time.Minute,
 				Namespace:             "my-namespace",
-				Timeout:               setup.DefaultNetworkPathTimeout,
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 			},
 		},
 		{
@@ -114,7 +114,7 @@ destination_service: service-b
 				DestinationService:    "service-b",
 				MinCollectionInterval: time.Duration(60) * time.Second,
 				Namespace:             "my-namespace",
-				Timeout:               setup.DefaultNetworkPathTimeout,
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 			},
 		},
 		{
@@ -129,7 +129,7 @@ protocol: udp
 				MinCollectionInterval: time.Duration(60) * time.Second,
 				Namespace:             "my-namespace",
 				Protocol:              payload.ProtocolUDP,
-				Timeout:               setup.DefaultNetworkPathTimeout,
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 			},
 		},
 		{
@@ -144,7 +144,7 @@ protocol: UDP
 				MinCollectionInterval: time.Duration(60) * time.Second,
 				Namespace:             "my-namespace",
 				Protocol:              payload.ProtocolUDP,
-				Timeout:               setup.DefaultNetworkPathTimeout,
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 			},
 		},
 		{
@@ -159,7 +159,7 @@ protocol: TCP
 				MinCollectionInterval: time.Duration(60) * time.Second,
 				Namespace:             "my-namespace",
 				Protocol:              payload.ProtocolTCP,
-				Timeout:               setup.DefaultNetworkPathTimeout,
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 			},
 		},
 		{
@@ -227,7 +227,7 @@ min_collection_interval: 10
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(42) * time.Second,
 				Namespace:             "my-namespace",
-				Timeout:               setup.DefaultNetworkPathTimeout,
+				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 			},
 		},
 		{

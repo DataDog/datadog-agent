@@ -98,7 +98,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.Timeout = firstNonZero(
 		time.Duration(instance.TimeoutMs)*time.Millisecond,
 		time.Duration(initConfig.TimeoutMs)*time.Millisecond,
-		setup.DefaultNetworkPathTimeout,
+		setup.DefaultNetworkPathTimeout*time.Millisecond,
 	)
 	if c.Timeout <= 0 {
 		return nil, fmt.Errorf("timeout must be > 0")

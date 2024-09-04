@@ -122,7 +122,7 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (payload.Network
 
 	var timeout time.Duration
 	if cfg.Timeout == 0 {
-		timeout = setup.DefaultNetworkPathTimeout
+		timeout = setup.DefaultNetworkPathTimeout * time.Millisecond
 	} else {
 		timeout = cfg.Timeout
 	}

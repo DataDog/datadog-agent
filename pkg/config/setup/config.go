@@ -104,7 +104,7 @@ const (
 	DefaultMaxMessageSizeBytes = 256 * 1000
 
 	// DefaultNetworkPathTimeout defines the default timeout for a network path test
-	DefaultNetworkPathTimeout = 10 * time.Second
+	DefaultNetworkPathTimeout = 10000
 )
 
 // datadog is the global configuration object
