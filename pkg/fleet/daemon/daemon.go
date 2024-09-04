@@ -56,6 +56,7 @@ type Daemon interface {
 
 	GetPackage(pkg string, version string) (Package, error)
 	GetState() (map[string]repository.State, error)
+	GetRemoteConfigState() []*pbgo.PackageState
 	GetAPMInjectionStatus() (APMInjectionStatus, error)
 }
 
@@ -117,6 +118,14 @@ func (d *daemonImpl) GetState() (map[string]repository.State, error) {
 	defer d.m.Unlock()
 
 	return d.installer.States()
+}
+
+// GetRemoteConfigState returns the remote config state.
+func (d *daemonImpl) GetRemoteConfigState() []*pbgo.PackageState {
+	d.m.Lock()
+	defer d.m.Unlock()
+
+	return d.rc.GetState()
 }
 
 // GetAPMInjectionStatus returns the APM injection status. This is not done in the service
