@@ -63,5 +63,6 @@ type KafkaResponseContext struct {
 }
 
 type RawKernelTelemetry struct {
-	Name_size_buckets [10]uint64
+	Topic_name_size_buckets  [10]uint64
+	Produce_no_required_acks uint64
 }

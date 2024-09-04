@@ -74,8 +74,8 @@ type Client struct {
 	// Elements that can be changed during the execution of listeners
 	// They are atomics so that they don't have to share the top-level mutex
 	// when in use
-	updaterPackagesState *atomic.Value // []*pbgo.PackageState
-	cwsWorkloads         *atomic.Value // []string
+	installerState *atomic.Value // []*pbgo.PackageState
+	cwsWorkloads   *atomic.Value // []string
 }
 
 // Options describes the client options
@@ -276,21 +276,21 @@ func newClient(cf ConfigFetcher, opts ...func(opts *Options)) (*Client, error) {
 	cwsWorkloads := &atomic.Value{}
 	cwsWorkloads.Store([]string{})
 
-	updaterPackagesState := &atomic.Value{}
-	updaterPackagesState.Store([]*pbgo.PackageState{})
+	installerState := &atomic.Value{}
+	installerState.Store([]*pbgo.PackageState{})
 
 	return &Client{
-		Options:              options,
-		ID:                   generateID(),
-		startupSync:          sync.Once{},
-		ctx:                  ctx,
-		closeFn:              cloneFn,
-		cwsWorkloads:         cwsWorkloads,
-		updaterPackagesState: updaterPackagesState,
-		state:                repository,
-		backoffPolicy:        backoffPolicy,
-		listeners:            make(map[string][]func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))),
-		configFetcher:        cf,
+		Options:        options,
+		ID:             generateID(),
+		startupSync:    sync.Once{},
+		ctx:            ctx,
+		closeFn:        cloneFn,
+		cwsWorkloads:   cwsWorkloads,
+		installerState: installerState,
+		state:          repository,
+		backoffPolicy:  backoffPolicy,
+		listeners:      make(map[string][]func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))),
+		configFetcher:  cf,
 	}, nil
 }
 
@@ -356,9 +356,14 @@ func (c *Client) SetCWSWorkloads(workloads []string) {
 	c.cwsWorkloads.Store(workloads)
 }
 
-// SetUpdaterPackagesState sets the updater package state
-func (c *Client) SetUpdaterPackagesState(packages []*pbgo.PackageState) {
-	c.updaterPackagesState.Store(packages)
+// GetInstallerState gets the installer state
+func (c *Client) GetInstallerState() []*pbgo.PackageState {
+	return c.installerState.Load().([]*pbgo.PackageState)
+}
+
+// SetInstallerState sets the installer state
+func (c *Client) SetInstallerState(packages []*pbgo.PackageState) {
+	c.installerState.Store(packages)
 }
 
 func (c *Client) startFn() {
@@ -560,15 +565,15 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 
 	switch c.Options.isUpdater {
 	case true:
-		updaterPackagesState, ok := c.updaterPackagesState.Load().([]*pbgo.PackageState)
+		installerState, ok := c.installerState.Load().([]*pbgo.PackageState)
 		if !ok {
-			return nil, errors.New("could not load updaterPackagesState")
+			return nil, errors.New("could not load installerState")
 		}
 
 		req.Client.IsUpdater = true
 		req.Client.ClientUpdater = &pbgo.ClientUpdater{
 			Tags:     c.Options.updaterTags,
-			Packages: updaterPackagesState,
+			Packages: installerState,
 		}
 	case false:
 		cwsWorkloads, ok := c.cwsWorkloads.Load().([]string)
