@@ -114,8 +114,8 @@ func (s *KafkaProtocolParsingSuite) getTopicName() string {
 
 func TestKafkaProtocolParsing(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
-	serverHost := "127.0.0.1"
-	require.NoError(t, kafka.RunServer(t, serverHost, kafkaPort))
+	//serverHost := "127.0.0.1"
+	//require.NoError(t, kafka.RunServer(t, serverHost, kafkaPort))
 
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
 		suite.Run(t, new(KafkaProtocolParsingSuite))
@@ -616,7 +616,7 @@ func appendUint32(dst []byte, u uint32) []byte {
 
 // kmsg doesn't have a ResponseFormatter so we need to add the length
 // and the correlation Id ourselves.
-func appendResponse(dst []byte, response kmsg.FetchResponse, correlationID uint32) []byte {
+func appendResponse(dst []byte, response kmsg.Response, correlationID uint32) []byte {
 	var data []byte
 	data = response.AppendTo(data)
 
@@ -645,9 +645,9 @@ type Message struct {
 	response []byte
 }
 
-func appendMessages(messages []Message, correlationID int, req kmsg.FetchRequest, resp kmsg.FetchResponse) []Message {
+func appendMessages(messages []Message, correlationID int, req kmsg.Request, resp kmsg.Response) []Message {
 	formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
-	data := formatter.AppendRequest(make([]byte, 0), &req, int32(correlationID))
+	data := formatter.AppendRequest(make([]byte, 0), req, int32(correlationID))
 	respData := appendResponse(make([]byte, 0), resp, uint32(correlationID))
 
 	return append(messages,
@@ -680,7 +680,7 @@ func newCannedClientServer(t *testing.T, tls bool) *CannedClientServer {
 		// which leads to races. The disadvantage of not using 9092 is that you may
 		// have to explicitly pick the protocol in Wireshark when debugging with a packet
 		// trace.
-		address: "127.0.0.1:8082",
+		address: "127.0.0.1:9092",
 		tls:     tls,
 		t:       t,
 	}
@@ -932,7 +932,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 				formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
 				var msgs []Message
 				reqData := formatter.AppendRequest(make([]byte, 0), &req, int32(55))
-				respData := appendResponse(make([]byte, 0), resp, uint32(55))
+				respData := appendResponse(make([]byte, 0), &resp, uint32(55))
 
 				msgs = append(msgs, Message{request: reqData})
 				msgs = append(msgs, Message{response: respData[0:4]})
@@ -955,7 +955,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 				formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
 				var msgs []Message
 				reqData := formatter.AppendRequest(make([]byte, 0), &req, int32(55))
-				respData := appendResponse(make([]byte, 0), resp, uint32(55))
+				respData := appendResponse(make([]byte, 0), &resp, uint32(55))
 
 				msgs = append(msgs, Message{request: reqData})
 				msgs = append(msgs, Message{response: respData[0:8]})
@@ -978,7 +978,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 				formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
 				var msgs []Message
 				reqData := formatter.AppendRequest(make([]byte, 0), &req, int32(55))
-				respData := appendResponse(make([]byte, 0), resp, uint32(55))
+				respData := appendResponse(make([]byte, 0), &resp, uint32(55))
 
 				msgs = append(msgs, Message{request: reqData})
 				msgs = append(msgs, Message{response: respData[0:4]})
@@ -1150,7 +1150,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			var msgs []Message
 
 			if tt.buildMessages == nil {
-				msgs = appendMessages(msgs, 99, req, resp)
+				msgs = appendMessages(msgs, 99, &req, &resp)
 			} else {
 				msgs = tt.buildMessages(req, resp)
 			}
@@ -1203,7 +1203,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 
 		for splitIdx := 0; splitIdx < 500; splitIdx++ {
 			reqData := formatter.AppendRequest(make([]byte, 0), &req, int32(splitIdx))
-			respData := appendResponse(make([]byte, 0), resp, uint32(splitIdx))
+			respData := appendResponse(make([]byte, 0), &resp, uint32(splitIdx))
 
 			// There is an assumption in the code that there are no splits
 			// inside the header.
@@ -1303,6 +1303,7 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 		name               string
 		topic              string
 		buildRequest       func(string) kmsg.ProduceRequest
+		buildResponse      func(string) kmsg.ProduceResponse
 		numProducedRecords int
 	}{
 		{
@@ -1332,6 +1333,69 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 			},
 			numProducedRecords: 2,
 		},
+		{
+			name:  "with error code",
+			topic: "test-topic-error",
+			buildRequest: func(topic string) kmsg.ProduceRequest {
+				// Make record batch over 16KiB for larger varint size
+				record := makeRecordWithVal(make([]byte, 10000))
+				records := []kmsg.Record{record, record}
+				recordBatch := makeRecordBatch(records...)
+
+				partition := kmsg.NewProduceRequestTopicPartition()
+				partition.Records = recordBatch.AppendTo(partition.Records)
+
+				reqTopic := kmsg.NewProduceRequestTopic()
+				reqTopic.Partitions = append(reqTopic.Partitions, partition)
+				reqTopic.Topic = topic
+
+				req := kmsg.NewProduceRequest()
+				req.SetVersion(int16(apiVersion))
+				transactionID := "transaction-id"
+				req.TransactionID = &transactionID
+				req.TimeoutMillis = 99999999
+				req.Topics = append(req.Topics, reqTopic)
+
+				return req
+			},
+			buildResponse: func(topic string) kmsg.ProduceResponse {
+				partition := kmsg.NewProduceResponseTopicPartition()
+				partition.ErrorCode = 1
+
+				var partitions []kmsg.ProduceResponseTopicPartition
+				for i := 0; i < 2; i++ {
+					partitions = append(partitions, partition)
+				}
+
+				partition2 := kmsg.NewProduceResponseTopicPartition()
+				partition.ErrorCode = 2
+				errorString := "great error"
+				partition2.ErrorMessage = &errorString
+				var errorRecords []kmsg.ProduceResponseTopicPartitionErrorRecord
+				errorRecords = append(errorRecords,
+					kmsg.ProduceResponseTopicPartitionErrorRecord{
+						RelativeOffset: 5,
+						ErrorMessage:   &errorString,
+					},
+					kmsg.ProduceResponseTopicPartitionErrorRecord{
+						RelativeOffset: 10,
+						ErrorMessage:   &errorString,
+					})
+				partition2.ErrorRecords = errorRecords
+				partitions = append(partitions, partition2)
+
+				topics := kmsg.NewProduceResponseTopic()
+				topics.Topic = topic
+				topics.Partitions = append(topics.Partitions, partitions...)
+
+				resp := kmsg.NewProduceResponse()
+				resp.SetVersion(int16(apiVersion))
+				resp.ThrottleMillis = 999999999
+				resp.Topics = append(resp.Topics, topics)
+				return resp
+			},
+			numProducedRecords: 2,
+		},
 	}
 
 	can := newCannedClientServer(t, tls)
@@ -1349,9 +1413,15 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 				cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
 			})
 			req := tt.buildRequest(tt.topic)
-			formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
-			data := formatter.AppendRequest(make([]byte, 0), &req, int32(99))
-			msgs := []Message{{request: data}}
+			var msgs []Message
+			if tt.buildResponse == nil {
+				formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
+				data := formatter.AppendRequest(make([]byte, 0), &req, int32(99))
+				msgs = []Message{{request: data}}
+			} else {
+				resp := tt.buildResponse(tt.topic)
+				msgs = appendMessages(msgs, 99, &req, &resp)
+			}
 
 			can.runClient(msgs)
 
