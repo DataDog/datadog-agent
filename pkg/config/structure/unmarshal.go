@@ -46,6 +46,8 @@ func UnmarshalKey(cfg model.Reader, key string, target interface{}) error {
 
 var errNotFound = fmt.Errorf("not found")
 
+// leafNode represents a leaf with a scalar value
+
 type leafNode interface {
 	GetBool() (bool, error)
 	GetInt() (int, error)
@@ -59,6 +61,9 @@ type leafNodeImpl struct {
 }
 
 var _ leafNode = (*leafNodeImpl)(nil)
+var _ node = (*leafNodeImpl)(nil)
+
+// arrayNode represents a node with an ordered array of children
 
 type arrayNode interface {
 	Size() int
@@ -71,6 +76,9 @@ type arrayNodeImpl struct {
 }
 
 var _ arrayNode = (*arrayNodeImpl)(nil)
+var _ node = (*arrayNodeImpl)(nil)
+
+// node represents an arbitrary node of the tree
 
 type node interface {
 	GetChild(string) (node, error)
@@ -87,6 +95,9 @@ type innerMapNodeImpl struct {
 	val reflect.Value
 }
 
+var _ node = (*innerNodeImpl)(nil)
+var _ node = (*innerMapNodeImpl)(nil)
+
 // all nodes, leaf, inner, and array nodes, each act as nodes
 func newNode(v reflect.Value) (node, error) {
 	if v.Kind() == reflect.Struct {
@@ -97,9 +108,8 @@ func newNode(v reflect.Value) (node, error) {
 		return &arrayNodeImpl{val: v}, nil
 	} else if isScalarKind(v) {
 		return &leafNodeImpl{val: v}, nil
-	} else {
-		return nil, fmt.Errorf("could not create node from: %v of type %T and kind %v", v, v, v.Kind())
 	}
+	return nil, fmt.Errorf("could not create node from: %v of type %T and kind %v", v, v, v.Kind())
 }
 
 // GetChild returns the child node at the given key, or an error if not found
@@ -156,14 +166,17 @@ func (n *innerMapNodeImpl) ChildrenKeys() ([]string, error) {
 	return keys, nil
 }
 
+// GetChild returns an error because array node does not have children accessible by name
 func (n *arrayNodeImpl) GetChild(string) (node, error) {
 	return nil, fmt.Errorf("arrayNodeImpl.GetChild not implemented")
 }
 
+// ChildrenKeys returns an error because array node does not have children accessible by name
 func (n *arrayNodeImpl) ChildrenKeys() ([]string, error) {
 	return nil, fmt.Errorf("arrayNodeImpl.ChildrenKeys not implemented")
 }
 
+// Size returns number of children in the list
 func (n *arrayNodeImpl) Size() int {
 	return n.val.Len()
 }
@@ -178,10 +191,12 @@ func (n *arrayNodeImpl) Index(k int) (node, error) {
 	return newNode(elem)
 }
 
+// GetChild returns an error because a leaf has no children
 func (n *leafNodeImpl) GetChild(string) (node, error) {
 	return nil, fmt.Errorf("can't GetChild of a leaf node")
 }
 
+// ChildrenKeys returns an error because a leaf has no children
 func (n *leafNodeImpl) ChildrenKeys() ([]string, error) {
 	return nil, fmt.Errorf("can't get ChildrenKeys of a leaf node")
 }
