@@ -191,9 +191,7 @@ func TestActionKill(t *testing.T) {
 }
 
 func TestActionKillExcludeBinary(t *testing.T) {
-	if ebpfLessEnabled {
-		t.Skip("test not yet available for ebpfless")
-	}
+	SkipIfNotAvailable(t)
 
 	checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
 		return !kv.SupportBPFSendSignal() && env.IsContainerized()

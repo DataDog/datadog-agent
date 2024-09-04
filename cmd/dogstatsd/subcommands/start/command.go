@@ -133,7 +133,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		config.Module(),
 		logfx.Module(),
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
-		forwarder.BundleWithProvider(defaultforwarder.NewParams),
+		forwarder.Bundle(defaultforwarder.NewParams()),
 		// workloadmeta setup
 		wmcatalog.GetCatalog(),
 		workloadmetafx.ModuleWithProvider(func(config config.Component) workloadmeta.Params {

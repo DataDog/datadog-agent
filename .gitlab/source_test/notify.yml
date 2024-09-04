@@ -7,9 +7,7 @@ unit_tests_notify:
     - !reference [.except_disable_unit_tests]
     - when: always
   script:
-    - export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GENT_GITHUB_KEY_SSM_NAME)
-    - export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_GITHUB_APP_ID_SSM_NAME)
-    - export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_GITHUB_INSTALLATION_ID_SSM_NAME)
+    - source /root/.bashrc
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - !reference [.setup_agent_github_app]
     - inv notify.unit-tests --pipeline-id $CI_PIPELINE_ID --pipeline-url $CI_PIPELINE_URL --branch-name $CI_COMMIT_REF_NAME

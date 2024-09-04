@@ -190,7 +190,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
 				aggregator.Bundle(),
-				forwarder.BundleWithProvider(defaultforwarder.NewParams),
+				forwarder.Bundle(defaultforwarder.NewParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
 				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
