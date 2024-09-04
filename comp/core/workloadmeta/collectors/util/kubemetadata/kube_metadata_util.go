@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-// KubeMetadataEntityID is a unique ID for Kube Metadata Entity
+// EntityID is a unique ID for Kube Metadata Entity
 type EntityID string
 
 // GenerateKubeMetadataEntityID generates and returns a unique entity id for KubernetesMetadata entity

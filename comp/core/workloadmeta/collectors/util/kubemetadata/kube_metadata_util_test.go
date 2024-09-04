@@ -20,7 +20,7 @@ func TestGenerateKubeMetadataEntityID(t *testing.T) {
 		namespace    string
 		resourceType string
 		resourceName string
-		expectedID   KubeMetadataEntityID
+		expectedID   EntityID
 	}{
 		{
 			name:         "namespace scoped resource",
@@ -51,7 +51,7 @@ func TestGenerateKubeMetadataEntityID(t *testing.T) {
 func TestParseKubeMetadataEntityID(t *testing.T) {
 	tests := []struct {
 		name              string
-		entityID          KubeMetadataEntityID
+		entityID          EntityID
 		expectedGroup     string
 		expectedName      string
 		expectedNamespace string
