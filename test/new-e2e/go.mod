@@ -27,6 +27,7 @@ require (
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.27.0
+	github.com/DataDog/test-infra-definitions v0.0.0-20240903145714-7ab22893cea0
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
 	// You should bump `TEST_INFRA_DEFINITIONS_BUILDIMAGES` in `.gitlab/common/test_infra_version.yml`
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
@@ -34,7 +35,6 @@ require (
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
 	github.com/aws/aws-sdk-go-v2 v1.30.4
 	github.com/aws/aws-sdk-go-v2/config v1.27.19
-	github.com/DataDog/test-infra-definitions v0.0.0-20240903145714-7ab22893cea0
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.164.2
 	github.com/aws/aws-sdk-go-v2/service/eks v1.44.1
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.50.7
@@ -50,7 +50,7 @@ require (
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.14.0
 	github.com/pulumi/pulumi-eks/sdk/v2 v2.7.8
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.17.1
-	github.com/pulumi/pulumi/sdk/v3 v3.129.0
+	github.com/pulumi/pulumi/sdk/v3 v3.130.0
 	github.com/samber/lo v1.47.0
 	github.com/sethvargo/go-retry v0.2.4
 	github.com/stretchr/testify v1.9.0
@@ -268,7 +268,7 @@ require github.com/hairyhenderson/go-codeowners v0.5.0
 require (
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.57.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.56.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.51.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.59.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.58.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.58.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.59.0 // indirect
 )
