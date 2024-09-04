@@ -74,11 +74,13 @@ var (
 var (
 	portTCP22 = model.Service{
 		PID:           procSSHD.pid,
+		Name:          "sshd",
 		GeneratedName: "sshd",
 		Ports:         []uint16{22},
 	}
 	portTCP8080 = model.Service{
 		PID:                procTestService1.pid,
+		Name:               "test-service-1",
 		GeneratedName:      "test-service-1-generated",
 		DDService:          "test-service-1",
 		DDServiceInjected:  true,
@@ -101,6 +103,7 @@ var (
 	}
 	portTCP8080DifferentPID = model.Service{
 		PID:                procTestService1DifferentPID.pid,
+		Name:               "test-service-1",
 		GeneratedName:      "test-service-1-generated",
 		DDService:          "test-service-1",
 		DDServiceInjected:  true,
@@ -111,12 +114,14 @@ var (
 	}
 	portTCP8081 = model.Service{
 		PID:           procIgnoreService1.pid,
+		Name:          "ignore-1",
 		GeneratedName: "ignore-1",
 		Ports:         []uint16{8081},
 		StartTimeSecs: procLaunchedSeconds,
 	}
 	portTCP5000 = model.Service{
 		PID:           procPythonService.pid,
+		Name:          "python-service",
 		GeneratedName: "python-service",
 		Language:      "python",
 		Ports:         []uint16{5000},
@@ -125,6 +130,7 @@ var (
 	}
 	portTCP5432 = model.Service{
 		PID:           procTestService1Repeat.pid,
+		Name:          "test-service-1",
 		GeneratedName: "test-service-1",
 		Ports:         []uint16{5432},
 		CommandLine:   []string{"test-service-1"},

@@ -9,6 +9,7 @@ package model
 // Service represents a listening process.
 type Service struct {
 	PID                int      `json:"pid"`
+	Name               string   `json:"name"`
 	GeneratedName      string   `json:"generated_name"`
 	DDService          string   `json:"dd_service"`
 	DDServiceInjected  bool     `json:"dd_service_injected"`

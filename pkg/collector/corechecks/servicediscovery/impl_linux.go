@@ -160,15 +160,10 @@ func (li *linuxImpl) getServiceInfo(pid int, service model.Service) serviceInfo 
 		CmdLine: service.CommandLine,
 	}
 
-	serviceType := servicetype.Detect(service.GeneratedName, service.Ports)
-
-	name := service.DDService
-	if name == "" {
-		name = service.GeneratedName
-	}
+	serviceType := servicetype.Detect(service.Name, service.Ports)
 
 	meta := ServiceMetadata{
-		Name:               name,
+		Name:               service.Name,
 		Language:           service.Language,
 		Type:               string(serviceType),
 		APMInstrumentation: service.APMInstrumentation,

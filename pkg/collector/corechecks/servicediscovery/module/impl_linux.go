@@ -354,8 +354,14 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		s.mux.Unlock()
 	}
 
+	name := info.ddServiceName
+	if name == "" {
+		name = info.generatedName
+	}
+
 	return &model.Service{
 		PID:                int(pid),
+		Name:               name,
 		GeneratedName:      info.generatedName,
 		DDService:          info.ddServiceName,
 		DDServiceInjected:  info.ddServiceInjected,

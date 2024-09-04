@@ -305,6 +305,7 @@ func TestServiceName(t *testing.T) {
 		portMap := getServicesMap(t, url)
 		assert.Contains(collect, portMap, pid)
 		assert.Equal(t, "foobar", portMap[pid].DDService)
+		assert.Equal(t, portMap[pid].DDService, portMap[pid].Name)
 		assert.Equal(t, "sleep", portMap[pid].GeneratedName)
 		assert.False(t, portMap[pid].DDServiceInjected)
 	}, 30*time.Second, 100*time.Millisecond)
@@ -328,6 +329,7 @@ func TestInjectedServiceName(t *testing.T) {
 	portMap := getServicesMap(t, url)
 	require.Contains(t, portMap, pid)
 	require.Equal(t, "injected-service-name", portMap[pid].DDService)
+	require.Equal(t, portMap[pid].DDService, portMap[pid].Name)
 	// The GeneratedName can vary depending on how the tests are run, so don't
 	// assert for a specific value.
 	require.NotEmpty(t, portMap[pid].GeneratedName)
@@ -548,6 +550,7 @@ func TestNodeDocker(t *testing.T) {
 		svcMap := getServicesMap(t, url)
 		assert.Contains(collect, svcMap, pid)
 		assert.Equal(collect, "nodejs-https-server", svcMap[pid].GeneratedName)
+		assert.Equal(collect, svcMap[pid].GeneratedName, svcMap[pid].Name)
 		assert.Equal(collect, "provided", svcMap[pid].APMInstrumentation)
 		assertStat(collect, svcMap[pid])
 	}, 30*time.Second, 100*time.Millisecond)
