@@ -119,11 +119,9 @@ func isInjectorFile(path string) bool {
 // format NAME=VAL to a map.
 func addEnvToMap(env string, envs map[string]string) {
 	name, val, found := strings.Cut(env, "=")
-	if !found {
-		return
+	if found {
+		envs[name] = val
 	}
-	envs[name] = val
-	return
 }
 
 // getEnvs gets the environment variables for the process, both the initial
