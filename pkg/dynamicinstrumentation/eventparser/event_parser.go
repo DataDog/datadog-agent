@@ -35,7 +35,7 @@ func ParseEvent(record []byte, ratelimiters *ratelimiter.MultiProbeRateLimiter) 
 	event := ditypes.DIEvent{}
 
 	if len(record) < ditypes.SizeofBaseEvent {
-		log.Info("malformed event record")
+		log.Tracef("malformed event record (length %d)", len(record))
 		return nil
 	}
 	baseEvent := *(*ditypes.BaseEvent)(unsafe.Pointer(&record[0]))
@@ -58,7 +58,6 @@ func ParseEvent(record []byte, ratelimiters *ratelimiter.MultiProbeRateLimiter) 
 // ParseParams extracts just the parsed parameters from the full event record
 func ParseParams(record []byte) ([]*ditypes.Param, error) {
 	if len(record) < 392 {
-		log.Info("malformed event record")
 		return nil, fmt.Errorf("malformed event record (length %d)", len(record))
 	}
 	return readParams(record[392:]), nil

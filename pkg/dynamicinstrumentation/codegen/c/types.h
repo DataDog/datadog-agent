@@ -9,6 +9,6 @@ struct base_event {
     __u32 pid;
     __u32 uid;
     __u64 program_counters[10];
-};
+}__attribute__((aligned(8)));
 
 #endif

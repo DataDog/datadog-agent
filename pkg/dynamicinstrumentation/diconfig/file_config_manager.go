@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -22,6 +23,7 @@ import (
 // FileWatchingConfigManager is used to track updates to a specified file
 // which contains probe configurations
 type FileWatchingConfigManager struct {
+	sync.Mutex
 	configTracker *configTracker
 	procTracker   *proctracker.ProcessTracker
 
@@ -89,6 +91,8 @@ func (cm *FileWatchingConfigManager) updateServiceConfigs(configs configsByServi
 }
 
 func (cm *FileWatchingConfigManager) updateProcessInfo(procs ditypes.DIProcs) {
+	cm.Lock()
+	defer cm.Unlock()
 	log.Info("Updating procs", procs)
 	cm.configTracker.UpdateProcesses(procs)
 	err := cm.update()
