@@ -73,21 +73,15 @@ func TestExtractors(t *testing.T) {
 
 	myConfMap := confmap.NewFromStringMap(m)
 
-	for extension, extractor := range supportedDebugExtensions {
-		expectedCrawl := false
-		if extension == "zpages" {
-			expectedCrawl = true
-		}
-
-		uri, crawl, err := extractor(myConfMap)
+	for _, extractor := range supportedDebugExtensions {
+		uri, err := extractor(myConfMap)
 		assert.NoError(t, err)
-		assert.Equal(t, expectedCrawl, crawl)
 		assert.Equal(t, endpoint, uri)
 	}
 
 	myConfMap = confmap.New()
 	for _, extractor := range supportedDebugExtensions {
-		_, _, err := extractor(myConfMap)
+		_, err := extractor(myConfMap)
 		assert.Error(t, err)
 	}
 
