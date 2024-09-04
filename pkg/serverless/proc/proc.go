@@ -228,12 +228,14 @@ func getFileDescriptorMaxData() (*FileDescriptorMaxData, error) {
 				fields := strings.Fields(line)
 				if len(fields) < 4 {
 					log.Debugf("file descriptor max data not found in file '%s'", path)
+					break
 				}
 
 				fdMaxPidStr := fields[3]
 				fdMaxPid, err := strconv.Atoi(fdMaxPidStr)
 				if err != nil {
 					log.Debugf("file descriptor max data not found in file '%s'", path)
+					break
 				}
 
 				fdMax = math.Min(float64(fdMax), float64(fdMaxPid))
@@ -268,7 +270,7 @@ func getFileDescriptorUseData() (*FileDescriptorUseData, error) {
 		path := fmt.Sprintf("/proc/%d/fd", pid)
 		files, err := os.ReadDir(path)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("file descriptor use data not found in file '%s'", path)
 		}
 		fdUse += len(files)
 	}
