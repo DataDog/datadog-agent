@@ -2358,7 +2358,6 @@ core,go.opentelemetry.io/collector/exporter/exporterbatcher,Apache-2.0,Copyright
 core,go.opentelemetry.io/collector/exporter/exporterhelper,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/exporterhelper/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/exporterqueue,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/exporter/internal/common,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/internal/experr,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/internal/otlptext,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/internal/queue,Apache-2.0,Copyright The OpenTelemetry Authors
