@@ -8,6 +8,4 @@
 ---
 enhancements:
   - |
-    For Network Traffic based paths, the default UDP port
-    traceroute port 33434, rather than the port detected by NPM,
-    is now used.
+    The default UDP port for traceroute (port 33434) is now used for Network Traffic based paths, instead of the port detected by NPM.
