@@ -986,6 +986,7 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_connect, int rc) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("kretprobe/tcp_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (rc < 0) {
+        log_debug("kretprobe/tcp_connect: connect failed, rc: %d", rc);
         bpf_map_delete_elem(&pending_tcp_connect, &pid_tgid);
         return 0;
     }
