@@ -1,6 +1,8 @@
-# Datadog Extension
+# ddflare Extension
 
-The datadog extension component allows inclusion of otel-agent data in the datadog-agent [flare](https://docs.datadoghq.com/agent/troubleshooting/send_a_flare/?tab=agent). A flare can be triggered by the core agent process, or remote-config.
+The ddflare extension component allows inclusion of otel-agent data in the datadog-agent [flare](https://docs.datadoghq.com/agent/troubleshooting/send_a_flare/?tab=agent). A flare can be triggered by the core agent process, or remote-config. 
+
+The ddflare extension also provides the relevant metadata for otel-agent configuration and inventory tracking in Fleet Automation. This metadata is periodically collected by the core-agent which then submits that data to the backend.
 
 ## Extension Configuration
 
@@ -47,6 +49,9 @@ Will contain a JSON of the latest health check, for example:
 - pprof: Found in `otel/otel-flare/pprof`
 - zpages: Found in `otel/otel-flare/zpages`
 
+## Data collected for inventory
+
+The ddflare extension submits a variety of metadata for fleet automation including version, command, configuration. You can find more information about the Inventory Agent Payload in [comp/metadata/inventoryotel/README.md](../metadata/inventoryotel/README.md).
 
 ### Logs
 
