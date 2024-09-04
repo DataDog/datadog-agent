@@ -14,7 +14,7 @@ import (
 const (
 	//nolint:revive // TODO(SERV) Fix revive linter
 	revisionNameEnvVar      = "K_REVISION"
-	ServiceNameEnvVar       = "K_SERVICE" // also used in traces
+	ServiceNameEnvVar       = "K_SERVICE" // ServiceNameEnvVar is also used in the trace package
 	configurationNameEnvVar = "K_CONFIGURATION"
 	functionTypeEnvVar      = "FUNCTION_SIGNATURE_TYPE"
 	functionTargetEnvVar    = "FUNCTION_TARGET" // exists as a cloudrunfunction env var for all runtimes except Go
