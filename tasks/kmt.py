@@ -879,7 +879,7 @@ def kmt_sysprobe_prepare(
 
     filter_pkgs = []
     if packages:
-        filter_pkgs = [p for p in packages.split(",")]
+        filter_pkgs = packages.split(",")
 
     kmt_paths = KMTPaths(stack, arch)
     nf_path = os.path.join(kmt_paths.arch_dir, "kmt-sysprobe.ninja")
