@@ -2,6 +2,52 @@
 Release Notes
 =============
 
+.. _Release Notes_7.56.2:
+
+7.56.2
+======
+
+.. _Release Notes_7.56.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-09-02
+
+- Please refer to the `7.56.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7562>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.56.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix issue causing GUI to fail when opening with Internet Explorer on Windows.
+
+
+.. _Release Notes_7.56.1:
+
+7.56.1
+======
+
+.. _Release Notes_7.56.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-08-29
+
+- Please refer to the `7.56.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7561>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.56.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed a nil pointer dereference issue in the `Tailer.DidRotate` function that was causing the Agent to panic.
+
+
 .. _Release Notes_7.56.0:
 
 7.56.0

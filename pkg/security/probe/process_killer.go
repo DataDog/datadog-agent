@@ -31,12 +31,14 @@ type ProcessKiller struct {
 
 	pendingReports   []*KillActionReport
 	binariesExcluded []string
+	sourceAllowed    []string
 }
 
 // NewProcessKiller returns a new ProcessKiller
 func NewProcessKiller(cfg *config.Config) *ProcessKiller {
 	return &ProcessKiller{
 		binariesExcluded: append(binariesExcluded, cfg.RuntimeSecurity.EnforcementBinaryExcluded...),
+		sourceAllowed:    cfg.RuntimeSecurity.EnforcementRuleSourceAllowed,
 	}
 }
 
@@ -96,8 +98,17 @@ func (p *ProcessKiller) isKillAllowed(pids []uint32, paths []string) bool {
 	return true
 }
 
+func (p *ProcessKiller) isRuleAllowed(rule *rules.Rule) bool {
+	return slices.Contains(p.sourceAllowed, rule.Policy.Source)
+}
+
 // KillAndReport kill and report
 func (p *ProcessKiller) KillAndReport(scope string, signal string, rule *rules.Rule, ev *model.Event, killFnc func(pid uint32, sig uint32) error) {
+	if !p.isRuleAllowed(rule) {
+		log.Warnf("unable to kill, the source is not allowed: %v", rule)
+		return
+	}
+
 	entry, exists := ev.ResolveProcessCacheEntry()
 	if !exists {
 		return
