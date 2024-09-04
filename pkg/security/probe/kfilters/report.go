@@ -7,8 +7,6 @@
 package kfilters
 
 import (
-	"math"
-
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -17,7 +15,6 @@ import (
 // PolicyReport describes the result of the kernel policy and the approvers for an event type
 type PolicyReport struct {
 	Mode      PolicyMode
-	Flags     PolicyFlag
 	Approvers rules.Approvers
 }
 
@@ -38,7 +35,7 @@ func NewApplyRuleSetReport(config *config.Config, rs *rules.RuleSet) (*ApplyRule
 	}
 
 	for _, eventType := range rs.GetEventTypes() {
-		report := &PolicyReport{Mode: PolicyModeDeny, Flags: math.MaxUint8}
+		report := &PolicyReport{Mode: PolicyModeDeny}
 		policies[eventType] = report
 
 		if !config.EnableKernelFilters {

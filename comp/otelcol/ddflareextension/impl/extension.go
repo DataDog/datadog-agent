@@ -88,12 +88,20 @@ func (ext *ddExtension) Start(_ context.Context, host component.Host) error {
 		}
 
 		uri, crawl, err := extractor(exconf)
+
+		var uris []string
+		if extension.Type().String() == "pprof" {
+			uris = []string{uri + "/debug/pprof/heap", uri + "/debug/pprof/allocs", uri + "/debug/pprof/profile"}
+		} else {
+			uris = []string{uri}
+		}
+
 		if err != nil {
 			ext.telemetry.Logger.Info("Unavailable debug extension for", zap.String("extension", extension.String()))
 		} else {
 			ext.telemetry.Logger.Info("Found debug extension at", zap.String("uri", uri))
 			ext.debug.Sources[extension.String()] = extensionDef.OTelFlareSource{
-				URL:   uri,
+				URLs:  uris,
 				Crawl: crawl,
 			}
 		}
@@ -133,6 +141,12 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
+	envconfig := ""
+	envvars := getEnvironmentAsMap()
+	if envbytes, err := json.Marshal(envvars); err == nil {
+		envconfig = string(envbytes)
+	}
+
 	resp := extensionDef.Response{
 		BuildInfoResponse: extensionDef.BuildInfoResponse{
 			AgentVersion:     ext.info.Version,
@@ -141,11 +155,13 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 			ExtensionVersion: ext.info.Version,
 		},
 		ConfigResponse: extensionDef.ConfigResponse{
-			CustomerConfig: customer,
-			RuntimeConfig:  enhanced,
+			CustomerConfig:        customer,
+			RuntimeConfig:         enhanced,
+			RuntimeOverrideConfig: "", // TODO: support RemoteConfig
+			EnvConfig:             envconfig,
 		},
 		DebugSourceResponse: ext.debug,
-		Environment:         getEnvironmentAsMap(),
+		Environment:         envvars,
 	}
 
 	j, err := json.MarshalIndent(resp, "", "  ")

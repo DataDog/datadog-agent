@@ -77,6 +77,7 @@ github.com/DataDog/datadog-agent/comp/core/log/impl
 github.com/DataDog/datadog-agent/comp/core/secrets
 github.com/DataDog/datadog-agent/comp/core/status
 github.com/DataDog/datadog-agent/comp/core/tagger
+github.com/DataDog/datadog-agent/comp/core/tagger/noopimpl
 github.com/DataDog/datadog-agent/comp/core/tagger/telemetry
 github.com/DataDog/datadog-agent/comp/core/tagger/types
 github.com/DataDog/datadog-agent/comp/core/tagger/utils
@@ -124,7 +125,6 @@ github.com/DataDog/datadog-agent/comp/serializer/compression
 github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl
 github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy
 github.com/DataDog/datadog-agent/comp/trace/compression/def
-github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip
 github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd
 github.com/DataDog/datadog-agent/comp/trace/config
 github.com/DataDog/datadog-agent/pkg/aggregator
@@ -292,6 +292,7 @@ github.com/DataDog/datadog-agent/pkg/util/statstracker
 github.com/DataDog/datadog-agent/pkg/util/sync
 github.com/DataDog/datadog-agent/pkg/util/system
 github.com/DataDog/datadog-agent/pkg/util/system/socket
+github.com/DataDog/datadog-agent/pkg/util/tagger
 github.com/DataDog/datadog-agent/pkg/util/tmplvar
 github.com/DataDog/datadog-agent/pkg/version
 github.com/DataDog/datadog-api-client-go/v2
@@ -845,7 +846,9 @@ google.golang.org/grpc/credentials/insecure
 google.golang.org/grpc/encoding
 google.golang.org/grpc/encoding/gzip
 google.golang.org/grpc/encoding/proto
+google.golang.org/grpc/experimental/stats
 google.golang.org/grpc/grpclog
+google.golang.org/grpc/grpclog/internal
 google.golang.org/grpc/health/grpc_health_v1
 google.golang.org/grpc/internal
 google.golang.org/grpc/internal/backoff
@@ -868,11 +871,13 @@ google.golang.org/grpc/internal/resolver/dns/internal
 google.golang.org/grpc/internal/resolver/passthrough
 google.golang.org/grpc/internal/resolver/unix
 google.golang.org/grpc/internal/serviceconfig
+google.golang.org/grpc/internal/stats
 google.golang.org/grpc/internal/status
 google.golang.org/grpc/internal/syscall
 google.golang.org/grpc/internal/transport
 google.golang.org/grpc/internal/transport/networktype
 google.golang.org/grpc/keepalive
+google.golang.org/grpc/mem
 google.golang.org/grpc/metadata
 google.golang.org/grpc/peer
 google.golang.org/grpc/resolver

@@ -9,10 +9,6 @@
 
 int __attribute__((always_inline)) trace__sys_link(u8 async, const char *oldpath, const char *newpath) {
     struct policy_t policy = fetch_policy(EVENT_LINK);
-    if (is_discarded_by_process(policy.mode, EVENT_LINK)) {
-        return 0;
-    }
-
     struct syscall_cache_t syscall = {
         .type = EVENT_LINK,
         .policy = policy,
