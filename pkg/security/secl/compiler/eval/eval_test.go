@@ -27,10 +27,10 @@ func newOptsWithParams(constants map[string]interface{}, legacyFields map[Field]
 	}
 
 	variables := map[string]VariableValue{
-		"pid": NewIntVariable(func(ctx *Context) int {
+		"pid": NewIntVariable(func(_ *Context) int {
 			return os.Getpid()
 		}, nil),
-		"str": NewStringVariable(func(ctx *Context) string {
+		"str": NewStringVariable(func(_ *Context) string {
 			return "aaa"
 		}, nil),
 	}
@@ -389,6 +389,7 @@ func TestVariables(t *testing.T) {
 
 func TestInArray(t *testing.T) {
 	event := &testEvent{
+		retval: int(syscall.EACCES),
 		process: testProcess{
 			name: "aaa",
 			uid:  3,
@@ -425,6 +426,8 @@ func TestInArray(t *testing.T) {
 		{Expr: `process.name not in [ r".*d.*", r"ab.*" ]`, Expected: true},
 		{Expr: `process.name in [ "bbb", "aaa" ]`, Expected: true},
 		{Expr: `process.name not in [ "bbb", "aaa" ]`, Expected: false},
+		{Expr: `retval in [ EPERM, EACCES, EPFNOSUPPORT ]`, Expected: true},
+		{Expr: `retval in [ EPERM, EPIPE, EPFNOSUPPORT ]`, Expected: false},
 	}
 
 	for _, test := range tests {
@@ -480,10 +483,10 @@ func TestPartial(t *testing.T) {
 
 	variables := make(map[string]VariableValue)
 	variables["var"] = NewBoolVariable(
-		func(ctx *Context) bool {
+		func(_ *Context) bool {
 			return false
 		},
-		func(ctx *Context, value interface{}) error {
+		func(_ *Context, _ interface{}) error {
 			return nil
 		},
 	)
@@ -564,6 +567,41 @@ func TestPartial(t *testing.T) {
 
 		if !result != test.IsDiscarder {
 			t.Fatalf("expected result `%t` for `%s`, got `%t`\n%s", test.IsDiscarder, test.Field, !result, test.Expr)
+		}
+	}
+}
+
+func TestConstants(t *testing.T) {
+	tests := []struct {
+		Expr    string
+		OK      bool
+		Message string
+	}{
+		{Expr: `retval in [ EPERM, EACCES ]`, OK: true},
+		{Expr: `open.filename in [ my_constant_1, my_constant_2 ]`, OK: true},
+		{Expr: `process.is_root in [ true, false ]`, OK: true},
+		{Expr: `open.filename in [ EPERM, EACCES ]`, OK: false, Message: "Int array shouldn't be allowed for string field"},
+		{Expr: `retval in [ EPERM, true ]`, OK: false, Message: "Constants of different types can't be mixed in an array"},
+	}
+
+	for _, test := range tests {
+		model := &testModel{}
+
+		opts := newOptsWithParams(testConstants, nil)
+
+		_, err := parseRule(test.Expr, model, opts)
+		if !test.OK {
+			if err == nil {
+				var msg string
+				if len(test.Message) > 0 {
+					msg = fmt.Sprintf(": reason: %s", test.Message)
+				}
+				t.Fatalf("expected an error for `%s`%s", test.Expr, msg)
+			}
+		} else {
+			if err != nil {
+				t.Fatalf("error while parsing `%s`: %v", test.Expr, err)
+			}
 		}
 	}
 }

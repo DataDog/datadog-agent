@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -52,10 +53,11 @@ type Launcher struct {
 	validatePodContainerID bool
 	scanPeriod             time.Duration
 	flarecontroller        *flareController.FlareController
+	tagger                 tagger.Component
 }
 
 // NewLauncher returns a new launcher.
-func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration, wildcardMode string, flarecontroller *flareController.FlareController) *Launcher {
+func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration, wildcardMode string, flarecontroller *flareController.FlareController, tagger tagger.Component) *Launcher {
 
 	var wildcardStrategy fileprovider.WildcardSelectionStrategy
 	switch wildcardMode {
@@ -79,6 +81,7 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 		validatePodContainerID: validatePodContainerID,
 		scanPeriod:             scanPeriod,
 		flarecontroller:        flarecontroller,
+		tagger:                 tagger,
 	}
 }
 
@@ -277,6 +280,10 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 		if s.tailers.Count() >= s.tailingLimit {
 			return
 		}
+
+		if fileprovider.ShouldIgnore(s.validatePodContainerID, file) {
+			continue
+		}
 		if tailer, isTailed := s.tailers.Get(file.GetScanKey()); isTailed {
 			// the file is already tailed, update the existing tailer's source so that the tailer
 			// uses this new source going forward
@@ -284,13 +291,10 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 			continue
 		}
 
-		mode, _ := config.TailingModeFromString(source.Config.TailingMode)
-
-		if source.Config.Identifier != "" {
-			// only sources generated from a service discovery will contain a config identifier,
-			// in which case we want to collect all logs.
-			// FIXME: better detect a source that has been generated from a service discovery.
+		mode, isSet := config.TailingModeFromString(source.Config.TailingMode)
+		if !isSet && source.Config.Identifier != "" {
 			mode = config.Beginning
+			source.Config.TailingMode = mode.String()
 		}
 
 		s.startNewTailer(file, mode)
@@ -310,7 +314,6 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode) bool 
 	var offset int64
 	var whence int
 	mode := s.handleTailingModeChange(tailer.Identifier(), m)
-
 	offset, whence, err := Position(s.registry, tailer.Identifier(), mode)
 	if err != nil {
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
@@ -386,6 +389,7 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 		SleepDuration: s.tailerSleepDuration,
 		Decoder:       decoder.NewDecoderFromSource(file.Source, tailerInfo),
 		Info:          tailerInfo,
+		TagAdder:      s.tagger,
 	}
 
 	return tailer.NewTailer(tailerOptions)
@@ -393,7 +397,7 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 
 func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp) *tailer.Tailer {
 	tailerInfo := t.GetInfo()
-	return t.NewRotatedTailer(file, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo)
+	return t.NewRotatedTailer(file, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger)
 }
 
 //nolint:revive // TODO(AML) Fix revive linter

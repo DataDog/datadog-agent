@@ -24,3 +24,4 @@ validate_modules:
   script:
     - source /root/.bashrc
     - inv -e modules.validate
+    - inv -e modules.validate-used-by-otel

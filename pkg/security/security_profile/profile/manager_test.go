@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 )
@@ -48,7 +49,7 @@ func craftFakeEvent(t0 time.Time, ti *testIteration, defaultContainerID string) 
 
 	// setting process
 	event.ProcessCacheEntry = model.NewPlaceholderProcessCacheEntry(42, 42, false)
-	event.ProcessCacheEntry.ContainerID = defaultContainerID
+	event.ProcessCacheEntry.ContainerID = containerutils.ContainerID(defaultContainerID)
 	event.ProcessCacheEntry.FileEvent.PathnameStr = ti.eventProcessPath
 	event.ProcessCacheEntry.FileEvent.Inode = 42
 	event.ProcessCacheEntry.Args = "foo"
@@ -842,7 +843,10 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 				profile.ActivityTree = activity_tree.NewActivityTree(profile, nil, "security_profile")
 				profile.Instances = append(profile.Instances, &cgroupModel.CacheEntry{
 					ContainerContext: model.ContainerContext{
-						ID: defaultContainerID,
+						ContainerID: containerutils.ContainerID(defaultContainerID),
+					},
+					CGroupContext: model.CGroupContext{
+						CGroupID: containerutils.CGroupID(defaultContainerID),
 					},
 					WorkloadSelector: cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
 				})

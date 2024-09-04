@@ -22,13 +22,6 @@ import (
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 )
 
-const (
-	// TLSDisabled is used to indicate that the server should be started without TLS
-	TLSDisabled = false
-	// TLSEnabled is used to indicate that the server should be started with TLS
-	TLSEnabled = true
-)
-
 // RunServer runs a postgres server in a docker container
 func RunServer(t testing.TB, serverAddr, serverPort string, enableTLS bool) error {
 	t.Helper()

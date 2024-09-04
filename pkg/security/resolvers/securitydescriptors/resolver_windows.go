@@ -81,7 +81,7 @@ func translateAceType(aceType string) string {
 func accessMaskToString(mask string) string {
 	var rights []string
 
-	for i := 0; i < len(mask)+1; i += 2 {
+	for i := 0; i < len(mask); i += 2 {
 		combined := mask[i : i+2]
 		if right, ok := accessMaskMap[combined]; ok {
 			rights = append(rights, right)
@@ -139,11 +139,18 @@ func (resolver *Resolver) GetHumanReadableSD(sddl string) (string, error) {
 		trustee := fields[5]
 
 		translatedType := translateAceType(aceType)
-		translatedPermissions := accessMaskToString(permissions)
 
-		accountName := resolver.userGroupResolver.GetUser(trustee)
-		if accountName == "" {
-			accountName = trustee // Fallback to SID string if account lookup fails
+		var translatedPermissions string
+		if permissions != "" && len(permissions)%2 == 0 {
+			translatedPermissions = accessMaskToString(permissions)
+		}
+
+		var accountName string
+		if trustee != "" {
+			accountName = resolver.userGroupResolver.GetUser(trustee)
+			if accountName == "" {
+				accountName = trustee // Fallback to SID string if account lookup fails
+			}
 		}
 
 		builder.WriteString(fmt.Sprintf("  - %s\n", translatedType))

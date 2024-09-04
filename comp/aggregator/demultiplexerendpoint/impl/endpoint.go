@@ -16,10 +16,10 @@ import (
 	"github.com/DataDog/zstd"
 
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/api/api"
-	"github.com/DataDog/datadog-agent/comp/api/api/utils"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 // Requires defines the dependencies for the demultiplexerendpoint component
@@ -56,13 +56,13 @@ func NewComponent(reqs Requires) Provides {
 func (demuxendpoint demultiplexerEndpoint) dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request) {
 	path, err := demuxendpoint.writeDogstatsdContexts()
 	if err != nil {
-		utils.SetJSONError(w, demuxendpoint.log.Errorf("Failed to create dogstatsd contexts dump: %v", err), 500)
+		httputils.SetJSONError(w, demuxendpoint.log.Errorf("Failed to create dogstatsd contexts dump: %v", err), 500)
 		return
 	}
 
 	resp, err := json.Marshal(path)
 	if err != nil {
-		utils.SetJSONError(w, demuxendpoint.log.Errorf("Failed to serialize response: %v", err), 500)
+		httputils.SetJSONError(w, demuxendpoint.log.Errorf("Failed to serialize response: %v", err), 500)
 		return
 	}
 

@@ -22,9 +22,20 @@ type Component interface {
 }
 
 // Module defines the fx options for this component.
-func Module() fxutil.Module {
+func Module(params Params) fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newForwarder))
+		fx.Provide(newForwarder),
+		fx.Supply(params),
+	)
+}
+
+// ModulWithOptionTMP defines the fx options for this component with an option.
+// This is a temporary function to until configsync is cleanup.
+func ModulWithOptionTMP(option fx.Option) fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newForwarder),
+		option,
+	)
 }
 
 // Mock implements mock-specific methods.

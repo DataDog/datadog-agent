@@ -35,27 +35,31 @@ func newPostgresEncoder(postgresPayloads map[postgres.Key]*postgres.RequestStat)
 	}
 }
 
-func (e *postgresEncoder) WritePostgresAggregations(c network.ConnectionStats, builder *model.ConnectionBuilder) {
+func (e *postgresEncoder) WritePostgresAggregations(c network.ConnectionStats, builder *model.ConnectionBuilder) uint64 {
 	if e == nil {
-		return
+		return 0
 	}
 
 	connectionData := e.byConnection.Find(c)
 	if connectionData == nil || len(connectionData.Data) == 0 || connectionData.IsPIDCollision(c) {
-		return
+		return 0
 	}
 
+	staticTags := uint64(0)
 	builder.SetDatabaseAggregations(func(b *bytes.Buffer) {
-		e.encodeData(connectionData, b)
+		staticTags |= e.encodeData(connectionData, b)
 	})
+	return staticTags
 }
 
-func (e *postgresEncoder) encodeData(connectionData *USMConnectionData[postgres.Key, *postgres.RequestStat], w io.Writer) {
+func (e *postgresEncoder) encodeData(connectionData *USMConnectionData[postgres.Key, *postgres.RequestStat], w io.Writer) uint64 {
+	var staticTags uint64
 	e.postgresAggregationsBuilder.Reset(w)
 
 	for _, kv := range connectionData.Data {
 		key := kv.Key
 		stats := kv.Value
+		staticTags |= stats.StaticTags
 		e.postgresAggregationsBuilder.AddAggregations(func(builder *model.DatabaseStatsBuilder) {
 			builder.SetPostgres(func(statsBuilder *model.PostgresStatsBuilder) {
 				statsBuilder.SetTableName(key.TableName)
@@ -72,6 +76,8 @@ func (e *postgresEncoder) encodeData(connectionData *USMConnectionData[postgres.
 			})
 		})
 	}
+
+	return staticTags
 }
 
 func (e *postgresEncoder) Close() {

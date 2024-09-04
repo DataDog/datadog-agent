@@ -145,7 +145,7 @@ func (c *Check) Run() error {
 	)
 
 	imgRefreshTicker := time.NewTicker(time.Duration(c.instance.PeriodicRefreshSeconds) * time.Second)
-
+	defer imgRefreshTicker.Stop()
 	defer c.processor.stop()
 	for {
 		select {

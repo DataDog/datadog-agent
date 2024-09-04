@@ -22,18 +22,17 @@ import (
 	"syscall"
 	"time"
 
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/gopsutil/host"
 	"golang.org/x/sys/unix"
 
-	manager "github.com/DataDog/ebpf-manager"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 const (
@@ -44,11 +43,31 @@ const (
 	tcpGetSockOptKProbeNotCalled uint64 = 0
 	tcpGetSockOptKProbeCalled    uint64 = 1
 	netNsDefaultOffsetBytes             = 48
+
+	// sizeof(struct inet_connection_sock) in kernel 4.4.0-2
+	// the offset for RTT (and RTTvar) should be greater than this
+	// since the rtt fields are deep in struct tcp_sock; tcp_sock
+	// nests inet_connection_sock
+	rttDefaultOffsetBytes = 1280
 )
 
-var tcpKprobeCalledString = map[uint64]string{
-	tcpGetSockOptKProbeNotCalled: "tcp_getsockopt kprobe not executed",
-	tcpGetSockOptKProbeCalled:    "tcp_getsockopt kprobe executed",
+var (
+	tcpKprobeCalledString = map[uint64]string{
+		tcpGetSockOptKProbeNotCalled: "tcp_getsockopt kprobe not executed",
+		tcpGetSockOptKProbeCalled:    "tcp_getsockopt kprobe executed",
+	}
+
+	knownKernelOffsets = map[string]map[GuessWhat]uint64{
+		// debian 9 rtt and rtt var offset guessing is
+		// not reliable, so hardcoding the offsets here
+		"4.9.0-19-amd64": {
+			GuessRTT:    1444,
+			GuessRTTVar: 1448,
+		},
+	}
+)
+
+func init() {
 }
 
 type tracerOffsetGuesser struct {
@@ -58,7 +77,6 @@ type tracerOffsetGuesser struct {
 	guessUDPv6 bool
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
 func NewTracerOffsetGuesser() (OffsetGuesser, error) {
 	return &tracerOffsetGuesser{
 		m: &manager.Manager{
@@ -86,7 +104,7 @@ func (t *tracerOffsetGuesser) Manager() *manager.Manager {
 }
 
 func (t *tracerOffsetGuesser) Close() {
-	ebpfcheck.RemoveNameMappings(t.m)
+	ddebpf.RemoveNameMappings(t.m)
 	if err := t.m.Stop(manager.CleanAll); err != nil {
 		log.Warnf("error stopping tracer offset guesser: %s", err)
 	}
@@ -101,7 +119,7 @@ func extractIPsAndPorts(conn net.Conn) (
 	if err != nil {
 		return
 	}
-	saddr = native.Endian.Uint32(net.ParseIP(saddrStr).To4())
+	saddr = binary.NativeEndian.Uint32(net.ParseIP(saddrStr).To4())
 	sportn, err := strconv.Atoi(sportStr)
 	if err != nil {
 		return
@@ -112,7 +130,7 @@ func extractIPsAndPorts(conn net.Conn) (
 	if err != nil {
 		return
 	}
-	daddr = native.Endian.Uint32(net.ParseIP(daddrStr).To4())
+	daddr = binary.NativeEndian.Uint32(net.ParseIP(daddrStr).To4())
 	dportn, err := strconv.Atoi(dportStr)
 	if err != nil {
 		return
@@ -230,7 +248,7 @@ func compareIPv6(a [4]uint32, b [4]uint32) bool {
 func htons(a uint16) uint16 {
 	var arr [2]byte
 	binary.BigEndian.PutUint16(arr[:], a)
-	return native.Endian.Uint16(arr[:])
+	return binary.NativeEndian.Uint16(arr[:])
 }
 
 func generateRandomIPv6Address() net.IP {
@@ -258,17 +276,16 @@ func uint32ArrayFromIPv6(ip net.IP) (addr [4]uint32, err error) {
 		return
 	}
 
-	addr[0] = native.Endian.Uint32(buf[0:4])
-	addr[1] = native.Endian.Uint32(buf[4:8])
-	addr[2] = native.Endian.Uint32(buf[8:12])
-	addr[3] = native.Endian.Uint32(buf[12:16])
+	addr[0] = binary.NativeEndian.Uint32(buf[0:4])
+	addr[1] = binary.NativeEndian.Uint32(buf[4:8])
+	addr[2] = binary.NativeEndian.Uint32(buf[8:12])
+	addr[3] = binary.NativeEndian.Uint32(buf[12:16])
 	return
 }
 
 // IPv6LinkLocalPrefix is only exposed for testing purposes
 var IPv6LinkLocalPrefix = "fe80::"
 
-//nolint:revive // TODO(NET) Fix revive linter
 func GetIPv6LinkLocalAddress() ([]*net.UDPAddr, error) {
 	ints, err := net.Interfaces()
 	if err != nil {
@@ -356,7 +373,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap[ui
 			break
 		}
 
-		if t.status.Dport == htons(expected.dport) {
+		if t.status.Dport == htons(expected.dport) && t.status.Sport == expected.sport {
 			t.logAndAdvance(t.status.Offset_dport, GuessFamily)
 			// we know the family ((struct __sk_common)->skc_family) is
 			// after the skc_dport field, so we start from there
@@ -364,7 +381,9 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap[ui
 			break
 		}
 		t.status.Offset_dport++
+		t.status.Offset_sport++
 		t.status.Offset_dport, _ = skipOverlaps(t.status.Offset_dport, t.sockRanges())
+		t.status.Offset_sport, _ = skipOverlaps(t.status.Offset_sport, t.sockRanges())
 	case GuessFamily:
 		t.status.Offset_family, overlapped = skipOverlaps(t.status.Offset_family, t.sockRanges())
 		if overlapped {
@@ -373,27 +392,11 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap[ui
 		}
 
 		if t.status.Family == expected.family {
-			t.logAndAdvance(t.status.Offset_family, GuessSPort)
-			// we know the sport ((struct inet_sock)->inet_sport) is
-			// after the family field, so we start from there
-			t.status.Offset_sport = t.status.Offset_family
+			t.logAndAdvance(t.status.Offset_family, GuessSAddrFl4)
 			break
 		}
 		t.status.Offset_family++
 		t.status.Offset_family, _ = skipOverlaps(t.status.Offset_family, t.sockRanges())
-	case GuessSPort:
-		t.status.Offset_sport, overlapped = skipOverlaps(t.status.Offset_sport, t.sockRanges())
-		if overlapped {
-			// adjusted offset from eBPF overlapped with another field, we need to check new offset
-			break
-		}
-
-		if t.status.Sport == htons(expected.sport) {
-			t.logAndAdvance(t.status.Offset_sport, GuessSAddrFl4)
-			break
-		}
-		t.status.Offset_sport++
-		t.status.Offset_sport, _ = skipOverlaps(t.status.Offset_sport, t.sockRanges())
 	case GuessSAddrFl4:
 		t.status.Offset_saddr_fl4, overlapped = skipOverlaps(t.status.Offset_saddr_fl4, t.flowI4Ranges())
 		if overlapped {
@@ -572,26 +575,42 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap[ui
 	case GuessRTT:
 		t.status.Offset_rtt, overlapped = skipOverlaps(t.status.Offset_rtt, t.sockRanges())
 		if overlapped {
-			t.status.Offset_rtt_var = t.status.Offset_rtt + 4
 			// adjusted offset from eBPF overlapped with another field, we need to check new offset
 			break
 		}
 
 		// For more information on the bit shift operations see:
 		// https://elixir.bootlin.com/linux/v4.6/source/net/ipv4/tcp.c#L2686
-		if t.status.Rtt>>3 == expected.rtt && t.status.Rtt_var>>2 == expected.rttVar {
-			t.logAndAdvance(t.status.Offset_rtt, GuessSocketSK)
+		if t.status.Rtt>>3 == expected.rtt {
+			// start rtt var offset just past the rtt offset.
+			// this loosens the previous assumption of the rtt var
+			// offset always being rtt offset + 4, since on
+			// newer kernels this assumption does not hold
+			t.status.Offset_rtt_var = t.status.Offset_rtt + 4
+			t.logAndAdvance(t.status.Offset_rtt, GuessRTTVar)
 			break
 		}
-		// We know that these two fields are always next to each other, 4 bytes apart:
-		// https://elixir.bootlin.com/linux/v4.6/source/include/linux/tcp.h#L232
-		// rtt -> srtt_us
-		// rtt_var -> mdev_us
+
 		t.status.Offset_rtt++
 		t.status.Offset_rtt, _ = skipOverlaps(t.status.Offset_rtt, t.sockRanges())
-		t.status.Offset_rtt_var = t.status.Offset_rtt + 4
+	case GuessRTTVar:
+		t.status.Offset_rtt_var, overlapped = skipOverlaps(t.status.Offset_rtt_var, t.sockRanges())
+		if overlapped {
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
+		// For more information on the bit shift operations see:
+		// https://elixir.bootlin.com/linux/v4.6/source/net/ipv4/tcp.c#L2686
+		if t.status.Rtt_var>>2 == expected.rttVar {
+			t.logAndAdvance(t.status.Offset_rtt_var, GuessSocketSK)
+			break
+		}
+
+		t.status.Offset_rtt_var++
+		t.status.Offset_rtt_var, _ = skipOverlaps(t.status.Offset_rtt_var, t.sockRanges())
 	case GuessSocketSK:
-		if t.status.Sport_via_sk == htons(expected.sport) && t.status.Dport_via_sk == htons(expected.dport) {
+		if t.status.Sport_via_sk == expected.sport && t.status.Dport_via_sk == htons(expected.dport) {
 			// if we are on kernel version < 4.7, net_dev_queue tracepoint will not be activated, and thus we should skip
 			// the guessing for `struct sk_buff`
 			next := GuessSKBuffSock
@@ -624,7 +643,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap[ui
 			break
 		}
 
-		if t.status.Sport_via_sk_via_sk_buf == htons(expected.sportFl4) && t.status.Dport_via_sk_via_sk_buf == htons(expected.dportFl4) {
+		if t.status.Sport_via_sk_via_sk_buf == expected.sportFl4 && t.status.Dport_via_sk_via_sk_buf == htons(expected.dportFl4) {
 			t.logAndAdvance(t.status.Offset_sk_buff_sock, GuessSKBuffTransportHeader)
 			break
 		}
@@ -656,10 +675,9 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap[ui
 			if !t.guessTCPv6 && !t.guessUDPv6 {
 				t.logAndAdvance(t.status.Offset_sk_buff_head, GuessNotApplicable)
 				return t.setReadyState(mp)
-			} else { //nolint:revive // TODO(NET) Fix revive linter
-				t.logAndAdvance(t.status.Offset_sk_buff_head, GuessDAddrIPv6)
-				break
 			}
+			t.logAndAdvance(t.status.Offset_sk_buff_head, GuessDAddrIPv6)
+			break
 		}
 		t.status.Offset_sk_buff_head++
 		t.status.Offset_sk_buff_head, _ = skipOverlaps(t.status.Offset_sk_buff_head, t.skBuffRanges())
@@ -737,30 +755,14 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	processName := filepath.Base(os.Args[0])
-	if len(processName) > ProcCommMaxLen { // Truncate process name if needed
-		processName = processName[:ProcCommMaxLen]
-	}
-
-	cProcName := [ProcCommMaxLen + 1]int8{} // Last char has to be null character, so add one
-	for i, ch := range processName {
-		cProcName[i] = int8(ch)
-	}
-
-	t.guessTCPv6, t.guessUDPv6 = getIpv6Configuration(cfg)
-	t.status = &TracerStatus{
-		State:        uint64(StateChecking),
-		Proc:         Proc{Comm: cProcName},
-		What:         uint64(GuessSAddr),
-		Offset_netns: netNsDefaultOffsetBytes,
-	}
-
 	// if we already have the offsets, just return
 	err = mp.Lookup(&zero, t.status)
 	if err == nil && State(t.status.State) == StateReady {
 		return t.getConstantEditors(), nil
 	}
 
+	t.guessTCPv6, t.guessUDPv6 = getIpv6Configuration(cfg)
+	t.status = newTracerStatus()
 	eventGenerator, err := newTracerEventGenerator(t.guessUDPv6)
 	if err != nil {
 		return nil, err
@@ -812,6 +814,49 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 	}
 
 	return t.getConstantEditors(), nil
+}
+
+func newTracerStatus() *TracerStatus {
+	processName := filepath.Base(os.Args[0])
+	if len(processName) > ProcCommMaxLen { // Truncate process name if needed
+		processName = processName[:ProcCommMaxLen]
+	}
+	cProcName := [ProcCommMaxLen + 1]int8{} // Last char has to be null character, so add one
+	for i, ch := range processName {
+		cProcName[i] = int8(ch)
+	}
+
+	status := &TracerStatus{
+		State:        uint64(StateChecking),
+		Proc:         Proc{Comm: cProcName},
+		What:         uint64(GuessSAddr),
+		Offset_netns: netNsDefaultOffsetBytes,
+		Offset_rtt:   rttDefaultOffsetBytes,
+	}
+
+	var err error
+	var kv string
+	if kv, err = host.KernelVersion(); err != nil {
+		log.Warnf("could not get kernel version: %s", err)
+		return status
+	}
+
+	knownOffsets := knownKernelOffsets[kv]
+	if len(knownOffsets) == 0 {
+		return status
+	}
+
+	for k, v := range knownOffsets {
+		switch k {
+		// we only have these two currently
+		case GuessRTT:
+			status.Offset_rtt = v
+		case GuessRTTVar:
+			status.Offset_rtt_var = v
+		}
+	}
+
+	return status
 }
 
 func (t *tracerOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
@@ -1040,8 +1085,6 @@ func acceptHandler(l net.Listener) {
 // responsible for the V4 offset guessing in kernel-space and 2) using it we can obtain
 // in user-space TCP socket information such as RTT and use it for setting the expected
 // values in the `fieldValues` struct.
-//
-//nolint:revive // TODO(NET) Fix revive linter
 func TcpGetInfo(conn net.Conn) (*unix.TCPInfo, error) {
 	tcpConn, ok := conn.(*net.TCPConn)
 	if !ok {
@@ -1106,7 +1149,6 @@ func newUDPServer(addr string) (string, func(), error) {
 	return ln.LocalAddr().String(), doneFn, nil
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
 var TracerOffsets tracerOffsets
 
 type tracerOffsets struct {

@@ -13,8 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/api"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -35,9 +34,11 @@ type cliParams struct {
 // A pointer to this type is passed to SubcommandFactory's, but its contents
 // are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
-	ConfFilePath string
-	ConfigName   string
-	LoggerName   string
+	ConfFilePath         string
+	ExtraConfFilePaths   []string
+	ConfigName           string
+	LoggerName           string
+	FleetPoliciesDirPath string
 }
 
 // MakeCommand returns a `tagger-list` command to be used by agent binaries.
@@ -48,7 +49,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		Use:   "tagger-list",
 		Short: "Print the tagger content of a running agent",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			globalParams := globalParamsGetter()
 
 			cliParams.GlobalParams = globalParams
@@ -59,8 +60,10 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					ConfigParams: config.NewAgentParams(
 						globalParams.ConfFilePath,
 						config.WithConfigName(globalParams.ConfigName),
+						config.WithExtraConfFiles(globalParams.ExtraConfFilePaths),
+						config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
 					),
-					LogParams: logimpl.ForOneShot(globalParams.LoggerName, "off", true)}),
+					LogParams: log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
 			)
 		},

@@ -13,7 +13,7 @@ def read_owners(owners_file: str) -> Any:
 
 def search_owners(search: str, owners_file: str) -> list[str]:
     parsed_owners = read_owners(owners_file)
-    # owners.of returns a list in the form: [('TEAM', '@DataDog/agent-build-and-releases')]
+    # owners.of returns a list in the form: [('TEAM', '@DataDog/agent-delivery')]
     return [owner[1] for owner in parsed_owners.of(search)]
 
 

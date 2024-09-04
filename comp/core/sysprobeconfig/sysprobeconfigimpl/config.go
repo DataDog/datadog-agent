@@ -15,16 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newConfig),
-		fx.Provide(func(syscfg sysprobeconfig.Component) optional.Option[sysprobeconfig.Component] {
-			return optional.NewOption[sysprobeconfig.Component](syscfg)
-		}),
+		fxutil.ProvideOptional[sysprobeconfig.Component](),
 	)
 }
 
@@ -58,7 +55,7 @@ func (d dependencies) getParams() *Params {
 }
 
 func setupConfig(deps sysprobeconfigDependencies) (*sysconfigtypes.Config, error) {
-	return sysconfig.New(deps.getParams().sysProbeConfFilePath)
+	return sysconfig.New(deps.getParams().sysProbeConfFilePath, deps.getParams().fleetPoliciesDirPath)
 }
 
 func newConfig(deps dependencies) (sysprobeconfig.Component, error) {
@@ -67,7 +64,7 @@ func newConfig(deps dependencies) (sysprobeconfig.Component, error) {
 		return nil, err
 	}
 
-	return &cfg{Config: config.SystemProbe, syscfg: syscfg}, nil
+	return &cfg{Config: config.SystemProbe(), syscfg: syscfg}, nil
 }
 
 func (c *cfg) Warnings() *config.Warnings {

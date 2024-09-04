@@ -28,11 +28,16 @@
       WARNING: {{ . }}
       {{end}}
     {{- end}}
+    {{ if .config.ProbabilisticSamplerEnabled }}
+    Probabilistic sampling percentage: {{.config.ProbabilisticSamplerSamplingPercentage}}%
+    Probabilistic sampler hash seed: {{.config.ProbabilisticSamplerHashSeed}}
+    {{- else }}
     {{range $key, $value := .ratebyservice_filtered -}}
     {{- if eq $key "service:,env:" -}}
     Default priority sampling rate: {{percent $value}}%
     {{- else}}
     Priority sampling rate for '{{ $key }}': {{percent $value}}%
+    {{- end}}
     {{- end}}
     {{- end }}
 

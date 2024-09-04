@@ -9,12 +9,12 @@ package trivy
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 
 	"github.com/docker/docker/client"
-	"golang.org/x/xerrors"
 )
 
 // DockerCollector defines the docker collector name
@@ -33,18 +33,18 @@ func convertDockerImage(ctx context.Context, client client.ImageAPIClient, imgMe
 		imageID = imgMeta.ID // <image_id> pattern like `5ac716b05a9c`
 		inspect, _, err = client.ImageInspectWithRaw(ctx, imageID)
 		if err != nil {
-			return nil, cleanup, xerrors.Errorf("unable to inspect the image (%s): %w", imageID, err)
+			return nil, cleanup, fmt.Errorf("unable to inspect the image (%s): %w", imageID, err)
 		}
 	}
 
 	history, err := client.ImageHistory(ctx, imageID)
 	if err != nil {
-		return nil, cleanup, xerrors.Errorf("unable to get history (%s): %w", imageID, err)
+		return nil, cleanup, fmt.Errorf("unable to get history (%s): %w", imageID, err)
 	}
 
 	f, err := os.CreateTemp("", "fanal-docker-*")
 	if err != nil {
-		return nil, cleanup, xerrors.Errorf("failed to create a temporary file")
+		return nil, cleanup, fmt.Errorf("failed to create a temporary file")
 	}
 
 	cleanup = func() {

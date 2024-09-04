@@ -31,5 +31,15 @@ func getKnownErrors() []knownError {
 			errorMessage: "failed attempts: dial tcp :22: connect: connection refused",
 			retryType:    reCreate,
 		},
+		{
+			// https://datadoghq.atlassian.net/browse/ADXT-295
+			errorMessage: "Resource provider reported that the resource did not exist while updating",
+			retryType:    reCreate,
+		},
+		{
+			// https://datadoghq.atlassian.net/browse/ADXT-558
+			errorMessage: "Process exited with status 2: running \" sudo cloud-init status --wait\"",
+			retryType:    reCreate,
+		},
 	}
 }

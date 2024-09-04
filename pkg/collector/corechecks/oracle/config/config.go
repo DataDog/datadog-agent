@@ -33,8 +33,10 @@ type InitConfig struct {
 
 //nolint:revive // TODO(DBM) Fix revive linter
 type QuerySamplesConfig struct {
-	Enabled            bool `yaml:"enabled"`
-	IncludeAllSessions bool `yaml:"include_all_sessions"`
+	Enabled              bool `yaml:"enabled"`
+	IncludeAllSessions   bool `yaml:"include_all_sessions"`
+	ForceDirectQuery     bool `yaml:"force_direct_query"`
+	ActiveSessionHistory bool `yaml:"active_session_history"`
 }
 
 type queryMetricsTrackerConfig struct {
@@ -58,7 +60,8 @@ type SysMetricsConfig struct {
 
 //nolint:revive // TODO(DBM) Fix revive linter
 type TablespacesConfig struct {
-	Enabled bool `yaml:"enabled"`
+	Enabled            bool  `yaml:"enabled"`
+	CollectionInterval int64 `yaml:"collection_interval"`
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter
@@ -123,16 +126,17 @@ type locksConfig struct {
 
 // ConnectionConfig store the database connection information
 type ConnectionConfig struct {
-	Server       string `yaml:"server"`
-	Port         int    `yaml:"port"`
-	ServiceName  string `yaml:"service_name"`
-	Username     string `yaml:"username"`
-	Password     string `yaml:"password"`
-	TnsAlias     string `yaml:"tns_alias"`
-	TnsAdmin     string `yaml:"tns_admin"`
-	Protocol     string `yaml:"protocol"`
-	Wallet       string `yaml:"wallet"`
-	OracleClient bool   `yaml:"oracle_client"`
+	Server             string `yaml:"server"`
+	Port               int    `yaml:"port"`
+	ServiceName        string `yaml:"service_name"`
+	Username           string `yaml:"username"`
+	Password           string `yaml:"password"`
+	TnsAlias           string `yaml:"tns_alias"`
+	TnsAdmin           string `yaml:"tns_admin"`
+	Protocol           string `yaml:"protocol"`
+	Wallet             string `yaml:"wallet"`
+	OracleClient       bool   `yaml:"oracle_client"`
+	OracleClientLibDir string `yaml:"oracle_client_lib_dir"`
 }
 
 // InstanceConfig is used to deserialize integration instance config.
@@ -230,6 +234,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.UseGlobalCustomQueries = "true"
 
 	instance.DatabaseInstanceCollectionInterval = 300
+
+	instance.Tablespaces.CollectionInterval = 600
 
 	instance.Loader = defaultLoader
 	initCfg.Loader = defaultLoader

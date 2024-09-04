@@ -5,7 +5,7 @@
 
 //go:build unix
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl.json -field-accessors-output field_accessors_unix.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl_linux.json -field-accessors-output field_accessors_unix.go
 
 // Package model holds model related files
 package model
@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"modernc.org/mathutil"
 )
 
 // Event represents an event sent from the kernel
@@ -22,11 +24,12 @@ type Event struct {
 	BaseEvent
 
 	// globals
-	Async bool `field:"event.async,handler:ResolveAsync" event:"*"` // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
+	Async bool `field:"event.async,handler:ResolveAsync"` // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
 
 	// context
 	SpanContext    SpanContext    `field:"-"`
-	NetworkContext NetworkContext `field:"network" event:"dns"`
+	NetworkContext NetworkContext `field:"network" restricted_to:"dns,imds"` // [7.36] [Network] Network context
+	CGroupContext  CGroupContext  `field:"cgroup"`
 
 	// fim events
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
@@ -45,16 +48,14 @@ type Event struct {
 	Chdir       ChdirEvent    `field:"chdir" event:"chdir"`             // [7.52] [File] [Experimental] A process changed the current directory
 
 	// process events
-	Exec     ExecEvent     `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed or forked
-	SetUID   SetuidEvent   `field:"setuid" event:"setuid"` // [7.27] [Process] A process changed its effective uid
-	SetGID   SetgidEvent   `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
-	Capset   CapsetEvent   `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
-	Signal   SignalEvent   `field:"signal" event:"signal"` // [7.35] [Process] A signal was sent
-	Exit     ExitEvent     `field:"exit" event:"exit"`     // [7.38] [Process] A process was terminated
-	Syscalls SyscallsEvent `field:"-"`
-
-	// anomaly detection related events
-	AnomalyDetectionSyscallEvent AnomalyDetectionSyscallEvent `field:"-"`
+	Exec          ExecEvent          `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed or forked
+	SetUID        SetuidEvent        `field:"setuid" event:"setuid"` // [7.27] [Process] A process changed its effective uid
+	SetGID        SetgidEvent        `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
+	Capset        CapsetEvent        `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
+	Signal        SignalEvent        `field:"signal" event:"signal"` // [7.35] [Process] A signal was sent
+	Exit          ExitEvent          `field:"exit" event:"exit"`     // [7.38] [Process] A process was terminated
+	Syscalls      SyscallsEvent      `field:"-"`
+	LoginUIDWrite LoginUIDWriteEvent `field:"-"`
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
@@ -70,17 +71,30 @@ type Event struct {
 	IMDS IMDSEvent `field:"imds" event:"imds"` // [7.55] [Network] An IMDS event was captured
 	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] A bind was executed
 
+	// on-demand events
+	OnDemand OnDemandEvent `field:"ondemand" event:"ondemand"`
+
 	// internal usage
 	Umount           UmountEvent           `field:"-"`
 	InvalidateDentry InvalidateDentryEvent `field:"-"`
 	ArgsEnvs         ArgsEnvsEvent         `field:"-"`
 	MountReleased    MountReleasedEvent    `field:"-"`
 	CgroupTracing    CgroupTracingEvent    `field:"-"`
+	CgroupWrite      CgroupWriteEvent      `field:"-"`
 	NetDevice        NetDeviceEvent        `field:"-"`
 	VethPair         VethPairEvent         `field:"-"`
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
+
 	// used for ebpfless
 	NSID uint64 `field:"-"`
+}
+
+// CGroupContext holds the cgroup context of an event
+type CGroupContext struct {
+	CGroupID      containerutils.CGroupID    `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
+	CGroupFlags   containerutils.CGroupFlags `field:"-"`
+	CGroupManager string                     `field:"manager,handler:ResolveCGroupManager"` // SECLDoc[manager] Definition:`Lifecycle manager of the cgroup`
+	CGroupFile    PathKey                    `field:"file"`
 }
 
 // SyscallEvent contains common fields for all the event
@@ -92,13 +106,13 @@ type SyscallEvent struct {
 type SyscallContext struct {
 	ID uint32 `field:"-"`
 
-	StrArg1 string `field:"syscall.str1,handler:ResolveSyscallCtxArgsStr1,weight:900,opts:getters_only"`
-	StrArg2 string `field:"syscall.str2,handler:ResolveSyscallCtxArgsStr2,weight:900,opts:getters_only"`
-	StrArg3 string `field:"syscall.str3,handler:ResolveSyscallCtxArgsStr3,weight:900,opts:getters_only"`
+	StrArg1 string `field:"syscall.str1,handler:ResolveSyscallCtxArgsStr1,weight:900,opts:getters_only|skip_ad"`
+	StrArg2 string `field:"syscall.str2,handler:ResolveSyscallCtxArgsStr2,weight:900,opts:getters_only|skip_ad"`
+	StrArg3 string `field:"syscall.str3,handler:ResolveSyscallCtxArgsStr3,weight:900,opts:getters_only|skip_ad"`
 
-	IntArg1 int64 `field:"syscall.int1,handler:ResolveSyscallCtxArgsInt1,weight:900,opts:getters_only"`
-	IntArg2 int64 `field:"syscall.int2,handler:ResolveSyscallCtxArgsInt2,weight:900,opts:getters_only"`
-	IntArg3 int64 `field:"syscall.int3,handler:ResolveSyscallCtxArgsInt3,weight:900,opts:getters_only"`
+	IntArg1 int64 `field:"syscall.int1,handler:ResolveSyscallCtxArgsInt1,weight:900,opts:getters_only|skip_ad"`
+	IntArg2 int64 `field:"syscall.int2,handler:ResolveSyscallCtxArgsInt2,weight:900,opts:getters_only|skip_ad"`
+	IntArg3 int64 `field:"syscall.int3,handler:ResolveSyscallCtxArgsInt3,weight:900,opts:getters_only|skip_ad"`
 
 	Resolved bool `field:"-"`
 }
@@ -118,11 +132,17 @@ type ChmodEvent struct {
 // ChownEvent represents a chown event
 type ChownEvent struct {
 	SyscallEvent
+	SyscallContext
 	File  FileEvent `field:"file"`
 	UID   int64     `field:"file.destination.uid"`                           // SECLDoc[file.destination.uid] Definition:`New UID of the chown-ed file's owner`
 	User  string    `field:"file.destination.user,handler:ResolveChownUID"`  // SECLDoc[file.destination.user] Definition:`New user of the chown-ed file's owner`
 	GID   int64     `field:"file.destination.gid"`                           // SECLDoc[file.destination.gid] Definition:`New GID of the chown-ed file's owner`
 	Group string    `field:"file.destination.group,handler:ResolveChownGID"` // SECLDoc[file.destination.group] Definition:`New group of the chown-ed file's owner`
+
+	// Syscall context aliases
+	SyscallPath string `field:"syscall.path,ref:chown.syscall.str1"` // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
+	SyscallUID  int64  `field:"syscall.uid,ref:chown.syscall.int2"`  // SECLDoc[syscall.uid] Definition:`UID argument of the syscall`
+	SyscallGID  int64  `field:"syscall.gid,ref:chown.syscall.int3"`  // SECLDoc[syscall.gid] Definition:`GID argument of the syscall`
 }
 
 // SetuidEvent represents a setuid event
@@ -168,6 +188,8 @@ type Credentials struct {
 	FSUser  string `field:"fsuser"`  // SECLDoc[fsuser] Definition:`FileSystem-user of the process`
 	FSGroup string `field:"fsgroup"` // SECLDoc[fsgroup] Definition:`FileSystem-group of the process`
 
+	AUID uint32 `field:"auid"` // SECLDoc[auid] Definition:`Login UID of the process`
+
 	CapEffective uint64 `field:"cap_effective"` // SECLDoc[cap_effective] Definition:`Effective capability set of the process` Constants:`Kernel Capability constants`
 	CapPermitted uint64 `field:"cap_permitted"` // SECLDoc[cap_permitted] Definition:`Permitted capability set of the process` Constants:`Kernel Capability constants`
 }
@@ -183,10 +205,11 @@ type Process struct {
 
 	FileEvent FileEvent `field:"file,check:IsNotKworker"`
 
-	ContainerID string `field:"container.id"` // SECLDoc[container.id] Definition:`Container ID`
+	CGroup      CGroupContext              `field:"cgroup"`                                         // SECLDoc[cgroup] Definition:`CGroup`
+	ContainerID containerutils.ContainerID `field:"container.id,handler:ResolveProcessContainerID"` // SECLDoc[container.id] Definition:`Container ID`
 
-	SpanID  uint64 `field:"-"`
-	TraceID uint64 `field:"-"`
+	SpanID  uint64          `field:"-"`
+	TraceID mathutil.Int128 `field:"-"`
 
 	TTYName     string      `field:"tty_name"`                         // SECLDoc[tty_name] Definition:`Name of the TTY associated with the process`
 	Comm        string      `field:"comm"`                             // SECLDoc[comm] Definition:`Comm attribute of the process`
@@ -210,8 +233,8 @@ type Process struct {
 
 	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
 
-	ArgsID uint32 `field:"-"`
-	EnvsID uint32 `field:"-"`
+	ArgsID uint64 `field:"-"`
+	EnvsID uint64 `field:"-"`
 
 	ArgsEntry *ArgsEntry `field:"-"`
 	EnvsEntry *EnvsEntry `field:"-"`
@@ -315,8 +338,13 @@ type MountReleasedEvent struct {
 // LinkEvent represents a link event
 type LinkEvent struct {
 	SyscallEvent
+	SyscallContext
 	Source FileEvent `field:"file"`
 	Target FileEvent `field:"file.destination"`
+
+	// Syscall context aliases
+	SyscallPath            string `field:"syscall.path,ref:link.syscall.str1"`             // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
+	SyscallDestinationPath string `field:"syscall.destination.path,ref:link.syscall.str2"` // SECLDoc[syscall.destination.path] Definition:`Destination path argument of the syscall`
 }
 
 // MkdirEvent represents a mkdir event
@@ -348,6 +376,7 @@ type Mount struct {
 // MountEvent represents a mount event
 type MountEvent struct {
 	SyscallEvent
+	SyscallContext
 	Mount
 	MountPointPath                 string `field:"mountpoint.path,handler:ResolveMountPointPath"` // SECLDoc[mountpoint.path] Definition:`Path of the mount point`
 	MountSourcePath                string `field:"source.path,handler:ResolveMountSourcePath"`    // SECLDoc[source.path] Definition:`Source path of a bind mount`
@@ -355,6 +384,11 @@ type MountEvent struct {
 	MountPointPathResolutionError  error  `field:"-"`
 	MountSourcePathResolutionError error  `field:"-"`
 	MountRootPathResolutionError   error  `field:"-"`
+
+	// Syscall context aliases
+	SyscallSourcePath     string `field:"syscall.source.path,ref:mount.syscall.str1"`     // SECLDoc[syscall.source.path] Definition:`Source path argument of the syscall`
+	SyscallMountpointPath string `field:"syscall.mountpoint.path,ref:mount.syscall.str2"` // SECLDoc[syscall.mountpoint.path] Definition:`Mount point path argument of the syscall`
+	SyscallFSType         string `field:"syscall.fs_type,ref:mount.syscall.str3"`         // SECLDoc[syscall.fs_type] Definition:`File system type argument of the syscall`
 }
 
 // UnshareMountNSEvent represents a mount cloned from a newly created mount namespace
@@ -375,9 +409,15 @@ type ChdirEvent struct {
 // OpenEvent represents an open event
 type OpenEvent struct {
 	SyscallEvent
+	SyscallContext
 	File  FileEvent `field:"file"`
 	Flags uint32    `field:"flags"`                 // SECLDoc[flags] Definition:`Flags used when opening the file` Constants:`Open flags`
 	Mode  uint32    `field:"file.destination.mode"` // SECLDoc[file.destination.mode] Definition:`Mode of the created file` Constants:`File mode constants`
+
+	// Syscall context aliases
+	SyscallPath  string `field:"syscall.path,ref:open.syscall.str1"`  // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
+	SyscallFlags uint32 `field:"syscall.flags,ref:open.syscall.int2"` // SECLDoc[syscall.flags] Definition:`Flags argument of the syscall`
+	SyscallMode  uint32 `field:"syscall.mode,ref:open.syscall.int3"`  // SECLDoc[syscall.mode] Definition:`Mode argument of the syscall`
 }
 
 // SELinuxEvent represents a selinux event
@@ -402,8 +442,13 @@ type PIDContext struct {
 // RenameEvent represents a rename event
 type RenameEvent struct {
 	SyscallEvent
+	SyscallContext
 	Old FileEvent `field:"file"`
 	New FileEvent `field:"file.destination"`
+
+	// Syscall context aliases
+	SyscallPath            string `field:"syscall.path,ref:rename.syscall.str1"`             // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
+	SyscallDestinationPath string `field:"syscall.destination.path,ref:rename.syscall.str2"` // SECLDoc[syscall.destination.path] Definition:`Destination path argument of the syscall`
 }
 
 // RmdirEvent represents a rmdir event
@@ -425,8 +470,14 @@ type SetXAttrEvent struct {
 // UnlinkEvent represents an unlink event
 type UnlinkEvent struct {
 	SyscallEvent
+	SyscallContext
 	File  FileEvent `field:"file"`
 	Flags uint32    `field:"flags"` // SECLDoc[flags] Definition:`Flags of the unlink syscall` Constants:`Unlink flags`
+
+	// Syscall context aliases
+	SyscallDirFd uint64 `field:"syscall.dirfd,ref:unlink.syscall.int1"` // SECLDoc[syscall.dirfd] Definition:`Directory file descriptor argument of the syscall`
+	SyscallPath  string `field:"syscall.path,ref:unlink.syscall.str2"`  // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
+	SyscallFlags uint64 `field:"syscall.flags,ref:unlink.syscall.int3"` // SECLDoc[syscall.flags] Definition:`Flags argument of the syscall`
 }
 
 // UmountEvent represents an umount event
@@ -438,9 +489,13 @@ type UmountEvent struct {
 // UtimesEvent represents a utime event
 type UtimesEvent struct {
 	SyscallEvent
+	SyscallContext
 	File  FileEvent `field:"file"`
 	Atime time.Time `field:"-"`
 	Mtime time.Time `field:"-"`
+
+	// Syscall context aliases
+	SyscallPath string `field:"syscall.path,ref:utimes.syscall.str1"` // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
 }
 
 // BPFEvent represents a BPF event
@@ -541,8 +596,14 @@ type SpliceEvent struct {
 // CgroupTracingEvent is used to signal that a new cgroup should be traced by the activity dump manager
 type CgroupTracingEvent struct {
 	ContainerContext ContainerContext
+	CGroupContext    CGroupContext
 	Config           ActivityDumpLoadConfig
 	ConfigCookie     uint64
+}
+
+// CgroupWriteEvent is used to signal that a new cgroup was created
+type CgroupWriteEvent struct {
+	File FileEvent `field:"file"` // Path to the cgroup
 }
 
 // ActivityDumpLoadConfig represents the load configuration of an activity dump
@@ -559,8 +620,8 @@ type ActivityDumpLoadConfig struct {
 // NetworkDeviceContext represents the network device context of a network event
 type NetworkDeviceContext struct {
 	NetNS   uint32 `field:"-"`
-	IfIndex uint32 `field:"ifindex"`                                   // SECLDoc[ifindex] Definition:`interface ifindex`
-	IfName  string `field:"ifname,handler:ResolveNetworkDeviceIfName"` // SECLDoc[ifname] Definition:`interface ifname`
+	IfIndex uint32 `field:"ifindex"`                                   // SECLDoc[ifindex] Definition:`Interface ifindex`
+	IfName  string `field:"ifname,handler:ResolveNetworkDeviceIfName"` // SECLDoc[ifname] Definition:`Interface ifname`
 }
 
 // BindEvent represents a bind event
@@ -597,12 +658,8 @@ type VethPairEvent struct {
 
 // SyscallsEvent represents a syscalls event
 type SyscallsEvent struct {
-	Syscalls []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
-}
-
-// AnomalyDetectionSyscallEvent represents an anomaly detection for a syscall event
-type AnomalyDetectionSyscallEvent struct {
-	SyscallID Syscall
+	EventReason SyscallDriftEventReason
+	Syscalls    []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
 }
 
 // PathKey identifies an entry in the dentry cache
@@ -610,4 +667,24 @@ type PathKey struct {
 	Inode   uint64 `field:"inode"`    // SECLDoc[inode] Definition:`Inode of the file`
 	MountID uint32 `field:"mount_id"` // SECLDoc[mount_id] Definition:`Mount ID of the file`
 	PathID  uint32 `field:"-"`
+}
+
+// OnDemandEvent identifies an on-demand event generated from on-demand probes
+type OnDemandEvent struct {
+	ID       uint32    `field:"-"`
+	Name     string    `field:"name,handler:ResolveOnDemandName"`
+	Data     [256]byte `field:"-"`
+	Arg1Str  string    `field:"arg1.str,handler:ResolveOnDemandArg1Str"`
+	Arg1Uint uint64    `field:"arg1.uint,handler:ResolveOnDemandArg1Uint"`
+	Arg2Str  string    `field:"arg2.str,handler:ResolveOnDemandArg2Str"`
+	Arg2Uint uint64    `field:"arg2.uint,handler:ResolveOnDemandArg2Uint"`
+	Arg3Str  string    `field:"arg3.str,handler:ResolveOnDemandArg3Str"`
+	Arg3Uint uint64    `field:"arg3.uint,handler:ResolveOnDemandArg3Uint"`
+	Arg4Str  string    `field:"arg4.str,handler:ResolveOnDemandArg4Str"`
+	Arg4Uint uint64    `field:"arg4.uint,handler:ResolveOnDemandArg4Uint"`
+}
+
+// LoginUIDWriteEvent is used to propagate login UID updates to user space
+type LoginUIDWriteEvent struct {
+	AUID uint32 `field:"-"`
 }

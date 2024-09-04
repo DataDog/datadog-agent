@@ -1,3 +1,0 @@
-system_probe_config:
-  ebpf_instrumentation:
-    enabled: true

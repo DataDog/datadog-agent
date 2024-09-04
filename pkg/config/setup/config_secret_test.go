@@ -49,7 +49,7 @@ func TestProxyWithSecret(t *testing.T) {
 	cases := []testCase{
 		{
 			name: "secrets from configuration for proxy",
-			setup: func(t *testing.T, config pkgconfigmodel.Config, configPath string, resolver secrets.Mock) {
+			setup: func(_ *testing.T, config pkgconfigmodel.Config, _ string, resolver secrets.Mock) {
 				resolver.SetFetchHookFunc(func(_ []string) (map[string]string, error) {
 					return map[string]string{
 						"http_handle":       "http_url",
@@ -76,7 +76,7 @@ func TestProxyWithSecret(t *testing.T) {
 		},
 		{
 			name: "secrets fron DD env vars for proxy",
-			setup: func(t *testing.T, config pkgconfigmodel.Config, configPath string, resolver secrets.Mock) {
+			setup: func(t *testing.T, config pkgconfigmodel.Config, _ string, resolver secrets.Mock) {
 				resolver.SetFetchHookFunc(func(_ []string) (map[string]string, error) {
 					return map[string]string{
 						"http_handle":       "http_url",
@@ -103,7 +103,7 @@ func TestProxyWithSecret(t *testing.T) {
 		},
 		{
 			name: "secrets fron UNIX env vars for proxy",
-			setup: func(t *testing.T, config pkgconfigmodel.Config, configPath string, resolver secrets.Mock) {
+			setup: func(t *testing.T, config pkgconfigmodel.Config, _ string, resolver secrets.Mock) {
 				resolver.SetFetchHookFunc(func(_ []string) (map[string]string, error) {
 					return map[string]string{
 						"http_handle":       "http_url",
@@ -130,7 +130,7 @@ func TestProxyWithSecret(t *testing.T) {
 		},
 		{
 			name: "secrets from maps with keys containing dots (ie 'additional_endpoints')",
-			setup: func(t *testing.T, config pkgconfigmodel.Config, configPath string, resolver secrets.Mock) {
+			setup: func(_ *testing.T, _ pkgconfigmodel.Config, configPath string, resolver secrets.Mock) {
 				resolver.SetFetchHookFunc(func(_ []string) (map[string]string, error) {
 					return map[string]string{
 						"api_key_1": "resolved_api_key_1",
@@ -161,7 +161,7 @@ func TestProxyWithSecret(t *testing.T) {
 			// CircleCI sets NO_PROXY, so unset it for this test
 			unsetEnvForTest(t, "NO_PROXY")
 
-			config := Conf()
+			config := newTestConf()
 			config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
 
 			path := t.TempDir()
@@ -177,7 +177,7 @@ func TestProxyWithSecret(t *testing.T) {
 				c.setup(t, config, configPath, resolver.(secrets.Mock))
 			}
 
-			_, err := LoadCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+			_, err := LoadDatadogCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)

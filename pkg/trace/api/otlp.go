@@ -180,6 +180,11 @@ func (o *OTLPReceiver) sample(tid uint64) sampler.SamplingPriority {
 	return sampler.PriorityAutoDrop
 }
 
+// SetOTelAttributeTranslator sets the attribute translator to be used by this OTLPReceiver
+func (o *OTLPReceiver) SetOTelAttributeTranslator(attrstrans *attributes.Translator) {
+	o.conf.OTLPReceiver.AttributesTranslator = attrstrans
+}
+
 // ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
 func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
 	// each rspans is coming from a different resource and should be considered

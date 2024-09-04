@@ -3,16 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(NET) Fix revive linter
 package util
 
 import (
 	"encoding/binary"
 	"net"
 	"net/netip"
-	"sync"
 
 	"go4.org/netipx"
+
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 // Address is an IP abstraction that is family (v4/v6) agnostic
@@ -134,9 +134,4 @@ func V6AddressFromBytes(buf []byte) Address {
 }
 
 // IPBufferPool is meant to be used in conjunction with `NetIPFromAddress`
-var IPBufferPool = sync.Pool{
-	New: func() interface{} {
-		b := make([]byte, net.IPv6len)
-		return &b
-	},
-}
+var IPBufferPool = ddsync.NewSlicePool[byte](net.IPv6len, net.IPv6len)

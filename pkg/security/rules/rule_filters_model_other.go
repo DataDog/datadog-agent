@@ -12,6 +12,7 @@ import (
 	"os"
 	"runtime"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
@@ -26,7 +27,7 @@ type RuleFilterModel struct {
 }
 
 // NewRuleFilterModel returns a new rule filtering model
-func NewRuleFilterModel(origin string) (*RuleFilterModel, error) {
+func NewRuleFilterModel(_ *config.Config, origin string) (*RuleFilterModel, error) {
 	return &RuleFilterModel{
 		origin: origin,
 	}, nil
@@ -51,17 +52,17 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID) (eva
 
 	case "os":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return runtime.GOOS },
+			EvalFnc: func(_ *eval.Context) string { return runtime.GOOS },
 			Field:   field,
 		}, nil
 	case "os.id", "os.platform_id", "os.version_id":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return runtime.GOOS },
+			EvalFnc: func(_ *eval.Context) string { return runtime.GOOS },
 			Field:   field,
 		}, nil
 
 	case "os.is_amazon_linux", "os.is_cos", "os.is_debian", "os.is_oracle", "os.is_rhel", "os.is_rhel7",
-		"os.is_rhel8", "os.is_sles", "os.is_sles12", "os.is_sles15":
+		"os.is_rhel8", "os.is_sles", "os.is_sles12", "os.is_sles15", "kernel.core.enabled":
 		return &eval.BoolEvaluator{
 			Value: false,
 			Field: field,
@@ -74,6 +75,11 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID) (eva
 	case "origin":
 		return &eval.StringEvaluator{
 			Value: m.origin,
+			Field: field,
+		}, nil
+	case "hostname":
+		return &eval.StringEvaluator{
+			Value: getHostname(),
 			Field: field,
 		}, nil
 	}
@@ -94,13 +100,15 @@ func (e *RuleFilterEvent) GetFieldValue(field eval.Field) (interface{}, error) {
 		return runtime.GOOS, nil
 
 	case "os.is_amazon_linux", "os.is_cos", "os.is_debian", "os.is_oracle", "os.is_rhel", "os.is_rhel7",
-		"os.is_rhel8", "os.is_sles", "os.is_sles12", "os.is_sles15":
+		"os.is_rhel8", "os.is_sles", "os.is_sles12", "os.is_sles15", "kernel.core.enabled":
 		return false, nil
 
 	case "envs":
 		return os.Environ(), nil
 	case "origin":
 		return e.origin, nil
+	case "hostname":
+		return getHostname(), nil
 	}
 
 	return nil, &eval.ErrFieldNotFound{Field: field}

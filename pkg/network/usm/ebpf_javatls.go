@@ -25,9 +25,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -134,7 +134,7 @@ var javaTLSSpec = &protocols.ProtocolSpec{
 }
 
 func newJavaTLSProgram(c *config.Config) (protocols.Protocol, error) {
-	if !c.EnableJavaTLSSupport || !http.TLSSupported(c) {
+	if !c.EnableJavaTLSSupport || !usmconfig.TLSSupported(c) {
 		return nil, nil
 	}
 

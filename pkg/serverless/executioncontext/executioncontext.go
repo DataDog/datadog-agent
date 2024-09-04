@@ -39,6 +39,7 @@ type ExecutionContext struct {
 	endTime            time.Time
 
 	persistedStateFilePath string
+	isStateSaved           bool
 }
 
 // State represents the state of the execution context at a point in time
@@ -185,6 +186,13 @@ func (ec *ExecutionContext) getPersistedStateFilePath() string {
 	return filepath
 }
 
+// UpdatePersistedStateFilePath sets the path of the persisted state file
+func (ec *ExecutionContext) UpdatePersistedStateFilePath(path string) {
+	ec.m.Lock()
+	defer ec.m.Unlock()
+	ec.persistedStateFilePath = path
+}
+
 // SaveCurrentExecutionContext stores the current context to a file
 func (ec *ExecutionContext) SaveCurrentExecutionContext() error {
 	ecs := ec.GetCurrentState()
@@ -197,6 +205,7 @@ func (ec *ExecutionContext) SaveCurrentExecutionContext() error {
 	if err != nil {
 		return err
 	}
+	ec.isStateSaved = true
 	return nil
 }
 
@@ -221,5 +230,13 @@ func (ec *ExecutionContext) RestoreCurrentStateFromFile() error {
 	ec.coldstartRequestID = restoredExecutionContextState.ColdstartRequestID
 	ec.startTime = restoredExecutionContextState.StartTime
 	ec.endTime = restoredExecutionContextState.EndTime
+	ec.isStateSaved = false
 	return nil
+}
+
+// IsStateSaved returns whether the state has been saved in the current execution
+func (ec *ExecutionContext) IsStateSaved() bool {
+	ec.m.Lock()
+	defer ec.m.Unlock()
+	return ec.isStateSaved
 }

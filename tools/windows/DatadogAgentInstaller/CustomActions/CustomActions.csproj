@@ -9,7 +9,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Datadog.CustomActions</RootNamespace>
     <AssemblyName>CustomActions</AssemblyName>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
     <NuGetPackageImportStamp>
@@ -65,7 +65,7 @@
     <Compile Include="Interfaces\IFileSystemServices.cs" />
     <Compile Include="Interfaces\IInstallerHttpClient.cs" />
     <Compile Include="Interfaces\InstallerWebClient.cs" />
-    <Compile Include="Interfaces\InstallInfoCustomActions.cs" />
+    <Compile Include="InstallInfoCustomActions.cs" />
     <Compile Include="Interfaces\IRollbackAction.cs" />
     <Compile Include="MsiLogCustomActions.cs" />
     <Compile Include="Native\DirectoryServices.cs" />

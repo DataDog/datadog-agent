@@ -9,15 +9,15 @@ package autodiscoveryimpl
 
 import (
 	"net/http"
-	"testing"
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -38,6 +38,8 @@ type mockdependencies struct {
 	WMeta      optional.Option[workloadmeta.Component]
 	Params     MockParams
 	TaggerComp tagger.Mock
+	LogsComp   log.Component
+	Telemetry  telemetry.Component
 }
 
 type mockprovides struct {
@@ -48,7 +50,7 @@ type mockprovides struct {
 }
 
 func newMockAutoConfig(deps mockdependencies) mockprovides {
-	ac := createNewAutoConfig(deps.Params.Scheduler, nil, deps.WMeta, deps.TaggerComp)
+	ac := createNewAutoConfig(deps.Params.Scheduler, nil, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry)
 	return mockprovides{
 		Comp:     ac,
 		Endpoint: api.NewAgentEndpointProvider(ac.mockHandleRequest, "/config-check", "GET"),
@@ -60,12 +62,4 @@ func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newMockAutoConfig),
 	)
-}
-
-// CreateMockAutoConfig creates a mock AutoConfig for testing
-func CreateMockAutoConfig(t *testing.T, scheduler *scheduler.Controller) autodiscovery.Mock {
-	return fxutil.Test[autodiscovery.Mock](t, fx.Options(
-		fx.Supply(MockParams{Scheduler: scheduler}),
-		taggerimpl.MockModule(),
-		MockModule()))
 }

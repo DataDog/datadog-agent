@@ -5,7 +5,7 @@
 
 //go:build (linux && !linux_bpf) || (windows && !npm) || (!linux && !windows)
 
-//nolint:revive // TODO(NET) Fix revive linter
+// Package tracer implements the functionality of the network tracer
 package tracer
 
 import (
@@ -35,7 +35,7 @@ func (t *Tracer) GetActiveConnections(_ string) (*network.Connections, error) {
 }
 
 // RegisterClient registers the client
-func (t *Tracer) RegisterClient(clientID string) error { //nolint:revive // TODO fix revive unused-parameter
+func (t *Tracer) RegisterClient(_ string) error {
 	return ebpf.ErrNotImplemented
 }
 
@@ -45,7 +45,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 }
 
 // DebugNetworkState is not implemented on this OS for Tracer
-func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, error) { //nolint:revive // TODO fix revive unused-parameter
+func (t *Tracer) DebugNetworkState(_ string) (map[string]interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 

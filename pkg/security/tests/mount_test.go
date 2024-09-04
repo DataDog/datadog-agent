@@ -470,6 +470,9 @@ func TestMountEvent(t *testing.T) {
 			assertFieldEqual(t, event, "process.file.path", executable)
 
 			test.validateMountSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.mount.path")
+			validateSyscallContext(t, event, "$.syscall.mount.destination_path")
+			validateSyscallContext(t, event, "$.syscall.mount.fs_type")
 		})
 	})
 
@@ -493,6 +496,9 @@ func TestMountEvent(t *testing.T) {
 			assertFieldEqual(t, event, "process.file.path", executable)
 
 			test.validateMountSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.mount.path")
+			validateSyscallContext(t, event, "$.syscall.mount.destination_path")
+			validateSyscallContext(t, event, "$.syscall.mount.fs_type")
 		})
 	})
 
@@ -521,6 +527,9 @@ func TestMountEvent(t *testing.T) {
 			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
 
 			test.validateMountSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.mount.path")
+			validateSyscallContext(t, event, "$.syscall.mount.destination_path")
+			validateSyscallContext(t, event, "$.syscall.mount.fs_type")
 		})
 	})
 

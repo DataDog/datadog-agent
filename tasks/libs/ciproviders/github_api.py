@@ -4,14 +4,19 @@ import base64
 import json
 import os
 import platform
+import re
 import subprocess
 from collections.abc import Iterable
 from functools import lru_cache
 
 import requests
 
+from tasks.libs.common.color import color_message
+from tasks.libs.common.constants import GITHUB_REPO_NAME
+
 try:
-    from github import Auth, Github, GithubException, GithubIntegration, GithubObject
+    import semver
+    from github import Auth, Github, GithubException, GithubIntegration, GithubObject, PullRequest
     from github.NamedUser import NamedUser
 except ImportError:
     # PyGithub isn't available on some build images, ignore it for now
@@ -20,6 +25,8 @@ except ImportError:
 from invoke.exceptions import Exit
 
 __all__ = ["GithubAPI"]
+
+RELEASE_BRANCH_PATTERN = re.compile(r"\d+\.\d+\.x")
 
 
 class GithubAPI:
@@ -141,7 +148,7 @@ class GithubAPI:
         if workflow is None:
             return False
         if inputs is None:
-            inputs = dict()
+            inputs = {}
         return workflow.create_dispatch(ref, inputs)
 
     def workflow_run(self, run_id):
@@ -195,28 +202,55 @@ class GithubAPI:
         release = self._repository.get_latest_release()
         return release.title
 
+    def latest_unreleased_release_branches(self):
+        """
+        Get all the release branches that are newer than the latest release.
+        """
+        release = self._repository.get_latest_release()
+        released_version = semver.VersionInfo.parse(release.title)
+
+        for branch in self.release_branches():
+            if semver.VersionInfo.parse(branch.name.replace("x", "0")) > released_version:
+                yield branch
+
+    def release_branches(self):
+        """
+        Yield all the branches that match the release branch pattern (A.B.x).
+        """
+        for branch in self._repository.get_branches():
+            if RELEASE_BRANCH_PATTERN.match(branch.name):
+                yield branch
+
     def get_rate_limit_info(self):
         """
         Gets the current rate limit info.
         """
         return self._github.rate_limiting
 
-    def publish_comment(self, pull_number, comment):
+    def publish_comment(self, pr, comment):
         """
         Publish a comment on a given PR.
+
+        - pr: PR number or PR object
         """
-        pr = self._repository.get_pull(int(pull_number))
+        if not isinstance(pr, PullRequest.PullRequest):
+            pr = self._repository.get_pull(int(pr))
+
         pr.create_issue_comment(comment)
 
-    def find_comment(self, pull_number, content):
+    def find_comment(self, pr, content):
         """
         Get a comment that contains content on a given PR.
+
+        - pr: PR number or PR object
         """
-        pr = self._repository.get_pull(int(pull_number))
+
+        if not isinstance(pr, PullRequest.PullRequest):
+            pr = self._repository.get_pull(int(pr))
 
         comments = pr.get_issue_comments()
         for comment in comments:
-            if content in comment.body:
+            if content in comment.body.splitlines():
                 return comment
 
     def get_pr(self, pr_id: int):
@@ -330,6 +364,12 @@ class GithubAPI:
         auth_token = integration.get_access_token(install_id)
         print(auth_token.token)
 
+    def create_label(self, name, color, description=""):
+        """
+        Creates a label in the given GitHub repository.
+        """
+        return self._repository.create_label(name, color, description)
+
 
 def get_github_teams(users):
     for user in users:
@@ -358,3 +398,67 @@ def get_user_query(login):
     query = '{"query": "query GetUserTeam($login: String!, $org: String!) { user(login: $login) {organization(login: $org) { teams(first:10, userLogins: [$login]){ nodes { slug } } } } }", '
     string_var = f'"variables": {json.dumps(variables)}'
     return query + string_var
+
+
+def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False):
+    print(color_message("Creating PR", "bold"))
+
+    github = GithubAPI(repository=GITHUB_REPO_NAME)
+
+    # Find milestone based on what the next final version is. If the milestone does not exist, fail.
+    milestone_name = str(version)
+
+    milestone = github.get_milestone_by_name(milestone_name)
+
+    if not milestone or not milestone.number:
+        raise Exit(
+            color_message(
+                f"""Could not find milestone {milestone_name} in the Github repository. Response: {milestone}
+Make sure that milestone is open before trying again.""",
+                "red",
+            ),
+            code=1,
+        )
+
+    pr = github.create_pr(
+        pr_title=title,
+        pr_body="",
+        base_branch=base_branch,
+        target_branch=target_branch,
+    )
+
+    if not pr:
+        raise Exit(
+            color_message(f"Could not create PR in the Github repository. Response: {pr}", "red"),
+            code=1,
+        )
+
+    print(color_message(f"Created PR #{pr.number}", "bold"))
+
+    labels = [
+        "changelog/no-changelog",
+        "qa/no-code-change",
+        "team/agent-delivery",
+        "team/agent-release-management",
+        "category/release_operations",
+    ]
+
+    if changelog_pr:
+        labels.append("backport/main")
+
+    updated_pr = github.update_pr(
+        pull_number=pr.number,
+        milestone_number=milestone.number,
+        labels=labels,
+    )
+
+    if not updated_pr or not updated_pr.number or not updated_pr.html_url:
+        raise Exit(
+            color_message(f"Could not update PR in the Github repository. Response: {updated_pr}", "red"),
+            code=1,
+        )
+
+    print(color_message(f"Set labels and milestone for PR #{updated_pr.number}", "bold"))
+    print(color_message(f"Done creating new PR. Link: {updated_pr.html_url}", "bold"))
+
+    return updated_pr.html_url

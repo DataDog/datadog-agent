@@ -18,11 +18,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -468,6 +470,46 @@ func TestProcessMessageShouldProcessLogTypePlatformReportOutOfMemory(t *testing.
 	assert.Len(t, timed, 0)
 	assert.Equal(t, serverlessMetrics.OutOfMemoryMetric, received[6].Name)
 	assert.Equal(t, serverlessMetrics.ErrorsMetric, received[7].Name)
+}
+
+func TestProcessMessageShouldSendFailoverMetric(t *testing.T) {
+	demux := createDemultiplexer(t)
+
+	message := LambdaLogAPIMessage{
+		logType:      logTypeExtension,
+		time:         time.Now(),
+		stringRecord: "{\"DD_EXTENSION_FAILOVER_REASON\":\"test-reason\"}",
+	}
+	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
+	lastRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
+	metricTags := []string{"functionname:test-function"}
+
+	computeEnhancedMetrics := true
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
+	tags := Tags{
+		Tags: metricTags,
+	}
+	logChannel := make(chan<- *config.ChannelMessage)
+	lc := NewLambdaLogCollector(logChannel, demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
+	lc.invocationStartTime = time.Now()
+	lc.invocationEndTime = time.Now().Add(10 * time.Millisecond)
+
+	lc.processMessage(&message)
+
+	received, timed := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+	assert.Len(t, received, 1)
+	assert.Len(t, timed, 0)
+	demux.Reset()
+
+	// even if enhanced metrics are disabled, we should still send the failover metric
+	lc.enhancedMetricsEnabled = false
+	message.stringRecord = "{\"DD_EXTENSION_FAILOVER_REASON\":\"test-reason\"}" // add again bc processing empties it
+	lc.processMessage(&message)
+
+	received, timed = demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+	assert.Len(t, received, 1)
+	assert.Len(t, timed, 0)
 }
 
 func TestProcessLogMessageLogsEnabled(t *testing.T) {
@@ -1304,6 +1346,108 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 	assert.Len(t, timedMetrics, 0)
 }
 
+func TestRuntimeMetricsOnTimeout(t *testing.T) {
+	// This tests that if a SHUTDOWN event occurs before a runtimeDone log is received, enhanced metrics and
+	// REPORT log attributes are still reported correctly on the next invocation when the REPORT log is processed
+	demux := createDemultiplexer(t)
+
+	// Always use a unique temp file to test saving the execution context
+	tempfile, err := os.CreateTemp(t.TempDir(), "dd-lambda-extension-cache-*.json")
+	assert.Nil(t, err)
+	defer os.Remove(tempfile.Name())
+	defer tempfile.Close()
+
+	runtimeDurationMs := 10.0
+	postRuntimeDurationMs := 90.0
+	durationMs := runtimeDurationMs + postRuntimeDurationMs
+
+	startTime := time.Now()
+	endTime := startTime.Add(time.Duration(runtimeDurationMs) * time.Millisecond)
+	reportLogTime := endTime.Add(time.Duration(postRuntimeDurationMs) * time.Millisecond)
+
+	requestID := "1a2b3c"
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.UpdatePersistedStateFilePath(tempfile.Name())
+	mockExecutionContext.SetInitializationTime(startTime.Add(-15 * time.Second))
+	mockExecutionContext.SetFromInvocation("arn not used", requestID)
+	mockExecutionContext.UpdateStartTime(startTime)
+	computeEnhancedMetrics := true
+	tags := Tags{
+		Tags: []string{},
+	}
+
+	startMessage := &LambdaLogAPIMessage{
+		time:    startTime,
+		logType: logTypePlatformStart,
+		objectRecord: platformObjectRecord{
+			requestID: requestID,
+		},
+	}
+	doneMessage := &LambdaLogAPIMessage{
+		time:    endTime,
+		logType: logTypePlatformRuntimeDone,
+		objectRecord: platformObjectRecord{
+			requestID: requestID,
+		},
+	}
+	reportMessage := &LambdaLogAPIMessage{
+		time:    reportLogTime,
+		logType: logTypePlatformReport,
+		objectRecord: platformObjectRecord{
+			requestID: requestID,
+			reportLogItem: reportLogMetrics{
+				durationMs: durationMs,
+			},
+		},
+	}
+	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
+
+	lc.processMessage(startMessage)
+	// A shutdown can occur in the current invocation, causing the state to be saved without an endTime
+	saveErr := mockExecutionContext.SaveCurrentExecutionContext()
+	assert.Nil(t, saveErr)
+	assert.True(t, mockExecutionContext.GetCurrentState().EndTime.IsZero())
+	assert.True(t, mockExecutionContext.IsStateSaved())
+	// When the runtimeDone log is processed, the endTime is updated and must be saved to the state on disk
+	lc.processMessage(doneMessage)
+	assert.False(t, mockExecutionContext.GetCurrentState().EndTime.IsZero())
+	// In the next invocation, the state is restored and the previous invocation's REPORT log is processed
+	restoreErr := mockExecutionContext.RestoreCurrentStateFromFile()
+	assert.Nil(t, restoreErr)
+	lc.processMessage(reportMessage)
+
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(10, 0, 100*time.Millisecond)
+	postRuntimeMetricTimestamp := float64(reportLogTime.UnixNano()) / float64(time.Second)
+	runtimeMetricTimestamp := float64(endTime.UnixNano()) / float64(time.Second)
+	assert.Equal(t, generatedMetrics[0], metrics.MetricSample{
+		Name:       "aws.lambda.enhanced.runtime_duration",
+		Value:      runtimeDurationMs, // in milliseconds
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"cold_start:false", "proactive_initialization:true"},
+		SampleRate: 1,
+		Timestamp:  runtimeMetricTimestamp,
+	})
+	assert.Equal(t, generatedMetrics[7], metrics.MetricSample{
+		Name:       "aws.lambda.enhanced.duration",
+		Value:      durationMs / 1000, // in seconds
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"cold_start:false", "proactive_initialization:true"},
+		SampleRate: 1,
+		Timestamp:  postRuntimeMetricTimestamp,
+	})
+	assert.Equal(t, generatedMetrics[9], metrics.MetricSample{
+		Name:       "aws.lambda.enhanced.post_runtime_duration",
+		Value:      postRuntimeDurationMs, // in milliseconds
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"cold_start:false", "proactive_initialization:true"},
+		SampleRate: 1,
+		Timestamp:  postRuntimeMetricTimestamp,
+	})
+	expectedStringRecord := fmt.Sprintf("REPORT RequestId: 1a2b3c\tDuration: %.2f ms\tRuntime Duration: %.2f ms\tPost Runtime Duration: %.2f ms\tBilled Duration: 0 ms\tMemory Size: 0 MB\tMax Memory Used: 0 MB", durationMs, runtimeDurationMs, postRuntimeDurationMs)
+	assert.Equal(t, reportMessage.stringRecord, expectedStringRecord)
+	assert.Len(t, timedMetrics, 0)
+}
+
 func TestMultipleStartLogCollection(t *testing.T) {
 	demux := createDemultiplexer(t)
 
@@ -1329,5 +1473,5 @@ func TestMultipleStartLogCollection(t *testing.T) {
 }
 
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
-	return fxutil.Test[demultiplexer.FakeSamplerMock](t, logimpl.MockModule(), compressionimpl.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
+	return fxutil.Test[demultiplexer.FakeSamplerMock](t, fx.Provide(func() log.Component { return logmock.New(t) }), compressionimpl.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 }

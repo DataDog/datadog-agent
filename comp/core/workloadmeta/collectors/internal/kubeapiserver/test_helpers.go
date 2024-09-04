@@ -9,7 +9,6 @@ package kubeapiserver
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -49,12 +48,11 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 		core.MockBundle(),
 		fx.Replace(config.MockParams{Overrides: overrides}),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	ctx := context.TODO()
 
-	store, _ := newStore(ctx, wlm, client)
+	store, _ := newStore(ctx, wlm, wlm.GetConfig(), client)
 	stopStore := make(chan struct{})
 	go store.Run(stopStore)
 
@@ -114,17 +112,14 @@ func testCollectMetadataEvent(t *testing.T, createObjects func() []runtime.Objec
 	wlm := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	ctx := context.TODO()
 
 	// Create a fake metadata client to mock API calls.
-
-	response, err := metadataclient.Resource(gvr).List(ctx, v1.ListOptions{})
+	_, err = metadataclient.Resource(gvr).List(ctx, v1.ListOptions{})
 	assert.NoError(t, err)
-	fmt.Println("metadata client listing: ", response.String())
-	store, _ := newMetadataStore(ctx, wlm, metadataclient, gvr)
+	store, _ := newMetadataStore(ctx, wlm, wlm.GetConfig(), metadataclient, gvr)
 
 	stopStore := make(chan struct{})
 	go store.Run(stopStore)

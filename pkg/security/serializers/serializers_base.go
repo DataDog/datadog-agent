@@ -8,13 +8,24 @@
 package serializers
 
 import (
+	"slices"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
+
+// CGroupContextSerializer serializes a cgroup context to JSON
+// easyjson:json
+type CGroupContextSerializer struct {
+	// CGroup ID
+	ID string `json:"id,omitempty"`
+	// CGroup manager
+	Manager string `json:"manager,omitempty"`
+}
 
 // ContainerContextSerializer serializes a container context to JSON
 // easyjson:json
@@ -183,15 +194,6 @@ type DNSEventSerializer struct {
 	Question DNSQuestionSerializer `json:"question"`
 }
 
-// DDContextSerializer serializes a span context to JSON
-// easyjson:json
-type DDContextSerializer struct {
-	// Span ID used for APM correlation
-	SpanID uint64 `json:"span_id,omitempty"`
-	// Trace ID used for APM correlation
-	TraceID uint64 `json:"trace_id,omitempty"`
-}
-
 // ExitEventSerializer serializes an exit event to JSON
 // easyjson:json
 type ExitEventSerializer struct {
@@ -211,6 +213,7 @@ type BaseEventSerializer struct {
 	*ExitEventSerializer        `json:"exit,omitempty"`
 	*ProcessContextSerializer   `json:"process,omitempty"`
 	*ContainerContextSerializer `json:"container,omitempty"`
+	*CGroupContextSerializer    `json:"cgroup,omitempty"`
 }
 
 func newMatchedRulesSerializer(r *model.MatchedRule) MatchedRuleSerializer {
@@ -348,6 +351,10 @@ func newVariablesContext(e *model.Event, opts *eval.Opts, prefix string) (variab
 				continue
 			}
 
+			if slices.Contains(bundled.InternalVariables[:], name) {
+				continue
+			}
+
 			if (prefix != "" && !strings.HasPrefix(name, prefix)) ||
 				(prefix == "" && strings.Contains(name, ".")) {
 				continue
@@ -360,19 +367,22 @@ func newVariablesContext(e *model.Event, opts *eval.Opts, prefix string) (variab
 					variables = Variables{}
 				}
 				if value != nil {
+					trimmedName := strings.TrimPrefix(name, prefix)
 					switch value := value.(type) {
 					case []string:
-						for _, value := range value {
-							if scrubbed, err := scrubber.ScrubString(value); err == nil {
-								variables[strings.TrimPrefix(name, prefix)] = scrubbed
+						scrubbedValues := make([]string, 0, len(value))
+						for _, elem := range value {
+							if scrubbed, err := scrubber.ScrubString(elem); err == nil {
+								scrubbedValues = append(scrubbedValues, scrubbed)
 							}
 						}
+						variables[trimmedName] = scrubbedValues
 					case string:
 						if scrubbed, err := scrubber.ScrubString(value); err == nil {
-							variables[strings.TrimPrefix(name, prefix)] = scrubbed
+							variables[trimmedName] = scrubbed
 						}
 					default:
-						variables[strings.TrimPrefix(name, prefix)] = value
+						variables[trimmedName] = value
 					}
 				}
 			}

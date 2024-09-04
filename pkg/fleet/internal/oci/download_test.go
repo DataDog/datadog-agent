@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/net/http2"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/fixtures"
@@ -209,6 +210,45 @@ func TestPackageURL(t *testing.T) {
 			if actual != tt.expected {
 				t.Errorf("expected %s, got %s", tt.expected, actual)
 			}
+		})
+	}
+}
+
+func TestIsStreamResetError(t *testing.T) {
+	testCases := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "non stream reset error",
+			err:      assert.AnError,
+			expected: false,
+		},
+		{
+			name:     "stream error - other error",
+			err:      http2.StreamError{Code: http2.ErrCodeStreamClosed},
+			expected: false,
+		},
+		{
+			name:     "stream error - internal error - value",
+			err:      http2.StreamError{Code: http2.ErrCodeInternal},
+			expected: true,
+		},
+		{
+			name:     "stream error - internal error - pointer",
+			err:      &http2.StreamError{Code: http2.ErrCodeInternal},
+			expected: true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, isStreamResetError(tc.err))
 		})
 	}
 }

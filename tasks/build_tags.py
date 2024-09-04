@@ -40,6 +40,7 @@ ALL_TAGS = {
     "podman",
     "process",
     "python",
+    "remotewmonly",  # used when you want to use only the remote workloadmeta store without importing all dependencies of local collectors
     "sds",
     "serverless",
     "systemd",
@@ -138,7 +139,7 @@ SECURITY_AGENT_TAGS = {
 SERVERLESS_TAGS = {"serverless", "otlp"}
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
-SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"linux_bpf", "npm"}).difference({"python", "systemd"})
+SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"linux_bpf", "npm", "remotewmonly"}).difference({"python", "systemd"})
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
 TRACE_AGENT_TAGS = {"docker", "containerd", "datadog.no_waf", "kubeapiserver", "kubelet", "otlp", "netcgo", "podman"}
@@ -219,8 +220,8 @@ build_tags = {
 
 def compute_build_tags_for_flavor(
     build: str,
-    build_include: list[str],
-    build_exclude: list[str],
+    build_include: str | None,
+    build_exclude: str | None,
     flavor: AgentFlavor = AgentFlavor.base,
     include_sds: bool = False,
 ):
@@ -250,9 +251,9 @@ def compute_build_tags_for_flavor(
 
 
 @task
-def print_default_build_tags(_, build="agent", flavor=AgentFlavor.base.name):
+def print_default_build_tags(_, build="agent", flavor=AgentFlavor.base.name, platform: str | None = None):
     """
-    Build the default list of tags based on the build type and current platform.
+    Build the default list of tags based on the build type and platform.
     Prints as comma separated list suitable for go tooling (eg, gopls, govulncheck)
 
     The container integrations are currently only supported on Linux, disabling on
@@ -266,17 +267,18 @@ def print_default_build_tags(_, build="agent", flavor=AgentFlavor.base.name):
         print(f"'{flavor}' does not correspond to an agent flavor. Options: {flavorOptions}")
         exit(1)
 
-    print(",".join(sorted(get_default_build_tags(build=build, flavor=flavor))))
+    print(",".join(sorted(get_default_build_tags(build=build, flavor=flavor, platform=platform))))
 
 
-def get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform=sys.platform):
+def get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform: str | None = None):
     """
     Build the default list of tags based on the build type and current platform.
 
     The container integrations are currently only supported on Linux, disabling on
     the Windows and Darwin builds.
     """
-    include = build_tags.get(flavor).get(build)
+    platform = platform or sys.platform
+    include = build_tags[flavor].get(build)
     if include is None:
         print("Warning: unrecognized build type, no build tags included.", file=sys.stderr)
         include = set()
@@ -368,3 +370,27 @@ def _compute_build_size(ctx, build_exclude=None, flavor=AgentFlavor.base):
 
     statinfo = os.stat('bin/agent/agent')
     return statinfo.st_size
+
+
+def compute_config_build_tags(targets="all", build_include=None, build_exclude=None, flavor=AgentFlavor.base.name):
+    flavor = AgentFlavor[flavor]
+
+    if targets == "all":
+        targets = build_tags[flavor].keys()
+    else:
+        targets = targets.split(",")
+        if not set(targets).issubset(build_tags[flavor]):
+            print("Must choose valid targets. Valid targets are:")
+            print(f'{", ".join(build_tags[flavor].keys())}')
+            exit(1)
+
+    if build_include is None:
+        build_include = []
+        for target in targets:
+            build_include.extend(get_default_build_tags(build=target, flavor=flavor))
+    else:
+        build_include = filter_incompatible_tags(build_include.split(","))
+
+    build_exclude = [] if build_exclude is None else build_exclude.split(",")
+    use_tags = get_build_tags(build_include, build_exclude)
+    return use_tags

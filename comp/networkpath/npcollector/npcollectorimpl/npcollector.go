@@ -17,7 +17,7 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
@@ -64,6 +64,8 @@ type npCollectorImpl struct {
 	// TODO: instead of mocking traceroute via function replacement like this
 	//       we should ideally create a fake/mock traceroute instance that can be passed/injected in NpCollector
 	runTraceroute func(cfg traceroute.Config, telemetrycomp telemetryComp.Component) (payload.NetworkPath, error)
+
+	networkDevicesNamespace string
 }
 
 func newNoopNpCollectorImpl() *npCollectorImpl {
@@ -73,10 +75,11 @@ func newNoopNpCollectorImpl() *npCollectorImpl {
 }
 
 func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, telemetrycomp telemetryComp.Component) *npCollectorImpl {
-	logger.Infof("New NpCollector (workers=%d input_chan_size=%d processing_chan_size=%d pathtest_ttl=%s pathtest_interval=%s flush_interval=%s)",
+	logger.Infof("New NpCollector (workers=%d input_chan_size=%d processing_chan_size=%d pathtest_contexts_limit=%d pathtest_ttl=%s pathtest_interval=%s flush_interval=%s)",
 		collectorConfigs.workers,
 		collectorConfigs.pathtestInputChanSize,
 		collectorConfigs.pathtestProcessingChanSize,
+		collectorConfigs.pathtestContextsLimit,
 		collectorConfigs.pathtestTTL,
 		collectorConfigs.pathtestInterval,
 		collectorConfigs.flushInterval)
@@ -86,11 +89,13 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		collectorConfigs: collectorConfigs,
 		logger:           logger,
 
-		pathtestStore:          pathteststore.NewPathtestStore(collectorConfigs.pathtestTTL, collectorConfigs.pathtestInterval, logger),
+		pathtestStore:          pathteststore.NewPathtestStore(collectorConfigs.pathtestTTL, collectorConfigs.pathtestInterval, collectorConfigs.pathtestContextsLimit, logger),
 		pathtestInputChan:      make(chan *common.Pathtest, collectorConfigs.pathtestInputChanSize),
 		pathtestProcessingChan: make(chan *pathteststore.PathtestContext, collectorConfigs.pathtestProcessingChanSize),
 		flushInterval:          collectorConfigs.flushInterval,
 		workers:                collectorConfigs.workers,
+
+		networkDevicesNamespace: collectorConfigs.networkDevicesNamespace,
 
 		receivedPathtestCount:    atomic.NewUint64(0),
 		processedTracerouteCount: atomic.NewUint64(0),
@@ -112,12 +117,13 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection) {
 	}
 	startTime := s.TimeNowFn()
 	for _, conn := range conns {
-		if !shouldScheduleNetworkPathForConn(conn) {
-			continue
-		}
 		remoteAddr := conn.Raddr
 		remotePort := uint16(conn.Raddr.GetPort())
-		protocol := conn.GetType().String()
+		protocol := convertProtocol(conn.GetType())
+		if !shouldScheduleNetworkPathForConn(conn) {
+			s.logger.Tracef("Skipped connection: addr=%s, port=%d, protocol=%s", remoteAddr, remotePort, protocol)
+			continue
+		}
 		sourceContainer := conn.Laddr.GetContainerId()
 		err := s.scheduleOne(remoteAddr.GetIp(), remotePort, protocol, sourceContainer)
 		if err != nil {
@@ -131,7 +137,7 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection) {
 
 // scheduleOne schedules pathtests.
 // It shouldn't block, if the input channel is full, an error is returned.
-func (s *npCollectorImpl) scheduleOne(hostname string, port uint16, protocol string, sourceContainerID string) error {
+func (s *npCollectorImpl) scheduleOne(hostname string, port uint16, protocol payload.Protocol, sourceContainerID string) error {
 	if s.pathtestInputChan == nil {
 		return errors.New("no input channel, please check that network path is enabled")
 	}
@@ -214,6 +220,9 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 		s.logger.Errorf("%s", err)
 		return
 	}
+	path.Source.ContainerID = ptest.Pathtest.SourceContainerID
+	path.Namespace = s.networkDevicesNamespace
+	path.Origin = payload.PathOriginNetworkTraffic
 
 	s.sendTelemetry(path, startTime, ptest)
 
@@ -259,6 +268,7 @@ func (s *npCollectorImpl) flushLoop() {
 		// automatic flush sequence
 		case flushTime := <-flushTicker.C:
 			s.flushWrapper(flushTime, lastFlushTime)
+			lastFlushTime = flushTime
 		}
 	}
 }
@@ -269,7 +279,6 @@ func (s *npCollectorImpl) flushWrapper(flushTime time.Time, lastFlushTime time.T
 		flushInterval := flushTime.Sub(lastFlushTime)
 		s.statsdClient.Gauge("datadog.network_path.collector.flush_interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
 	}
-	lastFlushTime = flushTime
 
 	s.flush()
 	s.statsdClient.Gauge("datadog.network_path.collector.flush_duration", s.TimeNowFn().Sub(flushTime).Seconds(), []string{}, 1) //nolint:errcheck
@@ -299,7 +308,6 @@ func (s *npCollectorImpl) sendTelemetry(path payload.NetworkPath, startTime time
 	telemetry.SubmitNetworkPathTelemetry(
 		s.metricSender,
 		path,
-		telemetry.CollectorTypeNetworkPathCollector,
 		checkDuration,
 		checkInterval,
 		[]string{},

@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -65,7 +65,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		Use:   "flare [caseID]",
 		Short: "Collect a flare and send it to Datadog",
 		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				cliParams.caseID = args[0]
 			}
@@ -85,7 +85,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(LoggerName, DefaultLogLevel, true),
+					LogParams:    log.ForOneShot(LoggerName, DefaultLogLevel, true),
 				}),
 				core.Bundle(),
 				compressionimpl.Module(),

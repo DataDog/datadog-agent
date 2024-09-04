@@ -26,10 +26,9 @@ import (
 // mutex protecting build process
 var mux sync.Mutex
 
-// OpenFromAnotherProcess launches an external file that holds active handler to the given paths.
-func OpenFromAnotherProcess(t *testing.T, paths ...string) (*exec.Cmd, error) {
-	programExecutable := build(t)
-
+// OpenFromProcess launches the specified external program which holds an active
+// handle to the given paths.
+func OpenFromProcess(t *testing.T, programExecutable string, paths ...string) (*exec.Cmd, error) {
 	cmd := exec.Command(programExecutable, paths...)
 	patternScanner := protocolstestutil.NewScanner(regexp.MustCompile("awaiting signal"), make(chan struct{}, 1))
 	cmd.Stdout = patternScanner
@@ -56,14 +55,22 @@ func OpenFromAnotherProcess(t *testing.T, paths ...string) (*exec.Cmd, error) {
 	}
 }
 
-// build only gets executed when running tests locally
-func build(t *testing.T) string {
+// OpenFromAnotherProcess launches an external program that holds an active
+// handle to the given paths.
+func OpenFromAnotherProcess(t *testing.T, paths ...string) (*exec.Cmd, error) {
+	programExecutable := BuildFmapper(t)
+	return OpenFromProcess(t, programExecutable, paths...)
+}
+
+// BuildFmapper builds the external program which is used to hold references to
+// shared libraries for testing.
+func BuildFmapper(t *testing.T) string {
 	mux.Lock()
 	defer mux.Unlock()
 
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
-	serverBin, err := usmtestutil.BuildUnixTransparentProxyServer(curDir, "fmapper")
+	serverBin, err := usmtestutil.BuildGoBinaryWrapper(curDir, "fmapper")
 	require.NoError(t, err)
 	return serverBin
 }

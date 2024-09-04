@@ -96,5 +96,5 @@ func (h *ServiceAccountHandlers) ResourceVersion(ctx processors.ProcessorContext
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *ServiceAccountHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*corev1.ServiceAccount)
-	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
+	redact.RemoveSensitiveAnnotationsAndLabels(r.Annotations, r.Labels)
 }

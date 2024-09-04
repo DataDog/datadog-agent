@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -146,13 +147,6 @@ func (ch *chooser) Get() LogWhat {
 	}
 }
 
-func min(a, b time.Duration) time.Duration {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func (ch *chooser) start() {
 	ch.m.Lock()
 	if !ch.started {
@@ -174,11 +168,11 @@ func (ch *chooser) preferred() LogWhat {
 // LogContainers, sending the result to ch.choice.  If wait is true, then if no
 // choice is available yet, it will wait until a choice becomes available.
 func (ch *chooser) choose(wait bool) {
-	c := config.IsFeaturePresent(config.Docker) ||
-		config.IsFeaturePresent(config.Containerd) ||
-		config.IsFeaturePresent(config.Cri) ||
-		config.IsFeaturePresent(config.Podman)
-	k := config.IsFeaturePresent(config.Kubernetes)
+	c := env.IsFeaturePresent(env.Docker) ||
+		env.IsFeaturePresent(env.Containerd) ||
+		env.IsFeaturePresent(env.Cri) ||
+		env.IsFeaturePresent(env.Podman)
+	k := env.IsFeaturePresent(env.Kubernetes)
 
 	makeChoice := func(logWhat LogWhat) {
 		log.Debugf("LogWhat = %s", logWhat.String())

@@ -1,0 +1,7 @@
+# Extract of the .gitab/JOBOWNERS file, for testing purposes
+
+*                   @DataDog/team-everything
+
+tests_team_a_*      @DataDog/team-a
+tests_team_b_*      @DataDog/team-b
+tests_letters_*     @DataDog/team-a @DataDog/team-b

@@ -40,7 +40,7 @@ func NewLimitRangeCollector() *LimitRangeCollector {
 	return &LimitRangeCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
-			IsStable:                  false,
+			IsStable:                  true,
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,

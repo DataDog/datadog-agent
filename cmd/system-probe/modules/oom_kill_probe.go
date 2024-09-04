@@ -23,14 +23,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // OOMKillProbe Factory
 var OOMKillProbe = module.Factory{
 	Name:             config.OOMKillProbeModule,
 	ConfigNamespaces: []string{},
-	Fn: func(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], _ telemetry.Component) (module.Module, error) {
+	Fn: func(_ *sysconfigtypes.Config, _ workloadmeta.Component, _ telemetry.Component) (module.Module, error) {
 		log.Infof("Starting the OOM Kill probe")
 		okp, err := oomkill.NewProbe(ebpf.NewConfig())
 		if err != nil {
@@ -54,7 +53,7 @@ type oomKillModule struct {
 }
 
 func (o *oomKillModule) Register(httpMux *module.Router) error {
-	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, _ *http.Request) {
 		o.lastCheck.Store(time.Now().Unix())
 		stats := o.Probe.GetAndFlush()
 		utils.WriteAsJSON(w, stats)

@@ -23,14 +23,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // EBPFProbe Factory
 var EBPFProbe = module.Factory{
 	Name:             config.EBPFModule,
 	ConfigNamespaces: []string{},
-	Fn: func(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], _ telemetry.Component) (module.Module, error) {
+	Fn: func(_ *sysconfigtypes.Config, _ workloadmeta.Component, _ telemetry.Component) (module.Module, error) {
 		log.Infof("Starting the ebpf probe")
 		okp, err := ebpfcheck.NewProbe(ebpf.NewConfig())
 		if err != nil {
@@ -55,7 +54,7 @@ type ebpfModule struct {
 
 func (o *ebpfModule) Register(httpMux *module.Router) error {
 	// Limit concurrency to one as the probe check is not thread safe (mainly in the entry count buffers)
-	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
+	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, _ *http.Request) {
 		o.lastCheck.Store(time.Now().Unix())
 		stats := o.Probe.GetAndFlush()
 		utils.WriteAsJSON(w, stats)

@@ -7,6 +7,7 @@ package serializerexporter
 
 import (
 	"context"
+	"sync"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry"
@@ -28,8 +29,9 @@ const (
 type factory struct {
 	s          serializer.MetricSerializer
 	enricher   tagenricher
-	hostGetter sourceProviderFunc
+	hostGetter SourceProviderFunc
 	statsIn    chan []byte
+	wg         *sync.WaitGroup // waits for consumeStatsPayload to exit
 }
 
 type tagenricher interface {
@@ -38,12 +40,13 @@ type tagenricher interface {
 }
 
 // NewFactory creates a new serializer exporter factory.
-func NewFactory(s serializer.MetricSerializer, enricher tagenricher, hostGetter func(context.Context) (string, error), statsIn chan []byte) exp.Factory {
+func NewFactory(s serializer.MetricSerializer, enricher tagenricher, hostGetter func(context.Context) (string, error), statsIn chan []byte, wg *sync.WaitGroup) exp.Factory {
 	f := &factory{
 		s:          s,
 		enricher:   enricher,
 		hostGetter: hostGetter,
 		statsIn:    statsIn,
+		wg:         wg,
 	}
 	cfgType, _ := component.NewType(TypeStr)
 
@@ -55,7 +58,7 @@ func NewFactory(s serializer.MetricSerializer, enricher tagenricher, hostGetter 
 }
 
 // createMetricsExporter creates a new metrics exporter.
-func (f *factory) createMetricExporter(ctx context.Context, params exp.CreateSettings, c component.Config) (exp.Metrics, error) {
+func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings, c component.Config) (exp.Metrics, error) {
 	cfg := c.(*ExporterConfig)
 
 	// TODO: Ideally the attributes translator would be created once and reused
@@ -77,6 +80,9 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.CreateSet
 		// the metrics remapping code mutates data
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: true}),
 		exporterhelper.WithShutdown(func(context.Context) error {
+			if f.wg != nil {
+				f.wg.Wait() // wait for consumeStatsPayload to exit
+			}
 			if f.statsIn != nil {
 				close(f.statsIn)
 			}

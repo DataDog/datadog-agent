@@ -1,17 +1,16 @@
 from __future__ import annotations
 
 import os
-import platform
 import sys
 from typing import TYPE_CHECKING
 
 import invoke.exceptions as ie
 from invoke.context import Context
 
-from tasks.kernel_matrix_testing.vars import arch_mapping
+from tasks.libs.types.arch import Arch
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import Arch, PathOrStr
+    from tasks.kernel_matrix_testing.types import KMTArchName, KMTArchNameOrLocal, PathOrStr
 
 try:
     from termcolor import colored
@@ -59,12 +58,6 @@ def is_root():
     return os.getuid() == 0
 
 
-def full_arch(arch: str):
-    if arch == "local":
-        return arch_mapping[platform.machine()]
-    return arch_mapping[arch]
-
-
 def get_binary_target_arch(ctx: Context, file: PathOrStr) -> Arch | None:
     res = ctx.run(f"file {file}")
     if res is None or not res.ok:
@@ -74,10 +67,19 @@ def get_binary_target_arch(ctx: Context, file: PathOrStr) -> Arch | None:
     if 'executable' not in res.stdout:
         return None
 
+    # Second field of the file output is the architecture, get a standard
     # Get a standard value if possible
     words = [x.strip(",.") for x in res.stdout.split(" ")]
     for word in words:
-        if word in arch_mapping:
-            return arch_mapping[word]
+        try:
+            return Arch.from_str(word)
+        except KeyError:
+            pass
 
     return None
+
+
+def convert_kmt_arch_or_local(arch: KMTArchNameOrLocal) -> KMTArchName:
+    if arch == "local":
+        return Arch.local().kmt_arch
+    return arch

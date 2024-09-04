@@ -30,8 +30,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
+	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -39,7 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
@@ -49,7 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -62,6 +62,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
@@ -128,7 +129,9 @@ type cliParams struct {
 // are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
 	ConfFilePath         string
+	ExtraConfFilePaths   []string
 	SysProbeConfFilePath string
+	FleetPoliciesDirPath string
 	ConfigName           string
 	LoggerName           string
 }
@@ -149,44 +152,41 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			}
 			cliParams.cmd = cmd
 			cliParams.args = args
+
+			eventplatforParams := eventplatformimpl.NewDefaultParams()
+			eventplatforParams.UseNoopEventPlatformForwarder = true
+
 			disableCmdPort()
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName)),
+					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName), config.WithExtraConfFiles(globalParams.ExtraConfFilePaths), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams:         secrets.NewEnabledParams(),
-					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-					LogParams:            logimpl.ForOneShot(globalParams.LoggerName, "off", true)}),
+					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+					LogParams:            log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
 
 				// workloadmeta setup
-				collectors.GetCatalog(),
-				fx.Provide(defaults.DefaultParams),
-				workloadmetafx.Module(),
+				wmcatalog.GetCatalog(),
+				workloadmetafx.Module(defaults.DefaultParams()),
 				apiimpl.Module(),
 				authtokenimpl.Module(),
 				fx.Supply(context.Background()),
 				fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 				taggerimpl.Module(),
 				autodiscoveryimpl.Module(),
-				forwarder.Bundle(),
+				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithNoopForwarder())),
 				inventorychecksimpl.Module(),
 				// inventorychecksimpl depends on a collector and serializer when created to send payload.
 				// Here we just want to collect metadata to be displayed, so we don't need a collector.
 				collector.NoneModule(),
 				fx.Supply(status.NewInformationProvider(statuscollector.Provider{})),
 				fx.Provide(func() serializer.MetricSerializer { return nil }),
-				fx.Supply(defaultforwarder.Params{UseNoopForwarder: true}),
 				compressionimpl.Module(),
 				demultiplexerimpl.Module(),
 				orchestratorForwarderImpl.Module(),
 				fx.Supply(orchestratorForwarderImpl.NewNoopParams()),
-				eventplatformimpl.Module(),
-				fx.Provide(func() eventplatformimpl.Params {
-					params := eventplatformimpl.NewDefaultParams()
-					params.UseNoopEventPlatformForwarder = true
-					return params
-				}),
+				eventplatformimpl.Module(eventplatforParams),
 				eventplatformreceiverimpl.Module(),
 				fx.Provide(func() demultiplexerimpl.Params {
 					// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
@@ -211,6 +211,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(optional.NewNoneOption[rcservice.Component]()),
 				fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
 				fx.Supply(optional.NewNoneOption[logagent.Component]()),
+				fx.Supply(optional.NewNoneOption[integrations.Component]()),
 				fx.Provide(func() server.Component { return nil }),
 				fx.Provide(func() replay.Component { return nil }),
 				fx.Provide(func() pidmap.Component { return nil }),
@@ -237,8 +238,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cmd.Flags().UintVarP(&cliParams.discoveryTimeout, "discovery-timeout", "", 5, "max retry duration until Autodiscovery resolves the check template (in seconds)")
 	cmd.Flags().UintVarP(&cliParams.discoveryRetryInterval, "discovery-retry-interval", "", 1, "(unused)")
 	cmd.Flags().UintVarP(&cliParams.discoveryMinInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
-
-	pkgconfig.Datadog().BindPFlag("cmd.check.fullsketches", cmd.Flags().Lookup("full-sketches")) //nolint:errcheck
 
 	// Power user flags - mark as hidden
 	createHiddenStringFlag(cmd, &cliParams.profileMemoryDir, "m-dir", "", "an existing directory in which to store memory profiling data, ignoring clean-up")
@@ -272,6 +271,7 @@ func run(
 	collector optional.Option[collector.Component],
 	jmxLogger jmxlogger.Component,
 	telemetry telemetry.Component,
+	logReceiver optional.Option[integrations.Component],
 ) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
@@ -304,7 +304,7 @@ func run(
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
-	pkgcollector.InitCheckScheduler(collector, demultiplexer)
+	pkgcollector.InitCheckScheduler(collector, demultiplexer, logReceiver)
 
 	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
@@ -328,11 +328,11 @@ func run(
 			fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
 			selectedChecks := []string{cliParams.checkName}
 			if cliParams.checkRate {
-				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, demultiplexer, agentAPI, jmxLogger); err != nil {
+				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, agentAPI, jmxLogger); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			} else {
-				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, demultiplexer, agentAPI, jmxLogger); err != nil {
+				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, agentAPI, jmxLogger); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			}

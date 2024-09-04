@@ -20,6 +20,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -67,7 +69,7 @@ func GetFxOptions() fx.Option {
 
 // Start tries to connect to the kubelet, the DCA and the API Server if the DCA is not available.
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
-	if !config.IsFeaturePresent(config.Kubernetes) {
+	if !env.IsFeaturePresent(env.Kubernetes) {
 		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}
 
@@ -114,8 +116,10 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 	}
 
 	c.updateFreq = time.Duration(config.Datadog().GetInt("kubernetes_metadata_tag_update_freq")) * time.Second
-	c.collectNamespaceLabels = len(config.Datadog().GetStringMapString("kubernetes_namespace_labels_as_tags")) > 0
-	c.collectNamespaceAnnotations = len(config.Datadog().GetStringMapString("kubernetes_namespace_annotations_as_tags")) > 0
+
+	metadataAsTags := configutils.GetMetadataAsTags(config.Datadog())
+	c.collectNamespaceLabels = len(metadataAsTags.GetNamespaceLabelsAsTags()) > 0
+	c.collectNamespaceAnnotations = len(metadataAsTags.GetNamespaceAnnotationsAsTags()) > 0
 
 	return err
 }
@@ -207,6 +211,10 @@ func (c *collector) parsePods(
 		}
 	}
 
+	// To get metadata/labels once per namespace.
+	metadataByNS := make(map[string]*clusteragent.Metadata)
+	labelsByNS := make(map[string]map[string]string)
+
 	for _, pod := range pods {
 		if pod.Metadata.UID == "" {
 			continue
@@ -238,10 +246,14 @@ func (c *collector) parsePods(
 
 		if c.isDCAEnabled() && c.dcaClient.SupportsNamespaceMetadataCollection() {
 			// Cluster agent with version 7.55+
-			var nsMetadata *clusteragent.Metadata
-			nsMetadata, err = c.getNamespaceMetadata(pod.Metadata.Namespace)
-			if err != nil {
-				log.Errorf("Could not fetch namespace metadata for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
+			nsMetadata, ok := metadataByNS[pod.Metadata.Namespace]
+			if !ok {
+				nsMetadata, err = c.getNamespaceMetadata(pod.Metadata.Namespace)
+				if err == nil {
+					metadataByNS[pod.Metadata.Namespace] = nsMetadata
+				} else {
+					log.Errorf("Could not fetch namespace metadata for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
+				}
 			}
 
 			if nsMetadata != nil {
@@ -255,9 +267,15 @@ func (c *collector) parsePods(
 			}
 		} else {
 			// Cluster agent with version older than 7.55
-			nsLabels, err = c.getNamespaceLabels(pod.Metadata.Namespace)
-			if err != nil {
-				log.Errorf("Could not fetch namespace labels for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
+			var ok bool
+			nsLabels, ok = labelsByNS[pod.Metadata.Namespace]
+			if !ok {
+				nsLabels, err = c.getNamespaceLabels(pod.Metadata.Namespace)
+				if err == nil {
+					labelsByNS[pod.Metadata.Namespace] = nsLabels
+				} else {
+					log.Errorf("Could not fetch namespace labels for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
+				}
 			}
 
 			if c.collectNamespaceAnnotations {

@@ -6,6 +6,7 @@
 package verifier
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -17,7 +18,8 @@ var (
 	insnRegex           = regexp.MustCompile(`^([0-9]+): \([0-9a-f]+\) ([^;]*)\s*(; R[0-9]+.*)?`)
 	regStateRegex       = regexp.MustCompile(`^([0-9]+): (R[0-9]+.*)`)
 	singleRegStateRegex = regexp.MustCompile(`R([0-9]+)(_[^=]+)?=([^ ]+)`)
-	regInfoRegex        = regexp.MustCompile(`^([a-z_]+)?(P)?(-?[0-9]+|\((.*)\))`)
+	regInfoRegex        = regexp.MustCompile(`^(P)?([a-z_]+)?(P)?(-?[0-9]+|\((.*)\))`)
+	doubleWidthInsRegex = regexp.MustCompile(`r[0-9] = 0x[0-9a-f]{16}$`)
 )
 
 // verifierLogParser is a struct that maintains the state necessary to parse the verifier log
@@ -72,6 +74,8 @@ func (vlp *verifierLogParser) parseVerifierLog(log string) (*ComplexityInfo, err
 	return &vlp.complexity, nil
 }
 
+var errNotFound = errors.New("instruction not found")
+
 func (vlp *verifierLogParser) tryAttachRegisterState(regData string, insIdx int) error {
 	insinfo, ok := vlp.complexity.InsnMap[insIdx]
 	if !ok {
@@ -79,7 +83,7 @@ func (vlp *verifierLogParser) tryAttachRegisterState(regData string, insIdx int)
 		// the verifier outputs register state. For example, in some versions it will generate
 		// the state *before* each instruction, but we want the state *after* the instruction, and
 		// as such the first state we find (state before instruction 1) will have no match, for example.
-		return nil
+		return errNotFound
 	}
 
 	// For ease of parsing, replace certain patterns that introduce spaces and make parsing harder
@@ -111,7 +115,14 @@ func (vlp *verifierLogParser) parseLine(line string) error {
 
 		// Try attach the register state to the previous instruction
 		err = vlp.tryAttachRegisterState(match[2], regInsnIdx-1)
-		if err != nil {
+		if errors.Is(err, errNotFound) {
+			// The previous instruction was not found. Check if the previous one is double width, and try to attach to the one before that
+			// We need to do this because the instruction index jumps one when we have a double width instruction
+			if insinfo, ok := vlp.complexity.InsnMap[regInsnIdx-2]; ok && insinfo.IsDoubleWidth {
+				err = vlp.tryAttachRegisterState(match[2], regInsnIdx-2)
+			}
+		}
+		if err != nil && !errors.Is(err, errNotFound) {
 			return fmt.Errorf("failed to attach register state (line is '%s'): %w", line, err)
 		}
 		return nil
@@ -134,12 +145,13 @@ func (vlp *verifierLogParser) parseLine(line string) error {
 	if vlp.progSourceMap != nil {
 		insinfo.Source = vlp.progSourceMap[insIdx]
 	}
+	insinfo.IsDoubleWidth = doubleWidthInsRegex.MatchString(insinfo.Code)
 
 	// In some kernel versions (6.5 at least), the register state for the next instruction might be printed after this instruction
 	if len(match) >= 4 && match[3] != "" {
 		regData := match[3][2:] // Remove the leading "; "
 		err = vlp.tryAttachRegisterState(regData, insIdx)
-		if err != nil {
+		if err != nil && !errors.Is(err, errNotFound) {
 			return fmt.Errorf("Cannot attach register state to instruction %d: %w", insIdx, err)
 		}
 	}
@@ -204,7 +216,7 @@ func parseRegisterState(regMatch []string) (*RegisterState, error) {
 		return nil, fmt.Errorf("Cannot parse register value %v", regValue)
 	}
 
-	regType := regInfoGroups[1]
+	regType := regInfoGroups[2]
 	if regType == "inv" || regType == "" {
 		// Depending on the kernel version, we might see scalars represented either
 		// as "scalar" type, as "inv" type or as a raw number with no type
@@ -224,7 +236,7 @@ func parseRegisterState(regMatch []string) (*RegisterState, error) {
 		Live:     liveness,
 		Type:     regType,
 		Value:    regValue,
-		Precise:  regInfoGroups[2] == "P",
+		Precise:  regInfoGroups[1] == "P" || regInfoGroups[3] == "P", // depending on the kernel version, the precise marker might be before or after the type
 	}, nil
 }
 
@@ -232,8 +244,8 @@ func parseRegisterState(regMatch []string) (*RegisterState, error) {
 // human-readable value.
 func parseRegisterScalarValue(regInfoGroups []string) string {
 	// Scalar values are either a raw numeric value, or a list of key-value pairs within parenthesis
-	regRawValue := regInfoGroups[3]
-	regAttributes := regInfoGroups[4]
+	regRawValue := regInfoGroups[4]
+	regAttributes := regInfoGroups[5]
 
 	if regAttributes == "" {
 		if regRawValue == "()" {
@@ -247,7 +259,7 @@ func parseRegisterScalarValue(regInfoGroups []string) string {
 	maxValue := int64(0)
 	hasRange := false
 
-	for _, kv := range strings.Split(regInfoGroups[4], ",") {
+	for _, kv := range strings.Split(regInfoGroups[5], ",") {
 		kvParts := strings.Split(kv, "=")
 		if strings.Contains(kvParts[0], "min") {
 			// Ignore errors here, mostly due to sizes (can't parse UINT_MAX in INT64) and for now we don't care

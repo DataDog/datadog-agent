@@ -29,7 +29,6 @@ func ToProto(meta *Metadata) *adproto.Metadata {
 		Name:              meta.Name,
 		ProtobufVersion:   meta.ProtobufVersion,
 		DifferentiateArgs: meta.DifferentiateArgs,
-		Comm:              meta.Comm,
 		ContainerId:       meta.ContainerID,
 		Start:             activity_tree.TimestampToProto(&meta.Start),
 		End:               activity_tree.TimestampToProto(&meta.End),

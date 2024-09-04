@@ -15,14 +15,15 @@ import (
 	"sort"
 	"strings"
 
+	"go.uber.org/fx"
+
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/podman"
-
-	"go.uber.org/fx"
 )
 
 const (
@@ -62,7 +63,7 @@ func GetFxOptions() fx.Option {
 
 // Start the collector for the provided workloadmeta component
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
-	if !config.IsFeaturePresent(config.Podman) {
+	if !env.IsFeaturePresent(env.Podman) {
 		return dderrors.NewDisabled(componentName, "Podman not detected")
 	}
 

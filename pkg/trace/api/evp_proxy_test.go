@@ -161,6 +161,27 @@ func TestEVPProxyForwarder(t *testing.T) {
 		assert.Equal(t, "", logs)
 	})
 
+	t.Run("normalizedContainerTags", func(t *testing.T) {
+		conf := newTestReceiverConfig()
+		conf.Site = "us3.datadoghq.com"
+		conf.Endpoints[0].APIKey = "test_api_key"
+		conf.ContainerTags = func(cid string) ([]string, error) {
+			return []string{"container:" + cid, "key:\nval"}, nil
+		}
+
+		req := httptest.NewRequest("POST", "/mypath/mysubpath?arg=test", bytes.NewReader(randBodyBuf))
+		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
+		req.Header.Set(header.ContainerID, "myid")
+		proxyreqs, resp, logs := sendRequestThroughForwarderWithMockRoundTripper(conf, req, stats)
+
+		resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
+		require.Len(t, proxyreqs, 1)
+		assert.Equal(t, "container:myid,key:_val", proxyreqs[0].Header.Get("X-Datadog-Container-Tags"))
+		assert.Equal(t, "myid", proxyreqs[0].Header.Get(header.ContainerID))
+		assert.Equal(t, "", logs)
+	})
+
 	t.Run("dual-shipping", func(t *testing.T) {
 		conf := newTestReceiverConfig()
 		conf.Site = "us3.datadoghq.com"
@@ -449,7 +470,7 @@ func TestE2E(t *testing.T) {
 		conf.Site = "us3.datadoghq.com"
 		conf.Endpoints[0].APIKey = "test_api_key"
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Write([]byte(`OK`))
 		}))
 
@@ -469,9 +490,9 @@ func TestE2E(t *testing.T) {
 		conf := newTestReceiverConfig()
 		conf.Site = "us3.datadoghq.com"
 		conf.Endpoints[0].APIKey = "test_api_key"
-		conf.ReceiverTimeout = 1 // in seconds
+		conf.EVPProxy.ReceiverTimeout = 1 // in seconds
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			time.Sleep(2 * time.Second)
 			w.Write([]byte(`OK`))
 		}))

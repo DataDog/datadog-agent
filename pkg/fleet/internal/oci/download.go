@@ -8,12 +8,14 @@ package oci
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/awslabs/amazon-ecr-credential-helper/ecr-login"
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -24,6 +26,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/layout"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/types"
+	"golang.org/x/net/http2"
 	httptrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
@@ -55,7 +58,8 @@ const (
 )
 
 const (
-	layerMaxSize = 3 << 30 // 3GiB
+	layerMaxSize        = 3 << 30 // 3GiB
+	extractLayerRetries = 3
 )
 
 // DownloadedPackage is the downloaded package.
@@ -237,13 +241,30 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string)
 			return fmt.Errorf("could not get layer media type: %w", err)
 		}
 		if layerMediaType == mediaType {
-			uncompressedLayer, err := layer.Uncompressed()
-			if err != nil {
-				return fmt.Errorf("could not uncompress layer: %w", err)
-			}
-			err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
-			if err != nil {
-				return fmt.Errorf("could not extract layer: %w", err)
+			// Retry stream reset errors
+			for i := 0; i < extractLayerRetries; i++ {
+				if i > 0 {
+					time.Sleep(time.Second)
+				}
+				uncompressedLayer, err := layer.Uncompressed()
+				if err != nil {
+					return fmt.Errorf("could not uncompress layer: %w", err)
+				}
+				err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
+				uncompressedLayer.Close()
+				if err != nil {
+					if !isStreamResetError(err) {
+						return fmt.Errorf("could not extract layer: %w", err)
+					}
+					log.Warnf("stream error while extracting layer, retrying")
+					// Clean up the directory before retrying to avoid partial extraction
+					err = tar.Clean(dir)
+					if err != nil {
+						return fmt.Errorf("could not clean directory: %w", err)
+					}
+				} else {
+					break
+				}
 			}
 		}
 	}
@@ -271,4 +292,24 @@ func PackageURL(env *env.Env, pkg string, version string) string {
 	default:
 		return fmt.Sprintf("oci://gcr.io/datadoghq/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
 	}
+}
+
+// isStreamResetError returns true if the given error is a stream reset error.
+// Sometimes, in GCR, the tar extract fails with "stream error: stream ID x; INTERNAL_ERROR; received from peer".
+// This happens because the uncompressed layer reader is a http/2 response body under the hood. That body is
+// streamed and receives a "reset stream frame", with the code 0x2 (INTERNAL_ERROR). This is an error from the server
+// that we need to retry.
+func isStreamResetError(err error) bool {
+	if err == nil {
+		return false
+	}
+	serr := http2.StreamError{}
+	if errors.As(err, &serr) {
+		return serr.Code == http2.ErrCodeInternal
+	}
+	serrp := &http2.StreamError{}
+	if errors.As(err, &serrp) {
+		return serrp.Code == http2.ErrCodeInternal
+	}
+	return false
 }

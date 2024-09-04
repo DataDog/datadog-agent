@@ -32,6 +32,8 @@ import (
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
@@ -108,8 +110,8 @@ func TestSuiteAPIServer(t *testing.T) {
 			os.Remove(getApiserverComposePath(tt.version))
 		}()
 
-		mockConfig := config.Mock(t)
-		config.SetFeatures(t, config.Kubernetes)
+		mockConfig := configmock.New(t)
+		config.SetFeatures(t, env.Kubernetes)
 		mockConfig.SetWithoutSource("leader_election_default_resource", tt.leaderElectionDefaultResource)
 
 		// Start compose stack

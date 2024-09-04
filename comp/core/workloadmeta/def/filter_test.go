@@ -10,8 +10,51 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
+func TestIsNodeMetadata(t *testing.T) {
+
+	tests := []struct {
+		name                 string
+		metadataEntity       KubernetesMetadata
+		shouldBeNodeMetadata bool
+	}{
+		{
+			name: "node metadata",
+			metadataEntity: KubernetesMetadata{
+				GVR: &schema.GroupVersionResource{
+					Version:  "v1",
+					Resource: "nodes",
+				},
+			},
+			shouldBeNodeMetadata: true,
+		},
+
+		{
+			name: "node metadata, but not native group",
+			metadataEntity: KubernetesMetadata{
+				GVR: &schema.GroupVersionResource{
+					Group:    "customgroup",
+					Version:  "v1",
+					Resource: "nodes",
+				},
+			},
+			shouldBeNodeMetadata: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			if test.shouldBeNodeMetadata {
+				assert.True(tt, IsNodeMetadata(&test.metadataEntity))
+			} else {
+				assert.False(tt, IsNodeMetadata(&test.metadataEntity))
+			}
+		})
+	}
+
+}
 func TestFilterBuilder_Build(t *testing.T) {
 	dummyEntityFilterFunc := func(entity Entity) bool {
 		return len(entity.GetID().ID) == 5
@@ -251,7 +294,7 @@ func TestFilter_MatchEntity(t *testing.T) {
 		},
 		{
 			name: "unmatched entity due to entity filter func returning false",
-			filter: &Filter{kinds: map[Kind]GenericEntityFilterFunc{KindContainer: func(entity Entity) bool {
+			filter: &Filter{kinds: map[Kind]GenericEntityFilterFunc{KindContainer: func(_ Entity) bool {
 				return false
 			}}},
 			entity: &Container{
@@ -297,6 +340,17 @@ func TestFilter_MatchEntity(t *testing.T) {
 				},
 			},
 			expectMatch: false,
+		},
+		{
+			name:   "a nil entity filter func should match",
+			filter: &Filter{kinds: map[Kind]GenericEntityFilterFunc{KindContainer: nil}},
+			entity: &Container{
+				EntityID: EntityID{
+					ID:   "cont-d",
+					Kind: KindContainer,
+				},
+			},
+			expectMatch: true,
 		},
 	}
 

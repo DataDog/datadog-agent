@@ -56,7 +56,7 @@ func (s *mockServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 	for _, response := range s.responses {
 		err := out.Send(response)
 		if err != nil {
-			panic(err)
+			return err
 		}
 	}
 
@@ -249,10 +249,7 @@ func TestCollection(t *testing.T) {
 			mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				core.MockBundle(),
 				fx.Replace(config.MockParams{Overrides: overrides}),
-				fx.Supply(workloadmeta.Params{
-					AgentType: workloadmeta.Remote,
-				}),
-				workloadmetafxmock.MockModuleV2(),
+				workloadmetafxmock.MockModule(workloadmeta.Params{AgentType: workloadmeta.Remote}),
 			))
 
 			time.Sleep(time.Second)
@@ -272,7 +269,6 @@ func TestCollection(t *testing.T) {
 				err := grpcServer.Serve(lis)
 				require.NoError(t, err)
 			}()
-			defer grpcServer.Stop()
 
 			_, portStr, err := net.SplitHostPort(lis.Addr().String())
 			require.NoError(t, err)
@@ -315,6 +311,7 @@ func TestCollection(t *testing.T) {
 			}
 
 			mockStore.Unsubscribe(ch)
+			grpcServer.Stop()
 			cancel()
 
 			// Verify final state

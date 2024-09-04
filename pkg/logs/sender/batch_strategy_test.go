@@ -20,7 +20,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsFull(t *testing.T) {
 	output := make(chan *message.Payload)
 	flushChan := make(chan struct{})
 
-	s := NewBatchStrategy(input, output, flushChan, LineSerializer, 100*time.Millisecond, 2, 2, "test", &identityContentType{})
+	s := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, 100*time.Millisecond, 2, 2, "test", &identityContentType{})
 	s.Start()
 
 	message1 := message.NewMessage([]byte("a"), nil, "", 0)
@@ -52,7 +52,7 @@ func TestBatchStrategySendsPayloadWhenBufferIsOutdated(t *testing.T) {
 	timerInterval := 100 * time.Millisecond
 
 	clk := clock.NewMock()
-	s := newBatchStrategyWithClock(input, output, flushChan, LineSerializer, timerInterval, 100, 100, "test", clk, &identityContentType{})
+	s := newBatchStrategyWithClock(input, output, flushChan, false, nil, LineSerializer, timerInterval, 100, 100, "test", clk, &identityContentType{})
 	s.Start()
 
 	for round := 0; round < 3; round++ {
@@ -77,7 +77,7 @@ func TestBatchStrategySendsPayloadWhenClosingInput(t *testing.T) {
 	flushChan := make(chan struct{})
 
 	clk := clock.NewMock()
-	s := newBatchStrategyWithClock(input, output, flushChan, LineSerializer, 100*time.Millisecond, 2, 2, "test", clk, &identityContentType{})
+	s := newBatchStrategyWithClock(input, output, flushChan, false, nil, LineSerializer, 100*time.Millisecond, 2, 2, "test", clk, &identityContentType{})
 	s.Start()
 
 	message := message.NewMessage([]byte("a"), nil, "", 0)
@@ -102,7 +102,7 @@ func TestBatchStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
 	output := make(chan *message.Payload)
 	flushChan := make(chan struct{})
 
-	s := NewBatchStrategy(input, output, flushChan, LineSerializer, 100*time.Millisecond, 2, 2, "test", &identityContentType{})
+	s := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, 100*time.Millisecond, 2, 2, "test", &identityContentType{})
 	s.Start()
 	message := message.NewMessage([]byte{}, nil, "", 0)
 
@@ -126,7 +126,7 @@ func TestBatchStrategySynchronousFlush(t *testing.T) {
 
 	// batch size is large so it will not flush until we trigger it manually
 	// flush time is large so it won't automatically trigger during this test
-	strategy := NewBatchStrategy(input, output, flushChan, LineSerializer, time.Hour, 100, 100, "test", &identityContentType{})
+	strategy := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, time.Hour, 100, 100, "test", &identityContentType{})
 	strategy.Start()
 
 	// all of these messages will get buffered
@@ -171,7 +171,7 @@ func TestBatchStrategyFlushChannel(t *testing.T) {
 
 	// batch size is large so it will not flush until we trigger it manually
 	// flush time is large so it won't automatically trigger during this test
-	strategy := NewBatchStrategy(input, output, flushChan, LineSerializer, time.Hour, 100, 100, "test", &identityContentType{})
+	strategy := NewBatchStrategy(input, output, flushChan, false, nil, LineSerializer, time.Hour, 100, 100, "test", &identityContentType{})
 	strategy.Start()
 
 	// all of these messages will get buffered

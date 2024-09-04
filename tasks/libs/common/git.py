@@ -1,10 +1,33 @@
 from __future__ import annotations
 
-import os.path
+import os
+import tempfile
+from contextlib import contextmanager
 from typing import TYPE_CHECKING
+
+from invoke.exceptions import Exit
+
+from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.constants import DEFAULT_BRANCH
+from tasks.libs.common.user_interactions import yes_no_question
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+
+
+@contextmanager
+def clone(ctx, repo, branch, options=""):
+    """
+    Context manager to clone a git repository and checkout a specific branch.
+    """
+    current_dir = os.getcwd()
+    try:
+        with tempfile.TemporaryDirectory() as clone_dir:
+            ctx.run(f"git clone -b {branch} {options} https://github.com/DataDog/{repo} {clone_dir}")
+            os.chdir(clone_dir)
+            yield
+    finally:
+        os.chdir(current_dir)
 
 
 def get_staged_files(ctx, commit="HEAD", include_deleted_files=False) -> Iterable[str]:
@@ -22,13 +45,17 @@ def get_staged_files(ctx, commit="HEAD", include_deleted_files=False) -> Iterabl
                 yield file
 
 
-def get_modified_files(ctx) -> list[str]:
-    last_main_commit = ctx.run("git merge-base HEAD origin/main", hide=True).stdout
+def get_modified_files(ctx, base_branch="main") -> list[str]:
+    last_main_commit = ctx.run(f"git merge-base HEAD origin/{base_branch}", hide=True).stdout
     return ctx.run(f"git diff --name-only --no-renames {last_main_commit}", hide=True).stdout.splitlines()
 
 
 def get_current_branch(ctx) -> str:
     return ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+
+
+def get_common_ancestor(ctx, branch) -> str:
+    return ctx.run(f"git merge-base {branch} main", hide=True).stdout.strip()
 
 
 def check_uncommitted_changes(ctx):
@@ -53,3 +80,109 @@ def check_local_branch(ctx, branch):
 
 def get_commit_sha(ctx, commit="HEAD", short=False) -> str:
     return ctx.run(f"git rev-parse {'--short ' if short else ''}{commit}", hide=True).stdout.strip()
+
+
+def get_main_parent_commit(ctx) -> str:
+    """
+    Get the commit sha your current branch originated from
+    """
+    return ctx.run("git merge-base HEAD origin/main", hide=True).stdout.strip()
+
+
+def check_base_branch(branch, release_version):
+    """
+    Checks if the given branch is either the default branch or the release branch associated
+    with the given release version.
+    """
+    return branch == DEFAULT_BRANCH or branch == release_version.branch()
+
+
+def try_git_command(ctx, git_command):
+    """
+    Try a git command that should be retried (after user confirmation) if it fails.
+    Primarily useful for commands which can fail if commit signing fails: we don't want the
+    whole workflow to fail if that happens, we want to retry.
+    """
+
+    do_retry = True
+
+    while do_retry:
+        res = ctx.run(git_command, warn=True)
+        if res.exited is None or res.exited > 0:
+            print(
+                color_message(
+                    f"Failed to run \"{git_command}\" (did the commit/tag signing operation fail?)",
+                    "orange",
+                )
+            )
+            do_retry = yes_no_question("Do you want to retry this operation?", color="orange", default=True)
+            continue
+
+        return True
+
+    return False
+
+
+def check_clean_branch_state(ctx, github, branch):
+    """
+    Check we are in a clean situation to create a new branch:
+    No uncommitted change, and branch doesn't exist locally or upstream
+    """
+    if check_uncommitted_changes(ctx):
+        raise Exit(
+            color_message(
+                "There are uncomitted changes in your repository. Please commit or stash them before trying again.",
+                "red",
+            ),
+            code=1,
+        )
+    if check_local_branch(ctx, branch):
+        raise Exit(
+            color_message(
+                f"The branch {branch} already exists locally. Please remove it before trying again.",
+                "red",
+            ),
+            code=1,
+        )
+
+    if github.get_branch(branch) is not None:
+        raise Exit(
+            color_message(
+                f"The branch {branch} already exists upstream. Please remove it before trying again.",
+                "red",
+            ),
+            code=1,
+        )
+
+
+def get_last_commit(ctx, repo, branch):
+    # Repo is only the repo name, e.g. "datadog-agent"
+    return (
+        ctx.run(
+            rf'git ls-remote -h https://github.com/DataDog/{repo} "refs/heads/{branch}"',
+            hide=True,
+        )
+        .stdout.strip()
+        .split()[0]
+    )
+
+
+def get_last_tag(ctx, repo, pattern):
+    tags = ctx.run(
+        rf'git ls-remote -t https://github.com/DataDog/{repo} "{pattern}"',
+        hide=True,
+    ).stdout.strip()
+    if not tags:
+        raise Exit(
+            color_message(
+                f"No tag found for pattern {pattern} in {repo}",
+                Color.RED,
+            ),
+            code=1,
+        )
+    last_tag = tags.splitlines()[-1]
+    last_tag_commit, last_tag_name = last_tag.split()
+    if last_tag_name.endswith("^{}"):
+        last_tag_name = last_tag_name.removesuffix("^{}")
+    last_tag_name = last_tag_name.removeprefix("refs/tags/")
+    return last_tag_commit, last_tag_name

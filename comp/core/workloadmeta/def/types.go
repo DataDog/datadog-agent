@@ -42,10 +42,8 @@ type Kind string
 const (
 	KindContainer              Kind = "container"
 	KindKubernetesPod          Kind = "kubernetes_pod"
-	KindKubernetesNode         Kind = "kubernetes_node"
 	KindKubernetesMetadata     Kind = "kubernetes_metadata"
 	KindKubernetesDeployment   Kind = "kubernetes_deployment"
-	KindKubernetesNamespace    Kind = "kubernetes_namespace"
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
@@ -90,6 +88,10 @@ const (
 
 	// SourceHost represents entities detected by the host such as host tags.
 	SourceHost Source = "host"
+
+	// SourceLocalProcessCollector reprents processes entities detected
+	// by the LocalProcessCollector.
+	SourceLocalProcessCollector Source = "local_process_collector"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -578,7 +580,6 @@ func (c Container) String(verbose bool) string {
 	_, _ = fmt.Fprint(&sb, c.Resources.String(verbose))
 
 	if verbose {
-		_, _ = fmt.Fprintln(&sb, "Allowed env variables:", filterAndFormatEnvVars(c.EnvVars))
 		_, _ = fmt.Fprintln(&sb, "Hostname:", c.Hostname)
 		_, _ = fmt.Fprintln(&sb, "Network IPs:", mapToString(c.NetworkIPs))
 		_, _ = fmt.Fprintln(&sb, "PID:", c.PID)
@@ -671,6 +672,7 @@ type KubernetesPod struct {
 	IP                         string
 	PriorityClass              string
 	QOSClass                   string
+	RuntimeClass               string
 	KubeServices               []string
 	NamespaceLabels            map[string]string
 	NamespaceAnnotations       map[string]string
@@ -737,6 +739,7 @@ func (p KubernetesPod) String(verbose bool) string {
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Priority Class:", p.PriorityClass)
 		_, _ = fmt.Fprintln(&sb, "QOS Class:", p.QOSClass)
+		_, _ = fmt.Fprintln(&sb, "Runtime Class:", p.RuntimeClass)
 		_, _ = fmt.Fprintln(&sb, "PVCs:", sliceToString(p.PersistentVolumeClaimNames))
 		_, _ = fmt.Fprintln(&sb, "Kube Services:", sliceToString(p.KubeServices))
 		_, _ = fmt.Fprintln(&sb, "Namespace Labels:", mapToString(p.NamespaceLabels))
@@ -782,11 +785,14 @@ func (o KubernetesPodOwner) String(verbose bool) string {
 	return sb.String()
 }
 
+// KubeMetadataEntityID is a unique ID for Kube Metadata Entity
+type KubeMetadataEntityID string
+
 // KubernetesMetadata is an Entity representing kubernetes resource metadata
 type KubernetesMetadata struct {
 	EntityID
 	EntityMeta
-	GVR schema.GroupVersionResource
+	GVR *schema.GroupVersionResource
 }
 
 // GetID implements Entity#GetID.
@@ -821,7 +827,7 @@ func (m *KubernetesMetadata) String(verbose bool) string {
 
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "----------- Resource -----------")
-		_, _ = fmt.Fprint(&sb, m.GVR.String())
+		_, _ = fmt.Fprintln(&sb, m.GVR.String())
 	}
 
 	return sb.String()
@@ -829,50 +835,10 @@ func (m *KubernetesMetadata) String(verbose bool) string {
 
 var _ Entity = &KubernetesMetadata{}
 
-// KubernetesNode is an Entity representing a Kubernetes Node.
-type KubernetesNode struct {
-	EntityID
-	EntityMeta
-}
-
-// GetID implements Entity#GetID.
-func (n *KubernetesNode) GetID() EntityID {
-	return n.EntityID
-}
-
-// Merge implements Entity#Merge.
-func (n *KubernetesNode) Merge(e Entity) error {
-	nn, ok := e.(*KubernetesNode)
-	if !ok {
-		return fmt.Errorf("cannot merge KubernetesNode with different kind %T", e)
-	}
-
-	return merge(n, nn)
-}
-
-// DeepCopy implements Entity#DeepCopy.
-func (n KubernetesNode) DeepCopy() Entity {
-	cn := deepcopy.Copy(n).(KubernetesNode)
-	return &cn
-}
-
-// String implements Entity#String
-func (n KubernetesNode) String(verbose bool) string {
-	var sb strings.Builder
-	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
-	_, _ = fmt.Fprintln(&sb, n.EntityID.String(verbose))
-
-	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
-	_, _ = fmt.Fprint(&sb, n.EntityMeta.String(verbose))
-
-	return sb.String()
-}
-
-var _ Entity = &KubernetesNode{}
-
 // KubernetesDeployment is an Entity representing a Kubernetes Deployment.
 type KubernetesDeployment struct {
 	EntityID
+	EntityMeta
 	Env     string
 	Service string
 	Version string
@@ -912,6 +878,8 @@ func (d KubernetesDeployment) String(verbose bool) string {
 	var sb strings.Builder
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
 	_, _ = fmt.Fprintln(&sb, d.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, d.EntityMeta.String(verbose))
 	_, _ = fmt.Fprintln(&sb, "----------- Unified Service Tagging -----------")
 	_, _ = fmt.Fprintln(&sb, "Env :", d.Env)
 	_, _ = fmt.Fprintln(&sb, "Service :", d.Service)
@@ -956,47 +924,6 @@ func (d KubernetesDeployment) String(verbose bool) string {
 }
 
 var _ Entity = &KubernetesDeployment{}
-
-// KubernetesNamespace is an Entity representing a Kubernetes Namespace.
-type KubernetesNamespace struct {
-	EntityID
-	EntityMeta
-}
-
-// GetID implements Entity#GetID.
-func (n *KubernetesNamespace) GetID() EntityID {
-	return n.EntityID
-}
-
-// Merge implements Entity#Merge.
-func (n *KubernetesNamespace) Merge(e Entity) error {
-	nn, ok := e.(*KubernetesNamespace)
-	if !ok {
-		return fmt.Errorf("cannot merge KubernetesNamespace with different kind %T", e)
-	}
-
-	return merge(n, nn)
-}
-
-// DeepCopy implements Entity#DeepCopy.
-func (n KubernetesNamespace) DeepCopy() Entity {
-	cn := deepcopy.Copy(n).(KubernetesNamespace)
-	return &cn
-}
-
-// String implements Entity#String
-func (n KubernetesNamespace) String(verbose bool) string {
-	var sb strings.Builder
-	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
-	_, _ = fmt.Fprintln(&sb, n.EntityID.String(verbose))
-
-	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
-	_, _ = fmt.Fprint(&sb, n.EntityMeta.String(verbose))
-
-	return sb.String()
-}
-
-var _ Entity = &KubernetesNamespace{}
 
 // ECSTaskKnownStatusStopped is the known status of an ECS task that has stopped.
 const ECSTaskKnownStatusStopped = "STOPPED"
@@ -1254,7 +1181,7 @@ func (p *Process) Merge(e Entity) error {
 }
 
 // String implements Entity#String.
-func (p Process) String(verbose bool) string { //nolint:revive // TODO fix revive unused-parameter
+func (p Process) String(_ bool) string {
 	var sb strings.Builder
 
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")

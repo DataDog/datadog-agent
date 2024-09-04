@@ -91,6 +91,12 @@ const (
 	SyscallsEventType
 	// IMDSEventType is sent when an IMDS request or qnswer is captured
 	IMDSEventType
+	// OnDemandEventType is sent for on-demand events
+	OnDemandEventType
+	// LoginUIDWriteEventType is sent for login_uid write events
+	LoginUIDWriteEventType
+	// CgroupWriteEventType is sent when a new cgroup was created
+	CgroupWriteEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -140,6 +146,7 @@ const (
 	DeleteRegistryKeyEventType
 	// ChangePermissionEventType event
 	ChangePermissionEventType
+
 	// MaxAllEventType is used internally to get the maximum number of events.
 	MaxAllEventType
 )
@@ -226,6 +233,8 @@ func (t EventType) String() string {
 		return "syscalls"
 	case IMDSEventType:
 		return "imds"
+	case OnDemandEventType:
+		return "ondemand"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"
@@ -255,6 +264,8 @@ func (t EventType) String() string {
 		return "delete_key"
 	case ChangePermissionEventType:
 		return "change_permission"
+	case LoginUIDWriteEventType:
+		return "login_uid_write"
 	default:
 		return "unknown"
 	}

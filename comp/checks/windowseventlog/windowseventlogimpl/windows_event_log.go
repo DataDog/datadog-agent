@@ -39,7 +39,7 @@ type dependencies struct {
 
 func newComp(deps dependencies) windowseventlog.Component {
 	deps.Lifecycle.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
+		OnStart: func(_ context.Context) error {
 			core.RegisterCheck(check.CheckName, check.Factory(deps.LogsComponent, deps.Config))
 			return nil
 		},

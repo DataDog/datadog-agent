@@ -9,6 +9,7 @@ package env
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -19,10 +20,15 @@ const (
 	envAPIKey                = "DD_API_KEY"
 	envSite                  = "DD_SITE"
 	envRemoteUpdates         = "DD_REMOTE_UPDATES"
+	envRemotePolicies        = "DD_REMOTE_POLICIES"
 	envRegistryURL           = "DD_INSTALLER_REGISTRY_URL"
 	envRegistryAuth          = "DD_INSTALLER_REGISTRY_AUTH"
 	envDefaultPackageVersion = "DD_INSTALLER_DEFAULT_PKG_VERSION"
 	envDefaultPackageInstall = "DD_INSTALLER_DEFAULT_PKG_INSTALL"
+	envApmLibraries          = "DD_APM_INSTRUMENTATION_LIBRARIES"
+	envAgentMajorVersion     = "DD_AGENT_MAJOR_VERSION"
+	envAgentMinorVersion     = "DD_AGENT_MINOR_VERSION"
+	envApmLanguages          = "DD_APM_INSTRUMENTATION_LANGUAGES"
 )
 
 var defaultEnv = Env{
@@ -43,11 +49,18 @@ var defaultEnv = Env{
 	},
 }
 
+// ApmLibLanguage is a language defined in DD_APM_INSTRUMENTATION_LIBRARIES env var
+type ApmLibLanguage string
+
+// ApmLibVersion is the version of the library defined in DD_APM_INSTRUMENTATION_LIBRARIES env var
+type ApmLibVersion string
+
 // Env contains the configuration for the installer.
 type Env struct {
-	APIKey        string
-	Site          string
-	RemoteUpdates bool
+	APIKey         string
+	Site           string
+	RemoteUpdates  bool
+	RemotePolicies bool
 
 	RegistryOverride            string
 	RegistryAuthOverride        string
@@ -57,23 +70,34 @@ type Env struct {
 	DefaultPackagesInstallOverride map[string]bool
 	DefaultPackagesVersionOverride map[string]string
 
+	ApmLibraries map[ApmLibLanguage]ApmLibVersion
+
+	AgentMajorVersion string
+	AgentMinorVersion string
+
 	InstallScript InstallScriptEnv
 }
 
 // FromEnv returns an Env struct with values from the environment.
 func FromEnv() *Env {
 	return &Env{
-		APIKey:        getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
-		Site:          getEnvOrDefault(envSite, defaultEnv.Site),
-		RemoteUpdates: os.Getenv(envRemoteUpdates) == "true",
+		APIKey:         getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
+		Site:           getEnvOrDefault(envSite, defaultEnv.Site),
+		RemoteUpdates:  strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
+		RemotePolicies: strings.ToLower(os.Getenv(envRemotePolicies)) == "true",
 
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
 		RegistryAuthOverride:        getEnvOrDefault(envRegistryAuth, defaultEnv.RegistryAuthOverride),
 		RegistryOverrideByImage:     overridesByNameFromEnv(envRegistryURL, func(s string) string { return s }),
 		RegistryAuthOverrideByImage: overridesByNameFromEnv(envRegistryAuth, func(s string) string { return s }),
 
-		DefaultPackagesInstallOverride: overridesByNameFromEnv(envDefaultPackageInstall, func(s string) bool { return s == "true" }),
+		DefaultPackagesInstallOverride: overridesByNameFromEnv(envDefaultPackageInstall, func(s string) bool { return strings.ToLower(s) == "true" }),
 		DefaultPackagesVersionOverride: overridesByNameFromEnv(envDefaultPackageVersion, func(s string) string { return s }),
+
+		ApmLibraries: parseApmLibrariesEnv(),
+
+		AgentMajorVersion: os.Getenv(envAgentMajorVersion),
+		AgentMinorVersion: os.Getenv(envAgentMinorVersion),
 
 		InstallScript: installScriptEnvFromEnv(),
 	}
@@ -85,6 +109,7 @@ func FromConfig(config config.Reader) *Env {
 		APIKey:               utils.SanitizeAPIKey(config.GetString("api_key")),
 		Site:                 config.GetString("site"),
 		RemoteUpdates:        config.GetBool("remote_updates"),
+		RemotePolicies:       config.GetBool("remote_policies"),
 		RegistryOverride:     config.GetString("installer.registry.url"),
 		RegistryAuthOverride: config.GetString("installer.registry.auth"),
 	}
@@ -102,17 +127,61 @@ func (e *Env) ToEnv() []string {
 	if e.RemoteUpdates {
 		env = append(env, envRemoteUpdates+"=true")
 	}
+	if e.RemotePolicies {
+		env = append(env, envRemotePolicies+"=true")
+	}
 	if e.RegistryOverride != "" {
 		env = append(env, envRegistryURL+"="+e.RegistryOverride)
 	}
 	if e.RegistryAuthOverride != "" {
 		env = append(env, envRegistryAuth+"="+e.RegistryAuthOverride)
 	}
+	if len(e.ApmLibraries) > 0 {
+		libraries := []string{}
+		for l, v := range e.ApmLibraries {
+			l := string(l)
+			if v != "" {
+				l = l + ":" + string(v)
+			}
+			libraries = append(libraries, l)
+		}
+		slices.Sort(libraries)
+		env = append(env, envApmLibraries+"="+strings.Join(libraries, ","))
+	}
 	env = append(env, overridesByNameToEnv(envRegistryURL, e.RegistryOverrideByImage)...)
 	env = append(env, overridesByNameToEnv(envRegistryAuth, e.RegistryAuthOverrideByImage)...)
 	env = append(env, overridesByNameToEnv(envDefaultPackageInstall, e.DefaultPackagesInstallOverride)...)
 	env = append(env, overridesByNameToEnv(envDefaultPackageVersion, e.DefaultPackagesVersionOverride)...)
 	return env
+}
+
+func parseApmLibrariesEnv() map[ApmLibLanguage]ApmLibVersion {
+	apmLibraries, ok := os.LookupEnv(envApmLibraries)
+	if !ok {
+		return parseAPMLanguagesEnv()
+	}
+	apmLibrariesVersion := map[ApmLibLanguage]ApmLibVersion{}
+	if apmLibraries == "" {
+		return apmLibrariesVersion
+	}
+	for _, library := range strings.FieldsFunc(apmLibraries, func(r rune) bool {
+		return r == ',' || r == ' '
+	}) {
+		libraryName, libraryVersion, _ := strings.Cut(library, ":")
+		apmLibrariesVersion[ApmLibLanguage(libraryName)] = ApmLibVersion(libraryVersion)
+	}
+	return apmLibrariesVersion
+}
+
+func parseAPMLanguagesEnv() map[ApmLibLanguage]ApmLibVersion {
+	apmLanguages := os.Getenv(envApmLanguages)
+	res := map[ApmLibLanguage]ApmLibVersion{}
+	for _, language := range strings.Split(apmLanguages, " ") {
+		if len(language) > 0 {
+			res[ApmLibLanguage(language)] = ""
+		}
+	}
+	return res
 }
 
 func overridesByNameFromEnv[T any](envPrefix string, convert func(string) T) map[string]T {

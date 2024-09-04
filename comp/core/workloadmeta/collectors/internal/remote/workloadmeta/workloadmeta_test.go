@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -168,10 +167,7 @@ func TestHandleWorkloadmetaStreamResponse(t *testing.T) {
 	// workloadmeta client store
 	mockClientStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.Params{
-			AgentType: workloadmeta.Remote,
-		}),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.Params{AgentType: workloadmeta.Remote}),
 	))
 
 	expectedEvent, err := proto.WorkloadmetaEventFromProtoEvent(protoWorkloadmetaEvent)
@@ -206,8 +202,7 @@ func TestCollection(t *testing.T) {
 	// workloadmeta server
 	mockServerStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	server := &serverSecure{workloadmetaServer: server.NewServer(mockServerStore)}
 
@@ -242,16 +237,13 @@ func TestCollection(t *testing.T) {
 	// workloadmeta client store
 	mockClientStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		fx.Supply(workloadmeta.Params{
-			AgentType: workloadmeta.Remote,
-		}),
 		fx.Provide(
 			fx.Annotate(func() workloadmeta.Collector {
 				return collector
 			},
 				fx.ResultTags(`group:"workloadmeta"`)),
 		),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.Params{AgentType: workloadmeta.Remote}),
 	))
 
 	time.Sleep(3 * time.Second)

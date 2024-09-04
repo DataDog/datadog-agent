@@ -23,8 +23,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
@@ -179,7 +179,7 @@ func TestEventsSeveralPayloadsCreateSingleMarshaler(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_max_payload_size", 500)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			events := createEvents("3", "3", "2", "2", "1", "1")
@@ -203,7 +203,7 @@ func TestEventsSeveralPayloadsCreateMarshalersBySourceType(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_max_payload_size", 300)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			events := createEvents("3", "3", "2", "2", "1", "1")
@@ -265,7 +265,7 @@ func assertEqualEventsToMarshalJSON(t *testing.T, events Events) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Conf()
+			mockConfig := mock.New(t)
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
 			json, err := events.MarshalJSON()
 			assert.NoError(t, err)

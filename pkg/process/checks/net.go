@@ -408,11 +408,10 @@ func batchConnections(
 				continue
 			}
 
-			//nolint:revive // TODO(NET) Fix revive linter
-			new := int32(len(newRouteIndices))
-			newRouteIndices[c.RouteIdx] = new
+			newIdx := int32(len(newRouteIndices))
+			newRouteIndices[c.RouteIdx] = newIdx
 			batchRoutes = append(batchRoutes, routes[c.RouteIdx])
-			c.RouteIdx = new
+			c.RouteIdx = newIdx
 		}
 
 		// EncodeDomainDatabase will take the namedb (a simple slice of strings with each unique
@@ -478,13 +477,6 @@ func batchConnections(
 		cxs = cxs[batchSize:]
 	}
 	return batches
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 func groupSize(total, maxBatchSize int) int32 {

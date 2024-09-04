@@ -10,6 +10,7 @@ package trivy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -45,8 +46,8 @@ import (
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
 	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/leases"
+	"github.com/containerd/errdefs"
 	"github.com/docker/docker/client"
 
 	// This is required to load sqlite based RPM databases
@@ -103,14 +104,22 @@ func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Optio
 		Parallel:          parallel,
 		SBOMSources:       []string{},
 		DisabledHandlers:  DefaultDisabledHandlers(),
+		WalkOption: artifact.WalkOption{
+			ErrorCallback: func(_ string, err error) error {
+				if errors.Is(err, fs.ErrPermission) || errors.Is(err, os.ErrNotExist) {
+					return nil
+				}
+				return err
+			},
+		},
 	}
 
 	if len(opts.Analyzers) == 1 && opts.Analyzers[0] == OSAnalyzers {
 		option.OnlyDirs = []string{
 			"/etc/*",
-			"/lib/apk/*",
+			"/lib/apk/db/*",
 			"/usr/lib/*",
-			"/usr/lib/sysimage/*",
+			"/usr/lib/sysimage/rpm/*",
 			"/var/lib/dpkg/**",
 			"/var/lib/rpm/*",
 		}
@@ -160,7 +169,12 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 	if analyzersDisabled(TypeImageConfigSecret) {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeImageConfigSecret)
 	}
-
+	disabledAnalyzers = append(disabledAnalyzers,
+		analyzer.TypeExecutable,
+		analyzer.TypeRedHatContentManifestType,
+		analyzer.TypeRedHatDockerfileType,
+		analyzer.TypeSBOM,
+		analyzer.TypeUbuntuESM)
 	return disabledAnalyzers
 }
 
@@ -174,7 +188,7 @@ func NewCollector(cfg config.Component, wmeta optional.Option[workloadmeta.Compo
 	return &Collector{
 		config: collectorConfig{
 			clearCacheOnClose: cfg.GetBool("sbom.clear_cache_on_exit"),
-			maxCacheSize:      cfg.GetInt("sbom.persistentCache.max_disk_size"),
+			maxCacheSize:      cfg.GetInt("sbom.cache.max_disk_size"),
 			overlayFSSupport:  cfg.GetBool("sbom.container_image.overlayfs_direct_scan"),
 		},
 		osScanner:   ospkg.NewScanner(),

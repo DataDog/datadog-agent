@@ -13,6 +13,7 @@ import (
 	stdlog "log"
 	"net/http"
 	"net/http/httputil"
+	"strconv"
 	"strings"
 	"time"
 
@@ -65,7 +66,7 @@ func (r *HTTPReceiver) evpProxyHandler(apiVersion int) http.Handler {
 // evpProxyErrorHandler returns an HTTP handler that will always return
 // http.StatusMethodNotAllowed along with a clarification.
 func evpProxyErrorHandler(message string) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		msg := fmt.Sprintf("EVPProxy is disabled: %v", message)
 		http.Error(w, msg, http.StatusMethodNotAllowed)
 	})
@@ -163,8 +164,9 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	if containerID != "" {
 		req.Header.Set(header.ContainerID, containerID)
 		if ctags := getContainerTags(t.conf.ContainerTags, containerID); ctags != "" {
-			req.Header.Set("X-Datadog-Container-Tags", ctags)
-			log.Debugf("Setting header X-Datadog-Container-Tags=%s for evp proxy", ctags)
+			ctagsHeader := normalizeHTTPHeader(ctags)
+			req.Header.Set("X-Datadog-Container-Tags", ctagsHeader)
+			log.Debugf("Setting header X-Datadog-Container-Tags=%s for evp proxy", ctagsHeader)
 		}
 	}
 	req.Header.Set("X-Datadog-Hostname", t.conf.Hostname)
@@ -176,7 +178,8 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	}
 
 	// Timeout: Our outbound request(s) can't take longer than the WriteTimeout of the server
-	timeout := getConfiguredRequestTimeoutDuration(t.conf)
+	timeout := getConfiguredEVPRequestTimeoutDuration(t.conf)
+	req.Header.Set("X-Datadog-Timeout", strconv.Itoa((int(timeout.Seconds()))))
 	deadline := time.Now().Add(timeout)
 	ctx, ctxCancel := context.WithDeadline(req.Context(), deadline)
 	req = req.WithContext(ctx)

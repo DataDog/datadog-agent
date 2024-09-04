@@ -16,6 +16,7 @@ package tagger
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -23,18 +24,28 @@ import (
 
 // team: container-platform
 
+// ReplayTagger interface represent the tagger use for replaying dogstatsd events.
+type ReplayTagger interface {
+	Component
+
+	// LoadState loads the state of the replay tagger from a list of entities.
+	LoadState(state []types.Entity)
+}
+
 // Component is the component type.
 type Component interface {
 	Start(ctx context.Context) error
 	Stop() error
-	Tag(entity string, cardinality types.TagCardinality) ([]string, error)
-	AccumulateTagsFor(entity string, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error
-	Standard(entity string) ([]string, error)
+	ReplayTagger() ReplayTagger
+	GetTaggerTelemetryStore() *telemetry.Store
+	Tag(entityID string, cardinality types.TagCardinality) ([]string, error)
+	AccumulateTagsFor(entityID string, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error
+	Standard(entityID string) ([]string, error)
 	List() types.TaggerListResponse
 	GetEntity(entityID string) (*types.Entity, error)
 	Subscribe(cardinality types.TagCardinality) chan []types.EntityEvent
 	Unsubscribe(ch chan []types.EntityEvent)
-	GetEntityHash(entity string, cardinality types.TagCardinality) string
+	GetEntityHash(entityID string, cardinality types.TagCardinality) string
 	AgentTags(cardinality types.TagCardinality) ([]string, error)
 	GlobalTags(cardinality types.TagCardinality) ([]string, error)
 	SetNewCaptureTagger(newCaptureTagger Component)

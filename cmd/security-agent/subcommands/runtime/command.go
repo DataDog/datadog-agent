@@ -30,8 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -94,13 +93,13 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	evalCmd := &cobra.Command{
 		Use:   "eval",
 		Short: "Evaluate given event data against the give rule",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(evalRule,
 				fx.Supply(evalArgs),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", false)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle(),
 			)
 		},
@@ -127,13 +126,13 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 	commonCheckPoliciesCmd := &cobra.Command{
 		Use:   "check",
 		Short: "Check policies and return a report",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(checkPolicies,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", false)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle(),
 			)
 		},
@@ -152,12 +151,12 @@ func commonReloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.C
 	commonReloadPoliciesCmd := &cobra.Command{
 		Use:   "reload",
 		Short: "Reload policies",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(reloadRuntimePolicies,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -170,12 +169,12 @@ func selfTestCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	selfTestCmd := &cobra.Command{
 		Use:   "self-test",
 		Short: "Run runtime self test",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(runRuntimeSelfTest,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -200,13 +199,13 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 	downloadPolicyCmd := &cobra.Command{
 		Use:   "download",
 		Short: "Download policies",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(downloadPolicy,
 				fx.Supply(downloadPolicyArgs),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", false)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle(),
 			)
 		},
@@ -235,13 +234,13 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	processCacheDumpCmd := &cobra.Command{
 		Use:   "dump",
 		Short: "dump the process cache",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(dumpProcessCache,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -273,13 +272,13 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 	dumpNetworkNamespaceCmd := &cobra.Command{
 		Use:   "dump",
 		Short: "dumps the network namespaces held in cache",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(dumpNetworkNamespace,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -301,12 +300,12 @@ func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	dumpDiscardersCmd := &cobra.Command{
 		Use:   "dump",
 		Short: "dump discarders",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(dumpDiscarders,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -481,14 +480,12 @@ func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
 	var ruleSet *rules.RuleSet
 	if args.windowsModel {
 		ruleSet = rules.NewRuleSet(&winmodel.Model{}, newFakeWindowsEvent, ruleOpts, evalOpts)
+		ruleSet.SetFakeEventCtor(newFakeWindowsEvent)
 	} else {
 		ruleSet = rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		ruleSet.SetFakeEventCtor(newFakeEvent)
 	}
-	evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
-	if err != nil {
-		return err
-	}
-	if err := evaluationSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
+	if err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
 		return err
 	}
 
@@ -603,12 +600,8 @@ func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs
 	} else {
 		ruleSet = rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 	}
-	evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
-	if err != nil {
-		return err
-	}
 
-	if err := evaluationSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
+	if err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
 		return err
 	}
 

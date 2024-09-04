@@ -32,9 +32,12 @@ build do
   env = with_embedded_path(env)
 
   if linux_target?
-    command "invoke installer.build --rebuild --run-path=/var/run/datadog-installer --install-path=#{install_dir}", env: env
+    command "invoke installer.build --rebuild --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env
     mkdir "#{install_dir}/bin"
     copy 'bin/installer', "#{install_dir}/bin/"
+  elsif windows_target?
+    command "inv -e installer.build --rebuild --install-path=#{install_dir}", env: env
+    copy 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
   end
 
   # Remove empty/unneeded folders
@@ -47,4 +50,3 @@ build do
   # final package
   delete "#{install_dir}/uselessfile"
 end
-

@@ -43,7 +43,7 @@ func TestReadAndForwardShouldSucceedWithSuccessfulRead(t *testing.T) {
 func TestReadShouldFailWithError(t *testing.T) {
 	msgChan := make(chan *message.Message)
 	r, w := net.Pipe()
-	read := func(*Tailer) ([]byte, error) { return nil, errors.New("") }
+	read := func(*Tailer) ([]byte, string, error) { return nil, "", errors.New("") }
 	tailer := NewTailer(sources.NewLogSource("", &config.LogsConfig{}), r, msgChan, read)
 	tailer.Start()
 
@@ -58,11 +58,11 @@ func TestReadShouldFailWithError(t *testing.T) {
 	tailer.Stop()
 }
 
-func read(tailer *Tailer) ([]byte, error) {
+func read(tailer *Tailer) ([]byte, string, error) {
 	inBuf := make([]byte, 4096)
 	n, err := tailer.Conn.Read(inBuf)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return inBuf[:n], nil
+	return inBuf[:n], "", nil
 }

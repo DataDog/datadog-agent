@@ -62,6 +62,74 @@ const (
 	MetricSourceSnmp
 
 	// Python Checks
+	MetricSourceZenohRouter
+	MetricSourceZabbix
+	MetricSourceWayfinder
+	MetricSourceVespa
+	MetricSourceUpsc
+	MetricSourceUpboundUxp
+	MetricSourceUnifiConsole
+	MetricSourceUnbound
+	MetricSourceTraefik
+	MetricSourceTidb
+	MetricSourceSyncthing
+	MetricSourceStorm
+	MetricSourceStardog
+	MetricSourceSpeedtest
+	MetricSourceSortdb
+	MetricSourceSonarr
+	MetricSourceSnmpwalk
+	MetricSourceSendmail
+	MetricSourceScalr
+	MetricSourceRiakRepl
+	MetricSourceRedpanda
+	MetricSourceRedisenterprise
+	MetricSourceRedisSentinel
+	MetricSourceRebootRequired
+	MetricSourceRadarr
+	MetricSourcePurefb
+	MetricSourcePurefa
+	MetricSourcePuma
+	MetricSourcePortworx
+	MetricSourcePing
+	MetricSourcePihole
+	MetricSourcePhpOpcache
+	MetricSourcePhpApcu
+	MetricSourceOpenPolicyAgent
+	MetricSourceOctoprint
+	MetricSourceNvml
+	MetricSourceNs1
+	MetricSourceNnSdwan
+	MetricSourceNextcloud
+	MetricSourceNeutrona
+	MetricSourceNeo4j
+	MetricSourceMergify
+	MetricSourceLogstash
+	MetricSourceLighthouse
+	MetricSourceKernelcare
+	MetricSourceJfrogPlatformSelfHosted
+	MetricSourceHikaricp
+	MetricSourceGrpcCheck
+	MetricSourceGoPprofScraper
+	MetricSourceGnatsdStreaming
+	MetricSourceGnatsd
+	MetricSourceGitea
+	MetricSourceGatekeeper
+	MetricSourceFluentbit
+	MetricSourceFilemage
+	MetricSourceFilebeat
+	MetricSourceFiddler
+	MetricSourceExim
+	MetricSourceEventstore
+	MetricSourceEmqx
+	MetricSourceCyral
+	MetricSourceCybersixgillActionableAlerts
+	MetricSourceCloudsmith
+	MetricSourceCloudnatix
+	MetricSourceCfssl
+	MetricSourceBind9
+	MetricSourceAwsPricing
+	MetricSourceAqua
 	MetricSourceKubernetesClusterAutoscaler
 	MetricSourceTraefikMesh
 	MetricSourceWeaviate
@@ -147,6 +215,7 @@ const (
 	MetricSourceKubeAPIserverMetrics
 	MetricSourceKubeControllerManager
 	MetricSourceKubeDNS
+	MetricSourceKubeflow
 	MetricSourceKubeMetricsServer
 	MetricSourceKubeProxy
 	MetricSourceKubeScheduler
@@ -213,6 +282,7 @@ const (
 	MetricSourceVarnish
 	MetricSourceVault
 	MetricSourceVertica
+	MetricSourceVllm
 	MetricSourceVoltdb
 	MetricSourceVsphere
 	MetricSourceWin32EventLog
@@ -221,6 +291,7 @@ const (
 	MetricSourceWmiCheck
 	MetricSourceYarn
 	MetricSourceZk
+	MetricSourceAwsNeuron
 )
 
 // String returns a string representation of MetricSource
@@ -450,6 +521,8 @@ func (ms MetricSource) String() string {
 		return "kube_controller_manager"
 	case MetricSourceKubeDNS:
 		return "kube_dns"
+	case MetricSourceKubeflow:
+		return "kubeflow"
 	case MetricSourceKubeMetricsServer:
 		return "kube_metrics_server"
 	case MetricSourceKubeProxy:
@@ -582,6 +655,8 @@ func (ms MetricSource) String() string {
 		return "vault"
 	case MetricSourceVertica:
 		return "vertica"
+	case MetricSourceVllm:
+		return "vllm"
 	case MetricSourceVoltdb:
 		return "voltdb"
 	case MetricSourceVsphere:
@@ -634,6 +709,144 @@ func (ms MetricSource) String() string {
 		return "traefik_mesh"
 	case MetricSourceKubernetesClusterAutoscaler:
 		return "kubernetes_cluster_autoscaler"
+	case MetricSourceAqua:
+		return "aqua"
+	case MetricSourceAwsPricing:
+		return "aws_pricing"
+	case MetricSourceBind9:
+		return "bind9"
+	case MetricSourceCfssl:
+		return "cfssl"
+	case MetricSourceCloudnatix:
+		return "cloudnatix"
+	case MetricSourceCloudsmith:
+		return "cloudsmith"
+	case MetricSourceCybersixgillActionableAlerts:
+		return "cybersixgill_actionable_alerts"
+	case MetricSourceCyral:
+		return "cyral"
+	case MetricSourceEmqx:
+		return "emqx"
+	case MetricSourceEventstore:
+		return "eventstore"
+	case MetricSourceExim:
+		return "exim"
+	case MetricSourceFiddler:
+		return "fiddler"
+	case MetricSourceFilebeat:
+		return "filebeat"
+	case MetricSourceFilemage:
+		return "filemage"
+	case MetricSourceFluentbit:
+		return "fluentbit"
+	case MetricSourceGatekeeper:
+		return "gatekeeper"
+	case MetricSourceGitea:
+		return "gitea"
+	case MetricSourceGnatsd:
+		return "gnatsd"
+	case MetricSourceGnatsdStreaming:
+		return "gnatsd_streaming"
+	case MetricSourceGoPprofScraper:
+		return "go_pprof_scraper"
+	case MetricSourceGrpcCheck:
+		return "grpc_check"
+	case MetricSourceHikaricp:
+		return "hikaricp"
+	case MetricSourceJfrogPlatformSelfHosted:
+		return "jfrog_platform_self_hosted"
+	case MetricSourceKernelcare:
+		return "kernelcare"
+	case MetricSourceLighthouse:
+		return "lighthouse"
+	case MetricSourceLogstash:
+		return "logstash"
+	case MetricSourceMergify:
+		return "mergify"
+	case MetricSourceNeo4j:
+		return "neo4j"
+	case MetricSourceNeutrona:
+		return "neutrona"
+	case MetricSourceNextcloud:
+		return "nextcloud"
+	case MetricSourceNnSdwan:
+		return "nn_sdwan"
+	case MetricSourceNs1:
+		return "ns1"
+	case MetricSourceNvml:
+		return "nvml"
+	case MetricSourceOctoprint:
+		return "octoprint"
+	case MetricSourceOpenPolicyAgent:
+		return "open_policy_agent"
+	case MetricSourcePhpApcu:
+		return "php_apcu"
+	case MetricSourcePhpOpcache:
+		return "php_opcache"
+	case MetricSourcePihole:
+		return "pihole"
+	case MetricSourcePing:
+		return "ping"
+	case MetricSourcePortworx:
+		return "portworx"
+	case MetricSourcePuma:
+		return "puma"
+	case MetricSourcePurefa:
+		return "purefa"
+	case MetricSourcePurefb:
+		return "purefb"
+	case MetricSourceRadarr:
+		return "radarr"
+	case MetricSourceRebootRequired:
+		return "reboot_required"
+	case MetricSourceRedisSentinel:
+		return "redis_sentinel"
+	case MetricSourceRedisenterprise:
+		return "redisenterprise"
+	case MetricSourceRedpanda:
+		return "redpanda"
+	case MetricSourceRiakRepl:
+		return "riak_repl"
+	case MetricSourceScalr:
+		return "scalr"
+	case MetricSourceSendmail:
+		return "sendmail"
+	case MetricSourceSnmpwalk:
+		return "snmpwalk"
+	case MetricSourceSonarr:
+		return "sonarr"
+	case MetricSourceSortdb:
+		return "sortdb"
+	case MetricSourceSpeedtest:
+		return "speedtest"
+	case MetricSourceStardog:
+		return "stardog"
+	case MetricSourceStorm:
+		return "storm"
+	case MetricSourceSyncthing:
+		return "syncthing"
+	case MetricSourceTidb:
+		return "tidb"
+	case MetricSourceTraefik:
+		return "traefik"
+	case MetricSourceUnbound:
+		return "unbound"
+	case MetricSourceUnifiConsole:
+		return "unifi_console"
+	case MetricSourceUpboundUxp:
+		return "upbound_uxp"
+	case MetricSourceUpsc:
+		return "upsc"
+	case MetricSourceVespa:
+		return "vespa"
+	case MetricSourceWayfinder:
+		return "wayfinder"
+	case MetricSourceZabbix:
+		return "zabbix"
+	case MetricSourceZenohRouter:
+		return "zenoh_router"
+	case MetricSourceAwsNeuron:
+		return "aws_neuron"
 	default:
 		return "<unknown>"
 	}
@@ -838,6 +1051,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceKubeProxy
 	case "kube_scheduler":
 		return MetricSourceKubeScheduler
+	case "kubeflow":
+		return MetricSourceKubeflow
 	case "kubelet":
 		return MetricSourceKubelet
 	case "kubernetes_state":
@@ -964,6 +1179,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceVault
 	case "vertica":
 		return MetricSourceVertica
+	case "vllm":
+		return MetricSourceVllm
 	case "voltdb":
 		return MetricSourceVoltdb
 	case "vsphere":
@@ -1016,6 +1233,144 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceTraefikMesh
 	case "kubernetes_cluster_autoscaler":
 		return MetricSourceKubernetesClusterAutoscaler
+	case "aqua":
+		return MetricSourceAqua
+	case "aws_pricing":
+		return MetricSourceAwsPricing
+	case "bind9":
+		return MetricSourceBind9
+	case "cfssl":
+		return MetricSourceCfssl
+	case "cloudnatix":
+		return MetricSourceCloudnatix
+	case "cloudsmith":
+		return MetricSourceCloudsmith
+	case "cybersixgill_actionable_alerts":
+		return MetricSourceCybersixgillActionableAlerts
+	case "cyral":
+		return MetricSourceCyral
+	case "emqx":
+		return MetricSourceEmqx
+	case "eventstore":
+		return MetricSourceEventstore
+	case "exim":
+		return MetricSourceExim
+	case "fiddler":
+		return MetricSourceFiddler
+	case "filebeat":
+		return MetricSourceFilebeat
+	case "filemage":
+		return MetricSourceFilemage
+	case "fluentbit":
+		return MetricSourceFluentbit
+	case "gatekeeper":
+		return MetricSourceGatekeeper
+	case "gitea":
+		return MetricSourceGitea
+	case "gnatsd":
+		return MetricSourceGnatsd
+	case "gnatsd_streaming":
+		return MetricSourceGnatsdStreaming
+	case "go_pprof_scraper":
+		return MetricSourceGoPprofScraper
+	case "grpc_check":
+		return MetricSourceGrpcCheck
+	case "hikaricp":
+		return MetricSourceHikaricp
+	case "jfrog_platform_self_hosted":
+		return MetricSourceJfrogPlatformSelfHosted
+	case "kernelcare":
+		return MetricSourceKernelcare
+	case "lighthouse":
+		return MetricSourceLighthouse
+	case "logstash":
+		return MetricSourceLogstash
+	case "mergify":
+		return MetricSourceMergify
+	case "neo4j":
+		return MetricSourceNeo4j
+	case "neutrona":
+		return MetricSourceNeutrona
+	case "nextcloud":
+		return MetricSourceNextcloud
+	case "nn_sdwan":
+		return MetricSourceNnSdwan
+	case "ns1":
+		return MetricSourceNs1
+	case "nvml":
+		return MetricSourceNvml
+	case "octoprint":
+		return MetricSourceOctoprint
+	case "open_policy_agent":
+		return MetricSourceOpenPolicyAgent
+	case "php_apcu":
+		return MetricSourcePhpApcu
+	case "php_opcache":
+		return MetricSourcePhpOpcache
+	case "pihole":
+		return MetricSourcePihole
+	case "ping":
+		return MetricSourcePing
+	case "portworx":
+		return MetricSourcePortworx
+	case "puma":
+		return MetricSourcePuma
+	case "purefa":
+		return MetricSourcePurefa
+	case "purefb":
+		return MetricSourcePurefb
+	case "radarr":
+		return MetricSourceRadarr
+	case "reboot_required":
+		return MetricSourceRebootRequired
+	case "redis_sentinel":
+		return MetricSourceRedisSentinel
+	case "redisenterprise":
+		return MetricSourceRedisenterprise
+	case "redpanda":
+		return MetricSourceRedpanda
+	case "riak_repl":
+		return MetricSourceRiakRepl
+	case "scalr":
+		return MetricSourceScalr
+	case "sendmail":
+		return MetricSourceSendmail
+	case "snmpwalk":
+		return MetricSourceSnmpwalk
+	case "sonarr":
+		return MetricSourceSonarr
+	case "sortdb":
+		return MetricSourceSortdb
+	case "speedtest":
+		return MetricSourceSpeedtest
+	case "stardog":
+		return MetricSourceStardog
+	case "storm":
+		return MetricSourceStorm
+	case "syncthing":
+		return MetricSourceSyncthing
+	case "tidb":
+		return MetricSourceTidb
+	case "traefik":
+		return MetricSourceTraefik
+	case "unbound":
+		return MetricSourceUnbound
+	case "unifi_console":
+		return MetricSourceUnifiConsole
+	case "upbound_uxp":
+		return MetricSourceUpboundUxp
+	case "upsc":
+		return MetricSourceUpsc
+	case "vespa":
+		return MetricSourceVespa
+	case "wayfinder":
+		return MetricSourceWayfinder
+	case "zabbix":
+		return MetricSourceZabbix
+	case "zenoh_router":
+		return MetricSourceZenohRouter
+	case "aws_neuron":
+		return MetricSourceAwsNeuron
 	default:
 		return MetricSourceUnknown
 	}

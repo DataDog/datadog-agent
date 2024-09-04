@@ -18,12 +18,13 @@ import (
 	"go.uber.org/fx"
 
 	compConfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -134,7 +135,7 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 
 func TestMakeFileSource_podman_success(t *testing.T) {
 	fileTestSetup(t)
-	mockConfig := coreConfig.Mock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("logs_config.use_podman_logs", true)
 
 	// On Windows, podman runs within a Linux virtual machine, so the Agent would believe it runs in a Linux environment with all the paths being nix-like.
@@ -205,7 +206,7 @@ func TestMakeFileSource_docker_no_file(t *testing.T) {
 
 func TestDockerOverride(t *testing.T) {
 	tmp := t.TempDir()
-	mockConfig := coreConfig.Mock(t)
+	mockConfig := configmock.New(t)
 	customPath := filepath.Join(tmp, "/custom/path")
 	mockConfig.SetWithoutSource("logs_config.docker_path_override", customPath)
 
@@ -243,11 +244,10 @@ func TestMakeK8sSource(t *testing.T) {
 	wildcard := filepath.Join(dir, "*.log")
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		compConfig.MockModule(),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	pod, container := makeTestPod()
 	store.Set(pod)
@@ -300,11 +300,10 @@ func TestMakeK8sSource_pod_not_found(t *testing.T) {
 	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
 
 	workloadmetaStore := fxutil.Test[optional.Option[workloadmeta.Component]](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		compConfig.MockModule(),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	tf := &factory{

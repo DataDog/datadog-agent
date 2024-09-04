@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil"
@@ -73,7 +74,7 @@ func TestLocateECSHTTPFail(t *testing.T) {
 }
 
 func TestGetAgentV1ContainerURLs(t *testing.T) {
-	config.SetFeatures(t, config.Docker)
+	config.SetFeatures(t, env.Docker)
 
 	ctx := context.Background()
 	config.Datadog().SetDefault("ecs_agent_container_name", "ecs-agent-custom")
@@ -103,4 +104,18 @@ func TestGetAgentV1ContainerURLs(t *testing.T) {
 	assert.Contains(t, agentURLS, "http://172.17.0.2:51678/")
 	assert.Contains(t, agentURLS, "http://172.17.0.3:51678/")
 	assert.Equal(t, "http://ip-172-29-167-5:51678/", agentURLS[2])
+}
+
+func TestIsMetadataV4Available(t *testing.T) {
+	ok, err := IsMetadataV4Available("")
+	assert.NotNil(t, err)
+	assert.False(t, ok)
+
+	ok, err = IsMetadataV4Available("1.0.0")
+	assert.NoError(t, err)
+	assert.False(t, ok)
+
+	ok, err = IsMetadataV4Available("1.80.0")
+	assert.NoError(t, err)
+	assert.True(t, ok)
 }

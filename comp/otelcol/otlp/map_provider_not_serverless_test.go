@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/configutils"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
+	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 )
 
 func TestNewMap(t *testing.T) {
@@ -1129,7 +1129,7 @@ func TestUnmarshal(t *testing.T) {
 	require.NoError(t, err)
 	fakeTagger := taggerimpl.SetupFakeTagger(t)
 	defer fakeTagger.ResetTagger()
-	components, err := getComponents(&serializer.MockSerializer{}, make(chan *message.Message), fakeTagger)
+	components, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
 	require.NoError(t, err)
 
 	_, err = provider.Get(context.Background(), components)

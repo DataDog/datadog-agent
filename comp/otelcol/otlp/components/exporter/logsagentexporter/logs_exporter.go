@@ -22,26 +22,28 @@ import (
 	"go.opentelemetry.io/collector/pdata/plog"
 )
 
-type exporter struct {
+// Exporter defines fields for the logs agent exporter
+type Exporter struct {
 	set              component.TelemetrySettings
 	logsAgentChannel chan *message.Message
 	logSource        *sources.LogSource
 	translator       *logsmapping.Translator
 }
 
-func newExporter(
+// NewExporter initializes a new logs agent exporter with the given parameters
+func NewExporter(
 	set component.TelemetrySettings,
 	cfg *Config,
 	logSource *sources.LogSource,
 	logsAgentChannel chan *message.Message,
 	attributesTranslator *attributes.Translator,
-) (*exporter, error) {
+) (*Exporter, error) {
 	translator, err := logsmapping.NewTranslator(set, attributesTranslator, cfg.OtelSource)
 	if err != nil {
 		return nil, err
 	}
 
-	return &exporter{
+	return &Exporter{
 		set:              set,
 		logsAgentChannel: logsAgentChannel,
 		logSource:        logSource,
@@ -49,7 +51,8 @@ func newExporter(
 	}, nil
 }
 
-func (e *exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
+// ConsumeLogs maps logs from OTLP to DD format and ingests them through the exporter channel
+func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 	defer func() {
 		if err != nil {
 			newErr, scrubbingErr := scrubber.ScrubString(err.Error())
@@ -77,7 +80,11 @@ func (e *exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 		origin := message.NewOrigin(e.logSource)
 		origin.SetTags(tags)
 		origin.SetService(service)
-		origin.SetSource(e.logSource.Name)
+		if src, ok := ddLog.AdditionalProperties["datadog.log.source"]; ok {
+			origin.SetSource(src)
+		} else {
+			origin.SetSource(e.logSource.Name)
+		}
 
 		content, err := ddLog.MarshalJSON()
 		if err != nil {

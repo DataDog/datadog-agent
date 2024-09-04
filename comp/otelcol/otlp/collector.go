@@ -27,6 +27,8 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -42,7 +44,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 )
 
 var pipelineError = atomic.NewError(nil)
@@ -104,7 +105,7 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 
 	exporterFactories := []exporter.Factory{
 		otlpexporter.NewFactory(),
-		serializerexporter.NewFactory(s, &tagEnricher{cardinality: types.LowCardinality}, hostname.Get, nil),
+		serializerexporter.NewFactory(s, &tagEnricher{cardinality: types.LowCardinality}, hostname.Get, nil, nil),
 		loggingexporter.NewFactory(),
 	}
 
@@ -247,7 +248,7 @@ func recoverAndStoreError() {
 	if r := recover(); r != nil {
 		err := fmt.Errorf("OTLP pipeline had a panic: %v", r)
 		pipelineError.Store(err)
-		log.Errorf(err.Error())
+		log.Errorf("%s", err.Error())
 	}
 }
 

@@ -58,7 +58,6 @@ func (agent *agentCommandRunner) executeCommandWithError(command string, command
 
 	arguments := []string{command}
 	arguments = append(arguments, args.Args...)
-	agent.t.Logf("Running agent command: %+q", arguments)
 	output, err := agent.executor.execute(arguments)
 	return output, err
 }
@@ -110,6 +109,15 @@ func (agent *agentCommandRunner) Diagnose(commandArgs ...agentclient.AgentArgsOp
 // Flare runs flare command and returns the output. You should use the FakeIntake client to fetch the flare archive
 func (agent *agentCommandRunner) Flare(commandArgs ...agentclient.AgentArgsOption) string {
 	return agent.executeCommand("flare", commandArgs...)
+}
+
+// FlareWithError runs flare command and returns the output or an error. You should use the FakeIntake client to fetch the flare archive
+func (agent *agentCommandRunner) FlareWithError(commandArgs ...agentclient.AgentArgsOption) (string, error) {
+	args, err := optional.MakeParams(commandArgs...)
+	require.NoError(agent.t, err)
+
+	arguments := append([]string{"flare"}, args.Args...)
+	return agent.executor.execute(arguments)
 }
 
 // Health runs health command and returns the runtime agent health

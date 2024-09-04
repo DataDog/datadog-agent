@@ -23,14 +23,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	languageDetectionProto "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // LanguageDetectionModule is the language detection module factory
 var LanguageDetectionModule = module.Factory{
 	Name:             config.LanguageDetectionModule,
 	ConfigNamespaces: []string{"language_detection"},
-	Fn: func(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], _ telemetry.Component) (module.Module, error) {
+	Fn: func(_ *sysconfigtypes.Config, _ workloadmeta.Component, _ telemetry.Component) (module.Module, error) {
 		return &languageDetectionModule{
 			languageDetector: privileged.NewLanguageDetector(),
 		}, nil

@@ -60,7 +60,8 @@ func getSyscallPrefix() string {
 	return syscallPrefix
 }
 
-func getSyscallFnName(name string) string {
+// GetSyscallFnName returns the hook point for the provided syscall name
+func GetSyscallFnName(name string) string {
 	return getSyscallPrefix() + name
 }
 
@@ -113,7 +114,7 @@ func expandKprobeOrFentry(hookpoint string, fentry bool, flag int) []string {
 }
 
 func expandSyscallSections(syscallName string, fentry bool, flag int, compat ...bool) []string {
-	sections := expandKprobeOrFentry(getSyscallFnName(syscallName), fentry, flag)
+	sections := expandKprobeOrFentry(GetSyscallFnName(syscallName), fentry, flag)
 
 	shouldUseCompat := len(compat) > 0 && compat[0]
 	if RuntimeArch == "x64" {

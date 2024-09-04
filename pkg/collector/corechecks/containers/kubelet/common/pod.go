@@ -8,12 +8,14 @@
 package common
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/prometheus/common/model"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -22,7 +24,14 @@ import (
 )
 
 var (
-	volumeTagKeysToExclude = []string{"persistentvolumeclaim", "pod_phase"}
+	volumeTagKeysToExclude = []string{tags.KubePersistentVolumeClaim, tags.PodPhase}
+
+	// ErrContainerExcluded is an error representing the exclusion of a container from metric collection
+	ErrContainerExcluded = errors.New("container is excluded")
+	// ErrContainerNotFound is an error representing the absence of a container
+	ErrContainerNotFound = errors.New("container not found")
+	// ErrPodNotFound is an error representing the absence of a pod
+	ErrPodNotFound = errors.New("parent pod not found")
 )
 
 type podMetadata struct {
@@ -76,7 +85,7 @@ func (p *PodUtils) PopulateForPod(pod *kubelet.Pod) {
 // computePodTagsByPVC stores the tags for a given pod in a global caching layer, indexed by pod namespace and persistent
 // volume name.
 func (p *PodUtils) computePodTagsByPVC(pod *kubelet.Pod) {
-	podUID := kubelet.PodUIDToTaggerEntityName(pod.Metadata.UID)
+	podUID := types.NewEntityID(types.KubernetesPodUID, pod.Metadata.UID).String()
 	tags, _ := tagger.Tag(podUID, types.OrchestratorCardinality)
 	if len(tags) == 0 {
 		return
@@ -143,7 +152,7 @@ func (p *PodUtils) IsHostNetworkedPod(podUID string) bool {
 // GetContainerID returns the container ID from the workloadmeta.Component for a given set of metric labels.
 // It should only be called on a container-scoped metric. It returns an empty string if the container could not be
 // found, or if the container should be filtered out.
-func GetContainerID(store workloadmeta.Component, metric model.Metric, filter *containers.Filter) string {
+func GetContainerID(store workloadmeta.Component, metric model.Metric, filter *containers.Filter) (string, error) {
 	namespace := string(metric["namespace"])
 	podUID := string(metric["pod_uid"])
 	// k8s >= 1.16
@@ -162,7 +171,7 @@ func GetContainerID(store workloadmeta.Component, metric model.Metric, filter *c
 		pod, err = store.GetKubernetesPodByName(podName, namespace)
 		if err != nil {
 			log.Debugf("pod not found for id:%s, name:%s, namespace:%s", podUID, podName, namespace)
-			return ""
+			return "", ErrPodNotFound
 		}
 	}
 
@@ -176,14 +185,14 @@ func GetContainerID(store workloadmeta.Component, metric model.Metric, filter *c
 
 	if container == nil {
 		log.Debugf("container %s not found for pod with name %s", containerName, pod.Name)
-		return ""
+		return "", ErrContainerNotFound
 	}
 
 	if filter.IsExcluded(pod.EntityMeta.Annotations, container.Name, container.Image.Name, pod.Namespace) {
-		return ""
+		return "", ErrContainerExcluded
 	}
 
-	cID := containers.BuildTaggerEntityName(container.ID)
+	cID := types.NewEntityID(types.ContainerID, container.ID).String()
 
-	return cID
+	return cID, nil
 }

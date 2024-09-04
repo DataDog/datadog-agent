@@ -54,6 +54,8 @@ type workloadmetaListenerImpl struct {
 
 	newService chan<- Service
 	delService chan<- Service
+
+	telemetryStore *telemetry.Store
 }
 
 var _ workloadmetaListener = &workloadmetaListenerImpl{}
@@ -69,6 +71,7 @@ func newWorkloadmetaListener(
 	workloadFilters *workloadmeta.Filter,
 	processFn func(workloadmeta.Entity),
 	wmeta workloadmeta.Component,
+	telemetryStore *telemetry.Store,
 ) (workloadmetaListener, error) {
 	containerFilters, err := newContainerFilters()
 	if err != nil {
@@ -86,6 +89,8 @@ func newWorkloadmetaListener(
 
 		services: make(map[string]Service),
 		children: make(map[string]map[string]struct{}),
+
+		telemetryStore: telemetryStore,
 	}, nil
 }
 
@@ -104,19 +109,23 @@ func (l *workloadmetaListenerImpl) AddService(svcID string, svc Service, parentS
 	}
 
 	if old, found := l.services[svcID]; found {
-		if svcEqual(old, svc) {
+		if svc.Equal(old) {
 			log.Tracef("%s received a duplicated service '%s', ignoring", l.name, svc.GetServiceID())
 			return
 		}
 
 		log.Tracef("%s received an updated service '%s', removing the old one", l.name, svc.GetServiceID())
 		l.delService <- old
-		telemetry.WatchedResources.Dec(l.name, kind)
+		if l.telemetryStore != nil {
+			l.telemetryStore.WatchedResources.Dec(l.name, kind)
+		}
 	}
 
 	l.services[svcID] = svc
 	l.newService <- svc
-	telemetry.WatchedResources.Inc(l.name, kind)
+	if l.telemetryStore != nil {
+		l.telemetryStore.WatchedResources.Inc(l.name, kind)
+	}
 }
 
 func (l *workloadmetaListenerImpl) IsExcluded(ft containers.FilterType, annotations map[string]string, name, image, ns string) bool {
@@ -234,7 +243,9 @@ func (l *workloadmetaListenerImpl) removeService(svcID string) {
 
 	delete(l.services, svcID)
 	l.delService <- svc
-	telemetry.WatchedResources.Dec(l.name, kindFromSvcID(svcID))
+	if l.telemetryStore != nil {
+		l.telemetryStore.WatchedResources.Dec(l.name, kindFromSvcID(svcID))
+	}
 }
 
 func buildSvcID(entityID workloadmeta.EntityID) string {

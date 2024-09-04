@@ -6,5 +6,21 @@ test_gitlab_configuration:
     - !reference [.on_gitlab_changes]
   script:
     - source /root/.bashrc
-    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME)
-    - inv linter.gitlab-ci
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME)
+    - inv -e linter.gitlab-ci
+    - inv -e linter.job-change-path
+    - inv -e linter.gitlab-change-paths
+    - inv -e linter.ssm-parameters
+
+test_gitlab_compare_to:
+  stage: .pre
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  rules:
+    - !reference [.on_gitlab_changes]
+  script:
+    - source /root/.bashrc
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME)
+    - !reference [.setup_agent_github_app]
+    - pip install -r tasks/requirements.txt
+    - inv pipeline.compare-to-itself

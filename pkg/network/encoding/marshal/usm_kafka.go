@@ -9,6 +9,8 @@ import (
 	"bytes"
 	"io"
 
+	"github.com/gogo/protobuf/proto"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -18,10 +20,10 @@ import (
 
 type kafkaEncoder struct {
 	kafkaAggregationsBuilder *model.DataStreamsAggregationsBuilder
-	byConnection             *USMConnectionIndex[kafka.Key, *kafka.RequestStat]
+	byConnection             *USMConnectionIndex[kafka.Key, *kafka.RequestStats]
 }
 
-func newKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStat) *kafkaEncoder {
+func newKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStats) *kafkaEncoder {
 	if len(kafkaPayloads) == 0 {
 		return nil
 	}
@@ -34,22 +36,25 @@ func newKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStat) *kafkaEncod
 	}
 }
 
-func (e *kafkaEncoder) WriteKafkaAggregations(c network.ConnectionStats, builder *model.ConnectionBuilder) {
+func (e *kafkaEncoder) WriteKafkaAggregations(c network.ConnectionStats, builder *model.ConnectionBuilder) uint64 {
 	if e == nil {
-		return
+		return 0
 	}
 
 	connectionData := e.byConnection.Find(c)
 	if connectionData == nil || len(connectionData.Data) == 0 || connectionData.IsPIDCollision(c) {
-		return
+		return 0
 	}
 
+	staticTags := uint64(0)
 	builder.SetDataStreamsAggregations(func(b *bytes.Buffer) {
-		e.encodeData(connectionData, b)
+		staticTags = e.encodeData(connectionData, b)
 	})
+	return staticTags
 }
 
-func (e *kafkaEncoder) encodeData(connectionData *USMConnectionData[kafka.Key, *kafka.RequestStat], w io.Writer) {
+func (e *kafkaEncoder) encodeData(connectionData *USMConnectionData[kafka.Key, *kafka.RequestStats], w io.Writer) uint64 {
+	var staticTags uint64
 	e.kafkaAggregationsBuilder.Reset(w)
 
 	for _, kv := range connectionData.Data {
@@ -61,9 +66,29 @@ func (e *kafkaEncoder) encodeData(connectionData *USMConnectionData[kafka.Key, *
 				header.SetRequest_version(uint32(key.RequestVersion))
 			})
 			builder.SetTopic(key.TopicName)
-			builder.SetCount(uint32(stats.Count))
+			for statusCode, requestStat := range stats.ErrorCodeToStat {
+				if requestStat.Count == 0 {
+					continue
+				}
+				builder.AddStatsByErrorCode(func(statsByErrorCodeBuilder *model.KafkaAggregation_StatsByErrorCodeEntryBuilder) {
+					statsByErrorCodeBuilder.SetKey(statusCode)
+					statsByErrorCodeBuilder.SetValue(func(kafkaStatsBuilder *model.KafkaStatsBuilder) {
+						kafkaStatsBuilder.SetCount(uint32(requestStat.Count))
+						if latencies := requestStat.Latencies; latencies != nil {
+							blob, _ := proto.Marshal(latencies.ToProto())
+							kafkaStatsBuilder.SetLatencies(func(b *bytes.Buffer) {
+								b.Write(blob)
+							})
+						} else {
+							kafkaStatsBuilder.SetFirstLatencySample(requestStat.FirstLatencySample)
+						}
+					})
+				})
+				staticTags |= requestStat.StaticTags
+			}
 		})
 	}
+	return staticTags
 }
 
 func (e *kafkaEncoder) Close() {

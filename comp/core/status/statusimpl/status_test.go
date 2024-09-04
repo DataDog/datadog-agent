@@ -19,6 +19,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -152,6 +154,7 @@ func TestGetStatus(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
 			status.NewInformationProvider(mockProvider{
@@ -367,14 +370,14 @@ X Section
 				expectedStatusHTMLOutput := fmt.Sprintf(`<div class="stat">
   <span class="stat_title">Agent Info</span>
   <span class="stat_data">
-    Version: %s
-    <br>Flavor: %s
-    <br>PID: %d
-    <br>Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-    <br>Log Level: info
-    <br>Config File: There is no config file
-    <br>Conf.d Path: %s
-    <br>Checks.d Path: %s
+    Version: %s<br>
+    Flavor: %s<br>
+    PID: %d<br>
+    Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
+    Log Level: info<br>
+    Config File: There is no config file<br>
+    Conf.d Path: %s<br>
+    Checks.d Path: %s
   </span>
 </div>
 
@@ -421,14 +424,14 @@ X Section
 				expectedStatusHTMLOutput := fmt.Sprintf(`<div class="stat">
   <span class="stat_title">Agent Info</span>
   <span class="stat_data">
-    Version: %s
-    <br>Flavor: %s
-    <br>PID: %d
-    <br>Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-    <br>Log Level: info
-    <br>Config File: There is no config file
-    <br>Conf.d Path: %s
-    <br>Checks.d Path: %s
+    Version: %s<br>
+    Flavor: %s<br>
+    PID: %d<br>
+    Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
+    Log Level: info<br>
+    Config File: There is no config file<br>
+    Conf.d Path: %s<br>
+    Checks.d Path: %s
   </span>
 </div>
 
@@ -483,6 +486,7 @@ func TestGetStatusDoNotRenderHeaderIfNoProviders(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
 			status.NewInformationProvider(mockProvider{
@@ -547,6 +551,7 @@ func TestGetStatusWithErrors(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
 			status.NewInformationProvider(mockProvider{
@@ -640,6 +645,7 @@ Status render errors
 func TestGetStatusBySection(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
 			status.NewInformationProvider(mockProvider{
@@ -815,6 +821,7 @@ func TestGetStatusBySectionsWithErrors(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
 			status.NewInformationProvider(mockProvider{
@@ -957,6 +964,7 @@ func TestGetStatusByMultipleSections(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
 			status.NewInformationProvider(mockProvider{
@@ -1039,7 +1047,7 @@ func TestGetStatusByMultipleSections(t *testing.T) {
 			format:        "json",
 			sections:      []string{"moo_1", "fake_moo_2", "fake_moo_4"},
 			shouldSuccess: false,
-			assertFunc: func(t *testing.T, bytes []byte) {
+			assertFunc: func(t *testing.T, _ []byte) {
 				result := map[string]interface{}{}
 				assert.Equal(t, 0, len(result))
 			},
@@ -1049,7 +1057,7 @@ func TestGetStatusByMultipleSections(t *testing.T) {
 			format:        "json",
 			sections:      []string{"fake_moo_1"},
 			shouldSuccess: false,
-			assertFunc: func(t *testing.T, bytes []byte) {
+			assertFunc: func(t *testing.T, _ []byte) {
 				result := map[string]interface{}{}
 				assert.Equal(t, 0, len(result))
 			},
@@ -1084,6 +1092,7 @@ func TestFlareProvider(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(agentParams),
 	))
 
@@ -1096,6 +1105,7 @@ func TestFlareProvider(t *testing.T) {
 func TestGetStatusBySectionIncorrect(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
 			status.NewInformationProvider(mockProvider{

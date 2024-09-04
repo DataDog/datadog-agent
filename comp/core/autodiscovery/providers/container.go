@@ -29,15 +29,17 @@ type ContainerConfigProvider struct {
 	configErrors      map[string]ErrorMsgSet                   // map[entity name]ErrorMsgSet
 	configCache       map[string]map[string]integration.Config // map[entity name]map[config digest]integration.Config
 	mu                sync.RWMutex
+	telemetryStore    *telemetry.Store
 }
 
 // NewContainerConfigProvider returns a new ConfigProvider subscribed to both container
 // and pods
-func NewContainerConfigProvider(_ *config.ConfigurationProviders, wmeta workloadmeta.Component) (ConfigProvider, error) {
+func NewContainerConfigProvider(_ *config.ConfigurationProviders, wmeta workloadmeta.Component, telemetryStore *telemetry.Store) (ConfigProvider, error) {
 	return &ContainerConfigProvider{
 		workloadmetaStore: wmeta,
 		configCache:       make(map[string]map[string]integration.Config),
 		configErrors:      make(map[string]ErrorMsgSet),
+		telemetryStore:    telemetryStore,
 	}, nil
 }
 
@@ -149,7 +151,9 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 		}
 	}
 
-	telemetry.Errors.Set(float64(len(k.configErrors)), names.KubeContainer)
+	if k.telemetryStore != nil {
+		k.telemetryStore.Errors.Set(float64(len(k.configErrors)), names.KubeContainer)
+	}
 
 	return changes
 }

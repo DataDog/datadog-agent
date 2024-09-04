@@ -7,14 +7,16 @@
 package awskubernetes
 
 import (
+	"context"
 	"fmt"
+
+	"github.com/DataDog/test-infra-definitions/common/utils"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
-	"github.com/DataDog/test-infra-definitions/common/utils"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agent/helm"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
@@ -31,6 +33,14 @@ const (
 	defaultVMName     = "kind"
 )
 
+func kindDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
+	dumpResult, err := dumpKindClusterState(ctx, stackName)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("Dumping Kind cluster state:\n%s", dumpResult), nil
+}
+
 // KindProvisioner creates a new provisioner
 func KindProvisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Kubernetes] {
 	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
@@ -46,6 +56,8 @@ func KindProvisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environment
 
 		return KindRunFunc(ctx, env, params)
 	}, params.extraConfigParams)
+
+	provisioner.SetDiagnoseFunc(kindDiagnoseFunc)
 
 	return provisioner
 }
@@ -118,7 +130,7 @@ agents:
 
 		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues)}
 		params.agentOptions = append(newOpts, params.agentOptions...)
-		agent, err := agent.NewKubernetesAgent(&awsEnv, kindClusterName, kubeProvider, params.agentOptions...)
+		agent, err := helm.NewKubernetesAgent(&awsEnv, kindClusterName, kubeProvider, params.agentOptions...)
 		if err != nil {
 			return err
 		}

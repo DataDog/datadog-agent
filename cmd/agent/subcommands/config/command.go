@@ -18,10 +18,11 @@ import (
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := configcmd.MakeCommand(func() configcmd.GlobalParams {
 		return configcmd.GlobalParams{
-			ConfFilePath:   globalParams.ConfFilePath,
-			ConfigName:     command.ConfigName,
-			LoggerName:     command.LoggerName,
-			SettingsClient: common.NewSettingsClient,
+			ConfFilePath:       globalParams.ConfFilePath,
+			ExtraConfFilePaths: globalParams.ExtraConfFilePath,
+			ConfigName:         command.ConfigName,
+			LoggerName:         command.LoggerName,
+			SettingsClient:     common.NewSettingsClient,
 		}
 	})
 

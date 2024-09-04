@@ -3,11 +3,8 @@
 
 #include "conn_tuple.h"
 
-// Controls the number of Postgres transactions read from userspace at a time.
-#define POSTGRES_BATCH_SIZE 25
-
-// Maximum length of postgres query to send to userspace.
-#define POSTGRES_BUFFER_SIZE 64
+// Maximum length of Postgres query to send to userspace.
+#define POSTGRES_BUFFER_SIZE 160
 
 // Maximum number of Postgres messages we can parse for a single packet.
 #define POSTGRES_MAX_MESSAGES 80
@@ -20,6 +17,7 @@ typedef struct {
     __u64 response_last_seen;
     // The actual size of the query stored in request_fragment.
     __u32 original_query_size;
+    __u8 tags;
 } postgres_transaction_t;
 
 // The struct we send to userspace, containing the connection tuple and the transaction information.

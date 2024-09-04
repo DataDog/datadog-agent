@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
@@ -49,6 +50,7 @@ var (
 		http2.Spec,
 		kafka.Spec,
 		postgres.Spec,
+		redis.Spec,
 		javaTLSSpec,
 		// opensslSpec is unique, as we're modifying its factory during runtime to allow getting more parameters in the
 		// factory.
@@ -423,7 +425,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 
 	options.DefaultKProbeMaxActive = maxActive
 	options.DefaultKprobeAttachMethod = kprobeAttachMethod
-	options.VerifierOptions.Programs.LogSize = 10 * 1024 * 1024
+	options.BypassEnabled = e.cfg.BypassEnabled
 
 	supported, notSupported := e.getProtocolsForBuildMode()
 	cleanup := e.configureManagerWithSupportedProtocols(supported)
@@ -435,6 +437,10 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		for _, pm := range e.PerfMaps {
 			pm.TelemetryEnabled = true
 			ebpftelemetry.ReportPerfMapTelemetry(pm)
+		}
+		for _, rb := range e.RingBuffers {
+			rb.TelemetryEnabled = true
+			ebpftelemetry.ReportRingBufferTelemetry(rb)
 		}
 	}
 
@@ -481,7 +487,7 @@ func (e *ebpfProgram) setupMapCleaner() (*ddebpf.MapCleaner[netebpf.ConnTuple, n
 	}
 
 	ttl := connProtoTTL.Nanoseconds()
-	mapCleaner.Clean(connProtoCleaningInterval, nil, nil, func(now int64, key netebpf.ConnTuple, val netebpf.ProtocolStackWrapper) bool {
+	mapCleaner.Clean(connProtoCleaningInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val netebpf.ProtocolStackWrapper) bool {
 		return (now - int64(val.Updated)) > ttl
 	})
 

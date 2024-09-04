@@ -13,12 +13,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newUnbundledTransformer(hostname string, types []string) eventTransformer {
+func newUnbundledTransformer(hostname string, types []string, bundledTransformer eventTransformer) eventTransformer {
 	collectedEventTypes := make(map[string]struct{}, len(types))
 	for _, t := range types {
 		collectedEventTypes[t] = struct{}{}
@@ -27,22 +26,26 @@ func newUnbundledTransformer(hostname string, types []string) eventTransformer {
 	return &unbundledTransformer{
 		hostname:            hostname,
 		collectedEventTypes: collectedEventTypes,
+		bundledTransformer:  bundledTransformer,
 	}
 }
 
 type unbundledTransformer struct {
 	hostname            string
 	collectedEventTypes map[string]struct{}
+	bundledTransformer  eventTransformer
 }
 
 func (t *unbundledTransformer) Transform(events []*docker.ContainerEvent) ([]event.Event, []error) {
 	var (
-		datadogEvs []event.Event
-		errors     []error
+		datadogEvs  []event.Event
+		errors      []error
+		evsToBundle []*docker.ContainerEvent
 	)
 
 	for _, ev := range events {
 		if _, ok := t.collectedEventTypes[string(ev.Action)]; !ok {
+			evsToBundle = append(evsToBundle, ev)
 			continue
 		}
 
@@ -54,7 +57,7 @@ func (t *unbundledTransformer) Transform(events []*docker.ContainerEvent) ([]eve
 		emittedEvents.Inc(string(alertType))
 
 		tags, err := tagger.Tag(
-			containers.BuildTaggerEntityName(ev.ContainerID),
+			types.NewEntityID(types.ContainerID, ev.ContainerID).String(),
 			types.HighCardinality,
 		)
 		if err != nil {
@@ -77,5 +80,7 @@ func (t *unbundledTransformer) Transform(events []*docker.ContainerEvent) ([]eve
 		})
 	}
 
-	return datadogEvs, errors
+	bundledEvs, errs := t.bundledTransformer.Transform(evsToBundle)
+
+	return append(datadogEvs, bundledEvs...), append(errors, errs...)
 }

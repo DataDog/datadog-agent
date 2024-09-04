@@ -24,9 +24,6 @@ import (
 
 // team: agent-shared-components
 
-// LogConfig reads the logger config
-type LogConfig pkgconfigmodel.Reader
-
 // Component is the component type.
 type Component interface {
 	pkgconfigmodel.ReaderWriter
@@ -38,5 +35,5 @@ type Component interface {
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newConfig))
+		fx.Provide(newComponent))
 }

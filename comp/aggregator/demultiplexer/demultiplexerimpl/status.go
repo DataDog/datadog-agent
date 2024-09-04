@@ -14,7 +14,7 @@ import (
 
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
 

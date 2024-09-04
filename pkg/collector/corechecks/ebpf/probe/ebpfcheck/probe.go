@@ -21,6 +21,8 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/rlimit"
 	"golang.org/x/sys/unix"
@@ -55,6 +57,8 @@ type Probe struct {
 	mapBuffers            entryCountBuffers
 	entryCountMaxRestarts int
 
+	mphCache *mapProgHelperCache
+
 	nrcpus uint32
 }
 
@@ -82,17 +86,21 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 		return nil, err
 	}
 
-	if ddconfig.SystemProbe.GetBool("ebpf_check.kernel_bpf_stats") {
+	if ddconfig.SystemProbe().GetBool("ebpf_check.kernel_bpf_stats") {
 		probe.statsFD, err = ebpf.EnableStats(unix.BPF_STATS_RUN_TIME)
 		if err != nil {
 			log.Warnf("kernel ebpf stats failed to enable, program runtime and run count will be unavailable: %s", err)
 		}
 	}
 
-	probe.mapBuffers.keysBufferSizeLimit = uint32(ddconfig.SystemProbe.GetInt("ebpf_check.entry_count.max_keys_buffer_size_bytes"))
-	probe.mapBuffers.valuesBufferSizeLimit = uint32(ddconfig.SystemProbe.GetInt("ebpf_check.entry_count.max_values_buffer_size_bytes"))
-	probe.mapBuffers.iterationRestartDetectionEntries = ddconfig.SystemProbe.GetInt("ebpf_check.entry_count.entries_for_iteration_restart_detection")
-	probe.entryCountMaxRestarts = ddconfig.SystemProbe.GetInt("ebpf_check.entry_count.max_restarts")
+	probe.mapBuffers.keysBufferSizeLimit = uint32(ddconfig.SystemProbe().GetInt("ebpf_check.entry_count.max_keys_buffer_size_bytes"))
+	probe.mapBuffers.valuesBufferSizeLimit = uint32(ddconfig.SystemProbe().GetInt("ebpf_check.entry_count.max_values_buffer_size_bytes"))
+	probe.mapBuffers.iterationRestartDetectionEntries = ddconfig.SystemProbe().GetInt("ebpf_check.entry_count.entries_for_iteration_restart_detection")
+	probe.entryCountMaxRestarts = ddconfig.SystemProbe().GetInt("ebpf_check.entry_count.max_restarts")
+
+	if isForEachElemHelperAvailable() {
+		probe.mphCache = newMapProgHelperCache()
+	}
 
 	log.Debugf("successfully loaded ebpf check probe")
 	return probe, nil
@@ -134,7 +142,7 @@ func startEBPFCheck(buf bytecode.AssetReader, opts manager.Options) (*Probe, err
 	p.perfBufferMap = p.coll.Maps["perf_buffers"]
 	p.ringBufferMap = p.coll.Maps["ring_buffers"]
 	p.pidMap = p.coll.Maps["map_pids"]
-	AddNameMappingsCollection(p.coll, "ebpf_check")
+	ddebpf.AddNameMappingsCollection(p.coll, "ebpf_check")
 
 	if err := p.attach(collSpec); err != nil {
 		return nil, err
@@ -194,12 +202,15 @@ func (k *Probe) attach(collSpec *ebpf.CollectionSpec) (err error) {
 
 // Close releases all associated resources
 func (k *Probe) Close() {
-	RemoveNameMappingsCollection(k.coll)
+	ddebpf.RemoveNameMappingsCollection(k.coll)
 	for _, l := range k.links {
 		if err := l.Close(); err != nil {
 			log.Warnf("error unlinking program: %s", err)
 		}
 	}
+
+	k.mphCache.Close()
+
 	k.coll.Close()
 	if k.statsFD != nil {
 		_ = k.statsFD.Close()
@@ -236,6 +247,11 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats) error {
 	uniquePrograms := make(map[programKey]struct{})
 	progid := ebpf.ProgramID(0)
 	for progid, err = ebpf.ProgramGetNextID(progid); err == nil; progid, err = ebpf.ProgramGetNextID(progid) {
+		// skip programs generated on the flight for hash map entry counting with helper
+		if ddebpf.IsProgramIDIgnored(progid) {
+			continue
+		}
+
 		fd, err := ProgGetFdByID(&ProgGetFdByIDAttr{ID: uint32(progid)})
 		if err != nil {
 			log.Debugf("error getting program fd prog_id=%d: %s", progid, err)
@@ -254,9 +270,8 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats) error {
 			continue
 		}
 
-		mappingLock.RLock()
 		name := unix.ByteSliceToString(info.Name[:])
-		if pn, ok := progNameMapping[uint32(progid)]; ok {
+		if pn, err := ddebpf.GetProgNameFromProgID(uint32(progid)); err == nil {
 			name = pn
 		}
 		// we require a name, so use program type for unnamed programs
@@ -264,10 +279,9 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats) error {
 			name = strings.ToLower(ebpf.ProgramType(info.Type).String())
 		}
 		module := "unknown"
-		if mod, ok := progModuleMapping[uint32(progid)]; ok {
+		if mod, err := ddebpf.GetModuleFromProgID(uint32(progid)); err == nil {
 			module = mod
 		}
-		mappingLock.RUnlock()
 
 		tag := hex.EncodeToString(info.Tag[:])
 		ps := model.EBPFProgramStats{
@@ -305,8 +319,13 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 	ebpfmaps := make(map[string]*model.EBPFMapStats)
 	defer clear(ebpfmaps)
 
+	// instruct the cache to start a new iteration
+	k.mphCache.clearLiveMapIDs()
+
 	mapid := ebpf.MapID(0)
 	for mapid, err = ebpf.MapGetNextID(mapid); err == nil; mapid, err = ebpf.MapGetNextID(mapid) {
+		k.mphCache.addLiveMapID(mapid)
+
 		mp, err := ebpf.NewMapFromID(mapid)
 		if err != nil {
 			log.Debugf("unable to get map map_id=%d: %s", mapid, err)
@@ -322,18 +341,16 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 			continue
 		}
 		name := info.Name
-		mappingLock.RLock()
-		if mn, ok := mapNameMapping[uint32(mapid)]; ok {
+		if mn, err := ddebpf.GetMapNameFromMapID(uint32(mapid)); err == nil {
 			name = mn
 		}
 		if name == "" {
 			name = info.Type.String()
 		}
 		module := "unknown"
-		if mod, ok := mapModuleMapping[uint32(mapid)]; ok {
+		if mod, err := ddebpf.GetModuleFromMapID(uint32(mapid)); err == nil {
 			module = mod
 		}
-		mappingLock.RUnlock()
 
 		baseMapStats := model.EBPFMapStats{
 			ID:         uint32(mapid),
@@ -363,7 +380,7 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 			if module != "unknown" {
 				// hashMapNumberOfEntries might allocate memory, so we only do it if we have a module name, as
 				// unknown modules get discarded anyway (only RSS is used for total counts)
-				baseMapStats.Entries = hashMapNumberOfEntries(mp, &k.mapBuffers, k.entryCountMaxRestarts)
+				baseMapStats.Entries = hashMapNumberOfEntries(mp, mapid, k.mphCache, &k.mapBuffers, k.entryCountMaxRestarts)
 			}
 		case ebpf.Array, ebpf.PerCPUArray, ebpf.ProgramArray, ebpf.CGroupArray, ebpf.ArrayOfMaps:
 			baseMapStats.MaxSize, baseMapStats.RSS = arrayMemoryUsage(info, uint64(k.nrcpus))
@@ -392,6 +409,9 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 	}
 	// Allow the maps to be garbage collected
 	k.mapBuffers.resetBuffers()
+
+	// Close unused programs in the prog helper cache
+	k.mphCache.closeUnusedPrograms()
 
 	return nil
 }
@@ -891,14 +911,16 @@ func hashMapNumberOfEntriesWithIteration(mp *ebpf.Map, buffers *entryCountBuffer
 	return numElements, nil
 }
 
-func hashMapNumberOfEntries(mp *ebpf.Map, buffers *entryCountBuffers, maxRestarts int) int64 {
+func hashMapNumberOfEntries(mp *ebpf.Map, mapid ebpf.MapID, mphCache *mapProgHelperCache, buffers *entryCountBuffers, maxRestarts int) int64 {
 	if isPerCPU(mp.Type()) {
 		return -1
 	}
 
 	var numElements int64
 	var err error
-	if ddmaps.BatchAPISupported() && mp.Type() != ebpf.HashOfMaps { // HashOfMaps doesn't work with batch API
+	if mphCache != nil && isForEachElemHelperAvailable() && mp.Type() != ebpf.HashOfMaps {
+		numElements, err = hashMapNumberOfEntriesWithHelper(mp, mapid, mphCache)
+	} else if ddmaps.BatchAPISupported() && mp.Type() != ebpf.HashOfMaps { // HashOfMaps doesn't work with batch API
 		numElements, err = hashMapNumberOfEntriesWithBatch(mp, buffers, maxRestarts)
 	} else {
 		numElements, err = hashMapNumberOfEntriesWithIteration(mp, buffers, maxRestarts)
@@ -909,4 +931,23 @@ func hashMapNumberOfEntries(mp *ebpf.Map, buffers *entryCountBuffers, maxRestart
 	}
 
 	return numElements
+}
+
+func isForEachElemHelperAvailable() bool {
+	return features.HaveProgramHelper(ebpf.SocketFilter, asm.FnForEachMapElem) == nil
+}
+
+func hashMapNumberOfEntriesWithHelper(mp *ebpf.Map, mapid ebpf.MapID, mphCache *mapProgHelperCache) (int64, error) {
+	prog, err := mphCache.newCachedProgramForMap(mp, mapid)
+	if err != nil {
+		return 0, err
+	}
+
+	var buf [32]byte
+	res, _, err := prog.Test(buf[:])
+	if err != nil {
+		return 0, err
+	}
+
+	return int64(res), nil
 }

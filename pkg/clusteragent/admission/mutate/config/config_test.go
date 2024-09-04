@@ -26,6 +26,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -74,8 +75,8 @@ func Test_injectionMode(t *testing.T) {
 func TestInjectHostIP(t *testing.T) {
 	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true"})
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
-	webhook := NewWebhook(wmeta)
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+	webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter())
 	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
 	assert.True(t, injected)
@@ -85,8 +86,8 @@ func TestInjectHostIP(t *testing.T) {
 func TestInjectService(t *testing.T) {
 	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "service"})
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
-	webhook := NewWebhook(wmeta)
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+	webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter())
 	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
 	assert.True(t, injected)
@@ -100,13 +101,6 @@ func TestInjectEntityID(t *testing.T) {
 		configOverrides map[string]interface{}
 	}{
 		{
-			name: "inject container name and pod uid",
-			env:  corev1.EnvVar{Name: ddEntityIDEnvVarName, Value: "en-$(DD_INTERNAL_POD_UID)/cont-name"},
-			configOverrides: map[string]interface{}{
-				"admission_controller.inject_config.inject_container_name": true,
-			},
-		},
-		{
 			name: "inject pod uid",
 			env:  mutatecommon.FakeEnvWithFieldRefValue("DD_ENTITY_ID", "metadata.uid"),
 		},
@@ -119,11 +113,10 @@ func TestInjectEntityID(t *testing.T) {
 			wmeta := fxutil.Test[workloadmeta.Component](
 				t,
 				core.MockBundle(),
-				workloadmetafxmock.MockModule(),
-				fx.Supply(workloadmeta.NewParams()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 				fx.Replace(config.MockParams{Overrides: tt.configOverrides}),
 			)
-			webhook := NewWebhook(wmeta)
+			webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter())
 			injected, err := webhook.inject(pod, "", nil)
 			assert.Nil(t, err)
 			assert.True(t, injected)
@@ -132,7 +125,7 @@ func TestInjectEntityID(t *testing.T) {
 	}
 }
 
-func TestInjectIdentity(t *testing.T) {
+func TestInjectExternalDataEnvVar(t *testing.T) {
 	testCases := []struct {
 		name          string
 		inputPod      corev1.Pod
@@ -154,7 +147,7 @@ func TestInjectIdentity(t *testing.T) {
 						Env: []corev1.EnvVar{
 							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
 								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
-							{Name: ddEntityIDEnvVarName, Value: "en-$(DD_INTERNAL_POD_UID)/cont-name"},
+							{Name: ddExternalDataEnvVarName, Value: "it-false,cn-cont-name,pu-$(DD_INTERNAL_POD_UID)"},
 						},
 					}},
 					InitContainers: []corev1.Container{{
@@ -162,7 +155,7 @@ func TestInjectIdentity(t *testing.T) {
 						Env: []corev1.EnvVar{
 							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
 								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
-							{Name: ddEntityIDEnvVarName, Value: "en-init.$(DD_INTERNAL_POD_UID)/init-container"},
+							{Name: ddExternalDataEnvVarName, Value: "it-true,cn-init-container,pu-$(DD_INTERNAL_POD_UID)"},
 						},
 					}},
 				},
@@ -170,35 +163,69 @@ func TestInjectIdentity(t *testing.T) {
 			expectedValue: true,
 		},
 		{
-			name: "with_set_dd_entity_id",
+			name: "multiple containers",
 			inputPod: corev1.Pod{
 				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{
-						Name: "cont-name",
-						Env:  []corev1.EnvVar{{Name: ddEntityIDEnvVarName, Value: "value"}},
-					}},
+					Containers:     []corev1.Container{{Name: "cont-name-1"}, {Name: "cont-name-2"}, {Name: "cont-name-3"}},
+					InitContainers: []corev1.Container{{Name: "init-container-1"}, {Name: "init-container-2"}, {Name: "init-container-3"}},
 				},
 			},
 			expectedPod: corev1.Pod{
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
-						Name: "cont-name",
-						Env:  []corev1.EnvVar{{Name: ddEntityIDEnvVarName, Value: "value"}},
+						Name: "cont-name-1",
+						Env: []corev1.EnvVar{
+							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
+							{Name: ddExternalDataEnvVarName, Value: "it-false,cn-cont-name-1,pu-$(DD_INTERNAL_POD_UID)"},
+						},
+					}, {
+						Name: "cont-name-2",
+						Env: []corev1.EnvVar{
+							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
+							{Name: ddExternalDataEnvVarName, Value: "it-false,cn-cont-name-2,pu-$(DD_INTERNAL_POD_UID)"},
+						},
+					}, {
+						Name: "cont-name-3",
+						Env: []corev1.EnvVar{
+							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
+							{Name: ddExternalDataEnvVarName, Value: "it-false,cn-cont-name-3,pu-$(DD_INTERNAL_POD_UID)"},
+						},
+					}},
+					InitContainers: []corev1.Container{{
+						Name: "init-container-1",
+						Env: []corev1.EnvVar{
+							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
+							{Name: ddExternalDataEnvVarName, Value: "it-true,cn-init-container-1,pu-$(DD_INTERNAL_POD_UID)"},
+						},
+					}, {
+						Name: "init-container-2",
+						Env: []corev1.EnvVar{
+							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
+							{Name: ddExternalDataEnvVarName, Value: "it-true,cn-init-container-2,pu-$(DD_INTERNAL_POD_UID)"},
+						},
+					}, {
+						Name: "init-container-3",
+						Env: []corev1.EnvVar{
+							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
+							{Name: ddExternalDataEnvVarName, Value: "it-true,cn-init-container-3,pu-$(DD_INTERNAL_POD_UID)"},
+						},
 					}},
 				},
 			},
-			expectedValue: false,
+			expectedValue: true,
 		},
 		{
-			name: "override dd_internal_pod_uid",
+			name: "with only normal containers",
 			inputPod: corev1.Pod{
 				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{
-						Name: "cont-name",
-						Env: []corev1.EnvVar{
-							{Name: podUIDEnvVarName, Value: "foo"},
-						},
-					}},
+					Containers:     []corev1.Container{{Name: "cont-name"}},
+					InitContainers: []corev1.Container{},
 				},
 			},
 			expectedPod: corev1.Pod{
@@ -208,18 +235,64 @@ func TestInjectIdentity(t *testing.T) {
 						Env: []corev1.EnvVar{
 							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
 								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
-							{Name: ddEntityIDEnvVarName, Value: "en-$(DD_INTERNAL_POD_UID)/cont-name"},
+							{Name: ddExternalDataEnvVarName, Value: "it-false,cn-cont-name,pu-$(DD_INTERNAL_POD_UID)"},
+						},
+					}},
+					InitContainers: []corev1.Container{},
+				},
+			},
+			expectedValue: true,
+		},
+		{
+			name: "with only init containers",
+			inputPod: corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers:     []corev1.Container{},
+					InitContainers: []corev1.Container{{Name: "init-container"}},
+				},
+			},
+			expectedPod: corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{},
+					InitContainers: []corev1.Container{{
+						Name: "init-container",
+						Env: []corev1.EnvVar{
+							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
+							{Name: ddExternalDataEnvVarName, Value: "it-true,cn-init-container,pu-$(DD_INTERNAL_POD_UID)"},
 						},
 					}},
 				},
 			},
 			expectedValue: true,
 		},
+		{
+			name: "with nil containers",
+			inputPod: corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers:     []corev1.Container{},
+					InitContainers: []corev1.Container{},
+				},
+			},
+			expectedPod: corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers:     []corev1.Container{},
+					InitContainers: []corev1.Container{},
+				},
+			},
+			expectedValue: false,
+		},
+		{
+			name:          "with nil pod",
+			inputPod:      corev1.Pod{},
+			expectedPod:   corev1.Pod{},
+			expectedValue: false,
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := injectFullIdentity(&tc.inputPod)
+			got := injectExternalDataEnvVar(&tc.inputPod)
 			assert.Equal(t, tc.expectedValue, got)
 			assert.Equal(t, tc.expectedPod, tc.inputPod)
 		})
@@ -229,8 +302,8 @@ func TestInjectIdentity(t *testing.T) {
 func TestInjectSocket(t *testing.T) {
 	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "socket"})
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
-	webhook := NewWebhook(wmeta)
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+	webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter())
 	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
 	assert.True(t, injected)
@@ -284,8 +357,8 @@ func TestInjectSocketWithConflictingVolumeAndInitContainer(t *testing.T) {
 		},
 	}
 
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
-	webhook := NewWebhook(wmeta)
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+	webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter())
 	injected, err := webhook.inject(pod, "", nil)
 	assert.True(t, injected)
 	assert.Nil(t, err)
@@ -312,9 +385,6 @@ func TestJSONPatchCorrectness(t *testing.T) {
 		{
 			name: "inject pod uid and cont_name",
 			file: "./testdata/expected_jsonpatch_with_cont_name.json",
-			overrides: map[string]interface{}{
-				"admission_controller.inject_config.inject_container_name": true,
-			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -324,11 +394,10 @@ func TestJSONPatchCorrectness(t *testing.T) {
 			assert.NoError(t, err)
 			wmeta := fxutil.Test[workloadmeta.Component](t,
 				core.MockBundle(),
-				workloadmetafxmock.MockModule(),
-				fx.Supply(workloadmeta.NewParams()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 				fx.Replace(config.MockParams{Overrides: tt.overrides}),
 			)
-			webhook := NewWebhook(wmeta)
+			webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter())
 			request := admission.MutateRequest{
 				Raw:       podJSON,
 				Namespace: "bar",
@@ -359,7 +428,7 @@ func BenchmarkJSONPatch(b *testing.B) {
 	}
 
 	wmeta := fxutil.Test[workloadmeta.Component](b, core.MockBundle())
-	webhook := NewWebhook(wmeta)
+	webhook := NewWebhook(wmeta, autoinstrumentation.GetInjectionFilter())
 	podJSON := obj.(*admiv1.AdmissionReview).Request.Object.Raw
 
 	b.ResetTimer()

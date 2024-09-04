@@ -19,7 +19,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -382,11 +383,10 @@ func TestProvider_Provide(t *testing.T) {
 
 func creatFakeStore(t *testing.T) workloadmetamock.Mock {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		logimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		configcomp.MockModule(),
 		fx.Supply(context.Background()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
 	podEntityID := workloadmeta.EntityID{

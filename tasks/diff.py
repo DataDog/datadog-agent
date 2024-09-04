@@ -2,6 +2,7 @@
 Diffing tasks
 """
 
+import datetime
 import os
 import tempfile
 
@@ -12,10 +13,11 @@ from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import GOARCH_MAPPING, GOOS_MAPPING
 from tasks.libs.common.color import color_message
+from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import check_uncommitted_changes, get_commit_sha, get_current_branch
 from tasks.release import _get_release_json_value
 
-BINARIES = {
+BINARIES: dict[str, dict] = {
     "agent": {
         "entrypoint": "cmd/agent",
         "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
@@ -66,9 +68,17 @@ BINARIES = {
     },
 }
 
+METRIC_GO_DEPS_DIFF = "datadog.agent.go_dependencies.diff"
+
 
 @task
-def go_deps(ctx, baseline_ref=None, report_file=None):
+def go_deps(
+    ctx,
+    baseline_ref=None,
+    report_file=None,
+    report_metrics: bool = False,
+    git_ref: str | None = None,
+):
     if check_uncommitted_changes(ctx):
         raise Exit(
             color_message(
@@ -77,6 +87,17 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
             ),
             code=1,
         )
+
+    if report_metrics and not os.environ.get("DD_API_KEY"):
+        raise Exit(
+            code=1,
+            message=color_message(
+                "DD_API_KEY environment variable not set, cannot send pipeline metrics to the backend", "red"
+            ),
+        )
+
+    timestamp = int(datetime.datetime.now(datetime.UTC).timestamp())
+
     current_branch = get_current_branch(ctx)
     commit_sha = os.getenv("CI_COMMIT_SHA")
     if commit_sha is None:
@@ -99,7 +120,7 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
 
                 for binary, details in BINARIES.items():
                     with ctx.cd(details.get("entrypoint")):
-                        for combo in details.get("platforms"):
+                        for combo in details["platforms"]:
                             platform, arch = combo.split("/")
                             goos, goarch = GOOS_MAPPING.get(platform), GOARCH_MAPPING.get(arch)
                             target = f"{binary}-{goos}-{goarch}"
@@ -116,7 +137,7 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
 
         # compute diffs for each target
         for binary, details in BINARIES.items():
-            for combo in details.get("platforms"):
+            for combo in details["platforms"]:
                 platform, arch = combo.split("/")
                 goos, goarch = GOOS_MAPPING.get(platform), GOARCH_MAPPING.get(arch)
                 target = f"{binary}-{goos}-{goarch}"
@@ -137,7 +158,9 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
                 "<table><thead><tr><th>binary</th><th>os</th><th>arch</th><th>change</th></tr></thead><tbody>",
             ]
             for binary, details in BINARIES.items():
-                for combo in details.get("platforms"):
+                for combo in details["platforms"]:
+                    flavor = details.get("flavor", AgentFlavor.base)
+                    build = details.get("build", binary)
                     platform, arch = combo.split("/")
                     goos, goarch = GOOS_MAPPING.get(platform), GOARCH_MAPPING.get(arch)
                     target = f"{binary}-{goos}-{goarch}"
@@ -146,6 +169,23 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
                     if target in diffs:
                         targetdiffs = diffs[target]
                         add, remove = patch_summary(targetdiffs)
+
+                        if report_metrics:
+                            tags = [
+                                f"build:{build}",
+                                f"flavor:{flavor.name}",
+                                f"os:{goos}",
+                                f"arch:{goarch}",
+                                f"git_sha:{commit_sha}",
+                                f"git_ref:{git_ref}",
+                            ]
+
+                            if git_ref:
+                                tags.append(f"git_ref:{git_ref}")
+
+                            dependency_diff = create_count(METRIC_GO_DEPS_DIFF, timestamp, (add - remove), tags)
+                            send_metrics([dependency_diff])
+
                         color_add = color_message(f"+{add}", "green")
                         color_remove = color_message(f"-{remove}", "red")
                         print(f"== {prettytarget} {color_add}, {color_remove} ==")

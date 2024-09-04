@@ -18,6 +18,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -55,24 +56,31 @@ func newSystemCollector(cache *provider.Cache, wlm optional.Option[workloadmeta.
 	var err error
 	var hostPrefix string
 	var collectorMetadata provider.CollectorMetadata
+	var cf cgroups.ReaderFilter
 
 	procPath := config.Datadog().GetString("container_proc_root")
 	if strings.HasPrefix(procPath, "/host") {
 		hostPrefix = "/host"
 	}
 
-	var w workloadmeta.Component
-	unwrapped, ok := wlm.Get()
-	if ok {
-		w = unwrapped
+	if useTrie := config.Datadog().GetBool("use_improved_cgroup_parser"); useTrie {
+		var w workloadmeta.Component
+		unwrapped, ok := wlm.Get()
+		if ok {
+			w = unwrapped
+		}
+		filter := newContainerFilter(w)
+		go filter.start()
+		cf = filter.ContainerFilter
+	} else {
+		cf = cgroups.ContainerFilter
 	}
-	cf := newContainerFilter(w)
-	go cf.start()
 	reader, err := cgroups.NewReader(
 		cgroups.WithCgroupV1BaseController(cgroupV1BaseController),
 		cgroups.WithProcPath(procPath),
 		cgroups.WithHostPrefix(hostPrefix),
-		cgroups.WithReaderFilter(cf.ContainerFilter),
+		cgroups.WithReaderFilter(cf),
+		cgroups.WithPIDMapper(config.Datadog().GetString("container_pid_mapper")),
 	)
 	if err != nil {
 		// Cgroup provider is pretty static. Except not having required mounts, it should always work.
@@ -82,7 +90,7 @@ func newSystemCollector(cache *provider.Cache, wlm optional.Option[workloadmeta.
 
 	selfReader, err := cgroups.NewSelfReader(
 		procPath,
-		config.IsContainerized(),
+		env.IsContainerized(),
 		cgroups.WithCgroupV1BaseController(cgroupV1BaseController),
 	)
 	if err != nil {
@@ -113,20 +121,20 @@ func newSystemCollector(cache *provider.Cache, wlm optional.Option[workloadmeta.
 
 	// Build available Collectors based on environment
 	var collectors *provider.Collectors
-	if config.IsContainerized() {
+	if env.IsContainerized() {
 		collectors = &provider.Collectors{}
 
 		// When the Agent runs as a sidecar (e.g. Fargate) with shared PID namespace, we can use the system collector in some cases.
 		// TODO: Check how we could detect shared PID namespace instead of makeing assumption
-		isAgentSidecar := config.IsFeaturePresent(config.ECSFargate) || config.IsFeaturePresent(config.EKSFargate)
+		isAgentSidecar := env.IsFeaturePresent(env.ECSFargate) || env.IsFeaturePresent(env.EKSFargate)
 
 		// With sysfs we can always get cgroup stats
-		if config.IsHostSysAvailable() {
+		if env.IsHostSysAvailable() {
 			collectors.Stats = provider.MakeRef[provider.ContainerStatsGetter](systemCollector, collectorHighPriority)
 		}
 
 		// With host proc we can always get network stats and pids
-		if config.IsHostProcAvailable() {
+		if env.IsHostProcAvailable() {
 			collectors.Network = provider.MakeRef[provider.ContainerNetworkStatsGetter](systemCollector, collectorHighPriority)
 			collectors.OpenFilesCount = provider.MakeRef[provider.ContainerOpenFilesCountGetter](systemCollector, collectorHighPriority)
 			collectors.PIDs = provider.MakeRef[provider.ContainerPIDsGetter](systemCollector, collectorHighPriority)

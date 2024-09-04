@@ -26,10 +26,7 @@ static __always_inline bool check_supported_ascii_and_crlf(const char* buf, __u3
         return false;
     }
 
-    if (!found_cr || i+1 >= buf_size) {
-        return false;
-    }
-    return buf[i+1] == '\n';
+    return found_cr && i + 1 < buf_size && i + 1 < CLASSIFICATION_MAX_BUFFER && buf[i + 1] == '\n';
 }
 
 // Checks the buffer represents an error according to https://redis.io/docs/reference/protocol-spec/#resp-errors
@@ -63,10 +60,7 @@ static __always_inline bool check_integer_and_crlf(const char* buf, __u32 buf_si
         return false;
     }
 
-    if (!found_cr || i+1 >= buf_size) {
-        return false;
-    }
-    return buf[i+1] == '\n';
+    return found_cr && i + 1 < buf_size && i + 1 < CLASSIFICATION_MAX_BUFFER && buf[i + 1] == '\n';
 }
 
 static __always_inline bool is_redis(const char* buf, __u32 buf_size) {

@@ -5,7 +5,6 @@
 
 //go:build linux_bpf
 
-//nolint:revive // TODO(NET) Fix revive linter
 package offsetguess
 
 import (
@@ -20,7 +19,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -45,7 +44,6 @@ type conntrackOffsetGuesser struct {
 	udpv6Enabled uint64
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
 func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) {
 	tcpv6Enabled, udpv6Enabled := getIpv6Configuration(cfg)
 	tcpv6EnabledConst, udpv6EnabledConst := boolToUint64(tcpv6Enabled), boolToUint64(udpv6Enabled)
@@ -74,13 +72,12 @@ func (c *conntrackOffsetGuesser) Manager() *manager.Manager {
 }
 
 func (c *conntrackOffsetGuesser) Close() {
-	ebpfcheck.RemoveNameMappings(c.m)
+	ddebpf.RemoveNameMappings(c.m)
 	if err := c.m.Stop(manager.CleanAll); err != nil {
 		log.Warnf("error stopping conntrack offset guesser: %s", err)
 	}
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
 func (c *conntrackOffsetGuesser) Probes(*config.Config) (map[probes.ProbeFuncName]struct{}, error) {
 	p := map[probes.ProbeFuncName]struct{}{}
 	enableProbe(p, probes.ConntrackHashInsert)

@@ -20,7 +20,7 @@ import (
 // Traces specifies the data type used for Vector override. See https://vector.dev/docs/reference/configuration/sources/datadog_agent/ for additional details.
 const Traces DataType = "traces"
 
-func setupAPM(config pkgconfigmodel.Config) {
+func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnv("apm_config.obfuscation.elasticsearch.enabled", "DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED")
 	config.BindEnv("apm_config.obfuscation.elasticsearch.keep_values", "DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES")
 	config.BindEnv("apm_config.obfuscation.elasticsearch.obfuscate_sql_values", "DD_APM_OBFUSCATION_ELASTICSEARCH_OBFUSCATE_SQL_VALUES")
@@ -72,6 +72,7 @@ func setupAPM(config pkgconfigmodel.Config) {
 		config.BindEnvAndSetDefault("apm_config.enabled", true, "DD_APM_ENABLED")
 	}
 
+	config.BindEnvAndSetDefault("apm_config.receiver_enabled", true, "DD_APM_RECEIVER_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.receiver_port", 8126, "DD_APM_RECEIVER_PORT", "DD_RECEIVER_PORT")
 	config.BindEnvAndSetDefault("apm_config.windows_pipe_buffer_size", 1_000_000, "DD_APM_WINDOWS_PIPE_BUFFER_SIZE")                          //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.windows_pipe_security_descriptor", "D:AI(A;;GA;;;WD)", "DD_APM_WINDOWS_PIPE_SECURITY_DESCRIPTOR") //nolint:errcheck
@@ -83,6 +84,15 @@ func setupAPM(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled_namespaces", []string{}, "DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES")
 	config.BindEnvAndSetDefault("apm_config.instrumentation.disabled_namespaces", []string{}, "DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES")
 	config.BindEnvAndSetDefault("apm_config.instrumentation.lib_versions", map[string]string{}, "DD_APM_INSTRUMENTATION_LIB_VERSIONS")
+	// Note(stanistan): The flag "DD_APM_INSTRUMENTATION_VERSION"
+	//                  will remain undocumented for the duration of the beta.
+	//                  We intend to only switch back to v1 if beta customers have issues
+	//                  to troubleshoot. v1 will be dropped (and possibly the flag)
+	//                  in 7.58 or 7.59 (this is going out in 7.57).
+	config.BindEnvAndSetDefault("apm_config.instrumentation.version", "v2", "DD_APM_INSTRUMENTATION_VERSION")
+	// Default Image Tag for the APM Inject package (https://hub.docker.com/r/datadog/apm-inject/tags).
+	// We pin to a major version by default.
+	config.BindEnvAndSetDefault("apm_config.instrumentation.injector_image_tag", "0", "DD_APM_INSTRUMENTATION_INJECTOR_IMAGE_TAG")
 
 	config.BindEnv("apm_config.max_catalog_services", "DD_APM_MAX_CATALOG_SERVICES")
 	config.BindEnv("apm_config.receiver_timeout", "DD_APM_RECEIVER_TIMEOUT")
@@ -97,7 +107,7 @@ func setupAPM(config pkgconfigmodel.Config) {
 	config.BindEnv("apm_config.target_traces_per_second", "DD_APM_TARGET_TPS")
 	config.BindEnv("apm_config.errors_per_second", "DD_APM_ERROR_TPS")
 	config.BindEnv("apm_config.enable_rare_sampler", "DD_APM_ENABLE_RARE_SAMPLER")
-	config.BindEnv("apm_config.disable_rare_sampler", "DD_APM_DISABLE_RARE_SAMPLER") //Deprecated
+	config.BindEnv("apm_config.disable_rare_sampler", "DD_APM_DISABLE_RARE_SAMPLER") // Deprecated
 	config.BindEnv("apm_config.max_remote_traces_per_second", "DD_APM_MAX_REMOTE_TPS")
 	config.BindEnv("apm_config.probabilistic_sampler.enabled", "DD_APM_PROBABILISTIC_SAMPLER_ENABLED")
 	config.BindEnv("apm_config.probabilistic_sampler.sampling_percentage", "DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE")
@@ -144,7 +154,7 @@ func setupAPM(config pkgconfigmodel.Config) {
 	config.BindEnv("apm_config.obfuscation.credit_cards.luhn", "DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN")
 	config.BindEnvAndSetDefault("apm_config.debug.port", 5012, "DD_APM_DEBUG_PORT")
 	config.BindEnv("apm_config.features", "DD_APM_FEATURES")
-	config.SetEnvKeyTransformer("apm_config.features", func(s string) interface{} {
+	config.ParseEnvAsStringSlice("apm_config.features", func(s string) []string {
 		// Either commas or spaces can be used as separators.
 		// Comma takes precedence as it was the only supported separator in the past.
 		// Mixing separators is not supported.
@@ -160,7 +170,7 @@ func setupAPM(config pkgconfigmodel.Config) {
 		return res
 	})
 
-	config.SetEnvKeyTransformer("apm_config.ignore_resources", func(in string) interface{} {
+	config.ParseEnvAsStringSlice("apm_config.ignore_resources", func(in string) []string {
 		r, err := splitCSVString(in, ',')
 		if err != nil {
 			log.Warnf(`"apm_config.ignore_resources" can not be parsed: %v`, err)
@@ -169,15 +179,12 @@ func setupAPM(config pkgconfigmodel.Config) {
 		return r
 	})
 
-	config.SetEnvKeyTransformer("apm_config.filter_tags.require", parseKVList("apm_config.filter_tags.require"))
+	config.ParseEnvAsStringSlice("apm_config.filter_tags.require", parseKVList("apm_config.filter_tags.require"))
+	config.ParseEnvAsStringSlice("apm_config.filter_tags.reject", parseKVList("apm_config.filter_tags.reject"))
+	config.ParseEnvAsStringSlice("apm_config.filter_tags_regex.require", parseKVList("apm_config.filter_tags_regex.require"))
+	config.ParseEnvAsStringSlice("apm_config.filter_tags_regex.reject", parseKVList("apm_config.filter_tags_regex.reject"))
 
-	config.SetEnvKeyTransformer("apm_config.filter_tags.reject", parseKVList("apm_config.filter_tags.reject"))
-
-	config.SetEnvKeyTransformer("apm_config.filter_tags_regex.require", parseKVList("apm_config.filter_tags_regex.require"))
-
-	config.SetEnvKeyTransformer("apm_config.filter_tags_regex.reject", parseKVList("apm_config.filter_tags_regex.reject"))
-
-	config.SetEnvKeyTransformer("apm_config.replace_tags", func(in string) interface{} {
+	config.ParseEnvAsSliceMapString("apm_config.replace_tags", func(in string) []map[string]string {
 		var out []map[string]string
 		if err := json.Unmarshal([]byte(in), &out); err != nil {
 			log.Warnf(`"apm_config.replace_tags" can not be parsed: %v`, err)
@@ -185,7 +192,7 @@ func setupAPM(config pkgconfigmodel.Config) {
 		return out
 	})
 
-	config.SetEnvKeyTransformer("apm_config.analyzed_spans", func(in string) interface{} {
+	config.ParseEnvAsMapStringInterface("apm_config.analyzed_spans", func(in string) map[string]interface{} {
 		out, err := parseAnalyzedSpans(in)
 		if err != nil {
 			log.Errorf(`Bad format for "apm_config.analyzed_spans" it should be of the form \"service_name|operation_name=rate,other_service|other_operation=rate\", error: %v`, err)
@@ -194,7 +201,7 @@ func setupAPM(config pkgconfigmodel.Config) {
 	})
 
 	config.BindEnv("apm_config.peer_tags", "DD_APM_PEER_TAGS")
-	config.SetEnvKeyTransformer("apm_config.peer_tags", func(in string) interface{} {
+	config.ParseEnvAsStringSlice("apm_config.peer_tags", func(in string) []string {
 		var out []string
 		if err := json.Unmarshal([]byte(in), &out); err != nil {
 			log.Warnf(`"apm_config.peer_tags" can not be parsed: %v`, err)
@@ -203,8 +210,8 @@ func setupAPM(config pkgconfigmodel.Config) {
 	})
 }
 
-func parseKVList(key string) func(string) interface{} {
-	return func(in string) interface{} {
+func parseKVList(key string) func(string) []string {
+	return func(in string) []string {
 		if len(in) == 0 {
 			return []string{}
 		}
@@ -244,10 +251,10 @@ func parseNameAndRate(token string) (string, float64, error) {
 
 // parseAnalyzedSpans parses the env string to extract a map of spans to be analyzed by service and operation.
 // the format is: service_name|operation_name=rate,other_service|other_operation=rate
-func parseAnalyzedSpans(env string) (analyzedSpans map[string]interface{}, err error) {
-	analyzedSpans = make(map[string]interface{})
+func parseAnalyzedSpans(env string) (map[string]interface{}, error) {
+	analyzedSpans := make(map[string]interface{})
 	if env == "" {
-		return
+		return analyzedSpans, nil
 	}
 	tokens := strings.Split(env, ",")
 	for _, token := range tokens {
@@ -257,5 +264,5 @@ func parseAnalyzedSpans(env string) (analyzedSpans map[string]interface{}, err e
 		}
 		analyzedSpans[name] = rate
 	}
-	return
+	return analyzedSpans, nil
 }

@@ -312,6 +312,11 @@ func (b *BoolArrayEvaluator) IsStatic() bool {
 	return b.EvalFnc == nil
 }
 
+// AppendValues to the array evaluator
+func (b *BoolArrayEvaluator) AppendValues(values ...bool) {
+	b.Values = append(b.Values, values...)
+}
+
 // CIDREvaluator returns a net.IP
 type CIDREvaluator struct {
 	EvalFnc     func(ctx *Context) net.IPNet

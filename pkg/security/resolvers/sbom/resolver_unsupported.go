@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Resolver is the Software Bill-Of-material resolver
@@ -25,7 +24,7 @@ type Resolver struct {
 }
 
 // NewSBOMResolver returns a new instance of Resolver
-func NewSBOMResolver(_ *config.RuntimeSecurityConfig, _ statsd.ClientInterface, _ optional.Option[workloadmeta.Component]) (*Resolver, error) {
+func NewSBOMResolver(_ *config.RuntimeSecurityConfig, _ statsd.ClientInterface, _ workloadmeta.Component) (*Resolver, error) {
 	return &Resolver{}, nil
 }
 
@@ -48,7 +47,8 @@ func (r *Resolver) SendStats() error {
 }
 
 // Start starts the goroutine of the SBOM resolver
-func (r *Resolver) Start(_ context.Context) {
+func (r *Resolver) Start(_ context.Context) error {
+	return nil
 }
 
 // RefreshSBOM regenerates a SBOM for a container

@@ -38,10 +38,7 @@ int __attribute__((always_inline)) approve_by_basename(struct dentry *dentry, u6
 }
 
 int __attribute__((always_inline)) basename_approver(struct syscall_cache_t *syscall, struct dentry *dentry, u64 event_type) {
-    if ((syscall->policy.flags & BASENAME) > 0) {
-        return approve_by_basename(dentry, event_type);
-    }
-    return 0;
+    return approve_by_basename(dentry, event_type);
 }
 
 int __attribute__((always_inline)) chmod_approvers(struct syscall_cache_t *syscall) {
@@ -79,11 +76,11 @@ int __attribute__((always_inline)) approve_mmap_by_protection(struct syscall_cac
 int __attribute__((always_inline)) mmap_approvers(struct syscall_cache_t *syscall) {
     int pass_to_userspace = 0;
 
-    if ((syscall->policy.flags & BASENAME) > 0 && syscall->mmap.dentry != NULL) {
+    if (syscall->mmap.dentry != NULL) {
         pass_to_userspace = approve_by_basename(syscall->mmap.dentry, EVENT_MMAP);
     }
 
-    if (!pass_to_userspace && (syscall->policy.flags & FLAGS) > 0) {
+    if (!pass_to_userspace) {
         pass_to_userspace = approve_mmap_by_protection(syscall);
         if (!pass_to_userspace) {
             pass_to_userspace = approve_mmap_by_flags(syscall);
@@ -127,13 +124,9 @@ int __attribute__((always_inline)) approve_mprotect_by_req_protection(struct sys
 }
 
 int __attribute__((always_inline)) mprotect_approvers(struct syscall_cache_t *syscall) {
-    int pass_to_userspace = 0;
-
-    if ((syscall->policy.flags & FLAGS) > 0) {
-        pass_to_userspace = approve_mprotect_by_vm_protection(syscall);
-        if (!pass_to_userspace) {
-            pass_to_userspace = approve_mprotect_by_req_protection(syscall);
-        }
+    int pass_to_userspace = approve_mprotect_by_vm_protection(syscall);
+    if (!pass_to_userspace) {
+        pass_to_userspace = approve_mprotect_by_req_protection(syscall);
     }
 
     return pass_to_userspace;
@@ -149,22 +142,19 @@ int __attribute__((always_inline)) approve_by_flags(struct syscall_cache_t *sysc
     u32 flags = *flags_ptr;
     if ((flags == 0 && syscall->open.flags == 0) || ((syscall->open.flags & flags) > 0)) {
         monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
-#ifdef DEBUG
+
+#if defined(DEBUG_APPROVERS)
         bpf_printk("open flags %d approved", syscall->open.flags);
 #endif
+
         return 1;
     }
     return 0;
 }
 
 int __attribute__((always_inline)) open_approvers(struct syscall_cache_t *syscall) {
-    int pass_to_userspace = 0;
-
-    if ((syscall->policy.flags & BASENAME) > 0) {
-        pass_to_userspace = approve_by_basename(syscall->open.dentry, EVENT_OPEN);
-    }
-
-    if (!pass_to_userspace && (syscall->policy.flags & FLAGS) > 0) {
+    int pass_to_userspace = approve_by_basename(syscall->open.dentry, EVENT_OPEN);
+    if (!pass_to_userspace) {
         pass_to_userspace = approve_by_flags(syscall);
     }
 
@@ -203,11 +193,11 @@ int __attribute__((always_inline)) approve_splice_by_exit_flags(struct syscall_c
 int __attribute__((always_inline)) splice_approvers(struct syscall_cache_t *syscall) {
     int pass_to_userspace = 0;
 
-    if ((syscall->policy.flags & BASENAME) > 0 && syscall->splice.dentry != NULL) {
+    if (syscall->splice.dentry != NULL) {
         pass_to_userspace = approve_by_basename(syscall->splice.dentry, EVENT_SPLICE);
     }
 
-    if (!pass_to_userspace && (syscall->policy.flags & FLAGS) > 0) {
+    if (!pass_to_userspace) {
         pass_to_userspace = approve_splice_by_exit_flags(syscall);
         if (!pass_to_userspace) {
             pass_to_userspace = approve_splice_by_entry_flags(syscall);
@@ -227,14 +217,12 @@ int __attribute__((always_inline)) utime_approvers(struct syscall_cache_t *sysca
 
 int __attribute__((always_inline)) bpf_approvers(struct syscall_cache_t *syscall) {
     int pass_to_userspace = 0;
+    u32 key = 0;
 
-    if ((syscall->policy.flags & FLAGS) > 0) {
-        u32 key = 0;
-        u64 *cmd_bitmask = bpf_map_lookup_elem(&bpf_cmd_approvers, &key);
-        if (cmd_bitmask != NULL && ((1 << syscall->bpf.cmd) & *cmd_bitmask) > 0) {
-            monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
-            pass_to_userspace = 1;
-        }
+    u64 *cmd_bitmask = bpf_map_lookup_elem(&bpf_cmd_approvers, &key);
+    if (cmd_bitmask != NULL && ((1 << syscall->bpf.cmd) & *cmd_bitmask) > 0) {
+        monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
+        pass_to_userspace = 1;
     }
 
     return pass_to_userspace;

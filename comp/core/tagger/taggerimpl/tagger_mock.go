@@ -12,16 +12,19 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	"go.uber.org/fx"
+
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/local"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // MockTaggerClient is a mock of the tagger Component
@@ -61,13 +64,13 @@ func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(NewMock),
 		fx.Supply(config.Params{}),
-		fx.Supply(logimpl.Params{}),
-		logimpl.MockModule(),
+		fx.Supply(log.Params{}),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		sysprobeconfigimpl.MockModule(),
 		fx.Supply(tagger.NewFakeTaggerParams()),
-		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafx.Module(),
+		workloadmetafx.Module(workloadmeta.NewParams()),
+		telemetryimpl.MockModule(),
 	)
 }
 
@@ -78,6 +81,16 @@ func (m *MockTaggerClient) SetTags(entity, source string, low, orch, high, std [
 	}
 	if v, ok := m.TaggerClient.defaultTagger.(*local.FakeTagger); ok {
 		v.SetTags(entity, source, low, orch, high, std)
+	}
+}
+
+// SetGlobalTags calls faketagger SetGlobalTags which sets the tags for the global entity
+func (m *MockTaggerClient) SetGlobalTags(low, orch, high, std []string) {
+	if m.TaggerClient == nil {
+		panic("Tagger must be initialized before calling SetTags")
+	}
+	if v, ok := m.TaggerClient.defaultTagger.(*local.FakeTagger); ok {
+		v.SetGlobalTags(low, orch, high, std)
 	}
 }
 

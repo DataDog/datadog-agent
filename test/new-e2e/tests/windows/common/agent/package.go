@@ -117,6 +117,7 @@ func GetPipelineMSIURL(pipelineID string, majorVersion string, arch string) (str
 	s3Client := s3.NewFromConfig(config)
 
 	// Manual URL example: https://s3.amazonaws.com/dd-agent-mstesting?prefix=pipelines/A7/25309493
+	fmt.Printf("Looking for agent MSI for pipeline majorVersion %v %v\n", majorVersion, pipelineID)
 	result, err := s3Client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{
 		Bucket: aws.String(agentS3BucketTesting),
 		Prefix: aws.String(fmt.Sprintf("pipelines/A%s/%s", majorVersion, pipelineID)),
@@ -247,7 +248,7 @@ func LookupChannelURLFromEnv() (string, bool) {
 //
 // WINDOWS_AGENT_MSI_URL: manually provided URL (all other parameters are informational only)
 //
-// CI_PIPELINE_ID: use the URL from a specific CI pipeline, major version and arch are used, channel is blank
+// E2E_PIPELINE_ID: use the URL from a specific CI pipeline, major version and arch are used, channel is blank
 //
 // WINDOWS_AGENT_VERSION: The complete version, e.g. 7.49.0-1, 7.49.0-rc.3-1, or a major version, e.g. 7, arch and channel are used
 //
@@ -267,7 +268,7 @@ func GetPackageFromEnv() (*Package, error) {
 	channel, channelFound := LookupChannelFromEnv()
 	version, _ := LookupVersionFromEnv()
 	arch, _ := LookupArchFromEnv()
-	pipelineID, pipelineIDFound := os.LookupEnv("CI_PIPELINE_ID")
+	pipelineID, pipelineIDFound := os.LookupEnv("E2E_PIPELINE_ID")
 
 	majorVersion := strings.Split(version, ".")[0]
 

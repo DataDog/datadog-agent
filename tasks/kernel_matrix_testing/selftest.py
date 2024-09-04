@@ -2,15 +2,20 @@ from __future__ import annotations
 
 import functools
 import re
+from typing import TYPE_CHECKING
 
 from invoke.context import Context
 
 from tasks.kernel_matrix_testing.platforms import get_platforms
-from tasks.kernel_matrix_testing.tool import error, full_arch, get_binary_target_arch, info, warn
-from tasks.kernel_matrix_testing.types import Component
-from tasks.kernel_matrix_testing.vars import KMTPaths, arch_ls
+from tasks.kernel_matrix_testing.tool import error, get_binary_target_arch, info, warn
+from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
+from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch
+from tasks.system_probe import get_ebpf_build_dir
 
-SelftestResult = tuple[bool | None, str]
+if TYPE_CHECKING:
+    from tasks.kernel_matrix_testing.types import Component
+
+    SelftestResult = tuple[bool | None, str]
 
 
 def selftest_pulumi(ctx: Context, _: bool) -> SelftestResult:
@@ -29,7 +34,7 @@ def selftest_platforms_json(ctx: Context, _: bool) -> SelftestResult:
         return False, f"Cannot read platforms.json file: {e}"
 
     image_vers: set[str] = set()
-    for arch in arch_ls:
+    for arch in KMT_SUPPORTED_ARCHS:
         if arch not in plat:
             return False, f"Missing {arch} in platforms.json file"
 
@@ -47,39 +52,49 @@ def selftest_platforms_json(ctx: Context, _: bool) -> SelftestResult:
     return True, "platforms.json file exists, is readable and is correct"
 
 
-def selftest_prepare(ctx: Context, allow_infra_changes: bool, component: Component) -> SelftestResult:
-    """Ensures that we can run kmt.prepare for a given component.
+def selftest_prepare(ctx: Context, _: bool, component: Component, cross_compile: bool) -> SelftestResult:
+    """Ensures that we can run kmt.prepare for a given component."""
+    stack = f"selftest-prepare-{component}-xbuild{cross_compile}"
+    arch = Arch.local()
+    target = arch
+    if cross_compile:
+        if target == ARCH_AMD64:
+            target = ARCH_ARM64
+        else:
+            target = ARCH_AMD64
+        arch_arg = f"--arch={target.kmt_arch}"
+    else:
+        arch_arg = ""
 
-    If allow_infra_changes is true, the stack will be created if it doesn't exist.
-    """
-    stack = "selftest-prepare"
-    arch = full_arch("local")
-    vms = f"{arch}-debian11-distro"
+    vms = f"{target.name}-debian11-distro"
 
-    ctx.run(f"inv kmt.destroy-stack --stack={stack}", warn=True, hide=True)
+    ctx.run(f"inv kmt.destroy-stack --stack={stack}", warn=True)
     res = ctx.run(f"inv -e kmt.gen-config --stack={stack} --vms={vms} --init-stack --yes", warn=True)
     if res is None or not res.ok:
         return None, "Cannot generate config with inv kmt.gen-config"
 
-    if allow_infra_changes:
-        res = ctx.run(f"inv kmt.launch-stack --stack={stack}", warn=True)
-        if res is None or not res.ok:
-            return None, "Cannot create stack with inv kmt.create-stack"
-
-    compile_only = "--compile-only" if not allow_infra_changes else ""
-    res = ctx.run(f"inv -e kmt.prepare --stack={stack} --component={component} {compile_only}", warn=True)
+    res = ctx.run(f"inv -e kmt.prepare --stack={stack} --component={component} --compile-only {arch_arg}", warn=True)
     if res is None or not res.ok:
         return False, "Cannot run inv -e kmt.prepare"
 
-    paths = KMTPaths(stack, arch)
+    paths = KMTPaths(f"{stack}-ddvm", target)
     testpath = paths.secagent_tests if component == "security-agent" else paths.sysprobe_tests
     if not testpath.is_dir():
         return False, f"Tests directory {testpath} not found"
 
-    bytecode_dir = testpath / "pkg" / "ebpf" / "bytecode" / "build"
+    bytecode_dir = testpath / get_ebpf_build_dir(target)
     object_files = list(bytecode_dir.glob("*.o"))
     if len(object_files) == 0:
         return False, f"No object files found in {bytecode_dir}"
+
+    runtime_dir = bytecode_dir / "runtime"
+    runtime_files = list(runtime_dir.glob("*.c"))
+    if len(runtime_files) == 0:
+        return False, f"No runtime files found in {runtime_dir}"
+
+    for f in runtime_files:
+        if f.parent.name != "runtime":
+            return False, f"Runtime file {f} is not in runtime directory"
 
     if component == "security-agent":
         test_binary = testpath / "pkg" / "security" / "testsuite"
@@ -90,10 +105,35 @@ def selftest_prepare(ctx: Context, allow_infra_changes: bool, component: Compone
         return False, f"Test binary {test_binary} not found"
 
     binary_arch = get_binary_target_arch(ctx, test_binary)
-    if binary_arch != arch:
-        return False, f"Binary {test_binary} has unexpected arch {binary_arch} instead of {arch}"
+    if binary_arch != target:
+        return False, f"Binary {test_binary} has unexpected arch {binary_arch} instead of {target}"
 
     return True, f"inv -e kmt.prepare ran successfully for {component}"
+
+
+def selftest_multiarch_test(ctx: Context, allow_infra_changes: bool) -> SelftestResult:
+    stack = "selftest-test-multiarch"
+    vms = "x64-debian11-distro,arm64-debian11-distro"
+
+    if not allow_infra_changes:
+        return None, "Skipping multiarch test, infra changes not allowed"
+
+    ctx.run(f"inv kmt.destroy-stack --stack={stack}", warn=True, hide=True)
+    res = ctx.run(f"inv -e kmt.gen-config --stack={stack} --vms={vms} --init-stack --yes", warn=True)
+    if res is None or not res.ok:
+        return None, "Cannot generate config with inv kmt.gen-config"
+
+    res = ctx.run(f"inv kmt.launch-stack --stack={stack}", warn=True)
+    if res is None or not res.ok:
+        return None, "Cannot create stack with inv kmt.create-stack"
+
+    # We just test the printk patcher as it's simple, owned by eBPF platform,
+    # loads eBPF files and does not depend on other components
+    res = ctx.run(f"inv -e kmt.test --stack={stack} --packages=pkg/ebpf --run='.*TestPatchPrintkNewline.*'", warn=True)
+    if res is None or not res.ok:
+        return False, "Cannot run inv -e kmt.test"
+
+    return True, "inv -e kmt.test ran successfully for multiarch"
 
 
 def selftest(ctx: Context, allow_infra_changes: bool = False, filter: str | None = None):
@@ -105,8 +145,17 @@ def selftest(ctx: Context, allow_infra_changes: bool = False, filter: str | None
     all_selftests = [
         ("pulumi", selftest_pulumi),
         ("platforms.json", selftest_platforms_json),
-        ("sysprobe-prepare", functools.partial(selftest_prepare, component="system-probe")),
-        ("secagent-prepare", functools.partial(selftest_prepare, component="security-agent")),
+        ("sysprobe-prepare", functools.partial(selftest_prepare, component="system-probe", cross_compile=False)),
+        ("secagent-prepare", functools.partial(selftest_prepare, component="security-agent", cross_compile=False)),
+        (
+            "sysprobe-prepare x-compile",
+            functools.partial(selftest_prepare, component="system-probe", cross_compile=True),
+        ),
+        (
+            "secagent-prepare x-compile",
+            functools.partial(selftest_prepare, component="security-agent", cross_compile=True),
+        ),
+        ("multiarch test", selftest_multiarch_test),
     ]
     results: list[tuple[str, SelftestResult]] = []
 

@@ -21,5 +21,6 @@ type linuxConfigSuite struct {
 
 func TestLinuxConfigSuite(t *testing.T) {
 	osOption := awshost.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault))
+	t.Parallel()
 	e2e.Run(t, &linuxConfigSuite{baseConfigSuite: baseConfigSuite{osOption: osOption}}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }

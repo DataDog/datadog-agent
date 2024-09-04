@@ -18,6 +18,7 @@ import (
 type FieldHandlers struct {
 	config    *config.Config
 	resolvers *resolvers.Resolvers
+	hostname  string
 }
 
 // ResolveEventTime resolves the monolitic kernel event timestamp to an absolute time
@@ -26,11 +27,6 @@ func (fh *FieldHandlers) ResolveEventTime(ev *model.Event, _ *model.BaseEvent) t
 		ev.Timestamp = time.Now()
 	}
 	return ev.Timestamp
-}
-
-// ResolveContainerContext retrieve the ContainerContext of the event
-func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
-	return ev.ContainerContext, ev.ContainerContext != nil
 }
 
 // ResolveFilePath resolves the inode to a full path
@@ -110,6 +106,16 @@ func (fh *FieldHandlers) ResolveUser(_ *model.Event, process *model.Process) str
 	return fh.resolvers.UserGroupResolver.GetUser(process.OwnerSidString)
 }
 
+// ResolveContainerContext retrieve the ContainerContext of the event
+func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
+	return ev.ContainerContext, ev.ContainerContext != nil
+}
+
+// ResolveContainerRuntime retrieves the container runtime managing the container
+func (fh *FieldHandlers) ResolveContainerRuntime(_ *model.Event, _ *model.ContainerContext) string {
+	return ""
+}
+
 // ResolveContainerCreatedAt resolves the container creation time of the event
 func (fh *FieldHandlers) ResolveContainerCreatedAt(_ *model.Event, e *model.ContainerContext) int {
 	return int(e.CreatedAt)
@@ -117,7 +123,7 @@ func (fh *FieldHandlers) ResolveContainerCreatedAt(_ *model.Event, e *model.Cont
 
 // ResolveContainerID resolves the container ID of the event
 func (fh *FieldHandlers) ResolveContainerID(_ *model.Event, e *model.ContainerContext) string {
-	return e.ID
+	return string(e.ContainerID)
 }
 
 // ResolveContainerTags resolves the container tags of the event
@@ -156,4 +162,9 @@ func (fh *FieldHandlers) ResolveNewSecurityDescriptor(_ *model.Event, cp *model.
 		return cp.NewSd
 	}
 	return hrsd
+}
+
+// ResolveHostname resolve the hostname
+func (fh *FieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent) string {
+	return fh.hostname
 }

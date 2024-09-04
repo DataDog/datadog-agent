@@ -40,7 +40,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short:        "Import and convert configuration files from previous versions of the Agent",
 		Long:         ``,
 		SilenceUsage: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.args = args
 			return fxutil.OneShot(importCmd,
 				fx.Supply(cliParams),

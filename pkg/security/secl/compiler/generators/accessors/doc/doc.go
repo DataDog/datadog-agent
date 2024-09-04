@@ -101,6 +101,11 @@ func GenerateDocJSON(module *common.Module, seclModelPath, outputPath string) er
 			continue
 		}
 
+		// we currently don't want to publicly document the on-demand event type
+		if field.Event == "ondemand" {
+			continue
+		}
+
 		var propertyKey string
 		var propertySuffix string
 		var propertyDefinition string
@@ -159,11 +164,26 @@ func GenerateDocJSON(module *common.Module, seclModelPath, outputPath string) er
 			propertyDefinition = propertyDoc.Doc
 		}
 
-		kinds[field.Event] = append(kinds[field.Event], eventTypeProperty{
-			Name:        name,
-			Definition:  propertyDefinition,
-			PropertyKey: propertyKey,
-		})
+		if len(field.RestrictedTo) > 0 {
+			for _, evt := range field.RestrictedTo {
+				kinds[evt] = append(kinds[evt], eventTypeProperty{
+					Name:        name,
+					Definition:  propertyDefinition,
+					PropertyKey: propertyKey,
+				})
+			}
+		} else {
+			eventType := field.Event
+			if eventType == "" {
+				eventType = "*"
+			}
+
+			kinds[eventType] = append(kinds[eventType], eventTypeProperty{
+				Name:        name,
+				Definition:  propertyDefinition,
+				PropertyKey: propertyKey,
+			})
+		}
 	}
 
 	eventTypes := make([]eventType, 0)
@@ -266,7 +286,7 @@ func mergeConstants(one []constants, two []constants) []constants {
 
 func parseArchFromFilepath(filepath string) (string, error) {
 	switch {
-	case strings.HasSuffix(filepath, "common.go") || strings.HasSuffix(filepath, "linux.go"):
+	case strings.HasSuffix(filepath, "common.go") || strings.HasSuffix(filepath, "linux.go") || strings.HasSuffix(filepath, "windows.go"):
 		return "all", nil
 	case strings.HasSuffix(filepath, "amd64.go"):
 		return "amd64", nil
@@ -372,7 +392,16 @@ func parseConstantsFile(filepath string, tags []string) ([]constants, error) {
 
 func parseConstants(path string, tags []string) ([]constants, error) {
 	var output []constants
-	for _, filename := range []string{"consts_common.go", "consts_linux.go", "consts_linux_amd64.go", "consts_linux_arm.go", "consts_linux_arm64.go"} {
+
+	files := []string{"consts_common.go", "consts_linux.go", "consts_linux_amd64.go", "consts_linux_arm.go", "consts_linux_arm64.go"}
+	for _, tag := range tags {
+		if strings.Contains(tag, "windows") {
+			files = []string{"consts_common.go", "consts_windows.go"}
+			break
+		}
+	}
+
+	for _, filename := range files {
 		consts, err := parseConstantsFile(filepath.Join(path, filename), tags)
 		if err != nil {
 			return nil, err

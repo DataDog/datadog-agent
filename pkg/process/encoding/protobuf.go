@@ -24,7 +24,7 @@ func (protoSerializer) Marshal(stats map[int32]*procutil.StatsWithPerm) ([]byte,
 		StatsByPID: make(map[int32]*model.ProcStatsWithPerm),
 	}
 	for pid, s := range stats {
-		stat := statPool.Get().(*model.ProcStatsWithPerm)
+		stat := statPool.Get()
 		stat.OpenFDCount = s.OpenFdCount
 		stat.ReadCount = s.IOStat.ReadCount
 		stat.WriteCount = s.IOStat.WriteCount

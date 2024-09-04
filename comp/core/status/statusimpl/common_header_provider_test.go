@@ -24,7 +24,7 @@ import (
 )
 
 func TestCommonHeaderProviderIndex(t *testing.T) {
-	config := fxutil.Test[config.Component](t, config.MockModule())
+	config := config.NewMock(t)
 
 	provider := newCommonHeaderProvider(agentParams, config)
 
@@ -43,7 +43,7 @@ func TestCommonHeaderProviderJSON(t *testing.T) {
 		os.Setenv("TZ", originalTZ)
 	}()
 
-	config := fxutil.Test[config.Component](t, config.MockModule())
+	config := config.NewMock(t)
 
 	provider := newCommonHeaderProvider(agentParams, config)
 	stats := map[string]interface{}{}
@@ -73,7 +73,7 @@ func TestCommonHeaderProviderText(t *testing.T) {
 		startTimeProvider = pkgconfigsetup.StartTime
 	}()
 
-	config := fxutil.Test[config.Component](t, config.MockModule())
+	config := config.NewMock(t)
 
 	provider := newCommonHeaderProvider(agentParams, config)
 
@@ -112,7 +112,7 @@ func TestCommonHeaderProviderTime(t *testing.T) {
 	}
 	defer func() { nowFunc = time.Now }()
 
-	config := fxutil.Test[config.Component](t, config.MockModule())
+	config := config.NewMock(t)
 
 	provider := newCommonHeaderProvider(agentParams, config)
 
@@ -193,7 +193,7 @@ func TestCommonHeaderProviderHTML(t *testing.T) {
 		os.Setenv("TZ", originalTZ)
 	}()
 
-	config := fxutil.Test[config.Component](t, config.MockModule())
+	config := config.NewMock(t)
 
 	provider := newCommonHeaderProvider(agentParams, config)
 
@@ -208,14 +208,14 @@ func TestCommonHeaderProviderHTML(t *testing.T) {
 	expectedHTMLOutput := fmt.Sprintf(`<div class="stat">
   <span class="stat_title">Agent Info</span>
   <span class="stat_data">
-    Version: %s
-    <br>Flavor: %s
-    <br>PID: %d
-    <br>Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-    <br>Log Level: info
-    <br>Config File: There is no config file
-    <br>Conf.d Path: %s
-    <br>Checks.d Path: %s
+    Version: %s<br>
+    Flavor: %s<br>
+    PID: %d<br>
+    Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
+    Log Level: info<br>
+    Config File: There is no config file<br>
+    Conf.d Path: %s<br>
+    Checks.d Path: %s
   </span>
 </div>
 
@@ -271,14 +271,14 @@ func TestCommonHeaderProviderHTMLWithFipsInformation(t *testing.T) {
 	expectedHTMLOutput := fmt.Sprintf(`<div class="stat">
   <span class="stat_title">Agent Info</span>
   <span class="stat_data">
-    Version: %s
-    <br>Flavor: %s
-    <br>PID: %d
-    <br>Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-    <br>Log Level: info
-    <br>Config File: There is no config file
-    <br>Conf.d Path: %s
-    <br>Checks.d Path: %s
+    Version: %s<br>
+    Flavor: %s<br>
+    PID: %d<br>
+    Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
+    Log Level: info<br>
+    Config File: There is no config file<br>
+    Conf.d Path: %s<br>
+    Checks.d Path: %s
   </span>
 </div>
 

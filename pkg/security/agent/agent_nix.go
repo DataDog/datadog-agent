@@ -25,24 +25,31 @@ func NewRuntimeSecurityAgent(statsdClient statsd.ClientInterface, hostname strin
 	}
 
 	// on windows do no telemetry
-	telemetry, err := newTelemetry(statsdClient, wmeta, opts.LogProfiledWorkloads, opts.IgnoreDDAgentContainers)
+	telemetry, err := newTelemetry(statsdClient, wmeta, opts.IgnoreDDAgentContainers)
 	if err != nil {
 		return nil, errors.New("failed to initialize the telemetry reporter")
 	}
+
+	profContainersTelemetry, err := newProfContainersTelemetry(statsdClient, wmeta, opts.LogProfiledWorkloads)
+	if err != nil {
+		return nil, errors.New("failed to initialize the profiled containers telemetry reporter")
+	}
+
 	// on windows do no storage manager
-	storage, err := dump.NewSecurityAgentStorageManager()
+	storage, err := dump.NewAgentStorageManager()
 	if err != nil {
 		return nil, err
 	}
 
 	return &RuntimeSecurityAgent{
-		client:               client,
-		hostname:             hostname,
-		telemetry:            telemetry,
-		storage:              storage,
-		running:              atomic.NewBool(false),
-		connected:            atomic.NewBool(false),
-		eventReceived:        atomic.NewUint64(0),
-		activityDumpReceived: atomic.NewUint64(0),
+		client:                  client,
+		hostname:                hostname,
+		telemetry:               telemetry,
+		profContainersTelemetry: profContainersTelemetry,
+		storage:                 storage,
+		running:                 atomic.NewBool(false),
+		connected:               atomic.NewBool(false),
+		eventReceived:           atomic.NewUint64(0),
+		activityDumpReceived:    atomic.NewUint64(0),
 	}, nil
 }

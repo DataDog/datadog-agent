@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -264,9 +263,7 @@ func TestProvider_Provide(t *testing.T) {
 			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				core.MockBundle(),
 				fx.Supply(context.Background()),
-				collectors.GetCatalog(),
-				fx.Supply(workloadmeta.NewParams()),
-				workloadmetafxmock.MockModuleV2(),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
 			mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))

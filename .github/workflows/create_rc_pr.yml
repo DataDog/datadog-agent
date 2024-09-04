@@ -4,23 +4,25 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 14 * * 1,3,5' # Run on Monday, Wednesday, and Friday at 14:00 UTC
-
+    - cron: '0 8 * * 1,3,5' # Same as above but at 08:00 UTC, to warn agent-integrations team about releasing
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
-    create_rc_pr:
+    find_release_branches:
         runs-on: ubuntu-latest
-
+        outputs:
+          branches: ${{ steps.branches.outputs.value }}
+          warning: ${{ steps.warning.outputs.value }}
         steps:
             - name: Checkout repository
               uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
               with:
-                fetch-depth: 0
+                sparse-checkout: 'tasks'
 
             - name: Install python
-              uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
+              uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f # v5.1.1
               with:
                 python-version: 3.11
                 cache: "pip"
@@ -30,32 +32,56 @@ jobs:
                 python -m pip install --upgrade pip
                 pip install -r requirements.txt
                 pip install -r tasks/libs/requirements-github.txt
+                pip install -r tasks/requirements_release_tasks.txt
 
-            - name: Determine the release active branch
+            - name: Determine the release active branches
+              id: branches
               run: |
-                echo "RELEASE_BRANCH=$(inv -e release.get-active-release-branch)" >> $GITHUB_ENV
-            
+                echo "value=$(inv release.get-unreleased-release-branches)" >> $GITHUB_OUTPUT
+
+            - name: Set the warning option
+              id: warning
+              if: github.event.schedule == '0 8 * * 1,3,5'
+              run: |
+                echo "value=-w" >> $GITHUB_OUTPUT
+
+    create_rc_pr:
+      runs-on: ubuntu-latest
+      needs: find_release_branches
+      strategy:
+        matrix:
+          value: ${{fromJSON(needs.find_release_branches.outputs.branches)}}
+      steps:
             - name: Checkout release branch
               uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
               with:
-                ref: ${{ env.RELEASE_BRANCH }}
+                ref: ${{ matrix.value }}
                 fetch-depth: 0
+
+            - name: Install python
+              uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f # v5.1.1
+              with:
+                python-version: 3.11
+                cache: "pip"
+
+            - name: Install Python dependencies
+              run: |
+                python -m pip install --upgrade pip
+                pip install -r requirements.txt
+                pip install -r tasks/libs/requirements-github.txt
+                pip install -r tasks/requirements_release_tasks.txt
 
             - name: Check for changes since last RC
               id: check_for_changes
+              env:
+                ATLASSIAN_USERNAME: ${{ secrets.ATLASSIAN_USERNAME }}
+                ATLASSIAN_PASSWORD: ${{ secrets.ATLASSIAN_PASSWORD }}
               run: |
-                last_rc_commit=$(git log -1 --format=%H --grep="Update release.json and Go modules")
-                count=$(git rev-list --count HEAD ^"$last_rc_commit")
-                echo COUNT=$count >> $GITHUB_OUTPUT
-                  
-                if [ $count -eq '0' ]; then
-                    echo "No changes since last RC. Quitting workflow."
-                else
-                    echo "$count new commits found since last RC. Proceeding with the RC PR creation."
-                fi
-                  
+                export SLACK_API_TOKEN="${{ secrets.SLACK_API_TOKEN }}"
+                echo "CHANGES=$(inv -e release.check-for-changes -r ${{ matrix.value }} ${{ needs.find_release_branches.outputs.warning }})" >> $GITHUB_OUTPUT
+
             - name: Create RC PR
-              if: ${{ steps.check_for_changes.outputs.COUNT != '0'}}
+              if: ${{ steps.check_for_changes.outputs.CHANGES == 'true'}}
               run: |
                 git config user.name "github-actions[bot]"
                 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

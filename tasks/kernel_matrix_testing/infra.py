@@ -10,10 +10,10 @@ from invoke.context import Context
 
 from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
-from tasks.kernel_matrix_testing.tool import Exit, ask, error, info
+from tasks.kernel_matrix_testing.tool import Exit, error, info
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import ArchOrLocal, PathOrStr, SSHKey, StackOutput
+    from tasks.kernel_matrix_testing.types import KMTArchNameOrLocal, PathOrStr, SSHKey, StackOutput
 
 # Common SSH options for all SSH commands
 SSH_OPTIONS = {
@@ -23,6 +23,13 @@ SSH_OPTIONS = {
     # and print out scary warnings if the key doesn't match.
     "StrictHostKeyChecking": "accept-new",
     "UserKnownHostsFile": "/dev/null",
+}
+
+# SSH options to use when we want to use the SSH multiplexer, to avoid reauthentication
+SSH_MULTIPLEX_OPTIONS = {
+    "ControlMaster": "auto",
+    "ControlPersist": "10m",
+    "ControlPath": "/tmp/ssh_mux_%h_%p_%r",
 }
 
 
@@ -71,7 +78,7 @@ class RemoteCommandRunner:
         raise Exit("command failed")
 
 
-def get_instance_runner(arch: ArchOrLocal):
+def get_instance_runner(arch: KMTArchNameOrLocal):
     if arch == "local":
         return LocalCommandRunner
     else:
@@ -79,7 +86,7 @@ def get_instance_runner(arch: ArchOrLocal):
 
 
 def print_failed(output: str):
-    out = list()
+    out = []
     for line in output.split("\n"):
         out.append(f"\t{line}")
     error('\n'.join(out))
@@ -104,9 +111,9 @@ class LibvirtDomain:
 
     def run_cmd(self, ctx: Context, cmd: str, allow_fail=False, verbose=False, timeout_sec=None):
         if timeout_sec is not None:
-            extra_opts = {"ConnectTimeout": str(timeout_sec)}
+            extra_opts = {"ConnectTimeout": str(timeout_sec)} | SSH_MULTIPLEX_OPTIONS
         else:
-            extra_opts = None
+            extra_opts = SSH_MULTIPLEX_OPTIONS
 
         run = f"ssh {ssh_options_command(extra_opts)} -o IdentitiesOnly=yes -i {self.ssh_key} root@{self.ip} {{proxy_cmd}} '{cmd}'"
         return self.instance.runner.run_cmd(ctx, self.instance, run, allow_fail, verbose)
@@ -116,7 +123,7 @@ class LibvirtDomain:
         if exclude is not None:
             exclude_arg = f"--exclude '{exclude}'"
 
-        return f"rsync -e \"ssh {ssh_options_command({'IdentitiesOnly': 'yes'})} {{proxy_cmd}} -i {self.ssh_key}\" -p -rt --exclude='.git*' {exclude_arg} --filter=':- .gitignore'"
+        return f"rsync -e \"ssh {ssh_options_command({'IdentitiesOnly': 'yes'} | SSH_MULTIPLEX_OPTIONS)} {{proxy_cmd}} -i {self.ssh_key}\" -p -rt --exclude='.git*' {exclude_arg} --filter=':- .gitignore'"
 
     def copy(
         self,
@@ -126,8 +133,15 @@ class LibvirtDomain:
         exclude: PathOrStr | None = None,
         verbose: bool = False,
     ):
+        # Always ensure that the parent directory exists, rsync creates the rest
+        self.run_cmd(ctx, f"mkdir -p {os.path.dirname(target)}", verbose=verbose)
+
         run = self._get_rsync_base(exclude) + f" {source} root@{self.ip}:{target}"
-        return self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
+        res = self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
+        if res:
+            info(f"[+] (HOST: {source}) => (VM: {target})")
+
+        return res
 
     def download(
         self,
@@ -138,7 +152,10 @@ class LibvirtDomain:
         verbose: bool = False,
     ):
         run = self._get_rsync_base(exclude) + f" root@{self.ip}:{source} {target}"
-        return self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
+        res = self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
+        if res:
+            info(f"[+] (VM: {source}) => (HOST: {target})")
+        return res
 
     def __repr__(self):
         return f"<LibvirtDomain> {self.name} {self.ip}"
@@ -148,9 +165,9 @@ class LibvirtDomain:
 
 
 class HostInstance:
-    def __init__(self, ip: str, arch: ArchOrLocal, ssh_key_path: str | None):
+    def __init__(self, ip: str, arch: KMTArchNameOrLocal, ssh_key_path: str | None):
         self.ip: str = ip
-        self.arch: ArchOrLocal = arch
+        self.arch: KMTArchNameOrLocal = arch
         self.ssh_key_path: str | None = ssh_key_path
         self.microvms: list[LibvirtDomain] = []
         self.runner = get_instance_runner(arch)
@@ -170,10 +187,10 @@ def build_infrastructure(stack: str, ssh_key_obj: SSHKey | None = None):
     with open(stack_output) as f:
         try:
             infra_map: StackOutput = json.load(f)
-        except json.decoder.JSONDecodeError:
-            raise Exit(f"{stack_output} file is not a valid json file")
+        except json.decoder.JSONDecodeError as e:
+            raise RuntimeError(f"{stack_output} file is not a valid json file") from e
 
-    infra: dict[ArchOrLocal, HostInstance] = dict()
+    infra: dict[KMTArchNameOrLocal, HostInstance] = {}
     for arch in infra_map:
         key = ssh_key_obj['path'] if ssh_key_obj is not None else None
         instance = HostInstance(infra_map[arch]["ip"], arch, key)
@@ -190,15 +207,6 @@ def build_infrastructure(stack: str, ssh_key_obj: SSHKey | None = None):
         infra[arch] = instance
 
     return infra
-
-
-def ask_for_ssh() -> bool:
-    return (
-        ask(
-            "You may want to provide ssh key, since the given config launches a remote instance.\nContinue without a ssh key?[Y/n]"
-        )
-        != "y"
-    )
 
 
 def get_ssh_key_name(pubkey: Path) -> str | None:

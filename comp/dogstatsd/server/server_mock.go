@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"go.uber.org/fx"
 )
@@ -40,7 +40,7 @@ func (s *serverMock) handlerFunc(w http.ResponseWriter, _ *http.Request) {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (s *serverMock) Start(demultiplexer aggregator.Demultiplexer) error {
+func (s *serverMock) Start(_ aggregator.Demultiplexer) error {
 	s.isRunning = true
 	return nil
 }
@@ -56,7 +56,7 @@ func (s *serverMock) IsRunning() bool {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (s *serverMock) Capture(p string, d time.Duration, compressed bool) (string, error) {
+func (s *serverMock) Capture(_ string, _ time.Duration, _ bool) (string, error) {
 	return "", nil
 }
 
@@ -74,4 +74,4 @@ func (s *serverMock) UDPLocalAddr() string {
 func (s *serverMock) ServerlessFlush(time.Duration) {}
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (s *serverMock) SetExtraTags(tags []string) {}
+func (s *serverMock) SetExtraTags(_ []string) {}

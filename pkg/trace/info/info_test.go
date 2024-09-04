@@ -36,13 +36,14 @@ var scrubbedAddEp = map[string][]string{
 }
 
 type testServerHandler struct {
-	t *testing.T
+	t        *testing.T
+	testFile string
 }
 
 func (h *testServerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	json, err := os.ReadFile("./testdata/okay.json")
+	json, err := os.ReadFile(h.testFile)
 	if err != nil {
 		h.t.Errorf("error loading json file: %v", err)
 	}
@@ -60,9 +61,9 @@ func (h *testServerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func testServer(t *testing.T) *httptest.Server {
+func testServer(t *testing.T, testFile string) *httptest.Server {
 	t.Helper()
-	server := httptest.NewServer(&testServerHandler{t: t})
+	server := httptest.NewServer(&testServerHandler{t: t, testFile: testFile})
 	t.Logf("test server (serving fake yet valid data) listening on %s", server.URL)
 	return server
 }
@@ -150,7 +151,7 @@ func TestInfo(t *testing.T) {
 	conf := testInit(t)
 	assert.NotNil(conf)
 
-	server := testServer(t)
+	server := testServer(t, "./testdata/okay.json")
 	assert.NotNil(server)
 	defer server.Close()
 
@@ -171,6 +172,38 @@ func TestInfo(t *testing.T) {
 	assert.NotEmpty(info)
 	t.Logf("Info:\n%s\n", info)
 	expectedInfo, err := os.ReadFile("./testdata/okay.info")
+	re := regexp.MustCompile(`\r\n`)
+	expectedInfoString := re.ReplaceAllString(string(expectedInfo), "\n")
+	assert.NoError(err)
+	assert.Equal(expectedInfoString, info)
+}
+
+func TestProbabilisticSampler(t *testing.T) {
+	assert := assert.New(t)
+	conf := testInit(t)
+	assert.NotNil(conf)
+
+	server := testServer(t, "./testdata/psp.json")
+	assert.NotNil(server)
+	defer server.Close()
+
+	url, err := url.Parse(server.URL)
+	assert.NotNil(url)
+	assert.NoError(err)
+
+	hostPort := strings.Split(url.Host, ":")
+	assert.Equal(2, len(hostPort))
+	port, err := strconv.Atoi(hostPort[1])
+	assert.NoError(err)
+	conf.DebugServerPort = port
+
+	var buf bytes.Buffer
+	err = Info(&buf, conf)
+	assert.NoError(err)
+	info := buf.String()
+	assert.NotEmpty(info)
+	t.Logf("Info:\n%s\n", info)
+	expectedInfo, err := os.ReadFile("./testdata/psp.info")
 	re := regexp.MustCompile(`\r\n`)
 	expectedInfoString := re.ReplaceAllString(string(expectedInfo), "\n")
 	assert.NoError(err)
@@ -228,7 +261,7 @@ func TestNotRunning(t *testing.T) {
 	conf := testInit(t)
 	assert.NotNil(conf)
 
-	server := testServer(t)
+	server := testServer(t, "./testdata/okay.json")
 	assert.NotNil(server)
 
 	url, err := url.Parse(server.URL)

@@ -17,7 +17,7 @@ class ConfigManager:
 
     def load(self):
         if not self._cfg_path.is_file():
-            self._config = cast('KMTConfig', dict())
+            self._config = cast('KMTConfig', {})
         else:
             with open(self._cfg_path) as f:
                 self._config = json.load(f)

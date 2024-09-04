@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 import errno
 import glob
@@ -8,8 +10,8 @@ import sys
 import tempfile
 from subprocess import check_output
 
-from invoke import task
 from invoke.exceptions import Exit
+from invoke.tasks import task
 
 from tasks.agent import build as agent_build
 from tasks.agent import generate_config
@@ -26,11 +28,13 @@ from tasks.libs.common.utils import (
     get_gopath,
     get_version,
 )
+from tasks.libs.types.arch import ARCH_AMD64, Arch
 from tasks.process_agent import TempDir
 from tasks.system_probe import (
     CURRENT_ARCH,
     build_cws_object_files,
     check_for_ninja,
+    copy_ebpf_and_related_files,
     ninja_define_ebpf_compiler,
     ninja_define_exe_compiler,
 )
@@ -153,13 +157,7 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
             ctx.run(f"touch {docker_context}/agent")
             core_agent_dest = "/dev/null"
 
-        ctx.run(f"cp pkg/ebpf/bytecode/build/*.o {docker_context}")
-        ctx.run(f"mkdir {docker_context}/co-re")
-        ctx.run(f"cp pkg/ebpf/bytecode/build/co-re/*.o {docker_context}/co-re/")
-        ctx.run(f"cp pkg/ebpf/bytecode/build/runtime/*.c {docker_context}")
-        ctx.run(f"chmod 0444 {docker_context}/*.o {docker_context}/*.c {docker_context}/co-re/*.o")
-        ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {docker_context}")
-        ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {docker_context}")
+        copy_ebpf_and_related_files(ctx, docker_context, copy_usm_jar=False)
 
         with ctx.cd(docker_context):
             # --pull in the build will force docker to grab the latest base image
@@ -199,14 +197,13 @@ def run_functional_tests(ctx, testsuite, verbose=False, testflags='', fentry=Fal
 
 
 @task
-def run_ebpfless_functional_tests(ctx, cws_instrumentation, testsuite, verbose=False, testflags=''):
+def run_ebpfless_functional_tests(ctx, testsuite, verbose=False, testflags=''):
     cmd = '{testsuite} -trace {verbose_opt} {testflags}'
 
     if os.getuid() != 0:
         cmd = 'sudo -E PATH={path} ' + cmd
 
     args = {
-        "cws_instrumentation": cws_instrumentation,
         "testsuite": testsuite,
         "verbose_opt": "-test.v" if verbose else "",
         "testflags": testflags,
@@ -327,7 +324,8 @@ def create_dir_if_needed(dir):
 
 
 @task
-def build_embed_syscall_tester(ctx, arch=CURRENT_ARCH, static=True):
+def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True):
+    arch = Arch.from_str(arch)
     check_for_ninja(ctx)
     build_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "bin")
     go_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "go")
@@ -336,11 +334,11 @@ def build_embed_syscall_tester(ctx, arch=CURRENT_ARCH, static=True):
     nf_path = os.path.join(ctx.cwd, 'syscall-tester.ninja')
     with open(nf_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file, width=120)
-        ninja_define_ebpf_compiler(nw)
+        ninja_define_ebpf_compiler(nw, arch=arch)
         ninja_define_exe_compiler(nw)
 
         ninja_syscall_tester(nw, build_dir, static=static)
-        if arch == "x64":
+        if arch == ARCH_AMD64:
             ninja_syscall_x86_tester(nw, build_dir, static=static)
         ninja_ebpf_probe_syscall_tester(nw, go_dir)
 
@@ -353,6 +351,7 @@ def build_functional_tests(
     ctx,
     output='pkg/security/tests/testsuite',
     srcpath='pkg/security/tests',
+    arch: str | Arch = CURRENT_ARCH,
     major_version='7',
     build_tags='functionaltests',
     build_flags='',
@@ -369,16 +368,20 @@ def build_functional_tests(
             build_cws_object_files(
                 ctx,
                 major_version=major_version,
+                arch=arch,
                 kernel_release=kernel_release,
                 debug=debug,
+                bundle_ebpf=bundle_ebpf,
             )
         build_embed_syscall_tester(ctx)
 
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static)
+    arch = Arch.from_str(arch)
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, arch=arch)
 
     env["CGO_ENABLED"] = "1"
 
     build_tags = build_tags.split(",")
+    build_tags.append("test")
     if not is_windows:
         build_tags.append("linux_bpf")
         build_tags.append("trivy")
@@ -392,7 +395,7 @@ def build_functional_tests(
 
     if not skip_linters:
         targets = [srcpath]
-        results = run_golangci_lint(ctx, module_path="", targets=targets, build_tags=build_tags)
+        results, _ = run_golangci_lint(ctx, module_path="", targets=targets, build_tags=build_tags)
         for result in results:
             # golangci exits with status 1 when it finds an issue
             if result.exited != 0:
@@ -512,7 +515,6 @@ def ebpfless_functional_tests(
     testflags='',
     skip_linters=False,
     kernel_release=None,
-    cws_instrumentation='bin/cws-instrumentation/cws-instrumentation',
 ):
     build_functional_tests(
         ctx,
@@ -526,7 +528,6 @@ def ebpfless_functional_tests(
 
     run_ebpfless_functional_tests(
         ctx,
-        cws_instrumentation,
         testsuite=output,
         verbose=verbose,
         testflags=testflags,
@@ -582,9 +583,7 @@ def docker_functional_tests(
         kernel_release=kernel_release,
     )
 
-    image_tag = (
-        "ghcr.io/paulcacheux/cws-centos7@sha256:b16587f1cc7caebc1a18868b9fbd3823e79457065513e591352c4d929b14c426"
-    )
+    image_tag = "ghcr.io/datadog/apps-cws-centos7:main"
 
     container_name = 'security-agent-tests'
     capabilities = ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
@@ -631,16 +630,22 @@ def generate_cws_documentation(ctx, go_generate=False):
 
     # secl docs
     ctx.run(
-        "python3 ./docs/cloud-workload-security/scripts/secl-doc-gen.py --input ./docs/cloud-workload-security/secl.json --output ./docs/cloud-workload-security/agent_expressions.md"
+        "python3 ./docs/cloud-workload-security/scripts/secl-doc-gen.py --input ./docs/cloud-workload-security/secl_linux.json --output ./docs/cloud-workload-security/linux_expressions.md --template ./linux_expressions.md"
+    )
+    ctx.run(
+        "python3 ./docs/cloud-workload-security/scripts/secl-doc-gen.py --input ./docs/cloud-workload-security/secl_windows.json --output ./docs/cloud-workload-security/windows_expressions.md --template ./windows_expressions.md"
     )
     # backend event docs
     ctx.run(
-        "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend.schema.json --output ./docs/cloud-workload-security/backend.md"
+        "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend_linux.schema.json --output ./docs/cloud-workload-security/backend_linux.md --template ./backend_linux.md"
+    )
+    ctx.run(
+        "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend_windows.schema.json --output ./docs/cloud-workload-security/backend_windows.md --template ./backend_windows.md"
     )
 
 
 @task
-def cws_go_generate(ctx):
+def cws_go_generate(ctx, verbose=False):
     ctx.run("go install golang.org/x/tools/cmd/stringer")
     ctx.run("go install github.com/mailru/easyjson/easyjson")
     with ctx.cd("./pkg/security/secl"):
@@ -651,17 +656,15 @@ def cws_go_generate(ctx):
         # Disable cross generation from windows for now. Need to fix the stringer issue.
         # elif sys.platform == "win32":
         #     ctx.run("set GOOS=linux && go generate ./...")
-        ctx.run("go generate ./...")
+        cmd = "go generate"
+        if verbose:
+            cmd += " -v"
+        ctx.run(cmd + " ./...")
 
     if sys.platform == "linux":
         shutil.copy(
             "./pkg/security/serializers/serializers_linux_easyjson.mock",
             "./pkg/security/serializers/serializers_linux_easyjson.go",
-        )
-
-        shutil.copy(
-            "./pkg/security/security_profile/dump/activity_dump_easyjson.mock",
-            "./pkg/security/security_profile/dump/activity_dump_easyjson.go",
         )
 
     ctx.run("go generate ./pkg/security/...")
@@ -714,9 +717,9 @@ def combine_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONST
 def generate_cws_proto(ctx):
     with tempfile.TemporaryDirectory() as temp_gobin:
         with environ({"GOBIN": temp_gobin}):
-            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.33.0")
+            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.34.2")
             ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.6.0")
-            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0")
+            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.4.0")
 
             plugin_opts = " ".join(
                 [
@@ -860,10 +863,7 @@ def kitchen_prepare(ctx, skip_linters=False):
 @task
 def run_ebpf_unit_tests(ctx, verbose=False, trace=False):
     build_cws_object_files(
-        ctx,
-        major_version='7',
-        kernel_release=None,
-        with_unit_test=True,
+        ctx, major_version='7', kernel_release=None, with_unit_test=True, bundle_ebpf=True, arch=CURRENT_ARCH
     )
 
     flags = '-tags ebpf_bindata'
@@ -892,8 +892,8 @@ def sync_secl_win_pkg(ctx):
         ("events.go", None),
         ("args_envs.go", None),
         ("consts_common.go", None),
-        ("consts_other.go", None),
-        ("consts_map_names.go", None),
+        ("consts_windows.go", "consts_win.go"),
+        ("consts_map_names_linux.go", None),
         ("model_windows.go", "model_win.go"),
         ("field_handlers_windows.go", "field_handlers_win.go"),
         ("accessors_windows.go", "accessors_win.go"),

@@ -45,9 +45,9 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -z "$uninstall_flag" ]; then
-    $sudo_cmd datadog-installer apm instrument docker
+    $sudo_cmd /opt/datadog-packages/datadog-installer/stable/bin/installer/installer apm instrument docker
 else
-    $sudo_cmd datadog-installer apm uninstrument docker
+    $sudo_cmd /opt/datadog-packages/datadog-installer/stable/bin/installer/installer apm uninstrument docker
 fi
 
 exit 0

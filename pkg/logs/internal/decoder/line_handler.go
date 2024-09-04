@@ -11,16 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// truncatedFlag is the flag that is added at the beginning
-// or/and at the end of every trucated lines.
-var truncatedFlag = []byte("...TRUNCATED...")
-
-// escapedLineFeed is used to escape new line character
-// for multiline message.
-// New line character needs to be escaped because they are used
-// as delimiter for transport.
-var escapedLineFeed = []byte(`\n`)
-
 // LineHandler handles raw lines to form structured lines.
 type LineHandler interface {
 	// process handles a new line (message)

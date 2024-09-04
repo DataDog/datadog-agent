@@ -6,19 +6,26 @@ import pathlib
 import re
 import subprocess
 from collections import defaultdict
+from datetime import datetime, timezone
 
 import gitlab
 import yaml
-from gitlab.v4.objects import ProjectJob
+from gitlab.v4.objects import ProjectCommit, ProjectJob, ProjectPipeline
 from invoke.context import Context
 
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.types.types import FailedJobReason, FailedJobs, Test
+from tasks.testwasher import FLAKY_TEST_INDICATOR
 
 
-def load_and_validate(file_name: str, default_placeholder: str, default_value: str) -> dict[str, str]:
-    p = pathlib.Path(os.path.realpath(__file__)).parent.joinpath(file_name)
+def load_and_validate(
+    file_name: str, default_placeholder: str, default_value: str, relpath: bool = True
+) -> dict[str, str]:
+    if relpath:
+        p = pathlib.Path(os.path.realpath(__file__)).parent.joinpath(file_name)
+    else:
+        p = pathlib.Path(file_name)
 
     result: dict[str, str] = {}
     with p.open(encoding='utf-8') as file_stream:
@@ -29,8 +36,8 @@ def load_and_validate(file_name: str, default_placeholder: str, default_value: s
     return result
 
 
-DATADOG_AGENT_GITHUB_ORG_URL = "https://github.com/DataDog"
-DEFAULT_SLACK_CHANNEL = "#agent-developer-experience"
+GITHUB_BASE_URL = "https://github.com"
+DEFAULT_SLACK_CHANNEL = "#agent-devx-ops"
 DEFAULT_JIRA_PROJECT = "AGNTR"
 # Map keys in lowercase
 GITHUB_SLACK_MAP = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
@@ -62,6 +69,8 @@ def get_failed_tests(project_name, job: ProjectJob, owners_file=".github/CODEOWN
     except gitlab.exceptions.GitlabGetError:
         test_output = ''
     failed_tests = {}  # type: dict[tuple[str, str], Test]
+    known_flaky_tests = {}
+
     if test_output:
         for line in test_output.splitlines():
             json_test = json.loads(line)
@@ -78,10 +87,21 @@ def get_failed_tests(project_name, job: ProjectJob, owners_file=".github/CODEOWN
                     # we yield here to merge child Test objects with their parents.
                     if '/' in name:  # Subtests have a name of the form "Test/Subtest"
                         continue
+
                     failed_tests[(package, name)] = Test(owners, name, package)
                 elif action == "pass" and (package, name) in failed_tests:
                     print(f"Test {name} from package {package} passed after retry, removing from output")
                     del failed_tests[(package, name)]
+                elif action == "output":
+                    # Register flaky tests
+                    if FLAKY_TEST_INDICATOR in json_test['Output']:
+                        known_flaky_tests[(package, name)] = Test(owners, name, package)
+
+    # Skip flaky tests
+    for package, name in known_flaky_tests.keys():
+        if (package, name) in failed_tests:
+            print(f"Test {name} from package {package} is flaky, removing from output")
+            del failed_tests[(package, name)]
 
     return failed_tests.values()
 
@@ -97,7 +117,7 @@ def find_job_owners(failed_jobs: FailedJobs, owners_file: str = ".gitlab/JOBOWNE
     for job in failed_jobs.all_non_infra_failures():
         job_owners = owners.of(job.name)
         # job_owners is a list of tuples containing the type of owner (eg. USERNAME, TEAM) and the name of the owner
-        # eg. [('TEAM', '@DataDog/agent-ci-experience')]
+        # eg. [('TEAM', '@DataDog/agent-devx-infra')]
 
         for kind, owner in job_owners:
             if kind == "TEAM":
@@ -106,30 +126,36 @@ def find_job_owners(failed_jobs: FailedJobs, owners_file: str = ".gitlab/JOBOWNE
     return owners_to_notify
 
 
-def get_pr_from_commit(commit_title, project_title) -> tuple[str, str] | None:
+def get_pr_from_commit(commit_title: str, project_name: str) -> tuple[str, str] | None:
+    """
+    Tries to find a GitHub PR id within a commit title (eg: "Fix PR (#27584)"),
+    and returns the corresponding PR URL.
+
+    commit_title: the commit title to parse
+    project_name: the GitHub project from which the PR originates, in the "org/repo" format
+    """
+
     parsed_pr_id_found = re.search(r'.*\(#([0-9]*)\)$', commit_title)
     if not parsed_pr_id_found:
         return None
 
     parsed_pr_id = parsed_pr_id_found.group(1)
 
-    return parsed_pr_id, f"{DATADOG_AGENT_GITHUB_ORG_URL}/{project_title}/pull/{parsed_pr_id}"
+    return parsed_pr_id, f"{GITHUB_BASE_URL}/{project_name}/pull/{parsed_pr_id}"
 
 
-def base_message(header, state):
-    project_title = os.getenv("CI_PROJECT_TITLE")
-    # commit_title needs a default string value, otherwise the re.search line below crashes
-    commit_title = os.getenv("CI_COMMIT_TITLE", "")
-    pipeline_url = os.getenv("CI_PIPELINE_URL")
-    pipeline_id = os.getenv("CI_PIPELINE_ID")
-    commit_ref_name = os.getenv("CI_COMMIT_REF_NAME")
-    commit_url_gitlab = f"{os.getenv('CI_PROJECT_URL')}/commit/{os.getenv('CI_COMMIT_SHA')}"
-    commit_url_github = f"{DATADOG_AGENT_GITHUB_ORG_URL}/{project_title}/commit/{os.getenv('CI_COMMIT_SHA')}"
-    commit_short_sha = os.getenv("CI_COMMIT_SHORT_SHA")
-    author = get_git_author()
+def base_message(project_name: str, pipeline: ProjectPipeline, commit: ProjectCommit, header: str, state: str):
+    commit_title = commit.title
+    pipeline_url = pipeline.web_url
+    pipeline_id = pipeline.id
+    commit_ref_name = pipeline.ref
+    commit_url_gitlab = commit.web_url
+    commit_url_github = f"{GITHUB_BASE_URL}/{project_name}/commit/{commit.id}"
+    commit_short_sha = commit.id[-8:]
+    author = commit.author_name
 
     # Try to find a PR id (e.g #12345) in the commit title and add a link to it in the message if found.
-    pr_info = get_pr_from_commit(commit_title, project_title)
+    pr_info = get_pr_from_commit(commit_title, project_name)
     enhanced_commit_title = commit_title
     if pr_info:
         parsed_pr_id, pr_url_github = pr_info
@@ -137,17 +163,6 @@ def base_message(header, state):
 
     return f"""{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} {state}.
 {enhanced_commit_title} (<{commit_url_gitlab}|{commit_short_sha}>)(:github: <{commit_url_github}|link>) by {author}"""
-
-
-def get_git_author(email=False):
-    format = 'ae' if email else 'an'
-
-    return (
-        subprocess.check_output(["git", "show", "-s", f"--format='%{format}'", "HEAD"])
-        .decode('utf-8')
-        .strip()
-        .replace("'", "")
-    )
 
 
 def send_slack_message(recipient, message):
@@ -160,3 +175,18 @@ def email_to_slackid(ctx: Context, email: str) -> str:
     assert slackid != '', 'Email not found'
 
     return slackid
+
+
+def warn_new_commits(release_managers, team, branch, next_rc):
+    from slack_sdk import WebClient
+
+    today = datetime.today()
+    rc_date = datetime(today.year, today.month, today.day, hour=14, minute=0, second=0, tzinfo=timezone.utc)
+    rc_schedule_link = "https://github.com/DataDog/datadog-agent/blob/main/.github/workflows/create_rc_pr.yml#L6"
+    message = "Hello :wave:\n"
+    message += f":announcement: We detected new commits on the {branch} release branch of `integrations-core`.\n"
+    message += f"Could you please release and tag your repo to prepare the {next_rc} `datadog-agent` release candidate planned <{rc_schedule_link}|{rc_date.strftime('%Y-%m-%d %H:%M')}> UTC?\n"
+    message += "Thanks in advance!\n"
+    message += f"cc {' '.join(release_managers)}"
+    client = WebClient(os.environ["SLACK_API_TOKEN"])
+    client.chat_postMessage(channel=f"#{team}", text=message)

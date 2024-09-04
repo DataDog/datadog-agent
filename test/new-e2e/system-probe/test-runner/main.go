@@ -48,6 +48,7 @@ type testConfig struct {
 	testDirRoot       string
 	testingTools      string
 	extraParams       string
+	extraEnv          string
 }
 
 const ciVisibility = "/ci-visibility"
@@ -57,10 +58,13 @@ var baseEnv = []string{
 	"GOVERSION=" + runtime.Version(),
 }
 
+// change `TEST_TIMEOUTS` in `tasks/system_probe.py` if you change them here
 var timeouts = map[*regexp.Regexp]time.Duration{
+	regexp.MustCompile("pkg/network/protocols$"):      5 * time.Minute,
 	regexp.MustCompile("pkg/network/protocols/http$"): 15 * time.Minute,
 	regexp.MustCompile("pkg/network/tracer$"):         55 * time.Minute,
 	regexp.MustCompile("pkg/network/usm$"):            55 * time.Minute,
+	regexp.MustCompile("pkg/network/usm/tests$"):      20 * time.Minute,
 	regexp.MustCompile("pkg/security.*"):              30 * time.Minute,
 }
 
@@ -74,6 +78,18 @@ func getTimeout(pkg string) time.Duration {
 		}
 	}
 	return to
+}
+
+func getEBPFBuildDir() (string, error) {
+	arch, _, err := getArchAndRelease()
+	if err != nil {
+		return "", fmt.Errorf("cannot get arch: %w", err)
+	}
+	if arch == "aarch64" {
+		arch = "arm64"
+	}
+
+	return fmt.Sprintf("pkg/ebpf/bytecode/build/%s", arch), nil
 }
 
 func glob(dir, filePattern string, filterFn func(path string) bool) ([]string, error) {
@@ -137,7 +153,7 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, 
 // concatenateJsons combines all the test json output files into a single file.
 func concatenateJsons(indir, outdir string) error {
 	testJSONFile := filepath.Join(outdir, "out.json")
-	matches, err := glob(indir, `.*\.json`, func(path string) bool { return true })
+	matches, err := glob(indir, `.*\.json`, func(_ string) bool { return true })
 	if err != nil {
 		return fmt.Errorf("json glob: %s", err)
 	}
@@ -208,12 +224,21 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuite, testConfig)
 
 		cmd := exec.Command(filepath.Join(testConfig.testingTools, "go/bin/gotestsum"), args...)
+
+		buildDir, err := getEBPFBuildDir()
+		if err != nil {
+			return fmt.Errorf("getEBPFBuildDir: %w", err)
+		}
 		baseEnv = append(
 			baseEnv,
-			"DD_SYSTEM_PROBE_BPF_DIR="+filepath.Join(testConfig.testDirRoot, "pkg/ebpf/bytecode/build"),
+			"DD_SYSTEM_PROBE_BPF_DIR="+filepath.Join(testConfig.testDirRoot, buildDir),
 			"DD_SERVICE_MONITORING_CONFIG_TLS_JAVA_DIR="+filepath.Join(testConfig.testDirRoot, "pkg/network/protocols/tls/java"),
 		)
+		if testConfig.extraEnv != "" {
+			baseEnv = append(baseEnv, strings.Split(testConfig.extraEnv, " ")...)
+		}
 		cmd.Env = append(cmd.Environ(), baseEnv...)
+
 		cmd.Dir = filepath.Dir(testsuite)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -255,6 +280,7 @@ func buildTestConfiguration() (*testConfig, error) {
 	testRoot := flag.String("test-root", "/opt/system-probe-tests", "directory containing test packages")
 	testTools := flag.String("test-tools", "/opt/testing-tools", "directory containing test tools")
 	extraParams := flag.String("extra-params", "", "extra parameters to pass to the test runner")
+	extraEnv := flag.String("extra-env", "", "extra environment variables to pass to the test runner")
 
 	flag.Parse()
 
@@ -292,6 +318,7 @@ func buildTestConfiguration() (*testConfig, error) {
 		testDirRoot:       root,
 		testingTools:      tools,
 		extraParams:       *extraParams,
+		extraEnv:          *extraEnv,
 	}, nil
 }
 
@@ -318,17 +345,25 @@ func readOSRelease() (map[string]string, error) {
 	return keyvals, nil
 }
 
+func getArchAndRelease() (string, string, error) {
+	var u unix.Utsname
+	if err := unix.Uname(&u); err != nil {
+		return "", "", fmt.Errorf("uname: %w", err)
+	}
+	arch, release := unix.ByteSliceToString(u.Machine[:]), unix.ByteSliceToString(u.Release[:])
+	return arch, release, nil
+}
+
 func getProps() (map[string]string, error) {
 	osrHash, err := readOSRelease()
 	if err != nil {
 		return nil, fmt.Errorf("os-release: %s", err)
 	}
 	osname := fmt.Sprintf("%s-%s", osrHash["ID"], osrHash["VERSION_ID"])
-	var u unix.Utsname
-	if err := unix.Uname(&u); err != nil {
-		return nil, fmt.Errorf("uname: %w", err)
+	arch, release, err := getArchAndRelease()
+	if err != nil {
+		return nil, fmt.Errorf("arch and release: %s", err)
 	}
-	arch, release := unix.ByteSliceToString(u.Machine[:]), unix.ByteSliceToString(u.Release[:])
 	fmt.Printf("arch: %s\nrelease: %s\n", arch, release)
 	return map[string]string{
 		"dd_tags[os.platform]":     "linux",
@@ -349,12 +384,12 @@ func fixAssetPermissions(testDirRoot string) error {
 		return pathEmbedded(path, "pkg/ebpf/bytecode/build")
 	})
 	if err != nil {
-		return fmt.Errorf("glob assets: %s", err)
+		return fmt.Errorf("glob assets: %w", err)
 	}
 
 	for _, file := range matches {
 		if err := os.Chown(file, 0, 0); err != nil {
-			return fmt.Errorf("chown %s: %s", file, err)
+			return fmt.Errorf("chown %s: %w", file, err)
 		}
 	}
 	return nil

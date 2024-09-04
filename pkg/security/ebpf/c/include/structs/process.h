@@ -25,6 +25,8 @@ struct credentials_t {
     u32 egid;
     u32 fsuid;
     u32 fsgid;
+    u32 auid;
+    u32 is_auid_set;
     u64 cap_effective;
     u64 cap_permitted;
 };
@@ -40,9 +42,9 @@ struct pid_cache_t {
 };
 
 struct args_envs_t {
+    u64 id;
     u32 count; // argc/envc retrieved from the kernel
     u32 counter; // counter incremented while parsing args/envs
-    u32 id;
     u8 truncated;
 };
 

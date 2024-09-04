@@ -14,8 +14,10 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
@@ -167,12 +169,43 @@ func (i *InstallerExec) DefaultPackages(ctx context.Context) (_ []string, err er
 
 // State returns the state of a package.
 func (i *InstallerExec) State(pkg string) (repository.State, error) {
-	repositories := repository.NewRepositories(installer.PackagesPath, installer.LocksPack)
+	repositories := repository.NewRepositories(paths.PackagesPath, paths.LocksPath)
 	return repositories.Get(pkg).GetState()
 }
 
 // States returns the states of all packages.
 func (i *InstallerExec) States() (map[string]repository.State, error) {
-	repositories := repository.NewRepositories(installer.PackagesPath, installer.LocksPack)
-	return repositories.GetState()
+	repositories := repository.NewRepositories(paths.PackagesPath, paths.LocksPath)
+	states, err := repositories.GetStates()
+	log.Debugf("repositories states: %v", states)
+	return states, err
+}
+
+// ConfigState returns the state of a package's configuration.
+func (i *InstallerExec) ConfigState(pkg string) (repository.State, error) {
+	repositories := repository.NewRepositories(paths.ConfigsPath, paths.LocksPath)
+	return repositories.Get(pkg).GetState()
+}
+
+// ConfigStates returns the states of all packages' configurations.
+func (i *InstallerExec) ConfigStates() (map[string]repository.State, error) {
+	repositories := repository.NewRepositories(paths.ConfigsPath, paths.LocksPath)
+	states, err := repositories.GetStates()
+	log.Debugf("config repositories states: %v", states)
+	return states, err
+}
+
+func (iCmd *installerCmd) Run() error {
+	var errBuf bytes.Buffer
+	iCmd.Stderr = &errBuf
+	err := iCmd.Cmd.Run()
+	if err == nil {
+		return nil
+	}
+
+	if len(errBuf.Bytes()) == 0 {
+		return fmt.Errorf("run failed: %s", err.Error())
+	}
+
+	return fmt.Errorf("run failed: %s \n%s", strings.TrimSpace(errBuf.String()), err.Error())
 }

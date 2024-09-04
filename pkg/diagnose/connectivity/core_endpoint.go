@@ -30,7 +30,7 @@ import (
 
 func getLogsHTTPEndpoints() (*logsConfig.Endpoints, error) {
 	datadogConfig := config.Datadog()
-	logsConfigKey := logsConfig.NewLogsConfigKeys("logs_config", datadogConfig)
+	logsConfigKey := logsConfig.NewLogsConfigKeys("logs_config.", datadogConfig)
 	return logsConfig.BuildHTTPEndpointsWithConfig(datadogConfig, logsConfigKey, "agent-http-intake.logs.", "logs", logsConfig.AgentJSONIntakeProtocol, logsConfig.DefaultIntakeOrigin)
 }
 
@@ -240,7 +240,7 @@ func noResponseHints(err error) string {
 
 func clientWithOneRedirects() *http.Client {
 	return &http.Client{
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
 	}

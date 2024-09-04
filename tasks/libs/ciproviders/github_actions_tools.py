@@ -156,7 +156,7 @@ def follow_workflow_run(run):
             print(f"Workflow run not found, retrying in 15 seconds (failure {failures}/{MAX_FAILURES})")
             print("Error: ", e)
             if failures == MAX_FAILURES:
-                raise Exit(code=1)
+                raise Exit(code=1) from e
             sleep(15)
             continue
 

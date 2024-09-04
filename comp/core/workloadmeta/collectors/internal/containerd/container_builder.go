@@ -16,8 +16,8 @@ import (
 	"time"
 
 	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/namespaces"
+	"github.com/containerd/errdefs"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"

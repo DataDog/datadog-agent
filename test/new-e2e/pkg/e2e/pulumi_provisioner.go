@@ -12,9 +12,10 @@ import (
 	"io"
 	"reflect"
 
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 const (
@@ -26,9 +27,10 @@ type PulumiEnvRunFunc[Env any] func(ctx *pulumi.Context, env *Env) error
 
 // PulumiProvisioner is a provisioner based on Pulumi with binding to an environment.
 type PulumiProvisioner[Env any] struct {
-	id        string
-	runFunc   PulumiEnvRunFunc[Env]
-	configMap runner.ConfigMap
+	id           string
+	runFunc      PulumiEnvRunFunc[Env]
+	configMap    runner.ConfigMap
+	diagnoseFunc func(ctx context.Context, stackName string) (string, error)
 }
 
 var (
@@ -90,7 +92,7 @@ func (pp *PulumiProvisioner[Env]) ProvisionEnv(ctx context.Context, stackName st
 		}
 
 		// Unfortunately we don't have access to Pulumi raw data
-		marshalled, err := json.Marshal(value.Value)
+		marshalled, err := json.MarshalIndent(value.Value, "", "\t")
 		if err != nil {
 			return nil, fmt.Errorf("unable to marshal output key: %s, err: %w", key, err)
 		}
@@ -98,7 +100,34 @@ func (pp *PulumiProvisioner[Env]) ProvisionEnv(ctx context.Context, stackName st
 		resources[key] = marshalled
 	}
 
+	_, err = logger.Write([]byte(fmt.Sprintf("Pulumi stack %s successfully provisioned\nResources:\n%v\n\n", stackName, dumpRawResources(resources))))
+	if err != nil {
+		// Log the error but don't fail the provisioning
+		fmt.Printf("Failed to write log: %v\n", err)
+	}
+
 	return resources, nil
+}
+
+func dumpRawResources(resources RawResources) string {
+	var res string
+	for key, value := range resources {
+		res += fmt.Sprintf("%s: %s\n", key, value)
+	}
+	return res
+}
+
+// Diagnose runs the diagnose function if it is set diagnoseFunc
+func (pp *PulumiProvisioner[Env]) Diagnose(ctx context.Context, stackName string) (string, error) {
+	if pp.diagnoseFunc != nil {
+		return pp.diagnoseFunc(ctx, stackName)
+	}
+	return "", nil
+}
+
+// SetDiagnoseFunc sets the diagnose function.
+func (pp *PulumiProvisioner[Env]) SetDiagnoseFunc(diagnoseFunc func(ctx context.Context, stackName string) (string, error)) {
+	pp.diagnoseFunc = diagnoseFunc
 }
 
 // Destroy deletes the Pulumi stack.

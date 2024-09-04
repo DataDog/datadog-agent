@@ -50,6 +50,11 @@ build do
           dest: "/etc/init.d/datadog-agent-security",
           mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
+
+      project.extra_package_file '/etc/init.d/datadog-agent'
+      project.extra_package_file '/etc/init.d/datadog-agent-process'
+      project.extra_package_file '/etc/init.d/datadog-agent-trace'
+      project.extra_package_file '/etc/init.d/datadog-agent-security'
     elsif redhat_target? || suse_target?
       systemd_directory = "/usr/lib/systemd/system"
       # Ship a different upstart job definition on RHEL to accommodate the old

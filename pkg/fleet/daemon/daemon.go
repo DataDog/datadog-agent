@@ -7,10 +7,13 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	osexec "os/exec"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -26,6 +29,7 @@ import (
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/bootstrap"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/cdn"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -35,6 +39,8 @@ import (
 const (
 	// gcInterval is the interval at which the GC will run
 	gcInterval = 1 * time.Hour
+	// refreshStateInterval is the interval at which the state will be refreshed
+	refreshStateInterval = 5 * time.Minute
 )
 
 // Daemon is the fleet daemon in charge of remote install, updates and configuration.
@@ -42,6 +48,7 @@ type Daemon interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 
+	SetCatalog(c catalog)
 	Install(ctx context.Context, url string, args []string) error
 	StartExperiment(ctx context.Context, url string) error
 	StopExperiment(ctx context.Context, pkg string) error
@@ -49,18 +56,21 @@ type Daemon interface {
 
 	GetPackage(pkg string, version string) (Package, error)
 	GetState() (map[string]repository.State, error)
+	GetAPMInjectionStatus() (APMInjectionStatus, error)
 }
 
 type daemonImpl struct {
 	m        sync.Mutex
 	stopChan chan struct{}
 
-	env        *env.Env
-	installer  installer.Installer
-	rc         *remoteConfig
-	catalog    catalog
-	requests   chan remoteAPIRequest
-	requestsWG sync.WaitGroup
+	env           *env.Env
+	installer     installer.Installer
+	rc            *remoteConfig
+	cdn           *cdn.CDN
+	catalog       catalog
+	requests      chan remoteAPIRequest
+	requestsWG    sync.WaitGroup
+	requestsState map[string]requestState
 }
 
 func newInstaller(env *env.Env, installerBin string) installer.Installer {
@@ -88,12 +98,14 @@ func NewDaemon(rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, er
 
 func newDaemon(rc *remoteConfig, installer installer.Installer, env *env.Env) *daemonImpl {
 	i := &daemonImpl{
-		env:       env,
-		rc:        rc,
-		installer: installer,
-		requests:  make(chan remoteAPIRequest, 32),
-		catalog:   catalog{},
-		stopChan:  make(chan struct{}),
+		env:           env,
+		rc:            rc,
+		installer:     installer,
+		cdn:           cdn.New(env),
+		requests:      make(chan remoteAPIRequest, 32),
+		catalog:       catalog{},
+		stopChan:      make(chan struct{}),
+		requestsState: make(map[string]requestState),
 	}
 	i.refreshState(context.Background())
 	return i
@@ -105,6 +117,46 @@ func (d *daemonImpl) GetState() (map[string]repository.State, error) {
 	defer d.m.Unlock()
 
 	return d.installer.States()
+}
+
+// GetAPMInjectionStatus returns the APM injection status. This is not done in the service
+// to avoid cross-contamination between the daemon and the installer.
+func (d *daemonImpl) GetAPMInjectionStatus() (status APMInjectionStatus, err error) {
+	d.m.Lock()
+	defer d.m.Unlock()
+
+	// Host is instrumented if the ld.so.preload file contains the apm injector
+	ldPreloadContent, err := os.ReadFile("/etc/ld.so.preload")
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return status, fmt.Errorf("could not read /etc/ld.so.preload: %w", err)
+	}
+	if bytes.Contains(ldPreloadContent, []byte("/opt/datadog-packages/datadog-apm-inject/stable/inject")) {
+		status.HostInstrumented = true
+	}
+
+	// Docker is installed if the docker binary is in the PATH
+	_, err = osexec.LookPath("docker")
+	if err != nil && errors.Is(err, osexec.ErrNotFound) {
+		return status, nil
+	} else if err != nil {
+		return status, fmt.Errorf("could not check if docker is installed: %w", err)
+	}
+	status.DockerInstalled = true
+
+	// Docker is instrumented if there is the injector runtime in its configuration
+	// We're not retrieving the default runtime from the docker daemon as we are not
+	// root
+	dockerConfigContent, err := os.ReadFile("/etc/docker/daemon.json")
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return status, fmt.Errorf("could not read /etc/docker/daemon.json: %w", err)
+	} else if errors.Is(err, os.ErrNotExist) {
+		return status, nil
+	}
+	if bytes.Contains(dockerConfigContent, []byte("/opt/datadog-packages/datadog-apm-inject/stable/inject")) {
+		status.DockerInstrumented = true
+	}
+
+	return status, nil
 }
 
 // GetPackage returns the package with the given name and version.
@@ -119,20 +171,35 @@ func (d *daemonImpl) GetPackage(pkg string, version string) (Package, error) {
 	return catalogPackage, nil
 }
 
+// SetCatalog sets the catalog.
+func (d *daemonImpl) SetCatalog(c catalog) {
+	d.m.Lock()
+	defer d.m.Unlock()
+	d.catalog = c
+}
+
 // Start starts remote config and the garbage collector.
 func (d *daemonImpl) Start(_ context.Context) error {
 	d.m.Lock()
 	defer d.m.Unlock()
 	go func() {
+		gcTicker := time.NewTicker(gcInterval)
+		defer gcTicker.Stop()
+		refreshStateTicker := time.NewTicker(refreshStateInterval)
+		defer refreshStateTicker.Stop()
 		for {
 			select {
-			case <-time.After(gcInterval):
+			case <-gcTicker.C:
 				d.m.Lock()
 				err := d.installer.GarbageCollect(context.Background())
 				d.m.Unlock()
 				if err != nil {
 					log.Errorf("Daemon: could not run GC: %v", err)
 				}
+			case <-refreshStateTicker.C:
+				d.m.Lock()
+				d.refreshState(context.Background())
+				d.m.Unlock()
 			case <-d.stopChan:
 				return
 			case request := <-d.requests:
@@ -212,7 +279,11 @@ func (d *daemonImpl) startInstallerExperiment(ctx context.Context, url string) (
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Starting installer experiment for package from %s", url)
-	err = bootstrap.InstallExperiment(ctx, d.env, url)
+	if runtime.GOOS == "windows" {
+		err = d.installer.InstallExperiment(ctx, url)
+	} else {
+		err = bootstrap.InstallExperiment(ctx, d.env, url)
+	}
 	if err != nil {
 		return fmt.Errorf("could not install installer experiment: %w", err)
 	}
@@ -375,14 +446,38 @@ func setRequestDone(ctx context.Context, err error) {
 	}
 }
 
+func (d *daemonImpl) resolveAgentRemoteConfigVersion(ctx context.Context) (string, error) {
+	if !d.env.RemotePolicies {
+		return "", nil
+	}
+	config, err := d.cdn.Get(ctx)
+	if err != nil {
+		return "", fmt.Errorf("could not get agent cdn config: %w", err)
+	}
+	return config.Version, nil
+}
+
 func (d *daemonImpl) refreshState(ctx context.Context) {
+	request, ok := ctx.Value(requestStateKey).(*requestState)
+	if ok {
+		d.requestsState[request.Package] = *request
+	}
 	state, err := d.installer.States()
 	if err != nil {
 		// TODO: we should report this error through RC in some way
 		log.Errorf("could not get installer state: %v", err)
 		return
 	}
-	requestState, ok := ctx.Value(requestStateKey).(*requestState)
+	configState, err := d.installer.ConfigStates()
+	if err != nil {
+		log.Errorf("could not get installer config state: %v", err)
+		return
+	}
+	configVersion, err := d.resolveAgentRemoteConfigVersion(ctx)
+	if err != nil {
+		log.Errorf("could not get agent remote config version: %v", err)
+	}
+
 	var packages []*pbgo.PackageState
 	for pkg, s := range state {
 		p := &pbgo.PackageState{
@@ -390,6 +485,15 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 			StableVersion:     s.Stable,
 			ExperimentVersion: s.Experiment,
 		}
+		cs, hasConfig := configState[pkg]
+		if hasConfig {
+			p.StableConfigVersion = cs.Stable
+			p.ExperimentConfigVersion = cs.Experiment
+		}
+		if pkg == "datadog-agent" {
+			p.RemoteConfigVersion = configVersion
+		}
+		requestState, ok := d.requestsState[pkg]
 		if ok && pkg == requestState.Package {
 			var taskErr *pbgo.TaskError
 			if requestState.Err != nil {

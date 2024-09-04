@@ -21,6 +21,7 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -29,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -87,7 +87,7 @@ func (m *OOMKillCheck) Run() error {
 	}
 
 	sysProbeUtil, err := process_net.GetRemoteSystemProbeUtil(
-		dd_config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
+		dd_config.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 	if err != nil {
 		return err
 	}
@@ -115,7 +115,7 @@ func (m *OOMKillCheck) Run() error {
 			log.Debugf("Unable to extract containerID from cgroup name: %s, err: %v", line.CgroupName, err)
 		}
 
-		entityID := containers.BuildTaggerEntityName(containerID)
+		entityID := types.NewEntityID(types.ContainerID, containerID).String()
 		var tags []string
 		if entityID != "" {
 			tags, err = tagger.Tag(entityID, tagger.ChecksCardinality())

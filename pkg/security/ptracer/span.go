@@ -12,6 +12,7 @@ import (
 	"encoding/binary"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
+	"modernc.org/mathutil"
 )
 
 // SpanTLS holds the needed informations to retrieve spans on a TLS
@@ -37,15 +38,18 @@ func fillSpanContext(tracer *Tracer, pid int, tid int, span *SpanTLS) *ebpfless.
 	if span == nil {
 		return nil
 	}
-	offset := uint64((tid % int(span.maxThreads)) * 2 * 8)
+	offset := uint64((tid % int(span.maxThreads)) * (16 + 8))
 
-	pSpan, err := tracer.readData(pid, uint64(span.base)+offset, 16 /*sizeof uint64 x2*/)
+	pSpan, err := tracer.readData(pid, uint64(span.base)+offset, 24 /*sizeof uint128 + sizeof uint64*/)
 	if err != nil {
 		return nil
 	}
 
 	return &ebpfless.SpanContext{
-		SpanID:  binary.NativeEndian.Uint64(pSpan[0:8]),
-		TraceID: binary.NativeEndian.Uint64(pSpan[8:16]),
+		SpanID: binary.NativeEndian.Uint64(pSpan[0:8]),
+		TraceID: mathutil.Int128{
+			Lo: int64(binary.NativeEndian.Uint64(pSpan[8:16])),
+			Hi: int64(binary.NativeEndian.Uint64(pSpan[16:24])),
+		},
 	}
 }

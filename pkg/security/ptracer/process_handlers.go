@@ -11,7 +11,7 @@ package ptracer
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
+	"fmt"
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
@@ -20,85 +20,97 @@ import (
 func registerProcessHandlers(handlers map[int]syscallHandler) []string {
 	processHandlers := []syscallHandler{
 		{
-			IDs:        []syscallID{{ID: ExecveNr, Name: "execve"}},
+			ID:         syscallID{ID: ExecveNr, Name: "execve"},
 			Func:       handleExecve,
 			ShouldSend: shouldSendExec,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: ExecveatNr, Name: "execveat"}},
+			ID:         syscallID{ID: ExecveatNr, Name: "execveat"},
 			Func:       handleExecveAt,
 			ShouldSend: shouldSendExec,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: ChdirNr, Name: "chdir"}},
+			ID:         syscallID{ID: ChdirNr, Name: "chdir"},
 			Func:       handleChdir,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleChdirRet,
 		},
 		{
-			IDs:        []syscallID{{ID: FchdirNr, Name: "fchdir"}},
+			ID:         syscallID{ID: FchdirNr, Name: "fchdir"},
 			Func:       handleFchdir,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleChdirRet,
 		},
 		{
-			IDs:        []syscallID{{ID: SetuidNr, Name: "setuid"}},
+			ID:         syscallID{ID: SetuidNr, Name: "setuid"},
 			Func:       handleSetuid,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: SetgidNr, Name: "setgid"}},
+			ID:         syscallID{ID: SetgidNr, Name: "setgid"},
 			Func:       handleSetgid,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: SetreuidNr, Name: "setreuid"}, {ID: SetresuidNr, Name: "setresuid"}},
+			ID:         syscallID{ID: SetreuidNr, Name: "setreuid"},
 			Func:       handleSetreuid,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: SetregidNr, Name: "setregid"}, {ID: SetresgidNr, Name: "setresgid"}},
+			ID:         syscallID{ID: SetresuidNr, Name: "setresuid"},
+			Func:       handleSetreuid,
+			ShouldSend: isAcceptedRetval,
+			RetFunc:    nil,
+		},
+		{
+			ID:         syscallID{ID: SetregidNr, Name: "setregid"},
 			Func:       handleSetregid,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: SetfsuidNr, Name: "setfsuid"}},
+			ID:         syscallID{ID: SetresgidNr, Name: "setresgid"},
+			Func:       handleSetregid,
+			ShouldSend: isAcceptedRetval,
+			RetFunc:    nil,
+		},
+		{
+			ID:         syscallID{ID: SetfsuidNr, Name: "setfsuid"},
 			Func:       handleSetfsuid,
 			ShouldSend: shouldSendAlways,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: SetfsgidNr, Name: "setfsgid"}},
+			ID:         syscallID{ID: SetfsgidNr, Name: "setfsgid"},
 			Func:       handleSetfsgid,
 			ShouldSend: shouldSendAlways,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: CapsetNr, Name: "capset"}},
+			ID:         syscallID{ID: CapsetNr, Name: "capset"},
 			Func:       handleCapset,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: InitModuleNr, Name: "init_module"}},
+			ID:         syscallID{ID: InitModuleNr, Name: "init_module"},
 			Func:       handleInitModule,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: FInitModuleNr, Name: "finit_module"}},
+			ID:         syscallID{ID: FInitModuleNr, Name: "finit_module"},
 			Func:       handleFInitModule,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: DeleteModuleNr, Name: "delete_module"}},
+			ID:         syscallID{ID: DeleteModuleNr, Name: "delete_module"},
 			Func:       handleDeleteModule,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
@@ -107,11 +119,9 @@ func registerProcessHandlers(handlers map[int]syscallHandler) []string {
 
 	syscallList := []string{}
 	for _, h := range processHandlers {
-		for _, id := range h.IDs {
-			if id.ID >= 0 { // insert only available syscalls
-				handlers[id.ID] = h
-				syscallList = append(syscallList, id.Name)
-			}
+		if h.ID.ID >= 0 { // insert only available syscalls
+			handlers[h.ID.ID] = h
+			syscallList = append(syscallList, h.ID.Name)
 		}
 	}
 	return syscallList
@@ -137,9 +147,8 @@ func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 	}
 
 	if filename == "" { // in this case, dirfd defines directly the file's FD
-		var exists bool
-		if filename, exists = process.Res.Fd[fd]; !exists || filename == "" {
-			return errors.New("can't find related file path")
+		if filename, err = process.GetFilenameFromFd(fd); err != nil || filename == "" {
+			return fmt.Errorf("can't find related file path: %w", err)
 		}
 	} else {
 		filename, err = getFullPathFromFd(process, filename, fd)
@@ -225,7 +234,7 @@ func handleChdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, reg
 
 	dirname, err = getFullPathFromFilename(process, dirname)
 	if err != nil {
-		process.Res.Cwd = ""
+		process.FsRes.Cwd = ""
 		return err
 	}
 
@@ -240,9 +249,9 @@ func handleChdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, reg
 
 func handleFchdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	fd := tracer.ReadArgInt32(regs, 0)
-	dirname, ok := process.Res.Fd[fd]
-	if !ok {
-		process.Res.Cwd = ""
+	dirname, err := process.GetFilenameFromFd(fd)
+	if err != nil {
+		process.FsRes.Cwd = ""
 		return nil
 	}
 
@@ -382,9 +391,9 @@ func handleInitModule(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg
 func handleFInitModule(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	fd := tracer.ReadArgInt32(regs, 0)
 
-	filename, exists := process.Res.Fd[fd]
-	if !exists {
-		return errors.New("FD cache incomplete")
+	filename, err := process.GetFilenameFromFd(fd)
+	if err != nil {
+		return fmt.Errorf("FD cache incomplete: %w", err)
 	}
 
 	args, err := tracer.ReadArgString(process.Pid, regs, 1)
@@ -434,7 +443,7 @@ func handleDeleteModule(tracer *Tracer, process *Process, msg *ebpfless.SyscallM
 
 func handleChdirRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
 	if ret := tracer.ReadRet(regs); msg.Chdir != nil && ret >= 0 {
-		process.Res.Cwd = msg.Chdir.Dir.Filename
+		process.FsRes.Cwd = msg.Chdir.Dir.Filename
 	}
 	return nil
 }

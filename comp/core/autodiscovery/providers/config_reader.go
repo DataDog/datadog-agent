@@ -96,7 +96,7 @@ func InitConfigFilesReader(paths []string) {
 type FilterFunc func(integration.Config) bool
 
 // GetAll makes ReadConfigFiles return all the configurations found.
-var GetAll FilterFunc = func(c integration.Config) bool { return true }
+var GetAll FilterFunc = func(_ integration.Config) bool { return true }
 
 // WithAdvancedADOnly makes ReadConfigFiles return the configurations with AdvancedADIdentifiers only.
 var WithAdvancedADOnly FilterFunc = func(c integration.Config) bool { return len(c.AdvancedADIdentifiers) > 0 }
@@ -278,8 +278,15 @@ func collectEntry(file os.DirEntry, path string, integrationName string, integra
 	}
 
 	var err error
+
 	entry.conf, err = GetIntegrationConfigFromFile(integrationName, absPath)
 	if err != nil {
+		if err.Error() == emptyFileError {
+			log.Infof("skipping empty file: %s", absPath)
+			entry.err = errors.New("empty file")
+			return entry, integrationErrors
+		}
+
 		log.Warnf("%s is not a valid config file: %s", absPath, err)
 		integrationErrors[integrationName] = err.Error()
 		entry.err = errors.New("Invalid config file format")
@@ -343,6 +350,8 @@ func collectDir(parentPath string, folder os.DirEntry, integrationErrors map[str
 	return configPkg{confs: configs, defaults: defaultConfigs, others: otherConfigs}, integrationErrors
 }
 
+const emptyFileError = "empty file"
+
 // GetIntegrationConfigFromFile returns an instance of integration.Config if `fpath` points to a valid config file
 func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error) {
 	cf := configFormat{}
@@ -353,6 +362,11 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 	yamlFile, err := os.ReadFile(fpath)
 	if err != nil {
 		return conf, err
+	}
+
+	// Check for empty file and return special error if so
+	if len(yamlFile) == 0 {
+		return conf, errors.New(emptyFileError)
 	}
 
 	// Parse configuration

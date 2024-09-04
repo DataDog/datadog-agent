@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package impl implements the securityagent metadata providers interface
-package impl
+// Package securityagentimpl implements the securityagent metadata providers interface
+package securityagentimpl
 
 import (
 	"context"
@@ -13,22 +13,23 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
-	"github.com/DataDog/datadog-agent/comp/api/api/utils"
+	"gopkg.in/yaml.v2"
+
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/securityagent/def"
+	securityagent "github.com/DataDog/datadog-agent/comp/metadata/securityagent/def"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -57,7 +58,7 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 	return nil, fmt.Errorf("could not split security-agent process payload any more, payload is too big for intake")
 }
 
-type securityagent struct {
+type secagent struct {
 	util.InventoryPayload
 
 	log      log.Component
@@ -76,7 +77,7 @@ type Requires struct {
 
 // Provides defines the output of the securityagent metadata component
 type Provides struct {
-	Comp             def.Component
+	Comp             securityagent.Component
 	MetadataProvider runnerimpl.Provider
 	FlareProvider    flaretypes.Provider
 	Endpoint         api.AgentEndpointProvider
@@ -85,7 +86,7 @@ type Provides struct {
 // NewComponent creates a new securityagent metadata Component
 func NewComponent(deps Requires) Provides {
 	hname, _ := hostname.Get(context.Background())
-	sa := &securityagent{
+	sa := &secagent{
 		log:      deps.Log,
 		conf:     deps.Config,
 		hostname: hname,
@@ -100,17 +101,17 @@ func NewComponent(deps Requires) Provides {
 	}
 }
 
-func (sa *securityagent) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
+func (sa *secagent) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
 	// GetAsJSON calls getPayload which already scrub the data
 	scrubbed, err := sa.GetAsJSON()
 	if err != nil {
-		utils.SetJSONError(w, err, 500)
+		httputils.SetJSONError(w, err, 500)
 		return
 	}
 	w.Write(scrubbed)
 }
 
-func (sa *securityagent) getConfigLayers() map[string]interface{} {
+func (sa *secagent) getConfigLayers() map[string]interface{} {
 	metadata := map[string]interface{}{
 		"agent_version": version.AgentVersion,
 	}
@@ -137,6 +138,7 @@ func (sa *securityagent) getConfigLayers() map[string]interface{} {
 		model.SourceAgentRuntime:       "agent_runtime_configuration",
 		model.SourceLocalConfigProcess: "source_local_configuration",
 		model.SourceRC:                 "remote_configuration",
+		model.SourceFleetPolicies:      "fleet_policies_configuration",
 		model.SourceCLI:                "cli_configuration",
 		model.SourceProvided:           "provided_configuration",
 	}
@@ -161,7 +163,7 @@ func (sa *securityagent) getConfigLayers() map[string]interface{} {
 	return metadata
 }
 
-func (sa *securityagent) getPayload() marshaler.JSONMarshaler {
+func (sa *secagent) getPayload() marshaler.JSONMarshaler {
 	return &Payload{
 		Hostname:  sa.hostname,
 		Timestamp: time.Now().UnixNano(),

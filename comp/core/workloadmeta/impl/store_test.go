@@ -5,19 +5,21 @@
 
 //go:build test
 
-package workloadmeta
+package workloadmetaimpl
 
 import (
 	"reflect"
 	"testing"
 
-	tassert "github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
-	"gotest.tools/assert" //nolint:depguard
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -29,19 +31,28 @@ const (
 	barSource       = "bar"
 )
 
-func newWorkloadmetaObject(deps dependencies) *workloadmeta {
+type testDependencies struct {
+	fx.In
+	Config config.Component
+}
+
+func newWorkloadmetaObject(t *testing.T) *workloadmeta {
+	testDeps := fxutil.Test[testDependencies](t, fx.Options(
+		config.MockModule(),
+	))
+
+	deps := Dependencies{
+		Lc:     compdef.NewTestLifecycle(t),
+		Log:    logmock.New(t),
+		Config: testDeps.Config,
+		Params: wmdef.NewParams(),
+	}
+
 	return NewWorkloadMeta(deps).Comp.(*workloadmeta)
 }
 
 func TestHandleEvents(t *testing.T) {
-
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule(),
-		config.MockModule(),
-		fx.Supply(wmdef.NewParams()),
-	))
-
-	s := newWorkloadmetaObject(deps)
+	s := newWorkloadmetaObject(t)
 
 	container := &wmdef.Container{
 		EntityID: wmdef.EntityID{
@@ -124,6 +135,26 @@ func TestSubscribe(t *testing.T) {
 		EntityID: wmdef.EntityID{
 			Kind: wmdef.KindContainer,
 			ID:   "baz",
+		},
+	}
+
+	testNodeMetadata := wmdef.KubernetesMetadata{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesMetadata,
+			ID:   string(util.GenerateKubeMetadataEntityID("", "nodes", "", "test-node")),
+		},
+		EntityMeta: wmdef.EntityMeta{
+			Name: "test-node",
+			Labels: map[string]string{
+				"test-label": "test-value",
+			},
+			Annotations: map[string]string{
+				"test-annotation": "test-value",
+			},
+		},
+		GVR: &schema.GroupVersionResource{
+			Version:  "v1",
+			Resource: "nodes",
 		},
 	}
 
@@ -580,17 +611,65 @@ func TestSubscribe(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "set and unset with a filter that matches entities",
+			// The purpose of this test is to check that a filter that matches
+			// entities using an attribute that is not present in the unset
+			// event still works.
+			// We need to support this case because some collectors do not send
+			// the whole entity in "unset" events and only send an ID instead.
+			preEvents: []wmdef.CollectorEvent{},
+			postEvents: [][]wmdef.CollectorEvent{
+				{
+					{
+						Type:   wmdef.EventTypeSet,
+						Source: fooSource,
+						Entity: &testNodeMetadata,
+					},
+					{
+						Type:   wmdef.EventTypeUnset,
+						Source: fooSource,
+						// Notice that this unset event does not contain the
+						// full entity.
+						Entity: &wmdef.KubernetesMetadata{
+							EntityID: wmdef.EntityID{
+								Kind: wmdef.KindKubernetesMetadata,
+								ID:   testNodeMetadata.ID,
+							},
+						},
+					},
+				},
+			},
+			filter: wmdef.NewFilterBuilder().AddKindWithEntityFilter(
+				wmdef.KindKubernetesMetadata,
+				func(entity wmdef.Entity) bool {
+					metadata := entity.(*wmdef.KubernetesMetadata)
+					// Notice that this filter relies on data that is not
+					// available in the unset event.
+					return wmdef.IsNodeMetadata(metadata)
+				},
+			).Build(),
+			expected: []wmdef.EventBundle{
+				{},
+				{
+					Events: []wmdef.Event{
+						{
+							Type:   wmdef.EventTypeSet,
+							Entity: &testNodeMetadata,
+						},
+						{
+							Type:   wmdef.EventTypeUnset,
+							Entity: &testNodeMetadata,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			deps := fxutil.Test[dependencies](t, fx.Options(
-				logimpl.MockModule(),
-				config.MockModule(),
-				fx.Supply(wmdef.NewParams()),
-			))
-
-			s := newWorkloadmetaObject(deps)
+			s := newWorkloadmetaObject(t)
 
 			s.handleEvents(tt.preEvents)
 
@@ -619,20 +698,13 @@ func TestSubscribe(t *testing.T) {
 			s.Unsubscribe(ch)
 
 			<-doneCh
-			tassert.Equal(t, tt.expected, actual)
-			tassert.Equal(t, tt.expected, actual)
+			assert.Equal(t, tt.expected, actual)
 		})
 	}
 }
 
 func TestGetKubernetesDeployment(t *testing.T) {
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule(),
-		config.MockModule(),
-		fx.Supply(wmdef.NewParams()),
-	))
-
-	s := newWorkloadmetaObject(deps)
+	s := newWorkloadmetaObject(t)
 
 	deployment := &wmdef.KubernetesDeployment{
 		EntityID: wmdef.EntityID{
@@ -650,7 +722,7 @@ func TestGetKubernetesDeployment(t *testing.T) {
 	})
 
 	retrievedDeployment, err := s.GetKubernetesDeployment("datadog-cluster-agent")
-	tassert.NoError(t, err)
+	assert.NoError(t, err)
 
 	if !reflect.DeepEqual(deployment, retrievedDeployment) {
 		t.Errorf("expected deployment %q to match the one in the store", retrievedDeployment.ID)
@@ -665,52 +737,11 @@ func TestGetKubernetesDeployment(t *testing.T) {
 	})
 
 	_, err = s.GetKubernetesDeployment("datadog-cluster-agent")
-	tassert.True(t, errors.IsNotFound(err))
-}
-
-func TestGetKubernetesNamespace(t *testing.T) {
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule(),
-		config.MockModule(),
-		fx.Supply(wmdef.NewParams()),
-	))
-
-	s := newWorkloadmetaObject(deps)
-
-	namespace := &wmdef.KubernetesNamespace{
-		EntityID: wmdef.EntityID{
-			Kind: wmdef.KindKubernetesNamespace,
-			ID:   "default",
-		},
-	}
-
-	s.handleEvents([]wmdef.CollectorEvent{
-		{
-			Type:   wmdef.EventTypeSet,
-			Source: fooSource,
-			Entity: namespace,
-		},
-	})
-
-	retrievedNamespace, err := s.GetKubernetesNamespace("default")
-	tassert.NoError(t, err)
-
-	if !reflect.DeepEqual(namespace, retrievedNamespace) {
-		t.Errorf("expected namespace %q to match the one in the store", retrievedNamespace.ID)
-	}
-
-	_, err = s.GetKubernetesNamespace("datadog-cluster-agent")
-	tassert.True(t, errors.IsNotFound(err))
+	assert.True(t, errors.IsNotFound(err))
 }
 
 func TestGetProcess(t *testing.T) {
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule(),
-		config.MockModule(),
-		fx.Supply(wmdef.NewParams()),
-	))
-
-	s := newWorkloadmetaObject(deps)
+	s := newWorkloadmetaObject(t)
 
 	process := &wmdef.Process{
 		EntityID: wmdef.EntityID{
@@ -783,19 +814,13 @@ func TestListContainers(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			deps := fxutil.Test[dependencies](t, fx.Options(
-				logimpl.MockModule(),
-				config.MockModule(),
-				fx.Supply(wmdef.NewParams()),
-			))
-
-			s := newWorkloadmetaObject(deps)
+			s := newWorkloadmetaObject(t)
 
 			s.handleEvents(test.preEvents)
 
 			containers := s.ListContainers()
 
-			tassert.Equal(t, test.expectedContainers, containers)
+			assert.Equal(t, test.expectedContainers, containers)
 		})
 	}
 }
@@ -821,13 +846,7 @@ func TestListContainersWithFilter(t *testing.T) {
 		},
 	}
 
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule(),
-		config.MockModule(),
-		fx.Supply(wmdef.NewParams()),
-	))
-
-	s := newWorkloadmetaObject(deps)
+	s := newWorkloadmetaObject(t)
 
 	s.handleEvents([]wmdef.CollectorEvent{
 		{
@@ -844,7 +863,7 @@ func TestListContainersWithFilter(t *testing.T) {
 
 	runningContainers := s.ListContainersWithFilter(wmdef.GetRunningContainers)
 
-	tassert.Equal(t, []*wmdef.Container{runningContainer}, runningContainers)
+	assert.Equal(t, []*wmdef.Container{runningContainer}, runningContainers)
 }
 
 func TestListProcesses(t *testing.T) {
@@ -880,19 +899,13 @@ func TestListProcesses(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			deps := fxutil.Test[dependencies](t, fx.Options(
-				logimpl.MockModule(),
-				config.MockModule(),
-				fx.Supply(wmdef.NewParams()),
-			))
-
-			s := newWorkloadmetaObject(deps)
+			s := newWorkloadmetaObject(t)
 
 			s.handleEvents(test.preEvents)
 
 			processes := s.ListProcesses()
 
-			tassert.Equal(t, test.expectedProcesses, processes)
+			assert.Equal(t, test.expectedProcesses, processes)
 		})
 	}
 }
@@ -918,13 +931,7 @@ func TestListProcessesWithFilter(t *testing.T) {
 		},
 	}
 
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule(),
-		config.MockModule(),
-		fx.Supply(wmdef.NewParams()),
-	))
-
-	s := newWorkloadmetaObject(deps)
+	s := newWorkloadmetaObject(t)
 
 	s.handleEvents([]wmdef.CollectorEvent{
 		{
@@ -943,7 +950,7 @@ func TestListProcessesWithFilter(t *testing.T) {
 		return p.Language.Name == languagemodels.Java
 	})
 
-	tassert.Equal(t, []*wmdef.Process{javaProcess}, retrievedProcesses)
+	assert.Equal(t, []*wmdef.Process{javaProcess}, retrievedProcesses)
 }
 
 func TestGetKubernetesPodByName(t *testing.T) {
@@ -1035,13 +1042,7 @@ func TestGetKubernetesPodByName(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			deps := fxutil.Test[dependencies](t, fx.Options(
-				logimpl.MockModule(),
-				config.MockModule(),
-				fx.Supply(wmdef.NewParams()),
-			))
-
-			s := newWorkloadmetaObject(deps)
+			s := newWorkloadmetaObject(t)
 
 			for _, pod := range []*wmdef.KubernetesPod{pod1, pod2, pod3} {
 				s.handleEvents([]wmdef.CollectorEvent{
@@ -1055,57 +1056,10 @@ func TestGetKubernetesPodByName(t *testing.T) {
 
 			pod, err := s.GetKubernetesPodByName(test.args.podName, test.args.podNamespace)
 
-			tassert.Equal(t, test.want.pod, pod)
+			assert.Equal(t, test.want.pod, pod)
 			if test.want.err != nil {
 				assert.Error(t, err, test.want.err.Error())
 			}
-		})
-	}
-}
-
-func TestListKubernetesNodes(t *testing.T) {
-	node := &wmdef.KubernetesNode{
-		EntityID: wmdef.EntityID{
-			Kind: wmdef.KindKubernetesNode,
-			ID:   "some-node",
-		},
-	}
-
-	tests := []struct {
-		name          string
-		preEvents     []wmdef.CollectorEvent
-		expectedNodes []*wmdef.KubernetesNode
-	}{
-		{
-			name: "some nodes stored",
-			preEvents: []wmdef.CollectorEvent{
-				{
-					Type:   wmdef.EventTypeSet,
-					Source: fooSource,
-					Entity: node,
-				},
-			},
-			expectedNodes: []*wmdef.KubernetesNode{node},
-		},
-		{
-			name:          "no nodes stored",
-			preEvents:     nil,
-			expectedNodes: []*wmdef.KubernetesNode{},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			deps := fxutil.Test[dependencies](t, fx.Options(
-				logimpl.MockModule(),
-				config.MockModule(),
-				fx.Supply(wmdef.NewParams()),
-			))
-			s := newWorkloadmetaObject(deps)
-
-			s.handleEvents(test.preEvents)
-
-			tassert.Equal(t, test.expectedNodes, s.ListKubernetesNodes())
 		})
 	}
 }
@@ -1143,17 +1097,11 @@ func TestListImages(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			deps := fxutil.Test[dependencies](t, fx.Options(
-				logimpl.MockModule(),
-				config.MockModule(),
-				fx.Supply(wmdef.NewParams()),
-			))
-
-			s := newWorkloadmetaObject(deps)
+			s := newWorkloadmetaObject(t)
 
 			s.handleEvents(test.preEvents)
 
-			assert.DeepEqual(t, test.expectedImages, s.ListImages())
+			assert.ElementsMatch(t, test.expectedImages, s.ListImages())
 		})
 	}
 }
@@ -1195,22 +1143,16 @@ func TestGetImage(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			deps := fxutil.Test[dependencies](t, fx.Options(
-				logimpl.MockModule(),
-				config.MockModule(),
-				fx.Supply(wmdef.NewParams()),
-			))
-
-			s := newWorkloadmetaObject(deps)
+			s := newWorkloadmetaObject(t)
 			s.handleEvents(test.preEvents)
 
 			actualImage, err := s.GetImage(test.imageID)
 
 			if test.expectsError {
-				tassert.Error(t, err, errors.NewNotFound(string(wmdef.KindContainerImageMetadata)).Error())
+				assert.Error(t, err, errors.NewNotFound(string(wmdef.KindContainerImageMetadata)).Error())
 			} else {
-				tassert.NoError(t, err)
-				tassert.Equal(t, test.expectedImage, actualImage)
+				assert.NoError(t, err)
+				assert.Equal(t, test.expectedImage, actualImage)
 			}
 		})
 	}
@@ -1273,19 +1215,13 @@ func TestListECSTasks(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			deps := fxutil.Test[dependencies](t, fx.Options(
-				logimpl.MockModule(),
-				config.MockModule(),
-				fx.Supply(wmdef.NewParams()),
-			))
-
-			s := newWorkloadmetaObject(deps)
+			s := newWorkloadmetaObject(t)
 
 			s.handleEvents(test.preEvents)
 
 			tasks := s.ListECSTasks()
 
-			tassert.ElementsMatch(t, test.expectedTasks, tasks)
+			assert.ElementsMatch(t, test.expectedTasks, tasks)
 		})
 	}
 }
@@ -1364,13 +1300,7 @@ func TestResetProcesses(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			deps := fxutil.Test[dependencies](t, fx.Options(
-				logimpl.MockModule(),
-				config.MockModule(),
-				fx.Supply(wmdef.NewParams()),
-			))
-
-			s := newWorkloadmetaObject(deps)
+			s := newWorkloadmetaObject(t)
 			s.handleEvents(test.preEvents)
 
 			ch := s.Subscribe(dummySubscriber, wmdef.NormalPriority, nil)
@@ -1403,20 +1333,14 @@ func TestResetProcesses(t *testing.T) {
 			<-doneCh
 
 			processes := s.ListProcesses()
-			tassert.ElementsMatch(t, processes, test.newProcesses)
+			assert.ElementsMatch(t, processes, test.newProcesses)
 		})
 	}
 
 }
 
 func TestGetKubernetesMetadata(t *testing.T) {
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule(),
-		config.MockModule(),
-		fx.Supply(wmdef.NewParams()),
-	))
-
-	s := newWorkloadmetaObject(deps)
+	s := newWorkloadmetaObject(t)
 
 	kubemetadata := &wmdef.KubernetesMetadata{
 		EntityID: wmdef.EntityID{
@@ -1434,7 +1358,7 @@ func TestGetKubernetesMetadata(t *testing.T) {
 	})
 
 	retrievedMetadata, err := s.GetKubernetesMetadata("deployments/default/app")
-	tassert.NoError(t, err)
+	assert.NoError(t, err)
 
 	if !reflect.DeepEqual(kubemetadata, retrievedMetadata) {
 		t.Errorf("expected metadata %q to match the one in the store", retrievedMetadata.ID)
@@ -1449,7 +1373,60 @@ func TestGetKubernetesMetadata(t *testing.T) {
 	})
 
 	_, err = s.GetKubernetesMetadata("deployments/default/app")
-	tassert.True(t, errors.IsNotFound(err))
+	assert.True(t, errors.IsNotFound(err))
+}
+
+func TestListKubernetesMetadata(t *testing.T) {
+	wmeta := newWorkloadmetaObject(t)
+
+	nodeMetadata := wmdef.KubernetesMetadata{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesMetadata,
+			ID:   string(util.GenerateKubeMetadataEntityID("", "nodes", "", "node1")),
+		},
+		EntityMeta: wmdef.EntityMeta{
+			Name:        "node1",
+			Annotations: map[string]string{"a1": "v1"},
+			Labels:      map[string]string{"l1": "v2"},
+		},
+		GVR: &schema.GroupVersionResource{
+			Version:  "v1",
+			Resource: "nodes",
+		},
+	}
+
+	deploymentMetadata := wmdef.KubernetesMetadata{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesMetadata,
+			ID:   "deployments/default/app",
+		},
+		EntityMeta: wmdef.EntityMeta{
+			Name:        "app",
+			Namespace:   "default",
+			Annotations: map[string]string{"a1": "v1"},
+			Labels:      map[string]string{"l1": "v2"},
+		},
+		GVR: &schema.GroupVersionResource{
+			Group:    "apps",
+			Version:  "v1",
+			Resource: "deployments",
+		},
+	}
+
+	wmeta.handleEvents([]wmdef.CollectorEvent{
+		{
+			Type:   wmdef.EventTypeSet,
+			Source: fooSource,
+			Entity: &nodeMetadata,
+		},
+		{
+			Type:   wmdef.EventTypeSet,
+			Source: fooSource,
+			Entity: &deploymentMetadata,
+		},
+	})
+
+	assert.ElementsMatch(t, []*wmdef.KubernetesMetadata{&nodeMetadata}, wmeta.ListKubernetesMetadata(wmdef.IsNodeMetadata))
 }
 
 func TestReset(t *testing.T) {
@@ -1605,13 +1582,7 @@ func TestReset(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			deps := fxutil.Test[dependencies](t, fx.Options(
-				logimpl.MockModule(),
-				config.MockModule(),
-				fx.Supply(wmdef.NewParams()),
-			))
-
-			s := newWorkloadmetaObject(deps)
+			s := newWorkloadmetaObject(t)
 
 			s.handleEvents(test.preEvents)
 
@@ -1644,21 +1615,15 @@ func TestReset(t *testing.T) {
 
 			<-doneCh
 
-			tassert.Equal(t, test.expectedEventsReceived, actualEventsReceived)
+			assert.Equal(t, test.expectedEventsReceived, actualEventsReceived)
 		})
 	}
 }
 
-func TestNoDataRace(t *testing.T) { //nolint:revive // TODO fix revive unused-parameter
+func TestNoDataRace(t *testing.T) {
 	// This test ensures that no race conditions are encountered when the "--race" flag is passed
 	// to the test process and an entity is accessed in a different thread than the one handling events
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule(),
-		config.MockModule(),
-		fx.Supply(wmdef.NewParams()),
-	))
-
-	s := newWorkloadmetaObject(deps)
+	s := newWorkloadmetaObject(t)
 
 	container := &wmdef.Container{
 		EntityID: wmdef.EntityID{
@@ -1681,14 +1646,7 @@ func TestNoDataRace(t *testing.T) { //nolint:revive // TODO fix revive unused-pa
 }
 
 func TestPushEvents(t *testing.T) {
-
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule(),
-		config.MockModule(),
-		fx.Supply(wmdef.NewParams()),
-	))
-
-	wlm := newWorkloadmetaObject(deps)
+	wlm := newWorkloadmetaObject(t)
 
 	mockSource := wmdef.Source("mockSource")
 
@@ -1740,9 +1698,9 @@ func TestPushEvents(t *testing.T) {
 			err := wlm.Push(mockSource, test.events...)
 
 			if test.expectError {
-				tassert.Error(t, err, "Expected Push operation to fail and return error")
+				assert.Error(t, err, "Expected Push operation to fail and return error")
 			} else {
-				tassert.NoError(t, err, "Expected Push operation to succeed and return nil")
+				assert.NoError(t, err, "Expected Push operation to succeed and return nil")
 			}
 
 		})

@@ -23,30 +23,25 @@ const (
 	User = "guest"
 	// Pass is the password to use for authentication
 	Pass = "guest"
-
-	// Plaintext is a flag to indicate that the server should be started with plaintext
-	Plaintext = false
-	// TLS is a flag to indicate that the server should be started with TLS
-	TLS = true
 )
 
 type encryptionPoliciesMap map[bool]string
 type regexGeneratorsMap map[bool]func(testing.TB, string) *regexp.Regexp
 
 var (
-	encryptionPolicies      = encryptionPoliciesMap{Plaintext: "plaintext", TLS: "tls"}
+	encryptionPolicies      = encryptionPoliciesMap{protocolsUtils.TLSDisabled: "plaintext", protocolsUtils.TLSEnabled: "tls"}
 	startupRegexpGenerators = regexGeneratorsMap{
-		Plaintext: getPlaintextRegexp,
-		TLS:       getTLSRegexp,
+		protocolsUtils.TLSDisabled: getPlaintextRegexp,
+		protocolsUtils.TLSEnabled:  getTLSRegexp,
 	}
 )
 
 // RunServer runs an AMQP server in a docker container.
-func RunServer(t testing.TB, serverAddr, serverPort string, withTLS bool) error {
+func RunServer(t testing.TB, serverAddr, serverPort string, enableTLS bool) error {
 	t.Helper()
 
-	env := getServerEnv(t, serverAddr, serverPort, withTLS)
-	startupRegexp := startupRegexpGenerators[withTLS](t, serverPort)
+	env := getServerEnv(t, serverAddr, serverPort, enableTLS)
+	startupRegexp := startupRegexpGenerators[enableTLS](t, serverPort)
 
 	dir, _ := httpUtils.CurDir()
 	return protocolsUtils.RunDockerServer(t, "amqp", dir+"/testdata/docker-compose.yml", env, startupRegexp, protocolsUtils.DefaultTimeout, 3)

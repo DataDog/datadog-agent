@@ -10,13 +10,16 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"unicode"
+	"unicode/utf8"
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"go.uber.org/fx"
 )
 
 var (
-	compLifecycleType = reflect.TypeOf((*compdef.Lifecycle)(nil)).Elem()
+	compLifecycleType  = reflect.TypeOf((*compdef.Lifecycle)(nil)).Elem()
+	compShutdownerType = reflect.TypeOf((*compdef.Shutdowner)(nil)).Elem()
 
 	compInType  = reflect.TypeOf((*compdef.In)(nil)).Elem()
 	compOutType = reflect.TypeOf((*compdef.Out)(nil)).Elem()
@@ -168,7 +171,7 @@ func getConstructorTypes(ctorFuncType reflect.Type) (*ctorTypes, error) {
 	if err := ensureFieldsNotAllowed(ctorInType, []reflect.Type{compOutType, fxOutType, fxInType}); err != nil {
 		return nil, err
 	}
-	if err := ensureFieldsNotAllowed(ctorOutType, []reflect.Type{compInType, compLifecycleType, fxInType, fxOutType}); err != nil {
+	if err := ensureFieldsNotAllowed(ctorOutType, []reflect.Type{compInType, compLifecycleType, compShutdownerType, fxInType, fxOutType}); err != nil {
 		return nil, err
 	}
 
@@ -224,6 +227,10 @@ func ensureFieldsNotAllowed(typ reflect.Type, badEmbeds []reflect.Type) error {
 		if slices.Contains(badEmbeds, field.Type) {
 			return fmt.Errorf("invalid embedded field: %v", field.Type)
 		}
+		firstRune, _ := utf8.DecodeRuneInString(field.Name)
+		if unicode.IsLower(firstRune) {
+			return fmt.Errorf("field is not exported: %v", field.Name)
+		}
 	}
 	return nil
 }
@@ -244,9 +251,9 @@ func replaceStructEmbeds(typ, oldEmbed, newEmbed reflect.Type, assumeEmbed bool)
 			continue
 		}
 		if field.Type.Kind() == reflect.Struct && oldEmbed != nil && newEmbed != nil && hasEmbed {
-			field = reflect.StructField{Name: field.Name, Type: replaceStructEmbeds(field.Type, oldEmbed, newEmbed, false)}
+			field = reflect.StructField{Name: field.Name, Type: replaceStructEmbeds(field.Type, oldEmbed, newEmbed, false), Tag: field.Tag}
 		}
-		newFields = append(newFields, reflect.StructField{Name: field.Name, Type: field.Type})
+		newFields = append(newFields, reflect.StructField{Name: field.Name, Type: field.Type, Tag: field.Tag})
 	}
 
 	if hasEmbed && newEmbed != nil {
@@ -293,10 +300,25 @@ func coerceStructTo(input reflect.Value, outType reflect.Type, oldEmbed, newEmbe
 	return result
 }
 
+// FxAgentBase returns all of our adapters from compdef types to fx types
+func FxAgentBase() fx.Option {
+	return fx.Options(
+		FxLoggingOption(),
+		fx.Provide(newFxLifecycleAdapter),
+		fx.Provide(newFxShutdownerAdapter),
+	)
+}
+
+// Lifecycle is a compdef interface compatible with fx.Lifecycle, to provide start/stop hooks
 var _ compdef.Lifecycle = (*fxLifecycleAdapter)(nil)
 
 type fxLifecycleAdapter struct {
 	lc fx.Lifecycle
+}
+
+// FxLifecycleAdapter creates an fx.Option to adapt from compdef.Lifecycle to fx.Lifecycle
+func FxLifecycleAdapter() fx.Option {
+	return fx.Provide(newFxLifecycleAdapter)
 }
 
 func newFxLifecycleAdapter(lc fx.Lifecycle) compdef.Lifecycle {
@@ -308,4 +330,19 @@ func (a *fxLifecycleAdapter) Append(h compdef.Hook) {
 		OnStart: h.OnStart,
 		OnStop:  h.OnStop,
 	})
+}
+
+// Shutdowner is a compdef interface compatible with fx.Shutdowner, to provide the Shutdown method
+var _ compdef.Shutdowner = (*fxShutdownerAdapter)(nil)
+
+type fxShutdownerAdapter struct {
+	sh fx.Shutdowner
+}
+
+func newFxShutdownerAdapter(sh fx.Shutdowner) compdef.Shutdowner {
+	return &fxShutdownerAdapter{sh: sh}
+}
+
+func (a *fxShutdownerAdapter) Shutdown() error {
+	return a.sh.Shutdown()
 }

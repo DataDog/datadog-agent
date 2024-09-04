@@ -13,9 +13,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/config/logs"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -29,8 +29,6 @@ type (
 	Writer = model.Writer
 	// ReaderWriter is alias to model.ReaderWriter
 	ReaderWriter = model.ReaderWriter
-	// Loader is alias to model.Loader
-	Loader = model.Loader
 	// Config is alias to model.Config
 	Config = model.Config
 )
@@ -40,44 +38,6 @@ var NewConfig = model.NewConfig
 
 // Warnings represent the warnings in the config
 type Warnings = model.Warnings
-
-// environment Aliases
-var (
-	IsFeaturePresent             = env.IsFeaturePresent
-	IsECS                        = env.IsECS
-	IsKubernetes                 = env.IsKubernetes
-	IsECSFargate                 = env.IsECSFargate
-	IsServerless                 = env.IsServerless
-	IsContainerized              = env.IsContainerized
-	IsDockerRuntime              = env.IsDockerRuntime
-	GetEnvDefault                = env.GetEnvDefault
-	IsHostProcAvailable          = env.IsHostProcAvailable
-	IsHostSysAvailable           = env.IsHostSysAvailable
-	IsAnyContainerFeaturePresent = env.IsAnyContainerFeaturePresent
-	GetDetectedFeatures          = env.GetDetectedFeatures
-)
-
-type (
-	// Feature Alias
-	Feature = env.Feature
-	// FeatureMap Alias
-	FeatureMap = env.FeatureMap
-)
-
-// Aliases for constants
-const (
-	ECSFargate               = env.ECSFargate
-	Podman                   = env.Podman
-	Docker                   = env.Docker
-	EKSFargate               = env.EKSFargate
-	ECSEC2                   = env.ECSEC2
-	Kubernetes               = env.Kubernetes
-	CloudFoundry             = env.CloudFoundry
-	Cri                      = env.Cri
-	Containerd               = env.Containerd
-	KubeOrchestratorExplorer = env.KubeOrchestratorExplorer
-	ECSOrchestratorExplorer  = env.ECSOrchestratorExplorer
-)
 
 var (
 	// Datadog Alias
@@ -99,33 +59,32 @@ var (
 )
 
 // LoggerName Alias
-type LoggerName = logs.LoggerName
+type LoggerName = pkglogsetup.LoggerName
 
 // Aliases for  logs
 var (
-	NewLogWriter               = logs.NewLogWriter
-	ChangeLogLevel             = logs.ChangeLogLevel
-	NewTLSHandshakeErrorWriter = logs.NewTLSHandshakeErrorWriter
+	NewLogWriter               = pkglogsetup.NewLogWriter
+	NewTLSHandshakeErrorWriter = pkglogsetup.NewTLSHandshakeErrorWriter
 )
 
 // SetupLogger Alias using Datadog config
 func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
-	return logs.SetupLogger(loggerName, logLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, Datadog())
+	return pkglogsetup.SetupLogger(loggerName, logLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, Datadog())
 }
 
 // SetupJMXLogger Alias using Datadog config
 func SetupJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
-	return logs.SetupJMXLogger(logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, Datadog())
+	return pkglogsetup.SetupJMXLogger(logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, Datadog())
 }
 
 // GetSyslogURI Alias using Datadog config
 func GetSyslogURI() string {
-	return logs.GetSyslogURI(Datadog())
+	return pkglogsetup.GetSyslogURI(Datadog())
 }
 
 // SetupDogstatsdLogger Alias using Datadog config
 func SetupDogstatsdLogger(logFile string) (slog.LoggerInterface, error) {
-	return logs.SetupDogstatsdLogger(logFile, Datadog())
+	return pkglogsetup.SetupDogstatsdLogger(logFile, Datadog())
 }
 
 // IsCloudProviderEnabled Alias using Datadog config
@@ -187,8 +146,6 @@ type (
 	ConfigurationProviders = pkgconfigsetup.ConfigurationProviders
 	// Listeners Alias
 	Listeners = pkgconfigsetup.Listeners
-	// MappingProfile Alias
-	MappingProfile = pkgconfigsetup.MappingProfile
 )
 
 // GetObsPipelineURL Alias using Datadog config
@@ -197,8 +154,8 @@ func GetObsPipelineURL(datatype pkgconfigsetup.DataType) (string, error) {
 }
 
 // LoadCustom Alias
-func LoadCustom(config model.Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*model.Warnings, error) {
-	return pkgconfigsetup.LoadCustom(config, origin, secretResolver, additionalKnownEnvVars)
+func LoadCustom(config model.Config, additionalKnownEnvVars []string) error {
+	return pkgconfigsetup.LoadCustom(config, additionalKnownEnvVars)
 }
 
 // LoadDatadogCustom Alias
@@ -226,11 +183,6 @@ func GetBindHost() string {
 	return pkgconfigsetup.GetBindHost(Datadog())
 }
 
-// GetDogstatsdMappingProfiles Alias using Datadog config
-func GetDogstatsdMappingProfiles() ([]MappingProfile, error) {
-	return pkgconfigsetup.GetDogstatsdMappingProfiles(Datadog())
-}
-
 var (
 	// IsRemoteConfigEnabled Alias
 	IsRemoteConfigEnabled = pkgconfigsetup.IsRemoteConfigEnabled
@@ -256,7 +208,7 @@ var (
 
 // LoadWithoutSecret Alias using Datadog config
 func LoadWithoutSecret() (*model.Warnings, error) {
-	return pkgconfigsetup.LoadDatadogCustom(Datadog(), "datadog.yaml", optional.NewNoneOption[secrets.Component](), SystemProbe.GetEnvVars())
+	return pkgconfigsetup.LoadDatadogCustom(Datadog(), "datadog.yaml", optional.NewNoneOption[secrets.Component](), SystemProbe().GetEnvVars())
 }
 
 // GetProcessAPIAddressPort Alias using Datadog config

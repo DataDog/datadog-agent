@@ -56,9 +56,9 @@ func (p *Probe) AddCustomEventHandler(_ model.EventType, _ CustomEventHandler) e
 	return nil
 }
 
-// NewEvaluationSet returns a new evaluation set with rule sets tagged by the passed-in tag values for the "ruleset" tag key
-func (p *Probe) NewEvaluationSet(_ map[eval.EventType]bool, _ []string) (*rules.EvaluationSet, error) {
-	return nil, nil
+// NewRuleSet returns a new ruleset
+func (p *Probe) NewRuleSet(_ map[eval.EventType]bool) *rules.RuleSet {
+	return nil
 }
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.

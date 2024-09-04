@@ -708,7 +708,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
 			},
 		},
 		"profile2": profile.ProfileConfig{
@@ -716,7 +716,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.10"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.10"},
 			},
 		},
 		"profile3": profile.ProfileConfig{
@@ -724,7 +724,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.5.*"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.5.*"},
 			},
 		},
 	}
@@ -734,7 +734,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.***.*"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.***.*"},
 			},
 		},
 	}
@@ -744,7 +744,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.[.*"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.[.*"},
 			},
 		},
 	}
@@ -754,7 +754,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
 			},
 		},
 		"profile2": profile.ProfileConfig{
@@ -762,7 +762,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
 			},
 		},
 		"profile3": profile.ProfileConfig{
@@ -770,7 +770,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.4"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.4"},
 			},
 		},
 	}
@@ -780,7 +780,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "userMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
 			},
 			IsUserProfile: true,
 		},
@@ -789,7 +789,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "defaultMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
 			},
 		},
 	}
@@ -799,7 +799,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "defaultMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
 			},
 		},
 		"user-profile": profile.ProfileConfig{
@@ -807,7 +807,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "userMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
 			},
 			IsUserProfile: true,
 		},
@@ -818,7 +818,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "defaultMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.*"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.*"},
 			},
 		},
 		"user-profile": profile.ProfileConfig{
@@ -826,7 +826,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "userMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.*"},
+				SysObjectIDs: profiledefinition.StringArray{"1.*"},
 			},
 			IsUserProfile: true,
 		},
@@ -837,7 +837,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
 			},
 			IsUserProfile: true,
 		},
@@ -846,7 +846,7 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 				Metrics: []profiledefinition.MetricsConfig{
 					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 				},
-				SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
 			},
 			IsUserProfile: true,
 		},
@@ -1120,7 +1120,7 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 				},
 			},
 		},
-		SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
+		SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
 	}
 	profile2 := profiledefinition.ProfileDefinition{
 		Device:  profiledefinition.DeviceMeta{Vendor: "b-vendor"},
@@ -1171,7 +1171,7 @@ func Test_snmpConfig_setProfile(t *testing.T) {
 				},
 			},
 		},
-		SysObjectIds: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
+		SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
 	}
 
 	mockProfiles := profile.ProfileConfigMap{
@@ -1982,14 +1982,45 @@ ping:
     use_raw_socket: true
   timeout: 8
   interval: 7
-  count: 2
+  count: 7
 `),
 			expectedPingEnabled: true,
 			expectedPingConfig: pinger.Config{
 				UseRawSocket: true,
 				Timeout:      8 * time.Millisecond,
 				Interval:     7 * time.Millisecond,
-				Count:        2,
+				Count:        7,
+			},
+		},
+		{
+			name: "ping instance config overrides init config",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+ping:
+  enabled: true
+  linux:
+    use_raw_socket: true
+  timeout: 4
+  interval: 5
+  count: 80
+`),
+			// language=yaml
+			rawInitConfig: []byte(`
+ping:
+  enabled: false
+  linux:
+    use_raw_socket: false
+  timeout: 8
+  interval: 7
+  count: 6
+`),
+			expectedPingEnabled: true,
+			expectedPingConfig: pinger.Config{
+				UseRawSocket: true,
+				Timeout:      4 * time.Millisecond,
+				Interval:     5 * time.Millisecond,
+				Count:        80,
 			},
 		},
 		{
@@ -2025,6 +2056,25 @@ ping: '{"linux":{"use_raw_socket":true},"enabled":true,"interval":344,"timeout":
 				Timeout:      963 * time.Millisecond,
 				Interval:     344 * time.Millisecond,
 				Count:        976,
+			},
+		},
+		{
+			name: "ping config as instance level json string overrides init level json string",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+ping: '{"linux":{"use_raw_socket":true},"enabled":true,"interval":443,"timeout":369,"count":679}'
+`),
+			// language=yaml
+			rawInitConfig: []byte(`
+ping: '{"linux":{"use_raw_socket":false},"enabled":false,"interval":344,"timeout":963,"count":976}'
+`),
+			expectedPingEnabled: true,
+			expectedPingConfig: pinger.Config{
+				UseRawSocket: true,
+				Timeout:      369 * time.Millisecond,
+				Interval:     443 * time.Millisecond,
+				Count:        679,
 			},
 		},
 		{
