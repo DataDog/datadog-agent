@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 )
 
 func mockSenderEvents(t *testing.T, m *mocksender.MockSender) []*event {
@@ -54,15 +55,12 @@ func Test_telemetrySender(t *testing.T) {
 	ts.hostname = mHostname
 
 	svc := serviceInfo{
-		process: processInfo{
-			PID:     99,
-			CmdLine: []string{"test-service", "--args"},
-			Env:     nil,
-			Stat: procStat{
-				StartTime: uint64(now.Add(-20 * time.Minute).Unix()),
-				RSS:       500 * 1024 * 1024,
-			},
-			Ports: []uint16{80, 8080},
+		service: model.Service{
+			PID:           99,
+			CommandLine:   []string{"test-service", "--args"},
+			Ports:         []uint16{80, 8080},
+			StartTimeSecs: uint64(now.Add(-20 * time.Minute).Unix()),
+			RSS:           500 * 1024 * 1024,
 		},
 		meta: ServiceMetadata{
 			Name:               "test-service",
@@ -166,14 +164,10 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 	ts.hostname = mHostname
 
 	svc := serviceInfo{
-		process: processInfo{
-			PID:     55,
-			CmdLine: []string{"foo", "--option"},
-			Env:     nil,
-			Stat: procStat{
-				StartTime: uint64(now.Add(-20 * time.Minute).Unix()),
-			},
-			Ports: nil,
+		service: model.Service{
+			PID:           55,
+			CommandLine:   []string{"foo", "--option"},
+			StartTimeSecs: uint64(now.Add(-20 * time.Minute).Unix()),
 		},
 		meta: ServiceMetadata{
 			Name:               "test-service",
