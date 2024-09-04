@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -30,16 +31,28 @@ type ProcessKiller struct {
 	sync.Mutex
 
 	pendingReports   []*KillActionReport
-	binariesExcluded []string
+	binariesExcluded []*eval.Glob
 	sourceAllowed    []string
 }
 
 // NewProcessKiller returns a new ProcessKiller
-func NewProcessKiller(cfg *config.Config) *ProcessKiller {
-	return &ProcessKiller{
-		binariesExcluded: append(binariesExcluded, cfg.RuntimeSecurity.EnforcementBinaryExcluded...),
-		sourceAllowed:    cfg.RuntimeSecurity.EnforcementRuleSourceAllowed,
+func NewProcessKiller(cfg *config.Config) (*ProcessKiller, error) {
+	p := &ProcessKiller{
+		sourceAllowed: cfg.RuntimeSecurity.EnforcementRuleSourceAllowed,
 	}
+
+	binaries := append(binariesExcluded, cfg.RuntimeSecurity.EnforcementBinaryExcluded...)
+
+	for _, str := range binaries {
+		glob, err := eval.NewGlob(str, false, false)
+		if err != nil {
+			return nil, err
+		}
+
+		p.binariesExcluded = append(p.binariesExcluded, glob)
+	}
+
+	return p, nil
 }
 
 // AddPendingReports add a pending reports
@@ -91,7 +104,9 @@ func (p *ProcessKiller) isKillAllowed(pids []uint32, paths []string) bool {
 			return false
 		}
 
-		if slices.Contains(p.binariesExcluded, paths[i]) {
+		if slices.ContainsFunc(p.binariesExcluded, func(glob *eval.Glob) bool {
+			return glob.Matches(paths[i])
+		}) {
 			return false
 		}
 	}

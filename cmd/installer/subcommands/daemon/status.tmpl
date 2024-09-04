@@ -14,7 +14,9 @@ Datadog Installer v{{ htmlSafe .Version }}
   {{- end }}
   {{- if eq $name "datadog-apm-inject" }}{{ template "datadog-apm-inject" $.ApmInjectionStatus }}{{ end }}
 {{ end -}}
-
+{{- if .RemoteConfigState }}
+{{ template "remote-config-state" $.RemoteConfigState }}
+{{- end -}}
 
 {{- define "datadog-apm-inject" }}
   Instrumentation status:
@@ -31,3 +33,25 @@ Datadog Installer v{{ htmlSafe .Version }}
       {{ redText "●" }} Docker: Not instrumented
     {{- end }}
 {{- end -}}
+
+{{- define "remote-config-state" }}
+  Remote configuration client state:
+  {{ range . }}
+    {{ boldText .Package }}
+      StableVersion: {{ .StableVersion }}
+      ExperimentVersion: {{ .ExperimentVersion }}
+      StableConfigVersion: {{ .StableConfigVersion }}
+      ExperimentConfigVersion: {{ .ExperimentConfigVersion }}
+      RemoteConfigVersion: {{ .RemoteConfigVersion }}
+      Task:
+        {{- if .Task }}
+          Id: {{ .Task.Id }}
+          State: {{ .Task.State }}
+          {{- if .Task.Error }}
+            Error: {{ .Task.Error }}
+          {{- end }}
+        {{- else }}
+          No task available
+        {{- end }}
+  {{ end }}
+{{- end }}

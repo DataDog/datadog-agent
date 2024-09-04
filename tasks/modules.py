@@ -259,6 +259,7 @@ DEFAULT_MODULES = {
         "pkg/util/cgroups", independent=True, condition=lambda: sys.platform == "linux", used_by_otel=True
     ),
     "pkg/util/common": GoModule("pkg/util/common", independent=True, used_by_otel=True),
+    "pkg/util/containers/image": GoModule("pkg/util/containers/image", independent=True, used_by_otel=True),
     "pkg/util/executable": GoModule("pkg/util/executable", independent=True, used_by_otel=True),
     "pkg/util/filesystem": GoModule("pkg/util/filesystem", independent=True, used_by_otel=True),
     "pkg/util/flavor": GoModule("pkg/util/flavor", independent=True),

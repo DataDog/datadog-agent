@@ -126,7 +126,11 @@ func (c *testRemoteConfigClient) Subscribe(product string, fn func(update map[st
 	c.listeners[product] = append(c.listeners[product], client.Handler(fn))
 }
 
-func (c *testRemoteConfigClient) SetUpdaterPackagesState(_ []*pbgo.PackageState) {
+func (c *testRemoteConfigClient) SetInstallerState(_ []*pbgo.PackageState) {
+}
+
+func (c *testRemoteConfigClient) GetInstallerState() []*pbgo.PackageState {
+	return nil
 }
 
 func (c *testRemoteConfigClient) SubmitCatalog(catalog catalog) {
@@ -284,11 +288,8 @@ func TestRemoteRequest(t *testing.T) {
 	defer i.Stop()
 
 	testStablePackage := Package{
-		Name:     "test-package",
-		Version:  "0.0.1",
-		URL:      "oci://example.com/test-package@sha256:2fa082d512a120a814e32ddb80454efce56595b5c84a37cc1a9f90cf9cc7ba85",
-		Platform: runtime.GOOS,
-		Arch:     runtime.GOARCH,
+		Name:    "test-package",
+		Version: "0.0.1",
 	}
 	testExperimentPackage := Package{
 		Name:     "test-package",
