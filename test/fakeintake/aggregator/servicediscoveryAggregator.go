@@ -25,7 +25,6 @@ type ServiceDiscoveryPayload struct {
 		HostName            string `json:"host_name"`
 		Env                 string `json:"env"`
 		ServiceLanguage     string `json:"service_language"`
-		ServiceType         string `json:"service_type"`
 		StartTime           int64  `json:"start_time"`
 		LastSeen            int64  `json:"last_seen"`
 		APMInstrumentation  string `json:"apm_instrumentation"`
