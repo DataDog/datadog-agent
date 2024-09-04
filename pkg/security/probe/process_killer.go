@@ -114,7 +114,15 @@ func (p *ProcessKiller) isKillAllowed(pids []uint32, paths []string) bool {
 }
 
 func (p *ProcessKiller) isRuleAllowed(rule *rules.Rule) bool {
-	return slices.Contains(p.sourceAllowed, rule.Policy.Source)
+	if slices.Contains(p.sourceAllowed, rule.Policy.Source) {
+		return true
+	}
+	for _, modifyingRule := range rule.ModifiedBy {
+		if slices.Contains(p.sourceAllowed, modifyingRule.Policy.Source) {
+			return true
+		}
+	}
+	return false
 }
 
 // KillAndReport kill and report
