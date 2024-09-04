@@ -15,9 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-var bpfCapabilities = Capabilities{
-	"bpf.cmd": {
-		ValueTypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
+var bpfCapabilities = rules.FieldCapabilities{
+	{
+		Field:       "bpf.cmd",
+		TypeBitmask: eval.ScalarValueType | eval.BitmaskValueType,
 	},
 }
 

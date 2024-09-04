@@ -338,9 +338,6 @@ func getSharedFxOption() fx.Option {
 		)),
 		core.Bundle(),
 		lsof.Module(),
-		fx.Supply(dogstatsdServer.Params{
-			Serverless: false,
-		}),
 		// Enable core agent specific features like persistence-to-disk
 		forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
 		// workloadmeta setup
@@ -381,7 +378,7 @@ func getSharedFxOption() fx.Option {
 		compressionimpl.Module(),
 		demultiplexerimpl.Module(),
 		demultiplexerendpointfx.Module(),
-		dogstatsd.Bundle(),
+		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
 		fx.Provide(func(logsagent optional.Option[logsAgent.Component]) optional.Option[logsagentpipeline.Component] {
 			if la, ok := logsagent.Get(); ok {
 				return optional.NewOption[logsagentpipeline.Component](la)

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
 func makeHandler() (chan *message.Message, func(*message.Message)) {
@@ -35,7 +36,7 @@ func assertMessageContent(t *testing.T, m *message.Message, content string) {
 
 func TestNoAggregate(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 100, time.Duration(1*time.Second), false, false)
+	ag := NewAggregator(outputFn, 100, time.Duration(1*time.Second), false, false, status.NewInfoRegistry())
 
 	ag.Aggregate(newMessage("1"), noAggregate)
 	ag.Aggregate(newMessage("2"), noAggregate)
@@ -49,7 +50,7 @@ func TestNoAggregate(t *testing.T) {
 func TestNoAggregateEndsGroup(t *testing.T) {
 
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 100, time.Duration(1*time.Second), false, false)
+	ag := NewAggregator(outputFn, 100, time.Duration(1*time.Second), false, false, status.NewInfoRegistry())
 
 	ag.Aggregate(newMessage("1"), startGroup)
 	ag.Aggregate(newMessage("2"), startGroup)
@@ -62,7 +63,7 @@ func TestNoAggregateEndsGroup(t *testing.T) {
 
 func TestAggregateGroups(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 100, time.Duration(1*time.Second), false, false)
+	ag := NewAggregator(outputFn, 100, time.Duration(1*time.Second), false, false, status.NewInfoRegistry())
 
 	// Aggregated log
 	ag.Aggregate(newMessage("1"), startGroup)
@@ -82,7 +83,7 @@ func TestAggregateGroups(t *testing.T) {
 
 func TestAggregateDoesntStartGroup(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 100, time.Duration(1*time.Second), false, false)
+	ag := NewAggregator(outputFn, 100, time.Duration(1*time.Second), false, false, status.NewInfoRegistry())
 
 	ag.Aggregate(newMessage("1"), aggregate)
 	ag.Aggregate(newMessage("2"), aggregate)
@@ -95,7 +96,7 @@ func TestAggregateDoesntStartGroup(t *testing.T) {
 
 func TestForceFlush(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 100, time.Duration(1*time.Second), false, false)
+	ag := NewAggregator(outputFn, 100, time.Duration(1*time.Second), false, false, status.NewInfoRegistry())
 
 	ag.Aggregate(newMessage("1"), startGroup)
 	ag.Aggregate(newMessage("2"), aggregate)
@@ -107,7 +108,7 @@ func TestForceFlush(t *testing.T) {
 
 func TestAggregationTimer(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 100, time.Duration(1*time.Second), false, false)
+	ag := NewAggregator(outputFn, 100, time.Duration(1*time.Second), false, false, status.NewInfoRegistry())
 
 	assert.Nil(t, ag.FlushChan())
 	ag.Aggregate(newMessage("1"), startGroup)
@@ -124,7 +125,7 @@ func TestAggregationTimer(t *testing.T) {
 
 func TestTagTruncatedLogs(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 10, time.Duration(1*time.Second), true, false)
+	ag := NewAggregator(outputFn, 10, time.Duration(1*time.Second), true, false, status.NewInfoRegistry())
 
 	ag.Aggregate(newMessage("1234567890"), startGroup)
 	ag.Aggregate(newMessage("1"), aggregate) // Causes overflow, truncate and flush
@@ -148,7 +149,7 @@ func TestTagTruncatedLogs(t *testing.T) {
 
 func TestTagMultiLineLogs(t *testing.T) {
 	outputChan, outputFn := makeHandler()
-	ag := NewAggregator(outputFn, 10, time.Duration(1*time.Second), false, true)
+	ag := NewAggregator(outputFn, 10, time.Duration(1*time.Second), false, true, status.NewInfoRegistry())
 
 	ag.Aggregate(newMessage("12345"), startGroup)
 	ag.Aggregate(newMessage("67890"), aggregate)
