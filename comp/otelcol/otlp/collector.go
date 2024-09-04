@@ -14,7 +14,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter"
-	"go.opentelemetry.io/collector/exporter/loggingexporter"
+	"go.opentelemetry.io/collector/exporter/debugexporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/otelcol"
@@ -106,7 +106,7 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 	exporterFactories := []exporter.Factory{
 		otlpexporter.NewFactory(),
 		serializerexporter.NewFactory(s, &tagEnricher{cardinality: types.LowCardinality}, hostname.Get, nil, nil),
-		loggingexporter.NewFactory(),
+		debugexporter.NewFactory(),
 	}
 
 	if logsAgentChannel != nil {

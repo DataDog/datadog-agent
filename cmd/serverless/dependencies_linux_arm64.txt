@@ -585,8 +585,6 @@ go.opentelemetry.io/collector/exporter/internal/common
 go.opentelemetry.io/collector/exporter/internal/experr
 go.opentelemetry.io/collector/exporter/internal/otlptext
 go.opentelemetry.io/collector/exporter/internal/queue
-go.opentelemetry.io/collector/exporter/loggingexporter
-go.opentelemetry.io/collector/exporter/loggingexporter/internal/metadata
 go.opentelemetry.io/collector/exporter/otlpexporter
 go.opentelemetry.io/collector/exporter/otlpexporter/internal/metadata
 go.opentelemetry.io/collector/extension
