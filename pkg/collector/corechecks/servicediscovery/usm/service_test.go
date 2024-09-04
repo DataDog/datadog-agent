@@ -16,8 +16,9 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 )
 
 const (
@@ -535,6 +536,24 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			envs:               map[string]string{"WSGI_APP": "test:app"},
 			expectedServiceTag: "test",
+		},
+		{
+			name: "gunicorn with replaced cmdline with colon",
+			cmdline: []string{
+				"gunicorn:",
+				"master",
+				"[domains.foo.apps.bar:create_server()]",
+			},
+			expectedServiceTag: "domains.foo.apps.bar",
+		},
+		{
+			name: "gunicorn with replaced cmdline",
+			cmdline: []string{
+				"gunicorn:",
+				"master",
+				"[mcservice]",
+			},
+			expectedServiceTag: "mcservice",
 		},
 	}
 

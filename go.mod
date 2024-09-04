@@ -162,8 +162,8 @@ require (
 	github.com/DataDog/watermarkpodautoscaler v0.6.1
 	github.com/DataDog/zstd v1.5.5
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
-	github.com/Masterminds/semver/v3 v3.2.1
-	github.com/Masterminds/sprig/v3 v3.2.3 // indirect
+	github.com/Masterminds/semver/v3 v3.3.0
+	github.com/Masterminds/sprig/v3 v3.3.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/Microsoft/hcsshim v0.12.5
 	github.com/acobaugh/osrelease v0.1.0
@@ -308,7 +308,7 @@ require (
 	golang.org/x/tools v0.24.0
 	golang.org/x/xerrors v0.0.0-20240716161551-93cc26a95ae9
 	google.golang.org/genproto v0.0.0-20240617180043-68d350f18fd4 // indirect
-	google.golang.org/grpc v1.65.0
+	google.golang.org/grpc v1.66.0
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.34.2
 	gopkg.in/DataDog/dd-trace-go.v1 v1.67.0
@@ -437,7 +437,7 @@ require (
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-5 // indirect
 	github.com/hashicorp/serf v0.10.1 // indirect
-	github.com/huandu/xstrings v1.4.0 // indirect
+	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/ianlancetaylor/demangle v0.0.0-20240312041847-bd984b5ce465 // indirect
 	github.com/in-toto/in-toto-golang v0.9.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
@@ -511,7 +511,7 @@ require (
 	github.com/secure-systems-lab/go-securesystemslib v0.8.0 // indirect
 	github.com/sergi/go-diff v1.3.1 // indirect
 	github.com/shibumi/go-pathspec v1.3.0 // indirect
-	github.com/shopspring/decimal v1.3.1 // indirect
+	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/smira/go-ftp-protocol v0.0.0-20140829150050-066b75c2b70d // indirect
 	github.com/spdx/tools-golang v0.5.4-0.20231108154018-0c0f394b5e1a // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
@@ -719,7 +719,7 @@ require (
 	github.com/kr/pretty v0.3.1
 	// todo: update datadog connector with breaking changes from https://github.com/DataDog/datadog-agent/pull/26347.
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.103.0
-	github.com/planetscale/vtprotobuf v0.6.0
+	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
 	github.com/prometheus-community/pro-bing v0.4.1
 	github.com/rickar/props v1.0.0
 	github.com/sijms/go-ora/v2 v2.8.19
@@ -748,7 +748,7 @@ require (
 	code.cloudfoundry.org/go-diodes v0.0.0-20240604201846-c756bfed2ed3 // indirect
 	code.cloudfoundry.org/go-loggregator v7.4.0+incompatible // indirect
 	code.cloudfoundry.org/rfc5424 v0.0.0-20201103192249-000122071b78 // indirect
-	dario.cat/mergo v1.0.0 // indirect
+	dario.cat/mergo v1.0.1 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 // indirect
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20230306123547-8075edf89bb0 // indirect
@@ -808,7 +808,7 @@ require (
 	github.com/elastic/go-licenser v0.4.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
-	github.com/envoyproxy/go-control-plane v0.12.0 // indirect
+	github.com/envoyproxy/go-control-plane v0.12.1-0.20240621013728-1eb8caab5155 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.0.4 // indirect
 	github.com/evanphx/json-patch/v5 v5.8.0 // indirect
 	github.com/expr-lang/expr v1.16.9 // indirect

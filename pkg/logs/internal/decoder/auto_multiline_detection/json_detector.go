@@ -23,6 +23,7 @@ func NewJSONDetector() *JSONDetector {
 func (j *JSONDetector) ProcessAndContinue(context *messageContext) bool {
 	if jsonRegexp.Match(context.rawMessage) {
 		context.label = noAggregate
+		context.labelAssignedBy = "JSON_detector"
 		return false
 	}
 	return true
