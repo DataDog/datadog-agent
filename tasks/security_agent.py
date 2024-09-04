@@ -253,10 +253,6 @@ def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=Non
     if static:
         flags.append("-static")
 
-    additional_flags = [f"-isystem/usr/include/{uname_m}-linux-gnu"]
-    if compiler == "clang":
-        additional_flags.append(f"-D__{uname_m}__")
-
     nw.build(
         inputs=[syscall_tester_c_file],
         outputs=[syscall_tester_exe_file],
@@ -264,7 +260,7 @@ def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=Non
         variables={
             "exeflags": flags,
             "exelibs": libs,
-            "flags": additional_flags,
+            "flags": [f"-isystem/usr/include/{uname_m}-linux-gnu"],
         },
     )
     return syscall_tester_exe_file
