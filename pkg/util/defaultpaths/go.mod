@@ -1,12 +1,12 @@
-module github.com/DataDog/datadog-agent/cmd/agent/common/path
+module github.com/DataDog/datadog-agent/pkg/util/defaultpaths
 
 go 1.22.0
 
 replace (
-	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../pkg/util/executable
-	github.com/DataDog/datadog-agent/pkg/util/log => ../../../../pkg/util/log
-	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../../pkg/util/scrubber
-	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
+	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../pkg/util/executable
+	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../pkg/util/scrubber
+	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../pkg/util/winutil
 )
 
 require (
