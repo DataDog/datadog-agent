@@ -5,7 +5,7 @@
 
 //go:build (linux && !linux_bpf) || (windows && !npm) || (!linux && !windows)
 
-//nolint:revive // TODO(NET) Fix revive linter
+// Package tracer implements the functionality of the network tracer
 package tracer
 
 import (
