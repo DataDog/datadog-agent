@@ -117,11 +117,11 @@ func updateCPUUsageStats(proc *process.Process, info *serviceInfo, lastGlobalCPU
 		return 0, err
 	}
 
-	process_time_delta := float64(usrTime + sysTime - info.cpuTime)
-	global_time_delta := float64(currentGlobalCPUTime - lastGlobalCPUTime)
-	cpu_usage := process_time_delta / global_time_delta * float64(runtime.NumCPU())
+	processTimeDelta := float64(usrTime + sysTime - info.cpuTime)
+	globalTimeDelta := float64(currentGlobalCPUTime - lastGlobalCPUTime)
+	cpuUsage := processTimeDelta / globalTimeDelta * float64(runtime.NumCPU())
 
 	info.cpuTime = usrTime + sysTime
 
-	return cpu_usage, nil
+	return cpuUsage, nil
 }

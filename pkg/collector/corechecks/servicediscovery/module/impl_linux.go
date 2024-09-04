@@ -221,7 +221,7 @@ func getNsInfo(pid int) (*namespaceInfo, error) {
 type parsingContext struct {
 	procRoot      string
 	netNsInfo     map[uint32]*namespaceInfo
-	globalCpuTime uint64
+	globalCPUTime uint64
 }
 
 // getServiceInfo gets the service information for a process using the
@@ -363,7 +363,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		nameSource = "provided"
 	}
 
-	cpu, err := updateCPUUsageStats(proc, info, s.lastGlobalCPUTime, context.globalCpuTime)
+	cpu, err := updateCPUUsageStats(proc, info, s.lastGlobalCPUTime, context.globalCPUTime)
 	if err != nil {
 		return nil
 	}
@@ -413,7 +413,7 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 	context := parsingContext{
 		procRoot:      procRoot,
 		netNsInfo:     make(map[uint32]*namespaceInfo),
-		globalCpuTime: globalCPUTime,
+		globalCPUTime: globalCPUTime,
 	}
 
 	var services []model.Service
@@ -431,7 +431,7 @@ func (s *discovery) getServices() (*[]model.Service, error) {
 	}
 
 	s.cleanCache(alivePids)
-	s.lastGlobalCPUTime = context.globalCpuTime
+	s.lastGlobalCPUTime = context.globalCPUTime
 
 	return &services, nil
 }
