@@ -120,6 +120,11 @@ BPF_ARRAY_MAP(telemetry, telemetry_t, 1)
  */
 BPF_HASH_MAP(pending_tcp_retransmit_skb, __u64, tcp_retransmit_skb_args_t, 8192)
 
+/*
+     TODO: DOCSTRING
+*/
+BPF_HASH_MAP(pending_tcp_connect, __u64, skp_conn_tuple_t, 8192)
+
 // Used to store ip(6)_make_skb args to be used in the
 // corresponding kretprobes
 BPF_HASH_MAP(ip_make_skb_args, __u64, ip_make_skb_args_t, 1024)

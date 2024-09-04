@@ -975,27 +975,43 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_connect, struct sock *skp) {
         return 0;
     }
 
-    skp_conn_tuple_t skp_conn = {};
-    skp_conn.sk = skp;
-    skp_conn.tup = t;
+    skp_conn_tuple_t skp_conn = {.sk = skp, .tup = t};
+    bpf_map_update_elem(&pending_tcp_connect, &pid_tgid, &skp_conn, BPF_ANY);
 
-    u64 *existing_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn);
+    return 0;
+}
+
+SEC("kretprobe/tcp_connect")
+int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_connect, int rc) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    log_debug("kretprobe/tcp_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    if (rc < 0) {
+        bpf_map_delete_elem(&pending_tcp_connect, &pid_tgid);
+        return 0;
+    }
+
+    skp_conn_tuple_t *skp_conn = bpf_map_lookup_elem(&pending_tcp_connect, &pid_tgid);
+    if (skp_conn == NULL) {
+        return 0;
+    }
+
+    bpf_map_delete_elem(&pending_tcp_connect, &pid_tgid);
+    skp_conn_tuple_t skp_conn_val = *skp_conn;
+
+    u64 *existing_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn_val);
     if (existing_pid) {
         if (*existing_pid == pid_tgid) {
-            log_debug("adamk kprobe/tcp_connect: ongoing connect already exists, pid: %llu", *existing_pid);
+            log_debug("adamk kretprobe/tcp_connect: ongoing connect already exists, pid: %llu", *existing_pid);
             increment_telemetry_count(tcp_connect_pid_match);
         } else {
-            log_debug("adamk kprobe/tcp_connect: ongoing connect already exists, pid: %llu", *existing_pid);
+            log_debug("adamk kretprobe/tcp_connect: ongoing connect already exists, pid: %llu", *existing_pid);
             increment_telemetry_count(tcp_connect_pid_mismatch);
         }
     }
-    if (get_proto(&t) != CONN_TYPE_TCP) {
-        log_debug("adamk kprobe/tcp_connect: non TCP sk_protocol");
-    }
 
     if (tcp_failed_connections_enabled()) {
-        bpf_map_update_with_telemetry(tcp_ongoing_connect_tuple, &skp, &t, BPF_NOEXIST);
-        bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp_conn, &pid_tgid, BPF_NOEXIST);
+        bpf_map_update_with_telemetry(tcp_ongoing_connect_tuple, &skp_conn_val.sk, &skp_conn_val.tup, BPF_NOEXIST);
+        bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp_conn_val, &pid_tgid, BPF_NOEXIST);
     }
 
     return 0;
