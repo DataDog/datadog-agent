@@ -40,7 +40,7 @@ type eventPayload struct {
 	PID                 int      `json:"pid"`
 	CommandLine         []string `json:"command_line"`
 	RSSMemory           uint64   `json:"rss_memory"`
-	CPUUsage            float64  `json:"cpu_usage"`
+	CPUUsage            float64  `json:"cpu_cores"`
 }
 
 type event struct {
